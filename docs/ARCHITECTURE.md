@@ -52,7 +52,8 @@ et explicite.
 Dans Notes, la page Server charge une note et transmet `saveNote` au composant
 `NoteEditor`. Le composant traite chaque frappe localement. À Entrée, il appelle
 la référence de `saveNote` ; le framework encode l’appel via Flight, l’envoie au
-Server, reçoit le résultat, puis invalide la route montée via TanStack Router.
+Server et reçoit le résultat ; sur un succès, `NoteEditor` invalide la route montée
+via TanStack Router pour afficher la nouvelle version.
 SQLite reste côté Server. La navigation est décrite dans [ROUTER.md](ROUTER.md).
 
 ## Deux formes de distribution

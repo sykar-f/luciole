@@ -168,7 +168,8 @@ export class Application {
       : undefined;
     try {
       const tree = await this.transport.render(routeId, params, load.signal);
-      this.report("Connected");
+      // A superseded load may still answer; only the current one reports status.
+      if (!load.signal.aborted) this.report("Connected");
       return tree;
     } catch (e) {
       if (load.signal.aborted) throw e; // superseded: TanStack discards this load
@@ -191,9 +192,7 @@ export class Application {
     try {
       const value = await this.transport.call(id, args);
       this.report("Connected");
-      // Refresh the mounted route separately; a pending navigation loads fresh data
-      // anyway. A failed refresh never rejects the committed business result.
-      if (this.router.state.status !== "pending") void this.router.invalidate().catch(() => {});
+      // No automatic refresh: the code that mutates calls router.invalidate().
       return value;
     } catch (e) {
       if (e instanceof BuildMismatch) this.purge();

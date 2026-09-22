@@ -83,7 +83,8 @@ ou approuver un déploiement. L'action journalise `getCallId()` pour la corréla
 transport, mais utilise un identifiant métier distinct pour l'idempotence.
 
 Pendant l'action retardée, saisie, hover et scroll de l'écran restent actifs. Après
-succès, le refresh automatique actualise l'état. Un refresh manuel conserve le
+succès, le composant qui a déclenché la mutation appelle `router.invalidate()` ; les
+lectures par Server Function ne rafraîchissent rien. Un refresh manuel conserve le
 composant monté ; un échec de refresh ne transforme pas la mutation confirmée en
 échec.
 

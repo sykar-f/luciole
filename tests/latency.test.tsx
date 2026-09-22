@@ -53,14 +53,23 @@ test("500 ms RTT delays Flight and actions while input, hover and scroll stay lo
     });
     await ui.renderOnce();
     expect(ui.captureCharFrame()).toContain("Hover active (local)");
+    // A read-only Server Function does not refresh the page.
     await act(async () => {
-      await until(() => app.router.state.matches.some((m: any) => m.isFetching));
+      await Bun.sleep(600);
     });
+    await ui.renderOnce();
+    expect(ui.captureCharFrame()).toContain("Server replied in");
     expect(performance.now() - actionStart).toBeGreaterThanOrEqual(480);
-    // Let the automatic delayed refresh finish before counting server traffic.
+    expect(await counts()).toEqual({ renders: before.renders, actions: before.actions + 1 });
+    // An explicit refresh is delayed too, and keeps the mounted input.
+    const refreshStart = performance.now();
+    const fetching = () => app.router.state.matches.some((m: any) => m.isFetching);
     await act(async () => {
-      await until(() => !app.router.state.matches.some((m: any) => m.isFetching));
+      // The mounted page revalidates in the background.
+      await app.refresh();
+      await until(() => !fetching());
     });
+    expect(performance.now() - refreshStart).toBeGreaterThanOrEqual(480);
     expect(await counts()).toEqual({ renders: before.renders + 1, actions: before.actions + 1 });
     expect(field.value).toBe("abc");
     expect(ui.renderer.root.findDescendantById("latency-input")).toBe(field);

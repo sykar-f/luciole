@@ -85,6 +85,14 @@ attendues et que les fichiers des exemples sont à jour. Le bundle Client résou
   `shouldReload` renvoie `false` pour cette seule location et `undefined` sinon, ce
   qui laisse intactes les règles de fraîcheur de TanStack. Un layout quitté par la
   navigation en attente est remonté (son état local repart de zéro), comme la page.
+- **Invalidation explicite** : aucune Server Function ne rafraîchit automatiquement.
+  Le code Client qui mute appelle `router.invalidate()` sans l'attendre (option B,
+  alignée sur TanStack Start). Les lectures ne coûtent donc aucun rendu. Alternative
+  écartée pour l'instant : une invalidation déclarée par le Server dans l'enveloppe de
+  réponse (modèle `revalidatePath` de Next.js), à reconsidérer si les appels
+  `invalidate()` se dupliquent entre composants.
+- **Statut** : seul le chargement courant publie le statut de connexion ; une réponse
+  d'un chargement abandonné n'écrase jamais « Disconnected ».
 - **Purge différée** : un commit remet la route quittée dans le cache ; une purge
   demandée pendant une navigation est répétée à `onResolved`.
 - **`<Link>`** n'est pas exposé : il rend une ancre DOM.

@@ -4,6 +4,7 @@ import { useKeyboard } from "@opentui/react";
 import {
   useDraft,
   useNavigate,
+  useRouter,
   type Note,
   type Snapshot,
   type SaveResult,
@@ -15,11 +16,20 @@ type Props = {
 };
 export function NoteEditor({ initialNote, saveAction, resolveAction }: Props) {
   const { draft, edit, save, recover, discard } = useDraft(initialNote),
-    navigate = useNavigate();
+    navigate = useNavigate(),
+    router = useRouter();
+  // A committed save changes Server data: refresh the page (title, version). Not awaited,
+  // so a failed refresh never turns the confirmed result into a failure.
+  const refreshAfter = <T extends SaveResult | null>(result: T): T => {
+    if (result?.ok) void router.invalidate().catch(() => {});
+    return result;
+  };
+  const saveAndRefresh = async (snapshot: Snapshot) => refreshAfter(await saveAction(snapshot));
+  const resolveAndRefresh = async (id: string) => refreshAfter(await resolveAction(id));
   useKeyboard((key) => {
     if (key.name === "escape") void navigate({ to: "/" });
-    if (key.ctrl && key.name === "s") void save(saveAction);
-    if (key.ctrl && key.name === "o") void recover(resolveAction);
+    if (key.ctrl && key.name === "s") void save(saveAndRefresh);
+    if (key.ctrl && key.name === "o") void recover(resolveAndRefresh);
     if (key.ctrl && key.name === "d" && !draft.pending) discard();
   });
   return (
@@ -31,7 +41,7 @@ export function NoteEditor({ initialNote, saveAction, resolveAction }: Props) {
           focused
           value={draft.value}
           onInput={edit}
-          onSubmit={() => void save(saveAction)}
+          onSubmit={() => void save(saveAndRefresh)}
           placeholder="Write a note…"
         />
       }

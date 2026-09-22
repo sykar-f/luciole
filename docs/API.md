@@ -38,10 +38,23 @@ stocker et renouveler ce token.
 
 Une action vérifie les droits et valide ses arguments côté Server. Les échecs
 métier attendus sont des valeurs `SaveResult`. Une erreur réseau, timeout ou réponse
-inexploitable rend l’issue inconnue. Après réponse métier, le framework appelle
-`router.invalidate()` pour la route montée, sauf si une navigation est en cours
-(sa destination charge de toute façon des données fraîches). Le résultat de
-l’action est acquis avant cette invalidation et reste acquis si elle échoue.
+inexploitable rend l’issue inconnue.
+
+Le framework ne rafraîchit rien après une Server Function : une lecture
+(`getOperation`, identité publique, recherche) ne coûte aucun rendu de page. Le code
+Client qui déclenche une mutation confirmée invalide lui-même, sans attendre :
+
+```tsx
+const router = useRouter();
+const result = await saveAction(snapshot);
+if (result.ok) void router.invalidate().catch(() => {});
+```
+
+Sans `await`, le résultat métier est acquis avant le refresh et ne dépend jamais de
+son succès. Une invalidation pendant une navigation relance le chargement de la
+destination, qui reçoit alors des données postérieures au commit. Oublier
+l'invalidation laisse l'écran sur les données précédentes : c'est la responsabilité
+de l'application, comme dans TanStack Start.
 
 Les fonctions `createApplication`, `Shell`, `serve` et `build` servent au CLI,
 aux tests et aux intégrateurs du framework. Le résolveur de modules est une fonction

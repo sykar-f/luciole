@@ -128,13 +128,13 @@ test("local route loading, cancel, refresh identity, failed navigation and super
       await refreshing;
     });
     expect(ui.renderer.root.findDescendantById("note-1")).toBe(field);
-    // A save may finish while the old editor is replaced by a navigation.
+    // A save confirmed during a navigation: the editor's refresh restarts the destination.
     const saving = hold();
     await act(async () => {
       await ui.mockInput.pressEnter();
     });
     const draft = app.drafts.get({ id: "1" });
-    const failure = hold();
+    const held = hold();
     await act(async () => {
       navigation = app.router.navigate({ to: "/notes/2" });
     });
@@ -143,24 +143,35 @@ test("local route loading, cancel, refresh identity, failed navigation and super
     await act(async () => {
       saving.resolve();
       await until(() => !draft.pending);
+      await until(() => app.router.state.status === "idle");
     });
+    expect(held.signal?.aborted).toBe(true);
+    expect(resolved()).toBe("/notes/2");
     expect(draft.version).toBe(2);
-    // A failed navigation shows its error in the page slot; layouts stay mounted.
     await act(async () => {
+      held.resolve(); // the superseded response is ignored
+      await navigation;
+    });
+    expect(resolved()).toBe("/notes/2");
+    // A failed navigation shows its error in the page slot; layouts stay mounted.
+    const failure = hold();
+    await act(async () => {
+      navigation = app.router.navigate({ to: "/notes/1" });
       failure.reject(new Error("offline"));
       await navigation;
       await until(() => app.router.state.status === "idle");
     });
     await ui.renderOnce();
-    expect(resolved()).toBe("/notes/2");
+    expect(resolved()).toBe("/notes/1");
     expect(ui.captureCharFrame()).toContain("offline · Ctrl+R to retry");
     expect(ui.captureCharFrame()).toContain("Personal notebook");
     expect(app.status).toBe("Disconnected");
     expect(draft.version).toBe(2);
     expect(draft.baseline).toBe("draft!");
-    // The Draft outlives its unmounted editor.
+    // Ctrl+R retries the destination; the Draft outlives its unmounted editor.
     await act(async () => {
-      await app.router.navigate({ to: "/notes/1" });
+      await app.refresh();
+      await until(() => !!ui.renderer.root.findDescendantById("note-1"));
     });
     expect(ui.renderer.root.findDescendantById("note-1").value).toBe("draft!");
     // The latest navigation wins over a slower refresh that fails later.
