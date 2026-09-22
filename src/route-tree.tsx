@@ -181,7 +181,7 @@ function Frame({ children }: { children: ReactNode }) {
   return (
     <box flexDirection="column" flexGrow={1} padding={1} gap={1}>
       <text id="terminal-heading" height={1} flexShrink={0} wrapMode="none" truncate fg="#67d9bc">
-        TERMINAL / NOTES · {app.status}
+        TERMINAL / {app.options.title ?? "APP"} · {app.status}
         {activity === "refresh" ? " · Refreshing…" : ""}
         {activity === "navigate" ? " · Esc cancel" : ""}
       </text>

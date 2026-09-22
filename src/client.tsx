@@ -52,6 +52,8 @@ export type ApplicationOptions = {
   /** Replaces the HTTP/Flight transport. */
   transport?: Transport;
   initialPath?: string;
+  /** Shown in the framework heading; the build passes the application directory name. */
+  title?: string;
 };
 
 // TanStack scroll restoration calls the global scrollTo() after every rendered load.
