@@ -33,8 +33,13 @@ Entrée `@terminal/framework/server` :
 - `getCallId()` : identifiant de requête de transport, distinct de l’opération métier.
 
 `useApplication().setToken(token)` remplace le bearer token des requêtes suivantes,
-sans recréer le Client ni perdre son état local. L’application décide où obtenir,
-stocker et renouveler ce token.
+sans recréer le Client ni perdre son état local d'interface. Il vide le `DraftStore` :
+une autre identité ne doit ni voir ni publier sous son nom le travail non sauvegardé
+de la précédente. `setToken(token, { preserveDrafts: true })` renouvelle le bearer
+d'une même identité sans perdre ses Drafts. Un écran encore monté recrée ses Drafts
+(propres) depuis ses props : à la déconnexion, naviguer d'abord vers la route
+publique, puis changer le bearer. L’application décide où obtenir, stocker et
+renouveler ce token ; `drafts.unsaved()` lui permet de prévenir avant la perte.
 
 Une action vérifie les droits et valide ses arguments côté Server. Les échecs
 métier attendus sont des valeurs `SaveResult`. Une erreur réseau, timeout ou réponse

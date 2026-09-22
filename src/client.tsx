@@ -132,10 +132,15 @@ export class Application {
     this.error = error;
     this.notify();
   }
-  /** Replaces the bearer for later requests and drops every cached private tree. */
-  setToken = (token?: string) => {
+  /**
+   * Replaces the bearer for later requests and drops every cached private tree and
+   * every Draft: another identity must not inherit them. `preserveDrafts` is for
+   * renewing the bearer of the same identity.
+   */
+  setToken = (token?: string, options: { preserveDrafts?: boolean } = {}) => {
     this.transport.setToken(token);
     this.purge();
+    if (!options.preserveDrafts) this.drafts.clear();
   };
   private purge() {
     this.router.clearCache();

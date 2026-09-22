@@ -70,3 +70,22 @@ test("bounded store retains dirty entries, evicts clean entries, refuses overflo
   expect(store.get(note("1"))).toBe(a);
   expect(() => store.get(note("4"))).toThrow("capacity");
 });
+test("unsaved work is listed and clear forgets every Draft", () => {
+  const store = new DraftStore(4);
+  const clean = store.get(note("1"));
+  const dirty = store.get(note("2"));
+  dirty.edit("typed by alice");
+  const pending = store.get(note("3"));
+  pending.begin();
+  expect(store.unsaved()).toEqual([dirty, pending]);
+  expect(store.size).toBe(3);
+  let notified = 0;
+  store.subscribe(() => notified++);
+  store.clear();
+  expect(notified).toBe(1);
+  expect(store.size).toBe(0);
+  expect(store.unsaved()).toEqual([]);
+  // The same document identity now starts from the Server value, not the old Draft.
+  expect(store.get(note("2", "server", 1)).value).toBe("server");
+  expect(store.get(note("1"))).not.toBe(clean);
+});

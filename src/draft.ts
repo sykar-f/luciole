@@ -116,6 +116,21 @@ export class DraftStore {
     }
     return draft;
   }
+  get size() {
+    return this.entries.size;
+  }
+  /** Drafts whose loss would lose work: dirty, in flight or with an unknown outcome. */
+  unsaved() {
+    return [...this.entries.values()].filter((d) => d.dirty || d.pending);
+  }
+  /**
+   * Forgets every Draft. Drafts belong to the identity that typed them: a new bearer
+   * must never show, or submit under its own name, another account's unsaved work.
+   */
+  clear() {
+    this.entries.clear();
+    this.changed();
+  }
   subscribe = (f: () => void) => {
     this.listeners.add(f);
     return () => {
