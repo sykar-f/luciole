@@ -103,7 +103,8 @@ export function serve(config: ServerConfig) {
               : undefined,
           });
         const callId = req.headers.get("x-terminal-call") ?? crypto.randomUUID();
-        return context.run({ session, callId }, async () => {
+        // Awaited: a rejection must reach the generic 500 below, never Bun's error page.
+        return await context.run({ session, callId }, async () => {
           if (url.pathname === "/render" && req.method === "GET") {
             const route = config.routes.get(url.searchParams.get("route") ?? "");
             if (!route) return new Response("Route not found", { status: 404 });

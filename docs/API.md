@@ -38,7 +38,9 @@ stocker et renouveler ce token.
 
 Une action vérifie les droits et valide ses arguments côté Server. Les échecs
 métier attendus sont des valeurs `SaveResult`. Une erreur réseau, timeout ou réponse
-inexploitable rend l’issue inconnue.
+inexploitable rend l’issue inconnue. Une exception levée par une Server Function
+répond un `500` générique (« Server request failed ») : ni message, ni stack, ni
+chemin ne quittent le Server ; le Client la traite comme une issue inconnue.
 
 Le framework ne rafraîchit rien après une Server Function : une lecture
 (`getOperation`, identité publique, recherche) ne coûte aucun rendu de page. Le code
