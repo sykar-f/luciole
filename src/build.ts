@@ -20,7 +20,7 @@ type Module = {
   actionExports: string[];
 };
 type RouteAuth = "public" | "required";
-export async function build(directory: string, output = join(directory, ".terminal")) {
+export async function build(directory: string, output = join(directory, ".airtty")) {
   const root = await realpath(directory),
     modules = new Map<string, Module>();
   const fail = (m: Module, n: ts.Node, message: string): never => {
@@ -235,14 +235,14 @@ export async function build(directory: string, output = join(directory, ".termin
     for (const i of m.imports) {
       if (
         i.name === "server-only" ||
-        i.name === "@terminal/framework/server" ||
+        i.name === "airtty/server" ||
         /^(node:|bun:)/.test(i.name) ||
         (i.path && relative(root, i.path).split("/").includes("server"))
       )
         fail(m, i.node, `Server-only import in Client graph: ${i.name}`);
       if (i.path) clientVisit(i.path);
       else if (
-        !["react", "react/jsx-runtime", "@terminal/framework/client"].includes(i.name) &&
+        !["react", "react/jsx-runtime", "airtty/client"].includes(i.name) &&
         !i.name.startsWith("@opentui/")
       )
         fail(
@@ -335,19 +335,16 @@ export async function build(directory: string, output = join(directory, ".termin
         conditions: role === "server" ? ["react-server"] : [],
         plugins: [
           {
-            name: "terminal-boundaries",
+            name: "airtty-boundaries",
             setup(b) {
-              b.onResolve(
-                { filter: /^@terminal\/framework\/(client|server|route-tree)$/ },
-                (a) => ({
-                  path: join(
-                    framework,
-                    { client: "client.tsx", server: "server.ts", "route-tree": "route-tree.tsx" }[
-                      a.path.slice("@terminal/framework/".length)
-                    ]!,
-                  ),
-                }),
-              );
+              b.onResolve({ filter: /^airtty\/(client|server|route-tree)$/ }, (a) => ({
+                path: join(
+                  framework,
+                  { client: "client.tsx", server: "server.ts", "route-tree": "route-tree.tsx" }[
+                    a.path.slice("airtty/".length)
+                  ]!,
+                ),
+              }));
               // Bun's "bun" export condition selects TanStack's server build, which skips
               // the Client transition machinery; the terminal Client is a browser-like runtime.
               if (role === "client") {

@@ -33,7 +33,7 @@ test("anonymous start redirects to the public login; a bad PIN stays there", asy
     expect(typed("login-pin")).toBe("1234");
     // Public action, protected everything else: a protected read is refused.
     const raw = await fetch(`${forge.server.url}/render?route=%2F(app)&params=%7B%7D`, {
-      headers: { "x-terminal-build": forge.server.buildId },
+      headers: { "x-airtty-build": forge.server.buildId },
     });
     expect(raw.status).toBe(401);
   } finally {

@@ -38,7 +38,7 @@ const SCRIPTS: Record<CheckName, { steps: readonly Step[]; failure: readonly Ste
       [700, "Compiling route graph (12 routes)"],
       [1600, "Bundling server artefact…"],
       [2600, "Bundling client artefact…"],
-      [3400, "Build ready: .terminal/client, .terminal/server"],
+      [3400, "Build ready: .airtty/client, .airtty/server"],
     ],
     failure: [[3400, "error: Server-only import in Client graph: bun:sqlite"]],
   },

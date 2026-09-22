@@ -2,7 +2,7 @@
 
 Forge est une forge de code review dans le terminal : dépôts, pull requests, diffs
 colorés, commentaires ligne à ligne, CI avec logs en direct, merge. Elle exerce dans
-un seul flux métier les capacités de Terminal RSC, d'OpenTUI et de TanStack Router,
+un seul flux métier les capacités de airtty, d'OpenTUI et de TanStack Router,
 et elle a servi à pousser le framework au-delà de son contrat : ce qu'elle a cassé
 est corrigé, testé et documenté ci-dessous.
 
@@ -14,13 +14,13 @@ choisi pour ses gros volumes, ses nombreux Drafts et sa mutation non rejouable (
 
 ```sh
 bun run forge                           # dev ; importe aussi les 8 derniers commits de ce dépôt
-TERMINAL_LATENCY_MS=500 bun run forge   # la même chose sous 500 ms de RTT par requête
+AIRTTY_LATENCY_MS=500 bun run forge   # la même chose sous 500 ms de RTT par requête
 ```
 
 La base `forge.sqlite` est créée dans le répertoire courant (`FORGE_DB` pour en
 choisir une autre) avec des données déterministes. Sans `FORGE_GIT_REPO`, seuls les
 dépôts synthétiques `payments` et `web` existent ; `bun run forge` le positionne sur
-ce checkout, qui devient le dépôt `terminal-rsc` : la démo revoit le code du framework.
+ce checkout, qui devient le dépôt `airtty` : la démo revoit le code du framework.
 
 Production, deux artefacts :
 
@@ -58,7 +58,7 @@ du texte. `components/editing.tsx` porte ce mode.
 Dans un second terminal, `bun run forge:operator` joue le second opérateur (même
 `FORGE_DB` que le Server).
 
-1. **Latence.** Lancer avec `TERMINAL_LATENCY_MS=500`. Se connecter `bob`. Dans
+1. **Latence.** Lancer avec `AIRTTY_LATENCY_MS=500`. Se connecter `bob`. Dans
    l'inbox, `/` puis taper : le filtre répond à chaque frappe, sans réseau. Survoler
    et faire défiler à la souris.
 2. **Préchargement.** Descendre sur une PR, attendre une demi-seconde, Entrée :

@@ -2,15 +2,15 @@
 """Real production Client PTY. Isolated DB, delayed Server, output observation (not photon latency)."""
 import pyte
 import os, pty, select, subprocess, tempfile, time, json, fcntl, termios, struct, pathlib, shutil, argparse
-parser=argparse.ArgumentParser();parser.add_argument('--url');parser.add_argument('--client',default='examples/notes/.terminal/client/index.js');args=parser.parse_args()
+parser=argparse.ArgumentParser();parser.add_argument('--url');parser.add_argument('--client',default='examples/notes/.airtty/client/index.js');args=parser.parse_args()
 root=pathlib.Path(__file__).resolve().parents[1]
 bun=shutil.which('bun');env={**os.environ,'TERM':'xterm-256color','NODE_ENV':'production'}
-with tempfile.TemporaryDirectory(prefix='terminal-pty-') as directory:
+with tempfile.TemporaryDirectory(prefix='airtty-pty-') as directory:
  server=None;master=None;client=None
  try:
   if args.url:url=args.url
   else:
-   server=subprocess.Popen([bun,'--conditions=react-server',str(root/'examples/notes/.terminal/server/index.js')],env={**env,'PORT':'0','NOTES_DB':directory+'/notes.sqlite','NOTES_DELAY_MS':env.get('NOTES_DELAY_MS','700'),'TERMINAL_TEST':'1'},stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+   server=subprocess.Popen([bun,'--conditions=react-server',str(root/'examples/notes/.airtty/server/index.js')],env={**env,'PORT':'0','NOTES_DB':directory+'/notes.sqlite','NOTES_DELAY_MS':env.get('NOTES_DELAY_MS','700'),'AIRTTY_TEST':'1'},stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
    ready=json.loads(server.stdout.readline());url='http://127.0.0.1:'+str(ready['port'])
   master,slave=pty.openpty();fcntl.ioctl(slave,termios.TIOCSWINSZ,struct.pack('HHHH',28,110,0,0))
   before=termios.tcgetattr(slave)
@@ -36,9 +36,9 @@ with tempfile.TemporaryDirectory(prefix='terminal-pty-') as directory:
   navigation_start=time.monotonic();os.write(master,b'\r');loading_ms=None;loading_rows=None
   def layout_rows():
    return [next(i for i,line in enumerate(screen.display) if marker in line) for marker in ['Personal notebook','┌','└','Ctrl+R reconnect']]
-  if int(env.get('TERMINAL_LATENCY_MS','0'))>=400:
+  if int(env.get('AIRTTY_LATENCY_MS','0'))>=400:
    wait_for(b'Opening note 1');loading_ms=(time.monotonic()-navigation_start)*1000
-   assert loading_ms<int(env['TERMINAL_LATENCY_MS'])*.8,loading_ms
+   assert loading_ms<int(env['AIRTTY_LATENCY_MS'])*.8,loading_ms
    loading_rows=layout_rows()
   wait_for(b'baseline:');captured=b''
   if loading_rows is not None:assert layout_rows()==loading_rows,(loading_rows,layout_rows())
@@ -63,7 +63,7 @@ with tempfile.TemporaryDirectory(prefix='terminal-pty-') as directory:
     except OSError: break
   client.wait(timeout=1);assert client.returncode==0,client.returncode
   after=termios.tcgetattr(slave);assert before==after,'terminal attributes not restored'
-  result={'productionPTY':True,'navigationLoadingToPTYOutputMs':round(loading_ms,2) if loading_ms is not None else None,'stableLoadingLayout':loading_rows is not None,'saveWhileTyping':True,'draftAcrossNavigation':True,'typingToPTYOutputMs':round(local_ms,2),'simulatedRTTMs':int(env.get('TERMINAL_LATENCY_MS','0')),'serverDelayMs':int(env.get('NOTES_DELAY_MS','700')) if server else 'remote configuration','offlineEditing':bool(server),'terminalRestored':True,'transport':'external Server (topology supplied by caller)' if args.url else 'loopback','physicalDisplayLatencyMeasured':False}
+  result={'productionPTY':True,'navigationLoadingToPTYOutputMs':round(loading_ms,2) if loading_ms is not None else None,'stableLoadingLayout':loading_rows is not None,'saveWhileTyping':True,'draftAcrossNavigation':True,'typingToPTYOutputMs':round(local_ms,2),'simulatedRTTMs':int(env.get('AIRTTY_LATENCY_MS','0')),'serverDelayMs':int(env.get('NOTES_DELAY_MS','700')) if server else 'remote configuration','offlineEditing':bool(server),'terminalRestored':True,'transport':'external Server (topology supplied by caller)' if args.url else 'loopback','physicalDisplayLatencyMeasured':False}
   print(json.dumps(result,indent=2))
  finally:
   if client and client.poll() is None:

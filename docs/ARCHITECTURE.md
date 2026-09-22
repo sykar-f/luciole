@@ -1,7 +1,7 @@
 # Structure et distribution
 
-Le dépôt contient **un framework** et **une application exemple**, sans dépendance
-sur TWP. L’application est une codebase unique ; son build produit deux programmes.
+Le dépôt contient **un framework** et **une application exemple**.
+L’application est une codebase unique ; son build produit deux programmes.
 
 ## Le framework que nous développons
 
@@ -58,8 +58,8 @@ SQLite reste côté Server. La navigation est décrite dans [ROUTER.md](ROUTER.m
 
 ## Deux formes de distribution
 
-**Pour l’auteur d’application**, le produit est le package `@terminal/framework` :
-CLI `terminal`, entrées `/client`, `/server`, `/build` et configuration `/tsconfig`.
+**Pour l’auteur d’application**, le produit est le package `airtty` :
+CLI `airtty`, entrées `/client`, `/server`, `/build` et configuration `/tsconfig`.
 Aujourd’hui il est privé et local ; le starter utilise une dépendance `file:` vers
 le checkout. La publication sur un registre et le nom définitif restent à faire.
 Les outils TypeScript/Oxc accompagnent le développement.
@@ -68,9 +68,9 @@ Les outils TypeScript/Oxc accompagnent le développement.
 
 ```text
 sources de l’application + framework
-                 │ terminal build
-                 ├── .terminal/server/ → machine qui exécute le métier et garde la base
-                 └── .terminal/client/ → terminal de l’utilisateur
+                 │ airtty build
+                 ├── .airtty/server/ → machine qui exécute le métier et garde la base
+                 └── .airtty/client/ → terminal de l’utilisateur
                                           │
                                           └── HTTP/Flight vers un Server compatible
 ```

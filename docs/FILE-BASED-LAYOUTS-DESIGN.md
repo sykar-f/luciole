@@ -84,7 +84,7 @@ TanStack distingue les pathless layouts préfixés par `_`, qui enveloppent leur
 descendants, des groupes `(name)`, qui ne changent ni l'URL ni l'arbre rendu
 ([Routing concepts](https://tanstack.com/router/latest/docs/routing/routing-concepts),
 [File-based routing](https://tanstack.com/router/latest/docs/routing/file-based-routing)).
-Terminal RSC utilise déjà les conventions Next-like `layout.tsx`, `page.tsx` et
+airtty utilise déjà les conventions Next-like `layout.tsx`, `page.tsx` et
 `[param]` : `(group)/layout.tsx` conserve cette cohérence. Le groupe seul organise ;
 c'est le fichier `layout.tsx` qui ajoute l'enveloppe.
 
@@ -140,7 +140,7 @@ génération des deux bundles.
 Leur runtime Client, leur historique, leurs hooks et leur intégration bundler ne se
 branchent pas sur la seam actuelle. L'adapter serait presque aussi complexe que le
 petit compilateur interne et introduirait une seconde autorité sur la navigation.
-Le gain net est négatif tant que Terminal RSC ne prend en charge que les segments
+Le gain net est négatif tant que airtty ne prend en charge que les segments
 statiques et `[param]`.
 
 ## Module et locality

@@ -1,4 +1,4 @@
 node_modules/
-.terminal/
+.airtty/
 *.sqlite*
 *.log

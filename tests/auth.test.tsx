@@ -15,7 +15,7 @@ async function authFixture(directory: string) {
 }
 
 test("public and protected routes and actions use the application auth adapter", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "terminal-auth-"));
+  const directory = await mkdtemp(join(tmpdir(), "airtty-auth-"));
   let server: Awaited<ReturnType<typeof launch>> | undefined;
   try {
     await authFixture(directory);
@@ -25,7 +25,7 @@ test("public and protected routes and actions use the application auth adapter",
     );
     await Bun.write(
       join(directory, "app/page.tsx"),
-      `import {getSession} from "@terminal/framework/server";import {Actions} from "../components/Actions";export default function Page(){return <box flexDirection="column"><text>PRIVATE {getSession().userId}</text><Actions/></box>}`,
+      `import {getSession} from "airtty/server";import {Actions} from "../components/Actions";export default function Page(){return <box flexDirection="column"><text>PRIVATE {getSession().userId}</text><Actions/></box>}`,
     );
     await Bun.write(
       join(directory, "app/login/page.tsx"),
@@ -33,7 +33,7 @@ test("public and protected routes and actions use the application auth adapter",
     );
     await Bun.write(
       join(directory, "app/public/page.tsx"),
-      `import {getOptionalSession} from "@terminal/framework/server";export const auth="public" as const;export default function Page(){return <text>PUBLIC {getOptionalSession()?.userId??"guest"}</text>}`,
+      `import {getOptionalSession} from "airtty/server";export const auth="public" as const;export default function Page(){return <text>PUBLIC {getOptionalSession()?.userId??"guest"}</text>}`,
     );
     await Bun.write(
       join(directory, "components/Actions.tsx"),
@@ -41,20 +41,20 @@ test("public and protected routes and actions use the application auth adapter",
     );
     await Bun.write(
       join(directory, "actions/private.ts"),
-      `"use server";import {getSession} from "@terminal/framework/server";export async function privateAction(){return getSession().userId}`,
+      `"use server";import {getSession} from "airtty/server";export async function privateAction(){return getSession().userId}`,
     );
     await Bun.write(
       join(directory, "actions/public.ts"),
-      `"use server";import {getOptionalSession} from "@terminal/framework/server";export const auth="public" as const;export async function publicAction(){return getOptionalSession()?.userId??"guest"}`,
+      `"use server";import {getOptionalSession} from "airtty/server";export const auth="public" as const;export async function publicAction(){return getOptionalSession()?.userId??"guest"}`,
     );
     await Bun.write(
       join(directory, "server/auth.ts"),
-      `import type {AuthConfig} from "@terminal/framework/server";const users={"Bearer valid":"alice","Bearer other":"bob"};export default {unauthorizedPath:"/login",authenticate(request){const userId=users[request.headers.get("authorization")];return userId?{userId,role:"admin"}:null}} satisfies AuthConfig`,
+      `import type {AuthConfig} from "airtty/server";const users={"Bearer valid":"alice","Bearer other":"bob"};export default {unauthorizedPath:"/login",authenticate(request){const userId=users[request.headers.get("authorization")];return userId?{userId,role:"admin"}:null}} satisfies AuthConfig`,
     );
     await build(directory);
-    server = await launch(join(directory, ".terminal/server/index.js"));
-    const { createApp } = await import(join(directory, ".terminal/client/index.js"));
-    const manifest = await Bun.file(join(directory, ".terminal/manifest.json")).json();
+    server = await launch(join(directory, ".airtty/server/index.js"));
+    const { createApp } = await import(join(directory, ".airtty/client/index.js"));
+    const manifest = await Bun.file(join(directory, ".airtty/manifest.json")).json();
     const at = (app: any) => app.router.state.resolvedLocation?.pathname;
     const anonymous = createApp({ url: server.url });
     await anonymous.router.load();
@@ -84,7 +84,7 @@ test("public and protected routes and actions use the application auth adapter",
     const raw = (query: string, token?: string) =>
       fetch(`${server!.url}/render?${query}`, {
         headers: {
-          "x-terminal-build": manifest.buildId,
+          "x-airtty-build": manifest.buildId,
           ...(token ? { authorization: `Bearer ${token}` } : {}),
         },
       });
@@ -108,7 +108,7 @@ test("public and protected routes and actions use the application auth adapter",
 });
 
 test("logout and bearer changes purge cached private trees before any protected render", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "terminal-auth-cache-"));
+  const directory = await mkdtemp(join(tmpdir(), "airtty-auth-cache-"));
   let server: Awaited<ReturnType<typeof launch>> | undefined, ui: any;
   try {
     await authFixture(directory);
@@ -118,7 +118,7 @@ test("logout and bearer changes purge cached private trees before any protected 
     );
     await Bun.write(
       join(directory, "app/page.tsx"),
-      `import {getSession} from "@terminal/framework/server";export default function Page(){return <text>PRIVATE of {getSession().userId}</text>}`,
+      `import {getSession} from "airtty/server";export default function Page(){return <text>PRIVATE of {getSession().userId}</text>}`,
     );
     await Bun.write(
       join(directory, "app/login/page.tsx"),
@@ -126,11 +126,11 @@ test("logout and bearer changes purge cached private trees before any protected 
     );
     await Bun.write(
       join(directory, "server/auth.ts"),
-      `import type {AuthConfig} from "@terminal/framework/server";const users={"Bearer valid":"alice","Bearer other":"bob"};export default {unauthorizedPath:"/login",authenticate(request){const userId=users[request.headers.get("authorization")];return userId?{userId}:null}} satisfies AuthConfig`,
+      `import type {AuthConfig} from "airtty/server";const users={"Bearer valid":"alice","Bearer other":"bob"};export default {unauthorizedPath:"/login",authenticate(request){const userId=users[request.headers.get("authorization")];return userId?{userId}:null}} satisfies AuthConfig`,
     );
     await build(directory);
-    server = await launch(join(directory, ".terminal/server/index.js"));
-    const { createApp, Shell } = await import(join(directory, ".terminal/client/index.js"));
+    server = await launch(join(directory, ".airtty/server/index.js"));
+    const { createApp, Shell } = await import(join(directory, ".airtty/client/index.js"));
     let gate: PromiseWithResolvers<void> | undefined;
     const app = createApp({
       url: server.url,

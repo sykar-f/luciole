@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef } from "react";
 import { useTimeline } from "@opentui/react";
-import type { LoadingProps } from "@terminal/framework/client";
+import type { LoadingProps } from "airtty/client";
 import { NotePageFrame, NoteEditorFrame } from "../../../components/NoteFrame";
 
 export default function Loading({ params }: LoadingProps) {

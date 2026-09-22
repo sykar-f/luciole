@@ -1,5 +1,5 @@
 import "server-only";
-import { getCallId, getSession } from "@terminal/framework/server";
+import { getCallId, getSession } from "airtty/server";
 import { createForge, type Actor } from "./forge";
 import { importGitRepository } from "./git-import";
 import { openDatabase } from "./schema";
@@ -14,7 +14,7 @@ if (process.env.FORGE_GIT_REPO)
   importGitRepository(
     forge,
     process.env.FORGE_GIT_REPO,
-    "terminal-rsc",
+    "airtty",
     Number(process.env.FORGE_GIT_COMMITS ?? 8),
   );
 

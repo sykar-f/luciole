@@ -36,7 +36,7 @@ test("render requests the route by id with build identity and the current bearer
         path: url.pathname,
         route: url.searchParams.get("route"),
         params: JSON.parse(url.searchParams.get("params") ?? "null"),
-        build: headers.get("x-terminal-build"),
+        build: headers.get("x-airtty-build"),
         auth: headers.get("authorization"),
         search: JSON.parse(url.searchParams.get("search") ?? "null"),
       });
@@ -93,7 +93,7 @@ test("build mismatch and missing session are typed failures", async () => {
       () =>
         new Response("Authentication required", {
           status: 401,
-          headers: { "x-terminal-login": "/login" },
+          headers: { "x-airtty-login": "/login" },
         }),
     ),
   });

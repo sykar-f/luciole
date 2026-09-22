@@ -10,12 +10,12 @@ import { launch, until } from "./helpers";
 const appDir = resolve("examples/notes");
 test("generated Notes: Flight action, preserved Draft, navigation, validation and offline editing", async () => {
   await build(appDir);
-  const folder = await mkdtemp(join(tmpdir(), "terminal-notes-"));
-  const server = await launch(join(appDir, ".terminal/server/index.js"), {
+  const folder = await mkdtemp(join(tmpdir(), "airtty-notes-"));
+  const server = await launch(join(appDir, ".airtty/server/index.js"), {
     NOTES_DB: join(folder, "notes.sqlite"),
     NOTES_DELAY_MS: "400",
   });
-  const { createApp, Shell } = await import(join(appDir, ".terminal/client/index.js") + "?notes");
+  const { createApp, Shell } = await import(join(appDir, ".airtty/client/index.js") + "?notes");
   const app = createApp({ url: server.url });
   let ui: any;
   try {
@@ -34,7 +34,7 @@ test("generated Notes: Flight action, preserved Draft, navigation, validation an
     const counts = async () =>
       await (
         await fetch(server.url + "/test-metrics", {
-          headers: { "x-terminal-build": server.buildId },
+          headers: { "x-airtty-build": server.buildId },
         })
       ).json();
     const before = await counts();

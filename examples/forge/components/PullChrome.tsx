@@ -1,7 +1,7 @@
 "use client";
 import type { ReactNode } from "react";
 import { useKeyboard } from "@opentui/react";
-import { useMatchRoute, useNavigate } from "@terminal/framework/client";
+import { useMatchRoute, useNavigate } from "airtty/client";
 import { useEditing } from "./editing";
 import { Line } from "./frames";
 import { ReviewSessionProvider } from "./review-session";

@@ -1,14 +1,14 @@
 import "server-only";
 import { Database } from "bun:sqlite";
-import { getSession } from "@terminal/framework/server";
-import type { Note, SaveResult, Snapshot } from "@terminal/framework/client";
+import { getSession } from "airtty/server";
+import type { Note, SaveResult, Snapshot } from "airtty/client";
 const db = new Database(process.env.NOTES_DB ?? "notes.sqlite", {
   create: true,
 });
 db.exec(
   "PRAGMA journal_mode=WAL; CREATE TABLE IF NOT EXISTS notes(id TEXT PRIMARY KEY, owner TEXT NOT NULL,title TEXT NOT NULL,value TEXT NOT NULL,version INTEGER NOT NULL); CREATE TABLE IF NOT EXISTS operations(owner TEXT NOT NULL,id TEXT NOT NULL,result TEXT NOT NULL,PRIMARY KEY(owner,id));",
 );
-const owner = process.env.TERMINAL_USER ?? "local";
+const owner = process.env.AIRTTY_USER ?? "local";
 for (const [id, title] of [
   ["1", "First note"],
   ["2", "Second note"],

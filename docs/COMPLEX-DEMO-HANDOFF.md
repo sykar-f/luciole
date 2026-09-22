@@ -9,7 +9,7 @@
 
 Créer `examples/control-room`, une application TUI crédible de pilotage d'incidents
 et de déploiements. Elle doit exercer ensemble toutes les capacités actuellement
-livrées par Terminal RSC et rendre visible sa promesse centrale : les interactions
+livrées par airtty et rendre visible sa promesse centrale : les interactions
 locales restent immédiates, même lorsqu'une lecture ou mutation Server subit 500 ms
 de roundtrip.
 
@@ -140,7 +140,7 @@ pas de SQL. Fournir des données initiales déterministes au premier démarrage.
 - Garder une seule codebase applicative `app/`, `components/`, `actions/`, `server/`.
 - Ne pas ajouter de protocole RPC, endpoint HTTP applicatif ou manifest manuel.
 - Ne pas importer de package Client non supporté par le compilateur. React,
-  OpenTUI et `@terminal/framework/client` suffisent.
+  OpenTUI et `airtty/client` suffisent.
 - Mettre chaque action publique dans un module `"use server"` séparé ; toutes les
   autres actions restent protégées par défaut.
 - Chaque action revalide rôle, ownership, version et arguments. Une référence Flight
@@ -165,7 +165,7 @@ pas de SQL. Fournir des données initiales déterministes au premier démarrage.
    Terminé quand les données et l'ordre d'arrivée Flight sont observés par les tests.
 4. **Interactions locales.** Ajouter listes, formulaires, hover, scroll, raccourcis,
    loading, cancel et refresh. Terminé quand les métriques Server restent inchangées
-   pendant ces interactions sous `TERMINAL_LATENCY_MS=500`.
+   pendant ces interactions sous `AIRTTY_LATENCY_MS=500`.
 5. **Mutations robustes.** Ajouter runbook, déploiement, conflit et recovery. Terminé
    quand aucun scénario inconnu ne rejoue automatiquement une mutation.
 6. **Distribution.** Construire les deux rôles et inspecter les artefacts. Terminé
@@ -211,7 +211,7 @@ Livrer :
 - les résultats exacts des validations ;
 - les limites ou frictions découvertes, séparées entre responsabilité framework et
   responsabilité application ;
-- des commits cohérents, sans artefacts `.terminal`, base SQLite ou logs suivis.
+- des commits cohérents, sans artefacts `.airtty`, base SQLite ou logs suivis.
 
 La mission est terminée uniquement lorsque le scénario complet fonctionne sous
 latence simulée et dans les artefacts de production, pas seulement dans des tests de

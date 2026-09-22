@@ -1,11 +1,11 @@
-# Terminal RSC — MVP
+# airtty — MVP
 
 Framework expérimental React Server Components pour le terminal : React/Flight
 compose l’interface sur un Server, OpenTUI assure les interactions dans un Client
 séparé. L’application Notes fournit liste, édition, sauvegarde SQLite, navigation,
 Drafts de session et récupération d’une sauvegarde dont la réponse s’est perdue.
-Ce dépôt est indépendant de TWP. `terminal` et `@terminal/framework` sont des noms
-provisoires ; aucun paquet n’est publié sur un registre.
+Le paquet et son CLI s’appellent `airtty` ; aucun paquet n’est encore publié
+sur un registre.
 
 ## Installation et démarrage
 
@@ -32,12 +32,12 @@ ne transforme pas une sauvegarde confirmée en échec.
 ## Tester une connexion à 500 ms de ping
 
 ```sh
-TERMINAL_LATENCY_MS=500 bun run dev
+AIRTTY_LATENCY_MS=500 bun run dev
 # Banc de test dédié : input, scroll et hover pendant un appel distant
-TERMINAL_LATENCY_MS=500 bun src/cli.ts dev --app examples/latency
+AIRTTY_LATENCY_MS=500 bun src/cli.ts dev --app examples/latency
 ```
 
-`TERMINAL_LATENCY_MS` ajoute un délai aller-retour à **chaque requête applicative**
+`AIRTTY_LATENCY_MS` ajoute un délai aller-retour à **chaque requête applicative**
 (rendu Flight, navigation, action, refresh, récupération) : 250 ms avant l’envoi et
 250 ms avant de livrer la réponse pour une valeur de 500. Les attentes sont
 asynchrones, inclues dans le timeout, et indépendantes entre requêtes. La latence
@@ -66,7 +66,7 @@ La navigation est portée par TanStack Router (memory history) : les layouts
 `layout.tsx` sont des Client Components persistants, les pages restent Server et
 arrivent par Flight. Les navigations affichent immédiatement un écran local à la
 place de la page, layouts conservés. Notes fournit `app/notes/[id]/loading.tsx` :
-avec `TERMINAL_LATENCY_MS=500 bun run dev`, ouvrir une note affiche son squelette
+avec `AIRTTY_LATENCY_MS=500 bun run dev`, ouvrir une note affiche son squelette
 pendant l’attente, et `app/notes/layout.tsx` garde son historique local d’une note à
 l’autre. Échap annule et revient à la dernière page résolue.
 
@@ -87,7 +87,7 @@ du framework, d'OpenTUI et de TanStack Router :
 
 ```sh
 bun run forge                           # importe aussi les derniers commits de ce dépôt
-TERMINAL_LATENCY_MS=500 bun run forge   # même parcours sous 500 ms de RTT
+AIRTTY_LATENCY_MS=500 bun run forge   # même parcours sous 500 ms de RTT
 bun run forge:operator lose merge       # second opérateur : réponse perdue, conflit, push
 ```
 
@@ -99,8 +99,8 @@ cinq minutes, matrice de preuves et limites : [docs/FORGE.md](docs/FORGE.md).
 Depuis le checkout du framework :
 
 ```sh
-bun src/cli.ts init /tmp/my-terminal-app
-cd /tmp/my-terminal-app
+bun src/cli.ts init /tmp/my-airtty-app
+cd /tmp/my-airtty-app
 bun install
 bun run check
 bun run dev
@@ -109,11 +109,11 @@ bun run build
 ```
 
 Le starter contient une seule codebase `app/`, `components/`, `actions/`, `server/`.
-Sa dépendance locale `@terminal/framework` utilise `file:` vers ce checkout ;
+Sa dépendance locale `airtty` utilise `file:` vers ce checkout ;
 conserver celui-ci pendant le développement. `bun install` installe le CLI et les
 outils du starter. Il n’y a aucun manifest ni RPC à écrire. Le starter possède
 son `tsconfig.json`, les configurations Oxc et les réglages VS Code.
-Le CLI est aussi déclaré sous le nom `terminal` dans `package.json` ; dans ce
+Le CLI est aussi déclaré sous le nom `airtty` dans `package.json` ; dans ce
 checkout, `bun src/cli.ts` exécute les mêmes commandes sans installation globale.
 
 ## Production : deux artefacts
@@ -130,7 +130,7 @@ bun src/cli.ts start --role client --url http://127.0.0.1:3000
 `--app /chemin/app` sélectionne un autre projet. Le build produit :
 
 ```text
-app/.terminal/
+app/.airtty/
   manifest.json           # build, graphes, route graph et Client References
   client/                 # index.js, package.json, bun.lock
   server/                 # index.js, package.json, bun.lock
@@ -168,14 +168,14 @@ NODE_ENV=production bun client/index.js --url http://127.0.0.1:3001
 ```
 
 Avant toute exposition publique, placer le Server derrière un reverse proxy TLS,
-limiter l’accès réseau au backend et configurer `TERMINAL_TOKEN` sur les deux rôles,
-ou fournir l'adapter `server/auth.ts`. Une écoute hors loopback (`TERMINAL_HOST`)
+limiter l’accès réseau au backend et configurer `AIRTTY_TOKEN` sur les deux rôles,
+ou fournir l'adapter `server/auth.ts`. Une écoute hors loopback (`AIRTTY_HOST`)
 est refusée sans l'un de ces deux mécanismes. Le Client transmet le token par en-tête
 Authorization ; utiliser une URL HTTPS pour éviter sa transmission en clair. Les
 requêtes portant un Origin de navigateur sont refusées.
 
 Le MVP offre une **session mono-utilisateur** : le token est associé côté Server
-à `TERMINAL_USER` (défaut `local`). `getSession()` fournit cette identité aux actions
+à `AIRTTY_USER` (défaut `local`). `getSession()` fournit cette identité aux actions
 et au repository, qui vérifie la propriété des notes. Une référence Flight ne donne
 aucun droit par elle-même. Une authentification multi-utilisateur doit remplacer
 cette association dans le runtime Server avant un tel déploiement. Ne jamais
@@ -191,7 +191,7 @@ l'application. Voir [le contrat d'authentification](docs/API.md#authentification
 
 ## TypeScript, Oxc et VS Code
 
-Ouvrir `terminal-rsc/` comme dossier racine VS Code pour appliquer `.vscode/`.
+Ouvrir ce checkout comme dossier racine VS Code pour appliquer `.vscode/`.
 Installer les extensions TypeScript 7 et Oxc recommandées. Le serveur TypeScript natif
 utilise le package local ; le SDK TypeScript 6 sert de repli pour l’extension classique.
 Si un ancien diagnostic reste affiché, recharger la fenêtre VS Code.
@@ -219,11 +219,11 @@ bun run verify               # types, lint, format, intégration et build
 bun run format:check
 bun audit --json
 
-python3 -m venv /tmp/terminal-pty
-/tmp/terminal-pty/bin/pip install -r scripts/requirements-pty.txt
-/tmp/terminal-pty/bin/python scripts/pty-smoke.py
-/tmp/terminal-pty/bin/python scripts/pty-dev.py
-PYTHON=/tmp/terminal-pty/bin/python bun scripts/clean-install.ts
+python3 -m venv /tmp/airtty-pty
+/tmp/airtty-pty/bin/pip install -r scripts/requirements-pty.txt
+/tmp/airtty-pty/bin/python scripts/pty-smoke.py
+/tmp/airtty-pty/bin/python scripts/pty-dev.py
+PYTHON=/tmp/airtty-pty/bin/python bun scripts/clean-install.ts
 ```
 
 Le dernier test part d’une copie sans dépendances ni artefacts, crée un starter,

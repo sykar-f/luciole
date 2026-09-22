@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "@terminal/framework",
+      "name": "airtty",
       "dependencies": {
         "@opentui/core": "0.5.12",
         "@opentui/react": "0.5.12",

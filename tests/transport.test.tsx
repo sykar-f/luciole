@@ -11,13 +11,13 @@ import { launch, until } from "./helpers";
 const root = resolve("examples/notes");
 test("lost commit: durable outcome recovery, no mutation replay, reconnect refresh", async () => {
   await build(root);
-  const dir = await mkdtemp(join(tmpdir(), "terminal-loss-"));
+  const dir = await mkdtemp(join(tmpdir(), "airtty-loss-"));
   const dbPath = join(dir, "notes.sqlite");
-  let server = await launch(join(root, ".terminal/server/index.js"), {
+  let server = await launch(join(root, ".airtty/server/index.js"), {
     NOTES_DB: dbPath,
-    TERMINAL_TEST_DROP_ONCE: "1",
+    AIRTTY_TEST_DROP_ONCE: "1",
   });
-  const { createApp, Shell } = await import(join(root, ".terminal/client/index.js") + "?loss");
+  const { createApp, Shell } = await import(join(root, ".airtty/client/index.js") + "?loss");
   const app = createApp({ url: server.url, initialPath: "/notes/1" });
   let ui: any;
   try {
@@ -36,7 +36,7 @@ test("lost commit: durable outcome recovery, no mutation replay, reconnect refre
     const operationId = draft.pending.operationId;
     await until(() => server.child.exitCode !== null);
     const previousPid = server.pid;
-    server = await launch(join(root, ".terminal/server/index.js"), {
+    server = await launch(join(root, ".airtty/server/index.js"), {
       NOTES_DB: dbPath,
       PORT: String(server.port),
     });
@@ -70,7 +70,7 @@ test("lost commit: durable outcome recovery, no mutation replay, reconnect refre
     db.close();
     const metrics = await (
       await fetch(server.url + "/test-metrics", {
-        headers: { "x-terminal-build": server.buildId },
+        headers: { "x-airtty-build": server.buildId },
       })
     ).json();
     expect(metrics.actions).toBe(1); // only the lookup in the restarted process; no save replay
@@ -84,11 +84,11 @@ test("lost commit: durable outcome recovery, no mutation replay, reconnect refre
 });
 test("out-of-order navigation, incompatible build preserves mounted editor, refresh failure after save", async () => {
   await build(root);
-  const dir = await mkdtemp(join(tmpdir(), "terminal-network-"));
-  const server = await launch(join(root, ".terminal/server/index.js"), {
+  const dir = await mkdtemp(join(tmpdir(), "airtty-network-"));
+  const server = await launch(join(root, ".airtty/server/index.js"), {
     NOTES_DB: join(dir, "notes.sqlite"),
   });
-  const { createApp, Shell } = await import(join(root, ".terminal/client/index.js") + "?network");
+  const { createApp, Shell } = await import(join(root, ".airtty/client/index.js") + "?network");
   let slow = false,
     block = false,
     incompatible = false;
@@ -151,7 +151,7 @@ test("out-of-order navigation, incompatible build preserves mounted editor, refr
     });
     expect(field.value).toBe("keep!");
     const bad = await fetch(server.url + "/render?route=%2F&params=%7B%7D", {
-      headers: { "x-terminal-build": "old" },
+      headers: { "x-airtty-build": "old" },
     });
     expect(bad.status).toBe(409);
   } finally {
@@ -174,8 +174,8 @@ test("progressive Flight Suspense renders fallback before delayed content", asyn
       `import {Suspense} from 'react';async function Slow(){await Bun.sleep(700);return <text>STREAM COMPLETE</text>}export default function Page(){return <box flexDirection="column"><text>SHELL READY</text><Suspense fallback={<text>STREAM LOADING</text>}><Slow/></Suspense></box>}`,
     );
     await build(dir);
-    server = await launch(join(dir, ".terminal/server/index.js"));
-    const { createApp, Shell } = await import(join(dir, ".terminal/client/index.js"));
+    server = await launch(join(dir, ".airtty/server/index.js"));
+    const { createApp, Shell } = await import(join(dir, ".airtty/client/index.js"));
     const app = createApp({ url: server.url });
     await app.router.load();
     ui = await testRender(<Shell app={app} />, { width: 80, height: 12 });
@@ -196,12 +196,12 @@ test("progressive Flight Suspense renders fallback before delayed content", asyn
 });
 test("Notes validation, normalization, version conflict, durable deduplication and authentication", async () => {
   await build(root);
-  const dir = await mkdtemp(join(tmpdir(), "terminal-business-"));
-  const server = await launch(join(root, ".terminal/server/index.js"), {
+  const dir = await mkdtemp(join(tmpdir(), "airtty-business-"));
+  const server = await launch(join(root, ".airtty/server/index.js"), {
     NOTES_DB: join(dir, "notes.sqlite"),
-    TERMINAL_TOKEN: "test-session-token",
+    AIRTTY_TOKEN: "test-session-token",
   });
-  const { createApp } = await import(join(root, ".terminal/client/index.js") + "?business");
+  const { createApp } = await import(join(root, ".airtty/client/index.js") + "?business");
   const app = createApp({ url: server.url, token: "test-session-token" });
   try {
     expect((await fetch(server.url + "/health")).status).toBe(401);

@@ -286,11 +286,11 @@ export async function run(create: (options: Record<string, unknown>) => Applicat
   const url =
     urlIndex >= 0
       ? process.argv[urlIndex + 1]
-      : (process.env.TERMINAL_URL ?? "http://127.0.0.1:3000");
+      : (process.env.AIRTTY_URL ?? "http://127.0.0.1:3000");
   const app = create({
     url,
-    token: process.env.TERMINAL_TOKEN,
-    latencyMs: Number(process.env.TERMINAL_LATENCY_MS ?? 0),
+    token: process.env.AIRTTY_TOKEN,
+    latencyMs: Number(process.env.AIRTTY_LATENCY_MS ?? 0),
   });
   process.on("message", (message: { type?: string; message?: string } | null) => {
     if (message?.type === "build-error") {

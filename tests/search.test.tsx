@@ -9,7 +9,7 @@ import { build } from "../src/build";
 import { launch } from "./helpers";
 
 test("search parameters reach the Server page as strings and key the route cache", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "terminal-search-"));
+  const directory = await mkdtemp(join(tmpdir(), "airtty-search-"));
   let server: Awaited<ReturnType<typeof launch>> | undefined, ui: any;
   try {
     for (const name of ["app/items"]) await mkdir(join(directory, name), { recursive: true });
@@ -27,8 +27,8 @@ test("search parameters reach the Server page as strings and key the route cache
       `export default function Page(){return <text>HOME</text>}`,
     );
     await build(directory);
-    server = await launch(join(directory, ".terminal/server/index.js"));
-    const { createApp, Shell } = await import(join(directory, ".terminal/client/index.js"));
+    server = await launch(join(directory, ".airtty/server/index.js"));
+    const { createApp, Shell } = await import(join(directory, ".airtty/client/index.js"));
     const app = createApp({ url: server.url });
     await app.router.load();
     ui = await testRender(<Shell app={app} />, { width: 80, height: 8 });
@@ -36,7 +36,7 @@ test("search parameters reach the Server page as strings and key the route cache
       (
         await (
           await fetch(`${server!.url}/test-metrics`, {
-            headers: { "x-terminal-build": server!.buildId },
+            headers: { "x-airtty-build": server!.buildId },
           })
         ).json()
       ).renders;

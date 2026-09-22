@@ -77,18 +77,18 @@ function parseSearch(raw: string | null) {
   return value as Record<string, string>;
 }
 export function serve(config: ServerConfig) {
-  const hostname = process.env.TERMINAL_HOST ?? "127.0.0.1",
-    token = process.env.TERMINAL_TOKEN;
+  const hostname = process.env.AIRTTY_HOST ?? "127.0.0.1",
+    token = process.env.AIRTTY_TOKEN;
   if (!["127.0.0.1", "localhost", "::1"].includes(hostname) && !token && !config.auth)
     throw new Error(
-      "Remote binding requires TERMINAL_TOKEN or server/auth.ts and a TLS reverse proxy",
+      "Remote binding requires AIRTTY_TOKEN or server/auth.ts and a TLS reverse proxy",
     );
   const auth: AuthConfig =
     config.auth ??
     ({
       authenticate(request) {
         if (token && request.headers.get("authorization") !== `Bearer ${token}`) return null;
-        return { userId: process.env.TERMINAL_USER ?? "local" };
+        return { userId: process.env.AIRTTY_USER ?? "local" };
       },
     } satisfies AuthConfig);
   if (auth.unauthorizedPath) {
@@ -113,7 +113,7 @@ export function serve(config: ServerConfig) {
           if (!session) return new Response("Unauthorized", { status: 401 });
           return Response.json({ buildId: config.buildId, pid: process.pid });
         }
-        if (req.headers.get("x-terminal-build") !== config.buildId)
+        if (req.headers.get("x-airtty-build") !== config.buildId)
           return new Response("Incompatible build: install matching Client and Server", {
             status: 409,
           });
@@ -121,10 +121,10 @@ export function serve(config: ServerConfig) {
           new Response("Authentication required", {
             status: 401,
             headers: auth.unauthorizedPath
-              ? { "x-terminal-login": auth.unauthorizedPath }
+              ? { "x-airtty-login": auth.unauthorizedPath }
               : undefined,
           });
-        const callId = req.headers.get("x-terminal-call") ?? crypto.randomUUID();
+        const callId = req.headers.get("x-airtty-call") ?? crypto.randomUUID();
         // Awaited: a rejection must reach the generic 500 below, never Bun's error page.
         return await context.run({ session, callId }, async () => {
           if (url.pathname === "/render" && req.method === "GET") {
@@ -145,7 +145,7 @@ export function serve(config: ServerConfig) {
             });
           }
           if (url.pathname === "/action" && req.method === "POST") {
-            const entry = config.actions.get(req.headers.get("x-terminal-action") ?? "");
+            const entry = config.actions.get(req.headers.get("x-airtty-action") ?? "");
             if (!entry) return new Response("Unknown action", { status: 404 });
             if (entry.auth === "required" && !session) return unauthorized();
             metrics.actions++;
@@ -160,8 +160,8 @@ export function serve(config: ServerConfig) {
             const value = await entry.fn(...args);
             // Test-only fault injection occurs strictly after business commit; never enabled by a request.
             if (
-              process.env.TERMINAL_TEST === "1" &&
-              process.env.TERMINAL_TEST_DROP_ONCE === "1" &&
+              process.env.AIRTTY_TEST === "1" &&
+              process.env.AIRTTY_TEST_DROP_ONCE === "1" &&
               value?.ok
             ) {
               server.stop(true);
@@ -172,12 +172,12 @@ export function serve(config: ServerConfig) {
               { headers: { "content-type": "text/x-component" } },
             );
           }
-          if (url.pathname === "/test-metrics" && process.env.TERMINAL_TEST === "1")
+          if (url.pathname === "/test-metrics" && process.env.AIRTTY_TEST === "1")
             return session ? Response.json(metrics) : unauthorized();
           return new Response("Not found", { status: 404 });
         });
       } catch (error) {
-        const callId = req.headers.get("x-terminal-call") ?? "request";
+        const callId = req.headers.get("x-airtty-call") ?? "request";
         console.error("Request failed", callId, error instanceof Error ? error.name : "Error");
         return new Response("Server request failed", { status: 500 });
       }

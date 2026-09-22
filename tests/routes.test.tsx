@@ -22,7 +22,7 @@ const files: Record<string, string> = {
 };
 
 test("generated route tree: inherited loading, static before dynamic, pathless groups", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "terminal-routes-"));
+  const dir = await mkdtemp(join(tmpdir(), "airtty-routes-"));
   let ui: any;
   try {
     for (const [name, text] of Object.entries(files)) {
@@ -31,7 +31,7 @@ test("generated route tree: inherited loading, static before dynamic, pathless g
     }
     await symlink(resolve("node_modules"), join(dir, "node_modules"), "dir");
     await build(dir);
-    const { createApp, Shell } = await import(join(dir, ".terminal/client/index.js"));
+    const { createApp, Shell } = await import(join(dir, ".airtty/client/index.js"));
     const requests: [string, Record<string, string>][] = [];
     let release: (() => void) | undefined;
     const transport: Transport = {

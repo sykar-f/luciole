@@ -12,9 +12,9 @@ const directory = resolve("examples/forge");
 
 test("Forge artefacts: SQL, git, sessions and seed data never reach the Client", async () => {
   await build(directory);
-  const manifest = await Bun.file(join(directory, ".terminal/manifest.json")).json();
-  const client = await Bun.file(join(directory, ".terminal/client/index.js")).text();
-  const server = await Bun.file(join(directory, ".terminal/server/index.js")).text();
+  const manifest = await Bun.file(join(directory, ".airtty/manifest.json")).json();
+  const client = await Bun.file(join(directory, ".airtty/client/index.js")).text();
+  const server = await Bun.file(join(directory, ".airtty/server/index.js")).text();
   const serverOnly = [
     "CREATE TABLE IF NOT EXISTS",
     "token_hash",
@@ -48,7 +48,7 @@ test("Forge artefacts: SQL, git, sessions and seed data never reach the Client",
 test("a rendered page carries the public identity, never the session", async () => {
   const temp = await mkdtemp(join(tmpdir(), "forge-flight-"));
   const database = join(temp, "forge.sqlite");
-  const server = await launch(join(directory, ".terminal/server/index.js"), {
+  const server = await launch(join(directory, ".airtty/server/index.js"), {
     FORGE_DB: database,
     FORGE_SLOW_MS: "0",
   });
@@ -62,7 +62,7 @@ test("a rendered page carries the public identity, never the session", async () 
       params: JSON.stringify({ repo: "payments", number: "1" }),
     });
     const response = await fetch(`${server.url}/render?${query}`, {
-      headers: { "x-terminal-build": server.buildId, authorization: `Bearer ${login.token}` },
+      headers: { "x-airtty-build": server.buildId, authorization: `Bearer ${login.token}` },
     });
     const body = await response.text();
     expect(response.status).toBe(200);
@@ -83,11 +83,11 @@ test("git import turns real commits of this checkout into reviewable pull reques
   const db = openDatabase(join(temp, "forge.sqlite"));
   try {
     const forge = createForge(db);
-    expect(importGitRepository(forge, resolve("."), "terminal-rsc", 4)).toBe(4);
-    expect(importGitRepository(forge, resolve("."), "terminal-rsc", 4)).toBe(0);
-    const pulls = forge.pulls("terminal-rsc");
+    expect(importGitRepository(forge, resolve("."), "airtty", 4)).toBe(4);
+    expect(importGitRepository(forge, resolve("."), "airtty", 4)).toBe(0);
+    const pulls = forge.pulls("airtty");
     expect(pulls.length).toBeGreaterThan(0);
-    const pull = forge.pull("terminal-rsc", pulls[0].number)!;
+    const pull = forge.pull("airtty", pulls[0].number)!;
     const files = forge.files(pull.id, pull.revision);
     expect(files.length).toBeGreaterThan(0);
     const diff = forge.fileDiff(pull.id, pull.revision, files[0].path)!;

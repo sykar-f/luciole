@@ -1,5 +1,5 @@
 "use server";
-import type { SaveResult, Snapshot } from "@terminal/framework/client";
+import type { SaveResult, Snapshot } from "airtty/client";
 import type { OperationResult, PublishResult, Verdict } from "../components/model";
 import { actor, forge } from "../server/instance";
 import { isOperationResult, isSaveResult } from "../server/results";

@@ -8,7 +8,7 @@ import {
   type Note,
   type Snapshot,
   type SaveResult,
-} from "@terminal/framework/client";
+} from "airtty/client";
 type Props = {
   initialNote: Note;
   saveAction: (s: Snapshot) => Promise<SaveResult>;

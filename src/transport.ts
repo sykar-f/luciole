@@ -56,7 +56,7 @@ export function createHttpTransport(options: HttpTransportOptions): Transport {
   // Suspense boundary or an async iterable may legitimately stream for longer.
   async function request(path: string, init: RequestInit, cancel?: AbortSignal) {
     const headers = new Headers(init.headers);
-    headers.set("x-terminal-build", options.buildId);
+    headers.set("x-airtty-build", options.buildId);
     if (token) headers.set("authorization", `Bearer ${token}`);
     const deadline = new AbortController();
     const timer = setTimeout(
@@ -78,7 +78,7 @@ export function createHttpTransport(options: HttpTransportOptions): Transport {
       if (response.status === 401)
         throw new AuthenticationRequired(
           await response.text(),
-          response.headers.get("x-terminal-login") ?? undefined,
+          response.headers.get("x-airtty-login") ?? undefined,
         );
       if (!response.ok)
         throw new TransportError(`HTTP ${response.status}: ${await response.text()}`);
@@ -122,7 +122,7 @@ export function createHttpTransport(options: HttpTransportOptions): Transport {
         "/action",
         {
           method: "POST",
-          headers: { "x-terminal-action": actionId, "x-terminal-call": callId },
+          headers: { "x-airtty-action": actionId, "x-airtty-call": callId },
           body: await encodeReply(args),
         },
         signal,

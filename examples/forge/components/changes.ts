@@ -1,4 +1,4 @@
-import { useRouter } from "@terminal/framework/client";
+import { useRouter } from "airtty/client";
 
 // After a confirmed mutation the app refreshes two kinds of Server data: route loaders
 // (TanStack invalidation) and reads made through Server Functions by the persistent

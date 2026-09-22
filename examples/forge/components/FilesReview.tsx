@@ -2,7 +2,7 @@
 import { Suspense, use, useEffect, useMemo, useRef, useState } from "react";
 import { useKeyboard, useTerminalDimensions } from "@opentui/react";
 import type { DiffRenderable, ScrollBoxRenderable } from "@opentui/core";
-import { useApplication } from "@terminal/framework/client";
+import { useApplication } from "airtty/client";
 import { publish, resolveSave } from "../actions/pulls";
 import { DraftEditor } from "./DraftEditor";
 import { useEditing, useEditingWhile } from "./editing";

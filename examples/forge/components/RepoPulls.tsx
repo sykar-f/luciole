@@ -1,6 +1,6 @@
 "use client";
 import { useKeyboard } from "@opentui/react";
-import { useNavigate } from "@terminal/framework/client";
+import { useNavigate } from "airtty/client";
 import { useEditing } from "./editing";
 import { STATES, type StateFilter } from "./filters";
 import { Line } from "./frames";

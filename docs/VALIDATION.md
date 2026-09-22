@@ -1,7 +1,7 @@
 # Validation du MVP — 22 septembre 2026
 
 Les jalons ont été réalisés dans l’ordre du [handoff conservé](HANDOFF.md).
-Projet indépendant créé dans `terminal-rsc/`, sans Engine, Protocol ou compilateur
+Projet indépendant créé dans `airtty/`, sans Engine, Protocol ou compilateur
 TWP. Machine principale : macOS arm64 ; Server distant : Linux x86_64.
 
 ## Environnement verrouillé
@@ -83,7 +83,7 @@ La distribution universelle de code et sa sandbox restent des extensions.
 
 ## Simulation de latence réseau
 
-`TERMINAL_LATENCY_MS=500 NOTES_DELAY_MS=0 /tmp/terminal-rsc-pty-venv/bin/python scripts/pty-smoke.py`
+`AIRTTY_LATENCY_MS=500 NOTES_DELAY_MS=0 /tmp/airtty-pty-venv/bin/python scripts/pty-smoke.py`
 a passé le parcours PTY avec 500 ms de délai aller-retour simulé et aucun délai
 métier. Sur cette exécution, la frappe pendant la sauvegarde apparaît dans la
 sortie PTY en **16,78 ms** ; ce n’est pas une mesure de latence physique de l’écran.

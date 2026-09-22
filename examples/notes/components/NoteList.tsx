@@ -1,5 +1,5 @@
 "use client";
-import { useNavigate, type Note } from "@terminal/framework/client";
+import { useNavigate, type Note } from "airtty/client";
 export function NoteList({ notes }: { notes: Note[] }) {
   const navigate = useNavigate();
   return (

@@ -9,16 +9,16 @@ import { launch, until } from "./helpers";
 test("500 ms RTT delays Flight and actions while input, hover and scroll stay local", async () => {
   const directory = resolve("examples/latency");
   await build(directory);
-  const server = await launch(join(directory, ".terminal/server/index.js"));
+  const server = await launch(join(directory, ".airtty/server/index.js"));
   const { createApp, Shell } = await import(
-    join(directory, ".terminal/client/index.js") + "?latency"
+    join(directory, ".airtty/client/index.js") + "?latency"
   );
   const app = createApp({ url: server.url, latencyMs: 500 });
   let ui: any;
   const counts = async () =>
     (
       await fetch(server.url + "/test-metrics", {
-        headers: { "x-terminal-build": server.buildId },
+        headers: { "x-airtty-build": server.buildId },
       })
     ).json();
   try {

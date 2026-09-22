@@ -7,7 +7,7 @@ Toutes ces versions sont fixées dans `package.json` et le lockfile.
 `tsconfig.base.json` définit le mode strict, les types Bun (qui exposent aussi les
 API Node), la résolution ESM Bundler et le JSX OpenTUI. `tsconfig.json` inclut le
 framework, l’exemple, les tests, les scripts et les sondes. Les imports publics
-`@terminal/framework/client` et `/server` passent par les exports du package :
+`airtty/client` et `/server` passent par les exports du package :
 aucun alias TypeScript ne masque une dépendance absente.
 
 Le contrôle précédent ne couvrait que `src/` et l’exemple. Les tests/sondes pouvaient
@@ -41,7 +41,7 @@ reformatés. Les sources des sondes sont bien couvertes par TypeScript et Oxlint
 
 ## VS Code
 
-Ouvrir le dossier de ce projet (et non uniquement son parent TWP) pour appliquer
+Ouvrir le dossier de ce projet comme racine VS Code pour appliquer
 les réglages `.vscode/`. Installer les extensions recommandées **TypeScript 7** (`TypeScriptTeam.native-preview`)
 et **Oxc**. Les réglages activent le serveur natif et sélectionnent `node_modules/typescript`.
 Le SDK classique de repli pointe vers `node_modules/@typescript/old/lib`, fourni
@@ -56,8 +56,8 @@ configurations via les outils CLI/LSP. Sources :
 
 ## Starters
 
-`terminal init` génère une application avec une dépendance locale `file:` vers ce
-framework, sa configuration TypeScript héritée de `@terminal/framework/tsconfig`,
+`airtty init` génère une application avec une dépendance locale `file:` vers ce
+framework, sa configuration TypeScript héritée de `airtty/tsconfig`,
 les configurations Oxc, les réglages VS Code et les commandes check/lint/format.
 Après `bun install`, ces commandes fonctionnent depuis le starter. Les deux
 fichiers JSON générés sont formatés par Oxfmt dès la création.

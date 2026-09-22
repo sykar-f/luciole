@@ -1,6 +1,6 @@
 # API applicative minimale
 
-Entrée `@terminal/framework/client` (Client Components uniquement) :
+Entrée `airtty/client` (Client Components uniquement) :
 
 | API                                                                                                                                    | Contrat                                                                                                      |
 | -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
@@ -27,7 +27,7 @@ sale. L’application choisit la politique de conflit ; Notes conserve le Draft 
 permet l’abandon explicite. Les clés React sont les identités des notes, jamais
 leurs versions métier.
 
-Entrée `@terminal/framework/server` :
+Entrée `airtty/server` :
 
 - `getSession()` : `{ userId }` dans le contexte async du rendu ou de l’action.
 - `getOptionalSession()` : la même session, ou `null` dans une page/action publique.
@@ -107,7 +107,7 @@ export default function LoginPage() {
 Une application qui remplace l'identité locale fournit `server/auth.ts` :
 
 ```ts
-import type { AuthConfig } from "@terminal/framework/server";
+import type { AuthConfig } from "airtty/server";
 
 export default {
   unauthorizedPath: "/login",
@@ -156,8 +156,8 @@ Toutes les fonctions exportées d'un même module partagent cette politique. Une
 référence Flight n'accorde aucun droit, et une route protégée ne remplace jamais
 les contrôles d'autorisation métier dans l'action ou le repository.
 
-Sans `server/auth.ts`, l'adapter historique reste actif : identité `TERMINAL_USER`
-(`local` par défaut), éventuellement protégée par `TERMINAL_TOKEN`. Le starter
+Sans `server/auth.ts`, l'adapter historique reste actif : identité `AIRTTY_USER`
+(`local` par défaut), éventuellement protégée par `AIRTTY_TOKEN`. Le starter
 reste donc compatible avec son mode local.
 
 ## Navigation, layouts et chargement local
@@ -205,7 +205,7 @@ erreur TypeScript. Navigation depuis un Client Component, sans `<Link>` DOM :
 
 ```tsx
 "use client";
-import { useNavigate } from "@terminal/framework/client";
+import { useNavigate } from "airtty/client";
 const navigate = useNavigate();
 void navigate({ to: "/notes/$id", params: { id: "1" } });
 ```

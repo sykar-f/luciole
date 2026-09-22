@@ -26,13 +26,13 @@ type Options = {
 export async function startForge(options: Options = {}) {
   const temp = await mkdtemp(join(tmpdir(), "forge-"));
   const database = join(temp, "forge.sqlite");
-  const server = await launch(join(forgeDirectory, ".terminal/server/index.js"), {
+  const server = await launch(join(forgeDirectory, ".airtty/server/index.js"), {
     FORGE_DB: database,
     FORGE_SLOW_MS: "20",
     FORGE_CI_SCALE: "0.1",
     ...options.env,
   });
-  const { createApp, Shell } = await import(join(forgeDirectory, ".terminal/client/index.js"));
+  const { createApp, Shell } = await import(join(forgeDirectory, ".airtty/client/index.js"));
   const app = createApp({
     url: server.url,
     latencyMs: options.latencyMs ?? 0,
@@ -72,7 +72,7 @@ export async function startForge(options: Options = {}) {
   const metrics = async (): Promise<{ renders: number; actions: number }> =>
     (
       await fetch(server.url + "/test-metrics", {
-        headers: { "x-terminal-build": server.buildId, authorization: `Bearer ${probe.token}` },
+        headers: { "x-airtty-build": server.buildId, authorization: `Bearer ${probe.token}` },
       })
     ).json();
   async function signIn(user: string) {

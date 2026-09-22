@@ -123,9 +123,9 @@ submit appelle la référence `saveAction` avec un snapshot sérialisable. Le mo
 d'actions utilise `"use server"` et exporte des fonctions async ; le repository
 reste absent du bundle Client. Le starter doit typer les props et arguments.
 
-Une seule commande `terminal dev` construit et lance les deux processus. Cible
-suivante : `terminal build`, `terminal start --role server` et
-`terminal start --role client --url …`. Ces commandes sont à implémenter ; elles
+Une seule commande `airtty dev` construit et lance les deux processus. Cible
+suivante : `airtty build`, `airtty start --role server` et
+`airtty start --role client --url …`. Ces commandes sont à implémenter ; elles
 ne sont pas des commandes OpenTUI existantes.
 
 ## Architecture

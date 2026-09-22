@@ -1,7 +1,7 @@
 import { mkdtemp, cp, rm, mkdir } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
-const temp = await mkdtemp(join(tmpdir(), "terminal-release-"));
+const temp = await mkdtemp(join(tmpdir(), "airtty-release-"));
 async function run(cmd: string[], cwd: string) {
   const child = Bun.spawn(cmd, {
     cwd,
@@ -31,7 +31,7 @@ try {
     await cp(resolve(name), join(checkout, name), {
       recursive: true,
       filter: (p) =>
-        !p.includes(".terminal") &&
+        !p.includes(".airtty") &&
         !p.endsWith(".sqlite") &&
         !p.endsWith(".sqlite-shm") &&
         !p.endsWith(".sqlite-wal"),
@@ -72,7 +72,7 @@ try {
   await run([process.execPath, "run", "build"], starter);
   for (const role of ["client", "server"]) {
     const dest = join(temp, role);
-    await cp(join(temp, "starter/.terminal", role), dest, { recursive: true });
+    await cp(join(temp, "starter/.airtty", role), dest, { recursive: true });
     await run([process.execPath, "install", "--frozen-lockfile"], dest);
   }
   const child = Bun.spawn(

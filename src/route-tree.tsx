@@ -152,7 +152,7 @@ function AnimatedLoading({ label }: { label: string }) {
     };
   }, [timeline]);
   return (
-    <text ref={target} id="terminal-loading" height={1} flexShrink={0} wrapMode="none" truncate>
+    <text ref={target} id="airtty-loading" height={1} flexShrink={0} wrapMode="none" truncate>
       {label}
     </text>
   );
@@ -180,14 +180,14 @@ function Frame({ children }: { children: ReactNode }) {
   });
   return (
     <box flexDirection="column" flexGrow={1} padding={1} gap={1}>
-      <text id="terminal-heading" height={1} flexShrink={0} wrapMode="none" truncate fg="#67d9bc">
+      <text id="airtty-heading" height={1} flexShrink={0} wrapMode="none" truncate fg="#67d9bc">
         TERMINAL / {app.options.title ?? "APP"} · {app.status}
         {activity === "refresh" ? " · Refreshing…" : ""}
         {activity === "navigate" ? " · Esc cancel" : ""}
       </text>
       {app.error ? <text fg="#ffbc66">{app.error}</text> : null}
       {children}
-      <text id="terminal-footer" height={1} flexShrink={0} wrapMode="none" truncate fg="#8b98a5">
+      <text id="airtty-footer" height={1} flexShrink={0} wrapMode="none" truncate fg="#8b98a5">
         Ctrl+R reconnect · Ctrl+C quit
       </text>
     </box>

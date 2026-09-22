@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { useParams, type LayoutProps } from "@terminal/framework/client";
+import { useParams, type LayoutProps } from "airtty/client";
 
 // Persistent while moving between notes: its local trail survives each navigation
 // and resets only when the list is shown again.

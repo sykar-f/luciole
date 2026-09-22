@@ -2,8 +2,8 @@
 """Dev compiler failure is displayed inside the still-editable Client; shutdown reaps both children."""
 import os,pty,select,subprocess,tempfile,time,json,fcntl,termios,struct,pathlib,shutil,pyte
 root=pathlib.Path(__file__).resolve().parents[1];bun=shutil.which('bun')
-with tempfile.TemporaryDirectory(prefix='terminal-dev-') as directory:
- app=pathlib.Path(directory)/'app-source';shutil.copytree(root/'examples/notes',app,ignore=shutil.ignore_patterns('.terminal','*.sqlite*'))
+with tempfile.TemporaryDirectory(prefix='airtty-dev-') as directory:
+ app=pathlib.Path(directory)/'app-source';shutil.copytree(root/'examples/notes',app,ignore=shutil.ignore_patterns('.airtty','*.sqlite*'))
  master,slave=pty.openpty();fcntl.ioctl(slave,termios.TIOCSWINSZ,struct.pack('HHHH',32,140,0,0));before=termios.tcgetattr(slave)
  dev=subprocess.Popen([bun,str(root/'src/cli.ts'),'dev','--app',str(app)],stdin=slave,stdout=slave,stderr=slave,env={**os.environ,'TERM':'xterm-256color','NOTES_DB':directory+'/notes.sqlite'},start_new_session=True)
  screen=pyte.Screen(140,32);stream=pyte.ByteStream(screen);raw=b''

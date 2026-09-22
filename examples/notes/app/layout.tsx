@@ -1,5 +1,5 @@
 "use client";
-import type { LayoutProps } from "@terminal/framework/client";
+import type { LayoutProps } from "airtty/client";
 import { NotebookLayout } from "../components/NoteFrame";
 
 export default function Layout({ children }: LayoutProps) {

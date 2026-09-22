@@ -2,7 +2,7 @@
 """Forge production smoke: built artefacts, separate Server and Client processes, real PTY.
 
 Journey: sign in → repository → pull request → approve → comment → files → live
-checks → merge → quit. Runs under simulated latency (TERMINAL_LATENCY_MS, default 500)
+checks → merge → quit. Runs under simulated latency (AIRTTY_LATENCY_MS, default 500)
 and measures that typing stays local. Observes PTY output, not photons.
 """
 import fcntl
@@ -24,7 +24,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 APP = ROOT / "examples/forge"
 BUN = shutil.which("bun")
 COLS, ROWS = 140, 40
-LATENCY_MS = int(os.environ.get("TERMINAL_LATENCY_MS", "500"))
+LATENCY_MS = int(os.environ.get("AIRTTY_LATENCY_MS", "500"))
 ENV = {**os.environ, "TERM": "xterm-256color", "NODE_ENV": "production"}
 
 
@@ -80,7 +80,7 @@ def main():
         server = client = master = slave = None
         try:
             server = subprocess.Popen(
-                [BUN, "--conditions=react-server", str(APP / ".terminal/server/index.js")],
+                [BUN, "--conditions=react-server", str(APP / ".airtty/server/index.js")],
                 env={**ENV, "PORT": "0", "FORGE_DB": directory + "/forge.sqlite", "FORGE_SLOW_MS": "150", "FORGE_CI_SCALE": "0.2"},
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -92,7 +92,7 @@ def main():
             fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", ROWS, COLS, 0, 0))
             before = termios.tcgetattr(slave)
             client = subprocess.Popen(
-                [BUN, str(APP / ".terminal/client/index.js"), "--url", url],
+                [BUN, str(APP / ".airtty/client/index.js"), "--url", url],
                 stdin=slave, stdout=slave, stderr=slave, env=ENV, start_new_session=True,
             )
             term = Terminal(master)

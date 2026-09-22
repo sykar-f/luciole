@@ -1,5 +1,5 @@
 "use client";
-import type { LayoutProps } from "@terminal/framework/client";
+import type { LayoutProps } from "airtty/client";
 import { RepoChrome } from "../../../../components/RepoChrome";
 
 export default function RepoLayout({ children, params }: LayoutProps) {

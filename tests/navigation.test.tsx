@@ -11,12 +11,12 @@ import { launch, until } from "./helpers";
 test("local route loading, cancel, refresh identity, failed navigation and superseded loads", async () => {
   const directory = resolve("examples/notes");
   await build(directory);
-  const temp = await mkdtemp(join(tmpdir(), "terminal-navigation-"));
-  const server = await launch(join(directory, ".terminal/server/index.js"), {
+  const temp = await mkdtemp(join(tmpdir(), "airtty-navigation-"));
+  const server = await launch(join(directory, ".airtty/server/index.js"), {
     NOTES_DB: join(temp, "notes.sqlite"),
   });
   const { createApp, Shell } = await import(
-    join(directory, ".terminal/client/index.js") + "?navigation"
+    join(directory, ".airtty/client/index.js") + "?navigation"
   );
   let gate: { promise: Promise<void>; signal?: AbortSignal } | undefined;
   function hold() {
@@ -43,14 +43,14 @@ test("local route loading, cancel, refresh identity, failed navigation and super
   const geometry = () =>
     Object.fromEntries(
       [
-        "terminal-heading",
+        "airtty-heading",
         "notebook-heading",
         "note-heading",
         "note-field-frame",
         "note-status",
         "note-feedback",
         "note-help",
-        "terminal-footer",
+        "airtty-footer",
       ].map((id) => {
         const node = ui.renderer.root.findDescendantById(id);
         return [id, [node.x, node.y, node.width, node.height]];

@@ -1,4 +1,4 @@
-import type { AuthConfig } from "@terminal/framework/server";
+import type { AuthConfig } from "airtty/server";
 import { forge } from "./instance";
 
 // Opaque bearer → session in SQLite. Pages and Server Functions are protected by

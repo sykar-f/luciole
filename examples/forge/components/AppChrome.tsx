@@ -1,13 +1,7 @@
 "use client";
 import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { useKeyboard, useTerminalDimensions } from "@opentui/react";
-import {
-  useApplication,
-  useCanGoBack,
-  useLocation,
-  useNavigate,
-  useRouter,
-} from "@terminal/framework/client";
+import { useApplication, useCanGoBack, useLocation, useNavigate, useRouter } from "airtty/client";
 import { listRepos, logout, whoami } from "../actions/account";
 import { onServerChange } from "./changes";
 import { EditingProvider } from "./editing";

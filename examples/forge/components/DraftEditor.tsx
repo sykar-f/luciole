@@ -2,7 +2,7 @@
 import { useEffect, useRef } from "react";
 import { useKeyboard } from "@opentui/react";
 import type { TextareaRenderable } from "@opentui/core";
-import { useDraft, type Note, type SaveResult, type Snapshot } from "@terminal/framework/client";
+import { useDraft, type Note, type SaveResult, type Snapshot } from "airtty/client";
 import { useServerChanged } from "./changes";
 import { Line } from "./frames";
 import { color } from "./theme";

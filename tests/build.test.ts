@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { build } from "../src/build";
 async function fixture(files: Record<string, string>, run: (dir: string) => Promise<void>) {
-  const dir = await mkdtemp(join(tmpdir(), "terminal-build-"));
+  const dir = await mkdtemp(join(tmpdir(), "airtty-build-"));
   try {
     for (const [name, text] of Object.entries({
       "app/layout.tsx": `"use client";export default function Layout({children}){return children}`,
@@ -29,17 +29,17 @@ test("automatic graph, Client reexports, action proxies, no repository in Client
     },
     async (dir) => {
       await build(dir);
-      const manifest = await Bun.file(join(dir, ".terminal/manifest.json")).json();
+      const manifest = await Bun.file(join(dir, ".airtty/manifest.json")).json();
       expect(manifest.manifest[`${manifest.buildId}/components/barrel.ts#Editor`]).toBeDefined();
-      expect(await Bun.file(join(dir, ".terminal/client/index.js")).text()).not.toContain(
+      expect(await Bun.file(join(dir, ".airtty/client/index.js")).text()).not.toContain(
         "SECRET_REPOSITORY_SENTINEL",
       );
-      expect(await Bun.file(join(dir, ".terminal/server/index.js")).text()).toContain(
+      expect(await Bun.file(join(dir, ".airtty/server/index.js")).text()).toContain(
         "SECRET_REPOSITORY_SENTINEL",
       );
       expect(manifest.clientGraph).not.toContain("server/repository.ts");
       // TanStack's server build would bypass the Client transition machinery.
-      const client = await Bun.file(join(dir, ".terminal/client/index.js")).text();
+      const client = await Bun.file(join(dir, ".airtty/client/index.js")).text();
       expect(client).toContain("createRouter");
       expect(client).not.toContain('process.env.NODE_ENV === "test" ? void 0 : true');
     },
@@ -82,7 +82,7 @@ test("failed rebuild retains prior artefacts", async () => {
         'export default async function Page(){"use server";return <text>no</text>}',
       );
       await expect(build(dir)).rejects.toThrow("Inline");
-      expect((await Bun.file(join(dir, ".terminal/manifest.json")).json()).buildId).toBe(
+      expect((await Bun.file(join(dir, ".airtty/manifest.json")).json()).buildId).toBe(
         first.buildId,
       );
     },
@@ -98,7 +98,7 @@ test("route auth metadata is secure by default and validated", async () => {
     },
     async (dir) => {
       await build(dir);
-      const manifest = await Bun.file(join(dir, ".terminal/manifest.json")).json();
+      const manifest = await Bun.file(join(dir, ".airtty/manifest.json")).json();
       expect(manifest.routes.map(({ id, url, auth }: any) => ({ id, url, auth }))).toEqual([
         { id: "/", url: "/", auth: "required" },
         { id: "/login", url: "/login", auth: "public" },
@@ -125,7 +125,7 @@ for (const [file, source] of [
   ["app/layout.tsx", '"use client";export function Layout({children}){return children}'],
   [
     "app/(group)/layout.tsx",
-    '"use client";import {getSession} from "@terminal/framework/server";export default function Layout({children}){return <text>{getSession().userId}</text>}',
+    '"use client";import {getSession} from "airtty/server";export default function Layout({children}){return <text>{getSession().userId}</text>}',
   ],
 ] as const)
   test(`reject ${file}: ${source.slice(0, 48)}`, async () => {
@@ -148,7 +148,7 @@ test("route graph diagnostics abort the build before any artefact", async () => 
     },
     async (dir) => {
       await expect(build(dir)).rejects.toThrow("Route collision /users");
-      expect(await Bun.file(join(dir, ".terminal/manifest.json")).exists()).toBe(false);
+      expect(await Bun.file(join(dir, ".airtty/manifest.json")).exists()).toBe(false);
     },
   );
 });
@@ -163,7 +163,7 @@ test("layouts and loadings belong to the build identity and the Client graph", a
     },
     async (dir) => {
       const first = await build(dir);
-      const manifest = await Bun.file(join(dir, ".terminal/manifest.json")).json();
+      const manifest = await Bun.file(join(dir, ".airtty/manifest.json")).json();
       expect(manifest.clientGraph).toEqual(
         expect.arrayContaining(["app/layout.tsx", "app/(group)/layout.tsx", "app/loading.tsx"]),
       );

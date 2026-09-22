@@ -1,5 +1,5 @@
 "use client";
-import type { LayoutProps } from "@terminal/framework/client";
+import type { LayoutProps } from "airtty/client";
 
 export default function RootLayout({ children }: LayoutProps) {
   return (

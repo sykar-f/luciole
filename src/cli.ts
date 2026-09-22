@@ -25,14 +25,14 @@ async function stop(child?: ChildProcess) {
 }
 async function main() {
   if (command === "init") {
-    const target = resolve(args[1] ?? "my-terminal-app");
+    const target = resolve(args[1] ?? "my-airtty-app");
     if ((await readdir(target).catch(() => [] as string[])).length)
       throw new Error("Target already contains a project");
     await mkdir(target, { recursive: true });
     await cp(resolve(import.meta.dir, "../examples/notes"), target, {
       recursive: true,
       filter: (p) =>
-        !p.includes(".terminal") &&
+        !p.includes(".airtty") &&
         !p.endsWith(".sqlite") &&
         !p.endsWith(".sqlite-wal") &&
         !p.endsWith(".sqlite-shm"),
@@ -48,13 +48,13 @@ async function main() {
           packageManager: frameworkPackage.packageManager,
           dependencies: {
             ...frameworkPackage.dependencies,
-            "@terminal/framework": `file:${frameworkRoot}`,
+            airtty: `file:${frameworkRoot}`,
           },
           devDependencies: frameworkPackage.devDependencies,
           overrides: frameworkPackage.overrides,
           scripts: {
-            dev: "terminal dev --app .",
-            build: "terminal build --app .",
+            dev: "airtty dev --app .",
+            build: "airtty build --app .",
             check: "tsc --noEmit",
             lint: "oxlint --deny-warnings .",
             "lint:fix": "oxlint --fix .",
@@ -71,9 +71,9 @@ async function main() {
       join(target, "tsconfig.json"),
       JSON.stringify(
         {
-          extends: "@terminal/framework/tsconfig",
+          extends: "airtty/tsconfig",
           include: ["app", "components", "actions", "server"],
-          exclude: ["node_modules", ".terminal"],
+          exclude: ["node_modules", ".airtty"],
         },
         null,
         2,
@@ -112,7 +112,7 @@ async function main() {
   if (command === "start") {
     const role = option("--role", "server");
     if (!["client", "server"].includes(role)) throw new Error("role must be server or client");
-    const artifact = resolve(option("--artifact", join(directory, ".terminal", role)), "index.js");
+    const artifact = resolve(option("--artifact", join(directory, ".airtty", role)), "index.js");
     const child = spawn(
       process.execPath,
       [
@@ -158,14 +158,14 @@ async function main() {
           // Development reuses the framework installation, even for a starter elsewhere.
           await symlink(
             resolve(import.meta.dir, "../node_modules"),
-            join(directory, ".terminal/node_modules"),
+            join(directory, ".airtty/node_modules"),
             "dir",
           );
           if (closing) break;
           await Promise.all([stop(client), stop(server)]);
           server = spawn(
             process.execPath,
-            ["--conditions=react-server", join(directory, ".terminal/server/index.js")],
+            ["--conditions=react-server", join(directory, ".airtty/server/index.js")],
             {
               stdio: ["ignore", "pipe", "inherit"],
               env: { ...process.env, PORT: process.env.PORT ?? "0" },
@@ -197,11 +197,7 @@ async function main() {
           );
           client = spawn(
             process.execPath,
-            [
-              join(directory, ".terminal/client/index.js"),
-              "--url",
-              `http://127.0.0.1:${ready.port}`,
-            ],
+            [join(directory, ".airtty/client/index.js"), "--url", `http://127.0.0.1:${ready.port}`],
             { stdio: ["inherit", "inherit", "inherit", "ipc"] },
           );
           const activeClient = client;
@@ -220,7 +216,7 @@ async function main() {
     const watcher = watch(directory, { recursive: true }, (_event, file) => {
       if (
         !file ||
-        file.includes(".terminal") ||
+        file.includes(".airtty") ||
         file.includes("node_modules") ||
         // Written by the build itself when the route graph changes.
         file.endsWith("routeTree.gen.ts") ||
@@ -235,7 +231,7 @@ async function main() {
     return;
   }
   throw new Error(
-    "Usage: terminal init <dir> | dev | build | start --role server|client [--app dir] [--url URL] [--artifact dir]",
+    "Usage: airtty init <dir> | dev | build | start --role server|client [--app dir] [--url URL] [--artifact dir]",
   );
 }
 main().catch((error) => {

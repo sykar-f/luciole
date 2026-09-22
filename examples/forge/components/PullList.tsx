@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { useKeyboard } from "@opentui/react";
-import { useNavigate, useRouter } from "@terminal/framework/client";
+import { useNavigate, useRouter } from "airtty/client";
 import { useEditing, useEditingWhile } from "./editing";
 import { Line } from "./frames";
 import type { PullSummary } from "./model";

@@ -8,7 +8,7 @@ import { launch } from "./helpers";
 // An exception in a Server Function is an unknown outcome for the Client, and must
 // never reveal Server internals (message, stack, paths, source) in the response.
 test("a failing Server Function answers a generic 500 without internals", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "terminal-errors-"));
+  const directory = await mkdtemp(join(tmpdir(), "airtty-errors-"));
   let server: Awaited<ReturnType<typeof launch>> | undefined;
   try {
     for (const name of ["app", "components", "actions"])
@@ -31,9 +31,9 @@ test("a failing Server Function answers a generic 500 without internals", async 
       `"use server";export async function explode(){throw new Error("SECRET_INTERNAL_SENTINEL")}`,
     );
     await build(directory);
-    server = await launch(join(directory, ".terminal/server/index.js"));
-    const manifest = await Bun.file(join(directory, ".terminal/manifest.json")).json();
-    const { createApp } = await import(join(directory, ".terminal/client/index.js"));
+    server = await launch(join(directory, ".airtty/server/index.js"));
+    const manifest = await Bun.file(join(directory, ".airtty/manifest.json")).json();
+    const { createApp } = await import(join(directory, ".airtty/client/index.js"));
     const app = createApp({ url: server.url });
     const failure = await app
       .callServer(`${manifest.buildId}/actions/explode.ts#explode`, [])
@@ -44,8 +44,8 @@ test("a failing Server Function answers a generic 500 without internals", async 
     const raw = await fetch(`${server.url}/action`, {
       method: "POST",
       headers: {
-        "x-terminal-build": manifest.buildId,
-        "x-terminal-action": `${manifest.buildId}/actions/explode.ts#explode`,
+        "x-airtty-build": manifest.buildId,
+        "x-airtty-action": `${manifest.buildId}/actions/explode.ts#explode`,
       },
       body: "[]",
     });

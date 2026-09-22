@@ -1,5 +1,5 @@
 "use client";
-import type { LoadingProps } from "@terminal/framework/client";
+import type { LoadingProps } from "airtty/client";
 import { Screen, SkeletonRows } from "../../../../components/frames";
 import { Pulse } from "../../../../components/Pulse";
 

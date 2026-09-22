@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
 export async function launch(file: string, env: Record<string, string> = {}) {
   const child = spawn(process.execPath, ["--conditions=react-server", file], {
-    env: { ...process.env, PORT: "0", TERMINAL_TEST: "1", ...env },
+    env: { ...process.env, PORT: "0", AIRTTY_TEST: "1", ...env },
     stdio: ["ignore", "pipe", "pipe"],
   });
   let errors = "";

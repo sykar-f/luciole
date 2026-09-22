@@ -1,7 +1,7 @@
 "use client";
 import { useRef, useState } from "react";
 import { useKeyboard } from "@opentui/react";
-import { useApplication, useNavigate } from "@terminal/framework/client";
+import { useApplication, useNavigate } from "airtty/client";
 import { login } from "../actions/session";
 import { Line } from "./frames";
 import { operationStore } from "./operations";

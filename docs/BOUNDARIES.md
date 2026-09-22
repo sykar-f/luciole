@@ -10,7 +10,7 @@ et les actions, et composer des références de Client Components. Son JSX utili
 
 Les `layout.tsx` et `loading.tsx` sont toujours des Client Components : ils
 doivent déclarer `"use client"` et un export par défaut, sinon le build échoue avec
-fichier/ligne. Ils ne peuvent donc importer ni `@terminal/framework/server`, ni un
+fichier/ligne. Ils ne peuvent donc importer ni `airtty/server`, ni un
 module `server/`. Les pages restent Server et n'entrent jamais dans le bundle Client.
 
 `"use client"` coupe le graphe Server. Tous les imports et réexports runtime locaux
@@ -46,11 +46,11 @@ valeur est enregistrée dans le manifest de routes.
 Le graphe Client refuse :
 
 - les modules sous `server/` et tout import transitif de `server-only` ;
-- les modules `node:*`, `bun:*` et `@terminal/framework/server` ;
+- les modules `node:*`, `bun:*` et `airtty/server` ;
 - les imports de packages non analysés, hors React, OpenTUI et l’entrée Client
   du framework ; ajouter une intégration auditée pour un autre package Client.
   TanStack Router est l'intégration auditée du runtime : les applications
-  utilisent ses primitives via `@terminal/framework/client`, et le bundle Client
+  utilisent ses primitives via `airtty/client`, et le bundle Client
   l'embarque en forçant sa variante navigateur de `@tanstack/router-core/isServer` ;
 - `require()` et `import()` dynamiques dans les sources applicatives.
 
@@ -59,7 +59,7 @@ ou explicites. Les alias tsconfig ne sont pas pris en charge par ce compilateur.
 Le runtime interne est une dépendance de confiance. Une revue des intégrations
 reste nécessaire avant d’élargir l’ensemble des packages Client autorisés.
 
-`.terminal/manifest.json` expose les graphes pour inspection. Les tests contrôlent
+`.airtty/manifest.json` expose les graphes pour inspection. Les tests contrôlent
 l’absence d’un marqueur métier dans le bundle Client, les imports transitifs,
 les réexports et le maintien du dernier build utilisable en cas d’erreur.
 

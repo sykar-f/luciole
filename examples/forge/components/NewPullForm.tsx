@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useKeyboard } from "@opentui/react";
-import { useNavigate, type Note } from "@terminal/framework/client";
+import { useNavigate, type Note } from "airtty/client";
 import { openPullRequest, resolveSave } from "../actions/pulls";
 import { DraftEditor } from "./DraftEditor";
 import { useEditingWhile } from "./editing";
