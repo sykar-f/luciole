@@ -1,0 +1,41 @@
+{
+  "name": "@terminal/framework",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "bun@1.4.2",
+  "bin": {
+    "terminal": "./src/cli.ts"
+  },
+  "exports": {
+    "./client": "./src/client.tsx",
+    "./server": "./src/server.ts",
+    "./build": "./src/build.ts"
+  },
+  "scripts": {
+    "test": "bun test --timeout 20000",
+    "probes": "cd probes/rsc && bun install --frozen-lockfile && bun probe.tsx && cd ../rpc && bun install --frozen-lockfile && bun probe.tsx",
+    "build": "bun src/cli.ts build",
+    "dev": "bun src/cli.ts dev",
+    "check": "tsc --noEmit",
+    "format": "prettier --write src tests examples/notes scripts/*.ts package.json tsconfig.json types.d.ts",
+    "format:check": "prettier --check src tests examples/notes scripts/*.ts package.json tsconfig.json types.d.ts",
+    "test:pty": "python3 scripts/pty-smoke.py",
+    "verify": "bun run check && bun test --timeout 20000 && bun run build"
+  },
+  "dependencies": {
+    "@opentui/core": "0.5.12",
+    "@opentui/react": "0.5.12",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-server-dom-webpack": "19.3.0",
+    "react-reconciler": "0.33.0",
+    "typescript": "5.9.3"
+  },
+  "devDependencies": {
+    "@types/bun": "1.4.1",
+    "@types/react": "19.2.0",
+    "@types/react-dom": "19.2.0",
+    "prettier": "3.6.2"
+  }
+}

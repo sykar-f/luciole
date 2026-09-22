@@ -1,0 +1,25 @@
+name: MVP
+on: [push, pull_request]
+jobs:
+  verify:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: bun install --frozen-lockfile
+      - run: pip install -r scripts/requirements-pty.txt
+      - run: bun run format:check
+      - run: bun run probes
+      - run: bun run verify
+      - run: python3 scripts/pty-smoke.py
+      - run: python3 scripts/pty-dev.py
+      - run: bun scripts/clean-install.ts

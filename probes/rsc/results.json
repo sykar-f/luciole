@@ -1,0 +1,16 @@
+{
+  "versions": {
+    "opentui": "0.5.12",
+    "react": "19.3.0",
+    "flight": "19.3.0"
+  },
+  "handwrittenManifest": true,
+  "serverFunctionsTested": false,
+  "flightTreeMounted": true,
+  "clientReferenceResolved": true,
+  "serverRefreshVisible": true,
+  "localInstancePreserved": true,
+  "localDraftPreserved": true,
+  "typingAfterRefresh": true,
+  "frame": "Server revision 2                       \ndraft                                   \n                                        \n                                        \n                                        \n"
+}

@@ -1,0 +1,154 @@
+# Terminal RSC — MVP
+
+Framework expérimental React Server Components pour le terminal : React/Flight
+compose l’interface sur un Server, OpenTUI assure les interactions dans un Client
+séparé. L’application Notes fournit liste, édition, sauvegarde SQLite, navigation,
+Drafts de session et récupération d’une sauvegarde dont la réponse s’est perdue.
+Ce dépôt est indépendant de TWP. `terminal` et `@terminal/framework` sont des noms
+provisoires ; aucun paquet n’est publié sur un registre.
+
+## Installation et démarrage
+
+Installer **Bun 1.4.2**. Depuis un checkout de ce dépôt :
+
+```sh
+bun install --frozen-lockfile
+bun run dev
+```
+
+Une commande compile et lance les deux processus. La base `notes.sqlite` est créée
+dans le répertoire courant. `NOTES_DB=/chemin/notes.sqlite bun run dev` choisit un
+autre fichier. Les tests utilisent exclusivement des bases temporaires.
+
+Dans la liste : flèches puis Entrée. Dans une note : Entrée ou Ctrl+S sauvegarde,
+Échap revient à la liste, Ctrl+D abandonne le Draft au profit du dernier contenu
+Server reçu. Ctrl+R reconnecte/rafraîchit ; Ctrl+O consulte le résultat d’une
+opération inconnue. Ctrl+C restaure le terminal et quitte.
+
+Le Client reste éditable pendant une sauvegarde et après une perte de connexion.
+Une opération inconnue n’est jamais rejouée automatiquement. Une erreur de refresh
+ne transforme pas une sauvegarde confirmée en échec.
+
+## Nouveau starter
+
+Depuis le checkout du framework :
+
+```sh
+bun src/cli.ts init /tmp/my-terminal-app
+cd /tmp/my-terminal-app
+bun run dev
+# Plus tard, après arrêt du mode dev :
+bun run build
+```
+
+Le starter contient une seule codebase `app/`, `components/`, `actions/`, `server/`.
+Son lanceur généré `terminal.ts` référence ce checkout du framework ; conserver
+celui-ci installé pendant le développement. Il n’y a aucun manifest ni RPC à écrire.
+Le CLI est aussi déclaré sous le nom `terminal` dans `package.json` ; dans ce
+checkout, `bun src/cli.ts` exécute les mêmes commandes sans installation globale.
+
+## Production : deux artefacts
+
+Depuis le checkout du framework :
+
+```sh
+bun run build
+bun src/cli.ts start --role server
+# Dans un autre terminal :
+bun src/cli.ts start --role client --url http://127.0.0.1:3000
+```
+
+`--app /chemin/app` sélectionne un autre projet. Le build produit :
+
+```text
+app/.terminal/
+  manifest.json           # build, graphes, routes et Client References
+  client/                 # index.js, package.json, bun.lock
+  server/                 # index.js, package.json, bun.lock
+```
+
+Copier **tout le répertoire du rôle** sur sa machine cible puis installer ses
+dépendances. Aucune source Server n’est nécessaire sur la machine Client :
+
+```sh
+# Dans la copie server/ :
+bun install --frozen-lockfile
+NODE_ENV=production NOTES_DB=/chemin/notes.sqlite PORT=3000 \
+  bun --conditions=react-server index.js
+
+# Dans la copie client/, sur la machine du terminal :
+bun install --frozen-lockfile
+NODE_ENV=production bun index.js --url http://127.0.0.1:3000
+```
+
+Les deux rôles doivent provenir du **même build**. Un hash de sources, runtime et
+lockfile lie modules et actions ; un désaccord est refusé avant décodage, sans
+réinitialiser les Drafts déjà montés. Les dépendances natives OpenTUI sont installées
+pour la plateforme cible. Pour conserver un lockfile unique et vérifié, les deux
+artefacts embarquent le même manifeste de dépendances, y compris l’outillage ;
+le bundle Server n’importe pas OpenTUI et le bundle Client ne contient pas le métier.
+
+## Connexion distante
+
+Le Server écoute par défaut sur loopback. Pour une connexion privée, garder cette
+écoute et utiliser un tunnel SSH :
+
+```sh
+ssh -N -L 3001:127.0.0.1:3000 user@server
+NODE_ENV=production bun client/index.js --url http://127.0.0.1:3001
+```
+
+Avant toute exposition publique, placer le Server derrière un reverse proxy TLS,
+limiter l’accès réseau au backend et configurer `TERMINAL_TOKEN` sur les deux rôles.
+Une écoute hors loopback (`TERMINAL_HOST`) est refusée sans ce token. Le Client
+transmet le token par en-tête Authorization ; utiliser une URL HTTPS pour éviter
+sa transmission en clair. Les requêtes portant un Origin de navigateur sont refusées.
+
+Le MVP offre une **session mono-utilisateur** : le token est associé côté Server
+à `TERMINAL_USER` (défaut `local`). `getSession()` fournit cette identité aux actions
+et au repository, qui vérifie la propriété des notes. Une référence Flight ne donne
+aucun droit par elle-même. Une authentification multi-utilisateur doit remplacer
+cette association dans le runtime Server avant un tel déploiement. Ne jamais
+placer un secret dans les sources Client ou une prop RSC.
+
+## Tests reproductibles
+
+```sh
+bun run probes               # les deux sondes d’origine, avec leurs lockfiles
+bun run verify               # types, intégration et build
+bun run format:check
+bun audit --json
+
+python3 -m venv /tmp/terminal-pty
+/tmp/terminal-pty/bin/pip install -r scripts/requirements-pty.txt
+/tmp/terminal-pty/bin/python scripts/pty-smoke.py
+/tmp/terminal-pty/bin/python scripts/pty-dev.py
+PYTHON=/tmp/terminal-pty/bin/python bun scripts/clean-install.ts
+```
+
+Le dernier test part d’une copie sans dépendances ni artefacts, crée un starter,
+installe les rôles séparément et pilote le Client de production dans un PTY.
+La CI couvre macOS et Linux ; son workflow est fourni, son exécution hébergée
+n’a pas encore eu lieu. Voir [les preuves et limites](docs/VALIDATION.md).
+
+## Contrat et limites
+
+- [Frontières de compilation](docs/BOUNDARIES.md) et [API minimale](docs/API.md).
+- React/Flight 19.3.0, OpenTUI 0.5.12 et reconciler 0.33.0 exactement épinglés.
+  L’adapter Flight est isolé dans `src/flight/` et doit être retesté à toute mise à jour.
+- Une racine React persistante ; Suspense progresse dans le flux Flight.
+  `app/layout.tsx`, `page.tsx` et un segment `[id]` sont pris en charge ; pas de
+  layouts imbriqués, catch-all ou conventions loading/error par route.
+- Drafts en mémoire, au plus 32 documents par session. Les Drafts sales/en attente
+  ne sont pas évincés : une limite pleine exige de sauvegarder/abandonner un Draft.
+  **Quitter le Client perd les Drafts non sauvegardés.**
+- Une erreur de build est affichée dans le shell existant et laisse l’édition active.
+  Un rebuild valide redémarre les deux processus et **perd les Drafts de session**.
+  Pas de Fast Refresh.
+- La sauvegarde et son résultat d’opération sont atomiques dans SQLite. La consultation
+  résout un résultat perdu ; ce n’est pas une garantie générique exactly-once.
+  Si aucun résultat n’est retrouvé, l’opération reste inconnue et n’est pas rejouée.
+- Distribution par bundle applicatif de confiance. Le point de résolution de modules
+  reste remplaçable ; ni téléchargement de code distant, ni Client universel, ni sandbox.
+- Le parcours distant a été testé macOS → Linux via SSH ; aucune campagne WAN,
+  mesure écran physique ou garantie de résistance à une boucle infinie Client.

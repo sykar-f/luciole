@@ -1,0 +1,21 @@
+{
+  "versions": {
+    "core": "0.5.12",
+    "react": "19.3.0"
+  },
+  "separatePids": true,
+  "naiveRpc": {
+    "localEditMs": 1.078833000000003,
+    "draftBeforeReply": "abcd",
+    "draftAfterReply": "ABC",
+    "sameInstanceAfterRender": true
+  },
+  "revisionGuard": {
+    "localEditMs": 0.9201249999999845,
+    "draftBeforeReply": "abcd",
+    "draftAfterReply": "abcd",
+    "sameInstanceAfterRender": true
+  },
+  "editAfterDisconnect": "abcde",
+  "clientSyncCallbackTimerDelayMs": 152.66583300000013
+}

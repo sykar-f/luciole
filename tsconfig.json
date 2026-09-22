@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "jsxImportSource": "@opentui/react",
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "types": ["bun"],
+    "paths": {
+      "@terminal/framework/client": ["./src/client.tsx"],
+      "@terminal/framework/server": ["./src/server.ts"]
+    }
+  },
+  "include": ["src", "examples/notes", "types.d.ts"]
+}

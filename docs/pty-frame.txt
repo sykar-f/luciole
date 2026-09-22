@@ -1,0 +1,27 @@
+
+ TERMINAL / NOTES · Connected
+
+ Personal notebook · SQLite on Server
+
+ First note · version 2
+
+ ┌──────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+ │                                                                                                          │
+ │ abcd                                                                                                     │
+ │                                                                                                          │
+ └──────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+ Unsaved Draft · baseline: abc
+
+ Enter / Ctrl+S save · Esc list · Ctrl+O resolve · Ctrl+D discard
+
+
+
+
+
+
+
+
+
+
+ Ctrl+R reconnect · Ctrl+C quit
