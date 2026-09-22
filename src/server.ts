@@ -1,4 +1,5 @@
 import React from "react";
+import { matchRoute } from "./routes";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { decodeReply, renderToReadableStream } from "./flight/server";
 type Context = { session: { userId: string }; callId: string };
@@ -49,28 +50,12 @@ export function serve(config: ServerConfig) {
             if (url.pathname === "/render" && req.method === "GET") {
               metrics.renders++;
               const path = url.searchParams.get("path") ?? "/";
-              let page: any,
-                params: Record<string, string> = {};
-              for (const route of [...config.routes].sort(
-                (a, b) => Number(a.path.includes("[")) - Number(b.path.includes("[")),
-              )) {
-                const expected = route.path.split("/"),
-                  actual = path.split("/");
-                if (expected.length !== actual.length) continue;
-                const values: Record<string, string> = {};
-                if (
-                  !expected.every((s, i) =>
-                    s.startsWith("[")
-                      ? ((values[s.slice(1, -1)] = decodeURIComponent(actual[i])), !!actual[i])
-                      : s === actual[i],
-                  )
-                )
-                  continue;
-                page = route.component;
-                params = values;
-                break;
-              }
-              if (!page) return new Response("Route not found", { status: 404 });
+              const matched = matchRoute(config.routes, path);
+              if (!matched) return new Response("Route not found", { status: 404 });
+              const {
+                route: { component: page },
+                params,
+              } = matched;
               const tree = React.createElement(
                 config.layout,
                 null,

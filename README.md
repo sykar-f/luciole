@@ -29,6 +29,53 @@ Le Client reste éditable pendant une sauvegarde et après une perte de connexio
 Une opération inconnue n’est jamais rejouée automatiquement. Une erreur de refresh
 ne transforme pas une sauvegarde confirmée en échec.
 
+## Tester une connexion à 500 ms de ping
+
+```sh
+TERMINAL_LATENCY_MS=500 bun run dev
+# Banc de test dédié : input, scroll et hover pendant un appel distant
+TERMINAL_LATENCY_MS=500 bun src/cli.ts dev --app examples/latency
+```
+
+`TERMINAL_LATENCY_MS` ajoute un délai aller-retour à **chaque requête applicative**
+(rendu Flight, navigation, action, refresh, récupération) : 250 ms avant l’envoi et
+250 ms avant de livrer la réponse pour une valeur de 500. Les attentes sont
+asynchrones, inclues dans le timeout, et indépendantes entre requêtes. La latence
+réelle s’ajoute à cette valeur. Par défaut, aucun délai n’est ajouté.
+
+Dans le banc de test, Entrée appelle le Server. Pendant « Waiting for Server… »,
+continuer à taper, faire défiler les 100 lignes à la molette et survoler la zone
+colorée. Le résultat indique le temps d’aller-retour observé. Ctrl+R permet aussi
+de tester un refresh lent en conservant l’interface montée. La navigation vers
+une page distante attend le réseau ; ces interactions locales n’en dépendent pas.
+Le terminal doit transmettre les événements souris pour le scroll et le hover.
+
+C’est une simulation de latence de requête/réponse, pas une émulation TCP : elle
+ne simule pas bande passante, pertes, jitter, ni le délai individuel de chaque
+chunk d’un stream Flight. Elle suppose le Client exécuté localement ; exécuter le
+Client lui-même à travers SSH ajoute la latence du terminal à chaque interaction.
+`NOTES_DELAY_MS` reste uniquement une sonde de traitement métier pour Notes.
+
+Le test `tests/latency.test.tsx` vérifie les délais, la saisie, le scroll effectif,
+le hover visible, l’absence de trafic supplémentaire lié à ces interactions et
+la conservation du composant après refresh.
+
+## Chargement des pages
+
+Les navigations affichent immédiatement un écran local, même avant la première
+réponse réseau. Notes fournit `app/notes/[id]/loading.tsx` : avec
+`TERMINAL_LATENCY_MS=500 bun run dev`, ouvrir une note affiche son squelette pendant
+l’attente. Échap annule et revient à la dernière page confirmée.
+
+Au tout premier démarrage, le framework affiche aussi un « Connecting… » pulsé
+localement pendant que le premier arbre Flight arrive.
+
+Un refresh conserve l’éditeur monté avec un indicateur « Refreshing… ». Notes anime
+localement la luminosité grise de son squelette pendant l’attente ; cette animation
+est arrêtée au démontage et ne fait aucun appel réseau. L’application peut fournir
+ses propres `loading.tsx` Client, hérités depuis les répertoires parents.
+Voir le [contrat de navigation](docs/API.md#navigation-et-chargement-local).
+
 ## Nouveau starter
 
 Depuis le checkout du framework :

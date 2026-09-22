@@ -1,8 +1,9 @@
 import { test, expect } from "bun:test";
-import { mkdtemp, mkdir, rm } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdtemp, mkdir, rm, symlink } from "node:fs/promises";
+import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { build } from "../src/build";
+import { matchRoute } from "../src/routes";
 async function fixture(files: Record<string, string>, run: (dir: string) => Promise<void>) {
   const dir = await mkdtemp(join(tmpdir(), "terminal-build-"));
   try {
@@ -84,3 +85,53 @@ test("failed rebuild retains prior artefacts", async () => {
     },
   );
 });
+
+test("loading routes inherit the nearest local fallback and respect static route precedence", async () => {
+  await fixture(
+    {
+      "app/page.tsx": "export default function Page(){return <text>home</text>}",
+      "app/loading.tsx":
+        '"use client";export default function Loading(){return <text>ROOT LOADING</text>}',
+      "app/notes/[id]/page.tsx": "export default function Page(){return <text>note</text>}",
+      "app/notes/[id]/loading.tsx":
+        '"use client";export default function Loading({params}){return <text>{params.id}</text>}',
+      "app/notes/new/page.tsx": "export default function Page(){return <text>new</text>}",
+    },
+    async (dir) => {
+      await symlink(resolve("node_modules"), join(dir, "node_modules"), "dir");
+      const first = await build(dir);
+      const { createApp } = await import(join(dir, ".terminal/client/index.js"));
+      const app = createApp({ url: "http://127.0.0.1:1" });
+      for (const [path, expected] of [
+        ["/", "ROOT LOADING"],
+        ["/notes/new", "ROOT LOADING"],
+        ["/notes/hello%20world", "hello world"],
+      ]) {
+        const matched = matchRoute(app.options.loadingRoutes, path)!;
+        const component = (matched.route as any).component;
+        expect(component({ path, params: matched.params }).props.children).toBe(expected);
+      }
+      await Bun.write(
+        join(dir, "app/loading.tsx"),
+        '"use client";export default function Loading(){return <text>CHANGED</text>}',
+      );
+      expect((await build(dir)).buildId).not.toBe(first.buildId);
+    },
+  );
+});
+for (const [name, loading] of Object.entries({
+  "missing client directive": "export default function Loading(){return <text>wait</text>}",
+  "server import":
+    '"use client";import {readFile} from "node:fs";export default function Loading(){return <text>{String(readFile)}</text>}',
+}))
+  test(`reject loading with ${name}`, async () => {
+    await fixture(
+      {
+        "app/page.tsx": "export default function Page(){return <text>home</text>}",
+        "app/loading.tsx": loading,
+      },
+      async (dir) => {
+        await expect(build(dir)).rejects.toThrow(/loading.tsx:\d+:\d+:/);
+      },
+    );
+  });

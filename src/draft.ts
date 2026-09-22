@@ -78,7 +78,8 @@ export class Draft {
       this.error = "No committed result yet; resolve again later (no automatic replay)";
   }
   receive(note: Note) {
-    if (note.id !== this.id || note.version === this.version) return;
+    // Restoring a previous route may replay props older than an in-flight save's confirmation.
+    if (note.id !== this.id || note.version <= this.version) return;
     if (this.dirty || this.pending) {
       this.conflict = true;
       return;

@@ -1,4 +1,5 @@
 "use client";
+import { NoteEditorFrame } from "./NoteFrame";
 import { useKeyboard } from "@opentui/react";
 import {
   useDraft,
@@ -22,8 +23,9 @@ export function NoteEditor({ initialNote, saveAction, resolveAction }: Props) {
     if (key.ctrl && key.name === "d" && !draft.pending) discard();
   });
   return (
-    <box flexDirection="column" gap={1}>
-      <box border borderColor="#526d82" padding={1}>
+    <NoteEditorFrame
+      dirty={draft.dirty}
+      field={
         <input
           id={`note-${initialNote.id}`}
           focused
@@ -32,22 +34,26 @@ export function NoteEditor({ initialNote, saveAction, resolveAction }: Props) {
           onSubmit={() => void save(saveAction)}
           placeholder="Write a note…"
         />
-      </box>
-      <text fg={draft.dirty ? "#ffbc66" : "#67d9bc"}>
-        {draft.unknown
-          ? "Unknown outcome"
-          : draft.pending
-            ? "Saving…"
-            : draft.dirty
-              ? "Unsaved Draft"
-              : "Saved"}{" "}
-        · baseline: {draft.baseline || "(empty)"}
-      </text>
-      {draft.conflict ? (
-        <text fg="#ffbc66">Server changed. Draft preserved; discard explicitly to reload.</text>
-      ) : null}
-      {draft.error ? <text fg="#ffbc66">{draft.error}</text> : null}
-      <text fg="#8b98a5">Enter / Ctrl+S save · Esc list · Ctrl+O resolve · Ctrl+D discard</text>
-    </box>
+      }
+      status={
+        <>
+          {draft.unknown
+            ? "Unknown outcome"
+            : draft.pending
+              ? "Saving…"
+              : draft.dirty
+                ? "Unsaved Draft"
+                : "Saved"}{" "}
+          · baseline: {draft.baseline || "(empty)"}
+        </>
+      }
+      conflict={
+        draft.conflict
+          ? "Server changed. Draft preserved; discard explicitly to reload."
+          : undefined
+      }
+      error={draft.error}
+      help="Enter / Ctrl+S save · Esc list · Ctrl+O resolve · Ctrl+D discard"
+    />
   );
 }

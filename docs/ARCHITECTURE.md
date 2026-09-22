@@ -25,6 +25,7 @@ Ils ne sont pas du code à recopier dans chaque application.
 app/layout.tsx             composition commune côté Server
 app/page.tsx               liste côté Server
 app/notes/[id]/page.tsx     chargement et composition d’une note
+app/notes/[id]/loading.tsx  squelette local pendant la navigation, "use client"
 components/NoteList.tsx    sélection/navigation locale, "use client"
 components/NoteEditor.tsx  édition et événements locaux, "use client"
 actions/notes.ts           fonctions métier appelables, "use server"

@@ -1,0 +1,41 @@
+"use client";
+import { useEffect, useRef } from "react";
+import { useTimeline } from "@opentui/react";
+import type { LoadingProps } from "@terminal/framework/client";
+import { NotebookLayout, NotePageFrame, NoteEditorFrame } from "../../../components/NoteFrame";
+
+export default function Loading({ params }: LoadingProps) {
+  const skeleton = useRef<any>(null);
+  const timeline = useTimeline({ autoplay: false, duration: 1700, loop: true });
+  useEffect(() => {
+    if (!skeleton.current) return;
+    timeline.add(skeleton.current, {
+      duration: 850,
+      ease: "inOutSine",
+      opacity: 0.2,
+      loop: true,
+      alternate: true,
+    });
+    timeline.play();
+    return () => {
+      timeline.pause();
+    };
+  }, [timeline]);
+  return (
+    <NotebookLayout>
+      <NotePageFrame title={`Opening note ${params.id}…`}>
+        <NoteEditorFrame
+          field={
+            <box ref={skeleton}>
+              <text id="note-placeholder" height={1} wrapMode="none" truncate fg="#d6d6d6">
+                Loading note content…
+              </text>
+            </box>
+          }
+          status="Waiting for Server…"
+          help="Esc cancel · The editor will be ready when the note arrives."
+        />
+      </NotePageFrame>
+    </NotebookLayout>
+  );
+}

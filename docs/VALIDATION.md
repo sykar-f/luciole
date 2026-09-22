@@ -46,7 +46,7 @@ utilisé dans le compilateur.
 | 4 — réseau        | `transport.test.tsx` : navigations inversées, incompatibilité réelle HTTP 409, refresh en erreur après succès, arrêt du processus Server après commit avant réponse, redémarrage sur la même base/URL puis consultation du résultat sans nouvelle sauvegarde. Compteurs inchangés pendant frappe, déplacement du curseur, focus et scroll locaux. |
 | 5 — livraison     | Artefacts indépendants avec lockfiles ; README, API, starter ; `scripts/clean-install.ts` installe une copie neuve et les deux rôles séparément ; `pty-smoke.py` pilote le Client de production ; `pty-dev.py` vérifie erreur de compilation, saisie conservée, rebuild valide, restauration du terminal et absence de processus enfant orphelin. |
 
-`bun run verify` : **18 tests passent**, vérification des types et build passent.
+`bun run verify` : **24 tests passent**, vérification des types et build passent.
 `bun run format:check` passe. Le workflow CI macOS/Linux est livré ; il n’a pas
 encore été exécuté sur GitHub, car ce dépôt local n’a pas été publié.
 
@@ -80,3 +80,45 @@ Ne sont **pas** prouvés : performance WAN représentative, latence physique
 frappe-à-photon, charge multi-utilisateur, proxy TLS public, durabilité des Drafts
 après arrêt du Client, résistance à une boucle infinie dans un composant de confiance.
 La distribution universelle de code et sa sandbox restent des extensions.
+
+## Simulation de latence réseau
+
+`TERMINAL_LATENCY_MS=500 NOTES_DELAY_MS=0 /tmp/terminal-rsc-pty-venv/bin/python scripts/pty-smoke.py`
+a passé le parcours PTY avec 500 ms de délai aller-retour simulé et aucun délai
+métier. Sur cette exécution, la frappe pendant la sauvegarde apparaît dans la
+sortie PTY en **16,78 ms** ; ce n’est pas une mesure de latence physique de l’écran.
+Navigation, conservation du Draft, édition hors ligne et restauration du terminal passent.
+
+`tests/latency.test.tsx` monte l’application dédiée `examples/latency`, vérifie
+un rendu et une action différés d’au moins 480 ms (tolérance des timers), puis
+la saisie, le changement visible au survol et le déplacement réel du scroll
+pendant l’attente. Les compteurs du Server confirment une seule action et son
+refresh, sans trafic supplémentaire pour les interactions locales. Le test
+vérifie aussi la configuration invalide et le timeout pendant le délai simulé.
+Les limites de cette simulation sont décrites dans le [README](../README.md#tester-une-connexion-à-500-ms-de-ping).
+
+## Chargement local des routes
+
+Avec le même RTT simulé de 500 ms et sans délai métier, `pty-smoke.py` vérifie
+maintenant que le squelette « Opening note 1… » apparaît avant la réponse réseau.
+Observation de la sortie PTY : **18,4 ms** pour le loading, **17,66 ms** pour la
+frappe pendant la sauvegarde. Ce sont des observations ponctuelles de sortie PTY,
+pas des mesures physiques d’écran.
+
+`tests/navigation.test.tsx` retient explicitement les réponses pour vérifier le
+loading avant toute réponse, l’annulation par Échap, la relance de la destination,
+la conservation du même champ pendant un refresh, le retour au Draft après un
+échec, y compris lorsqu’une sauvegarde se confirme pendant la navigation, et
+l’ignorance des réponses obsolètes. Les tests de build vérifient l’héritage
+des loadings, la priorité des routes statiques, leur inclusion dans l’identité du
+build et le rejet des imports Server. Le starter neuf et les artefacts indépendants
+passent aussi les contrôles et le parcours PTY.
+
+La géométrie loading/page chargée est aussi comparée dans le renderer aux largeurs
+100 et 44 colonnes : en-tête, titre, cadre d’input, statut, messages, aide et pied
+de page. Le test couvre également le refresh et la saisie d’un texte long. Le PTY
+avec latence compare les lignes du layout et les bordures avant/après chargement.
+
+La pulsation du squelette est une timeline OpenTUI locale qui anime directement
+l’opacité d’un rendu natif. Elle ne déclenche pas de re-render React à chaque frame,
+ne modifie aucune dimension et est arrêtée lorsque le loading est démonté.

@@ -1,14 +1,17 @@
 /** @jsxImportSource @opentui/react */
+import { matchRoute } from "./routes";
+import { setTimeout as delay } from "node:timers/promises";
 import React, {
   Component,
   Suspense,
   createContext,
   useContext,
   useEffect,
+  useRef,
   useSyncExternalStore,
 } from "react";
 import { createCliRenderer } from "@opentui/core";
-import { createRoot, useKeyboard } from "@opentui/react";
+import { createRoot, useKeyboard, useTimeline } from "@opentui/react";
 import {
   decode,
   encodeReply,
@@ -20,12 +23,17 @@ import { DraftStore, type Note, type SaveResult, type Snapshot } from "./draft";
 export type { Note, SaveResult, Snapshot } from "./draft";
 export class TransportError extends Error {}
 export class BuildMismatch extends TransportError {}
+export type LoadingProps = { path: string; params: Record<string, string> };
+export type Navigation = { path: string; kind: "navigate" | "refresh" };
 export type ApplicationOptions = {
   url: string;
   buildId: string;
   resolveModule: ModuleResolver;
   token?: string;
   timeoutMs?: number;
+  /** Additional simulated round-trip latency for every application request. */
+  latencyMs?: number;
+  loadingRoutes?: { path: string; component?: React.ComponentType<LoadingProps> }[];
   fetch?: typeof fetch;
 };
 let current: Application;
@@ -38,6 +46,8 @@ export function actionReference(id: string) {
 export class Application {
   readonly drafts = new DraftStore();
   path = "/";
+  pendingNavigation: Navigation | null = null;
+  private navigationRequest?: AbortController;
   status = "Connecting";
   tree: any = null;
   generation = 0;
@@ -45,6 +55,8 @@ export class Application {
   error = "";
   private listeners = new Set<() => void>();
   constructor(readonly options: ApplicationOptions) {
+    if (!Number.isFinite(options.latencyMs ?? 0) || (options.latencyMs ?? 0) < 0)
+      throw new Error("latencyMs must be a finite non-negative number");
     installResolver(options.resolveModule);
     // oxlint-disable-next-line typescript/no-this-alias -- Register the single application instance used by generated action proxies.
     current = this;
@@ -64,12 +76,17 @@ export class Application {
     const headers = new Headers(init.headers);
     headers.set("x-terminal-build", this.options.buildId);
     if (this.options.token) headers.set("authorization", `Bearer ${this.options.token}`);
+    const timeout = AbortSignal.timeout(this.options.timeoutMs ?? 10000);
+    const signal = init.signal ? AbortSignal.any([timeout, init.signal]) : timeout;
+    const oneWayMs = (this.options.latencyMs ?? 0) / 2;
     try {
+      if (oneWayMs) await delay(oneWayMs, undefined, { signal });
       const response = await (this.options.fetch ?? fetch)(new URL(path, this.options.url), {
         ...init,
         headers,
-        signal: AbortSignal.timeout(this.options.timeoutMs ?? 10000),
+        signal,
       });
+      if (oneWayMs) await delay(oneWayMs, undefined, { signal });
       if (response.status === 409) throw new BuildMismatch(await response.text());
       if (!response.ok)
         throw new TransportError(`HTTP ${response.status}: ${await response.text()}`);
@@ -84,12 +101,25 @@ export class Application {
     if (!path.startsWith("/") || path.startsWith("//"))
       throw new Error("Expected application route");
     const generation = ++this.generation;
+    this.navigationRequest?.abort();
+    const controller = new AbortController();
+    this.navigationRequest = controller;
+    this.pendingNavigation = {
+      path,
+      kind: this.tree !== null && path === this.path ? "refresh" : "navigate",
+    };
+    this.error = "";
+    this.notify();
     try {
-      const response = await this.request(`/render?path=${encodeURIComponent(path)}`);
+      const response = await this.request(`/render?path=${encodeURIComponent(path)}`, {
+        signal: controller.signal,
+      });
       const pending = decode(response.body!, this.callServer);
       // Wait only for the root model. Nested Flight promises remain progressive Suspense content.
       const tree = await pending;
       if (generation !== this.generation) return;
+      this.pendingNavigation = null;
+      this.navigationRequest = undefined;
       this.tree = tree;
       this.path = path;
       this.status = "Connected";
@@ -97,12 +127,23 @@ export class Application {
       this.notify();
     } catch (e) {
       if (generation !== this.generation) return;
+      this.pendingNavigation = null;
+      this.navigationRequest = undefined;
       this.status = e instanceof BuildMismatch ? "Incompatible build" : "Disconnected";
       this.error = (e as Error).message;
       this.notify();
     }
   }
-  refresh = () => this.navigate(this.path);
+  cancelNavigation = () => {
+    if (!this.pendingNavigation || this.tree === null) return;
+    ++this.generation;
+    this.navigationRequest?.abort();
+    this.navigationRequest = undefined;
+    this.pendingNavigation = null;
+    this.notify();
+  };
+  // Refresh the destination if navigation is in progress, never bounce back to the old page.
+  refresh = () => this.navigate(this.pendingNavigation?.path ?? this.path);
   callServer = async (id: string, args: unknown[]) => {
     const callId = crypto.randomUUID(),
       generation = this.generation;
@@ -135,7 +176,11 @@ export function useApplication() {
 }
 export function useNavigation() {
   const app = useApplication();
+  useSyncExternalStore(app.subscribe, app.snapshot);
   return {
+    path: app.path,
+    pending: app.pendingNavigation,
+    cancel: app.cancelNavigation,
     navigate: (path: string) => app.navigate(path),
     refresh: app.refresh,
   };
@@ -201,25 +246,79 @@ class RenderErrorBoundary extends Component<
     );
   }
 }
+function AnimatedLoading({ label }: { label: string }) {
+  const target = useRef<any>(null);
+  const timeline = useTimeline({ autoplay: false, duration: 1700, loop: true });
+  useEffect(() => {
+    if (!target.current) return;
+    timeline.add(target.current, {
+      duration: 850,
+      ease: "inOutSine",
+      opacity: 0.2,
+      loop: true,
+      alternate: true,
+    });
+    timeline.play();
+    return () => {
+      timeline.pause();
+    };
+  }, [timeline]);
+  return (
+    <text ref={target} id="terminal-loading" height={1} flexShrink={0} wrapMode="none" truncate>
+      {label}
+    </text>
+  );
+}
+function NavigationLoading({ app, path }: { app: Application; path: string }) {
+  // Bad route parameters are reported by the navigation request, not thrown during rendering.
+  let matched;
+  try {
+    matched = matchRoute(app.options.loadingRoutes ?? [], path);
+  } catch {
+    /* generic fallback */
+  }
+  const Loading = matched?.route.component;
+  return Loading ? (
+    React.createElement(Loading, { path, params: matched!.params })
+  ) : (
+    <AnimatedLoading label="Loading…" />
+  );
+}
 export function Shell({ app }: { app: Application }) {
   useSyncExternalStore(app.subscribe, app.snapshot);
   useKeyboard((key) => {
     if (key.ctrl && key.name === "r") void app.refresh();
+    if (key.name === "escape" && app.pendingNavigation?.kind === "navigate") app.cancelNavigation();
   });
   return (
     <Runtime.Provider value={app}>
       <box flexDirection="column" flexGrow={1} padding={1} gap={1}>
-        <box flexDirection="row">
-          <text fg="#67d9bc">TERMINAL / NOTES</text>
-          <text> · {app.status}</text>
-        </box>
+        <text id="terminal-heading" height={1} flexShrink={0} wrapMode="none" truncate fg="#67d9bc">
+          TERMINAL / NOTES · {app.status}
+          {app.pendingNavigation?.kind === "refresh" ? " · Refreshing…" : ""}
+          {app.pendingNavigation?.kind === "navigate" && app.tree !== null ? " · Esc cancel" : ""}
+        </text>
         {app.error ? <text fg="#ffbc66">{app.error}</text> : null}
         <RenderErrorBoundary reset={app.generation}>
-          <Suspense fallback={<text>Loading…</text>}>
-            {app.tree ?? <text>Connecting…</text>}
+          <Suspense
+            fallback={
+              <NavigationLoading app={app} path={app.pendingNavigation?.path ?? app.path} />
+            }
+          >
+            {app.pendingNavigation?.kind === "navigate" ? (
+              <NavigationLoading
+                key={app.pendingNavigation.path}
+                app={app}
+                path={app.pendingNavigation.path}
+              />
+            ) : (
+              (app.tree ?? <AnimatedLoading label="Connecting…" />)
+            )}
           </Suspense>
         </RenderErrorBoundary>
-        <text fg="#8b98a5">Ctrl+R reconnect · Ctrl+C quit</text>
+        <text id="terminal-footer" height={1} flexShrink={0} wrapMode="none" truncate fg="#8b98a5">
+          Ctrl+R reconnect · Ctrl+C quit
+        </text>
       </box>
     </Runtime.Provider>
   );
@@ -233,7 +332,11 @@ export async function run(create: (options: any) => Application) {
     urlIndex >= 0
       ? process.argv[urlIndex + 1]
       : (process.env.TERMINAL_URL ?? "http://127.0.0.1:3000");
-  const app = create({ url, token: process.env.TERMINAL_TOKEN });
+  const app = create({
+    url,
+    token: process.env.TERMINAL_TOKEN,
+    latencyMs: Number(process.env.TERMINAL_LATENCY_MS ?? 0),
+  });
   process.on("message", (message: any) => {
     if (message?.type === "build-error") {
       app.error = message.message;

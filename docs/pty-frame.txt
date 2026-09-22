@@ -15,10 +15,10 @@
 
  Unsaved Draft · baseline: abc
 
+
+
+
  Enter / Ctrl+S save · Esc list · Ctrl+O resolve · Ctrl+D discard
-
-
-
 
 
 

@@ -92,19 +92,22 @@ export async function build(directory: string, output = join(directory, ".termin
     return m;
   }
   const pages: string[] = [];
+  const loadings: string[] = [];
   async function walk(dir: string) {
     for (const e of await readdir(dir, { withFileTypes: true })) {
       const p = join(dir, e.name);
       if (e.isDirectory()) await walk(p);
       else if (e.name === "page.tsx") pages.push(p);
+      else if (e.name === "loading.tsx") loadings.push(p);
     }
   }
   await walk(join(root, "app"));
   pages.sort();
+  loadings.sort();
   if (!pages.length) throw new Error("No app/page.tsx routes");
   const layout = join(root, "app/layout.tsx");
   if (!(await Bun.file(layout).exists())) throw new Error("app/layout.tsx required");
-  for (const p of [...pages, layout]) await read(p);
+  for (const p of [...pages, layout, ...loadings]) await read(p);
   const program = ts.createProgram([...modules.keys()], {
     allowJs: true,
     jsx: ts.JsxEmit.ReactJSX,
@@ -200,6 +203,12 @@ export async function build(directory: string, output = join(directory, ".termin
     }
   }
   for (const p of [...pages, layout]) serverVisit(p);
+  for (const p of loadings) {
+    const m = modules.get(p)!;
+    if (m.directive !== "use client" || !m.exports.includes("default"))
+      fail(m, m.ast, 'loading.tsx must declare "use client" and a default export');
+    clients.add(p);
+  }
   for (const p of clients) clientVisit(p);
   const hash = createHash("sha256");
   for (const m of [...modules.values()].sort((a, b) => a.path.localeCompare(b.path)))
@@ -209,6 +218,7 @@ export async function build(directory: string, output = join(directory, ".termin
     "client.tsx",
     "server.ts",
     "draft.ts",
+    "routes.ts",
     "flight/client.ts",
     "flight/server.ts",
   ])
@@ -227,6 +237,17 @@ export async function build(directory: string, output = join(directory, ".termin
     name: `P${i}`,
     route: "/" + relative(join(root, "app"), dirname(p)).split("/").filter(Boolean).join("/"),
   }));
+  const loadingRoutes = routes.map((r) => {
+    let directory = dirname(r.file);
+    while (true) {
+      const loading = loadings.find((p) => dirname(p) === directory);
+      if (loading)
+        return `{path:${quote(r.route)},component:C${[...clients].indexOf(loading)}.default}`;
+      if (directory === join(root, "app")) break;
+      directory = dirname(directory);
+    }
+    return `{path:${quote(r.route)}}`;
+  });
   const serverSource =
     `import React from 'react';import {serve} from ${quote(join(framework, "server.ts"))};import Layout from ${quote(layout)};\n` +
     routes.map((r) => `import ${r.name} from ${quote(r.file)};`).join("\n") +
@@ -237,7 +258,7 @@ export async function build(directory: string, output = join(directory, ".termin
   const clientSource =
     `export {Shell} from ${quote(join(framework, "client.tsx"))};import {createApplication,run} from ${quote(join(framework, "client.tsx"))};\n` +
     [...clients].map((p, i) => `import * as C${i} from ${quote(p)};`).join("\n") +
-    `\nconst modules=new Map([${[...clients].map((p, i) => `[${quote(id(p))},C${i}]`).join(",")}]);export function createApp(options){return createApplication({...options,buildId:${quote(buildId)},resolveModule:id=>{if(!modules.has(id))throw new Error('Unknown module '+id);return modules.get(id)}})};if(import.meta.main)await run(createApp);`;
+    `\nconst modules=new Map([${[...clients].map((p, i) => `[${quote(id(p))},C${i}]`).join(",")}]);export function createApp(options){return createApplication({...options,loadingRoutes:[${loadingRoutes.join(",")}],buildId:${quote(buildId)},resolveModule:id=>{if(!modules.has(id))throw new Error('Unknown module '+id);return modules.get(id)}})};if(import.meta.main)await run(createApp);`;
   const external = [
     "react",
     "react-dom",
