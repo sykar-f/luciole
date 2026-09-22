@@ -150,10 +150,11 @@ NODE_ENV=production bun client/index.js --url http://127.0.0.1:3001
 ```
 
 Avant toute exposition publique, placer le Server derrière un reverse proxy TLS,
-limiter l’accès réseau au backend et configurer `TERMINAL_TOKEN` sur les deux rôles.
-Une écoute hors loopback (`TERMINAL_HOST`) est refusée sans ce token. Le Client
-transmet le token par en-tête Authorization ; utiliser une URL HTTPS pour éviter
-sa transmission en clair. Les requêtes portant un Origin de navigateur sont refusées.
+limiter l’accès réseau au backend et configurer `TERMINAL_TOKEN` sur les deux rôles,
+ou fournir l'adapter `server/auth.ts`. Une écoute hors loopback (`TERMINAL_HOST`)
+est refusée sans l'un de ces deux mécanismes. Le Client transmet le token par en-tête
+Authorization ; utiliser une URL HTTPS pour éviter sa transmission en clair. Les
+requêtes portant un Origin de navigateur sont refusées.
 
 Le MVP offre une **session mono-utilisateur** : le token est associé côté Server
 à `TERMINAL_USER` (défaut `local`). `getSession()` fournit cette identité aux actions
@@ -161,6 +162,14 @@ et au repository, qui vérifie la propriété des notes. Une référence Flight 
 aucun droit par elle-même. Une authentification multi-utilisateur doit remplacer
 cette association dans le runtime Server avant un tel déploiement. Ne jamais
 placer un secret dans les sources Client ou une prop RSC.
+
+Une application peut remplacer ce mode par `server/auth.ts`. Les pages et Server
+Functions sont alors protégées par défaut ; une page ou un module d'actions public
+déclare `export const auth = "public"`. `unauthorizedPath` redirige un Client sans
+session vers une route publique, et `useApplication().setToken()` installe le bearer
+obtenu par le flux de connexion. Le framework transporte la session ; login, stockage
+du token, renouvellement et autorisations métier restent sous la responsabilité de
+l'application. Voir [le contrat d'authentification](docs/API.md#authentification-des-routes-et-actions).
 
 ## TypeScript, Oxc et VS Code
 

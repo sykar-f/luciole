@@ -32,6 +32,12 @@ ou réexport sont refusés avec fichier/ligne. Les réexports de Client Componen
 restent supportés. Les fonctions liées avec `.bind` et le passage de références
 d’actions en arguments d’autres actions ne font pas partie de l’API validée du MVP.
 
+Le seul export runtime supplémentaire autorisé dans un module `"use server"` est
+`export const auth = "public" | "required"`. Il décrit toutes les actions nommées
+du module et n'est ni enregistré comme Server Function ni envoyé au Client. La
+valeur par défaut est `"required"`. Les pages utilisent la même métadonnée ; leur
+valeur est enregistrée dans le manifest de routes.
+
 Le graphe Client refuse :
 
 - les modules sous `server/` et tout import transitif de `server-only` ;

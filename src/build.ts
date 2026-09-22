@@ -11,7 +11,9 @@ type Module = {
   directive: string;
   imports: { name: string; node: ts.Node; path?: string }[];
   exports: string[];
+  actionExports: string[];
 };
+type RouteAuth = "public" | "required";
 export async function build(directory: string, output = join(directory, ".terminal")) {
   const root = await realpath(directory),
     modules = new Map<string, Module>();
@@ -42,6 +44,7 @@ export async function build(directory: string, output = join(directory, ".termin
       directive: "",
       imports: [],
       exports: [],
+      actionExports: [],
     };
     modules.set(path, m);
     const errors = (ast as any).parseDiagnostics as ts.Diagnostic[];
@@ -106,8 +109,10 @@ export async function build(directory: string, output = join(directory, ".termin
   loadings.sort();
   if (!pages.length) throw new Error("No app/page.tsx routes");
   const layout = join(root, "app/layout.tsx");
+  const authFile = join(root, "server/auth.ts");
+  const hasAuth = await Bun.file(authFile).exists();
   if (!(await Bun.file(layout).exists())) throw new Error("app/layout.tsx required");
-  for (const p of [...pages, layout, ...loadings]) await read(p);
+  for (const p of [...pages, layout, ...loadings, ...(hasAuth ? [authFile] : [])]) await read(p);
   const program = ts.createProgram([...modules.keys()], {
     allowJs: true,
     jsx: ts.JsxEmit.ReactJSX,
@@ -116,6 +121,33 @@ export async function build(directory: string, output = join(directory, ".termin
     skipLibCheck: true,
   });
   const checker = program.getTypeChecker();
+  function moduleAuth(m: Module): RouteAuth {
+    let value: RouteAuth = "required";
+    for (const statement of m.ast.statements) {
+      if (!ts.isVariableStatement(statement)) continue;
+      const exported = statement.modifiers?.some((x) => x.kind === ts.SyntaxKind.ExportKeyword);
+      if (!exported) continue;
+      for (const declaration of statement.declarationList.declarations) {
+        if (!ts.isIdentifier(declaration.name) || declaration.name.text !== "auth") continue;
+        let initializer = declaration.initializer;
+        while (
+          initializer &&
+          (ts.isAsExpression(initializer) ||
+            ts.isSatisfiesExpression(initializer) ||
+            ts.isParenthesizedExpression(initializer))
+        )
+          initializer = initializer.expression;
+        if (
+          !initializer ||
+          !ts.isStringLiteral(initializer) ||
+          !["public", "required"].includes(initializer.text)
+        )
+          fail(m, declaration, 'auth must be the literal "public" or "required"');
+        value = (initializer as ts.StringLiteral).text as RouteAuth;
+      }
+    }
+    return value;
+  }
   for (const m of modules.values()) {
     const ast = program.getSourceFile(m.path)!;
     const symbol = checker.getSymbolAtLocation(ast);
@@ -144,12 +176,22 @@ export async function build(directory: string, output = join(directory, ".termin
           ts.getModifiers(s)?.some((x) => x.kind === ts.SyntaxKind.ExportKeyword);
         if (!exported) continue;
         if (
+          ts.isVariableStatement(s) &&
+          s.declarationList.declarations.every(
+            (d) => ts.isIdentifier(d.name) && d.name.text === "auth",
+          )
+        ) {
+          moduleAuth(m);
+          continue;
+        }
+        if (
           !ts.isFunctionDeclaration(s) ||
           !s.name ||
           !s.modifiers?.some((x) => x.kind === ts.SyntaxKind.AsyncKeyword) ||
           s.modifiers?.some((x) => x.kind === ts.SyntaxKind.DefaultKeyword)
         )
           fail(m, s, '"use server" supports named exported async function declarations only');
+        m.actionExports.push((s as ts.FunctionDeclaration).name!.text);
       }
     }
   }
@@ -203,6 +245,7 @@ export async function build(directory: string, output = join(directory, ".termin
     }
   }
   for (const p of [...pages, layout]) serverVisit(p);
+  if (hasAuth) serverVisit(authFile);
   for (const p of loadings) {
     const m = modules.get(p)!;
     if (m.directive !== "use client" || !m.exports.includes("default"))
@@ -236,6 +279,7 @@ export async function build(directory: string, output = join(directory, ".termin
     file: p,
     name: `P${i}`,
     route: "/" + relative(join(root, "app"), dirname(p)).split("/").filter(Boolean).join("/"),
+    auth: moduleAuth(modules.get(p)!),
   }));
   const loadingRoutes = routes.map((r) => {
     let directory = dirname(r.file);
@@ -249,12 +293,12 @@ export async function build(directory: string, output = join(directory, ".termin
     return `{path:${quote(r.route)}}`;
   });
   const serverSource =
-    `import React from 'react';import {serve} from ${quote(join(framework, "server.ts"))};import Layout from ${quote(layout)};\n` +
+    `import React from 'react';import {serve} from ${quote(join(framework, "server.ts"))};import Layout from ${quote(layout)};${hasAuth ? `import Auth from ${quote(authFile)};` : ""}\n` +
     routes.map((r) => `import ${r.name} from ${quote(r.file)};`).join("\n") +
     "\n" +
     [...actions].map((p, i) => `import * as A${i} from ${quote(p)};`).join("\n") +
-    `\nconst actions=new Map([${[...actions].flatMap((p, i) => modules.get(p)!.exports.map((n) => `[${quote(id(p) + "#" + n)},A${i}[${quote(n)}]]`)).join(",")}]);\n` +
-    `serve({buildId:${quote(buildId)},manifest:${quote(manifest)},actions,layout:Layout,routes:[${routes.map((r) => `{path:${quote(r.route)},component:${r.name}}`).join(",")}]});`;
+    `\nconst actions=new Map([${[...actions].flatMap((p, i) => modules.get(p)!.actionExports.map((n) => `[${quote(id(p) + "#" + n)},{fn:A${i}[${quote(n)}],auth:${quote(moduleAuth(modules.get(p)!))}}]`)).join(",")}]);\n` +
+    `serve({buildId:${quote(buildId)},manifest:${quote(manifest)},actions,layout:Layout,routes:[${routes.map((r) => `{path:${quote(r.route)},component:${r.name},auth:${quote(r.auth)}}`).join(",")}]${hasAuth ? ",auth:Auth" : ""}});`;
   const clientSource =
     `export {Shell} from ${quote(join(framework, "client.tsx"))};import {createApplication,run} from ${quote(join(framework, "client.tsx"))};\n` +
     [...clients].map((p, i) => `import * as C${i} from ${quote(p)};`).join("\n") +
@@ -308,7 +352,7 @@ export async function build(directory: string, output = join(directory, ".termin
                 else if (role === "client" && m?.directive === "use server")
                   source =
                     `import {actionReference} from ${quote(join(framework, "client.tsx"))};\n` +
-                    m.exports
+                    m.actionExports
                       .map(
                         (n) => `export const ${n}=actionReference(${quote(id(m.path) + "#" + n)});`,
                       )
@@ -316,7 +360,7 @@ export async function build(directory: string, output = join(directory, ".termin
                 else if (role === "server" && m?.directive === "use server")
                   source +=
                     `\nimport {registerServerReference as register} from ${quote(join(framework, "flight/server.ts"))};\n` +
-                    m.exports
+                    m.actionExports
                       .map((n) => `register(${n},${quote(id(m.path))},${quote(n)});`)
                       .join("\n");
                 return {
@@ -362,7 +406,7 @@ export async function build(directory: string, output = join(directory, ".termin
         {
           buildId,
           manifest,
-          routes: routes.map((r) => r.route),
+          routes: routes.map((r) => ({ path: r.route, auth: r.auth })),
           serverGraph: [...serverGraph].map((p) => relative(root, p)),
           clientGraph: [...clientGraph].map((p) => relative(root, p)),
         },

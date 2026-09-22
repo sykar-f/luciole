@@ -26,7 +26,12 @@ leurs versions métier.
 Entrée `@terminal/framework/server` :
 
 - `getSession()` : `{ userId }` dans le contexte async du rendu ou de l’action.
+- `getOptionalSession()` : la même session, ou `null` dans une page/action publique.
 - `getCallId()` : identifiant de requête de transport, distinct de l’opération métier.
+
+`useApplication().setToken(token)` remplace le bearer token des requêtes suivantes,
+sans recréer le Client ni perdre son état local. L’application décide où obtenir,
+stocker et renouveler ce token.
 
 Une action vérifie les droits et valide ses arguments côté Server. Les échecs
 métier attendus sont des valeurs `SaveResult`. Une erreur réseau, timeout ou réponse
@@ -39,6 +44,64 @@ aux tests et aux intégrateurs du framework. Le résolveur de modules est une fo
 `(moduleId) => exports`, injectée dans `createApplication`. Le MVP accepte un seul
 runtime applicatif par processus Client ; le registre est global pour satisfaire
 le contrat bundler du codec Flight. Aucun chargement de chunks distants.
+
+## Authentification des routes et actions
+
+Les pages et les modules `"use server"` exigent une session par défaut. Une page
+publique le déclare explicitement :
+
+```tsx
+export const auth = "public" as const;
+
+export default function LoginPage() {
+  return <text>Sign in</text>;
+}
+```
+
+Une application qui remplace l'identité locale fournit `server/auth.ts` :
+
+```ts
+import type { AuthConfig } from "@terminal/framework/server";
+
+export default {
+  unauthorizedPath: "/login",
+  async authenticate(request) {
+    const token = request.headers.get("authorization")?.replace(/^Bearer /, "");
+    return token ? await sessions.fromToken(token) : null;
+  },
+} satisfies AuthConfig;
+```
+
+Le chemin `unauthorizedPath` doit désigner une route publique existante. Une
+navigation sans session vers une route protégée reçoit un `401` puis navigue
+localement vers ce chemin. Sans `unauthorizedPath`, le Client reste sur la dernière
+route confirmée et expose l'erreur `AuthenticationRequired`.
+
+Le layout racine enveloppe aussi les pages publiques. S'il affiche l'utilisateur,
+il doit donc utiliser `getOptionalSession()` et accepter le cas `null`; réserver
+`getSession()` aux pages, actions et repositories qui exigent effectivement une
+identité.
+
+Une action est protégée indépendamment de la page qui fournit sa référence. Pour
+autoriser une Server Function sans session, placer les actions publiques dans leur
+propre module :
+
+```ts
+"use server";
+export const auth = "public" as const;
+
+export async function beginLogin() {
+  // Valider les arguments même sans session.
+}
+```
+
+Toutes les fonctions exportées d'un même module partagent cette politique. Une
+référence Flight n'accorde aucun droit, et une route protégée ne remplace jamais
+les contrôles d'autorisation métier dans l'action ou le repository.
+
+Sans `server/auth.ts`, l'adapter historique reste actif : identité `TERMINAL_USER`
+(`local` par défaut), éventuellement protégée par `TERMINAL_TOKEN`. Le starter
+reste donc compatible avec son mode local.
 
 ## Navigation et chargement local
 

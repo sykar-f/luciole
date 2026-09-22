@@ -30,6 +30,7 @@ components/NoteList.tsx    sélection/navigation locale, "use client"
 components/NoteEditor.tsx  édition et événements locaux, "use client"
 actions/notes.ts           fonctions métier appelables, "use server"
 server/repository.ts       accès SQLite, droits et transactions
+server/auth.ts             adapter d'identité optionnel
 ```
 
 Le développeur remplace ces fichiers par ses pages, composants et règles métier.
@@ -37,6 +38,11 @@ Il utilise React et les composants OpenTUI, importe les hooks du framework et pa
 les Server Functions en props ou les importe dans des Client Components. Il ne
 rédige ni protocole RPC, ni registre de modules, ni manifest Flight, ni bootstrap
 OpenTUI.
+
+`server/auth.ts` est optionnel. Lorsqu'il existe, le build l'inclut uniquement dans
+le graphe Server et injecte son `AuthConfig` dans le runtime. Les pages et actions
+sont protégées par défaut ; `export const auth = "public"` est une exception locale
+et explicite.
 
 Dans Notes, la page Server charge une note et transmet `saveNote` au composant
 `NoteEditor`. Le composant traite chaque frappe localement. À Entrée, il appelle

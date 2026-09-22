@@ -119,6 +119,32 @@ test("loading routes inherit the nearest local fallback and respect static route
     },
   );
 });
+test("route auth metadata is secure by default and validated", async () => {
+  await fixture(
+    {
+      "app/page.tsx": "export default function Page(){return <text>private</text>}",
+      "app/login/page.tsx":
+        'export const auth="public" as const;export default function Page(){return <text>login</text>}',
+    },
+    async (dir) => {
+      await build(dir);
+      const manifest = await Bun.file(join(dir, ".terminal/manifest.json")).json();
+      expect(manifest.routes).toEqual([
+        { path: "/login", auth: "public" },
+        { path: "/", auth: "required" },
+      ]);
+    },
+  );
+  await fixture(
+    {
+      "app/page.tsx":
+        'export const auth="sometimes";export default function Page(){return <text>bad</text>}',
+    },
+    async (dir) => {
+      await expect(build(dir)).rejects.toThrow('auth must be the literal "public" or "required"');
+    },
+  );
+});
 for (const [name, loading] of Object.entries({
   "missing client directive": "export default function Loading(){return <text>wait</text>}",
   "server import":

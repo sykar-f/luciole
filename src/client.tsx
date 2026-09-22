@@ -23,6 +23,14 @@ import { DraftStore, type Note, type SaveResult, type Snapshot } from "./draft";
 export type { Note, SaveResult, Snapshot } from "./draft";
 export class TransportError extends Error {}
 export class BuildMismatch extends TransportError {}
+export class AuthenticationRequired extends TransportError {
+  constructor(
+    message: string,
+    readonly loginPath?: string,
+  ) {
+    super(message);
+  }
+}
 export type LoadingProps = { path: string; params: Record<string, string> };
 export type Navigation = { path: string; kind: "navigate" | "refresh" };
 export type ApplicationOptions = {
@@ -45,6 +53,7 @@ export function actionReference(id: string) {
 }
 export class Application {
   readonly drafts = new DraftStore();
+  private token?: string;
   path = "/";
   pendingNavigation: Navigation | null = null;
   private navigationRequest?: AbortController;
@@ -58,6 +67,7 @@ export class Application {
     if (!Number.isFinite(options.latencyMs ?? 0) || (options.latencyMs ?? 0) < 0)
       throw new Error("latencyMs must be a finite non-negative number");
     installResolver(options.resolveModule);
+    this.token = options.token;
     // oxlint-disable-next-line typescript/no-this-alias -- Register the single application instance used by generated action proxies.
     current = this;
   }
@@ -75,7 +85,7 @@ export class Application {
   async request(path: string, init: RequestInit = {}) {
     const headers = new Headers(init.headers);
     headers.set("x-terminal-build", this.options.buildId);
-    if (this.options.token) headers.set("authorization", `Bearer ${this.options.token}`);
+    if (this.token) headers.set("authorization", `Bearer ${this.token}`);
     const timeout = AbortSignal.timeout(this.options.timeoutMs ?? 10000);
     const signal = init.signal ? AbortSignal.any([timeout, init.signal]) : timeout;
     const oneWayMs = (this.options.latencyMs ?? 0) / 2;
@@ -88,6 +98,11 @@ export class Application {
       });
       if (oneWayMs) await delay(oneWayMs, undefined, { signal });
       if (response.status === 409) throw new BuildMismatch(await response.text());
+      if (response.status === 401)
+        throw new AuthenticationRequired(
+          await response.text(),
+          response.headers.get("x-terminal-login") ?? undefined,
+        );
       if (!response.ok)
         throw new TransportError(`HTTP ${response.status}: ${await response.text()}`);
       return response;
@@ -97,6 +112,9 @@ export class Application {
         : new TransportError(e instanceof Error ? e.message : String(e));
     }
   }
+  setToken = (token?: string) => {
+    this.token = token;
+  };
   async navigate(path: string) {
     if (!path.startsWith("/") || path.startsWith("//"))
       throw new Error("Expected application route");
@@ -127,9 +145,20 @@ export class Application {
       this.notify();
     } catch (e) {
       if (generation !== this.generation) return;
+      if (e instanceof AuthenticationRequired && e.loginPath && e.loginPath !== path) {
+        this.status = "Authentication required";
+        this.error = "";
+        await this.navigate(e.loginPath);
+        return;
+      }
       this.pendingNavigation = null;
       this.navigationRequest = undefined;
-      this.status = e instanceof BuildMismatch ? "Incompatible build" : "Disconnected";
+      this.status =
+        e instanceof BuildMismatch
+          ? "Incompatible build"
+          : e instanceof AuthenticationRequired
+            ? "Authentication required"
+            : "Disconnected";
       this.error = (e as Error).message;
       this.notify();
     }
@@ -161,7 +190,13 @@ export class Application {
       if (envelope.refresh && generation === this.generation) void this.refresh(); // refresh failures never reject a committed business result
       return envelope.value;
     } catch (e) {
-      this.status = e instanceof BuildMismatch ? "Incompatible build" : "Disconnected";
+      if (e instanceof AuthenticationRequired && e.loginPath) void this.navigate(e.loginPath);
+      this.status =
+        e instanceof BuildMismatch
+          ? "Incompatible build"
+          : e instanceof AuthenticationRequired
+            ? "Authentication required"
+            : "Disconnected";
       this.error = (e as Error).message;
       this.notify();
       throw e;
