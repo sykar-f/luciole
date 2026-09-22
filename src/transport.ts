@@ -17,8 +17,9 @@ export type RouteParams = Record<string, string>;
 
 /**
  * The only way the Client reaches a Server. `render` resolves with the root Flight
- * model; nested Suspense content keeps streaming after it. Aborting `signal` cancels
- * the request only until that root model arrives. Failures are `TransportError`s.
+ * model; nested Suspense content and async iterables keep streaming after it.
+ * Aborting `signal` and the request timeout both apply only until that root model
+ * arrives. Failures are `TransportError`s.
  */
 export interface Transport {
   render(routeId: string, params: RouteParams, signal: AbortSignal): Promise<ReactNode>;
@@ -44,12 +45,19 @@ export function createHttpTransport(options: HttpTransportOptions): Transport {
     throw new Error("latencyMs must be a finite non-negative number");
   let token = options.token;
 
+  // The timeout bounds the wait for the root model, not the stream behind it: a
+  // Suspense boundary or an async iterable may legitimately stream for longer.
   async function request(path: string, init: RequestInit, cancel?: AbortSignal) {
     const headers = new Headers(init.headers);
     headers.set("x-terminal-build", options.buildId);
     if (token) headers.set("authorization", `Bearer ${token}`);
-    const timeout = AbortSignal.timeout(options.timeoutMs ?? 10000);
-    const signal = cancel ? AbortSignal.any([timeout, cancel]) : timeout;
+    const deadline = new AbortController();
+    const timer = setTimeout(
+      () => deadline.abort(new DOMException("The operation timed out.", "TimeoutError")),
+      options.timeoutMs ?? 10000,
+    );
+    const settle = () => clearTimeout(timer);
+    const signal = cancel ? AbortSignal.any([deadline.signal, cancel]) : deadline.signal;
     const oneWayMs = latencyMs / 2;
     try {
       if (oneWayMs) await delay(oneWayMs, undefined, { signal });
@@ -67,8 +75,9 @@ export function createHttpTransport(options: HttpTransportOptions): Transport {
         );
       if (!response.ok)
         throw new TransportError(`HTTP ${response.status}: ${await response.text()}`);
-      return response;
+      return { response, settle };
     } catch (e) {
+      settle();
       throw e instanceof TransportError
         ? e
         : new TransportError(e instanceof Error ? e.message : String(e));
@@ -85,13 +94,15 @@ export function createHttpTransport(options: HttpTransportOptions): Transport {
       signal.addEventListener("abort", cancel);
       try {
         const query = new URLSearchParams({ route: routeId, params: JSON.stringify(params) });
-        const response = await request(`/render?${query}`, {}, stream.signal);
+        const { response, settle } = await request(`/render?${query}`, {}, stream.signal);
         try {
           return (await decode(response.body!, options.callServer)) as ReactNode;
         } catch (e) {
           throw e instanceof TransportError
             ? e
             : new TransportError(e instanceof Error ? e.message : String(e));
+        } finally {
+          settle();
         }
       } finally {
         signal.removeEventListener("abort", cancel);
@@ -99,7 +110,7 @@ export function createHttpTransport(options: HttpTransportOptions): Transport {
     },
     async call(actionId, args, signal) {
       const callId = crypto.randomUUID();
-      const response = await request(
+      const { response, settle } = await request(
         "/action",
         {
           method: "POST",
@@ -108,7 +119,9 @@ export function createHttpTransport(options: HttpTransportOptions): Transport {
         },
         signal,
       );
-      const envelope = (await decode(response.body!, options.callServer)) as {
+      const envelope = (await Promise.resolve(decode(response.body!, options.callServer)).finally(
+        settle,
+      )) as {
         kind?: string;
         callId?: string;
         value?: unknown;
