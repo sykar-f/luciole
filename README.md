@@ -79,6 +79,21 @@ est arrêtée au démontage et ne fait aucun appel réseau. L’application peut
 ses propres `loading.tsx` Client, hérités depuis les répertoires parents.
 Voir le [contrat de navigation](docs/API.md#navigation-et-chargement-local).
 
+## Démo complexe : Forge
+
+`examples/forge` est une forge de code review dans le terminal (PR, diffs colorés,
+commentaires de ligne, CI en direct, merge) qui exerce ensemble toutes les capacités
+du framework, d'OpenTUI et de TanStack Router :
+
+```sh
+bun run forge                           # importe aussi les derniers commits de ce dépôt
+TERMINAL_LATENCY_MS=500 bun run forge   # même parcours sous 500 ms de RTT
+bun run forge:operator lose merge       # second opérateur : réponse perdue, conflit, push
+```
+
+Comptes `alice`, `bob`, `carol`, PIN `forge`. Clavier, scénario de démonstration de
+cinq minutes, matrice de preuves et limites : [docs/FORGE.md](docs/FORGE.md).
+
 ## Nouveau starter
 
 Depuis le checkout du framework :

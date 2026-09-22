@@ -1,5 +1,10 @@
 # Handoff — construire la démo complexe « Incident Control Room »
 
+> **Réalisé sous une autre forme.** La démo complexe livrée est Forge
+> (`examples/forge`), une forge de code review qui reprend cette matrice de preuves et
+> va au-delà du contrat (search params, préchargement, streaming continu). Voir
+> [FORGE.md](FORGE.md). Ce document reste la spécification d'origine.
+
 ## Mission
 
 Créer `examples/control-room`, une application TUI crédible de pilotage d'incidents

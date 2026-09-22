@@ -128,3 +128,27 @@ avec latence compare les lignes du layout et les bordures avant/après chargemen
 La pulsation du squelette est une timeline OpenTUI locale qui anime directement
 l’opacité d’un rendu natif. Elle ne déclenche pas de re-render React à chaque frame,
 ne modifie aucune dimension et est arrêtée lorsque le loading est démonté.
+
+## Démo Forge — 22 septembre 2026
+
+`examples/forge` ([FORGE.md](FORGE.md)) a été construite pour pousser le framework
+au-delà de son contrat. `bun run verify` : **71 tests passent** (48 avant Forge),
+types des quatre programmes, Oxlint sans avertissement, format et build.
+
+| Preuve               | Vérification réalisée                                                                                                                                                                                              |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Domaine sans UI      | `forge-domain.test.ts` : seed identique sur deux bases neuves, sessions (PIN, expiration, révocation), droits par rôle, merge idempotent par ledger, CI flaky puis rerun à horloge injectée, conflits de versions. |
+| Parcours au clavier  | `forge.test.tsx` : login public, commentaire de ligne, approbation, onglets et layout persistant, filtre d'état dans l'URL et retour, merge perdu résolu sans rejeu, conflit de description, logs CI en direct.    |
+| Latence 500 ms       | `forge-latency.test.tsx` : filtre, hover et molette sans requête ; PR préchargée ouverte en moins de 250 ms sans rendu supplémentaire ; loading immédiat et géométrie identique à la page chargée.                 |
+| Frontières           | `forge-build.test.ts` : SQL, git, sessions, seed et injection de fautes absents du bundle Client ; aucune page dans le graphe Client ; payload Flight sans token ni session ; import git réel de ce dépôt.         |
+| Correctifs framework | `server-errors.test.ts` (500 générique sans fuite), `stream.test.ts` (stream au-delà du timeout), `search.test.tsx` (search textuelle, cache par search, retour arrière), purge des Drafts dans `auth.test.tsx`.   |
+| Production           | `scripts/pty-forge.py` sur les artefacts, 500 ms de RTT : login → approbation → commentaire → fichiers → checks → merge ; terminal restauré, code de sortie 0.                                                     |
+
+Observations PTY de production (sortie PTY, pas écran physique), 500 ms de RTT
+simulé : ouverture d'une PR préchargée **63 ms**, frappe dans un Draft **7 ms**.
+Capture finale : [forge-pty-frame.txt](forge-pty-frame.txt). `pty-smoke.py` (Notes)
+passe toujours sous la même latence.
+
+Rendu mesuré dans le renderer de test : diff de 1 443 lignes affiché et parcouru
+(`G`, 20 × `j`) en moins de 15 ms ; commit réel de migration TanStack (40 fichiers,
++1 380/−559) importé depuis git et navigable fichier par fichier.
