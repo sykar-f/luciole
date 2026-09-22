@@ -3,7 +3,7 @@ import { NoteEditorFrame } from "./NoteFrame";
 import { useKeyboard } from "@opentui/react";
 import {
   useDraft,
-  useNavigation,
+  useNavigate,
   type Note,
   type Snapshot,
   type SaveResult,
@@ -15,9 +15,9 @@ type Props = {
 };
 export function NoteEditor({ initialNote, saveAction, resolveAction }: Props) {
   const { draft, edit, save, recover, discard } = useDraft(initialNote),
-    { navigate } = useNavigation();
+    navigate = useNavigate();
   useKeyboard((key) => {
-    if (key.name === "escape") void navigate("/");
+    if (key.name === "escape") void navigate({ to: "/" });
     if (key.ctrl && key.name === "s") void save(saveAction);
     if (key.ctrl && key.name === "o") void recover(resolveAction);
     if (key.ctrl && key.name === "d" && !draft.pending) discard();

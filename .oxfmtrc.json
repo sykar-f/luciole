@@ -6,6 +6,7 @@
   "ignorePatterns": [
     "**/node_modules/**",
     "**/.terminal/**",
+    "**/routeTree.gen.ts",
     "bun.lock",
     "**/bun.lock",
     "docs/HANDOFF.md",

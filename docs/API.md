@@ -2,13 +2,16 @@
 
 Entrée `@terminal/framework/client` (Client Components uniquement) :
 
-| API               | Contrat                                                                                            |
-| ----------------- | -------------------------------------------------------------------------------------------------- |
-| `useNavigation()` | `{ path, pending, navigate(path), refresh(), cancel() }`. État réactif et navigation Server.       |
-| `useDraft(note)`  | `{ draft, edit, save, recover, discard }`. Store au-dessus des routes, indexé par identité métier. |
-| `Note`            | `{ id, title, value, version }` ; types importables côté Server avec `import type`.                |
-| `Snapshot`        | `{ id, value, version, revision, operationId }` ; snapshot soumis immuable par convention.         |
-| `SaveResult`      | `{ ok: true, note, operationId }` ou `{ ok: false, error, operationId }`.                          |
+| API                                                                                                                     | Contrat                                                                                            |
+| ----------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `useNavigate()`, `useRouter()`, `useRouterState()`, `useParams()`, `useLocation()`, `useMatchRoute()`, `useCanGoBack()` | Primitives TanStack Router réexportées telles quelles ; TanStack est l'unique état de navigation.  |
+| `useApplication()`                                                                                                      | `{ setToken(token?), refresh(), cancel(), status, error, drafts }` du runtime terminal.            |
+| `LayoutProps`                                                                                                           | `{ children, params }` reçu par un `layout.tsx` Client ; `params` limité aux segments du layout.   |
+| `LoadingProps`                                                                                                          | `{ path, params }` reçu par un `loading.tsx` Client pendant l'attente de la page.                  |
+| `useDraft(note)`                                                                                                        | `{ draft, edit, save, recover, discard }`. Store au-dessus des routes, indexé par identité métier. |
+| `Note`                                                                                                                  | `{ id, title, value, version }` ; types importables côté Server avec `import type`.                |
+| `Snapshot`                                                                                                              | `{ id, value, version, revision, operationId }` ; snapshot soumis immuable par convention.         |
+| `SaveResult`                                                                                                            | `{ ok: true, note, operationId }` ou `{ ok: false, error, operationId }`.                          |
 
 `save(action)` capture le Draft et bloque une deuxième sauvegarde du même document
 jusqu’à un résultat connu. La saisie reste active. `recover(action)` consulte le
@@ -35,15 +38,32 @@ stocker et renouveler ce token.
 
 Une action vérifie les droits et valide ses arguments côté Server. Les échecs
 métier attendus sont des valeurs `SaveResult`. Une erreur réseau, timeout ou réponse
-inexploitable rend l’issue inconnue. Après réponse métier, le framework demande
-un refresh séparé si la navigation n’a pas changé depuis l’appel. Le résultat de
-l’action reste acquis si ce refresh échoue.
+inexploitable rend l’issue inconnue. Après réponse métier, le framework appelle
+`router.invalidate()` pour la route montée, sauf si une navigation est en cours
+(sa destination charge de toute façon des données fraîches). Le résultat de
+l’action est acquis avant cette invalidation et reste acquis si elle échoue.
 
 Les fonctions `createApplication`, `Shell`, `serve` et `build` servent au CLI,
 aux tests et aux intégrateurs du framework. Le résolveur de modules est une fonction
 `(moduleId) => exports`, injectée dans `createApplication`. Le MVP accepte un seul
 runtime applicatif par processus Client ; le registre est global pour satisfaire
 le contrat bundler du codec Flight. Aucun chargement de chunks distants.
+
+Le transport est une interface remplaçable (`src/transport.ts`), injectable via
+`createApplication({ transport })` :
+
+```ts
+interface Transport {
+  render(routeId: string, params: RouteParams, signal: AbortSignal): Promise<ReactNode>;
+  call(actionId: string, args: unknown[], signal?: AbortSignal): Promise<unknown>;
+  setToken(token?: string): void;
+}
+```
+
+L'adapter par défaut `createHttpTransport` porte l'en-tête de build, le bearer, le
+timeout, la latence simulée, les erreurs typées (`TransportError`, `BuildMismatch`,
+`AuthenticationRequired`) et le décodage Flight progressif. Le runtime et les tests
+utilisent aussi des transports factices.
 
 ## Authentification des routes et actions
 
@@ -77,10 +97,21 @@ navigation sans session vers une route protégée reçoit un `401` puis navigue
 localement vers ce chemin. Sans `unauthorizedPath`, le Client reste sur la dernière
 route confirmée et expose l'erreur `AuthenticationRequired`.
 
-Le layout racine enveloppe aussi les pages publiques. S'il affiche l'utilisateur,
-il doit donc utiliser `getOptionalSession()` et accepter le cas `null`; réserver
-`getSession()` aux pages, actions et repositories qui exigent effectivement une
-identité.
+Les layouts sont des Client Components : ils ne peuvent pas appeler
+`getOptionalSession()` ni `getSession()`, réservés aux pages Server, actions et
+repositories. Une donnée publique de session nécessaire au chrome (nom affiché,
+rôle) est rendue par la page Server ou transmise par l'application via un contexte
+Client ; elle ne remplace jamais le contrôle Server.
+
+Le guard Client n'est qu'une amélioration d'UX : chaque rendu `/render` valide
+côté Server le `routeId`, les paramètres exacts attendus et la politique d'auth.
+Un `routeId` inconnu répond `404`, des paramètres absents, en trop ou non textuels
+répondent `400`, une page protégée sans session répond `401`.
+
+`useApplication().setToken()` purge le cache de routes TanStack (et le purge de
+nouveau à la fin d'une navigation en cours) : un arbre privé mis en cache sous un
+bearer n'est jamais réaffiché sous un autre, ni après logout. Il ne recharge pas la
+route montée ; après login/logout, l'application navigue vers la route voulue.
 
 Une action est protégée indépendamment de la page qui fournit sa référence. Pour
 autoriser une Server Function sans session, placer les actions publiques dans leur
@@ -103,63 +134,78 @@ Sans `server/auth.ts`, l'adapter historique reste actif : identité `TERMINAL_US
 (`local` par défaut), éventuellement protégée par `TERMINAL_TOKEN`. Le starter
 reste donc compatible avec son mode local.
 
-## Navigation et chargement local
+## Navigation, layouts et chargement local
 
-Le framework sépare la route confirmée (`path`) de la navigation en cours
-(`pending`, soit `null`, soit `{ path, kind: "navigate" | "refresh" }`).
-`useNavigation()` s’abonne à cet état. La réponse de la génération la plus récente
-gagne ; commencer une nouvelle navigation annule la requête précédente et ignore
-ses éventuels résultats tardifs, même si le transport ne respecte pas l’annulation.
+> Remplace le contrat précédent (shell seul persistant, layout Server, machine
+> d'état `useNavigation()`). Voir `docs/ROUTER.md` pour la décision et ses
+> compromis.
 
-Une navigation vers une autre route remplace immédiatement le contenu de route
-par un écran local. Le shell du framework reste monté. Déclarer par exemple :
+TanStack Router (`@tanstack/react-router`, memory history, sans TanStack Start) est
+l'unique autorité Client pour le route tree, le matching, les params, les layouts,
+le pending, l'annulation, le cache et l'invalidation. Le build compile `app/` en
+route tree code-based ; chaque page est chargée par le loader de sa route sous
+forme de valeur React Flight :
 
-```tsx
-// app/notes/[id]/loading.tsx
-"use client";
-import type { LoadingProps } from "@terminal/framework/client";
-export default function Loading({ params }: LoadingProps) {
-  return <text>Opening note {params.id}…</text>;
-}
+```text
+RouterProvider + createMemoryHistory
+  └── app/layout.tsx (Client, persistant)
+      └── layout.tsx imbriqués (Client, persistants)
+          └── page : loader → Transport.render(routeId, params, signal) → ReactNode Flight
 ```
 
-Le build sélectionne le `loading.tsx` le plus proche dans les parents de chaque
-`page.tsx`, jusqu’à `app/loading.tsx`. Sans déclaration, le framework affiche
-« Loading… ». Les routes statiques précèdent les paramètres dynamiques, avec la
-même sélection côté Client et Server. `LoadingProps` fournit `path` et `params` ;
-aucune donnée Server n’est disponible avant sa réponse. Le fichier doit exporter
-un composant Client par défaut, destiné à un rendu synchrone et local. Son graphe
-est soumis aux mêmes contrôles d’imports que les autres Client Components et il
-entre dans l’identité du build.
+Conventions :
 
-Quand aucun arbre n’a encore été reçu, le shell utilise son propre fallback
-« Connecting… » pulsé. Ce fallback est fourni par le framework, reste à hauteur
-fixe et utilise la même animation native côté Client que l’exemple Notes.
+- `app/layout.tsx` est obligatoire ; tout répertoire peut déclarer un `layout.tsx`.
+  Un layout déclare `"use client"`, exporte un composant par défaut et reçoit
+  `{ children, params }` ; `children` est l'outlet des routes descendantes. Le
+  build refuse un layout sans directive ou sans export par défaut.
+- Un layout reste monté tant que la destination reste sous son segment : état
+  local, focus et scroll survivent aux navigations entre ses pages.
+- `page.tsx` reste Server par défaut et n'entre jamais dans le bundle Client.
+- `(group)` n'apparaît pas dans l'URL ; avec un `layout.tsx`, il devient un layout
+  pathless. Les routes statiques précèdent `[param]`. Deux pages de même URL après
+  suppression des groupes, deux motifs dynamiques équivalents (`/users/[id]` et
+  `/users/[slug]`), un paramètre répété ou un segment mal formé font échouer le
+  build en citant les fichiers.
+- `loading.tsx` (Client) devient le `pendingComponent` de chaque page qui l'hérite
+  (le plus proche parmi ses répertoires parents). Il remplace **seulement** la page :
+  les layouts restent affichés autour. Sans déclaration, le framework affiche
+  « Connecting… » avant la première réponse, puis « Loading… ».
 
-L’écran local couvre l’attente avant le premier modèle Flight, puis sert aussi de
-fallback Suspense pour le contenu de route. Les frontières Suspense déclarées dans
-les pages Server continuent à gérer leurs sous-arbres progressifs. Ce mécanisme
-ne télécharge pas le loading sur demande : il est déjà dans l’artefact Client.
+Le build génère `app/routeTree.gen.ts` (à versionner, ne pas éditer) : il déclare
+le `Register` de TanStack, donc `to`, `params` et `useParams` sont typés d'après les
+fichiers de l'application. Une route inconnue ou un paramètre manquant est une
+erreur TypeScript. Navigation depuis un Client Component, sans `<Link>` DOM :
 
-Un refresh de la route courante conserve l’arbre monté et affiche « Refreshing… » :
-le champ, son focus et sa saisie restent actifs. `refresh()` pendant une navigation
-relance la destination en cours. Un changement de route démonte l’ancien écran,
-pour désactiver ses interactions, mais conserve les Drafts du store de session.
-Les autres états React propres à cet écran ne sont pas conservés lors du démontage.
-Les versions de Notes sont monotones : restaurer une vue plus ancienne ne peut pas
-remplacer une confirmation de sauvegarde plus récente dans le store.
+```tsx
+"use client";
+import { useNavigate } from "@terminal/framework/client";
+const navigate = useNavigate();
+void navigate({ to: "/notes/$id", params: { id: "1" } });
+```
 
-`cancel()` revient localement à la dernière route confirmée sans attendre le
-Server ; Échap l’appelle pendant une navigation vers une autre page. Une navigation
-initiale sans page précédente ne peut pas être annulée. En cas d’échec, le framework
-réaffiche la dernière route confirmée et son erreur ; un refresh échoué laisse
-l’éditeur monté. Les annulations de navigation n’annulent jamais une mutation.
+Comportement observable :
 
-Le layout Server actuel appartient au modèle Flight complet ; seul le shell du
-framework est persistant. Le loading décrit donc le contenu d’attente entier de
-la route, pas un emplacement dans un layout Server déjà connu. Les layouts imbriqués
-persistants et le préchargement de routes nécessiteraient un contrat de segments
-supplémentaire ; ils ne sont pas implicites dans cette convention.
+- La dernière navigation gagne. Une navigation qui en remplace une autre annule le
+  signal de son loader ; une réponse tardive ne modifie jamais l'écran. Une fois
+  le modèle racine reçu, le stream Flight n'est plus lié à ce signal : les
+  sous-arbres `Suspense` d'un arbre mis en cache continuent d'arriver.
+- Le loading s'affiche immédiatement (`pendingMs = 0`). Échap (`useApplication()
+.cancel()`) revient localement à la dernière route résolue, sans la recharger.
+- Ctrl+R (`refresh()`) invalide la destination en cours ou la route montée. Pendant
+  un refresh, l'arbre reste monté avec « Refreshing… » : champ, focus et saisie
+  restent actifs. Un refresh échoué garde l'arbre monté et affiche l'erreur.
+- Une navigation échouée affiche son erreur à la place de la page, layouts montés ;
+  Ctrl+R réessaie la destination. Les Drafts restent dans le `DraftStore`.
+- Un `401` redirige vers `unauthorizedPath` sans rendre de contenu protégé. Un
+  `409` (build mismatch) est refusé avant décodage et purge le cache.
+- Le cache est celui de TanStack (`staleTime` 0 : une page mise en cache s'affiche
+  puis se revalide). Les annulations de navigation n'annulent jamais une mutation.
+- Le `DraftStore` est au-dessus du route tree : les Drafts survivent aux
+  démontages de pages. Les versions de Notes sont monotones.
+
+Préchargement, `error.tsx`, catch-all, params optionnels et layouts Server
+persistants (modèle « un payload Flight par segment ») restent hors contrat.
 
 ### Géométrie du loading
 
@@ -167,8 +213,8 @@ Un écran d’attente et son contenu final doivent partager leurs règles de lay
 Notes utilise `components/NoteFrame.tsx`, un module de présentation sans accès
 Server : même layout, titre sur une ligne, cadre de champ de cinq lignes,
 emplacements fixes pour statut, messages et aide. Le texte long est tronqué dans
-ces emplacements. Le shell affiche les indications de navigation et de refresh
-dans son en-tête de hauteur fixe. Aucun élément temporaire ne décale la page.
+ces emplacements. Le chrome du framework affiche les indications de navigation et
+de refresh dans son en-tête de hauteur fixe. Aucun élément temporaire ne décale la page.
 
 Le framework ne peut pas déduire les dimensions d’une page Server encore inconnue :
 cette stabilité est un contrat de présentation de l’application, vérifié par les

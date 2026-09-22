@@ -1,5 +1,4 @@
 import React from "react";
-import { matchRoute } from "./routes";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { decodeReply, renderToReadableStream } from "./flight/server";
 export type Session = { userId: string; [key: string]: unknown };
@@ -24,14 +23,37 @@ export function getOptionalSession() {
 export function getCallId() {
   return context.getStore()?.callId;
 }
+/** Authoritative page registry, keyed by the build's routeId. */
+export type ServerRoute = {
+  component: React.ComponentType<{ params: Record<string, string> }>;
+  auth: RouteAuth;
+  /** URL pattern with `$name` parameters, used only to validate `unauthorizedPath`. */
+  url: string;
+  params: readonly string[];
+};
 export type ServerConfig = {
   buildId: string;
   manifest: unknown;
   actions: Map<string, { fn: Function; auth: RouteAuth }>;
-  layout: React.ComponentType<any>;
-  routes: { path: string; component: React.ComponentType<any>; auth: RouteAuth }[];
+  routes: Map<string, ServerRoute>;
   auth?: AuthConfig;
 };
+// Never trust the Client's route guard: the route, its exact parameters and auth are
+// validated here before any page code runs.
+function parseParams(route: ServerRoute, raw: string | null) {
+  let value: unknown;
+  try {
+    value = JSON.parse(raw ?? "{}");
+  } catch {
+    return null;
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const entries = Object.entries(value);
+  if (entries.length !== route.params.length) return null;
+  for (const [key, param] of entries)
+    if (!route.params.includes(key) || typeof param !== "string" || !param) return null;
+  return value as Record<string, string>;
+}
 export function serve(config: ServerConfig) {
   const hostname = process.env.TERMINAL_HOST ?? "127.0.0.1",
     token = process.env.TERMINAL_TOKEN;
@@ -48,9 +70,9 @@ export function serve(config: ServerConfig) {
       },
     } satisfies AuthConfig);
   if (auth.unauthorizedPath) {
-    const login = matchRoute(config.routes, auth.unauthorizedPath);
+    const login = [...config.routes.values()].find((r) => r.url === auth.unauthorizedPath);
     if (!login) throw new Error(`Authentication route not found: ${auth.unauthorizedPath}`);
-    if (login.route.auth !== "public")
+    if (login.auth !== "public")
       throw new Error(`Authentication route must be public: ${auth.unauthorizedPath}`);
   }
   const metrics = { renders: 0, actions: 0 };
@@ -83,20 +105,13 @@ export function serve(config: ServerConfig) {
         const callId = req.headers.get("x-terminal-call") ?? crypto.randomUUID();
         return context.run({ session, callId }, async () => {
           if (url.pathname === "/render" && req.method === "GET") {
-            const path = url.searchParams.get("path") ?? "/";
-            const matched = matchRoute(config.routes, path);
-            if (!matched) return new Response("Route not found", { status: 404 });
-            if (matched.route.auth === "required" && !session) return unauthorized();
+            const route = config.routes.get(url.searchParams.get("route") ?? "");
+            if (!route) return new Response("Route not found", { status: 404 });
+            const params = parseParams(route, url.searchParams.get("params"));
+            if (!params) return new Response("Invalid route parameters", { status: 400 });
+            if (route.auth === "required" && !session) return unauthorized();
             metrics.renders++;
-            const {
-              route: { component: page },
-              params,
-            } = matched;
-            const tree = React.createElement(
-              config.layout,
-              null,
-              React.createElement(page, { params }),
-            );
+            const tree = React.createElement(route.component, { params });
             return new Response(renderToReadableStream(tree, config.manifest), {
               headers: {
                 "content-type": "text/x-component",
@@ -128,10 +143,7 @@ export function serve(config: ServerConfig) {
               process.exit(0);
             }
             return new Response(
-              renderToReadableStream(
-                { kind: "result", value, callId, refresh: true },
-                config.manifest,
-              ),
+              renderToReadableStream({ kind: "result", value, callId }, config.manifest),
               { headers: { "content-type": "text/x-component" } },
             );
           }

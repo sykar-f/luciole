@@ -18,18 +18,16 @@ d'un conflit et récupération d'un résultat de sauvegarde perdu.
 1. Vérifier `git status`, lire les derniers commits et préserver tout changement
    existant qui n'appartient pas à la mission.
 2. Lire `README.md`, `docs/API.md`, `docs/ARCHITECTURE.md`,
-   `docs/BOUNDARIES.md`, `docs/VALIDATION.md` et
-   `docs/FILE-BASED-LAYOUTS-DESIGN.md`.
+   `docs/BOUNDARIES.md`, `docs/VALIDATION.md` et `docs/ROUTER.md`.
 3. Parcourir `examples/notes`, `examples/latency`, les tests de navigation/auth/draft
    et les scripts PTY avant de choisir les seams de test.
 4. Écrire un court plan reliant chaque feature à un écran et à une preuve. La phase
    de découverte est terminée lorsque chaque ligne de la matrice ci-dessous a un
    propriétaire précis dans le code et dans les tests.
 
-Les layouts imbriqués et groupes `(group)` décrits dans l'étude sont une proposition,
-pas une feature présente au HEAD. Structurer la démo pour pouvoir les adopter plus
-tard, mais ne pas les implémenter dans cette mission. Si leur absence bloque un flux
-essentiel, consigner le cas concret au lieu d'élargir silencieusement le framework.
+Les layouts Client imbriqués et persistants et les groupes `(group)` sont présents
+depuis la migration TanStack Router ([ROUTER.md](ROUTER.md)). La démo les utilise
+là où le parcours en a besoin ; les layouts Server persistants restent hors contrat.
 
 ## Parcours produit
 
@@ -95,24 +93,24 @@ polling cachée.
 
 ## Matrice de couverture obligatoire
 
-| Capacité actuelle          | Usage dans la démo                                                          | Preuve attendue                                                    |
-| -------------------------- | --------------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| Server Components          | lectures SQLite et composition des pages                                    | données métier absentes du bundle Client                           |
-| Client Components          | filtres, formulaire, hover, scroll, raccourcis                              | interactions visibles sans nouvelle requête                        |
-| Server Functions           | login, logout, création, sauvegarde, déploiement                            | appels Flight typés et droits revalidés côté Server                |
-| Auth publique/protégée     | `/login` public, reste protégé                                              | redirection 401, action publique et action refusée sans bearer     |
-| Session                    | `getOptionalSession()` dans le layout racine, `getSession()` dans le métier | identité et rôle corrects, cas anonyme accepté uniquement où prévu |
-| Token dynamique            | login/logout via `setToken`                                                 | même instance `Application`, état local non réinitialisé           |
-| Routage statique/dynamique | `/incidents/new` et `/incidents/[id]`                                       | priorité statique testée                                           |
-| Loading local              | détail incident lent                                                        | affichage immédiat, annulation locale, zéro donnée Server supposée |
-| Navigation                 | navigate, cancel, refresh, réponses périmées                                | la dernière génération gagne                                       |
-| Suspense/Flight progressif | métriques ou historique lent                                                | premier contenu avant le sous-arbre lent                           |
-| Draft de session           | runbook d'incident                                                          | frappe concurrente, conflit, discard et rétention inter-route      |
-| Résultat inconnu           | sauvegarde atomique + ledger d'opérations                                   | récupération sans rejouer la mutation                              |
-| Réactivité OpenTUI         | input, clavier, hover, scroll                                               | fonctionne pendant un RTT simulé de 500 ms                         |
-| Build séparé               | artefacts Client et Server                                                  | aucun repository, token ou SQL dans le bundle Client               |
-| Build mismatch             | Client/Server incompatibles                                                 | refus avant décodage sans perte du Draft monté                     |
-| Production                 | build puis lancement des deux rôles                                         | smoke PTY sur artefacts produits                                   |
+| Capacité actuelle          | Usage dans la démo                                                                         | Preuve attendue                                                    |
+| -------------------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ |
+| Server Components          | lectures SQLite et composition des pages                                                   | données métier absentes du bundle Client                           |
+| Client Components          | filtres, formulaire, hover, scroll, raccourcis                                             | interactions visibles sans nouvelle requête                        |
+| Server Functions           | login, logout, création, sauvegarde, déploiement                                           | appels Flight typés et droits revalidés côté Server                |
+| Auth publique/protégée     | `/login` public, reste protégé                                                             | redirection 401, action publique et action refusée sans bearer     |
+| Session                    | identité publique rendue par une page ou un contexte Client, `getSession()` dans le métier | identité et rôle corrects, cas anonyme accepté uniquement où prévu |
+| Token dynamique            | login/logout via `setToken`                                                                | même instance `Application`, état local non réinitialisé           |
+| Routage statique/dynamique | `/incidents/new` et `/incidents/[id]`                                                      | priorité statique testée                                           |
+| Loading local              | détail incident lent                                                                       | affichage immédiat, annulation locale, zéro donnée Server supposée |
+| Navigation                 | `useNavigate`, cancel, refresh, réponses périmées                                          | la dernière navigation TanStack gagne                              |
+| Suspense/Flight progressif | métriques ou historique lent                                                               | premier contenu avant le sous-arbre lent                           |
+| Draft de session           | runbook d'incident                                                                         | frappe concurrente, conflit, discard et rétention inter-route      |
+| Résultat inconnu           | sauvegarde atomique + ledger d'opérations                                                  | récupération sans rejouer la mutation                              |
+| Réactivité OpenTUI         | input, clavier, hover, scroll                                                              | fonctionne pendant un RTT simulé de 500 ms                         |
+| Build séparé               | artefacts Client et Server                                                                 | aucun repository, token ou SQL dans le bundle Client               |
+| Build mismatch             | Client/Server incompatibles                                                                | refus avant décodage sans perte du Draft monté                     |
+| Production                 | build puis lancement des deux rôles                                                        | smoke PTY sur artefacts produits                                   |
 
 ## Modèle de données conseillé
 
@@ -148,8 +146,7 @@ pas de SQL. Fournir des données initiales déterministes au premier démarrage.
   frictions observées afin qu'une généralisation future parte de deux usages réels.
 - Une petite correction du framework est acceptable uniquement si la démo révèle
   un blocage réel, avec test de régression et documentation du contrat. Éviter les
-  abstractions anticipant subscriptions, cache de données, tâches ou layouts
-  persistants.
+  abstractions anticipant subscriptions, cache de données ou tâches.
 
 ## Séquence avec critères de fin
 

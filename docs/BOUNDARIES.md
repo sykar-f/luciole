@@ -8,6 +8,11 @@ Un module Server est le défaut dans le graphe des routes. Il peut importer le m
 et les actions, et composer des références de Client Components. Son JSX utilise
 `react/jsx-runtime` sous `--conditions=react-server` : aucun import natif OpenTUI.
 
+Les `layout.tsx` et `loading.tsx` sont toujours des Client Components : ils
+doivent déclarer `"use client"` et un export par défaut, sinon le build échoue avec
+fichier/ligne. Ils ne peuvent donc importer ni `@terminal/framework/server`, ni un
+module `server/`. Les pages restent Server et n'entrent jamais dans le bundle Client.
+
 `"use client"` coupe le graphe Server. Tous les imports et réexports runtime locaux
 accessibles depuis cette frontière appartiennent au graphe Client. Le build génère
 une Client Reference par export runtime et un manifest, puis assemble le registre
@@ -43,7 +48,10 @@ Le graphe Client refuse :
 - les modules sous `server/` et tout import transitif de `server-only` ;
 - les modules `node:*`, `bun:*` et `@terminal/framework/server` ;
 - les imports de packages non analysés, hors React, OpenTUI et l’entrée Client
-  du framework ; ajouter une intégration auditée pour un autre package Client ;
+  du framework ; ajouter une intégration auditée pour un autre package Client.
+  TanStack Router est l'intégration auditée du runtime : les applications
+  utilisent ses primitives via `@terminal/framework/client`, et le bundle Client
+  l'embarque en forçant sa variante navigateur de `@tanstack/router-core/isServer` ;
 - `require()` et `import()` dynamiques dans les sources applicatives.
 
 Les imports applicatifs utilisent des chemins relatifs avec extensions omises
@@ -55,7 +63,8 @@ reste nécessaire avant d’élargir l’ensemble des packages Client autorisés
 l’absence d’un marqueur métier dans le bundle Client, les imports transitifs,
 les réexports et le maintien du dernier build utilisable en cas d’erreur.
 
-Le hash de build inclut les sources accessibles, les fichiers runtime et le lockfile.
+Le hash de build inclut les sources accessibles (dont tous les layouts et
+loadings), les fichiers runtime et le lockfile.
 Les artefacts sont construits dans un répertoire temporaire, puis publiés après
 succès des deux compilations. Le build ne fait pas d’installation réseau et ne
 modifie pas le build actif en cas de diagnostic de compilation. `bun run check`

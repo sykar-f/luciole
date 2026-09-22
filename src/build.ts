@@ -2,8 +2,14 @@ import ts from "@typescript/typescript6";
 import { resolve, relative, dirname, join } from "node:path";
 import { mkdir, readFile, readdir, rename, rm, realpath } from "node:fs/promises";
 import { createHash } from "node:crypto";
+import { ROUTE_TREE_FILE, compileRouteGraph, renderRouteTree } from "./route-graph";
 const framework = dirname(import.meta.path);
 const quote = JSON.stringify;
+// Resolved from the framework so starters using a file: dependency find their copy.
+const tanstackClientBuild = join(
+  dirname(Bun.resolveSync("@tanstack/router-core/isServer", framework)),
+  "client.js",
+);
 type Module = {
   path: string;
   text: string;
@@ -94,25 +100,27 @@ export async function build(directory: string, output = join(directory, ".termin
     }
     return m;
   }
-  const pages: string[] = [];
-  const loadings: string[] = [];
+  const inventory: string[] = [];
   async function walk(dir: string) {
     for (const e of await readdir(dir, { withFileTypes: true })) {
       const p = join(dir, e.name);
       if (e.isDirectory()) await walk(p);
-      else if (e.name === "page.tsx") pages.push(p);
-      else if (e.name === "loading.tsx") loadings.push(p);
+      else if (["page.tsx", "layout.tsx", "loading.tsx"].includes(e.name))
+        inventory.push(relative(root, p));
     }
   }
   await walk(join(root, "app"));
-  pages.sort();
-  loadings.sort();
-  if (!pages.length) throw new Error("No app/page.tsx routes");
-  const layout = join(root, "app/layout.tsx");
+  const graph = compileRouteGraph(inventory);
+  const abs = (p: string) => join(root, p);
+  const pages = graph.pages.map((r) => abs(r.file));
+  const layouts = [graph.root, ...graph.layouts.map((l) => l.file)].map(abs);
+  const loadings = [...new Set(graph.pages.flatMap((r) => (r.loading ? [r.loading] : [])))].map(
+    abs,
+  );
   const authFile = join(root, "server/auth.ts");
   const hasAuth = await Bun.file(authFile).exists();
-  if (!(await Bun.file(layout).exists())) throw new Error("app/layout.tsx required");
-  for (const p of [...pages, layout, ...loadings, ...(hasAuth ? [authFile] : [])]) await read(p);
+  for (const p of [...pages, ...layouts, ...loadings, ...(hasAuth ? [authFile] : [])])
+    await read(p);
   const program = ts.createProgram([...modules.keys()], {
     allowJs: true,
     jsx: ts.JsxEmit.ReactJSX,
@@ -244,12 +252,15 @@ export async function build(directory: string, output = join(directory, ".termin
         );
     }
   }
-  for (const p of [...pages, layout]) serverVisit(p);
+  for (const p of pages) serverVisit(p);
   if (hasAuth) serverVisit(authFile);
-  for (const p of loadings) {
+  // Layouts persist across navigations and loadings render before any Server answer:
+  // both are Client Components owned by the TanStack route tree.
+  for (const p of [...layouts, ...loadings]) {
     const m = modules.get(p)!;
+    const kind = p.endsWith("layout.tsx") ? "layout.tsx" : "loading.tsx";
     if (m.directive !== "use client" || !m.exports.includes("default"))
-      fail(m, m.ast, 'loading.tsx must declare "use client" and a default export');
+      fail(m, m.ast, `${kind} must declare "use client" and a default export`);
     clients.add(p);
   }
   for (const p of clients) clientVisit(p);
@@ -261,7 +272,9 @@ export async function build(directory: string, output = join(directory, ".termin
     "client.tsx",
     "server.ts",
     "draft.ts",
-    "routes.ts",
+    "route-graph.ts",
+    "route-tree.tsx",
+    "transport.ts",
     "flight/client.ts",
     "flight/server.ts",
   ])
@@ -275,34 +288,32 @@ export async function build(directory: string, output = join(directory, ".termin
       manifest[`${id(p)}#${name}`] = { id: id(p), chunks: [], name };
   const temp = `${output}-${crypto.randomUUID()}`;
   await mkdir(temp, { recursive: true });
-  const routes = pages.map((p, i) => ({
-    file: p,
+  const routes = graph.pages.map((r, i) => ({
+    ...r,
     name: `P${i}`,
-    route: "/" + relative(join(root, "app"), dirname(p)).split("/").filter(Boolean).join("/"),
-    auth: moduleAuth(modules.get(p)!),
+    auth: moduleAuth(modules.get(abs(r.file))!),
   }));
-  const loadingRoutes = routes.map((r) => {
-    let directory = dirname(r.file);
-    while (true) {
-      const loading = loadings.find((p) => dirname(p) === directory);
-      if (loading)
-        return `{path:${quote(r.route)},component:C${[...clients].indexOf(loading)}.default}`;
-      if (directory === join(root, "app")) break;
-      directory = dirname(directory);
-    }
-    return `{path:${quote(r.route)}}`;
-  });
+  // Checked-in like TanStack's routeTree.gen.ts: application type checks need it
+  // before any build. Rewritten only when the route graph changes.
+  const routeTreeFile = abs(ROUTE_TREE_FILE),
+    routeTreeSource = renderRouteTree(graph);
+  if (
+    (await Bun.file(routeTreeFile)
+      .text()
+      .catch(() => "")) !== routeTreeSource
+  )
+    await Bun.write(routeTreeFile, routeTreeSource);
   const serverSource =
-    `import React from 'react';import {serve} from ${quote(join(framework, "server.ts"))};import Layout from ${quote(layout)};${hasAuth ? `import Auth from ${quote(authFile)};` : ""}\n` +
-    routes.map((r) => `import ${r.name} from ${quote(r.file)};`).join("\n") +
+    `import {serve} from ${quote(join(framework, "server.ts"))};${hasAuth ? `import Auth from ${quote(authFile)};` : ""}\n` +
+    routes.map((r) => `import ${r.name} from ${quote(abs(r.file))};`).join("\n") +
     "\n" +
     [...actions].map((p, i) => `import * as A${i} from ${quote(p)};`).join("\n") +
     `\nconst actions=new Map([${[...actions].flatMap((p, i) => modules.get(p)!.actionExports.map((n) => `[${quote(id(p) + "#" + n)},{fn:A${i}[${quote(n)}],auth:${quote(moduleAuth(modules.get(p)!))}}]`)).join(",")}]);\n` +
-    `serve({buildId:${quote(buildId)},manifest:${quote(manifest)},actions,layout:Layout,routes:[${routes.map((r) => `{path:${quote(r.route)},component:${r.name},auth:${quote(r.auth)}}`).join(",")}]${hasAuth ? ",auth:Auth" : ""}});`;
+    `serve({buildId:${quote(buildId)},manifest:${quote(manifest)},actions,routes:new Map([${routes.map((r) => `[${quote(r.id)},{component:${r.name},auth:${quote(r.auth)},url:${quote(r.url)},params:${quote(r.params)}}]`).join(",")}])${hasAuth ? ",auth:Auth" : ""}});`;
   const clientSource =
-    `export {Shell} from ${quote(join(framework, "client.tsx"))};import {createApplication,run} from ${quote(join(framework, "client.tsx"))};\n` +
+    `export {Shell} from ${quote(join(framework, "client.tsx"))};import {createApplication,run} from ${quote(join(framework, "client.tsx"))};import {routeTree} from ${quote(routeTreeFile)};\n` +
     [...clients].map((p, i) => `import * as C${i} from ${quote(p)};`).join("\n") +
-    `\nconst modules=new Map([${[...clients].map((p, i) => `[${quote(id(p))},C${i}]`).join(",")}]);export function createApp(options){return createApplication({...options,loadingRoutes:[${loadingRoutes.join(",")}],buildId:${quote(buildId)},resolveModule:id=>{if(!modules.has(id))throw new Error('Unknown module '+id);return modules.get(id)}})};if(import.meta.main)await run(createApp);`;
+    `\nconst modules=new Map([${[...clients].map((p, i) => `[${quote(id(p))},C${i}]`).join(",")}]);export function createApp(options){return createApplication({...options,routeTree,buildId:${quote(buildId)},resolveModule:id=>{if(!modules.has(id))throw new Error('Unknown module '+id);return modules.get(id)}})};if(import.meta.main)await run(createApp);`;
   const external = [
     "react",
     "react-dom",
@@ -326,9 +337,29 @@ export async function build(directory: string, output = join(directory, ".termin
           {
             name: "terminal-boundaries",
             setup(b) {
-              b.onResolve({ filter: /^@terminal\/framework\/(client|server)$/ }, (a) => ({
-                path: join(framework, a.path.endsWith("client") ? "client.tsx" : "server.ts"),
-              }));
+              b.onResolve(
+                { filter: /^@terminal\/framework\/(client|server|route-tree)$/ },
+                (a) => ({
+                  path: join(
+                    framework,
+                    { client: "client.tsx", server: "server.ts", "route-tree": "route-tree.tsx" }[
+                      a.path.slice("@terminal/framework/".length)
+                    ]!,
+                  ),
+                }),
+              );
+              // Bun's "bun" export condition selects TanStack's server build, which skips
+              // the Client transition machinery; the terminal Client is a browser-like runtime.
+              if (role === "client") {
+                b.onResolve({ filter: /^@tanstack\/router-core\/isServer$/ }, () => ({
+                  path: tanstackClientBuild,
+                }));
+                // One router instance: application sources, including the generated
+                // route tree, share the framework's copy.
+                b.onResolve({ filter: /^@tanstack\/react-router$/ }, () => ({
+                  path: Bun.resolveSync("@tanstack/react-router", framework),
+                }));
+              }
               b.onResolve({ filter: /^server-only$/ }, () => ({
                 path: "server-only",
                 namespace: "marker",
@@ -406,7 +437,14 @@ export async function build(directory: string, output = join(directory, ".termin
         {
           buildId,
           manifest,
-          routes: routes.map((r) => ({ path: r.route, auth: r.auth })),
+          routes: routes.map((r) => ({
+            id: r.id,
+            url: r.url,
+            auth: r.auth,
+            page: r.file,
+            layouts: r.layouts,
+            loading: r.loading ?? null,
+          })),
           serverGraph: [...serverGraph].map((p) => relative(root, p)),
           clientGraph: [...clientGraph].map((p) => relative(root, p)),
         },

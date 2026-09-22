@@ -4,7 +4,6 @@ import { act } from "react";
 import { testRender } from "@opentui/react/test-utils";
 import { join, resolve } from "node:path";
 import { build } from "../src/build";
-import { Application } from "../src/client";
 import { launch, until } from "./helpers";
 
 test("500 ms RTT delays Flight and actions while input, hover and scroll stay local", async () => {
@@ -24,7 +23,7 @@ test("500 ms RTT delays Flight and actions while input, hover and scroll stay lo
     ).json();
   try {
     const start = performance.now();
-    await app.navigate("/");
+    await app.router.load();
     expect(performance.now() - start).toBeGreaterThanOrEqual(480);
     ui = await testRender(<Shell app={app} />, { width: 100, height: 30 });
     await ui.renderOnce();
@@ -55,12 +54,12 @@ test("500 ms RTT delays Flight and actions while input, hover and scroll stay lo
     await ui.renderOnce();
     expect(ui.captureCharFrame()).toContain("Hover active (local)");
     await act(async () => {
-      await until(() => app.pendingNavigation?.kind === "refresh");
+      await until(() => app.router.state.matches.some((m: any) => m.isFetching));
     });
     expect(performance.now() - actionStart).toBeGreaterThanOrEqual(480);
     // Let the automatic delayed refresh finish before counting server traffic.
     await act(async () => {
-      await until(() => app.pendingNavigation === null);
+      await until(() => !app.router.state.matches.some((m: any) => m.isFetching));
     });
     expect(await counts()).toEqual({ renders: before.renders + 1, actions: before.actions + 1 });
     expect(field.value).toBe("abc");
@@ -69,26 +68,4 @@ test("500 ms RTT delays Flight and actions while input, hover and scroll stay lo
     if (ui) await act(async () => ui.renderer.destroy());
     await server.stop();
   }
-});
-
-test("simulated latency validates configuration and respects the request timeout", async () => {
-  const options = { url: "http://127.0.0.1:1", buildId: "test", resolveModule: () => ({}) };
-  for (const latencyMs of [-1, NaN, Infinity]) {
-    expect(() => new Application({ ...options, latencyMs })).toThrow("latencyMs");
-  }
-  let called = false;
-  const app = new Application({
-    ...options,
-    latencyMs: 500,
-    timeoutMs: 20,
-    fetch: Object.assign(
-      () => {
-        called = true;
-        return Promise.resolve(new Response());
-      },
-      { preconnect: fetch.preconnect },
-    ),
-  });
-  await expect(app.request("/render")).rejects.toThrow();
-  expect(called).toBe(false);
 });

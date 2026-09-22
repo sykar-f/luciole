@@ -20,11 +20,11 @@ test("generated Notes: Flight action, preserved Draft, navigation, validation an
   let ui: any;
   try {
     expect(server.pid).not.toBe(process.pid);
-    await app.navigate("/");
+    await app.router.load();
     ui = await testRender(<Shell app={app} />, { width: 100, height: 24 });
     await act(async () => {
       await ui.mockInput.pressEnter();
-      await until(() => app.path === "/notes/1");
+      await until(() => app.router.state.resolvedLocation?.pathname === "/notes/1");
     });
     const field = ui.renderer.root.findDescendantById("note-1");
     expect(field).toBeDefined();
@@ -59,16 +59,19 @@ test("generated Notes: Flight action, preserved Draft, navigation, validation an
     expect(ui.captureCharFrame()).toContain("version 2");
     expect((await counts()).actions - before.actions).toBe(1);
     await act(async () => {
-      await app.navigate("/");
+      await app.router.navigate({ to: "/" });
     });
     await act(async () => {
-      await app.navigate("/notes/2");
+      await app.router.navigate({ to: "/notes/2" });
     });
     expect(ui.renderer.root.findDescendantById("note-2").value).toBe("");
     await act(async () => {
-      await app.navigate("/notes/1");
+      await app.router.navigate({ to: "/notes/1" });
     });
     expect(ui.renderer.root.findDescendantById("note-1").value).toBe("abcd");
+    // The nested notes layout persisted from note 2 to note 1.
+    await ui.renderOnce();
+    expect(ui.captureCharFrame()).toContain("Opened this visit: 2 → 1");
     const localBefore = await counts();
     await act(async () => {
       await ui.mockInput.typeText("e");

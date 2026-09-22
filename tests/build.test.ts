@@ -1,14 +1,13 @@
 import { test, expect } from "bun:test";
-import { mkdtemp, mkdir, rm, symlink } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { mkdtemp, mkdir, rm } from "node:fs/promises";
+import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { build } from "../src/build";
-import { matchRoute } from "../src/routes";
 async function fixture(files: Record<string, string>, run: (dir: string) => Promise<void>) {
   const dir = await mkdtemp(join(tmpdir(), "terminal-build-"));
   try {
     for (const [name, text] of Object.entries({
-      "app/layout.tsx": "export default function Layout({children}){return children}",
+      "app/layout.tsx": `"use client";export default function Layout({children}){return children}`,
       ...files,
     })) {
       await mkdir(join(dir, name, ".."), { recursive: true });
@@ -39,6 +38,10 @@ test("automatic graph, Client reexports, action proxies, no repository in Client
         "SECRET_REPOSITORY_SENTINEL",
       );
       expect(manifest.clientGraph).not.toContain("server/repository.ts");
+      // TanStack's server build would bypass the Client transition machinery.
+      const client = await Bun.file(join(dir, ".terminal/client/index.js")).text();
+      expect(client).toContain("createRouter");
+      expect(client).not.toContain('process.env.NODE_ENV === "test" ? void 0 : true');
     },
   );
 });
@@ -86,39 +89,6 @@ test("failed rebuild retains prior artefacts", async () => {
   );
 });
 
-test("loading routes inherit the nearest local fallback and respect static route precedence", async () => {
-  await fixture(
-    {
-      "app/page.tsx": "export default function Page(){return <text>home</text>}",
-      "app/loading.tsx":
-        '"use client";export default function Loading(){return <text>ROOT LOADING</text>}',
-      "app/notes/[id]/page.tsx": "export default function Page(){return <text>note</text>}",
-      "app/notes/[id]/loading.tsx":
-        '"use client";export default function Loading({params}){return <text>{params.id}</text>}',
-      "app/notes/new/page.tsx": "export default function Page(){return <text>new</text>}",
-    },
-    async (dir) => {
-      await symlink(resolve("node_modules"), join(dir, "node_modules"), "dir");
-      const first = await build(dir);
-      const { createApp } = await import(join(dir, ".terminal/client/index.js"));
-      const app = createApp({ url: "http://127.0.0.1:1" });
-      for (const [path, expected] of [
-        ["/", "ROOT LOADING"],
-        ["/notes/new", "ROOT LOADING"],
-        ["/notes/hello%20world", "hello world"],
-      ]) {
-        const matched = matchRoute(app.options.loadingRoutes, path)!;
-        const component = (matched.route as any).component;
-        expect(component({ path, params: matched.params }).props.children).toBe(expected);
-      }
-      await Bun.write(
-        join(dir, "app/loading.tsx"),
-        '"use client";export default function Loading(){return <text>CHANGED</text>}',
-      );
-      expect((await build(dir)).buildId).not.toBe(first.buildId);
-    },
-  );
-});
 test("route auth metadata is secure by default and validated", async () => {
   await fixture(
     {
@@ -129,9 +99,9 @@ test("route auth metadata is secure by default and validated", async () => {
     async (dir) => {
       await build(dir);
       const manifest = await Bun.file(join(dir, ".terminal/manifest.json")).json();
-      expect(manifest.routes).toEqual([
-        { path: "/login", auth: "public" },
-        { path: "/", auth: "required" },
+      expect(manifest.routes.map(({ id, url, auth }: any) => ({ id, url, auth }))).toEqual([
+        { id: "/", url: "/", auth: "required" },
+        { id: "/login", url: "/login", auth: "public" },
       ]);
     },
   );
@@ -145,19 +115,70 @@ test("route auth metadata is secure by default and validated", async () => {
     },
   );
 });
-for (const [name, loading] of Object.entries({
-  "missing client directive": "export default function Loading(){return <text>wait</text>}",
-  "server import":
+for (const [file, source] of [
+  ["app/loading.tsx", "export default function Loading(){return <text>wait</text>}"],
+  [
+    "app/loading.tsx",
     '"use client";import {readFile} from "node:fs";export default function Loading(){return <text>{String(readFile)}</text>}',
-}))
-  test(`reject loading with ${name}`, async () => {
+  ],
+  ["app/layout.tsx", "export default function Layout({children}){return children}"],
+  ["app/layout.tsx", '"use client";export function Layout({children}){return children}'],
+  [
+    "app/(group)/layout.tsx",
+    '"use client";import {getSession} from "@terminal/framework/server";export default function Layout({children}){return <text>{getSession().userId}</text>}',
+  ],
+] as const)
+  test(`reject ${file}: ${source.slice(0, 48)}`, async () => {
     await fixture(
       {
         "app/page.tsx": "export default function Page(){return <text>home</text>}",
-        "app/loading.tsx": loading,
+        "app/(group)/about/page.tsx": "export default function Page(){return <text>about</text>}",
+        [file]: source,
       },
       async (dir) => {
-        await expect(build(dir)).rejects.toThrow(/loading.tsx:\d+:\d+:/);
+        await expect(build(dir)).rejects.toThrow(/(loading|layout)\.tsx:\d+:\d+:/);
       },
     );
   });
+test("route graph diagnostics abort the build before any artefact", async () => {
+  await fixture(
+    {
+      "app/(a)/users/page.tsx": "export default function Page(){return <text>a</text>}",
+      "app/(b)/users/page.tsx": "export default function Page(){return <text>b</text>}",
+    },
+    async (dir) => {
+      await expect(build(dir)).rejects.toThrow("Route collision /users");
+      expect(await Bun.file(join(dir, ".terminal/manifest.json")).exists()).toBe(false);
+    },
+  );
+});
+test("layouts and loadings belong to the build identity and the Client graph", async () => {
+  await fixture(
+    {
+      "app/page.tsx": "export default function Page(){return <text>home</text>}",
+      "app/loading.tsx": '"use client";export default function Loading(){return <text>wait</text>}',
+      "app/(group)/layout.tsx":
+        '"use client";export default function Layout({children}){return children}',
+      "app/(group)/about/page.tsx": "export default function Page(){return <text>about</text>}",
+    },
+    async (dir) => {
+      const first = await build(dir);
+      const manifest = await Bun.file(join(dir, ".terminal/manifest.json")).json();
+      expect(manifest.clientGraph).toEqual(
+        expect.arrayContaining(["app/layout.tsx", "app/(group)/layout.tsx", "app/loading.tsx"]),
+      );
+      expect(manifest.serverGraph).not.toContain("app/(group)/layout.tsx");
+      await Bun.write(
+        join(dir, "app/(group)/layout.tsx"),
+        '"use client";export default function Layout({children}){return <box>{children}</box>}',
+      );
+      const second = await build(dir);
+      expect(second.buildId).not.toBe(first.buildId);
+      await Bun.write(
+        join(dir, "app/loading.tsx"),
+        '"use client";export default function Loading(){return <text>changed</text>}',
+      );
+      expect((await build(dir)).buildId).not.toBe(second.buildId);
+    },
+  );
+});

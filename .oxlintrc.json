@@ -3,5 +3,5 @@
   "plugins": ["typescript", "oxc", "unicorn", "react"],
   "categories": { "correctness": "error" },
   "rules": { "eslint/no-unused-vars": "error" },
-  "ignorePatterns": ["**/node_modules/**", "**/.terminal/**"]
+  "ignorePatterns": ["**/node_modules/**", "**/.terminal/**", "**/routeTree.gen.ts"]
 }

@@ -5,14 +5,17 @@ sur TWP. L’application est une codebase unique ; son build produit deux progra
 
 ## Le framework que nous développons
 
-| Fichier          | Responsabilité                                                                                                       |
-| ---------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `src/cli.ts`     | Création du starter, commandes dev/build/start, supervision des processus et erreurs de rebuild.                     |
-| `src/build.ts`   | Lecture de l’AST, graphes Client/Server, validation des frontières, références Flight, routes, manifests et bundles. |
-| `src/server.ts`  | HTTP, contexte de session, rendu des routes et exécution des Server Functions.                                       |
-| `src/client.tsx` | Connexion HTTP, shell React persistant, navigation, actions et hooks publics.                                        |
-| `src/draft.ts`   | État d’édition, Baseline, révisions, résultats inconnus et store de session.                                         |
-| `src/flight/`    | Adapter du vrai codec React Flight et contrat de résolution des modules Client.                                      |
+| Fichier              | Responsabilité                                                                                                       |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `src/cli.ts`         | Création du starter, commandes dev/build/start, supervision des processus et erreurs de rebuild.                     |
+| `src/build.ts`       | Lecture de l’AST, graphes Client/Server, validation des frontières, références Flight, routes, manifests et bundles. |
+| `src/route-graph.ts` | Compilation pure de `app/` en route graph : layouts, pages, groupes, params, loading, collisions.                    |
+| `src/server.ts`      | HTTP, contexte de session, registre des pages par `routeId`, validation et exécution des Server Functions.           |
+| `src/route-tree.tsx` | Fabriques de routes utilisées par `app/routeTree.gen.ts` : layouts, pages, loaders Flight et chrome.                 |
+| `src/transport.ts`   | Interface `Transport` et adapter HTTP/Flight : build ID, bearer, timeout, latence, erreurs typées.                   |
+| `src/client.tsx`     | Runtime terminal : route tree TanStack Router, loaders Flight, chrome, actions, invalidation et hooks publics.       |
+| `src/draft.ts`       | État d’édition, Baseline, révisions, résultats inconnus et store de session.                                         |
+| `src/flight/`        | Adapter du vrai codec React Flight et contrat de résolution des modules Client.                                      |
 
 `tests/`, `probes/` et `scripts/` servent à développer et vérifier le framework.
 Ils ne sont pas du code à recopier dans chaque application.
@@ -22,10 +25,12 @@ Ils ne sont pas du code à recopier dans chaque application.
 `examples/notes/` représente exactement cette partie :
 
 ```text
-app/layout.tsx             composition commune côté Server
+app/routeTree.gen.ts       route tree typé généré par le build, versionné
+app/layout.tsx             layout racine persistant, "use client"
 app/page.tsx               liste côté Server
+app/notes/layout.tsx       layout imbriqué persistant entre les notes, "use client"
 app/notes/[id]/page.tsx     chargement et composition d’une note
-app/notes/[id]/loading.tsx  squelette local pendant la navigation, "use client"
+app/notes/[id]/loading.tsx  squelette local de la page pendant la navigation, "use client"
 components/NoteList.tsx    sélection/navigation locale, "use client"
 components/NoteEditor.tsx  édition et événements locaux, "use client"
 actions/notes.ts           fonctions métier appelables, "use server"
@@ -47,7 +52,8 @@ et explicite.
 Dans Notes, la page Server charge une note et transmet `saveNote` au composant
 `NoteEditor`. Le composant traite chaque frappe localement. À Entrée, il appelle
 la référence de `saveNote` ; le framework encode l’appel via Flight, l’envoie au
-Server, puis reçoit le résultat et rafraîchit l’arbre. SQLite reste côté Server.
+Server, reçoit le résultat, puis invalide la route montée via TanStack Router.
+SQLite reste côté Server. La navigation est décrite dans [ROUTER.md](ROUTER.md).
 
 ## Deux formes de distribution
 

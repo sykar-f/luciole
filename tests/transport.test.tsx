@@ -18,10 +18,10 @@ test("lost commit: durable outcome recovery, no mutation replay, reconnect refre
     TERMINAL_TEST_DROP_ONCE: "1",
   });
   const { createApp, Shell } = await import(join(root, ".terminal/client/index.js") + "?loss");
-  const app = createApp({ url: server.url });
+  const app = createApp({ url: server.url, initialPath: "/notes/1" });
   let ui: any;
   try {
-    await app.navigate("/notes/1");
+    await app.router.load();
     ui = await testRender(<Shell app={app} />, { width: 100, height: 24 });
     await act(async () => {
       await ui.mockInput.typeText("abc");
@@ -94,17 +94,18 @@ test("out-of-order navigation, incompatible build preserves mounted editor, refr
     incompatible = false;
   const app = createApp({
     url: server.url,
+    initialPath: "/notes/1",
     fetch: async (input: any, init: any) => {
       const url = String(input);
       if (incompatible) return new Response("Incompatible build", { status: 409 });
       if (block && url.includes("/render")) throw new Error("network unavailable during refresh");
-      if (slow && decodeURIComponent(url).endsWith("/notes/1")) await Bun.sleep(350);
+      if (slow && new URL(url).searchParams.get("params") === '{"id":"1"}') await Bun.sleep(350);
       return fetch(input, init);
     },
   });
   let ui: any;
   try {
-    await app.navigate("/notes/1");
+    await app.router.load();
     ui = await testRender(<Shell app={app} />, { width: 100, height: 24 });
     await act(async () => {
       await ui.mockInput.typeText("abc");
@@ -124,9 +125,16 @@ test("out-of-order navigation, incompatible build preserves mounted editor, refr
     block = false;
     slow = true;
     await act(async () => {
-      await Promise.all([app.navigate("/notes/1"), app.navigate("/notes/2")]);
+      app.router.clearCache();
+      await Promise.all([
+        app.router.navigate({ to: "/" }),
+        app.router.navigate({ to: "/notes/1" }),
+        app.router.navigate({ to: "/notes/2" }),
+      ]);
+      await Bun.sleep(400);
     });
-    expect(app.path).toBe("/notes/2");
+    // The latest navigation wins; the slower superseded response never replaces it.
+    expect(app.router.state.resolvedLocation.pathname).toBe("/notes/2");
     const field = ui.renderer.root.findDescendantById("note-2");
     await act(async () => {
       await ui.mockInput.typeText("keep");
@@ -142,7 +150,7 @@ test("out-of-order navigation, incompatible build preserves mounted editor, refr
       await ui.mockInput.typeText("!");
     });
     expect(field.value).toBe("keep!");
-    const bad = await fetch(server.url + "/render?path=/", {
+    const bad = await fetch(server.url + "/render?route=%2F&params=%7B%7D", {
       headers: { "x-terminal-build": "old" },
     });
     expect(bad.status).toBe(409);
@@ -159,7 +167,7 @@ test("progressive Flight Suspense renders fallback before delayed content", asyn
     await mkdir(join(dir, "app"), { recursive: true });
     await Bun.write(
       join(dir, "app/layout.tsx"),
-      `export default function Layout({children}){return <box flexDirection="column">{children}</box>}`,
+      `"use client";export default function Layout({children}){return <box flexDirection="column">{children}</box>}`,
     );
     await Bun.write(
       join(dir, "app/page.tsx"),
@@ -169,7 +177,7 @@ test("progressive Flight Suspense renders fallback before delayed content", asyn
     server = await launch(join(dir, ".terminal/server/index.js"));
     const { createApp, Shell } = await import(join(dir, ".terminal/client/index.js"));
     const app = createApp({ url: server.url });
-    await app.navigate("/");
+    await app.router.load();
     ui = await testRender(<Shell app={app} />, { width: 80, height: 12 });
     await ui.renderOnce();
     expect(ui.captureCharFrame()).toContain("STREAM LOADING");

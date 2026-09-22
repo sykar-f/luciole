@@ -222,6 +222,8 @@ async function main() {
         !file ||
         file.includes(".terminal") ||
         file.includes("node_modules") ||
+        // Written by the build itself when the route graph changes.
+        file.endsWith("routeTree.gen.ts") ||
         !/\.(tsx?|jsx?)$/.test(file)
       )
         return;

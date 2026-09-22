@@ -1,7 +1,7 @@
 "use client";
-import { useNavigation, type Note } from "@terminal/framework/client";
+import { useNavigate, type Note } from "@terminal/framework/client";
 export function NoteList({ notes }: { notes: Note[] }) {
-  const { navigate } = useNavigation();
+  const navigate = useNavigate();
   return (
     <box flexDirection="column" gap={1}>
       <text>YOUR NOTES</text>
@@ -15,7 +15,7 @@ export function NoteList({ notes }: { notes: Note[] }) {
           value: note.id,
         }))}
         onSelect={(_index, option) => {
-          if (option) void navigate(`/notes/${option.value}`);
+          if (option) void navigate({ to: "/notes/$id", params: { id: String(option.value) } });
         }}
       />
       <text fg="#8b98a5">↑ ↓ choose · Enter open</text>

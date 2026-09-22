@@ -62,10 +62,13 @@ la conservation du composant après refresh.
 
 ## Chargement des pages
 
-Les navigations affichent immédiatement un écran local, même avant la première
-réponse réseau. Notes fournit `app/notes/[id]/loading.tsx` : avec
-`TERMINAL_LATENCY_MS=500 bun run dev`, ouvrir une note affiche son squelette pendant
-l’attente. Échap annule et revient à la dernière page confirmée.
+La navigation est portée par TanStack Router (memory history) : les layouts
+`layout.tsx` sont des Client Components persistants, les pages restent Server et
+arrivent par Flight. Les navigations affichent immédiatement un écran local à la
+place de la page, layouts conservés. Notes fournit `app/notes/[id]/loading.tsx` :
+avec `TERMINAL_LATENCY_MS=500 bun run dev`, ouvrir une note affiche son squelette
+pendant l’attente, et `app/notes/layout.tsx` garde son historique local d’une note à
+l’autre. Échap annule et revient à la dernière page résolue.
 
 Au tout premier démarrage, le framework affiche aussi un « Connecting… » pulsé
 localement pendant que le premier arbre Flight arrive.
@@ -113,7 +116,7 @@ bun src/cli.ts start --role client --url http://127.0.0.1:3000
 
 ```text
 app/.terminal/
-  manifest.json           # build, graphes, routes et Client References
+  manifest.json           # build, graphes, route graph et Client References
   client/                 # index.js, package.json, bun.lock
   server/                 # index.js, package.json, bun.lock
 ```
@@ -217,11 +220,13 @@ n’a pas encore eu lieu. Voir [les preuves et limites](docs/VALIDATION.md).
 
 - [Structure et distribution](docs/ARCHITECTURE.md).
 - [Frontières de compilation](docs/BOUNDARIES.md) et [API minimale](docs/API.md).
-- React/Flight 19.3.0, OpenTUI 0.5.12 et reconciler 0.34.0 exactement épinglés.
+- React/Flight 19.3.0, OpenTUI 0.5.12 et reconciler 0.33.0 (plage d'OpenTUI) exactement épinglés.
   L’adapter Flight est isolé dans `src/flight/` et doit être retesté à toute mise à jour.
-- Une racine React persistante ; Suspense progresse dans le flux Flight.
-  `app/layout.tsx`, `page.tsx` et un segment `[id]` sont pris en charge ; pas de
-  layouts imbriqués, catch-all ou conventions loading/error par route.
+- TanStack Router 1.170.38 est l’unique autorité de navigation ; Suspense progresse
+  dans le flux Flight. Layouts Client imbriqués et persistants, groupes `(group)`,
+  `[param]` et `loading.tsx` par page sont pris en charge ; pas de catch-all,
+  `error.tsx`, préchargement ni layout Server persistant. La navigation est typée par
+  `app/routeTree.gen.ts`, généré par le build et versionné. Voir [ROUTER.md](docs/ROUTER.md).
 - Drafts en mémoire, au plus 32 documents par session. Les Drafts sales/en attente
   ne sont pas évincés : une limite pleine exige de sauvegarder/abandonner un Draft.
   **Quitter le Client perd les Drafts non sauvegardés.**

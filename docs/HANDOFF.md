@@ -1,5 +1,8 @@
 # Handoff — un framework React Server Components pour le terminal
 
+> Document historique du MVP. Le contrat de navigation qu'il décrit (shell seul
+> persistant, refresh par génération) est supersédé par [ROUTER.md](ROUTER.md).
+
 Date : 22 septembre 2026. Statut : spécification d'un nouveau projet, pas une
 description de fonctionnalités déjà livrées. Ce document est autonome et destiné
 à l'agent qui créera le nouveau dépôt. Les noms `terminal` et `@terminal/*` sont

@@ -7,9 +7,9 @@ TWP. Machine principale : macOS arm64 ; Server distant : Linux x86_64.
 ## Environnement verrouillé
 
 Bun 1.4.2 ; OpenTUI core/react 0.5.12 ; React, react-dom et Flight 19.3.0 ;
-react-reconciler 0.34.0 ; TypeScript 7.0.2 et API `@typescript/typescript6` 6.0.2. Le lockfile fixe les transitives.
-Les deux sondes ont leurs propres manifests/lockfiles ; leur override reconciler
-a été aligné avec celui du framework lors de la mise à jour des dépendances.
+react-reconciler 0.33.0 (plage déclarée par OpenTUI) ; TanStack Router 1.170.38 ;
+TypeScript 7.0.2 et API `@typescript/typescript6` 6.0.2. Le lockfile fixe les transitives.
+Les deux sondes ont leurs propres manifests/lockfiles, sans override du reconciler.
 
 `bun audit --json` a retourné `{}` (code 0) sur les trois lockfiles finaux, après mise à jour
 des dépendances. Cela signifie aucun avis connu retourné par cet audit à cette date,
@@ -101,17 +101,23 @@ Les limites de cette simulation sont décrites dans le [README](../README.md#tes
 
 Avec le même RTT simulé de 500 ms et sans délai métier, `pty-smoke.py` vérifie
 maintenant que le squelette « Opening note 1… » apparaît avant la réponse réseau.
-Observation de la sortie PTY : **18,4 ms** pour le loading, **17,66 ms** pour la
-frappe pendant la sauvegarde. Ce sont des observations ponctuelles de sortie PTY,
+Observation de la sortie PTY après migration TanStack Router (22 septembre 2026) :
+**9,74 ms** pour le loading, **16,7 ms** pour la frappe pendant la sauvegarde. Ce sont des observations ponctuelles de sortie PTY,
 pas des mesures physiques d’écran.
 
 `tests/navigation.test.tsx` retient explicitement les réponses pour vérifier le
 loading avant toute réponse, l’annulation par Échap, la relance de la destination,
-la conservation du même champ pendant un refresh, le retour au Draft après un
-échec, y compris lorsqu’une sauvegarde se confirme pendant la navigation, et
-l’ignorance des réponses obsolètes. Les tests de build vérifient l’héritage
-des loadings, la priorité des routes statiques, leur inclusion dans l’identité du
-build et le rejet des imports Server. Le starter neuf et les artefacts indépendants
+la conservation du même champ pendant un refresh, le retour à la dernière route
+résolue et au Draft après un échec, y compris lorsqu’une sauvegarde se confirme
+pendant la navigation, et l’ignorance des réponses obsolètes. `tests/route-graph.test.ts`
+couvre layouts imbriqués, groupes pathless, héritage des loadings et collisions ;
+`tests/routes.test.tsx` pilote le route tree généré (statique avant dynamique,
+params, layout de groupe persistant) ; `tests/auth.test.tsx` la purge du cache au
+logout et au changement de bearer et la validation Server des routes/params ;
+`tests/renderer.test.tsx` le commit des transitions React sur OpenTUI avec le reconciler
+épinglé. Les tests de build vérifient l’inclusion des layouts et loadings dans
+l’identité du build et le graphe Client, le rejet des imports Server et l'absence
+de la variante serveur de TanStack dans le bundle Client. Le starter neuf et les artefacts indépendants
 passent aussi les contrôles et le parcours PTY.
 
 La géométrie loading/page chargée est aussi comparée dans le renderer aux largeurs

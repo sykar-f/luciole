@@ -51,6 +51,10 @@ with tempfile.TemporaryDirectory(prefix='terminal-pty-') as directory:
   if server:
    server.terminate();server.wait(timeout=5);captured=b'';os.write(master,b'\x12');wait_for(b'Disconnected');captured=b'';os.write(master,b'e');wait_for(b'abcde')
   (root/'docs/pty-frame.txt').write_text('\n'.join(line.rstrip() for line in screen.display).rstrip()+'\n')
+  if server:
+   # A failed navigation reports its error in the page slot; no console overlay covers the UI.
+   captured=b'';os.write(master,b'\x1b');wait_for(b'Ctrl+R to retry');time.sleep(.2)
+   shown='\n'.join(screen.display);assert 'Personal notebook' in shown and 'Console' not in shown,shown
   os.write(master,b'\x03')
   deadline=time.monotonic()+5
   while client.poll() is None and time.monotonic()<deadline:

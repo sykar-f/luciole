@@ -8,7 +8,7 @@ import { join, resolve } from "node:path";
 import { build } from "../src/build";
 import { launch, until } from "./helpers";
 
-test("local route loading, cancel, refresh identity, failure recovery and superseded navigation", async () => {
+test("local route loading, cancel, refresh identity, failed navigation and superseded loads", async () => {
   const directory = resolve("examples/notes");
   await build(directory);
   const temp = await mkdtemp(join(tmpdir(), "terminal-navigation-"));
@@ -56,55 +56,65 @@ test("local route loading, cancel, refresh identity, failure recovery and supers
         return [id, [node.x, node.y, node.width, node.height]];
       }),
     );
+  const resolved = () => app.router.state.resolvedLocation?.pathname;
+  const pending = () => app.router.state.location.pathname;
   try {
-    await app.navigate("/");
+    await app.router.load();
     ui = await testRender(<Shell app={app} />, { width: 100, height: 28 });
     const first = hold();
     let navigation!: Promise<void>;
     await act(async () => {
-      navigation = app.navigate("/notes/1");
+      navigation = app.router.navigate({ to: "/notes/1" });
     });
     await ui.renderOnce();
     const loadingGeometry = geometry();
-    expect(app.path).toBe("/");
-    expect(app.pendingNavigation).toEqual({ path: "/notes/1", kind: "navigate" });
+    expect(resolved()).toBe("/");
+    expect(pending()).toBe("/notes/1");
     expect(ui.captureCharFrame()).toContain("Opening note 1");
+    expect(ui.captureCharFrame()).toContain("Esc cancel");
     expect(ui.renderer.root.findDescendantById("notes")).toBeUndefined();
     expect(ui.renderer.root.findDescendantById("note-1")).toBeUndefined();
+    // Refresh during a navigation restarts the destination, never the old page.
     const restarted = hold();
     let retried!: Promise<void>;
     await act(async () => {
       retried = app.refresh();
     });
-    expect(app.pendingNavigation?.path).toBe("/notes/1");
+    expect(pending()).toBe("/notes/1");
     expect(first.signal?.aborted).toBe(true);
     await act(async () => {
       first.resolve();
-      await navigation;
+      await Bun.sleep(20);
     });
-    expect(app.pendingNavigation?.path).toBe("/notes/1");
+    expect(pending()).toBe("/notes/1");
+    expect(resolved()).toBe("/");
     await act(async () => {
       await ui.mockInput.pressEscape();
-      await until(() => app.pendingNavigation === null);
+      await until(() => app.router.state.status === "idle");
     });
-    expect(app.pendingNavigation).toBeNull();
-    expect(first.signal?.aborted).toBe(true);
+    expect(resolved()).toBe("/");
+    expect(pending()).toBe("/");
+    expect(restarted.signal?.aborted).toBe(true);
     await act(async () => {
       restarted.resolve();
-      await retried;
+      await Promise.allSettled([navigation, retried]);
+      await Bun.sleep(20);
     });
-    expect(app.path).toBe("/");
+    await ui.renderOnce();
+    expect(resolved()).toBe("/");
+    expect(ui.renderer.root.findDescendantById("notes")).toBeDefined();
     expect(app.status).toBe("Connected");
     await act(async () => {
-      await app.navigate("/notes/1");
+      await app.router.navigate({ to: "/notes/1" });
       await ui.mockInput.typeText("draft");
     });
     await ui.renderOnce();
     expect(geometry()).toEqual(loadingGeometry);
     const field = ui.renderer.root.findDescendantById("note-1");
     const refresh = hold();
+    let refreshing!: Promise<void>;
     await act(async () => {
-      navigation = app.refresh();
+      refreshing = app.refresh();
       await ui.mockInput.typeText("!");
     });
     await ui.renderOnce();
@@ -115,10 +125,10 @@ test("local route loading, cancel, refresh identity, failure recovery and supers
     expect(field.value).toBe("draft!");
     await act(async () => {
       refresh.resolve();
-      await navigation;
+      await refreshing;
     });
     expect(ui.renderer.root.findDescendantById("note-1")).toBe(field);
-    // A save may finish while the old editor is unmounted by a navigation.
+    // A save may finish while the old editor is replaced by a navigation.
     const saving = hold();
     await act(async () => {
       await ui.mockInput.pressEnter();
@@ -126,7 +136,7 @@ test("local route loading, cancel, refresh identity, failure recovery and supers
     const draft = app.drafts.get({ id: "1" });
     const failure = hold();
     await act(async () => {
-      navigation = app.navigate("/notes/2");
+      navigation = app.router.navigate({ to: "/notes/2" });
     });
     await ui.renderOnce();
     expect(ui.captureCharFrame()).toContain("Opening note 2");
@@ -135,16 +145,25 @@ test("local route loading, cancel, refresh identity, failure recovery and supers
       await until(() => !draft.pending);
     });
     expect(draft.version).toBe(2);
+    // A failed navigation shows its error in the page slot; layouts stay mounted.
     await act(async () => {
       failure.reject(new Error("offline"));
       await navigation;
+      await until(() => app.router.state.status === "idle");
     });
-    expect(app.path).toBe("/notes/1");
-    expect(app.pendingNavigation).toBeNull();
-    expect(app.error).toContain("offline");
-    expect(ui.renderer.root.findDescendantById("note-1").value).toBe("draft!");
+    await ui.renderOnce();
+    expect(resolved()).toBe("/notes/2");
+    expect(ui.captureCharFrame()).toContain("offline · Ctrl+R to retry");
+    expect(ui.captureCharFrame()).toContain("Personal notebook");
+    expect(app.status).toBe("Disconnected");
     expect(draft.version).toBe(2);
     expect(draft.baseline).toBe("draft!");
+    // The Draft outlives its unmounted editor.
+    await act(async () => {
+      await app.router.navigate({ to: "/notes/1" });
+    });
+    expect(ui.renderer.root.findDescendantById("note-1").value).toBe("draft!");
+    // The latest navigation wins over a slower refresh that fails later.
     const stale = hold();
     let old!: Promise<void>;
     await act(async () => {
@@ -152,7 +171,7 @@ test("local route loading, cancel, refresh identity, failure recovery and supers
     });
     const latest = hold();
     await act(async () => {
-      navigation = app.navigate("/notes/2");
+      navigation = app.router.navigate({ to: "/notes/2" });
     });
     expect(stale.signal?.aborted).toBe(true);
     await act(async () => {
@@ -163,14 +182,14 @@ test("local route loading, cancel, refresh identity, failure recovery and supers
       stale.reject(new Error("late failure"));
       await old;
     });
-    expect(app.path).toBe("/notes/2");
-    expect(app.pendingNavigation).toBeNull();
+    expect(resolved()).toBe("/notes/2");
+    expect(app.router.state.status).toBe("idle");
     expect(app.error).toBe("");
     expect(app.status).toBe("Connected");
     ui.resize(44, 28);
     const narrow = hold();
     await act(async () => {
-      navigation = app.navigate("/notes/1");
+      navigation = app.router.navigate({ to: "/notes/1" });
     });
     await ui.renderOnce();
     const narrowGeometry = geometry();

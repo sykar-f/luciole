@@ -1,49 +1,64 @@
 /** @jsxImportSource @opentui/react */
-import { matchRoute } from "./routes";
-import { setTimeout as delay } from "node:timers/promises";
-import React, {
-  Component,
-  Suspense,
-  createContext,
-  useContext,
-  useEffect,
-  useRef,
-  useSyncExternalStore,
-} from "react";
+import React, { createContext, useContext, useEffect, useSyncExternalStore } from "react";
 import { createCliRenderer } from "@opentui/core";
-import { createRoot, useKeyboard, useTimeline } from "@opentui/react";
+import { createRoot } from "@opentui/react";
 import {
-  decode,
-  encodeReply,
-  installResolver,
-  createServerReference,
-  type ModuleResolver,
-} from "./flight/client";
+  RouterProvider,
+  createMemoryHistory,
+  createRouter,
+  redirect,
+  type AnyRoute,
+  type AnyRouter,
+} from "@tanstack/react-router";
+import { installResolver, createServerReference, type ModuleResolver } from "./flight/client";
+import {
+  AuthenticationRequired,
+  BuildMismatch,
+  createHttpTransport,
+  type RouteParams,
+  type Transport,
+} from "./transport";
 import { DraftStore, type Note, type SaveResult, type Snapshot } from "./draft";
 export type { Note, SaveResult, Snapshot } from "./draft";
-export class TransportError extends Error {}
-export class BuildMismatch extends TransportError {}
-export class AuthenticationRequired extends TransportError {
-  constructor(
-    message: string,
-    readonly loginPath?: string,
-  ) {
-    super(message);
-  }
-}
-export type LoadingProps = { path: string; params: Record<string, string> };
-export type Navigation = { path: string; kind: "navigate" | "refresh" };
+export { AuthenticationRequired, BuildMismatch, TransportError } from "./transport";
+export type { RouteParams, Transport } from "./transport";
+export type { LayoutProps, LoadingProps } from "./route-tree";
+// TanStack Router owns navigation state. These primitives are re-exported, not wrapped,
+// so Client Components share the bundled router instance and the application's
+// generated `Register` types. `<Link>` renders a DOM anchor and is intentionally absent.
+export {
+  useCanGoBack,
+  useLocation,
+  useMatchRoute,
+  useNavigate,
+  useParams,
+  useRouter,
+  useRouterState,
+} from "@tanstack/react-router";
+
 export type ApplicationOptions = {
   url: string;
   buildId: string;
   resolveModule: ModuleResolver;
+  /** `routeTree` exported by the generated `app/routeTree.gen.ts`. */
+  routeTree: AnyRoute;
   token?: string;
   timeoutMs?: number;
   /** Additional simulated round-trip latency for every application request. */
   latencyMs?: number;
-  loadingRoutes?: { path: string; component?: React.ComponentType<LoadingProps> }[];
   fetch?: typeof fetch;
+  /** Replaces the HTTP/Flight transport. */
+  transport?: Transport;
+  initialPath?: string;
 };
+
+// TanStack scroll restoration calls the global scrollTo() after every rendered load.
+// OpenTUI already installs a minimal global window; a terminal has no page to scroll.
+function installTerminalGlobals() {
+  const terminalGlobal = globalThis as { scrollTo?: () => void };
+  terminalGlobal.scrollTo ??= () => {};
+}
+
 let current: Application;
 export function actionReference(id: string) {
   return createServerReference(id, (key: string, args: unknown[]) => {
@@ -51,23 +66,53 @@ export function actionReference(id: string) {
     return current.callServer(key, args);
   });
 }
+
+function statusOf(error: unknown) {
+  if (error instanceof BuildMismatch) return "Incompatible build";
+  if (error instanceof AuthenticationRequired) return "Authentication required";
+  return "Disconnected";
+}
+
 export class Application {
   readonly drafts = new DraftStore();
-  private token?: string;
-  path = "/";
-  pendingNavigation: Navigation | null = null;
-  private navigationRequest?: AbortController;
+  readonly transport: Transport;
+  // Typed per application through the generated `Register`, not here.
+  readonly router: AnyRouter;
   status = "Connecting";
-  tree: any = null;
-  generation = 0;
-  revision = 0;
   error = "";
+  private revision = 0;
   private listeners = new Set<() => void>();
+  private purgeAfterLoad = false;
   constructor(readonly options: ApplicationOptions) {
-    if (!Number.isFinite(options.latencyMs ?? 0) || (options.latencyMs ?? 0) < 0)
-      throw new Error("latencyMs must be a finite non-negative number");
+    installTerminalGlobals();
     installResolver(options.resolveModule);
-    this.token = options.token;
+    this.transport =
+      options.transport ??
+      createHttpTransport({
+        url: options.url,
+        buildId: options.buildId,
+        token: options.token,
+        timeoutMs: options.timeoutMs,
+        latencyMs: options.latencyMs,
+        fetch: options.fetch,
+        callServer: this.callServer,
+      });
+    this.router = createRouter({
+      routeTree: options.routeTree,
+      context: { app: this },
+      history: createMemoryHistory({ initialEntries: [options.initialPath ?? "/"] }),
+      isServer: false,
+      origin: "http://terminal.invalid",
+      defaultPendingMs: 0,
+      defaultPendingMinMs: 0,
+    });
+    // A commit moves the route being left into the cache: repeat a purge requested
+    // while that navigation was pending.
+    this.router.subscribe("onResolved", () => {
+      if (!this.purgeAfterLoad) return;
+      this.purgeAfterLoad = false;
+      this.router.clearCache();
+    });
     // oxlint-disable-next-line typescript/no-this-alias -- Register the single application instance used by generated action proxies.
     current = this;
   }
@@ -82,143 +127,89 @@ export class Application {
     this.revision++;
     for (const f of this.listeners) f();
   };
-  async request(path: string, init: RequestInit = {}) {
-    const headers = new Headers(init.headers);
-    headers.set("x-terminal-build", this.options.buildId);
-    if (this.token) headers.set("authorization", `Bearer ${this.token}`);
-    const timeout = AbortSignal.timeout(this.options.timeoutMs ?? 10000);
-    const signal = init.signal ? AbortSignal.any([timeout, init.signal]) : timeout;
-    const oneWayMs = (this.options.latencyMs ?? 0) / 2;
-    try {
-      if (oneWayMs) await delay(oneWayMs, undefined, { signal });
-      const response = await (this.options.fetch ?? fetch)(new URL(path, this.options.url), {
-        ...init,
-        headers,
-        signal,
-      });
-      if (oneWayMs) await delay(oneWayMs, undefined, { signal });
-      if (response.status === 409) throw new BuildMismatch(await response.text());
-      if (response.status === 401)
-        throw new AuthenticationRequired(
-          await response.text(),
-          response.headers.get("x-terminal-login") ?? undefined,
-        );
-      if (!response.ok)
-        throw new TransportError(`HTTP ${response.status}: ${await response.text()}`);
-      return response;
-    } catch (e) {
-      throw e instanceof TransportError
-        ? e
-        : new TransportError(e instanceof Error ? e.message : String(e));
-    }
+  private report(status: string, error = "") {
+    this.status = status;
+    this.error = error;
+    this.notify();
   }
+  /** Replaces the bearer for later requests and drops every cached private tree. */
   setToken = (token?: string) => {
-    this.token = token;
+    this.transport.setToken(token);
+    this.purge();
   };
-  async navigate(path: string) {
-    if (!path.startsWith("/") || path.startsWith("//"))
-      throw new Error("Expected application route");
-    const generation = ++this.generation;
-    this.navigationRequest?.abort();
-    const controller = new AbortController();
-    this.navigationRequest = controller;
-    this.pendingNavigation = {
-      path,
-      kind: this.tree !== null && path === this.path ? "refresh" : "navigate",
-    };
-    this.error = "";
-    this.notify();
+  private purge() {
+    this.router.clearCache();
+    if (this.router.state.status === "pending") this.purgeAfterLoad = true;
+  }
+  /** Ctrl+R: revalidates the destination, or the mounted route, keeping it on failure. */
+  refresh = () => this.router.invalidate();
+  /** Escape: returns locally to the last resolved route without refetching it. */
+  cancel = () => {
+    const { status, location, resolvedLocation } = this.router.state;
+    if (status !== "pending" || !resolvedLocation || resolvedLocation.href === location.href)
+      return;
+    void this.router.navigate({
+      href: resolvedLocation.href,
+      replace: true,
+      state: { terminalRestore: true },
+    });
+  };
+  /** Loader of every generated page route. */
+  async renderPage(
+    routeId: string,
+    params: RouteParams,
+    load: { signal: AbortSignal; href: string; route: string },
+  ): Promise<React.ReactNode> {
+    // Read before the request: a revalidation of the resolved location keeps its tree.
+    const refreshing = this.router.state.resolvedLocation?.href === load.href;
+    const mounted = refreshing
+      ? this.router.state.matches.find((m: { routeId: string }) => m.routeId === load.route)
+          ?.loaderData
+      : undefined;
     try {
-      const response = await this.request(`/render?path=${encodeURIComponent(path)}`, {
-        signal: controller.signal,
-      });
-      const pending = decode(response.body!, this.callServer);
-      // Wait only for the root model. Nested Flight promises remain progressive Suspense content.
-      const tree = await pending;
-      if (generation !== this.generation) return;
-      this.pendingNavigation = null;
-      this.navigationRequest = undefined;
-      this.tree = tree;
-      this.path = path;
-      this.status = "Connected";
-      this.error = "";
-      this.notify();
+      const tree = await this.transport.render(routeId, params, load.signal);
+      this.report("Connected");
+      return tree;
     } catch (e) {
-      if (generation !== this.generation) return;
-      if (e instanceof AuthenticationRequired && e.loginPath && e.loginPath !== path) {
-        this.status = "Authentication required";
-        this.error = "";
-        await this.navigate(e.loginPath);
-        return;
+      if (load.signal.aborted) throw e; // superseded: TanStack discards this load
+      if (e instanceof BuildMismatch) this.purge();
+      if (e instanceof AuthenticationRequired && e.loginPath) {
+        this.report(statusOf(e));
+        throw redirect({ href: e.loginPath });
       }
-      this.pendingNavigation = null;
-      this.navigationRequest = undefined;
-      this.status =
-        e instanceof BuildMismatch
-          ? "Incompatible build"
-          : e instanceof AuthenticationRequired
-            ? "Authentication required"
-            : "Disconnected";
-      this.error = (e as Error).message;
-      this.notify();
+      // A failed refresh keeps the mounted tree, its focus and its Drafts; a failed
+      // navigation shows the error in the page slot, inside the persistent layouts.
+      if (mounted !== undefined) {
+        this.report(statusOf(e), (e as Error).message);
+        return mounted as React.ReactNode;
+      }
+      this.report(statusOf(e));
+      throw e;
     }
   }
-  cancelNavigation = () => {
-    if (!this.pendingNavigation || this.tree === null) return;
-    ++this.generation;
-    this.navigationRequest?.abort();
-    this.navigationRequest = undefined;
-    this.pendingNavigation = null;
-    this.notify();
-  };
-  // Refresh the destination if navigation is in progress, never bounce back to the old page.
-  refresh = () => this.navigate(this.pendingNavigation?.path ?? this.path);
   callServer = async (id: string, args: unknown[]) => {
-    const callId = crypto.randomUUID(),
-      generation = this.generation;
     try {
-      const response = await this.request("/action", {
-        method: "POST",
-        headers: { "x-terminal-action": id, "x-terminal-call": callId },
-        body: await encodeReply(args),
-      });
-      const envelope = await decode(response.body!, this.callServer);
-      if (envelope.kind !== "result" || envelope.callId !== callId)
-        throw new TransportError("Invalid action response");
-      this.status = "Connected";
-      this.notify();
-      if (envelope.refresh && generation === this.generation) void this.refresh(); // refresh failures never reject a committed business result
-      return envelope.value;
+      const value = await this.transport.call(id, args);
+      this.report("Connected");
+      // Refresh the mounted route separately; a pending navigation loads fresh data
+      // anyway. A failed refresh never rejects the committed business result.
+      if (this.router.state.status !== "pending") void this.router.invalidate().catch(() => {});
+      return value;
     } catch (e) {
-      if (e instanceof AuthenticationRequired && e.loginPath) void this.navigate(e.loginPath);
-      this.status =
-        e instanceof BuildMismatch
-          ? "Incompatible build"
-          : e instanceof AuthenticationRequired
-            ? "Authentication required"
-            : "Disconnected";
-      this.error = (e as Error).message;
-      this.notify();
+      if (e instanceof BuildMismatch) this.purge();
+      if (e instanceof AuthenticationRequired && e.loginPath)
+        void this.router.navigate({ href: e.loginPath });
+      this.report(statusOf(e), (e as Error).message);
       throw e;
     }
   };
 }
+
 const Runtime = createContext<Application | null>(null);
 export function useApplication() {
   const app = useContext(Runtime);
   if (!app) throw new Error("Missing terminal shell");
   return app;
-}
-export function useNavigation() {
-  const app = useApplication();
-  useSyncExternalStore(app.subscribe, app.snapshot);
-  return {
-    path: app.path,
-    pending: app.pendingNavigation,
-    cancel: app.cancelNavigation,
-    navigate: (path: string) => app.navigate(path),
-    refresh: app.refresh,
-  };
 }
 export function useDraft(note: Note) {
   const app = useApplication();
@@ -262,106 +253,17 @@ export function useDraft(note: Note) {
     },
   };
 }
-class RenderErrorBoundary extends Component<
-  { children: React.ReactNode; reset: number },
-  { error: boolean; reset: number }
-> {
-  state = { error: false, reset: this.props.reset };
-  static getDerivedStateFromError() {
-    return { error: true };
-  }
-  static getDerivedStateFromProps(props: { reset: number }, state: { reset: number }) {
-    return props.reset !== state.reset ? { error: false, reset: props.reset } : null;
-  }
-  render() {
-    return this.state.error ? (
-      <text fg="red">Render failed. Ctrl+R to reconnect.</text>
-    ) : (
-      this.props.children
-    );
-  }
-}
-function AnimatedLoading({ label }: { label: string }) {
-  const target = useRef<any>(null);
-  const timeline = useTimeline({ autoplay: false, duration: 1700, loop: true });
-  useEffect(() => {
-    if (!target.current) return;
-    timeline.add(target.current, {
-      duration: 850,
-      ease: "inOutSine",
-      opacity: 0.2,
-      loop: true,
-      alternate: true,
-    });
-    timeline.play();
-    return () => {
-      timeline.pause();
-    };
-  }, [timeline]);
-  return (
-    <text ref={target} id="terminal-loading" height={1} flexShrink={0} wrapMode="none" truncate>
-      {label}
-    </text>
-  );
-}
-function NavigationLoading({ app, path }: { app: Application; path: string }) {
-  // Bad route parameters are reported by the navigation request, not thrown during rendering.
-  let matched;
-  try {
-    matched = matchRoute(app.options.loadingRoutes ?? [], path);
-  } catch {
-    /* generic fallback */
-  }
-  const Loading = matched?.route.component;
-  return Loading ? (
-    React.createElement(Loading, { path, params: matched!.params })
-  ) : (
-    <AnimatedLoading label="Loading…" />
-  );
-}
 export function Shell({ app }: { app: Application }) {
-  useSyncExternalStore(app.subscribe, app.snapshot);
-  useKeyboard((key) => {
-    if (key.ctrl && key.name === "r") void app.refresh();
-    if (key.name === "escape" && app.pendingNavigation?.kind === "navigate") app.cancelNavigation();
-  });
   return (
     <Runtime.Provider value={app}>
-      <box flexDirection="column" flexGrow={1} padding={1} gap={1}>
-        <text id="terminal-heading" height={1} flexShrink={0} wrapMode="none" truncate fg="#67d9bc">
-          TERMINAL / NOTES · {app.status}
-          {app.pendingNavigation?.kind === "refresh" ? " · Refreshing…" : ""}
-          {app.pendingNavigation?.kind === "navigate" && app.tree !== null ? " · Esc cancel" : ""}
-        </text>
-        {app.error ? <text fg="#ffbc66">{app.error}</text> : null}
-        <RenderErrorBoundary reset={app.generation}>
-          <Suspense
-            fallback={
-              <NavigationLoading app={app} path={app.pendingNavigation?.path ?? app.path} />
-            }
-          >
-            {app.pendingNavigation?.kind === "navigate" ? (
-              <NavigationLoading
-                key={app.pendingNavigation.path}
-                app={app}
-                path={app.pendingNavigation.path}
-              />
-            ) : (
-              (app.tree ?? <AnimatedLoading label="Connecting…" />)
-            )}
-          </Suspense>
-        </RenderErrorBoundary>
-        <text id="terminal-footer" height={1} flexShrink={0} wrapMode="none" truncate fg="#8b98a5">
-          Ctrl+R reconnect · Ctrl+C quit
-        </text>
-      </box>
+      <RouterProvider router={app.router} />
     </Runtime.Provider>
   );
 }
 export function createApplication(options: ApplicationOptions) {
   return new Application(options);
 }
-export async function run(create: (options: any) => Application) {
+export async function run(create: (options: Record<string, unknown>) => Application) {
   const urlIndex = process.argv.indexOf("--url");
   const url =
     urlIndex >= 0
@@ -372,14 +274,15 @@ export async function run(create: (options: any) => Application) {
     token: process.env.TERMINAL_TOKEN,
     latencyMs: Number(process.env.TERMINAL_LATENCY_MS ?? 0),
   });
-  process.on("message", (message: any) => {
+  process.on("message", (message: { type?: string; message?: string } | null) => {
     if (message?.type === "build-error") {
-      app.error = message.message;
+      app.error = message.message ?? "Build failed";
       app.notify();
     }
   });
   const renderer = await createCliRenderer({ exitOnCtrlC: false });
   const root = createRoot(renderer);
+  // RouterProvider's Transitioner performs the initial load.
   root.render(<Shell app={app} />);
   const stop = () => {
     renderer.destroy();
@@ -390,5 +293,4 @@ export async function run(create: (options: any) => Application) {
   });
   process.on("SIGTERM", stop);
   process.on("SIGINT", stop);
-  await app.navigate("/");
 }

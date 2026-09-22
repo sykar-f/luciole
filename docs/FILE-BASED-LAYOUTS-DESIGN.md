@@ -1,5 +1,11 @@
 # Étude — layouts imbriqués et groupes de routes
 
+> **Supersédé.** La recommandation d'un routeur interne (option A) et le rejet de
+> l'adapter TanStack (option C) sont remplacés par la migration complète vers
+> TanStack Router, modèle B : voir [ROUTER.md](ROUTER.md). Les conventions de
+> fichiers, les diagnostics de collision et la séparation « composition n'est pas
+> persistance » restent valables ; les layouts sont désormais Client et persistants.
+
 ## Décision proposée
 
 Ajouter deux conventions au routeur existant :
