@@ -1,0 +1,7 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "oxc", "unicorn", "react"],
+  "categories": { "correctness": "error" },
+  "rules": { "eslint/no-unused-vars": "error" },
+  "ignorePatterns": ["**/node_modules/**", "**/.terminal/**"]
+}

@@ -1,5 +1,7 @@
 
- TERMINAL / NOTES · Connected
+ TERMINAL / NOTES · Disconnected
+
+ Unable to connect. Is the computer able to access the url?
 
  Personal notebook · SQLite on Server
 
@@ -7,15 +9,13 @@
 
  ┌──────────────────────────────────────────────────────────────────────────────────────────────────────────┐
  │                                                                                                          │
- │ abcd                                                                                                     │
+ │ abcde                                                                                                    │
  │                                                                                                          │
  └──────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 
  Unsaved Draft · baseline: abc
 
  Enter / Ctrl+S save · Esc list · Ctrl+O resolve · Ctrl+D discard
-
-
 
 
 

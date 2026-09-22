@@ -1,17 +1,13 @@
 import { test, expect } from "bun:test";
-import { mkdtemp, mkdir, rm, cp } from "node:fs/promises";
+import { mkdtemp, mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { build } from "../src/build";
-async function fixture(
-  files: Record<string, string>,
-  run: (dir: string) => Promise<void>,
-) {
+async function fixture(files: Record<string, string>, run: (dir: string) => Promise<void>) {
   const dir = await mkdtemp(join(tmpdir(), "terminal-build-"));
   try {
     for (const [name, text] of Object.entries({
-      "app/layout.tsx":
-        "export default function Layout({children}){return children}",
+      "app/layout.tsx": "export default function Layout({children}){return children}",
       ...files,
     })) {
       await mkdir(join(dir, name, ".."), { recursive: true });
@@ -33,23 +29,19 @@ test("automatic graph, Client reexports, action proxies, no repository in Client
     },
     async (dir) => {
       await build(dir);
-      const manifest = await Bun.file(
-        join(dir, ".terminal/manifest.json"),
-      ).json();
-      expect(
-        manifest.manifest[`${manifest.buildId}/components/barrel.ts#Editor`],
-      ).toBeDefined();
-      expect(
-        await Bun.file(join(dir, ".terminal/client/index.js")).text(),
-      ).not.toContain("SECRET_REPOSITORY_SENTINEL");
-      expect(
-        await Bun.file(join(dir, ".terminal/server/index.js")).text(),
-      ).toContain("SECRET_REPOSITORY_SENTINEL");
+      const manifest = await Bun.file(join(dir, ".terminal/manifest.json")).json();
+      expect(manifest.manifest[`${manifest.buildId}/components/barrel.ts#Editor`]).toBeDefined();
+      expect(await Bun.file(join(dir, ".terminal/client/index.js")).text()).not.toContain(
+        "SECRET_REPOSITORY_SENTINEL",
+      );
+      expect(await Bun.file(join(dir, ".terminal/server/index.js")).text()).toContain(
+        "SECRET_REPOSITORY_SENTINEL",
+      );
       expect(manifest.clientGraph).not.toContain("server/repository.ts");
     },
   );
 });
-for (const [name, extra] of Object.entries({
+for (const [name, extra] of Object.entries<Record<string, string>>({
   transitive: {
     "shared.ts": `export {value} from './server/secret'`,
     "server/secret.ts": `export const value=1`,
@@ -85,10 +77,10 @@ test("failed rebuild retains prior artefacts", async () => {
         join(dir, "app/page.tsx"),
         'export default async function Page(){"use server";return <text>no</text>}',
       );
-      await await expect(build(dir)).rejects.toThrow("Inline");
-      expect(
-        (await Bun.file(join(dir, ".terminal/manifest.json")).json()).buildId,
-      ).toBe(first.buildId);
+      await expect(build(dir)).rejects.toThrow("Inline");
+      expect((await Bun.file(join(dir, ".terminal/manifest.json")).json()).buildId).toBe(
+        first.buildId,
+      );
     },
   );
 });

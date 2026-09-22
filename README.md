@@ -36,14 +36,18 @@ Depuis le checkout du framework :
 ```sh
 bun src/cli.ts init /tmp/my-terminal-app
 cd /tmp/my-terminal-app
+bun install
+bun run check
 bun run dev
 # Plus tard, après arrêt du mode dev :
 bun run build
 ```
 
 Le starter contient une seule codebase `app/`, `components/`, `actions/`, `server/`.
-Son lanceur généré `terminal.ts` référence ce checkout du framework ; conserver
-celui-ci installé pendant le développement. Il n’y a aucun manifest ni RPC à écrire.
+Sa dépendance locale `@terminal/framework` utilise `file:` vers ce checkout ;
+conserver celui-ci pendant le développement. `bun install` installe le CLI et les
+outils du starter. Il n’y a aucun manifest ni RPC à écrire. Le starter possède
+son `tsconfig.json`, les configurations Oxc et les réglages VS Code.
 Le CLI est aussi déclaré sous le nom `terminal` dans `package.json` ; dans ce
 checkout, `bun src/cli.ts` exécute les mêmes commandes sans installation globale.
 
@@ -111,11 +115,33 @@ aucun droit par elle-même. Une authentification multi-utilisateur doit remplace
 cette association dans le runtime Server avant un tel déploiement. Ne jamais
 placer un secret dans les sources Client ou une prop RSC.
 
+## TypeScript, Oxc et VS Code
+
+Ouvrir `terminal-rsc/` comme dossier racine VS Code pour appliquer `.vscode/`.
+Installer les extensions TypeScript 7 et Oxc recommandées. Le serveur TypeScript natif
+utilise le package local ; le SDK TypeScript 6 sert de repli pour l’extension classique.
+Si un ancien diagnostic reste affiché, recharger la fenêtre VS Code.
+
+```sh
+bun run check          # TypeScript strict : sources, exemple, tests, scripts et sondes
+bun run lint           # Oxlint, aucune erreur ni warning accepté
+bun run lint:fix        # corrections automatiques sûres
+bun run format         # Oxfmt
+bun run format:check   # vérification sans écriture
+```
+
+`tsconfig.base.json` porte les options communes (Bun/Node, JSX OpenTUI, modules ESM).
+Le projet et les starters utilisent cette base ; les fichiers générés et
+`node_modules` sont exclus. Prettier est remplacé par Oxlint 1.85.0 et Oxfmt 0.70.0,
+versions épinglées. Oxc assure le lint/format ; le compilateur du framework utilise
+l’API AST officielle `@typescript/typescript6` 6.0.2 et le bundler Bun, tandis que
+les contrôles de types utilisent TypeScript 7.0.2. Voir le [guide de tooling](docs/TOOLING.md).
+
 ## Tests reproductibles
 
 ```sh
 bun run probes               # les deux sondes d’origine, avec leurs lockfiles
-bun run verify               # types, intégration et build
+bun run verify               # types, lint, format, intégration et build
 bun run format:check
 bun audit --json
 
@@ -133,8 +159,9 @@ n’a pas encore eu lieu. Voir [les preuves et limites](docs/VALIDATION.md).
 
 ## Contrat et limites
 
+- [Structure et distribution](docs/ARCHITECTURE.md).
 - [Frontières de compilation](docs/BOUNDARIES.md) et [API minimale](docs/API.md).
-- React/Flight 19.3.0, OpenTUI 0.5.12 et reconciler 0.33.0 exactement épinglés.
+- React/Flight 19.3.0, OpenTUI 0.5.12 et reconciler 0.34.0 exactement épinglés.
   L’adapter Flight est isolé dans `src/flight/` et doit être retesté à toute mise à jour.
 - Une racine React persistante ; Suspense progresse dans le flux Flight.
   `app/layout.tsx`, `page.tsx` et un segment `[id]` sont pris en charge ; pas de

@@ -5,17 +5,17 @@
   },
   "separatePids": true,
   "naiveRpc": {
-    "localEditMs": 1.078833000000003,
+    "localEditMs": 1.0189579999999978,
     "draftBeforeReply": "abcd",
     "draftAfterReply": "ABC",
     "sameInstanceAfterRender": true
   },
   "revisionGuard": {
-    "localEditMs": 0.9201249999999845,
+    "localEditMs": 1.6068339999999353,
     "draftBeforeReply": "abcd",
     "draftAfterReply": "abcd",
     "sameInstanceAfterRender": true
   },
   "editAfterDisconnect": "abcde",
-  "clientSyncCallbackTimerDelayMs": 152.66583300000013
+  "clientSyncCallbackTimerDelayMs": 151.17904199999998
 }

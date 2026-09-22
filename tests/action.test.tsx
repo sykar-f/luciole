@@ -1,19 +1,15 @@
 /** @jsxImportSource @opentui/react */
 import { test, expect } from "bun:test";
-import { act, useState } from "react";
+import { act, useState, useEffect } from "react";
 import { testRender } from "@opentui/react/test-utils";
 import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
 import { decode, encodeReply, installResolver } from "../src/flight/client";
 test("milestone 1: Flight action via HTTP, local typing, refresh without remount", async () => {
-  const child = spawn(
-    process.execPath,
-    ["--conditions=react-server", "tests/action-server.ts"],
-    { stdio: ["ignore", "pipe", "inherit"] },
-  );
-  const lines = createInterface({ input: child.stdout })[
-    Symbol.asyncIterator
-  ]();
+  const child = spawn(process.execPath, ["--conditions=react-server", "tests/action-server.ts"], {
+    stdio: ["ignore", "pipe", "inherit"],
+  });
+  const lines = createInterface({ input: child.stdout })[Symbol.asyncIterator]();
   let ui: any;
   try {
     const { port, pid } = JSON.parse((await lines.next()).value!);
@@ -52,7 +48,9 @@ test("milestone 1: Flight action via HTTP, local typing, refresh without remount
     const initial = await load();
     function Shell() {
       const [tree, setTree] = useState(initial);
-      refresh = setTree;
+      useEffect(() => {
+        refresh = setTree;
+      }, [setTree]);
       return tree;
     }
     ui = await testRender(<Shell />, { width: 40, height: 5 });

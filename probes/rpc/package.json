@@ -1,9 +1,14 @@
 {
   "private": true,
-  "scripts": { "probe": "bun run probe.tsx" },
+  "scripts": {
+    "probe": "bun run probe.tsx"
+  },
   "dependencies": {
     "@opentui/core": "0.5.12",
     "@opentui/react": "0.5.12",
     "react": "19.3.0"
+  },
+  "overrides": {
+    "react-reconciler": "0.34.0"
   }
 }

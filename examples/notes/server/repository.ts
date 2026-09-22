@@ -13,12 +13,7 @@ for (const [id, title] of [
   ["1", "First note"],
   ["2", "Second note"],
 ])
-  db.query("INSERT OR IGNORE INTO notes VALUES(?,?,?,?,1)").run(
-    id,
-    owner,
-    title,
-    "",
-  );
+  db.query("INSERT OR IGNORE INTO notes VALUES(?,?,?,?,1)").run(id, owner, title, "");
 export function listNotes(): Note[] {
   return db
     .query("SELECT id,title,value,version FROM notes WHERE owner=? ORDER BY id")
@@ -32,8 +27,7 @@ export function loadNote(id: string): Note {
   return row;
 }
 export function operation(id: string): SaveResult | null {
-  if (typeof id !== "string" || id.length > 100)
-    throw new Error("Invalid operation");
+  if (typeof id !== "string" || id.length > 100) throw new Error("Invalid operation");
   const row = db
     .query("SELECT result FROM operations WHERE owner=? AND id=?")
     .get(getSession().userId, id) as { result: string } | null;
@@ -69,9 +63,11 @@ export function save(snapshot: Snapshot): SaveResult {
         };
       else {
         const value = snapshot.value.trim();
-        db.query(
-          "UPDATE notes SET value=?,version=version+1 WHERE id=? AND owner=?",
-        ).run(value, note.id, getSession().userId);
+        db.query("UPDATE notes SET value=?,version=version+1 WHERE id=? AND owner=?").run(
+          value,
+          note.id,
+          getSession().userId,
+        );
         result = {
           ok: true,
           note: loadNote(note.id),

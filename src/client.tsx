@@ -46,6 +46,7 @@ export class Application {
   private listeners = new Set<() => void>();
   constructor(readonly options: ApplicationOptions) {
     installResolver(options.resolveModule);
+    // oxlint-disable-next-line typescript/no-this-alias -- Register the single application instance used by generated action proxies.
     current = this;
   }
   subscribe = (f: () => void) => {
@@ -62,23 +63,16 @@ export class Application {
   async request(path: string, init: RequestInit = {}) {
     const headers = new Headers(init.headers);
     headers.set("x-terminal-build", this.options.buildId);
-    if (this.options.token)
-      headers.set("authorization", `Bearer ${this.options.token}`);
+    if (this.options.token) headers.set("authorization", `Bearer ${this.options.token}`);
     try {
-      const response = await (this.options.fetch ?? fetch)(
-        new URL(path, this.options.url),
-        {
-          ...init,
-          headers,
-          signal: AbortSignal.timeout(this.options.timeoutMs ?? 10000),
-        },
-      );
-      if (response.status === 409)
-        throw new BuildMismatch(await response.text());
+      const response = await (this.options.fetch ?? fetch)(new URL(path, this.options.url), {
+        ...init,
+        headers,
+        signal: AbortSignal.timeout(this.options.timeoutMs ?? 10000),
+      });
+      if (response.status === 409) throw new BuildMismatch(await response.text());
       if (!response.ok)
-        throw new TransportError(
-          `HTTP ${response.status}: ${await response.text()}`,
-        );
+        throw new TransportError(`HTTP ${response.status}: ${await response.text()}`);
       return response;
     } catch (e) {
       throw e instanceof TransportError
@@ -91,9 +85,7 @@ export class Application {
       throw new Error("Expected application route");
     const generation = ++this.generation;
     try {
-      const response = await this.request(
-        `/render?path=${encodeURIComponent(path)}`,
-      );
+      const response = await this.request(`/render?path=${encodeURIComponent(path)}`);
       const pending = decode(response.body!, this.callServer);
       // Wait only for the root model. Nested Flight promises remain progressive Suspense content.
       const tree = await pending;
@@ -105,8 +97,7 @@ export class Application {
       this.notify();
     } catch (e) {
       if (generation !== this.generation) return;
-      this.status =
-        e instanceof BuildMismatch ? "Incompatible build" : "Disconnected";
+      this.status = e instanceof BuildMismatch ? "Incompatible build" : "Disconnected";
       this.error = (e as Error).message;
       this.notify();
     }
@@ -126,12 +117,10 @@ export class Application {
         throw new TransportError("Invalid action response");
       this.status = "Connected";
       this.notify();
-      if (envelope.refresh && generation === this.generation)
-        void this.refresh(); // refresh failures never reject a committed business result
+      if (envelope.refresh && generation === this.generation) void this.refresh(); // refresh failures never reject a committed business result
       return envelope.value;
     } catch (e) {
-      this.status =
-        e instanceof BuildMismatch ? "Incompatible build" : "Disconnected";
+      this.status = e instanceof BuildMismatch ? "Incompatible build" : "Disconnected";
       this.error = (e as Error).message;
       this.notify();
       throw e;
@@ -158,7 +147,7 @@ export function useDraft(note: Note) {
   useEffect(() => {
     draft.receive(note);
     app.drafts.changed();
-  }, [note.id, note.version]);
+  }, [app.drafts, draft, note]);
   return {
     draft,
     edit: (value: string) => {
@@ -185,9 +174,7 @@ export function useDraft(note: Note) {
       try {
         const result = await action(draft.pending.operationId);
         if (result) draft.confirm(result);
-        else
-          draft.error =
-            "No committed result yet; resolve again later (no automatic replay)";
+        else draft.markUnresolved();
       } catch {
         draft.markUnknown();
       }
@@ -197,15 +184,14 @@ export function useDraft(note: Note) {
 }
 class RenderErrorBoundary extends Component<
   { children: React.ReactNode; reset: number },
-  { error: boolean }
+  { error: boolean; reset: number }
 > {
-  state = { error: false };
+  state = { error: false, reset: this.props.reset };
   static getDerivedStateFromError() {
     return { error: true };
   }
-  componentDidUpdate(prev: any) {
-    if (prev.reset !== this.props.reset && this.state.error)
-      this.setState({ error: false });
+  static getDerivedStateFromProps(props: { reset: number }, state: { reset: number }) {
+    return props.reset !== state.reset ? { error: false, reset: props.reset } : null;
   }
   render() {
     return this.state.error ? (

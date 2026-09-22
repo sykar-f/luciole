@@ -20,7 +20,13 @@ try {
     "package.json",
     "bun.lock",
     "tsconfig.json",
+    "tsconfig.base.json",
     "types.d.ts",
+    ".oxlintrc.json",
+    ".oxfmtrc.json",
+    ".vscode",
+    ".gitignore",
+    ".bun-version",
   ])
     await cp(resolve(name), join(checkout, name), {
       recursive: true,
@@ -32,25 +38,45 @@ try {
     });
   await run([process.execPath, "install", "--frozen-lockfile"], checkout);
   await run([process.execPath, "run", "check"], checkout);
-  await run(
-    [process.execPath, "src/cli.ts", "init", join(temp, "starter")],
-    checkout,
+  await run([process.execPath, "src/cli.ts", "init", join(temp, "starter")], checkout);
+  const starter = join(temp, "starter");
+  await run([process.execPath, "install"], starter);
+  await run([process.execPath, "run", "check"], starter);
+  await run([process.execPath, "run", "lint"], starter);
+  await run([process.execPath, "run", "format:check"], starter);
+  // Exercise the IDE's exact Node/Bun types, and prove that real type errors are still rejected.
+  const typeProbe = join(starter, "server/typecheck-proof.ts");
+  await Bun.write(
+    typeProbe,
+    'import {join} from "node:path";\nexport const path = join(process.cwd(), "notes");\nexport const pid: string = process.pid;\n',
   );
-  await run(
-    [process.execPath, "src/cli.ts", "build", "--app", join(temp, "starter")],
-    checkout,
-  );
+  try {
+    const check = Bun.spawn([process.execPath, "run", "check"], {
+      cwd: starter,
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const output =
+      (await new Response(check.stdout).text()) + (await new Response(check.stderr).text());
+    if (
+      (await check.exited) === 0 ||
+      !output.includes("TS2322") ||
+      output.includes("TS2307") ||
+      output.includes("TS2580")
+    ) {
+      throw new Error(`Starter type-check did not report the expected assignment error: ${output}`);
+    }
+  } finally {
+    await rm(typeProbe);
+  }
+  await run([process.execPath, "run", "build"], starter);
   for (const role of ["client", "server"]) {
     const dest = join(temp, role);
     await cp(join(temp, "starter/.terminal", role), dest, { recursive: true });
     await run([process.execPath, "install", "--frozen-lockfile"], dest);
   }
   const child = Bun.spawn(
-    [
-      process.execPath,
-      "--conditions=react-server",
-      join(temp, "server/index.js"),
-    ],
+    [process.execPath, "--conditions=react-server", join(temp, "server/index.js")],
     {
       cwd: temp,
       env: {
@@ -84,9 +110,7 @@ try {
       ],
       process.cwd(),
     );
-    console.log(
-      "Fresh starter and independently installed production artefacts passed.",
-    );
+    console.log("Fresh starter and independently installed production artefacts passed.");
   } finally {
     child.kill();
     await child.exited;

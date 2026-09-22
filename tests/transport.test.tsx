@@ -2,7 +2,7 @@
 import { test, expect } from "bun:test";
 import { act } from "react";
 import { testRender } from "@opentui/react/test-utils";
-import { mkdtemp, rm, mkdir, cp } from "node:fs/promises";
+import { mkdtemp, rm, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { Database } from "bun:sqlite";
@@ -17,9 +17,7 @@ test("lost commit: durable outcome recovery, no mutation replay, reconnect refre
     NOTES_DB: dbPath,
     TERMINAL_TEST_DROP_ONCE: "1",
   });
-  const { createApp, Shell } = await import(
-    join(root, ".terminal/client/index.js") + "?loss"
-  );
+  const { createApp, Shell } = await import(join(root, ".terminal/client/index.js") + "?loss");
   const app = createApp({ url: server.url });
   let ui: any;
   try {
@@ -48,12 +46,11 @@ test("lost commit: durable outcome recovery, no mutation replay, reconnect refre
     });
     expect(draft.value).toBe("abcd");
     const db = new Database(dbPath, { readonly: true });
-    expect(
-      db.query("SELECT value,version FROM notes WHERE id=?").get("1") as any,
-    ).toEqual({ value: "abc", version: 2 });
-    expect(
-      (db.query("SELECT COUNT(*) AS n FROM operations").get() as any).n,
-    ).toBe(1);
+    expect(db.query("SELECT value,version FROM notes WHERE id=?").get("1") as any).toEqual({
+      value: "abc",
+      version: 2,
+    });
+    expect((db.query("SELECT COUNT(*) AS n FROM operations").get() as any).n).toBe(1);
     await act(async () => {
       await app.refresh();
     });
@@ -69,9 +66,7 @@ test("lost commit: durable outcome recovery, no mutation replay, reconnect refre
     expect(draft.value).toBe("abcd");
     expect(draft.version).toBe(2);
     expect(draft.unknown).toBe(false);
-    expect(
-      (db.query("SELECT COUNT(*) AS n FROM operations").get() as any).n,
-    ).toBe(1);
+    expect((db.query("SELECT COUNT(*) AS n FROM operations").get() as any).n).toBe(1);
     db.close();
     const metrics = await (
       await fetch(server.url + "/test-metrics", {
@@ -93,9 +88,7 @@ test("out-of-order navigation, incompatible build preserves mounted editor, refr
   const server = await launch(join(root, ".terminal/server/index.js"), {
     NOTES_DB: join(dir, "notes.sqlite"),
   });
-  const { createApp, Shell } = await import(
-    join(root, ".terminal/client/index.js") + "?network"
-  );
+  const { createApp, Shell } = await import(join(root, ".terminal/client/index.js") + "?network");
   let slow = false,
     block = false,
     incompatible = false;
@@ -103,12 +96,9 @@ test("out-of-order navigation, incompatible build preserves mounted editor, refr
     url: server.url,
     fetch: async (input: any, init: any) => {
       const url = String(input);
-      if (incompatible)
-        return new Response("Incompatible build", { status: 409 });
-      if (block && url.includes("/render"))
-        throw new Error("network unavailable during refresh");
-      if (slow && decodeURIComponent(url).endsWith("/notes/1"))
-        await Bun.sleep(350);
+      if (incompatible) return new Response("Incompatible build", { status: 409 });
+      if (block && url.includes("/render")) throw new Error("network unavailable during refresh");
+      if (slow && decodeURIComponent(url).endsWith("/notes/1")) await Bun.sleep(350);
       return fetch(input, init);
     },
   });
@@ -177,9 +167,7 @@ test("progressive Flight Suspense renders fallback before delayed content", asyn
     );
     await build(dir);
     server = await launch(join(dir, ".terminal/server/index.js"));
-    const { createApp, Shell } = await import(
-      join(dir, ".terminal/client/index.js")
-    );
+    const { createApp, Shell } = await import(join(dir, ".terminal/client/index.js"));
     const app = createApp({ url: server.url });
     await app.navigate("/");
     ui = await testRender(<Shell app={app} />, { width: 80, height: 12 });
@@ -205,9 +193,7 @@ test("Notes validation, normalization, version conflict, durable deduplication a
     NOTES_DB: join(dir, "notes.sqlite"),
     TERMINAL_TOKEN: "test-session-token",
   });
-  const { createApp } = await import(
-    join(root, ".terminal/client/index.js") + "?business"
-  );
+  const { createApp } = await import(join(root, ".terminal/client/index.js") + "?business");
   const app = createApp({ url: server.url, token: "test-session-token" });
   try {
     expect((await fetch(server.url + "/health")).status).toBe(401);
@@ -221,8 +207,7 @@ test("Notes validation, normalization, version conflict, durable deduplication a
         })
       ).status,
     ).toBe(403);
-    const save = (s: any) =>
-      app.callServer(`${server.buildId}/actions/notes.ts#saveNote`, [s]);
+    const save = (s: any) => app.callServer(`${server.buildId}/actions/notes.ts#saveNote`, [s]);
     const snapshot = {
       id: "1",
       value: "",

@@ -37,15 +37,30 @@ async function main() {
         !p.endsWith(".sqlite-wal") &&
         !p.endsWith(".sqlite-shm"),
     });
+    const frameworkRoot = resolve(import.meta.dir, "..");
+    const frameworkPackage = await Bun.file(join(frameworkRoot, "package.json")).json();
     await Bun.write(
       join(target, "package.json"),
       JSON.stringify(
         {
           private: true,
           type: "module",
+          packageManager: frameworkPackage.packageManager,
+          dependencies: {
+            ...frameworkPackage.dependencies,
+            "@terminal/framework": `file:${frameworkRoot}`,
+          },
+          devDependencies: frameworkPackage.devDependencies,
+          overrides: frameworkPackage.overrides,
           scripts: {
-            dev: "bun terminal.ts dev --app .",
-            build: "bun terminal.ts build --app .",
+            dev: "terminal dev --app .",
+            build: "terminal build --app .",
+            check: "tsc --noEmit",
+            lint: "oxlint --deny-warnings .",
+            "lint:fix": "oxlint --fix .",
+            format: "oxfmt --write .",
+            "format:check": "oxfmt --check .",
+            verify: "bun run check && bun run lint && bun run format:check && bun run build",
           },
         },
         null,
@@ -53,10 +68,41 @@ async function main() {
       ),
     );
     await Bun.write(
-      join(target, "terminal.ts"),
-      `import ${JSON.stringify(resolve(import.meta.path))};\n`,
+      join(target, "tsconfig.json"),
+      JSON.stringify(
+        {
+          extends: "@terminal/framework/tsconfig",
+          include: ["app", "components", "actions", "server"],
+          exclude: ["node_modules", ".terminal"],
+        },
+        null,
+        2,
+      ) + "\n",
     );
-    console.log(`Starter created: ${target}`);
+    for (const file of [
+      ".oxlintrc.json",
+      ".oxfmtrc.json",
+      ".vscode",
+      ".gitignore",
+      ".bun-version",
+    ]) {
+      await cp(join(frameworkRoot, file), join(target, file), { recursive: true });
+    }
+    const { format } = await import("oxfmt");
+    const { printWidth, sortImports, sortPackageJson } = await Bun.file(
+      join(frameworkRoot, ".oxfmtrc.json"),
+    ).json();
+    for (const name of ["package.json", "tsconfig.json"]) {
+      const file = Bun.file(join(target, name));
+      const result = await format(name, await file.text(), {
+        printWidth,
+        sortImports,
+        sortPackageJson,
+      });
+      if (result.errors.length) throw new Error(`Cannot format generated ${name}`);
+      await Bun.write(file, result.code);
+    }
+    console.log(`Starter created: ${target}\nRun bun install in the starter, then bun run dev.`);
     return;
   }
   if (command === "build") {
@@ -65,20 +111,14 @@ async function main() {
   }
   if (command === "start") {
     const role = option("--role", "server");
-    if (!["client", "server"].includes(role))
-      throw new Error("role must be server or client");
-    const artifact = resolve(
-      option("--artifact", join(directory, ".terminal", role)),
-      "index.js",
-    );
+    if (!["client", "server"].includes(role)) throw new Error("role must be server or client");
+    const artifact = resolve(option("--artifact", join(directory, ".terminal", role)), "index.js");
     const child = spawn(
       process.execPath,
       [
         ...(role === "server" ? ["--conditions=react-server"] : []),
         artifact,
-        ...(role === "client"
-          ? ["--url", option("--url", "http://127.0.0.1:3000")]
-          : []),
+        ...(role === "client" ? ["--url", option("--url", "http://127.0.0.1:3000")] : []),
       ],
       { stdio: "inherit", env: { ...process.env, NODE_ENV: "production" } },
     );
@@ -125,10 +165,7 @@ async function main() {
           await Promise.all([stop(client), stop(server)]);
           server = spawn(
             process.execPath,
-            [
-              "--conditions=react-server",
-              join(directory, ".terminal/server/index.js"),
-            ],
+            ["--conditions=react-server", join(directory, ".terminal/server/index.js")],
             {
               stdio: ["ignore", "pipe", "inherit"],
               env: { ...process.env, PORT: process.env.PORT ?? "0" },
@@ -136,10 +173,7 @@ async function main() {
           );
           const activeServer = server;
           const ready = await new Promise<any>((yes, no) => {
-            const timer = setTimeout(
-              () => no(new Error("Server startup timeout")),
-              10000,
-            );
+            const timer = setTimeout(() => no(new Error("Server startup timeout")), 10000);
             const lines = createInterface({ input: activeServer.stdout! });
             activeServer.once("exit", () => {
               clearTimeout(timer);
@@ -194,8 +228,7 @@ async function main() {
       clearTimeout(debounce);
       debounce = setTimeout(() => void rebuild(), 150);
     });
-    for (const signal of ["SIGINT", "SIGTERM"] as const)
-      process.on(signal, shutdown);
+    for (const signal of ["SIGINT", "SIGTERM"] as const) process.on(signal, shutdown);
     await rebuild();
     return;
   }

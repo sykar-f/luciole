@@ -1,0 +1,15 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "printWidth": 100,
+  "sortImports": false,
+  "sortPackageJson": false,
+  "ignorePatterns": [
+    "**/node_modules/**",
+    "**/.terminal/**",
+    "bun.lock",
+    "**/bun.lock",
+    "docs/HANDOFF.md",
+    "docs/pty-frame.txt",
+    "probes/**/results.json"
+  ]
+}

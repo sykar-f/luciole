@@ -10,7 +10,8 @@
   "exports": {
     "./client": "./src/client.tsx",
     "./server": "./src/server.ts",
-    "./build": "./src/build.ts"
+    "./build": "./src/build.ts",
+    "./tsconfig": "./tsconfig.base.json"
   },
   "scripts": {
     "test": "bun test --timeout 20000",
@@ -18,24 +19,31 @@
     "build": "bun src/cli.ts build",
     "dev": "bun src/cli.ts dev",
     "check": "tsc --noEmit",
-    "format": "prettier --write src tests examples/notes scripts/*.ts package.json tsconfig.json types.d.ts",
-    "format:check": "prettier --check src tests examples/notes scripts/*.ts package.json tsconfig.json types.d.ts",
+    "format": "oxfmt --write .",
+    "format:check": "oxfmt --check .",
     "test:pty": "python3 scripts/pty-smoke.py",
-    "verify": "bun run check && bun test --timeout 20000 && bun run build"
+    "verify": "bun run check && bun run lint && bun run format:check && bun test --timeout 20000 && bun run build",
+    "lint": "oxlint --deny-warnings .",
+    "lint:fix": "oxlint --fix ."
   },
   "dependencies": {
     "@opentui/core": "0.5.12",
     "@opentui/react": "0.5.12",
+    "@typescript/typescript6": "6.0.2",
     "react": "19.3.0",
     "react-dom": "19.3.0",
+    "react-reconciler": "0.34.0",
     "react-server-dom-webpack": "19.3.0",
-    "react-reconciler": "0.33.0",
-    "typescript": "5.9.3"
+    "typescript": "7.0.2"
   },
   "devDependencies": {
-    "@types/bun": "1.4.1",
-    "@types/react": "19.2.0",
-    "@types/react-dom": "19.2.0",
-    "prettier": "3.6.2"
+    "@types/bun": "1.4.2",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "oxfmt": "0.70.0",
+    "oxlint": "1.85.0"
+  },
+  "overrides": {
+    "react-reconciler": "0.34.0"
   }
 }

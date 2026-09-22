@@ -2,13 +2,13 @@
 
 Entrée `@terminal/framework/client` (Client Components uniquement) :
 
-| API | Contrat |
-| --- | --- |
+| API               | Contrat                                                                                              |
+| ----------------- | ---------------------------------------------------------------------------------------------------- |
 | `useNavigation()` | `{ navigate(path), refresh() }`. Navigation Server ; la réponse de génération la plus récente gagne. |
-| `useDraft(note)` | `{ draft, edit, save, recover, discard }`. Store au-dessus des routes, indexé par identité métier. |
-| `Note` | `{ id, title, value, version }` ; types importables côté Server avec `import type`. |
-| `Snapshot` | `{ id, value, version, revision, operationId }` ; snapshot soumis immuable par convention. |
-| `SaveResult` | `{ ok: true, note, operationId }` ou `{ ok: false, error, operationId }`. |
+| `useDraft(note)`  | `{ draft, edit, save, recover, discard }`. Store au-dessus des routes, indexé par identité métier.   |
+| `Note`            | `{ id, title, value, version }` ; types importables côté Server avec `import type`.                  |
+| `Snapshot`        | `{ id, value, version, revision, operationId }` ; snapshot soumis immuable par convention.           |
+| `SaveResult`      | `{ ok: true, note, operationId }` ou `{ ok: false, error, operationId }`.                            |
 
 `save(action)` capture le Draft et bloque une deuxième sauvegarde du même document
 jusqu’à un résultat connu. La saisie reste active. `recover(action)` consulte le

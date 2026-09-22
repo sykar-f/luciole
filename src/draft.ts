@@ -41,8 +41,7 @@ export class Draft {
     }
   }
   begin(): Snapshot {
-    if (this.pending)
-      throw new Error("Resolve the current operation before saving");
+    if (this.pending) throw new Error("Resolve the current operation before saving");
     const snapshot = {
       id: this.id,
       value: this.value,
@@ -74,6 +73,10 @@ export class Draft {
       this.error = "Outcome unknown — reconnect and resolve";
     }
   }
+  markUnresolved() {
+    if (this.pending && this.unknown)
+      this.error = "No committed result yet; resolve again later (no automatic replay)";
+  }
   receive(note: Note) {
     if (note.id !== this.id || note.version === this.version) return;
     if (this.dirty || this.pending) {
@@ -85,8 +88,7 @@ export class Draft {
     this.revision++;
   }
   discard(note: Note) {
-    if (this.pending)
-      throw new Error("Resolve the current operation before discarding");
+    if (this.pending) throw new Error("Resolve the current operation before discarding");
     if (note.id !== this.id) throw new Error("Wrong document");
     this.value = this.baseline = note.value;
     this.version = note.version;
@@ -105,10 +107,7 @@ export class DraftStore {
     if (!draft) {
       if (this.entries.size >= this.capacity) {
         const clean = [...this.entries].find(([, d]) => !d.dirty && !d.pending);
-        if (!clean)
-          throw new Error(
-            "Draft capacity reached: save or discard a visited note",
-          );
+        if (!clean) throw new Error("Draft capacity reached: save or discard a visited note");
         this.entries.delete(clean[0]);
       }
       draft = new Draft(note.id, note);

@@ -1,13 +1,6 @@
-import ts from "typescript";
-import { resolve, relative, dirname, join, extname } from "node:path";
-import {
-  mkdir,
-  readFile,
-  readdir,
-  rename,
-  rm,
-  realpath,
-} from "node:fs/promises";
+import ts from "@typescript/typescript6";
+import { resolve, relative, dirname, join } from "node:path";
+import { mkdir, readFile, readdir, rename, rm, realpath } from "node:fs/promises";
 import { createHash } from "node:crypto";
 const framework = dirname(import.meta.path);
 const quote = JSON.stringify;
@@ -19,26 +12,19 @@ type Module = {
   imports: { name: string; node: ts.Node; path?: string }[];
   exports: string[];
 };
-export async function build(
-  directory: string,
-  output = join(directory, ".terminal"),
-) {
+export async function build(directory: string, output = join(directory, ".terminal")) {
   const root = await realpath(directory),
     modules = new Map<string, Module>();
   const fail = (m: Module, n: ts.Node, message: string): never => {
     const p = m.ast.getLineAndCharacterOfPosition(n.getStart(m.ast));
-    throw new Error(
-      `${relative(root, m.path)}:${p.line + 1}:${p.character + 1}: ${message}`,
-    );
+    throw new Error(`${relative(root, m.path)}:${p.line + 1}:${p.character + 1}: ${message}`);
   };
   async function local(from: string, name: string) {
     if (!name.startsWith(".")) return;
     const base = resolve(dirname(from), name);
     for (const candidate of [
       base,
-      ...[".ts", ".tsx", ".js", ".jsx", "/index.ts", "/index.tsx"].map(
-        (s) => base + s,
-      ),
+      ...[".ts", ".tsx", ".js", ".jsx", "/index.ts", "/index.tsx"].map((s) => base + s),
     ]) {
       if (await Bun.file(candidate).exists()) return await realpath(candidate);
     }
@@ -59,14 +45,10 @@ export async function build(
     };
     modules.set(path, m);
     const errors = (ast as any).parseDiagnostics as ts.Diagnostic[];
-    if (errors.length)
-      fail(m, ast, ts.flattenDiagnosticMessageText(errors[0].messageText, " "));
+    if (errors.length) fail(m, ast, ts.flattenDiagnosticMessageText(errors[0].messageText, " "));
     for (const s of ast.statements) {
       if (ts.isExpressionStatement(s) && ts.isStringLiteral(s.expression)) {
-        if (
-          s.expression.text === "use client" ||
-          s.expression.text === "use server"
-        ) {
+        if (s.expression.text === "use client" || s.expression.text === "use server") {
           if (m.directive && m.directive !== s.expression.text)
             fail(m, s, "Conflicting directives");
           m.directive = s.expression.text;
@@ -99,11 +81,7 @@ export async function build(
         (n.expression.kind === ts.SyntaxKind.ImportKeyword ||
           (ts.isIdentifier(n.expression) && n.expression.text === "require"))
       )
-        fail(
-          m,
-          n,
-          "Dynamic imports/require in application sources are unsupported in MVP",
-        );
+        fail(m, n, "Dynamic imports/require in application sources are unsupported in MVP");
       ts.forEachChild(n, visit);
     }
     visit(ast);
@@ -125,8 +103,7 @@ export async function build(
   pages.sort();
   if (!pages.length) throw new Error("No app/page.tsx routes");
   const layout = join(root, "app/layout.tsx");
-  if (!(await Bun.file(layout).exists()))
-    throw new Error("app/layout.tsx required");
+  if (!(await Bun.file(layout).exists())) throw new Error("app/layout.tsx required");
   for (const p of [...pages, layout]) await read(p);
   const program = ts.createProgram([...modules.keys()], {
     allowJs: true,
@@ -143,8 +120,7 @@ export async function build(
       ? checker
           .getExportsOfModule(symbol)
           .filter((s) => {
-            const target =
-              s.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(s) : s;
+            const target = s.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(s) : s;
             return !!(target.flags & ts.SymbolFlags.Value);
           })
           .map((s) => s.name)
@@ -152,11 +128,7 @@ export async function build(
     if (m.directive === "use server") {
       for (const s of m.ast.statements) {
         if (ts.isExportDeclaration(s) && !s.isTypeOnly)
-          fail(
-            m,
-            s,
-            "Action reexports are unsupported; export named async declarations",
-          );
+          fail(m, s, "Action reexports are unsupported; export named async declarations");
         if (
           ts.isImportDeclaration(s) ||
           ts.isInterfaceDeclaration(s) ||
@@ -166,9 +138,7 @@ export async function build(
           continue;
         const exported =
           ts.canHaveModifiers(s) &&
-          ts
-            .getModifiers(s)
-            ?.some((x) => x.kind === ts.SyntaxKind.ExportKeyword);
+          ts.getModifiers(s)?.some((x) => x.kind === ts.SyntaxKind.ExportKeyword);
         if (!exported) continue;
         if (
           !ts.isFunctionDeclaration(s) ||
@@ -176,11 +146,7 @@ export async function build(
           !s.modifiers?.some((x) => x.kind === ts.SyntaxKind.AsyncKeyword) ||
           s.modifiers?.some((x) => x.kind === ts.SyntaxKind.DefaultKeyword)
         )
-          fail(
-            m,
-            s,
-            '"use server" supports named exported async function declarations only',
-          );
+          fail(m, s, '"use server" supports named exported async function declarations only');
       }
     }
   }
@@ -198,8 +164,7 @@ export async function build(
     }
     if (m.directive === "use server") actions.add(p);
     for (const i of m.imports) {
-      if (i.name.startsWith("@opentui/"))
-        fail(m, i.node, "OpenTUI native runtime is Client-only");
+      if (i.name.startsWith("@opentui/")) fail(m, i.node, "OpenTUI native runtime is Client-only");
       if (i.path) serverVisit(i.path);
     }
   }
@@ -224,9 +189,7 @@ export async function build(
         fail(m, i.node, `Server-only import in Client graph: ${i.name}`);
       if (i.path) clientVisit(i.path);
       else if (
-        !["react", "react/jsx-runtime", "@terminal/framework/client"].includes(
-          i.name,
-        ) &&
+        !["react", "react/jsx-runtime", "@terminal/framework/client"].includes(i.name) &&
         !i.name.startsWith("@opentui/")
       )
         fail(
@@ -239,9 +202,7 @@ export async function build(
   for (const p of [...pages, layout]) serverVisit(p);
   for (const p of clients) clientVisit(p);
   const hash = createHash("sha256");
-  for (const m of [...modules.values()].sort((a, b) =>
-    a.path.localeCompare(b.path),
-  ))
+  for (const m of [...modules.values()].sort((a, b) => a.path.localeCompare(b.path)))
     hash.update(relative(root, m.path)).update(m.text);
   for (const e of [
     "build.ts",
@@ -264,27 +225,18 @@ export async function build(
   const routes = pages.map((p, i) => ({
     file: p,
     name: `P${i}`,
-    route:
-      "/" +
-      relative(join(root, "app"), dirname(p))
-        .split("/")
-        .filter(Boolean)
-        .join("/"),
+    route: "/" + relative(join(root, "app"), dirname(p)).split("/").filter(Boolean).join("/"),
   }));
   const serverSource =
     `import React from 'react';import {serve} from ${quote(join(framework, "server.ts"))};import Layout from ${quote(layout)};\n` +
     routes.map((r) => `import ${r.name} from ${quote(r.file)};`).join("\n") +
     "\n" +
-    [...actions]
-      .map((p, i) => `import * as A${i} from ${quote(p)};`)
-      .join("\n") +
+    [...actions].map((p, i) => `import * as A${i} from ${quote(p)};`).join("\n") +
     `\nconst actions=new Map([${[...actions].flatMap((p, i) => modules.get(p)!.exports.map((n) => `[${quote(id(p) + "#" + n)},A${i}[${quote(n)}]]`)).join(",")}]);\n` +
     `serve({buildId:${quote(buildId)},manifest:${quote(manifest)},actions,layout:Layout,routes:[${routes.map((r) => `{path:${quote(r.route)},component:${r.name}}`).join(",")}]});`;
   const clientSource =
     `export {Shell} from ${quote(join(framework, "client.tsx"))};import {createApplication,run} from ${quote(join(framework, "client.tsx"))};\n` +
-    [...clients]
-      .map((p, i) => `import * as C${i} from ${quote(p)};`)
-      .join("\n") +
+    [...clients].map((p, i) => `import * as C${i} from ${quote(p)};`).join("\n") +
     `\nconst modules=new Map([${[...clients].map((p, i) => `[${quote(id(p))},C${i}]`).join(",")}]);export function createApp(options){return createApplication({...options,buildId:${quote(buildId)},resolveModule:id=>{if(!modules.has(id))throw new Error('Unknown module '+id);return modules.get(id)}})};if(import.meta.main)await run(createApp);`;
   const external = [
     "react",
@@ -309,15 +261,9 @@ export async function build(
           {
             name: "terminal-boundaries",
             setup(b) {
-              b.onResolve(
-                { filter: /^@terminal\/framework\/(client|server)$/ },
-                (a) => ({
-                  path: join(
-                    framework,
-                    a.path.endsWith("client") ? "client.tsx" : "server.ts",
-                  ),
-                }),
-              );
+              b.onResolve({ filter: /^@terminal\/framework\/(client|server)$/ }, (a) => ({
+                path: join(framework, a.path.endsWith("client") ? "client.tsx" : "server.ts"),
+              }));
               b.onResolve({ filter: /^server-only$/ }, () => ({
                 path: "server-only",
                 namespace: "marker",
@@ -343,18 +289,14 @@ export async function build(
                     `import {actionReference} from ${quote(join(framework, "client.tsx"))};\n` +
                     m.exports
                       .map(
-                        (n) =>
-                          `export const ${n}=actionReference(${quote(id(m.path) + "#" + n)});`,
+                        (n) => `export const ${n}=actionReference(${quote(id(m.path) + "#" + n)});`,
                       )
                       .join("\n");
                 else if (role === "server" && m?.directive === "use server")
                   source +=
                     `\nimport {registerServerReference as register} from ${quote(join(framework, "flight/server.ts"))};\n` +
                     m.exports
-                      .map(
-                        (n) =>
-                          `register(${n},${quote(id(m.path))},${quote(n)});`,
-                      )
+                      .map((n) => `register(${n},${quote(id(m.path))},${quote(n)});`)
                       .join("\n");
                 return {
                   contents: ts.transpileModule(source, {
@@ -363,8 +305,7 @@ export async function build(
                       target: ts.ScriptTarget.ESNext,
                       module: ts.ModuleKind.ESNext,
                       jsx: ts.JsxEmit.ReactJSX,
-                      jsxImportSource:
-                        role === "server" ? "react" : "@opentui/react",
+                      jsxImportSource: role === "server" ? "react" : "@opentui/react",
                     },
                   }).outputText,
                   loader: "js",
@@ -375,9 +316,7 @@ export async function build(
         ],
       });
       if (!result.success) throw new Error(result.logs.join("\n"));
-      const pkg = JSON.parse(
-        await readFile(join(framework, "../package.json"), "utf8"),
-      );
+      const pkg = JSON.parse(await readFile(join(framework, "../package.json"), "utf8"));
       await Bun.write(
         join(temp, role, "package.json"),
         JSON.stringify(
@@ -387,15 +326,13 @@ export async function build(
             type: "module",
             dependencies: pkg.dependencies,
             devDependencies: pkg.devDependencies,
+            overrides: pkg.overrides,
           },
           null,
           2,
         ),
       );
-      await Bun.write(
-        join(temp, role, "bun.lock"),
-        await readFile(join(framework, "../bun.lock")),
-      );
+      await Bun.write(join(temp, role, "bun.lock"), await readFile(join(framework, "../bun.lock")));
       await rm(entry);
     }
     await Bun.write(
@@ -415,8 +352,7 @@ export async function build(
     // Failed builds never touch the active artefacts.
     const backup = output + "-previous";
     await rm(backup, { recursive: true, force: true });
-    if (await Bun.file(join(output, "manifest.json")).exists())
-      await rename(output, backup);
+    if (await Bun.file(join(output, "manifest.json")).exists()) await rename(output, backup);
     await rename(temp, output);
     await rm(backup, { recursive: true, force: true });
     return { buildId, output };

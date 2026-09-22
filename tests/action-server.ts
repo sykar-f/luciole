@@ -6,7 +6,7 @@ import {
   decodeReply,
 } from "../src/flight/server";
 let saved = "";
-const Editor = registerClientReference(() => {}, "editor", "Editor");
+const Editor = registerClientReference((_props: { save: typeof save }) => null, "editor", "Editor");
 const save = registerServerReference(
   async (value: string) => {
     await Bun.sleep(400);
@@ -22,9 +22,7 @@ const server = Bun.serve({
   async fetch(req) {
     if (req.method === "POST") {
       const args = await decodeReply(await req.text(), {});
-      return new Response(
-        await renderToReadableStream(await save(...args), {}),
-      );
+      return new Response(renderToReadableStream(await save(args[0]), {}));
     }
     return new Response(
       await renderToReadableStream(

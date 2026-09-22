@@ -15,9 +15,7 @@ test("generated Notes: Flight action, preserved Draft, navigation, validation an
     NOTES_DB: join(folder, "notes.sqlite"),
     NOTES_DELAY_MS: "400",
   });
-  const { createApp, Shell } = await import(
-    join(appDir, ".terminal/client/index.js") + "?notes"
-  );
+  const { createApp, Shell } = await import(join(appDir, ".terminal/client/index.js") + "?notes");
   const app = createApp({ url: server.url });
   let ui: any;
   try {

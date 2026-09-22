@@ -8,16 +8,15 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
+      - uses: actions/checkout@v7.0.1
+      - uses: oven-sh/setup-bun@v2.2.0
         with:
           bun-version: 1.4.2
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7.0.0
         with:
-          python-version: '3.12'
+          python-version: "3.14.7"
       - run: bun install --frozen-lockfile
       - run: pip install -r scripts/requirements-pty.txt
-      - run: bun run format:check
       - run: bun run probes
       - run: bun run verify
       - run: python3 scripts/pty-smoke.py

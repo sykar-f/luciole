@@ -44,14 +44,10 @@ export function NoteEditor({ initialNote, saveAction, resolveAction }: Props) {
         · baseline: {draft.baseline || "(empty)"}
       </text>
       {draft.conflict ? (
-        <text fg="#ffbc66">
-          Server changed. Draft preserved; discard explicitly to reload.
-        </text>
+        <text fg="#ffbc66">Server changed. Draft preserved; discard explicitly to reload.</text>
       ) : null}
       {draft.error ? <text fg="#ffbc66">{draft.error}</text> : null}
-      <text fg="#8b98a5">
-        Enter / Ctrl+S save · Esc list · Ctrl+O resolve · Ctrl+D discard
-      </text>
+      <text fg="#8b98a5">Enter / Ctrl+S save · Esc list · Ctrl+O resolve · Ctrl+D discard</text>
     </box>
   );
 }
