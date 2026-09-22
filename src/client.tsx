@@ -16,12 +16,13 @@ import {
   BuildMismatch,
   createHttpTransport,
   type RouteParams,
+  type RouteSearch,
   type Transport,
 } from "./transport";
 import { DraftStore, type Note, type SaveResult, type Snapshot } from "./draft";
 export type { Note, SaveResult, Snapshot } from "./draft";
 export { AuthenticationRequired, BuildMismatch, TransportError } from "./transport";
-export type { RouteParams, Transport } from "./transport";
+export type { RouteParams, RouteSearch, Transport } from "./transport";
 export type { LayoutProps, LoadingProps } from "./route-tree";
 // TanStack Router owns navigation state. These primitives are re-exported, not wrapped,
 // so Client Components share the bundled router instance and the application's
@@ -34,6 +35,7 @@ export {
   useParams,
   useRouter,
   useRouterState,
+  useSearch,
 } from "@tanstack/react-router";
 
 export type ApplicationOptions = {
@@ -105,6 +107,16 @@ export class Application {
       origin: "http://terminal.invalid",
       defaultPendingMs: 0,
       defaultPendingMinMs: 0,
+      // Plain URL strings: TanStack's default JSON coercion would turn "42" into 42.
+      parseSearch: (search) => Object.fromEntries(new URLSearchParams(search)),
+      stringifySearch: (search) => {
+        const query = new URLSearchParams(
+          Object.entries(search).flatMap(([key, value]) =>
+            value === undefined || value === null ? [] : [[key, String(value)]],
+          ),
+        ).toString();
+        return query ? `?${query}` : "";
+      },
     });
     // A commit moves the route being left into the cache: repeat a purge requested
     // while that navigation was pending.
@@ -163,7 +175,7 @@ export class Application {
   async renderPage(
     routeId: string,
     params: RouteParams,
-    load: { signal: AbortSignal; href: string; route: string },
+    load: { signal: AbortSignal; href: string; route: string; search?: RouteSearch },
   ): Promise<React.ReactNode> {
     // Read before the request: a revalidation of the resolved location keeps its tree.
     const refreshing = this.router.state.resolvedLocation?.href === load.href;
@@ -172,7 +184,7 @@ export class Application {
           ?.loaderData
       : undefined;
     try {
-      const tree = await this.transport.render(routeId, params, load.signal);
+      const tree = await this.transport.render(routeId, params, load.signal, load.search ?? {});
       // A superseded load may still answer; only the current one reports status.
       if (!load.signal.aborted) this.report("Connected");
       return tree;

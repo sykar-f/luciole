@@ -2,16 +2,17 @@
 
 Entrée `@terminal/framework/client` (Client Components uniquement) :
 
-| API                                                                                                                     | Contrat                                                                                            |
-| ----------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `useNavigate()`, `useRouter()`, `useRouterState()`, `useParams()`, `useLocation()`, `useMatchRoute()`, `useCanGoBack()` | Primitives TanStack Router réexportées telles quelles ; TanStack est l'unique état de navigation.  |
-| `useApplication()`                                                                                                      | `{ setToken(token?), refresh(), cancel(), status, error, drafts }` du runtime terminal.            |
-| `LayoutProps`                                                                                                           | `{ children, params }` reçu par un `layout.tsx` Client ; `params` limité aux segments du layout.   |
-| `LoadingProps`                                                                                                          | `{ path, params }` reçu par un `loading.tsx` Client pendant l'attente de la page.                  |
-| `useDraft(note)`                                                                                                        | `{ draft, edit, save, recover, discard }`. Store au-dessus des routes, indexé par identité métier. |
-| `Note`                                                                                                                  | `{ id, title, value, version }` ; types importables côté Server avec `import type`.                |
-| `Snapshot`                                                                                                              | `{ id, value, version, revision, operationId }` ; snapshot soumis immuable par convention.         |
-| `SaveResult`                                                                                                            | `{ ok: true, note, operationId }` ou `{ ok: false, error, operationId }`.                          |
+| API                                                                                                                                    | Contrat                                                                                                      |
+| -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `useNavigate()`, `useRouter()`, `useRouterState()`, `useParams()`, `useSearch()`, `useLocation()`, `useMatchRoute()`, `useCanGoBack()` | Primitives TanStack Router réexportées telles quelles ; TanStack est l'unique état de navigation.            |
+| `useApplication()`                                                                                                                     | `{ setToken(token?, { preserveDrafts }?), refresh(), cancel(), status, error, drafts }` du runtime terminal. |
+| `drafts`                                                                                                                               | `DraftStore` : `unsaved()` (Drafts sales, en vol ou inconnus), `size`, `capacity`, `clear()`.                |
+| `LayoutProps`                                                                                                                          | `{ children, params }` reçu par un `layout.tsx` Client ; `params` limité aux segments du layout.             |
+| `LoadingProps`                                                                                                                         | `{ path, params }` reçu par un `loading.tsx` Client pendant l'attente de la page.                            |
+| `useDraft(note)`                                                                                                                       | `{ draft, edit, save, recover, discard }`. Store au-dessus des routes, indexé par identité métier.           |
+| `Note`                                                                                                                                 | `{ id, title, value, version }` ; types importables côté Server avec `import type`.                          |
+| `Snapshot`                                                                                                                             | `{ id, value, version, revision, operationId }` ; snapshot soumis immuable par convention.                   |
+| `SaveResult`                                                                                                                           | `{ ok: true, note, operationId }` ou `{ ok: false, error, operationId }`.                                    |
 
 `save(action)` capture le Draft et bloque une deuxième sauvegarde du même document
 jusqu’à un résultat connu. La saisie reste active. `recover(action)` consulte le
@@ -74,7 +75,12 @@ Le transport est une interface remplaçable (`src/transport.ts`), injectable via
 
 ```ts
 interface Transport {
-  render(routeId: string, params: RouteParams, signal: AbortSignal): Promise<ReactNode>;
+  render(
+    routeId: string,
+    params: RouteParams,
+    signal: AbortSignal,
+    search?: RouteSearch,
+  ): Promise<ReactNode>;
   call(actionId: string, args: unknown[], signal?: AbortSignal): Promise<unknown>;
   setToken(token?: string): void;
 }
@@ -224,8 +230,48 @@ Comportement observable :
 - Le `DraftStore` est au-dessus du route tree : les Drafts survivent aux
   démontages de pages. Les versions de Notes sont monotones.
 
-Préchargement, `error.tsx`, catch-all, params optionnels et layouts Server
-persistants (modèle « un payload Flight par segment ») restent hors contrat.
+`error.tsx`, catch-all, params optionnels et layouts Server persistants (modèle « un
+payload Flight par segment ») restent hors contrat.
+
+### Search params
+
+Chaque page accepte des search params, des **chaînes** comme dans une URL (le
+routeur n'applique pas la conversion JSON par défaut de TanStack : `"42"` reste
+`"42"`). Le route tree généré déclare `validateSearch` (les valeurs non textuelles
+sont ignorées) et `loaderDeps` : chaque search est une page distincte, rendue par le
+Server et mise en cache à part ; retour et avance la restaurent.
+
+```tsx
+void navigate({ to: "/repos/$repo", params: { repo }, search: { state: "merged" } });
+// Côté Server
+export default function Page({
+  params,
+  searchParams,
+}: {
+  params: { repo: string };
+  searchParams: Record<string, string>;
+}) {}
+```
+
+Le Server revalide la search comme les params : au plus 32 clés `[\w.-]{1,64}`,
+valeurs textuelles de 1 000 caractères au plus, sinon `400`. `useSearch()` la lit
+côté Client. Un filtre qui doit répondre à chaque frappe reste un état local.
+
+### Préchargement
+
+`useRouter().preloadRoute({ to, params })` rend la page en arrière-plan ; la
+navigation suivante l'affiche sans attendre le réseau et sans nouveau rendu tant que
+l'arbre préchargé est frais (`preloadStaleTime` de TanStack, 30 s). Le préchargement
+passe par le même loader : auth, `setToken()` et purge du cache s'appliquent.
+
+### Streaming au-delà du modèle racine
+
+Une page peut passer à un Client Component une `Promise` (lue avec `use()` sous
+`Suspense`) ou un async iterable : Flight les livre au fil de l'eau dans la même
+réponse, sans protocole supplémentaire. Le timeout du transport borne seulement
+l'attente du modèle racine. Un async iterable ne se lit qu'une fois alors qu'un arbre
+en cache peut être remonté : le consommer une fois dans un store. Le stream d'un arbre
+quitté continue pour le cache ; préférer des streams finis.
 
 ### Géométrie du loading
 

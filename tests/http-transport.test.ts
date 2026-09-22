@@ -25,6 +25,7 @@ test("render requests the route by id with build identity and the current bearer
     params: unknown;
     build: string | null;
     auth: string | null;
+    search: unknown;
   }[] = [];
   const transport = createHttpTransport({
     ...base,
@@ -37,6 +38,7 @@ test("render requests the route by id with build identity and the current bearer
         params: JSON.parse(url.searchParams.get("params") ?? "null"),
         build: headers.get("x-terminal-build"),
         auth: headers.get("authorization"),
+        search: JSON.parse(url.searchParams.get("search") ?? "null"),
       });
       return new Response("Unknown", { status: 404 });
     }),
@@ -46,7 +48,9 @@ test("render requests the route by id with build identity and the current bearer
   transport.setToken("second");
   await expect(transport.render("/", {}, signal)).rejects.toThrow(TransportError);
   transport.setToken(undefined);
-  await expect(transport.render("/", {}, signal)).rejects.toThrow(TransportError);
+  await expect(transport.render("/", {}, signal, { q: "a&b", state: "open" })).rejects.toThrow(
+    TransportError,
+  );
   expect(seen).toEqual([
     {
       path: "/render",
@@ -54,9 +58,24 @@ test("render requests the route by id with build identity and the current bearer
       params: { id: "a b" },
       build: "build-1",
       auth: "Bearer first",
+      search: null,
     },
-    { path: "/render", route: "/", params: {}, build: "build-1", auth: "Bearer second" },
-    { path: "/render", route: "/", params: {}, build: "build-1", auth: null },
+    {
+      path: "/render",
+      route: "/",
+      params: {},
+      build: "build-1",
+      auth: "Bearer second",
+      search: null,
+    },
+    {
+      path: "/render",
+      route: "/",
+      params: {},
+      build: "build-1",
+      auth: null,
+      search: { q: "a&b", state: "open" },
+    },
   ]);
 });
 

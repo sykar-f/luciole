@@ -224,8 +224,8 @@ n’a pas encore eu lieu. Voir [les preuves et limites](docs/VALIDATION.md).
   L’adapter Flight est isolé dans `src/flight/` et doit être retesté à toute mise à jour.
 - TanStack Router 1.170.38 est l’unique autorité de navigation ; Suspense progresse
   dans le flux Flight. Layouts Client imbriqués et persistants, groupes `(group)`,
-  `[param]` et `loading.tsx` par page sont pris en charge ; pas de catch-all,
-  `error.tsx`, préchargement ni layout Server persistant. La navigation est typée par
+  `[param]`, `loading.tsx` par page, search params et préchargement TanStack sont pris
+  en charge ; pas de catch-all, `error.tsx` ni layout Server persistant. La navigation est typée par
   `app/routeTree.gen.ts`, généré par le build et versionné. Voir [ROUTER.md](docs/ROUTER.md).
 - Drafts en mémoire, au plus 32 documents par session. Les Drafts sales/en attente
   ne sont pas évincés : une limite pleine exige de sauvegarder/abandonner un Draft.

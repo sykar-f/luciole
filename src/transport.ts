@@ -14,6 +14,8 @@ export class AuthenticationRequired extends TransportError {
 }
 
 export type RouteParams = Record<string, string>;
+/** URL search values: strings only, validated again by the Server. */
+export type RouteSearch = Record<string, string>;
 
 /**
  * The only way the Client reaches a Server. `render` resolves with the root Flight
@@ -22,7 +24,12 @@ export type RouteParams = Record<string, string>;
  * arrives. Failures are `TransportError`s.
  */
 export interface Transport {
-  render(routeId: string, params: RouteParams, signal: AbortSignal): Promise<ReactNode>;
+  render(
+    routeId: string,
+    params: RouteParams,
+    signal: AbortSignal,
+    search?: RouteSearch,
+  ): Promise<ReactNode>;
   call(actionId: string, args: unknown[], signal?: AbortSignal): Promise<unknown>;
   setToken(token?: string): void;
 }
@@ -85,7 +92,7 @@ export function createHttpTransport(options: HttpTransportOptions): Transport {
   }
 
   return {
-    async render(routeId, params, signal) {
+    async render(routeId, params, signal, search = {}) {
       // Detach the stream from the caller once the root model is decoded: a cached
       // tree must keep receiving its Suspense chunks after its route is left.
       const stream = new AbortController();
@@ -94,6 +101,7 @@ export function createHttpTransport(options: HttpTransportOptions): Transport {
       signal.addEventListener("abort", cancel);
       try {
         const query = new URLSearchParams({ route: routeId, params: JSON.stringify(params) });
+        if (Object.keys(search).length) query.set("search", JSON.stringify(search));
         const { response, settle } = await request(`/render?${query}`, {}, stream.signal);
         try {
           return (await decode(response.body!, options.callServer)) as ReactNode;

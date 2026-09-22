@@ -76,6 +76,13 @@ attendues et que les fichiers des exemples sont à jour. Le bundle Client résou
 
 ## Comportements choisis
 
+- **Search params** : chaînes seulement (`parseSearch`/`stringifySearch` sur
+  `URLSearchParams`, sans la conversion JSON par défaut de TanStack) ; `validateSearch`
+  et `loaderDeps` générés pour chaque page, transmis à `Transport.render` et revalidés
+  par le Server, qui les passe à la page en `searchParams`.
+- **Préchargement** : `router.preloadRoute` de TanStack, sans code du framework ; la
+  navigation réutilise l'arbre préchargé tant que `preloadStaleTime` (30 s) le juge
+  frais. Prouvé par Forge sous 500 ms de RTT.
 - **Refresh échoué** : le loader renvoie l'arbre du match résolu (`loaderData`) au
   lieu de laisser l'`errorComponent` remplacer l'éditeur ; l'erreur va au statut.
 - **Navigation échouée** : comportement natif de TanStack, l'erreur s'affiche dans

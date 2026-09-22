@@ -92,6 +92,14 @@ test("public and protected routes and actions use the application auth adapter",
     expect((await raw("route=%2Fmissing&params=%7B%7D", "valid")).status).toBe(404);
     expect((await raw("route=%2F&params=%7B%22x%22%3A%221%22%7D", "valid")).status).toBe(400);
     expect((await raw("route=%2F&params=oops", "valid")).status).toBe(400);
+    // Search parameters are untrusted too: string values under bounded keys only.
+    const search = (value: unknown) =>
+      raw(`route=%2F&params=%7B%7D&search=${encodeURIComponent(JSON.stringify(value))}`, "valid");
+    expect((await search({ q: "refund", state: "open" })).status).toBe(200);
+    expect((await search({ q: 1 })).status).toBe(400);
+    expect((await search(["q"])).status).toBe(400);
+    expect((await search({ "bad key": "x" })).status).toBe(400);
+    expect((await search({ q: "x".repeat(1001) })).status).toBe(400);
     expect((await raw("route=%2F&params=%7B%7D", "valid")).status).toBe(200);
   } finally {
     if (server) await server.stop();

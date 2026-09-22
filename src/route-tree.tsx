@@ -16,7 +16,7 @@ import {
   type Router,
 } from "@tanstack/react-router";
 import { useApplication, type Application } from "./client";
-import type { RouteParams } from "./transport";
+import type { RouteParams, RouteSearch } from "./transport";
 
 export type LayoutProps = { children: ReactNode; params: RouteParams };
 export type LoadingProps = { path: string; params: RouteParams };
@@ -64,6 +64,7 @@ export function layoutRoute(Layout: ClientComponent<LayoutProps>, params: readon
 type PageLoaderContext = {
   context: TerminalRouterContext;
   params: object;
+  deps: { search: RouteSearch };
   abortController: AbortController;
   location: { href: string };
   route: { id: string };
@@ -75,7 +76,7 @@ type PageLoaderContext = {
  * inference site and widen the params TanStack derives from the literal path.
  */
 export function loadPage(
-  { context, params: all, abortController, location, route }: PageLoaderContext,
+  { context, params: all, deps, abortController, location, route }: PageLoaderContext,
   routeId: string,
   params: readonly string[],
 ): Promise<ReactNode> {
@@ -83,11 +84,31 @@ export function loadPage(
     signal: abortController.signal,
     href: location.href,
     route: route.id,
+    search: deps.search,
   });
 }
 
+/**
+ * Search values are strings: anything else in a location is dropped, never trusted.
+ * Every key is optional, so navigating without `search` stays valid.
+ */
+export function validateSearch(raw: Record<string, unknown>): Partial<RouteSearch> {
+  return Object.fromEntries(
+    Object.entries(raw).filter((entry): entry is [string, string] => typeof entry[1] === "string"),
+  );
+}
+const definedSearch = (search: Partial<RouteSearch>): RouteSearch =>
+  Object.fromEntries(
+    Object.entries(search).filter((entry): entry is [string, string] => entry[1] !== undefined),
+  );
+
 export function pageRoute(params: readonly string[], Loading?: ClientComponent<LoadingProps>) {
   return {
+    validateSearch,
+    // A new search is a new page: the Server renders it and TanStack caches it apart.
+    loaderDeps: ({ search }: { search: Partial<RouteSearch> }) => ({
+      search: definedSearch(search),
+    }),
     // Escape restores the resolved route from its committed match; otherwise TanStack's
     // own staleness rules apply.
     shouldReload: ({ location }: { location: { state: { terminalRestore?: boolean } } }) =>

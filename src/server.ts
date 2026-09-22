@@ -25,7 +25,10 @@ export function getCallId() {
 }
 /** Authoritative page registry, keyed by the build's routeId. */
 export type ServerRoute = {
-  component: React.ComponentType<{ params: Record<string, string> }>;
+  component: React.ComponentType<{
+    params: Record<string, string>;
+    searchParams: Record<string, string>;
+  }>;
   auth: RouteAuth;
   /** URL pattern with `$name` parameters, used only to validate `unauthorizedPath`. */
   url: string;
@@ -52,6 +55,25 @@ function parseParams(route: ServerRoute, raw: string | null) {
   if (entries.length !== route.params.length) return null;
   for (const [key, param] of entries)
     if (!route.params.includes(key) || typeof param !== "string" || !param) return null;
+  return value as Record<string, string>;
+}
+const SEARCH_KEYS = 32,
+  SEARCH_VALUE = 1000;
+// Search comes from the URL and is untrusted: string values under bounded keys only.
+function parseSearch(raw: string | null) {
+  if (raw === null) return {};
+  let value: unknown;
+  try {
+    value = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const entries = Object.entries(value);
+  if (entries.length > SEARCH_KEYS) return null;
+  for (const [key, param] of entries)
+    if (!/^[\w.-]{1,64}$/.test(key) || typeof param !== "string" || param.length > SEARCH_VALUE)
+      return null;
   return value as Record<string, string>;
 }
 export function serve(config: ServerConfig) {
@@ -110,9 +132,11 @@ export function serve(config: ServerConfig) {
             if (!route) return new Response("Route not found", { status: 404 });
             const params = parseParams(route, url.searchParams.get("params"));
             if (!params) return new Response("Invalid route parameters", { status: 400 });
+            const searchParams = parseSearch(url.searchParams.get("search"));
+            if (!searchParams) return new Response("Invalid search parameters", { status: 400 });
             if (route.auth === "required" && !session) return unauthorized();
             metrics.renders++;
-            const tree = React.createElement(route.component, { params });
+            const tree = React.createElement(route.component, { params, searchParams });
             return new Response(renderToReadableStream(tree, config.manifest), {
               headers: {
                 "content-type": "text/x-component",

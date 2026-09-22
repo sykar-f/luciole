@@ -25,6 +25,7 @@ export function Good() {
   const navigate = useNavigate();
   void navigate({ to: "/notes/$id", params: { id: "1" } });
   void navigate({ to: "/settings/$section", params: { section: "a" } });
+  void navigate({ to: "/notes/$id", params: { id: "1" }, search: { tab: "files" } });
   return null;
 }`,
       "components/Bad.tsx": `"use client";
@@ -35,6 +36,7 @@ export function Bad() {
   void navigate({ to: "/notes/$id" });
   void navigate({ to: "/notes/$id", params: { note: "1" } });
   void navigate({ to: "/notes/$id", params: { id: 1 } });
+  void navigate({ to: "/notes/$id", params: { id: "1" }, search: { tab: 1 } });
   return null;
 }`,
     };
@@ -52,7 +54,7 @@ export function Bad() {
     const lines = [...output.matchAll(/components\/(\w+)\.tsx\((\d+),/g)].map(
       ([, file, line]) => `${file}:${line}`,
     );
-    expect(lines).toEqual(["Bad:5", "Bad:6", "Bad:7", "Bad:8"]);
+    expect(lines).toEqual(["Bad:5", "Bad:6", "Bad:7", "Bad:8", "Bad:9"]);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
