@@ -118,3 +118,21 @@ test("signing is only accepted where it can succeed", async () => {
     "does not notarize ad hoc signatures",
   );
 });
+
+test("a publishing flag without its value is refused before any build", () => {
+  const cli = (...flags: string[]) =>
+    Bun.spawnSync([process.execPath, "src/cli.ts", "build", "--compile", ...flags], {
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+  // Last on the line, or followed by another flag: both used to mean "not requested".
+  for (const flags of [
+    ["--sign", "Developer ID Application: Acme", "--notarize"],
+    ["--notarize", "--sign", "Developer ID Application: Acme"],
+  ]) {
+    const run = cli(...flags);
+    expect(run.exitCode).toBe(1);
+    expect(run.stderr.toString()).toContain("--notarize needs a value");
+    expect(run.stdout.toString()).not.toContain("buildId");
+  }
+});

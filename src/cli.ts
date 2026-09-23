@@ -28,9 +28,13 @@ const option = (key: string, fallback: string) => {
   const i = args.indexOf(key);
   return i < 0 ? fallback : args[i + 1];
 };
+/** A flag's value. A flag given without one is refused, never silently dropped. */
 const optional = (key: string) => {
   const i = args.indexOf(key);
-  return i < 0 ? undefined : args[i + 1];
+  if (i < 0) return undefined;
+  const value = args[i + 1];
+  if (value === undefined || value.startsWith("--")) throw new Error(`${key} needs a value`);
+  return value;
 };
 const directory = resolve(option("--app", "examples/notes"));
 async function stop(child?: ChildProcess) {
@@ -128,18 +132,22 @@ async function main() {
     return;
   }
   if (command === "build") {
+    // Every flag is read first: a missing value fails before a long build.
+    const compile = args.includes("--compile")
+      ? {
+          name: basename(directory),
+          target: optional("--target"),
+          outfile: optional("--outfile"),
+          runtime: optional("--runtime"),
+          nativeDir: optional("--native-dir"),
+          sign: optional("--sign"),
+          notarize: optional("--notarize"),
+        }
+      : undefined;
     const result = await build(directory);
     console.log(result);
-    if (!args.includes("--compile")) return;
-    const compiled = await compileClient(result.output, {
-      name: basename(directory),
-      target: optional("--target"),
-      outfile: optional("--outfile"),
-      runtime: optional("--runtime"),
-      nativeDir: optional("--native-dir"),
-      sign: optional("--sign"),
-      notarize: optional("--notarize"),
-    });
+    if (!compile) return;
+    const compiled = await compileClient(result.output, compile);
     console.log({
       client: compiled.outfile,
       target: compiled.target,
