@@ -77,7 +77,8 @@ Server échoue à l'exécution. Un module qui importe `client-only` ne doit pas 
 atteint dans le graphe Server hors d'une frontière `"use client"` : le build échoue.
 Le Client et le Server tournant tous deux sur Bun, un code destiné au terminal de
 l'utilisateur (`$EDITOR`, `~/.config`, presse-papiers) ne plante pas sur le Server, il
-agit sur la mauvaise machine : c'est ce que `client-only` empêche.
+agit sur la mauvaise machine : c'est ce que `client-only` empêche. Exemple réel :
+`examples/forge/components/editor.ts` (voir [FORGE.md](FORGE.md#ouvrir-le-fichier-dans-son-éditeur-client-only)).
 
 Les deux marqueurs valent pour le code applicatif et pour les packages npm, qui ne
 peuvent pas être renommés. Il n'y a pas de suffixe `*.server.*` ni `*.client.*`.

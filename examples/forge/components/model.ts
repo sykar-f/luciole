@@ -42,6 +42,8 @@ export type FileSummary = {
   deletions: number;
 };
 export type FileDiff = FileSummary & { patch: string; rows: DiffRow[] };
+/** One side of a file at a revision, whole: `old` before the change, `new` after it. */
+export type FileSource = { path: string; revision: number; side: Side; content: string };
 
 export type Comment = {
   id: number;

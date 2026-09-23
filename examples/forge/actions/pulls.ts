@@ -1,6 +1,12 @@
 "use server";
 import type { SaveResult, Snapshot } from "../components/draft";
-import type { OperationResult, PublishResult, Verdict } from "../components/model";
+import type {
+  FileSource,
+  OperationResult,
+  PublishResult,
+  Side,
+  Verdict,
+} from "../components/model";
 import { invalidate } from "airtty/server";
 import { actor, forge } from "../server/instance";
 import { isOperationResult, isSaveResult } from "../server/results";
@@ -40,6 +46,17 @@ export async function merge(target: Target): Promise<OperationResult> {
 }
 export async function rerunChecks(target: Omit<Target, "revision">): Promise<OperationResult> {
   return changed(forge.rerun(actor(), target));
+}
+/** A read: the file under review, whole, for the reviewer's own editor. Nothing changes. */
+export async function fileSource(file: {
+  repo: string;
+  number: number;
+  revision: number;
+  path: string;
+  side: Side;
+}): Promise<FileSource | null> {
+  actor();
+  return forge.fileSource(file);
 }
 /**
  * A check's log, line by line as the clock reaches it. Opened by the Checks tab while it

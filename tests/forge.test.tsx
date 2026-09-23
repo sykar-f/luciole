@@ -324,7 +324,7 @@ test("help lines are generated from the key layers mounted right now", async () 
     );
     await waitFor("src/report.ts · typescript");
     const reviewing =
-      "] next file · [ previous · c comment · v viewed · s split · j line · space page";
+      "] next file · [ previous · c comment · v viewed · s split · e editor · j line · space page";
     expect(await shownIn(forge, "screen-help")).toBe(reviewing);
     expect(await forge.frame()).toContain("tab next tab · shift+tab previous");
     // Moving the cursor re-registers the diff's layer; the help keeps its order.

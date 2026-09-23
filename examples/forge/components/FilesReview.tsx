@@ -1,14 +1,15 @@
 "use client";
 import { Suspense, use, useEffect, useMemo, useRef, useState } from "react";
-import { useTerminalDimensions } from "@opentui/react";
+import { useRenderer, useTerminalDimensions } from "@opentui/react";
 import type { DiffRenderable, ScrollBoxRenderable } from "@opentui/core";
-import { useBindings } from "airtty/client";
-import { publish, resolveSave } from "../actions/pulls";
+import { TransportError, useBindings } from "airtty/client";
+import { fileSource, publish, resolveSave } from "../actions/pulls";
 import { drafts } from "./draft";
 import { DraftEditor } from "./DraftEditor";
 import { useEditing, useEditingWhile } from "./editing";
+import { openInEditor } from "./editor";
 import { Line, SkeletonRows } from "./frames";
-import type { Comment, FileDiff, FileSummary, PullDetail, Side } from "./model";
+import type { Comment, FileDiff, FileSource, FileSummary, PullDetail, Side } from "./model";
 import { Pulse } from "./Pulse";
 import { useReviewSession } from "./review-session";
 import { syntax } from "./syntax";
@@ -26,6 +27,13 @@ const SPLIT_WIDTH = 170;
 const CURSOR_BG = "#2d3f52";
 const lineSlot = (pull: PullDetail, side: Side, line: number, path: string) =>
   `composer:line:${pull.id}:${pull.revision}:${side}:${line}:${path}`;
+/** `report@r2.ts`, `report@r2.old.ts`: the editor still recognises the extension. */
+const snapshotName = ({ path, revision, side }: FileSource) => {
+  const name = path.split("/").at(-1) ?? "file";
+  const dot = name.lastIndexOf(".");
+  const [stem, extension] = dot > 0 ? [name.slice(0, dot), name.slice(dot)] : [name, ""];
+  return `${stem}@r${revision}${side === "old" ? ".old" : ""}${extension}`;
+};
 
 /**
  * The file list is usable at once; each diff is a Promise streamed by Flight and
@@ -46,6 +54,8 @@ export function FilesReview({ pull, files, composerVersions, canComment }: Props
   const file = files[index];
   const split = session.split ?? width >= SPLIT_WIDTH;
   const [anchor, setAnchor] = useState<{ side: Side; line: number } | null>(null);
+  const renderer = useRenderer();
+  const opening = useRef(false);
 
   const step = (delta: number) =>
     session.setFile(files[Math.max(0, Math.min(index + delta, files.length - 1))].path);
@@ -57,6 +67,47 @@ export function FilesReview({ pull, files, composerVersions, canComment }: Props
     else {
       setNotice("");
       setComposing(anchor);
+    }
+  };
+  // The Server gives the side of the file under the cursor, as reviewed (this revision);
+  // the editor runs here, on the reviewer's terminal, with the UI suspended meanwhile.
+  const edit = async () => {
+    if (!file || opening.current) return;
+    opening.current = true;
+    const side = anchor?.side ?? "new";
+    setNotice(`Fetching ${file.path} at revision ${pull.revision}…`);
+    try {
+      const source = await fileSource({
+        repo: pull.repo,
+        number: pull.number,
+        revision: pull.revision,
+        path: file.path,
+        side,
+      });
+      if (!source) {
+        setNotice(`${file.path} is not part of revision ${pull.revision}`);
+        return;
+      }
+      const opened = await openInEditor(renderer, {
+        name: snapshotName(source),
+        content: source.content,
+        line: anchor?.line,
+      });
+      setNotice(
+        opened.edited
+          ? `Edits discarded: ${snapshotName(source)} was a read-only snapshot`
+          : opened.exitCode
+            ? `${opened.editor} exited with code ${opened.exitCode}`
+            : `Viewed ${snapshotName(source)} in ${opened.editor} (read-only snapshot)`,
+      );
+    } catch (error: unknown) {
+      setNotice(
+        error instanceof TransportError
+          ? `Could not fetch ${file.path}: ${error.message}`
+          : `Could not start the editor · set $EDITOR (${error instanceof Error ? error.message : "failed"})`,
+      );
+    } finally {
+      opening.current = false;
     }
   };
   useBindings(
@@ -80,10 +131,11 @@ export function FilesReview({ pull, files, composerVersions, canComment }: Props
                 group: "files",
               },
               { key: "s", cmd: () => session.setSplit(!split), desc: "split", group: "files" },
+              { key: "e", cmd: () => void edit(), desc: "editor", group: "files" },
             ]),
       ],
     }),
-    [composing, editing, file, index, files, canComment, split, anchor, session],
+    [composing, editing, file, index, files, canComment, split, anchor, session, pull],
   );
 
   const slot = composing && file ? lineSlot(pull, composing.side, composing.line, file.path) : null;

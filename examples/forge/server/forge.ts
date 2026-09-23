@@ -5,6 +5,7 @@ import type {
   Comment,
   DiffRow,
   FileDiff,
+  FileSource,
   FileSummary,
   Identity,
   LoginResult,
@@ -362,6 +363,27 @@ export function createForge(db: Database, options: ForgeOptions = {}) {
       patch: row.patch,
       rows,
     };
+  }
+  /** One side of a changed file, in full: what a reviewer opens in their own editor. */
+  function fileSource(input: {
+    repo: unknown;
+    number: unknown;
+    revision: unknown;
+    path: unknown;
+    side: unknown;
+  }): FileSource | null {
+    const side = input.side;
+    if (side !== "old" && side !== "new") throw new InvalidRequest("Invalid side");
+    const row = pullRow(text(input.repo, "repo", 100), integer(input.number, "number"));
+    if (!row) return null;
+    const revision = integer(input.revision, "revision");
+    const file = db
+      .query<FileRow, [number, number, string]>(
+        "SELECT * FROM pull_files WHERE pull_id=? AND revision=? AND path=?",
+      )
+      .get(row.id, revision, text(input.path, "path", 500));
+    if (!file) return null;
+    return { path: file.path, revision, side, content: side === "old" ? file.before : file.after };
   }
   function comments(pullId: number): Comment[] {
     return db
@@ -796,6 +818,7 @@ export function createForge(db: Database, options: ForgeOptions = {}) {
     pull,
     files,
     fileDiff,
+    fileSource,
     comments,
     reviews,
     checks,

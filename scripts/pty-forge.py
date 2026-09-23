@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Forge production smoke: built artefacts, separate Server and Client processes, real PTY.
 
-Journey: sign in → repository → pull request → approve → comment → files → live
-checks → merge → quit. Runs under simulated latency (AIRTTY_LATENCY_MS, default 500)
+Journey: sign in → repository → pull request → approve → comment → files → $EDITOR
+→ live checks → merge → quit. Runs under simulated latency (AIRTTY_LATENCY_MS, default 500)
 and measures that typing stays local. Observes PTY output, not photons.
 """
 import fcntl
@@ -88,12 +88,25 @@ def main():
             )
             ready = json.loads(server.stdout.readline())
             url = f"http://127.0.0.1:{ready['port']}"
+            # A stand-in for $EDITOR: it draws on the terminal Forge hands over, reads what the
+            # user types there, and records it with the process that started it.
+            editor = pathlib.Path(directory) / "fake-editor"
+            marker = pathlib.Path(directory) / "editor-marker"
+            editor.write_text(
+                "#!/bin/sh\n"
+                "for last; do :; done\n"
+                'printf "FAKE EDITOR %s\\n" "$(basename "$last")"\n'
+                "IFS= read -r typed\n"
+                f'echo "$PPID $typed" > "{marker}"\n'
+            )
+            editor.chmod(0o755)
             master, slave = pty.openpty()
             fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", ROWS, COLS, 0, 0))
             before = termios.tcgetattr(slave)
             client = subprocess.Popen(
                 [BUN, str(APP / ".airtty/client/index.js"), "--url", url],
-                stdin=slave, stdout=slave, stderr=slave, env=ENV, start_new_session=True,
+                stdin=slave, stdout=slave, stderr=slave, start_new_session=True,
+                env={**ENV, "VISUAL": "", "EDITOR": str(editor)},
             )
             term = Terminal(master)
             results = {"productionPTY": True, "simulatedRTTMs": LATENCY_MS}
@@ -132,6 +145,14 @@ def main():
             term.send(b"]")
             term.send(b"]")
             term.wait_for("src/refunds.ts · typescript")
+            # e: the renderer hands the terminal to the editor, then takes it back.
+            term.send(b"e")
+            term.wait_for("FAKE EDITOR refunds@r1")
+            # Keys that are Forge commands (i inbox, e editor) go to the editor, not to Forge.
+            term.send(b"i typed in the editor\r")
+            term.wait_for("Viewed refunds@r1")
+            assert marker.read_text().strip() == f"{client.pid} i typed in the editor", marker.read_text()
+            results["editorOnClient"] = True
             term.send(b"\t")
             term.wait_for("log complete")
             term.send(b"\t")
@@ -150,7 +171,7 @@ def main():
             client.wait(timeout=1)
             assert client.returncode == 0, client.returncode
             assert termios.tcgetattr(slave) == before, "terminal attributes not restored"
-            results.update({"journey": "login → approve → comment → files → checks → merge", "terminalRestored": True})
+            results.update({"journey": "login → approve → comment → files → editor → checks → merge", "terminalRestored": True})
             print(json.dumps(results, indent=2))
         finally:
             if client and client.poll() is None:
