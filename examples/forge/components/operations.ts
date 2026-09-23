@@ -17,7 +17,7 @@ function notify() {
   for (const listener of listeners) listener();
 }
 export const operationStore = {
-  subscribe(listener: () => void) {
+  subscribe: (listener: () => void) => {
     listeners.add(listener);
     return () => {
       listeners.delete(listener);

@@ -44,7 +44,9 @@ Le lint type-aware utilise `oxlint-tsgolint` et les `tsconfig.json` du projet ; 
 les règles de correction qui demandent des types (`await-thenable`, `no-floating-promises`,
 `unbound-method`…). `no-magic-numbers` accepte -1, 0, 1, 2, les index et les valeurs par
 défaut ; dans les tests, une valeur attendue écrite en clair reste plus lisible qu'une
-constante. `readonly` et `ReadonlyArray` pour les données immuables ne sont pas vérifiables
+constante. `examples/forge/server/ci.ts` et `seed.ts` en sont aussi exemptés : ce sont
+des tables de données de démonstration (horaires du script CI simulé, jeu de données
+généré), où nommer chaque valeur n'ajouterait aucun sens. `readonly` et `ReadonlyArray` pour les données immuables ne sont pas vérifiables
 automatiquement sans bruit (`prefer-readonly-parameter-types` signale chaque paramètre
 d'une bibliothèque) : ils restent une règle de revue.
 

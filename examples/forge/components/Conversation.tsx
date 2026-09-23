@@ -31,6 +31,8 @@ type Props = {
   now: number;
 };
 
+// Why a merge is blocked: the first reasons fit the header.
+const REASONS_SHOWN = 3;
 export function Conversation({
   pull,
   me,
@@ -186,7 +188,7 @@ export function Conversation({
               </span>
             ))}
           </Line>
-          {readiness.reasons.slice(0, 3).map((reason) => (
+          {readiness.reasons.slice(0, REASONS_SHOWN).map((reason) => (
             <Line key={reason} fg={color.warn}>
               · {reason}
             </Line>

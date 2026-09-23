@@ -3,7 +3,7 @@ import type { SaveResult, Snapshot } from "../components/draft";
 import type { OperationResult, PublishResult, Verdict } from "../components/model";
 import { invalidate } from "airtty/server";
 import { actor, forge } from "../server/instance";
-import { isOperationResult, isSaveResult } from "../server/results";
+import { OperationResultSchema, PublishResultSchema } from "../server/results";
 
 type Target = { repo: string; number: number; revision: number; operationId: string };
 
@@ -52,10 +52,10 @@ export async function* checkLog(checkId: number): AsyncGenerator<string> {
 // Resolve an unknown outcome from the ledger. They never replay the operation; `null`
 // means nothing was committed under this identifier yet.
 export async function resolveSave(operationId: string): Promise<PublishResult | null> {
-  const result = forge.operation(actor(), operationId);
-  return changed(isSaveResult(result) ? result : null);
+  const result = PublishResultSchema.safeParse(forge.operation(actor(), operationId));
+  return changed(result.success ? result.data : null);
 }
 export async function resolveOperation(operationId: string): Promise<OperationResult | null> {
-  const result = forge.operation(actor(), operationId);
-  return changed(isOperationResult(result) ? result : null);
+  const result = OperationResultSchema.safeParse(forge.operation(actor(), operationId));
+  return changed(result.success ? result.data : null);
 }

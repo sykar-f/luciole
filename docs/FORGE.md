@@ -32,7 +32,13 @@ bun src/cli.ts start --role client --app examples/forge --url http://127.0.0.1:3
 
 Réglages Server : `FORGE_SLOW_MS` (travail simulé, défaut 250 ms, rend le streaming
 visible), `FORGE_CI_SCALE` (durée de la CI, défaut 1), `FORGE_GIT_REPO` et
-`FORGE_GIT_COMMITS`.
+`FORGE_GIT_COMMITS`. Ils sont validés par Zod au démarrage : une valeur invalide arrête
+le Server en nommant la variable.
+
+Chaque opération du domaine (`server/forge.ts`) reçoit ses entrées comme `unknown`, telles
+que le réseau les a livrées aux Server Functions, et les valide avec Zod avant tout effet :
+une entrée invalide lève `InvalidRequest` en nommant le champ fautif. Les résultats relus du
+ledger sont revalidés par les schémas de `server/results.ts`, jamais castés.
 
 Comptes, PIN `forge` pour tous : `alice` (maintainer, peut merger), `bob`
 (contributor, peut reviewer et commenter), `carol` (reader, lecture seule).

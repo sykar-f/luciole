@@ -1,9 +1,8 @@
-import { notFound } from "airtty/server";
 import { Conversation } from "../../../../../../components/Conversation";
 import { Screen } from "../../../../../../components/frames";
 import { pullSubtitle, pullTitle } from "../../../../../../components/PullHeader";
 import { conversationSlot } from "../../../../../../server/forge";
-import { actor, forge, slow } from "../../../../../../server/instance";
+import { actor, forge, pullAt, slow } from "../../../../../../server/instance";
 
 export default async function ConversationPage({
   params,
@@ -12,8 +11,7 @@ export default async function ConversationPage({
 }) {
   await slow();
   const me = actor();
-  const pull = forge.pull(params.repo, Number(params.number));
-  if (!pull) notFound(`Pull request ${params.repo}#${params.number}`);
+  const pull = pullAt(params);
   return (
     <Screen
       title={pullTitle(pull)}

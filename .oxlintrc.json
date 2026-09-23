@@ -67,7 +67,13 @@
       }
     },
     {
-      "files": ["examples/**", "tests/**", "scripts/**", "probes/**"],
+      "files": ["examples/forge/server/ci.ts", "examples/forge/server/seed.ts"],
+      "rules": {
+        "no-magic-numbers": "off"
+      }
+    },
+    {
+      "files": ["tests/**", "scripts/**", "probes/**"],
       "rules": {
         "typescript/no-explicit-any": "off",
         "typescript/consistent-type-assertions": "off",

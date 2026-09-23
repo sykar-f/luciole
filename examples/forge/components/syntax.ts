@@ -2,7 +2,7 @@ import { RGBA, SyntaxStyle } from "@opentui/core";
 
 // Client-only: a SyntaxStyle is a native object and never crosses the Flight boundary.
 // The Server sends plain patches and source text; highlighting happens here.
-const hex = RGBA.fromHex;
+const hex = (color: string) => RGBA.fromHex(color);
 export const syntax = SyntaxStyle.fromStyles({
   default: { fg: hex("#e6edf3") },
   keyword: { fg: hex("#ff7b72"), bold: true },

@@ -1,14 +1,23 @@
 import "server-only";
 import { Database } from "bun:sqlite";
 import { getSession } from "airtty/server";
+import { z } from "zod";
 import type { Note, SaveResult, Snapshot } from "../components/draft";
-const db = new Database(process.env.NOTES_DB ?? "notes.sqlite", {
+import { StoredResult } from "./schemas";
+const env = z
+  .object({
+    NOTES_DB: z.string().default("notes.sqlite"),
+    AIRTTY_USER: z.string().default("local"),
+  })
+  .parse(process.env);
+const MAX_VALUE = 2000;
+const db = new Database(env.NOTES_DB, {
   create: true,
 });
 db.exec(
   "PRAGMA journal_mode=WAL; CREATE TABLE IF NOT EXISTS notes(id TEXT PRIMARY KEY, owner TEXT NOT NULL,title TEXT NOT NULL,value TEXT NOT NULL,version INTEGER NOT NULL); CREATE TABLE IF NOT EXISTS operations(owner TEXT NOT NULL,id TEXT NOT NULL,result TEXT NOT NULL,PRIMARY KEY(owner,id));",
 );
-const owner = process.env.AIRTTY_USER ?? "local";
+const owner = env.AIRTTY_USER;
 for (const [id, title] of [
   ["1", "First note"],
   ["2", "Second note"],
@@ -16,43 +25,38 @@ for (const [id, title] of [
   db.query("INSERT OR IGNORE INTO notes VALUES(?,?,?,?,1)").run(id, owner, title, "");
 export function listNotes(): Note[] {
   return db
-    .query("SELECT id,title,value,version FROM notes WHERE owner=? ORDER BY id")
-    .all(getSession().userId) as Note[];
+    .query<Note, [string]>("SELECT id,title,value,version FROM notes WHERE owner=? ORDER BY id")
+    .all(getSession().userId);
 }
 export function loadNote(id: string): Note {
   const row = db
-    .query("SELECT id,title,value,version FROM notes WHERE id=? AND owner=?")
-    .get(id, getSession().userId) as Note | null;
+    .query<Note, [string, string]>(
+      "SELECT id,title,value,version FROM notes WHERE id=? AND owner=?",
+    )
+    .get(id, getSession().userId);
   if (!row) throw new Error("Note unavailable");
   return row;
 }
+// Arguments are validated by the Server Functions (actions/notes.ts) before reaching here.
 export function operation(id: string): SaveResult | null {
-  if (typeof id !== "string" || id.length > 100) throw new Error("Invalid operation");
   const row = db
-    .query("SELECT result FROM operations WHERE owner=? AND id=?")
-    .get(getSession().userId, id) as { result: string } | null;
-  return row ? JSON.parse(row.result) : null;
+    .query<{ result: string }, [string, string]>(
+      "SELECT result FROM operations WHERE owner=? AND id=?",
+    )
+    .get(getSession().userId, id);
+  return row ? StoredResult.parse(JSON.parse(row.result)) : null;
 }
 export function save(snapshot: Snapshot): SaveResult {
-  if (
-    !snapshot ||
-    typeof snapshot.operationId !== "string" ||
-    !/^[0-9a-f-]{36}$/.test(snapshot.operationId) ||
-    typeof snapshot.id !== "string" ||
-    typeof snapshot.value !== "string" ||
-    !Number.isSafeInteger(snapshot.version)
-  )
-    throw new Error("Invalid save arguments");
   return db
     .transaction(() => {
       const previous = operation(snapshot.operationId);
       if (previous) return previous;
       const note = loadNote(snapshot.id);
       let result: SaveResult;
-      if (!snapshot.value.trim() || snapshot.value.length > 2000)
+      if (!snapshot.value.trim() || snapshot.value.length > MAX_VALUE)
         result = {
           ok: false,
-          error: "Enter 1–2000 characters",
+          error: `Enter 1–${MAX_VALUE} characters`,
           operationId: snapshot.operationId,
         };
       else if (note.version !== snapshot.version)

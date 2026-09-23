@@ -1,11 +1,12 @@
 "use client";
 import { useEffect, useRef } from "react";
+import type { BoxRenderable } from "@opentui/core";
 import { useTimeline } from "@opentui/react";
 import { KeyHelp, type LoadingProps } from "airtty/client";
 import { NotePageFrame, NoteEditorFrame } from "../../../components/NoteFrame";
 
 export default function Loading({ params }: LoadingProps) {
-  const skeleton = useRef<any>(null);
+  const skeleton = useRef<BoxRenderable>(null);
   const timeline = useTimeline({ autoplay: false, duration: 1700, loop: true });
   useEffect(() => {
     if (!skeleton.current) return;

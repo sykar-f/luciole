@@ -61,13 +61,17 @@ export function Screen({
   );
 }
 
+// Skeleton rows vary their length pseudo-randomly, never below `SKELETON_MIN`.
+const SKELETON_MIN = 8,
+  SKELETON_STEP = 7,
+  SKELETON_SPREAD = 19;
 /** Static skeleton rows; a Client loading screen animates their container. */
 export function SkeletonRows({ count, width = 48 }: { count: number; width?: number }) {
   return (
     <box flexDirection="column" flexShrink={0}>
       {Array.from({ length: count }, (_, i) => (
         <Line key={i} fg={color.skeleton}>
-          {"▒".repeat(Math.max(8, width - ((i * 7) % 19)))}
+          {"▒".repeat(Math.max(SKELETON_MIN, width - ((i * SKELETON_STEP) % SKELETON_SPREAD)))}
         </Line>
       ))}
     </box>

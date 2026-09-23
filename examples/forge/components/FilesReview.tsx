@@ -13,6 +13,9 @@ import { useReviewSession } from "./review-session";
 import { syntax } from "./syntax";
 import { color } from "./theme";
 
+// Page Up/Down move the cursor this many rows; the file's latest comments stay listed.
+const PAGE_ROWS = 20,
+  COMMENTS_SHOWN = 4;
 export type ReviewFile = FileSummary & { diff: Promise<FileDiff | null>; comments: Comment[] };
 type Props = {
   pull: PullDetail;
@@ -216,8 +219,8 @@ function DiffView({
       session.setCursor(file.path, Math.max(0, Math.min(rows.length - 1, cursor + delta)));
     if (key.name === "j" || key.name === "down") move(1);
     if (key.name === "k" || key.name === "up") move(-1);
-    if (key.name === "pagedown" || key.name === "space") move(20);
-    if (key.name === "pageup") move(-20);
+    if (key.name === "pagedown" || key.name === "space") move(PAGE_ROWS);
+    if (key.name === "pageup") move(-PAGE_ROWS);
     if (key.name === "g") move(-rows.length);
     if (key.sequence === "G") move(rows.length);
   });
@@ -262,7 +265,7 @@ function DiffView({
             No line comments · j/k move · c comment · v viewed · s split · [ ] file
           </Line>
         ) : (
-          file.comments.slice(-4).map((c) => (
+          file.comments.slice(-COMMENTS_SHOWN).map((c) => (
             <Line key={c.id} fg={here(c) ? color.text : color.muted}>
               {here(c) ? "▶ " : "  "}
               {c.path}:{c.line} @{c.author}: {c.body.replace(/\s+/g, " ")}

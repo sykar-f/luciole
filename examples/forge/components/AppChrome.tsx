@@ -23,12 +23,18 @@ import { color } from "./theme";
 const SIDEBAR = 30;
 const WIDE = 110;
 
+// `composer:line:<pull>:<revision>:<side>:<line>:<path>`: the path may contain colons.
+const LINE_SLOT_PATH = 6;
+// Digits 1–9 open a repository; the sidebar lists the first unsaved Drafts.
+const REPO_KEYS = 9,
+  DRAFTS_SHOWN = 6;
 /** Human label of a Draft identity, for the unsaved-work panel. */
 function label(id: string) {
   const parts = id.split(":");
   if (parts[0] === "pr") return `description of PR ${parts[1]}`;
   if (parts[1] === "conversation") return `comment on PR ${parts[2]}`;
-  if (parts[1] === "line") return `${parts.slice(6).join(":").split("/").at(-1)}:${parts[5]}`;
+  if (parts[1] === "line")
+    return `${parts.slice(LINE_SLOT_PATH).join(":").split("/").at(-1)}:${parts[5]}`;
   if (parts[1] === "new-pull") return `new PR in ${parts[2]}`;
   return id;
 }
@@ -88,7 +94,7 @@ export function AppChrome({ children }: { children: ReactNode }) {
                 ? [{ key: "u", cmd: () => router.history.back(), desc: "back", group: "app" }]
                 : []),
               { key: "?", cmd: () => setHelp((shown) => !shown), desc: "keys", group: "app" },
-              ...repos.slice(0, 9).map((repo, i) => ({
+              ...repos.slice(0, REPO_KEYS).map((repo, i) => ({
                 key: String(i + 1),
                 cmd: () => void navigate({ to: "/repos/$repo", params: { repo: repo.slug } }),
                 desc: repo.slug,
@@ -137,7 +143,7 @@ export function AppChrome({ children }: { children: ReactNode }) {
             <Line id="sidebar-drafts" fg={unsaved.length ? color.warn : color.muted}>
               Drafts {unsaved.length}/{drafts.capacity} unsaved
             </Line>
-            {unsaved.slice(0, 6).map((draft) => (
+            {unsaved.slice(0, DRAFTS_SHOWN).map((draft) => (
               <Line key={draft.id} fg={draft.unknown ? color.danger : color.warn}>
                 {draft.unknown ? " ? " : draft.pending ? " ↑ " : " • "}
                 {label(draft.id)}

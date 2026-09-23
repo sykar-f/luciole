@@ -3,6 +3,9 @@ import type { LoadingProps } from "airtty/client";
 import { Screen, SkeletonRows } from "../../../../../../components/frames";
 import { Pulse } from "../../../../../../components/Pulse";
 
+// The files tab shows more skeleton rows than the others, like its real content.
+const FILE_ROWS = 14,
+  TAB_ROWS = 8;
 // Shared by the three tabs: same frame as the pages, only the body pulses.
 export default function PullLoading({ params, path }: LoadingProps) {
   const tab = path.endsWith("/files")
@@ -17,7 +20,7 @@ export default function PullLoading({ params, path }: LoadingProps) {
       help="Esc cancel · the layout, its tabs and your review progress stay mounted"
     >
       <Pulse>
-        <SkeletonRows count={tab === "files" ? 14 : 8} width={72} />
+        <SkeletonRows count={tab === "files" ? FILE_ROWS : TAB_ROWS} width={72} />
       </Pulse>
     </Screen>
   );
