@@ -223,8 +223,10 @@ répondent `400`, une page protégée sans session répond `401`.
 
 `useApplication().setToken()` purge le cache de routes TanStack (et le purge de
 nouveau à la fin d'une navigation en cours) : un arbre privé mis en cache sous un
-bearer n'est jamais réaffiché sous un autre, ni après logout. Il ne recharge pas la
-route montée ; après login/logout, l'application navigue vers la route voulue.
+bearer n'est jamais réaffiché sous un autre, ni après logout. Il recharge aussi les
+routes courantes sous le nouveau bearer : une navigation ou une revalidation encore
+en vol, partie avec l'ancien, est remplacée et sa réponse n'est jamais affichée.
+Après login/logout, l'application navigue toujours vers la route voulue.
 
 Une action est protégée indépendamment de la page qui fournit sa référence. Pour
 autoriser une Server Function sans session, placer les actions publiques dans leur

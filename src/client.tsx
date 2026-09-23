@@ -197,13 +197,17 @@ export class Application {
     this.notify();
   }
   /**
-   * Replaces the bearer for later requests and drops every cached private tree: a
-   * route rendered for another identity must never be shown again. Local state the
-   * application keeps (Drafts, pending operations) is the application's to clear.
+   * Replaces the bearer for later requests, drops every cached private tree and reloads
+   * the current routes under the new bearer: a route rendered for another identity must
+   * never be shown again. Local state the application keeps (Drafts, pending
+   * operations) is the application's to clear.
    */
   setToken = (token?: string) => {
     this.transport.setToken(token);
     this.purge();
+    // Loads still in flight (a navigation, a background revalidation) asked with the
+    // previous bearer: superseding them is what keeps their answers off the screen.
+    void this.router.invalidate().catch(() => {});
   };
   private purge() {
     this.router.clearCache();

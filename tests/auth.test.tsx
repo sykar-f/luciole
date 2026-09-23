@@ -192,3 +192,81 @@ test("logout and bearer changes purge cached private trees before any protected 
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+test("a navigation still in flight when the bearer changes never shows the previous identity", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "airtty-auth-late-"));
+  let server: Awaited<ReturnType<typeof launch>> | undefined, rendered: TestUI | undefined;
+  try {
+    await authFixture(directory);
+    await mkdir(join(directory, "app/private"), { recursive: true });
+    await Bun.write(
+      join(directory, "app/layout.tsx"),
+      `"use client";export default function Layout({children}){return <box>{children}</box>}`,
+    );
+    await Bun.write(
+      join(directory, "app/private/page.tsx"),
+      `import {getSession} from "airtty/server";export default function Page(){return <text>PRIVATE of {getSession().userId}</text>}`,
+    );
+    await Bun.write(
+      join(directory, "app/login/page.tsx"),
+      `export const auth="public" as const;export default function Page(){return <text>LOGIN</text>}`,
+    );
+    await Bun.write(
+      join(directory, "server/auth.ts"),
+      `import type {AuthConfig} from "airtty/server";const users={"Bearer valid":"alice","Bearer other":"bob"};export default {unauthorizedPath:"/login",authenticate(request){const userId=users[request.headers.get("authorization")];return userId?{userId}:null}} satisfies AuthConfig`,
+    );
+    await build(directory);
+    server = await launch(join(directory, ".airtty/server/index.js"));
+    const { createApp, Shell } = await importClient(directory);
+    // Holds the next request after its headers (alice's bearer) are set, before it leaves.
+    let gate: PromiseWithResolvers<void> | undefined;
+    const app = createApp({
+      url: server.url,
+      token: "valid",
+      initialPath: "/login",
+      fetch: async (url: URL, init: RequestInit) => {
+        const held = gate;
+        gate = undefined;
+        if (held) await held.promise;
+        return fetch(url, init);
+      },
+    });
+    await app.router.load();
+    const ui = await testRender(<Shell app={app} />, { width: 60, height: 10 });
+    rendered = ui;
+    await ui.renderOnce();
+    expect(ui.captureCharFrame()).toContain("LOGIN");
+    // Alice starts opening a private screen; her bearer changes before the answer, once
+    // after her request left and once in the same tick as the navigation.
+    for (const [token, previous, expected, sentFirst] of [
+      ["other", "PRIVATE of alice", "PRIVATE of bob", true],
+      ["valid", "PRIVATE of bob", "PRIVATE of alice", false],
+      [undefined, "PRIVATE of alice", "LOGIN", true],
+    ] as const) {
+      await act(async () => {
+        await app.router.navigate({ to: "/login" });
+      });
+      const held = Promise.withResolvers<void>();
+      gate = held;
+      let navigation: Promise<void> | undefined;
+      await act(async () => {
+        navigation = app.router.navigate({ to: "/private" });
+        if (sentFirst) await Bun.sleep(20);
+        app.setToken(token);
+        await Bun.sleep(20);
+      });
+      await act(async () => {
+        held.resolve();
+        await navigation;
+        await Bun.sleep(50);
+      });
+      await ui.renderOnce();
+      expect(ui.captureCharFrame()).not.toContain(previous);
+      expect(ui.captureCharFrame()).toContain(expected);
+    }
+  } finally {
+    await destroy(rendered);
+    if (server) await server.stop();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
