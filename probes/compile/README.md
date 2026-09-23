@@ -79,8 +79,20 @@ tree-sitter 3,3 Mio + JS), linux-x64 90,3 Mio, linux-arm64 89,9 Mio.
 5. `autoloadDotenv` et `autoloadBunfig` valent `true` par défaut. Le binaire lirait
    alors `.env` et `bunfig.toml` depuis le cwd de l'utilisateur. `compile.ts` les
    désactive.
-6. La signature est ad hoc (`flags=0x20002(adhoc,linker-signed)`). Pour un
-   binaire téléchargé, Gatekeeper exigera Developer ID et notarisation (non testé).
+6. La signature est ad hoc (`flags=0x20002(adhoc,linker-signed)`) : la signature
+   Developer ID d'Oven sur le runtime officiel ne survit pas à `--compile`, et
+   `spctl --assess --type execute` rejette le binaire. Mesures sous hardened runtime
+   (`codesign --options runtime`, ad hoc) : sans entitlement, `dlopen` refuse
+   `libopentui.dylib` extraite dans `$TMPDIR` (validation des bibliothèques) ; avec
+   `disable-library-validation` seul, `bun:ffi requires the JIT`, et un programme Bun
+   minimal s'arrête sur `Trap instruction` ; avec `allow-jit` +
+   `disable-library-validation`, Notes s'affiche et un calcul de 3·10⁸ itérations
+   prend le même temps que sans hardened runtime (19,3 s contre 20,0 s : JIT actif).
+   Le runtime d'Oven déclare en plus `allow-unsigned-executable-memory`,
+   `disable-executable-page-protection` et `allow-dyld-environment-variables`, dont
+   Notes n'a pas eu besoin. `airtty build --compile --sign` applique ces deux
+   entitlements ; la signature Developer ID et la notarisation n'ont pas été
+   exécutées (aucune identité Developer ID sur la machine).
    `$TMPDIR` doit être accessible en écriture, et exécutable, pour extraire la
    bibliothèque : sous Linux, un `/tmp` `noexec` impose `TMPDIR=<répertoire exécutable>`.
 7. **musl n'est pas autonome** : le runtime Bun musl lie `libstdc++.so.6` et

@@ -162,6 +162,32 @@ définir `TMPDIR` vers un répertoire exécutable. `bun run test:linux` (Docker 
 OrbStack, Docker Desktop ou moteur Linux) compile ces variantes et les exécute dans des
 conteneurs sans Bun contre un Server local.
 
+### Signature et notarisation macOS
+
+Sans option, le binaire macOS porte la signature ad hoc du linker : il tourne sur la
+machine qui l’a construit ou copié par `scp`/`curl`, mais Gatekeeper bloque un
+fichier téléchargé par un navigateur (attribut de quarantaine). Pour le distribuer :
+
+```sh
+# Une fois : identifiants App Store Connect dans le trousseau
+xcrun notarytool store-credentials airtty-notary --apple-id … --team-id … --password …
+bun src/cli.ts build --compile \
+  --sign "Developer ID Application: Exemple SAS (TEAMID1234)" --notarize airtty-notary
+```
+
+`--sign` signe avec le hardened runtime, un horodatage sécurisé et deux entitlements
+(`allow-jit` : sans lui Bun s’arrête et `bun:ffi`, qui charge OpenTUI, refuse de
+démarrer ; `disable-library-validation` : la bibliothèque d’OpenTUI est extraite dans
+`$TMPDIR` au lancement et n’est pas signée par votre équipe), puis contrôle la signature
+(`codesign --verify --strict`). `--sign -` produit la même signature en ad hoc, pour
+tester localement. `--notarize <profil>` exige une identité Developer ID : il envoie
+le binaire zippé à `notarytool`, attend le verdict et affiche le journal d’Apple en cas
+de refus. Un exécutable nu ne peut pas recevoir de ticket agrafé (`stapler` ne traite
+que `.app`, `.dmg` et `.pkg`) : Gatekeeper vérifie le ticket en ligne au premier
+lancement. Pour un premier lancement hors ligne, livrer le binaire dans un `.dmg` ou
+un `.pkg` signé, notarisé et agrafé. Ces options ne s’appliquent qu’aux cibles macOS,
+depuis macOS.
+
 `--app /chemin/app` sélectionne un autre projet. Le build produit :
 
 ```text
@@ -298,7 +324,8 @@ n’a pas encore eu lieu. Voir [les preuves et limites](docs/VALIDATION.md).
   pas rejouée.
 - Distribution par bundle applicatif de confiance. Le point de résolution de modules
   reste remplaçable ; ni téléchargement de code distant, ni Client universel, ni sandbox.
-  Le Client peut être livré en un seul exécutable (`build --compile`) ; binaires non
-  signés ni notarisés.
+  Le Client peut être livré en un seul exécutable (`build --compile`), signé et notarisé
+  sur demande (`--sign`, `--notarize`) ; la notarisation n’a pas été exécutée faute
+  d’identité Developer ID.
 - Le parcours distant a été testé macOS → Linux via SSH ; aucune campagne WAN,
   mesure écran physique ou garantie de résistance à une boucle infinie Client.

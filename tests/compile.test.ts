@@ -31,8 +31,24 @@ test("the compiled Client runs alone: no Bun, no node_modules, same build as its
       outfile: join(work, "build/notes-client"),
       // The stock runtime is covered by runtime.test.ts; this test stays offline.
       runtime: "host",
+      // Ad hoc, but with the hardened runtime and entitlements of a Developer ID signature.
+      sign: process.platform === "darwin" ? "-" : undefined,
     });
     expect<string>(target).toBe(hostTarget());
+    if (process.platform === "darwin") {
+      const details = Bun.spawnSync([
+        "codesign",
+        "-d",
+        "--verbose=2",
+        "--entitlements",
+        "-",
+        outfile,
+      ]);
+      const text = `${details.stdout}${details.stderr}`;
+      expect(text).toMatch(/flags=0x\w+\(adhoc,runtime\)/);
+      expect(text).toContain("com.apple.security.cs.allow-jit");
+      expect(text).toContain("com.apple.security.cs.disable-library-validation");
+    }
     // An empty directory, far from any node_modules, with a minimal environment.
     const run = await mkdtemp(join(tmpdir(), "airtty-run-"));
     await copyFile(outfile, join(run, "client"));
@@ -80,3 +96,19 @@ test("unsupported targets and missing native packages are explained", async () =
     }),
   ).rejects.toThrow("--native-dir");
 }, 60000);
+
+test("signing is only accepted where it can succeed", async () => {
+  const { output } = await build(root);
+  const compile = (options: Parameters<typeof compileClient>[1]) =>
+    compileClient(output, { outfile: join(tmpdir(), "never"), ...options });
+  await expect(compile({ name: "notes", target: "bun-linux-x64", sign: "-" })).rejects.toThrow(
+    "apply to macOS targets",
+  );
+  if (process.platform !== "darwin") return;
+  await expect(compile({ name: "notes", notarize: "profile" })).rejects.toThrow(
+    "--notarize needs --sign",
+  );
+  await expect(compile({ name: "notes", sign: "-", notarize: "profile" })).rejects.toThrow(
+    "does not notarize ad hoc signatures",
+  );
+});

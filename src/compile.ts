@@ -6,6 +6,7 @@
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { mkdir, mkdtemp, rename, rm } from "node:fs/promises";
+import { checkSigning, notarizeClient, signClient, type SignOptions } from "./sign";
 
 export const COMPILE_TARGETS = [
   "bun-darwin-arm64",
@@ -33,7 +34,8 @@ export type CompileOptions = {
   runtime?: string;
   /** Where `@opentui/core-<os>-<arch>` of a foreign target is installed. */
   nativeDir?: string;
-} & RuntimeSource;
+} & RuntimeSource &
+  SignOptions;
 
 export type RuntimeSource = {
   /** Defaults to `$XDG_CACHE_HOME/airtty` or `~/.cache/airtty`. */
@@ -84,8 +86,9 @@ async function resolveRuntime(target: CompileTarget, options: CompileOptions) {
 export async function compileClient(
   output: string,
   options: CompileOptions & { name: string },
-): Promise<{ outfile: string; target: CompileTarget; warning?: string }> {
+): Promise<{ outfile: string; target: CompileTarget; warning?: string; notarization?: string }> {
   const { target, os, musl } = parseTarget(options.target ?? hostTarget());
+  checkSigning(target, options);
   const outfile = resolve(
     options.outfile ?? join(output, "client", `${options.name}-${target.replace(/^bun-/, "")}`),
   );
@@ -128,10 +131,13 @@ export async function compileClient(
     throw new Error(messages || (error as Error).message);
   });
   if (!result.success) throw new Error(result.logs.join("\n"));
+  if (options.sign !== undefined) await signClient(outfile, options.sign);
   return {
     outfile,
     target,
     warning: runtime === process.execPath ? hostRuntimeWarning(runtime) : undefined,
+    notarization:
+      options.notarize === undefined ? undefined : await notarizeClient(outfile, options.notarize),
   };
 }
 

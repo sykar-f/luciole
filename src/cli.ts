@@ -120,8 +120,14 @@ async function main() {
       outfile: optional("--outfile"),
       runtime: optional("--runtime"),
       nativeDir: optional("--native-dir"),
+      sign: optional("--sign"),
+      notarize: optional("--notarize"),
     });
-    console.log({ client: compiled.outfile, target: compiled.target });
+    console.log({
+      client: compiled.outfile,
+      target: compiled.target,
+      ...(compiled.notarization ? { notarization: compiled.notarization } : {}),
+    });
     if (compiled.warning) console.error(`Warning: ${compiled.warning}`);
     return;
   }
@@ -251,7 +257,7 @@ async function main() {
     return;
   }
   throw new Error(
-    "Usage: airtty init <dir> | dev | build [--compile [--target t] [--runtime official|host|<bun>] [--native-dir dir] [--outfile f]] | runtime [--target t] | start --role server|client [--app dir] [--url URL] [--artifact dir]",
+    "Usage: airtty init <dir> | dev | build [--compile [--target t] [--runtime official|host|<bun>] [--native-dir dir] [--outfile f] [--sign identity [--notarize profile]]] | runtime [--target t] | start --role server|client [--app dir] [--url URL] [--artifact dir]",
   );
 }
 main().catch((error) => {
