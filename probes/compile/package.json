@@ -1,0 +1,9 @@
+{
+  "name": "airtty-compile-probe",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@opentui/core-linux-arm64": "0.5.12",
+    "@opentui/core-linux-x64": "0.5.12"
+  }
+}
