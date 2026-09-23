@@ -506,6 +506,11 @@ export async function build(directory: string, output = join(directory, ".airtty
                   path: Bun.resolveSync("@tanstack/react-router", framework),
                 }));
               }
+              // One zod instance, the pinned one: application schemas share the framework's
+              // copy, installed or not, like the router above.
+              b.onResolve({ filter: /^zod(\/.*)?$/ }, (a) => ({
+                path: Bun.resolveSync(a.path, framework),
+              }));
               // Side markers carry no code of their own.
               b.onResolve({ filter: /^(server-only|client-only)$/ }, (a) => ({
                 path: a.path,

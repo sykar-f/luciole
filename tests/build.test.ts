@@ -367,7 +367,10 @@ test("serverPackages keeps listed third-party packages out of the Client", async
 // The Client validates what it receives with zod/mini: the classic API would add ~130 KB.
 test("the Client bundle embeds zod/mini, never the classic zod API", async () => {
   await fixture(
-    { "app/page.tsx": `export default function Page(){return <text>page</text>}` },
+    // The fixture has no node_modules: application schemas use the framework's zod.
+    {
+      "app/page.tsx": `import {z} from 'zod';export default function Page(){return <text>{z.string().parse('page')}</text>}`,
+    },
     async (dir) => {
       await build(dir);
       const client = await Bun.file(join(dir, ".airtty/client/index.js")).text();
