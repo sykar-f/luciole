@@ -251,7 +251,7 @@ async function main() {
     return;
   }
   throw new Error(
-    "Usage: airtty init <dir> | dev | build [--compile [--target t] [--runtime bun] [--native-dir dir] [--outfile f]] | runtime [--target t] | start --role server|client [--app dir] [--url URL] [--artifact dir]",
+    "Usage: airtty init <dir> | dev | build [--compile [--target t] [--runtime official|host|<bun>] [--native-dir dir] [--outfile f]] | runtime [--target t] | start --role server|client [--app dir] [--url URL] [--artifact dir]",
   );
 }
 main().catch((error) => {

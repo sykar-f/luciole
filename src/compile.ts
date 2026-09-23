@@ -5,7 +5,7 @@
  */
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
-import { mkdir } from "node:fs/promises";
+import { mkdir, mkdtemp, rename, rm } from "node:fs/promises";
 
 export const COMPILE_TARGETS = [
   "bun-darwin-arm64",
@@ -26,12 +26,19 @@ export type CompileOptions = {
   /** Defaults to `<output>/client/<app>-<target>`. */
   outfile?: string;
   /**
-   * Bun executable embedded in the binary. Defaults to the one running the build; use
-   * `airtty runtime` for the stock runtime of a target (see `hostRuntimeWarning`).
+   * Bun executable embedded in the binary: `"official"` (default) is Bun's stock runtime
+   * for the target, downloaded once by `fetchRuntime`; `"host"` is the Bun running the
+   * build (see `hostRuntimeWarning`); anything else is the path of a Bun executable.
    */
   runtime?: string;
   /** Where `@opentui/core-<os>-<arch>` of a foreign target is installed. */
   nativeDir?: string;
+} & RuntimeSource;
+
+export type RuntimeSource = {
+  /** Defaults to `$XDG_CACHE_HOME/airtty` or `~/.cache/airtty`. */
+  cache?: string;
+  registry?: string;
 };
 
 function parseTarget(target: string) {
@@ -57,8 +64,21 @@ export function hostRuntimeWarning(runtime = process.execPath) {
     .filter((lib) => lib && !lib.startsWith("/usr/lib/") && !lib.startsWith("/System/"));
   return foreign.length
     ? `${runtime} links ${foreign.join(", ")}: the binary may not start on other Macs. ` +
-        'Pass --runtime "$(airtty runtime)" to embed Bun\'s stock runtime.'
+        "Omit --runtime to embed Bun's stock runtime."
     : undefined;
+}
+
+async function resolveRuntime(target: CompileTarget, options: CompileOptions) {
+  const runtime = options.runtime ?? "official";
+  if (runtime === "official") return fetchRuntime(target, options);
+  if (runtime === "host") {
+    if (target !== hostTarget())
+      throw new Error(`--runtime host only builds for ${hostTarget()}, not ${target}`);
+    return process.execPath;
+  }
+  const executable = resolve(runtime);
+  if (!(await Bun.file(executable).exists())) throw new Error(`Runtime ${executable} not found`);
+  return executable;
 }
 
 export async function compileClient(
@@ -70,12 +90,13 @@ export async function compileClient(
     options.outfile ?? join(output, "client", `${options.name}-${target.replace(/^bun-/, "")}`),
   );
   const nativeDir = options.nativeDir ? resolve(options.nativeDir) : undefined;
+  const runtime = await resolveRuntime(target, options);
   const result = await Bun.build({
     entrypoints: [join(output, "client/index.js")],
     compile: {
       target,
       outfile,
-      ...(options.runtime ? { executablePath: resolve(options.runtime) } : {}),
+      executablePath: runtime,
       // A Client binary runs in arbitrary user directories: never pick up their config.
       autoloadDotenv: false,
       autoloadBunfig: false,
@@ -110,29 +131,80 @@ export async function compileClient(
   return {
     outfile,
     target,
-    warning: options.runtime || target !== hostTarget() ? undefined : hostRuntimeWarning(),
+    warning: runtime === process.execPath ? hostRuntimeWarning(runtime) : undefined,
   };
 }
 
+const defaultCache = () => join(process.env.XDG_CACHE_HOME || join(homedir(), ".cache"), "airtty");
+
+/** The `dist` entry of an npm version document, when it can be verified. */
+function publishedDist(document: unknown) {
+  const dist =
+    typeof document === "object" && document !== null && "dist" in document
+      ? document.dist
+      : undefined;
+  if (typeof dist !== "object" || dist === null) return undefined;
+  const text = (value: unknown) => (typeof value === "string" ? value : undefined);
+  const tarball = text("tarball" in dist ? dist.tarball : undefined);
+  const integrity = text("integrity" in dist ? dist.integrity : undefined);
+  const shasum = text("shasum" in dist ? dist.shasum : undefined);
+  return tarball && (integrity || shasum) ? { tarball, integrity, shasum } : undefined;
+}
+
 /**
- * Downloads Bun's stock runtime for `target` from npm into a cache and returns its path.
- * Separate from the build on purpose: `airtty build` never touches the network.
+ * Bun's stock runtime for `target` (`@oven/bun-<os>-<arch>` on npm), downloaded on the
+ * first use, checked against the integrity the registry publishes, then reused offline.
+ * The cache entry appears in one rename: an interrupted download leaves nothing behind.
  */
 export async function fetchRuntime(
   target = hostTarget(),
-  cache = join(homedir(), ".cache/airtty"),
+  { cache = defaultCache(), registry = "https://registry.npmjs.org" }: RuntimeSource = {},
 ) {
   const { os, arch, musl } = parseTarget(target);
   const name = `bun-${os}-${arch === "arm64" ? "aarch64" : arch}${musl ? "-musl" : ""}`;
-  const dir = join(cache, "runtime", `${name}-${Bun.version}`);
+  const runtimes = join(cache, "runtime");
+  const dir = join(runtimes, `${name}-${Bun.version}`);
   const executable = join(dir, "package/bin/bun");
   if (await Bun.file(executable).exists()) return executable;
-  await mkdir(dir, { recursive: true });
-  const url = `https://registry.npmjs.org/@oven/${name}/-/${name}-${Bun.version}.tgz`;
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`${url}: HTTP ${response.status}`);
-  await Bun.write(join(dir, "runtime.tgz"), response);
-  const tar = Bun.spawnSync(["tar", "xzf", "runtime.tgz"], { cwd: dir });
-  if (tar.exitCode !== 0) throw new Error(tar.stderr.toString());
+  const download = async (url: string) => {
+    const response = await fetch(url).catch((error: unknown) => {
+      throw new Error(
+        `Bun's stock runtime for ${target} is not cached in ${runtimes} and ${url} is ` +
+          `unreachable (${error instanceof Error ? error.message : String(error)}). ` +
+          "Connect once to cache it, or pass --runtime host or --runtime <bun executable>.",
+      );
+    });
+    if (!response.ok) throw new Error(`${url}: HTTP ${response.status}`);
+    return response;
+  };
+  const metadata = `${registry}/@oven/${name}/${Bun.version}`;
+  const dist = publishedDist(await (await download(metadata)).json());
+  if (!dist) throw new Error(`${metadata} publishes no tarball with an integrity`);
+  const tarball = new Uint8Array(await (await download(dist.tarball)).arrayBuffer());
+  const digest = (algorithm: "sha512" | "sha1", encoding: "base64" | "hex") =>
+    new Bun.CryptoHasher(algorithm).update(tarball).digest(encoding);
+  const verified = dist.integrity?.startsWith("sha512-")
+    ? digest("sha512", "base64") === dist.integrity.slice("sha512-".length)
+    : dist.shasum !== undefined && digest("sha1", "hex") === dist.shasum;
+  if (!verified)
+    throw new Error(`${dist.tarball} does not match the integrity published by ${registry}`);
+  await mkdir(runtimes, { recursive: true });
+  const staging = await mkdtemp(join(runtimes, `.${name}-`));
+  try {
+    await Bun.write(join(staging, "runtime.tgz"), tarball);
+    const tar = Bun.spawnSync(["tar", "xzf", "runtime.tgz"], { cwd: staging });
+    if (tar.exitCode !== 0) throw new Error(tar.stderr.toString());
+    await rm(join(staging, "runtime.tgz"));
+    if (!(await Bun.file(join(staging, "package/bin/bun")).exists()))
+      throw new Error(`${dist.tarball} holds no package/bin/bun`);
+    await rename(staging, dir).catch(async () => {
+      // Another build finished first, or an incomplete entry predates this cache layout.
+      if (await Bun.file(executable).exists()) return;
+      await rm(dir, { recursive: true, force: true });
+      await rename(staging, dir);
+    });
+  } finally {
+    await rm(staging, { recursive: true, force: true });
+  }
   return executable;
 }

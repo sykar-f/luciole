@@ -116,6 +116,8 @@ Le hash de build inclut les sources accessibles (dont tous les layouts, loadings
 écrans d'erreur), tous les fichiers du runtime et les lockfiles.
 Les artefacts sont construits dans un répertoire temporaire, puis publiés après
 succès des deux compilations. Le build ne fait pas d’installation réseau et ne
-modifie pas le build actif en cas de diagnostic de compilation. `bun run check`
+modifie pas le build actif en cas de diagnostic de compilation. Seul `--compile`
+peut accéder au réseau, une fois par cible et version de Bun, pour mettre en cache
+le runtime Bun officiel (voir [ARCHITECTURE.md](ARCHITECTURE.md#deux-formes-de-distribution)). `bun run check`
 valide séparément les types du framework et de l’exemple ; la compilation d’un
 starter utilise la transpilation TypeScript, pas une vérification exhaustive des types.

@@ -63,7 +63,8 @@ tree-sitter 3,3 Mio + JS), linux-x64 90,3 Mio, linux-arm64 89,9 Mio.
    `executablePath` : `compile.ts` télécharge
    `@oven/bun-darwin-aarch64@<Bun.version>` depuis npm. Le binaire lie alors
    `/usr/lib/libicucore.A.dylib`. Homebrew pose peut-être le même problème ;
-   ce n'est pas vérifié.
+   ce n'est pas vérifié. `airtty build --compile` embarque désormais ce runtime
+   par défaut (mis en cache, `--runtime host` pour revenir au Bun local).
 2. **Cross-compilation** : le paquet `@opentui/core-<os>-<arch>` de la cible doit
    être présent. Un plugin `onResolve` le résout depuis un dossier installé avec
    `bun install --os --cpu`.

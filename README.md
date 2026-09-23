@@ -139,15 +139,20 @@ Pour distribuer le Client sans Bun ni `node_modules` sur la machine du terminal 
 
 ```sh
 bun src/cli.ts build --compile                        # exécutable pour cette machine
-bun src/cli.ts build --compile --runtime "$(bun src/cli.ts runtime)"  # runtime Bun officiel
 ./examples/notes/.airtty/client/notes-darwin-arm64 --url http://127.0.0.1:3000
 ```
 
 Le binaire embarque le runtime Bun, la bibliothèque native d’OpenTUI et l’identifiant
-de build. Le build avertit si le Bun local dépend de bibliothèques hors système (Nix,
-Homebrew) : passer alors le runtime officiel. `--target bun-linux-x64` (et
-`--native-dir` pour le paquet natif de cette cible) produit un binaire pour une autre
-plateforme.
+de build. Le runtime est par défaut celui que Bun publie sur npm pour la cible
+(`@oven/bun-<os>-<arch>`, même version que le Bun du build) : il est téléchargé à la
+première compilation, vérifié contre l’empreinte `integrity` publiée par le registre,
+puis réutilisé depuis `$XDG_CACHE_HOME/airtty` (`~/.cache/airtty`) sans réseau.
+`airtty runtime [--target …]` remplit ce cache à l’avance. Hors ligne et sans cache,
+la compilation échoue en le disant. `--runtime host` embarque le Bun qui exécute le
+build (le build avertit s’il dépend de bibliothèques hors système, Nix ou Homebrew :
+le binaire ne démarrerait pas sur une autre machine) ; `--runtime <chemin>` embarque
+un exécutable Bun choisi. `--target bun-linux-x64` (et `--native-dir` pour le paquet
+natif de cette cible) produit un binaire pour une autre plateforme.
 
 `--app /chemin/app` sélectionne un autre projet. Le build produit :
 

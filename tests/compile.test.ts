@@ -28,6 +28,8 @@ test("the compiled Client runs alone: no Bun, no node_modules, same build as its
     const { outfile, target } = await compileClient(output, {
       name: "notes",
       outfile: join(work, "build/notes-client"),
+      // The stock runtime is covered by runtime.test.ts; this test stays offline.
+      runtime: "host",
     });
     expect<string>(target).toBe(hostTarget());
     // An empty directory, far from any node_modules, with a minimal environment.
@@ -69,6 +71,11 @@ test("unsupported targets and missing native packages are explained", async () =
   );
   const foreign = hostTarget() === "bun-linux-arm64" ? "bun-darwin-arm64" : "bun-linux-arm64";
   await expect(
-    compileClient(output, { name: "notes", target: foreign, outfile: join(tmpdir(), "never") }),
+    compileClient(output, {
+      name: "notes",
+      target: foreign,
+      outfile: join(tmpdir(), "never"),
+      runtime: process.execPath,
+    }),
   ).rejects.toThrow("--native-dir");
 }, 60000);
