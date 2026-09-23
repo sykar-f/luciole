@@ -14,7 +14,8 @@ with tempfile.TemporaryDirectory(prefix='airtty-pty-') as directory:
    ready=json.loads(server.stdout.readline());url='http://127.0.0.1:'+str(ready['port'])
   master,slave=pty.openpty();fcntl.ioctl(slave,termios.TIOCSWINSZ,struct.pack('HHHH',28,110,0,0))
   before=termios.tcgetattr(slave)
-  client=subprocess.Popen([bun,str(root/args.client),'--url',url],stdin=slave,stdout=slave,stderr=slave,env=env,start_new_session=True)
+  # A private state directory: the session file of this Client never reaches $HOME.
+  client=subprocess.Popen([bun,str(root/args.client),'--url',url],stdin=slave,stdout=slave,stderr=slave,env={**env,'XDG_STATE_HOME':directory+'/state'},start_new_session=True)
   captured=b''
   screen=pyte.Screen(110,28);stream=pyte.ByteStream(screen)
   def wait_for(needle,timeout=10):

@@ -28,6 +28,7 @@ import { connect, serverUrl } from "./connect";
 import { messageOf } from "./guards";
 import { Restoration, type Session } from "./restore";
 import { Runtime } from "./runtime-context";
+import { openSession, SessionId } from "./session";
 import {
   AuthenticationRequired,
   BuildMismatch,
@@ -130,7 +131,10 @@ export class Application {
   error = "";
   /** Development only: the last build failure, shown until the next successful build. */
   buildError = "";
-  /** Set by `run()`: ends the terminal Client (Ctrl+C). */
+  /**
+   * Set by `run()`: ends the terminal Client on purpose (Ctrl+C). Its session is
+   * deleted, as a browser closed by the user does not offer to restore its tabs.
+   */
   quit: (() => void) | undefined;
   private revision = 0;
   private listeners = new Set<() => void>();
@@ -661,9 +665,37 @@ export function createApplication(options: ApplicationOptions) {
 const ClientEnvironment = z.object({
   AIRTTY_TOKEN: z.optional(z.string()),
   AIRTTY_LATENCY_MS: z._default(z.coerce.number().check(z.gte(0)), 0),
+  /** Set by `airtty dev`: the session this Client reopens after each rebuild. */
+  AIRTTY_SESSION: z.optional(SessionId),
 });
 /** What `airtty dev` sends the Client it supervises (src/cli.ts). */
-const DevMessage = z.object({ type: z.literal("build-error"), message: z.string() });
+const DevMessage = z.union([
+  z.object({ type: z.literal("build-error"), message: z.string() }),
+  z.object({ type: z.literal("bearer"), token: z.optional(z.string()) }),
+]);
+// The supervisor answers at once; a Client started by hand with AIRTTY_SESSION only
+// waits this long.
+const SUPERVISOR_REPLY_MS = 1000;
+/**
+ * Development only: the bearer the previous Client of this `airtty dev` held. It lives
+ * in the supervisor's memory, never on disk, so a rebuild does not ask to sign in again.
+ */
+function bearerFromSupervisor(send: (message: unknown) => void) {
+  return new Promise<string | undefined>((resolve) => {
+    const timer = setTimeout(() => done(undefined), SUPERVISOR_REPLY_MS);
+    const done = (token: string | undefined) => {
+      clearTimeout(timer);
+      process.off("message", listener);
+      resolve(token);
+    };
+    const listener = (received: unknown) => {
+      const message = DevMessage.safeParse(received);
+      if (message.success && message.data.type === "bearer") done(message.data.token);
+    };
+    process.on("message", listener);
+    send({ type: "hello" });
+  });
+}
 export async function run(
   create: (options: Record<string, unknown>) => Application,
   { name = "airtty" }: { name?: string } = {},
@@ -671,22 +703,36 @@ export async function run(
   const env = ClientEnvironment.safeParse(process.env);
   if (!env.success) throw new Error(`Invalid Client environment: ${z.prettifyError(env.error)}`);
   // Resolved before the renderer takes the terminal: ssh may prompt for a passphrase.
-  const connection = await serverUrl({ name })
-    .then((url) => connect(url))
-    .catch((error: unknown) => {
-      console.error(messageOf(error));
-      process.exit(1);
-    });
+  const url = await serverUrl({ name }).catch((error: unknown) => {
+    console.error(messageOf(error));
+    process.exit(1);
+  });
+  const connection = await connect(url).catch((error: unknown) => {
+    console.error(messageOf(error));
+    process.exit(1);
+  });
+  const supervised =
+    env.data.AIRTTY_SESSION !== undefined && process.send
+      ? (message: unknown) => void process.send?.(message)
+      : undefined;
+  const handed = supervised ? await bearerFromSupervisor(supervised) : undefined;
+  // Keyed by the address the user gave: a tunnel's local port changes on every start.
+  const session = openSession({ name, server: url, id: env.data.AIRTTY_SESSION });
   const app = create({
     url: connection.url,
     fetch: connection.fetch,
-    token: env.data.AIRTTY_TOKEN,
+    token: handed ?? env.data.AIRTTY_TOKEN,
     latencyMs: env.data.AIRTTY_LATENCY_MS,
     network: networkFromEnv(process.env),
+    session: session.restored,
   });
+  // Claims the session at once: another Client starting now must not take it.
+  session.flush(app.restoration.snapshot());
+  app.restoration.subscribe(() => session.schedule(app.restoration.snapshot()));
+  if (supervised) app.onTokenChange((token) => supervised({ type: "bearer", token }));
   process.on("message", (received: unknown) => {
     const message = DevMessage.safeParse(received);
-    if (!message.success) return;
+    if (!message.success || message.data.type !== "build-error") return;
     app.buildError = message.data.message;
     app.notify();
   });
@@ -697,14 +743,24 @@ export async function run(
     connection.close();
     process.exit(0);
   };
+  // A signal is not the user's choice (a rebuild, a closed terminal, a killed process):
+  // the session stays on disk to be restored. Quitting (Ctrl+C, `app.quit`) deletes it.
+  const interrupted = () => {
+    session.flush(app.restoration.snapshot());
+    stop();
+  };
+  const quit = () => {
+    session.remove();
+    stop();
+  };
   // SIGHUP: the terminal closed; the Client and its tunnel must not outlive it.
-  for (const signal of ["SIGTERM", "SIGINT", "SIGHUP"] as const) process.on(signal, stop);
-  app.quit = stop;
+  for (const signal of ["SIGTERM", "SIGINT", "SIGHUP"] as const) process.on(signal, interrupted);
+  app.quit = quit;
   renderer = await createCliRenderer({ exitOnCtrlC: false });
   const root = createRoot(renderer);
   // RouterProvider's Transitioner performs the initial load.
   root.render(<Shell app={app} />);
   renderer.keyInput.on("keypress", (key) => {
-    if (key.ctrl && key.name === "c") stop();
+    if (key.ctrl && key.name === "c") quit();
   });
 }

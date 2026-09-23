@@ -106,7 +106,7 @@ def main():
             client = subprocess.Popen(
                 [BUN, str(APP / ".airtty/client/index.js"), "--url", url],
                 stdin=slave, stdout=slave, stderr=slave, start_new_session=True,
-                env={**ENV, "VISUAL": "", "EDITOR": str(editor)},
+                env={**ENV, "VISUAL": "", "EDITOR": str(editor), "XDG_STATE_HOME": directory + "/state"},
             )
             term = Terminal(master)
             results = {"productionPTY": True, "simulatedRTTMs": LATENCY_MS}

@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Dev compiler failure is displayed inside the still-editable Client; shutdown reaps both children."""
+"""Dev compiler failure is displayed inside the still-editable Client; a valid rebuild reopens the page with its named fields; shutdown reaps both children."""
 import os,pty,select,subprocess,tempfile,time,json,fcntl,termios,struct,pathlib,shutil,pyte
 root=pathlib.Path(__file__).resolve().parents[1];bun=shutil.which('bun')
 with tempfile.TemporaryDirectory(prefix='airtty-dev-') as directory:
  app=pathlib.Path(directory)/'app-source';shutil.copytree(root/'examples/notes',app,ignore=shutil.ignore_patterns('.airtty','*.sqlite*'))
  master,slave=pty.openpty();fcntl.ioctl(slave,termios.TIOCSWINSZ,struct.pack('HHHH',32,140,0,0));before=termios.tcgetattr(slave)
- dev=subprocess.Popen([bun,str(root/'src/cli.ts'),'dev','--app',str(app)],stdin=slave,stdout=slave,stderr=slave,env={**os.environ,'TERM':'xterm-256color','NOTES_DB':directory+'/notes.sqlite'},start_new_session=True)
+ sessions=pathlib.Path(directory)/'state'/'airtty'/'app-source'/'sessions'
+ dev=subprocess.Popen([bun,str(root/'src/cli.ts'),'dev','--app',str(app)],stdin=slave,stdout=slave,stderr=slave,env={**os.environ,'TERM':'xterm-256color','NOTES_DB':directory+'/notes.sqlite','XDG_STATE_HOME':directory+'/state'},start_new_session=True)
  screen=pyte.Screen(140,32);stream=pyte.ByteStream(screen);raw=b''
  def pump():
   global raw
@@ -26,17 +27,24 @@ with tempfile.TemporaryDirectory(prefix='airtty-dev-') as directory:
   children=[int(pid) for pid in subprocess.check_output(['pgrep','-P',str(dev.pid)],text=True).split()];assert len(children)==2,children
   page=app/'app/page.tsx';original=page.read_text();page.write_text('export default async function Page(){"use server";return <text>bad</text>}')
   wait('Build failed:');os.write(master,b'!');wait('keep!')
-  page.write_text(original+'\n// valid rebuild\n');wait('YOUR NOTES')
-  new_children=[int(pid) for pid in subprocess.check_output(['pgrep','-P',str(dev.pid)],text=True).split()];assert len(new_children)==2;assert not set(children)&set(new_children)
+  # The restarted Client reopens the note, and the text typed in its named field.
+  page.write_text(original+'\n// valid rebuild\n');deadline=time.monotonic()+20;new_children=children
+  while set(children)&set(new_children) or len(new_children)!=2:
+   assert time.monotonic()<deadline,'the rebuild never restarted both children'
+   # Between the two generations pgrep finds no child and exits 1.
+   pump();new_children=[int(pid) for pid in subprocess.run(['pgrep','-P',str(dev.pid)],capture_output=True,text=True).stdout.split()]
+  # Only the new Client draws from here on: the note and its typed text come back.
+  screen.reset();wait('Unsaved Draft');wait('keep!')
   os.write(master,b'\x03');deadline=time.monotonic()+5
   while dev.poll() is None and time.monotonic()<deadline:pump()
   dev.wait(timeout=1);assert dev.returncode==0
   assert termios.tcgetattr(slave)==before,'terminal attributes not restored'
+  assert not list(sessions.glob('*.json')),'a quit session was kept'
   for pid in children+new_children:
    try:os.kill(pid,0)
    except ProcessLookupError:continue
    raise AssertionError('orphan process '+str(pid))
-  print(json.dumps({'devPTY':True,'buildErrorShown':True,'typingAfterBuildError':True,'successfulRebuildRestarts':True,'terminalRestored':True,'noOrphanChildren':True},indent=2))
+  print(json.dumps({'devPTY':True,'buildErrorShown':True,'typingAfterBuildError':True,'successfulRebuildRestarts':True,'rebuildRestoresPageAndFields':True,'quitDeletesSession':True,'terminalRestored':True,'noOrphanChildren':True},indent=2))
  finally:
   if dev.poll() is None:
    import signal

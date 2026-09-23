@@ -14,6 +14,11 @@ const STOP_GRACE_MS = 1500;
 const SERVER_STARTUP_MS = 10_000;
 // Editors write a file in several events: one rebuild per burst.
 const REBUILD_DEBOUNCE_MS = 150;
+/** What a supervised Client asks, or tells, `airtty dev` (src/client.tsx). */
+const ClientMessage = z.union([
+  z.object({ type: z.literal("hello") }),
+  z.object({ type: z.literal("bearer"), token: z.string().optional() }),
+]);
 /** The line a Server prints once it listens (src/server.ts). */
 const ServerReady = z.object({ ready: z.literal(true), port: z.number().int() });
 /** The formatter options a starter's generated JSON files follow. */
@@ -186,6 +191,10 @@ async function main() {
     return;
   }
   if (command === "dev") {
+    // One session for every Client of this run: each rebuild reopens it (history and
+    // named fields), and the bearer passes from one Client to the next in memory.
+    const session = crypto.randomUUID();
+    let bearer: string | undefined;
     let server: ChildProcess | undefined,
       client: ChildProcess | undefined,
       closing = false,
@@ -256,14 +265,23 @@ async function main() {
           });
           if (closing) break;
           console.error(
-            "Rebuild ready. A successful rebuild restarts the Client and clears session Drafts.",
+            "Rebuild ready. The Client restarts on the same page with its named fields; state kept only in memory (Drafts) is lost.",
           );
           client = spawn(
             process.execPath,
             [join(directory, ".airtty/client/index.js"), "--url", `http://127.0.0.1:${ready.port}`],
-            { stdio: ["inherit", "inherit", "inherit", "ipc"] },
+            {
+              stdio: ["inherit", "inherit", "inherit", "ipc"],
+              env: { ...process.env, AIRTTY_SESSION: session },
+            },
           );
           const activeClient = client;
+          activeClient.on("message", (received: unknown) => {
+            const message = ClientMessage.safeParse(received);
+            if (!message.success) return;
+            if (message.data.type === "hello") activeClient.send({ type: "bearer", token: bearer });
+            else bearer = message.data.token;
+          });
           activeClient.once("exit", () => {
             if (client === activeClient && !building) void shutdown();
           });
