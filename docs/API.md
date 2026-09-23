@@ -6,6 +6,8 @@ Entrée `airtty/client` (Client Components uniquement) :
 | -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `useNavigate()`, `useRouter()`, `useRouterState()`, `useParams()`, `useSearch()`, `useLocation()`, `useMatchRoute()`, `useCanGoBack()` | Primitives TanStack Router réexportées telles quelles ; TanStack est l'unique état de navigation.                                                |
 | `useApplication()`                                                                                                                     | `{ setToken(token?), refresh(), invalidate(paths?), cancel(), withSignal(signal, call), onEvent(listener), status, error }` du runtime terminal. |
+| `<Input name? value onInput />`, `<Textarea name? value onChange />`                                                                   | `input` et `textarea` d'OpenTUI, contrôlés ; un `name` rend leur texte restaurable (voir « Champs restaurables »).                               |
+| `useRestoredFields(group)`                                                                                                             | `{ submit(action, { failed? }?), clear() }` des champs `group/…` de l'entrée d'historique courante.                                              |
 | `useConnection()`                                                                                                                      | `{ status, error, buildError, activity, refresh }` pour le chrome de l'application ; `activity` vaut `connect`, `navigate`, `refresh` ou `idle`. |
 | `useInvalidation(listener)`                                                                                                            | Appelé à chaque invalidation (Server ou Client) avec les chemins : pour les données lues hors des loaders de routes.                             |
 | `useLive(source, args, { limit }?)`                                                                                                    | `{ items, done, error }` d'une Server Function génératrice, abonnée tant que le composant est monté.                                             |
@@ -54,9 +56,11 @@ try {
 ```
 
 `setToken(token)` remplace le bearer des requêtes suivantes et purge le cache de
-routes (voir plus bas). Il ne touche à aucun état applicatif : une application qui
-change d'identité vide elle-même ses Drafts et opérations, au moment où elle appelle
-`setToken`. Un `401` sur une Server Function n'entraîne aucune navigation :
+routes (voir plus bas). Remplacer un bearer (déconnexion, autre compte) oublie aussi le
+texte des champs restaurables ; la première connexion d'un Client le garde, pour que le
+texte restauré après un crash survive à la connexion qu'il demande. Il ne touche à aucun
+état applicatif : une application qui change d'identité vide elle-même ses Drafts et
+opérations, au moment où elle appelle `setToken`. Un `401` sur une Server Function n'entraîne aucune navigation :
 `AuthenticationRequired.loginPath` indique où se connecter.
 
 ## Invalidation déclarée par le Server
@@ -125,6 +129,97 @@ les exporte en spans OpenTelemetry sans dépendance du framework à OTel (le `Tr
 est typé structurellement). Les écouteurs s'exécutent sur le chemin chaud : ils
 doivent rester légers.
 
+## Champs restaurables
+
+Le Client joue le rôle du navigateur, il garde donc ce qu'un navigateur garde d'une
+session : **l'historique, et le texte tapé dans les champs nommés de chacune de ses
+entrées**. Rien d'autre : les données de page reviennent du Server en naviguant, le
+token reste à l'application, un champ sans `name` n'est jamais écrit (un PIN, un mot de
+passe).
+
+| Quand                                                | Ce qui revient                                                     |
+| ---------------------------------------------------- | ------------------------------------------------------------------ |
+| Retour sur une entrée d'historique (`u`, back)       | Le texte des champs nommés de cette entrée                         |
+| Rebuild de `airtty dev`                              | La page, l'historique, les champs nommés et le bearer (en mémoire) |
+| Crash, `kill -9`, terminal fermé, SSH coupé (SIGHUP) | La page, l'historique et les champs nommés, au prochain lancement  |
+| Ctrl+C ou `app.quit()` : sortie volontaire           | Rien : la session est supprimée, comme un navigateur fermé exprès  |
+
+- **Par entrée d'historique**, comme un navigateur : rouvrir la même page par un lien
+  crée une nouvelle entrée, vide. Garder un texte par document, quel que soit le
+  chemin (les Drafts de Notes et Forge), reste une politique applicative.
+- **Un champ appartient à l'entrée où il a été monté** : un champ d'un layout persistant
+  continue d'écrire dans l'entrée où il est apparu.
+- **Restaurer, c'est retaper** : au montage, un champ dont l'entrée garde un texte
+  appelle une fois `onInput` (ou `onChange`) avec ce texte. L'état de l'application ou de
+  sa bibliothèque de formulaires le reçoit par le même chemin que la frappe, donc comme
+  un travail non enregistré. Un texte n'est gardé que s'il a été tapé ; une valeur posée
+  par l'application (une remise à zéro) ne fait que suivre un texte déjà gardé.
+- **Un groupe** réunit les champs `groupe/champ`. `useRestoredFields("groupe").submit(action)`
+  oublie leur texte _avant_ la requête, pour qu'un crash pendant l'envoi ne le propose
+  pas de nouveau (pas de double envoi). Si l'issue prouve que rien n'a tourné
+  (`not-sent`, `rejected`), ou si `failed(résultat)` dit que le Server a refusé, le texte
+  est gardé de nouveau, sauf si l'utilisateur a tapé plus récent entre-temps. `clear()`
+  l'oublie sur demande (abandon).
+- **Stockage** : un fichier par Client (comme un onglet), en `0600`, dans
+  `$XDG_STATE_HOME/airtty/<app>/sessions/` (`~/.local/state/…`), écrit 200 ms après la
+  dernière modification et avant de sortir sur un signal. Après un crash, le Client
+  suivant reprend la session la plus récente laissée par un Client mort pour la même
+  adresse de Server, jamais celle d'un Client vivant. Au plus 50 entrées ; un champ de
+  plus de 100 000 caractères n'est pas gardé ; une session orpheline est supprimée
+  après 7 jours. Le texte n'est pas chiffré.
+- **Comptes** : remplacer un bearer oublie tous les champs (voir `setToken`). Un autre
+  compte qui se connecte en premier après un crash retrouve le texte du précédent : la
+  session appartient à l'utilisateur du système, comme un profil de navigateur.
+
+`Textarea` rend contrôlé le `textarea` d'OpenTUI, qui ne l'est pas (`initialValue`
+seulement) : `value` en entrée, `onChange` en sortie, comme l'`input`. Une valeur posée
+de l'extérieur remplace le contenu et place le curseur à la fin.
+
+### Avec une bibliothèque de formulaires
+
+Le framework ne valide ni n'envoie de formulaire. Les bibliothèques qui pilotent un
+champ par valeur et callback fonctionnent telles quelles, par leur chemin « React
+Native ». TanStack Form est celle que suivent les exemples (formulaire de nouvelle pull
+request de Forge, `components/NewPullForm.tsx`) :
+
+```tsx
+"use client";
+import { useField, useForm } from "@tanstack/react-form";
+import { Input, Textarea, useRestoredFields } from "airtty/client";
+import { publish } from "../actions/posts";
+
+export function NewPost() {
+  const fields = useRestoredFields("post");
+  const form = useForm({
+    defaultValues: { title: "", body: "" },
+    // Le texte gardé est oublié pendant la requête, gardé de nouveau si elle échoue sans
+    // avoir tourné ou si le Server refuse.
+    onSubmit: ({ value }) => fields.submit(() => publish(value), { failed: (r) => !r.ok }),
+  });
+  const title = useField({
+    form,
+    name: "title",
+    validators: { onSubmit: ({ value }) => (value.trim() ? undefined : "Title required") },
+  });
+  const body = useField({ form, name: "body" });
+  return (
+    <box flexDirection="column">
+      <Input name="post/title" value={title.state.value} onInput={title.handleChange} />
+      <text>{title.state.meta.errors.join(" · ")}</text>
+      <Textarea name="post/body" value={body.state.value} onChange={body.handleChange} />
+    </box>
+  );
+}
+```
+
+Un raccourci (`useBindings`, Ctrl+S) appelle `form.handleSubmit()` : pas de `<form>`, le
+terminal n'en a pas. Les champs passent par `useField` plutôt que `<form.Field>` : le
+namespace JSX d'OpenTUI ne déclare pas `ElementType`, et TypeScript refuse un composant
+typé pour renvoyer `ReactNode | Promise<ReactNode>` (le code s'exécute, seul le contrôle
+de types échoue). React Hook Form fonctionne avec `useController` (son `register()`
+attend un événement DOM et échoue) ; Formik avec `useFormik` et `handleChange("champ")`,
+jamais ses composants `<Form>` et `<Field>`, qui rendent du HTML.
+
 ## Serveur et intégration
 
 Entrée `airtty/server` :
@@ -154,6 +249,10 @@ aux tests et aux intégrateurs du framework. Le résolveur de modules est une fo
 `(moduleId) => exports`, injectée dans `createApplication`. Le MVP accepte un seul
 runtime applicatif par processus Client ; le registre est global pour satisfaire
 le contrat bundler du codec Flight. Aucun chargement de chunks distants.
+`createApplication({ session })` restaure un historique et ses champs (ce que `run()`
+relit sur disque) ; `app.restoration.snapshot()` donne la session courante, ce qui permet
+de simuler un redémarrage dans un test. `app.onTokenChange(listener)` sert au
+superviseur de `airtty dev` pour transmettre le bearer au Client relancé.
 
 Le transport est une interface remplaçable (`src/transport.ts`), injectable via
 `createApplication({ transport })` :

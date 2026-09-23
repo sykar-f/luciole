@@ -14,6 +14,9 @@ L’application est une codebase unique ; son build produit deux programmes.
 | `src/route-tree.tsx` | Fabriques de routes de `app/routeTree.gen.ts` : layouts, pages, loaders Flight, écrans error/not-found, Échap.       |
 | `src/transport.ts`   | Interface `Transport` et adapter HTTP/Flight : build ID, bearer, timeout, `outcome`, événements, réseau simulé.      |
 | `src/client.tsx`     | Runtime terminal : TanStack Router, keymap, loaders Flight, actions, invalidation, live, observabilité, hooks.       |
+| `src/restore.ts`     | Session façon navigateur : historique et texte des champs nommés par entrée, groupes, oubli à l'envoi.               |
+| `src/fields.tsx`     | `Input` et `Textarea` contrôlés et restaurables, `useRestoredFields` ; `runtime-context.ts` porte le contexte.       |
+| `src/session.ts`     | Fichier de session d'un Client (`$XDG_STATE_HOME/airtty/<app>/sessions`), reprise après crash, suppression.          |
 | `src/not-found.ts`   | Passage de `notFound()` à travers Flight (digest), partagé par le Server et le Client.                               |
 | `src/compile.ts`     | Client autonome en un exécutable (`airtty build --compile`) et runtime Bun officiel (`airtty runtime`).              |
 | `src/sign.ts`        | Signature Developer ID, hardened runtime et notarisation du Client macOS (`--sign`, `--notarize`).                   |
@@ -119,3 +122,10 @@ comme dans Electron, Qt ou .NET, le runtime rapporte l'issue de chaque requête
 (`TransportError.outcome`) et l'application choisit sa politique. Notes et Forge
 gardent chacune leur `components/draft.ts`. Une bibliothèque partagée ne sera extraite
 que si le même code se répète dans une troisième application.
+
+Le framework garde en revanche ce que garde un navigateur, puisque le Client en tient
+le rôle : l'historique et le texte des champs nommés de chaque entrée, écrits dans un
+fichier de session par Client. C'est un mécanisme sans sens métier : il ne sait ni ce
+qu'est un Draft, ni comment régler un conflit ; il survit au rebuild de `airtty dev`,
+à un crash et à un terminal fermé, et disparaît quand l'utilisateur quitte. Voir
+[API.md](API.md#champs-restaurables).

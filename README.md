@@ -334,7 +334,12 @@ n’a pas encore eu lieu. Voir [les preuves et limites](docs/VALIDATION.md).
   `app/routeTree.gen.ts`, généré par le build et versionné. Voir [ROUTER.md](docs/ROUTER.md).
 - Le framework ne garde aucun état métier. Les Drafts de Notes et Forge sont du code
   applicatif, en mémoire, au plus 32 documents par session ; les Drafts sales/en
-  attente ne sont pas évincés. **Quitter le Client perd les Drafts non sauvegardés.**
+  attente ne sont pas évincés. Comme un navigateur, le Client garde l'historique et le
+  texte des champs nommés (`<Input name>`, `<Textarea name>`) de chaque entrée : ils
+  reviennent après un crash, un terminal fermé ou un rebuild, en clair dans un fichier
+  `0600` de `$XDG_STATE_HOME/airtty/<app>/sessions/`. **Quitter (Ctrl+C) supprime cette
+  session, et un état gardé seulement en mémoire (Drafts) est perdu à toute sortie.**
+  Voir [les champs restaurables](docs/API.md#champs-restaurables).
 - Une Server Function déclare ses changements avec `invalidate()` ; `useLive` abonne un
   écran à une Server Function génératrice, fermée quand l’écran se démonte. Rien ne se
   reconnecte automatiquement.
@@ -343,7 +348,9 @@ n’a pas encore eu lieu. Voir [les preuves et limites](docs/VALIDATION.md).
   peut ranger côté Server un package tiers qui ne se déclare pas. Chaque erreur montre
   la chaîne d’imports. Voir [BOUNDARIES.md](docs/BOUNDARIES.md).
 - Une erreur de build est affichée dans le shell existant et laisse l’édition active.
-  Un rebuild valide redémarre les deux processus et **perd l’état du Client** (Drafts compris).
+  Un rebuild valide redémarre les deux processus ; le Client rouvre la même page avec
+  son historique, ses champs nommés et son bearer (transmis en mémoire), mais **perd son
+  état en mémoire** (Drafts compris).
   Pas de Fast Refresh.
 - Dans Notes, la sauvegarde et son résultat d’opération sont atomiques dans SQLite. La
   consultation résout un résultat perdu ; ce n’est pas une garantie générique

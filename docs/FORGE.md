@@ -139,26 +139,27 @@ Dans un second terminal, `bun run forge:operator` joue le second opérateur (mê
 
 ## Matrice de couverture
 
-| Capacité                   | Dans Forge                                                                                     | Preuve                                                                      |
-| -------------------------- | ---------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| Server Components          | pages sans SQL, domaine `server/forge.ts`, section lente `components/Activity.tsx`             | `forge-build.test.ts` : SQL, git, sessions et seed absents du bundle Client |
-| Client Components          | `PullList`, `FilesReview`, `ChecksPanel`, `Conversation`, `DraftEditor`                        | `forge-latency.test.tsx` : filtre, hover, molette sans requête sous 500 ms  |
-| Server Functions           | `actions/session.ts` (publique), `account.ts`, `pulls.ts`                                      | `forge.test.tsx` ; droits revalidés dans `forge-domain.test.ts`             |
-| Auth publique / protégée   | `/login` et `login()` publics, adapter `server/auth.ts`, `unauthorizedPath`                    | `forge.test.tsx` : redirection, PIN refusé, rendu protégé en 401            |
-| Session                    | identité publique au chrome (`components/session.ts`), `actor()` dans le métier                | `forge-build.test.ts` : le payload Flight ne contient ni token ni session   |
-| Token dynamique            | login, changement de compte, logout sur la même `Application`                                  | `forge.test.tsx` : Drafts de bob invisibles pour alice                      |
-| Routage statique/dynamique | `pulls/new` avant `pulls/[number]`, groupes `(public)`/`(app)`                                 | `forge.test.tsx`, `forge-build.test.ts` (route graph)                       |
-| Layouts persistants        | chrome, dépôt (trail), PR (onglets, fichiers vus, curseurs)                                    | `forge.test.tsx` : « files 1/2 viewed » après deux changements d'onglet     |
-| Loading local              | `loading.tsx` par niveau, `Pulse` sur OpenTUI `useTimeline`                                    | `forge-latency.test.tsx` : affichage < RTT/2, géométrie identique           |
-| Search params              | `/repos/payments?state=merged`, filtré par le Server                                           | `forge.test.tsx` (URL, retour arrière), `search.test.tsx`                   |
-| Préchargement              | sélection d'une ligne → `router.preloadRoute`                                                  | `forge-latency.test.tsx` : ouverture < RTT/2, aucun rendu supplémentaire    |
-| Flight progressif          | diff = Promise passée en prop (`use()`), activité derrière Suspense                            | `forge.test.tsx`, capture « Streaming … » dans l'onglet Files               |
-| Streaming continu          | logs CI = async generator passé en prop, `components/live.ts`                                  | `forge.test.tsx` (lignes partielles puis fin), `stream.test.ts`             |
-| Draft de session           | description, composers de conversation, de ligne et de nouvelle PR                             | `forge.test.tsx` : conflit, abandon, frappe pendant publication             |
-| Résultat inconnu           | ledger `operations` + `components/operations.ts` pour review/merge/rerun                       | `forge.test.tsx` : merge perdu résolu, jamais rejoué                        |
-| OpenTUI                    | `diff`, `code`/tree-sitter, `markdown`, `textarea`, `input`, `scrollbox`, `ascii-font`, souris | `forge.test.tsx`, captures PTY                                              |
-| Build séparé et production | deux artefacts, lockfiles                                                                      | `scripts/pty-forge.py` sur les artefacts, [capture](forge-pty-frame.txt)    |
-| `client-only`              | `components/editor.ts` : `e` ouvre le fichier relu dans `$EDITOR`, UI suspendue puis restaurée | `forge-editor.test.tsx`, `scripts/pty-forge.py`                             |
+| Capacité                   | Dans Forge                                                                                     | Preuve                                                                                |
+| -------------------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Server Components          | pages sans SQL, domaine `server/forge.ts`, section lente `components/Activity.tsx`             | `forge-build.test.ts` : SQL, git, sessions et seed absents du bundle Client           |
+| Client Components          | `PullList`, `FilesReview`, `ChecksPanel`, `Conversation`, `DraftEditor`                        | `forge-latency.test.tsx` : filtre, hover, molette sans requête sous 500 ms            |
+| Server Functions           | `actions/session.ts` (publique), `account.ts`, `pulls.ts`                                      | `forge.test.tsx` ; droits revalidés dans `forge-domain.test.ts`                       |
+| Auth publique / protégée   | `/login` et `login()` publics, adapter `server/auth.ts`, `unauthorizedPath`                    | `forge.test.tsx` : redirection, PIN refusé, rendu protégé en 401                      |
+| Session                    | identité publique au chrome (`components/session.ts`), `actor()` dans le métier                | `forge-build.test.ts` : le payload Flight ne contient ni token ni session             |
+| Token dynamique            | login, changement de compte, logout sur la même `Application`                                  | `forge.test.tsx` : Drafts de bob invisibles pour alice                                |
+| Routage statique/dynamique | `pulls/new` avant `pulls/[number]`, groupes `(public)`/`(app)`                                 | `forge.test.tsx`, `forge-build.test.ts` (route graph)                                 |
+| Layouts persistants        | chrome, dépôt (trail), PR (onglets, fichiers vus, curseurs)                                    | `forge.test.tsx` : « files 1/2 viewed » après deux changements d'onglet               |
+| Loading local              | `loading.tsx` par niveau, `Pulse` sur OpenTUI `useTimeline`                                    | `forge-latency.test.tsx` : affichage < RTT/2, géométrie identique                     |
+| Search params              | `/repos/payments?state=merged`, filtré par le Server                                           | `forge.test.tsx` (URL, retour arrière), `search.test.tsx`                             |
+| Préchargement              | sélection d'une ligne → `router.preloadRoute`                                                  | `forge-latency.test.tsx` : ouverture < RTT/2, aucun rendu supplémentaire              |
+| Flight progressif          | diff = Promise passée en prop (`use()`), activité derrière Suspense                            | `forge.test.tsx`, capture « Streaming … » dans l'onglet Files                         |
+| Streaming continu          | logs CI = async generator passé en prop, `components/live.ts`                                  | `forge.test.tsx` (lignes partielles puis fin), `stream.test.ts`                       |
+| Draft de session           | description, composers de conversation, de ligne et de nouvelle PR                             | `forge.test.tsx` : conflit, abandon, frappe pendant publication                       |
+| Formulaire et restauration | nouvelle PR : TanStack Form, `Input`/`Textarea` nommés, `useRestoredFields`, `useOperation`    | `forge.test.tsx` : validation locale sans requête, formulaire rendu après redémarrage |
+| Résultat inconnu           | ledger `operations` + `components/operations.ts` pour review/merge/rerun                       | `forge.test.tsx` : merge perdu résolu, jamais rejoué                                  |
+| OpenTUI                    | `diff`, `code`/tree-sitter, `markdown`, `textarea`, `input`, `scrollbox`, `ascii-font`, souris | `forge.test.tsx`, captures PTY                                                        |
+| Build séparé et production | deux artefacts, lockfiles                                                                      | `scripts/pty-forge.py` sur les artefacts, [capture](forge-pty-frame.txt)              |
+| `client-only`              | `components/editor.ts` : `e` ouvre le fichier relu dans `$EDITOR`, UI suspendue puis restaurée | `forge-editor.test.tsx`, `scripts/pty-forge.py`                                       |
 
 ## Ce que la démo a poussé dans le framework
 
@@ -171,6 +172,7 @@ Chaque point est parti d'un besoin réel de Forge et d'un test qui échouait.
 | **Streams longs coupés** : le timeout de 10 s couvrait tout le corps de la réponse, donc tout log ou Suspense plus long.          | Le timeout borne l'attente du modèle racine ; le stream qui suit n'est plus coupé.                            | `stream.test.ts`                         |
 | **Pas de search params** : `render()` ne transmettait que les params de chemin.                                                   | `validateSearch` + `loaderDeps` générés, `render(…, search)`, validation Server, prop `searchParams`.         | `search.test.tsx`, `route-types.test.ts` |
 | Travail non sauvegardé invisible pour l'application.                                                                              | `drafts.unsaved()`, `drafts.size`, `drafts.clear()`.                                                          | `draft.test.ts`                          |
+| **Formulaire perdu** : un rebuild ou un crash effaçait le texte tapé ; après un rebuild, Forge redemandait même la connexion.     | Champs nommés restaurés par entrée d'historique, session sur disque, bearer transmis en mémoire en dev.       | `restore*.test.ts*`, `session.test.ts`   |
 | Titre « TERMINAL / NOTES » codé en dur dans le chrome.                                                                            | Titre dérivé du répertoire de l'application.                                                                  | captures PTY                             |
 | `import "client-only"` refusé par `tsc` dans une application (TS2882) : seul le programme du framework déclarait `server-only`.   | `src/markers.d.ts`, inclus par `airtty/tsconfig` : les deux marqueurs, sans package.                          | `bun run check` (Forge)                  |
 | `node:*` et `bun:*` refusés dans tout module Client applicatif, même `client-only` : l'éditeur contournait avec les globaux Bun.  | Heuristique supprimée : seuls les marqueurs de côté décident, comme pour les packages.                        | `build.test.ts`                          |
@@ -208,6 +210,13 @@ Relevées sur Notes et Forge, puis tranchées :
   `forge.test.tsx`.
 - **Données publiques de session dans le chrome** : toujours faites par l'application
   (`components/session.ts` + `whoami()`).
+- **Formulaire de nouvelle PR** : c'était un Draft (une seule chaîne) complété par de
+  l'état local, un store de documents détourné pour tenir un formulaire. Il passe à
+  TanStack Form (valeurs, validation avant toute requête), à des champs nommés restaurés
+  après un crash ou un rebuild, et à `useOperation` pour l'envoi : une réponse perdue se
+  consulte dans le ledger, sans rejeu. Il n'apparaît donc plus dans les Drafts de la
+  sidebar. Piège de typage : `<form.Field>` est refusé par TypeScript, car le namespace
+  JSX d'OpenTUI ne déclare pas `ElementType` ; `useField` le remplace.
 - **Module `client-only` et builtins** : résolu. Le graphe Client refusait `node:*` et
   `bun:*` dans le code applicatif, même dans un module `client-only` ; `editor.ts` devait
   contourner deux défauts de Bun 1.4.2 (`Bun.write` ignore `mode`, `Bun.spawn` ignore les
@@ -230,3 +239,7 @@ l'opérateur local.
   avant d'être revalidé à la navigation.
 - Les tests pilotent le renderer de test d'OpenTUI et un PTY réel ; aucune mesure
   d'affichage physique ni campagne WAN.
+- Le token vit en mémoire : après un crash en production, Forge redemande la connexion,
+  et la redirection vers `/login` remplace l'entrée d'historique qui portait le
+  formulaire, comme sur le web. Seul le rebuild de `airtty dev` transmet le bearer et
+  rouvre le formulaire rempli. Les Drafts (commentaires, description) restent en mémoire.

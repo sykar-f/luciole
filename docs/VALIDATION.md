@@ -231,3 +231,26 @@ Correctifs issus de la relecture des branches, chacun avec un test qui échoue s
 
 Non exécuté ici : `bun run test:linux` (Docker), signature Developer ID et notarisation
 réelles, éditeurs réels (vim, `code --wait`) : seul un éditeur factice est piloté.
+
+## Champs restaurables et formulaires (23 septembre 2026)
+
+`bun run verify` : **128 tests passent** (types, lint, format, build compris). Les
+parcours PTY `pty-restore.py` (nouveau), `pty-dev.py`, `pty-smoke.py` et `pty-forge.py`
+passent sur macOS arm64 ; `clean-install.ts` et `test:linux` n'ont pas été relancés.
+
+| Capacité                  | Preuve                                                                                                                                                                                                                                                                |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Session par entrée        | `restore.test.ts` : texte rendu au retour sur l'entrée, entrée neuve vide après un push, replace qui garde la même adresse seulement, champ rattaché à son entrée de montage, valeur posée par l'application sans effet, groupe oublié à l'envoi puis rendu, plafond. |
+| Redémarrage et envoi      | `restore-notes.test.tsx` (vrai Server Notes) : texte tapé revenu dans un Client neuf et Draft sale ; envoi refusé à la connexion (`not-sent`) : texte gardé ; envoi commis : texte oublié ; premier bearer : gardé, bearer remplacé : oublié.                         |
+| Fichier de session        | `session.test.ts` : `0600` et répertoire `0700`, reprise de la session la plus récente d'un Client mort pour la même adresse, jamais deux fois ni celle d'un Client vivant, écriture après une pause, suppression, sessions trop anciennes ou illisibles écartées.    |
+| Crash, signal, sortie     | `pty-restore.py` (Client de production) : texte revenu après `kill -9` et après SIGTERM, fichier `0600`, session supprimée par Ctrl+C et rien de restauré au lancement suivant.                                                                                       |
+| Rebuild de développement  | `pty-dev.py` : après un rebuild valide, le nouveau Client rouvre la note avec le texte tapé pendant l'erreur de build ; Ctrl+C ne laisse aucune session.                                                                                                              |
+| TanStack Form             | `forge.test.tsx` : validation locale sans requête ; titre et description tapés, Client neuf avec la session et le bearer : champs rendus, Ctrl+S ouvre la PR, texte oublié ensuite. Parcours existant d'ouverture de PR inchangé.                                     |
+| Opération jamais exécutée | `forge.test.tsx` : merge refusé à la connexion affiché « not sent », base inchangée, nouvelle tentative qui merge.                                                                                                                                                    |
+
+Sondes du scratchpad (hors dépôt) sur le renderer de test OpenTUI : TanStack Form,
+React Hook Form (`useController`, focus sur erreur compris) et Formik (`useFormik`)
+fonctionnent ; `register()` de React Hook Form (`target.name` sur un événement DOM) et
+`<Form>` de Formik (`Unknown component type: form`) échouent. Non vérifiés : terminal
+physique, SSH réel coupé (SIGHUP n'est exercé que par le code, pas par un parcours),
+deux Clients lancés au même instant sur une vraie machine.
