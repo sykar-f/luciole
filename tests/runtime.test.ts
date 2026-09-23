@@ -83,6 +83,8 @@ test("an incomplete entry left by an older cache is replaced", async () => {
   const options = await source();
   const stale = join(options.cache, "runtime", `${name}-${Bun.version}`);
   await Bun.write(join(stale, "runtime.tgz"), "partial");
+  // Extracted in place and interrupted: a bun is there, but truncated.
+  await Bun.write(join(stale, "package/bin/bun"), "trunc");
   const executable = await fetchRuntime(hostTarget(), options);
   expect(await Bun.file(executable).text()).toContain("stock");
   expect(await Bun.file(join(stale, "runtime.tgz")).exists()).toBe(false);

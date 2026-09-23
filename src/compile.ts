@@ -174,7 +174,11 @@ export async function fetchRuntime(
   const runtimes = join(cache, "runtime");
   const dir = join(runtimes, `${name}-${Bun.version}`);
   const executable = join(dir, "package/bin/bun");
-  if (await Bun.file(executable).exists()) return executable;
+  // Entries are published whole by a rename. The older layout extracted in place next to
+  // its runtime.tgz, so its bun may be truncated: such an entry is fetched again.
+  const complete = async () =>
+    (await Bun.file(executable).exists()) && !(await Bun.file(join(dir, "runtime.tgz")).exists());
+  if (await complete()) return executable;
   const download = async (url: string) => {
     const response = await fetch(url).catch((error: unknown) => {
       throw new Error(
@@ -208,7 +212,7 @@ export async function fetchRuntime(
       throw new Error(`${dist.tarball} holds no package/bin/bun`);
     await rename(staging, dir).catch(async () => {
       // Another build finished first, or an incomplete entry predates this cache layout.
-      if (await Bun.file(executable).exists()) return;
+      if (await complete()) return;
       await rm(dir, { recursive: true, force: true });
       await rename(staging, dir);
     });
