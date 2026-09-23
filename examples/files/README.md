@@ -13,23 +13,24 @@ AIRTTY_LATENCY_MS=500 bun src/cli.ts dev --app examples/files  # même parcours 
 
 ## Clavier
 
-| Touche                      | Action                                                                    |
-| --------------------------- | ------------------------------------------------------------------------- |
-| `j` `k` `↑` `↓`             | Sélection (`g` / `G` début / fin, `PgUp` / `PgDn` par dix)                |
-| `Entrée` `→` `l`            | Ouvrir le dossier ; sur un fichier, zoomer l'aperçu plein écran           |
-| `Backspace` `←` `h`         | Dossier parent, l'élément d'où l'on vient reste sélectionné               |
-| `/`                         | Filtrer le dossier (`Entrée` garde le filtre, `Échap` l'efface)           |
-| `.`                         | Afficher / masquer les dotfiles                                           |
-| `s`                         | Trier par nom, taille, date de modification                               |
-| `Shift+J` `Shift+K`         | Faire défiler l'aperçu (zoomé : `j` `k` `Espace` `g` `G`)                 |
-| `p`                         | Protocole image : `auto` → `kitty` → `blocks` (demi-blocs)                |
-| _déposer un fichier_        | Glisser un fichier sur le terminal : il est rangé dans le dossier affiché |
-| `u` / `~`                   | Retour dans l'historique / racine                                         |
-| `?`                         | Liste complète des raccourcis actifs                                      |
-| `Ctrl+R`, `Échap`, `Ctrl+C` | Rafraîchir, annuler une navigation, quitter                               |
+| Touche                      | Action                                                                                    |
+| --------------------------- | ----------------------------------------------------------------------------------------- |
+| `j` `k` `↑` `↓`             | Sélection (`g` / `G` début / fin, `PgUp` / `PgDn` par dix)                                |
+| `Entrée` `→` `l`            | Ouvrir le dossier ; sur un fichier, zoomer l'aperçu plein écran                           |
+| `Backspace` `←` `h`         | Dossier parent, l'élément d'où l'on vient reste sélectionné                               |
+| `/`                         | Filtrer le dossier (`Entrée` garde le filtre, `Échap` l'efface)                           |
+| `.`                         | Afficher / masquer les dotfiles                                                           |
+| `s`                         | Trier par nom, taille, date de modification                                               |
+| `Shift+J` `Shift+K`         | Faire défiler l'aperçu (zoomé : `j` `k` `Espace` `g` `G`)                                 |
+| `p`                         | Protocole image : `auto` → `kitty` → `blocks` (demi-blocs)                                |
+| _déposer un fichier_        | Glisser un fichier sur le terminal : il est rangé dans le dossier affiché                 |
+| `u` / `~`                   | Retour dans l'historique / racine                                                         |
+| `?`                         | Liste complète des raccourcis actifs                                                      |
+| clic droit / `m`            | Menu contextuel de l'élément : ouvrir, copier nom / chemin / chemin absolu, dotfiles, tri |
+| `Ctrl+R`, `Échap`, `Ctrl+C` | Rafraîchir, annuler une navigation, quitter                                               |
 
 L'aide en bas de l'écran est générée depuis les raccourcis actifs, comme dans Forge. La
-souris sélectionne une ligne ; un second clic l'ouvre.
+souris sélectionne une ligne ; un second clic l'ouvre ; le clic droit ouvre son menu contextuel.
 
 ## Ce qui se passe où
 
@@ -44,6 +45,16 @@ souris sélectionne une ligne ; un second clic l'ouvre.
 - **Confinement** : le Server résout chaque chemin reçu (`realpath`) et refuse ce qui sort
   de la racine, `..` comme lien symbolique vers l'extérieur. Un tel lien est listé, mais
   l'ouvrir mène à « not found ». Une FIFO ou un périphérique n'est jamais lu.
+
+## Menu contextuel
+
+Clic droit sur une ligne (ou `m` sur la sélection) : ouvrir le dossier ou l'aperçu plein
+écran, copier le nom, le chemin depuis la racine ou le chemin absolu (celui du Server),
+la cible d'un lien, afficher les dotfiles, changer de tri. Le menu s'ouvre sous le
+pointeur et se retourne s'il sortirait de l'écran ; tant qu'il est ouvert il garde le
+clavier (flèches ou `j`/`k`, `Entrée`, `Échap`), un clic ailleurs le ferme. La copie passe
+par l'outil du système du terminal (`pbcopy`, `wl-copy`, `xclip`, `xsel`), sinon par
+OSC 52 à travers le terminal.
 
 ## Glisser-déposer
 
@@ -133,7 +144,8 @@ python3 scripts/pty-files.py          # pyte requis (scripts/requirements-pty.tx
 demi-blocs (plus de 20 paires de couleurs truecolor), commandes kitty émises quand on
 force le protocole, texte avec numéros de ligne, ouverture d'un dossier avec écran de
 chargement, retour au parent avec sélection conservée, tri, lien symbolique vers un
-dossier, dotfiles, hex dump, zoom, lien cassé, lien hors racine refusé, glisser-déposer
+dossier, dotfiles, hex dump, zoom, menu contextuel au clic droit et au clavier (copie vérifiée
+via un faux `pbcopy`), lien cassé, lien hors racine refusé, glisser-déposer
 (annulation, déplacement, copie quand le Server ne voit pas le même fichier, refus
 d'écraser), restauration du terminal. Vérifié à la main en plus : mode `dev`, décodage PNG/JPEG/GIF/WebP, 80×24
 (détails repliés sur une ligne), dossier de 5000 entrées (~15–25 ms par déplacement).

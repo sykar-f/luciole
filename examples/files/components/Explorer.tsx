@@ -1,8 +1,8 @@
 "use client";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ScrollBoxRenderable } from "@opentui/core";
-import { decodePasteBytes } from "@opentui/core";
-import { usePaste, useTerminalDimensions } from "@opentui/react";
+import type { BoxRenderable, MouseEvent, ScrollBoxRenderable } from "@opentui/core";
+import { decodePasteBytes, MouseButton } from "@opentui/core";
+import { usePaste, useRenderer, useTerminalDimensions } from "@opentui/react";
 import {
   KeyHelp,
   TransportError,
@@ -14,6 +14,8 @@ import {
 } from "airtty/client";
 import { receiveDropped, uploadDropped } from "../actions/drop";
 import { preview as fetchPreview } from "../actions/files";
+import { copy } from "./clipboard";
+import { ContextMenu, type MenuItem, menuSize } from "./ContextMenu";
 import { type Dropped, inspectDrop, readDropped } from "./drop";
 import { ago, date, permissions, size, typeOf } from "./format";
 import { Line, SkeletonRows } from "./frames";
@@ -34,7 +36,9 @@ import { color, glyphOf } from "./theme";
 const PREVIEW_DELAY_MS = 60,
   LOADING_AFTER_MS = 150,
   PRELOAD_DELAY_MS = 150,
-  NEIGHBOUR_DELAY_MS = 250;
+  NEIGHBOUR_DELAY_MS = 250,
+  // A menu opened from the keyboard sits this far into its row.
+  MENU_INDENT = 4;
 const IMAGE_NAME = /\.(png|jpe?g|gif|webp)$/i;
 // Previews already seen come back at once; images over this size are fetched again.
 const CACHE_ENTRIES = 32,
@@ -120,7 +124,12 @@ export function Explorer({ listing }: { listing: Listing }) {
   // Files dropped on the terminal, then the outcome of their transfer.
   const [arrivals, setArrivals] = useState<Arrival[]>([]);
   const [landing, setLanding] = useState(false);
-  const [dropStatus, setDropStatus] = useState<{ text: string; failed: boolean } | null>(null);
+  // The line under the list: outcome of a drop or a copy, until the selection moves.
+  const [status, setStatus] = useState<{ text: string; failed: boolean } | null>(null);
+  // The context menu of one entry, at a place in the explorer's own cells.
+  const [menu, setMenu] = useState<{ entry: ListRow; left: number; top: number } | null>(null);
+  const frame = useRef<BoxRenderable>(null);
+  const renderer = useRenderer();
   const list = useRef<ScrollBoxRenderable>(null);
 
   const hiddenCount = listing.entries.filter((e) => e.name.startsWith(".")).length;
@@ -230,7 +239,7 @@ export function Explorer({ listing }: { listing: Listing }) {
   }, [current, filtering, router]);
 
   const move = (delta: number) => {
-    setDropStatus(null);
+    setStatus(null);
     const target = rows[Math.max(0, Math.min(index + delta, rows.length - 1))];
     if (target) setSelectedName(target.name);
   };
@@ -267,7 +276,7 @@ export function Explorer({ listing }: { listing: Listing }) {
     ]);
     setSelectedName(files[0].name);
     setLanding(true);
-    setDropStatus(null);
+    setStatus(null);
     const done: string[] = [];
     const problems = skipped.map((name) => `${name}: not a file`);
     for (const file of files) {
@@ -296,7 +305,7 @@ export function Explorer({ listing }: { listing: Listing }) {
         arrival(file.name, null);
       }
     }
-    setDropStatus({ text: [...done, ...problems].join(" · "), failed: problems.length > 0 });
+    setStatus({ text: [...done, ...problems].join(" · "), failed: problems.length > 0 });
     setTimeout(() => setLanding(false), LANDED_MS);
   }
 
@@ -309,12 +318,75 @@ export function Explorer({ listing }: { listing: Listing }) {
       if (!dropped) return;
       if (dropped.files.length) void land(dropped.files, dropped.skipped);
       else
-        setDropStatus({
+        setStatus({
           text: `Only files can be dropped: ${dropped.skipped.join(", ")}`,
           failed: true,
         });
     });
   });
+
+  const copyText = (what: string, text: string) =>
+    void copy(renderer, text).then(
+      (copied) =>
+        setStatus(
+          copied
+            ? { text: `Copied ${what}: ${text}`, failed: false }
+            : { text: "No clipboard available (pbcopy, wl-copy, xclip or OSC 52)", failed: true },
+        ),
+      () => setStatus({ text: "Copy failed", failed: true }),
+    );
+
+  function menuItems(entry: ListRow): MenuItem[] {
+    const directory = opensAsDirectory(entry);
+    return [
+      { label: directory ? "Open" : "Preview full screen", hint: "Enter", run: () => open(entry) },
+      "separator",
+      { label: "Copy name", run: () => copyText("name", entry.name) },
+      { label: "Copy path", hint: "from root", run: () => copyText("path", entry.path) },
+      {
+        label: "Copy full path",
+        hint: "absolute",
+        run: () => copyText("full path", `${listing.root}/${entry.path}`),
+      },
+      ...(entry.kind === "symlink" && entry.target
+        ? [{ label: "Copy link target", run: () => copyText("link target", entry.target ?? "") }]
+        : []),
+      "separator",
+      {
+        label: prefs.hidden ? "Hide dotfiles" : "Show dotfiles",
+        hint: ".",
+        run: () => prefsStore.update({ hidden: !prefs.hidden }),
+      },
+      {
+        label: `Sort by ${next(SORTS, prefs.sort)}`,
+        hint: "s",
+        run: () => prefsStore.update({ sort: next(SORTS, prefs.sort) }),
+      },
+    ];
+  }
+
+  // The menu opens below and right of the pointer, flipped when it would leave the
+  // explorer. Coordinates arrive in screen cells; the menu lives in the explorer's box.
+  function openMenu(entry: ListRow, x: number, y: number) {
+    const box = frame.current;
+    if (!box) return;
+    const { width: w, height: h } = menuSize(menuItems(entry));
+    const left = x - box.screenX,
+      top = y - box.screenY + 1;
+    setStatus(null);
+    setMenu({
+      entry,
+      left: Math.max(0, left + w > box.width ? left - w : left),
+      top: Math.max(0, top + h > box.height ? top - h - 1 : top),
+    });
+  }
+  // From the keyboard (m): next to the selected row, as if it had been right-clicked.
+  function openMenuAtRow(entry: ListRow) {
+    const row = list.current?.findDescendantById(`entry-${index}`);
+    const box = frame.current;
+    if (!box) return;
+    openMenu(entry, (row?.screenX ?? box.screenX) + MENU_INDENT, row?.screenY ?? box.screenY);
+  }
 
   // Leaving the filter keeps the entry it selected, even once the whole list is back.
   const closeFilter = ({ clear }: { clear: boolean }) => {
@@ -401,8 +473,17 @@ export function Explorer({ listing }: { listing: Listing }) {
               : []),
             { key: "?", cmd: () => setHelp((shown) => !shown), desc: "keys", group: "files" },
           ];
-    return { bindings: mode };
+    // The open menu owns the keyboard (ContextMenu declares its own keys).
+    if (menu) return { bindings: [] };
+    if (filtering || zoomed || !current || current.arriving) return { bindings: mode };
+    return {
+      bindings: [
+        ...mode,
+        { key: "m", cmd: () => openMenuAtRow(current), desc: "menu", group: "files" },
+      ],
+    };
   }, [
+    menu,
     filtering,
     zoomed,
     help,
@@ -417,11 +498,24 @@ export function Explorer({ listing }: { listing: Listing }) {
   ]);
 
   // Rows only re-render when their own state changes: a move redraws two rows, not 5000.
-  const pressed = useRef<(entry: Entry, active: boolean) => void>(() => {});
+  const pressed = useRef<(entry: ListRow, active: boolean, event: MouseEvent) => void>(() => {});
   useEffect(() => {
-    pressed.current = (entry, active) => (active ? open(entry) : setSelectedName(entry.name));
+    pressed.current = (entry, active, event) => {
+      if (event.button === MouseButton.RIGHT) {
+        if (entry.arriving) return;
+        setSelectedName(entry.name);
+        openMenu(entry, event.x, event.y);
+      } else if (event.button === MouseButton.LEFT) {
+        if (active) open(entry);
+        else setSelectedName(entry.name);
+      }
+    };
   });
-  const press = useCallback((entry: Entry, active: boolean) => pressed.current(entry, active), []);
+  const press = useCallback(
+    (entry: ListRow, active: boolean, event: MouseEvent) => pressed.current(entry, active, event),
+    [],
+  );
+  const closeMenu = useCallback(() => setMenu(null), []);
   const hover = useCallback(
     (name: string, inside: boolean) => setHovered((h) => (inside ? name : h === name ? null : h)),
     [],
@@ -441,7 +535,7 @@ export function Explorer({ listing }: { listing: Listing }) {
   const shownNotice = notice && notice.about === (current?.path ?? "") ? notice.text : "";
 
   return (
-    <box flexDirection="column" flexGrow={1} gap={1}>
+    <box ref={frame} flexDirection="column" flexGrow={1} gap={1}>
       <box flexDirection="row" gap={1} height={1} flexShrink={0}>
         <text width={8} flexShrink={0} fg={filtering ? color.accent : color.muted}>
           / filter
@@ -523,7 +617,7 @@ export function Explorer({ listing }: { listing: Listing }) {
                 entry={current}
                 preview={ready.preview}
                 zoomed={zoomed}
-                active={!filtering}
+                active={!filtering && !menu}
               />
             ) : ready ? (
               <Line fg={color.danger}>Preview failed · {ready.error}</Line>
@@ -537,15 +631,20 @@ export function Explorer({ listing }: { listing: Listing }) {
         ) : null}
       </box>
       {
-        <Line
-          id="notice"
-          fg={dropStatus && !dropStatus.failed && !shownNotice ? color.ok : color.warn}
-        >
+        <Line id="notice" fg={status && !status.failed && !shownNotice ? color.ok : color.warn}>
           {shownNotice ||
-            dropStatus?.text ||
+            status?.text ||
             (listing.truncated ? "Large directory: only the first 5000 entries are listed" : "")}
         </Line>
       }
+      {menu ? (
+        <ContextMenu
+          items={menuItems(menu.entry)}
+          left={menu.left}
+          top={menu.top}
+          onClose={closeMenu}
+        />
+      ) : null}
     </box>
   );
 }
@@ -563,7 +662,7 @@ const Row = memo(function Row({
   active: boolean;
   hovered: boolean;
   onHover: (name: string, inside: boolean) => void;
-  onPress: (entry: Entry, active: boolean) => void;
+  onPress: (entry: ListRow, active: boolean, event: MouseEvent) => void;
 }) {
   const directory = opensAsDirectory(entry);
   // A ghost is dimmed and marked ↓ until its transfer ends; landed, it reads ✓ until the
@@ -583,7 +682,7 @@ const Row = memo(function Row({
       backgroundColor={active ? color.selected : hovered ? color.panel : undefined}
       onMouseOver={() => onHover(entry.name, true)}
       onMouseOut={() => onHover(entry.name, false)}
-      onMouseDown={() => onPress(entry, active)}
+      onMouseDown={(event: MouseEvent) => onPress(entry, active, event)}
     >
       <text width={2} flexShrink={0} fg={fg}>
         {glyph}

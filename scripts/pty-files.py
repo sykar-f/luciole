@@ -59,6 +59,10 @@ def fixture(base):
     # Listed, but the Server refuses to follow it: it resolves outside the root.
     (base / "outside").mkdir()
     (tree / "escape").symlink_to(base / "outside")
+    (base / "bin").mkdir()
+    for tool in ("pbcopy", "wl-copy"):
+        (base / "bin" / tool).write_text(f"#!/bin/sh\n/bin/cat > '{base}/clipboard.txt'\n")
+        (base / "bin" / tool).chmod(0o755)
     # Files to drop on the terminal, from outside the explorer root.
     (base / "incoming").mkdir()
     (base / "incoming/photo one.png").write_bytes(png(8, 8))
@@ -132,6 +136,13 @@ class Terminal:
         escaped = " ".join(str(p).replace(" ", "\\ ") for p in paths)
         self.send(b"\x1b[200~" + escaped.encode() + b"\x1b[201~")
 
+    def click(self, text, button=0):
+        # SGR mouse report, 1-based cells: press then release on the first cell of `text`.
+        row = next(i for i, line in enumerate(self.screen.display) if text in line)
+        col = self.screen.display[row].index(text)
+        for final in (b"M", b"m"):
+            self.send(b"\x1b[<%d;%d;%d" % (button, col + 1, row + 1) + final)
+
     def escape(self):
         # A lone ESC: the next key must not follow at once, or it reads as Alt+key.
         self.send(b"\x1b")
@@ -175,7 +186,13 @@ def main():
                 stdin=slave,
                 stdout=slave,
                 stderr=slave,
-                env={**ENV, "XDG_STATE_HOME": str(base / "state"), "AIRTTY_LATENCY_MS": str(LATENCY_MS)},
+                env={
+                    **ENV,
+                    "XDG_STATE_HOME": str(base / "state"),
+                    "AIRTTY_LATENCY_MS": str(LATENCY_MS),
+                    # A fake clipboard tool: copies land in a file, never in the user's clipboard.
+                    "PATH": str(base / "bin"),
+                },
                 start_new_session=True,
             )
             t = Terminal(master)
@@ -284,6 +301,33 @@ def main():
             t.escape()
             t.wait(" details ")
 
+            # Right-click on a row: its context menu, which owns the keyboard until closed.
+            t.click("≡ README.md", button=2)
+            t.wait("Copy full path")
+            t.send(b"j")
+            t.settle()
+            assert "name      README.md" in t.text(), "the list moved under the menu"
+            t.escape()
+            assert "Copy full path" not in t.text()
+            t.click("≡ README.md", button=2)
+            t.wait("Copy name")
+            t.click("Copy name")
+            t.wait("Copied name: README.md")
+            assert (base / "clipboard.txt").read_text() == "README.md"
+            t.click("≡ README.md", button=2)
+            t.wait("Copy full path")
+            t.click("Copy full path")
+            t.wait("Copied full path:")
+            assert (base / "clipboard.txt").read_text() == str(tree.resolve() / "README.md")
+            # From the keyboard: m opens it on the selected row, Enter runs the first item.
+            t.send(b"m")
+            t.wait("Preview full screen")
+            t.send(b"\r")
+            t.settle()
+            assert " details " not in t.text(), "Enter did not open the preview full screen"
+            t.escape()
+            t.wait(" details ")
+
             # A broken symlink is listed and reported, never followed.
             t.escape()
             t.filter(b"broken")
@@ -357,6 +401,8 @@ def main():
                         "dotfilesToggle": True,
                         "binaryHexDump": True,
                         "zoom": True,
+                        "contextMenuRightClick": True,
+                        "contextMenuCopies": True,
                         "brokenSymlinkReported": True,
                         "symlinkOutsideRootRefused": True,
                         "dropGhostRow": LATENCY_MS >= 400,
