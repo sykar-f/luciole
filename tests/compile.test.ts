@@ -4,7 +4,8 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { build } from "../src/build";
 import { compileClient, hostTarget } from "../src/compile";
-import { launch } from "./helpers";
+import { messageOf } from "../src/guards";
+import { launch, rejectionOf } from "./helpers";
 
 const root = resolve("examples/notes");
 
@@ -64,11 +65,14 @@ test("the compiled Client runs alone: no Bun, no node_modules, same build as its
 
 test("unsupported targets and missing native packages are explained", async () => {
   const { output } = await build(root);
-  await expect(compileClient(output, { name: "notes", target: "bun-windows-x64" })).rejects.toThrow(
-    "Unsupported target bun-windows-x64",
-  );
+  expect(
+    messageOf(
+      await rejectionOf(compileClient(output, { name: "notes", target: "bun-windows-x64" })),
+    ),
+  ).toContain("Unsupported target bun-windows-x64");
   const foreign = hostTarget() === "bun-linux-arm64" ? "bun-darwin-arm64" : "bun-linux-arm64";
-  await expect(
+  const missing = await rejectionOf(
     compileClient(output, { name: "notes", target: foreign, outfile: join(tmpdir(), "never") }),
-  ).rejects.toThrow("--native-dir");
+  );
+  expect(messageOf(missing)).toContain("--native-dir");
 }, 60000);

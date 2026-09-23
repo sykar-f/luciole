@@ -2,11 +2,21 @@
 import { test, expect } from "bun:test";
 import { act } from "react";
 import { testRender } from "@opentui/react/test-utils";
+import { InputRenderable } from "@opentui/core";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { build } from "../src/build";
-import { launch, until, draftsOf } from "./helpers";
+import {
+  launch,
+  until,
+  importClient,
+  destroy,
+  draftOf,
+  metricsOf,
+  renderable,
+  type TestUI,
+} from "./helpers";
 const appDir = resolve("examples/notes");
 test("generated Notes: Flight action, preserved Draft, navigation, validation and offline editing", async () => {
   await build(appDir);
@@ -15,38 +25,34 @@ test("generated Notes: Flight action, preserved Draft, navigation, validation an
     NOTES_DB: join(folder, "notes.sqlite"),
     NOTES_DELAY_MS: "400",
   });
-  const { createApp, Shell } = await import(join(appDir, ".airtty/client/index.js") + "?notes");
+  const { createApp, Shell } = await importClient(appDir, "notes");
   const app = createApp({ url: server.url });
-  let ui: any;
+  let rendered: TestUI | undefined;
   try {
     expect(server.pid).not.toBe(process.pid);
     await app.router.load();
-    ui = await testRender(<Shell app={app} />, { width: 100, height: 24 });
+    const ui = await testRender(<Shell app={app} />, { width: 100, height: 24 });
+    rendered = ui;
     await act(async () => {
-      await ui.mockInput.pressEnter();
+      ui.mockInput.pressEnter();
       await until(() => app.router.state.resolvedLocation?.pathname === "/notes/1");
     });
-    const field = ui.renderer.root.findDescendantById("note-1");
-    expect(field).toBeDefined();
+    const input = (id: string) => renderable(ui, id, InputRenderable);
+    const field = input("note-1");
     await act(async () => {
       await ui.mockInput.typeText("abc");
     });
-    const counts = async () =>
-      await (
-        await fetch(server.url + "/test-metrics", {
-          headers: { "x-airtty-build": server.buildId },
-        })
-      ).json();
+    const counts = () => metricsOf(server);
     const before = await counts();
     await act(async () => {
-      await ui.mockInput.pressEnter();
+      ui.mockInput.pressEnter();
     });
     await act(async () => {
       await ui.mockInput.typeText("d");
     });
     expect(field.value).toBe("abcd");
-    const draft = draftsOf(app).get({ id: "1" });
-    expect(draft.pending.value).toBe("abc");
+    const draft = draftOf(app, "1");
+    expect(draft.pending?.value).toBe("abc");
     await act(async () => {
       await until(() => !draft.pending);
       await Bun.sleep(50);
@@ -54,7 +60,7 @@ test("generated Notes: Flight action, preserved Draft, navigation, validation an
     expect(draft.baseline).toBe("abc");
     expect(draft.value).toBe("abcd");
     expect(draft.dirty).toBe(true);
-    expect(ui.renderer.root.findDescendantById("note-1")).toBe(field);
+    expect(input("note-1")).toBe(field);
     await ui.renderOnce();
     expect(ui.captureCharFrame()).toContain("version 2");
     expect((await counts()).actions - before.actions).toBe(1);
@@ -64,20 +70,20 @@ test("generated Notes: Flight action, preserved Draft, navigation, validation an
     await act(async () => {
       await app.router.navigate({ to: "/notes/2" });
     });
-    expect(ui.renderer.root.findDescendantById("note-2").value).toBe("");
+    expect(input("note-2").value).toBe("");
     await act(async () => {
       await app.router.navigate({ to: "/notes/1" });
     });
-    expect(ui.renderer.root.findDescendantById("note-1").value).toBe("abcd");
+    expect(input("note-1").value).toBe("abcd");
     // The nested notes layout persisted from note 2 to note 1.
     await ui.renderOnce();
     expect(ui.captureCharFrame()).toContain("Opened this visit: 2 → 1");
     const localBefore = await counts();
     await act(async () => {
       await ui.mockInput.typeText("e");
-      await ui.mockInput.pressArrow("left");
-      await ui.mockInput.pressArrow("right");
-      const currentField = ui.renderer.root.findDescendantById("note-1");
+      ui.mockInput.pressArrow("left");
+      ui.mockInput.pressArrow("right");
+      const currentField = input("note-1");
       currentField.blur();
       currentField.focus();
       await ui.mockMouse.scroll(currentField.x, currentField.y, "down");
@@ -89,9 +95,9 @@ test("generated Notes: Flight action, preserved Draft, navigation, validation an
       await ui.mockInput.typeText("f");
     });
     expect(app.status).toBe("Disconnected");
-    expect(ui.renderer.root.findDescendantById("note-1").value).toBe("abcdef");
+    expect(input("note-1").value).toBe("abcdef");
   } finally {
-    if (ui) await act(async () => ui.renderer.destroy());
+    await destroy(rendered);
     await server.stop();
     await rm(folder, { recursive: true, force: true });
   }

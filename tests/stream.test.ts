@@ -16,7 +16,8 @@ test("an async iterable keeps streaming after the root model, beyond the request
   });
   try {
     const lines = createInterface({ input: child.stdout })[Symbol.asyncIterator]();
-    const { port } = JSON.parse((await lines.next()).value!);
+    const { value: line } = await lines.next();
+    const { port } = z.object({ port: z.number() }).parse(JSON.parse(z.string().parse(line)));
     const transport = createHttpTransport({
       url: `http://127.0.0.1:${port}`,
       buildId: "build",

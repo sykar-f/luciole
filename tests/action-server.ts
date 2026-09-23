@@ -26,7 +26,7 @@ const server = Bun.serve({
       return new Response(renderToReadableStream(await save(value), {}));
     }
     return new Response(
-      await renderToReadableStream(
+      renderToReadableStream(
         React.createElement(
           "box",
           { flexDirection: "column" },

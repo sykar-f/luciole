@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { build } from "../src/build";
 import type { Transport } from "../src/transport";
+import { importClient, destroy, type TestUI } from "./helpers";
 
 const files: Record<string, string> = {
   "app/layout.tsx": `"use client";export default function Layout({children}){return <box flexDirection="column">{children}</box>}`,
@@ -23,7 +24,7 @@ const files: Record<string, string> = {
 
 test("generated route tree: inherited loading, static before dynamic, pathless groups", async () => {
   const dir = await mkdtemp(join(tmpdir(), "airtty-routes-"));
-  let ui: any;
+  let rendered: TestUI | undefined;
   try {
     for (const [name, text] of Object.entries(files)) {
       await mkdir(join(dir, name, ".."), { recursive: true });
@@ -31,9 +32,13 @@ test("generated route tree: inherited loading, static before dynamic, pathless g
     }
     await symlink(resolve("node_modules"), join(dir, "node_modules"), "dir");
     await build(dir);
-    const { createApp, Shell } = await import(join(dir, ".airtty/client/index.js"));
+    const { createApp, Shell } = await importClient(dir);
     const requests: [string, Record<string, string>][] = [];
     let release: (() => void) | undefined;
+    const releasePage = () => {
+      if (!release) throw new Error("No page render is pending");
+      release();
+    };
     const transport: Transport = {
       render(routeId, params) {
         requests.push([routeId, params]);
@@ -50,7 +55,8 @@ test("generated route tree: inherited loading, static before dynamic, pathless g
       setToken() {},
     };
     const app = createApp({ url: "http://terminal.invalid", transport });
-    ui = await testRender(<Shell app={app} />, { width: 80, height: 12 });
+    const ui = await testRender(<Shell app={app} />, { width: 80, height: 12 });
+    rendered = ui;
     const visit = async (path: string, loading: string, page: string) => {
       await act(async () => {
         void app.router.navigate({ to: path });
@@ -59,7 +65,7 @@ test("generated route tree: inherited loading, static before dynamic, pathless g
       await ui.renderOnce();
       expect(ui.captureCharFrame()).toContain(loading);
       await act(async () => {
-        release!();
+        releasePage();
         await Bun.sleep(10);
       });
       await ui.renderOnce();
@@ -71,7 +77,7 @@ test("generated route tree: inherited loading, static before dynamic, pathless g
     await ui.renderOnce();
     expect(ui.captureCharFrame()).toContain("ROOT LOADING /");
     await act(async () => {
-      release!();
+      releasePage();
       await Bun.sleep(10);
     });
     await visit("/notes/new", "ROOT LOADING /notes/new", "PAGE /notes/new {}");
@@ -82,7 +88,7 @@ test("generated route tree: inherited loading, static before dynamic, pathless g
     );
     await visit("/profile", "ROOT LOADING /profile", "PAGE /(settings)/profile {}");
     await act(async () => {
-      await ui.mockInput.pressKey("k", { ctrl: true });
+      ui.mockInput.pressKey("k", { ctrl: true });
     });
     await visit(
       "/account/security",
@@ -108,11 +114,11 @@ test("generated route tree: inherited loading, static before dynamic, pathless g
     await ui.renderOnce();
     expect(ui.captureCharFrame()).toContain("NOTE LOADING slow");
     await act(async () => {
-      await ui.mockInput.pressEscape();
+      ui.mockInput.pressEscape();
       await Bun.sleep(20);
     });
     await ui.renderOnce();
-    expect(app.router.state.resolvedLocation.pathname).toBe("/account/security");
+    expect(app.router.state.resolvedLocation?.pathname).toBe("/account/security");
     // The pending destination left the group, so its layout remounts on cancel.
     expect(ui.captureCharFrame()).toContain("SETTINGS LAYOUT 0");
     expect(ui.captureCharFrame()).toContain("PAGE /(settings)/account/[section]");
@@ -124,7 +130,7 @@ test("generated route tree: inherited loading, static before dynamic, pathless g
     expect(requests.at(-1)?.[0]).toBe("/(settings)/profile");
     expect(requests.length).toBe(7);
   } finally {
-    if (ui) await act(async () => ui.renderer.destroy());
+    await destroy(rendered);
     await rm(dir, { recursive: true, force: true });
   }
 });

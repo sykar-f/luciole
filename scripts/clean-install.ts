@@ -1,6 +1,11 @@
 import { mkdtemp, cp, rm, mkdir } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
+import { z } from "zod";
+
+// The first line a production Server prints once it listens (src/server.ts).
+const ServerReady = z.object({ ready: z.literal(true), port: z.number().int() });
+const { PYTHON } = z.object({ PYTHON: z.string().default("python3") }).parse(process.env);
 const temp = await mkdtemp(join(tmpdir(), "airtty-release-"));
 async function run(cmd: string[], cwd: string) {
   const child = Bun.spawn(cmd, {
@@ -98,10 +103,10 @@ try {
       if (chunk.done) throw new Error("Server did not start");
       line += new TextDecoder().decode(chunk.value);
     }
-    const ready = JSON.parse(line.split("\n")[0]);
+    const ready = ServerReady.parse(JSON.parse(line.split("\n")[0]));
     await run(
       [
-        process.env.PYTHON ?? "python3",
+        PYTHON,
         "scripts/pty-smoke.py",
         "--client",
         join(temp, "client/index.js"),

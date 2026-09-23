@@ -3,7 +3,8 @@ import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { build } from "../src/build";
-import { launch } from "./helpers";
+import { messageOf } from "../src/guards";
+import { launch, importClient, readManifest } from "./helpers";
 
 // An exception in a Server Function is an unknown outcome for the Client, and must
 // never reveal Server internals (message, stack, paths, source) in the response.
@@ -32,14 +33,14 @@ test("a failing Server Function answers a generic 500 without internals", async 
     );
     await build(directory);
     server = await launch(join(directory, ".airtty/server/index.js"));
-    const manifest = await Bun.file(join(directory, ".airtty/manifest.json")).json();
-    const { createApp } = await import(join(directory, ".airtty/client/index.js"));
+    const manifest = await readManifest(directory);
+    const { createApp } = await importClient(directory);
     const app = createApp({ url: server.url });
     const failure = await app
       .callServer(`${manifest.buildId}/actions/explode.ts#explode`, [])
       .catch((e: unknown) => e);
     expect(failure).toBeInstanceOf(Error);
-    expect((failure as Error).message).toBe("HTTP 500: Server request failed");
+    expect(messageOf(failure)).toBe("HTTP 500: Server request failed");
     expect(app.status).toBe("Disconnected");
     const raw = await fetch(`${server.url}/action`, {
       method: "POST",

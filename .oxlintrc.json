@@ -71,29 +71,6 @@
       "rules": {
         "no-magic-numbers": "off"
       }
-    },
-    {
-      "files": ["tests/**", "scripts/**", "probes/**"],
-      "rules": {
-        "typescript/no-explicit-any": "off",
-        "typescript/consistent-type-assertions": "off",
-        "typescript/no-non-null-assertion": "off",
-        "typescript/no-unsafe-function-type": "off",
-        "typescript/no-restricted-types": "off",
-        "typescript/no-unsafe-assignment": "off",
-        "typescript/no-unsafe-member-access": "off",
-        "typescript/no-unsafe-argument": "off",
-        "typescript/no-unsafe-call": "off",
-        "typescript/no-unsafe-return": "off",
-        "typescript/no-unnecessary-type-assertion": "off",
-        "typescript/use-unknown-in-catch-callback-variable": "off",
-        "typescript/await-thenable": "off",
-        "typescript/no-floating-promises": "off",
-        "typescript/unbound-method": "off",
-        "typescript/no-base-to-string": "off",
-        "typescript/no-redundant-type-constituents": "off",
-        "no-magic-numbers": "off"
-      }
     }
   ],
   "ignorePatterns": ["**/node_modules/**", "**/.airtty/**", "**/routeTree.gen.ts"]

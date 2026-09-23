@@ -82,16 +82,17 @@ const result = await Bun.build({
   ],
 });
 if (!result.success) {
-  console.error(result.logs.join("\n"));
+  console.error(result.logs.map((log) => log.message).join("\n"));
   process.exit(1);
 }
+const MIB = 1_048_576;
 const size = Bun.file(outfile).size;
 console.log(
   JSON.stringify({
     target,
     runtime,
     outfile,
-    mb: +(size / 2 ** 20).toFixed(1),
+    mb: +(size / MIB).toFixed(1),
     ms: Math.round(performance.now() - started),
   }),
 );

@@ -6,13 +6,13 @@ import { build } from "../src/build";
 import { createForge } from "../examples/forge/server/forge";
 import { importGitRepository } from "../examples/forge/server/git-import";
 import { openDatabase } from "../examples/forge/server/schema";
-import { launch } from "./helpers";
+import { launch, present, readManifest } from "./helpers";
 
 const directory = resolve("examples/forge");
 
 test("Forge artefacts: SQL, git, sessions and seed data never reach the Client", async () => {
   await build(directory);
-  const manifest = await Bun.file(join(directory, ".airtty/manifest.json")).json();
+  const manifest = await readManifest(directory);
   const client = await Bun.file(join(directory, ".airtty/client/index.js")).text();
   const server = await Bun.file(join(directory, ".airtty/server/index.js")).text();
   const serverOnly = [
@@ -87,10 +87,10 @@ test("git import turns real commits of this checkout into reviewable pull reques
     expect(importGitRepository(forge, resolve("."), "airtty", 4)).toBe(0);
     const pulls = forge.pulls("airtty");
     expect(pulls.length).toBeGreaterThan(0);
-    const pull = forge.pull("airtty", pulls[0].number)!;
+    const pull = present(forge.pull("airtty", pulls[0].number), "imported pull request");
     const files = forge.files(pull.id, pull.revision);
     expect(files.length).toBeGreaterThan(0);
-    const diff = forge.fileDiff(pull.id, pull.revision, files[0].path)!;
+    const diff = present(forge.fileDiff(pull.id, pull.revision, files[0].path), "file diff");
     expect(diff.patch.startsWith("--- ")).toBe(true);
     expect(diff.rows.length).toBe(
       diff.additions + diff.deletions + diff.rows.filter((r) => r.kind === "context").length,

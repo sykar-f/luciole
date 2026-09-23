@@ -4,19 +4,20 @@ import {
   BuildMismatch,
   TransportError,
   createHttpTransport,
+  type Fetch,
 } from "../src/transport";
+import { messageOf } from "../src/guards";
+import { rejectionOf } from "./helpers";
 
 const base = {
   url: "http://terminal.invalid",
   buildId: "build-1",
   callServer: () => Promise.reject(new Error("unused")),
 };
-const stub = (respond: (url: URL, init: RequestInit) => Response | Promise<Response>) =>
-  Object.assign(
-    (input: string | URL | Request, init?: RequestInit) =>
-      Promise.resolve(respond(new URL(String(input)), init ?? {})),
-    { preconnect: fetch.preconnect },
-  );
+const stub =
+  (respond: (url: URL, init: RequestInit) => Response | Promise<Response>): Fetch =>
+  (input, init) =>
+    Promise.resolve(respond(input, init));
 
 test("render requests the route by id with build identity and the current bearer", async () => {
   const seen: {
@@ -44,13 +45,15 @@ test("render requests the route by id with build identity and the current bearer
     }),
   });
   const signal = new AbortController().signal;
-  await expect(transport.render("/notes/[id]", { id: "a b" }, signal)).rejects.toThrow("HTTP 404");
+  expect(
+    messageOf(await rejectionOf(transport.render("/notes/[id]", { id: "a b" }, signal))),
+  ).toContain("HTTP 404");
   transport.setToken("second");
-  await expect(transport.render("/", {}, signal)).rejects.toThrow(TransportError);
+  expect(await rejectionOf(transport.render("/", {}, signal))).toBeInstanceOf(TransportError);
   transport.setToken(undefined);
-  await expect(transport.render("/", {}, signal, { q: "a&b", state: "open" })).rejects.toThrow(
-    TransportError,
-  );
+  expect(
+    await rejectionOf(transport.render("/", {}, signal, { q: "a&b", state: "open" })),
+  ).toBeInstanceOf(TransportError);
   expect(seen).toEqual([
     {
       path: "/render",
@@ -85,8 +88,8 @@ test("build mismatch and missing session are typed failures", async () => {
     ...base,
     fetch: stub(() => new Response("Incompatible build", { status: 409 })),
   });
-  await expect(mismatch.render("/", {}, signal)).rejects.toBeInstanceOf(BuildMismatch);
-  await expect(mismatch.call("a#b", [])).rejects.toBeInstanceOf(BuildMismatch);
+  expect(await rejectionOf(mismatch.render("/", {}, signal))).toBeInstanceOf(BuildMismatch);
+  expect(await rejectionOf(mismatch.call("a#b", []))).toBeInstanceOf(BuildMismatch);
   const anonymous = createHttpTransport({
     ...base,
     fetch: stub(
@@ -97,9 +100,9 @@ test("build mismatch and missing session are typed failures", async () => {
         }),
     ),
   });
-  const failure = await anonymous.render("/", {}, signal).catch((e: unknown) => e);
+  const failure = await rejectionOf(anonymous.render("/", {}, signal));
   expect(failure).toBeInstanceOf(AuthenticationRequired);
-  expect((failure as AuthenticationRequired).loginPath).toBe("/login");
+  expect(failure instanceof AuthenticationRequired ? failure.loginPath : undefined).toBe("/login");
 });
 
 test("aborting a render before its response cancels the request", async () => {
@@ -110,15 +113,17 @@ test("aborting a render before its response cancels the request", async () => {
     fetch: stub(
       (_url, init) =>
         new Promise<Response>((_resolve, reject) => {
-          received = init.signal as AbortSignal;
-          received.addEventListener("abort", () => reject(received!.reason));
+          const signal = init.signal;
+          if (!signal) return reject(new Error("The request carries no signal"));
+          received = signal;
+          signal.addEventListener("abort", () => reject(signal.reason));
         }),
     ),
   });
   const pending = transport.render("/", {}, controller.signal);
   await Bun.sleep(5);
   controller.abort();
-  await expect(pending).rejects.toBeInstanceOf(TransportError);
+  expect(await rejectionOf(pending)).toBeInstanceOf(TransportError);
   expect(received?.aborted).toBe(true);
 });
 
@@ -135,6 +140,43 @@ test("simulated latency validates configuration and respects the request timeout
       return new Response();
     }),
   });
-  await expect(transport.render("/", {}, new AbortController().signal)).rejects.toThrow();
+  await rejectionOf(transport.render("/", {}, new AbortController().signal));
   expect(called).toBe(false);
+});
+
+// A Server Function's answer is checked before its value is used: the envelope the
+// Server writes (src/server.ts), for this call, with string paths only.
+test("an action response outside the envelope schema is a TransportError", async () => {
+  const answer = (envelope: (callId: string) => unknown) =>
+    createHttpTransport({
+      ...base,
+      fetch: stub((_url, init) => {
+        const callId = new Headers(init.headers).get("x-airtty-call") ?? "";
+        // One Flight model row: the root value, as JSON.
+        return new Response(`0:${JSON.stringify(envelope(callId))}\n`);
+      }),
+    }).call("actions/a.ts#run", []);
+  const valid = (callId: string) => ({ kind: "result", callId, value: 42, invalidate: [] });
+  expect(await answer(valid)).toBe(42);
+  for (const invalid of [
+    (callId: string) => ({ ...valid(callId), invalidate: [7] }),
+    (callId: string) => ({ ...valid(callId), kind: "other" }),
+    () => valid("another call"),
+  ]) {
+    const error = await rejectionOf(answer(invalid));
+    expect(error).toBeInstanceOf(TransportError);
+    expect(messageOf(error)).toBe("Invalid action response");
+  }
+});
+
+test("a render whose root is not a React node is a TransportError", async () => {
+  const render = (model: unknown) =>
+    createHttpTransport({
+      ...base,
+      fetch: stub(() => new Response(`0:${JSON.stringify(model)}\n`)),
+    }).render("/", {}, new AbortController().signal);
+  expect(await render(["a list", "of children"])).toEqual(["a list", "of children"]);
+  const error = await rejectionOf(render({ title: "an object" }));
+  expect(error).toBeInstanceOf(TransportError);
+  expect(messageOf(error)).toBe("Invalid render response");
 });
