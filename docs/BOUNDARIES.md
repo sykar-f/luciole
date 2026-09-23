@@ -47,14 +47,19 @@ valeur est enregistrée dans le manifest de routes.
 Le graphe Client refuse :
 
 - les modules sous `server/` et tout import transitif de `server-only` ;
-- les modules `node:*`, `bun:*` et `airtty/server` ;
-- les modules `node:*` et `bun:*` importés par le code applicatif (un tel import
-  signale presque toujours un module Server importé par erreur) ; les packages, eux,
-  sont libres (voir ci-dessous).
-  TanStack Router est l'intégration auditée du runtime : les applications
-  utilisent ses primitives via `airtty/client`, et le bundle Client
-  l'embarque en forçant sa variante navigateur de `@tanstack/router-core/isServer` ;
+- `airtty/server` ;
 - `require()` et `import()` dynamiques dans les sources applicatives.
+
+Les builtins `node:*` et `bun:*` ne décident pas du côté d'un module : le Client
+tourne sur Bun, il peut lire un fichier, lancer un processus ou ouvrir une base locale,
+comme un package. Seuls `server-only` (ou le répertoire `server/`) et `client-only`
+rangent un module d'un côté, pour le code applicatif comme pour les packages. Un module
+métier qui ouvre la base du Server doit donc le déclarer : sans marqueur, il serait
+embarqué dans le Client et ouvrirait une base sur la machine de l'utilisateur.
+
+TanStack Router est l'intégration auditée du runtime : les applications
+utilisent ses primitives via `airtty/client`, et le bundle Client l'embarque en forçant
+sa variante navigateur de `@tanstack/router-core/isServer`.
 
 ## Rester d'un seul côté
 

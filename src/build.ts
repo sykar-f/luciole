@@ -310,7 +310,6 @@ export async function build(directory: string, output = join(directory, ".airtty
       if (
         i.name === "server-only" ||
         i.name === "airtty/server" ||
-        /^(node:|bun:)/.test(i.name) ||
         (i.path && relative(root, i.path).split("/").includes("server"))
       )
         fail(m, i.node, `Server-only import in Client graph: ${i.name}${chain()}`);
