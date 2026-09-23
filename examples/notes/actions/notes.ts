@@ -1,10 +1,16 @@
 "use server";
+import { invalidate } from "airtty/server";
 import { save, operation } from "../server/repository";
-import type { Snapshot, SaveResult } from "airtty/client";
+import type { Snapshot, SaveResult } from "../components/draft";
 export async function saveNote(snapshot: Snapshot): Promise<SaveResult> {
   await Bun.sleep(Number(process.env.NOTES_DELAY_MS ?? 0));
-  return save(snapshot);
+  const result = save(snapshot);
+  // A committed save changes the list and the page (title, version).
+  if (result.ok) invalidate();
+  return result;
 }
 export async function getOperation(id: string): Promise<SaveResult | null> {
-  return operation(id);
+  const result = operation(id);
+  if (result?.ok) invalidate();
+  return result;
 }

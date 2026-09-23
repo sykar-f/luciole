@@ -85,19 +85,25 @@ attendues et que les fichiers des exemples sont à jour. Le bundle Client résou
   frais. Prouvé par Forge sous 500 ms de RTT.
 - **Refresh échoué** : le loader renvoie l'arbre du match résolu (`loaderData`) au
   lieu de laisser l'`errorComponent` remplacer l'éditeur ; l'erreur va au statut.
-- **Navigation échouée** : comportement natif de TanStack, l'erreur s'affiche dans
-  l'emplacement de la page, les layouts restent montés, Ctrl+R réessaie. Les Drafts
-  sont au-dessus du routeur.
+- **Navigation échouée** : comportement natif de TanStack, l'`error.tsx` le plus
+  proche (ou le message) s'affiche dans l'emplacement de la page, les layouts restent
+  montés, `retry()` réessaie. L'état applicatif placé au-dessus du routeur survit.
+- **`notFound()`** : l'erreur Server traverse Flight par son `digest`, seul champ
+  transmis en production ; le Client affiche le `not-found.tsx` le plus proche, statut
+  « Connected » (c'est une réponse, pas une panne).
+- **Catch-all** : `[...name]` devient le segment `$` de TanStack ; le paramètre
+  `_splat` est renommé `name` pour la page et le Server.
 - **Échap** : navigation vers la location résolue avec `state.terminalRestore` ;
   `shouldReload` renvoie `false` pour cette seule location et `undefined` sinon, ce
   qui laisse intactes les règles de fraîcheur de TanStack. Un layout quitté par la
   navigation en attente est remonté (son état local repart de zéro), comme la page.
-- **Invalidation explicite** : aucune Server Function ne rafraîchit automatiquement.
-  Le code Client qui mute appelle `router.invalidate()` sans l'attendre (option B,
-  alignée sur TanStack Start). Les lectures ne coûtent donc aucun rendu. Alternative
-  écartée pour l'instant : une invalidation déclarée par le Server dans l'enveloppe de
-  réponse (modèle `revalidatePath` de Next.js), à reconsidérer si les appels
-  `invalidate()` se dupliquent entre composants.
+- **Invalidation déclarée par le Server** : une Server Function appelle
+  `invalidate(path?)` ; les chemins voyagent dans l'enveloppe de réponse et le Client
+  lance `router.invalidate({ filter })` sans l'attendre (modèle `revalidatePath` de
+  Next.js). Retenue après Forge, où les appels `invalidate()` se dupliquaient entre
+  composants (`changes.ts`, supprimé). Aucune Server Function ne rafraîchit sans le
+  déclarer : les lectures ne coûtent aucun rendu. `useInvalidation` couvre les données
+  lues hors des loaders.
 - **Statut** : seul le chargement courant publie le statut de connexion ; une réponse
   d'un chargement abandonné n'écrase jamais « Disconnected ».
 - **Purge différée** : un commit remet la route quittée dans le cache ; une purge
@@ -105,3 +111,5 @@ attendues et que les fichiers des exemples sont à jour. Le bundle Client résou
 - **`<Link>`** n'est pas exposé : il rend une ancre DOM.
 - Les layouts ne lisent pas la session Server ; exposer des données publiques de
   session au chrome reste à concevoir.
+- **Chrome** : le framework n'affiche plus d'en-tête ni de pied de page ; il fournit
+  `useConnection()` et `<KeyHelp />`, et l'application compose son chrome.

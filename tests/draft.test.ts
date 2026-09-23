@@ -1,5 +1,5 @@
 import { test, expect } from "bun:test";
-import { Draft, DraftStore, type Note } from "../src/draft";
+import { Draft, DraftStore, type Note } from "../examples/notes/components/draft";
 const note = (id = "1", value = "", version = 1): Note => ({
   id,
   title: "Note",
@@ -88,4 +88,16 @@ test("unsaved work is listed and clear forgets every Draft", () => {
   // The same document identity now starts from the Server value, not the old Draft.
   expect(store.get(note("2", "server", 1)).value).toBe("server");
   expect(store.get(note("1"))).not.toBe(clean);
+});
+test("a save the Server provably never ran fails without an unknown outcome", () => {
+  const d = new Draft("1", note());
+  d.edit("abc");
+  d.begin();
+  d.fail("Not saved: offline");
+  expect(d.pending).toBeUndefined();
+  expect(d.unknown).toBe(false);
+  expect(d.dirty).toBe(true);
+  expect(d.error).toBe("Not saved: offline");
+  // A new attempt is allowed at once.
+  expect(d.begin().value).toBe("abc");
 });

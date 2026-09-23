@@ -6,7 +6,7 @@ import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { build } from "../src/build";
-import { launch, until } from "./helpers";
+import { launch } from "./helpers";
 
 async function authFixture(directory: string) {
   for (const name of ["app/login", "app/public", "components", "actions", "server"])
@@ -65,10 +65,12 @@ test("public and protected routes and actions use the application auth adapter",
     expect(
       await anonymous.callServer(`${manifest.buildId}/actions/public.ts#publicAction`, []),
     ).toBe("guest");
+    // A refused action is reported, not handled: the application decides to sign in.
     await expect(
       anonymous.callServer(`${manifest.buildId}/actions/private.ts#privateAction`, []),
-    ).rejects.toMatchObject({ loginPath: "/login" });
-    await until(() => at(anonymous) === "/login");
+    ).rejects.toMatchObject({ loginPath: "/login", outcome: "rejected" });
+    expect(at(anonymous)).toBe("/public");
+    expect(anonymous.status).toBe("Authentication required");
 
     anonymous.setToken("valid");
     await anonymous.router.navigate({ to: "/" });
@@ -149,14 +151,12 @@ test("logout and bearer changes purge cached private trees before any protected 
     await act(async () => {
       await app.router.navigate({ to: "/login" });
     });
-    // The cache now holds alice's page. A new bearer must not reveal it, nor her Drafts.
+    // The cache now holds alice's page. A new bearer must not reveal it.
     for (const [token, expected] of [
       ["other", "PRIVATE of bob"],
       [undefined, "LOGIN"],
     ] as const) {
-      app.drafts.get({ id: "shared-doc", title: "", value: "", version: 1 }).edit("alice's Draft");
       app.setToken(token);
-      expect(app.drafts.size).toBe(0);
       gate = Promise.withResolvers<void>();
       const held = gate;
       let navigation!: Promise<void>;
@@ -181,10 +181,6 @@ test("logout and bearer changes purge cached private trees before any protected 
       }
     }
     expect(app.router.state.resolvedLocation.pathname).toBe("/login");
-    // Renewing the bearer of the same identity may keep its unsaved work.
-    app.drafts.get({ id: "renewed", title: "", value: "", version: 1 }).edit("kept");
-    app.setToken("valid", { preserveDrafts: true });
-    expect(app.drafts.unsaved().map((d: { id: string }) => d.id)).toEqual(["renewed"]);
   } finally {
     if (ui) await act(async () => ui.renderer.destroy());
     if (server) await server.stop();

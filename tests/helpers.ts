@@ -45,3 +45,11 @@ export async function until(check: () => boolean, timeout = 5000) {
     await Bun.sleep(10);
   }
 }
+/**
+ * The Draft store of a generated Client (`components/draft.ts`): application state,
+ * reached through the build's Client Reference registry like any "use client" module.
+ */
+export function draftsOf(app: any) {
+  const { buildId, resolveModule } = app.options;
+  return resolveModule(`${buildId}/components/draft.ts`).drafts;
+}

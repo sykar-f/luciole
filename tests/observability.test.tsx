@@ -1,0 +1,80 @@
+/** @jsxImportSource @opentui/react */
+import { expect, test } from "bun:test";
+import { act } from "react";
+import { testRender } from "@opentui/react/test-utils";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
+import { build } from "../src/build";
+import { instrumentTracing } from "../src/client";
+import { draftsOf, launch, until } from "./helpers";
+
+const root = resolve("examples/notes");
+
+test("the overlay shows no request while typing and one timed call per save", async () => {
+  await build(root);
+  const dir = await mkdtemp(join(tmpdir(), "airtty-observe-"));
+  const server = await launch(join(root, ".airtty/server/index.js"), {
+    NOTES_DB: join(dir, "notes.sqlite"),
+  });
+  const { createApp, Shell } = await import(join(root, ".airtty/client/index.js") + "?observe");
+  const app = createApp({ url: server.url, initialPath: "/notes/1", latencyMs: 40 });
+  // A fake OpenTelemetry tracer: one span per request, ended with its body.
+  const spans: { name: string; attributes: Record<string, unknown>; ended: boolean }[] = [];
+  const stop = instrumentTracing(app, {
+    startSpan(name, options = {}) {
+      const span = { name, attributes: { ...options.attributes }, ended: false };
+      spans.push(span);
+      return {
+        setAttribute: (key, value) => (span.attributes[key] = value),
+        setStatus: () => {},
+        end: () => (span.ended = true),
+      };
+    },
+  });
+  let ui: any;
+  try {
+    await app.router.load();
+    ui = await testRender(<Shell app={app} />, { width: 100, height: 30 });
+    const overlay = async () => {
+      await ui.renderOnce();
+      return (
+        (ui.captureCharFrame() as string).split("\n").find((l) => l.includes("requests ")) ?? ""
+      );
+    };
+    await act(async () => {
+      await ui.mockInput.pressKey("t", { ctrl: true });
+    });
+    expect(await overlay()).toContain("requests 0 · open 0 · 0B · rtt –");
+    await act(async () => {
+      await ui.mockInput.typeText("hello");
+      const field = ui.renderer.root.findDescendantById("note-1");
+      await ui.mockMouse.scroll(field.x, field.y, "down");
+    });
+    expect(await overlay()).toContain("requests 0 · open 0 · 0B");
+    await act(async () => {
+      await ui.mockInput.pressKey("s", { ctrl: true });
+    });
+    const draft = draftsOf(app).get({ id: "1" });
+    await act(async () => {
+      await until(() => !draft.pending);
+      await Bun.sleep(150);
+    });
+    // The save, then the page it invalidated.
+    const line = await overlay();
+    expect(line).toMatch(/requests 2 · open 0 · \d+B · rtt \d+ms/);
+    expect(Number(line.match(/rtt (\d+)ms/)![1])).toBeGreaterThanOrEqual(40);
+    expect(ui.captureCharFrame()).toContain("← action saveNote 200");
+    expect(spans.map((s) => [s.name, s.attributes["airtty.target"], s.ended])).toEqual([
+      ["airtty.render", "/notes/[id]", true],
+      ["airtty.action", expect.stringContaining("#saveNote"), true],
+      ["airtty.render", "/notes/[id]", true],
+    ]);
+    expect(spans[1].attributes["http.response.status_code"]).toBe(200);
+  } finally {
+    stop();
+    if (ui) await act(async () => ui.renderer.destroy());
+    await server.stop();
+    await rm(dir, { recursive: true, force: true });
+  }
+});

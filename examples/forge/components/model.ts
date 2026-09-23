@@ -1,6 +1,6 @@
 // Types shared by Server pages, Server Functions and Client Components. No runtime
 // code: Client Components import them with `import type` only.
-import type { Note, SaveResult } from "airtty/client";
+import type { Note, SaveResult } from "./draft";
 
 export type Role = "maintainer" | "contributor" | "reader";
 export type Identity = { id: string; name: string; role: Role };

@@ -12,8 +12,9 @@ import Layout1 from "./(app)/layout";
 import Layout2 from "./(app)/repos/[repo]/layout";
 import Layout3 from "./(app)/repos/[repo]/pulls/[number]/layout";
 import Loading4 from "./(app)/loading";
-import Loading5 from "./(app)/repos/[repo]/loading";
-import Loading6 from "./(app)/repos/[repo]/pulls/[number]/loading";
+import NotFound5 from "./(app)/not-found";
+import Loading6 from "./(app)/repos/[repo]/loading";
+import Loading7 from "./(app)/repos/[repo]/pulls/[number]/loading";
 
 const rootRoute = createRootRoute(Layout0);
 const layout0Route = createRoute({
@@ -35,37 +36,37 @@ const page0Route = createRoute({
   getParentRoute: () => layout0Route,
   path: "/",
   loader: (ctx) => loadPage(ctx, "/(app)", []),
-  ...pageRoute([], Loading4),
+  ...pageRoute([], { loading: Loading4, notFound: NotFound5 }),
 });
 const page1Route = createRoute({
   getParentRoute: () => layout1Route,
   path: "/",
   loader: (ctx) => loadPage(ctx, "/(app)/repos/[repo]", ["repo"]),
-  ...pageRoute(["repo"], Loading5),
+  ...pageRoute(["repo"], { loading: Loading6, notFound: NotFound5 }),
 });
 const page2Route = createRoute({
   getParentRoute: () => layout2Route,
   path: "/",
   loader: (ctx) => loadPage(ctx, "/(app)/repos/[repo]/pulls/[number]", ["repo","number"]),
-  ...pageRoute(["repo","number"], Loading6),
+  ...pageRoute(["repo","number"], { loading: Loading7, notFound: NotFound5 }),
 });
 const page3Route = createRoute({
   getParentRoute: () => layout2Route,
   path: "checks",
   loader: (ctx) => loadPage(ctx, "/(app)/repos/[repo]/pulls/[number]/checks", ["repo","number"]),
-  ...pageRoute(["repo","number"], Loading6),
+  ...pageRoute(["repo","number"], { loading: Loading7, notFound: NotFound5 }),
 });
 const page4Route = createRoute({
   getParentRoute: () => layout2Route,
   path: "files",
   loader: (ctx) => loadPage(ctx, "/(app)/repos/[repo]/pulls/[number]/files", ["repo","number"]),
-  ...pageRoute(["repo","number"], Loading6),
+  ...pageRoute(["repo","number"], { loading: Loading7, notFound: NotFound5 }),
 });
 const page5Route = createRoute({
   getParentRoute: () => layout1Route,
   path: "pulls/new",
   loader: (ctx) => loadPage(ctx, "/(app)/repos/[repo]/pulls/new", ["repo"]),
-  ...pageRoute(["repo"], Loading5),
+  ...pageRoute(["repo"], { loading: Loading6, notFound: NotFound5 }),
 });
 const page6Route = createRoute({
   getParentRoute: () => rootRoute,

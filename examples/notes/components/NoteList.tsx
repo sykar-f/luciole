@@ -1,5 +1,6 @@
 "use client";
-import { useNavigate, type Note } from "airtty/client";
+import { useNavigate } from "airtty/client";
+import type { Note } from "./draft";
 export function NoteList({ notes }: { notes: Note[] }) {
   const navigate = useNavigate();
   return (

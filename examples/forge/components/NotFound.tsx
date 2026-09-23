@@ -1,7 +1,7 @@
 import { Screen } from "./frames";
 import { color } from "./theme";
 
-// A missing resource is an expected outcome rendered by the page, not a thrown error.
+// Shown by app/(app)/not-found.tsx when a page calls notFound() for a missing resource.
 export function NotFound({ what }: { what: string }) {
   return (
     <Screen title={`${what} not found`} help="i inbox · u back">

@@ -1,9 +1,18 @@
 "use client";
 import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
-import { useKeyboard, useTerminalDimensions } from "@opentui/react";
-import { useApplication, useCanGoBack, useLocation, useNavigate, useRouter } from "airtty/client";
+import { useTerminalDimensions } from "@opentui/react";
+import {
+  KeyHelp,
+  useApplication,
+  useBindings,
+  useCanGoBack,
+  useInvalidation,
+  useLocation,
+  useNavigate,
+  useRouter,
+} from "airtty/client";
 import { listRepos, logout, whoami } from "../actions/account";
-import { onServerChange } from "./changes";
+import { drafts } from "./draft";
 import { EditingProvider } from "./editing";
 import { Line } from "./frames";
 import type { Repo } from "./model";
@@ -36,18 +45,18 @@ export function AppChrome({ children }: { children: ReactNode }) {
   const [repos, setRepos] = useState<Repo[]>([]);
   const [help, setHelp] = useState(false);
   const [confirmLogout, setConfirmLogout] = useState(false);
-  useSyncExternalStore(app.drafts.subscribe, app.drafts.snapshot);
+  useSyncExternalStore(drafts.subscribe, drafts.snapshot);
   useSyncExternalStore(operationStore.subscribe, operationStore.snapshot);
-  const unsaved = app.drafts.unsaved();
+  const unsaved = drafts.unsaved();
   const unresolved = operationStore.unresolved();
 
-  // Reads through Server Functions: no page render, no refresh.
+  // Reads through Server Functions: no route loader refreshes them, an invalidation does.
+  const loadRepos = () => void listRepos().then(setRepos, () => {});
   useEffect(() => {
     if (!sessionStore.get()) void whoami().then(sessionStore.set, () => {});
-    const load = () => void listRepos().then(setRepos, () => {});
-    load();
-    return onServerChange(load);
+    loadRepos();
   }, []);
+  useInvalidation(loadRepos);
 
   async function signOut() {
     if ((unsaved.length || unresolved.length) && !confirmLogout) {
@@ -59,21 +68,37 @@ export function AppChrome({ children }: { children: ReactNode }) {
     // Leave the private screens first: once unmounted, no component can re-create a
     // Draft from this identity's props after the bearer (and its Drafts) are dropped.
     await navigate({ to: "/login" });
+    // Drafts and operations belong to the identity that made them.
+    drafts.clear();
     operationStore.clear();
     sessionStore.set(null);
     app.setToken(undefined);
   }
 
-  useKeyboard((key) => {
-    if (key.ctrl && key.name === "l") void signOut();
-    if (editing || key.ctrl || key.meta) return;
-    if (key.name === "i") void navigate({ to: "/" });
-    if (key.name === "u" && canGoBack) router.history.back();
-    if (key.sequence === "?") setHelp((shown) => !shown);
-    const index = Number(key.sequence) - 1;
-    if (Number.isInteger(index) && index >= 0 && repos[index])
-      void navigate({ to: "/repos/$repo", params: { repo: repos[index].slug } });
-  });
+  // Plain keys stay off while a field is being edited: they belong to the text.
+  useBindings(
+    () => ({
+      bindings: [
+        { key: "ctrl+l", cmd: () => void signOut(), desc: "sign out", group: "global" },
+        ...(editing
+          ? []
+          : [
+              { key: "i", cmd: () => void navigate({ to: "/" }), desc: "inbox", group: "app" },
+              ...(canGoBack
+                ? [{ key: "u", cmd: () => router.history.back(), desc: "back", group: "app" }]
+                : []),
+              { key: "?", cmd: () => setHelp((shown) => !shown), desc: "keys", group: "app" },
+              ...repos.slice(0, 9).map((repo, i) => ({
+                key: String(i + 1),
+                cmd: () => void navigate({ to: "/repos/$repo", params: { repo: repo.slug } }),
+                desc: repo.slug,
+                group: "repos",
+              })),
+            ]),
+      ],
+    }),
+    [editing, canGoBack, repos, navigate, router, signOut],
+  );
 
   const sidebar = width >= WIDE;
   return (
@@ -110,7 +135,7 @@ export function AppChrome({ children }: { children: ReactNode }) {
             ))}
             <Line />
             <Line id="sidebar-drafts" fg={unsaved.length ? color.warn : color.muted}>
-              Drafts {unsaved.length}/{app.drafts.capacity} unsaved
+              Drafts {unsaved.length}/{drafts.capacity} unsaved
             </Line>
             {unsaved.slice(0, 6).map((draft) => (
               <Line key={draft.id} fg={draft.unknown ? color.danger : color.warn}>
@@ -125,7 +150,7 @@ export function AppChrome({ children }: { children: ReactNode }) {
               </Line>
             ))}
             <box flexGrow={1} />
-            {help ? <Keymap /> : <Line fg={color.faint}>? keys · Ctrl+L sign out</Line>}
+            {help ? <KeyHelp /> : <Line fg={color.faint}>? keys · Ctrl+L sign out</Line>}
           </box>
         ) : null}
         <box flexDirection="column" flexGrow={1}>
@@ -139,24 +164,5 @@ export function AppChrome({ children }: { children: ReactNode }) {
         </box>
       </box>
     </EditingProvider>
-  );
-}
-
-function Keymap() {
-  return (
-    <box flexDirection="column" flexShrink={0}>
-      {[
-        "i inbox · 1-9 repos · u back",
-        "Tab next tab (pull request)",
-        "Esc stop editing / cancel",
-        "Ctrl+S publish · Ctrl+X discard",
-        "Ctrl+O resolve unknown",
-        "Ctrl+R refresh · Ctrl+L out",
-      ].map((line) => (
-        <Line key={line} fg={color.muted}>
-          {line}
-        </Line>
-      ))}
-    </box>
   );
 }

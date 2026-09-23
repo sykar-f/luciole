@@ -4,6 +4,7 @@ import { useKeyboard } from "@opentui/react";
 import { useApplication, useNavigate } from "airtty/client";
 import { login } from "../actions/session";
 import { Line } from "./frames";
+import { drafts } from "./draft";
 import { operationStore } from "./operations";
 import { sessionStore } from "./session";
 import { color } from "./theme";
@@ -32,8 +33,9 @@ export function LoginForm({ accounts }: { accounts: { id: string; role: string }
         setMessage(result.error);
         return;
       }
-      // Same Application instance: the bearer changes and the framework drops the
-      // Drafts; app-level stores of the previous identity are dropped here.
+      // Same Application instance: the framework drops cached private trees with the
+      // bearer; the previous identity's Drafts and operations are dropped here.
+      drafts.clear();
       operationStore.clear();
       sessionStore.set(result.identity);
       app.setToken(result.token);

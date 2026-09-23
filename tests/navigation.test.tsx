@@ -6,7 +6,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { build } from "../src/build";
-import { launch, until } from "./helpers";
+import { launch, until, draftsOf } from "./helpers";
 
 test("local route loading, cancel, refresh identity, failed navigation and superseded loads", async () => {
   const directory = resolve("examples/notes");
@@ -43,14 +43,14 @@ test("local route loading, cancel, refresh identity, failed navigation and super
   const geometry = () =>
     Object.fromEntries(
       [
-        "airtty-heading",
+        "notes-heading",
         "notebook-heading",
         "note-heading",
         "note-field-frame",
         "note-status",
         "note-feedback",
         "note-help",
-        "airtty-footer",
+        "notes-footer",
       ].map((id) => {
         const node = ui.renderer.root.findDescendantById(id);
         return [id, [node.x, node.y, node.width, node.height]];
@@ -133,7 +133,7 @@ test("local route loading, cancel, refresh identity, failed navigation and super
     await act(async () => {
       await ui.mockInput.pressEnter();
     });
-    const draft = app.drafts.get({ id: "1" });
+    const draft = draftsOf(app).get({ id: "1" });
     const held = hold();
     await act(async () => {
       navigation = app.router.navigate({ to: "/notes/2" });
@@ -163,7 +163,7 @@ test("local route loading, cancel, refresh identity, failed navigation and super
     });
     await ui.renderOnce();
     expect(resolved()).toBe("/notes/1");
-    expect(ui.captureCharFrame()).toContain("offline · Ctrl+R to retry");
+    expect(ui.captureCharFrame()).toContain("offline");
     expect(ui.captureCharFrame()).toContain("Personal notebook");
     expect(app.status).toBe("Disconnected");
     expect(draft.version).toBe(2);

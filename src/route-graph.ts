@@ -25,17 +25,30 @@ export type PageNode = {
   params: string[];
   file: string;
   loading: string | undefined;
+  /** Nearest `error.tsx` and `not-found.tsx`, inherited like `loading.tsx`. */
+  error?: string;
+  notFound?: string;
+  /** Name of the trailing catch-all parameter (`[...name]`), matching one or more segments. */
+  splat?: string;
   /** Layout files from `app/layout.tsx` to the nearest one. */
   layouts: string[];
 };
 
-export type RouteGraph = { root: string; layouts: LayoutNode[]; pages: PageNode[] };
+export type RouteGraph = {
+  root: string;
+  /** `app/not-found.tsx`: shown for a URL no page matches. */
+  notFound?: string;
+  layouts: LayoutNode[];
+  pages: PageNode[];
+};
 
-type Segment = { kind: "static" | "param" | "group"; name: string };
+type Segment = { kind: "static" | "param" | "splat" | "group"; name: string };
+type Kind = "page" | "layout" | "loading" | "error" | "not-found";
 
 function parseSegment(raw: string): Segment {
   if (/^\([^()[\]$/]+\)$/.test(raw)) return { kind: "group", name: raw };
   if (/^\[[A-Za-z_][\w]*\]$/.test(raw)) return { kind: "param", name: raw.slice(1, -1) };
+  if (/^\[\.\.\.[A-Za-z_][\w]*\]$/.test(raw)) return { kind: "splat", name: raw.slice(4, -1) };
   if (raw && !/[()[\]$]/.test(raw)) return { kind: "static", name: raw };
   throw new Error(`Malformed route segment "${raw}"`);
 }
@@ -43,13 +56,13 @@ function parseSegment(raw: string): Segment {
 const compare = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
 export function compileRouteGraph(files: readonly string[]): RouteGraph {
-  const dirs = new Map<string, { layout?: string; page?: string; loading?: string }>();
+  const dirs = new Map<string, Partial<Record<Kind, string>>>();
   for (const file of [...files].sort(compare)) {
-    const match = /^app((?:\/[^/]+)*)\/(page|layout|loading)\.tsx$/.exec(file);
+    const match = /^app((?:\/[^/]+)*)\/(page|layout|loading|error|not-found)\.tsx$/.exec(file);
     if (!match) continue;
     const dir = match[1].slice(1);
     const entry = dirs.get(dir) ?? {};
-    entry[match[2] as "page" | "layout" | "loading"] = file;
+    entry[match[2] as Kind] = file;
     dirs.set(dir, entry);
   }
   const root = dirs.get("")?.layout;
@@ -58,24 +71,27 @@ export function compileRouteGraph(files: readonly string[]): RouteGraph {
 
   const segments = (dir: string) => {
     const parts = dir ? dir.split("/") : [];
-    return parts.map((raw) => {
+    const parsed = parts.map((raw) => {
       try {
         return parseSegment(raw);
       } catch (error) {
         throw new Error(`app/${dir}: ${(error as Error).message}`);
       }
     });
+    if (parsed.slice(0, -1).some((s) => s.kind === "splat"))
+      throw new Error(`app/${dir}: A catch-all segment must be the last one`);
+    return parsed;
   };
   const urlParts = (dir: string) =>
     segments(dir)
       .filter((s) => s.kind !== "group")
-      .map((s) => (s.kind === "param" ? `$${s.name}` : s.name));
+      .map((s) => (s.kind === "param" ? `$${s.name}` : s.kind === "splat" ? "$" : s.name));
   // Nearest directory at or above `dir` holding `kind`; "" is `app/` itself.
   const ancestors = (dir: string) => {
     const parts = dir ? dir.split("/") : [];
     return parts.map((_, i) => parts.slice(0, parts.length - i).join("/")).concat("");
   };
-  const nearest = (dir: string, kind: "layout" | "loading") =>
+  const nearest = (dir: string, kind: "layout" | "loading" | "error" | "not-found") =>
     ancestors(dir).find((d) => dirs.get(d)?.[kind]);
   const relative = (from: string, to: string) => urlParts(to).slice(urlParts(from).length);
   const layoutId = (dir: string) => (dir ? dir : ROOT_ID);
@@ -84,7 +100,9 @@ export function compileRouteGraph(files: readonly string[]): RouteGraph {
   const pages: PageNode[] = [];
   const canonical = new Map<string, string>();
   for (const [dir, entry] of [...dirs].sort(([a], [b]) => compare(a, b))) {
-    segments(dir);
+    const own = segments(dir);
+    if (entry.layout && own.at(-1)?.kind === "splat")
+      throw new Error(`${entry.layout}: A catch-all segment cannot hold a layout`);
     if (entry.layout && dir) {
       const parent = nearest(dir.split("/").slice(0, -1).join("/"), "layout")!;
       const path = relative(parent, dir).join("/");
@@ -96,13 +114,13 @@ export function compileRouteGraph(files: readonly string[]): RouteGraph {
       });
     }
     if (!entry.page) continue;
-    const params = segments(dir)
-      .filter((s) => s.kind === "param")
-      .map((s) => s.name);
+    const params = own.filter((s) => s.kind !== "static" && s.kind !== "group").map((s) => s.name);
+    const splat = own.at(-1)?.kind === "splat" ? own.at(-1)!.name : undefined;
     const repeated = params.find((p, i) => params.indexOf(p) !== i);
     if (repeated) throw new Error(`${entry.page}: Repeated route parameter "${repeated}"`);
     const url = "/" + urlParts(dir).join("/");
-    const key = url.replace(/\$[^/]+/g, "$");
+    // Catch-all and parameter routes may share a prefix: TanStack ranks `$id` first.
+    const key = url.replace(/\$[^/]+/g, "$").replace(/\/\$$/, splat ? "/*" : "/$");
     const existing = canonical.get(key);
     if (existing) throw new Error(`Route collision ${key}: ${existing} and ${entry.page}`);
     canonical.set(key, entry.page);
@@ -115,12 +133,15 @@ export function compileRouteGraph(files: readonly string[]): RouteGraph {
       params,
       file: entry.page,
       loading: dirs.get(nearest(dir, "loading") ?? "")?.loading,
+      error: dirs.get(nearest(dir, "error") ?? "")?.error,
+      notFound: dirs.get(nearest(dir, "not-found") ?? "")?.["not-found"],
+      splat,
       layouts: ancestors(dir)
         .reverse()
         .flatMap((d) => dirs.get(d)?.layout ?? []),
     });
   }
-  return { root, layouts, pages };
+  return { root, notFound: dirs.get("")?.["not-found"], layouts, pages };
 }
 
 export const ROUTE_TREE_FILE = "app/routeTree.gen.ts";
@@ -134,6 +155,11 @@ export function renderRouteTree(graph: RouteGraph): string {
   const quote = JSON.stringify;
   const importPath = (file: string) => "./" + file.replace(/^app\//, "").replace(/\.tsx$/, "");
   const paramsOf = (id: string) => [...id.matchAll(/\[(\w+)\]/g)].map((m) => m[1]);
+  const files = (page: PageNode) =>
+    Object.entries({ Loading: page.loading, Error: page.error, NotFound: page.notFound }).flatMap(
+      ([prefix, file]) =>
+        file ? [`${prefix[0].toLowerCase() + prefix.slice(1)}: ${component(file, prefix)}`] : [],
+    );
   const imports: string[] = [];
   const component = (() => {
     const names = new Map<string, string>();
@@ -153,6 +179,7 @@ export function renderRouteTree(graph: RouteGraph): string {
   const adopt = (parent: string, name: string) =>
     children.set(parent, [...(children.get(parent) ?? []), name]);
   const rootLayout = component(graph.root, "Layout");
+  const rootNotFound = graph.notFound ? `, ${component(graph.notFound, "NotFound")}` : "";
   graph.layouts.forEach((layout, i) => {
     const name = `layout${i}Route`;
     names.set(layout.id, name);
@@ -166,9 +193,11 @@ export function renderRouteTree(graph: RouteGraph): string {
   });
   graph.pages.forEach((page, i) => {
     const name = `page${i}Route`;
-    const loading = page.loading ? `, ${component(page.loading, "Loading")}` : "";
+    const options = [...files(page), ...(page.splat ? [`splat: ${quote(page.splat)}`] : [])];
+    const extra = options.length ? `, { ${options.join(", ")} }` : "";
+    const splat = page.splat ? `, ${quote(page.splat)}` : "";
     routes.push(
-      `const ${name} = createRoute({\n  getParentRoute: () => ${names.get(page.parent)},\n  path: ${quote(page.path)},\n  loader: (ctx) => loadPage(ctx, ${quote(page.id)}, ${quote(page.params)}),\n  ...pageRoute(${quote(page.params)}${loading}),\n});`,
+      `const ${name} = createRoute({\n  getParentRoute: () => ${names.get(page.parent)},\n  path: ${quote(page.path)},\n  loader: (ctx) => loadPage(ctx, ${quote(page.id)}, ${quote(page.params)}${splat}),\n  ...pageRoute(${quote(page.params)}${extra}),\n});`,
     );
     adopt(page.parent, name);
   });
@@ -189,7 +218,7 @@ import {
 } from "airtty/route-tree";
 ${imports.join("\n")}
 
-const rootRoute = createRootRoute(${rootLayout});
+const rootRoute = createRootRoute(${rootLayout}${rootNotFound});
 ${routes.join("\n")}
 
 export const routeTree = ${tree(ROOT_ID, "rootRoute")};

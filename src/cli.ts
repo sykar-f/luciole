@@ -1,15 +1,20 @@
 #!/usr/bin/env bun
-import { resolve, join } from "node:path";
+import { basename, resolve, join } from "node:path";
 import { watch } from "node:fs";
 import { cp, mkdir, readdir, symlink } from "node:fs/promises";
 import { spawn, type ChildProcess } from "node:child_process";
 import { createInterface } from "node:readline";
 import { build } from "./build";
+import { compileClient, fetchRuntime } from "./compile";
 const args = process.argv.slice(2),
   command = args[0];
 const option = (key: string, fallback: string) => {
   const i = args.indexOf(key);
   return i < 0 ? fallback : args[i + 1];
+};
+const optional = (key: string) => {
+  const i = args.indexOf(key);
+  return i < 0 ? undefined : args[i + 1];
 };
 const directory = resolve(option("--app", "examples/notes"));
 async function stop(child?: ChildProcess) {
@@ -106,7 +111,22 @@ async function main() {
     return;
   }
   if (command === "build") {
-    console.log(await build(directory));
+    const result = await build(directory);
+    console.log(result);
+    if (!args.includes("--compile")) return;
+    const compiled = await compileClient(result.output, {
+      name: basename(directory),
+      target: optional("--target"),
+      outfile: optional("--outfile"),
+      runtime: optional("--runtime"),
+      nativeDir: optional("--native-dir"),
+    });
+    console.log({ client: compiled.outfile, target: compiled.target });
+    if (compiled.warning) console.error(`Warning: ${compiled.warning}`);
+    return;
+  }
+  if (command === "runtime") {
+    console.log(await fetchRuntime(optional("--target")));
     return;
   }
   if (command === "start") {
@@ -231,7 +251,7 @@ async function main() {
     return;
   }
   throw new Error(
-    "Usage: airtty init <dir> | dev | build | start --role server|client [--app dir] [--url URL] [--artifact dir]",
+    "Usage: airtty init <dir> | dev | build [--compile [--target t] [--runtime bun] [--native-dir dir] [--outfile f]] | runtime [--target t] | start --role server|client [--app dir] [--url URL] [--artifact dir]",
   );
 }
 main().catch((error) => {

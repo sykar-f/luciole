@@ -8,7 +8,8 @@ Un module Server est le défaut dans le graphe des routes. Il peut importer le m
 et les actions, et composer des références de Client Components. Son JSX utilise
 `react/jsx-runtime` sous `--conditions=react-server` : aucun import natif OpenTUI.
 
-Les `layout.tsx` et `loading.tsx` sont toujours des Client Components : ils
+Les `layout.tsx`, `loading.tsx`, `error.tsx` et `not-found.tsx` sont toujours des
+Client Components : ils
 doivent déclarer `"use client"` et un export par défaut, sinon le build échoue avec
 fichier/ligne. Ils ne peuvent donc importer ni `airtty/server`, ni un
 module `server/`. Les pages restent Server et n'entrent jamais dans le bundle Client.
@@ -47,24 +48,72 @@ Le graphe Client refuse :
 
 - les modules sous `server/` et tout import transitif de `server-only` ;
 - les modules `node:*`, `bun:*` et `airtty/server` ;
-- les imports de packages non analysés, hors React, OpenTUI et l’entrée Client
-  du framework ; ajouter une intégration auditée pour un autre package Client.
+- les modules `node:*` et `bun:*` importés par le code applicatif (un tel import
+  signale presque toujours un module Server importé par erreur) ; les packages, eux,
+  sont libres (voir ci-dessous).
   TanStack Router est l'intégration auditée du runtime : les applications
   utilisent ses primitives via `airtty/client`, et le bundle Client
   l'embarque en forçant sa variante navigateur de `@tanstack/router-core/isServer` ;
 - `require()` et `import()` dynamiques dans les sources applicatives.
 
+## Rester d'un seul côté
+
+Une règle par intention :
+
+| Intention                                        | Moyen                                                        |
+| ------------------------------------------------ | ------------------------------------------------------------ |
+| Un composant rendu par le Server                 | `"use client"` (frontière : le Server reçoit des références) |
+| Du code qui ne doit jamais atteindre le Client   | `import "server-only"`, ou un fichier sous `server/`         |
+| Du code qui ne doit jamais tourner sur le Server | `import "client-only"`                                       |
+
+`"use client"` et `client-only` ne sont pas équivalents. Une page peut importer un
+module `"use client"` : elle n'en reçoit que des références, et un appel direct côté
+Server échoue à l'exécution. Un module qui importe `client-only` ne doit pas être
+atteint dans le graphe Server hors d'une frontière `"use client"` : le build échoue.
+Le Client et le Server tournant tous deux sur Bun, un code destiné au terminal de
+l'utilisateur (`$EDITOR`, `~/.config`, presse-papiers) ne plante pas sur le Server, il
+agit sur la mauvaise machine : c'est ce que `client-only` empêche.
+
+Les deux marqueurs valent pour le code applicatif et pour les packages npm, qui ne
+peuvent pas être renommés. Il n'y a pas de suffixe `*.server.*` ni `*.client.*`.
+
+## Packages
+
+Un Client Component peut importer n'importe quel package installé, sans le déclarer :
+le bundler l'embarque avec ses dépendances transitives. Le Client tourne sur Bun, pas
+dans un navigateur : un package qui utilise `node:path` y fonctionne normalement.
+
+Un package qui importe `server-only` ou `airtty/server` et atteint le bundle Client,
+ou qui importe `client-only` et atteint le bundle Server, fait échouer le build. Pour
+un package tiers qui ne se déclare pas lui-même, `airtty.json` (facultatif) le range
+côté Server :
+
+```json
+{ "serverPackages": ["@prisma/client", "bcrypt"] }
+```
+
+Chaque erreur de frontière montre la chaîne complète, depuis la page :
+
+```text
+Client package db-client imports server-only: it is Server-only
+  via app/page.tsx → components/widget.tsx → lib/format.ts → db-client/index.js → server-only
+```
+
+Le manifest liste les packages réellement embarqués dans le Client, avec leur version,
+d'après le bundler lui-même ; le `bun.lock` de l'application entre dans l'identifiant
+de build. Ces contrôles protègent la frontière Client/Server ; ce n'est pas un sandbox :
+le code d'un package s'exécute avec les droits de son processus.
+
 Les imports applicatifs utilisent des chemins relatifs avec extensions omises
 ou explicites. Les alias tsconfig ne sont pas pris en charge par ce compilateur.
-Le runtime interne est une dépendance de confiance. Une revue des intégrations
-reste nécessaire avant d’élargir l’ensemble des packages Client autorisés.
+Le runtime interne est une dépendance de confiance.
 
 `.airtty/manifest.json` expose les graphes pour inspection. Les tests contrôlent
 l’absence d’un marqueur métier dans le bundle Client, les imports transitifs,
 les réexports et le maintien du dernier build utilisable en cas d’erreur.
 
-Le hash de build inclut les sources accessibles (dont tous les layouts et
-loadings), les fichiers runtime et le lockfile.
+Le hash de build inclut les sources accessibles (dont tous les layouts, loadings et
+écrans d'erreur), tous les fichiers du runtime et les lockfiles.
 Les artefacts sont construits dans un répertoire temporaire, puis publiés après
 succès des deux compilations. Le build ne fait pas d’installation réseau et ne
 modifie pas le build actif en cas de diagnostic de compilation. `bun run check`

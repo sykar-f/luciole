@@ -6,7 +6,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { build } from "../src/build";
-import { launch, until } from "./helpers";
+import { launch, until, draftsOf } from "./helpers";
 const appDir = resolve("examples/notes");
 test("generated Notes: Flight action, preserved Draft, navigation, validation and offline editing", async () => {
   await build(appDir);
@@ -45,7 +45,7 @@ test("generated Notes: Flight action, preserved Draft, navigation, validation an
       await ui.mockInput.typeText("d");
     });
     expect(field.value).toBe("abcd");
-    const draft = app.drafts.get({ id: "1" });
+    const draft = draftsOf(app).get({ id: "1" });
     expect(draft.pending.value).toBe("abc");
     await act(async () => {
       await until(() => !draft.pending);

@@ -2,6 +2,7 @@
 /// <reference path="../../types.d.ts" />
 import { PassThrough, Readable } from "node:stream";
 import { renderToPipeableStream } from "react-server-dom-webpack/server.node";
+import { digestOf } from "../not-found";
 export {
   registerClientReference,
   registerServerReference,
@@ -10,7 +11,7 @@ export {
 export function renderToReadableStream(model: unknown, manifest: unknown) {
   const output = new PassThrough();
   const render = renderToPipeableStream(model, manifest, {
-    onError: () => "Server render failed",
+    onError: digestOf,
   });
   render.pipe(output);
   output.on("close", () => render.abort());

@@ -1,13 +1,19 @@
 import React from "react";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { decodeReply, renderToReadableStream } from "./flight/server";
+import { NotFoundError } from "./not-found";
 export type Session = { userId: string; [key: string]: unknown };
 export type RouteAuth = "public" | "required";
 export type AuthConfig = {
   authenticate(request: Request): Session | null | Promise<Session | null>;
   unauthorizedPath?: string;
 };
-type Context = { session: Session | null; callId: string };
+type Context = {
+  session: Session | null;
+  callId: string;
+  /** Set during a Server Function call only: the paths it declared changed. */
+  invalidations?: Set<string>;
+};
 const context = new AsyncLocalStorage<Context>();
 export function getSession() {
   const c = context.getStore();
@@ -19,6 +25,25 @@ export function getOptionalSession() {
   const c = context.getStore();
   if (!c) throw new Error("No request session");
   return c.session;
+}
+/**
+ * Ends a page render with the nearest `not-found.tsx`, inside the persistent layouts.
+ * `what` names the missing resource for that screen; it is sent to the Client.
+ */
+export function notFound(what?: string): never {
+  throw new NotFoundError(what);
+}
+/**
+ * Declares, from a Server Function, that data shown under `path` changed. The Client
+ * revalidates the matching routes and notifies `useInvalidation` subscribers after the
+ * call answers; `"/"` (the default) covers every route.
+ */
+export function invalidate(path = "/") {
+  const c = context.getStore();
+  if (!c?.invalidations) throw new Error("invalidate() is only available in Server Functions");
+  if (typeof path !== "string" || !path.startsWith("/") || path.length > 1000)
+    throw new Error("invalidate() takes an absolute path");
+  c.invalidations.add(path);
 }
 export function getCallId() {
   return context.getStore()?.callId;
@@ -76,6 +101,8 @@ function parseSearch(raw: string | null) {
       return null;
   return value as Record<string, string>;
 }
+const isAsyncIterable = (value: unknown): value is AsyncIterable<unknown> =>
+  !!value && typeof (value as AsyncIterable<unknown>)[Symbol.asyncIterator] === "function";
 export function serve(config: ServerConfig) {
   const hostname = process.env.AIRTTY_HOST ?? "127.0.0.1",
     token = process.env.AIRTTY_TOKEN;
@@ -145,6 +172,8 @@ export function serve(config: ServerConfig) {
             });
           }
           if (url.pathname === "/action" && req.method === "POST") {
+            const invalidations = new Set<string>();
+            context.getStore()!.invalidations = invalidations;
             const entry = config.actions.get(req.headers.get("x-airtty-action") ?? "");
             if (!entry) return new Response("Unknown action", { status: 404 });
             if (entry.auth === "required" && !session) return unauthorized();
@@ -158,6 +187,9 @@ export function serve(config: ServerConfig) {
                 status: 400,
               });
             const value = await entry.fn(...args);
+            // A live response may stay quiet longer than the idle timeout; it ends with
+            // its generator or when the Client goes away.
+            if (isAsyncIterable(value)) server.timeout(req, 0);
             // Test-only fault injection occurs strictly after business commit; never enabled by a request.
             if (
               process.env.AIRTTY_TEST === "1" &&
@@ -168,7 +200,10 @@ export function serve(config: ServerConfig) {
               process.exit(0);
             }
             return new Response(
-              renderToReadableStream({ kind: "result", value, callId }, config.manifest),
+              renderToReadableStream(
+                { kind: "result", value, callId, invalidate: [...invalidations] },
+                config.manifest,
+              ),
               { headers: { "content-type": "text/x-component" } },
             );
           }

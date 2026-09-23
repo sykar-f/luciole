@@ -23,11 +23,14 @@ autre fichier. Les tests utilisent exclusivement des bases temporaires.
 Dans la liste : flèches puis Entrée. Dans une note : Entrée ou Ctrl+S sauvegarde,
 Échap revient à la liste, Ctrl+D abandonne le Draft au profit du dernier contenu
 Server reçu. Ctrl+R reconnecte/rafraîchit ; Ctrl+O consulte le résultat d’une
-opération inconnue. Ctrl+C restaure le terminal et quitte.
+opération inconnue ; Ctrl+T affiche les requêtes. Ctrl+C restaure le terminal et quitte.
+L’aide en bas de l’écran est générée depuis les raccourcis actifs.
 
 Le Client reste éditable pendant une sauvegarde et après une perte de connexion.
-Une opération inconnue n’est jamais rejouée automatiquement. Une erreur de refresh
-ne transforme pas une sauvegarde confirmée en échec.
+Le framework rapporte l’issue de chaque requête (`not-sent`, `rejected`, `unknown`) ;
+Notes en tire sa politique : une sauvegarde jamais envoyée échoue, une opération
+inconnue n’est jamais rejouée automatiquement, elle est consultée. Une erreur de
+refresh ne transforme pas une sauvegarde confirmée en échec.
 
 ## Tester une connexion à 500 ms de ping
 
@@ -49,6 +52,11 @@ colorée. Le résultat indique le temps d’aller-retour observé. Ctrl+R permet
 de tester un refresh lent en conservant l’interface montée. La navigation vers
 une page distante attend le réseau ; ces interactions locales n’en dépendent pas.
 Le terminal doit transmettre les événements souris pour le scroll et le hover.
+
+Pour éprouver la gestion d’erreurs d’une application, `AIRTTY_JITTER_MS` ajoute un
+délai aléatoire à chaque trajet, `AIRTTY_CHUNK_DELAY_MS` ralentit chaque chunk d’un
+stream Flight, et `AIRTTY_FAULT=refuse:0.1,drop:0.05,cut:0.05` injecte des fautes :
+requête jamais envoyée, réponse perdue après exécution sur le Server, corps coupé.
 
 C’est une simulation de latence de requête/réponse, pas une émulation TCP : elle
 ne simule pas bande passante, pertes, jitter, ni le délai individuel de chaque
@@ -126,6 +134,20 @@ bun src/cli.ts start --role server
 # Dans un autre terminal :
 bun src/cli.ts start --role client --url http://127.0.0.1:3000
 ```
+
+Pour distribuer le Client sans Bun ni `node_modules` sur la machine du terminal :
+
+```sh
+bun src/cli.ts build --compile                        # exécutable pour cette machine
+bun src/cli.ts build --compile --runtime "$(bun src/cli.ts runtime)"  # runtime Bun officiel
+./examples/notes/.airtty/client/notes-darwin-arm64 --url http://127.0.0.1:3000
+```
+
+Le binaire embarque le runtime Bun, la bibliothèque native d’OpenTUI et l’identifiant
+de build. Le build avertit si le Bun local dépend de bibliothèques hors système (Nix,
+Homebrew) : passer alors le runtime officiel. `--target bun-linux-x64` (et
+`--native-dir` pour le paquet natif de cette cible) produit un binaire pour une autre
+plateforme.
 
 `--app /chemin/app` sélectionne un autre projet. Le build produit :
 
@@ -239,19 +261,30 @@ n’a pas encore eu lieu. Voir [les preuves et limites](docs/VALIDATION.md).
   L’adapter Flight est isolé dans `src/flight/` et doit être retesté à toute mise à jour.
 - TanStack Router 1.170.38 est l’unique autorité de navigation ; Suspense progresse
   dans le flux Flight. Layouts Client imbriqués et persistants, groupes `(group)`,
-  `[param]`, `loading.tsx` par page, search params et préchargement TanStack sont pris
-  en charge ; pas de catch-all, `error.tsx` ni layout Server persistant. La navigation est typée par
+  `[param]`, `[...catchAll]`, `loading.tsx`, `error.tsx` et `not-found.tsx` hérités,
+  `notFound()`, search params et préchargement TanStack sont pris en charge ; pas de
+  params optionnels ni de layout Server persistant. La navigation est typée par
   `app/routeTree.gen.ts`, généré par le build et versionné. Voir [ROUTER.md](docs/ROUTER.md).
-- Drafts en mémoire, au plus 32 documents par session. Les Drafts sales/en attente
-  ne sont pas évincés : une limite pleine exige de sauvegarder/abandonner un Draft.
-  **Quitter le Client perd les Drafts non sauvegardés.**
+- Le framework ne garde aucun état métier. Les Drafts de Notes et Forge sont du code
+  applicatif, en mémoire, au plus 32 documents par session ; les Drafts sales/en
+  attente ne sont pas évincés. **Quitter le Client perd les Drafts non sauvegardés.**
+- Une Server Function déclare ses changements avec `invalidate()` ; `useLive` abonne un
+  écran à une Server Function génératrice, fermée quand l’écran se démonte. Rien ne se
+  reconnecte automatiquement.
+- Un Client Component importe n’importe quel package, sans le déclarer. `server-only`
+  et `client-only` gardent un module (applicatif ou npm) d’un seul côté ; `airtty.json`
+  peut ranger côté Server un package tiers qui ne se déclare pas. Chaque erreur montre
+  la chaîne d’imports. Voir [BOUNDARIES.md](docs/BOUNDARIES.md).
 - Une erreur de build est affichée dans le shell existant et laisse l’édition active.
-  Un rebuild valide redémarre les deux processus et **perd les Drafts de session**.
+  Un rebuild valide redémarre les deux processus et **perd l’état du Client** (Drafts compris).
   Pas de Fast Refresh.
-- La sauvegarde et son résultat d’opération sont atomiques dans SQLite. La consultation
-  résout un résultat perdu ; ce n’est pas une garantie générique exactly-once.
-  Si aucun résultat n’est retrouvé, l’opération reste inconnue et n’est pas rejouée.
+- Dans Notes, la sauvegarde et son résultat d’opération sont atomiques dans SQLite. La
+  consultation résout un résultat perdu ; ce n’est pas une garantie générique
+  exactly-once. Si aucun résultat n’est retrouvé, l’opération reste inconnue et n’est
+  pas rejouée.
 - Distribution par bundle applicatif de confiance. Le point de résolution de modules
   reste remplaçable ; ni téléchargement de code distant, ni Client universel, ni sandbox.
+  Le Client peut être livré en un seul exécutable (`build --compile`) ; binaires non
+  signés ni notarisés.
 - Le parcours distant a été testé macOS → Linux via SSH ; aucune campagne WAN,
   mesure écran physique ou garantie de résistance à une boucle infinie Client.

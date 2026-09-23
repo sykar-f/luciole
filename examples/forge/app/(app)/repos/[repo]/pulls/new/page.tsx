@@ -1,6 +1,6 @@
+import { notFound } from "airtty/server";
 import { Screen } from "../../../../../../components/frames";
 import { NewPullForm } from "../../../../../../components/NewPullForm";
-import { NotFound } from "../../../../../../components/NotFound";
 import { newPullSlot } from "../../../../../../server/forge";
 import { actor, forge } from "../../../../../../server/instance";
 
@@ -8,7 +8,7 @@ import { actor, forge } from "../../../../../../server/instance";
 export default function NewPullPage({ params }: { params: { repo: string } }) {
   const me = actor();
   const repo = forge.repo(params.repo);
-  if (!repo) return <NotFound what={`Repository ${params.repo}`} />;
+  if (!repo) notFound(`Repository ${params.repo}`);
   const branches = forge.availableBranches(repo.slug);
   return (
     <Screen

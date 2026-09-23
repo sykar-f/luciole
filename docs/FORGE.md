@@ -127,33 +127,30 @@ Vérifié sans changement : `router.preloadRoute` fonctionne tel quel et TanStac
 réutilise l'arbre préchargé ; Flight 19.3 sérialise les Promises et les async
 iterables en props, livrés au fil de l'eau par le transport HTTP existant.
 
-## Frictions observées
+## Frictions observées, et ce qu'elles sont devenues
 
-Côté framework, à décider sur la base de ces deux usages réels (Notes et Forge) :
+Relevées sur Notes et Forge, puis tranchées :
 
-- **`useDraft` ne couvre qu'un document `{ id, title, value, version }`.** Forge y
-  ramène description et composers (un composer publié repart vide en version + 1),
-  mais le titre et la branche d'une nouvelle PR restent un état local à côté.
-- **Résultat inconnu hors documents.** Review, merge et rerun ne sont pas des Drafts :
-  Forge réimplémente pending/unknown/resolve dans `components/operations.ts`, y compris
-  sa purge au changement d'identité. Un `OperationStore` du framework, à côté du
-  `DraftStore`, supprimerait ce doublon.
-- **Note stable exigée.** `useDraft(note)` relit la note à chaque nouvel objet : une
-  note construite côté Client doit être mémoïsée, sinon la boucle de rendu est infinie.
-- **Invalidation dupliquée.** Le chrome lit les compteurs par Server Function, qu'aucune
-  invalidation de route n'atteint. Forge centralise dans `components/changes.ts` ;
-  c'est le signal prévu par [ROUTER.md](ROUTER.md) pour reconsidérer une invalidation
-  déclarée par le Server dans l'enveloppe de réponse.
-- **Déconnexion.** `setToken()` vide les Drafts, mais un écran encore monté les recrée
-  (propres) depuis ses props. Naviguer vers la route publique d'abord, puis changer le
-  bearer. À documenter ou à faire porter par le framework.
-- **Streams et cache.** Un async iterable ne se lit qu'une fois alors qu'un arbre en
-  cache peut être remonté : `components/live.ts` le draine une fois dans un store. Un
-  stream infini continue après avoir quitté la route (détaché pour le cache) :
-  Forge n'utilise que des streams finis.
-- **Données publiques de session dans le chrome** : faites par l'application
-  (`components/session.ts` + `whoami()`), faute de mécanisme framework.
-- **Pas d'`error.tsx` ni de `notFound()`** : une PR inexistante est rendue par la page.
+- **Drafts et opérations inconnues** : sortis du framework. Le runtime rapporte l'issue
+  de chaque requête (`TransportError.outcome` : `not-sent`, `rejected`, `unknown`) ;
+  Forge garde `components/draft.ts` et `components/operations.ts`. Une sauvegarde
+  jamais envoyée échoue franchement au lieu de laisser une issue inconnue à résoudre.
+- **Note stable exigée** : inchangé, c'est désormais une propriété du `useDraft` de Forge.
+- **Invalidation dupliquée** : résolue. Les Server Functions déclarent `invalidate()` ;
+  le chrome relit ses compteurs avec `useInvalidation`. `changes.ts` est supprimé (il
+  invalidait aussi toutes les routes à chaque transition d'opération, pending compris).
+- **Déconnexion** : `setToken()` ne touche plus aux Drafts ; Forge navigue vers la route
+  publique, vide ses stores, puis change le bearer.
+- **Streams et cache** : résolus pour la CI. Les logs viennent d'une Server Function
+  génératrice (`checkLog`) lue avec `useLive` : le flux s'ouvre avec l'onglet Checks et
+  s'arrête côté Server quand on le quitte. `live.ts` est supprimé.
+- **`error.tsx` et `notFound()`** : résolus. Les pages appellent `notFound(what)` ;
+  `app/(app)/not-found.tsx` affiche l'écran dans le chrome.
+- **Raccourcis** : le chrome de Forge déclare ses touches avec `useBindings` et l'aide
+  `?` est générée (`<KeyHelp />`). Les écrans internes gardent `useKeyboard`, qui
+  coexiste avec la keymap ; leur migration reste à faire.
+- **Données publiques de session dans le chrome** : toujours faites par l'application
+  (`components/session.ts` + `whoami()`).
 
 Côté application, choix assumés : politique de conflit (Draft gardé jusqu'à
 l'abandon), révision poussée qui rend les approbations caduques, CI simulée

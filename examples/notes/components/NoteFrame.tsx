@@ -36,7 +36,7 @@ export function NoteEditorFrame({
   status: ReactNode;
   conflict?: ReactNode;
   error?: ReactNode;
-  help: string;
+  help: ReactNode;
   dirty?: boolean;
   statusColor?: string;
 }) {
@@ -62,9 +62,9 @@ export function NoteEditorFrame({
           {error ?? ""}
         </text>
       </box>
-      <text id="note-help" height={1} wrapMode="none" truncate fg="#8b98a5">
+      <box id="note-help" height={1} flexShrink={0}>
         {help}
-      </text>
+      </box>
     </box>
   );
 }

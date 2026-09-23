@@ -2,15 +2,67 @@ import type { ReactNode } from "react";
 import { setTimeout as delay } from "node:timers/promises";
 import { decode, encodeReply } from "./flight/client";
 
-export class TransportError extends Error {}
-export class BuildMismatch extends TransportError {}
+/**
+ * What a failed request says about its effect on the Server. The transport reports it;
+ * retrying, resolving or showing it is the application's decision.
+ * - `not-sent`: the request never reached the Server; nothing ran.
+ * - `rejected`: the Server refused it before running any application code (4xx).
+ * - `unknown`: it may have run (timeout, lost or cut response, Server error).
+ */
+export type Outcome = "not-sent" | "rejected" | "unknown";
+export class TransportError extends Error {
+  constructor(
+    message: string,
+    /** Defaults to `unknown`: the transport never claims a certainty it does not have. */
+    readonly outcome: Outcome = "unknown",
+  ) {
+    super(message);
+  }
+}
+export class BuildMismatch extends TransportError {
+  constructor(message: string) {
+    super(message, "rejected");
+  }
+}
 export class AuthenticationRequired extends TransportError {
   constructor(
     message: string,
     readonly loginPath?: string,
   ) {
-    super(message);
+    super(message, "rejected");
   }
+}
+// Bun and Node codes for a connection that was never established.
+const NOT_CONNECTED = new Set([
+  "ConnectionRefused",
+  "ECONNREFUSED",
+  "FailedToOpenSocket",
+  "ENOTFOUND",
+  "EHOSTUNREACH",
+  "ENETUNREACH",
+]);
+const messageOf = (e: unknown) => (e instanceof Error ? e.message : String(e));
+// A Flight error with a digest was raised by Server code and reached the Client intact:
+// an application error, kept as is. Anything else while decoding is the transport's.
+const decodeFailure = (e: unknown) =>
+  e instanceof TransportError || typeof (e as { digest?: unknown } | null)?.digest === "string"
+    ? e
+    : new TransportError(messageOf(e));
+// A stream returned by a Server Function fails like its request: a cut connection
+// becomes a TransportError (`unknown`), a Server error keeps its digest.
+function guardStream(value: unknown) {
+  if (!value || typeof (value as AsyncIterable<unknown>)[Symbol.asyncIterator] !== "function")
+    return value;
+  const source = value as AsyncIterable<unknown>;
+  return {
+    async *[Symbol.asyncIterator]() {
+      try {
+        yield* source;
+      } catch (e) {
+        throw decodeFailure(e);
+      }
+    },
+  };
 }
 
 export type RouteParams = Record<string, string>;
@@ -34,6 +86,61 @@ export interface Transport {
   setToken(token?: string): void;
 }
 
+/**
+ * What the transport observes, request by request: for an overlay, logs or tracing.
+ * `id` correlates the events of one request; `target` is its route or Server Function.
+ */
+export type TransportEvent = { id: number; kind: "render" | "action"; target: string } & (
+  | { type: "request" }
+  | { type: "response"; status: number; ms: number }
+  | { type: "chunk"; bytes: number }
+  | { type: "end"; ms: number; bytes: number; cancelled: boolean }
+  | { type: "error"; ms: number; outcome: Outcome; message: string }
+);
+type RequestMeta = { kind: "render" | "action"; target: string };
+/**
+ * Simulated faults, for testing an application's own handling:
+ * - `refuse`: the request is never sent (`not-sent`);
+ * - `drop`: the Server answers, the response is lost (`unknown`; the Server ran);
+ * - `cut`: the body fails before its first byte (`unknown`).
+ */
+export type Fault = "refuse" | "drop" | "cut";
+/** Development network conditions, on top of `latencyMs`. Not a TCP emulation. */
+export type NetworkConditions = {
+  /** Random extra delay, 0 to `jitterMs`, added to each direction of each request. */
+  jitterMs?: number;
+  /** Delay before each body chunk reaches the decoder: slow streams, Suspense included. */
+  chunkDelayMs?: number;
+  /** Chooses a fault per request, or none. */
+  fault?: (request: RequestMeta) => Fault | undefined;
+};
+/**
+ * Reads `AIRTTY_JITTER_MS`, `AIRTTY_CHUNK_DELAY_MS` and `AIRTTY_FAULT`
+ * (`refuse:0.1,drop:0.05,cut:0.05`: a probability per fault, checked in that order).
+ */
+export function networkFromEnv(env: Record<string, string | undefined>): NetworkConditions {
+  const number = (name: string) => {
+    const value = Number(env[name] ?? 0);
+    if (!Number.isFinite(value) || value < 0) throw new Error(`${name} must be a number ≥ 0`);
+    return value;
+  };
+  const faults = (env.AIRTTY_FAULT ?? "")
+    .split(",")
+    .filter(Boolean)
+    .map((entry) => {
+      const [type, probability] = entry.split(":");
+      const p = Number(probability ?? 1);
+      if (!["refuse", "drop", "cut"].includes(type) || !(p >= 0 && p <= 1))
+        throw new Error(`AIRTTY_FAULT: invalid entry "${entry}"`);
+      return { type: type as Fault, p };
+    });
+  return {
+    jitterMs: number("AIRTTY_JITTER_MS"),
+    chunkDelayMs: number("AIRTTY_CHUNK_DELAY_MS"),
+    fault: faults.length ? () => faults.find(({ p }) => Math.random() < p)?.type : undefined,
+  };
+}
+
 export type HttpTransportOptions = {
   url: string;
   buildId: string;
@@ -44,6 +151,11 @@ export type HttpTransportOptions = {
   fetch?: typeof fetch;
   /** Receives Server Function calls made by references decoded from Flight. */
   callServer: (id: string, args: unknown[]) => Promise<unknown>;
+  /** Paths a successful Server Function declared changed (`invalidate()` on the Server). */
+  onInvalidate?: (paths: string[]) => void;
+  /** Every request's lifecycle, chunks included; see `TransportEvent`. */
+  onEvent?: (event: TransportEvent) => void;
+  network?: NetworkConditions;
 };
 
 export function createHttpTransport(options: HttpTransportOptions): Transport {
@@ -51,10 +163,68 @@ export function createHttpTransport(options: HttpTransportOptions): Transport {
   if (!Number.isFinite(latencyMs) || latencyMs < 0)
     throw new Error("latencyMs must be a finite non-negative number");
   let token = options.token;
+  let sequence = 0;
+  const emit = options.onEvent ?? (() => {});
+  const network = options.network ?? {};
+  for (const [name, value] of Object.entries({
+    jitterMs: network.jitterMs,
+    chunkDelayMs: network.chunkDelayMs,
+  }))
+    if (value !== undefined && !(Number.isFinite(value) && value >= 0))
+      throw new Error(`${name} must be a finite non-negative number`);
+  const oneWay = () => latencyMs / 2 + Math.random() * (network.jitterMs ?? 0);
+
+  // Counts what the caller actually reads: chunks, bytes, the end or the failure of the
+  // body, so a stream that outlives its request still reports how it ended.
+  function observe(
+    body: ReadableStream<Uint8Array> | null,
+    id: number,
+    meta: RequestMeta,
+    start: number,
+    cut: boolean,
+  ) {
+    let bytes = 0;
+    const ms = () => Math.round(performance.now() - start);
+    if (!body) {
+      emit({ id, ...meta, type: "end", ms: ms(), bytes, cancelled: false });
+      return body;
+    }
+    const reader = body.getReader();
+    return new ReadableStream<Uint8Array>({
+      async pull(controller) {
+        try {
+          if (cut) {
+            await reader.cancel();
+            throw new TransportError("Simulated cut connection");
+          }
+          const { done, value } = await reader.read();
+          if (done) {
+            emit({ id, ...meta, type: "end", ms: ms(), bytes, cancelled: false });
+            controller.close();
+            return;
+          }
+          bytes += value.byteLength;
+          if (network.chunkDelayMs) await delay(network.chunkDelayMs);
+          emit({ id, ...meta, type: "chunk", bytes: value.byteLength });
+          controller.enqueue(value);
+        } catch (e) {
+          emit({ id, ...meta, type: "error", ms: ms(), outcome: "unknown", message: messageOf(e) });
+          controller.error(e);
+        }
+      },
+      cancel(reason) {
+        emit({ id, ...meta, type: "end", ms: ms(), bytes, cancelled: true });
+        return reader.cancel(reason);
+      },
+    });
+  }
 
   // The timeout bounds the wait for the root model, not the stream behind it: a
   // Suspense boundary or an async iterable may legitimately stream for longer.
-  async function request(path: string, init: RequestInit, cancel?: AbortSignal) {
+  async function request(path: string, init: RequestInit, meta: RequestMeta, cancel?: AbortSignal) {
+    const id = ++sequence,
+      start = performance.now();
+    emit({ id, ...meta, type: "request" });
     const headers = new Headers(init.headers);
     headers.set("x-airtty-build", options.buildId);
     if (token) headers.set("authorization", `Bearer ${token}`);
@@ -65,29 +235,69 @@ export function createHttpTransport(options: HttpTransportOptions): Transport {
     );
     const settle = () => clearTimeout(timer);
     const signal = cancel ? AbortSignal.any([deadline.signal, cancel]) : deadline.signal;
-    const oneWayMs = latencyMs / 2;
+    const fault = network.fault?.(meta);
     try {
-      if (oneWayMs) await delay(oneWayMs, undefined, { signal });
-      const response = await (options.fetch ?? fetch)(new URL(path, options.url), {
-        ...init,
-        headers,
-        signal,
-      });
-      if (oneWayMs) await delay(oneWayMs, undefined, { signal });
+      // Before fetch starts, a failure or cancellation provably sent nothing.
+      try {
+        const before = oneWay();
+        if (before) await delay(before, undefined, { signal });
+        signal.throwIfAborted();
+        if (fault === "refuse") throw new Error("Simulated refused connection");
+      } catch (e) {
+        throw new TransportError(messageOf(e), "not-sent");
+      }
+      let response: Response;
+      try {
+        response = await (options.fetch ?? fetch)(new URL(path, options.url), {
+          ...init,
+          headers,
+          signal,
+        });
+      } catch (e) {
+        const code = (e as { code?: unknown }).code;
+        throw new TransportError(
+          messageOf(e),
+          typeof code === "string" && NOT_CONNECTED.has(code) ? "not-sent" : "unknown",
+        );
+      }
+      const after = oneWay();
+      if (after) await delay(after, undefined, { signal });
+      if (fault === "drop") {
+        await response.body?.cancel();
+        throw new TransportError("Simulated lost response");
+      }
       if (response.status === 409) throw new BuildMismatch(await response.text());
       if (response.status === 401)
         throw new AuthenticationRequired(
           await response.text(),
           response.headers.get("x-airtty-login") ?? undefined,
         );
+      // The Server answers 4xx only before running application code; a 5xx may follow it.
       if (!response.ok)
-        throw new TransportError(`HTTP ${response.status}: ${await response.text()}`);
-      return { response, settle };
+        throw new TransportError(
+          `HTTP ${response.status}: ${await response.text()}`,
+          response.status < 500 ? "rejected" : "unknown",
+        );
+      emit({
+        id,
+        ...meta,
+        type: "response",
+        status: response.status,
+        ms: Math.round(performance.now() - start),
+      });
+      return { body: observe(response.body, id, meta, start, fault === "cut"), settle };
     } catch (e) {
       settle();
-      throw e instanceof TransportError
-        ? e
-        : new TransportError(e instanceof Error ? e.message : String(e));
+      const error = e instanceof TransportError ? e : new TransportError(messageOf(e));
+      emit({
+        id,
+        ...meta,
+        type: "error",
+        ms: Math.round(performance.now() - start),
+        outcome: error.outcome,
+        message: error.message,
+      });
+      throw error;
     }
   }
 
@@ -102,13 +312,16 @@ export function createHttpTransport(options: HttpTransportOptions): Transport {
       try {
         const query = new URLSearchParams({ route: routeId, params: JSON.stringify(params) });
         if (Object.keys(search).length) query.set("search", JSON.stringify(search));
-        const { response, settle } = await request(`/render?${query}`, {}, stream.signal);
+        const { body, settle } = await request(
+          `/render?${query}`,
+          {},
+          { kind: "render", target: routeId },
+          stream.signal,
+        );
         try {
-          return (await decode(response.body!, options.callServer)) as ReactNode;
+          return (await decode(body!, options.callServer)) as ReactNode;
         } catch (e) {
-          throw e instanceof TransportError
-            ? e
-            : new TransportError(e instanceof Error ? e.message : String(e));
+          throw decodeFailure(e);
         } finally {
           settle();
         }
@@ -118,25 +331,33 @@ export function createHttpTransport(options: HttpTransportOptions): Transport {
     },
     async call(actionId, args, signal) {
       const callId = crypto.randomUUID();
-      const { response, settle } = await request(
+      const { body, settle } = await request(
         "/action",
         {
           method: "POST",
           headers: { "x-airtty-action": actionId, "x-airtty-call": callId },
           body: await encodeReply(args),
         },
+        { kind: "action", target: actionId },
         signal,
       );
-      const envelope = (await Promise.resolve(decode(response.body!, options.callServer)).finally(
-        settle,
-      )) as {
+      const envelope = (await Promise.resolve(decode(body!, options.callServer))
+        .catch((e: unknown) => {
+          throw decodeFailure(e);
+        })
+        .finally(settle)) as {
         kind?: string;
         callId?: string;
         value?: unknown;
+        invalidate?: unknown;
       };
       if (envelope?.kind !== "result" || envelope.callId !== callId)
         throw new TransportError("Invalid action response");
-      return envelope.value;
+      const paths = Array.isArray(envelope.invalidate)
+        ? envelope.invalidate.filter((p): p is string => typeof p === "string")
+        : [];
+      if (paths.length) options.onInvalidate?.(paths);
+      return guardStream(envelope.value);
     },
     setToken(next) {
       token = next;

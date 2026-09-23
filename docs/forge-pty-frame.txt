@@ -22,7 +22,7 @@
  │                            │  │ Partial refund aggregation stays in the settlement job.           │   │                                │
  │                            │  └───────────────────────────────────────────────────────────────────┘   │                                │
  │                            │                                                                          │                                │
- │                            │  @carol · 21 d ago                                                       │                                │
+ │                            │  @carol · 22 d ago                                                       │                                │
  │                            │    Does a retry with a different amount but the same key return the      │                                │
  │                            │    first outcome too?                                                    │                                │
  │                            │                                                                          │                                │
@@ -36,4 +36,4 @@
  │ ? keys · Ctrl+L sign out   │
  └────────────────────────────┘  e edit · c comment · a approve · x changes · m merge · j/k scroll · Tab files · Esc stop editing
 
- Ctrl+R reconnect · Ctrl+C quit
+ ctrl+c quit · ctrl+l sign out · ctrl+r refresh

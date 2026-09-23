@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef } from "react";
 import { useTimeline } from "@opentui/react";
-import type { LoadingProps } from "airtty/client";
+import { KeyHelp, type LoadingProps } from "airtty/client";
 import { NotePageFrame, NoteEditorFrame } from "../../../components/NoteFrame";
 
 export default function Loading({ params }: LoadingProps) {
@@ -33,7 +33,7 @@ export default function Loading({ params }: LoadingProps) {
           </box>
         }
         status="Waiting for Server…"
-        help="Esc cancel · The editor will be ready when the note arrives."
+        help={<KeyHelp inline groups={["airtty"]} />}
       />
     </NotePageFrame>
   );

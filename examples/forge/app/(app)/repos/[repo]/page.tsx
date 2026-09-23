@@ -1,5 +1,5 @@
+import { notFound } from "airtty/server";
 import { Screen } from "../../../../components/frames";
-import { NotFound } from "../../../../components/NotFound";
 import { stateOf } from "../../../../components/filters";
 import { RepoPulls } from "../../../../components/RepoPulls";
 import { forge } from "../../../../server/instance";
@@ -12,7 +12,7 @@ export default function RepoPage({
   searchParams: Record<string, string>;
 }) {
   const repo = forge.repo(params.repo);
-  if (!repo) return <NotFound what={`Repository ${params.repo}`} />;
+  if (!repo) notFound(`Repository ${params.repo}`);
   const state = stateOf(searchParams.state);
   return (
     <Screen

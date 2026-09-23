@@ -9,12 +9,13 @@ L’application est une codebase unique ; son build produit deux programmes.
 | -------------------- | -------------------------------------------------------------------------------------------------------------------- |
 | `src/cli.ts`         | Création du starter, commandes dev/build/start, supervision des processus et erreurs de rebuild.                     |
 | `src/build.ts`       | Lecture de l’AST, graphes Client/Server, validation des frontières, références Flight, routes, manifests et bundles. |
-| `src/route-graph.ts` | Compilation pure de `app/` en route graph : layouts, pages, groupes, params, loading, collisions.                    |
-| `src/server.ts`      | HTTP, contexte de session, registre des pages par `routeId`, validation et exécution des Server Functions.           |
-| `src/route-tree.tsx` | Fabriques de routes utilisées par `app/routeTree.gen.ts` : layouts, pages, loaders Flight et chrome.                 |
-| `src/transport.ts`   | Interface `Transport` et adapter HTTP/Flight : build ID, bearer, timeout, latence, erreurs typées.                   |
-| `src/client.tsx`     | Runtime terminal : route tree TanStack Router, loaders Flight, chrome, actions, invalidation et hooks publics.       |
-| `src/draft.ts`       | État d’édition, Baseline, révisions, résultats inconnus et store de session.                                         |
+| `src/route-graph.ts` | Compilation pure de `app/` en route graph : layouts, pages, groupes, params, catch-all, loading/error/not-found.     |
+| `src/server.ts`      | HTTP, contexte de session, registre des pages, Server Functions, `notFound()`, `invalidate()`, réponses live.        |
+| `src/route-tree.tsx` | Fabriques de routes de `app/routeTree.gen.ts` : layouts, pages, loaders Flight, écrans error/not-found, Échap.       |
+| `src/transport.ts`   | Interface `Transport` et adapter HTTP/Flight : build ID, bearer, timeout, `outcome`, événements, réseau simulé.      |
+| `src/client.tsx`     | Runtime terminal : TanStack Router, keymap, loaders Flight, actions, invalidation, live, observabilité, hooks.       |
+| `src/not-found.ts`   | Passage de `notFound()` à travers Flight (digest), partagé par le Server et le Client.                               |
+| `src/compile.ts`     | Client autonome en un exécutable (`airtty build --compile`) et runtime Bun officiel (`airtty runtime`).              |
 | `src/flight/`        | Adapter du vrai codec React Flight et contrat de résolution des modules Client.                                      |
 
 `tests/`, `probes/` et `scripts/` servent à développer et vérifier le framework.
@@ -31,8 +32,10 @@ app/page.tsx               liste côté Server
 app/notes/layout.tsx       layout imbriqué persistant entre les notes, "use client"
 app/notes/[id]/page.tsx     chargement et composition d’une note
 app/notes/[id]/loading.tsx  squelette local de la page pendant la navigation, "use client"
+app/error.tsx              écran d'échec d'une page, avec son outcome, "use client"
 components/NoteList.tsx    sélection/navigation locale, "use client"
-components/NoteEditor.tsx  édition et événements locaux, "use client"
+components/NoteEditor.tsx  édition, raccourcis et événements locaux, "use client"
+components/draft.ts        Drafts de session et résultats inconnus : politique de Notes
 actions/notes.ts           fonctions métier appelables, "use server"
 server/repository.ts       accès SQLite, droits et transactions
 server/auth.ts             adapter d'identité optionnel
@@ -86,11 +89,20 @@ des deux rôles sont identiques et incluent aussi les outils de développement.
 Réduire ces manifests et publier le package sont des travaux de packaging futurs.
 Le code métier reste exclu du bundle Client malgré ce manifeste commun.
 
+`airtty build --compile [--target …]` produit aussi le Client en un seul exécutable
+(runtime Bun, bibliothèque native OpenTUI et build ID embarqués) : la machine du
+terminal n'a besoin ni de Bun ni de `node_modules`. Le build n'accède pas au réseau ;
+`airtty runtime` télécharge séparément le runtime Bun officiel d'une cible, à passer
+en `--runtime` quand le Bun local dépend de bibliothèques hors système (Nix, Homebrew).
+Voir [probes/compile](../probes/compile/README.md).
+
 Ce n’est pas encore un Client générique qui télécharge une application en ouvrant
 une URL. Chaque application distribue son propre Client de confiance. L’interface
 de résolution de modules laisse cette évolution possible, mais la distribution
 dynamique et son modèle de confiance restent à décider.
 
-Enfin, l’API de Draft actuelle porte encore les types `Note`, `Snapshot` et
-`SaveResult`. C’est un raccourci du MVP ; une deuxième application doit guider leur
-généralisation avant de présenter cette partie comme une API universelle de formulaires.
+Les Drafts et la reprise des opérations inconnues ne font plus partie du framework :
+comme dans Electron, Qt ou .NET, le runtime rapporte l'issue de chaque requête
+(`TransportError.outcome`) et l'application choisit sa politique. Notes et Forge
+gardent chacune leur `components/draft.ts`. Une bibliothèque partagée ne sera extraite
+que si le même code se répète dans une troisième application.

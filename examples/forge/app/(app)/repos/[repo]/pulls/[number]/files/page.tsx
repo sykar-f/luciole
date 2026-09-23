@@ -1,6 +1,6 @@
+import { notFound } from "airtty/server";
 import { FilesReview } from "../../../../../../../components/FilesReview";
 import { Screen } from "../../../../../../../components/frames";
-import { NotFound } from "../../../../../../../components/NotFound";
 import { pullSubtitle, pullTitle } from "../../../../../../../components/PullHeader";
 import { actor, forge, slow } from "../../../../../../../server/instance";
 
@@ -9,7 +9,7 @@ import { actor, forge, slow } from "../../../../../../../server/instance";
 export default async function FilesPage({ params }: { params: { repo: string; number: string } }) {
   const me = actor();
   const pull = forge.pull(params.repo, Number(params.number));
-  if (!pull) return <NotFound what={`Pull request ${params.repo}#${params.number}`} />;
+  if (!pull) notFound(`Pull request ${params.repo}#${params.number}`);
   const comments = forge.comments(pull.id);
   const files = forge.files(pull.id, pull.revision).map((file) => ({
     ...file,

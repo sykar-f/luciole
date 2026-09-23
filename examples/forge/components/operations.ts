@@ -1,5 +1,4 @@
 import { useSyncExternalStore } from "react";
-import { useServerChanged } from "./changes";
 import type { OperationResult } from "./model";
 
 // Unknown outcomes for operations that are not documents (review, merge, rerun).
@@ -13,7 +12,7 @@ export type OperationState =
 const entries = new Map<string, OperationState>();
 const listeners = new Set<() => void>();
 let revision = 0;
-function changed() {
+function notify() {
   revision++;
   for (const listener of listeners) listener();
 }
@@ -29,22 +28,20 @@ export const operationStore = {
   unresolved: () => [...entries.values()].filter((e) => e.status !== "done"),
   clear() {
     entries.clear();
-    changed();
+    notify();
   },
 };
 
 export function useOperation(key: string) {
   useSyncExternalStore(operationStore.subscribe, operationStore.snapshot);
-  const changed = useServerChanged();
   const state = entries.get(key);
   const set = (next: OperationState) => {
     entries.set(key, next);
-    changed();
+    notify();
   };
-  // A confirmed change invalidates the routes; the result never waits for the refresh.
+  // A confirmed change is invalidated by the Server Function itself (`invalidate()`).
   const settle = (label: string, result: OperationResult) => {
     set({ status: "done", operationId: result.operationId, label, result });
-    if (result.ok) changed();
   };
   const busy = state !== undefined && state.status !== "done";
   return {
@@ -76,7 +73,7 @@ export function useOperation(key: string) {
     forget() {
       if (state?.status === "unresolved" || state?.status === "done") {
         entries.delete(key);
-        changed();
+        notify();
       }
     },
   };

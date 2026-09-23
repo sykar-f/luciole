@@ -182,3 +182,185 @@ test("layouts and loadings belong to the build identity and the Client graph", a
     },
   );
 });
+
+// Fake installed packages: any package may reach the Client, unless it is made for the Server.
+const packages: Record<string, string> = {
+  "node_modules/tiny-format/package.json": `{"name":"tiny-format","version":"1.2.3","main":"index.js"}`,
+  "node_modules/tiny-format/index.js": `import {join} from "node:path";export const shout=(s)=>join(s.toUpperCase(),"TINY_FORMAT_SENTINEL");`,
+  "node_modules/chained/package.json": `{"name":"chained","version":"2.0.0","main":"index.js"}`,
+  "node_modules/chained/index.js": `import {shout} from "tiny-format";export const twice=(s)=>shout(shout(s));`,
+  "node_modules/db-client/package.json": `{"name":"db-client","version":"0.1.0","main":"index.js"}`,
+  "node_modules/db-client/index.js": `import "server-only";export const query=()=>"SECRET_DB";`,
+  "node_modules/server-only/package.json": `{"name":"server-only","version":"0.0.1","main":"index.js"}`,
+  "node_modules/server-only/index.js": ``,
+  "node_modules/leaky-sdk/package.json": `{"name":"leaky-sdk","version":"0.1.0","main":"index.js"}`,
+  "node_modules/leaky-sdk/index.js": `import {getSession} from "airtty/server";export const who=()=>getSession();`,
+};
+const clientUsing = (specifier: string, name: string) => ({
+  "app/page.tsx": `import {Widget} from '../components/widget';export default function Page(){return <Widget/>}`,
+  "components/widget.tsx": `"use client";import {${name}} from '${specifier}';export function Widget(){return <text>{String(${name})}</text>}`,
+});
+
+test("Client packages: bundled without declaration, inventoried with their versions", async () => {
+  await fixture({ ...packages, ...clientUsing("chained", "twice") }, async (dir) => {
+    await build(dir);
+    const manifest = await Bun.file(join(dir, ".airtty/manifest.json")).json();
+    // Transitive dependencies included; Node builtins work on the terminal Client.
+    expect(manifest.clientPackages).toEqual(
+      expect.arrayContaining([
+        { name: "chained", version: "2.0.0" },
+        { name: "tiny-format", version: "1.2.3" },
+      ]),
+    );
+    expect(await Bun.file(join(dir, ".airtty/client/index.js")).text()).toContain(
+      "TINY_FORMAT_SENTINEL",
+    );
+  });
+});
+
+test("Client packages: one made for the Server is refused with its name", async () => {
+  await fixture({ ...packages, ...clientUsing("db-client", "query") }, async (dir) => {
+    await expect(build(dir)).rejects.toThrow(
+      "Client package db-client imports server-only: it is Server-only",
+    );
+    expect(await Bun.file(join(dir, ".airtty/manifest.json")).exists()).toBe(false);
+  });
+  await fixture({ ...packages, ...clientUsing("leaky-sdk", "who") }, async (dir) => {
+    await expect(build(dir)).rejects.toThrow(
+      "Client package leaky-sdk imports airtty/server: it is Server-only",
+    );
+  });
+  // The same package stays usable from Server code.
+  await fixture(
+    {
+      ...packages,
+      "app/page.tsx": `import {query} from "db-client";export default function Page(){return <text>{query()}</text>}`,
+    },
+    async (dir) => {
+      await build(dir);
+      expect(await Bun.file(join(dir, ".airtty/client/index.js")).text()).not.toContain(
+        "SECRET_DB",
+      );
+    },
+  );
+});
+
+const sidePackages: Record<string, string> = {
+  "node_modules/client-only/package.json": `{"name":"client-only","version":"0.0.1","main":"index.js"}`,
+  "node_modules/client-only/index.js": ``,
+  "node_modules/editor-kit/package.json": `{"name":"editor-kit","version":"1.0.0","main":"index.js"}`,
+  "node_modules/editor-kit/index.js": `import "client-only";export const openEditor=()=>Bun.spawn([process.env.EDITOR??"vi"]);`,
+  "node_modules/hasher/package.json": `{"name":"hasher","version":"3.0.0","main":"index.js"}`,
+  "node_modules/hasher/index.js": `export const hash=(s)=>"HASHER_SECRET"+s;`,
+  "node_modules/auth-kit/package.json": `{"name":"auth-kit","version":"1.0.0","main":"index.js"}`,
+  "node_modules/auth-kit/index.js": `import {hash} from "hasher";export const check=(s)=>hash(s);`,
+};
+
+test("boundary errors show the whole import chain, packages included", async () => {
+  await fixture(
+    {
+      ...packages,
+      "app/page.tsx": `import {Widget} from '../components/widget';export default function Page(){return <Widget/>}`,
+      "components/widget.tsx": `"use client";import {label} from '../lib/format';export function Widget(){return <text>{label()}</text>}`,
+      "lib/format.ts": `import {query} from 'db-client';export const label=()=>String(query);`,
+    },
+    async (dir) => {
+      await expect(build(dir)).rejects.toThrow(
+        "Client package db-client imports server-only: it is Server-only\n  via app/page.tsx → components/widget.tsx → lib/format.ts → db-client/index.js → server-only",
+      );
+    },
+  );
+  await fixture(
+    {
+      "app/page.tsx": `import {Widget} from '../components/widget';export default function Page(){return <Widget/>}`,
+      "components/widget.tsx": `"use client";import {v} from '../lib/shared';export function Widget(){return <text>{v}</text>}`,
+      "lib/shared.ts": `export {v} from '../server/secret'`,
+      "server/secret.ts": `export const v=1`,
+    },
+    async (dir) => {
+      await expect(build(dir)).rejects.toThrow(
+        /lib\/shared\.ts:1:1: Server-only import in Client graph: \.\.\/server\/secret\n {2}via app\/page\.tsx → components\/widget\.tsx → lib\/shared\.ts/,
+      );
+    },
+  );
+});
+
+test("client-only code never runs on the Server, except behind a use client boundary", async () => {
+  // Application module marked client-only, imported by a page.
+  await fixture(
+    {
+      "app/page.tsx": `import {open} from '../lib/editor';export default function Page(){return <text>{String(open)}</text>}`,
+      "lib/editor.ts": `import "client-only";export const open=()=>Bun.spawn(["vi"]);`,
+    },
+    async (dir) => {
+      await expect(build(dir)).rejects.toThrow(
+        /lib\/editor\.ts:1:1: Client-only module in Server graph: it never runs on the Server\n {2}via app\/page\.tsx → lib\/editor\.ts/,
+      );
+    },
+  );
+  // A package marked client-only, used by Server code.
+  await fixture(
+    {
+      ...sidePackages,
+      "app/page.tsx": `import {openEditor} from 'editor-kit';export default function Page(){return <text>{String(openEditor)}</text>}`,
+    },
+    async (dir) => {
+      await expect(build(dir)).rejects.toThrow(
+        "Server package editor-kit imports client-only: it never runs on the Server\n  via app/page.tsx → editor-kit/index.js → client-only",
+      );
+    },
+  );
+  // Both, behind a "use client" boundary: the Server only holds references.
+  await fixture(
+    {
+      ...sidePackages,
+      "app/page.tsx": `import {Editor} from '../components/editor';export default function Page(){return <Editor/>}`,
+      "components/editor.tsx": `"use client";import "client-only";import {openEditor} from 'editor-kit';export function Editor(){return <text>{String(openEditor)}</text>}`,
+    },
+    async (dir) => {
+      await build(dir);
+      expect(await Bun.file(join(dir, ".airtty/server/index.js")).text()).not.toContain("EDITOR");
+    },
+  );
+});
+
+test("serverPackages keeps listed third-party packages out of the Client", async () => {
+  const config = { "airtty.json": `{"serverPackages":["hasher"]}` };
+  await fixture({ ...sidePackages, ...config, ...clientUsing("hasher", "hash") }, async (dir) => {
+    await expect(build(dir)).rejects.toThrow(
+      /components\/widget\.tsx:1:\d+: Server-only package in Client graph: hasher \(serverPackages in airtty\.json\)\n {2}via app\/page\.tsx → components\/widget\.tsx/,
+    );
+  });
+  await fixture(
+    { ...sidePackages, ...config, ...clientUsing("auth-kit", "check") },
+    async (dir) => {
+      await expect(build(dir)).rejects.toThrow(
+        "Client package auth-kit imports hasher: it is listed in serverPackages (airtty.json)\n  via app/page.tsx → components/widget.tsx → auth-kit/index.js → hasher",
+      );
+    },
+  );
+  // Unlisted, the same package is bundled; listed, it stays usable on the Server.
+  await fixture({ ...sidePackages, ...clientUsing("auth-kit", "check") }, (dir) =>
+    build(dir).then(() => {}),
+  );
+  await fixture(
+    {
+      ...sidePackages,
+      ...config,
+      "app/page.tsx": `import {hash} from 'hasher';export default function Page(){return <text>{hash("x")}</text>}`,
+    },
+    async (dir) => {
+      await build(dir);
+      expect(await Bun.file(join(dir, ".airtty/client/index.js")).text()).not.toContain(
+        "HASHER_SECRET",
+      );
+    },
+  );
+  for (const bad of [`{"serverPackages":"hasher"}`, `{"serverPackages":["hasher/sub"]}`, `nope`])
+    await fixture(
+      { ...sidePackages, "airtty.json": bad, ...clientUsing("auth-kit", "check") },
+      async (dir) => {
+        await expect(build(dir)).rejects.toThrow("airtty.json");
+      },
+    );
+});

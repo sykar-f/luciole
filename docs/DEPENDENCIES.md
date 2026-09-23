@@ -9,6 +9,7 @@ des deux sondes sont à jour ; `bun outdated` ne signale aucune mise à jour.
 | -------------------------------------------- | -------- |
 | Bun / @types/bun                             | 1.4.2    |
 | @opentui/core / @opentui/react               | 0.5.12   |
+| @opentui/keymap                              | 0.5.12   |
 | react / react-dom / react-server-dom-webpack | 19.3.0   |
 | react-reconciler                             | 0.33.0   |
 | @tanstack/react-router                       | 1.170.38 |

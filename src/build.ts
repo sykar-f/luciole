@@ -1,6 +1,7 @@
 import ts from "@typescript/typescript6";
 import { basename, resolve, relative, dirname, join } from "node:path";
 import { mkdir, readFile, readdir, rename, rm, realpath } from "node:fs/promises";
+import { realpathSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { ROUTE_TREE_FILE, compileRouteGraph, renderRouteTree } from "./route-graph";
 const framework = dirname(import.meta.path);
@@ -20,9 +21,70 @@ type Module = {
   actionExports: string[];
 };
 type RouteAuth = "public" | "required";
+// Bun rejects with an AggregateError whose own message is only "Bundle failed".
+function bundleFailure(error: unknown): never {
+  const errors = (error as { errors?: unknown[] }).errors;
+  const messages = (errors ?? []).map((e) => (e as { message?: string }).message ?? String(e));
+  throw new Error(messages.length ? messages.join("\n") : (error as Error).message);
+}
+/** `@scope/name/sub` → `@scope/name`; `name/sub` → `name`. */
+const packageOf = (specifier: string) =>
+  specifier
+    .split("/")
+    .slice(0, specifier.startsWith("@") ? 2 : 1)
+    .join("/");
+/**
+ * Optional `airtty.json`: `serverPackages` names third-party packages that must never
+ * reach the Client although they do not import `server-only` themselves.
+ */
+async function readConfig(root: string) {
+  const file = Bun.file(join(root, "airtty.json"));
+  if (!(await file.exists())) return { serverPackages: new Set<string>() };
+  let config: unknown;
+  try {
+    config = JSON.parse(await file.text());
+  } catch {
+    throw new Error("airtty.json: invalid JSON");
+  }
+  const list = (config as { serverPackages?: unknown } | null)?.serverPackages ?? [];
+  if (
+    !Array.isArray(list) ||
+    !list.every((name) => typeof name === "string" && name && packageOf(name) === name)
+  )
+    throw new Error("airtty.json: serverPackages must list package names");
+  return { serverPackages: new Set<string>(list) };
+}
+// Installed package owning `file`: the segment after its last `node_modules/`.
+function packageOfFile(file: string) {
+  const parts = file.split("/");
+  const at = parts.lastIndexOf("node_modules");
+  if (at < 0 || at + 1 >= parts.length) return undefined;
+  const scoped = parts[at + 1].startsWith("@");
+  const name = parts.slice(at + 1, at + (scoped ? 3 : 2)).join("/");
+  return { name, dir: parts.slice(0, at + (scoped ? 3 : 2)).join("/") };
+}
 export async function build(directory: string, output = join(directory, ".airtty")) {
   const root = await realpath(directory),
     modules = new Map<string, Module>();
+  const { serverPackages } = await readConfig(root);
+  // How each module was first reached, per graph: boundary errors show the whole chain.
+  const serverParent = new Map<string, string>(),
+    clientParent = new Map<string, string>();
+  const display = (file: string) => {
+    const owner = packageOfFile(file);
+    return owner ? owner.name + file.slice(owner.dir.length) : relative(root, file);
+  };
+  const graphChain = (parents: Map<string, string>, file: string) => {
+    const chain = [file];
+    for (let p = parents.get(file); p && !chain.includes(p); p = parents.get(p)) chain.unshift(p);
+    return chain;
+  };
+  // A Client chain starts at the page that rendered its "use client" boundary.
+  const clientChain = (file: string) => {
+    const chain = graphChain(clientParent, file);
+    return [...graphChain(serverParent, chain[0]).slice(0, -1), ...chain];
+  };
+  const via = (chain: readonly string[]) => `\n  via ${chain.map(display).join(" → ")}`;
   const fail = (m: Module, n: ts.Node, message: string): never => {
     const p = m.ast.getLineAndCharacterOfPosition(n.getStart(m.ast));
     throw new Error(`${relative(root, m.path)}:${p.line + 1}:${p.character + 1}: ${message}`);
@@ -105,7 +167,9 @@ export async function build(directory: string, output = join(directory, ".airtty
     for (const e of await readdir(dir, { withFileTypes: true })) {
       const p = join(dir, e.name);
       if (e.isDirectory()) await walk(p);
-      else if (["page.tsx", "layout.tsx", "loading.tsx"].includes(e.name))
+      else if (
+        ["page.tsx", "layout.tsx", "loading.tsx", "error.tsx", "not-found.tsx"].includes(e.name)
+      )
         inventory.push(relative(root, p));
     }
   }
@@ -114,9 +178,12 @@ export async function build(directory: string, output = join(directory, ".airtty
   const abs = (p: string) => join(root, p);
   const pages = graph.pages.map((r) => abs(r.file));
   const layouts = [graph.root, ...graph.layouts.map((l) => l.file)].map(abs);
-  const loadings = [...new Set(graph.pages.flatMap((r) => (r.loading ? [r.loading] : [])))].map(
-    abs,
-  );
+  // Rendered by the Client alone: while a page loads, when it fails, when it is missing.
+  const loadings = [
+    ...new Set([...graph.pages.flatMap((r) => [r.loading, r.error, r.notFound]), graph.notFound]),
+  ]
+    .filter((file): file is string => !!file)
+    .map(abs);
   const authFile = join(root, "server/auth.ts");
   const hasAuth = await Bun.file(authFile).exists();
   for (const p of [...pages, ...layouts, ...loadings, ...(hasAuth ? [authFile] : [])])
@@ -207,9 +274,10 @@ export async function build(directory: string, output = join(directory, ".airtty
     actions = new Set<string>(),
     serverGraph = new Set<string>(),
     clientGraph = new Set<string>();
-  function serverVisit(p: string) {
+  function serverVisit(p: string, from?: string) {
     if (serverGraph.has(p)) return;
     serverGraph.add(p);
+    if (from) serverParent.set(p, from);
     const m = modules.get(p)!;
     if (m.directive === "use client") {
       clients.add(p);
@@ -217,21 +285,27 @@ export async function build(directory: string, output = join(directory, ".airtty
     }
     if (m.directive === "use server") actions.add(p);
     for (const i of m.imports) {
-      if (i.name.startsWith("@opentui/")) fail(m, i.node, "OpenTUI native runtime is Client-only");
-      if (i.path) serverVisit(i.path);
+      const chain = via(graphChain(serverParent, p));
+      if (i.name.startsWith("@opentui/"))
+        fail(m, i.node, `OpenTUI native runtime is Client-only${chain}`);
+      if (i.name === "client-only")
+        fail(m, i.node, `Client-only module in Server graph: it never runs on the Server${chain}`);
+      if (i.path) serverVisit(i.path, p);
     }
   }
-  function clientVisit(p: string) {
+  function clientVisit(p: string, from?: string) {
     if (clientGraph.has(p)) return;
     clientGraph.add(p);
+    if (from) clientParent.set(p, from);
     const m = modules.get(p)!;
     if (m.directive === "use server") {
       actions.add(p);
       serverVisit(p);
       return;
     }
+    const chain = () => via(clientChain(p));
     if (relative(root, p).split("/").includes("server"))
-      fail(m, m.ast, "Server-only source in Client graph");
+      fail(m, m.ast, `Server-only source in Client graph${chain()}`);
     for (const i of m.imports) {
       if (
         i.name === "server-only" ||
@@ -239,47 +313,76 @@ export async function build(directory: string, output = join(directory, ".airtty
         /^(node:|bun:)/.test(i.name) ||
         (i.path && relative(root, i.path).split("/").includes("server"))
       )
-        fail(m, i.node, `Server-only import in Client graph: ${i.name}`);
-      if (i.path) clientVisit(i.path);
-      else if (
-        !["react", "react/jsx-runtime", "airtty/client"].includes(i.name) &&
-        !i.name.startsWith("@opentui/")
-      )
+        fail(m, i.node, `Server-only import in Client graph: ${i.name}${chain()}`);
+      if (!i.path && serverPackages.has(packageOf(i.name)))
         fail(
           m,
           i.node,
-          `Unanalysed package in Client graph: ${i.name}; use local source modules or add an audited compiler integration`,
+          `Server-only package in Client graph: ${i.name} (serverPackages in airtty.json)${chain()}`,
         );
+      // Packages are bundled as they are; one reaching Server-only code fails below.
+      if (i.path) clientVisit(i.path, p);
     }
   }
   for (const p of pages) serverVisit(p);
   if (hasAuth) serverVisit(authFile);
-  // Layouts persist across navigations and loadings render before any Server answer:
-  // both are Client Components owned by the TanStack route tree.
+  // Layouts persist across navigations; loading, error and not-found screens render
+  // without a Server answer: all are Client Components owned by the TanStack route tree.
   for (const p of [...layouts, ...loadings]) {
     const m = modules.get(p)!;
-    const kind = p.endsWith("layout.tsx") ? "layout.tsx" : "loading.tsx";
+    const kind = basename(p);
     if (m.directive !== "use client" || !m.exports.includes("default"))
       fail(m, m.ast, `${kind} must declare "use client" and a default export`);
     clients.add(p);
   }
   for (const p of clients) clientVisit(p);
+  // Imports the bundler resolved, per role: rebuilds a package violation's chain.
+  const edges: Record<"server" | "client", [importer: string, specifier: string][]> = {
+    server: [],
+    client: [],
+  };
+  const resolvesTo = (importer: string, specifier: string, target: string) => {
+    try {
+      return realpathSync(Bun.resolveSync(specifier, dirname(importer))) === target;
+    } catch {
+      return false;
+    }
+  };
+  // From the application module that pulled it in, through packages, to `file`.
+  const bundleChain = (role: "server" | "client", file: string) => {
+    const chain = [file];
+    let current = file;
+    while (!modules.has(current) && chain.length < 64) {
+      const edge = edges[role].find(([importer, specifier]) =>
+        resolvesTo(importer, specifier, current),
+      );
+      if (!edge || chain.includes(edge[0])) break;
+      chain.unshift(edge[0]);
+      current = edge[0];
+    }
+    if (!modules.has(current)) return chain;
+    return [
+      ...(role === "client" ? clientChain(current) : graphChain(serverParent, current)).slice(
+        0,
+        -1,
+      ),
+      ...chain,
+    ];
+  };
+  // Every "use client" module is a Client Reference, even one only Client code imports:
+  // it can be resolved by id like the boundaries the Server renders.
+  for (const p of clientGraph) if (modules.get(p)!.directive === "use client") clients.add(p);
   const hash = createHash("sha256");
   for (const m of [...modules.values()].sort((a, b) => a.path.localeCompare(b.path)))
     hash.update(relative(root, m.path)).update(m.text);
-  for (const e of [
-    "build.ts",
-    "client.tsx",
-    "server.ts",
-    "draft.ts",
-    "route-graph.ts",
-    "route-tree.tsx",
-    "transport.ts",
-    "flight/client.ts",
-    "flight/server.ts",
-  ])
-    hash.update(await readFile(join(framework, e)));
+  // Every runtime source, so a new framework module can never be left out of the identity.
+  for (const e of [...new Bun.Glob("**/*.{ts,tsx}").scanSync({ cwd: framework })].sort())
+    hash.update(e).update(await readFile(join(framework, e)));
   hash.update(await readFile(join(framework, "../bun.lock")));
+  // The application's packages (bundled into the Client) are part of the build too.
+  const appLock = Bun.file(join(root, "bun.lock"));
+  if (await appLock.exists()) hash.update(await appLock.text());
+  let clientPackages: { name: string; version: string }[] = [];
   const buildId = hash.digest("hex").slice(0, 24),
     id = (p: string) => `${buildId}/${relative(root, p)}`;
   const manifest: Record<string, unknown> = {};
@@ -333,10 +436,37 @@ export async function build(directory: string, output = join(directory, ".airtty
         target: "bun",
         external,
         conditions: role === "server" ? ["react-server"] : [],
+        metafile: role === "client",
         plugins: [
           {
             name: "airtty-boundaries",
             setup(b) {
+              // Every import, recorded for chains. A package made for the other side never
+              // reaches this bundle: `server-only`, `airtty/server` or a listed Server
+              // package in the Client; `client-only` in the Server. Application code was
+              // already checked, with file and line, on the module graphs.
+              b.onResolve({ filter: /.*/ }, (a) => {
+                if (!a.importer) return undefined;
+                edges[role].push([a.importer, a.path]);
+                const owner = packageOfFile(a.importer);
+                if (!owner || a.path.startsWith(".")) return undefined;
+                const why =
+                  role === "client"
+                    ? a.path === "server-only" || a.path === "airtty/server"
+                      ? "it is Server-only"
+                      : serverPackages.has(packageOf(a.path))
+                        ? "it is listed in serverPackages (airtty.json)"
+                        : undefined
+                    : a.path === "client-only"
+                      ? "it never runs on the Server"
+                      : undefined;
+                if (why)
+                  throw new Error(
+                    `${role === "client" ? "Client" : "Server"} package ${owner.name} imports ${a.path}: ${why}` +
+                      `${via(bundleChain(role, a.importer))} → ${a.path}`,
+                  );
+                return undefined;
+              });
               b.onResolve({ filter: /^airtty\/(client|server|route-tree)$/ }, (a) => ({
                 path: join(
                   framework,
@@ -357,8 +487,9 @@ export async function build(directory: string, output = join(directory, ".airtty
                   path: Bun.resolveSync("@tanstack/react-router", framework),
                 }));
               }
-              b.onResolve({ filter: /^server-only$/ }, () => ({
-                path: "server-only",
+              // Side markers carry no code of their own.
+              b.onResolve({ filter: /^(server-only|client-only)$/ }, (a) => ({
+                path: a.path,
                 namespace: "marker",
               }));
               b.onLoad({ filter: /.*/, namespace: "marker" }, () => ({
@@ -407,8 +538,23 @@ export async function build(directory: string, output = join(directory, ".airtty
             },
           },
         ],
-      });
+      }).catch(bundleFailure);
       if (!result.success) throw new Error(result.logs.join("\n"));
+      // Inventory of what the Client really embeds, read from the bundler itself.
+      if (role === "client" && result.metafile) {
+        const found = new Map<string, string>();
+        for (const input of Object.keys(result.metafile.inputs)) {
+          const owner = packageOfFile(resolve(input));
+          if (owner && !found.has(owner.name))
+            found.set(
+              owner.name,
+              String((await Bun.file(join(owner.dir, "package.json")).json()).version),
+            );
+        }
+        clientPackages = [...found]
+          .sort(([a], [b]) => (a < b ? -1 : 1))
+          .map(([name, version]) => ({ name, version }));
+      }
       const pkg = JSON.parse(await readFile(join(framework, "../package.json"), "utf8"));
       await Bun.write(
         join(temp, role, "package.json"),
@@ -441,7 +587,10 @@ export async function build(directory: string, output = join(directory, ".airtty
             page: r.file,
             layouts: r.layouts,
             loading: r.loading ?? null,
+            error: r.error ?? null,
+            notFound: r.notFound ?? null,
           })),
+          clientPackages,
           serverGraph: [...serverGraph].map((p) => relative(root, p)),
           clientGraph: [...clientGraph].map((p) => relative(root, p)),
         },

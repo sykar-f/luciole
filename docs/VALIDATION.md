@@ -46,7 +46,7 @@ utilisé dans le compilateur.
 | 4 — réseau        | `transport.test.tsx` : navigations inversées, incompatibilité réelle HTTP 409, refresh en erreur après succès, arrêt du processus Server après commit avant réponse, redémarrage sur la même base/URL puis consultation du résultat sans nouvelle sauvegarde. Compteurs inchangés pendant frappe, déplacement du curseur, focus et scroll locaux. |
 | 5 — livraison     | Artefacts indépendants avec lockfiles ; README, API, starter ; `scripts/clean-install.ts` installe une copie neuve et les deux rôles séparément ; `pty-smoke.py` pilote le Client de production ; `pty-dev.py` vérifie erreur de compilation, saisie conservée, rebuild valide, restauration du terminal et absence de processus enfant orphelin. |
 
-`bun run verify` : **24 tests passent**, vérification des types et build passent.
+`bun run verify` : **93 tests passent**, vérification des types et build passent.
 `bun run format:check` passe. Le workflow CI macOS/Linux est livré ; il n’a pas
 encore été exécuté sur GitHub, car ce dépôt local n’a pas été publié.
 
@@ -132,17 +132,17 @@ ne modifie aucune dimension et est arrêtée lorsque le loading est démonté.
 ## Démo Forge — 22 septembre 2026
 
 `examples/forge` ([FORGE.md](FORGE.md)) a été construite pour pousser le framework
-au-delà de son contrat. `bun run verify` : **71 tests passent** (48 avant Forge),
+au-delà de son contrat. `bun run verify` : **93 tests passent** (48 avant Forge),
 types des quatre programmes, Oxlint sans avertissement, format et build.
 
-| Preuve               | Vérification réalisée                                                                                                                                                                                              |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Domaine sans UI      | `forge-domain.test.ts` : seed identique sur deux bases neuves, sessions (PIN, expiration, révocation), droits par rôle, merge idempotent par ledger, CI flaky puis rerun à horloge injectée, conflits de versions. |
-| Parcours au clavier  | `forge.test.tsx` : login public, commentaire de ligne, approbation, onglets et layout persistant, filtre d'état dans l'URL et retour, merge perdu résolu sans rejeu, conflit de description, logs CI en direct.    |
-| Latence 500 ms       | `forge-latency.test.tsx` : filtre, hover et molette sans requête ; PR préchargée ouverte en moins de 250 ms sans rendu supplémentaire ; loading immédiat et géométrie identique à la page chargée.                 |
-| Frontières           | `forge-build.test.ts` : SQL, git, sessions, seed et injection de fautes absents du bundle Client ; aucune page dans le graphe Client ; payload Flight sans token ni session ; import git réel de ce dépôt.         |
-| Correctifs framework | `server-errors.test.ts` (500 générique sans fuite), `stream.test.ts` (stream au-delà du timeout), `search.test.tsx` (search textuelle, cache par search, retour arrière), purge des Drafts dans `auth.test.tsx`.   |
-| Production           | `scripts/pty-forge.py` sur les artefacts, 500 ms de RTT : login → approbation → commentaire → fichiers → checks → merge ; terminal restauré, code de sortie 0.                                                     |
+| Preuve               | Vérification réalisée                                                                                                                                                                                                   |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Domaine sans UI      | `forge-domain.test.ts` : seed identique sur deux bases neuves, sessions (PIN, expiration, révocation), droits par rôle, merge idempotent par ledger, CI flaky puis rerun à horloge injectée, conflits de versions.      |
+| Parcours au clavier  | `forge.test.tsx` : login public, commentaire de ligne, approbation, onglets et layout persistant, filtre d'état dans l'URL et retour, merge perdu résolu sans rejeu, conflit de description, logs CI en direct.         |
+| Latence 500 ms       | `forge-latency.test.tsx` : filtre, hover et molette sans requête ; PR préchargée ouverte en moins de 250 ms sans rendu supplémentaire ; loading immédiat et géométrie identique à la page chargée.                      |
+| Frontières           | `forge-build.test.ts` : SQL, git, sessions, seed et injection de fautes absents du bundle Client ; aucune page dans le graphe Client ; payload Flight sans token ni session ; import git réel de ce dépôt.              |
+| Correctifs framework | `server-errors.test.ts` (500 générique sans fuite), `stream.test.ts` (stream au-delà du timeout), `search.test.tsx` (search textuelle, cache par search, retour arrière), purge des arbres privés dans `auth.test.tsx`. |
+| Production           | `scripts/pty-forge.py` sur les artefacts, 500 ms de RTT : login → approbation → commentaire → fichiers → checks → merge ; terminal restauré, code de sortie 0.                                                          |
 
 Observations PTY de production (sortie PTY, pas écran physique), 500 ms de RTT
 simulé : ouverture d'une PR préchargée **63 ms**, frappe dans un Draft **7 ms**.
@@ -152,3 +152,24 @@ passe toujours sous la même latence.
 Rendu mesuré dans le renderer de test : diff de 1 443 lignes affiché et parcouru
 (`G`, 20 × `j`) en moins de 15 ms ; commit réel de migration TanStack (40 fichiers,
 +1 380/−559) importé depuis git et navigable fichier par fichier.
+
+## Contrat « l'erreur au développeur » (23 septembre 2026)
+
+`bun run verify` : **93 tests passent**. Les trois parcours PTY (`pty-smoke.py`, y
+compris sous 500 ms de RTT, `pty-dev.py`, `pty-forge.py`) et `clean-install.ts`
+passent sur macOS arm64.
+
+| Capacité                 | Preuve                                                                                                                                                                                                                                                                                                       |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Issue typée des requêtes | `outcome.test.ts`, contre un vrai Server Notes et sa base : Server arrêté et annulation avant envoi (`not-sent`, rien d'écrit), 401/409/404 (`rejected`, rien d'écrit), commit puis réponse perdue et exception (`unknown`).                                                                                 |
+| Réseau simulé            | `outcome.test.ts` : `refuse`, `drop`, `cut` produisent l'outcome et l'effet en base de leur équivalent réel ; délai par chunk, jitter et `AIRTTY_FAULT` validés.                                                                                                                                             |
+| Packages et côtés        | `build.test.ts` : package et dépendance transitive embarqués sans déclaration et inventoriés ; `server-only`, `airtty/server` et `serverPackages` refusés côté Client, `client-only` côté Server (code applicatif et packages), autorisé derrière `"use client"` ; chaîne d'imports complète depuis la page. |
+| Écrans de route          | `route-screens.test.tsx` : `notFound(what)`, `error.tsx` avec `retry()`, catch-all et priorité de `[param]`, URL inconnue, erreur de transport avec son outcome, layout jamais démonté ; flux Flight de production sans message d'exception.                                                                 |
+| Invalidation Server      | `invalidation.test.tsx` : seule la route déclarée est rechargée, jamais un simple préfixe ; `useInvalidation` notifié ; aucune requête sans `invalidate()`.                                                                                                                                                  |
+| Abonnements live         | `live.test.tsx` : valeurs au fil de l'eau bornées par `limit`, générateur Server arrêté (`finally`) au démontage, coupure rapportée en `unknown`.                                                                                                                                                            |
+| Keymap                   | `keymap.test.tsx` : aide générée depuis les couches montées, filtrée par groupe ; la couche d'une page disparaît avec elle.                                                                                                                                                                                  |
+| Observabilité            | `observability.test.tsx` : l'overlay reste à zéro requête pendant frappe et molette, puis montre la sauvegarde et son RTT ; un span par requête, fermé avec son corps.                                                                                                                                       |
+| Client autonome          | `compile.test.ts` : binaire lancé dans un PTY depuis un répertoire vide, sans Bun dans le `PATH` ni `node_modules`, affiche Notes servi par le Server ; build ID embarqué ; cible et paquet natif manquants expliqués.                                                                                       |
+
+Non vérifié : binaires Linux exécutés (construits seulement par la sonde), signature et
+notarisation macOS, migration des écrans internes de Forge vers la keymap.

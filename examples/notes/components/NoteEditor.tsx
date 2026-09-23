@@ -1,14 +1,7 @@
 "use client";
 import { NoteEditorFrame } from "./NoteFrame";
-import { useKeyboard } from "@opentui/react";
-import {
-  useDraft,
-  useNavigate,
-  useRouter,
-  type Note,
-  type Snapshot,
-  type SaveResult,
-} from "airtty/client";
+import { KeyHelp, useBindings, useNavigate } from "airtty/client";
+import { useDraft, type Note, type Snapshot, type SaveResult } from "./draft";
 type Props = {
   initialNote: Note;
   saveAction: (s: Snapshot) => Promise<SaveResult>;
@@ -16,22 +9,26 @@ type Props = {
 };
 export function NoteEditor({ initialNote, saveAction, resolveAction }: Props) {
   const { draft, edit, save, recover, discard } = useDraft(initialNote),
-    navigate = useNavigate(),
-    router = useRouter();
-  // A committed save changes Server data: refresh the page (title, version). Not awaited,
-  // so a failed refresh never turns the confirmed result into a failure.
-  const refreshAfter = <T extends SaveResult | null>(result: T): T => {
-    if (result?.ok) void router.invalidate().catch(() => {});
-    return result;
-  };
-  const saveAndRefresh = async (snapshot: Snapshot) => refreshAfter(await saveAction(snapshot));
-  const resolveAndRefresh = async (id: string) => refreshAfter(await resolveAction(id));
-  useKeyboard((key) => {
-    if (key.name === "escape") void navigate({ to: "/" });
-    if (key.ctrl && key.name === "s") void save(saveAndRefresh);
-    if (key.ctrl && key.name === "o") void recover(resolveAndRefresh);
-    if (key.ctrl && key.name === "d" && !draft.pending) discard();
-  });
+    navigate = useNavigate();
+  // A committed save refreshes the page by itself: the Server Function invalidates it.
+  useBindings(
+    () => ({
+      bindings: [
+        { key: "ctrl+s", cmd: () => void save(saveAction), desc: "save", group: "note" },
+        { key: "escape", cmd: () => void navigate({ to: "/" }), desc: "list", group: "note" },
+        { key: "ctrl+o", cmd: () => void recover(resolveAction), desc: "resolve", group: "note" },
+        {
+          key: "ctrl+d",
+          cmd: () => {
+            if (!draft.pending) discard();
+          },
+          desc: "discard",
+          group: "note",
+        },
+      ],
+    }),
+    [save, recover, discard, draft, navigate, saveAction, resolveAction],
+  );
   return (
     <NoteEditorFrame
       dirty={draft.dirty}
@@ -41,7 +38,7 @@ export function NoteEditor({ initialNote, saveAction, resolveAction }: Props) {
           focused
           value={draft.value}
           onInput={edit}
-          onSubmit={() => void save(saveAndRefresh)}
+          onSubmit={() => void save(saveAction)}
           placeholder="Write a note…"
         />
       }
@@ -63,7 +60,7 @@ export function NoteEditor({ initialNote, saveAction, resolveAction }: Props) {
           : undefined
       }
       error={draft.error}
-      help="Enter / Ctrl+S save · Esc list · Ctrl+O resolve · Ctrl+D discard"
+      help={<KeyHelp inline groups={["note"]} />}
     />
   );
 }

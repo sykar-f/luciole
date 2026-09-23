@@ -1,5 +1,5 @@
 import type { Database } from "bun:sqlite";
-import type { Note, SaveResult, Snapshot } from "airtty/client";
+import type { Note, SaveResult, Snapshot } from "../components/draft";
 import type {
   Check,
   Comment,

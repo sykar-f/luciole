@@ -2,8 +2,7 @@
 import { useEffect, useRef } from "react";
 import { useKeyboard } from "@opentui/react";
 import type { TextareaRenderable } from "@opentui/core";
-import { useDraft, type Note, type SaveResult, type Snapshot } from "airtty/client";
-import { useServerChanged } from "./changes";
+import { useDraft, type Note, type SaveResult, type Snapshot } from "./draft";
 import { Line } from "./frames";
 import { color } from "./theme";
 
@@ -37,7 +36,6 @@ export function DraftEditor<R extends SaveResult>({
 }: Props<R>) {
   const { draft, edit, save: saveDraft, recover, discard } = useDraft(note);
   const field = useRef<TextareaRenderable>(null);
-  const changed = useServerChanged();
   // External changes (confirmation of an emptied composer, discard) reach the field.
   useEffect(() => {
     const current = field.current;
@@ -49,10 +47,7 @@ export function DraftEditor<R extends SaveResult>({
     if (editing && current) current.cursorOffset = current.plainText.length;
   }, [editing]);
   const confirmed = (result: R | null) => {
-    if (result?.ok) {
-      changed();
-      onSaved?.(result);
-    }
+    if (result?.ok) onSaved?.(result);
     return result;
   };
   const submit = () =>

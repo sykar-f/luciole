@@ -2,8 +2,8 @@
 import { Suspense, use, useEffect, useMemo, useRef, useState } from "react";
 import { useKeyboard, useTerminalDimensions } from "@opentui/react";
 import type { DiffRenderable, ScrollBoxRenderable } from "@opentui/core";
-import { useApplication } from "airtty/client";
 import { publish, resolveSave } from "../actions/pulls";
+import { drafts } from "./draft";
 import { DraftEditor } from "./DraftEditor";
 import { useEditing, useEditingWhile } from "./editing";
 import { Line, SkeletonRows } from "./frames";
@@ -35,7 +35,6 @@ export function FilesReview({ pull, files, composerVersions, canComment }: Props
   const session = useReviewSession();
   const { width } = useTerminalDimensions();
   const { editing } = useEditing();
-  const app = useApplication();
   const [composing, setComposing] = useState<{ side: Side; line: number } | null>(null);
   const [notice, setNotice] = useState("");
   useEditingWhile(composing !== null);
@@ -59,8 +58,8 @@ export function FilesReview({ pull, files, composerVersions, canComment }: Props
     if (key.name === "c" && canComment) {
       if (split) setNotice("Switch to unified view (s) to comment on a line");
       else if (!anchor) setNotice("Move the cursor to a diff line first (j/k)");
-      else if (app.drafts.unsaved().length >= app.drafts.capacity)
-        setNotice(`Draft limit reached (${app.drafts.capacity}): publish or discard a Draft first`);
+      else if (drafts.unsaved().length >= drafts.capacity)
+        setNotice(`Draft limit reached (${drafts.capacity}): publish or discard a Draft first`);
       else {
         setNotice("");
         setComposing(anchor);

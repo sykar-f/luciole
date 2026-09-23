@@ -3,7 +3,7 @@ import { beforeAll, expect, test } from "bun:test";
 import { InputRenderable } from "@opentui/core";
 import { build } from "../src/build";
 import { forgeDirectory, startForge } from "./forge-helpers";
-import { until } from "./helpers";
+import { until, draftsOf } from "./helpers";
 
 beforeAll(async () => {
   await build(forgeDirectory);
@@ -107,7 +107,7 @@ test("reviewer journey: line comment, approval, then Drafts never cross accounts
     await waitFor("Ctrl+L again to sign out");
     await step(() => ui.mockInput.pressKey("l", ctrl));
     await step(() => until(() => forge.path() === "/login"));
-    expect(application.drafts.size).toBe(0);
+    expect(draftsOf(application).size).toBe(0);
 
     await forge.signIn("alice");
     await step(() =>
@@ -264,13 +264,13 @@ test("opening a pull request: the static /pulls/new route beats /pulls/$number",
     await step(() => until(() => forge.path() === "/repos/payments/pulls/5"));
     await waitFor("#5 Retry webhooks");
     expect(operator.pull("payments", 5)).toMatchObject({ author: "bob", title: "Retry webhooks" });
-    expect(forge.app.drafts.unsaved()).toEqual([]);
+    expect(draftsOf(forge.app).unsaved()).toEqual([]);
   } finally {
     await forge.stop();
   }
 }, 60000);
 
-test("a missing pull request renders a page, not an error", async () => {
+test("a missing pull request shows the not-found screen inside the chrome", async () => {
   const forge = await startForge();
   try {
     await forge.signIn("carol");

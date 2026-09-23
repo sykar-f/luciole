@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { Database } from "bun:sqlite";
 import { build } from "../src/build";
-import { launch, until } from "./helpers";
+import { launch, until, draftsOf } from "./helpers";
 const root = resolve("examples/notes");
 test("lost commit: durable outcome recovery, no mutation replay, reconnect refresh", async () => {
   await build(root);
@@ -29,7 +29,7 @@ test("lost commit: durable outcome recovery, no mutation replay, reconnect refre
     await act(async () => {
       await ui.mockInput.pressEnter();
     });
-    const draft = app.drafts.get({ id: "1" });
+    const draft = draftsOf(app).get({ id: "1" });
     await act(async () => {
       await until(() => draft.unknown);
     });
@@ -114,7 +114,7 @@ test("out-of-order navigation, incompatible build preserves mounted editor, refr
     await act(async () => {
       await ui.mockInput.pressEnter();
     });
-    const draft = app.drafts.get({ id: "1" });
+    const draft = draftsOf(app).get({ id: "1" });
     await act(async () => {
       await until(() => !draft.pending);
       await until(() => app.status === "Disconnected");

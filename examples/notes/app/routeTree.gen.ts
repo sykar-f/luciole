@@ -9,7 +9,8 @@ import {
 } from "airtty/route-tree";
 import Layout0 from "./layout";
 import Layout1 from "./notes/layout";
-import Loading2 from "./notes/[id]/loading";
+import Error2 from "./error";
+import Loading3 from "./notes/[id]/loading";
 
 const rootRoute = createRootRoute(Layout0);
 const layout0Route = createRoute({
@@ -21,13 +22,13 @@ const page0Route = createRoute({
   getParentRoute: () => rootRoute,
   path: "/",
   loader: (ctx) => loadPage(ctx, "/", []),
-  ...pageRoute([]),
+  ...pageRoute([], { error: Error2 }),
 });
 const page1Route = createRoute({
   getParentRoute: () => layout0Route,
   path: "$id",
   loader: (ctx) => loadPage(ctx, "/notes/[id]", ["id"]),
-  ...pageRoute(["id"], Loading2),
+  ...pageRoute(["id"], { loading: Loading3, error: Error2 }),
 });
 
 export const routeTree = rootRoute.addChildren([layout0Route.addChildren([page1Route]), page0Route]);

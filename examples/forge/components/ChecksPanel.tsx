@@ -1,20 +1,17 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useKeyboard } from "@opentui/react";
-import { rerunChecks, resolveOperation } from "../actions/pulls";
-import { useServerChanged } from "./changes";
+import { useApplication, useLive } from "airtty/client";
+import { checkLog, rerunChecks, resolveOperation } from "../actions/pulls";
 import { useEditing } from "./editing";
 import { Line } from "./frames";
-import { useLiveLines } from "./live";
 import type { Check, PullDetail } from "./model";
 import { describe, useOperation } from "./operations";
 import { checkColor, checkGlyph, color } from "./theme";
 
-export type LiveCheck = Check & { log: AsyncIterable<string> };
-
 /**
- * Logs stream line by line inside the page's Flight response (async iterables), with
- * no polling and no extra protocol. When a check that was running finishes, this
+ * Logs stream line by line from a Server generator (`useLive`) while the tab is open, with
+ * no polling; leaving the tab closes them. When a check that was running finishes, this
  * component invalidates the route once to refresh statuses and merge readiness.
  */
 export function ChecksPanel({
@@ -23,7 +20,7 @@ export function ChecksPanel({
   canRun,
 }: {
   pull: PullDetail;
-  checks: LiveCheck[];
+  checks: Check[];
   canRun: boolean;
 }) {
   const [selected, setSelected] = useState(0);
@@ -83,12 +80,12 @@ function CheckRow({
   active,
   onSelect,
 }: {
-  check: LiveCheck;
+  check: Check;
   active: boolean;
   onSelect: () => void;
 }) {
-  const changed = useServerChanged();
-  const { done, lines } = useLiveLines(check.log);
+  const app = useApplication();
+  const { done, items: lines } = useLive(checkLog, [check.id]);
   // Remounted for each attempt: was this attempt still running when it was rendered?
   const [live] = useState(() => check.status === "running" || check.status === "queued");
   const invalidated = useRef(false);
@@ -96,8 +93,8 @@ function CheckRow({
   useEffect(() => {
     if (!done || !live || invalidated.current) return;
     invalidated.current = true;
-    changed();
-  }, [done, live, changed]);
+    void app.invalidate().catch(() => {});
+  }, [done, live, app]);
   // The stream is fresher than the rendered snapshot until the route is invalidated.
   const last = lines.at(-1) ?? "";
   const status = !live
@@ -129,8 +126,8 @@ function CheckRow({
   );
 }
 
-function CheckLog({ check }: { check: LiveCheck }) {
-  const { lines, done, error } = useLiveLines(check.log);
+function CheckLog({ check }: { check: Check }) {
+  const { items: lines, done, error } = useLive(checkLog, [check.id]);
   return (
     <box flexDirection="column" flexGrow={1}>
       <Line id="log-heading" fg={color.text}>
@@ -155,7 +152,11 @@ function CheckLog({ check }: { check: LiveCheck }) {
             {line}
           </text>
         ))}
-        {error ? <text fg={color.danger}>{error} · Ctrl+R to reload</text> : null}
+        {error ? (
+          <text fg={color.danger}>
+            {error instanceof Error ? error.message : "Stream interrupted"} · Ctrl+R to reload
+          </text>
+        ) : null}
       </scrollbox>
     </box>
   );

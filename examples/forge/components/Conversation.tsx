@@ -2,7 +2,7 @@
 import { useRef, useState } from "react";
 import { useKeyboard } from "@opentui/react";
 import type { ScrollBoxRenderable } from "@opentui/core";
-import { useDraft, type Note } from "airtty/client";
+import { useDraft, type Note } from "./draft";
 import {
   merge,
   publish,

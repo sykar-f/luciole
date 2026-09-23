@@ -1,7 +1,7 @@
 import "server-only";
 import { Database } from "bun:sqlite";
 import { getSession } from "airtty/server";
-import type { Note, SaveResult, Snapshot } from "airtty/client";
+import type { Note, SaveResult, Snapshot } from "../components/draft";
 const db = new Database(process.env.NOTES_DB ?? "notes.sqlite", {
   create: true,
 });

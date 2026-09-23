@@ -32,6 +32,7 @@
   },
   "dependencies": {
     "@opentui/core": "0.5.12",
+    "@opentui/keymap": "0.5.12",
     "@opentui/react": "0.5.12",
     "@tanstack/react-router": "1.170.38",
     "@typescript/typescript6": "6.0.2",

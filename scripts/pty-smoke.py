@@ -35,7 +35,7 @@ with tempfile.TemporaryDirectory(prefix='airtty-pty-') as directory:
   wait_for(b'First note');captured=b''
   navigation_start=time.monotonic();os.write(master,b'\r');loading_ms=None;loading_rows=None
   def layout_rows():
-   return [next(i for i,line in enumerate(screen.display) if marker in line) for marker in ['Personal notebook','┌','└','Ctrl+R reconnect']]
+   return [next(i for i,line in enumerate(screen.display) if marker in line) for marker in ['Personal notebook','┌','└','reconnect']]
   if int(env.get('AIRTTY_LATENCY_MS','0'))>=400:
    wait_for(b'Opening note 1');loading_ms=(time.monotonic()-navigation_start)*1000
    assert loading_ms<int(env['AIRTTY_LATENCY_MS'])*.8,loading_ms

@@ -2,67 +2,141 @@
 
 Entrée `airtty/client` (Client Components uniquement) :
 
-| API                                                                                                                                    | Contrat                                                                                                      |
-| -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `useNavigate()`, `useRouter()`, `useRouterState()`, `useParams()`, `useSearch()`, `useLocation()`, `useMatchRoute()`, `useCanGoBack()` | Primitives TanStack Router réexportées telles quelles ; TanStack est l'unique état de navigation.            |
-| `useApplication()`                                                                                                                     | `{ setToken(token?, { preserveDrafts }?), refresh(), cancel(), status, error, drafts }` du runtime terminal. |
-| `drafts`                                                                                                                               | `DraftStore` : `unsaved()` (Drafts sales, en vol ou inconnus), `size`, `capacity`, `clear()`.                |
-| `LayoutProps`                                                                                                                          | `{ children, params }` reçu par un `layout.tsx` Client ; `params` limité aux segments du layout.             |
-| `LoadingProps`                                                                                                                         | `{ path, params }` reçu par un `loading.tsx` Client pendant l'attente de la page.                            |
-| `useDraft(note)`                                                                                                                       | `{ draft, edit, save, recover, discard }`. Store au-dessus des routes, indexé par identité métier.           |
-| `Note`                                                                                                                                 | `{ id, title, value, version }` ; types importables côté Server avec `import type`.                          |
-| `Snapshot`                                                                                                                             | `{ id, value, version, revision, operationId }` ; snapshot soumis immuable par convention.                   |
-| `SaveResult`                                                                                                                           | `{ ok: true, note, operationId }` ou `{ ok: false, error, operationId }`.                                    |
+| API                                                                                                                                    | Contrat                                                                                                                                          |
+| -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `useNavigate()`, `useRouter()`, `useRouterState()`, `useParams()`, `useSearch()`, `useLocation()`, `useMatchRoute()`, `useCanGoBack()` | Primitives TanStack Router réexportées telles quelles ; TanStack est l'unique état de navigation.                                                |
+| `useApplication()`                                                                                                                     | `{ setToken(token?), refresh(), invalidate(paths?), cancel(), withSignal(signal, call), onEvent(listener), status, error }` du runtime terminal. |
+| `useConnection()`                                                                                                                      | `{ status, error, buildError, activity, refresh }` pour le chrome de l'application ; `activity` vaut `connect`, `navigate`, `refresh` ou `idle`. |
+| `useInvalidation(listener)`                                                                                                            | Appelé à chaque invalidation (Server ou Client) avec les chemins : pour les données lues hors des loaders de routes.                             |
+| `useLive(source, args, { limit }?)`                                                                                                    | `{ items, done, error }` d'une Server Function génératrice, abonnée tant que le composant est monté.                                             |
+| `useBindings()`, `useActiveKeys()`, `useKeymap()`, `usePendingSequence()`                                                              | Keymap OpenTUI réexportée : couches de raccourcis liées au cycle de vie des composants.                                                          |
+| `<KeyHelp groups? inline? />`                                                                                                          | Aide générée depuis les raccourcis actifs qui déclarent un `desc` (filtrés par `group`).                                                         |
+| `<DebugOverlay limit? />`                                                                                                              | Requêtes, requêtes ouvertes, octets, dernier RTT et derniers événements depuis son montage.                                                      |
+| `instrumentTracing(app, tracer)`                                                                                                       | Un span par requête vers un `Tracer` OpenTelemetry (ou compatible) ; renvoie la fonction d'arrêt.                                                |
+| `TransportError`, `BuildMismatch`, `AuthenticationRequired`                                                                            | Échecs de transport typés ; `outcome` vaut `not-sent`, `rejected` ou `unknown`.                                                                  |
+| `LayoutProps`, `LoadingProps`, `ErrorProps`, `NotFoundProps`                                                                           | Props des fichiers `layout.tsx`, `loading.tsx`, `error.tsx` et `not-found.tsx` (voir plus bas).                                                  |
 
-`save(action)` capture le Draft et bloque une deuxième sauvegarde du même document
-jusqu’à un résultat connu. La saisie reste active. `recover(action)` consulte le
-résultat de l’opération inconnue, sans rejouer la mutation. `discard()` réinitialise
-le Draft au dernier état reçu ; une opération en vol/inconnue interdit l’abandon.
+Le framework ne possède aucun état métier : ni Draft, ni opération en attente, ni
+politique de reprise. Il rapporte ce qui est arrivé à chaque requête ; l'application
+décide. Notes et Forge conservent leurs Drafts dans leur propre `components/draft.ts`
+(un store au-dessus des routes, avec `useDraft`) ; Forge ajoute `components/operations.ts`
+pour les opérations qui ne sont pas des documents.
 
-Le Draft expose `value`, `baseline`, `revision`, `version`, `pending`, `unknown`,
-`dirty`, `conflict`, `error`. Une confirmation ajuste la Baseline du snapshot et la
-version métier ; une normalisation remplace la valeur locale seulement si aucune
-frappe plus récente n’a changé sa révision. Un refresh externe n’écrase pas un Draft
-sale. L’application choisit la politique de conflit ; Notes conserve le Draft et
-permet l’abandon explicite. Les clés React sont les identités des notes, jamais
-leurs versions métier.
+## Issue d'une requête
+
+Toute requête qui échoue lève une `TransportError` dont `outcome` dit ce que le Server
+a pu faire :
+
+| `outcome`  | Cas                                                                                                                       | Le Server a-t-il exécuté du code applicatif ? |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| `not-sent` | Connexion refusée, hôte injoignable, annulation avant l'envoi                                                             | Non                                           |
+| `rejected` | `4xx` : bearer absent (`AuthenticationRequired`), build différent (`BuildMismatch`), action inconnue, arguments invalides | Non                                           |
+| `unknown`  | Timeout ou coupure après l'envoi, réponse perdue ou tronquée, `5xx`                                                       | Peut-être                                     |
+
+Le transport ne prétend jamais une certitude qu'il n'a pas : tout cas non reconnu vaut
+`unknown`. Une exception levée par une Server Function répond un `500` générique
+(« Server request failed ») : ni message, ni stack, ni chemin ne quittent le Server.
+Une erreur de rendu Server qui porte un `digest` Flight n'est pas une erreur de
+transport : elle arrive telle quelle à `error.tsx`.
+
+L'erreur remonte telle quelle jusqu'au code qui a appelé la Server Function. Rejouer,
+consulter un registre, marquer l'opération inconnue ou seulement afficher un message
+relève de l'application. Le motif de Notes, « une opération inconnue n'est jamais
+rejouée, elle est consultée », est un choix applicatif :
+
+```tsx
+try {
+  draft.confirm(await saveNote(snapshot));
+} catch (e) {
+  if (e instanceof TransportError && e.outcome !== "unknown") draft.fail(e.message);
+  else draft.markUnknown(); // Ctrl+O consulte le résultat, sans rejouer
+}
+```
+
+`setToken(token)` remplace le bearer des requêtes suivantes et purge le cache de
+routes (voir plus bas). Il ne touche à aucun état applicatif : une application qui
+change d'identité vide elle-même ses Drafts et opérations, au moment où elle appelle
+`setToken`. Un `401` sur une Server Function n'entraîne aucune navigation :
+`AuthenticationRequired.loginPath` indique où se connecter.
+
+## Invalidation déclarée par le Server
+
+Une Server Function déclare ce qu'elle a changé ; le Client revalide après la réponse,
+sans attendre ni échouer avec ce refresh :
+
+```ts
+"use server";
+import { invalidate } from "airtty/server";
+
+export async function merge(target: Target) {
+  const result = forge.merge(actor(), target);
+  if (result.ok) invalidate(); // "/" par défaut : toutes les routes
+  return result;
+}
+```
+
+`invalidate("/repos/web")` revalide `/repos/web` et ses descendants, jamais un simple
+préfixe (`/repos/website`). L'invalidation voyage dans l'enveloppe de la réponse : une
+réponse perdue n'invalide rien. Les lectures faites par Server Function hors des
+loaders (compteurs d'un chrome) s'abonnent avec `useInvalidation`. Le code Client
+peut aussi appeler `useApplication().invalidate(paths?)` après un changement qu'il
+observe lui-même.
+
+## Abonnements live
+
+Une Server Function génératrice (`export async function*` dans un module
+`"use server"`) livre ses valeurs au fil de l'eau. `useLive` ouvre la requête au
+montage (ou quand ses arguments changent) et l'annule au démontage ; le Server arrête
+alors le générateur (son `finally` s'exécute).
+
+```tsx
+const { items, done, error } = useLive(checkLog, [check.id], { limit: 500 });
+```
+
+Rien ne se reconnecte tout seul : une coupure termine le flux avec une
+`TransportError` (`unknown`). Une réponse live échappe au délai d'inactivité du
+Server. `useApplication().withSignal(signal, () => action(...))` lie un signal
+d'annulation à n'importe quel appel de Server Function.
+
+## Raccourcis clavier
+
+`Shell` installe la keymap par défaut d'OpenTUI (`@opentui/keymap`). Le framework ne
+déclare que `ctrl+c` (quitter) et, pendant une navigation, `escape` (annuler), dans le
+groupe `airtty`. Tout le reste appartient à l'application :
+
+```tsx
+useBindings(
+  () => ({ bindings: [{ key: "ctrl+s", cmd: save, desc: "save", group: "note" }] }),
+  [save],
+);
+// …
+<KeyHelp inline groups={["note"]} />;
+```
+
+Une couche vit avec son composant : quitter une page retire ses raccourcis et leur
+aide. `useKeyboard` d'OpenTUI reste utilisable à côté.
+
+## Observabilité
+
+`useApplication().onEvent(listener)` reçoit chaque événement de transport
+(`request`, `response`, `chunk`, `end`, `error` avec son `outcome`) et chaque
+navigation résolue. `<DebugOverlay />` les résume à l'écran ; `instrumentTracing`
+les exporte en spans OpenTelemetry sans dépendance du framework à OTel (le `Tracer`
+est typé structurellement). Les écouteurs s'exécutent sur le chemin chaud : ils
+doivent rester légers.
+
+## Serveur et intégration
 
 Entrée `airtty/server` :
 
-- `getSession()` : `{ userId }` dans le contexte async du rendu ou de l’action.
+- `getSession()` : `{ userId }` dans le contexte async du rendu ou de l'action.
 - `getOptionalSession()` : la même session, ou `null` dans une page/action publique.
-- `getCallId()` : identifiant de requête de transport, distinct de l’opération métier.
+- `getCallId()` : identifiant de requête de transport, distinct de l'opération métier.
+- `notFound(what?)` : termine le rendu d'une page avec le `not-found.tsx` le plus proche.
+- `invalidate(path?)` : dans une Server Function, déclare les routes à revalider.
 
-`useApplication().setToken(token)` remplace le bearer token des requêtes suivantes,
-sans recréer le Client ni perdre son état local d'interface. Il vide le `DraftStore` :
-une autre identité ne doit ni voir ni publier sous son nom le travail non sauvegardé
-de la précédente. `setToken(token, { preserveDrafts: true })` renouvelle le bearer
-d'une même identité sans perdre ses Drafts. Un écran encore monté recrée ses Drafts
-(propres) depuis ses props : à la déconnexion, naviguer d'abord vers la route
-publique, puis changer le bearer. L’application décide où obtenir, stocker et
-renouveler ce token ; `drafts.unsaved()` lui permet de prévenir avant la perte.
-
-Une action vérifie les droits et valide ses arguments côté Server. Les échecs
-métier attendus sont des valeurs `SaveResult`. Une erreur réseau, timeout ou réponse
-inexploitable rend l’issue inconnue. Une exception levée par une Server Function
-répond un `500` générique (« Server request failed ») : ni message, ni stack, ni
-chemin ne quittent le Server ; le Client la traite comme une issue inconnue.
-
-Le framework ne rafraîchit rien après une Server Function : une lecture
-(`getOperation`, identité publique, recherche) ne coûte aucun rendu de page. Le code
-Client qui déclenche une mutation confirmée invalide lui-même, sans attendre :
-
-```tsx
-const router = useRouter();
-const result = await saveAction(snapshot);
-if (result.ok) void router.invalidate().catch(() => {});
-```
-
-Sans `await`, le résultat métier est acquis avant le refresh et ne dépend jamais de
-son succès. Une invalidation pendant une navigation relance le chargement de la
-destination, qui reçoit alors des données postérieures au commit. Oublier
-l'invalidation laisse l'écran sur les données précédentes : c'est la responsabilité
-de l'application, comme dans TanStack Start.
+Le framework ne rafraîchit rien de lui-même après une Server Function : une lecture
+(`getOperation`, identité publique, recherche) ne coûte aucun rendu de page.
 
 Les fonctions `createApplication`, `Shell`, `serve` et `build` servent au CLI,
 aux tests et aux intégrateurs du framework. Le résolveur de modules est une fonction
@@ -87,9 +161,9 @@ interface Transport {
 ```
 
 L'adapter par défaut `createHttpTransport` porte l'en-tête de build, le bearer, le
-timeout, la latence simulée, les erreurs typées (`TransportError`, `BuildMismatch`,
-`AuthenticationRequired`) et le décodage Flight progressif. Le runtime et les tests
-utilisent aussi des transports factices.
+timeout, la latence simulée (`latencyMs`, `network`), les erreurs typées, les
+événements (`onEvent`), l'invalidation (`onInvalidate`) et le décodage Flight
+progressif. Le runtime et les tests utilisent aussi des transports factices.
 
 ## Authentification des routes et actions
 
@@ -120,8 +194,10 @@ export default {
 
 Le chemin `unauthorizedPath` doit désigner une route publique existante. Une
 navigation sans session vers une route protégée reçoit un `401` puis navigue
-localement vers ce chemin. Sans `unauthorizedPath`, le Client reste sur la dernière
-route confirmée et expose l'erreur `AuthenticationRequired`.
+localement vers ce chemin : c'est une règle de routage déclarée par le Server. Sans
+`unauthorizedPath`, le Client reste sur la dernière route confirmée et expose l'erreur
+`AuthenticationRequired`. Une Server Function refusée ne navigue jamais : l'erreur
+remonte à son appelant.
 
 Les layouts sont des Client Components : ils ne peuvent pas appeler
 `getOptionalSession()` ni `getSession()`, réservés aux pages Server, actions et
@@ -197,6 +273,16 @@ Conventions :
   (le plus proche parmi ses répertoires parents). Il remplace **seulement** la page :
   les layouts restent affichés autour. Sans déclaration, le framework affiche
   « Connecting… » avant la première réponse, puis « Loading… ».
+- `error.tsx` (Client, hérité de la même façon) remplace la page quand son chargement
+  ou son rendu échoue. Il reçoit `{ error, path, params, retry }` : `error` est une
+  `TransportError` (avec son `outcome`) ou une erreur de rendu Server (opaque en
+  production) ; `retry()` recharge la page. Sans déclaration, le message s'affiche.
+- `not-found.tsx` (Client, hérité) s'affiche quand la page appelle `notFound(what?)`
+  côté Server ; il reçoit `{ path, params, what }`. `app/not-found.tsx` sert aussi
+  pour une URL qu'aucune page ne reconnaît.
+- `[...name]` est un segment catch-all : il prend un ou plusieurs segments
+  (`params.name` vaut `guide/install/linux`), doit être le dernier du chemin et ne
+  porte pas de layout. À préfixe égal, `[param]` passe avant lui.
 
 Le build génère `app/routeTree.gen.ts` (à versionner, ne pas éditer) : il déclare
 le `Register` de TanStack, donc `to`, `params` et `useParams` sont typés d'après les
@@ -218,20 +304,20 @@ Comportement observable :
   sous-arbres `Suspense` d'un arbre mis en cache continuent d'arriver.
 - Le loading s'affiche immédiatement (`pendingMs = 0`). Échap (`useApplication()
 .cancel()`) revient localement à la dernière route résolue, sans la recharger.
-- Ctrl+R (`refresh()`) invalide la destination en cours ou la route montée. Pendant
-  un refresh, l'arbre reste monté avec « Refreshing… » : champ, focus et saisie
-  restent actifs. Un refresh échoué garde l'arbre monté et affiche l'erreur.
-- Une navigation échouée affiche son erreur à la place de la page, layouts montés ;
-  Ctrl+R réessaie la destination. Les Drafts restent dans le `DraftStore`.
+- `refresh()` invalide la destination en cours ou la route montée ; l'application le
+  lie à la touche de son choix (Ctrl+R dans les exemples). Pendant un refresh, l'arbre
+  reste monté (`activity === "refresh"`) : champ, focus et saisie restent actifs. Un
+  refresh échoué garde l'arbre monté et expose l'erreur dans `useConnection().error`.
+- Une navigation échouée affiche `error.tsx` à la place de la page, layouts montés.
 - Un `401` redirige vers `unauthorizedPath` sans rendre de contenu protégé. Un
   `409` (build mismatch) est refusé avant décodage et purge le cache.
 - Le cache est celui de TanStack (`staleTime` 0 : une page mise en cache s'affiche
   puis se revalide). Les annulations de navigation n'annulent jamais une mutation.
-- Le `DraftStore` est au-dessus du route tree : les Drafts survivent aux
-  démontages de pages. Les versions de Notes sont monotones.
+- Un état applicatif placé au-dessus du route tree (le store de Drafts de Notes, par
+  exemple) survit aux démontages de pages. Les versions de Notes sont monotones.
 
-`error.tsx`, catch-all, params optionnels et layouts Server persistants (modèle « un
-payload Flight par segment ») restent hors contrat.
+Params optionnels (`[[...name]]`) et layouts Server persistants (modèle « un payload
+Flight par segment ») restent hors contrat.
 
 ### Search params
 
@@ -270,8 +356,8 @@ Une page peut passer à un Client Component une `Promise` (lue avec `use()` sous
 `Suspense`) ou un async iterable : Flight les livre au fil de l'eau dans la même
 réponse, sans protocole supplémentaire. Le timeout du transport borne seulement
 l'attente du modèle racine. Un async iterable ne se lit qu'une fois alors qu'un arbre
-en cache peut être remonté : le consommer une fois dans un store. Le stream d'un arbre
-quitté continue pour le cache ; préférer des streams finis.
+en cache peut être remonté, et le stream d'un arbre quitté continue pour le cache :
+pour un flux lié à l'écran, préférer `useLive`.
 
 ### Géométrie du loading
 
@@ -279,8 +365,8 @@ Un écran d’attente et son contenu final doivent partager leurs règles de lay
 Notes utilise `components/NoteFrame.tsx`, un module de présentation sans accès
 Server : même layout, titre sur une ligne, cadre de champ de cinq lignes,
 emplacements fixes pour statut, messages et aide. Le texte long est tronqué dans
-ces emplacements. Le chrome du framework affiche les indications de navigation et
-de refresh dans son en-tête de hauteur fixe. Aucun élément temporaire ne décale la page.
+ces emplacements. Le chrome de Notes affiche les indications de navigation et de
+refresh dans son en-tête de hauteur fixe. Aucun élément temporaire ne décale la page.
 
 Le framework ne peut pas déduire les dimensions d’une page Server encore inconnue :
 cette stabilité est un contrat de présentation de l’application, vérifié par les
