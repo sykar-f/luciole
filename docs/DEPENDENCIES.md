@@ -13,6 +13,7 @@ des deux sondes sont à jour ; `bun outdated` ne signale aucune mise à jour.
 | react / react-dom / react-server-dom-webpack | 19.3.0   |
 | react-reconciler                             | 0.33.0   |
 | @tanstack/react-router                       | 1.170.38 |
+| @tanstack/react-form (exemples)              | 1.33.5   |
 | @types/react / @types/react-dom              | 19.3.0   |
 | typescript                                   | 7.0.2    |
 | @typescript/typescript6                      | 6.0.2    |
@@ -46,6 +47,13 @@ réellement résolue par OpenTUI et l'unicité de React et Core.
 TanStack Router est épinglé exactement ; seul `@tanstack/react-router` est déclaré,
 ses paquets `router-core`, `history` et `react-store` sont des transitives du
 lockfile. Il est embarqué dans le bundle Client (voir [ROUTER.md](ROUTER.md)).
+
+TanStack Form 1.33.5 est une dépendance de développement : le framework ne l'importe
+pas, le formulaire de nouvelle pull request de Forge l'utilise pour montrer qu'une
+bibliothèque de formulaires s'utilise telle quelle avec `Input`, `Textarea` et
+`useRestoredFields` (voir [API.md](API.md)). Il partage `@tanstack/store` 0.11.1 avec le
+Router : une seule copie dans le lockfile. `airtty init` recopie les dépendances de
+développement du framework : un starter l'a donc à disposition, sans l'importer.
 
 Zod 4.6.5 valide les données externes (variables d'environnement, `airtty.json`, JSON
 lu sur disque, requêtes reçues par le Server, enveloppes reçues par le Client). Le

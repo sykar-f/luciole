@@ -1,9 +1,11 @@
 /** @jsxImportSource @opentui/react */
 import { beforeAll, expect, test } from "bun:test";
+import { act } from "react";
 import { InputRenderable, TextareaRenderable } from "@opentui/core";
+import { testRender } from "@opentui/react/test-utils";
 import { build } from "../src/build";
 import { forgeDirectory, startForge, type ForgeHarness } from "./forge-helpers";
-import { draftsOf, present, renderable, until } from "./helpers";
+import { destroy, draftsOf, importClient, present, renderable, until } from "./helpers";
 
 beforeAll(async () => {
   await build(forgeDirectory);
@@ -312,6 +314,68 @@ test("opening a pull request: the static /pulls/new route beats /pulls/$number",
     expect(operator.pull("payments", 5)).toMatchObject({ author: "bob", title: "Retry webhooks" });
     expect(draftsOf(forge.app).unsaved()).toEqual([]);
   } finally {
+    await forge.stop();
+  }
+}, 60000);
+
+test("the new pull request form validates locally, then survives a Client restart", async () => {
+  const forge = await startForge();
+  const { ui, step, waitFor, operator } = forge;
+  let token: string | undefined;
+  forge.app.onTokenChange((next) => (token = next));
+  let restarted: Awaited<ReturnType<typeof testRender>> | undefined;
+  try {
+    await forge.signIn("bob");
+    await step(() =>
+      forge.app.router.navigate({ to: "/repos/$repo/pulls/new", params: { repo: "payments" } }),
+    );
+    await waitFor("Open a pull request in payments");
+    // TanStack Form validates on submit: nothing reaches the Server.
+    const pulls = operator.count("pulls");
+    await step(() => ui.mockInput.pressKey("s", ctrl));
+    await waitFor("Title needs at least 3 characters");
+    await waitFor("Enter 1–4000 characters");
+    expect(operator.count("pulls")).toBe(pulls);
+
+    await step(() => ui.mockInput.pressTab());
+    await step(() => ui.mockInput.typeText("Retry webhooks"));
+    await step(() => ui.mockInput.pressTab());
+    await step(() => ui.mockInput.typeText("Retries 5xx with backoff."));
+    await forge.settle();
+    const session = forge.app.restoration.snapshot();
+    expect(session.entries[session.index].fields).toEqual({
+      "new-pull/title": "Retry webhooks",
+      "new-pull/description": "Retries 5xx with backoff.",
+    });
+
+    // A new Client process: new memory, the same session file and (in dev) bearer.
+    const { createApp, Shell } = await importClient(forgeDirectory, "forge-restart");
+    const app = createApp({ url: forge.server.url, token, session });
+    await app.router.load();
+    const again = await testRender(<Shell app={app} />, { width: 140, height: 40 });
+    restarted = again;
+    const shown = async () => {
+      await again.renderOnce();
+      return again.captureCharFrame();
+    };
+    await act(async () => {
+      await until(() => renderable(again, "new-pull-title", InputRenderable).value !== "");
+    });
+    expect(renderable(again, "new-pull-title", InputRenderable).value).toBe("Retry webhooks");
+    expect(renderable(again, "new-pull-description", TextareaRenderable).plainText).toBe(
+      "Retries 5xx with backoff.",
+    );
+    expect(await shown()).toContain("Open a pull request in payments");
+    await act(async () => {
+      again.mockInput.pressKey("s", ctrl);
+      await until(() => app.router.state.resolvedLocation?.pathname === "/repos/payments/pulls/5");
+    });
+    expect(operator.pull("payments", 5)).toMatchObject({ author: "bob", title: "Retry webhooks" });
+    // Sent and committed: the text is not offered again.
+    const after = app.restoration.snapshot();
+    expect(after.entries.find((e) => e.href === "/repos/payments/pulls/new")?.fields).toEqual({});
+  } finally {
+    await destroy(restarted);
     await forge.stop();
   }
 }, 60000);

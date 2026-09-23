@@ -15,7 +15,7 @@ export default function NewPullPage({ params }: { params: { repo: string } }) {
     <Screen
       title={`Open a pull request in ${repo.slug}`}
       subtitle="Compare a branch with main"
-      help={<Help groups={["form", "draft"]} />}
+      help={<Help groups={["form"]} />}
     >
       <NewPullForm
         repo={repo.slug}
