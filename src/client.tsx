@@ -31,6 +31,7 @@ import {
   createHttpTransport,
   isReactNode,
   networkFromEnv,
+  type Fetch,
   type NetworkConditions,
   type RouteParams,
   type RouteSearch,
@@ -40,6 +41,7 @@ import {
 export { AuthenticationRequired, BuildMismatch, TransportError } from "./transport";
 export type {
   Fault,
+  Fetch,
   NetworkConditions,
   Outcome,
   RouteParams,
@@ -79,7 +81,7 @@ export type ApplicationOptions = {
   latencyMs?: number;
   /** Simulated jitter, slow chunks and faults (development). */
   network?: NetworkConditions;
-  fetch?: typeof fetch;
+  fetch?: Fetch;
   /** Replaces the HTTP/Flight transport. */
   transport?: Transport;
   initialPath?: string;

@@ -172,6 +172,9 @@ export function networkFromEnv(env: Record<string, string | undefined>): Network
   };
 }
 
+/** What the transport calls to send a request: `fetch` itself, or any stand-in. */
+export type Fetch = (input: URL, init: RequestInit) => Promise<Response>;
+
 export type HttpTransportOptions = {
   url: string;
   buildId: string;
@@ -179,7 +182,7 @@ export type HttpTransportOptions = {
   timeoutMs?: number;
   /** Additional simulated round-trip latency for every application request. */
   latencyMs?: number;
-  fetch?: typeof fetch;
+  fetch?: Fetch;
   /** Receives Server Function calls made by references decoded from Flight. */
   callServer: (id: string, args: unknown[]) => Promise<unknown>;
   /** Paths a successful Server Function declared changed (`invalidate()` on the Server). */
