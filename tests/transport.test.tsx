@@ -2,13 +2,40 @@
 import { test, expect } from "bun:test";
 import { act } from "react";
 import { testRender } from "@opentui/react/test-utils";
+import { InputRenderable } from "@opentui/core";
 import { mkdtemp, rm, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { Database } from "bun:sqlite";
+import { z } from "zod";
 import { build } from "../src/build";
-import { launch, until, draftsOf } from "./helpers";
+import {
+  launch,
+  until,
+  importClient,
+  destroy,
+  draftOf,
+  metricsOf,
+  renderable,
+  type TestUI,
+} from "./helpers";
 const root = resolve("examples/notes");
+// What Notes' `saveNote` answers (examples/notes/components/draft.ts): nothing more.
+const SaveResult = z.discriminatedUnion("ok", [
+  z.strictObject({
+    ok: z.literal(true),
+    note: z.strictObject({
+      id: z.string(),
+      title: z.string(),
+      value: z.string(),
+      version: z.number(),
+    }),
+    operationId: z.string(),
+  }),
+  z.strictObject({ ok: z.literal(false), error: z.string(), operationId: z.string() }),
+]);
+const count = (db: Database) =>
+  db.query<{ n: number }, []>("SELECT COUNT(*) AS n FROM operations").get()?.n;
 test("lost commit: durable outcome recovery, no mutation replay, reconnect refresh", async () => {
   await build(root);
   const dir = await mkdtemp(join(tmpdir(), "airtty-loss-"));
@@ -17,23 +44,24 @@ test("lost commit: durable outcome recovery, no mutation replay, reconnect refre
     NOTES_DB: dbPath,
     AIRTTY_TEST_DROP_ONCE: "1",
   });
-  const { createApp, Shell } = await import(join(root, ".airtty/client/index.js") + "?loss");
+  const { createApp, Shell } = await importClient(root, "loss");
   const app = createApp({ url: server.url, initialPath: "/notes/1" });
-  let ui: any;
+  let rendered: TestUI | undefined;
   try {
     await app.router.load();
-    ui = await testRender(<Shell app={app} />, { width: 100, height: 24 });
+    const ui = await testRender(<Shell app={app} />, { width: 100, height: 24 });
+    rendered = ui;
     await act(async () => {
       await ui.mockInput.typeText("abc");
     });
     await act(async () => {
-      await ui.mockInput.pressEnter();
+      ui.mockInput.pressEnter();
     });
-    const draft = draftsOf(app).get({ id: "1" });
+    const draft = draftOf(app, "1");
     await act(async () => {
       await until(() => draft.unknown);
     });
-    const operationId = draft.pending.operationId;
+    const operationId = draft.pending?.operationId;
     await until(() => server.child.exitCode !== null);
     const previousPid = server.pid;
     server = await launch(join(root, ".airtty/server/index.js"), {
@@ -46,17 +74,23 @@ test("lost commit: durable outcome recovery, no mutation replay, reconnect refre
     });
     expect(draft.value).toBe("abcd");
     const db = new Database(dbPath, { readonly: true });
-    expect(db.query("SELECT value,version FROM notes WHERE id=?").get("1") as any).toEqual({
+    expect(
+      db
+        .query<{ value: string; version: number }, [string]>(
+          "SELECT value,version FROM notes WHERE id=?",
+        )
+        .get("1"),
+    ).toEqual({
       value: "abc",
       version: 2,
     });
-    expect((db.query("SELECT COUNT(*) AS n FROM operations").get() as any).n).toBe(1);
+    expect(count(db)).toBe(1);
     await act(async () => {
       await app.refresh();
     });
     expect(draft.unknown).toBe(true);
     await act(async () => {
-      await ui.mockInput.pressKey("o", { ctrl: true });
+      ui.mockInput.pressKey("o", { ctrl: true });
     });
     await act(async () => {
       await until(() => !draft.pending);
@@ -66,18 +100,14 @@ test("lost commit: durable outcome recovery, no mutation replay, reconnect refre
     expect(draft.value).toBe("abcd");
     expect(draft.version).toBe(2);
     expect(draft.unknown).toBe(false);
-    expect((db.query("SELECT COUNT(*) AS n FROM operations").get() as any).n).toBe(1);
+    expect(count(db)).toBe(1);
     db.close();
-    const metrics = await (
-      await fetch(server.url + "/test-metrics", {
-        headers: { "x-airtty-build": server.buildId },
-      })
-    ).json();
+    const metrics = await metricsOf(server);
     expect(metrics.actions).toBe(1); // only the lookup in the restarted process; no save replay
     expect(operationId).toBeDefined();
     expect(app.status).toBe("Connected");
   } finally {
-    if (ui) await act(async () => ui.renderer.destroy());
+    await destroy(rendered);
     await server.stop();
     await rm(dir, { recursive: true, force: true });
   }
@@ -88,14 +118,14 @@ test("out-of-order navigation, incompatible build preserves mounted editor, refr
   const server = await launch(join(root, ".airtty/server/index.js"), {
     NOTES_DB: join(dir, "notes.sqlite"),
   });
-  const { createApp, Shell } = await import(join(root, ".airtty/client/index.js") + "?network");
+  const { createApp, Shell } = await importClient(root, "network");
   let slow = false,
     block = false,
     incompatible = false;
   const app = createApp({
     url: server.url,
     initialPath: "/notes/1",
-    fetch: async (input: any, init: any) => {
+    fetch: async (input: URL, init: RequestInit) => {
       const url = String(input);
       if (incompatible) return new Response("Incompatible build", { status: 409 });
       if (block && url.includes("/render")) throw new Error("network unavailable during refresh");
@@ -103,18 +133,19 @@ test("out-of-order navigation, incompatible build preserves mounted editor, refr
       return fetch(input, init);
     },
   });
-  let ui: any;
+  let rendered: TestUI | undefined;
   try {
     await app.router.load();
-    ui = await testRender(<Shell app={app} />, { width: 100, height: 24 });
+    const ui = await testRender(<Shell app={app} />, { width: 100, height: 24 });
+    rendered = ui;
     await act(async () => {
       await ui.mockInput.typeText("abc");
     });
     block = true;
     await act(async () => {
-      await ui.mockInput.pressEnter();
+      ui.mockInput.pressEnter();
     });
-    const draft = draftsOf(app).get({ id: "1" });
+    const draft = draftOf(app, "1");
     await act(async () => {
       await until(() => !draft.pending);
       await until(() => app.status === "Disconnected");
@@ -134,8 +165,8 @@ test("out-of-order navigation, incompatible build preserves mounted editor, refr
       await Bun.sleep(400);
     });
     // The latest navigation wins; the slower superseded response never replaces it.
-    expect(app.router.state.resolvedLocation.pathname).toBe("/notes/2");
-    const field = ui.renderer.root.findDescendantById("note-2");
+    expect(app.router.state.resolvedLocation?.pathname).toBe("/notes/2");
+    const field = renderable(ui, "note-2", InputRenderable);
     await act(async () => {
       await ui.mockInput.typeText("keep");
     });
@@ -155,14 +186,14 @@ test("out-of-order navigation, incompatible build preserves mounted editor, refr
     });
     expect(bad.status).toBe(409);
   } finally {
-    if (ui) await act(async () => ui.renderer.destroy());
+    await destroy(rendered);
     await server.stop();
     await rm(dir, { recursive: true, force: true });
   }
 });
 test("progressive Flight Suspense renders fallback before delayed content", async () => {
   const dir = await mkdtemp(join(root, "../../.stream-test-"));
-  let server: any, ui: any;
+  let server: Awaited<ReturnType<typeof launch>> | undefined, rendered: TestUI | undefined;
   try {
     await mkdir(join(dir, "app"), { recursive: true });
     await Bun.write(
@@ -175,10 +206,11 @@ test("progressive Flight Suspense renders fallback before delayed content", asyn
     );
     await build(dir);
     server = await launch(join(dir, ".airtty/server/index.js"));
-    const { createApp, Shell } = await import(join(dir, ".airtty/client/index.js"));
+    const { createApp, Shell } = await importClient(dir);
     const app = createApp({ url: server.url });
     await app.router.load();
-    ui = await testRender(<Shell app={app} />, { width: 80, height: 12 });
+    const ui = await testRender(<Shell app={app} />, { width: 80, height: 12 });
+    rendered = ui;
     await ui.renderOnce();
     expect(ui.captureCharFrame()).toContain("STREAM LOADING");
     expect(ui.captureCharFrame()).toContain("SHELL READY");
@@ -189,7 +221,7 @@ test("progressive Flight Suspense renders fallback before delayed content", asyn
     expect(ui.captureCharFrame()).toContain("STREAM COMPLETE");
     expect(ui.captureCharFrame()).not.toContain("STREAM LOADING");
   } finally {
-    if (ui) await act(async () => ui.renderer.destroy());
+    await destroy(rendered);
     if (server) await server.stop();
     await rm(dir, { recursive: true, force: true });
   }
@@ -201,7 +233,7 @@ test("Notes validation, normalization, version conflict, durable deduplication a
     NOTES_DB: join(dir, "notes.sqlite"),
     AIRTTY_TOKEN: "test-session-token",
   });
-  const { createApp } = await import(join(root, ".airtty/client/index.js") + "?business");
+  const { createApp } = await importClient(root, "business");
   const app = createApp({ url: server.url, token: "test-session-token" });
   try {
     expect((await fetch(server.url + "/health")).status).toBe(401);
@@ -215,7 +247,10 @@ test("Notes validation, normalization, version conflict, durable deduplication a
         })
       ).status,
     ).toBe(403);
-    const save = (s: any) => app.callServer(`${server.buildId}/actions/notes.ts#saveNote`, [s]);
+    const save = async (snapshot: unknown) =>
+      SaveResult.parse(
+        await app.callServer(`${server.buildId}/actions/notes.ts#saveNote`, [snapshot]),
+      );
     const snapshot = {
       id: "1",
       value: "",
@@ -231,8 +266,9 @@ test("Notes validation, normalization, version conflict, durable deduplication a
     };
     const result = await save(valid);
     expect(result.ok).toBe(true);
-    expect(result.note.value).toBe("abc");
-    expect(result.note.version).toBe(2);
+    const note = result.ok ? result.note : undefined;
+    expect(note?.value).toBe("abc");
+    expect(note?.version).toBe(2);
     expect(await save(valid)).toEqual(result);
     const conflict = await save({
       ...valid,
@@ -240,7 +276,7 @@ test("Notes validation, normalization, version conflict, durable deduplication a
       operationId: crypto.randomUUID(),
     });
     expect(conflict.ok).toBe(false);
-    expect(conflict.error).toContain("conflict");
+    expect(conflict.ok ? "" : conflict.error).toContain("conflict");
   } finally {
     await server.stop();
     await rm(dir, { recursive: true, force: true });

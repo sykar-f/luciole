@@ -4,7 +4,8 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { build } from "../src/build";
 import { compileClient, hostTarget } from "../src/compile";
-import { launch } from "./helpers";
+import { messageOf } from "../src/guards";
+import { launch, rejectionOf } from "./helpers";
 
 const root = resolve("examples/notes");
 
@@ -44,7 +45,7 @@ test("the compiled Client runs alone: no Bun, no node_modules, same build as its
         "-",
         outfile,
       ]);
-      const text = `${details.stdout}${details.stderr}`;
+      const text = details.stdout.toString() + details.stderr.toString();
       expect(text).toMatch(/flags=0x\w+\(adhoc,runtime\)/);
       expect(text).toContain("com.apple.security.cs.allow-jit");
       expect(text).toContain("com.apple.security.cs.disable-library-validation");
@@ -83,32 +84,37 @@ test("the compiled Client runs alone: no Bun, no node_modules, same build as its
 
 test("unsupported targets and missing native packages are explained", async () => {
   const { output } = await build(root);
-  await expect(compileClient(output, { name: "notes", target: "bun-windows-x64" })).rejects.toThrow(
-    "Unsupported target bun-windows-x64",
-  );
+  expect(
+    messageOf(
+      await rejectionOf(compileClient(output, { name: "notes", target: "bun-windows-x64" })),
+    ),
+  ).toContain("Unsupported target bun-windows-x64");
   const foreign = hostTarget() === "bun-linux-arm64" ? "bun-darwin-arm64" : "bun-linux-arm64";
-  await expect(
+  const missing = await rejectionOf(
     compileClient(output, {
       name: "notes",
       target: foreign,
       outfile: join(tmpdir(), "never"),
       runtime: process.execPath,
     }),
-  ).rejects.toThrow("--native-dir");
+  );
+  expect(messageOf(missing)).toContain("--native-dir");
 }, 60000);
 
 test("signing is only accepted where it can succeed", async () => {
   const { output } = await build(root);
   const compile = (options: Parameters<typeof compileClient>[1]) =>
     compileClient(output, { outfile: join(tmpdir(), "never"), ...options });
-  await expect(compile({ name: "notes", target: "bun-linux-x64", sign: "-" })).rejects.toThrow(
+  const refused = async (options: Parameters<typeof compileClient>[1]) =>
+    messageOf(await rejectionOf(compile(options)));
+  expect(await refused({ name: "notes", target: "bun-linux-x64", sign: "-" })).toContain(
     "apply to macOS targets",
   );
   if (process.platform !== "darwin") return;
-  await expect(compile({ name: "notes", notarize: "profile" })).rejects.toThrow(
+  expect(await refused({ name: "notes", notarize: "profile" })).toContain(
     "--notarize needs --sign",
   );
-  await expect(compile({ name: "notes", sign: "-", notarize: "profile" })).rejects.toThrow(
+  expect(await refused({ name: "notes", sign: "-", notarize: "profile" })).toContain(
     "does not notarize ad hoc signatures",
   );
 });

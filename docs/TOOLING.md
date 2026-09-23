@@ -1,7 +1,8 @@
 # TypeScript et Oxc
 
 Le projet utilise TypeScript 7.0.2 pour les contrôles, `@typescript/typescript6` 6.0.2
-pour l’API AST du build, `@types/bun` 1.4.2, Oxlint 1.85.0 et Oxfmt 0.70.0.
+pour l’API AST du build, `@types/bun` 1.4.2, Oxlint 1.85.0 (avec `oxlint-tsgolint` 7.0.2002
+pour le lint type-aware) et Oxfmt 0.70.0.
 Toutes ces versions sont fixées dans `package.json` et le lockfile.
 
 `tsconfig.base.json` définit le mode strict, les types Bun (qui exposent aussi les
@@ -22,6 +23,35 @@ le contrat d’intégration local ; les adapters l’incluent aussi pour les app
 consommatrices. Cela ne représente pas une validation statique des données réseau :
 la validation métier reste côté Server. `skipLibCheck` est limité à la vérification
 des fichiers de déclaration des dépendances ; les sources du projet sont vérifiées.
+
+## Règles strictes
+
+Les règles suivantes sont vérifiées, pas seulement suivies :
+
+| Règle                                                    | Moyen                                                                                               |
+| -------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Aucun `any`, explicite ou reçu (`JSON.parse`, `.json()`) | `no-explicit-any`, `no-unsafe-*` (type-aware)                                                       |
+| Aucune assertion `as` (`as const` reste permis)          | `consistent-type-assertions: never`                                                                 |
+| Aucun `!` non-null, aucune assertion inutile             | `no-non-null-assertion`, `no-unnecessary-type-assertion`                                            |
+| Ni `@ts-ignore`, ni `@ts-expect-error`, ni `@ts-nocheck` | `ban-ts-comment`                                                                                    |
+| Ni `Function`, ni `Object`, ni `object`, ni `{}`         | `no-unsafe-function-type`, `no-wrapper-object-types`, `no-restricted-types`, `no-empty-object-type` |
+| Pas d'`enum`, de `namespace` ni de parameter properties  | `erasableSyntaxOnly` (TypeScript)                                                                   |
+| `catch (error)` est `unknown`                            | `strict` (TypeScript), `use-unknown-in-catch-callback-variable`                                     |
+| Égalité stricte                                          | `eqeqeq`                                                                                            |
+| Constantes nommées plutôt que valeurs magiques           | `no-magic-numbers` (hors tests)                                                                     |
+
+Le lint type-aware utilise `oxlint-tsgolint` et les `tsconfig.json` du projet ; il ajoute
+les règles de correction qui demandent des types (`await-thenable`, `no-floating-promises`,
+`unbound-method`…). `no-magic-numbers` accepte -1, 0, 1, 2, les index et les valeurs par
+défaut ; dans les tests, une valeur attendue écrite en clair reste plus lisible qu'une
+constante. `examples/forge/server/ci.ts` et `seed.ts` en sont aussi exemptés : ce sont
+des tables de données de démonstration (horaires du script CI simulé, jeu de données
+généré), où nommer chaque valeur n'ajouterait aucun sens. `readonly` et `ReadonlyArray` pour les données immuables ne sont pas vérifiables
+automatiquement sans bruit (`prefer-readonly-parameter-types` signale chaque paramètre
+d'une bibliothèque) : ils restent une règle de revue.
+
+Les données externes sont validées par Zod, à la frontière où elles entrent ; les données
+internes gardent de simples types TypeScript.
 
 ## Commandes et CI
 

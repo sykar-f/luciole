@@ -52,6 +52,8 @@ export type CheckRow = {
   fail_until: number;
 };
 
+// The verdict line follows the last step of an attempt by this delay.
+const VERDICT_DELAY_MS = 200;
 const fails = (check: CheckRow) => check.attempt <= check.fail_until;
 
 /** The lines of one attempt, with their offsets already scaled. */
@@ -62,7 +64,7 @@ export function script(check: CheckRow, scale: number): Step[] {
     : [...steps];
   const end = lines[lines.length - 1][0];
   const verdict = fails(check) ? "✗ failed" : "✓ passed";
-  return [...lines, [end + 200, `${verdict} (attempt ${check.attempt})`] as const].map(
+  return [...lines, [end + VERDICT_DELAY_MS, `${verdict} (attempt ${check.attempt})`] as const].map(
     ([at, line]) => [Math.round(at * scale), line] as const,
   );
 }
@@ -79,8 +81,11 @@ export function statusOf(check: CheckRow, now: number, scale: number): CheckStat
   return fails(check) ? "failure" : "success";
 }
 
+const MINUTE_MS = 60_000,
+  SECOND_MS = 1000;
+/** `[mm:ss.s]`, like a CI log. */
 const stamp = (ms: number) =>
-  `[${String(Math.floor(ms / 60000)).padStart(2, "0")}:${((ms % 60000) / 1000).toFixed(1).padStart(4, "0")}]`;
+  `[${String(Math.floor(ms / MINUTE_MS)).padStart(2, "0")}:${((ms % MINUTE_MS) / SECOND_MS).toFixed(1).padStart("ss.s".length, "0")}]`;
 
 /**
  * Yields each log line when the clock reaches it. A finished check yields its whole

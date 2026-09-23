@@ -3,6 +3,8 @@ import { mkdtemp, mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { build } from "../src/build";
+import { messageOf } from "../src/guards";
+import { readManifest, rejectionOf } from "./helpers";
 async function fixture(files: Record<string, string>, run: (dir: string) => Promise<void>) {
   const dir = await mkdtemp(join(tmpdir(), "airtty-build-"));
   try {
@@ -29,7 +31,7 @@ test("automatic graph, Client reexports, action proxies, no repository in Client
     },
     async (dir) => {
       await build(dir);
-      const manifest = await Bun.file(join(dir, ".airtty/manifest.json")).json();
+      const manifest = await readManifest(dir);
       expect(manifest.manifest[`${manifest.buildId}/components/barrel.ts#Editor`]).toBeDefined();
       expect(await Bun.file(join(dir, ".airtty/client/index.js")).text()).not.toContain(
         "SECRET_REPOSITORY_SENTINEL",
@@ -66,7 +68,7 @@ for (const [name, extra] of Object.entries<Record<string, string>>({
         ...extra,
       },
       async (dir) => {
-        await expect(build(dir)).rejects.toThrow(/\.ts:\d+:\d+:/);
+        expect(messageOf(await rejectionOf(build(dir)))).toMatch(/\.ts:\d+:\d+:/);
       },
     );
   });
@@ -81,10 +83,8 @@ test("failed rebuild retains prior artefacts", async () => {
         join(dir, "app/page.tsx"),
         'export default async function Page(){"use server";return <text>no</text>}',
       );
-      await expect(build(dir)).rejects.toThrow("Inline");
-      expect((await Bun.file(join(dir, ".airtty/manifest.json")).json()).buildId).toBe(
-        first.buildId,
-      );
+      expect(messageOf(await rejectionOf(build(dir)))).toContain("Inline");
+      expect((await readManifest(dir)).buildId).toBe(first.buildId);
     },
   );
 });
@@ -98,8 +98,8 @@ test("route auth metadata is secure by default and validated", async () => {
     },
     async (dir) => {
       await build(dir);
-      const manifest = await Bun.file(join(dir, ".airtty/manifest.json")).json();
-      expect(manifest.routes.map(({ id, url, auth }: any) => ({ id, url, auth }))).toEqual([
+      const manifest = await readManifest(dir);
+      expect(manifest.routes.map(({ id, url, auth }) => ({ id, url, auth }))).toEqual([
         { id: "/", url: "/", auth: "required" },
         { id: "/login", url: "/login", auth: "public" },
       ]);
@@ -111,7 +111,9 @@ test("route auth metadata is secure by default and validated", async () => {
         'export const auth="sometimes";export default function Page(){return <text>bad</text>}',
     },
     async (dir) => {
-      await expect(build(dir)).rejects.toThrow('auth must be the literal "public" or "required"');
+      expect(messageOf(await rejectionOf(build(dir)))).toContain(
+        'auth must be the literal "public" or "required"',
+      );
     },
   );
 });
@@ -136,7 +138,7 @@ for (const [file, source] of [
         [file]: source,
       },
       async (dir) => {
-        await expect(build(dir)).rejects.toThrow(/(loading|layout)\.tsx:\d+:\d+:/);
+        expect(messageOf(await rejectionOf(build(dir)))).toMatch(/(loading|layout)\.tsx:\d+:\d+:/);
       },
     );
   });
@@ -147,7 +149,7 @@ test("route graph diagnostics abort the build before any artefact", async () => 
       "app/(b)/users/page.tsx": "export default function Page(){return <text>b</text>}",
     },
     async (dir) => {
-      await expect(build(dir)).rejects.toThrow("Route collision /users");
+      expect(messageOf(await rejectionOf(build(dir)))).toContain("Route collision /users");
       expect(await Bun.file(join(dir, ".airtty/manifest.json")).exists()).toBe(false);
     },
   );
@@ -163,10 +165,9 @@ test("layouts and loadings belong to the build identity and the Client graph", a
     },
     async (dir) => {
       const first = await build(dir);
-      const manifest = await Bun.file(join(dir, ".airtty/manifest.json")).json();
-      expect(manifest.clientGraph).toEqual(
-        expect.arrayContaining(["app/layout.tsx", "app/(group)/layout.tsx", "app/loading.tsx"]),
-      );
+      const manifest = await readManifest(dir);
+      for (const file of ["app/layout.tsx", "app/(group)/layout.tsx", "app/loading.tsx"])
+        expect(manifest.clientGraph).toContain(file);
       expect(manifest.serverGraph).not.toContain("app/(group)/layout.tsx");
       await Bun.write(
         join(dir, "app/(group)/layout.tsx"),
@@ -204,14 +205,10 @@ const clientUsing = (specifier: string, name: string) => ({
 test("Client packages: bundled without declaration, inventoried with their versions", async () => {
   await fixture({ ...packages, ...clientUsing("chained", "twice") }, async (dir) => {
     await build(dir);
-    const manifest = await Bun.file(join(dir, ".airtty/manifest.json")).json();
+    const manifest = await readManifest(dir);
     // Transitive dependencies included; Node builtins work on the terminal Client.
-    expect(manifest.clientPackages).toEqual(
-      expect.arrayContaining([
-        { name: "chained", version: "2.0.0" },
-        { name: "tiny-format", version: "1.2.3" },
-      ]),
-    );
+    expect(manifest.clientPackages).toContainEqual({ name: "chained", version: "2.0.0" });
+    expect(manifest.clientPackages).toContainEqual({ name: "tiny-format", version: "1.2.3" });
     expect(await Bun.file(join(dir, ".airtty/client/index.js")).text()).toContain(
       "TINY_FORMAT_SENTINEL",
     );
@@ -220,13 +217,13 @@ test("Client packages: bundled without declaration, inventoried with their versi
 
 test("Client packages: one made for the Server is refused with its name", async () => {
   await fixture({ ...packages, ...clientUsing("db-client", "query") }, async (dir) => {
-    await expect(build(dir)).rejects.toThrow(
+    expect(messageOf(await rejectionOf(build(dir)))).toContain(
       "Client package db-client imports server-only: it is Server-only",
     );
     expect(await Bun.file(join(dir, ".airtty/manifest.json")).exists()).toBe(false);
   });
   await fixture({ ...packages, ...clientUsing("leaky-sdk", "who") }, async (dir) => {
-    await expect(build(dir)).rejects.toThrow(
+    expect(messageOf(await rejectionOf(build(dir)))).toContain(
       "Client package leaky-sdk imports airtty/server: it is Server-only",
     );
   });
@@ -265,7 +262,7 @@ test("boundary errors show the whole import chain, packages included", async () 
       "lib/format.ts": `import {query} from 'db-client';export const label=()=>String(query);`,
     },
     async (dir) => {
-      await expect(build(dir)).rejects.toThrow(
+      expect(messageOf(await rejectionOf(build(dir)))).toContain(
         "Client package db-client imports server-only: it is Server-only\n  via app/page.tsx → components/widget.tsx → lib/format.ts → db-client/index.js → server-only",
       );
     },
@@ -278,7 +275,7 @@ test("boundary errors show the whole import chain, packages included", async () 
       "server/secret.ts": `export const v=1`,
     },
     async (dir) => {
-      await expect(build(dir)).rejects.toThrow(
+      expect(messageOf(await rejectionOf(build(dir)))).toMatch(
         /lib\/shared\.ts:1:1: Server-only import in Client graph: \.\.\/server\/secret\n {2}via app\/page\.tsx → components\/widget\.tsx → lib\/shared\.ts/,
       );
     },
@@ -293,7 +290,7 @@ test("client-only code never runs on the Server, except behind a use client boun
       "lib/editor.ts": `import "client-only";export const open=()=>Bun.spawn(["vi"]);`,
     },
     async (dir) => {
-      await expect(build(dir)).rejects.toThrow(
+      expect(messageOf(await rejectionOf(build(dir)))).toMatch(
         /lib\/editor\.ts:1:1: Client-only module in Server graph: it never runs on the Server\n {2}via app\/page\.tsx → lib\/editor\.ts/,
       );
     },
@@ -305,7 +302,7 @@ test("client-only code never runs on the Server, except behind a use client boun
       "app/page.tsx": `import {openEditor} from 'editor-kit';export default function Page(){return <text>{String(openEditor)}</text>}`,
     },
     async (dir) => {
-      await expect(build(dir)).rejects.toThrow(
+      expect(messageOf(await rejectionOf(build(dir)))).toContain(
         "Server package editor-kit imports client-only: it never runs on the Server\n  via app/page.tsx → editor-kit/index.js → client-only",
       );
     },
@@ -327,14 +324,14 @@ test("client-only code never runs on the Server, except behind a use client boun
 test("serverPackages keeps listed third-party packages out of the Client", async () => {
   const config = { "airtty.json": `{"serverPackages":["hasher"]}` };
   await fixture({ ...sidePackages, ...config, ...clientUsing("hasher", "hash") }, async (dir) => {
-    await expect(build(dir)).rejects.toThrow(
+    expect(messageOf(await rejectionOf(build(dir)))).toMatch(
       /components\/widget\.tsx:1:\d+: Server-only package in Client graph: hasher \(serverPackages in airtty\.json\)\n {2}via app\/page\.tsx → components\/widget\.tsx/,
     );
   });
   await fixture(
     { ...sidePackages, ...config, ...clientUsing("auth-kit", "check") },
     async (dir) => {
-      await expect(build(dir)).rejects.toThrow(
+      expect(messageOf(await rejectionOf(build(dir)))).toContain(
         "Client package auth-kit imports hasher: it is listed in serverPackages (airtty.json)\n  via app/page.tsx → components/widget.tsx → auth-kit/index.js → hasher",
       );
     },
@@ -360,7 +357,24 @@ test("serverPackages keeps listed third-party packages out of the Client", async
     await fixture(
       { ...sidePackages, "airtty.json": bad, ...clientUsing("auth-kit", "check") },
       async (dir) => {
-        await expect(build(dir)).rejects.toThrow("airtty.json");
+        expect(messageOf(await rejectionOf(build(dir)))).toContain("airtty.json");
       },
     );
+});
+// The Client validates what it receives with zod/mini: the classic API would add ~130 KB.
+test("the Client bundle embeds zod/mini, never the classic zod API", async () => {
+  await fixture(
+    // The fixture has no node_modules: application schemas use the framework's zod.
+    {
+      "app/page.tsx": `import {z} from 'zod';export default function Page(){return <text>{z.string().parse('page')}</text>}`,
+    },
+    async (dir) => {
+      await build(dir);
+      const client = await Bun.file(join(dir, ".airtty/client/index.js")).text();
+      expect(client).toContain("node_modules/zod/v4/mini/");
+      expect(client).not.toContain("node_modules/zod/v4/classic/");
+      const server = await Bun.file(join(dir, ".airtty/server/index.js")).text();
+      expect(server).toContain("node_modules/zod/v4/classic/");
+    },
+  );
 });

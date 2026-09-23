@@ -30,10 +30,15 @@ export const checkColor = {
   failure: color.danger,
 } as const;
 
+const MINUTE_MS = 60_000,
+  MINUTES_PER_HOUR = 60,
+  HOURS_PER_DAY = 24;
+// Under two days an age reads in hours, then in days.
+const HOURS_SHOWN = 2 * HOURS_PER_DAY;
 export const ago = (at: number, now: number) => {
-  const minutes = Math.max(0, Math.round((now - at) / 60_000));
+  const minutes = Math.max(0, Math.round((now - at) / MINUTE_MS));
   if (minutes < 1) return "just now";
-  if (minutes < 60) return `${minutes} min ago`;
-  const hours = Math.round(minutes / 60);
-  return hours < 48 ? `${hours} h ago` : `${Math.round(hours / 24)} d ago`;
+  if (minutes < MINUTES_PER_HOUR) return `${minutes} min ago`;
+  const hours = Math.round(minutes / MINUTES_PER_HOUR);
+  return hours < HOURS_SHOWN ? `${hours} h ago` : `${Math.round(hours / HOURS_PER_DAY)} d ago`;
 };

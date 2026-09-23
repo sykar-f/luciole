@@ -11,6 +11,7 @@ import { color } from "./theme";
 
 type Field = "user" | "pin";
 
+const ACCOUNT_WIDTH = 6;
 export function LoginForm({ accounts }: { accounts: { id: string; role: string }[] }) {
   const app = useApplication();
   const navigate = useNavigate();
@@ -97,7 +98,7 @@ export function LoginForm({ accounts }: { accounts: { id: string; role: string }
         {accounts.map((a) => (
           <Line key={a.id} fg={color.muted}>
             {"  "}
-            <span fg={color.text}>{a.id.padEnd(6)}</span> ({a.role})
+            <span fg={color.text}>{a.id.padEnd(ACCOUNT_WIDTH)}</span> ({a.role})
           </Line>
         ))}
       </box>

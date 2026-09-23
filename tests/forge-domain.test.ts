@@ -12,6 +12,7 @@ import {
 } from "../examples/forge/server/forge";
 import { openDatabase } from "../examples/forge/server/schema";
 import { diffRows, unifiedDiff } from "../examples/forge/server/diff";
+import { present } from "./helpers";
 
 async function withForge(
   run: (forge: ReturnType<typeof createForge>, clock: { t: number }) => Promise<void> | void,
@@ -63,7 +64,7 @@ test("two fresh databases hold the same deterministic demo state", async () => {
         forge.repos().map((r) => ({
           r,
           pulls: forge.pulls(r.slug).map((p) => {
-            const detail = forge.pull(r.slug, p.number)!;
+            const detail = present(forge.pull(r.slug, p.number), "pull request");
             return {
               p,
               files: forge.files(detail.id, detail.revision),
@@ -88,7 +89,7 @@ test("sessions: PIN login, bearer resolution, logout revocation", () =>
     const login = forge.login(" Alice ", "forge");
     if (!login.ok) throw new Error("login");
     expect(login.identity).toEqual({ id: "alice", name: "Alice Martin", role: "maintainer" });
-    const alice = forge.authenticate(login.token)!;
+    const alice = present(forge.authenticate(login.token), "session");
     expect(alice.id).toBe("alice");
     expect(forge.authenticate("forged")).toBeNull();
     forge.logout(alice);
@@ -102,7 +103,7 @@ test("sessions: PIN login, bearer resolution, logout revocation", () =>
 test("rights are enforced by the domain, not by the screens", () =>
   withForge((forge) => {
     const [alice, bob, carol] = ["alice", "bob", "carol"].map((id) => actor(forge, id));
-    const pr1 = forge.pull("payments", 1)!;
+    const pr1 = present(forge.pull("payments", 1), "pull request");
     const review = (who: Actor, verdict: "approve" | "changes", pr = pr1) =>
       forge.review(who, {
         repo: "payments",
@@ -152,7 +153,7 @@ test("rights are enforced by the domain, not by the screens", () =>
 test("a merge commits once: the same operation returns the stored result", () =>
   withForge((forge) => {
     const [alice, bob] = ["alice", "bob"].map((id) => actor(forge, id));
-    const pr2 = forge.pull("payments", 2)!;
+    const pr2 = present(forge.pull("payments", 2), "pull request");
     expect(forge.readiness(pr2.id)).toMatchObject({
       approvals: [],
       canMerge: false,
@@ -187,7 +188,7 @@ test("a merge commits once: the same operation returns the stored result", () =>
     ).toEqual(merged);
     expect(forge.operation(alice, id)).toEqual(merged);
     expect(forge.operation(bob, id)).toBeNull();
-    expect(forge.pull("payments", 1)!.state).toBe("merged");
+    expect(present(forge.pull("payments", 1), "pull request").state).toBe("merged");
     expect(
       forge.merge(alice, { repo: "payments", number: 1, revision: 1, operationId: op() }),
     ).toMatchObject({ ok: false });
@@ -199,7 +200,7 @@ test("a merge commits once: the same operation returns the stored result", () =>
 test("a flaky check fails, reruns, then lets the merge through as time passes", () =>
   withForge((forge, clock) => {
     const alice = actor(forge, "alice");
-    const pr2 = forge.pull("payments", 2)!;
+    const pr2 = present(forge.pull("payments", 2), "pull request");
     const failing = forge.checks(pr2.id, 1);
     expect(failing.map((c) => [c.name, c.status])).toEqual([
       ["lint", "success"],
@@ -237,7 +238,7 @@ test("a flaky check fails, reruns, then lets the merge through as time passes", 
 
 test("CI logs stream as the clock reaches each line", async () => {
   await withForge(async (forge) => {
-    const pr1 = forge.pull("payments", 1)!;
+    const pr1 = present(forge.pull("payments", 1), "pull request");
     const lint = forge.checks(pr1.id, 1)[0];
     const lines: string[] = [];
     for await (const line of forge.checkLog(lint.id)) lines.push(line);
@@ -249,7 +250,7 @@ test("CI logs stream as the clock reaches each line", async () => {
 test("documents: description versions, composers and new pull requests", () =>
   withForge((forge) => {
     const [alice, bob] = ["alice", "bob"].map((id) => actor(forge, id));
-    const pr1 = forge.pull("payments", 1)!;
+    const pr1 = present(forge.pull("payments", 1), "pull request");
     const note = forge.descriptionNote(pr1.id);
     const saved = forge.saveDescription(bob, snapshot(note.id, "  Updated  ", note.version));
     expect(saved).toMatchObject({ ok: true, note: { id: note.id, value: "Updated", version: 2 } });

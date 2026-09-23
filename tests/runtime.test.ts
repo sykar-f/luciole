@@ -4,6 +4,8 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { build } from "../src/build";
 import { compileClient, fetchRuntime, hostTarget } from "../src/compile";
+import { messageOf } from "../src/guards";
+import { rejectionOf } from "./helpers";
 
 // A registry serving a fake runtime package, the way npm publishes @oven/bun-<os>-<arch>.
 const name = (() => {
@@ -68,7 +70,7 @@ test("a tarball that does not match the published integrity is never cached", as
   const genuine = integrity;
   integrity = `sha512-${new Bun.CryptoHasher("sha512").update("tampered").digest("base64")}`;
   try {
-    await expect(fetchRuntime(hostTarget(), options)).rejects.toThrow(
+    expect(messageOf(await rejectionOf(fetchRuntime(hostTarget(), options)))).toContain(
       "does not match the integrity",
     );
   } finally {
@@ -89,14 +91,20 @@ test("an incomplete entry left by an older cache is replaced", async () => {
 test("--compile embeds the stock runtime by default and explains an offline miss", async () => {
   const { output } = await build(resolve("examples/notes"));
   const offline = { cache: (await source()).cache, registry: "http://127.0.0.1:9" };
-  await expect(compileClient(output, { name: "notes", ...offline })).rejects.toThrow(
-    "Connect once to cache it, or pass --runtime host",
-  );
+  expect(
+    messageOf(await rejectionOf(compileClient(output, { name: "notes", ...offline }))),
+  ).toContain("Connect once to cache it, or pass --runtime host");
   const foreign = hostTarget() === "bun-linux-x64" ? "bun-linux-arm64" : "bun-linux-x64";
-  await expect(
-    compileClient(output, { name: "notes", target: foreign, runtime: "host" }),
-  ).rejects.toThrow(`--runtime host only builds for ${hostTarget()}`);
-  await expect(
-    compileClient(output, { name: "notes", runtime: join(offline.cache, "missing-bun") }),
-  ).rejects.toThrow("not found");
+  expect(
+    messageOf(
+      await rejectionOf(compileClient(output, { name: "notes", target: foreign, runtime: "host" })),
+    ),
+  ).toContain(`--runtime host only builds for ${hostTarget()}`);
+  expect(
+    messageOf(
+      await rejectionOf(
+        compileClient(output, { name: "notes", runtime: join(offline.cache, "missing-bun") }),
+      ),
+    ),
+  ).toContain("not found");
 }, 60000);

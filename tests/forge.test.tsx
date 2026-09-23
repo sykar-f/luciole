@@ -3,7 +3,7 @@ import { beforeAll, expect, test } from "bun:test";
 import { InputRenderable } from "@opentui/core";
 import { build } from "../src/build";
 import { forgeDirectory, startForge } from "./forge-helpers";
-import { until, draftsOf } from "./helpers";
+import { draftsOf, present, until } from "./helpers";
 
 beforeAll(async () => {
   await build(forgeDirectory);
@@ -70,7 +70,9 @@ test("reviewer journey: line comment, approval, then Drafts never cross accounts
     await step(() => ui.mockInput.pressKey("s", ctrl));
     await step(() => until(() => operator.count("comments") === before + 1));
     await waitFor("@bob: Name this page size");
-    const comment = operator.comments(operator.pull("payments", 2)!.id).at(-1);
+    const comment = operator
+      .comments(present(operator.pull("payments", 2), "pull request").id)
+      .at(-1);
     expect(comment).toMatchObject({
       author: "bob",
       path: "src/settlement.ts",
@@ -141,7 +143,7 @@ test("a merge whose response is lost is resolved from the ledger, never replayed
     operator.operator.armFault("merge");
     await step(() => ui.mockInput.typeText("m"));
     await waitFor("outcome unknown");
-    expect(operator.pull("payments", 1)!.state).toBe("merged");
+    expect(present(operator.pull("payments", 1), "pull request").state).toBe("merged");
     // A second attempt is blocked locally while the outcome is unknown.
     await step(() => ui.mockInput.typeText("m"));
     await forge.settle(200);
@@ -196,16 +198,15 @@ test("CI logs stream live through Flight, then the rerun unblocks the merge", as
   const { ui, step, waitFor, operator } = forge;
   try {
     await forge.signIn("bob");
-    operator.review(
-      operator.authenticate((operator.login("bob", "forge") as { token: string }).token)!,
-      {
-        repo: "payments",
-        number: 2,
-        revision: 1,
-        verdict: "approve",
-        operationId: crypto.randomUUID(),
-      },
-    );
+    const login = operator.login("bob", "forge");
+    if (!login.ok) throw new Error(login.error);
+    operator.review(present(operator.authenticate(login.token), "session"), {
+      repo: "payments",
+      number: 2,
+      revision: 1,
+      verdict: "approve",
+      operationId: crypto.randomUUID(),
+    });
     await step(() =>
       forge.app.router.navigate({
         to: "/repos/$repo/pulls/$number/checks",

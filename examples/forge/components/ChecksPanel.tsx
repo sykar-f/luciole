@@ -9,6 +9,7 @@ import type { Check, PullDetail } from "./model";
 import { describe, useOperation } from "./operations";
 import { checkColor, checkGlyph, color } from "./theme";
 
+const SECOND_MS = 1000;
 /**
  * Logs stream line by line from a Server generator (`useLive`) while the tab is open, with
  * no polling; leaving the tab closes them. When a check that was running finishes, this
@@ -120,7 +121,7 @@ function CheckRow({
         {check.name}
       </text>
       <text fg={color.muted}>
-        #{check.attempt} {(check.durationMs / 1000).toFixed(1)}s
+        #{check.attempt} {(check.durationMs / SECOND_MS).toFixed(1)}s
       </text>
     </box>
   );

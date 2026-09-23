@@ -4,6 +4,13 @@ import { SEED_EPOCH } from "./seed";
 
 const MAX_FILES = 40;
 const MAX_LINES = 3000;
+const MAX_TITLE = 200;
+const HOUR_MS = 3_600_000;
+// `%H %s %b` per commit, `added removed path` per numstat line.
+const LOG_FIELDS = 3,
+  NUMSTAT_FIELDS = 3;
+const BRANCH_SHA = 8,
+  TITLE_SHA = 12;
 
 function git(repo: string, args: string[]) {
   const result = Bun.spawnSync(["git", "-C", repo, ...args], { stdout: "pipe", stderr: "pipe" });
@@ -23,7 +30,7 @@ export function importGitRepository(forge: Forge, path: string, slug: string, co
   const commits = log
     .split("\x1e")
     .map((entry) => entry.trim().split("\x1f"))
-    .filter((parts) => parts.length === 3 && parts[0])
+    .filter((parts) => parts.length === LOG_FIELDS && parts[0])
     .reverse();
   const { db } = forge;
   db.transaction(() => {
@@ -34,7 +41,7 @@ export function importGitRepository(forge: Forge, path: string, slug: string, co
       const files = numstat
         .split("\n")
         .map((line) => line.split("\t"))
-        .filter((parts) => parts.length === 3 && parts[0] !== "-")
+        .filter((parts) => parts.length === NUMSTAT_FIELDS && parts[0] !== "-")
         .slice(0, MAX_FILES)
         .flatMap(([, , file]) => {
           const before = git(path, ["show", `${sha}^:${file}`]) ?? "";
@@ -47,7 +54,7 @@ export function importGitRepository(forge: Forge, path: string, slug: string, co
       if (!files.length) return;
       const open = index >= commits.length - 2;
       const author = index % 2 ? "bob" : "alice";
-      const created = SEED_EPOCH + index * 3_600_000;
+      const created = SEED_EPOCH + index * HOUR_MS;
       const number = index + 1;
       const { lastInsertRowid } = db
         .query(
@@ -56,12 +63,12 @@ export function importGitRepository(forge: Forge, path: string, slug: string, co
         .run(
           slug,
           number,
-          subject.slice(0, 200),
+          subject.slice(0, MAX_TITLE),
           author,
           open ? "open" : "merged",
-          `commit/${sha.slice(0, 8)}`,
+          `commit/${sha.slice(0, BRANCH_SHA)}`,
           "main",
-          body.trim() || `Imported commit \`${sha.slice(0, 12)}\`.`,
+          body.trim() || `Imported commit \`${sha.slice(0, TITLE_SHA)}\`.`,
           open ? null : "alice",
           created,
           created,

@@ -138,6 +138,15 @@ Entrée `airtty/server` :
 Le framework ne rafraîchit rien de lui-même après une Server Function : une lecture
 (`getOperation`, identité publique, recherche) ne coûte aucun rendu de page.
 
+Les arguments d'une Server Function arrivent décodés par Flight mais **non vérifiés** :
+son type TypeScript décrit ce que le Client est censé envoyer, pas ce qui arrive. Le
+framework garantit seulement une liste d'arguments (`ServerFunction` les type
+`unknown[]`) ; la fonction valide les siens avant tout effet, comme le font Notes et
+Forge avec Zod. Le framework valide ce qu'il reçoit lui-même : variables
+d'environnement du Server et du Client au démarrage (une valeur invalide arrête le
+processus en nommant la variable), `airtty.json`, params et search de `/render`,
+enveloppe d'une réponse d'action côté Client (sinon `TransportError`, `unknown`).
+
 Les fonctions `createApplication`, `Shell`, `serve` et `build` servent au CLI,
 aux tests et aux intégrateurs du framework. Le résolveur de modules est une fonction
 `(moduleId) => exports`, injectée dans `createApplication`. Le MVP accepte un seul

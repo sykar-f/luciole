@@ -8,6 +8,7 @@ import React, {
   useState,
   useSyncExternalStore,
 } from "react";
+import * as z from "zod/mini";
 import { createCliRenderer } from "@opentui/core";
 import { createRoot, useRenderer } from "@opentui/react";
 import { createDefaultOpenTuiKeymap } from "@opentui/keymap/opentui";
@@ -24,11 +25,14 @@ import {
 import { installResolver, createServerReference, type ModuleResolver } from "./flight/client";
 import { readNotFound } from "./not-found";
 import { connect, serverUrl } from "./connect";
+import { messageOf } from "./guards";
 import {
   AuthenticationRequired,
   BuildMismatch,
   createHttpTransport,
+  isReactNode,
   networkFromEnv,
+  type Fetch,
   type NetworkConditions,
   type RouteParams,
   type RouteSearch,
@@ -38,6 +42,7 @@ import {
 export { AuthenticationRequired, BuildMismatch, TransportError } from "./transport";
 export type {
   Fault,
+  Fetch,
   NetworkConditions,
   Outcome,
   RouteParams,
@@ -77,7 +82,7 @@ export type ApplicationOptions = {
   latencyMs?: number;
   /** Simulated jitter, slow chunks and faults (development). */
   network?: NetworkConditions;
-  fetch?: typeof fetch;
+  fetch?: Fetch;
   /** Replaces the HTTP/Flight transport. */
   transport?: Transport;
   initialPath?: string;
@@ -88,8 +93,7 @@ export type ApplicationOptions = {
 // TanStack scroll restoration calls the global scrollTo() after every rendered load.
 // OpenTUI already installs a minimal global window; a terminal has no page to scroll.
 function installTerminalGlobals() {
-  const terminalGlobal = globalThis as { scrollTo?: () => void };
-  terminalGlobal.scrollTo ??= () => {};
+  if (!("scrollTo" in globalThis)) Object.assign(globalThis, { scrollTo: () => {} });
 }
 
 let current: Application;
@@ -124,7 +128,9 @@ export class Application {
   private nextSignal: AbortSignal | undefined;
   private eventListeners = new Set<(event: ApplicationEvent) => void>();
   private purgeAfterLoad = false;
-  constructor(readonly options: ApplicationOptions) {
+  readonly options: ApplicationOptions;
+  constructor(options: ApplicationOptions) {
+    this.options = options;
     installTerminalGlobals();
     installResolver(options.resolveModule);
     this.transport =
@@ -169,7 +175,9 @@ export class Application {
       this.purgeAfterLoad = false;
       this.router.clearCache();
     });
-    // oxlint-disable-next-line typescript/no-this-alias -- Register the single application instance used by generated action proxies.
+    // Generated action proxies are module-level functions with no React context: they reach
+    // the one Application of this process through `current`, set by its constructor.
+    // oxlint-disable-next-line typescript/no-this-alias -- the process-wide registration above.
     current = this;
   }
   subscribe = (f: () => void) => {
@@ -269,7 +277,7 @@ export class Application {
   ): Promise<React.ReactNode> {
     // Read before the request: a revalidation of the resolved location keeps its tree.
     const refreshing = this.router.state.resolvedLocation?.href === load.href;
-    const mounted = refreshing
+    const mounted: unknown = refreshing
       ? this.router.state.matches.find((m: { routeId: string }) => m.routeId === load.route)
           ?.loaderData
       : undefined;
@@ -292,9 +300,9 @@ export class Application {
       }
       // A failed refresh keeps the mounted tree, its focus and its Drafts; a failed
       // navigation shows the error in the page slot, inside the persistent layouts.
-      if (mounted !== undefined) {
-        this.report(statusOf(e), (e as Error).message);
-        return mounted as React.ReactNode;
+      if (mounted !== undefined && isReactNode(mounted)) {
+        this.report(statusOf(e), messageOf(e));
+        return mounted;
       }
       this.report(statusOf(e));
       throw e;
@@ -334,6 +342,7 @@ export type LiveState<T> = {
   /** Why the stream stopped early: a `TransportError` carries its `outcome`. */
   error: unknown;
 };
+const DEFAULT_LIVE_LIMIT = 1000;
 /**
  * Subscribes, while mounted, to a Server Function returning an async iterable (an
  * `async function*` in a "use server" module). The request opens on mount, when `args`
@@ -346,7 +355,7 @@ export function useLive<T, A extends unknown[]>(
   options: { limit?: number } = {},
 ): LiveState<T> {
   const app = useApplication();
-  const limit = options.limit ?? 1000;
+  const limit = options.limit ?? DEFAULT_LIVE_LIMIT;
   // A subscription's values are tagged with its arguments: new arguments start empty.
   const key = JSON.stringify(args);
   const [state, setState] = useState<LiveState<T> & { key: string }>({
@@ -597,29 +606,39 @@ export function Shell({ app }: { app: Application }) {
 export function createApplication(options: ApplicationOptions) {
   return new Application(options);
 }
+// The Client's own environment; the Server's URL comes from `serverUrl` (src/connect.ts)
+// and network conditions from `networkFromEnv`.
+const ClientEnvironment = z.object({
+  AIRTTY_TOKEN: z.optional(z.string()),
+  AIRTTY_LATENCY_MS: z._default(z.coerce.number().check(z.gte(0)), 0),
+});
+/** What `airtty dev` sends the Client it supervises (src/cli.ts). */
+const DevMessage = z.object({ type: z.literal("build-error"), message: z.string() });
 export async function run(
   create: (options: Record<string, unknown>) => Application,
   { name = "airtty" }: { name?: string } = {},
 ) {
+  const env = ClientEnvironment.safeParse(process.env);
+  if (!env.success) throw new Error(`Invalid Client environment: ${z.prettifyError(env.error)}`);
   // Resolved before the renderer takes the terminal: ssh may prompt for a passphrase.
   const connection = await serverUrl({ name })
     .then((url) => connect(url))
     .catch((error: unknown) => {
-      console.error(error instanceof Error ? error.message : String(error));
+      console.error(messageOf(error));
       process.exit(1);
     });
   const app = create({
     url: connection.url,
     fetch: connection.fetch,
-    token: process.env.AIRTTY_TOKEN,
-    latencyMs: Number(process.env.AIRTTY_LATENCY_MS ?? 0),
+    token: env.data.AIRTTY_TOKEN,
+    latencyMs: env.data.AIRTTY_LATENCY_MS,
     network: networkFromEnv(process.env),
   });
-  process.on("message", (message: { type?: string; message?: string } | null) => {
-    if (message?.type === "build-error") {
-      app.buildError = message.message ?? "Build failed";
-      app.notify();
-    }
+  process.on("message", (received: unknown) => {
+    const message = DevMessage.safeParse(received);
+    if (!message.success) return;
+    app.buildError = message.data.message;
+    app.notify();
   });
   const renderer = await createCliRenderer({ exitOnCtrlC: false });
   const root = createRoot(renderer);

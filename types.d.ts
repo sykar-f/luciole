@@ -1,31 +1,39 @@
+// Decoded Flight values are `unknown`: their type is what the Server sent, checked where
+// a type is assumed (see src/guards.ts and the transport's envelope schema).
 declare module "react-server-dom-webpack/client.browser" {
-  export function createFromReadableStream(stream: ReadableStream, options: any): any;
-  export function encodeReply(value: any): Promise<string | FormData>;
+  export function createFromReadableStream(
+    stream: ReadableStream,
+    options: {
+      callServer: (id: string, args: unknown[]) => Promise<unknown>;
+      replayConsoleLogs?: boolean;
+    },
+  ): Promise<unknown>;
+  export function encodeReply(value: unknown): Promise<string | FormData>;
   export function createServerReference(
     id: string,
-    callServer: (id: string, args: any[]) => Promise<any>,
-  ): any;
+    callServer: (id: string, args: unknown[]) => Promise<unknown>,
+  ): (...args: unknown[]) => Promise<unknown>;
 }
 declare module "react-server-dom-webpack/server.node" {
   export function registerClientReference<T>(value: T, id: string, name: string): T;
   export function registerServerReference<T>(value: T, id: string, name: string): T;
   export function renderToPipeableStream(
-    model: any,
-    manifest: any,
-    options?: any,
-  ): { pipe(stream: any): void; abort(): void };
-  export function decodeReply(body: string | FormData, manifest: any): Promise<any>;
+    model: unknown,
+    manifest: unknown,
+    options?: { onError?: (error: unknown) => string | undefined },
+  ): { pipe(stream: NodeJS.WritableStream): void; abort(): void };
+  export function decodeReply(body: string | FormData, manifest: unknown): Promise<unknown>;
 }
 declare module "server-only";
 
 // The original isolated RSC probe uses the Node decoder without Server Functions.
 declare module "react-server-dom-webpack/client.node" {
-  export function createFromNodeStream<T = import("react").ReactNode>(
+  export function createFromNodeStream(
     stream: import("node:stream").Readable,
     manifest: {
       moduleMap: Record<string, Record<string, { id: string; chunks: string[]; name: string }>>;
       moduleLoading: null;
       serverModuleMap: null;
     },
-  ): PromiseLike<T>;
+  ): PromiseLike<unknown>;
 }

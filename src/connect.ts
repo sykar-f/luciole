@@ -8,8 +8,17 @@ import { join } from "node:path";
 import { mkdtempSync, rmSync } from "node:fs";
 import { connect as connectSocket } from "node:net";
 import { spawn } from "node:child_process";
+import * as z from "zod/mini";
+import { messageOf } from "./guards";
+import type { Fetch } from "./transport";
 
 export const DEFAULT_URL = "http://127.0.0.1:3000";
+/** `$XDG_CONFIG_HOME/airtty/<app>.json`: only the Server's URL for now. */
+const UserConfig = z.object({ url: z.string().check(z.minLength(1)) });
+// sun_path holds 104 bytes on macOS: keep the socket path below, with room for ssh.
+const SOCKET_PATH_LIMIT = 100;
+const SSH_ERRORS_LIMIT = 4096;
+const TUNNEL_POLL_MS = 100;
 
 export const configPath = (name: string, env: NodeJS.ProcessEnv = process.env) =>
   join(env.XDG_CONFIG_HOME || join(homedir(), ".config"), "airtty", `${name}.json`);
@@ -36,17 +45,16 @@ export async function serverUrl({
   let config: unknown;
   try {
     config = JSON.parse(await file.text());
-  } catch (error) {
-    throw new Error(`${path}: ${error instanceof Error ? error.message : String(error)}`);
+  } catch (error: unknown) {
+    throw new Error(`${path}: ${messageOf(error)}`);
   }
-  const url =
-    typeof config === "object" && config !== null && "url" in config ? config.url : undefined;
-  if (typeof url !== "string" || !url) throw new Error(`${path}: expected { "url": "…" }`);
-  return url;
+  const parsed = UserConfig.safeParse(config);
+  if (!parsed.success) throw new Error(`${path}: expected { "url": "…" }`);
+  return parsed.data.url;
 }
 
 /** Where requests go, and what to stop when the Client quits. */
-export type Connection = { url: string; fetch?: typeof fetch; close(): void };
+export type Connection = { url: string; fetch?: Fetch; close(): void };
 
 /** Opens the tunnel of an `ssh://` URL; any other URL is used as is. */
 export function connect(url: string, options?: TunnelOptions): Promise<Connection> {
@@ -89,10 +97,10 @@ export async function openTunnel(
   // ssh would read a leading dash as an option.
   if (host.startsWith("-") || user.startsWith("-") || remote[1]?.startsWith("-"))
     throw new Error(`${url}: host and user cannot start with "-"`);
-  // A socket path must fit sun_path (104 bytes on macOS) and ssh splits -L on ":".
+  // A socket path must fit sun_path and ssh splits -L on ":".
   const base = join(tmpdir(), "airtty-ssh-XXXXXX/s");
   const directory = mkdtempSync(
-    join(base.length > 100 || base.includes(":") ? "/tmp" : tmpdir(), "airtty-ssh-"),
+    join(base.length > SOCKET_PATH_LIMIT || base.includes(":") ? "/tmp" : tmpdir(), "airtty-ssh-"),
   );
   const socket = join(directory, "s");
   const child = spawn(
@@ -114,7 +122,7 @@ export async function openTunnel(
   let errors = "",
     exited: string | undefined;
   child.stderr?.on("data", (chunk: Buffer) => {
-    if (errors.length < 4096) errors += chunk;
+    if (errors.length < SSH_ERRORS_LIMIT) errors += chunk;
   });
   child.once("error", (error) => (exited = error.message));
   child.once("exit", (code, signal) => (exited ??= `ssh exited with ${signal ?? code}`));
@@ -131,7 +139,7 @@ export async function openTunnel(
       close();
       throw new Error(`ssh ${host}: no tunnel after ${timeoutMs} ms`);
     }
-    await Bun.sleep(100);
+    await Bun.sleep(TUNNEL_POLL_MS);
   }
   if (exited !== undefined) {
     close();
@@ -140,11 +148,7 @@ export async function openTunnel(
   return {
     // The host is only a name for HTTP; bytes go through the socket.
     url: "http://localhost",
-    fetch: Object.assign(
-      (input: string | URL | Request, init?: RequestInit) =>
-        fetch(input, { ...init, unix: socket }),
-      { preconnect: fetch.preconnect },
-    ),
+    fetch: (input, init) => fetch(input, { ...init, unix: socket }),
     close,
   };
 }

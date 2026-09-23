@@ -4,11 +4,21 @@ import { act, useState, useEffect } from "react";
 import { createInterface } from "node:readline";
 import { spawn } from "node:child_process";
 import assert from "node:assert/strict";
+import type { InputRenderable } from "@opentui/core";
+
+// The Client stays blocked this long in a synchronous callback.
+const BLOCK_MS = 150;
 
 const server = spawn(process.execPath, ["server.ts"], { stdio: ["pipe", "pipe", "inherit"] });
 const responses = createInterface({ input: server.stdout })[Symbol.asyncIterator]();
-async function next() {
-  return JSON.parse((await responses.next()).value!);
+/** The server's next JSON line: an object whose fields are checked where used. */
+async function next(): Promise<Record<string, unknown>> {
+  const line = await responses.next();
+  if (line.done) throw new Error("The server closed its output");
+  const message: unknown = JSON.parse(line.value);
+  if (typeof message !== "object" || message === null)
+    throw new Error(`Not an object: ${line.value}`);
+  return Object.fromEntries(Object.entries(message));
 }
 const ready = await next();
 assert.notEqual(ready.pid, process.pid);
@@ -18,7 +28,7 @@ const results: Record<string, unknown> = {
 };
 try {
   for (const guarded of [false, true]) {
-    let field: any;
+    let field: InputRenderable | undefined;
     let revision = 0;
     let setDraft!: (value: string) => void;
     let redraw!: () => void;
@@ -52,10 +62,10 @@ try {
       await act(async () => {
         await ui.mockInput.typeText("abc");
       });
-      assert.equal(field.value, "abc");
+      assert.equal(field?.value, "abc");
       const instance = field;
       const sentRevision = revision;
-      server.stdin.write(JSON.stringify({ id: guarded ? 2 : 1, value: field.value }) + "\n");
+      server.stdin.write(JSON.stringify({ id: guarded ? 2 : 1, value: field?.value }) + "\n");
       assert.ok((await next()).started);
       const begin = performance.now();
       await act(async () => {
@@ -64,21 +74,22 @@ try {
       });
       await ui.renderOnce();
       const localMs = performance.now() - begin;
-      assert.equal(field.value, "abcd");
+      assert.equal(field?.value, "abcd");
       assert.equal(field, instance);
       assert.ok(ui.captureCharFrame().includes("abcd"));
       const response = await next();
       assert.notEqual(response.pid, process.pid);
       if (!guarded || revision === sentRevision) {
         await act(async () => {
-          setDraft(response.value);
+          assert.equal(typeof response.value, "string");
+          setDraft(String(response.value));
         });
       }
-      assert.equal(field.value, guarded ? "abcd" : "ABC");
+      assert.equal(field?.value, guarded ? "abcd" : "ABC");
       results[guarded ? "revisionGuard" : "naiveRpc"] = {
         localEditMs: localMs,
         draftBeforeReply: "abcd",
-        draftAfterReply: field.value,
+        draftAfterReply: field?.value,
         sameInstanceAfterRender: field === instance,
       };
       if (guarded) {
@@ -86,8 +97,8 @@ try {
         await act(async () => {
           await ui.mockInput.typeText("e");
         });
-        assert.equal(field.value, "abcde");
-        results.editAfterDisconnect = field.value;
+        assert.equal(field?.value, "abcde");
+        results.editAfterDisconnect = field?.value;
         let fired = false;
         const start = performance.now();
         const timer = new Promise<number>((resolve) =>
@@ -96,7 +107,7 @@ try {
             resolve(performance.now() - start);
           }, 0),
         );
-        while (performance.now() - start < 150) {}
+        while (performance.now() - start < BLOCK_MS) {}
         assert.equal(fired, false);
         results.clientSyncCallbackTimerDelayMs = await timer;
       }

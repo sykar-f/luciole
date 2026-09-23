@@ -6,7 +6,7 @@ import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { build } from "../src/build";
-import { launch, until } from "./helpers";
+import { launch, until, importClient, readManifest, destroy, type TestUI } from "./helpers";
 
 const files: Record<string, string> = {
   "app/layout.tsx": `"use client";import {useState} from "react";import {useInvalidation} from "airtty/client";import {counts} from "../actions/data";export default function Layout({children}){const [seen,setSeen]=useState("none");useInvalidation(paths=>{setSeen(paths.join(","));void counts().then(()=>{})});return <box flexDirection="column"><text>SEEN {seen}</text>{children}</box>}`,
@@ -19,7 +19,7 @@ const files: Record<string, string> = {
 
 test("a Server Function revalidates only the routes it declares changed", async () => {
   const directory = await mkdtemp(join(tmpdir(), "airtty-invalidate-"));
-  let server: Awaited<ReturnType<typeof launch>> | undefined, ui: any;
+  let server: Awaited<ReturnType<typeof launch>> | undefined, rendered: TestUI | undefined;
   try {
     for (const [name, text] of Object.entries(files)) {
       await mkdir(join(directory, name, ".."), { recursive: true });
@@ -27,24 +27,26 @@ test("a Server Function revalidates only the routes it declares changed", async 
     }
     await symlink(resolve("node_modules"), join(directory, "node_modules"), "dir");
     await build(directory);
-    server = await launch(join(directory, ".airtty/server/index.js"));
-    const manifest = await Bun.file(join(directory, ".airtty/manifest.json")).json();
-    const { createApp, Shell } = await import(join(directory, ".airtty/client/index.js"));
+    const running = await launch(join(directory, ".airtty/server/index.js"));
+    server = running;
+    const manifest = await readManifest(directory);
+    const { createApp, Shell } = await importClient(directory);
     const renders: string[] = [];
     const app = createApp({
-      url: server.url,
+      url: running.url,
       initialPath: "/b",
-      fetch: (input: string, init: RequestInit) => {
-        const route = new URL(String(input)).searchParams.get("route");
+      fetch: (input: URL, init: RequestInit) => {
+        const route = input.searchParams.get("route");
         if (route) renders.push(route);
         return fetch(input, init);
       },
     });
     await app.router.load();
-    ui = await testRender(<Shell app={app} />, { width: 60, height: 8 });
+    const ui = await testRender(<Shell app={app} />, { width: 60, height: 8 });
+    rendered = ui;
     const frame = async () => {
       await ui.renderOnce();
-      return ui.captureCharFrame() as string;
+      return ui.captureCharFrame();
     };
     // /b is cached; /a is mounted.
     await act(async () => {
@@ -61,10 +63,10 @@ test("a Server Function revalidates only the routes it declares changed", async 
     expect(await frame()).toContain("SEEN /a");
     expect(renders).toEqual(["/a"]);
     // The declared path selects its route and descendants, never a mere prefix.
-    const filters: ((m: { pathname: string }) => boolean)[] = [];
+    const calls: Parameters<typeof app.router.invalidate>[0][] = [];
     const invalidate = app.router.invalidate.bind(app.router);
-    app.router.invalidate = (opts: { filter?: (m: { pathname: string }) => boolean }) => {
-      if (opts?.filter) filters.push(opts.filter);
+    app.router.invalidate = (opts) => {
+      calls.push(opts);
       return invalidate(opts);
     };
     await act(async () => {
@@ -72,7 +74,13 @@ test("a Server Function revalidates only the routes it declares changed", async 
       await Bun.sleep(80);
     });
     expect(await frame()).toContain("A 2");
-    const selected = ["/a", "/a/x", "/ab", "/b"].filter((pathname) => filters[0]({ pathname }));
+    // The filter receives route matches: a mounted match, moved to each candidate path.
+    const filter = calls.find((opts) => opts?.filter)?.filter;
+    const [mounted] = app.router.state.matches;
+    if (!filter || !mounted) throw new Error("No filtered invalidation of a mounted route");
+    const selected = ["/a", "/a/x", "/ab", "/b"].filter((pathname) =>
+      filter({ ...mounted, pathname }),
+    );
     expect(selected).toEqual(["/a", "/a/x"]);
     // Without invalidate(), nothing is refetched.
     await act(async () => {
@@ -84,7 +92,7 @@ test("a Server Function revalidates only the routes it declares changed", async 
     await act(() => Bun.sleep(50));
     expect(renders).toEqual([]);
   } finally {
-    if (ui) await act(async () => ui.renderer.destroy());
+    await destroy(rendered);
     if (server) await server.stop();
     await rm(directory, { recursive: true, force: true });
   }

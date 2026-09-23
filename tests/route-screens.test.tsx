@@ -7,7 +7,10 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { build } from "../src/build";
 import { compileRouteGraph } from "../src/route-graph";
-import { launch } from "./helpers";
+import { launch, importClient, readManifest, destroy, type TestUI } from "./helpers";
+
+/** The layout's mount stamp: unchanged while the layout stays mounted. */
+const layoutOf = (frame: string) => /LAYOUT (\d+)/.exec(frame)?.[1];
 
 const files: Record<string, string> = {
   "app/layout.tsx": `"use client";import {useState} from "react";export default function Layout({children}){const [mounted]=useState(()=>String(Math.random()).slice(2,8));return <box flexDirection="column"><text id="layout">LAYOUT {mounted}</text>{children}</box>}`,
@@ -23,7 +26,7 @@ const files: Record<string, string> = {
 
 test("error.tsx, notFound() and catch-all routes render inside the persistent layout", async () => {
   const directory = await mkdtemp(join(tmpdir(), "airtty-screens-"));
-  let server: Awaited<ReturnType<typeof launch>> | undefined, ui: any;
+  let server: Awaited<ReturnType<typeof launch>> | undefined, rendered: TestUI | undefined;
   try {
     for (const [name, text] of Object.entries(files)) {
       await mkdir(join(directory, name, ".."), { recursive: true });
@@ -31,7 +34,7 @@ test("error.tsx, notFound() and catch-all routes render inside the persistent la
     }
     await symlink(resolve("node_modules"), join(directory, "node_modules"), "dir");
     await build(directory);
-    const manifest = await Bun.file(join(directory, ".airtty/manifest.json")).json();
+    const manifest = await readManifest(directory);
     expect(manifest.routes.find((r: { id: string }) => r.id === "/items/[id]")).toMatchObject({
       error: "app/error.tsx",
       notFound: "app/items/not-found.tsx",
@@ -51,21 +54,24 @@ test("error.tsx, notFound() and catch-all routes render inside the persistent la
     } finally {
       await production.stop();
     }
-    server = await launch(join(directory, ".airtty/server/index.js"));
-    const { createApp, Shell } = await import(join(directory, ".airtty/client/index.js"));
-    const app = createApp({ url: server.url });
+    const running = await launch(join(directory, ".airtty/server/index.js"));
+    server = running;
+    const { createApp, Shell } = await importClient(directory);
+    const app = createApp({ url: running.url });
     await app.router.load();
-    ui = await testRender(<Shell app={app} />, { width: 80, height: 10 });
+    const ui = await testRender(<Shell app={app} />, { width: 80, height: 10 });
+    rendered = ui;
     const frame = async () => {
       await ui.renderOnce();
-      return ui.captureCharFrame() as string;
+      return ui.captureCharFrame();
     };
     const go = (href: string) =>
       act(async () => {
         await app.router.navigate({ href });
         await Bun.sleep(30);
       });
-    const layout = (await frame()).match(/LAYOUT (\d+)/)![1];
+    const layout = layoutOf(await frame());
+    expect(layout).toBeDefined();
 
     await go("/items/9");
     expect(await frame()).toContain("MISSING Item 9 (id 9)");
@@ -91,15 +97,15 @@ test("error.tsx, notFound() and catch-all routes render inside the persistent la
 
     await go("/nowhere/at/all");
     expect(await frame()).toContain("NO ROUTE /nowhere/at/all");
-    expect((await frame()).match(/LAYOUT (\d+)/)![1]).toBe(layout);
+    expect(layoutOf(await frame())).toBe(layout);
 
     // A transport failure reaches error.tsx with its outcome.
-    await server.stop();
+    await running.stop();
     await go("/items/4");
     expect(await frame()).toContain("[not-sent]");
-    expect((await frame()).match(/LAYOUT (\d+)/)![1]).toBe(layout);
+    expect(layoutOf(await frame())).toBe(layout);
   } finally {
-    if (ui) await act(async () => ui.renderer.destroy());
+    await destroy(rendered);
     if (server) await server.stop();
     await rm(directory, { recursive: true, force: true });
   }

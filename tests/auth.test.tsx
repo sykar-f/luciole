@@ -6,7 +6,8 @@ import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { build } from "../src/build";
-import { launch } from "./helpers";
+import type { Application } from "../src/client";
+import { launch, importClient, readManifest, rejectionOf, destroy, type TestUI } from "./helpers";
 
 async function authFixture(directory: string) {
   for (const name of ["app/login", "app/public", "components", "actions", "server"])
@@ -53,9 +54,9 @@ test("public and protected routes and actions use the application auth adapter",
     );
     await build(directory);
     server = await launch(join(directory, ".airtty/server/index.js"));
-    const { createApp } = await import(join(directory, ".airtty/client/index.js"));
-    const manifest = await Bun.file(join(directory, ".airtty/manifest.json")).json();
-    const at = (app: any) => app.router.state.resolvedLocation?.pathname;
+    const { createApp } = await importClient(directory);
+    const manifest = await readManifest(directory);
+    const at = (app: Application) => app.router.state.resolvedLocation?.pathname;
     const anonymous = createApp({ url: server.url });
     await anonymous.router.load();
     expect(at(anonymous)).toBe("/login");
@@ -66,9 +67,11 @@ test("public and protected routes and actions use the application auth adapter",
       await anonymous.callServer(`${manifest.buildId}/actions/public.ts#publicAction`, []),
     ).toBe("guest");
     // A refused action is reported, not handled: the application decides to sign in.
-    await expect(
-      anonymous.callServer(`${manifest.buildId}/actions/private.ts#privateAction`, []),
-    ).rejects.toMatchObject({ loginPath: "/login", outcome: "rejected" });
+    expect(
+      await rejectionOf(
+        anonymous.callServer(`${manifest.buildId}/actions/private.ts#privateAction`, []),
+      ),
+    ).toMatchObject({ loginPath: "/login", outcome: "rejected" });
     expect(at(anonymous)).toBe("/public");
     expect(anonymous.status).toBe("Authentication required");
 
@@ -83,8 +86,9 @@ test("public and protected routes and actions use the application auth adapter",
     ).toBe("alice");
 
     // The Server never trusts the Client route guard.
+    const { url } = server;
     const raw = (query: string, token?: string) =>
-      fetch(`${server!.url}/render?${query}`, {
+      fetch(`${url}/render?${query}`, {
         headers: {
           "x-airtty-build": manifest.buildId,
           ...(token ? { authorization: `Bearer ${token}` } : {}),
@@ -111,7 +115,7 @@ test("public and protected routes and actions use the application auth adapter",
 
 test("logout and bearer changes purge cached private trees before any protected render", async () => {
   const directory = await mkdtemp(join(tmpdir(), "airtty-auth-cache-"));
-  let server: Awaited<ReturnType<typeof launch>> | undefined, ui: any;
+  let server: Awaited<ReturnType<typeof launch>> | undefined, rendered: TestUI | undefined;
   try {
     await authFixture(directory);
     await Bun.write(
@@ -132,12 +136,12 @@ test("logout and bearer changes purge cached private trees before any protected 
     );
     await build(directory);
     server = await launch(join(directory, ".airtty/server/index.js"));
-    const { createApp, Shell } = await import(join(directory, ".airtty/client/index.js"));
+    const { createApp, Shell } = await importClient(directory);
     let gate: PromiseWithResolvers<void> | undefined;
     const app = createApp({
       url: server.url,
       token: "valid",
-      fetch: async (url: string, init: RequestInit) => {
+      fetch: async (url: URL, init: RequestInit) => {
         const held = gate;
         gate = undefined;
         if (held) await held.promise;
@@ -145,7 +149,8 @@ test("logout and bearer changes purge cached private trees before any protected 
       },
     });
     await app.router.load();
-    ui = await testRender(<Shell app={app} />, { width: 60, height: 10 });
+    const ui = await testRender(<Shell app={app} />, { width: 60, height: 10 });
+    rendered = ui;
     await ui.renderOnce();
     expect(ui.captureCharFrame()).toContain("PRIVATE of alice");
     await act(async () => {
@@ -159,7 +164,7 @@ test("logout and bearer changes purge cached private trees before any protected 
       app.setToken(token);
       gate = Promise.withResolvers<void>();
       const held = gate;
-      let navigation!: Promise<void>;
+      let navigation: Promise<void> | undefined;
       await act(async () => {
         navigation = app.router.navigate({ to: "/" });
         await Bun.sleep(20);
@@ -180,9 +185,9 @@ test("logout and bearer changes purge cached private trees before any protected 
         });
       }
     }
-    expect(app.router.state.resolvedLocation.pathname).toBe("/login");
+    expect(app.router.state.resolvedLocation?.pathname).toBe("/login");
   } finally {
-    if (ui) await act(async () => ui.renderer.destroy());
+    await destroy(rendered);
     if (server) await server.stop();
     await rm(directory, { recursive: true, force: true });
   }

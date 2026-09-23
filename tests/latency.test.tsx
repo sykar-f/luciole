@@ -2,39 +2,42 @@
 import { expect, test } from "bun:test";
 import { act } from "react";
 import { testRender } from "@opentui/react/test-utils";
+import { BoxRenderable, InputRenderable, ScrollBoxRenderable } from "@opentui/core";
 import { join, resolve } from "node:path";
 import { build } from "../src/build";
-import { launch, until } from "./helpers";
+import {
+  launch,
+  until,
+  importClient,
+  destroy,
+  metricsOf,
+  renderable,
+  type TestUI,
+} from "./helpers";
 
 test("500 ms RTT delays Flight and actions while input, hover and scroll stay local", async () => {
   const directory = resolve("examples/latency");
   await build(directory);
   const server = await launch(join(directory, ".airtty/server/index.js"));
-  const { createApp, Shell } = await import(
-    join(directory, ".airtty/client/index.js") + "?latency"
-  );
+  const { createApp, Shell } = await importClient(directory, "latency");
   const app = createApp({ url: server.url, latencyMs: 500 });
-  let ui: any;
-  const counts = async () =>
-    (
-      await fetch(server.url + "/test-metrics", {
-        headers: { "x-airtty-build": server.buildId },
-      })
-    ).json();
+  let rendered: TestUI | undefined;
+  const counts = () => metricsOf(server);
   try {
     const start = performance.now();
     await app.router.load();
     expect(performance.now() - start).toBeGreaterThanOrEqual(480);
-    ui = await testRender(<Shell app={app} />, { width: 100, height: 30 });
+    const ui = await testRender(<Shell app={app} />, { width: 100, height: 30 });
+    rendered = ui;
     await ui.renderOnce();
     const before = await counts();
-    const scroll = ui.renderer.root.findDescendantById("latency-scroll");
-    const hover = ui.renderer.root.findDescendantById("latency-hover");
-    const field = ui.renderer.root.findDescendantById("latency-input");
+    const scroll = renderable(ui, "latency-scroll", ScrollBoxRenderable);
+    const hover = renderable(ui, "latency-hover", BoxRenderable);
+    const field = renderable(ui, "latency-input", InputRenderable);
     const top = scroll.scrollTop;
     const actionStart = performance.now();
     await act(async () => {
-      await ui.mockInput.pressEnter();
+      ui.mockInput.pressEnter();
     });
     await act(async () => {
       await ui.mockInput.typeText("abc");
@@ -63,7 +66,7 @@ test("500 ms RTT delays Flight and actions while input, hover and scroll stay lo
     expect(await counts()).toEqual({ renders: before.renders, actions: before.actions + 1 });
     // An explicit refresh is delayed too, and keeps the mounted input.
     const refreshStart = performance.now();
-    const fetching = () => app.router.state.matches.some((m: any) => m.isFetching);
+    const fetching = () => app.router.state.matches.some((m) => m.isFetching);
     await act(async () => {
       // The mounted page revalidates in the background.
       await app.refresh();
@@ -74,7 +77,7 @@ test("500 ms RTT delays Flight and actions while input, hover and scroll stay lo
     expect(field.value).toBe("abc");
     expect(ui.renderer.root.findDescendantById("latency-input")).toBe(field);
   } finally {
-    if (ui) await act(async () => ui.renderer.destroy());
+    await destroy(rendered);
     await server.stop();
   }
 });

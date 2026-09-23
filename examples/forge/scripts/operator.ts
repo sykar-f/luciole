@@ -2,6 +2,7 @@
 // The second operator of the demo: acts on the Forge database while a Client is open,
 // to make concurrency and lost responses reproducible on stage. Local tool only: it is
 // not a Server Function and never reachable from a Client.
+import { z } from "zod";
 import { createForge } from "../server/forge";
 import { openDatabase } from "../server/schema";
 
@@ -13,11 +14,12 @@ const usage = `Usage: bun examples/forge/scripts/operator.ts <command>
 Database: FORGE_DB (default forge.sqlite)`;
 
 const [command, ...args] = process.argv.slice(2);
-const forge = createForge(openDatabase(process.env.FORGE_DB ?? "forge.sqlite"));
+const { FORGE_DB } = z.object({ FORGE_DB: z.string().default("forge.sqlite") }).parse(process.env);
+const forge = createForge(openDatabase(FORGE_DB));
 const number = (value: string | undefined) => {
-  const parsed = Number(value);
-  if (!Number.isSafeInteger(parsed)) throw new Error(usage);
-  return parsed;
+  const parsed = z.coerce.number().int().safeParse(value);
+  if (!parsed.success) throw new Error(usage);
+  return parsed.data;
 };
 
 if (command === "push") {

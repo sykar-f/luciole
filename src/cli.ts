@@ -4,8 +4,24 @@ import { watch } from "node:fs";
 import { cp, mkdir, readdir, symlink } from "node:fs/promises";
 import { spawn, type ChildProcess } from "node:child_process";
 import { createInterface } from "node:readline";
+import { z } from "zod";
 import { build } from "./build";
 import { compileClient, fetchRuntime } from "./compile";
+import { messageOf } from "./guards";
+import { readJsonFile, readPackageJson } from "./package-json";
+// A child that ignores SIGTERM this long is killed.
+const STOP_GRACE_MS = 1500;
+const SERVER_STARTUP_MS = 10_000;
+// Editors write a file in several events: one rebuild per burst.
+const REBUILD_DEBOUNCE_MS = 150;
+/** The line a Server prints once it listens (src/server.ts). */
+const ServerReady = z.object({ ready: z.literal(true), port: z.number().int() });
+/** The formatter options a starter's generated JSON files follow. */
+const FormatterConfig = z.object({
+  printWidth: z.number().int().positive(),
+  sortImports: z.boolean(),
+  sortPackageJson: z.boolean(),
+});
 const args = process.argv.slice(2),
   command = args[0];
 const option = (key: string, fallback: string) => {
@@ -20,7 +36,7 @@ const directory = resolve(option("--app", "examples/notes"));
 async function stop(child?: ChildProcess) {
   if (!child || child.exitCode !== null || child.signalCode !== null) return;
   await new Promise<void>((done) => {
-    const timer = setTimeout(() => child.kill("SIGKILL"), 1500);
+    const timer = setTimeout(() => child.kill("SIGKILL"), STOP_GRACE_MS);
     child.once("exit", () => {
       clearTimeout(timer);
       done();
@@ -31,7 +47,7 @@ async function stop(child?: ChildProcess) {
 async function main() {
   if (command === "init") {
     const target = resolve(args[1] ?? "my-airtty-app");
-    if ((await readdir(target).catch(() => [] as string[])).length)
+    if ((await readdir(target).catch((): string[] => [])).length)
       throw new Error("Target already contains a project");
     await mkdir(target, { recursive: true });
     await cp(resolve(import.meta.dir, "../examples/notes"), target, {
@@ -43,7 +59,7 @@ async function main() {
         !p.endsWith(".sqlite-shm"),
     });
     const frameworkRoot = resolve(import.meta.dir, "..");
-    const frameworkPackage = await Bun.file(join(frameworkRoot, "package.json")).json();
+    const frameworkPackage = await readPackageJson(join(frameworkRoot, "package.json"));
     await Bun.write(
       join(target, "package.json"),
       JSON.stringify(
@@ -94,9 +110,10 @@ async function main() {
       await cp(join(frameworkRoot, file), join(target, file), { recursive: true });
     }
     const { format } = await import("oxfmt");
-    const { printWidth, sortImports, sortPackageJson } = await Bun.file(
+    const { printWidth, sortImports, sortPackageJson } = await readJsonFile(
       join(frameworkRoot, ".oxfmtrc.json"),
-    ).json();
+      FormatterConfig,
+    );
     for (const name of ["package.json", "tsconfig.json"]) {
       const file = Bun.file(join(target, name));
       const result = await format(name, await file.text(), {
@@ -202,22 +219,30 @@ async function main() {
             },
           );
           const activeServer = server;
-          const ready = await new Promise<any>((yes, no) => {
-            const timer = setTimeout(() => no(new Error("Server startup timeout")), 10000);
-            const lines = createInterface({ input: activeServer.stdout! });
+          const output = activeServer.stdout;
+          if (!output) throw new Error("Server output is not piped");
+          const ready = await new Promise<z.infer<typeof ServerReady>>((yes, no) => {
+            const timer = setTimeout(
+              () => no(new Error("Server startup timeout")),
+              SERVER_STARTUP_MS,
+            );
+            const lines = createInterface({ input: output });
             activeServer.once("exit", () => {
               clearTimeout(timer);
               no(new Error("Server exited before ready"));
             });
             lines.on("line", (line) => {
+              let message: unknown;
               try {
-                const msg = JSON.parse(line);
-                if (msg.ready) {
-                  clearTimeout(timer);
-                  yes(msg);
-                }
+                message = JSON.parse(line);
               } catch {
                 console.error(line);
+                return;
+              }
+              const parsed = ServerReady.safeParse(message);
+              if (parsed.success) {
+                clearTimeout(timer);
+                yes(parsed.data);
               }
             });
           });
@@ -235,7 +260,7 @@ async function main() {
             if (client === activeClient && !building) void shutdown();
           });
         } catch (error) {
-          const message = `Build failed: ${(error as Error).message}`;
+          const message = `Build failed: ${messageOf(error)}`;
           if (client?.connected) client.send({ type: "build-error", message });
           else console.error(message);
         }
@@ -254,7 +279,7 @@ async function main() {
       )
         return;
       clearTimeout(debounce);
-      debounce = setTimeout(() => void rebuild(), 150);
+      debounce = setTimeout(() => void rebuild(), REBUILD_DEBOUNCE_MS);
     });
     for (const signal of ["SIGINT", "SIGTERM"] as const) process.on(signal, shutdown);
     await rebuild();
@@ -264,7 +289,7 @@ async function main() {
     "Usage: airtty init <dir> | dev | build [--compile [--target t] [--runtime official|host|<bun>] [--native-dir dir] [--outfile f] [--sign identity [--notarize profile]]] | runtime [--target t] | start --role server|client [--app dir] [--url URL] [--artifact dir] | connect <url | ssh://[user@]host[/port]> [--app dir]",
   );
 }
-main().catch((error) => {
-  console.error(error.message);
+main().catch((error: unknown) => {
+  console.error(messageOf(error));
   process.exitCode = 1;
 });

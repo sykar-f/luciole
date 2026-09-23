@@ -1,12 +1,13 @@
 /** @jsxImportSource @opentui/react */
 import { test, expect } from "bun:test";
 import { act } from "react";
+import { InputRenderable, Renderable } from "@opentui/core";
 import { testRender } from "@opentui/react/test-utils";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { build } from "../src/build";
-import { launch, until, draftsOf } from "./helpers";
+import { launch, until, importClient, destroy, draftOf, renderable, type TestUI } from "./helpers";
 
 test("local route loading, cancel, refresh identity, failed navigation and superseded loads", async () => {
   const directory = resolve("examples/notes");
@@ -15,23 +16,21 @@ test("local route loading, cancel, refresh identity, failed navigation and super
   const server = await launch(join(directory, ".airtty/server/index.js"), {
     NOTES_DB: join(temp, "notes.sqlite"),
   });
-  const { createApp, Shell } = await import(
-    join(directory, ".airtty/client/index.js") + "?navigation"
-  );
+  const { createApp, Shell } = await importClient(directory, "navigation");
   let gate: { promise: Promise<void>; signal?: AbortSignal } | undefined;
   function hold() {
     const deferred = Promise.withResolvers<void>();
-    const next = { ...deferred, signal: undefined as AbortSignal | undefined };
+    const next: PromiseWithResolvers<void> & { signal?: AbortSignal } = { ...deferred };
     gate = next;
     return next;
   }
   const app = createApp({
     url: server.url,
-    fetch: async (url: string, init: RequestInit) => {
+    fetch: async (url: URL, init: RequestInit) => {
       const currentGate = gate;
       gate = undefined;
       if (currentGate) {
-        currentGate.signal = init.signal as AbortSignal;
+        currentGate.signal = init.signal ?? undefined;
         await currentGate.promise;
         // Deliberately ignore cancellation: stale results must still be harmless.
         return fetch(url, { ...init, signal: undefined });
@@ -39,8 +38,8 @@ test("local route loading, cancel, refresh identity, failed navigation and super
       return fetch(url, init);
     },
   });
-  let ui: any;
-  const geometry = () =>
+  let rendered: TestUI | undefined;
+  const geometry = (ui: TestUI) =>
     Object.fromEntries(
       [
         "notes-heading",
@@ -52,7 +51,7 @@ test("local route loading, cancel, refresh identity, failed navigation and super
         "note-help",
         "notes-footer",
       ].map((id) => {
-        const node = ui.renderer.root.findDescendantById(id);
+        const node = renderable(ui, id, Renderable);
         return [id, [node.x, node.y, node.width, node.height]];
       }),
     );
@@ -60,14 +59,15 @@ test("local route loading, cancel, refresh identity, failed navigation and super
   const pending = () => app.router.state.location.pathname;
   try {
     await app.router.load();
-    ui = await testRender(<Shell app={app} />, { width: 100, height: 28 });
+    const ui = await testRender(<Shell app={app} />, { width: 100, height: 28 });
+    rendered = ui;
     const first = hold();
-    let navigation!: Promise<void>;
+    let navigation: Promise<void> = Promise.resolve();
     await act(async () => {
       navigation = app.router.navigate({ to: "/notes/1" });
     });
     await ui.renderOnce();
-    const loadingGeometry = geometry();
+    const loadingGeometry = geometry(ui);
     expect(resolved()).toBe("/");
     expect(pending()).toBe("/notes/1");
     expect(ui.captureCharFrame()).toContain("Opening note 1");
@@ -76,7 +76,7 @@ test("local route loading, cancel, refresh identity, failed navigation and super
     expect(ui.renderer.root.findDescendantById("note-1")).toBeUndefined();
     // Refresh during a navigation restarts the destination, never the old page.
     const restarted = hold();
-    let retried!: Promise<void>;
+    let retried: Promise<void> = Promise.resolve();
     await act(async () => {
       retried = app.refresh();
     });
@@ -89,7 +89,7 @@ test("local route loading, cancel, refresh identity, failed navigation and super
     expect(pending()).toBe("/notes/1");
     expect(resolved()).toBe("/");
     await act(async () => {
-      await ui.mockInput.pressEscape();
+      ui.mockInput.pressEscape();
       await until(() => app.router.state.status === "idle");
     });
     expect(resolved()).toBe("/");
@@ -109,16 +109,16 @@ test("local route loading, cancel, refresh identity, failed navigation and super
       await ui.mockInput.typeText("draft");
     });
     await ui.renderOnce();
-    expect(geometry()).toEqual(loadingGeometry);
-    const field = ui.renderer.root.findDescendantById("note-1");
+    expect(geometry(ui)).toEqual(loadingGeometry);
+    const field = renderable(ui, "note-1", InputRenderable);
     const refresh = hold();
-    let refreshing!: Promise<void>;
+    let refreshing: Promise<void> = Promise.resolve();
     await act(async () => {
       refreshing = app.refresh();
       await ui.mockInput.typeText("!");
     });
     await ui.renderOnce();
-    expect(geometry()).toEqual(loadingGeometry);
+    expect(geometry(ui)).toEqual(loadingGeometry);
     expect(ui.captureCharFrame()).toContain("Refreshing");
     expect(ui.captureCharFrame()).not.toContain("Opening note");
     expect(ui.renderer.root.findDescendantById("note-1")).toBe(field);
@@ -131,9 +131,9 @@ test("local route loading, cancel, refresh identity, failed navigation and super
     // A save confirmed during a navigation: the editor's refresh restarts the destination.
     const saving = hold();
     await act(async () => {
-      await ui.mockInput.pressEnter();
+      ui.mockInput.pressEnter();
     });
-    const draft = draftsOf(app).get({ id: "1" });
+    const draft = draftOf(app, "1");
     const held = hold();
     await act(async () => {
       navigation = app.router.navigate({ to: "/notes/2" });
@@ -173,10 +173,10 @@ test("local route loading, cancel, refresh identity, failed navigation and super
       await app.refresh();
       await until(() => !!ui.renderer.root.findDescendantById("note-1"));
     });
-    expect(ui.renderer.root.findDescendantById("note-1").value).toBe("draft!");
+    expect(renderable(ui, "note-1", InputRenderable).value).toBe("draft!");
     // The latest navigation wins over a slower refresh that fails later.
     const stale = hold();
-    let old!: Promise<void>;
+    let old: Promise<void> = Promise.resolve();
     await act(async () => {
       old = app.refresh();
     });
@@ -203,16 +203,16 @@ test("local route loading, cancel, refresh identity, failed navigation and super
       navigation = app.router.navigate({ to: "/notes/1" });
     });
     await ui.renderOnce();
-    const narrowGeometry = geometry();
+    const narrowGeometry = geometry(ui);
     await act(async () => {
       narrow.resolve();
       await navigation;
       await ui.mockInput.typeText("x".repeat(100));
     });
     await ui.renderOnce();
-    expect(geometry()).toEqual(narrowGeometry);
+    expect(geometry(ui)).toEqual(narrowGeometry);
   } finally {
-    if (ui) await act(async () => ui.renderer.destroy());
+    await destroy(rendered);
     await server.stop();
     await rm(temp, { recursive: true, force: true });
   }

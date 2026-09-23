@@ -6,6 +6,8 @@
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { mkdir, mkdtemp, rename, rm } from "node:fs/promises";
+import { z } from "zod";
+import { bundleMessages, logMessages } from "./bundle-errors";
 import { checkSigning, notarizeClient, signClient, type SignOptions } from "./sign";
 
 export const COMPILE_TARGETS = [
@@ -120,17 +122,16 @@ export async function compileClient(
         ]
       : [],
   }).catch((error: unknown) => {
-    const errors = (error as { errors?: { message?: string }[] }).errors ?? [];
-    const messages = errors.map((e) => e.message ?? String(e)).join("\n");
+    const messages = bundleMessages(error).join("\n");
     const missing = /Could not resolve: "(@opentui\/core-[\w-]+)"/.exec(messages)?.[1];
     if (missing)
       throw new Error(
         `${missing} is not installed for ${target}: install it for that platform ` +
           `(bun add ${missing} --os=${os} --cpu=*) in a directory passed as --native-dir`,
       );
-    throw new Error(messages || (error as Error).message);
+    throw new Error(messages);
   });
-  if (!result.success) throw new Error(result.logs.join("\n"));
+  if (!result.success) throw new Error(logMessages(result.logs));
   if (options.sign !== undefined) await signClient(outfile, options.sign);
   return {
     outfile,
@@ -143,18 +144,20 @@ export async function compileClient(
 
 const defaultCache = () => join(process.env.XDG_CACHE_HOME || join(homedir(), ".cache"), "airtty");
 
+/** The part of an npm version document that locates and verifies the tarball. */
+const VersionDocument = z.object({
+  dist: z.object({
+    tarball: z.string().min(1),
+    integrity: z.string().min(1).optional(),
+    shasum: z.string().min(1).optional(),
+  }),
+});
 /** The `dist` entry of an npm version document, when it can be verified. */
 function publishedDist(document: unknown) {
-  const dist =
-    typeof document === "object" && document !== null && "dist" in document
-      ? document.dist
-      : undefined;
-  if (typeof dist !== "object" || dist === null) return undefined;
-  const text = (value: unknown) => (typeof value === "string" ? value : undefined);
-  const tarball = text("tarball" in dist ? dist.tarball : undefined);
-  const integrity = text("integrity" in dist ? dist.integrity : undefined);
-  const shasum = text("shasum" in dist ? dist.shasum : undefined);
-  return tarball && (integrity || shasum) ? { tarball, integrity, shasum } : undefined;
+  const parsed = VersionDocument.safeParse(document);
+  if (!parsed.success) return undefined;
+  const { dist } = parsed.data;
+  return dist.integrity || dist.shasum ? dist : undefined;
 }
 
 /**

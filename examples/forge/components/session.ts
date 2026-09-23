@@ -7,14 +7,14 @@ import type { Identity } from "./model";
 let identity: Identity | null = null;
 const listeners = new Set<() => void>();
 export const sessionStore = {
-  subscribe(listener: () => void) {
+  subscribe: (listener: () => void) => {
     listeners.add(listener);
     return () => {
       listeners.delete(listener);
     };
   },
   get: () => identity,
-  set(next: Identity | null) {
+  set: (next: Identity | null) => {
     identity = next;
     for (const listener of listeners) listener();
   },

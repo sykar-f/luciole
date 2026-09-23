@@ -1,4 +1,5 @@
 import type { Database } from "bun:sqlite";
+import { z } from "zod";
 import type { Note, SaveResult, Snapshot } from "../components/draft";
 import type {
   Check,
@@ -22,11 +23,25 @@ import type {
 } from "../components/model";
 import { CHECK_NAMES, durationOf, statusOf, streamLog, type CheckRow } from "./ci";
 import { diffRows, languageOf, stats, unifiedDiff } from "./diff";
+import { OperationResultSchema, PublishResultSchema } from "./results";
 import { BRANCHES, PULLS, REPOS, USERS, at } from "./seed";
 
 export const DEMO_PIN = "forge";
-const SESSION_MS = 12 * 60 * 60_000;
+const HOUR_MS = 3_600_000;
+const SESSION_HOURS = 12;
+const SESSION_MS = SESSION_HOURS * HOUR_MS;
 const MAX_BODY = 4000;
+const MAX_ID = 300,
+  MAX_DOCUMENT = 20_000,
+  MAX_CREDENTIAL = 40,
+  MAX_TOKEN = 100,
+  MAX_NAME = 100,
+  MAX_TITLE = 200,
+  MIN_TITLE = 3;
+const TOKEN_BYTES = 32;
+// A rerun starts after this delay, a pushed revision after `PUSH_CHECKS_DELAY_MS`.
+const RERUN_DELAY_MS = 300,
+  PUSH_CHECKS_DELAY_MS = 500;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 /** The authenticated caller, resolved by `server/auth.ts` from the bearer. */
@@ -66,30 +81,29 @@ type FileRow = {
   deletions: number;
 };
 
-const text = (value: unknown, name: string, max: number) => {
-  if (typeof value !== "string" || value.length > max) throw new InvalidRequest(`Invalid ${name}`);
-  return value;
-};
-const integer = (value: unknown, name: string) => {
-  if (!Number.isSafeInteger(value) || (value as number) < 0)
-    throw new InvalidRequest(`Invalid ${name}`);
-  return value as number;
-};
-const operationId = (value: unknown) => {
-  if (typeof value !== "string" || !UUID.test(value)) throw new InvalidRequest("Invalid operation");
-  return value;
-};
-const snapshotOf = (value: unknown): Snapshot => {
-  if (!value || typeof value !== "object") throw new InvalidRequest("Invalid snapshot");
-  const s = value as Record<string, unknown>;
-  return {
-    id: text(s.id, "document", 300),
-    value: text(s.value, "value", 20_000),
-    version: integer(s.version, "version"),
-    revision: integer(s.revision, "revision"),
-    operationId: operationId(s.operationId),
-  };
-};
+// Every input of the domain is `unknown`: Server Functions pass their arguments as the
+// network delivered them, and each operation checks its own before any effect.
+/** `value` checked by `schema`, or an `InvalidRequest` naming `name` and the failing field. */
+function valid<T>(schema: z.ZodType<T>, value: unknown, name: string): T {
+  const parsed = schema.safeParse(value);
+  if (parsed.success) return parsed.data;
+  const field = parsed.error.issues[0]?.path.join(".");
+  throw new InvalidRequest(`Invalid ${field ? `${name}.${field}` : name}`);
+}
+const Count = z.number().int().nonnegative();
+const OperationId = z.string().regex(UUID);
+const Verdict = z.enum(["approve", "changes"]) satisfies z.ZodType<Verdict>;
+const SnapshotInput = z.object({
+  id: z.string().max(MAX_ID),
+  value: z.string().max(MAX_DOCUMENT),
+  version: Count,
+  revision: Count,
+  operationId: OperationId,
+}) satisfies z.ZodType<Snapshot>;
+const text = (value: unknown, name: string, max: number) => valid(z.string().max(max), value, name);
+const integer = (value: unknown, name: string) => valid(Count, value, name);
+const operationId = (value: unknown) => valid(OperationId, value, "operation");
+const snapshotOf = (value: unknown) => valid(SnapshotInput, value, "snapshot");
 
 export const descriptionId = (pullId: number) => `pr:${pullId}:description`;
 export const conversationSlot = (pullId: number) => `composer:conversation:${pullId}`;
@@ -101,6 +115,8 @@ export const lineSlot = (
   path: string,
 ) => `composer:line:${pullId}:${revision}:${side}:${line}:${path}`;
 export const newPullSlot = (repo: string) => `composer:new-pull:${repo}`;
+// Where the path starts in a `lineSlot`: it may itself contain colons.
+const LINE_SLOT_PATH = 6;
 
 export function createForge(db: Database, options: ForgeOptions = {}) {
   const now = options.now ?? Date.now;
@@ -170,8 +186,7 @@ export function createForge(db: Database, options: ForgeOptions = {}) {
             at: at(c.at),
           });
         }
-        if (p.mergedBy)
-          history.push({ actor: p.mergedBy, action: "merge", at: created + 3_600_000 });
+        if (p.mergedBy) history.push({ actor: p.mergedBy, action: "merge", at: created + HOUR_MS });
         for (const h of history)
           db.query(
             "INSERT INTO audit(actor,action,target,call_id,operation_id,at) VALUES(?,?,?,NULL,NULL,?)",
@@ -209,8 +224,17 @@ export function createForge(db: Database, options: ForgeOptions = {}) {
       "INSERT INTO audit(actor,action,target,call_id,operation_id,at) VALUES(?,?,?,?,?,?)",
     ).run(actor, action, target, options.callId?.() ?? null, operation ?? null, now());
   }
-  /** Runs `work` once per (actor, operation): a retried or resolved call returns the stored result. */
-  function once<T>(actor: string, id: string, kind: string, work: () => T): T {
+  /**
+   * Runs `work` once per (actor, operation): a retried or resolved call returns the stored
+   * result, checked by `schema`.
+   */
+  function once<T>(
+    actor: string,
+    id: string,
+    kind: string,
+    schema: z.ZodType<T>,
+    work: () => T,
+  ): T {
     return db
       .transaction(() => {
         const previous = db
@@ -218,7 +242,7 @@ export function createForge(db: Database, options: ForgeOptions = {}) {
             "SELECT result FROM operations WHERE actor=? AND id=?",
           )
           .get(actor, id);
-        if (previous) return JSON.parse(previous.result) as T;
+        if (previous) return schema.parse(JSON.parse(previous.result));
         const result = work();
         db.query("INSERT INTO operations VALUES(?,?,?,?,?)").run(
           actor,
@@ -237,7 +261,8 @@ export function createForge(db: Database, options: ForgeOptions = {}) {
         "SELECT result FROM operations WHERE actor=? AND id=?",
       )
       .get(actor.id, operationId(id));
-    return row ? JSON.parse(row.result) : null;
+    const stored: unknown = row ? JSON.parse(row.result) : null;
+    return stored;
   }
 
   // ---- Accounts ------------------------------------------------------------------
@@ -247,11 +272,13 @@ export function createForge(db: Database, options: ForgeOptions = {}) {
     return db.query<Identity, [string]>("SELECT id,name,role FROM users WHERE id=?").get(userId);
   }
   function login(user: unknown, pin: unknown): LoginResult {
-    const id = text(user, "user", 40).trim().toLowerCase();
-    const code = text(pin, "pin", 40).trim();
+    const id = text(user, "user", MAX_CREDENTIAL).trim().toLowerCase();
+    const code = text(pin, "pin", MAX_CREDENTIAL).trim();
     const found = identity(id);
     if (!found || code !== DEMO_PIN) return { ok: false, error: "Unknown user or wrong PIN" };
-    const token = Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString("base64url");
+    const token = Buffer.from(crypto.getRandomValues(new Uint8Array(TOKEN_BYTES))).toString(
+      "base64url",
+    );
     db.query("INSERT INTO sessions VALUES(?,?,?,?,NULL)").run(
       hash(token),
       found.id,
@@ -262,7 +289,7 @@ export function createForge(db: Database, options: ForgeOptions = {}) {
     return { ok: true, token, identity: found };
   }
   function authenticate(token: string | undefined): Actor | null {
-    if (!token || token.length > 100) return null;
+    if (!token || token.length > MAX_TOKEN) return null;
     const sessionId = hash(token);
     const row = db
       .query<Identity, [string, number]>(
@@ -394,12 +421,12 @@ export function createForge(db: Database, options: ForgeOptions = {}) {
       durationMs: durationOf(c, ciScale),
     }));
   }
-  function checkLog(checkId: number) {
+  function checkLog(checkId: unknown) {
     const row = db
       .query<CheckRow, [number]>(
         "SELECT id, name, attempt, started_at, fail_until FROM checks WHERE id=?",
       )
-      .get(checkId);
+      .get(integer(checkId, "check"));
     if (!row) throw new InvalidRequest("Unknown check");
     return streamLog(row, ciScale, now);
   }
@@ -477,7 +504,7 @@ export function createForge(db: Database, options: ForgeOptions = {}) {
     const match = /^pr:(\d+):description$/.exec(snapshot.id);
     if (!match) throw new InvalidRequest("Invalid document");
     const pullId = Number(match[1]);
-    return once(actor.id, snapshot.operationId, "description", () => {
+    return once(actor.id, snapshot.operationId, "description", PublishResultSchema, () => {
       const fail = (error: string): SaveResult => ({
         ok: false,
         error,
@@ -509,9 +536,9 @@ export function createForge(db: Database, options: ForgeOptions = {}) {
     const slot = snapshot.id;
     const kind = /^composer:(conversation|line|new-pull):/.exec(slot)?.[1];
     if (!kind) throw new InvalidRequest("Invalid composer");
-    const title = kind === "new-pull" ? text(extra.title, "title", 200).trim() : "";
-    const branch = kind === "new-pull" ? text(extra.branch, "branch", 200) : "";
-    return once(actor.id, snapshot.operationId, `publish ${kind}`, () => {
+    const title = kind === "new-pull" ? text(extra.title, "title", MAX_TITLE).trim() : "";
+    const branch = kind === "new-pull" ? text(extra.branch, "branch", MAX_TITLE) : "";
+    return once(actor.id, snapshot.operationId, `publish ${kind}`, PublishResultSchema, () => {
       const fail = (error: string): PublishResult => ({
         ok: false,
         error,
@@ -526,7 +553,7 @@ export function createForge(db: Database, options: ForgeOptions = {}) {
       let number: number | undefined;
       if (kind === "new-pull") {
         const repo = slot.slice("composer:new-pull:".length);
-        if (title.length < 3) return fail("Title needs at least 3 characters");
+        if (title.length < MIN_TITLE) return fail(`Title needs at least ${MIN_TITLE} characters`);
         const owned = db.query("SELECT 1 FROM branches WHERE repo=? AND name=?").get(repo, branch);
         if (!owned) return fail("Unknown branch");
         if (db.query("SELECT 1 FROM pulls WHERE repo=? AND head_branch=?").get(repo, branch))
@@ -564,7 +591,7 @@ export function createForge(db: Database, options: ForgeOptions = {}) {
           const revision = Number(parts[3]),
             side = parts[4],
             line = Number(parts[5]),
-            path = parts.slice(6).join(":");
+            path = parts.slice(LINE_SLOT_PATH).join(":");
           if (side !== "old" && side !== "new") throw new InvalidRequest("Invalid side");
           if (revision !== row.revision)
             return fail(
@@ -612,7 +639,7 @@ export function createForge(db: Database, options: ForgeOptions = {}) {
   type Target = { repo: unknown; number: unknown; revision?: unknown; operationId: unknown };
   function target(input: Target) {
     return {
-      repo: text(input.repo, "repo", 100),
+      repo: text(input.repo, "repo", MAX_NAME),
       number: integer(input.number, "number"),
       revision: input.revision === undefined ? undefined : integer(input.revision, "revision"),
       operationId: operationId(input.operationId),
@@ -621,9 +648,8 @@ export function createForge(db: Database, options: ForgeOptions = {}) {
 
   function review(actor: Actor, input: Target & { verdict: unknown }): OperationResult {
     const t = target(input);
-    const verdict = input.verdict;
-    if (verdict !== "approve" && verdict !== "changes") throw new InvalidRequest("Invalid verdict");
-    return once(actor.id, t.operationId, "review", () => {
+    const verdict = valid(Verdict, input.verdict, "verdict");
+    return once(actor.id, t.operationId, "review", OperationResultSchema, () => {
       const fail = (error: string): OperationResult => ({
         ok: false,
         error,
@@ -656,7 +682,7 @@ export function createForge(db: Database, options: ForgeOptions = {}) {
 
   function merge(actor: Actor, input: Target): OperationResult {
     const t = target(input);
-    return once(actor.id, t.operationId, "merge", () => {
+    return once(actor.id, t.operationId, "merge", OperationResultSchema, () => {
       const fail = (error: string): OperationResult => ({
         ok: false,
         error,
@@ -692,7 +718,7 @@ export function createForge(db: Database, options: ForgeOptions = {}) {
 
   function rerun(actor: Actor, input: Target): OperationResult {
     const t = target(input);
-    return once(actor.id, t.operationId, "rerun", () => {
+    return once(actor.id, t.operationId, "rerun", OperationResultSchema, () => {
       const fail = (error: string): OperationResult => ({
         ok: false,
         error,
@@ -713,7 +739,7 @@ export function createForge(db: Database, options: ForgeOptions = {}) {
         return fail("Checks are still running");
       db.query(
         "UPDATE checks SET attempt=attempt+1, started_at=? WHERE pull_id=? AND revision=?",
-      ).run(now() + Math.round(300 * ciScale), row.id, row.revision);
+      ).run(now() + Math.round(RERUN_DELAY_MS * ciScale), row.id, row.revision);
       audit(actor.id, "rerun checks", `${row.repo}#${row.number}`, t.operationId);
       return {
         ok: true,
@@ -752,7 +778,7 @@ export function createForge(db: Database, options: ForgeOptions = {}) {
             ),
           );
           db.query("UPDATE pulls SET revision=?, updated_at=? WHERE id=?").run(next, now(), row.id);
-          startChecks(row.id, next, 500);
+          startChecks(row.id, next, PUSH_CHECKS_DELAY_MS);
           audit(by, `push revision ${next}`, `${slug}#${number}`);
           return next;
         })

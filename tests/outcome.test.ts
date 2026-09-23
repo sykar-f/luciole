@@ -10,6 +10,7 @@ import {
   TransportError,
   type Outcome,
 } from "../src/transport";
+import { z } from "zod";
 import { launch, until } from "./helpers";
 
 // Each outcome is checked against a real Notes Server and its database: `not-sent` and
@@ -42,12 +43,15 @@ async function outcomeOf(work: Promise<unknown>): Promise<Outcome> {
     (e: unknown) => e,
   );
   expect(error).toBeInstanceOf(TransportError);
-  return (error as TransportError).outcome;
+  if (!(error instanceof TransportError)) throw new Error("Expected a TransportError");
+  return error.outcome;
 }
 const stored = (name: string) => {
   const db = new Database(join(dir, `${name}.sqlite`), { readonly: true });
   try {
-    return (db.query("SELECT value FROM notes WHERE id='1'").get() as { value: string }).value;
+    const row = db.query<{ value: string }, []>("SELECT value FROM notes WHERE id='1'").get();
+    if (!row) throw new Error("Note 1 is missing");
+    return row.value;
   } finally {
     db.close();
   }
@@ -75,9 +79,9 @@ test("refused before any application code: rejected", async () => {
     ).toBe("rejected");
     expect(stored("rejected")).toBe("");
     // The same bearer and build succeed: the refusals were not transient.
-    const ok = (await transport(s.url, { token: "secret" }).call(saveNote(), save())) as {
-      ok: boolean;
-    };
+    const ok = z
+      .object({ ok: z.boolean() })
+      .parse(await transport(s.url, { token: "secret" }).call(saveNote(), save()));
     expect(ok.ok).toBe(true);
     expect(stored("rejected")).toBe("saved");
   } finally {

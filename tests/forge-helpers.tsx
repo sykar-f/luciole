@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { createForge } from "../examples/forge/server/forge";
 import { openDatabase } from "../examples/forge/server/schema";
-import { launch, until } from "./helpers";
+import { launch, until, importClient, metricsOf } from "./helpers";
 
 export const forgeDirectory = resolve("examples/forge");
 
@@ -32,7 +32,7 @@ export async function startForge(options: Options = {}) {
     FORGE_CI_SCALE: "0.1",
     ...options.env,
   });
-  const { createApp, Shell } = await import(join(forgeDirectory, ".airtty/client/index.js"));
+  const { createApp, Shell } = await importClient(forgeDirectory);
   const app = createApp({
     url: server.url,
     latencyMs: options.latencyMs ?? 0,
@@ -47,15 +47,15 @@ export async function startForge(options: Options = {}) {
   const operator = createForge(db);
   const frame = async () => {
     await ui.renderOnce();
-    return ui.captureCharFrame() as string;
+    return ui.captureCharFrame();
   };
   /** One React batch per call: a real terminal delivers separate reads. */
-  const step = (work: () => Promise<unknown> | unknown) =>
+  const step = (work: () => unknown) =>
     act(async () => {
       await work();
     });
   const settle = (ms = 50) => step(() => Bun.sleep(ms));
-  const path = () => app.router.state.resolvedLocation?.pathname as string | undefined;
+  const path = () => app.router.state.resolvedLocation?.pathname;
   const waitFor = async (text: string, timeout = 5000) => {
     const start = performance.now();
     for (;;) {
@@ -69,12 +69,7 @@ export async function startForge(options: Options = {}) {
   const probe = operator.login("carol", "forge");
   if (!probe.ok) throw new Error(probe.error);
   /** Server counters (test mode only): renders and actions since start. */
-  const metrics = async (): Promise<{ renders: number; actions: number }> =>
-    (
-      await fetch(server.url + "/test-metrics", {
-        headers: { "x-airtty-build": server.buildId, authorization: `Bearer ${probe.token}` },
-      })
-    ).json();
+  const metrics = () => metricsOf(server, { authorization: `Bearer ${probe.token}` });
   async function signIn(user: string) {
     await until(() => path() === "/login");
     await step(() => ui.mockInput.typeText(user));

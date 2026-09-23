@@ -5,6 +5,7 @@
  * are typed from the application's own file tree.
  */
 import { useEffect, useRef, type ReactNode } from "react";
+import type { TextRenderable } from "@opentui/core";
 import { useTimeline } from "@opentui/react";
 import { useBindings } from "@opentui/keymap/react";
 import {
@@ -19,7 +20,7 @@ import {
 } from "@tanstack/react-router";
 import { useApplication, useConnection, type Application } from "./client";
 import { readNotFound } from "./not-found";
-import type { RouteParams, RouteSearch } from "./transport";
+import { isReactNode, type RouteParams, type RouteSearch } from "./transport";
 
 export type LayoutProps = { children: ReactNode; params: RouteParams };
 export type LoadingProps = { path: string; params: RouteParams };
@@ -83,9 +84,8 @@ export function rootRoute(
 export function layoutRoute(Layout: ClientComponent<LayoutProps>, params: readonly string[]) {
   return {
     component: function LayoutRoute() {
-      const all = useParams({ strict: false }) as Record<string, string | undefined>;
       return (
-        <Layout params={pick(all, params)}>
+        <Layout params={pick(useParams({ strict: false }), params)}>
           <Outlet />
         </Layout>
       );
@@ -95,7 +95,7 @@ export function layoutRoute(Layout: ClientComponent<LayoutProps>, params: readon
 
 type PageLoaderContext = {
   context: TerminalRouterContext;
-  params: object;
+  params: Readonly<Record<string, string | undefined>>;
   deps: { search: RouteSearch };
   abortController: AbortController;
   location: { href: string };
@@ -113,7 +113,7 @@ export function loadPage(
   params: readonly string[],
   splat?: string,
 ): Promise<ReactNode> {
-  return context.app.renderPage(routeId, pick(all as Record<string, string>, params, splat), {
+  return context.app.renderPage(routeId, pick(all, params, splat), {
     signal: abortController.signal,
     href: location.href,
     route: route.id,
@@ -145,8 +145,7 @@ export function pageRoute(
   } = {},
 ) {
   const { loading: Loading, error: Failure, notFound: NotFound, splat } = screens;
-  const usePageParams = () =>
-    pick(useParams({ strict: false }) as Record<string, string | undefined>, params, splat);
+  const usePageParams = () => pick(useParams({ strict: false }), params, splat);
   return {
     validateSearch,
     // A new search is a new page: the Server renders it and TanStack caches it apart.
@@ -158,7 +157,10 @@ export function pageRoute(
     shouldReload: ({ location }: { location: { state: { terminalRestore?: boolean } } }) =>
       location.state.terminalRestore ? false : undefined,
     component: function Page(): ReactNode {
-      return useLoaderData({ strict: false }) as ReactNode;
+      // The value `loadPage` resolved: a Flight tree the transport already checked.
+      const tree: unknown = useLoaderData({ strict: false });
+      if (!isReactNode(tree)) throw new Error("A page loader resolved with no React tree");
+      return tree;
     },
     pendingComponent: function PageLoading() {
       const pageParams = usePageParams();
@@ -197,13 +199,15 @@ export function pageRoute(
   };
 }
 
+/** One fade of the loading label; the timeline fades out then back in. */
+const PULSE_MS = 850;
 function AnimatedLoading({ label }: { label: string }) {
-  const target = useRef<any>(null);
-  const timeline = useTimeline({ autoplay: false, duration: 1700, loop: true });
+  const target = useRef<TextRenderable>(null);
+  const timeline = useTimeline({ autoplay: false, duration: PULSE_MS * 2, loop: true });
   useEffect(() => {
     if (!target.current) return;
     timeline.add(target.current, {
-      duration: 850,
+      duration: PULSE_MS,
       ease: "inOutSine",
       opacity: 0.2,
       loop: true,

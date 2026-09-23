@@ -6,8 +6,10 @@
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { z } from "zod";
 import { build } from "../src/build";
 import { compileClient } from "../src/compile";
+import { readJsonFile } from "../src/package-json";
 import { launch } from "../tests/helpers";
 
 const args = process.argv.slice(2);
@@ -16,6 +18,11 @@ const arch = archIndex < 0 ? (process.arch === "arm64" ? "arm64" : "x64") : args
 if (arch !== "arm64" && arch !== "x64") throw new Error("--arch must be arm64 or x64");
 const platform = arch === "arm64" ? "linux/arm64" : "linux/amd64";
 const root = resolve("examples/notes");
+// A container pulls its image and starts the Client well within this.
+const STARTUP_MS = 60000;
+const POLL_MS = 100;
+// Enough of the last screen to see why the Client did not show the notes.
+const SCREEN_TAIL = 1500;
 const work = await mkdtemp(join(tmpdir(), "airtty-linux-"));
 
 async function run(cmd: string[], options: { cwd?: string; stdin?: string } = {}) {
@@ -56,7 +63,10 @@ try {
   const native = join(work, "native");
   await mkdir(native);
   await Bun.write(join(native, "package.json"), "{}");
-  const { version } = await Bun.file("node_modules/@opentui/core/package.json").json();
+  const { version } = await readJsonFile(
+    "node_modules/@opentui/core/package.json",
+    z.object({ version: z.string() }),
+  );
   await run(
     [
       process.execPath,
@@ -116,13 +126,13 @@ try {
       for await (const chunk of container.stdout)
         screen += Bun.stripANSI(new TextDecoder().decode(chunk));
     })();
-    const deadline = performance.now() + 60000;
+    const deadline = performance.now() + STARTUP_MS;
     while (
       performance.now() < deadline &&
       container.exitCode === null &&
       !screen.includes("First note")
     )
-      await Bun.sleep(100);
+      await Bun.sleep(POLL_MS);
     // The list only exists once the Server answered.
     const ok = screen.includes("YOUR NOTES") && screen.includes("First note");
     await run(["docker", "kill", name]).catch(() => {});
@@ -140,7 +150,7 @@ try {
     if (!ok) {
       failed = true;
       console.error(
-        screen.replace(/\s+/g, " ").slice(-1500),
+        screen.replace(/\s+/g, " ").slice(-SCREEN_TAIL),
         await new Response(container.stderr).text(),
       );
     }

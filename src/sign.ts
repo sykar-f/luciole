@@ -5,6 +5,7 @@
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { mkdtemp, rm } from "node:fs/promises";
+import { z } from "zod";
 
 export type SignOptions = {
   /** codesign identity: "Developer ID Application: …" to distribute, "-" for ad hoc. */
@@ -47,7 +48,9 @@ export function checkSigning(target: string, { sign, notarize }: SignOptions) {
 function run(command: string[]) {
   const result = Bun.spawnSync(command, { stdout: "pipe", stderr: "pipe" });
   if (result.exitCode !== 0)
-    throw new Error(`${command.slice(0, 2).join(" ")} failed:\n${result.stderr}${result.stdout}`);
+    throw new Error(
+      `${command.slice(0, 2).join(" ")} failed:\n${result.stderr.toString()}${result.stdout.toString()}`,
+    );
   return result.stdout.toString();
 }
 
@@ -82,10 +85,8 @@ export function signClient(outfile: string, identity: string) {
   });
 }
 
-const field = (value: unknown, key: string) =>
-  typeof value === "object" && value !== null && key in value
-    ? String(Object.getOwnPropertyDescriptor(value, key)?.value)
-    : undefined;
+/** What `notarytool submit --output-format json` reports; anything else is no verdict. */
+const Submission = z.object({ id: z.string().optional(), status: z.string().optional() });
 
 /**
  * Submits the signed binary to Apple and waits for the verdict. notarytool takes a zip,
@@ -109,8 +110,8 @@ export function notarizeClient(outfile: string, profile: string) {
         "json",
       ]),
     );
-    const id = field(submission, "id");
-    const status = field(submission, "status");
+    const parsed = Submission.safeParse(submission);
+    const { id, status } = parsed.success ? parsed.data : {};
     if (id && status === "Accepted") return id;
     const log = id ? run(["xcrun", "notarytool", "log", id, ...profileArgs]) : "";
     throw new Error(

@@ -4,13 +4,14 @@ import { useParams } from "airtty/client";
 import { Line } from "./frames";
 import { color } from "./theme";
 
+const TRAIL_LENGTH = 6;
 // Persistent while moving between pull requests of one repository: the trail of
 // visited pull requests is local state that survives each navigation.
 export function RepoChrome({ repo, children }: { repo: string; children: ReactNode }) {
   const { number } = useParams({ strict: false });
   const [trail, setTrail] = useState<string[]>([]);
   if (number && trail.at(-1) !== number)
-    setTrail([...trail.filter((n) => n !== number), number].slice(-6));
+    setTrail([...trail.filter((n) => n !== number), number].slice(-TRAIL_LENGTH));
   return (
     <box flexDirection="column" flexGrow={1}>
       <Line id="repo-heading" fg={color.muted}>

@@ -3,6 +3,8 @@ import { chmod, mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { configPath, DEFAULT_URL, openTunnel, serverUrl } from "../src/connect";
+import { messageOf } from "../src/guards";
+import { rejectionOf } from "./helpers";
 
 let work: string, fakeSsh: string, server: ReturnType<typeof Bun.serve>;
 
@@ -75,10 +77,10 @@ test("--url, then AIRTTY_URL, then the user's config file, then the default", as
   );
   // A broken file is reported, never silently replaced by the default.
   await Bun.write(file, "{ url: ");
-  await expect(url([])).rejects.toThrow(file);
+  expect(messageOf(await rejectionOf(url([])))).toContain(file);
   await Bun.write(file, JSON.stringify({ url: 3000 }));
-  await expect(url([])).rejects.toThrow('expected { "url": "…" }');
-  await expect(url(["--url"])).rejects.toThrow("--url needs a value");
+  expect(messageOf(await rejectionOf(url([])))).toContain('expected { "url": "…" }');
+  expect(messageOf(await rejectionOf(url(["--url"])))).toContain("--url needs a value");
 });
 
 test("ssh:// forwards a private socket to the remote Server and stops with the Client", async () => {
@@ -86,7 +88,7 @@ test("ssh:// forwards a private socket to the remote Server and stops with the C
     ssh: fakeSsh,
   });
   if (!tunnel.fetch) throw new Error("An ssh tunnel provides its fetch");
-  const response = await tunnel.fetch(new URL("/rsc?path=/", tunnel.url));
+  const response = await tunnel.fetch(new URL("/rsc?path=/", tunnel.url), {});
   expect(await response.text()).toBe("/rsc");
   const call = await lastCall();
   const socket = call.args[call.args.indexOf("-L") + 1].split(":")[0];
@@ -132,23 +134,27 @@ test("a long TMPDIR still yields a socket path that fits", async () => {
 });
 
 test("ssh failures, stalls and option-like hosts are explained", async () => {
-  await expect(openTunnel("ssh://bob@refused.example", { ssh: fakeSsh })).rejects.toThrow(
-    "Permission denied (publickey)",
-  );
-  await expect(
-    openTunnel("ssh://silent.example", { ssh: fakeSsh, timeoutMs: 300 }),
-  ).rejects.toThrow("no tunnel after 300 ms");
+  expect(
+    messageOf(await rejectionOf(openTunnel("ssh://bob@refused.example", { ssh: fakeSsh }))),
+  ).toContain("Permission denied (publickey)");
+  expect(
+    messageOf(
+      await rejectionOf(openTunnel("ssh://silent.example", { ssh: fakeSsh, timeoutMs: 300 })),
+    ),
+  ).toContain("no tunnel after 300 ms");
   const stalled = await lastCall();
   const deadline = performance.now() + 3000;
   while (alive(stalled.pid) && performance.now() < deadline) await Bun.sleep(20);
   expect(alive(stalled.pid)).toBe(false);
-  await expect(openTunnel("ssh://-oProxyCommand=x/", { ssh: fakeSsh })).rejects.toThrow(
-    'cannot start with "-"',
-  );
-  await expect(openTunnel("ssh://server.example/admin", { ssh: fakeSsh })).rejects.toThrow(
-    "expected ssh://",
-  );
-  await expect(openTunnel("ssh://nobody.example", { ssh: join(work, "missing") })).rejects.toThrow(
-    "ENOENT",
-  );
+  expect(
+    messageOf(await rejectionOf(openTunnel("ssh://-oProxyCommand=x/", { ssh: fakeSsh }))),
+  ).toContain('cannot start with "-"');
+  expect(
+    messageOf(await rejectionOf(openTunnel("ssh://server.example/admin", { ssh: fakeSsh }))),
+  ).toContain("expected ssh://");
+  expect(
+    messageOf(
+      await rejectionOf(openTunnel("ssh://nobody.example", { ssh: join(work, "missing") })),
+    ),
+  ).toContain("ENOENT");
 });
