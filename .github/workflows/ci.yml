@@ -25,3 +25,6 @@ jobs:
       - run: python3 scripts/pty-smoke.py
       - run: python3 scripts/pty-dev.py
       - run: bun scripts/clean-install.ts
+      # The compiled Client in Debian (glibc) and Alpine (musl) containers without Bun.
+      - if: runner.os == 'Linux'
+        run: bun scripts/linux-client.ts

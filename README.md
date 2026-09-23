@@ -154,6 +154,14 @@ le binaire ne démarrerait pas sur une autre machine) ; `--runtime <chemin>` emb
 un exécutable Bun choisi. `--target bun-linux-x64` (et `--native-dir` pour le paquet
 natif de cette cible) produit un binaire pour une autre plateforme.
 
+Sous Linux, le binaire glibc démarre sur une Debian minimale ; le binaire musl
+(`--target bun-linux-x64-musl`) exige `libstdc++` et `libgcc`, que le runtime Bun musl
+lie (`apk add libstdc++` sur Alpine). Au lancement, Bun extrait la bibliothèque
+d’OpenTUI dans `$TMPDIR` (`/tmp` par défaut) : si ce répertoire est monté `noexec`,
+définir `TMPDIR` vers un répertoire exécutable. `bun run test:linux` (Docker requis :
+OrbStack, Docker Desktop ou moteur Linux) compile ces variantes et les exécute dans des
+conteneurs sans Bun contre un Server local.
+
 `--app /chemin/app` sélectionne un autre projet. Le build produit :
 
 ```text
@@ -251,6 +259,7 @@ python3 -m venv /tmp/airtty-pty
 /tmp/airtty-pty/bin/python scripts/pty-smoke.py
 /tmp/airtty-pty/bin/python scripts/pty-dev.py
 PYTHON=/tmp/airtty-pty/bin/python bun scripts/clean-install.ts
+bun run test:linux            # Client compilé exécuté sous Linux (Docker), glibc et musl
 ```
 
 Le dernier test part d’une copie sans dépendances ni artefacts, crée un starter,

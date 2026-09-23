@@ -39,16 +39,20 @@ Pour lancer le Server : `cd examples/notes/.airtty/server && NOTES_DB=$(mktemp -
 
 ## Résultats
 
-| Essai                                                                       | Résultat                                                                                                            |
-| --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| CLI `bun build --compile --target=bun-darwin-arm64 .airtty/client/index.js` | OK en 0,3 s : 40 modules, sans plugin ni option                                                                     |
-| Binaire darwin-arm64, dossier vide, sans Bun                                | Rendu `NOTES · Connected`, liste, `Enter` → `Opening note 1…`, éditeur `First note · version 1` ; `Ctrl+C` → code 0 |
-| Binaire compilé avant un rebuild du Server                                  | `Incompatible build: install matching Client and Server` (409). Le buildId est figé dans le binaire                 |
-| `treesitter.ts` compilé (worker `parser.worker.js`, wasm)                   | `{"highlights":10,"error":null}`, code 0. Cache écrit dans `$HOME/.local/share/opentui/tree-sitter`                 |
-| Entrée wrapper `import ".../client/index.js"` (`wrapper.ts`)                | Sortie vide, code 0 : `import.meta.main` vaut `false` et `run` n'est pas exporté                                    |
-| `--target=bun-linux-x64` depuis la racine                                   | Échec : `error: Could not resolve: "@opentui/core-linux-x64". Maybe you need to "bun install"?` (idem `-musl`)      |
-| `compile.ts --target bun-linux-x64` / `bun-linux-arm64`                     | ELF produit, une seule `libopentui.so` embarquée. **Non exécuté** : aucun daemon Docker actif                       |
-| `compile.ts --target bun-linux-x64-musl`                                    | Échec attendu, `@opentui/core-linux-x64-musl` n'est pas installé                                                    |
+| Essai                                                                         | Résultat                                                                                                                           |
+| ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| CLI `bun build --compile --target=bun-darwin-arm64 .airtty/client/index.js`   | OK en 0,3 s : 40 modules, sans plugin ni option                                                                                    |
+| Binaire darwin-arm64, dossier vide, sans Bun                                  | Rendu `NOTES · Connected`, liste, `Enter` → `Opening note 1…`, éditeur `First note · version 1` ; `Ctrl+C` → code 0                |
+| Binaire compilé avant un rebuild du Server                                    | `Incompatible build: install matching Client and Server` (409). Le buildId est figé dans le binaire                                |
+| `treesitter.ts` compilé (worker `parser.worker.js`, wasm)                     | `{"highlights":10,"error":null}`, code 0. Cache écrit dans `$HOME/.local/share/opentui/tree-sitter`                                |
+| Entrée wrapper `import ".../client/index.js"` (`wrapper.ts`)                  | Sortie vide, code 0 : `import.meta.main` vaut `false` et `run` n'est pas exporté                                                   |
+| `--target=bun-linux-x64` depuis la racine                                     | Échec : `error: Could not resolve: "@opentui/core-linux-x64". Maybe you need to "bun install"?` (idem `-musl`)                     |
+| `compile.ts --target bun-linux-x64` / `bun-linux-arm64`                       | ELF produit, une seule `libopentui.so` embarquée. **Non exécuté** : aucun daemon Docker actif                                      |
+| `compile.ts --target bun-linux-x64-musl`                                      | Échec attendu, `@opentui/core-linux-x64-musl` n'est pas installé                                                                   |
+| `scripts/linux-client.ts`, arm64 et x64 (Rosetta), OrbStack                   | glibc (`debian:bookworm-slim`, sans Bun) : liste Notes reçue du Server en 0,5 à 3 s. Voir ci-dessous                               |
+| Binaire musl sur `alpine:3.22` nu                                             | Échec : `Error loading shared library libstdc++.so.6`. Le runtime Bun musl lie `libstdc++`/`libgcc` ; OK après `apk add libstdc++` |
+| glibc avec `--tmpfs /tmp:noexec`                                              | Échec : `Failed to open library "/tmp/.bun-0-….so"`. OK avec `TMPDIR` vers un répertoire exécutable                                |
+| `tests/compile.test.ts` dans `oven/bun:1.4.2` (Debian arm64, util-linux 2.41) | Passe : `script -q -e -f -c` pilote le binaire hôte linux-arm64 dans un PTY                                                        |
 
 Tailles : darwin-arm64 71,5 Mio (runtime Bun 59 Mio + dylib 5,3 Mio + ressources
 tree-sitter 3,3 Mio + JS), linux-x64 90,3 Mio, linux-arm64 89,9 Mio.
@@ -77,8 +81,10 @@ tree-sitter 3,3 Mio + JS), linux-x64 90,3 Mio, linux-arm64 89,9 Mio.
    désactive.
 6. La signature est ad hoc (`flags=0x20002(adhoc,linker-signed)`). Pour un
    binaire téléchargé, Gatekeeper exigera Developer ID et notarisation (non testé).
-   `$TMPDIR` doit être accessible en écriture pour extraire la dylib ; un `/tmp`
-   `noexec` sous Linux reste à vérifier.
+   `$TMPDIR` doit être accessible en écriture, et exécutable, pour extraire la
+   bibliothèque : sous Linux, un `/tmp` `noexec` impose `TMPDIR=<répertoire exécutable>`.
+7. **musl n'est pas autonome** : le runtime Bun musl lie `libstdc++.so.6` et
+   `libgcc_s.so.1`, absents d'une Alpine nue.
 
 ## Mécanisme recommandé : `airtty build --compile [--target …]`
 

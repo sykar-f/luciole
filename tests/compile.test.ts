@@ -8,13 +8,14 @@ import { launch } from "./helpers";
 
 const root = resolve("examples/notes");
 
-// macOS and util-linux spell script(1) differently. Its input must be a real pipe (not
+// macOS and util-linux spell script(1) differently (busybox lacks -e); util-linux must
+// flush the log the test reads while the Client runs. Its input must be a real pipe (not
 // a socket): a shell pipe that sends Ctrl+C once the test creates the `stop` file.
 const inPty = (log: string, command: string) => {
   const script =
     process.platform === "darwin"
       ? `/usr/bin/script -q ${log} ${command}`
-      : `script -q -e -c '${command}' ${log}`;
+      : `script -q -e -f -c '${command}' ${log}`;
   return ["/bin/sh", "-c", `(while [ ! -f stop ]; do sleep 0.1; done; printf '\\003') | ${script}`];
 };
 
