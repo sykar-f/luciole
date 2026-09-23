@@ -1,6 +1,6 @@
 "use client";
 import { NoteEditorFrame } from "./NoteFrame";
-import { KeyHelp, useBindings, useNavigate } from "airtty/client";
+import { Input, KeyHelp, useBindings, useNavigate, useRestoredFields } from "airtty/client";
 import { useDraft, type Note, type Snapshot, type SaveResult } from "./draft";
 type Props = {
   initialNote: Note;
@@ -9,36 +9,44 @@ type Props = {
 };
 export function NoteEditor({ initialNote, saveAction, resolveAction }: Props) {
   const { draft, edit, save, recover, discard } = useDraft(initialNote),
-    navigate = useNavigate();
+    navigate = useNavigate(),
+    // The typed text survives a crash or a rebuild; it is forgotten once sent, and kept
+    // again when the Server refuses it or never received it.
+    fields = useRestoredFields("note"),
+    send = () =>
+      void save((snapshot) => fields.submit(() => saveAction(snapshot), { failed: (r) => !r.ok }));
   // A committed save refreshes the page by itself: the Server Function invalidates it.
   useBindings(
     () => ({
       bindings: [
-        { key: "ctrl+s", cmd: () => void save(saveAction), desc: "save", group: "note" },
+        { key: "ctrl+s", cmd: send, desc: "save", group: "note" },
         { key: "escape", cmd: () => void navigate({ to: "/" }), desc: "list", group: "note" },
         { key: "ctrl+o", cmd: () => void recover(resolveAction), desc: "resolve", group: "note" },
         {
           key: "ctrl+d",
           cmd: () => {
-            if (!draft.pending) discard();
+            if (draft.pending) return;
+            discard();
+            fields.clear();
           },
           desc: "discard",
           group: "note",
         },
       ],
     }),
-    [save, recover, discard, draft, navigate, saveAction, resolveAction],
+    [save, recover, discard, draft, navigate, saveAction, resolveAction, fields],
   );
   return (
     <NoteEditorFrame
       dirty={draft.dirty}
       field={
-        <input
+        <Input
           id={`note-${initialNote.id}`}
+          name="note/text"
           focused
           value={draft.value}
           onInput={edit}
-          onSubmit={() => void save(saveAction)}
+          onSubmit={send}
           placeholder="Write a note…"
         />
       }

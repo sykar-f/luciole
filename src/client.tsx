@@ -1,6 +1,5 @@
 /** @jsxImportSource @opentui/react */
 import React, {
-  createContext,
   useContext,
   useEffect,
   useLayoutEffect,
@@ -21,11 +20,14 @@ import {
   redirect,
   type AnyRoute,
   type AnyRouter,
+  type RouterHistory,
 } from "@tanstack/react-router";
 import { installResolver, createServerReference, type ModuleResolver } from "./flight/client";
 import { readNotFound } from "./not-found";
 import { connect, serverUrl } from "./connect";
 import { messageOf } from "./guards";
+import { Restoration, type Session } from "./restore";
+import { Runtime } from "./runtime-context";
 import {
   AuthenticationRequired,
   BuildMismatch,
@@ -53,6 +55,9 @@ export type {
 /** A transport event, or a resolved navigation. */
 export type ApplicationEvent = TransportEvent | { type: "navigation"; path: string };
 export type { ErrorProps, LayoutProps, LoadingProps, NotFoundProps } from "./route-tree";
+export { Input, Textarea, useRestoredFields } from "./fields";
+export type { FieldInputProps, FieldTextareaProps, RestoredFields } from "./fields";
+export type { Session, SessionEntry } from "./restore";
 // Keybindings are OpenTUI's keymap, re-exported so every layer shares the Shell's instance.
 // A binding's `desc` (and `group`) feeds `<KeyHelp />`.
 export { useActiveKeys, useBindings, useKeymap, usePendingSequence } from "@opentui/keymap/react";
@@ -86,6 +91,11 @@ export type ApplicationOptions = {
   /** Replaces the HTTP/Flight transport. */
   transport?: Transport;
   initialPath?: string;
+  /**
+   * History and named fields to restore (after a crash or a development rebuild):
+   * `run()` reads it from disk. Replaces `initialPath`.
+   */
+  session?: Session;
   /** Shown in the framework heading; the build passes the application directory name. */
   title?: string;
 };
@@ -128,9 +138,25 @@ export class Application {
   private nextSignal: AbortSignal | undefined;
   private eventListeners = new Set<(event: ApplicationEvent) => void>();
   private purgeAfterLoad = false;
+  private bearer: string | undefined;
+  private tokenListeners = new Set<(token: string | undefined) => void>();
   readonly options: ApplicationOptions;
+  /** The router's history, typed: `router` is not (see above). */
+  readonly history: RouterHistory;
+  /** The history and the text of named fields, as a browser keeps a session. */
+  readonly restoration: Restoration;
   constructor(options: ApplicationOptions) {
     this.options = options;
+    this.bearer = options.token;
+    // Entries after the current one are not restored: a memory history created with an
+    // `initialIndex` of 0 would open on its last entry instead.
+    const restored = options.session?.entries.length
+      ? {
+          index: options.session.index,
+          entries: options.session.entries.slice(0, options.session.index + 1),
+        }
+      : undefined;
+    this.restoration = new Restoration(restored);
     installTerminalGlobals();
     installResolver(options.resolveModule);
     this.transport =
@@ -148,10 +174,13 @@ export class Application {
         onInvalidate: (paths) => void this.invalidate(paths).catch(() => {}),
         onEvent: (event) => this.emit(event),
       });
+    this.history = createMemoryHistory({
+      initialEntries: restored?.entries.map((e) => e.href) ?? [options.initialPath ?? "/"],
+    });
     this.router = createRouter({
       routeTree: options.routeTree,
       context: { app: this },
-      history: createMemoryHistory({ initialEntries: [options.initialPath ?? "/"] }),
+      history: this.history,
       isServer: false,
       origin: "http://terminal.invalid",
       defaultPendingMs: 0,
@@ -169,7 +198,9 @@ export class Application {
     });
     // A commit moves the route being left into the cache: repeat a purge requested
     // while that navigation was pending.
+    this.router.subscribe("onBeforeNavigate", () => this.restoration.sync(this.history));
     this.router.subscribe("onResolved", ({ toLocation }: { toLocation: { pathname: string } }) => {
+      this.restoration.sync(this.history);
       this.emit({ type: "navigation", path: toLocation.pathname });
       if (!this.purgeAfterLoad) return;
       this.purgeAfterLoad = false;
@@ -179,6 +210,7 @@ export class Application {
     // the one Application of this process through `current`, set by its constructor.
     // oxlint-disable-next-line typescript/no-this-alias -- the process-wide registration above.
     current = this;
+    this.restoration.sync(this.history);
   }
   subscribe = (f: () => void) => {
     this.listeners.add(f);
@@ -199,11 +231,16 @@ export class Application {
   /**
    * Replaces the bearer for later requests, drops every cached private tree and reloads
    * the current routes under the new bearer: a route rendered for another identity must
-   * never be shown again. Local state the application keeps (Drafts, pending
-   * operations) is the application's to clear.
+   * never be shown again. Replacing a bearer (sign-out, another account) also forgets
+   * the text of named fields; the first sign-in of a Client keeps it, so text restored
+   * after a crash survives the sign-in it requires. Local state the application keeps
+   * (Drafts, pending operations) is the application's to clear.
    */
   setToken = (token?: string) => {
+    if (this.bearer !== undefined) this.restoration.clear();
+    this.bearer = token;
     this.transport.setToken(token);
+    for (const listener of this.tokenListeners) listener(token);
     this.purge();
     // Loads still in flight (a navigation, a background revalidation) asked with the
     // previous bearer: superseding them is what keeps their answers off the screen.
@@ -213,6 +250,16 @@ export class Application {
     this.router.clearCache();
     if (this.router.state.status === "pending") this.purgeAfterLoad = true;
   }
+  /**
+   * Called with each new bearer. The development supervisor uses it to hand the bearer to
+   * the Client it restarts after a rebuild, in memory only.
+   */
+  onTokenChange = (listener: (token: string | undefined) => void) => {
+    this.tokenListeners.add(listener);
+    return () => {
+      this.tokenListeners.delete(listener);
+    };
+  };
   /** Revalidates the destination, or the mounted route, keeping it on failure. */
   refresh = () => this.invalidate();
   /**
@@ -333,7 +380,6 @@ export class Application {
   };
 }
 
-const Runtime = createContext<Application | null>(null);
 export function useApplication() {
   const app = useContext(Runtime);
   if (!app) throw new Error("Missing terminal shell");
