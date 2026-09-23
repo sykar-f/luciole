@@ -42,6 +42,7 @@
     "react-dom": "19.3.0",
     "react-reconciler": "0.33.0",
     "react-server-dom-webpack": "19.3.0",
+    "sharp": "0.35.4",
     "typescript": "7.0.2",
     "zod": "4.6.5"
   },
