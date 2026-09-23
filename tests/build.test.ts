@@ -377,6 +377,24 @@ test("serverPackages keeps listed third-party packages out of the Client", async
       },
     );
 });
+test("application code shares the framework's zod; a package keeps its own", async () => {
+  await fixture(
+    {
+      "node_modules/legacy-kit/package.json": `{"name":"legacy-kit","version":"1.0.0","main":"index.js"}`,
+      "node_modules/legacy-kit/index.js": `import {z} from "zod";export const kit=()=>z.marker;`,
+      "node_modules/legacy-kit/node_modules/zod/package.json": `{"name":"zod","version":"3.0.0","main":"index.js"}`,
+      "node_modules/legacy-kit/node_modules/zod/index.js": `export const z={marker:"LEGACY_ZOD_SENTINEL"};`,
+      "app/page.tsx": `import {kit} from 'legacy-kit';import {z} from 'zod';export default function Page(){return <text>{String(kit())}{z.string().parse('app')}</text>}`,
+    },
+    async (dir) => {
+      await build(dir);
+      const server = await Bun.file(join(dir, ".airtty/server/index.js")).text();
+      expect(server).toContain("LEGACY_ZOD_SENTINEL");
+      expect(server).toContain("node_modules/zod/v4/classic/");
+    },
+  );
+});
+
 // The Client validates what it receives with zod/mini: the classic API would add ~130 KB.
 test("the Client bundle embeds zod/mini, never the classic zod API", async () => {
   await fixture(

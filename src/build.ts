@@ -506,10 +506,13 @@ export async function build(directory: string, output = join(directory, ".airtty
                 }));
               }
               // One zod instance, the pinned one: application schemas share the framework's
-              // copy, installed or not, like the router above.
-              b.onResolve({ filter: /^zod(\/.*)?$/ }, (a) => ({
-                path: Bun.resolveSync(a.path, framework),
-              }));
+              // copy, installed or not, like the router above. A package keeps the zod it
+              // depends on, whatever its major version.
+              b.onResolve({ filter: /^zod(\/.*)?$/ }, (a) =>
+                packageOfFile(a.importer)
+                  ? undefined
+                  : { path: Bun.resolveSync(a.path, framework) },
+              );
               // Side markers carry no code of their own.
               b.onResolve({ filter: /^(server-only|client-only)$/ }, (a) => ({
                 path: a.path,
