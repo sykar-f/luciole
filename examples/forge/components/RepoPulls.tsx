@@ -1,6 +1,6 @@
 "use client";
-import { useKeyboard } from "@opentui/react";
-import { useNavigate } from "airtty/client";
+import { useCallback } from "react";
+import { useBindings, useNavigate } from "airtty/client";
 import { useEditing } from "./editing";
 import { STATES, type StateFilter } from "./filters";
 import { Line } from "./frames";
@@ -22,11 +22,28 @@ export function RepoPulls({
 }) {
   const navigate = useNavigate();
   const { editing } = useEditing();
-  useKeyboard((key) => {
-    if (editing || key.ctrl || key.name !== "s") return;
-    const next = STATES[(STATES.indexOf(state) + 1) % STATES.length];
-    void navigate({ to: "/repos/$repo", params: { repo }, search: { state: next } });
-  });
+  const next = STATES[(STATES.indexOf(state) + 1) % STATES.length];
+  useBindings(
+    () => ({
+      bindings: editing
+        ? []
+        : [
+            {
+              key: "s",
+              cmd: () =>
+                void navigate({ to: "/repos/$repo", params: { repo }, search: { state: next } }),
+              desc: `show ${next}`,
+              group: "repo",
+            },
+          ],
+    }),
+    [editing, repo, next, navigate],
+  );
+  // Stable across renders: the list's key layer depends on it.
+  const create = useCallback(
+    () => void navigate({ to: "/repos/$repo/pulls/new", params: { repo } }),
+    [navigate, repo],
+  );
   return (
     <box flexDirection="column" flexGrow={1} gap={1}>
       <Line id="state-filter" fg={color.muted}>
@@ -35,7 +52,7 @@ export function RepoPulls({
       <PullList
         sections={[{ title: `${state} pull requests`, pulls }]}
         emptyText={`No ${state} pull request`}
-        onCreate={() => void navigate({ to: "/repos/$repo/pulls/new", params: { repo } })}
+        onCreate={create}
       />
     </box>
   );

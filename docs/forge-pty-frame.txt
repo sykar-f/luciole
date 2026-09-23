@@ -2,7 +2,7 @@
  TERMINAL / FORGE · Connected
 
  ┌─ forge ────────────────────┐  acme / payments  ·  visited #1
- │ @alice · maintainer        │  #1   Conversation    Files    Checks   Tab next
+ │ @alice · maintainer        │  #1   Conversation    Files    Checks   tab next tab · shift+tab previous
  │ Alice Martin               │  #1 Add idempotency keys to refunds
  │                            │  ⇄ merged · @alice merged feature/refund-idempotency into main · revision 1 · +43 −8
  │ [i] Inbox                  │
@@ -33,7 +33,7 @@
  │                            │
  │                            │  Merged #1 into main
  │                            │
- │ ? keys · Ctrl+L sign out   │
- └────────────────────────────┘  e edit · c comment · a approve · x changes · m merge · j/k scroll · Tab files · Esc stop editing
+ │ i inbox · u back · ? keys  │
+ └────────────────────────────┘  e edit · c comment · j scroll
 
  ctrl+c quit · ctrl+l sign out · ctrl+r refresh

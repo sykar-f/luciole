@@ -53,9 +53,9 @@ export function Screen({
         <Line id="screen-status" fg={color.warn}>
           {status}
         </Line>
-        <Line id="screen-help" fg={color.muted}>
+        <box id="screen-help" height={1} flexShrink={0}>
           {help}
-        </Line>
+        </box>
       </box>
     </box>
   );

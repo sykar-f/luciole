@@ -1,7 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { useKeyboard } from "@opentui/react";
-import { useNavigate, useRouter } from "airtty/client";
+import { useBindings, useNavigate, useRouter } from "airtty/client";
 import { useEditing, useEditingWhile } from "./editing";
 import { Line } from "./frames";
 import type { PullSummary } from "./model";
@@ -66,22 +65,42 @@ export function PullList({
     return () => clearTimeout(timer);
   }, [current, filtering, router]);
 
-  useKeyboard((key) => {
-    if (filtering) {
-      if (key.name === "escape" || key.name === "return") setFiltering(false);
-      return;
-    }
-    if (editing || key.ctrl) return;
-    if (key.name === "down" || key.name === "j")
-      setSelected((s) => Math.min(s + 1, rows.length - 1));
-    if (key.name === "up" || key.name === "k") setSelected((s) => Math.max(s - 1, 0));
-    if (key.name === "return" && current) open(current);
-    if (key.sequence === "/") {
-      setFiltering(true);
-      setSelected(0);
-    }
-    if (key.name === "n" && onCreate) onCreate();
-  });
+  const move = (delta: number) =>
+    setSelected((s) => Math.max(0, Math.min(s + delta, rows.length - 1)));
+  // While filtering, the field owns every key but the two that close it.
+  useBindings(
+    () => ({
+      bindings: filtering
+        ? [
+            { key: "return", cmd: () => setFiltering(false), desc: "done", group: "list" },
+            { key: "escape", cmd: () => setFiltering(false) },
+          ]
+        : editing
+          ? []
+          : [
+              { key: "j", cmd: () => move(1), desc: "down", group: "list" },
+              { key: "k", cmd: () => move(-1), desc: "up", group: "list" },
+              { key: "down", cmd: () => move(1) },
+              { key: "up", cmd: () => move(-1) },
+              ...(current
+                ? [{ key: "return", cmd: () => open(current), desc: "open", group: "list" }]
+                : []),
+              {
+                key: "/",
+                cmd: () => {
+                  setFiltering(true);
+                  setSelected(0);
+                },
+                desc: "filter",
+                group: "list",
+              },
+              ...(onCreate
+                ? [{ key: "n", cmd: onCreate, desc: "new pull request", group: "list" }]
+                : []),
+            ],
+    }),
+    [filtering, editing, rows.length, current, onCreate, navigate],
+  );
 
   return (
     <box flexDirection="column" flexGrow={1} gap={1}>

@@ -1,6 +1,7 @@
 import { notFound } from "airtty/server";
 import { FilesReview } from "../../../../../../../components/FilesReview";
 import { Screen } from "../../../../../../../components/frames";
+import { Help } from "../../../../../../../components/Help";
 import { pullSubtitle, pullTitle } from "../../../../../../../components/PullHeader";
 import { actor, forge, slow } from "../../../../../../../server/instance";
 
@@ -22,7 +23,7 @@ export default async function FilesPage({ params }: { params: { repo: string; nu
     <Screen
       title={pullTitle(pull)}
       subtitle={pullSubtitle(pull)}
-      help="[ ] file · j/k line · c comment · v viewed · s split · Space page · Tab checks"
+      help={<Help groups={["files", "draft"]} />}
     >
       <FilesReview
         pull={pull}

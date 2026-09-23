@@ -51,7 +51,14 @@ Comptes, PIN `forge` pour tous : `alice` (maintainer, peut merger), `bob`
 | Issue perdue | Ctrl+O consulter le ledger (jamais de rejeu) · Ctrl+X oublier après une consultation vide      |
 
 Une lettre est une commande tant qu'aucun champ n'a le focus ; dans un champ, c'est
-du texte. `components/editing.tsx` porte ce mode.
+du texte. `components/editing.tsx` porte ce mode : chaque écran déclare ses touches avec
+`useBindings` (`desc` + `group`) et n'installe ses touches simples que hors édition. Une
+couche de la keymap passe avant le champ focalisé et consomme la touche : une lettre liée
+en permanence serait avalée, d'où ces couches conditionnelles (Tab et Entrée, qui ne sont
+pas du texte, restent liées dans les formulaires). La ligne d'aide de chaque écran est
+générée (`components/Help.tsx`, `<KeyHelp />` filtré par groupe) : la page Server nomme
+les groupes de ses Client Components, les touches affichées sont celles actives à
+l'instant (les lettres disparaissent pendant l'édition, les onglets aussi).
 
 ## Scénario de démonstration (5 minutes)
 
@@ -146,9 +153,13 @@ Relevées sur Notes et Forge, puis tranchées :
   s'arrête côté Server quand on le quitte. `live.ts` est supprimé.
 - **`error.tsx` et `notFound()`** : résolus. Les pages appellent `notFound(what)` ;
   `app/(app)/not-found.tsx` affiche l'écran dans le chrome.
-- **Raccourcis** : le chrome de Forge déclare ses touches avec `useBindings` et l'aide
-  `?` est générée (`<KeyHelp />`). Les écrans internes gardent `useKeyboard`, qui
-  coexiste avec la keymap ; leur migration reste à faire.
+- **Raccourcis** : migration faite. Chrome, onglets, listes, conversation, fichiers,
+  checks, éditeurs de Draft, formulaires et login déclarent leurs touches avec
+  `useBindings` ; plus aucun `useKeyboard`, plus aucun texte d'aide écrit à la main dans
+  les pages. Pièges rencontrés : une couche consomme la touche par défaut, donc `Ctrl+O`
+  (plusieurs issues inconnues à consulter à la fois) déclare `fallthrough` ; `"G"` est lu
+  comme `g`, il faut écrire `shift+g`. Tests : aide générée et mode édition dans
+  `forge.test.tsx`.
 - **Données publiques de session dans le chrome** : toujours faites par l'application
   (`components/session.ts` + `whoami()`).
 

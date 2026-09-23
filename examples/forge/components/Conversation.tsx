@@ -1,7 +1,7 @@
 "use client";
 import { useRef, useState } from "react";
-import { useKeyboard } from "@opentui/react";
 import type { ScrollBoxRenderable } from "@opentui/core";
+import { useBindings } from "airtty/client";
 import { useDraft, type Note } from "./draft";
 import {
   merge,
@@ -15,7 +15,7 @@ import { DraftEditor } from "./DraftEditor";
 import { useEditing, useEditingWhile } from "./editing";
 import { Line } from "./frames";
 import type { Comment, Identity, MergeReadiness, PullDetail, Review } from "./model";
-import { describe, useOperation } from "./operations";
+import { describe, useOperation, type OperationState } from "./operations";
 import { syntax } from "./syntax";
 import { ago, checkColor, checkGlyph, color } from "./theme";
 
@@ -58,33 +58,121 @@ export function Conversation({
   const canMerge = open && me.role === "maintainer";
   const canComment = me.role !== "reader";
 
-  useKeyboard((k) => {
-    if (k.name === "escape" && mode !== "read") setMode("read");
-    if (k.ctrl && k.name === "o") {
-      void verdict.resolve(resolveOperation);
-      void merging.resolve(resolveOperation);
-    }
-    if (k.ctrl && k.name === "x" && mode === "read") {
-      verdict.forget();
-      merging.forget();
-    }
-    if (mode !== "read" || (editing && mode === "read") || k.ctrl || k.meta) return;
-    if (k.name === "e" && canEdit) setMode("description");
-    if (k.name === "c" && canComment) setMode("comment");
-    if (k.name === "a" && canReview)
-      void verdict.run("Approve", (operationId) =>
-        review({ ...target, verdict: "approve", operationId }),
-      );
-    if (k.name === "x" && canReview)
-      void verdict.run("Request changes", (operationId) =>
-        review({ ...target, verdict: "changes", operationId }),
-      );
-    if (k.name === "m" && canMerge)
-      void merging.run(`Merge #${pull.number}`, (operationId) => merge({ ...target, operationId }));
-    const scroll = timeline.current;
-    if (scroll && (k.name === "j" || k.name === "down")) scroll.scrollTop += 2;
-    if (scroll && (k.name === "k" || k.name === "up")) scroll.scrollTop -= 2;
-  });
+  const lookup = (state: OperationState | undefined) =>
+    state?.status === "unknown" || state?.status === "unresolved";
+  const scroll = (delta: number) => {
+    if (timeline.current) timeline.current.scrollTop += delta;
+  };
+  const read = mode === "read" && !editing;
+  useBindings(
+    () => ({
+      bindings: [
+        ...(mode !== "read"
+          ? [
+              {
+                key: "escape",
+                cmd: () => setMode("read"),
+                desc: "stop editing",
+                group: "conversation",
+              },
+            ]
+          : []),
+        // An editor's Draft may be unknown too: each layer resolves its own operation.
+        ...(lookup(verdict.state) || lookup(merging.state)
+          ? [
+              {
+                key: "ctrl+o",
+                cmd: () => {
+                  void verdict.resolve(resolveOperation);
+                  void merging.resolve(resolveOperation);
+                },
+                desc: "resolve",
+                group: "conversation",
+                fallthrough: true,
+              },
+            ]
+          : []),
+        ...(mode === "read" && (verdict.state || merging.state)
+          ? [
+              {
+                key: "ctrl+x",
+                cmd: () => {
+                  verdict.forget();
+                  merging.forget();
+                },
+                ...(verdict.state?.status === "unresolved" || merging.state?.status === "unresolved"
+                  ? { desc: "forget", group: "conversation" }
+                  : {}),
+              },
+            ]
+          : []),
+        ...(read
+          ? [
+              ...(canEdit
+                ? [
+                    {
+                      key: "e",
+                      cmd: () => setMode("description"),
+                      desc: "edit",
+                      group: "conversation",
+                    },
+                  ]
+                : []),
+              ...(canComment
+                ? [
+                    {
+                      key: "c",
+                      cmd: () => setMode("comment"),
+                      desc: "comment",
+                      group: "conversation",
+                    },
+                  ]
+                : []),
+              ...(canReview
+                ? [
+                    {
+                      key: "a",
+                      cmd: () =>
+                        void verdict.run("Approve", (operationId) =>
+                          review({ ...target, verdict: "approve", operationId }),
+                        ),
+                      desc: "approve",
+                      group: "conversation",
+                    },
+                    {
+                      key: "x",
+                      cmd: () =>
+                        void verdict.run("Request changes", (operationId) =>
+                          review({ ...target, verdict: "changes", operationId }),
+                        ),
+                      desc: "changes",
+                      group: "conversation",
+                    },
+                  ]
+                : []),
+              ...(canMerge
+                ? [
+                    {
+                      key: "m",
+                      cmd: () =>
+                        void merging.run(`Merge #${pull.number}`, (operationId) =>
+                          merge({ ...target, operationId }),
+                        ),
+                      desc: "merge",
+                      group: "conversation",
+                    },
+                  ]
+                : []),
+              { key: "j", cmd: () => scroll(2), desc: "scroll", group: "conversation" },
+              { key: "k", cmd: () => scroll(-2) },
+              { key: "down", cmd: () => scroll(2) },
+              { key: "up", cmd: () => scroll(-2) },
+            ]
+          : []),
+      ],
+    }),
+    [mode, read, verdict.state, merging.state, canEdit, canComment, canReview, canMerge, pull],
+  );
 
   const events = [
     ...comments.map((c) => ({ at: c.createdAt, kind: "comment" as const, comment: c })),

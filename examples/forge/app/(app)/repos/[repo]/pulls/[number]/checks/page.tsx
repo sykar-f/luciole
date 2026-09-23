@@ -1,6 +1,7 @@
 import { notFound } from "airtty/server";
 import { ChecksPanel } from "../../../../../../../components/ChecksPanel";
 import { Screen } from "../../../../../../../components/frames";
+import { Help } from "../../../../../../../components/Help";
 import { pullSubtitle, pullTitle } from "../../../../../../../components/PullHeader";
 import { actor, forge } from "../../../../../../../server/instance";
 
@@ -14,7 +15,7 @@ export default function ChecksPage({ params }: { params: { repo: string; number:
     <Screen
       title={pullTitle(pull)}
       subtitle={pullSubtitle(pull)}
-      help="↑↓ select check · r rerun · Ctrl+O resolve · Tab conversation"
+      help={<Help groups={["checks"]} />}
     >
       <ChecksPanel
         pull={pull}

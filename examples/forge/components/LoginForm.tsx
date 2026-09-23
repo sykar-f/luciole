@@ -1,7 +1,6 @@
 "use client";
 import { useRef, useState } from "react";
-import { useKeyboard } from "@opentui/react";
-import { useApplication, useNavigate } from "airtty/client";
+import { KeyHelp, useApplication, useBindings, useNavigate } from "airtty/client";
 import { login } from "../actions/session";
 import { Line } from "./frames";
 import { drafts } from "./draft";
@@ -46,12 +45,26 @@ export function LoginForm({ accounts }: { accounts: { id: string; role: string }
       setPending(false);
     }
   }
-  useKeyboard((key) => {
-    if (key.name !== "tab") return;
-    // Global handlers run before the focused field: keep Tab out of the typed value.
-    key.preventDefault();
-    setField((f) => (f === "user" ? "pin" : "user"));
-  });
+  // Bindings run before the focused field: Tab and Enter never reach its value.
+  useBindings(
+    () => ({
+      bindings: [
+        {
+          key: "tab",
+          cmd: () => setField((f) => (f === "user" ? "pin" : "user")),
+          desc: "switch field",
+          group: "login",
+        },
+        {
+          key: "return",
+          cmd: () => (field === "user" ? setField("pin") : void submit()),
+          desc: "sign in",
+          group: "login",
+        },
+      ],
+    }),
+    [field, pending],
+  );
 
   return (
     <box flexDirection="column" gap={1} flexShrink={0} width={52}>
@@ -66,7 +79,6 @@ export function LoginForm({ accounts }: { accounts: { id: string; role: string }
               typed.current.user = value;
               setUser(value);
             }}
-            onSubmit={() => setField("pin")}
             placeholder="alice, bob or carol"
             flexGrow={1}
           />
@@ -81,7 +93,6 @@ export function LoginForm({ accounts }: { accounts: { id: string; role: string }
               typed.current.pin = value;
               setPin(value);
             }}
-            onSubmit={() => void submit()}
             placeholder="forge"
             flexGrow={1}
           />
@@ -101,7 +112,9 @@ export function LoginForm({ accounts }: { accounts: { id: string; role: string }
           </Line>
         ))}
       </box>
-      <Line fg={color.faint}>Tab switch field · Enter sign in · Ctrl+C quit</Line>
+      <box id="login-help" height={1}>
+        <KeyHelp inline groups={["login", "airtty"]} fg={color.faint} accent={color.muted} />
+      </box>
     </box>
   );
 }

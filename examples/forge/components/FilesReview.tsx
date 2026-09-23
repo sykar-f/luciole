@@ -1,7 +1,8 @@
 "use client";
 import { Suspense, use, useEffect, useMemo, useRef, useState } from "react";
-import { useKeyboard, useTerminalDimensions } from "@opentui/react";
+import { useTerminalDimensions } from "@opentui/react";
 import type { DiffRenderable, ScrollBoxRenderable } from "@opentui/core";
+import { useBindings } from "airtty/client";
 import { publish, resolveSave } from "../actions/pulls";
 import { drafts } from "./draft";
 import { DraftEditor } from "./DraftEditor";
@@ -46,26 +47,44 @@ export function FilesReview({ pull, files, composerVersions, canComment }: Props
   const split = session.split ?? width >= SPLIT_WIDTH;
   const [anchor, setAnchor] = useState<{ side: Side; line: number } | null>(null);
 
-  useKeyboard((key) => {
-    if (key.name === "escape" && composing) setComposing(null);
-    if (editing || key.ctrl || key.meta || !file) return;
-    if (key.sequence === "]" || key.sequence === "J")
-      session.setFile(files[Math.min(index + 1, files.length - 1)].path);
-    if (key.sequence === "[" || key.sequence === "K")
-      session.setFile(files[Math.max(index - 1, 0)].path);
-    if (key.name === "v") session.toggleViewed(file.path);
-    if (key.name === "s") session.setSplit(!split);
-    if (key.name === "c" && canComment) {
-      if (split) setNotice("Switch to unified view (s) to comment on a line");
-      else if (!anchor) setNotice("Move the cursor to a diff line first (j/k)");
-      else if (drafts.unsaved().length >= drafts.capacity)
-        setNotice(`Draft limit reached (${drafts.capacity}): publish or discard a Draft first`);
-      else {
-        setNotice("");
-        setComposing(anchor);
-      }
+  const step = (delta: number) =>
+    session.setFile(files[Math.max(0, Math.min(index + delta, files.length - 1))].path);
+  const comment = () => {
+    if (split) setNotice("Switch to unified view (s) to comment on a line");
+    else if (!anchor) setNotice("Move the cursor to a diff line first (j/k)");
+    else if (drafts.unsaved().length >= drafts.capacity)
+      setNotice(`Draft limit reached (${drafts.capacity}): publish or discard a Draft first`);
+    else {
+      setNotice("");
+      setComposing(anchor);
     }
-  });
+  };
+  useBindings(
+    () => ({
+      bindings: [
+        ...(composing
+          ? [{ key: "escape", cmd: () => setComposing(null), desc: "leave", group: "files" }]
+          : []),
+        ...(editing || !file
+          ? []
+          : [
+              { key: "]", cmd: () => step(1), desc: "next file", group: "files" },
+              { key: "[", cmd: () => step(-1), desc: "previous", group: "files" },
+              { key: "shift+j", cmd: () => step(1) },
+              { key: "shift+k", cmd: () => step(-1) },
+              ...(canComment ? [{ key: "c", cmd: comment, desc: "comment", group: "files" }] : []),
+              {
+                key: "v",
+                cmd: () => session.toggleViewed(file.path),
+                desc: "viewed",
+                group: "files",
+              },
+              { key: "s", cmd: () => session.setSplit(!split), desc: "split", group: "files" },
+            ]),
+      ],
+    }),
+    [composing, editing, file, index, files, canComment, split, anchor, session],
+  );
 
   const slot = composing && file ? lineSlot(pull, composing.side, composing.line, file.path) : null;
   // useDraft re-reads its note whenever the object changes: keep it stable per slot.
@@ -210,17 +229,27 @@ function DiffView({
     );
   }, [row, split, onAnchor]);
 
-  useKeyboard((key) => {
-    if (!active || key.ctrl || !rows.length) return;
-    const move = (delta: number) =>
-      session.setCursor(file.path, Math.max(0, Math.min(rows.length - 1, cursor + delta)));
-    if (key.name === "j" || key.name === "down") move(1);
-    if (key.name === "k" || key.name === "up") move(-1);
-    if (key.name === "pagedown" || key.name === "space") move(20);
-    if (key.name === "pageup") move(-20);
-    if (key.name === "g") move(-rows.length);
-    if (key.sequence === "G") move(rows.length);
-  });
+  const move = (delta: number) =>
+    session.setCursor(file.path, Math.max(0, Math.min(rows.length - 1, cursor + delta)));
+  useBindings(
+    () => ({
+      bindings:
+        !active || !rows.length
+          ? []
+          : [
+              { key: "j", cmd: () => move(1), desc: "line", group: "files" },
+              { key: "k", cmd: () => move(-1) },
+              { key: "down", cmd: () => move(1) },
+              { key: "up", cmd: () => move(-1) },
+              { key: "space", cmd: () => move(20), desc: "page", group: "files" },
+              { key: "pagedown", cmd: () => move(20) },
+              { key: "pageup", cmd: () => move(-20) },
+              { key: "g", cmd: () => move(-rows.length) },
+              { key: "shift+g", cmd: () => move(rows.length) },
+            ],
+    }),
+    [active, rows.length, cursor, file.path, session],
+  );
 
   if (!diff) return <Line fg={color.warn}>This file is not part of revision {revision}</Line>;
   const here = (c: Comment) =>
@@ -258,9 +287,7 @@ function DiffView({
         borderColor={color.border}
       >
         {file.comments.length === 0 ? (
-          <Line fg={color.faint}>
-            No line comments · j/k move · c comment · v viewed · s split · [ ] file
-          </Line>
+          <Line fg={color.faint}>No line comments</Line>
         ) : (
           file.comments.slice(-4).map((c) => (
             <Line key={c.id} fg={here(c) ? color.text : color.muted}>
