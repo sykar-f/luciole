@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import { TransportError } from "airtty/client";
 import type { OperationResult } from "./model";
 
 // Unknown outcomes for operations that are not documents (review, merge, rerun).
@@ -7,6 +8,8 @@ import type { OperationResult } from "./model";
 export type OperationState =
   | { status: "pending"; operationId: string; label: string }
   | { status: "unknown" | "unresolved"; operationId: string; label: string }
+  /** The Server provably did not run it (`not-sent`, `rejected`): a new attempt is safe. */
+  | { status: "failed"; operationId: string; label: string; error: string }
   | { status: "done"; operationId: string; label: string; result: OperationResult };
 
 const entries = new Map<string, OperationState>();
@@ -25,7 +28,8 @@ export const operationStore = {
   },
   snapshot: () => revision,
   /** Operations whose outcome the user must still resolve. */
-  unresolved: () => [...entries.values()].filter((e) => e.status !== "done"),
+  unresolved: () =>
+    [...entries.values()].filter((e) => e.status !== "done" && e.status !== "failed"),
   clear() {
     entries.clear();
     notify();
@@ -43,7 +47,7 @@ export function useOperation(key: string) {
   const settle = (label: string, result: OperationResult) => {
     set({ status: "done", operationId: result.operationId, label, result });
   };
-  const busy = state !== undefined && state.status !== "done";
+  const busy = state !== undefined && state.status !== "done" && state.status !== "failed";
   return {
     state,
     busy,
@@ -54,8 +58,11 @@ export function useOperation(key: string) {
       set({ status: "pending", operationId, label });
       try {
         settle(label, await action(operationId));
-      } catch {
-        set({ status: "unknown", operationId, label });
+      } catch (e) {
+        // Only a request that may have run leaves an outcome to resolve.
+        if (e instanceof TransportError && e.outcome !== "unknown")
+          set({ status: "failed", operationId, label, error: e.message });
+        else set({ status: "unknown", operationId, label });
       }
     },
     /** Looks the outcome up in the Server ledger. Never replays the operation. */
@@ -71,7 +78,11 @@ export function useOperation(key: string) {
     },
     /** Explicit choice after a lookup found nothing: allows a new attempt. */
     forget() {
-      if (state?.status === "unresolved" || state?.status === "done") {
+      if (
+        state?.status === "unresolved" ||
+        state?.status === "done" ||
+        state?.status === "failed"
+      ) {
         entries.delete(key);
         notify();
       }
@@ -82,6 +93,7 @@ export function useOperation(key: string) {
 export function describe(state: OperationState | undefined) {
   if (!state) return "";
   if (state.status === "pending") return `${state.label}…`;
+  if (state.status === "failed") return `${state.label} not sent: ${state.error} · try again`;
   if (state.status === "unknown")
     return `${state.label}: outcome unknown · Ctrl+O resolve (never replayed)`;
   if (state.status !== "done")

@@ -174,6 +174,40 @@ test("a merge whose response is lost is resolved from the ledger, never replayed
   }
 }, 60000);
 
+test("a merge that never reached the Server fails plainly and can be tried again", async () => {
+  let refuse = false;
+  const forge = await startForge({
+    // Actions only: a refused connection is `not-sent`, the Server provably ran nothing.
+    fetch: async (input, init) => {
+      if (refuse && init?.method === "POST")
+        throw Object.assign(new Error("Connection refused"), { code: "ECONNREFUSED" });
+      return fetch(input, init);
+    },
+  });
+  const { ui, step, waitFor, operator } = forge;
+  try {
+    await forge.signIn("alice");
+    await step(() =>
+      forge.app.router.navigate({
+        to: "/repos/$repo/pulls/$number",
+        params: { repo: "payments", number: "1" },
+      }),
+    );
+    await waitFor("[m] merge");
+    await step(() => ui.mockInput.typeText("a"));
+    await waitFor("Ready to merge");
+    refuse = true;
+    await step(() => ui.mockInput.typeText("m"));
+    await waitFor("Merge #1 not sent: Connection refused · try again");
+    expect(present(operator.pull("payments", 1), "pull request").state).toBe("open");
+    refuse = false;
+    await step(() => ui.mockInput.typeText("m"));
+    await waitFor("Merged by @alice");
+  } finally {
+    await forge.stop();
+  }
+}, 60000);
+
 test("a description Draft survives a concurrent edit until it is explicitly discarded", async () => {
   const forge = await startForge();
   const { ui, step, waitFor, operator } = forge;

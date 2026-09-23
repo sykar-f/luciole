@@ -185,8 +185,9 @@ Relevées sur Notes et Forge, puis tranchées :
 
 - **Drafts et opérations inconnues** : sortis du framework. Le runtime rapporte l'issue
   de chaque requête (`TransportError.outcome` : `not-sent`, `rejected`, `unknown`) ;
-  Forge garde `components/draft.ts` et `components/operations.ts`. Une sauvegarde
-  jamais envoyée échoue franchement au lieu de laisser une issue inconnue à résoudre.
+  Forge garde `components/draft.ts` et `components/operations.ts`. Une sauvegarde, une
+  review, un merge ou une relance jamais exécutés (`not-sent`, `rejected`) échouent
+  franchement et peuvent être retentés, au lieu de laisser une issue inconnue à résoudre.
 - **Note stable exigée** : inchangé, c'est désormais une propriété du `useDraft` de Forge.
 - **Invalidation dupliquée** : résolue. Les Server Functions déclarent `invalidate()` ;
   le chrome relit ses compteurs avec `useInvalidation`. `changes.ts` est supprimé (il
