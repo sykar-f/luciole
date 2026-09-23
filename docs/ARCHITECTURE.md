@@ -17,6 +17,7 @@ L’application est une codebase unique ; son build produit deux programmes.
 | `src/not-found.ts`   | Passage de `notFound()` à travers Flight (digest), partagé par le Server et le Client.                               |
 | `src/compile.ts`     | Client autonome en un exécutable (`airtty build --compile`) et runtime Bun officiel (`airtty runtime`).              |
 | `src/sign.ts`        | Signature Developer ID, hardened runtime et notarisation du Client macOS (`--sign`, `--notarize`).                   |
+| `src/connect.ts`     | URL du Server côté Client (`--url` > `AIRTTY_URL` > `~/.config/airtty/<app>.json`) et tunnel `ssh://`.               |
 | `src/flight/`        | Adapter du vrai codec React Flight et contrat de résolution des modules Client.                                      |
 
 `tests/`, `probes/` et `scripts/` servent à développer et vérifier le framework.

@@ -23,6 +23,7 @@ import {
 } from "@tanstack/react-router";
 import { installResolver, createServerReference, type ModuleResolver } from "./flight/client";
 import { readNotFound } from "./not-found";
+import { connect, serverUrl } from "./connect";
 import {
   AuthenticationRequired,
   BuildMismatch,
@@ -596,14 +597,20 @@ export function Shell({ app }: { app: Application }) {
 export function createApplication(options: ApplicationOptions) {
   return new Application(options);
 }
-export async function run(create: (options: Record<string, unknown>) => Application) {
-  const urlIndex = process.argv.indexOf("--url");
-  const url =
-    urlIndex >= 0
-      ? process.argv[urlIndex + 1]
-      : (process.env.AIRTTY_URL ?? "http://127.0.0.1:3000");
+export async function run(
+  create: (options: Record<string, unknown>) => Application,
+  { name = "airtty" }: { name?: string } = {},
+) {
+  // Resolved before the renderer takes the terminal: ssh may prompt for a passphrase.
+  const connection = await serverUrl({ name })
+    .then((url) => connect(url))
+    .catch((error: unknown) => {
+      console.error(error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    });
   const app = create({
-    url,
+    url: connection.url,
+    fetch: connection.fetch,
     token: process.env.AIRTTY_TOKEN,
     latencyMs: Number(process.env.AIRTTY_LATENCY_MS ?? 0),
     network: networkFromEnv(process.env),
@@ -620,12 +627,13 @@ export async function run(create: (options: Record<string, unknown>) => Applicat
   root.render(<Shell app={app} />);
   const stop = () => {
     renderer.destroy();
+    connection.close();
     process.exit(0);
   };
   app.quit = stop;
   renderer.keyInput.on("keypress", (key) => {
     if (key.ctrl && key.name === "c") stop();
   });
-  process.on("SIGTERM", stop);
-  process.on("SIGINT", stop);
+  // SIGHUP: the terminal closed; the Client and its tunnel must not outlive it.
+  for (const signal of ["SIGTERM", "SIGINT", "SIGHUP"] as const) process.on(signal, stop);
 }

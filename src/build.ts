@@ -416,7 +416,7 @@ export async function build(directory: string, output = join(directory, ".airtty
   const clientSource =
     `export {Shell} from ${quote(join(framework, "client.tsx"))};import {createApplication,run} from ${quote(join(framework, "client.tsx"))};import {routeTree} from ${quote(routeTreeFile)};\n` +
     [...clients].map((p, i) => `import * as C${i} from ${quote(p)};`).join("\n") +
-    `\nconst modules=new Map([${[...clients].map((p, i) => `[${quote(id(p))},C${i}]`).join(",")}]);export function createApp(options){return createApplication({...options,routeTree,buildId:${quote(buildId)},title:${quote(basename(root).toUpperCase())},resolveModule:id=>{if(!modules.has(id))throw new Error('Unknown module '+id);return modules.get(id)}})};if(import.meta.main)await run(createApp);`;
+    `\nconst modules=new Map([${[...clients].map((p, i) => `[${quote(id(p))},C${i}]`).join(",")}]);export function createApp(options){return createApplication({...options,routeTree,buildId:${quote(buildId)},title:${quote(basename(root).toUpperCase())},resolveModule:id=>{if(!modules.has(id))throw new Error('Unknown module '+id);return modules.get(id)}})};if(import.meta.main)await run(createApp,{name:${quote(basename(root))}});`;
   const external = [
     "react",
     "react-dom",

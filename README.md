@@ -220,13 +220,40 @@ le bundle Server n’importe pas OpenTUI et le bundle Client ne contient pas le 
 
 ## Connexion distante
 
+Le Client cherche son Server dans cet ordre : `--url`, puis `AIRTTY_URL`, puis le
+fichier de l’utilisateur `$XDG_CONFIG_HOME/airtty/<app>.json`
+(`~/.config/airtty/notes.json` pour Notes ; `<app>` est le nom du répertoire de
+l’application), puis `http://127.0.0.1:3000`. Le fichier ne contient que l’URL :
+
+```json
+{ "url": "ssh://alice@notes.example.com" }
+```
+
+Un fichier illisible ou sans `url` est signalé et le Client s’arrête ; il n’est jamais
+ignoré en silence. `airtty start --role client` sans `--url` suit le même ordre.
+
 Le Server écoute par défaut sur loopback. Pour une connexion privée, garder cette
-écoute et utiliser un tunnel SSH :
+écoute : une URL `ssh://` ouvre le tunnel SSH elle-même.
 
 ```sh
-ssh -N -L 3001:127.0.0.1:3000 user@server
-NODE_ENV=production bun client/index.js --url http://127.0.0.1:3001
+./notes-darwin-arm64 --url ssh://alice@notes.example.com   # Server distant sur 127.0.0.1:3000
+bun src/cli.ts connect ssh://alice@notes.example.com:2222/4000   # ssh sur 2222, Server sur 4000
+bun src/cli.ts connect ssh://alice@bastion/10.0.0.5:3000         # Server joint depuis la machine ssh
 ```
+
+Forme : `ssh://[user@]host[:port-ssh][/[hôte-distant:]port-distant]`. Avant de prendre
+le terminal, le Client lance `ssh -N -o ExitOnForwardFailure=yes -L <socket>:127.0.0.1:3000
+alice@notes.example.com` : clés, agent, `~/.ssh/config`, `ProxyJump` et vérification
+de la clé d’hôte restent ceux d’OpenSSH, et une passphrase se saisit normalement. Le
+tunnel aboutit à une socket Unix dans un répertoire temporaire privé, pas à un port
+local : aucun autre processus ne peut prendre sa place. Il est fermé, et la socket
+supprimée, quand le Client quitte (Ctrl+C, SIGTERM, SIGHUP). Un échec d’authentification
+ou de connexion est affiché avec le message de `ssh` et le Client s’arrête ; une coupure
+ultérieure apparaît comme toute erreur réseau (`not-sent` ou `unknown`), sans reconnexion
+automatique. Limites : `ssh` (OpenSSH) doit être dans le `PATH` de la machine du
+terminal, et un Client tué par SIGKILL laisse son processus `ssh` actif. Un tunnel
+manuel reste possible : `ssh -N -L 3001:127.0.0.1:3000 user@server`, puis
+`--url http://127.0.0.1:3001`.
 
 Avant toute exposition publique, placer le Server derrière un reverse proxy TLS,
 limiter l’accès réseau au backend et configurer `AIRTTY_TOKEN` sur les deux rôles,
