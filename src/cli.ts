@@ -120,8 +120,14 @@ async function main() {
       outfile: optional("--outfile"),
       runtime: optional("--runtime"),
       nativeDir: optional("--native-dir"),
+      sign: optional("--sign"),
+      notarize: optional("--notarize"),
     });
-    console.log({ client: compiled.outfile, target: compiled.target });
+    console.log({
+      client: compiled.outfile,
+      target: compiled.target,
+      ...(compiled.notarization ? { notarization: compiled.notarization } : {}),
+    });
     if (compiled.warning) console.error(`Warning: ${compiled.warning}`);
     return;
   }
@@ -129,16 +135,20 @@ async function main() {
     console.log(await fetchRuntime(optional("--target")));
     return;
   }
-  if (command === "start") {
-    const role = option("--role", "server");
+  if (command === "start" || command === "connect") {
+    const role = command === "connect" ? "client" : option("--role", "server");
     if (!["client", "server"].includes(role)) throw new Error("role must be server or client");
+    // Without a URL the Client reads AIRTTY_URL, then ~/.config/airtty/<app>.json.
+    const url = command === "connect" ? args[1] : optional("--url");
+    if (command === "connect" && (!url || url.startsWith("--")))
+      throw new Error("Usage: airtty connect <url | ssh://[user@]host[/port]> [--app dir]");
     const artifact = resolve(option("--artifact", join(directory, ".airtty", role)), "index.js");
     const child = spawn(
       process.execPath,
       [
         ...(role === "server" ? ["--conditions=react-server"] : []),
         artifact,
-        ...(role === "client" ? ["--url", option("--url", "http://127.0.0.1:3000")] : []),
+        ...(role === "client" && url ? ["--url", url] : []),
       ],
       { stdio: "inherit", env: { ...process.env, NODE_ENV: "production" } },
     );
@@ -251,7 +261,7 @@ async function main() {
     return;
   }
   throw new Error(
-    "Usage: airtty init <dir> | dev | build [--compile [--target t] [--runtime bun] [--native-dir dir] [--outfile f]] | runtime [--target t] | start --role server|client [--app dir] [--url URL] [--artifact dir]",
+    "Usage: airtty init <dir> | dev | build [--compile [--target t] [--runtime official|host|<bun>] [--native-dir dir] [--outfile f] [--sign identity [--notarize profile]]] | runtime [--target t] | start --role server|client [--app dir] [--url URL] [--artifact dir] | connect <url | ssh://[user@]host[/port]> [--app dir]",
   );
 }
 main().catch((error) => {

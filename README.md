@@ -139,15 +139,54 @@ Pour distribuer le Client sans Bun ni `node_modules` sur la machine du terminal 
 
 ```sh
 bun src/cli.ts build --compile                        # exécutable pour cette machine
-bun src/cli.ts build --compile --runtime "$(bun src/cli.ts runtime)"  # runtime Bun officiel
 ./examples/notes/.airtty/client/notes-darwin-arm64 --url http://127.0.0.1:3000
 ```
 
 Le binaire embarque le runtime Bun, la bibliothèque native d’OpenTUI et l’identifiant
-de build. Le build avertit si le Bun local dépend de bibliothèques hors système (Nix,
-Homebrew) : passer alors le runtime officiel. `--target bun-linux-x64` (et
-`--native-dir` pour le paquet natif de cette cible) produit un binaire pour une autre
-plateforme.
+de build. Le runtime est par défaut celui que Bun publie sur npm pour la cible
+(`@oven/bun-<os>-<arch>`, même version que le Bun du build) : il est téléchargé à la
+première compilation, vérifié contre l’empreinte `integrity` publiée par le registre,
+puis réutilisé depuis `$XDG_CACHE_HOME/airtty` (`~/.cache/airtty`) sans réseau.
+`airtty runtime [--target …]` remplit ce cache à l’avance. Hors ligne et sans cache,
+la compilation échoue en le disant. `--runtime host` embarque le Bun qui exécute le
+build (le build avertit s’il dépend de bibliothèques hors système, Nix ou Homebrew :
+le binaire ne démarrerait pas sur une autre machine) ; `--runtime <chemin>` embarque
+un exécutable Bun choisi. `--target bun-linux-x64` (et `--native-dir` pour le paquet
+natif de cette cible) produit un binaire pour une autre plateforme.
+
+Sous Linux, le binaire glibc démarre sur une Debian minimale ; le binaire musl
+(`--target bun-linux-x64-musl`) exige `libstdc++` et `libgcc`, que le runtime Bun musl
+lie (`apk add libstdc++` sur Alpine). Au lancement, Bun extrait la bibliothèque
+d’OpenTUI dans `$TMPDIR` (`/tmp` par défaut) : si ce répertoire est monté `noexec`,
+définir `TMPDIR` vers un répertoire exécutable. `bun run test:linux` (Docker requis :
+OrbStack, Docker Desktop ou moteur Linux) compile ces variantes et les exécute dans des
+conteneurs sans Bun contre un Server local.
+
+### Signature et notarisation macOS
+
+Sans option, le binaire macOS porte la signature ad hoc du linker : il tourne sur la
+machine qui l’a construit ou copié par `scp`/`curl`, mais Gatekeeper bloque un
+fichier téléchargé par un navigateur (attribut de quarantaine). Pour le distribuer :
+
+```sh
+# Une fois : identifiants App Store Connect dans le trousseau
+xcrun notarytool store-credentials airtty-notary --apple-id … --team-id … --password …
+bun src/cli.ts build --compile \
+  --sign "Developer ID Application: Exemple SAS (TEAMID1234)" --notarize airtty-notary
+```
+
+`--sign` signe avec le hardened runtime, un horodatage sécurisé et deux entitlements
+(`allow-jit` : sans lui Bun s’arrête et `bun:ffi`, qui charge OpenTUI, refuse de
+démarrer ; `disable-library-validation` : la bibliothèque d’OpenTUI est extraite dans
+`$TMPDIR` au lancement et n’est pas signée par votre équipe), puis contrôle la signature
+(`codesign --verify --strict`). `--sign -` produit la même signature en ad hoc, pour
+tester localement. `--notarize <profil>` exige une identité Developer ID : il envoie
+le binaire zippé à `notarytool`, attend le verdict et affiche le journal d’Apple en cas
+de refus. Un exécutable nu ne peut pas recevoir de ticket agrafé (`stapler` ne traite
+que `.app`, `.dmg` et `.pkg`) : Gatekeeper vérifie le ticket en ligne au premier
+lancement. Pour un premier lancement hors ligne, livrer le binaire dans un `.dmg` ou
+un `.pkg` signé, notarisé et agrafé. Ces options ne s’appliquent qu’aux cibles macOS,
+depuis macOS.
 
 `--app /chemin/app` sélectionne un autre projet. Le build produit :
 
@@ -181,13 +220,40 @@ le bundle Server n’importe pas OpenTUI et le bundle Client ne contient pas le 
 
 ## Connexion distante
 
+Le Client cherche son Server dans cet ordre : `--url`, puis `AIRTTY_URL`, puis le
+fichier de l’utilisateur `$XDG_CONFIG_HOME/airtty/<app>.json`
+(`~/.config/airtty/notes.json` pour Notes ; `<app>` est le nom du répertoire de
+l’application), puis `http://127.0.0.1:3000`. Le fichier ne contient que l’URL :
+
+```json
+{ "url": "ssh://alice@notes.example.com" }
+```
+
+Un fichier illisible ou sans `url` est signalé et le Client s’arrête ; il n’est jamais
+ignoré en silence. `airtty start --role client` sans `--url` suit le même ordre.
+
 Le Server écoute par défaut sur loopback. Pour une connexion privée, garder cette
-écoute et utiliser un tunnel SSH :
+écoute : une URL `ssh://` ouvre le tunnel SSH elle-même.
 
 ```sh
-ssh -N -L 3001:127.0.0.1:3000 user@server
-NODE_ENV=production bun client/index.js --url http://127.0.0.1:3001
+./notes-darwin-arm64 --url ssh://alice@notes.example.com   # Server distant sur 127.0.0.1:3000
+bun src/cli.ts connect ssh://alice@notes.example.com:2222/4000   # ssh sur 2222, Server sur 4000
+bun src/cli.ts connect ssh://alice@bastion/10.0.0.5:3000         # Server joint depuis la machine ssh
 ```
+
+Forme : `ssh://[user@]host[:port-ssh][/[hôte-distant:]port-distant]`. Avant de prendre
+le terminal, le Client lance `ssh -N -o ExitOnForwardFailure=yes -L <socket>:127.0.0.1:3000
+alice@notes.example.com` : clés, agent, `~/.ssh/config`, `ProxyJump` et vérification
+de la clé d’hôte restent ceux d’OpenSSH, et une passphrase se saisit normalement. Le
+tunnel aboutit à une socket Unix dans un répertoire temporaire privé, pas à un port
+local : aucun autre processus ne peut prendre sa place. Il est fermé, et la socket
+supprimée, quand le Client quitte (Ctrl+C, SIGTERM, SIGHUP). Un échec d’authentification
+ou de connexion est affiché avec le message de `ssh` et le Client s’arrête ; une coupure
+ultérieure apparaît comme toute erreur réseau (`not-sent` ou `unknown`), sans reconnexion
+automatique. Limites : `ssh` (OpenSSH) doit être dans le `PATH` de la machine du
+terminal, et un Client tué par SIGKILL laisse son processus `ssh` actif. Un tunnel
+manuel reste possible : `ssh -N -L 3001:127.0.0.1:3000 user@server`, puis
+`--url http://127.0.0.1:3001`.
 
 Avant toute exposition publique, placer le Server derrière un reverse proxy TLS,
 limiter l’accès réseau au backend et configurer `AIRTTY_TOKEN` sur les deux rôles,
@@ -246,6 +312,7 @@ python3 -m venv /tmp/airtty-pty
 /tmp/airtty-pty/bin/python scripts/pty-smoke.py
 /tmp/airtty-pty/bin/python scripts/pty-dev.py
 PYTHON=/tmp/airtty-pty/bin/python bun scripts/clean-install.ts
+bun run test:linux            # Client compilé exécuté sous Linux (Docker), glibc et musl
 ```
 
 Le dernier test part d’une copie sans dépendances ni artefacts, crée un starter,
@@ -284,7 +351,8 @@ n’a pas encore eu lieu. Voir [les preuves et limites](docs/VALIDATION.md).
   pas rejouée.
 - Distribution par bundle applicatif de confiance. Le point de résolution de modules
   reste remplaçable ; ni téléchargement de code distant, ni Client universel, ni sandbox.
-  Le Client peut être livré en un seul exécutable (`build --compile`) ; binaires non
-  signés ni notarisés.
+  Le Client peut être livré en un seul exécutable (`build --compile`), signé et notarisé
+  sur demande (`--sign`, `--notarize`) ; la notarisation n’a pas été exécutée faute
+  d’identité Developer ID.
 - Le parcours distant a été testé macOS → Linux via SSH ; aucune campagne WAN,
   mesure écran physique ou garantie de résistance à une boucle infinie Client.

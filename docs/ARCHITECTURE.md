@@ -16,6 +16,8 @@ L’application est une codebase unique ; son build produit deux programmes.
 | `src/client.tsx`     | Runtime terminal : TanStack Router, keymap, loaders Flight, actions, invalidation, live, observabilité, hooks.       |
 | `src/not-found.ts`   | Passage de `notFound()` à travers Flight (digest), partagé par le Server et le Client.                               |
 | `src/compile.ts`     | Client autonome en un exécutable (`airtty build --compile`) et runtime Bun officiel (`airtty runtime`).              |
+| `src/sign.ts`        | Signature Developer ID, hardened runtime et notarisation du Client macOS (`--sign`, `--notarize`).                   |
+| `src/connect.ts`     | URL du Server côté Client (`--url` > `AIRTTY_URL` > `~/.config/airtty/<app>.json`) et tunnel `ssh://`.               |
 | `src/flight/`        | Adapter du vrai codec React Flight et contrat de résolution des modules Client.                                      |
 
 `tests/`, `probes/` et `scripts/` servent à développer et vérifier le framework.
@@ -91,10 +93,20 @@ Le code métier reste exclu du bundle Client malgré ce manifeste commun.
 
 `airtty build --compile [--target …]` produit aussi le Client en un seul exécutable
 (runtime Bun, bibliothèque native OpenTUI et build ID embarqués) : la machine du
-terminal n'a besoin ni de Bun ni de `node_modules`. Le build n'accède pas au réseau ;
-`airtty runtime` télécharge séparément le runtime Bun officiel d'une cible, à passer
-en `--runtime` quand le Bun local dépend de bibliothèques hors système (Nix, Homebrew).
-Voir [probes/compile](../probes/compile/README.md).
+terminal n'a besoin ni de Bun ni de `node_modules`. `airtty build` sans `--compile`
+n'accède pas au réseau. `--compile` embarque par défaut le runtime Bun officiel de la
+cible : le paquet npm `@oven/bun-<os>-<arch>` est téléchargé **une fois**, comparé à
+l'`integrity` (sha512) publiée par le registre, extrait dans un répertoire temporaire
+puis publié par un seul `rename` dans `$XDG_CACHE_HOME/airtty/runtime/` : une
+interruption ne laisse pas d'entrée partielle. Les compilations suivantes n'utilisent
+plus le réseau ; `airtty runtime` remplit ce cache à l'avance. `--runtime host`
+embarque le Bun local (déconseillé s'il vient de Nix ou Homebrew, le build l'indique)
+et `--runtime <chemin>` un exécutable choisi. L'empreinte protège contre une archive
+tronquée ou modifiée en transit ; elle ne protège pas d'un registre compromis (les
+signatures npm ne sont pas vérifiées). `--sign <identité>` et `--notarize <profil>`
+(`src/sign.ts`) signent le binaire macOS (hardened runtime, entitlements minimaux de
+Bun) et le font notariser ; rien n'est exigé par défaut. Voir
+[probes/compile](../probes/compile/README.md).
 
 Ce n’est pas encore un Client générique qui télécharge une application en ouvrant
 une URL. Chaque application distribue son propre Client de confiance. L’interface

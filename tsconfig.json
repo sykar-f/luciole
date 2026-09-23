@@ -1,5 +1,5 @@
 {
   "extends": "./tsconfig.base.json",
   "include": ["src", "tests", "scripts", "probes", "types.d.ts"],
-  "exclude": ["**/node_modules", "**/.airtty"]
+  "exclude": ["**/node_modules", "**/.airtty", "probes/compile/wrapper.ts"]
 }
