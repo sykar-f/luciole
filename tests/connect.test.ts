@@ -1,10 +1,11 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { chmod, mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { configPath, DEFAULT_URL, openTunnel, serverUrl } from "../src/connect";
 import { messageOf } from "../src/guards";
-import { rejectionOf } from "./helpers";
+import { rejectionOf, until } from "./helpers";
 
 let work: string, fakeSsh: string, server: ReturnType<typeof Bun.serve>;
 
@@ -131,6 +132,31 @@ test("a long TMPDIR still yields a socket path that fits", async () => {
     if (saved === undefined) delete process.env.TMPDIR;
     else process.env.TMPDIR = saved;
   }
+});
+
+test("a signal while ssh authenticates stops ssh and removes the socket directory", async () => {
+  // A Client still waiting for the tunnel (a passphrase prompt, say) is killed.
+  const script = join(work, "waiting-client.ts");
+  await Bun.write(
+    script,
+    `import { openTunnel } from ${JSON.stringify(resolve("src/connect.ts"))};
+await openTunnel("ssh://silent.example", { ssh: ${JSON.stringify(fakeSsh)} });`,
+  );
+  const calls = () => readFileSync(join(work, "calls.jsonl"), "utf8").length;
+  const before = calls();
+  const client = Bun.spawn([process.execPath, script], { stdout: "ignore", stderr: "ignore" });
+  await until(() => calls() > before);
+  const call = await lastCall();
+  const directory = dirname(call.args[call.args.indexOf("-L") + 1].split(":")[0]);
+  expect(existsSync(directory)).toBe(true);
+  client.kill("SIGTERM");
+  await client.exited;
+  // The signal still ends the Client as it would have, after the tunnel is gone.
+  expect(client.signalCode).toBe("SIGTERM");
+  const deadline = performance.now() + 3000;
+  while (alive(call.pid) && performance.now() < deadline) await Bun.sleep(20);
+  expect(alive(call.pid)).toBe(false);
+  expect(existsSync(directory)).toBe(false);
 });
 
 test("ssh failures, stalls and option-like hosts are explained", async () => {

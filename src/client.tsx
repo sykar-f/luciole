@@ -9,7 +9,7 @@ import React, {
   useSyncExternalStore,
 } from "react";
 import * as z from "zod/mini";
-import { createCliRenderer } from "@opentui/core";
+import { createCliRenderer, type CliRenderer } from "@opentui/core";
 import { createRoot, useRenderer } from "@opentui/react";
 import { createDefaultOpenTuiKeymap } from "@opentui/keymap/opentui";
 import { KeymapProvider, useActiveKeys } from "@opentui/keymap/react";
@@ -640,19 +640,21 @@ export async function run(
     app.buildError = message.data.message;
     app.notify();
   });
-  const renderer = await createCliRenderer({ exitOnCtrlC: false });
-  const root = createRoot(renderer);
-  // RouterProvider's Transitioner performs the initial load.
-  root.render(<Shell app={app} />);
+  // Handlers first: from here on a signal must stop the tunnel, the renderer is optional.
+  let renderer: CliRenderer | undefined;
   const stop = () => {
-    renderer.destroy();
+    renderer?.destroy();
     connection.close();
     process.exit(0);
   };
+  // SIGHUP: the terminal closed; the Client and its tunnel must not outlive it.
+  for (const signal of ["SIGTERM", "SIGINT", "SIGHUP"] as const) process.on(signal, stop);
   app.quit = stop;
+  renderer = await createCliRenderer({ exitOnCtrlC: false });
+  const root = createRoot(renderer);
+  // RouterProvider's Transitioner performs the initial load.
+  root.render(<Shell app={app} />);
   renderer.keyInput.on("keypress", (key) => {
     if (key.ctrl && key.name === "c") stop();
   });
-  // SIGHUP: the terminal closed; the Client and its tunnel must not outlive it.
-  for (const signal of ["SIGTERM", "SIGINT", "SIGHUP"] as const) process.on(signal, stop);
 }

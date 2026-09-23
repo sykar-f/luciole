@@ -19,6 +19,7 @@ const UserConfig = z.object({ url: z.string().check(z.minLength(1)) });
 const SOCKET_PATH_LIMIT = 100;
 const SSH_ERRORS_LIMIT = 4096;
 const TUNNEL_POLL_MS = 100;
+const TUNNEL_SIGNALS = ["SIGINT", "SIGTERM", "SIGHUP"] as const;
 
 export const configPath = (name: string, env: NodeJS.ProcessEnv = process.env) =>
   join(env.XDG_CONFIG_HOME || join(homedir(), ".config"), "airtty", `${name}.json`);
@@ -133,13 +134,28 @@ export async function openTunnel(
   };
   // The Client leaves through process.exit; the tunnel must not outlive it.
   process.on("exit", close);
+  // A signal's default action skips "exit": while ssh authenticates (a passphrase can take
+  // a while), stop it here, then let the signal end the process as it would have.
+  const interrupted = (signal: NodeJS.Signals) => {
+    ignoreSignals();
+    close();
+    process.kill(process.pid, signal);
+  };
+  const ignoreSignals = () => {
+    for (const signal of TUNNEL_SIGNALS) process.off(signal, interrupted);
+  };
+  for (const signal of TUNNEL_SIGNALS) process.on(signal, interrupted);
   const deadline = performance.now() + timeoutMs;
-  while (exited === undefined && !(await accepts(socket))) {
-    if (performance.now() > deadline) {
-      close();
-      throw new Error(`ssh ${host}: no tunnel after ${timeoutMs} ms`);
+  try {
+    while (exited === undefined && !(await accepts(socket))) {
+      if (performance.now() > deadline) {
+        close();
+        throw new Error(`ssh ${host}: no tunnel after ${timeoutMs} ms`);
+      }
+      await Bun.sleep(TUNNEL_POLL_MS);
     }
-    await Bun.sleep(TUNNEL_POLL_MS);
+  } finally {
+    ignoreSignals();
   }
   if (exited !== undefined) {
     close();
