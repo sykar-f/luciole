@@ -30,10 +30,9 @@ export class Draft {
   unknown = false;
   error = "";
   conflict = false;
-  constructor(
-    readonly id: string,
-    note: Note,
-  ) {
+  readonly id: string;
+  constructor(id: string, note: Note) {
+    this.id = id;
     this.value = this.baseline = note.value;
     this.version = note.version;
   }
@@ -116,7 +115,10 @@ export class DraftStore {
   private entries = new Map<string, Draft>();
   private listeners = new Set<() => void>();
   private revision = 0;
-  constructor(readonly capacity = 32) {}
+  readonly capacity: number;
+  constructor(capacity = 32) {
+    this.capacity = capacity;
+  }
   get(note: Note) {
     let draft = this.entries.get(note.id);
     if (!draft) {

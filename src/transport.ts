@@ -11,12 +11,11 @@ import { decode, encodeReply } from "./flight/client";
  */
 export type Outcome = "not-sent" | "rejected" | "unknown";
 export class TransportError extends Error {
-  constructor(
-    message: string,
-    /** Defaults to `unknown`: the transport never claims a certainty it does not have. */
-    readonly outcome: Outcome = "unknown",
-  ) {
+  /** Defaults to `unknown`: the transport never claims a certainty it does not have. */
+  readonly outcome: Outcome;
+  constructor(message: string, outcome: Outcome = "unknown") {
     super(message);
+    this.outcome = outcome;
   }
 }
 export class BuildMismatch extends TransportError {
@@ -25,11 +24,10 @@ export class BuildMismatch extends TransportError {
   }
 }
 export class AuthenticationRequired extends TransportError {
-  constructor(
-    message: string,
-    readonly loginPath?: string,
-  ) {
+  readonly loginPath: string | undefined;
+  constructor(message: string, loginPath?: string) {
     super(message, "rejected");
+    this.loginPath = loginPath;
   }
 }
 // Bun and Node codes for a connection that was never established.

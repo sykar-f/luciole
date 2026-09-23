@@ -17,7 +17,9 @@ des deux sondes sont à jour ; `bun outdated` ne signale aucune mise à jour.
 | typescript                                   | 7.0.2    |
 | @typescript/typescript6                      | 6.0.2    |
 | oxlint                                       | 1.85.0   |
+| oxlint-tsgolint                              | 7.0.2002 |
 | oxfmt                                        | 0.70.0   |
+| zod                                          | 4.6.5    |
 | Python (local et CI)                         | 3.14.7   |
 | pyte                                         | 0.8.2    |
 | wcwidth                                      | 0.8.4    |
@@ -44,6 +46,17 @@ réellement résolue par OpenTUI et l'unicité de React et Core.
 TanStack Router est épinglé exactement ; seul `@tanstack/react-router` est déclaré,
 ses paquets `router-core`, `history` et `react-store` sont des transitives du
 lockfile. Il est embarqué dans le bundle Client (voir [ROUTER.md](ROUTER.md)).
+
+Zod 4.6.5 valide les données externes (variables d'environnement, `airtty.json`, JSON
+lu sur disque, requêtes reçues par le Server, enveloppes reçues par le Client). Le
+bundle Client n'embarque que `zod/mini`, l'API fonctionnelle tree-shakable de la même
+version : mesuré sur un schéma d'enveloppe, `zod/mini` ajoute 28 Ko non minifiés au
+bundle (415 Ko pour Notes), contre 156 Ko pour l'API classique, sans différence de
+démarrage mesurable. Le Server, le build et les tests utilisent l'API classique.
+
+`oxlint-tsgolint` fournit à Oxlint les informations de types (`options.typeAware`) :
+sans lui, une valeur `any` issue de `JSON.parse`, de `.json()` ou d'un décodage ne serait
+signalée nulle part. Sa version suit celle de TypeScript 7 (voir [TOOLING.md](TOOLING.md)).
 
 Une installation neuve signale encore un avertissement de peer dependency :
 `bun-ffi-structs` 0.3.1, dépendance transitive d’OpenTUI, déclare `typescript ^5`.

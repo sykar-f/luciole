@@ -6,8 +6,10 @@ const PREFIX = "airtty:not-found:";
 
 export class NotFoundError extends Error {
   readonly digest: string;
-  constructor(readonly what?: string) {
+  readonly what: string | undefined;
+  constructor(what?: string) {
     super(what ? `${what} not found` : "Not found");
+    this.what = what;
     this.digest = PREFIX + JSON.stringify(what ?? null);
   }
 }

@@ -123,7 +123,9 @@ export class Application {
   private nextSignal: AbortSignal | undefined;
   private eventListeners = new Set<(event: ApplicationEvent) => void>();
   private purgeAfterLoad = false;
-  constructor(readonly options: ApplicationOptions) {
+  readonly options: ApplicationOptions;
+  constructor(options: ApplicationOptions) {
+    this.options = options;
     installTerminalGlobals();
     installResolver(options.resolveModule);
     this.transport =
