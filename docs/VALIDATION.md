@@ -173,3 +173,36 @@ passent sur macOS arm64.
 
 Non vérifié : binaires Linux exécutés (construits seulement par la sonde), signature et
 notarisation macOS, migration des écrans internes de Forge vers la keymap.
+
+## Typage strict et Zod (23 septembre 2026)
+
+`bun run verify` : **96 tests passent**, avec le lint strict et type-aware actif sur tout le
+dépôt (framework, exemples, tests, scripts, sondes). Les trois parcours PTY, `bun run probes`
+et `clean-install.ts` (starter neuf, lint strict compris) passent sur macOS arm64.
+
+Mesuré par Oxlint avec les mêmes règles, avant et après, sans aucune dérogation :
+
+| Violation                                      | Avant | Après |
+| ---------------------------------------------- | ----: | ----: |
+| `any` explicite                                |    54 |     0 |
+| assertion `as` (hors `as const`)               |    74 |     0 |
+| assertion non-null `!`                         |    49 |     0 |
+| `Function` / `object`                          |     4 |     0 |
+| flux `any` implicites (`no-unsafe-*`)          | 1 042 |     0 |
+| nombres magiques hors tests                    |   113 |    32 |
+| suppressions de lint (justifiées sur 2 lignes) |     3 |     3 |
+
+Les 32 nombres restants sont dans les deux tables de données de Forge exemptées
+(`ci.ts`, `seed.ts`). Le bundle Client de Notes passe de 415 à 460 Ko (`zod/mini`,
+`build.test.ts` vérifie que l'API classique n'y entre pas) ; démarrage inchangé.
+
+| Frontière                   | Preuve                                                                                                                  |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Enveloppe d'action          | `http-transport.test.ts` : chemins non textuels, autre `kind` ou autre `callId` donnent une `TransportError`.           |
+| Racine d'un rendu           | `http-transport.test.ts` : une racine qui n'est pas un nœud React est refusée ; `stream.test.ts` : ses flux continuent. |
+| Params et search Server     | `auth.test.tsx` : mêmes refus 400 qu'avant (clés en trop, JSON invalide, valeurs non textuelles), écrits en schémas.    |
+| Arguments des exemples      | `forge-domain.test.ts` (verdict, opération) et `outcome.test.ts` (Notes) : argument invalide refusé avant tout effet.   |
+| Zod applicatif sans install | `pty-dev.py` : une application copiée sans `node_modules` compile avec le Zod du framework.                             |
+
+Limite : une Server Function qui refuse ses arguments répond 500 (`unknown`), pas `rejected` :
+le framework ne peut pas savoir qu'aucun code applicatif n'a tourné avant ce refus.
