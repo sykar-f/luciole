@@ -1,6 +1,6 @@
 /** @jsxImportSource @opentui/react */
 import { testRender } from "@opentui/react/test-utils";
-import { act, useState, useEffect } from "react";
+import { act, isValidElement, useState, useEffect } from "react";
 import { spawn } from "node:child_process";
 import assert from "node:assert/strict";
 let field: any;
@@ -38,6 +38,7 @@ async function load(revision: number) {
   );
   const tree = await createFromNodeStream(child.stdout, manifest);
   await exit;
+  if (!isValidElement(tree)) throw new Error("The probe Server rendered no element");
   return tree;
 }
 const initial = await load(1);

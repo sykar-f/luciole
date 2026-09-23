@@ -6,6 +6,7 @@
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { mkdir } from "node:fs/promises";
+import { bundleMessages, logMessages } from "./bundle-errors";
 
 export const COMPILE_TARGETS = [
   "bun-darwin-arm64",
@@ -96,17 +97,16 @@ export async function compileClient(
         ]
       : [],
   }).catch((error: unknown) => {
-    const errors = (error as { errors?: { message?: string }[] }).errors ?? [];
-    const messages = errors.map((e) => e.message ?? String(e)).join("\n");
+    const messages = bundleMessages(error).join("\n");
     const missing = /Could not resolve: "(@opentui\/core-[\w-]+)"/.exec(messages)?.[1];
     if (missing)
       throw new Error(
         `${missing} is not installed for ${target}: install it for that platform ` +
           `(bun add ${missing} --os=${os} --cpu=*) in a directory passed as --native-dir`,
       );
-    throw new Error(messages || (error as Error).message);
+    throw new Error(messages);
   });
-  if (!result.success) throw new Error(result.logs.join("\n"));
+  if (!result.success) throw new Error(logMessages(result.logs));
   return {
     outfile,
     target,

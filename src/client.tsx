@@ -8,6 +8,7 @@ import React, {
   useState,
   useSyncExternalStore,
 } from "react";
+import * as z from "zod/mini";
 import { createCliRenderer } from "@opentui/core";
 import { createRoot, useRenderer } from "@opentui/react";
 import { createDefaultOpenTuiKeymap } from "@opentui/keymap/opentui";
@@ -23,10 +24,12 @@ import {
 } from "@tanstack/react-router";
 import { installResolver, createServerReference, type ModuleResolver } from "./flight/client";
 import { readNotFound } from "./not-found";
+import { messageOf } from "./guards";
 import {
   AuthenticationRequired,
   BuildMismatch,
   createHttpTransport,
+  isReactNode,
   networkFromEnv,
   type NetworkConditions,
   type RouteParams,
@@ -87,8 +90,7 @@ export type ApplicationOptions = {
 // TanStack scroll restoration calls the global scrollTo() after every rendered load.
 // OpenTUI already installs a minimal global window; a terminal has no page to scroll.
 function installTerminalGlobals() {
-  const terminalGlobal = globalThis as { scrollTo?: () => void };
-  terminalGlobal.scrollTo ??= () => {};
+  if (!("scrollTo" in globalThis)) Object.assign(globalThis, { scrollTo: () => {} });
 }
 
 let current: Application;
@@ -270,7 +272,7 @@ export class Application {
   ): Promise<React.ReactNode> {
     // Read before the request: a revalidation of the resolved location keeps its tree.
     const refreshing = this.router.state.resolvedLocation?.href === load.href;
-    const mounted = refreshing
+    const mounted: unknown = refreshing
       ? this.router.state.matches.find((m: { routeId: string }) => m.routeId === load.route)
           ?.loaderData
       : undefined;
@@ -293,9 +295,9 @@ export class Application {
       }
       // A failed refresh keeps the mounted tree, its focus and its Drafts; a failed
       // navigation shows the error in the page slot, inside the persistent layouts.
-      if (mounted !== undefined) {
-        this.report(statusOf(e), (e as Error).message);
-        return mounted as React.ReactNode;
+      if (mounted !== undefined && isReactNode(mounted)) {
+        this.report(statusOf(e), messageOf(e));
+        return mounted;
       }
       this.report(statusOf(e));
       throw e;
@@ -335,6 +337,7 @@ export type LiveState<T> = {
   /** Why the stream stopped early: a `TransportError` carries its `outcome`. */
   error: unknown;
 };
+const DEFAULT_LIVE_LIMIT = 1000;
 /**
  * Subscribes, while mounted, to a Server Function returning an async iterable (an
  * `async function*` in a "use server" module). The request opens on mount, when `args`
@@ -347,7 +350,7 @@ export function useLive<T, A extends unknown[]>(
   options: { limit?: number } = {},
 ): LiveState<T> {
   const app = useApplication();
-  const limit = options.limit ?? 1000;
+  const limit = options.limit ?? DEFAULT_LIVE_LIMIT;
   // A subscription's values are tagged with its arguments: new arguments start empty.
   const key = JSON.stringify(args);
   const [state, setState] = useState<LiveState<T> & { key: string }>({
@@ -598,23 +601,29 @@ export function Shell({ app }: { app: Application }) {
 export function createApplication(options: ApplicationOptions) {
   return new Application(options);
 }
+// The Client's own environment; network conditions are read by `networkFromEnv`.
+const ClientEnvironment = z.object({
+  AIRTTY_URL: z._default(z.string(), "http://127.0.0.1:3000"),
+  AIRTTY_TOKEN: z.optional(z.string()),
+  AIRTTY_LATENCY_MS: z._default(z.coerce.number().check(z.gte(0)), 0),
+});
+/** What `airtty dev` sends the Client it supervises (src/cli.ts). */
+const DevMessage = z.object({ type: z.literal("build-error"), message: z.string() });
 export async function run(create: (options: Record<string, unknown>) => Application) {
+  const env = ClientEnvironment.safeParse(process.env);
+  if (!env.success) throw new Error(`Invalid Client environment: ${z.prettifyError(env.error)}`);
   const urlIndex = process.argv.indexOf("--url");
-  const url =
-    urlIndex >= 0
-      ? process.argv[urlIndex + 1]
-      : (process.env.AIRTTY_URL ?? "http://127.0.0.1:3000");
   const app = create({
-    url,
-    token: process.env.AIRTTY_TOKEN,
-    latencyMs: Number(process.env.AIRTTY_LATENCY_MS ?? 0),
+    url: urlIndex >= 0 ? process.argv[urlIndex + 1] : env.data.AIRTTY_URL,
+    token: env.data.AIRTTY_TOKEN,
+    latencyMs: env.data.AIRTTY_LATENCY_MS,
     network: networkFromEnv(process.env),
   });
-  process.on("message", (message: { type?: string; message?: string } | null) => {
-    if (message?.type === "build-error") {
-      app.buildError = message.message ?? "Build failed";
-      app.notify();
-    }
+  process.on("message", (received: unknown) => {
+    const message = DevMessage.safeParse(received);
+    if (!message.success) return;
+    app.buildError = message.data.message;
+    app.notify();
   });
   const renderer = await createCliRenderer({ exitOnCtrlC: false });
   const root = createRoot(renderer);

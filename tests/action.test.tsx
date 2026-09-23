@@ -5,6 +5,7 @@ import { testRender } from "@opentui/react/test-utils";
 import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
 import { decode, encodeReply, installResolver } from "../src/flight/client";
+import { isReactNode } from "../src/transport";
 test("milestone 1: Flight action via HTTP, local typing, refresh without remount", async () => {
   const child = spawn(process.execPath, ["--conditions=react-server", "tests/action-server.ts"], {
     stdio: ["ignore", "pipe", "inherit"],
@@ -23,8 +24,11 @@ test("milestone 1: Flight action via HTTP, local typing, refresh without remount
       });
       return await decode(response.body!, callServer);
     }
-    const load = async () =>
-      await decode((await fetch(`http://127.0.0.1:${port}`)).body!, callServer);
+    const load = async () => {
+      const tree = await decode((await fetch(`http://127.0.0.1:${port}`)).body!, callServer);
+      if (!isReactNode(tree)) throw new Error("The test Server rendered no React tree");
+      return tree;
+    };
     function Editor({ save }: any) {
       const [value, setValue] = useState("");
       return (

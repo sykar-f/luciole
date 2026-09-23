@@ -3,6 +3,8 @@
  * route tree and the Server registry. Pure and deterministic: callers pass
  * root-relative POSIX paths and receive diagnostics as thrown errors.
  */
+import { messageOf } from "./guards";
+
 export const ROOT_ID = "__root__";
 
 export type LayoutNode = {
@@ -43,12 +45,15 @@ export type RouteGraph = {
 };
 
 type Segment = { kind: "static" | "param" | "splat" | "group"; name: string };
-type Kind = "page" | "layout" | "loading" | "error" | "not-found";
+const KINDS = ["page", "layout", "loading", "error", "not-found"] as const;
+type Kind = (typeof KINDS)[number];
+const SPLAT_OPEN = "[...";
 
 function parseSegment(raw: string): Segment {
   if (/^\([^()[\]$/]+\)$/.test(raw)) return { kind: "group", name: raw };
   if (/^\[[A-Za-z_][\w]*\]$/.test(raw)) return { kind: "param", name: raw.slice(1, -1) };
-  if (/^\[\.\.\.[A-Za-z_][\w]*\]$/.test(raw)) return { kind: "splat", name: raw.slice(4, -1) };
+  if (/^\[\.\.\.[A-Za-z_][\w]*\]$/.test(raw))
+    return { kind: "splat", name: raw.slice(SPLAT_OPEN.length, -1) };
   if (raw && !/[()[\]$]/.test(raw)) return { kind: "static", name: raw };
   throw new Error(`Malformed route segment "${raw}"`);
 }
@@ -61,8 +66,10 @@ export function compileRouteGraph(files: readonly string[]): RouteGraph {
     const match = /^app((?:\/[^/]+)*)\/(page|layout|loading|error|not-found)\.tsx$/.exec(file);
     if (!match) continue;
     const dir = match[1].slice(1);
+    const kind = KINDS.find((k) => k === match[2]);
+    if (!kind) continue;
     const entry = dirs.get(dir) ?? {};
-    entry[match[2] as Kind] = file;
+    entry[kind] = file;
     dirs.set(dir, entry);
   }
   const root = dirs.get("")?.layout;
@@ -75,7 +82,7 @@ export function compileRouteGraph(files: readonly string[]): RouteGraph {
       try {
         return parseSegment(raw);
       } catch (error) {
-        throw new Error(`app/${dir}: ${(error as Error).message}`);
+        throw new Error(`app/${dir}: ${messageOf(error)}`);
       }
     });
     if (parsed.slice(0, -1).some((s) => s.kind === "splat"))
@@ -93,6 +100,8 @@ export function compileRouteGraph(files: readonly string[]): RouteGraph {
   };
   const nearest = (dir: string, kind: "layout" | "loading" | "error" | "not-found") =>
     ancestors(dir).find((d) => dirs.get(d)?.[kind]);
+  // `app/layout.tsx` exists (checked above): `app/` itself is every directory's last resort.
+  const nearestLayout = (dir: string) => nearest(dir, "layout") ?? "";
   const relative = (from: string, to: string) => urlParts(to).slice(urlParts(from).length);
   const layoutId = (dir: string) => (dir ? dir : ROOT_ID);
 
@@ -104,7 +113,7 @@ export function compileRouteGraph(files: readonly string[]): RouteGraph {
     if (entry.layout && own.at(-1)?.kind === "splat")
       throw new Error(`${entry.layout}: A catch-all segment cannot hold a layout`);
     if (entry.layout && dir) {
-      const parent = nearest(dir.split("/").slice(0, -1).join("/"), "layout")!;
+      const parent = nearestLayout(dir.split("/").slice(0, -1).join("/"));
       const path = relative(parent, dir).join("/");
       layouts.push({
         id: dir,
@@ -115,7 +124,8 @@ export function compileRouteGraph(files: readonly string[]): RouteGraph {
     }
     if (!entry.page) continue;
     const params = own.filter((s) => s.kind !== "static" && s.kind !== "group").map((s) => s.name);
-    const splat = own.at(-1)?.kind === "splat" ? own.at(-1)!.name : undefined;
+    const last = own.at(-1);
+    const splat = last?.kind === "splat" ? last.name : undefined;
     const repeated = params.find((p, i) => params.indexOf(p) !== i);
     if (repeated) throw new Error(`${entry.page}: Repeated route parameter "${repeated}"`);
     const url = "/" + urlParts(dir).join("/");
@@ -124,7 +134,7 @@ export function compileRouteGraph(files: readonly string[]): RouteGraph {
     const existing = canonical.get(key);
     if (existing) throw new Error(`Route collision ${key}: ${existing} and ${entry.page}`);
     canonical.set(key, entry.page);
-    const parent = nearest(dir, "layout")!;
+    const parent = nearestLayout(dir);
     pages.push({
       id: "/" + dir,
       parent: layoutId(parent),

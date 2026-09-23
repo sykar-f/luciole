@@ -67,7 +67,7 @@
       }
     },
     {
-      "files": ["src/**", "examples/**", "tests/**", "scripts/**", "probes/**", "types.d.ts"],
+      "files": ["examples/**", "tests/**", "scripts/**", "probes/**"],
       "rules": {
         "typescript/no-explicit-any": "off",
         "typescript/consistent-type-assertions": "off",

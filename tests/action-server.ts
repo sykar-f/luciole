@@ -1,4 +1,5 @@
 import React from "react";
+import { z } from "zod";
 import {
   registerClientReference,
   registerServerReference,
@@ -21,8 +22,8 @@ const server = Bun.serve({
   port: 0,
   async fetch(req) {
     if (req.method === "POST") {
-      const args = await decodeReply(await req.text(), {});
-      return new Response(renderToReadableStream(await save(args[0]), {}));
+      const [value] = z.tuple([z.string()]).parse(await decodeReply(await req.text(), {}));
+      return new Response(renderToReadableStream(await save(value), {}));
     }
     return new Response(
       await renderToReadableStream(

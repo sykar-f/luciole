@@ -364,3 +364,17 @@ test("serverPackages keeps listed third-party packages out of the Client", async
       },
     );
 });
+// The Client validates what it receives with zod/mini: the classic API would add ~130 KB.
+test("the Client bundle embeds zod/mini, never the classic zod API", async () => {
+  await fixture(
+    { "app/page.tsx": `export default function Page(){return <text>page</text>}` },
+    async (dir) => {
+      await build(dir);
+      const client = await Bun.file(join(dir, ".airtty/client/index.js")).text();
+      expect(client).toContain("node_modules/zod/v4/mini/");
+      expect(client).not.toContain("node_modules/zod/v4/classic/");
+      const server = await Bun.file(join(dir, ".airtty/server/index.js")).text();
+      expect(server).toContain("node_modules/zod/v4/classic/");
+    },
+  );
+});

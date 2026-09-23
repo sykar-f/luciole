@@ -16,6 +16,7 @@ L’application est une codebase unique ; son build produit deux programmes.
 | `src/client.tsx`     | Runtime terminal : TanStack Router, keymap, loaders Flight, actions, invalidation, live, observabilité, hooks.       |
 | `src/not-found.ts`   | Passage de `notFound()` à travers Flight (digest), partagé par le Server et le Client.                               |
 | `src/compile.ts`     | Client autonome en un exécutable (`airtty build --compile`) et runtime Bun officiel (`airtty runtime`).              |
+| `src/guards.ts`      | Gardes de type Server/Client ; `package-json.ts` (JSON validé par Zod), `bundle-errors.ts` (échecs de Bun.build).    |
 | `src/flight/`        | Adapter du vrai codec React Flight et contrat de résolution des modules Client.                                      |
 
 `tests/`, `probes/` et `scripts/` servent à développer et vérifier le framework.

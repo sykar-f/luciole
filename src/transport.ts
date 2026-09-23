@@ -1,6 +1,8 @@
-import type { ReactNode } from "react";
+import { isValidElement, type ReactNode } from "react";
 import { setTimeout as delay } from "node:timers/promises";
+import * as z from "zod/mini";
 import { decode, encodeReply } from "./flight/client";
+import { errorDigest, isAsyncIterable, messageOf } from "./guards";
 
 /**
  * What a failed request says about its effect on the Server. The transport reports it;
@@ -39,29 +41,55 @@ const NOT_CONNECTED = new Set([
   "EHOSTUNREACH",
   "ENETUNREACH",
 ]);
-const messageOf = (e: unknown) => (e instanceof Error ? e.message : String(e));
+const STATUS = { unauthorized: 401, conflict: 409, serverError: 500 } as const;
+const DEFAULT_TIMEOUT_MS = 10_000;
 // A Flight error with a digest was raised by Server code and reached the Client intact:
 // an application error, kept as is. Anything else while decoding is the transport's.
 const decodeFailure = (e: unknown) =>
-  e instanceof TransportError || typeof (e as { digest?: unknown } | null)?.digest === "string"
+  e instanceof TransportError || typeof errorDigest(e) === "string"
     ? e
     : new TransportError(messageOf(e));
+const isThenable = (value: unknown): value is PromiseLike<unknown> =>
+  typeof value === "object" &&
+  value !== null &&
+  "then" in value &&
+  typeof value.then === "function";
+
+/**
+ * What React accepts as children, checked at its top level: Flight resolves nested
+ * elements, lazy chunks and Suspense content itself.
+ */
+export function isReactNode(value: unknown): value is ReactNode {
+  if (value === null || value === undefined) return true;
+  if (["string", "number", "bigint", "boolean"].includes(typeof value)) return true;
+  return isValidElement(value) || Array.isArray(value) || isThenable(value);
+}
+
 // A stream returned by a Server Function fails like its request: a cut connection
 // becomes a TransportError (`unknown`), a Server error keeps its digest.
 function guardStream(value: unknown) {
-  if (!value || typeof (value as AsyncIterable<unknown>)[Symbol.asyncIterator] !== "function")
-    return value;
-  const source = value as AsyncIterable<unknown>;
+  if (!isAsyncIterable(value)) return value;
   return {
     async *[Symbol.asyncIterator]() {
       try {
-        yield* source;
+        yield* value;
       } catch (e) {
         throw decodeFailure(e);
       }
     },
   };
 }
+
+/**
+ * What the Server's `/action` answers (see src/server.ts). The value keeps its Flight
+ * references and streams: it is not copied, only checked to be there.
+ */
+const ActionEnvelope = z.object({
+  kind: z.literal("result"),
+  callId: z.string(),
+  value: z.unknown(),
+  invalidate: z.array(z.string()),
+});
 
 export type RouteParams = Record<string, string>;
 /** URL search values: strings only, validated again by the Server. */
@@ -102,7 +130,13 @@ type RequestMeta = { kind: "render" | "action"; target: string };
  * - `drop`: the Server answers, the response is lost (`unknown`; the Server ran);
  * - `cut`: the body fails before its first byte (`unknown`).
  */
-export type Fault = "refuse" | "drop" | "cut";
+const FAULTS = ["refuse", "drop", "cut"] as const;
+export type Fault = (typeof FAULTS)[number];
+const FaultEntry = z.object({
+  type: z.enum(FAULTS),
+  p: z.number().check(z.gte(0), z.lte(1)),
+});
+const Milliseconds = z.coerce.number().check(z.gte(0));
 /** Development network conditions, on top of `latencyMs`. Not a TCP emulation. */
 export type NetworkConditions = {
   /** Random extra delay, 0 to `jitterMs`, added to each direction of each request. */
@@ -118,19 +152,18 @@ export type NetworkConditions = {
  */
 export function networkFromEnv(env: Record<string, string | undefined>): NetworkConditions {
   const number = (name: string) => {
-    const value = Number(env[name] ?? 0);
-    if (!Number.isFinite(value) || value < 0) throw new Error(`${name} must be a number ≥ 0`);
-    return value;
+    const value = Milliseconds.safeParse(env[name] ?? 0);
+    if (!value.success) throw new Error(`${name} must be a number ≥ 0`);
+    return value.data;
   };
   const faults = (env.AIRTTY_FAULT ?? "")
     .split(",")
     .filter(Boolean)
     .map((entry) => {
       const [type, probability] = entry.split(":");
-      const p = Number(probability ?? 1);
-      if (!["refuse", "drop", "cut"].includes(type) || !(p >= 0 && p <= 1))
-        throw new Error(`AIRTTY_FAULT: invalid entry "${entry}"`);
-      return { type: type as Fault, p };
+      const fault = FaultEntry.safeParse({ type, p: Number(probability ?? 1) });
+      if (!fault.success) throw new Error(`AIRTTY_FAULT: invalid entry "${entry}"`);
+      return fault.data;
     });
   return {
     jitterMs: number("AIRTTY_JITTER_MS"),
@@ -185,7 +218,7 @@ export function createHttpTransport(options: HttpTransportOptions): Transport {
     const ms = () => Math.round(performance.now() - start);
     if (!body) {
       emit({ id, ...meta, type: "end", ms: ms(), bytes, cancelled: false });
-      return body;
+      return new ReadableStream<Uint8Array>({ start: (controller) => controller.close() });
     }
     const reader = body.getReader();
     return new ReadableStream<Uint8Array>({
@@ -229,7 +262,7 @@ export function createHttpTransport(options: HttpTransportOptions): Transport {
     const deadline = new AbortController();
     const timer = setTimeout(
       () => deadline.abort(new DOMException("The operation timed out.", "TimeoutError")),
-      options.timeoutMs ?? 10000,
+      options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
     );
     const settle = () => clearTimeout(timer);
     const signal = cancel ? AbortSignal.any([deadline.signal, cancel]) : deadline.signal;
@@ -252,7 +285,7 @@ export function createHttpTransport(options: HttpTransportOptions): Transport {
           signal,
         });
       } catch (e) {
-        const code = (e as { code?: unknown }).code;
+        const code = typeof e === "object" && e !== null && "code" in e ? e.code : undefined;
         throw new TransportError(
           messageOf(e),
           typeof code === "string" && NOT_CONNECTED.has(code) ? "not-sent" : "unknown",
@@ -264,8 +297,8 @@ export function createHttpTransport(options: HttpTransportOptions): Transport {
         await response.body?.cancel();
         throw new TransportError("Simulated lost response");
       }
-      if (response.status === 409) throw new BuildMismatch(await response.text());
-      if (response.status === 401)
+      if (response.status === STATUS.conflict) throw new BuildMismatch(await response.text());
+      if (response.status === STATUS.unauthorized)
         throw new AuthenticationRequired(
           await response.text(),
           response.headers.get("x-airtty-login") ?? undefined,
@@ -274,7 +307,7 @@ export function createHttpTransport(options: HttpTransportOptions): Transport {
       if (!response.ok)
         throw new TransportError(
           `HTTP ${response.status}: ${await response.text()}`,
-          response.status < 500 ? "rejected" : "unknown",
+          response.status < STATUS.serverError ? "rejected" : "unknown",
         );
       emit({
         id,
@@ -316,13 +349,16 @@ export function createHttpTransport(options: HttpTransportOptions): Transport {
           { kind: "render", target: routeId },
           stream.signal,
         );
+        let tree: unknown;
         try {
-          return (await decode(body!, options.callServer)) as ReactNode;
+          tree = await decode(body, options.callServer);
         } catch (e) {
           throw decodeFailure(e);
         } finally {
           settle();
         }
+        if (!isReactNode(tree)) throw new TransportError("Invalid render response");
+        return tree;
       } finally {
         signal.removeEventListener("abort", cancel);
       }
@@ -339,23 +375,17 @@ export function createHttpTransport(options: HttpTransportOptions): Transport {
         { kind: "action", target: actionId },
         signal,
       );
-      const envelope = (await Promise.resolve(decode(body!, options.callServer))
+      const decoded = await Promise.resolve(decode(body, options.callServer))
         .catch((e: unknown) => {
           throw decodeFailure(e);
         })
-        .finally(settle)) as {
-        kind?: string;
-        callId?: string;
-        value?: unknown;
-        invalidate?: unknown;
-      };
-      if (envelope?.kind !== "result" || envelope.callId !== callId)
+        .finally(settle);
+      const envelope = ActionEnvelope.safeParse(decoded);
+      if (!envelope.success || envelope.data.callId !== callId)
         throw new TransportError("Invalid action response");
-      const paths = Array.isArray(envelope.invalidate)
-        ? envelope.invalidate.filter((p): p is string => typeof p === "string")
-        : [];
-      if (paths.length) options.onInvalidate?.(paths);
-      return guardStream(envelope.value);
+      const { invalidate, value } = envelope.data;
+      if (invalidate.length) options.onInvalidate?.(invalidate);
+      return guardStream(value);
     },
     setToken(next) {
       token = next;

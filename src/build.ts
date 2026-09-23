@@ -3,6 +3,9 @@ import { basename, resolve, relative, dirname, join } from "node:path";
 import { mkdir, readFile, readdir, rename, rm, realpath } from "node:fs/promises";
 import { realpathSync } from "node:fs";
 import { createHash } from "node:crypto";
+import { z } from "zod";
+import { bundleMessages, logMessages } from "./bundle-errors";
+import { readJsonFile, readPackageJson } from "./package-json";
 import { ROUTE_TREE_FILE, compileRouteGraph, renderRouteTree } from "./route-graph";
 const framework = dirname(import.meta.path);
 const quote = JSON.stringify;
@@ -20,23 +23,41 @@ type Module = {
   exports: string[];
   actionExports: string[];
 };
-type RouteAuth = "public" | "required";
-// Bun rejects with an AggregateError whose own message is only "Bundle failed".
+const ROUTE_AUTH = ["public", "required"] as const;
+type RouteAuth = (typeof ROUTE_AUTH)[number];
 function bundleFailure(error: unknown): never {
-  const errors = (error as { errors?: unknown[] }).errors;
-  const messages = (errors ?? []).map((e) => (e as { message?: string }).message ?? String(e));
-  throw new Error(messages.length ? messages.join("\n") : (error as Error).message);
+  throw new Error(bundleMessages(error).join("\n"));
 }
+/** `name` or `@scope/name`: the directories a package owns below `node_modules/`. */
+const packageDepth = (name: string) => (name.startsWith("@") ? 2 : 1);
+// Files under 64 levels of packages are a cycle, not an import chain.
+const MAX_CHAIN = 64;
+const BUILD_ID_LENGTH = 24;
+const InstalledPackage = z.object({ version: z.string() });
+// The public entries of the framework package, as `airtty/<entry>` imports name them.
+const FRAMEWORK_ENTRIES = new Map([
+  ["client", "client.tsx"],
+  ["server", "server.ts"],
+  ["route-tree", "route-tree.tsx"],
+]);
 /** `@scope/name/sub` → `@scope/name`; `name/sub` → `name`. */
 const packageOf = (specifier: string) =>
-  specifier
-    .split("/")
-    .slice(0, specifier.startsWith("@") ? 2 : 1)
-    .join("/");
+  specifier.split("/").slice(0, packageDepth(specifier)).join("/");
 /**
  * Optional `airtty.json`: `serverPackages` names third-party packages that must never
  * reach the Client although they do not import `server-only` themselves.
  */
+const Config = z.object({
+  serverPackages: z
+    .array(
+      z
+        .string()
+        .min(1)
+        .refine((name) => packageOf(name) === name, "must be a package name, not a subpath"),
+      { error: "serverPackages must list package names" },
+    )
+    .default([]),
+});
 async function readConfig(root: string) {
   const file = Bun.file(join(root, "airtty.json"));
   if (!(await file.exists())) return { serverPackages: new Set<string>() };
@@ -46,22 +67,17 @@ async function readConfig(root: string) {
   } catch {
     throw new Error("airtty.json: invalid JSON");
   }
-  const list = (config as { serverPackages?: unknown } | null)?.serverPackages ?? [];
-  if (
-    !Array.isArray(list) ||
-    !list.every((name) => typeof name === "string" && name && packageOf(name) === name)
-  )
-    throw new Error("airtty.json: serverPackages must list package names");
-  return { serverPackages: new Set<string>(list) };
+  const parsed = Config.safeParse(config);
+  if (!parsed.success) throw new Error(`airtty.json: ${z.prettifyError(parsed.error)}`);
+  return { serverPackages: new Set(parsed.data.serverPackages) };
 }
 // Installed package owning `file`: the segment after its last `node_modules/`.
 function packageOfFile(file: string) {
   const parts = file.split("/");
   const at = parts.lastIndexOf("node_modules");
   if (at < 0 || at + 1 >= parts.length) return undefined;
-  const scoped = parts[at + 1].startsWith("@");
-  const name = parts.slice(at + 1, at + (scoped ? 3 : 2)).join("/");
-  return { name, dir: parts.slice(0, at + (scoped ? 3 : 2)).join("/") };
+  const end = at + 1 + packageDepth(parts[at + 1]);
+  return { name: parts.slice(at + 1, end).join("/"), dir: parts.slice(0, end).join("/") };
 }
 export async function build(directory: string, output = join(directory, ".airtty")) {
   const root = await realpath(directory),
@@ -85,9 +101,15 @@ export async function build(directory: string, output = join(directory, ".airtty
     return [...graphChain(serverParent, chain[0]).slice(0, -1), ...chain];
   };
   const via = (chain: readonly string[]) => `\n  via ${chain.map(display).join(" → ")}`;
-  const fail = (m: Module, n: ts.Node, message: string): never => {
+  // A declaration, not an arrow: TypeScript narrows only after calls to declared `never`s.
+  function fail(m: Module, n: ts.Node, message: string): never {
     const p = m.ast.getLineAndCharacterOfPosition(n.getStart(m.ast));
     throw new Error(`${relative(root, m.path)}:${p.line + 1}:${p.character + 1}: ${message}`);
+  }
+  const moduleAt = (path: string) => {
+    const m = modules.get(path);
+    if (!m) throw new Error(`Module read without its source: ${path}`);
+    return m;
   };
   async function local(from: string, name: string) {
     if (!name.startsWith(".")) return;
@@ -115,8 +137,10 @@ export async function build(directory: string, output = join(directory, ".airtty
       actionExports: [],
     };
     modules.set(path, m);
-    const errors = (ast as any).parseDiagnostics as ts.Diagnostic[];
-    if (errors.length) fail(m, ast, ts.flattenDiagnosticMessageText(errors[0].messageText, " "));
+    // The public way to the parser's diagnostics: `ast` keeps them in an internal field.
+    const [error] =
+      ts.transpileModule(text, { fileName: path, reportDiagnostics: true }).diagnostics ?? [];
+    if (error) fail(m, ast, ts.flattenDiagnosticMessageText(error.messageText, " "));
     for (const s of ast.statements) {
       if (ts.isExpressionStatement(s) && ts.isStringLiteral(s.expression)) {
         if (s.expression.text === "use client" || s.expression.text === "use server") {
@@ -212,19 +236,17 @@ export async function build(directory: string, output = join(directory, ".airtty
             ts.isParenthesizedExpression(initializer))
         )
           initializer = initializer.expression;
-        if (
-          !initializer ||
-          !ts.isStringLiteral(initializer) ||
-          !["public", "required"].includes(initializer.text)
-        )
-          fail(m, declaration, 'auth must be the literal "public" or "required"');
-        value = (initializer as ts.StringLiteral).text as RouteAuth;
+        const text = initializer && ts.isStringLiteral(initializer) ? initializer.text : undefined;
+        const auth = ROUTE_AUTH.find((a) => a === text);
+        if (!auth) fail(m, declaration, 'auth must be the literal "public" or "required"');
+        value = auth;
       }
     }
     return value;
   }
   for (const m of modules.values()) {
-    const ast = program.getSourceFile(m.path)!;
+    const ast = program.getSourceFile(m.path);
+    if (!ast) throw new Error(`${relative(root, m.path)}: missing from the TypeScript program`);
     const symbol = checker.getSymbolAtLocation(ast);
     m.exports = symbol
       ? checker
@@ -266,7 +288,7 @@ export async function build(directory: string, output = join(directory, ".airtty
           s.modifiers?.some((x) => x.kind === ts.SyntaxKind.DefaultKeyword)
         )
           fail(m, s, '"use server" supports named exported async function declarations only');
-        m.actionExports.push((s as ts.FunctionDeclaration).name!.text);
+        m.actionExports.push(s.name.text);
       }
     }
   }
@@ -278,7 +300,7 @@ export async function build(directory: string, output = join(directory, ".airtty
     if (serverGraph.has(p)) return;
     serverGraph.add(p);
     if (from) serverParent.set(p, from);
-    const m = modules.get(p)!;
+    const m = moduleAt(p);
     if (m.directive === "use client") {
       clients.add(p);
       return;
@@ -297,7 +319,7 @@ export async function build(directory: string, output = join(directory, ".airtty
     if (clientGraph.has(p)) return;
     clientGraph.add(p);
     if (from) clientParent.set(p, from);
-    const m = modules.get(p)!;
+    const m = moduleAt(p);
     if (m.directive === "use server") {
       actions.add(p);
       serverVisit(p);
@@ -329,7 +351,7 @@ export async function build(directory: string, output = join(directory, ".airtty
   // Layouts persist across navigations; loading, error and not-found screens render
   // without a Server answer: all are Client Components owned by the TanStack route tree.
   for (const p of [...layouts, ...loadings]) {
-    const m = modules.get(p)!;
+    const m = moduleAt(p);
     const kind = basename(p);
     if (m.directive !== "use client" || !m.exports.includes("default"))
       fail(m, m.ast, `${kind} must declare "use client" and a default export`);
@@ -352,7 +374,7 @@ export async function build(directory: string, output = join(directory, ".airtty
   const bundleChain = (role: "server" | "client", file: string) => {
     const chain = [file];
     let current = file;
-    while (!modules.has(current) && chain.length < 64) {
+    while (!modules.has(current) && chain.length < MAX_CHAIN) {
       const edge = edges[role].find(([importer, specifier]) =>
         resolvesTo(importer, specifier, current),
       );
@@ -371,7 +393,7 @@ export async function build(directory: string, output = join(directory, ".airtty
   };
   // Every "use client" module is a Client Reference, even one only Client code imports:
   // it can be resolved by id like the boundaries the Server renders.
-  for (const p of clientGraph) if (modules.get(p)!.directive === "use client") clients.add(p);
+  for (const p of clientGraph) if (moduleAt(p).directive === "use client") clients.add(p);
   const hash = createHash("sha256");
   for (const m of [...modules.values()].sort((a, b) => a.path.localeCompare(b.path)))
     hash.update(relative(root, m.path)).update(m.text);
@@ -383,18 +405,18 @@ export async function build(directory: string, output = join(directory, ".airtty
   const appLock = Bun.file(join(root, "bun.lock"));
   if (await appLock.exists()) hash.update(await appLock.text());
   let clientPackages: { name: string; version: string }[] = [];
-  const buildId = hash.digest("hex").slice(0, 24),
+  const buildId = hash.digest("hex").slice(0, BUILD_ID_LENGTH),
     id = (p: string) => `${buildId}/${relative(root, p)}`;
   const manifest: Record<string, unknown> = {};
   for (const p of clients)
-    for (const name of modules.get(p)!.exports)
+    for (const name of moduleAt(p).exports)
       manifest[`${id(p)}#${name}`] = { id: id(p), chunks: [], name };
   const temp = `${output}-${crypto.randomUUID()}`;
   await mkdir(temp, { recursive: true });
   const routes = graph.pages.map((r, i) => ({
     ...r,
     name: `P${i}`,
-    auth: moduleAuth(modules.get(abs(r.file))!),
+    auth: moduleAuth(moduleAt(abs(r.file))),
   }));
   // Checked-in like TanStack's routeTree.gen.ts: application type checks need it
   // before any build. Rewritten only when the route graph changes.
@@ -411,7 +433,7 @@ export async function build(directory: string, output = join(directory, ".airtty
     routes.map((r) => `import ${r.name} from ${quote(abs(r.file))};`).join("\n") +
     "\n" +
     [...actions].map((p, i) => `import * as A${i} from ${quote(p)};`).join("\n") +
-    `\nconst actions=new Map([${[...actions].flatMap((p, i) => modules.get(p)!.actionExports.map((n) => `[${quote(id(p) + "#" + n)},{fn:A${i}[${quote(n)}],auth:${quote(moduleAuth(modules.get(p)!))}}]`)).join(",")}]);\n` +
+    `\nconst actions=new Map([${[...actions].flatMap((p, i) => moduleAt(p).actionExports.map((n) => `[${quote(id(p) + "#" + n)},{fn:A${i}[${quote(n)}],auth:${quote(moduleAuth(moduleAt(p)))}}]`)).join(",")}]);\n` +
     `serve({buildId:${quote(buildId)},manifest:${quote(manifest)},actions,routes:new Map([${routes.map((r) => `[${quote(r.id)},{component:${r.name},auth:${quote(r.auth)},url:${quote(r.url)},params:${quote(r.params)}}]`).join(",")}])${hasAuth ? ",auth:Auth" : ""}});`;
   const clientSource =
     `export {Shell} from ${quote(join(framework, "client.tsx"))};import {createApplication,run} from ${quote(join(framework, "client.tsx"))};import {routeTree} from ${quote(routeTreeFile)};\n` +
@@ -467,14 +489,11 @@ export async function build(directory: string, output = join(directory, ".airtty
                   );
                 return undefined;
               });
-              b.onResolve({ filter: /^airtty\/(client|server|route-tree)$/ }, (a) => ({
-                path: join(
-                  framework,
-                  { client: "client.tsx", server: "server.ts", "route-tree": "route-tree.tsx" }[
-                    a.path.slice("airtty/".length)
-                  ]!,
-                ),
-              }));
+              b.onResolve({ filter: /^airtty\/(client|server|route-tree)$/ }, (a) => {
+                const entry = FRAMEWORK_ENTRIES.get(a.path.slice("airtty/".length));
+                if (!entry) throw new Error(`Unknown framework entry ${a.path}`);
+                return { path: join(framework, entry) };
+              });
               // Bun's "bun" export condition selects TanStack's server build, which skips
               // the Client transition machinery; the terminal Client is a browser-like runtime.
               if (role === "client") {
@@ -539,7 +558,7 @@ export async function build(directory: string, output = join(directory, ".airtty
           },
         ],
       }).catch(bundleFailure);
-      if (!result.success) throw new Error(result.logs.join("\n"));
+      if (!result.success) throw new Error(logMessages(result.logs));
       // Inventory of what the Client really embeds, read from the bundler itself.
       if (role === "client" && result.metafile) {
         const found = new Map<string, string>();
@@ -548,14 +567,14 @@ export async function build(directory: string, output = join(directory, ".airtty
           if (owner && !found.has(owner.name))
             found.set(
               owner.name,
-              String((await Bun.file(join(owner.dir, "package.json")).json()).version),
+              (await readJsonFile(join(owner.dir, "package.json"), InstalledPackage)).version,
             );
         }
         clientPackages = [...found]
           .sort(([a], [b]) => (a < b ? -1 : 1))
           .map(([name, version]) => ({ name, version }));
       }
-      const pkg = JSON.parse(await readFile(join(framework, "../package.json"), "utf8"));
+      const pkg = await readPackageJson(join(framework, "../package.json"));
       await Bun.write(
         join(temp, role, "package.json"),
         JSON.stringify(
