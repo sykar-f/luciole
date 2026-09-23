@@ -1,13 +1,15 @@
 "use client";
 import { Suspense, use, useEffect, useMemo, useRef, useState } from "react";
-import { useKeyboard, useTerminalDimensions } from "@opentui/react";
+import { useRenderer, useTerminalDimensions } from "@opentui/react";
 import type { DiffRenderable, ScrollBoxRenderable } from "@opentui/core";
-import { publish, resolveSave } from "../actions/pulls";
+import { TransportError, useBindings } from "airtty/client";
+import { fileSource, publish, resolveSave } from "../actions/pulls";
 import { drafts } from "./draft";
 import { DraftEditor } from "./DraftEditor";
 import { useEditing, useEditingWhile } from "./editing";
+import { openInEditor } from "./editor";
 import { Line, SkeletonRows } from "./frames";
-import type { Comment, FileDiff, FileSummary, PullDetail, Side } from "./model";
+import type { Comment, FileDiff, FileSource, FileSummary, PullDetail, Side } from "./model";
 import { Pulse } from "./Pulse";
 import { useReviewSession } from "./review-session";
 import { syntax } from "./syntax";
@@ -28,6 +30,13 @@ const SPLIT_WIDTH = 170;
 const CURSOR_BG = "#2d3f52";
 const lineSlot = (pull: PullDetail, side: Side, line: number, path: string) =>
   `composer:line:${pull.id}:${pull.revision}:${side}:${line}:${path}`;
+/** `report@r2.ts`, `report@r2.old.ts`: the editor still recognises the extension. */
+const snapshotName = ({ path, revision, side }: FileSource) => {
+  const name = path.split("/").at(-1) ?? "file";
+  const dot = name.lastIndexOf(".");
+  const [stem, extension] = dot > 0 ? [name.slice(0, dot), name.slice(dot)] : [name, ""];
+  return `${stem}@r${revision}${side === "old" ? ".old" : ""}${extension}`;
+};
 
 /**
  * The file list is usable at once; each diff is a Promise streamed by Flight and
@@ -48,27 +57,89 @@ export function FilesReview({ pull, files, composerVersions, canComment }: Props
   const file = files[index];
   const split = session.split ?? width >= SPLIT_WIDTH;
   const [anchor, setAnchor] = useState<{ side: Side; line: number } | null>(null);
+  const renderer = useRenderer();
+  const opening = useRef(false);
 
-  useKeyboard((key) => {
-    if (key.name === "escape" && composing) setComposing(null);
-    if (editing || key.ctrl || key.meta || !file) return;
-    if (key.sequence === "]" || key.sequence === "J")
-      session.setFile(files[Math.min(index + 1, files.length - 1)].path);
-    if (key.sequence === "[" || key.sequence === "K")
-      session.setFile(files[Math.max(index - 1, 0)].path);
-    if (key.name === "v") session.toggleViewed(file.path);
-    if (key.name === "s") session.setSplit(!split);
-    if (key.name === "c" && canComment) {
-      if (split) setNotice("Switch to unified view (s) to comment on a line");
-      else if (!anchor) setNotice("Move the cursor to a diff line first (j/k)");
-      else if (drafts.unsaved().length >= drafts.capacity)
-        setNotice(`Draft limit reached (${drafts.capacity}): publish or discard a Draft first`);
-      else {
-        setNotice("");
-        setComposing(anchor);
-      }
+  const step = (delta: number) =>
+    session.setFile(files[Math.max(0, Math.min(index + delta, files.length - 1))].path);
+  const comment = () => {
+    if (split) setNotice("Switch to unified view (s) to comment on a line");
+    else if (!anchor) setNotice("Move the cursor to a diff line first (j/k)");
+    else if (drafts.unsaved().length >= drafts.capacity)
+      setNotice(`Draft limit reached (${drafts.capacity}): publish or discard a Draft first`);
+    else {
+      setNotice("");
+      setComposing(anchor);
     }
-  });
+  };
+  // The Server gives the side of the file under the cursor, as reviewed (this revision);
+  // the editor runs here, on the reviewer's terminal, with the UI suspended meanwhile.
+  const edit = async () => {
+    if (!file || opening.current) return;
+    opening.current = true;
+    const side = anchor?.side ?? "new";
+    setNotice(`Fetching ${file.path} at revision ${pull.revision}…`);
+    try {
+      const source = await fileSource({
+        repo: pull.repo,
+        number: pull.number,
+        revision: pull.revision,
+        path: file.path,
+        side,
+      });
+      if (!source) {
+        setNotice(`${file.path} is not part of revision ${pull.revision}`);
+        return;
+      }
+      const opened = await openInEditor(renderer, {
+        name: snapshotName(source),
+        content: source.content,
+        line: anchor?.line,
+      });
+      setNotice(
+        opened.edited
+          ? `Edits discarded: ${snapshotName(source)} was a read-only snapshot`
+          : opened.exitCode
+            ? `${opened.editor} exited with code ${opened.exitCode}`
+            : `Viewed ${snapshotName(source)} in ${opened.editor} (read-only snapshot)`,
+      );
+    } catch (error: unknown) {
+      setNotice(
+        error instanceof TransportError
+          ? `Could not fetch ${file.path}: ${error.message}`
+          : `Could not start the editor · set $EDITOR (${error instanceof Error ? error.message : "failed"})`,
+      );
+    } finally {
+      opening.current = false;
+    }
+  };
+  useBindings(
+    () => ({
+      bindings: [
+        ...(composing
+          ? [{ key: "escape", cmd: () => setComposing(null), desc: "leave", group: "files" }]
+          : []),
+        ...(editing || !file
+          ? []
+          : [
+              { key: "]", cmd: () => step(1), desc: "next file", group: "files" },
+              { key: "[", cmd: () => step(-1), desc: "previous", group: "files" },
+              { key: "shift+j", cmd: () => step(1) },
+              { key: "shift+k", cmd: () => step(-1) },
+              ...(canComment ? [{ key: "c", cmd: comment, desc: "comment", group: "files" }] : []),
+              {
+                key: "v",
+                cmd: () => session.toggleViewed(file.path),
+                desc: "viewed",
+                group: "files",
+              },
+              { key: "s", cmd: () => session.setSplit(!split), desc: "split", group: "files" },
+              { key: "e", cmd: () => void edit(), desc: "editor", group: "files" },
+            ]),
+      ],
+    }),
+    [composing, editing, file, index, files, canComment, split, anchor, session, pull],
+  );
 
   const slot = composing && file ? lineSlot(pull, composing.side, composing.line, file.path) : null;
   // useDraft re-reads its note whenever the object changes: keep it stable per slot.
@@ -213,17 +284,27 @@ function DiffView({
     );
   }, [row, split, onAnchor]);
 
-  useKeyboard((key) => {
-    if (!active || key.ctrl || !rows.length) return;
-    const move = (delta: number) =>
-      session.setCursor(file.path, Math.max(0, Math.min(rows.length - 1, cursor + delta)));
-    if (key.name === "j" || key.name === "down") move(1);
-    if (key.name === "k" || key.name === "up") move(-1);
-    if (key.name === "pagedown" || key.name === "space") move(PAGE_ROWS);
-    if (key.name === "pageup") move(-PAGE_ROWS);
-    if (key.name === "g") move(-rows.length);
-    if (key.sequence === "G") move(rows.length);
-  });
+  const move = (delta: number) =>
+    session.setCursor(file.path, Math.max(0, Math.min(rows.length - 1, cursor + delta)));
+  useBindings(
+    () => ({
+      bindings:
+        !active || !rows.length
+          ? []
+          : [
+              { key: "j", cmd: () => move(1), desc: "line", group: "files" },
+              { key: "k", cmd: () => move(-1) },
+              { key: "down", cmd: () => move(1) },
+              { key: "up", cmd: () => move(-1) },
+              { key: "space", cmd: () => move(PAGE_ROWS), desc: "page", group: "files" },
+              { key: "pagedown", cmd: () => move(PAGE_ROWS) },
+              { key: "pageup", cmd: () => move(-PAGE_ROWS) },
+              { key: "g", cmd: () => move(-rows.length) },
+              { key: "shift+g", cmd: () => move(rows.length) },
+            ],
+    }),
+    [active, rows.length, cursor, file.path, session],
+  );
 
   if (!diff) return <Line fg={color.warn}>This file is not part of revision {revision}</Line>;
   const here = (c: Comment) =>
@@ -261,9 +342,7 @@ function DiffView({
         borderColor={color.border}
       >
         {file.comments.length === 0 ? (
-          <Line fg={color.faint}>
-            No line comments · j/k move · c comment · v viewed · s split · [ ] file
-          </Line>
+          <Line fg={color.faint}>No line comments</Line>
         ) : (
           file.comments.slice(-COMMENTS_SHOWN).map((c) => (
             <Line key={c.id} fg={here(c) ? color.text : color.muted}>

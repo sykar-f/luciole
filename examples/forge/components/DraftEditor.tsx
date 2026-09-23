@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef } from "react";
-import { useKeyboard } from "@opentui/react";
 import type { TextareaRenderable } from "@opentui/core";
+import { useBindings } from "airtty/client";
 import { useDraft, type Note, type SaveResult, type Snapshot } from "./draft";
 import { Line } from "./frames";
 import { color } from "./theme";
@@ -17,6 +17,8 @@ type Props<R extends SaveResult> = {
   onSaved?: (result: R) => void;
   /** Business policy for a conflict: the Draft is kept until an explicit discard. */
   conflictHint?: string;
+  /** What Ctrl+S does, for the generated help. */
+  saveLabel?: string;
 };
 
 /**
@@ -33,6 +35,7 @@ export function DraftEditor<R extends SaveResult>({
   resolve,
   onSaved,
   conflictHint = "Server changed · Draft kept · Ctrl+X reloads",
+  saveLabel = "publish",
 }: Props<R>) {
   const { draft, edit, save: saveDraft, recover, discard } = useDraft(note);
   const field = useRef<TextareaRenderable>(null);
@@ -56,13 +59,35 @@ export function DraftEditor<R extends SaveResult>({
       confirmed(result);
       return result;
     });
-  useKeyboard((key) => {
-    if (key.ctrl && key.name === "o" && draft.unknown)
-      void recover(async (operationId) => confirmed(await resolve(operationId)));
-    if (!editing || !key.ctrl) return;
-    if (key.name === "s") submit();
-    if (key.name === "x" && !draft.pending) discard();
-  });
+  // Control keys only: every printable key belongs to the text. Several editors can be
+  // unknown at once (description and composer): Ctrl+O falls through to each of them.
+  useBindings(
+    () => ({
+      bindings: [
+        ...(draft.unknown
+          ? [
+              {
+                key: "ctrl+o",
+                cmd: () =>
+                  void recover(async (operationId) => confirmed(await resolve(operationId))),
+                desc: "resolve",
+                group: "draft",
+                fallthrough: true,
+              },
+            ]
+          : []),
+        ...(editing
+          ? [
+              { key: "ctrl+s", cmd: submit, desc: saveLabel, group: "draft" },
+              ...(draft.pending
+                ? []
+                : [{ key: "ctrl+x", cmd: discard, desc: "discard", group: "draft" }]),
+            ]
+          : []),
+      ],
+    }),
+    [draft, editing, saveLabel, save, resolve, onSaved],
+  );
   const status = draft.unknown
     ? "Outcome unknown · Ctrl+O resolve (never replayed)"
     : draft.pending

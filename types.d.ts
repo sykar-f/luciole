@@ -24,7 +24,6 @@ declare module "react-server-dom-webpack/server.node" {
   ): { pipe(stream: NodeJS.WritableStream): void; abort(): void };
   export function decodeReply(body: string | FormData, manifest: unknown): Promise<unknown>;
 }
-declare module "server-only";
 
 // The original isolated RSC probe uses the Node decoder without Server Functions.
 declare module "react-server-dom-webpack/client.node" {

@@ -1,15 +1,26 @@
 /** @jsxImportSource @opentui/react */
 import { beforeAll, expect, test } from "bun:test";
-import { InputRenderable } from "@opentui/core";
+import { InputRenderable, TextareaRenderable } from "@opentui/core";
 import { build } from "../src/build";
-import { forgeDirectory, startForge } from "./forge-helpers";
-import { draftsOf, present, until } from "./helpers";
+import { forgeDirectory, startForge, type ForgeHarness } from "./forge-helpers";
+import { draftsOf, present, renderable, until } from "./helpers";
 
 beforeAll(async () => {
   await build(forgeDirectory);
 }, 60000);
 
 const ctrl = { ctrl: true };
+
+/** The text a renderable occupies on screen (one line), e.g. a generated help line. */
+async function shownIn(forge: ForgeHarness, id: string) {
+  const frame = await forge.frame();
+  const node = forge.ui.renderer.root.findDescendantById(id);
+  if (!node) throw new Error(`${id} is not mounted`);
+  return frame
+    .split("\n")
+    [node.y].slice(node.x, node.x + node.width)
+    .trim();
+}
 
 test("anonymous start redirects to the public login; a bad PIN stays there", async () => {
   const forge = await startForge();
@@ -296,3 +307,81 @@ test("a missing pull request shows the not-found screen inside the chrome", asyn
     await forge.stop();
   }
 }, 30000);
+
+test("help lines are generated from the key layers mounted right now", async () => {
+  const forge = await startForge();
+  const { ui, step, waitFor } = forge;
+  try {
+    expect(await shownIn(forge, "login-help")).toBe(
+      "ctrl+c quit · tab switch field · return sign in",
+    );
+    await forge.signIn("bob");
+    expect(await shownIn(forge, "screen-help")).toBe("j down · k up · return open · / filter");
+    await step(() =>
+      forge.app.router.navigate({
+        to: "/repos/$repo/pulls/$number/files",
+        params: { repo: "payments", number: "2" },
+      }),
+    );
+    await waitFor("src/report.ts · typescript");
+    const reviewing =
+      "] next file · [ previous · c comment · v viewed · s split · e editor · j line · space page";
+    expect(await shownIn(forge, "screen-help")).toBe(reviewing);
+    expect(await forge.frame()).toContain("tab next tab · shift+tab previous");
+    // Moving the cursor re-registers the diff's layer; the help keeps its order.
+    await step(() => ui.mockInput.typeText("j"));
+    expect(await shownIn(forge, "screen-help")).toBe(reviewing);
+    // A field takes the letters and Tab: the help shows what still works.
+    await step(() => ui.mockInput.typeText("c"));
+    await waitFor("Comment on src/report.ts");
+    expect(await shownIn(forge, "screen-help")).toBe(
+      "escape leave · ctrl+s publish · ctrl+x discard",
+    );
+    expect(await forge.frame()).not.toContain("tab next tab");
+    await step(() => ui.mockInput.pressEscape());
+    await forge.settle(80);
+    expect(await shownIn(forge, "screen-help")).toBe(reviewing);
+  } finally {
+    await forge.stop();
+  }
+}, 60000);
+
+test("while a field is edited, keys bound to commands are text", async () => {
+  const forge = await startForge();
+  const { ui, step, waitFor, operator } = forge;
+  const typed = "iu12?axmejk/nsv[] rest";
+  try {
+    await forge.signIn("alice");
+    // The inbox filter: repository digits, back and inbox keys are typed, not run.
+    await step(() => ui.mockInput.typeText("/"));
+    await step(() => ui.mockInput.typeText("1u?"));
+    expect(renderable(ui, "pull-filter", InputRenderable).value).toBe("1u?");
+    expect(forge.path()).toBe("/");
+    await step(() => ui.mockInput.pressEnter());
+
+    await step(() =>
+      forge.app.router.navigate({
+        to: "/repos/$repo/pulls/$number",
+        params: { repo: "payments", number: "1" },
+      }),
+    );
+    await waitFor("[m] merge");
+    const audit = operator.activity(100).length;
+    await step(() => ui.mockInput.typeText("c"));
+    await step(() => ui.mockInput.typeText(typed));
+    expect(renderable(ui, "composer", TextareaRenderable).plainText).toBe(typed);
+    // Nothing ran: no navigation, no review, no merge, no other editor.
+    expect(forge.path()).toBe("/repos/payments/pulls/1");
+    expect(operator.activity(100)).toHaveLength(audit);
+    expect(present(operator.pull("payments", 1), "payments#1").state).toBe("open");
+    expect(await forge.frame()).not.toContain("description-editor");
+    // Escape leaves the field: letters are commands again, the Draft stays.
+    await step(() => ui.mockInput.pressEscape());
+    await forge.settle(80);
+    await step(() => ui.mockInput.typeText("i"));
+    await step(() => until(() => forge.path() === "/"));
+    expect(draftsOf(forge.app).unsaved()).toHaveLength(1);
+  } finally {
+    await forge.stop();
+  }
+}, 60000);

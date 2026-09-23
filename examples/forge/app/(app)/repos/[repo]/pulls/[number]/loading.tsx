@@ -1,6 +1,7 @@
 "use client";
 import type { LoadingProps } from "airtty/client";
 import { Screen, SkeletonRows } from "../../../../../../components/frames";
+import { Help } from "../../../../../../components/Help";
 import { Pulse } from "../../../../../../components/Pulse";
 
 // The files tab shows more skeleton rows than the others, like its real content.
@@ -16,8 +17,8 @@ export default function PullLoading({ params, path }: LoadingProps) {
   return (
     <Screen
       title={`#${params.number ?? ""} · loading ${tab}…`}
-      subtitle="Waiting for Server…"
-      help="Esc cancel · the layout, its tabs and your review progress stay mounted"
+      subtitle="Waiting for Server… · the tabs and your review progress stay mounted"
+      help={<Help groups={["airtty"]} />}
     >
       <Pulse>
         <SkeletonRows count={tab === "files" ? FILE_ROWS : TAB_ROWS} width={72} />

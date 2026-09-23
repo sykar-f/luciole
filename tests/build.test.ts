@@ -53,9 +53,6 @@ for (const [name, extra] of Object.entries<Record<string, string>>({
     "server/secret.ts": `export const value=1`,
   },
   marker: { "shared.ts": `import 'server-only';export const value=1` },
-  builtin: {
-    "shared.ts": `import {Database} from 'bun:sqlite';export const value=Database`,
-  },
   inline: {
     "shared.ts": `export async function value(){"use server";return 1;}`,
   },
@@ -72,6 +69,24 @@ for (const [name, extra] of Object.entries<Record<string, string>>({
       },
     );
   });
+test("a Client module may use Bun and Node builtins: only the side markers decide", async () => {
+  // The Client runs on Bun: a local file, a subprocess or a local database are its own.
+  // Keeping a module on one side is server-only, server/ or client-only (cases above).
+  await fixture(
+    {
+      "app/page.tsx": `import {Editor} from '../editor';export default function Page(){return <Editor/>}`,
+      "editor.tsx": `"use client";import {local} from './lib/local';export function Editor(){return <text>{String(local)}</text>}`,
+      "lib/local.ts": `import {readFileSync} from 'node:fs';import {Database} from 'bun:sqlite';export const local=()=>[readFileSync, Database, "LOCAL_STORE_SENTINEL"];`,
+    },
+    async (dir) => {
+      await build(dir);
+      expect((await readManifest(dir)).clientGraph).toContain("lib/local.ts");
+      expect(await Bun.file(join(dir, ".airtty/client/index.js")).text()).toContain(
+        "LOCAL_STORE_SENTINEL",
+      );
+    },
+  );
+});
 test("failed rebuild retains prior artefacts", async () => {
   await fixture(
     {
@@ -121,7 +136,7 @@ for (const [file, source] of [
   ["app/loading.tsx", "export default function Loading(){return <text>wait</text>}"],
   [
     "app/loading.tsx",
-    '"use client";import {readFile} from "node:fs";export default function Loading(){return <text>{String(readFile)}</text>}',
+    '"use client";import {db} from "../server/db";export default function Loading(){return <text>{String(db)}</text>}',
   ],
   ["app/layout.tsx", "export default function Layout({children}){return children}"],
   ["app/layout.tsx", '"use client";export function Layout({children}){return children}'],
@@ -135,6 +150,7 @@ for (const [file, source] of [
       {
         "app/page.tsx": "export default function Page(){return <text>home</text>}",
         "app/(group)/about/page.tsx": "export default function Page(){return <text>about</text>}",
+        "server/db.ts": "export const db = 1;",
         [file]: source,
       },
       async (dir) => {

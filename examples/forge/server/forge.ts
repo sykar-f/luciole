@@ -6,6 +6,7 @@ import type {
   Comment,
   DiffRow,
   FileDiff,
+  FileSource,
   FileSummary,
   Identity,
   LoginResult,
@@ -36,6 +37,7 @@ const MAX_ID = 300,
   MAX_CREDENTIAL = 40,
   MAX_TOKEN = 100,
   MAX_NAME = 100,
+  MAX_PATH = 500,
   MAX_TITLE = 200,
   MIN_TITLE = 3;
 const TOKEN_BYTES = 32;
@@ -100,6 +102,13 @@ const SnapshotInput = z.object({
   revision: Count,
   operationId: OperationId,
 }) satisfies z.ZodType<Snapshot>;
+const FileRequest = z.object({
+  repo: z.string().max(MAX_NAME),
+  number: Count,
+  revision: Count,
+  path: z.string().max(MAX_PATH),
+  side: z.enum(["old", "new"]) satisfies z.ZodType<Side>,
+});
 const text = (value: unknown, name: string, max: number) => valid(z.string().max(max), value, name);
 const integer = (value: unknown, name: string) => valid(Count, value, name);
 const operationId = (value: unknown) => valid(OperationId, value, "operation");
@@ -389,6 +398,20 @@ export function createForge(db: Database, options: ForgeOptions = {}) {
       patch: row.patch,
       rows,
     };
+  }
+  /** One side of a changed file, in full: what a reviewer opens in their own editor. */
+  function fileSource(input: unknown): FileSource | null {
+    const request = valid(FileRequest, input, "file");
+    const row = pullRow(request.repo, request.number);
+    if (!row) return null;
+    const file = db
+      .query<FileRow, [number, number, string]>(
+        "SELECT * FROM pull_files WHERE pull_id=? AND revision=? AND path=?",
+      )
+      .get(row.id, request.revision, request.path);
+    if (!file) return null;
+    const { revision, side } = request;
+    return { path: file.path, revision, side, content: side === "old" ? file.before : file.after };
   }
   function comments(pullId: number): Comment[] {
     return db
@@ -822,6 +845,7 @@ export function createForge(db: Database, options: ForgeOptions = {}) {
     pull,
     files,
     fileDiff,
+    fileSource,
     comments,
     reviews,
     checks,

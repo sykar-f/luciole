@@ -1,7 +1,6 @@
 "use client";
 import { useState } from "react";
-import { useKeyboard } from "@opentui/react";
-import { useNavigate } from "airtty/client";
+import { useBindings, useNavigate } from "airtty/client";
 import type { Note } from "./draft";
 import { openPullRequest, resolveSave } from "../actions/pulls";
 import { DraftEditor } from "./DraftEditor";
@@ -29,18 +28,28 @@ export function NewPullForm({
   const [branch, setBranch] = useState(0);
   const [title, setTitle] = useState("");
   useEditingWhile(field !== "branch");
-  useKeyboard((key) => {
-    if (key.name === "tab") {
-      // Tab moves between fields; it must not be typed into the focused one.
-      key.preventDefault();
-      setField((f) => FIELDS[(FIELDS.indexOf(f) + (key.shift ? 2 : 1)) % FIELDS.length]);
-    }
-    if (key.name === "escape") setField("branch");
-    if (field !== "branch" || key.ctrl) return;
-    if (key.name === "down" || key.name === "j")
-      setBranch((b) => Math.min(b + 1, branches.length - 1));
-    if (key.name === "up" || key.name === "k") setBranch((b) => Math.max(b - 1, 0));
-  });
+  const cycle = (delta: number) =>
+    setField((f) => FIELDS[(FIELDS.indexOf(f) + delta + FIELDS.length) % FIELDS.length]);
+  const pick = (delta: number) =>
+    setBranch((b) => Math.max(0, Math.min(b + delta, branches.length - 1)));
+  // Tab moves between fields: the binding keeps it out of the focused one.
+  useBindings(
+    () => ({
+      bindings: [
+        { key: "tab", cmd: () => cycle(1), desc: "next field", group: "form" },
+        { key: "shift+tab", cmd: () => cycle(-1) },
+        ...(field === "branch"
+          ? [
+              { key: "j", cmd: () => pick(1), desc: "down", group: "form" },
+              { key: "k", cmd: () => pick(-1), desc: "up", group: "form" },
+              { key: "down", cmd: () => pick(1) },
+              { key: "up", cmd: () => pick(-1) },
+            ]
+          : [{ key: "escape", cmd: () => setField("branch"), desc: "branches", group: "form" }]),
+      ],
+    }),
+    [field, branches.length],
+  );
   const chosen = branches[branch];
   const opened = (result: PublishResult) => {
     if (result.ok && result.number)
@@ -89,12 +98,12 @@ export function NewPullForm({
         note={composer}
         editing={field === "description"}
         height={6}
-        placeholder="Why this change? (markdown) · Ctrl+S opens the pull request"
+        placeholder="Why this change? (markdown)"
         save={(snapshot) => openPullRequest(snapshot, title, chosen?.name ?? "")}
         resolve={resolveSave}
         onSaved={opened}
+        saveLabel="open pull request"
       />
-      <Line fg={color.faint}>Tab next field · Esc back to branches · Ctrl+S open pull request</Line>
     </box>
   );
 }

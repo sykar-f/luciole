@@ -1,5 +1,6 @@
 import { notFound } from "airtty/server";
 import { Screen } from "../../../../../../components/frames";
+import { Help } from "../../../../../../components/Help";
 import { NewPullForm } from "../../../../../../components/NewPullForm";
 import { newPullSlot } from "../../../../../../server/forge";
 import { actor, forge } from "../../../../../../server/instance";
@@ -14,7 +15,7 @@ export default function NewPullPage({ params }: { params: { repo: string } }) {
     <Screen
       title={`Open a pull request in ${repo.slug}`}
       subtitle="Compare a branch with main"
-      help="Tab field · Ctrl+S open · u back"
+      help={<Help groups={["form", "draft"]} />}
     >
       <NewPullForm
         repo={repo.slug}

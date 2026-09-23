@@ -1,7 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { useKeyboard } from "@opentui/react";
-import { useApplication, useLive } from "airtty/client";
+import { useApplication, useBindings, useLive } from "airtty/client";
 import { checkLog, rerunChecks, resolveOperation } from "../actions/pulls";
 import { useEditing } from "./editing";
 import { Line } from "./frames";
@@ -28,19 +27,52 @@ export function ChecksPanel({
   const { editing } = useEditing();
   const rerun = useOperation(`rerun:${pull.repo}#${pull.number}`);
   const check = checks[Math.min(selected, checks.length - 1)];
-  useKeyboard((key) => {
-    if (key.ctrl && key.name === "o") void rerun.resolve(resolveOperation);
-    if (editing || key.ctrl) return;
-    if (key.name === "j" || key.name === "down")
-      setSelected((s) => Math.min(s + 1, checks.length - 1));
-    if (key.name === "k" || key.name === "up") setSelected((s) => Math.max(s - 1, 0));
-    if (key.name === "r" && canRun) {
-      rerun.forget();
-      void rerun.run("Rerun checks", (operationId) =>
-        rerunChecks({ repo: pull.repo, number: pull.number, operationId }),
-      );
-    }
-  });
+  const move = (delta: number) =>
+    setSelected((s) => Math.max(0, Math.min(s + delta, checks.length - 1)));
+  const status = rerun.state?.status;
+  useBindings(
+    () => ({
+      bindings: [
+        ...(status === "unknown" || status === "unresolved"
+          ? [
+              {
+                key: "ctrl+o",
+                cmd: () => void rerun.resolve(resolveOperation),
+                desc: "resolve",
+                group: "checks",
+              },
+            ]
+          : []),
+        ...(status === "unresolved"
+          ? [{ key: "ctrl+x", cmd: () => rerun.forget(), desc: "forget", group: "checks" }]
+          : []),
+        ...(editing
+          ? []
+          : [
+              { key: "j", cmd: () => move(1), desc: "down", group: "checks" },
+              { key: "k", cmd: () => move(-1), desc: "up", group: "checks" },
+              { key: "down", cmd: () => move(1) },
+              { key: "up", cmd: () => move(-1) },
+              ...(canRun
+                ? [
+                    {
+                      key: "r",
+                      cmd: () => {
+                        rerun.forget();
+                        void rerun.run("Rerun checks", (operationId) =>
+                          rerunChecks({ repo: pull.repo, number: pull.number, operationId }),
+                        );
+                      },
+                      desc: "rerun",
+                      group: "checks",
+                    },
+                  ]
+                : []),
+            ]),
+      ],
+    }),
+    [rerun.state, editing, checks.length, canRun, pull],
+  );
   return (
     <box flexDirection="column" flexGrow={1} gap={1}>
       <box flexDirection="row" flexGrow={1} gap={2}>

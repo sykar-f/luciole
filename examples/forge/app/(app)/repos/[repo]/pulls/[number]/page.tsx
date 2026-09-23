@@ -1,5 +1,6 @@
 import { Conversation } from "../../../../../../components/Conversation";
 import { Screen } from "../../../../../../components/frames";
+import { Help } from "../../../../../../components/Help";
 import { pullSubtitle, pullTitle } from "../../../../../../components/PullHeader";
 import { conversationSlot } from "../../../../../../server/forge";
 import { actor, forge, pullAt, slow } from "../../../../../../server/instance";
@@ -16,7 +17,7 @@ export default async function ConversationPage({
     <Screen
       title={pullTitle(pull)}
       subtitle={pullSubtitle(pull)}
-      help="e edit · c comment · a approve · x changes · m merge · j/k scroll · Tab files · Esc stop editing"
+      help={<Help groups={["conversation", "draft"]} />}
     >
       <Conversation
         pull={pull}

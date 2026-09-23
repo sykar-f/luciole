@@ -51,13 +51,56 @@ Comptes, PIN `forge` pour tous : `alice` (maintainer, peut merger), `bob`
 | Listes       | `↑↓`/`j k` sélection (préchargée) · Entrée ouvrir · `/` filtre local · `s` état (URL) · `n` PR |
 | Pull request | Tab / Shift+Tab : Conversation → Files → Checks                                                |
 | Conversation | `e` description · `c` commenter · `a` approuver · `x` demander des changements · `m` merger    |
-| Files        | `[ ]` fichier · `j k` ligne · `c` commenter la ligne · `v` vu · `s` split · Espace page        |
+| Files        | `[ ]` fichier · `j k` ligne · `c` commenter · `v` vu · `s` split · Espace page · `e` `$EDITOR` |
 | Checks       | `↑↓` check · `r` relancer                                                                      |
 | Édition      | Ctrl+S publier · Ctrl+X abandonner le Draft · Échap sortir sans perdre le Draft                |
 | Issue perdue | Ctrl+O consulter le ledger (jamais de rejeu) · Ctrl+X oublier après une consultation vide      |
 
 Une lettre est une commande tant qu'aucun champ n'a le focus ; dans un champ, c'est
-du texte. `components/editing.tsx` porte ce mode.
+du texte. `components/editing.tsx` porte ce mode : chaque écran déclare ses touches avec
+`useBindings` (`desc` + `group`) et n'installe ses touches simples que hors édition. Une
+couche de la keymap passe avant le champ focalisé et consomme la touche : une lettre liée
+en permanence serait avalée, d'où ces couches conditionnelles (Tab et Entrée, qui ne sont
+pas du texte, restent liées dans les formulaires). La ligne d'aide de chaque écran est
+générée (`components/Help.tsx`, `<KeyHelp />` filtré par groupe) : la page Server nomme
+les groupes de ses Client Components, les touches affichées sont celles actives à
+l'instant (les lettres disparaissent pendant l'édition, les onglets aussi).
+
+## Ouvrir le fichier dans son éditeur (`client-only`)
+
+Dans l'onglet Files, `e` ouvre le fichier du diff courant dans l'éditeur de
+l'utilisateur, sur son terminal. `components/editor.ts` importe `client-only` : Client et
+Server tournant tous deux sur Bun, une page qui l'importerait par erreur compilerait et
+lancerait l'éditeur **sur la machine du Server**, dans son terminal. Le build refuse ce
+module dans le graphe Server hors d'une frontière `"use client"` ; `FilesReview` l'atteint
+depuis la sienne.
+
+Ce qui est ouvert, et pourquoi :
+
+- **Le contenu vient du Server** (`fileSource`, une lecture sans invalidation) : le fichier
+  entier, à la révision relue, du côté de la ligne sous le curseur (`new`, ou `old` sur une
+  ligne supprimée), et l'éditeur s'ouvre sur cette ligne (`+LINE` pour vi, vim, nvim, nano,
+  emacs, micro, kak). Le Client ne possède pas le dépôt : il ne reconstitue rien à partir
+  du patch.
+- **Un instantané en lecture seule** (`0444`) dans un répertoire privé de `$TMPDIR`
+  (`mkdtemp`), nommé `fichier@r2.ts` (`fichier@r2.old.ts` pour l'ancien côté, l'extension
+  reste reconnue par l'éditeur), supprimé avec son répertoire à la fermeture. Forge relit des révisions et n'a aucun moyen de reprendre une
+  modification locale : un éditeur qui écrit quand même (`:w!`) voit sa modification
+  signalée comme abandonnée, jamais envoyée.
+- **L'éditeur** : `$VISUAL`, puis `$EDITOR`, puis `vi`, comme git ; les espaces séparent
+  les arguments (pas de guillemets). Un éditeur graphique doit attendre sa fermeture
+  (`code --wait`), sinon l'instantané disparaît avant son ouverture. Un éditeur
+  introuvable affiche un message, l'UI reste là.
+- **Le terminal** : `renderer.suspend()` d'OpenTUI rend l'écran principal, le mode cooked
+  et la souris ; l'éditeur hérite du terminal ; `renderer.resume()` restaure l'UI (repeint
+  complet), même si l'éditeur échoue.
+
+Preuves : `tests/forge-editor.test.tsx` (build refusé pour une page qui importe le vrai
+module ; `EDITOR` factice lancé par le processus Client, `+9`, fichier non inscriptible,
+contenu identique à la révision, instantané supprimé, touches actives au retour) et
+`scripts/pty-forge.py` (vrai PTY, artefacts de production : l'éditeur factice écrit sur le
+terminal, reçoit une ligne tapée qui commence par `i`, Forge ne l'exécute pas, puis le
+parcours reprend).
 
 ## Scénario de démonstration (5 minutes)
 
@@ -115,6 +158,7 @@ Dans un second terminal, `bun run forge:operator` joue le second opérateur (mê
 | Résultat inconnu           | ledger `operations` + `components/operations.ts` pour review/merge/rerun                       | `forge.test.tsx` : merge perdu résolu, jamais rejoué                        |
 | OpenTUI                    | `diff`, `code`/tree-sitter, `markdown`, `textarea`, `input`, `scrollbox`, `ascii-font`, souris | `forge.test.tsx`, captures PTY                                              |
 | Build séparé et production | deux artefacts, lockfiles                                                                      | `scripts/pty-forge.py` sur les artefacts, [capture](forge-pty-frame.txt)    |
+| `client-only`              | `components/editor.ts` : `e` ouvre le fichier relu dans `$EDITOR`, UI suspendue puis restaurée | `forge-editor.test.tsx`, `scripts/pty-forge.py`                             |
 
 ## Ce que la démo a poussé dans le framework
 
@@ -128,6 +172,8 @@ Chaque point est parti d'un besoin réel de Forge et d'un test qui échouait.
 | **Pas de search params** : `render()` ne transmettait que les params de chemin.                                                   | `validateSearch` + `loaderDeps` générés, `render(…, search)`, validation Server, prop `searchParams`.         | `search.test.tsx`, `route-types.test.ts` |
 | Travail non sauvegardé invisible pour l'application.                                                                              | `drafts.unsaved()`, `drafts.size`, `drafts.clear()`.                                                          | `draft.test.ts`                          |
 | Titre « TERMINAL / NOTES » codé en dur dans le chrome.                                                                            | Titre dérivé du répertoire de l'application.                                                                  | captures PTY                             |
+| `import "client-only"` refusé par `tsc` dans une application (TS2882) : seul le programme du framework déclarait `server-only`.   | `src/markers.d.ts`, inclus par `airtty/tsconfig` : les deux marqueurs, sans package.                          | `bun run check` (Forge)                  |
+| `node:*` et `bun:*` refusés dans tout module Client applicatif, même `client-only` : l'éditeur contournait avec les globaux Bun.  | Heuristique supprimée : seuls les marqueurs de côté décident, comme pour les packages.                        | `build.test.ts`                          |
 
 Vérifié sans changement : `router.preloadRoute` fonctionne tel quel et TanStack
 réutilise l'arbre préchargé ; Flight 19.3 sérialise les Promises et les async
@@ -152,11 +198,21 @@ Relevées sur Notes et Forge, puis tranchées :
   s'arrête côté Server quand on le quitte. `live.ts` est supprimé.
 - **`error.tsx` et `notFound()`** : résolus. Les pages appellent `notFound(what)` ;
   `app/(app)/not-found.tsx` affiche l'écran dans le chrome.
-- **Raccourcis** : le chrome de Forge déclare ses touches avec `useBindings` et l'aide
-  `?` est générée (`<KeyHelp />`). Les écrans internes gardent `useKeyboard`, qui
-  coexiste avec la keymap ; leur migration reste à faire.
+- **Raccourcis** : migration faite. Chrome, onglets, listes, conversation, fichiers,
+  checks, éditeurs de Draft, formulaires et login déclarent leurs touches avec
+  `useBindings` ; plus aucun `useKeyboard`, plus aucun texte d'aide écrit à la main dans
+  les pages. Pièges rencontrés : une couche consomme la touche par défaut, donc `Ctrl+O`
+  (plusieurs issues inconnues à consulter à la fois) déclare `fallthrough` ; `"G"` est lu
+  comme `g`, il faut écrire `shift+g`. Tests : aide générée et mode édition dans
+  `forge.test.tsx`.
 - **Données publiques de session dans le chrome** : toujours faites par l'application
   (`components/session.ts` + `whoami()`).
+- **Module `client-only` et builtins** : résolu. Le graphe Client refusait `node:*` et
+  `bun:*` dans le code applicatif, même dans un module `client-only` ; `editor.ts` devait
+  contourner deux défauts de Bun 1.4.2 (`Bun.write` ignore `mode`, `Bun.spawn` ignore les
+  changements de `process.env`). La règle est supprimée : seuls `server-only` (ou
+  `server/`) et `client-only` décident du côté d'un module, et `editor.ts` utilise
+  `node:fs/promises` et `node:child_process`.
 
 Côté application, choix assumés : politique de conflit (Draft gardé jusqu'à
 l'abandon), révision poussée qui rend les approbations caduques, CI simulée

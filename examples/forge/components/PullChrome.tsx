@@ -1,7 +1,6 @@
 "use client";
 import type { ReactNode } from "react";
-import { useKeyboard } from "@opentui/react";
-import { useMatchRoute, useNavigate } from "airtty/client";
+import { KeyHelp, useBindings, useMatchRoute, useNavigate } from "airtty/client";
 import { useEditing } from "./editing";
 import { Line } from "./frames";
 import { ReviewSessionProvider } from "./review-session";
@@ -39,10 +38,18 @@ export function PullChrome({
   );
   const go = (index: number) =>
     void navigate({ to: TABS[(index + TABS.length) % TABS.length].to, params });
-  useKeyboard((key) => {
-    if (editing || key.ctrl || key.name !== "tab") return;
-    go(active + (key.shift ? -1 : 1));
-  });
+  // Tab belongs to a field while one is edited (the new pull request form uses it too).
+  useBindings(
+    () => ({
+      bindings: editing
+        ? []
+        : [
+            { key: "tab", cmd: () => go(active + 1), desc: "next tab", group: "pull" },
+            { key: "shift+tab", cmd: () => go(active - 1), desc: "previous", group: "pull" },
+          ],
+    }),
+    [editing, active, repo, number, navigate],
+  );
   return (
     <ReviewSessionProvider key={`${repo}#${number}`}>
       <box flexDirection="column" flexGrow={1}>
@@ -58,7 +65,7 @@ export function PullChrome({
               </Line>
             </box>
           ))}
-          <Line fg={color.faint}>Tab next</Line>
+          <KeyHelp inline groups={["pull"]} fg={color.faint} accent={color.muted} />
         </box>
         {children}
       </box>

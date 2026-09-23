@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { Activity } from "../../components/Activity";
 import { Line, Screen, SkeletonRows } from "../../components/frames";
+import { Help } from "../../components/Help";
 import { PullList } from "../../components/PullList";
 import { color } from "../../components/theme";
 import { actor, forge } from "../../server/instance";
@@ -12,7 +13,7 @@ export default function InboxPage() {
     <Screen
       title={`Inbox · ${inbox.reviewRequested.length} review(s) requested`}
       subtitle={`Signed in as ${me.name} (${me.role})`}
-      help="↑↓ select · Enter open · / filter · 1-9 repository · ? keys"
+      help={<Help groups={["list"]} />}
     >
       <box flexDirection="column" flexGrow={1} gap={1}>
         <PullList

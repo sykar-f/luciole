@@ -156,7 +156,11 @@ export function AppChrome({ children }: { children: ReactNode }) {
               </Line>
             ))}
             <box flexGrow={1} />
-            {help ? <KeyHelp /> : <Line fg={color.faint}>? keys · Ctrl+L sign out</Line>}
+            {help ? (
+              <KeyHelp />
+            ) : (
+              <KeyHelp inline groups={["app"]} fg={color.faint} accent={color.muted} />
+            )}
           </box>
         ) : null}
         <box flexDirection="column" flexGrow={1}>
