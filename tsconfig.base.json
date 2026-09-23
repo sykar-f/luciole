@@ -1,4 +1,5 @@
 {
+  "files": ["./src/markers.d.ts"],
   "compilerOptions": {
     "target": "ESNext",
     "module": "ESNext",

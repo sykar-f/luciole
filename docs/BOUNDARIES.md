@@ -76,6 +76,8 @@ agit sur la mauvaise machine : c'est ce que `client-only` empêche.
 
 Les deux marqueurs valent pour le code applicatif et pour les packages npm, qui ne
 peuvent pas être renommés. Il n'y a pas de suffixe `*.server.*` ni `*.client.*`.
+Ils ne demandent aucun package : le build les résout en modules vides, et
+`airtty/tsconfig` les déclare (`src/markers.d.ts`) pour que `tsc` accepte l'import.
 
 ## Packages
 
