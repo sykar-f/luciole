@@ -27,11 +27,11 @@ pour les opérations qui ne sont pas des documents.
 Toute requête qui échoue lève une `TransportError` dont `outcome` dit ce que le Server
 a pu faire :
 
-| `outcome`  | Cas                                                                                                                       | Le Server a-t-il exécuté du code applicatif ? |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
-| `not-sent` | Connexion refusée, hôte injoignable, annulation avant l'envoi                                                             | Non                                           |
-| `rejected` | `4xx` : bearer absent (`AuthenticationRequired`), build différent (`BuildMismatch`), action inconnue, arguments invalides | Non                                           |
-| `unknown`  | Timeout ou coupure après l'envoi, réponse perdue ou tronquée, `5xx`                                                       | Peut-être                                     |
+| `outcome`  | Cas                                                                                                                                          | Le Server a-t-il exécuté du code applicatif ? |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| `not-sent` | Connexion refusée, hôte injoignable, annulation avant l'envoi                                                                                | Non                                           |
+| `rejected` | `4xx` : bearer absent (`AuthenticationRequired`), build différent (`BuildMismatch`), action inconnue, arguments qui ne forment pas une liste | Non                                           |
+| `unknown`  | Timeout ou coupure après l'envoi, réponse perdue ou tronquée, `5xx`                                                                          | Peut-être                                     |
 
 Le transport ne prétend jamais une certitude qu'il n'a pas : tout cas non reconnu vaut
 `unknown`. Une exception levée par une Server Function répond un `500` générique
@@ -142,7 +142,9 @@ Les arguments d'une Server Function arrivent décodés par Flight mais **non vé
 son type TypeScript décrit ce que le Client est censé envoyer, pas ce qui arrive. Le
 framework garantit seulement une liste d'arguments (`ServerFunction` les type
 `unknown[]`) ; la fonction valide les siens avant tout effet, comme le font Notes et
-Forge avec Zod. Le framework valide ce qu'il reçoit lui-même : variables
+Forge avec Zod. Une fonction qui refuse ses arguments lève une exception : la réponse
+est un `500` et l'appelant voit `unknown`, car le framework ne peut pas savoir qu'aucun
+effet n'a eu lieu avant le refus. Le framework valide ce qu'il reçoit lui-même : variables
 d'environnement du Server et du Client au démarrage (une valeur invalide arrête le
 processus en nommant la variable), `airtty.json`, params et search de `/render`,
 enveloppe d'une réponse d'action côté Client (sinon `TransportError`, `unknown`).

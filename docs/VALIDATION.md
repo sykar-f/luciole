@@ -207,3 +207,27 @@ Les 32 nombres restants sont dans les deux tables de données de Forge exemptée
 
 Limite : une Server Function qui refuse ses arguments répond 500 (`unknown`), pas `rejected` :
 le framework ne peut pas savoir qu'aucun code applicatif n'a tourné avant ce refus.
+
+## Intégration des trois branches (23 septembre 2026)
+
+Distribution, typage strict et Forge (keymap, `$EDITOR`, builtins côté Client) sont
+fusionnés dans cet ordre. Le code de distribution et de Forge, écrit avant les règles
+strictes, y est tenu : schémas pour la config utilisateur, le document npm, la sortie de
+`notarytool` et la requête `fileSource` ; type `Fetch` pour le tunnel ; nombres nommés ;
+tests sur `rejectionOf`, `present`, `renderable` et `readManifest`.
+
+`bun run verify` : **112 tests passent**, lint strict et type-aware compris. `pty-smoke.py`,
+`pty-dev.py`, `pty-forge.py` (avec l'ouverture dans `$EDITOR`) et `clean-install.ts`
+passent sur macOS arm64.
+
+Correctifs issus de la relecture des branches, chacun avec un test qui échoue sans lui :
+
+| Défaut                                                                                  | Test              |
+| --------------------------------------------------------------------------------------- | ----------------- |
+| Un signal pendant l'authentification ssh laissait `ssh` et son répertoire de socket.    | `connect.test.ts` |
+| `--sign`/`--notarize` sans valeur étaient ignorés, le build réussissait sans notariser. | `compile.test.ts` |
+| Un runtime mis en cache par l'ancien format, extraction interrompue, restait réutilisé. | `runtime.test.ts` |
+| Un package dépendant d'un autre zod recevait celui du framework.                        | `build.test.ts`   |
+
+Non exécuté ici : `bun run test:linux` (Docker), signature Developer ID et notarisation
+réelles, éditeurs réels (vim, `code --wait`) : seul un éditeur factice est piloté.

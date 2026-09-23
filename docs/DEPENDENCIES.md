@@ -50,9 +50,10 @@ lockfile. Il est embarqué dans le bundle Client (voir [ROUTER.md](ROUTER.md)).
 Zod 4.6.5 valide les données externes (variables d'environnement, `airtty.json`, JSON
 lu sur disque, requêtes reçues par le Server, enveloppes reçues par le Client). Le
 bundle Client n'embarque que `zod/mini`, l'API fonctionnelle tree-shakable de la même
-version : mesuré sur un schéma d'enveloppe, `zod/mini` ajoute 28 Ko non minifiés au
-bundle (415 Ko pour Notes), contre 156 Ko pour l'API classique, sans différence de
-démarrage mesurable. Le Server, le build et les tests utilisent l'API classique.
+version : mesuré isolément sur un schéma d'enveloppe, `zod/mini` ajoute 28 Ko non
+minifiés, contre 156 Ko pour l'API classique. Avec tous les schémas du Client, le bundle
+complet de Notes passe de 415 à 460 Ko ([VALIDATION.md](VALIDATION.md)), sans différence
+de démarrage mesurable. Le Server, le build et les tests utilisent l'API classique.
 
 `oxlint-tsgolint` fournit à Oxlint les informations de types (`options.typeAware`) :
 sans lui, une valeur `any` issue de `JSON.parse`, de `.json()` ou d'un décodage ne serait
