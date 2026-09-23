@@ -1,4 +1,6 @@
-// oxlint-disable-next-line typescript/triple-slash-reference -- Include ambient Flight module declarations when consumers import the framework.
+// React Flight ships no declarations for these entries: types.d.ts declares them. An import
+// cannot carry ambient module declarations, so a reference brings them to consumers too.
+// oxlint-disable-next-line typescript/triple-slash-reference -- the ambient Flight declarations above.
 /// <reference path="../../types.d.ts" />
 import { PassThrough } from "node:stream";
 import { renderToPipeableStream } from "react-server-dom-webpack/server.node";

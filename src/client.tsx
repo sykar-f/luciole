@@ -174,7 +174,9 @@ export class Application {
       this.purgeAfterLoad = false;
       this.router.clearCache();
     });
-    // oxlint-disable-next-line typescript/no-this-alias -- Register the single application instance used by generated action proxies.
+    // Generated action proxies are module-level functions with no React context: they reach
+    // the one Application of this process through `current`, set by its constructor.
+    // oxlint-disable-next-line typescript/no-this-alias -- the process-wide registration above.
     current = this;
   }
   subscribe = (f: () => void) => {
