@@ -79,7 +79,8 @@ désormais `run` (une ligne dans `build.ts`) : importée, elle n'est pas
 `airtty-binary:1:<app>:<buildId>:<cible>;` : `readBinaryIdentity` la lit dans les
 octets d'un binaire étranger sans l'exécuter.
 
-`--client-only` produit l'ancien artefact, Client seul, pour une app dont le code Server
+Le build l'avertit à chaque `--compile` : le binaire contient le code Server, métier
+compris, lisible par qui le reçoit. `--client-only` produit l'ancien artefact, Client seul, pour une app dont le code Server
 ne doit pas arriver sur les postes des utilisateurs.
 
 ### `--on user@host`

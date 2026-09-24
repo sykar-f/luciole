@@ -31,5 +31,11 @@ export const build: Command = {
       ...(compiled.notarization ? { notarization: compiled.notarization } : {}),
     });
     if (compiled.warning) console.error(`Warning: ${compiled.warning}`);
+    if (!clientOnly)
+      console.error(
+        `Warning: ${compiled.outfile} contains the Server, your business code included, as ` +
+          "well as the Client: whoever receives it can read that code. For users who must " +
+          "only connect to your Server, build with --client-only.",
+      );
   },
 };
