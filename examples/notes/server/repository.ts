@@ -23,20 +23,23 @@ for (const [id, title] of [
   ["2", "Second note"],
 ])
   db.query("INSERT OR IGNORE INTO notes VALUES(?,?,?,?,1)").run(id, owner, title, "");
-export function listNotes(): Note[] {
+// Reads take the owner as an argument: server/queries.ts caches them, and a cached
+// function never reads the session.
+export function listNotes(owner: string): Note[] {
   return db
     .query<Note, [string]>("SELECT id,title,value,version FROM notes WHERE owner=? ORDER BY id")
-    .all(getSession().userId);
+    .all(owner);
 }
-export function loadNote(id: string): Note {
+export function findNote(owner: string, id: string): Note {
   const row = db
     .query<Note, [string, string]>(
       "SELECT id,title,value,version FROM notes WHERE id=? AND owner=?",
     )
-    .get(id, getSession().userId);
+    .get(id, owner);
   if (!row) throw new Error("Note unavailable");
   return row;
 }
+const loadNote = (id: string) => findNote(getSession().userId, id);
 // Arguments are validated by the Server Functions (actions/notes.ts) before reaching here.
 export function operation(id: string): SaveResult | null {
   const row = db

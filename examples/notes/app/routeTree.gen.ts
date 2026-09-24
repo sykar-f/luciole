@@ -21,6 +21,7 @@ const layout0Route = createRoute({
 const page0Route = createRoute({
   getParentRoute: () => rootRoute,
   path: "/",
+  staleTime: 30000,
   loader: (ctx) => loadPage(ctx, "/", []),
   ...pageRoute([], { error: Error2 }),
 });

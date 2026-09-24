@@ -25,8 +25,10 @@ declare module "react-server-dom-webpack/server.node" {
   export function decodeReply(body: string | FormData, manifest: unknown): Promise<unknown>;
 }
 
-// The original isolated RSC probe uses the Node decoder without Server Functions.
+// The original isolated RSC probe uses the Node decoder without Server Functions; the
+// Server's "use cache" encodes arguments and results with its reply encoder.
 declare module "react-server-dom-webpack/client.node" {
+  export function encodeReply(value: unknown): Promise<string | FormData>;
   export function createFromNodeStream(
     stream: import("node:stream").Readable,
     manifest: {
