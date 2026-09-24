@@ -18,11 +18,12 @@ import {
   type ApplicationEvent,
   type ApplicationOptions,
 } from "../src/client";
+import { ApplicationView } from "../src/embed";
 import { destroy, launch, rejectionOf, until, type TestUI } from "./helpers";
 
 const mdreader = resolve("examples/mdreader");
 const files = resolve("examples/files");
-const clientOf = (app: string) => join(app, ".airtty/client/index.js");
+const bundleOf = (app: string) => join(app, ".airtty/app");
 
 /** The host's keymap, as a Shell provides it, and its prefix sequence. */
 function Host({ children, onSwitch }: { children: ReactNode; onSwitch: () => void }) {
@@ -63,10 +64,13 @@ test("<Embed>: two applications, keys to the active pane, focus set aside, crash
   let ui: TestUI | undefined;
   const apps: Application[] = [];
   try {
-    const mdApp = await openApplication({ client: clientOf(mdreader), url: md.url });
-    const fxApp = await openApplication({ client: clientOf(files), url: fx.url });
+    const mdApp = await openApplication({ bundle: bundleOf(mdreader), url: md.url });
+    const fxApp = await openApplication({ bundle: bundleOf(files), url: fx.url });
     apps.push(mdApp, fxApp);
     expect(mdApp.options.instance).not.toBe(fxApp.options.instance);
+    // One runtime for every pane: the host's view, hence the host's contexts.
+    expect(mdApp.view).toBe(ApplicationView);
+    expect(fxApp.view).toBe(ApplicationView);
     const events = new Map<Application, ApplicationEvent[]>([
       [mdApp, []],
       [fxApp, []],

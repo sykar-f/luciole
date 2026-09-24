@@ -10,6 +10,9 @@ import { readJsonFile, readPackageJson } from "./package-json";
 import { ROUTE_TREE_FILE, compileRouteGraph, renderRouteTree } from "./route-graph";
 import { cachedFunctions, cacheSource, staleTimeOf } from "./cache/transform";
 import { annotateNames } from "./build-names";
+import { ABI_KEY, APP_MANIFEST, isAbiSpecifier, type AppManifest } from "./abi";
+import { Capabilities, undeclaredUses } from "./capabilities";
+import * as zm from "zod/mini";
 const framework = dirname(import.meta.path);
 const quote = JSON.stringify;
 // Resolved from the framework so starters using a file: dependency find their copy.
@@ -32,6 +35,73 @@ const ROUTE_AUTH = ["public", "required"] as const;
 type RouteAuth = (typeof ROUTE_AUTH)[number];
 function bundleFailure(error: unknown): never {
   throw new Error(bundleMessages(error).join("\n"));
+}
+// Bun reports top-level await in a CommonJS bundle as an `await` outside an async
+// function: the application bundle's format cannot express it (docs/EMBEDDING.md).
+const BundleErrors = z.object({
+  errors: z.array(
+    z.object({
+      message: z.string(),
+      position: z.object({ file: z.string(), line: z.number() }).nullish(),
+    }),
+  ),
+});
+function appBundleFailure(root: string, error: unknown): never {
+  const parsed = BundleErrors.safeParse(error);
+  const found = parsed.success
+    ? parsed.data.errors.find((e) => e.message.includes('"await" can only be used inside'))
+    : undefined;
+  if (found?.position)
+    throw new Error(
+      `${relative(root, found.position.file)}:${found.position.line}: top-level await is not supported in Client code: ` +
+        "the application bundle (.airtty/app) is CommonJS. Await inside a function (an effect, a loader).",
+    );
+  return bundleFailure(error);
+}
+// `airtty.capabilities` of the application's own package.json (decision 3): optional.
+const AppPackage = zm.looseObject({
+  airtty: zm.optional(zm.looseObject({ capabilities: zm.optional(Capabilities) })),
+});
+/**
+ * `.airtty/app/manifest.json`: the bundle's identity, ABI and hash, the built-ins it
+ * requires and the capabilities the application declares, compared with those built-ins.
+ * Unsigned until step 4 (docs/EMBEDDING.md).
+ */
+async function writeAppManifest(
+  root: string,
+  directory: string,
+  { buildId, builtins }: { buildId: string; builtins: string[] },
+) {
+  const code = await readFile(join(directory, "index.cjs"), "utf8");
+  const packageFile = Bun.file(join(root, "package.json"));
+  let capabilities: AppManifest["capabilities"];
+  if (await packageFile.exists()) {
+    const parsed = AppPackage.safeParse(await packageFile.json());
+    if (!parsed.success)
+      throw new Error(
+        `${packageFile.name}: airtty.capabilities: ${zm.prettifyError(parsed.error)}`,
+      );
+    capabilities = parsed.data.airtty?.capabilities;
+  }
+  // Declaring is a claim the host shows before opening the application: one the Client
+  // code visibly exceeds is reported. An application that declares nothing claims nothing.
+  if (capabilities)
+    for (const use of undeclaredUses(builtins, capabilities))
+      console.warn(
+        `airtty build: ${basename(root)}: Client code requires ${use.builtin} but airtty.capabilities does not declare ${use.capability}`,
+      );
+  const manifest: AppManifest = {
+    format: 1,
+    name: basename(root),
+    buildId,
+    abi: ABI_KEY,
+    bundle: "index.cjs",
+    sha256: createHash("sha256").update(code).digest("hex"),
+    size: Buffer.byteLength(code),
+    builtins,
+    capabilities,
+  };
+  await Bun.write(join(directory, APP_MANIFEST), JSON.stringify(manifest, null, 2));
 }
 /** `name` or `@scope/name`: the directories a package owns below `node_modules/`. */
 const packageDepth = (name: string) => (name.startsWith("@") ? 2 : 1);
@@ -466,6 +536,13 @@ export async function build(directory: string, output = join(directory, ".airtty
     `export {Shell,run} from ${quote(join(framework, "client.tsx"))};import {createApplication,run} from ${quote(join(framework, "client.tsx"))};import {routeTree} from ${quote(routeTreeFile)};import {actions} from "airtty:actions";\n` +
     [...clients].map((p, i) => `import * as C${i} from ${quote(p)};`).join("\n") +
     `\nconst modules=new Map([${[...clients].map((p, i) => `[${quote(id(p))},C${i}]`).join(",")}]);export function createApp(options){const app=createApplication({...options,routeTree,buildId:${quote(buildId)},title:${quote(basename(root).toUpperCase())},resolveModule:id=>{if(!modules.has(id))throw new Error('Unknown module '+id);return modules.get(id)}});actions.bind(app);return app};if(import.meta.main)await run(createApp,{name:${quote(basename(root))}});`;
+  // The application bundle: what the Client source has, minus the runtime, which the host
+  // that evaluates it provides through the ABI (src/abi.ts, src/app-bundle.ts).
+  const appSource =
+    `export {routeTree} from ${quote(routeTreeFile)};import {actions} from "airtty:actions";export {actions};\n` +
+    [...clients].map((p, i) => `import * as C${i} from ${quote(p)};`).join("\n") +
+    `\nexport const buildId=${quote(buildId)};export const modules={${[...clients].map((p, i) => `${quote(id(p))}:C${i}`).join(",")}};`;
+  let appBuiltins: string[] = [];
   const external = [
     "react",
     "react-dom",
@@ -475,17 +552,24 @@ export async function build(directory: string, output = join(directory, ".airtty
     "react-reconciler",
   ];
   try {
-    for (const role of ["server", "client"] as const) {
+    for (const role of ["server", "client", "app"] as const) {
+      // The application bundle is Client code: same boundaries, same stubs.
+      const clientSide = role !== "server";
       const entry = join(temp, `${role}-entry.ts`);
-      await Bun.write(entry, role === "server" ? serverSource : clientSource);
+      await Bun.write(
+        entry,
+        role === "server" ? serverSource : role === "client" ? clientSource : appSource,
+      );
       const result = await Bun.build({
         entrypoints: [entry],
         outdir: join(temp, role),
-        naming: "index.js",
+        naming: role === "app" ? "index.cjs" : "index.js",
         target: "bun",
-        external,
+        // bun-cjs: a function of (exports, require, module…) the host calls with the ABI.
+        ...(role === "app" ? { format: "cjs" as const } : {}),
+        external: role === "app" ? [] : external,
         conditions: role === "server" ? ["react-server"] : [],
-        metafile: role === "client",
+        metafile: clientSide,
         // Next to the bundle, and linked from it: Bun maps runtime stack traces through it
         // (development and production alike) and a debugger finds it. Inline would double
         // the bundle a compiled Client embeds; external would be found by nothing.
@@ -503,26 +587,30 @@ export async function build(directory: string, output = join(directory, ".airtty
               // already checked, with file and line, on the module graphs.
               b.onResolve({ filter: /.*/ }, (a) => {
                 if (!a.importer) return undefined;
-                edges[role].push([a.importer, a.path]);
+                edges[role === "app" ? "client" : role].push([a.importer, a.path]);
                 const owner = packageOfFile(a.importer);
                 if (!owner || a.path.startsWith(".")) return undefined;
-                const why =
-                  role === "client"
-                    ? a.path === "server-only" || a.path === "airtty/server"
-                      ? "it is Server-only"
-                      : serverPackages.has(packageOf(a.path))
-                        ? "it is listed in serverPackages (airtty.json)"
-                        : undefined
-                    : a.path === "client-only"
-                      ? "it never runs on the Server"
-                      : undefined;
+                const why = clientSide
+                  ? a.path === "server-only" || a.path === "airtty/server"
+                    ? "it is Server-only"
+                    : serverPackages.has(packageOf(a.path))
+                      ? "it is listed in serverPackages (airtty.json)"
+                      : undefined
+                  : a.path === "client-only"
+                    ? "it never runs on the Server"
+                    : undefined;
                 if (why)
                   throw new Error(
-                    `${role === "client" ? "Client" : "Server"} package ${owner.name} imports ${a.path}: ${why}` +
-                      `${via(bundleChain(role, a.importer))} → ${a.path}`,
+                    `${clientSide ? "Client" : "Server"} package ${owner.name} imports ${a.path}: ${why}` +
+                      `${via(bundleChain(clientSide ? "client" : "server", a.importer))} → ${a.path}`,
                   );
                 return undefined;
               });
+              // The runtime ABI stays outside the application bundle: the host provides it.
+              if (role === "app")
+                b.onResolve({ filter: /^[@a-z]/ }, (a) =>
+                  isAbiSpecifier(a.path) ? { path: a.path, external: true } : undefined,
+                );
               b.onResolve({ filter: /^airtty\/(client|server|route-tree)$/ }, (a) => {
                 const entry = FRAMEWORK_ENTRIES.get(a.path.slice("airtty/".length));
                 if (!entry) throw new Error(`Unknown framework entry ${a.path}`);
@@ -557,14 +645,15 @@ export async function build(directory: string, output = join(directory, ".airtty
                     : undefined,
                 );
               // One binding of imported Server Functions per bundle: createApp gives it the
-              // Application it creates (src/client.tsx, createActions).
-              if (role === "client") {
+              // Application it creates (src/client.tsx, createActions); in an application
+              // bundle, the host's openApplication does.
+              if (clientSide) {
                 b.onResolve({ filter: /^airtty:actions$/ }, (a) => ({
                   path: a.path,
                   namespace: "airtty-actions",
                 }));
                 b.onLoad({ filter: /.*/, namespace: "airtty-actions" }, () => ({
-                  contents: `import {createActions} from ${quote(join(framework, "client.tsx"))};export const actions=createActions();`,
+                  contents: `import {createActions} from ${quote(role === "app" ? "airtty/client" : join(framework, "client.tsx"))};export const actions=createActions();`,
                   loader: "js",
                 }));
               }
@@ -589,7 +678,7 @@ export async function build(directory: string, output = join(directory, ".airtty
                           `const c${i}=ref(()=>{throw new Error('Cannot invoke Client export on Server')},${quote(id(m.path))},${quote(n)});export {c${i} as ${n}};`,
                       )
                       .join("\n");
-                else if (role === "client" && m?.directive === "use server")
+                else if (clientSide && m?.directive === "use server")
                   source =
                     `import {actions} from "airtty:actions";\n` +
                     m.actionExports
@@ -643,8 +732,21 @@ export async function build(directory: string, output = join(directory, ".airtty
             },
           },
         ],
-      }).catch(bundleFailure);
+      }).catch((error: unknown) =>
+        role === "app" ? appBundleFailure(root, error) : bundleFailure(error),
+      );
       if (!result.success) throw new Error(logMessages(result.logs));
+      if (role === "app") {
+        // What the bundle requires beyond the ABI, as its `require` calls name them: Node
+        // built-ins, which Bun externalizes before any plugin runs, read from the metafile.
+        const required = new Set<string>();
+        for (const input of Object.values(result.metafile?.inputs ?? {}))
+          for (const i of input.imports)
+            if (i.external && !isAbiSpecifier(i.path)) required.add(i.path);
+        appBuiltins = [...required].sort();
+        await rm(entry);
+        continue;
+      }
       // Inventory of what the Client really embeds, read from the bundler itself.
       if (role === "client" && result.metafile) {
         const found = new Map<string, string>();
@@ -703,6 +805,7 @@ export async function build(directory: string, output = join(directory, ".airtty
         2,
       ),
     );
+    await writeAppManifest(root, join(temp, "app"), { buildId, builtins: appBuiltins });
     // Failed builds never touch the active artefacts.
     const backup = output + "-previous";
     await rm(backup, { recursive: true, force: true });

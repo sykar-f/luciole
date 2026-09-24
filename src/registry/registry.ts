@@ -4,6 +4,7 @@
  * here (src/registry/apps.ts), never in the registry.
  */
 import { z } from "zod";
+import { Capabilities } from "../capabilities";
 import { APP_NAME } from "../launcher/paths";
 
 /** `name`, `name@range`, `@scope/name`, `@scope/name@range` (a version, range or tag). */
@@ -21,12 +22,14 @@ export const formatSpec = ({ name, range }: PackageSpec) => (range ? `${name}@${
 
 /**
  * The `airtty` field of an app's package.json: its name (the command and the install
- * directory), its build, and the package holding its binary for each target.
+ * directory), its build, the package holding its binary for each target, and what it
+ * declares it may do (docs/EMBEDDING.md, decision 3), readable before anything runs.
  */
 export const AppField = z.object({
   name: z.string().regex(APP_NAME),
   buildId: z.string().regex(/^[0-9a-f]+$/),
   binaries: z.record(z.string().regex(/^bun-[a-z0-9-]+$/), z.string().regex(PACKAGE_NAME)),
+  capabilities: z.optional(Capabilities),
 });
 export type AppField = z.infer<typeof AppField>;
 

@@ -97,8 +97,10 @@ export { Input, Textarea, useRestoredFields } from "./fields";
 export type { FieldInputProps, FieldTextareaProps, RestoredFields } from "./fields";
 export type { Session, SessionEntry } from "./restore";
 // Other airtty applications in this tree, one pane each (the `inline` mode).
-export { Embed, openApplication } from "./embed";
-export type { EmbedProps, OpenApplicationOptions } from "./embed";
+export { Embed } from "./embed";
+export type { EmbedProps } from "./embed";
+export { openApplication } from "./app-bundle";
+export type { OpenApplicationOptions } from "./app-bundle";
 // Local programs on a PTY, for multiplexers (the `process` mode of docs/EMBEDDING.md).
 export { Terminal } from "./vt/terminal";
 export type { TerminalProps } from "./vt/terminal";

@@ -1,6 +1,9 @@
 /** @jsxImportSource @opentui/react */
 import { test, expect } from "bun:test";
-import { act } from "react";
+import { act, useState, type ReactNode } from "react";
+import { useRenderer } from "@opentui/react";
+import { createDefaultOpenTuiKeymap } from "@opentui/keymap/opentui";
+import { KeymapProvider } from "@opentui/keymap/react";
 import { testRender } from "@opentui/react/test-utils";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -8,8 +11,10 @@ import { join, resolve } from "node:path";
 import { build } from "../src/build";
 import { createRootRoute } from "@tanstack/react-router";
 import {
+  Embed,
   createActions,
   createApplication,
+  openApplication,
   type Application,
   type ApplicationEvent,
   type Transport,
@@ -159,6 +164,60 @@ test("two panes of one build, two Servers: own modules, own Server Functions", a
     expect(actionsOf(eventsA).every((t) => t.startsWith(`${buildId}/actions/`))).toBe(true);
   } finally {
     await destroy(ui);
+    await a.stop();
+    await b.stop();
+    await rm(left, { recursive: true, force: true });
+    await rm(right, { recursive: true, force: true });
+  }
+}, 60_000);
+
+/** The keymap a host's Shell provides, which <Embed> filters for its pane. */
+function HostKeymap({ children }: { children: ReactNode }) {
+  const renderer = useRenderer();
+  const [keymap] = useState(() => createDefaultOpenTuiKeymap(renderer));
+  return <KeymapProvider keymap={keymap}>{children}</KeymapProvider>;
+}
+
+test("two panes of one build on one shared runtime: bundles evaluated per pane", async () => {
+  await build(mdreader);
+  const { buildId } = await readManifest(mdreader);
+  const left = await mkdtemp(join(tmpdir(), "airtty-shared-a-"));
+  const right = await mkdtemp(join(tmpdir(), "airtty-shared-b-"));
+  await Bun.write(join(left, "README.md"), "# Left\n\nShared runtime, pane a.\n");
+  await Bun.write(join(right, "README.md"), "# Right\n\nShared runtime, pane b.\n");
+  const server = join(mdreader, ".airtty/server/index.js");
+  const a = await launch(server, { MD_PATH: left });
+  const b = await launch(server, { MD_PATH: right });
+  let ui: TestUI | undefined;
+  const bundle = join(mdreader, ".airtty/app");
+  const appA = await openApplication({ bundle, url: a.url, instance: "sa" });
+  const appB = await openApplication({ bundle, url: b.url, instance: "sb" });
+  try {
+    const eventsA = record(appA);
+    const eventsB = record(appB);
+    ui = await testRender(
+      <HostKeymap>
+        <box flexDirection="row" flexGrow={1}>
+          <Embed app={appA} name="a" active flexGrow={1} />
+          <Embed app={appB} name="b" active={false} flexGrow={1} />
+        </box>
+      </HostKeymap>,
+      { width: 160, height: 24 },
+    );
+    await panes(ui, ["Shared runtime, pane a.", "Shared runtime, pane b."]);
+    const reader = `${buildId}/components/Reader.tsx`;
+    // Same runtime, separate module instances: each pane its own.
+    expect(globalThis.__webpack_require__(`sa@${reader}`)).not.toBe(
+      globalThis.__webpack_require__(`sb@${reader}`),
+    );
+    // mdreader's imported watchLibrary() leaves through each pane's own Application.
+    await act(async () => {
+      await until(() => actionsOf(eventsA).length > 0 && actionsOf(eventsB).length > 0);
+    });
+  } finally {
+    await destroy(ui);
+    appA.dispose();
+    appB.dispose();
     await a.stop();
     await b.stop();
     await rm(left, { recursive: true, force: true });

@@ -24,10 +24,8 @@ import {
 import { createOpenTuiKeymapHost } from "@opentui/keymap/opentui";
 import { KeymapProvider, useKeymap } from "@opentui/keymap/react";
 import { RouterProvider } from "@tanstack/react-router";
-import type { Application, ApplicationOptions } from "./client";
-import { connect } from "./connect";
+import type { Application } from "./client";
 import { messageOf } from "./guards";
-import { InstanceKey } from "./instance";
 import { Runtime } from "./runtime-context";
 
 /** Decides, key by key, whether a pane hears it. Read outside React, on every key. */
@@ -196,53 +194,4 @@ export function Embed(props: EmbedProps) {
       </PaneBoundary>
     </box>
   );
-}
-
-export type OpenApplicationOptions = Omit<
-  ApplicationOptions,
-  "url" | "fetch" | "routeTree" | "buildId" | "resolveModule" | "instance"
-> & {
-  /** A built Client: `<app>/.airtty/client/index.js`. */
-  client: string;
-  /** Its Server: `http(s)://…`, `unix:/path`, `ssh://…` (src/connect.ts). */
-  url: string;
-  /** The pane's instance key; a new one by default. */
-  instance?: string;
-};
-type BuiltClient = { createApp: (options: Record<string, unknown>) => Application };
-const isBuiltClient = (value: unknown): value is BuiltClient =>
-  typeof value === "object" &&
-  value !== null &&
-  "createApp" in value &&
-  typeof value.createApp === "function";
-const INSTANCE_BYTES = 4;
-const HEX = 16;
-const newInstance = () =>
-  `p${[...crypto.getRandomValues(new Uint8Array(INSTANCE_BYTES))].map((b) => b.toString(HEX).padStart(2, "0")).join("")}`;
-
-/**
- * An Application for a pane: a fresh evaluation of the built Client (its own modules and
- * Server Function binding), an instance key, the connection to its Server. Disposing the
- * Application closes that connection.
- */
-export async function openApplication(options: OpenApplicationOptions): Promise<Application> {
-  const { client, url, instance = newInstance(), ...rest } = options;
-  InstanceKey.parse(instance);
-  const connection = await connect(url);
-  try {
-    // The query makes a new module instance: two panes of one build share nothing.
-    const module: unknown = await import(`${client}?pane=${instance}`);
-    if (!isBuiltClient(module)) throw new Error(`${client} is not a built airtty Client`);
-    const app = module.createApp({
-      ...rest,
-      url: connection.url,
-      fetch: connection.fetch,
-      instance,
-    });
-    app.onDispose(() => connection.close());
-    return app;
-  } catch (error) {
-    connection.close();
-    throw error;
-  }
 }
