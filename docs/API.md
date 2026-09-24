@@ -9,7 +9,7 @@ Entrée `airtty/client` (Client Components uniquement) :
 | `<Input name? value onInput />`, `<Textarea name? value onChange />`                                                                   | `input` et `textarea` d'OpenTUI, contrôlés ; un `name` rend leur texte restaurable (voir « Champs restaurables »).                               |
 | `useRestoredFields(group)`                                                                                                             | `{ submit(action, { failed? }?), clear() }` des champs `group/…` de l'entrée d'historique courante.                                              |
 | `useConnection()`                                                                                                                      | `{ status, error, buildError, activity, refresh }` pour le chrome de l'application ; `activity` vaut `connect`, `navigate`, `refresh` ou `idle`. |
-| `useInvalidation(listener)`                                                                                                            | Appelé à chaque invalidation (Server ou Client) avec les chemins : pour les données lues hors des loaders de routes.                             |
+| `useInvalidation(listener)`                                                                                                            | Appelé à chaque invalidation (Server ou Client) avec les chemins et les tags : pour les données lues hors des loaders de routes.                 |
 | `useLive(source, args, { limit }?)`                                                                                                    | `{ items, done, error }` d'une Server Function génératrice, abonnée tant que le composant est monté.                                             |
 | `useBindings()`, `useActiveKeys()`, `useKeymap()`, `usePendingSequence()`                                                              | Keymap OpenTUI réexportée : couches de raccourcis liées au cycle de vie des composants.                                                          |
 | `<KeyHelp groups? inline? />`                                                                                                          | Aide générée depuis les raccourcis actifs qui déclarent un `desc` (filtrés par `group`).                                                         |
@@ -80,7 +80,9 @@ export async function merge(target: Target) {
 ```
 
 `invalidate("/repos/web")` revalide `/repos/web` et ses descendants, jamais un simple
-préfixe (`/repos/website`). L'invalidation voyage dans l'enveloppe de la réponse : une
+préfixe (`/repos/website`). `invalidate({ tag })` purge les résultats `"use cache"` de ce
+tag et revalide seulement les routes qui l'ont lu ([CACHE.md](CACHE.md)). L'invalidation
+voyage dans l'enveloppe de la réponse : une
 réponse perdue n'invalide rien. Les lectures faites par Server Function hors des
 loaders (compteurs d'un chrome) s'abonnent avec `useInvalidation`. Le code Client
 peut aussi appeler `useApplication().invalidate(paths?)` après un changement qu'il
@@ -142,6 +144,9 @@ argument de `render`/`call` (`{ cause }`). S'y ajoutent :
 | `navigation` | `path`                                                                                                       |
 | `invalidate` | `paths`, `origin` (`server` : `invalidate()` d'une Server Function ; `client` : `invalidate()`, `refresh()`) |
 | `loader`     | `phase` (`start`, `end`), `routeId`, `href`, `cause` ; à la fin `ms` et `result` (`ok`, `error`, `aborted`)  |
+
+`invalidate` porte aussi `tags`, et `loader` sa `source` (`network`, `router-cache`) :
+voir [CACHE.md](CACHE.md).
 
 `<DebugOverlay />` ignore `invalidate` et `loader` ; `instrumentTracing` aussi.
 
@@ -245,15 +250,21 @@ Entrée `airtty/server` :
 - `getCallId()` : identifiant de requête de transport, distinct de l'opération métier.
 - `notFound(what?)` : termine le rendu d'une page avec le `not-found.tsx` le plus proche.
 - `invalidate(path?)` : dans une Server Function, déclare les routes à revalider.
+  `invalidate({ tag })` : purge un tag de cache (`Promise<void>`), partout côté Server ;
+  seule une Server Function prévient aussi son Client.
+- `cacheLife(profil | durées)`, `cacheTag(...tags)`, `memoryCache()`, `sqliteCache({ path })`,
+  types `CacheHandler`, `CacheEntry`, `CacheEvent` : cache `"use cache"`, voir [CACHE.md](CACHE.md).
+  `getSession()` et `getOptionalSession()` lèvent dans une fonction cachée.
 - `serve({ …, instrument? })` : `instrument.onEvent(event)` reçoit un `ServerEvent` pour
   chaque `/render` et `/action` : `request`, `response` (`status`, `ms`), `end` (`bytes`,
   `cancelled`, à la fin du corps, live compris) ou `error` (exception d'un handler, avant
   le `500` générique), avec `callId`, `kind`, `target` (routeId ou id d'action) et `at`.
-  Sans `instrument`, aucune réponse n'est enveloppée. C'est aussi l'emplacement des
+  Sans `instrument`, aucune réponse n'est enveloppée. S'y ajoutent les `CacheEvent`
+  (`type: "cache"`) de `"use cache"`. C'est aussi l'emplacement des
   futurs middlewares (commentaire dans `serve`) ; le build ne le passe pas encore.
   `/action` répond `Server-Timing: total;dur=…` (jusqu'au retour de la fonction, donc
-  au modèle racine). `/render` n'en a pas : la page se rend dans le flux, après les
-  en-têtes.
+  au modèle racine). `/render` n'en a pas : les en-têtes partent dès la
+  résolution de la fonction de page (pour `x-airtty-tags`), son contenu suit dans le flux.
 
 `AIRTTY_SOCKET=/chemin` fait écouter `serve()` sur ce socket Unix (0600) plutôt qu'en
 TCP ; la ligne `ready` nomme alors `socket`. Côté Client, `--url unix:/chemin` s'y

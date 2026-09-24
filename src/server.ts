@@ -5,6 +5,13 @@ import { z } from "zod";
 import { decodeReply, renderToReadableStream } from "./flight/server";
 import { isAsyncIterable, messageOf } from "./guards";
 import { NotFoundError } from "./not-found";
+import type { CacheHandler } from "./cache/handler";
+import { TAGS_HEADER, renderPage } from "./cache/render";
+import { Tag, configureCache, invalidateTags, type CacheEvent } from "./cache/runtime";
+import { assertUncached } from "./cache/scope";
+export { memoryCache, type CacheEntry, type CacheHandler } from "./cache/handler";
+export { sqliteCache } from "./cache/sqlite";
+export { cacheLife, cacheTag, type CacheEvent, type CacheProfile } from "./cache/runtime";
 export type Session = { userId: string; [key: string]: unknown };
 export type RouteAuth = "public" | "required";
 export type AuthConfig = {
@@ -16,15 +23,19 @@ type Context = {
   callId: string;
   /** Set during a Server Function call only: the paths it declared changed. */
   invalidations?: Set<string>;
+  /** Likewise, the cache tags it invalidated, each with its purge, awaited before answering. */
+  purges?: Map<string, Promise<void>>;
 };
 const context = new AsyncLocalStorage<Context>();
 export function getSession() {
+  assertUncached("getSession()");
   const c = context.getStore();
   if (!c) throw new Error("No request session");
   if (!c.session) throw new Error("Authentication required");
   return c.session;
 }
 export function getOptionalSession() {
+  assertUncached("getOptionalSession()");
   const c = context.getStore();
   if (!c) throw new Error("No request session");
   return c.session;
@@ -36,18 +47,38 @@ export function getOptionalSession() {
 export function notFound(what?: string): never {
   throw new NotFoundError(what);
 }
+const MAX_INVALIDATED_PATH = 1000;
 /**
  * Declares, from a Server Function, that data shown under `path` changed. The Client
  * revalidates the matching routes and notifies `useInvalidation` subscribers after the
  * call answers; `"/"` (the default) covers every route.
  */
-const MAX_INVALIDATED_PATH = 1000;
-export function invalidate(path = "/") {
+export function invalidate(path?: string): void;
+/**
+ * Drops the "use cache" results labelled `tag`; resolves once they are gone. Callable
+ * anywhere on the Server. In a Server Function, the call also answers only after the
+ * purge, and its Client revalidates the routes whose render read `tag`. Elsewhere (a
+ * background job, a webhook, the DevTools agent) only the Server cache is purged: no
+ * Client is told, each sees fresh data on its next render (see docs/CACHE.md).
+ */
+export function invalidate(target: { tag: string }): Promise<void>;
+export function invalidate(target: string | { tag: string } = "/"): void | Promise<void> {
   const c = context.getStore();
-  if (!c?.invalidations) throw new Error("invalidate() is only available in Server Functions");
-  if (typeof path !== "string" || !path.startsWith("/") || path.length > MAX_INVALIDATED_PATH)
+  if (typeof target === "object" && target !== null) {
+    const tag = Tag.parse(target.tag);
+    const known = c?.purges?.get(tag);
+    if (known) return known;
+    const purge = invalidateTags([tag]);
+    // A caller that never awaits (or an action that throws first) must not leave it unhandled.
+    purge.catch(() => {});
+    c?.purges?.set(tag, purge);
+    return purge;
+  }
+  if (!c?.invalidations)
+    throw new Error("invalidate(path) is only available in Server Functions: no Client to tell");
+  if (typeof target !== "string" || !target.startsWith("/") || target.length > MAX_INVALIDATED_PATH)
     throw new Error("invalidate() takes an absolute path");
-  c.invalidations.add(path);
+  c.invalidations.add(target);
 }
 export function getCallId() {
   return context.getStore()?.callId;
@@ -87,8 +118,11 @@ export type ServerEvent = {
   | { type: "end"; ms: number; bytes: number; cancelled: boolean }
   | { type: "error"; ms: number; message: string }
 );
-/** Receives `ServerEvent`s synchronously, on the request path: keep it cheap, never throw. */
-export type ServerInstrument = { onEvent: (event: ServerEvent) => void };
+/**
+ * Receives `ServerEvent`s, and each "use cache" operation (`CacheEvent`, src/cache/runtime.ts)
+ * synchronously, on the request path: keep it cheap, never throw.
+ */
+export type ServerInstrument = { onEvent: (event: ServerEvent | CacheEvent) => void };
 export type ServerConfig = {
   buildId: string;
   manifest: unknown;
@@ -96,6 +130,8 @@ export type ServerConfig = {
   routes: Map<string, ServerRoute>;
   auth?: AuthConfig;
   instrument?: ServerInstrument;
+  /** Where "use cache" results live: `server/cache.ts`, in memory by default. */
+  cache?: CacheHandler;
 };
 /** JSON text from a request, parsed then checked by `schema`; `null` when either fails. */
 function parseJson<T>(schema: z.ZodType<T>, raw: string) {
@@ -215,6 +251,12 @@ export function serve(config: ServerConfig) {
     if (login.auth !== "public")
       throw new Error(`Authentication route must be public: ${auth.unauthorizedPath}`);
   }
+  configureCache({
+    buildId: config.buildId,
+    handler: config.cache,
+    onEvent: config.instrument?.onEvent,
+    callId: getCallId,
+  });
   const metrics = { renders: 0, actions: 0 };
   // `failed` hears a handler's exception before it becomes the generic 500.
   async function handle(req: Request, url: URL, callId: string, failed?: (error: unknown) => void) {
@@ -253,19 +295,26 @@ export function serve(config: ServerConfig) {
             return new Response("Invalid search parameters", { status: STATUS.badRequest });
           if (route.auth === "required" && !session) return unauthorized();
           metrics.renders++;
-          const tree = React.createElement(route.component, { params, searchParams });
-          return new Response(renderToReadableStream(tree, config.manifest), {
+          // The cache tags the page read reach the Client with it (docs/CACHE.md).
+          const { body, tags } = await renderPage(
+            route.component,
+            { params, searchParams },
+            (tree) => renderToReadableStream(tree, config.manifest),
+          );
+          return new Response(body, {
             headers: {
               "content-type": "text/x-component",
               "cache-control": "no-store",
+              ...(tags.length ? { [TAGS_HEADER]: tags.join(",") } : {}),
             },
           });
         }
         if (url.pathname === "/action" && req.method === "POST") {
-          const invalidations = new Set<string>();
+          const invalidations = new Set<string>(),
+            purges = new Map<string, Promise<void>>();
           const store = context.getStore();
           if (!store) throw new Error("No request context");
-          store.invalidations = invalidations;
+          Object.assign(store, { invalidations, purges });
           const entry = config.actions.get(req.headers.get("x-airtty-action") ?? "");
           if (!entry) return new Response("Unknown action", { status: STATUS.notFound });
           if (entry.auth === "required" && !session) return unauthorized();
@@ -279,6 +328,8 @@ export function serve(config: ServerConfig) {
               status: STATUS.badRequest,
             });
           const value: unknown = await entry.fn(...args.data);
+          // The Client refetches as soon as it reads the answer: purged entries first.
+          await Promise.all(purges.values());
           // A live response may stay quiet longer than the idle timeout; it ends with
           // its generator or when the Client goes away.
           if (isAsyncIterable(value)) server.timeout(req, 0);
@@ -295,7 +346,13 @@ export function serve(config: ServerConfig) {
           }
           return new Response(
             renderToReadableStream(
-              { kind: "result", value, callId, invalidate: [...invalidations] },
+              {
+                kind: "result",
+                value,
+                callId,
+                invalidate: [...invalidations],
+                tags: [...purges.keys()],
+              },
               config.manifest,
             ),
             {

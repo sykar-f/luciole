@@ -159,9 +159,13 @@ export const ROUTE_TREE_FILE = "app/routeTree.gen.ts";
 /**
  * Renders the typed TanStack route tree module for `graph`. Literal paths let
  * TanStack infer params, `to` targets and loader data; the `Register` declaration
- * types the re-exported hooks for this application only.
+ * types the re-exported hooks for this application only. `staleTimes` holds the
+ * milliseconds a page declared with `export const staleTime`, by page file.
  */
-export function renderRouteTree(graph: RouteGraph): string {
+export function renderRouteTree(
+  graph: RouteGraph,
+  staleTimes: ReadonlyMap<string, number> = new Map(),
+): string {
   const quote = JSON.stringify;
   const importPath = (file: string) => "./" + file.replace(/^app\//, "").replace(/\.tsx$/, "");
   const paramsOf = (id: string) => [...id.matchAll(/\[(\w+)\]/g)].map((m) => m[1]);
@@ -206,8 +210,9 @@ export function renderRouteTree(graph: RouteGraph): string {
     const options = [...files(page), ...(page.splat ? [`splat: ${quote(page.splat)}`] : [])];
     const extra = options.length ? `, { ${options.join(", ")} }` : "";
     const splat = page.splat ? `, ${quote(page.splat)}` : "";
+    const staleTime = staleTimes.get(page.file);
     routes.push(
-      `const ${name} = createRoute({\n  getParentRoute: () => ${names.get(page.parent)},\n  path: ${quote(page.path)},\n  loader: (ctx) => loadPage(ctx, ${quote(page.id)}, ${quote(page.params)}${splat}),\n  ...pageRoute(${quote(page.params)}${extra}),\n});`,
+      `const ${name} = createRoute({\n  getParentRoute: () => ${names.get(page.parent)},\n  path: ${quote(page.path)},\n${staleTime === undefined ? "" : `  staleTime: ${staleTime},\n`}  loader: (ctx) => loadPage(ctx, ${quote(page.id)}, ${quote(page.params)}${splat}),\n  ...pageRoute(${quote(page.params)}${extra}),\n});`,
     );
     adopt(page.parent, name);
   });

@@ -25,6 +25,7 @@ L’application est une codebase unique ; son build produit deux programmes.
 | `src/launcher/`      | `airtty <cible>` et binaires d'app : résolution, lancement local sur socket, git, `--on` ([DISTRIBUTION](DISTRIBUTION.md)).     |
 | `src/registry/`      | Registre d'apps (`Registry`, npm), paquets par plateforme, apps installées dans `$XDG_DATA_HOME/airtty/apps`.                   |
 | `src/guards.ts`      | Gardes de type Server/Client ; `package-json.ts` (JSON validé par Zod), `bundle-errors.ts` (échecs de Bun.build).               |
+| `src/cache/`         | `"use cache"` ([CACHE.md](CACHE.md)) : transformation du build, clé, durées, tags, dédup, handlers mémoire et SQLite.           |
 | `src/flight/`        | Adapter du vrai codec React Flight et contrat de résolution des modules Client.                                                 |
 
 `tests/`, `probes/` et `scripts/` servent à développer et vérifier le framework.
@@ -48,6 +49,8 @@ components/draft.ts        Drafts de session et résultats inconnus : politique 
 actions/notes.ts           fonctions métier appelables, "use server"
 server/repository.ts       accès SQLite, droits et transactions
 server/auth.ts             adapter d'identité optionnel
+server/queries.ts          lectures mises en cache ("use cache"), étiquetées par tags
+server/cache.ts            CacheHandler optionnel ; en mémoire par défaut
 ```
 
 Le développeur remplace ces fichiers par ses pages, composants et règles métier.
