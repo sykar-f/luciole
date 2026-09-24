@@ -37,8 +37,8 @@ paramètres, qu'il valide.
 
 ## Preuve préalable
 
-Le spike `spike/tanstack-router.tsx` (branche jetable `spike/tanstack-router`,
-commit `64185db`) a prouvé sur OpenTUI, contre un vrai Server Flight : Outlet sans
+Un spike jetable, supprimé depuis la migration (ses contraintes vivent dans `src/` et
+les tests de routage), a prouvé sur OpenTUI, contre un vrai Server Flight : Outlet sans
 DOM, navigation clavier en memory history, layout Client conservant état, focus et
 scroll, modèle racine avant un `Suspense` lent, annulation du loader remplacé,
 redirection `401`, action indépendante d'une invalidation échouée, purge du cache,
