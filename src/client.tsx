@@ -94,6 +94,9 @@ export type { ErrorProps, LayoutProps, LoadingProps, NotFoundProps } from "./rou
 export { Input, Textarea, useRestoredFields } from "./fields";
 export type { FieldInputProps, FieldTextareaProps, RestoredFields } from "./fields";
 export type { Session, SessionEntry } from "./restore";
+// Local programs on a PTY, for multiplexers (the `process` mode of docs/EMBEDDING.md).
+export { Terminal } from "./vt/terminal";
+export type { TerminalProps } from "./vt/terminal";
 // Keybindings are OpenTUI's keymap, re-exported so every layer shares the Shell's instance.
 // A binding's `desc` (and `group`) feeds `<KeyHelp />`.
 export { useActiveKeys, useBindings, useKeymap, usePendingSequence } from "@opentui/keymap/react";
@@ -954,7 +957,9 @@ export async function run(
   const root = createRoot(renderer);
   // RouterProvider's Transitioner performs the initial load.
   root.render(<Shell app={app} />);
+  // Unless something already took the key: a focused <Terminal> sends Ctrl+C to its
+  // program. A tree that failed to mount prevents nothing, so Ctrl+C still quits.
   renderer.keyInput.on("keypress", (key) => {
-    if (key.ctrl && key.name === "c") quit();
+    if (key.ctrl && key.name === "c" && !key.defaultPrevented) quit();
   });
 }
