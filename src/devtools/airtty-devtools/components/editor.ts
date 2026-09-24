@@ -18,12 +18,26 @@ const GOTO: Record<string, (file: string, line: string) => string[]> = {
 };
 const GRAPHICAL = new Set(["code", "cursor", "codium", "zed", "subl", "idea", "webstorm"]);
 
-export function openInEditor(renderer: CliRenderer, root: string | undefined, source: string) {
-  const editor = (process.env.VISUAL ?? process.env.EDITOR ?? "").trim();
-  if (!editor) return "Set $EDITOR (or $VISUAL) to open sources.";
+/**
+ * The file and line behind a shown source (`app/page.tsx:3`): `absolute` when the build
+ * recorded one (a framework file, shown as `airtty/fields.tsx`), else joined to `root`.
+ */
+export function sourceLocation(root: string | undefined, source: string, absolute?: string) {
   const match = /^(.*):(\d+)$/.exec(source);
   const [path, line] = match ? [match[1] ?? source, match[2] ?? "1"] : [source, "1"];
-  const file = isAbsolute(path) || !root ? path : join(root, path);
+  const file = absolute ?? (isAbsolute(path) || !root ? path : join(root, path));
+  return { path, file, line };
+}
+
+export function openInEditor(
+  renderer: CliRenderer,
+  root: string | undefined,
+  source: string,
+  absolute?: string,
+) {
+  const editor = (process.env.VISUAL ?? process.env.EDITOR ?? "").trim();
+  if (!editor) return "Set $EDITOR (or $VISUAL) to open sources.";
+  const { path, file, line } = sourceLocation(root, source, absolute);
   const [command = editor, ...flags] = editor.split(/\s+/);
   const name = command.split("/").at(-1) ?? command;
   const args = [...flags, ...(GOTO[name]?.(file, line) ?? [`+${line}`, file])];

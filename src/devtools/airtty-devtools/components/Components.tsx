@@ -121,7 +121,10 @@ export function ComponentsPanel({ command }: { command: Command }) {
           ? [
               {
                 key: "o",
-                cmd: () => setNotice(openInEditor(renderer, store.session.root(), selectedSource)),
+                cmd: () =>
+                  setNotice(
+                    openInEditor(renderer, store.session.root(), selectedSource, selected?.file),
+                  ),
                 desc: "open in editor",
                 group: "panel",
               },
@@ -135,7 +138,7 @@ export function ComponentsPanel({ command }: { command: Command }) {
         },
       ],
     }),
-    [highlight, unnecessaryOnly, showAll, selectedSource, renderer, store],
+    [highlight, unnecessaryOnly, showAll, selectedSource, selected?.file, renderer, store],
   );
 
   const unavailable = store.session.componentsUnavailable();
