@@ -1,7 +1,5 @@
 /**
- * An app launched from a git repository: `github:user/repo[#ref][/dir]`,
- * `https://github.com/user/repo[/tree/ref/dir]`, `git+ssh://…`, `git+https://…`,
- * `git+file://…` (a fragment carries `#ref[/dir]`).
+ * An app launched from a git repository (sources: ./git-source.ts).
  *
  * Each commit is checked out once in `<cache>/<hash of url>/<sha>` (a shallow, blobless
  * fetch), installed with `bun install --frozen-lockfile` and built; the build is reused
@@ -20,71 +18,16 @@ import { dirname, join, relative, resolve } from "node:path";
 import * as z from "zod/mini";
 import { build } from "../build";
 import { messageOf } from "../guards";
+import { describeSource, type GitSource } from "./git-source";
 import { withLock } from "./lock";
 import { APP_NAME, type Directories } from "./paths";
 import type { Confirm } from "./prompt";
-
-export type GitSource = {
-  /** What git fetches from. */
-  url: string;
-  /** Branch, tag or full commit sha; the remote's HEAD when absent. */
-  ref?: string;
-  /** The app's directory inside the repository. */
-  directory?: string;
-};
 
 const FULL_SHA = /^[0-9a-f]{40}$/;
 // What a commit or a cache key reads as: enough to tell apart, short enough to read.
 const SHORT_SHA = 12;
 const URL_KEY = 16;
 const short = (sha: string) => sha.slice(0, SHORT_SHA);
-const HOSTS = { github: "github.com", gitlab: "gitlab.com" } as const;
-const HOST_SHORTHAND = /^(github|gitlab):([\w.-]+)\/([\w.-]+?)(?:\.git)?(\/[^#]*)?(?:#(.*))?$/;
-const HOST_URL =
-  /^https:\/\/(github\.com|gitlab\.com)\/([\w.-]+)\/([\w.-]+?)(?:\.git)?(\/[^#]*)?(?:#(.*))?$/;
-const GIT_URL = /^git\+(ssh|https|http|file):\/\/|^git:\/\//;
-
-/** `ref[/dir]`, as written after `#`. A branch containing "/" cannot be written so. */
-function fragment(text: string | undefined) {
-  if (!text) return {};
-  const [ref, ...rest] = text.split("/");
-  return { ref: ref || undefined, directory: rest.join("/") || undefined };
-}
-const trimSlashes = (path: string | undefined) => path?.replace(/^\/+|\/+$/g, "") || undefined;
-
-/** The git source `spec` names, or `undefined` when it is not one. */
-export function parseGitSource(spec: string): GitSource | undefined {
-  const hosted = HOST_SHORTHAND.exec(spec) ?? HOST_URL.exec(spec);
-  if (hosted) {
-    const [, site = "", owner = "", repo = "", path, hash] = hosted;
-    const host = site === "github" ? HOSTS.github : site === "gitlab" ? HOSTS.gitlab : site;
-    let directory = trimSlashes(path);
-    let ref: string | undefined;
-    // What a browser shows: https://github.com/user/repo/tree/<ref>/<dir>.
-    const tree = directory && /^(?:-\/)?tree\/([^/]+)(?:\/(.*))?$/.exec(directory);
-    if (tree) [, ref, directory] = tree;
-    const after = fragment(hash);
-    return {
-      url: `https://${host}/${owner}/${repo}.git`,
-      ref: after.ref ?? ref,
-      directory: trimSlashes(after.directory ?? directory),
-    };
-  }
-  if (!GIT_URL.test(spec)) return undefined;
-  const [location = "", hash] = spec.replace(/^git\+/, "").split("#", 2);
-  // A directory after the repository's `.git`: git+ssh://host/repo.git/apps/notes.
-  const inRepo = /^(.*?\.git)(\/.*)?$/.exec(location);
-  const after = fragment(hash);
-  return {
-    url: inRepo?.[1] ?? location,
-    ref: after.ref,
-    directory: trimSlashes(after.directory ?? inRepo?.[2]),
-  };
-}
-
-/** How the source reads back to the user. */
-export const describeSource = ({ url, ref, directory }: GitSource) =>
-  `${url}${ref ? `#${ref}` : ""}${directory ? ` (${directory})` : ""}`;
 
 export type GitOptions = {
   directories: Pick<Directories, "git" | "config">;

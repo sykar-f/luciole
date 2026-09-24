@@ -12,49 +12,19 @@
  * an app binary also takes `--on host` and `serve`.
  */
 import { existsSync } from "node:fs";
-import { homedir } from "node:os";
-import { basename, join, resolve } from "node:path";
+import { basename, join } from "node:path";
 import { build } from "../build";
 import { binaryOf, findInstalled, install, listInstalled } from "../registry/apps";
 import { npmRegistry } from "../registry/npm";
-import { parsePackageSpec, type PackageSpec, type Registry } from "../registry/registry";
+import type { Registry } from "../registry/registry";
 import { ATTACHED_FLAG } from "./attach";
-import { parseGitSource, prepareGitApp, type GitSource } from "./git";
+import { prepareGitApp } from "./git";
 import { runForeground, runLocal } from "./local";
-import { APP_NAME, directories as defaultDirectories, type Directories } from "./paths";
+import { directories as defaultDirectories, type Directories } from "./paths";
 import { askTerminal, type Confirm } from "./prompt";
 
-export type Resolution =
-  | { kind: "path"; directory: string }
-  | { kind: "installed"; name: string }
-  | { kind: "npm"; spec: PackageSpec }
-  | { kind: "git"; source: GitSource }
-  | { kind: "url"; url: string };
-
-const PATH = /^(?:\.{1,2}|~)?\//;
-const SERVER_URL = /^(?:https?|ssh):\/\//;
-
-export function resolveTarget(
-  target: string,
-  { directories = defaultDirectories(), cwd = process.cwd() } = {},
-): Resolution {
-  if (PATH.test(target) || target === "." || target === "..")
-    return {
-      kind: "path",
-      directory: target.startsWith("~/") ? join(homedir(), target.slice(2)) : resolve(cwd, target),
-    };
-  if (APP_NAME.test(target) && existsSync(join(directories.apps, target, "installed.json")))
-    return { kind: "installed", name: target };
-  const spec = parsePackageSpec(target);
-  if (spec) return { kind: "npm", spec };
-  const source = parseGitSource(target);
-  if (source) return { kind: "git", source };
-  if (SERVER_URL.test(target)) return { kind: "url", url: target };
-  throw new Error(
-    `${target}: not a path (start it with ./), an installed app, an npm package, ` +
-      "a git source (github:user/repo, git+https://…) or a Server URL",
-  );
-}
+import { resolveTarget } from "./target";
+export { resolveTarget, type Resolution } from "./target";
 
 export type LaunchOptions = {
   /** For the app: `--url <url>`, or an app binary's own arguments. */

@@ -5,12 +5,8 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { build } from "../src/build";
 import { messageOf } from "../src/guards";
-import {
-  parseGitSource,
-  prepareGitApp,
-  repositoryName,
-  type GitOptions,
-} from "../src/launcher/git";
+import { prepareGitApp, repositoryName, type GitOptions } from "../src/launcher/git";
+import { parseGitSource } from "../src/launcher/git-source";
 import { rejectionOf } from "./helpers";
 
 let work: string, remote: string;
