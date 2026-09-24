@@ -54,6 +54,42 @@ test("`airtty ./app` builds it, runs its Server on a socket and its Client here"
   }
 }, 60000);
 
+test("a launcher killed with SIGKILL still takes its Server and socket directory along", async () => {
+  const work = await mkdtemp(join(tmpdir(), "airtty-kill-"));
+  const script = join(work, "launcher.ts");
+  await Bun.write(
+    script,
+    `import { startServer } from ${JSON.stringify(resolve("src/launcher/local.ts"))};
+const server = await startServer({
+  name: "instrumented",
+  directories: { state: ${JSON.stringify(join(work, "state"))} },
+  command: () => [process.execPath, "--conditions=react-server", ${JSON.stringify(resolve("src/launcher/serve.ts"))}, ${JSON.stringify(resolve("tests/instrument-server.ts"))}, "--attached"],
+});
+console.log(server.url);
+setInterval(() => {}, 1000);`,
+  );
+  const launcher = Bun.spawn([process.execPath, script], { stdout: "pipe", stderr: "inherit" });
+  try {
+    const reader = launcher.stdout.getReader();
+    let url = "";
+    while (!url.includes("\n")) {
+      const { value, done } = await reader.read();
+      if (done) throw new Error("The launcher exited");
+      url += new TextDecoder().decode(value);
+    }
+    const socket = url.trim().slice("unix:".length);
+    expect(existsSync(socket)).toBe(true);
+    launcher.kill("SIGKILL");
+    await launcher.exited;
+    const deadline = performance.now() + 5000;
+    while (existsSync(join(socket, "..")) && performance.now() < deadline) await Bun.sleep(50);
+    expect(existsSync(join(socket, ".."))).toBe(false);
+  } finally {
+    launcher.kill("SIGKILL");
+    await rm(work, { recursive: true, force: true });
+  }
+});
+
 test("the CLI explains what it cannot launch", () => {
   const airtty = (...args: string[]) => {
     const result = Bun.spawnSync([process.execPath, cli, ...args]);

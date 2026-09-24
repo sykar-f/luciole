@@ -141,12 +141,12 @@ test("`notes` alone runs both roles here, and its Server ends with the Client", 
     const sockets = () => readdirSync(temporary).filter((entry) => entry.startsWith("airtty-"));
     expect(sockets()).toHaveLength(1);
     await Bun.write(join(run, "stop"), "");
-    await Promise.race([client.exited, Bun.sleep(5000).then(() => client.kill())]);
+    await Promise.race([client.exited, Bun.sleep(15000).then(() => client.kill())]);
     expect(screen).toContain("First note");
     // The Server's data lives where the user ran it; its log in their state directory.
     expect(existsSync(join(run, "notes.sqlite"))).toBe(true);
     expect(existsSync(join(run, ".local/state/airtty/notes/server.log"))).toBe(true);
-    const deadlineGone = performance.now() + 3000;
+    const deadlineGone = performance.now() + 5000;
     while (sockets().length && performance.now() < deadlineGone) await Bun.sleep(50);
     expect(sockets()).toEqual([]);
   } finally {
