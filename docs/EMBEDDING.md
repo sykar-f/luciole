@@ -391,6 +391,33 @@ distribution) le permet. Les étapes 1–2 profitent aussi aux applications actu
 
 ### Avancement
 
+- **Étape 5 (Client générique)** : livrée sur `feat/embed-generic` (`src/generic/`).
+  `airtty <url> [<url>…] [--inline] [--yes]` : l'étape URL du lanceur prépare chaque
+  origine dans le processus du lanceur, qui a encore le terminal pour ses questions
+  (`prepare.ts`) : `GET /manifest`, signature exigée, clé ABI, épinglage TOFU par
+  origine (empreinte affichée, question au premier usage ; clé changée → refus avec
+  `airtty trust <origine> <empreinte>`), puis `GET /bundle/<sha256>` en cache sous
+  `$XDG_CACHE_HOME/airtty/bundles/<sha256>.cjs`. Par origine, sous
+  `$XDG_STATE_HOME/airtty/origins/<sha256(origine)>/` : `origin.json` (clé épinglée, mode,
+  capacités acceptées), `app/` (manifeste reçu, lien vers le cache), `sessions/`.
+  L'origine est l'URL donnée, normalisée (schéma, hôte, port ; chemin pour ssh), jamais
+  l'adresse d'un tunnel. Puis l'app hôte `src/generic/browser` (construite et lancée comme
+  l'interface du lanceur) ouvre chaque origine dans un onglet `<Embed>` et revérifie la
+  signature contre la clé épinglée. **Mode par défaut** : le `sandbox` n'existant pas,
+  une URL ne s'ouvre qu'après un choix explicite `--inline` (mémorisé par origine) ; sans
+  lui, refus expliqué. L'avertissement « Confiance totale : … » et les capacités déclarées
+  (non appliquées) sont affichés avant chaque ouverture. Écarts : le bearer reste en
+  mémoire, par Application donc par origine, comme dans `run()` : le framework n'écrit
+  jamais de bearer sur disque et l'étape n'a pas changé cette règle ; `--process` n'est
+  pas proposé (il donnerait les mêmes droits qu'`inline`, avec un enfant de plus).
+
+### Limites connues
+
+- Un binaire compilé (`airtty build --compile`) n'embarque pas `.airtty/app/` : son
+  Server répond 404 à `/manifest` et `/bundle/…`, il ne peut pas être ouvert par URL.
+- L'épinglage est par origine : un Server qui change de port ou d'hôte est une nouvelle
+  origine (nouvelle question, nouvelle clé épinglée).
+
 - **Étape 4 (signature, routes, O6)** : livrée sur `feat/embed-sign`. Clé d'éditeur
   Ed25519 (`src/publisher.ts`) : `airtty keys [generate]` (empreinte `SHA256:…` comme
   ssh), fichier `$XDG_CONFIG_HOME/airtty/keys/publisher.pem` (ou `AIRTTY_PUBLISHER_KEY`),
