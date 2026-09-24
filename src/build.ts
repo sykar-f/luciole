@@ -7,6 +7,7 @@ import { z } from "zod";
 import { bundleMessages, logMessages } from "./bundle-errors";
 import { readJsonFile, readPackageJson } from "./package-json";
 import { ROUTE_TREE_FILE, compileRouteGraph, renderRouteTree } from "./route-graph";
+import { cachedFunctions, cacheSource, staleTimeOf } from "./cache/transform";
 const framework = dirname(import.meta.path);
 const quote = JSON.stringify;
 // Resolved from the framework so starters using a file: dependency find their copy.
@@ -22,6 +23,8 @@ type Module = {
   imports: { name: string; node: ts.Node; path?: string }[];
   exports: string[];
   actionExports: string[];
+  /** Functions `"use cache"` wraps on the Server (src/cache/transform.ts). */
+  cached: string[];
 };
 const ROUTE_AUTH = ["public", "required"] as const;
 type RouteAuth = (typeof ROUTE_AUTH)[number];
@@ -135,6 +138,7 @@ export async function build(directory: string, output = join(directory, ".airtty
       imports: [],
       exports: [],
       actionExports: [],
+      cached: [],
     };
     modules.set(path, m);
     // The public way to the parser's diagnostics: `ast` keeps them in an internal field.
@@ -143,7 +147,7 @@ export async function build(directory: string, output = join(directory, ".airtty
     if (error) fail(m, ast, ts.flattenDiagnosticMessageText(error.messageText, " "));
     for (const s of ast.statements) {
       if (ts.isExpressionStatement(s) && ts.isStringLiteral(s.expression)) {
-        if (s.expression.text === "use client" || s.expression.text === "use server") {
+        if (["use client", "use server", "use cache"].includes(s.expression.text)) {
           if (m.directive && m.directive !== s.expression.text)
             fail(m, s, "Conflicting directives");
           m.directive = s.expression.text;
@@ -180,6 +184,7 @@ export async function build(directory: string, output = join(directory, ".airtty
       ts.forEachChild(n, visit);
     }
     visit(ast);
+    m.cached = cachedFunctions(ast, m.directive, (n, message) => fail(m, n, message));
     for (const i of m.imports) {
       i.path = await local(path, i.name);
       if (i.path) await read(i.path);
@@ -210,7 +215,16 @@ export async function build(directory: string, output = join(directory, ".airtty
     .map(abs);
   const authFile = join(root, "server/auth.ts");
   const hasAuth = await Bun.file(authFile).exists();
-  for (const p of [...pages, ...layouts, ...loadings, ...(hasAuth ? [authFile] : [])])
+  // Optional like server/auth.ts: its default export is the "use cache" CacheHandler.
+  const cacheFile = join(root, "server/cache.ts");
+  const hasCache = await Bun.file(cacheFile).exists();
+  for (const p of [
+    ...pages,
+    ...layouts,
+    ...loadings,
+    ...(hasAuth ? [authFile] : []),
+    ...(hasCache ? [cacheFile] : []),
+  ])
     await read(p);
   const program = ts.createProgram([...modules.keys()], {
     allowJs: true,
@@ -326,6 +340,8 @@ export async function build(directory: string, output = join(directory, ".airtty
       return;
     }
     const chain = () => via(clientChain(p));
+    if (m.directive === "use cache" || m.cached.length)
+      fail(m, m.ast, `"use cache" module in Client graph: it runs on the Server only${chain()}`);
     if (relative(root, p).split("/").includes("server"))
       fail(m, m.ast, `Server-only source in Client graph${chain()}`);
     for (const i of m.imports) {
@@ -347,6 +363,7 @@ export async function build(directory: string, output = join(directory, ".airtty
   }
   for (const p of pages) serverVisit(p);
   if (hasAuth) serverVisit(authFile);
+  if (hasCache) serverVisit(cacheFile);
   // Layouts persist across navigations; loading, error and not-found screens render
   // without a Server answer: all are Client Components owned by the TanStack route tree.
   for (const p of [...layouts, ...loadings]) {
@@ -420,7 +437,16 @@ export async function build(directory: string, output = join(directory, ".airtty
   // Checked-in like TanStack's routeTree.gen.ts: application type checks need it
   // before any build. Rewritten only when the route graph changes.
   const routeTreeFile = abs(ROUTE_TREE_FILE),
-    routeTreeSource = renderRouteTree(graph);
+    routeTreeSource = renderRouteTree(
+      graph,
+      new Map(
+        graph.pages.flatMap((r) => {
+          const m = moduleAt(abs(r.file));
+          const ms = staleTimeOf(m.ast, (n, message) => fail(m, n, message));
+          return ms === undefined ? [] : [[r.file, ms] as const];
+        }),
+      ),
+    );
   if (
     (await Bun.file(routeTreeFile)
       .text()
@@ -428,12 +454,12 @@ export async function build(directory: string, output = join(directory, ".airtty
   )
     await Bun.write(routeTreeFile, routeTreeSource);
   const serverSource =
-    `import {serve} from ${quote(join(framework, "server.ts"))};${hasAuth ? `import Auth from ${quote(authFile)};` : ""}\n` +
+    `import {serve} from ${quote(join(framework, "server.ts"))};${hasAuth ? `import Auth from ${quote(authFile)};` : ""}${hasCache ? `import Cache from ${quote(cacheFile)};` : ""}\n` +
     routes.map((r) => `import ${r.name} from ${quote(abs(r.file))};`).join("\n") +
     "\n" +
     [...actions].map((p, i) => `import * as A${i} from ${quote(p)};`).join("\n") +
     `\nconst actions=new Map([${[...actions].flatMap((p, i) => moduleAt(p).actionExports.map((n) => `[${quote(id(p) + "#" + n)},{fn:A${i}[${quote(n)}],auth:${quote(moduleAuth(moduleAt(p)))}}]`)).join(",")}]);\n` +
-    `serve({buildId:${quote(buildId)},manifest:${quote(manifest)},actions,routes:new Map([${routes.map((r) => `[${quote(r.id)},{component:${r.name},auth:${quote(r.auth)},url:${quote(r.url)},params:${quote(r.params)}}]`).join(",")}])${hasAuth ? ",auth:Auth" : ""}});`;
+    `serve({buildId:${quote(buildId)},manifest:${quote(manifest)},actions,routes:new Map([${routes.map((r) => `[${quote(r.id)},{component:${r.name},auth:${quote(r.auth)},url:${quote(r.url)},params:${quote(r.params)}}]`).join(",")}])${hasAuth ? ",auth:Auth" : ""}${hasCache ? ",cache:Cache" : ""}});`;
   const clientSource =
     `export {Shell} from ${quote(join(framework, "client.tsx"))};import {createApplication,run} from ${quote(join(framework, "client.tsx"))};import {routeTree} from ${quote(routeTreeFile)};\n` +
     [...clients].map((p, i) => `import * as C${i} from ${quote(p)};`).join("\n") +
@@ -548,6 +574,12 @@ export async function build(directory: string, output = join(directory, ".airtty
                     m.actionExports
                       .map((n) => `register(${n},${quote(id(m.path))},${quote(n)});`)
                       .join("\n");
+                if (role === "server" && m?.cached.length)
+                  source += cacheSource(
+                    m.cached,
+                    (n) => `${relative(root, m.path)}#${n}`,
+                    join(framework, "cache/runtime.ts"),
+                  );
                 return {
                   contents: ts.transpileModule(source, {
                     fileName: a.path,
