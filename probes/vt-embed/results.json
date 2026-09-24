@@ -1,0 +1,339 @@
+{
+  "widget": {
+    "date": "2026-09-24T13:53:06.493Z",
+    "bun": "1.4.2",
+    "platform": "darwin-arm64",
+    "results": {
+      "pty size = inner box size (border excluded)": {
+        "ok": true,
+        "detail": {
+          "cols": 98,
+          "rows": 18
+        }
+      },
+      "no 'no job control' warning (detached: setsid + controlling tty)": true,
+      "typed text echoes, command runs": {
+        "ok": true,
+        "detail": {
+          "keyToEchoMs": 29,
+          "echoMs": 11
+        }
+      },
+      "key encoding (normal mode)": {
+        "ok": true,
+        "detail": {
+          "ctrl-a": "\u0001",
+          "alt-x": "\u001bx",
+          "up": "\u001b[A",
+          "f1": "\u001bOP",
+          "f5": "\u001b[15~",
+          "tab": "\t",
+          "backspace": "",
+          "enter": "\r"
+        }
+      },
+      "DECCKM switches arrows to SS3 (ESC O A)": {
+        "ok": true,
+        "detail": "\u001bOA"
+      },
+      "bracketed paste follows mode 2004": {
+        "ok": true,
+        "detail": {
+          "plainPaste": "p1",
+          "wrappedPaste": "\u001b[200~p2\u001b[201~"
+        }
+      },
+      "mouse: silent by default, SGR 1006 once enabled (cell coords are view-local, 1-based)": {
+        "ok": true,
+        "detail": {
+          "idleClick": "",
+          "sgrClick": "\u001b[<0;4;3M\u001b[<0;4;3m",
+          "releases": 1
+        }
+      },
+      "DA1, DA2, OSC 11 (gaps.ts) and DSR (native) answered to the PTY": {
+        "ok": true,
+        "detail": "\u001b[18;1R\u001b[?62;22c\u001b[>1;10;0c\u001b]11;rgb:0000/0000/0000\u0007"
+      },
+      "Ctrl-C interrupts the foreground job (status 130)": true,
+      "resize reaches the program (stty size)": {
+        "ok": true,
+        "detail": {
+          "cols": 138,
+          "rows": 28
+        }
+      },
+      "seq 1..100000 through the widget": {
+        "ok": true,
+        "detail": {
+          "ms": 44,
+          "bytes": 689140,
+          "mbPerS": 15.7
+        }
+      },
+      "vim: alt screen, insert, :q! restores the shell screen": {
+        "ok": true,
+        "detail": {
+          "vimStartMs": 94
+        }
+      },
+      "OpenTUI child: starts, receives keys, restores the shell": {
+        "ok": true,
+        "detail": {
+          "startupMs": 91
+        }
+      },
+      "shell exits": true,
+      "split: Ctrl-O moves focus, each view gets its own keys, ^O never reaches a PTY": true
+    }
+  },
+  "bench": {
+    "date": "2026-09-24T13:50:19.366Z",
+    "bun": "1.4.2",
+    "platform": "darwin-arm64",
+    "streams": {
+      "seq bytes": 1489057,
+      "ls-color bytes": 128061,
+      "vim bytes": 547265,
+      "ansi-log bytes": 3488758
+    },
+    "emulators": {
+      "opentui-embedded": {
+        "seq MB/s": 55.1,
+        "ls-color MB/s": 80.8,
+        "vim MB/s": 106.8,
+        "ansi-log MB/s": 74.5,
+        "extract 80x24 µs": 60.5,
+        "extract 200x60 µs": 367,
+        "RSS per instance KiB": 2378,
+        "JS heap per instance KiB": 43,
+        "of which test renderer KiB": 398,
+        "installed KiB": 0
+      },
+      "libghostty-vt": {
+        "seq MB/s": 76.6,
+        "ls-color MB/s": 93.4,
+        "vim MB/s": 82,
+        "ansi-log MB/s": 61.2,
+        "extract 80x24 µs": 1159.7,
+        "draw 80x24 µs": 1146.5,
+        "extract 200x60 µs": 8441.5,
+        "draw 200x60 µs": 8582,
+        "RSS per instance KiB": 1227,
+        "JS heap per instance KiB": 76,
+        "installed KiB": 18816
+      },
+      "ghostty-web": {
+        "seq MB/s": 55.7,
+        "ls-color MB/s": 27.5,
+        "vim MB/s": 30.5,
+        "ansi-log MB/s": 47.2,
+        "extract 80x24 µs": 29,
+        "draw 80x24 µs": 69.7,
+        "extract 200x60 µs": 170.2,
+        "draw 200x60 µs": 425.2,
+        "RSS per instance KiB": 11835,
+        "JS heap per instance KiB": 14236,
+        "installed KiB": 2196
+      },
+      "xterm-headless": {
+        "seq MB/s": 30,
+        "ls-color MB/s": 32.2,
+        "vim MB/s": 28,
+        "ansi-log MB/s": 57.1,
+        "extract 80x24 µs": 37.5,
+        "draw 80x24 µs": 96,
+        "extract 200x60 µs": 75.3,
+        "draw 200x60 µs": 303.2,
+        "RSS per instance KiB": 328,
+        "JS heap per instance KiB": 2255,
+        "installed KiB": 2564
+      },
+      "ghostty-opentui": {
+        "seq MB/s": 39.3,
+        "ls-color MB/s": 87,
+        "vim MB/s": 128.4,
+        "ansi-log MB/s": 80.9,
+        "extract 80x24 µs": 178.6,
+        "extract 200x60 µs": 250.2,
+        "RSS per instance KiB": 2560,
+        "JS heap per instance KiB": 1,
+        "installed KiB": 30556
+      }
+    },
+    "reactSpansXterm": {
+      "react spans 80x24 µs": 1232.9,
+      "react spans 200x60 µs": 4256
+    }
+  },
+  "fidelity": {
+    "date": "2026-09-24T13:50:19.926Z",
+    "bun": "1.4.2",
+    "platform": "darwin-arm64",
+    "results": {
+      "opentui-embedded": {
+        "alt screen (1049) saves and restores the primary screen": "pass",
+        "scroll region (DECSTBM) scrolls only its rows": "pass",
+        "wide chars: CJK and emoji take two cells": "pass",
+        "combining mark stays in its base cell": "pass",
+        "ZWJ emoji is one grapheme of width 2 once mode 2027 is on": "pass",
+        "SGR 256-color, truecolor, bold, inverse": "pass",
+        "mouse tracking 1000 + SGR 1006": "pass",
+        "bracketed paste (2004)": "pass",
+        "application cursor keys (DECCKM)": "pass",
+        "cursor shape (DECSCUSR 5 = blinking bar)": "pass",
+        "OSC 8 hyperlink on its cells": "no API",
+        "answers DA1 (CSI c)": "fail: \"\"",
+        "answers DSR 6n with the cursor position": "pass",
+        "answers OSC 11 background color query": "fail: \"\"",
+        "reflows a wrapped line on resize": "pass",
+        "a new terminal never shows a freed terminal's cells": "pass"
+      },
+      "libghostty-vt": {
+        "alt screen (1049) saves and restores the primary screen": "pass",
+        "scroll region (DECSTBM) scrolls only its rows": "pass",
+        "wide chars: CJK and emoji take two cells": "pass",
+        "combining mark stays in its base cell": "pass",
+        "ZWJ emoji is one grapheme of width 2 once mode 2027 is on": "pass",
+        "SGR 256-color, truecolor, bold, inverse": "pass",
+        "mouse tracking 1000 + SGR 1006": "pass",
+        "bracketed paste (2004)": "pass",
+        "application cursor keys (DECCKM)": "pass",
+        "cursor shape (DECSCUSR 5 = blinking bar)": "no API",
+        "OSC 8 hyperlink on its cells": "pass",
+        "answers DA1 (CSI c)": "pass",
+        "answers DSR 6n with the cursor position": "pass",
+        "answers OSC 11 background color query": "fail: \"\"",
+        "reflows a wrapped line on resize": "pass",
+        "a new terminal never shows a freed terminal's cells": "pass"
+      },
+      "ghostty-web": {
+        "alt screen (1049) saves and restores the primary screen": "pass",
+        "scroll region (DECSTBM) scrolls only its rows": "pass",
+        "wide chars: CJK and emoji take two cells": "pass",
+        "combining mark stays in its base cell": "pass",
+        "ZWJ emoji is one grapheme of width 2 once mode 2027 is on": "pass",
+        "SGR 256-color, truecolor, bold, inverse": "pass",
+        "mouse tracking 1000 + SGR 1006": "pass",
+        "bracketed paste (2004)": "pass",
+        "application cursor keys (DECCKM)": "pass",
+        "cursor shape (DECSCUSR 5 = blinking bar)": "fail: {\"cursorStyle\":\"block\"}",
+        "OSC 8 hyperlink on its cells": "no API",
+        "answers DA1 (CSI c)": "fail: \"\"",
+        "answers DSR 6n with the cursor position": "pass",
+        "answers OSC 11 background color query": "fail: \"\"",
+        "reflows a wrapped line on resize": "pass",
+        "a new terminal never shows a freed terminal's cells": "fail: \"BECRET-FROM-A\""
+      },
+      "xterm-headless": {
+        "alt screen (1049) saves and restores the primary screen": "pass",
+        "scroll region (DECSTBM) scrolls only its rows": "pass",
+        "wide chars: CJK and emoji take two cells": "pass",
+        "combining mark stays in its base cell": "pass",
+        "ZWJ emoji is one grapheme of width 2 once mode 2027 is on": "pass",
+        "SGR 256-color, truecolor, bold, inverse": "pass",
+        "mouse tracking 1000 + SGR 1006": "pass",
+        "bracketed paste (2004)": "pass",
+        "application cursor keys (DECCKM)": "pass",
+        "cursor shape (DECSCUSR 5 = blinking bar)": "no API",
+        "OSC 8 hyperlink on its cells": "no API",
+        "answers DA1 (CSI c)": "pass",
+        "answers DSR 6n with the cursor position": "pass",
+        "answers OSC 11 background color query": "fail: \"\"",
+        "reflows a wrapped line on resize": "fail: [\"aaaaaaaaaaaaaaaaaaaa\",\"aaaaaaaaaa\"]",
+        "a new terminal never shows a freed terminal's cells": "pass"
+      },
+      "ghostty-opentui": {
+        "alt screen (1049) saves and restores the primary screen": "pass",
+        "scroll region (DECSTBM) scrolls only its rows": "pass",
+        "wide chars: CJK and emoji take two cells": "pass",
+        "combining mark stays in its base cell": "pass",
+        "ZWJ emoji is one grapheme of width 2 once mode 2027 is on": "pass",
+        "SGR 256-color, truecolor, bold, inverse": "pass",
+        "mouse tracking 1000 + SGR 1006": "no API",
+        "bracketed paste (2004)": "no API",
+        "application cursor keys (DECCKM)": "no API",
+        "cursor shape (DECSCUSR 5 = blinking bar)": "no API",
+        "OSC 8 hyperlink on its cells": "no API",
+        "answers DA1 (CSI c)": "no API",
+        "answers DSR 6n with the cursor position": "no API",
+        "answers OSC 11 background color query": "no API",
+        "reflows a wrapped line on resize": "pass",
+        "a new terminal never shows a freed terminal's cells": "pass"
+      }
+    }
+  },
+  "v2Estimate": {
+    "date": "2026-09-24T13:50:20.566Z",
+    "bun": "1.4.2",
+    "platform": "darwin-arm64",
+    "cols": 120,
+    "rows": 40,
+    "results": {
+      "seq / 4 KiB frames": {
+        "VT bytes": 1489057,
+        "frames": 364,
+        "changed cells": 56764,
+        "raw diff bytes": 1589392,
+        "compact diff bytes": 624404,
+        "compact / VT": 0.42
+      },
+      "seq / 64 KiB frames": {
+        "VT bytes": 1489057,
+        "frames": 23,
+        "changed cells": 8497,
+        "raw diff bytes": 237916,
+        "compact diff bytes": 93467,
+        "compact / VT": 0.06
+      },
+      "ls-color / 4 KiB frames": {
+        "VT bytes": 128061,
+        "frames": 32,
+        "changed cells": 52945,
+        "raw diff bytes": 1482460,
+        "compact diff bytes": 582395,
+        "compact / VT": 4.55
+      },
+      "ls-color / 64 KiB frames": {
+        "VT bytes": 128061,
+        "frames": 2,
+        "changed cells": 6827,
+        "raw diff bytes": 191156,
+        "compact diff bytes": 75097,
+        "compact / VT": 0.59
+      },
+      "vim / 4 KiB frames": {
+        "VT bytes": 547265,
+        "frames": 134,
+        "changed cells": 102685,
+        "raw diff bytes": 2875180,
+        "compact diff bytes": 1129535,
+        "compact / VT": 2.06
+      },
+      "vim / 64 KiB frames": {
+        "VT bytes": 547265,
+        "frames": 9,
+        "changed cells": 21493,
+        "raw diff bytes": 601804,
+        "compact diff bytes": 236423,
+        "compact / VT": 0.43
+      },
+      "ansi-log / 4 KiB frames": {
+        "VT bytes": 3488758,
+        "frames": 852,
+        "changed cells": 2784975,
+        "raw diff bytes": 77979300,
+        "compact diff bytes": 30634725,
+        "compact / VT": 8.78
+      },
+      "ansi-log / 64 KiB frames": {
+        "VT bytes": 3488758,
+        "frames": 54,
+        "changed cells": 180526,
+        "raw diff bytes": 5054728,
+        "compact diff bytes": 1985786,
+        "compact / VT": 0.57
+      }
+    }
+  }
+}

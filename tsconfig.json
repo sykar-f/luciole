@@ -5,6 +5,7 @@
     "**/node_modules",
     "**/.airtty",
     "probes/compile/wrapper.ts",
-    "src/devtools/airtty-devtools"
+    "src/devtools/airtty-devtools",
+    "probes/vt-embed"
   ]
 }

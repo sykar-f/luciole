@@ -1,0 +1,16 @@
+{
+  "name": "airtty-vt-embed-probe",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "tsc --noEmit -p . && oxlint -c oxlint.json --deny-warnings ."
+  },
+  "dependencies": {
+    "@xterm/addon-serialize": "0.14.0",
+    "@xterm/addon-unicode-graphemes": "0.4.0",
+    "@xterm/headless": "6.0.0",
+    "ghostty-opentui": "1.5.0",
+    "ghostty-web": "0.4.0",
+    "libghostty-vt": "0.6.3"
+  }
+}
