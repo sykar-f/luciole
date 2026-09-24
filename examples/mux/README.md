@@ -10,11 +10,12 @@ MUX_PANES='[["htop"],["vim","README.md"]]' bun run mux
 ```
 
 Un pane peut aussi être une autre application airtty, affichée inline (`<Embed>`) avec
-son Server déjà lancé :
+son Server déjà lancé : son bundle d'application (`.airtty/app`, sans runtime) est évalué
+contre le runtime du multiplexeur.
 
 ```sh
 bun --conditions=react-server examples/mdreader/.airtty/server/index.js &   # PORT=3000
-MUX_APPS='[{"name":"docs","client":"examples/mdreader/.airtty/client/index.js","url":"http://127.0.0.1:3000"}]' bun run mux
+MUX_APPS='[{"name":"docs","bundle":"examples/mdreader/.airtty/app","url":"http://127.0.0.1:3000"}]' bun run mux
 ```
 
 Mêmes touches, même préfixe : `Ctrl+O` passe d'un terminal à l'application et

@@ -14,16 +14,16 @@ import {
 /** A local program on a PTY, or another airtty application inline. */
 type Spec =
   | { kind: "terminal"; command: readonly string[] }
-  | { kind: "app"; name: string; client: string; url: string };
+  | { kind: "app"; name: string; bundle: string; url: string };
 type Pane = Spec & { id: number };
 const PREFIX = "ctrl+o";
 const shell = process.env.SHELL || "/bin/sh";
 const hasVim = Bun.which("vim") !== null;
 // MUX_PANES='[["sh"],["vim","-u","NONE"]]' replaces the first terminal panes.
 const Commands = z.array(z.array(z.string()).min(1)).min(1);
-// MUX_APPS='[{"name":"docs","client":"/…/mdreader/.airtty/client/index.js","url":"http://127.0.0.1:3000"}]'
-// adds airtty applications, each with its already running Server.
-const Apps = z.array(z.object({ name: z.string(), client: z.string(), url: z.string() }));
+// MUX_APPS='[{"name":"docs","bundle":"/…/mdreader/.airtty/app","url":"http://127.0.0.1:3000"}]'
+// adds airtty applications (their built bundle), each with its already running Server.
+const Apps = z.array(z.object({ name: z.string(), bundle: z.string(), url: z.string() }));
 const fromEnv = <T,>(name: string, schema: z.ZodType<T>): T | undefined => {
   const configured = process.env[name];
   if (!configured) return undefined;
@@ -42,8 +42,8 @@ const titleOf = (pane: Pane) =>
   pane.kind === "terminal" ? pane.command.join(" ") : `${pane.name} (airtty)`;
 
 /**
- * An airtty application in a pane: its own bundle evaluation and instance key
- * (`openApplication`), disposed with the pane. Ctrl+C in it closes the pane, as a program
+ * An airtty application in a pane: its bundle evaluated against this Client's runtime,
+ * with its own instance key (`openApplication`), disposed with the pane. Ctrl+C in it closes the pane, as a program
  * ends on Ctrl+C in a terminal pane.
  */
 function AppPane({
@@ -57,7 +57,7 @@ function AppPane({
 }) {
   const [app, setApp] = useState<Application | undefined>();
   const [failure, setFailure] = useState("");
-  const { client, url } = pane;
+  const { bundle, url } = pane;
   const close = useRef(onClose);
   useLayoutEffect(() => {
     close.current = onClose;
@@ -65,7 +65,7 @@ function AppPane({
   useEffect(() => {
     let opened: Application | undefined;
     let closed = false;
-    openApplication({ client, url }).then(
+    openApplication({ bundle, url }).then(
       (created) => {
         if (closed) return created.dispose();
         created.quit = () => close.current();
@@ -78,7 +78,7 @@ function AppPane({
       closed = true;
       opened?.dispose();
     };
-  }, [client, url]);
+  }, [bundle, url]);
   if (failure) return <text fg="#ff6b6b">{failure}</text>;
   if (!app) return <text fg="#8b98a5">Opening {pane.name}…</text>;
   return <Embed app={app} name={pane.name} active={active} prefix={PREFIX} flexGrow={1} />;

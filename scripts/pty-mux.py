@@ -161,7 +161,7 @@ def inline_app():
         try:
             mux, url = start_server(APP, {})
             docs, docs_url = start_server(MDREADER, {"MD_PATH": str(library)})
-            apps = [{"name": "docs", "client": str(MDREADER / ".airtty/client/index.js"), "url": docs_url}]
+            apps = [{"name": "docs", "bundle": str(MDREADER / ".airtty/app"), "url": docs_url}]
             client, master, slave, before = start_mux(
                 url,
                 directory,
