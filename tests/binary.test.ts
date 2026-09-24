@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { spawn } from "node:child_process";
 import { existsSync, readdirSync } from "node:fs";
-import { chmod, copyFile, mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
+import { appendFile, chmod, copyFile, mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { createInterface } from "node:readline";
@@ -209,6 +209,24 @@ test("--on installs the binary once on the host, then serves through ssh", async
     const again = await runOn("host.example", options);
     expect(messages).toEqual([]);
     await again.stop();
+    // Damaged or altered on the host: reinstalled, never run as found.
+    await appendFile(installed, "tampered");
+    const repaired = await runOn("host.example", options);
+    expect(messages.join("\n")).toContain("does not match its SHA256SUMS: reinstalling");
+    expect(await Bun.file(installed).bytes()).toEqual(await Bun.file(binary).bytes());
+    await repaired.stop();
+    // With no binary for that platform at hand, the launch is refused instead.
+    await appendFile(installed, "tampered");
+    expect(
+      messageOf(
+        await rejectionOf(
+          runOn("host.example", {
+            ...options,
+            identity: { ...identity, target: "bun-linux-riscv" },
+          }),
+        ),
+      ),
+    ).toContain("does not match its SHA256SUMS (damaged or altered)");
     // The remote Server and its socket directory are gone with the tunnel.
     const deadline = performance.now() + 5000;
     const leftovers = () =>

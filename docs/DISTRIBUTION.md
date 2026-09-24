@@ -95,11 +95,15 @@ ne doit pas arriver sur les postes des utilisateurs.
    une fois ; sonde, envoi et Server la réutilisent. `AIRTTY_SSH` remplace `ssh`.
 2. L'hôte donne son OS, son architecture, sa libc, et si
    `${XDG_DATA_HOME:-~/.local/share}/airtty/apps/<app>/<buildId>/<app>` existe.
-3. Sinon : le binaire se copie lui-même si la cible est la sienne, sinon il envoie celui
-   de `--target`, dont l'identité doit être la même app, le même build et la cible de
-   l'hôte. Un répertoire verrou contenant le pid de l'envoyeur fait attendre les
-   lancements concurrents ; un verrou dont le pid est mort est repris. La taille reçue
-   est vérifiée avant le `mv` final.
+3. Sinon, ou si ce build ne correspond plus au `SHA256SUMS` écrit à son installation
+   (fichier abîmé ou modifié, vérifié à chaque lancement par `sha256sum -c` ou
+   `shasum -a 256 -c`) : le binaire se copie lui-même si la cible est la sienne, sinon il
+   envoie celui de `--target`, dont l'identité doit être la même app, le même build et la
+   cible de l'hôte. L'envoi est une archive tar avec son `SHA256SUMS`, extraite à côté,
+   vérifiée, puis substituée en entier. Sans binaire pour la plateforme de l'hôte, un
+   build altéré est refusé avec l'explication, jamais lancé. Un répertoire verrou
+   contenant le pid de l'envoyeur fait attendre les lancements concurrents ; un verrou
+   dont le pid est mort est repris.
 4. `<app> serve --socket /tmp/airtty-<aléa>/s --attached` démarre dans un répertoire
    `mkdir -m 700`, transféré socket à socket par la même commande ssh (`-L`). Le
    Server s'arrête avec ssh, son répertoire est supprimé.
