@@ -389,6 +389,16 @@ Les étapes 1 à 4 n'en dépendent pas. L'ordre de merge prévu (use-cache → d
 distribution) le permet. Les étapes 1–2 profitent aussi aux applications actuelles
 (tests à plusieurs Applications, boundary).
 
+### Avancement
+
+- **Étape 6 (mode `process`)** : livrée sur `feat/embed-process`, avant l'étape 1 (use-cache
+  et distribution modifiaient alors `server.ts`, `transport.ts` et `client.tsx`).
+  `<Terminal>` dans `airtty/client` (`src/vt/`), exemple `examples/mux`, smoke
+  `test:pty:mux`. Écarts : la touche préfixe est une prop du terminal (le keymap passe
+  avant le renderable focalisé, le terminal doit savoir laquelle laisser) ; `run()` ne
+  quitte plus sur un `Ctrl+C` déjà traité (sinon `Ctrl+C` dans un shell quitterait le
+  multiplexeur). OSC 8 reste non rendu ; Linux non vérifié ; pas de Windows.
+
 ## 8. Décisions
 
 Tranchées le 24 septembre 2026 sur les questions ouvertes de la première version de ce
