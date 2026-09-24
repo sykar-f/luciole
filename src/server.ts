@@ -4,6 +4,7 @@ import { z } from "zod";
 import { decodeReply, renderToReadableStream } from "./flight/server";
 import { isAsyncIterable, messageOf } from "./guards";
 import { NotFoundError } from "./not-found";
+import { devtoolsInstrument } from "./devtools/server-agent";
 export type Session = { userId: string; [key: string]: unknown };
 export type RouteAuth = "public" | "required";
 export type AuthConfig = {
@@ -130,6 +131,8 @@ const ServerEnvironment = z.object({
   // Test-only switches; never enabled by a request.
   AIRTTY_TEST: z.string().optional(),
   AIRTTY_TEST_DROP_ONCE: z.string().optional(),
+  // Development only: the address of `airtty devtools` (src/devtools/server-agent.ts).
+  AIRTTY_DEVTOOLS: z.string().optional(),
 });
 // The Client's event clock (src/transport.ts): `at` compares across both processes.
 const now = () => performance.timeOrigin + performance.now();
@@ -210,6 +213,10 @@ export function serve(config: ServerConfig) {
     if (login.auth !== "public")
       throw new Error(`Authentication route must be public: ${auth.unauthorizedPath}`);
   }
+  const instrument = devtoolsInstrument(config.instrument, env.data.AIRTTY_DEVTOOLS, {
+    buildId: config.buildId,
+    getCallId,
+  });
   const metrics = { renders: 0, actions: 0 };
   // `failed` hears a handler's exception before it becomes the generic 500.
   async function handle(req: Request, url: URL, callId: string, failed?: (error: unknown) => void) {
@@ -359,8 +366,8 @@ export function serve(config: ServerConfig) {
       // Where future middlewares go (a render cache, for instance): around `handle`,
       // keyed by `kind`, with the request's callId, before any page or action code runs
       // and with the Response it produced. Instrumentation is the first of them.
-      const kind = config.instrument && kindOf(req, url);
-      if (config.instrument && kind) return observe(req, url, kind, config.instrument.onEvent);
+      const kind = instrument && kindOf(req, url);
+      if (instrument && kind) return observe(req, url, kind, instrument.onEvent);
       return handle(req, url, req.headers.get("x-airtty-call") ?? crypto.randomUUID());
     },
   });
