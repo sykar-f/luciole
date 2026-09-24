@@ -8,6 +8,7 @@ import { bundleMessages, logMessages } from "./bundle-errors";
 import { readJsonFile, readPackageJson } from "./package-json";
 import { ROUTE_TREE_FILE, compileRouteGraph, renderRouteTree } from "./route-graph";
 import { cachedFunctions, cacheSource, staleTimeOf } from "./cache/transform";
+import { annotateNames } from "./build-names";
 const framework = dirname(import.meta.path);
 const quote = JSON.stringify;
 // Resolved from the framework so starters using a file: dependency find their copy.
@@ -587,6 +588,14 @@ export async function build(directory: string, output = join(directory, ".airtty
                     (n) => `${relative(root, m.path)}#${n}`,
                     join(framework, "cache/runtime.ts"),
                   );
+                // Original names, sources and hook bindings for the DevTools; the framework
+                // too, not what packages ship.
+                if (!a.path.includes("/node_modules/"))
+                  source = annotateNames(source, {
+                    path: a.path,
+                    relative: relative(root, a.path),
+                    runtime: join(framework, "devtools/annotate.ts"),
+                  });
                 const jsxImportSource = role === "server" ? "react" : "@opentui/react";
                 // TypeScript is Bun's to strip, so the source map points at the original
                 // lines (Bun does not compose a plugin's own map). The pragma shares the
