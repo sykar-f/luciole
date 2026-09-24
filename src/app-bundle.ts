@@ -70,7 +70,13 @@ const isActions = (value: unknown): value is Actions =>
  */
 export async function loadAppBundle(directory: string): Promise<AppBundle> {
   const manifestFile = join(directory, APP_MANIFEST);
-  const parsed = AppManifest.safeParse(await Bun.file(manifestFile).json());
+  const manifestBlob = Bun.file(manifestFile);
+  if (!(await manifestBlob.exists()))
+    throw new Error(
+      `${directory} has no application bundle: build the application with airtty build ` +
+        "(--app-bundle names why one could not be emitted, a top-level await in Client code)",
+    );
+  const parsed = AppManifest.safeParse(await manifestBlob.json());
   if (!parsed.success) throw new Error(`${manifestFile}: ${z.prettifyError(parsed.error)}`);
   const manifest = parsed.data;
   if (manifest.abi !== ABI_KEY)

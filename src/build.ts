@@ -46,18 +46,24 @@ const BundleErrors = z.object({
     }),
   ),
 });
-function appBundleFailure(root: string, error: unknown): never {
+/** Where Client code awaits at top level, as `file:line`, when that is why Bun failed. */
+function topLevelAwait(root: string, error: unknown) {
   const parsed = BundleErrors.safeParse(error);
   const found = parsed.success
     ? parsed.data.errors.find((e) => e.message.includes('"await" can only be used inside'))
     : undefined;
-  if (found?.position)
-    throw new Error(
-      `${relative(root, found.position.file)}:${found.position.line}: top-level await is not supported in Client code: ` +
-        "the application bundle (.airtty/app) is CommonJS. Await inside a function (an effect, a loader).",
-    );
-  return bundleFailure(error);
+  return found?.position
+    ? `${relative(root, found.position.file)}:${found.position.line}`
+    : undefined;
 }
+export type BuildOptions = {
+  /**
+   * The application bundle (`.airtty/app`, what hosts embed): `"auto"` (default) skips it,
+   * with a warning, when Client code awaits at top level, which CommonJS cannot express;
+   * `"required"` (`airtty build --app-bundle`) fails the build instead.
+   */
+  appBundle?: "auto" | "required";
+};
 // `airtty.capabilities` of the application's own package.json (decision 3): optional.
 const AppPackage = zm.looseObject({
   airtty: zm.optional(zm.looseObject({ capabilities: zm.optional(Capabilities) })),
@@ -154,7 +160,11 @@ function packageOfFile(file: string) {
   const end = at + 1 + packageDepth(parts[at + 1]);
   return { name: parts.slice(at + 1, end).join("/"), dir: parts.slice(0, end).join("/") };
 }
-export async function build(directory: string, output = join(directory, ".airtty")) {
+export async function build(
+  directory: string,
+  output = join(directory, ".airtty"),
+  { appBundle = "auto" }: BuildOptions = {},
+) {
   const root = await realpath(directory),
     modules = new Map<string, Module>();
   const { serverPackages } = await readConfig(root);
@@ -543,6 +553,7 @@ export async function build(directory: string, output = join(directory, ".airtty
     [...clients].map((p, i) => `import * as C${i} from ${quote(p)};`).join("\n") +
     `\nexport const buildId=${quote(buildId)};export const modules={${[...clients].map((p, i) => `${quote(id(p))}:C${i}`).join(",")}};`;
   let appBuiltins: string[] = [];
+  let appSkipped = false;
   const external = [
     "react",
     "react-dom",
@@ -732,9 +743,24 @@ export async function build(directory: string, output = join(directory, ".airtty
             },
           },
         ],
-      }).catch((error: unknown) =>
-        role === "app" ? appBundleFailure(root, error) : bundleFailure(error),
-      );
+      }).catch((error: unknown) => {
+        const at = role === "app" ? topLevelAwait(root, error) : undefined;
+        if (!at) return bundleFailure(error);
+        const why =
+          `${at}: top-level await in Client code: the application bundle (.airtty/app) is ` +
+          "CommonJS and cannot express it, so this application cannot be embedded. " +
+          "Await inside a function (an effect, a loader) to make it embeddable.";
+        if (appBundle === "required") throw new Error(why);
+        // The Client and the Server are built as before: only embedding is lost.
+        console.warn(`airtty build: ${basename(root)}: ${why}`);
+        return undefined;
+      });
+      if (!result) {
+        appSkipped = true;
+        await rm(join(temp, role), { recursive: true, force: true });
+        await rm(entry);
+        continue;
+      }
       if (!result.success) throw new Error(logMessages(result.logs));
       if (role === "app") {
         // What the bundle requires beyond the ABI, as its `require` calls name them: Node
@@ -805,7 +831,8 @@ export async function build(directory: string, output = join(directory, ".airtty
         2,
       ),
     );
-    await writeAppManifest(root, join(temp, "app"), { buildId, builtins: appBuiltins });
+    if (!appSkipped)
+      await writeAppManifest(root, join(temp, "app"), { buildId, builtins: appBuiltins });
     // Failed builds never touch the active artefacts.
     const backup = output + "-previous";
     await rm(backup, { recursive: true, force: true });

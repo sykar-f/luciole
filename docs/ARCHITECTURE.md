@@ -102,7 +102,9 @@ sources de l’application + framework
 `.airtty/app/` contient `index.cjs` (format `bun-cjs`, les spécifiers de l'ABI
 `src/abi.ts` laissés à l'hôte) et `manifest.json` : buildId, clé d'ABI, sha256, built-ins
 Node requis, `airtty.capabilities` du `package.json` de l'application (comparées aux
-built-ins, avec un avertissement). Le top-level await y est refusé. Non signé avant
+built-ins, avec un avertissement). Du Client code avec un top-level await (que CommonJS
+n'exprime pas) : le build réussit sans `.airtty/app/` et le signale (fichier:ligne) ;
+`airtty build --app-bundle` en fait un échec. Non signé avant
 l'étape 4 d'[EMBEDDING.md](EMBEDDING.md).
 
 Le Client contient le runtime terminal et les Client Components de **cette

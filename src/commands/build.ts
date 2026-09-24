@@ -4,7 +4,7 @@ import { compileApp, compileClient } from "../compile";
 import type { Command } from "./command";
 export const build: Command = {
   usage:
-    "build [--compile [--name n] [--client-only] [--target t] [--runtime official|host|<bun>] [--native-dir dir] [--outfile f] [--sign identity [--notarize profile]]]",
+    "build [--app-bundle] [--compile [--name n] [--client-only] [--target t] [--runtime official|host|<bun>] [--native-dir dir] [--outfile f] [--sign identity [--notarize profile]]]",
   async run({ args, optional, directory }) {
     // Every flag is read first: a missing value fails before a long build.
     const compile = args.includes("--compile")
@@ -18,7 +18,10 @@ export const build: Command = {
           notarize: optional("--notarize"),
         }
       : undefined;
-    const result = await buildApplication(directory);
+    // --app-bundle: the application must be embeddable (.airtty/app), or the build fails.
+    const result = await buildApplication(directory, undefined, {
+      appBundle: args.includes("--app-bundle") ? "required" : "auto",
+    });
     console.log(result);
     if (!compile) return;
     // The app binary holds the Server too (src/launcher/binary.ts); --client-only keeps

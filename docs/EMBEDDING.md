@@ -396,7 +396,9 @@ distribution) le permet. Les étapes 1–2 profitent aussi aux applications actu
   pour les frontières : `index.cjs` `bun-cjs` + `manifest.json` non signé). `src/abi.ts` :
   11 spécifiers, `ABI_VERSION` 1, versions épinglées (un test les compare à
   `package.json`), clé `1-<sha256 court>`. Audit des built-ins par le metafile ;
-  top-level await refusé avec fichier et ligne ; `airtty.capabilities` (schéma de
+  top-level await : pas de `.airtty/app/`, avertissement avec fichier et ligne, le Client
+  et le Server construits comme avant (échec seulement avec `--app-bundle`) ;
+  `airtty.capabilities` (schéma de
   `src/capabilities.ts`, repris du probe sandbox, ajouté à `AppField` du registre)
   recopié dans le manifeste et comparé à l'audit (avertissement). `openApplication({
 bundle, url })` évalue ce bundle contre le runtime de l'hôte (`src/app-bundle.ts`) :

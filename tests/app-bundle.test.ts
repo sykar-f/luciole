@@ -102,15 +102,31 @@ test("a bundle is refused for another ABI, altered bytes or an undeclared built-
   );
 });
 
-test("top-level await in Client code is refused with its file and line", async () => {
+test("top-level await in Client code: the app builds, is not embeddable, and says where", async () => {
   await fixture(
     {
       "app/page.tsx": `import {Late} from '../components/late'; export default function Page(){return <Late/>}`,
       "components/late.tsx": `"use client";\nconst value = await Promise.resolve("x");\nexport function Late(){return <text>{value}</text>}`,
     },
     async (dir) => {
-      const error = messageOf(await rejectionOf(build(dir)));
-      expect(error).toContain("components/late.tsx:2: top-level await is not supported");
+      const warn = spyOn(console, "warn").mockImplementation(() => {});
+      try {
+        // Not embedded: the Client and the Server build as before, without .airtty/app.
+        await build(dir);
+        expect(await Bun.file(join(dir, ".airtty/client/index.js")).exists()).toBe(true);
+        expect(await Bun.file(join(dir, ".airtty/app/manifest.json")).exists()).toBe(false);
+        expect(warn.mock.calls.map(([m]) => String(m)).join("\n")).toContain(
+          "components/late.tsx:2: top-level await in Client code",
+        );
+        expect(messageOf(await rejectionOf(loadAppBundle(join(dir, ".airtty/app"))))).toContain(
+          "has no application bundle",
+        );
+      } finally {
+        warn.mockRestore();
+      }
+      // Embedding asked for explicitly (`airtty build --app-bundle`): the build fails.
+      const error = messageOf(await rejectionOf(build(dir, undefined, { appBundle: "required" })));
+      expect(error).toContain("components/late.tsx:2: top-level await in Client code");
     },
   );
 });
