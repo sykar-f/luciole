@@ -98,6 +98,8 @@ test("a tag invalidation purges the Server cache and revalidates only the routes
     await act(async () => {
       await app.router.navigate({ to: "/c" });
       await app.router.navigate({ to: "/a" });
+      // /a revalidates in the background (staleTime 0): let it end before counting.
+      await until(() => !app.router.state.matches.some((m) => m.isFetching));
     });
     renders.length = 0;
     events.length = 0;
