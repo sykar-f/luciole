@@ -631,6 +631,20 @@ export async function build(
                   );
                 return undefined;
               });
+              // Application code sees `airtty/client` with this bundle's own `host`, bound
+              // like its Server Functions (airtty:actions): the runtime's is bound to none.
+              if (clientSide) {
+                // Its own import, and airtty:actions', fall through to the real module.
+                b.onResolve({ filter: /^airtty\/client$/ }, (a) =>
+                  a.importer.startsWith("airtty:")
+                    ? undefined
+                    : { path: "airtty:client", namespace: "airtty-client" },
+                );
+                b.onLoad({ filter: /.*/, namespace: "airtty-client" }, () => ({
+                  contents: `export * from "airtty/client";import {actions} from "airtty:actions";export const host=actions.host;`,
+                  loader: "js",
+                }));
+              }
               // The runtime ABI stays outside the application bundle: the host provides it.
               if (role === "app")
                 b.onResolve({ filter: /^[@a-z]/ }, (a) =>

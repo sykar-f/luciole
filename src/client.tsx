@@ -30,6 +30,7 @@ import { messageOf } from "./guards";
 import { Restoration, type Session } from "./restore";
 import { Runtime } from "./runtime-context";
 import { ApplicationView } from "./embed";
+import { createHost, directChannel, type HostChannel } from "./host";
 import { openSession, SessionId } from "./session";
 import {
   AuthenticationRequired,
@@ -104,6 +105,11 @@ export type { OpenApplicationOptions, PublisherCheck } from "./app-bundle";
 // Local programs on a PTY, for multiplexers (the `process` mode of docs/EMBEDDING.md).
 export { Terminal } from "./vt/terminal";
 export type { TerminalProps } from "./vt/terminal";
+// Capabilities the host mediates (clipboard, notifications…). The build gives each bundle
+// its own `host`, bound to its Application (airtty:actions); this one is bound to none.
+export { CapabilityDenied } from "./host";
+export type { GlobalKey, Host, HostChannel, HostEvent, HostRequest } from "./host";
+export const host = createHost(() => undefined);
 // Keybindings are OpenTUI's keymap, re-exported so every layer shares the Shell's instance.
 // A binding's `desc` (and `group`) feeds `<KeyHelp />`.
 export { useActiveKeys, useBindings, useKeymap, usePendingSequence } from "@opentui/keymap/react";
@@ -157,6 +163,11 @@ export type ApplicationOptions = {
   session?: Session;
   /** Shown in the framework heading; the build passes the application directory name. */
   title?: string;
+  /**
+   * Who answers the application's `host` requests: by default this Client, with the
+   * user's rights; a sandboxed Client's host process over IPC (src/sandbox/ipc.ts).
+   */
+  host?: HostChannel;
 };
 
 // TanStack scroll restoration calls the global scrollTo() after every rendered load.
@@ -167,7 +178,7 @@ function installTerminalGlobals() {
 
 /**
  * The Server Functions one bundle evaluation imports ("use server" modules reached from
- * Client Components), bound to the Application that evaluation created. The build emits
+ * Client Components), and its `host`, bound to the Application that evaluation created. The build emits
  * one binding per bundle (`airtty:actions`): the runtime holds no Application of its own,
  * so a runtime shared by several bundles (the generic Client) never sends a pane's call
  * through another pane (docs/EMBEDDING.md, O2). References decoded from Flight carry
@@ -181,6 +192,8 @@ export function createActions() {
         if (!application) throw new Error("Application not mounted");
         return application.callServer(key, args);
       }),
+    /** The evaluation's `host` (src/host.ts), asking through the same Application. */
+    host: createHost(() => application),
     /** The latest Application of this evaluation receives its imported calls. */
     bind: (app: Application) => {
       application = app;
@@ -243,12 +256,15 @@ export class Application {
    */
   readonly view = ApplicationView;
   readonly options: ApplicationOptions;
+  /** Where the application's `host` requests go (`ApplicationOptions.host`). */
+  readonly host: HostChannel;
   /** The router's history, typed: `router` is not (see above). */
   readonly history: RouterHistory;
   /** The history and the text of named fields, as a browser keeps a session. */
   readonly restoration: Restoration;
   constructor(options: ApplicationOptions) {
     this.options = options;
+    this.host = options.host ?? directChannel(options.url);
     this.bearer = options.token;
     // Entries after the current one are not restored: a memory history created with an
     // `initialIndex` of 0 would open on its last entry instead.
