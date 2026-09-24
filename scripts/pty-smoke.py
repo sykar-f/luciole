@@ -49,6 +49,9 @@ with tempfile.TemporaryDirectory(prefix='airtty-pty-') as directory:
   assert local_ms<500,local_ms
   wait_for(b'baseline: abc');assert 'abcd' in '\n'.join(screen.display)
   captured=b'';os.write(master,b'\x1b');wait_for(b'YOUR NOTES');captured=b'';os.write(master,b'\r');wait_for(b'abcd')
+  # The reopened note may first show the router's cached version 1; the saved note is
+  # version 2 once revalidated. Waiting for it keeps docs/pty-frame.txt deterministic.
+  wait_for(b'version 2')
   if server:
    server.terminate();server.wait(timeout=5);captured=b'';os.write(master,b'\x12');wait_for(b'Disconnected');captured=b'';os.write(master,b'e');wait_for(b'abcde')
   (root/'docs/pty-frame.txt').write_text('\n'.join(line.rstrip() for line in screen.display).rstrip()+'\n')
