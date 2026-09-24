@@ -32,7 +32,8 @@ bun src/cli.ts start --role client --app examples/forge --url http://127.0.0.1:3
 
 Réglages Server : `FORGE_SLOW_MS` (travail simulé, défaut 250 ms, rend le streaming
 visible), `FORGE_CI_SCALE` (durée de la CI, défaut 1), `FORGE_GIT_REPO` et
-`FORGE_GIT_COMMITS`. Ils sont validés par Zod au démarrage : une valeur invalide arrête
+`FORGE_GIT_COMMITS`, et pour les tests `FORGE_CLOCK_START` (date ISO : l'horloge du Server
+part de là puis avance ; `scripts/pty-forge.py` fige ainsi les âges affichés). Ils sont validés par Zod au démarrage : une valeur invalide arrête
 le Server en nommant la variable.
 
 Chaque opération du domaine (`server/forge.ts`) reçoit ses entrées comme `unknown`, telles

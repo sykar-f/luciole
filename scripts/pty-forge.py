@@ -25,6 +25,9 @@ APP = ROOT / "examples/forge"
 BUN = shutil.which("bun")
 COLS, ROWS = 140, 40
 LATENCY_MS = int(os.environ.get("AIRTTY_LATENCY_MS", "500"))
+# 22 days after the seed's epoch (server/seed.ts, 2026-09-01T09:00Z): the Server's clock
+# starts there, so the ages in docs/forge-pty-frame.txt do not change with the day of the run.
+CLOCK_START = "2026-09-23T09:00:00Z"
 ENV = {**os.environ, "TERM": "xterm-256color", "NODE_ENV": "production"}
 
 
@@ -81,7 +84,7 @@ def main():
         try:
             server = subprocess.Popen(
                 [BUN, "--conditions=react-server", str(APP / ".airtty/server/index.js")],
-                env={**ENV, "PORT": "0", "FORGE_DB": directory + "/forge.sqlite", "FORGE_SLOW_MS": "150", "FORGE_CI_SCALE": "0.2"},
+                env={**ENV, "PORT": "0", "FORGE_DB": directory + "/forge.sqlite", "FORGE_SLOW_MS": "150", "FORGE_CI_SCALE": "0.2", "FORGE_CLOCK_START": CLOCK_START},
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,

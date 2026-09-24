@@ -15,14 +15,20 @@ const env = z
     FORGE_GIT_REPO: z.string().optional(),
     FORGE_GIT_COMMITS: z.coerce.number().int().positive().default(DEFAULT_GIT_COMMITS),
     FORGE_SLOW_MS: z.coerce.number().nonnegative().default(DEFAULT_SLOW_MS),
+    // Test-only: "now" at startup, as an ISO date. Time still flows (CI runs, sessions
+    // expire) but relative ages on screen no longer depend on the day of the run.
+    FORGE_CLOCK_START: z.iso.datetime().transform(Date.parse).optional(),
   })
   .parse(process.env);
 
 // The single Forge of this Server process. Pages, Server Functions and the auth
 // adapter share it; tests and the operator script build their own from `createForge`.
+const start = env.FORGE_CLOCK_START,
+  booted = Date.now();
 export const forge = createForge(openDatabase(env.FORGE_DB), {
   ciScale: env.FORGE_CI_SCALE,
   callId: getCallId,
+  now: start === undefined ? undefined : () => start + (Date.now() - booted),
 });
 if (env.FORGE_GIT_REPO)
   importGitRepository(forge, env.FORGE_GIT_REPO, "airtty", env.FORGE_GIT_COMMITS);
