@@ -5,6 +5,7 @@ import { z } from "zod";
 import { decodeReply, renderToReadableStream } from "./flight/server";
 import { isAsyncIterable, messageOf } from "./guards";
 import { managedLifetime } from "./launcher/lifetime";
+import { appRoutes } from "./app-routes";
 import { INSTANCE_HEADER, InstanceKey, instanceManifests } from "./instance";
 import { NotFoundError } from "./not-found";
 import type { CacheHandler } from "./cache/handler";
@@ -135,6 +136,8 @@ export type ServerConfig = {
   instrument?: ServerInstrument;
   /** Where "use cache" results live: `server/cache.ts`, in memory by default. */
   cache?: CacheHandler;
+  /** The build's application bundle (`.airtty/app`), served to hosts when it exists. */
+  appBundle?: string;
 };
 /** JSON text from a request, parsed then checked by `schema`; `null` when either fails. */
 function parseJson<T>(schema: z.ZodType<T>, raw: string) {
@@ -270,11 +273,15 @@ export function serve(config: ServerConfig) {
   });
   const metrics = { renders: 0, actions: 0 };
   const manifestFor = instanceManifests(config.manifest);
+  const bundleRoutes = appRoutes(config.appBundle);
   // `failed` hears a handler's exception before it becomes the generic 500.
   async function handle(req: Request, url: URL, callId: string, failed?: (error: unknown) => void) {
     const arrived = performance.now();
     if (req.headers.has("origin"))
       return new Response("Browser origins are unsupported", { status: STATUS.forbidden });
+    // Before the session and the build check: how a host learns the build (src/app-routes.ts).
+    const bundled = bundleRoutes(req, url);
+    if (bundled) return bundled;
     try {
       const session = await auth.authenticate(req);
       if (url.pathname === "/health") {
