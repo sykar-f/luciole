@@ -116,6 +116,8 @@ const ComponentNode = z.object({
   kind: z.enum(["client", "server", "host"]),
   key: z.optional(z.string()),
   env: z.optional(z.string()),
+  /** Where it is defined, `file:line` relative to the application (src/build-names.ts). */
+  source: z.optional(z.string()),
   renders: z.number(),
   /** When it last rendered, epoch ms. */
   renderedAt: z.optional(z.number()),
@@ -149,6 +151,10 @@ export const Hello = z.object({
   app: z.optional(z.string()),
   buildId: z.optional(z.string()),
   components: z.optional(z.boolean()),
+  /** The application's directory, to open a component's source in an editor. */
+  root: z.optional(z.string()),
+  /** Server Components' sources by name: Flight carries their name only. */
+  sources: z.optional(z.record(z.string(), z.string())),
 });
 const payloads = {
   [PLUGIN.bus]: { hello: Hello, dropped: z.object({ count: z.number() }) },

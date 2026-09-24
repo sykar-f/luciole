@@ -49,6 +49,7 @@ export function ConsolePanel({ callId }: { callId?: string }) {
   const [query, setQuery] = useState("");
   const typing = store.typing;
   const setTyping = (next: boolean) => store.setTyping(next);
+  const root = store.session.root();
   const entries = store.session.logs().filter((e) => shown(e, level, role, query, callId));
   const list = useSelection(entries, height - CHROME_LINES, { follow: true, disabled: typing });
   // Leaving the panel gives the keyboard back.
@@ -125,14 +126,15 @@ export function ConsolePanel({ callId }: { callId?: string }) {
           </text>
         ))}
       </box>
-      {list.selected && list.selected.text.includes("\n") ? (
+      {list.selected && (list.selected.stack || list.selected.text.includes("\n")) ? (
         <box flexDirection="column" flexShrink={0} border={["top"]} borderColor={color.faint}>
-          {list.selected.text
+          {/* An error's stack, mapped to the original files by the bundle's source map. */}
+          {(list.selected.stack ?? list.selected.text)
             .split("\n")
             .slice(0, DETAIL_LINES)
             .map((line, i) => (
               <Line key={i} fg={color.muted}>
-                {line}
+                {root ? line.replaceAll(`${root}/`, "") : line}
               </Line>
             ))}
         </box>

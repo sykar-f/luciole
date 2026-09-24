@@ -1,7 +1,9 @@
 import { basename, dirname } from "node:path";
 import type { ServerInstrument } from "../server";
-import { message, parseAddress, PLUGIN, PROTOCOL_VERSION } from "./protocol";
-import { captureConsole, consoleText } from "./preview";
+// The declaration of `__AIRTTY_SOURCES__`, filled by annotated modules.
+import type {} from "./annotate";
+import { appRoot, message, parseAddress, PLUGIN, PROTOCOL_VERSION } from "./protocol";
+import { captureConsole, consoleText, errorStack } from "./preview";
 import { parseCommand, type Command } from "./schema";
 import { connectAgent } from "./wire";
 
@@ -42,7 +44,10 @@ export function devtoolsInstrument(
       pid: process.pid,
       // `<app>/.airtty/server/index.js`, as `airtty dev` and `start` run it.
       app: entry ? basename(dirname(dirname(dirname(entry)))) : undefined,
+      root: appRoot(entry),
       buildId: context.buildId,
+      // Every module ran its annotations before serve() started.
+      sources: Object.fromEntries(globalThis.__AIRTTY_SOURCES__ ?? []),
     },
     onCommand: (value) => {
       const command = parseCommand(value);
@@ -55,6 +60,7 @@ export function devtoolsInstrument(
         at: performance.timeOrigin + performance.now(),
         level,
         text: consoleText(args),
+        stack: errorStack(args),
         callId: context.getCallId(),
       }),
     ),

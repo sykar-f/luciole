@@ -8,6 +8,7 @@ import { bundleMessages, logMessages } from "./bundle-errors";
 import { readJsonFile, readPackageJson } from "./package-json";
 import { ROUTE_TREE_FILE, compileRouteGraph, renderRouteTree } from "./route-graph";
 import { cachedFunctions, cacheSource, staleTimeOf } from "./cache/transform";
+import { annotateNames } from "./build-names";
 const framework = dirname(import.meta.path);
 const quote = JSON.stringify;
 // Resolved from the framework so starters using a file: dependency find their copy.
@@ -484,6 +485,13 @@ export async function build(directory: string, output = join(directory, ".airtty
         external,
         conditions: role === "server" ? ["react-server"] : [],
         metafile: role === "client",
+        // Next to the bundle, and linked from it: Bun maps runtime stack traces through it
+        // (development and production alike) and a debugger finds it. Inline would double
+        // the bundle a compiled Client embeds; external would be found by nothing.
+        sourcemap: "linked",
+        // The production JSX runtime, as `transpileModule` emitted: React's production
+        // build has no `jsxDEV`. Each file's pragma picks the import source.
+        jsx: { runtime: "automatic", development: false },
         plugins: [
           {
             name: "airtty-boundaries",
@@ -580,6 +588,23 @@ export async function build(directory: string, output = join(directory, ".airtty
                     (n) => `${relative(root, m.path)}#${n}`,
                     join(framework, "cache/runtime.ts"),
                   );
+                // Original names, sources and hook bindings for the DevTools; the framework
+                // too, not what packages ship.
+                if (!a.path.includes("/node_modules/"))
+                  source = annotateNames(source, {
+                    path: a.path,
+                    relative: relative(root, a.path),
+                    runtime: join(framework, "devtools/annotate.ts"),
+                  });
+                const jsxImportSource = role === "server" ? "react" : "@opentui/react";
+                // TypeScript is Bun's to strip, so the source map points at the original
+                // lines (Bun does not compose a plugin's own map). The pragma shares the
+                // first line: no line moves. Application code is erasable syntax only.
+                if (/\.tsx?$/.test(a.path))
+                  return {
+                    contents: `/** @jsxImportSource ${jsxImportSource} */ ${source}`,
+                    loader: a.path.endsWith("x") ? "tsx" : "ts",
+                  };
                 return {
                   contents: ts.transpileModule(source, {
                     fileName: a.path,
@@ -587,7 +612,7 @@ export async function build(directory: string, output = join(directory, ".airtty
                       target: ts.ScriptTarget.ESNext,
                       module: ts.ModuleKind.ESNext,
                       jsx: ts.JsxEmit.ReactJSX,
-                      jsxImportSource: role === "server" ? "react" : "@opentui/react",
+                      jsxImportSource,
                     },
                   }).outputText,
                   loader: "js",
