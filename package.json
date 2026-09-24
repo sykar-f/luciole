@@ -35,6 +35,7 @@
     "test:pty:mdreader": "python3 scripts/pty-mdreader.py",
     "test:pty:chat": "python3 scripts/pty-chat.py",
     "test:pty:agent": "python3 scripts/pty-agent.py",
+    "test:pty:devtools": "python3 scripts/pty-devtools.py",
     "test:linux": "bun scripts/linux-client.ts",
     "verify": "bun run check && bun run lint && bun run format:check && bun test --timeout 20000 && bun run build",
     "lint": "oxlint --deny-warnings .",

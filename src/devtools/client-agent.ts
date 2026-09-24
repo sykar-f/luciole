@@ -38,9 +38,12 @@ type Match = {
   loaderData?: unknown;
   error?: unknown;
 };
+// Params and search are strings already: shown as they are, anything else previewed.
 const record = (value: unknown): Record<string, unknown> | undefined =>
   typeof value === "object" && value !== null
-    ? Object.fromEntries(Object.entries(value).map(([k, v]) => [k, preview(v)]))
+    ? Object.fromEntries(
+        Object.entries(value).map(([k, v]) => [k, typeof v === "string" ? v : preview(v)]),
+      )
     : undefined;
 const describeMatch = (match: Match): RouterMatch => ({
   id: match.id,

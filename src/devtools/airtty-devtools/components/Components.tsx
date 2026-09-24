@@ -18,19 +18,27 @@ const TICK_MS = 100;
 const PROP_WIDTH = 40;
 const DETAIL_LINES = 8,
   CHROME_LINES = 6;
-/** Framework and router plumbing, hidden by default (`a` shows it). */
+/**
+ * Framework and router plumbing, hidden by default (`a` shows it): OpenTUI's root
+ * boundary, the Shell's providers, TanStack Router's matches, outlets and boundaries,
+ * and the page loader's own component.
+ */
 const PLUMBING = new Set([
   "ErrorBoundary",
   "Shell",
   "KeymapProvider",
+  "Runtime",
   "RouterProvider",
   "RouterContextProvider",
   "Matches",
   "MatchesInner",
   "Match",
+  "MatchView",
   "MatchInner",
+  "MatchInnerImpl",
   "MatchImpl",
   "Outlet",
+  "OutletImpl",
   "CatchBoundary",
   "CatchBoundaryImpl",
   "CatchNotFound",
@@ -38,10 +46,15 @@ const PLUMBING = new Set([
   "Transitioner",
   "OnRendered",
   "ScrollRestoration",
+  "LayoutRoute",
   "Page",
   "PageLoading",
+  "Suspense",
+  "component",
   "Anonymous",
 ]);
+// The bundler suffixes a name it had to rename (`Page2`): plumbing either way.
+const isPlumbing = (name: string) => PLUMBING.has(name) || PLUMBING.has(name.replace(/\d+$/, ""));
 
 /** The tree without plumbing: a hidden node's children move up to its visible ancestor. */
 function visibleTree(nodes: readonly ComponentNode[], showAll: boolean, unnecessaryOnly: boolean) {
@@ -50,7 +63,7 @@ function visibleTree(nodes: readonly ComponentNode[], showAll: boolean, unnecess
   const out: { node: ComponentNode; depth: number }[] = [];
   for (const node of nodes) {
     const parentDepth = node.parent === null ? -1 : (depth.get(node.parent) ?? -1);
-    const hidden = !showAll && node.kind === "client" && PLUMBING.has(node.name);
+    const hidden = !showAll && node.kind === "client" && isPlumbing(node.name);
     depth.set(node.id, hidden ? parentDepth : parentDepth + 1);
     if (hidden || (unnecessaryOnly && !node.unnecessary)) continue;
     out.push({ node, depth: parentDepth + 1 });
