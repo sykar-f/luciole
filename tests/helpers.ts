@@ -217,3 +217,12 @@ export async function leaveCrashedSession(state: string, name: string, key: stri
     }),
   );
 }
+
+/**
+ * A `/render` body as src/cache/render.ts shapes it: `{ tree, tags }`, the page being a
+ * Flight stream of its own (row 1: open, one binary chunk, close) and `tags` row 2.
+ */
+export function renderBody(page: string, tags: string[] = []) {
+  const bytes = new TextEncoder().encode(page).byteLength.toString(16);
+  return `1:R\n0:{"tree":"$1","tags":"$@2"}\n1:o${bytes},${page}1:C\n2:${JSON.stringify(tags)}\n`;
+}

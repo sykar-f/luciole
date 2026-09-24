@@ -476,12 +476,21 @@ export class Application {
     let result: "ok" | "error" | "aborted" = "error";
     this.emit({ ...loader, phase: "start", at: now() });
     try {
-      let tags: readonly string[] | undefined;
+      // The tags arrive once the page finished rendering, after its tree: until then the
+      // route counts as having read any tag.
+      let page: unknown, tags: readonly string[] | undefined;
+      const record = () => {
+        if (tags && typeof page === "object" && page !== null) this.pageTags.set(page, tags);
+      };
       const tree = await this.transport.render(routeId, params, load.signal, load.search ?? {}, {
         cause: loader.cause,
-        onTags: (read) => (tags = read),
+        onTags: (read) => {
+          tags = read;
+          record();
+        },
       });
-      if (tags && typeof tree === "object" && tree !== null) this.pageTags.set(tree, tags);
+      page = tree;
+      record();
       result = load.signal.aborted ? "aborted" : "ok";
       // A superseded load may still answer; only the current one reports status.
       if (!load.signal.aborted) this.report("Connected");

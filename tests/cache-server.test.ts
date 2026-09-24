@@ -52,6 +52,7 @@ test("the Server reports cache operations, sends a render's tags and an action's
     const failure = await rejectionOf(transport.call("a.ts#bad", []));
     expect(failure instanceof TransportError && failure.outcome).toBe("unknown");
     await until(() => received.filter((e) => e.op === "write").length === 2);
+    await until(() => tags.length === 3);
     expect(tags).toEqual([["count"], ["count"], ["count"]]);
     expect(invalidated).toEqual([[["/"], ["count"]]]);
     const calls = client.flatMap((e) => (e.type === "request" ? [e.callId] : []));
@@ -64,6 +65,44 @@ test("the Server reports cache operations, sends a render's tags and an action's
       ["miss", "server/count.ts#count", ["count"], calls[3]],
     ]);
     expect(new Set(received.filter((e) => e.fn).map((e) => e.key)).size).toBe(1);
+  } finally {
+    await server.stop();
+  }
+});
+
+test("a read below Suspense sends its tag at the page's end, without delaying the shell", async () => {
+  const server = await launch("tests/cache-server.ts");
+  const events: TransportEvent[] = [];
+  const transport = createHttpTransport({
+    url: server.url,
+    buildId: "build-1",
+    callServer: () => Promise.reject(new Error("unused")),
+    onEvent: (event) => events.push(event),
+  });
+  try {
+    const start = performance.now();
+    let told: { tags: readonly string[]; ms: number } | undefined;
+    const tree = await transport.render(
+      "/late",
+      {},
+      new AbortController().signal,
+      {},
+      {
+        onTags: (tags) => (told = { tags, ms: performance.now() - start }),
+      },
+    );
+    // Headers leave before the page function (200 ms) returns; the shell follows it,
+    // while Late still sleeps its 400 ms.
+    const response = events.find((e) => e.type === "response");
+    expect(response?.type === "response" && response.ms).toBeLessThan(150);
+    const shell = performance.now() - start;
+    expect(shell).toBeGreaterThanOrEqual(200);
+    expect(shell).toBeLessThan(500);
+    expect(tree).toBeTruthy();
+    expect(told).toBeUndefined();
+    await until(() => told !== undefined);
+    expect(told?.tags).toEqual(["late"]);
+    expect(told?.ms).toBeGreaterThanOrEqual(600);
   } finally {
     await server.stop();
   }

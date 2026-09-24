@@ -7,7 +7,7 @@ import {
   type Fetch,
 } from "../src/transport";
 import { messageOf } from "../src/guards";
-import { rejectionOf } from "./helpers";
+import { rejectionOf, renderBody } from "./helpers";
 
 const base = {
   url: "http://terminal.invalid",
@@ -173,10 +173,27 @@ test("a render whose root is not a React node is a TransportError", async () => 
   const render = (model: unknown) =>
     createHttpTransport({
       ...base,
-      fetch: stub(() => new Response(`0:${JSON.stringify(model)}\n`)),
+      fetch: stub(() => new Response(renderBody(`0:${JSON.stringify(model)}\n`))),
     }).render("/", {}, new AbortController().signal);
   expect(await render(["a list", "of children"])).toEqual(["a list", "of children"]);
   const error = await rejectionOf(render({ title: "an object" }));
   expect(error).toBeInstanceOf(TransportError);
   expect(messageOf(error)).toBe("Invalid render response");
+  // A body without the `{ tree, tags }` envelope is refused the same way.
+  const bare = createHttpTransport({
+    ...base,
+    fetch: stub(() => new Response(`0:${JSON.stringify(["a list"])}\n`)),
+  }).render("/", {}, new AbortController().signal);
+  expect(messageOf(await rejectionOf(bare))).toBe("Invalid render response");
+});
+
+test("a render's tags arrive once its page stream ended", async () => {
+  const told: (readonly string[])[] = [];
+  const tree = await createHttpTransport({
+    ...base,
+    fetch: stub(() => new Response(renderBody(`0:"page"\n`, ["notes", "note:1"]))),
+  }).render("/", {}, new AbortController().signal, {}, { onTags: (tags) => told.push(tags) });
+  expect(tree).toBe("page");
+  await Bun.sleep(10);
+  expect(told).toEqual([["notes", "note:1"]]);
 });

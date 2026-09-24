@@ -10,16 +10,19 @@ import type { ApplicationEvent } from "../src/client";
 import { destroy, importClient, launch, until, type TestUI } from "./helpers";
 
 // Two cached reads with their own tag, an action that invalidates one tag, a page with a
-// router staleTime, and the SQLite handler chosen by server/cache.ts.
+// router staleTime, a page reading its cached data below Suspense (/d), and the SQLite
+// handler chosen by server/cache.ts.
 const files: Record<string, string> = {
   "app/layout.tsx": `"use client";export default function Layout({children}){return <box flexDirection="column">{children}</box>}`,
   "app/a/page.tsx": `import {Bump} from "../../components/Bump";import {readA} from "../../server/queries";export default async function A(){const a=await readA();return <box flexDirection="column"><text>A {a.value} runs {a.runs}</text><Bump/></box>}`,
   "app/b/page.tsx": `import {readB} from "../../server/queries";export default async function B(){const b=await readB();return <text>B {b.value} runs {b.runs}</text>}`,
   "app/c/page.tsx": `export const staleTime = 60;export default function C(){return <text>C page</text>}`,
   "components/Bump.tsx": `"use client";import {useKeyboard} from "@opentui/react";import {bumpA} from "../actions/data";export function Bump(){useKeyboard(k=>{if(k.name==="b")void bumpA()});return <text>press b</text>}`,
-  "actions/data.ts": `"use server";import {invalidate} from "airtty/server";import {write} from "../server/store";export async function bumpA(){write("a");invalidate({tag:"a"});return "done"}`,
-  "server/store.ts": `const values={a:0,b:0},runs={a:0,b:0};export const read=(k)=>values[k];export function write(k){values[k]++}export function ran(k){return ++runs[k]}`,
-  "server/queries.ts": `"use cache";import {cacheTag} from "airtty/server";import {read,ran} from "./store";export async function readA(){cacheTag("a");return {value:read("a"),runs:ran("a")}}export async function readB(){cacheTag("b");return {value:read("b"),runs:ran("b")}}`,
+  "actions/data.ts": `"use server";import {invalidate} from "airtty/server";import {write} from "../server/store";export async function bumpA(){write("a");await invalidate({tag:"a"});return "done"}export async function bumpD(){write("d");await invalidate({tag:"d"});return "done"}`,
+  "app/d/page.tsx": `import {Suspense} from "react";import {BumpD} from "../../components/BumpD";import {readD} from "../../server/queries";export const staleTime=60;async function Late(){await Bun.sleep(200);const d=await readD();return <text>D late {d.value}</text>}export default function D(){return <box flexDirection="column"><text>D shell</text><Suspense fallback={<text>D waiting</text>}><Late/></Suspense><BumpD/></box>}`,
+  "components/BumpD.tsx": `"use client";import {useKeyboard} from "@opentui/react";import {bumpD} from "../actions/data";export function BumpD(){useKeyboard(k=>{if(k.name==="d")void bumpD()});return <text>press d</text>}`,
+  "server/store.ts": `const values={a:0,b:0,d:0},runs={a:0,b:0,d:0};export const read=(k)=>values[k];export function write(k){values[k]++}export function ran(k){return ++runs[k]}`,
+  "server/queries.ts": `"use cache";import {cacheTag} from "airtty/server";import {read,ran} from "./store";export async function readA(){cacheTag("a");return {value:read("a"),runs:ran("a")}}export async function readB(){cacheTag("b");return {value:read("b"),runs:ran("b")}}export async function readD(){cacheTag("d");return {value:read("d"),runs:ran("d")}}`,
   "server/cache.ts": `import {sqliteCache} from "airtty/server";export default sqliteCache({path:process.env.CACHE_DB??"cache.sqlite"});`,
 };
 
@@ -42,7 +45,6 @@ test("a tag invalidation purges the Server cache and revalidates only the routes
     server = running;
     const { createApp, Shell } = await importClient(directory);
     const renders: string[] = [];
-    const headers = new Map<string, string | null>();
     const events: ApplicationEvent[] = [];
     const app = createApp({
       url: running.url,
@@ -50,9 +52,7 @@ test("a tag invalidation purges the Server cache and revalidates only the routes
       fetch: async (input: URL, init: RequestInit) => {
         const route = input.searchParams.get("route");
         if (route) renders.push(route);
-        const response = await fetch(input, init);
-        if (route) headers.set(route, response.headers.get("x-airtty-tags"));
-        return response;
+        return fetch(input, init);
       },
     });
     app.onEvent((event) => events.push(event));
@@ -63,8 +63,29 @@ test("a tag invalidation purges the Server cache and revalidates only the routes
       await ui.renderOnce();
       return ui.captureCharFrame();
     };
+    // Suspense content is revealed between act() scopes, not inside a pending one.
+    const shows = async (text: string, timeout = 5000) => {
+      const start = performance.now();
+      while (!(await frame()).includes(text)) {
+        if (performance.now() - start > timeout) throw new Error(`Frame never showed ${text}`);
+        await act(() => Bun.sleep(10));
+      }
+    };
     expect(await frame()).toContain("B 0 runs 1");
-    expect(headers.get("/b")).toBe("b");
+    // /d's data is read below Suspense: its tag arrives once the page stream ended.
+    await act(async () => {
+      await app.router.navigate({ to: "/d" });
+    });
+    await shows("D late 0");
+    await act(() => Bun.sleep(50));
+    // Invalidating that tag refetches the route. It is fresh (staleTime 60): only a
+    // precise invalidation reloads it, where any invalidation reloads a stale mounted page.
+    renders.length = 0;
+    await act(async () => {
+      await ui.mockInput.typeText("d");
+    });
+    await shows("D late 1");
+    expect(renders).toEqual(["/d"]);
     await act(async () => {
       await app.router.navigate({ to: "/a" });
     });
@@ -86,7 +107,7 @@ test("a tag invalidation purges the Server cache and revalidates only the routes
       await Bun.sleep(80);
     });
     expect(await frame()).toContain("A 1 runs 2");
-    // /b is in the router's cache but read only tag "b": never refetched.
+    // /b and /d are in the router's cache but read only tags "b" and "d": never refetched.
     expect(renders).toEqual(["/a"]);
     expect(events.find((e) => e.type === "invalidate")).toMatchObject({
       paths: [],

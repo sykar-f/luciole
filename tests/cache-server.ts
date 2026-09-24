@@ -1,4 +1,4 @@
-import React from "react";
+import React, { Suspense } from "react";
 import { cached } from "../src/cache/runtime";
 import { cacheTag, invalidate, serve, type ServerFunction } from "../src/server";
 // A Server built by hand, like tests/instrument-server.ts: a page reading a cached
@@ -8,6 +8,15 @@ const count = cached(async () => {
   cacheTag("count");
   return ++runs;
 }, "server/count.ts#count");
+// Read below Suspense, well after the shell: its tag still reaches the Client.
+const late = cached(async () => {
+  cacheTag("late");
+  return "late data";
+}, "server/late.ts#late");
+async function Late() {
+  await Bun.sleep(400);
+  return React.createElement("text", null, String(await late()));
+}
 const action = (fn: ServerFunction) => ({ fn, auth: "public" as const });
 serve({
   buildId: "build-1",
@@ -19,6 +28,24 @@ serve({
         component: async () => React.createElement("text", null, `runs ${String(await count())}`),
         auth: "public" as const,
         url: "/",
+        params: [],
+      },
+    ],
+    [
+      "/late",
+      {
+        // The page function itself takes 200 ms; its headers must not wait for it.
+        component: async () => {
+          await Bun.sleep(200);
+          return React.createElement(
+            "box",
+            null,
+            React.createElement("text", null, "shell"),
+            React.createElement(Suspense, { fallback: "…" }, React.createElement(Late)),
+          );
+        },
+        auth: "public" as const,
+        url: "/late",
         params: [],
       },
     ],

@@ -6,7 +6,7 @@ import { decodeReply, renderToReadableStream } from "./flight/server";
 import { isAsyncIterable, messageOf } from "./guards";
 import { NotFoundError } from "./not-found";
 import type { CacheHandler } from "./cache/handler";
-import { TAGS_HEADER, renderPage } from "./cache/render";
+import { renderPage } from "./cache/render";
 import { Tag, configureCache, invalidateTags, type CacheEvent } from "./cache/runtime";
 import { assertUncached } from "./cache/scope";
 import { devtoolsInstrument } from "./devtools/server-agent";
@@ -304,17 +304,13 @@ export function serve(config: ServerConfig) {
             return new Response("Invalid search parameters", { status: STATUS.badRequest });
           if (route.auth === "required" && !session) return unauthorized();
           metrics.renders++;
-          // The cache tags the page read reach the Client with it (docs/CACHE.md).
-          const { body, tags } = await renderPage(
-            route.component,
-            { params, searchParams },
-            (tree) => renderToReadableStream(tree, config.manifest),
-          );
+          const tree = React.createElement(route.component, { params, searchParams });
+          // `{ tree, tags }`: the cache tags the page read follow it (docs/CACHE.md).
+          const body = renderPage(tree, (model) => renderToReadableStream(model, config.manifest));
           return new Response(body, {
             headers: {
               "content-type": "text/x-component",
               "cache-control": "no-store",
-              ...(tags.length ? { [TAGS_HEADER]: tags.join(",") } : {}),
             },
           });
         }
