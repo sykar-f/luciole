@@ -58,8 +58,18 @@ export type {
   TransportEvent,
 } from "./transport";
 type Navigation = { type: "navigation"; at: number; path: string };
-/** A page loader, identified by the route it renders (`routeId`, the request's `target`). */
-type Loader = { type: "loader"; at: number; routeId: string; href: string; cause: RequestCause };
+/**
+ * A page loader, identified by the route it renders (`routeId`, the request's `target`).
+ * `source` is `router-cache` when the router showed its cached tree without calling it.
+ */
+type Loader = {
+  type: "loader";
+  at: number;
+  routeId: string;
+  href: string;
+  cause: RequestCause;
+  source: "network" | "router-cache";
+};
 /**
  * A transport event; a resolved navigation; an invalidation, declared by a Server
  * Function (`server`) or by Client code, `refresh()` included (`client`); or a page
@@ -69,7 +79,14 @@ type Loader = { type: "loader"; at: number; routeId: string; href: string; cause
 export type ApplicationEvent =
   | TransportEvent
   | Navigation
-  | { type: "invalidate"; at: number; paths: readonly string[]; origin: "server" | "client" }
+  | {
+      type: "invalidate";
+      at: number;
+      paths: readonly string[];
+      origin: "server" | "client";
+      /** Cache tags, when `invalidate({ tag })` declared some (docs/CACHE.md). */
+      tags?: readonly string[];
+    }
   | (Loader & { phase: "start" })
   | (Loader & { phase: "end"; ms: number; result: "ok" | "error" | "aborted" });
 export type { ErrorProps, LayoutProps, LoadingProps, NotFoundProps } from "./route-tree";
@@ -138,6 +155,9 @@ export function actionReference(id: string) {
   });
 }
 
+/** What TanStack's `onResolved` tells of the location it resolved. */
+type ResolvedChange = { toLocation: { pathname: string; href: string }; hrefChanged: boolean };
+
 function statusOf(error: unknown) {
   if (error instanceof BuildMismatch) return "Incompatible build";
   if (error instanceof AuthenticationRequired) return "Authentication required";
@@ -161,7 +181,15 @@ export class Application {
   quit: (() => void) | undefined;
   private revision = 0;
   private listeners = new Set<() => void>();
-  private invalidationListeners = new Set<(paths: readonly string[]) => void>();
+  private invalidationListeners = new Set<
+    (paths: readonly string[], tags: readonly string[]) => void
+  >();
+  // The "use cache" tags each loaded tree read, keyed by the tree its match holds.
+  private pageTags = new WeakMap<WeakKey, readonly string[]>();
+  // TanStack route id → the Server routeId its loader renders; and the page loads started
+  // by the current navigation, to tell which pages the router served from its cache.
+  private pageRoutes = new Map<string, string>();
+  private loaded = new Set<string>();
   private nextSignal: AbortSignal | undefined;
   private nextCause: RequestCause | undefined;
   // The revalidation in progress, so its loads report why they run. Overlapping ones
@@ -202,8 +230,8 @@ export class Application {
         fetch: options.fetch,
         callServer: this.callServer,
         // Not awaited: a confirmed result never waits for, nor fails with, the refresh.
-        onInvalidate: (paths) =>
-          void this.revalidate(paths, "server", "invalidation").catch(() => {}),
+        onInvalidate: (paths, tags) =>
+          void this.revalidate(paths, "server", "invalidation", tags).catch(() => {}),
         onEvent: (event) => this.emit(event),
       });
     this.transport = options.wrapTransport?.(inner) ?? inner;
@@ -231,10 +259,15 @@ export class Application {
     });
     // A commit moves the route being left into the cache: repeat a purge requested
     // while that navigation was pending.
-    this.router.subscribe("onBeforeNavigate", () => this.restoration.sync(this.history));
-    this.router.subscribe("onResolved", ({ toLocation }: { toLocation: { pathname: string } }) => {
+    this.router.subscribe("onBeforeNavigate", () => {
+      this.loaded.clear();
+      this.restoration.sync(this.history);
+    });
+    this.router.subscribe("onResolved", (change: ResolvedChange) => {
+      const { toLocation } = change;
       this.restoration.sync(this.history);
       this.emit({ type: "navigation", at: now(), path: toLocation.pathname });
+      if (change.hrefChanged) this.reportCachedPages(toLocation.href);
       if (!this.purgeAfterLoad) return;
       this.purgeAfterLoad = false;
       this.router.clearCache();
@@ -293,6 +326,25 @@ export class Application {
       this.tokenListeners.delete(listener);
     };
   };
+  // Pages of the resolved location whose loader did not run: the router's cache served
+  // them without a request (fresh within `staleTime`, preloaded, or Escape).
+  private reportCachedPages(href: string) {
+    const routes: string[] = this.router.state.matches.map((m: { routeId: string }) => m.routeId);
+    for (const route of routes) {
+      const routeId = this.pageRoutes.get(route);
+      if (!routeId || this.loaded.has(`${route}\0${href}`)) continue;
+      const loader = { type: "loader", routeId, href, cause: "navigation" } as const;
+      this.emit({ ...loader, source: "router-cache", phase: "start", at: now() });
+      this.emit({
+        ...loader,
+        source: "router-cache",
+        phase: "end",
+        at: now(),
+        ms: 0,
+        result: "ok",
+      });
+    }
+  }
   /** Revalidates the destination, or the mounted route, keeping it on failure. */
   refresh = () => this.revalidate(["/"], "client", "refresh");
   /**
@@ -302,18 +354,31 @@ export class Application {
    */
   invalidate = (paths: readonly string[] = ["/"]) =>
     this.revalidate(paths, "client", "invalidation");
-  private revalidate(paths: readonly string[], origin: "server" | "client", cause: RequestCause) {
-    this.emit({ type: "invalidate", at: now(), paths, origin });
-    for (const listener of this.invalidationListeners) listener(paths);
+  private revalidate(
+    paths: readonly string[],
+    origin: "server" | "client",
+    cause: RequestCause,
+    tags: readonly string[] = [],
+  ) {
+    this.emit({ type: "invalidate", at: now(), paths, origin, ...(tags.length ? { tags } : {}) });
+    for (const listener of this.invalidationListeners) listener(paths, tags);
     const covers = (pathname: string) =>
       paths.some(
         (p) => p === "/" || pathname === p || pathname.startsWith(p.endsWith("/") ? p : p + "/"),
       );
+    // A tree whose tags are unknown (still loading, or answered by a transport that sends
+    // none) may have read any of them: revalidated too.
+    const touched = (tree: unknown) => {
+      if (!tags.length) return false;
+      const read = typeof tree === "object" && tree !== null ? this.pageTags.get(tree) : undefined;
+      return !read || read.some((tag) => tags.includes(tag));
+    };
     return this.revalidating(cause, () =>
       paths.includes("/")
         ? this.router.invalidate()
         : this.router.invalidate({
-            filter: (match: { pathname: string }) => covers(match.pathname),
+            filter: (match: { pathname: string; loaderData?: unknown }) =>
+              covers(match.pathname) || touched(match.loaderData),
           }),
     );
   }
@@ -356,7 +421,7 @@ export class Application {
   private emit(event: ApplicationEvent) {
     for (const listener of this.eventListeners) listener(event);
   }
-  onInvalidate = (listener: (paths: readonly string[]) => void) => {
+  onInvalidate = (listener: (paths: readonly string[], tags: readonly string[]) => void) => {
     this.invalidationListeners.add(listener);
     return () => {
       this.invalidationListeners.delete(listener);
@@ -391,10 +456,13 @@ export class Application {
       ? this.router.state.matches.find((m: { routeId: string }) => m.routeId === load.route)
           ?.loaderData
       : undefined;
+    this.pageRoutes.set(load.route, routeId);
+    if (!load.preload) this.loaded.add(`${load.route}\0${load.href}`);
     const loader = {
       type: "loader",
       routeId,
       href: load.href,
+      source: "network",
       cause: load.preload
         ? "preload"
         : refreshing
@@ -405,9 +473,12 @@ export class Application {
     let result: "ok" | "error" | "aborted" = "error";
     this.emit({ ...loader, phase: "start", at: now() });
     try {
+      let tags: readonly string[] | undefined;
       const tree = await this.transport.render(routeId, params, load.signal, load.search ?? {}, {
         cause: loader.cause,
+        onTags: (read) => (tags = read),
       });
+      if (tags && typeof tree === "object" && tree !== null) this.pageTags.set(tree, tags);
       result = load.signal.aborted ? "aborted" : "ok";
       // A superseded load may still answer; only the current one reports status.
       if (!load.signal.aborted) this.report("Connected");
@@ -531,15 +602,17 @@ export function useLive<T, A extends unknown[]>(
 /**
  * Calls `listener` whenever routes are invalidated, by the Server (`invalidate()` in a
  * Server Function) or the Client: for data a component reads through Server Functions,
- * which no route loader refreshes.
+ * which no route loader refreshes. `tags` are the "use cache" tags invalidated, if any.
  */
-export function useInvalidation(listener: (paths: readonly string[]) => void) {
+export function useInvalidation(
+  listener: (paths: readonly string[], tags: readonly string[]) => void,
+) {
   const app = useApplication();
   const latest = useRef(listener);
   useLayoutEffect(() => {
     latest.current = listener;
   });
-  useEffect(() => app.onInvalidate((paths) => latest.current(paths)), [app]);
+  useEffect(() => app.onInvalidate((paths, tags) => latest.current(paths, tags)), [app]);
 }
 /**
  * Connection state for the application's own chrome: Server reachability, the last
