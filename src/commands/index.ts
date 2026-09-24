@@ -2,6 +2,7 @@ import type { Command } from "./command";
 import { install, list, remove, search, update } from "./apps";
 import { build } from "./build";
 import { dev } from "./dev";
+import { devtools } from "./devtools";
 import { init } from "./init";
 import { launch } from "./launch";
 import { pack } from "./pack";
@@ -14,6 +15,7 @@ import { connect, start } from "./start";
 export const commands: ReadonlyMap<string, Command> = new Map([
   ["init", init],
   ["dev", dev],
+  ["devtools", devtools],
   ["build", build],
   ["runtime", runtime],
   ["start", start],

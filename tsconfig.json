@@ -1,5 +1,13 @@
 {
   "extends": "./tsconfig.base.json",
   "include": ["src", "tests", "scripts", "probes", "types.d.ts"],
-  "exclude": ["**/node_modules", "**/.airtty", "probes/compile/wrapper.ts", "src/launcher/airtty"]
+  "exclude": [
+    "**/node_modules",
+    "**/.airtty",
+    "probes/compile/wrapper.ts",
+    "src/devtools/airtty-devtools",
+    "probes/vt-embed",
+    "probes/devtools-tanstack",
+    "src/launcher/airtty"
+  ]
 }

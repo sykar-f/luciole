@@ -1,0 +1,13 @@
+{
+  "date": "2026-09-24",
+  "bus": "@tanstack/devtools-event-bus 0.4.3 (ServerEventBus), @tanstack/devtools-event-client 0.4.4",
+  "eventsBridged": 83,
+  "deliveredUnchangedInOrder": true,
+  "sseFallback": true,
+  "eventClientShapeIdentical": true,
+  "commandsBackToBridge": true,
+  "tanstackPluginReceivesCommands": true,
+  "extraTopLevelFieldsSurvive": true,
+  "bigintEncodingDiffers": true,
+  "deliveryMs": 14
+}

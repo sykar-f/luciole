@@ -1,0 +1,679 @@
+{
+  "date": "2026-09-24",
+  "macos": "26.6.2",
+  "darwin": "25.6.0",
+  "bun": "1.4.2",
+  "passed": 38,
+  "total": 38,
+  "cases": [
+    {
+      "name": "SBPL rejects remote \"example.com:443\"",
+      "expect": false,
+      "ok": false,
+      "pass": true,
+      "detail": "sandbox-exec: host must be * or localhost in network address\n\nBacktrace: \n<input string>:1:52:\n\t(remote ip \"example.com:443\")"
+    },
+    {
+      "name": "SBPL rejects remote \"93.184.215.14:443\"",
+      "expect": false,
+      "ok": false,
+      "pass": true,
+      "detail": "sandbox-exec: host must be * or localhost in network address\n\nBacktrace: \n<input string>:1:52:\n\t(remote ip \"93.184.215.14:443\")"
+    },
+    {
+      "name": "sandbox-exec present and marked DEPRECATED",
+      "expect": true,
+      "ok": true,
+      "pass": true,
+      "detail": "/usr/bin/sandbox-exec"
+    },
+    {
+      "name": "startup: bun under the base profile",
+      "expect": true,
+      "ok": true,
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "startup: React + OpenTUI native renderer",
+      "expect": true,
+      "ok": true,
+      "pass": true,
+      "detail": "react 19.3.0"
+    },
+    {
+      "name": "timezone: same local zone as outside",
+      "expect": true,
+      "ok": true,
+      "pass": true,
+      "detail": "Africa/Tunis"
+    },
+    {
+      "name": "fs.read: granted path",
+      "expect": true,
+      "ok": true,
+      "pass": true,
+      "detail": "granted data"
+    },
+    {
+      "name": "fs.read: other path",
+      "expect": false,
+      "ok": false,
+      "pass": true,
+      "detail": "EPERM: operation not permitted, open '$SCRATCH/outside/data.txt'"
+    },
+    {
+      "name": "~/.ssh/config readable without sandbox",
+      "expect": true,
+      "ok": true,
+      "pass": true,
+      "detail": "<file content>"
+    },
+    {
+      "name": "~/.ssh/config denied in sandbox",
+      "expect": false,
+      "ok": false,
+      "pass": true,
+      "detail": "EPERM: operation not permitted, open '$HOME/.ssh/config'"
+    },
+    {
+      "name": "fs.write: granted path",
+      "expect": true,
+      "ok": true,
+      "pass": true,
+      "detail": "$SCRATCH/writable/out.txt"
+    },
+    {
+      "name": "fs.write: path only readable",
+      "expect": false,
+      "ok": false,
+      "pass": true,
+      "detail": "EPERM: operation not permitted, open '$SCRATCH/readable/out.txt'"
+    },
+    {
+      "name": "fs.write: other path",
+      "expect": false,
+      "ok": false,
+      "pass": true,
+      "detail": "EPERM: operation not permitted, open '$SCRATCH/outside/out.txt'"
+    },
+    {
+      "name": "exec: denied without capability",
+      "expect": false,
+      "ok": false,
+      "pass": true,
+      "detail": "EPERM: operation not permitted, posix_spawn '/bin/ls'"
+    },
+    {
+      "name": "exec: listed binary",
+      "expect": true,
+      "ok": true,
+      "pass": true,
+      "detail": "status=0 out=data.txt err="
+    },
+    {
+      "name": "exec: unlisted binary",
+      "expect": false,
+      "ok": false,
+      "pass": true,
+      "detail": "EPERM: operation not permitted, posix_spawn '/bin/cat'"
+    },
+    {
+      "name": "exec: sub-process inherits the sandbox",
+      "expect": true,
+      "ok": true,
+      "pass": true,
+      "detail": "status=0 out={\"ok\":false,\"detail\":\"EPERM: operation not permitted, open '$HOME/.ssh/config'\"} err="
+    },
+    {
+      "name": "pty: denied without capability",
+      "expect": false,
+      "ok": false,
+      "pass": true,
+      "detail": "EPERM: operation not permitted, open '/dev/ptmx'"
+    },
+    {
+      "name": "pty: /dev/ptmx with capability",
+      "expect": true,
+      "ok": true,
+      "pass": true,
+      "detail": "opened /dev/ptmx"
+    },
+    {
+      "name": "pasteboard readable without sandbox",
+      "expect": true,
+      "ok": true,
+      "pass": true,
+      "detail": "status=0 out=<nonce> err="
+    },
+    {
+      "name": "pasteboard: pbpaste blocked (mach-lookup)",
+      "expect": false,
+      "ok": false,
+      "pass": true,
+      "detail": "status=1 out= err="
+    },
+    {
+      "name": "pasteboard: pbcopy blocked",
+      "expect": false,
+      "ok": false,
+      "pass": true,
+      "detail": "status=1 out= err="
+    },
+    {
+      "name": "keychain listable without sandbox",
+      "expect": true,
+      "ok": true,
+      "pass": true,
+      "detail": "status=0 out=\"$HOME/Library/Keychains/login.keychain-db\"\n    \"/Library/Keychains/System.keychain\" err="
+    },
+    {
+      "name": "keychain: securityd blocked",
+      "expect": false,
+      "ok": false,
+      "pass": true,
+      "detail": "status=1 out= err=security: SecKeychainCopySearchList: unknown error -50=ffffffffffffffce"
+    },
+    {
+      "name": "open without sandbox",
+      "expect": true,
+      "ok": true,
+      "pass": true,
+      "detail": "status=0 out= err="
+    },
+    {
+      "name": "open: LaunchServices blocked",
+      "expect": false,
+      "ok": false,
+      "pass": true,
+      "detail": "status=1 out= err=Unable to find application named 'Finder'"
+    },
+    {
+      "name": "dns without sandbox",
+      "expect": true,
+      "ok": true,
+      "pass": true,
+      "detail": "::1"
+    },
+    {
+      "name": "dns: no resolver in sandbox (no net)",
+      "expect": false,
+      "ok": false,
+      "pass": true,
+      "detail": "getaddrinfo ENOTFOUND"
+    },
+    {
+      "name": "dns: no resolver with net hosts (the proxy resolves)",
+      "expect": false,
+      "ok": false,
+      "pass": true,
+      "detail": "getaddrinfo ENOTFOUND"
+    },
+    {
+      "name": "net: direct TCP denied by the OS",
+      "expect": false,
+      "ok": false,
+      "pass": true,
+      "detail": "connect ECONNREFUSED 127.0.0.1:54651"
+    },
+    {
+      "name": "net: no net capability, proxy unreachable",
+      "expect": false,
+      "ok": false,
+      "pass": true,
+      "detail": "connect ECONNREFUSED 127.0.0.1:54653"
+    },
+    {
+      "name": "net: proxy → allowed host",
+      "expect": true,
+      "ok": true,
+      "pass": true,
+      "detail": "200 allowed host"
+    },
+    {
+      "name": "net: proxy → other host refused (403)",
+      "expect": false,
+      "ok": false,
+      "pass": true,
+      "detail": "403"
+    },
+    {
+      "name": "net: CONNECT tunnel → allowed host",
+      "expect": true,
+      "ok": true,
+      "pass": true,
+      "detail": "allowed host"
+    },
+    {
+      "name": "net: CONNECT → other host refused",
+      "expect": false,
+      "ok": false,
+      "pass": true,
+      "detail": "HTTP/1.1 403 Forbidden"
+    },
+    {
+      "name": "net *: direct TCP allowed",
+      "expect": true,
+      "ok": true,
+      "pass": true,
+      "detail": "connected"
+    },
+    {
+      "name": "ffi sandbox_init: ~/.ssh denied after init",
+      "expect": false,
+      "ok": false,
+      "pass": true,
+      "detail": "sandbox_init=0 EPERM: operation not permitted, open '$HOME/.ssh/config'"
+    },
+    {
+      "name": "report: one line per granted capability, none unenforced",
+      "expect": true,
+      "ok": true,
+      "pass": true,
+      "detail": "clipboard.read,clipboard.write,exec,fs.read,fs.write,input.global,net,notify,open-url,pty,secrets,tabs.message"
+    }
+  ],
+  "timings": {
+    "runs": 15,
+    "profileGenerationMs": 0.32,
+    "bunE0": {
+      "bare": 10,
+      "sandboxed": 22
+    },
+    "childBoot": {
+      "bare": 67,
+      "sandboxed": 71
+    },
+    "ffiInit": {
+      "sandboxInitProcess": 19
+    }
+  },
+  "report": [
+    {
+      "capability": "fs.read",
+      "by": "os",
+      "note": "file-read* per subpath"
+    },
+    {
+      "capability": "fs.write",
+      "by": "os",
+      "note": "file-write* per subpath"
+    },
+    {
+      "capability": "exec",
+      "by": "os",
+      "note": "listed binaries; children inherit the sandbox"
+    },
+    {
+      "capability": "pty",
+      "by": "os",
+      "note": "/dev/ptmx and /dev/ttys*"
+    },
+    {
+      "capability": "net",
+      "by": "proxy",
+      "note": "only localhost:54653"
+    },
+    {
+      "capability": "clipboard.read",
+      "by": "host",
+      "note": "OSC 52 query, answered by the host"
+    },
+    {
+      "capability": "clipboard.write",
+      "by": "host",
+      "note": "OSC 52 set, applied by the host"
+    },
+    {
+      "capability": "notify",
+      "by": "host",
+      "note": "OSC 9/777, shown by the host"
+    },
+    {
+      "capability": "open-url",
+      "by": "host",
+      "note": "host IPC request (or an OSC 8 link the user activates)"
+    },
+    {
+      "capability": "secrets",
+      "by": "host",
+      "note": "host IPC, keychain entries partitioned by origin"
+    },
+    {
+      "capability": "input.global",
+      "by": "host",
+      "note": "host forwards keys outside the embed's focus"
+    },
+    {
+      "capability": "tabs.message",
+      "by": "host",
+      "note": "host IPC between tabs"
+    }
+  ],
+  "sampleProfile": [
+    "(version 1)",
+    "(deny default)",
+    "(allow process-exec (literal \"/nix/store/ymp115cs76rkv8kjxsybm8lgk261lbdm-bun-1.4.2/bin/bun\"))",
+    "(allow sysctl-read)",
+    "(allow file-read* (literal \"/\") (subpath \"/usr/lib\") (subpath \"/private/var/db/dyld\"))",
+    "(allow file-read* (literal \"/nix/store/ymp115cs76rkv8kjxsybm8lgk261lbdm-bun-1.4.2/bin/bun\") (subpath \"/nix/store/ymp115cs76rkv8kjxsybm8lgk261lbdm-bun-1.4.2\") (subpath \"/nix/store/zxb2jjkfy712mcgsf0jnsl1d0d7nbjck-ICU-76142.4.7\"))",
+    "(allow file-read* (literal \"/dev/urandom\") (literal \"/dev/random\") (literal \"/dev/null\"))",
+    "(allow file-write-data (literal \"/dev/null\"))",
+    "(allow file-read* (literal \"/etc\") (literal \"/var\") (literal \"/private/etc/localtime\") (subpath \"/private/var/db/timezone\") (subpath \"/usr/share/zoneinfo\"))",
+    "(allow file-read-metadata (literal \"$HOME/workdir/drafts/airtty-worktrees/embedding/probes\") (literal \"$HOME/workdir/drafts/airtty-worktrees/embedding\") (literal \"$HOME/workdir/drafts/airtty-worktrees\") (literal \"$HOME/workdir/drafts\") (literal \"$HOME/workdir\") (literal \"$HOME\") (literal \"/Users\") (literal \"$SCRATCH\") (literal \"/private/var/folders/vp/5qk3l0jx25j_85c37_k2v3840000gn/T\") (literal \"/private/var/folders/vp/5qk3l0jx25j_85c37_k2v3840000gn\") (literal \"/private/var/folders/vp\") (literal \"/private/var/folders\") (literal \"/private/var\") (literal \"/private\"))",
+    "(allow file-read-data (literal \"$HOME/workdir/drafts/airtty-worktrees/embedding\"))",
+    "(allow file-read* (subpath \"$HOME/workdir/drafts/airtty-worktrees/embedding/probes/sandbox\") (subpath \"$HOME/workdir/drafts/airtty-worktrees/embedding/node_modules\") (subpath \"$HOME/workdir/drafts/airtty-worktrees/embedding/tsconfig.json\") (subpath \"$HOME/workdir/drafts/airtty-worktrees/embedding/tsconfig.base.json\") (subpath \"$HOME/workdir/drafts/airtty-worktrees/embedding/package.json\") (subpath \"$SCRATCH/readable\"))",
+    "(allow file-read* file-write* (subpath \"$SCRATCH/tmp\") (subpath \"$SCRATCH/writable\"))",
+    "(allow process-fork)",
+    "(allow process-exec file-read* (literal \"/bin/ls\"))",
+    "(allow file-read* file-write* file-ioctl (literal \"/dev/ptmx\") (regex #\"^/dev/ttys[0-9]+$\"))",
+    "(allow network-outbound (remote ip \"localhost:54653\"))"
+  ],
+  "linux": {
+    "kernel": "7.0.14-orbstack-00380-ga7e0a2dc9535",
+    "bwrap": "bubblewrap 0.12.0",
+    "landlockAbi": 8,
+    "cases": [
+      {
+        "name": "read granted path",
+        "expect": true,
+        "ok": true,
+        "detail": "granted data",
+        "pass": true
+      },
+      {
+        "name": "read ~/.ssh (not mounted)",
+        "expect": false,
+        "ok": false,
+        "detail": "ENOENT: no such file or directory, open '/root/.ssh/config'",
+        "pass": true
+      },
+      {
+        "name": "write granted path",
+        "expect": true,
+        "ok": true,
+        "detail": "/work/writable/out.txt",
+        "pass": true
+      },
+      {
+        "name": "write read-only granted path",
+        "expect": false,
+        "ok": false,
+        "detail": "EROFS: read-only file system, open '/work/readable/out.txt'",
+        "pass": true
+      },
+      {
+        "name": "write outside (not mounted)",
+        "expect": false,
+        "ok": false,
+        "detail": "ENOENT: no such file or directory, open '/work/outside/out.txt'",
+        "pass": true
+      },
+      {
+        "name": "pty without capability",
+        "expect": false,
+        "ok": false,
+        "detail": "ENOENT: no such file or directory, open '/dev/ptmx'",
+        "pass": true
+      },
+      {
+        "name": "pty with capability",
+        "expect": true,
+        "ok": true,
+        "detail": "opened /dev/ptmx",
+        "pass": true
+      },
+      {
+        "name": "direct connection (network namespace)",
+        "expect": false,
+        "ok": false,
+        "detail": "connect ECONNREFUSED 192.168.215.2:35467",
+        "pass": true
+      },
+      {
+        "name": "proxy → allowed host",
+        "expect": true,
+        "ok": true,
+        "detail": "200 allowed host",
+        "pass": true
+      },
+      {
+        "name": "proxy → other host (403)",
+        "expect": false,
+        "ok": false,
+        "detail": "403",
+        "pass": true
+      },
+      {
+        "name": "CONNECT → allowed host",
+        "expect": true,
+        "ok": true,
+        "detail": "allowed host",
+        "pass": true
+      },
+      {
+        "name": "net * shares the network",
+        "expect": true,
+        "ok": true,
+        "detail": "200 allowed host",
+        "pass": true
+      }
+    ],
+    "proxyDecisions": [
+      {
+        "method": "GET",
+        "host": "allowed.test",
+        "port": 35467,
+        "allowed": true
+      },
+      {
+        "method": "GET",
+        "host": "denied.test",
+        "port": 37019,
+        "allowed": false
+      },
+      {
+        "method": "CONNECT",
+        "host": "allowed.test",
+        "port": 35467,
+        "allowed": true
+      }
+    ],
+    "sample": {
+      "bwrap": [
+        "--die-with-parent",
+        "--new-session",
+        "--unshare-all",
+        "--clearenv",
+        "--ro-bind-try",
+        "/usr",
+        "/usr",
+        "--ro-bind-try",
+        "/lib",
+        "/lib",
+        "--ro-bind-try",
+        "/lib64",
+        "/lib64",
+        "--ro-bind-try",
+        "/bin",
+        "/bin",
+        "--ro-bind-try",
+        "/etc/ld.so.cache",
+        "/etc/ld.so.cache",
+        "--ro-bind-try",
+        "/etc/localtime",
+        "/etc/localtime",
+        "--proc",
+        "/proc",
+        "--dev-bind",
+        "/dev/null",
+        "/dev/null",
+        "--dev-bind",
+        "/dev/zero",
+        "/dev/zero",
+        "--dev-bind",
+        "/dev/urandom",
+        "/dev/urandom",
+        "--dev-bind",
+        "/dev/random",
+        "/dev/random",
+        "--ro-bind",
+        "/usr/local/bin/bun",
+        "/usr/local/bin/bun",
+        "--ro-bind",
+        "/app",
+        "/app",
+        "--ro-bind",
+        "/data",
+        "/data",
+        "--bind",
+        "/tmp/app",
+        "/tmp/app",
+        "--bind",
+        "/out",
+        "/out",
+        "--ro-bind",
+        "/usr/bin/git",
+        "/usr/bin/git",
+        "--dir",
+        "/run/airtty",
+        "--bind",
+        "/run/host-proxy.sock",
+        "/run/airtty/proxy.sock",
+        "--setenv",
+        "TMPDIR",
+        "/tmp/app",
+        "--setenv",
+        "PATH",
+        "/usr/bin:/bin",
+        "--setenv",
+        "HTTP_PROXY",
+        "http://127.0.0.1:3128",
+        "--setenv",
+        "HTTPS_PROXY",
+        "http://127.0.0.1:3128"
+      ],
+      "landlock": {
+        "handledAccessFs": "0xffff",
+        "handledAccessNet": "0x3",
+        "scoped": "0x3",
+        "fsRules": [
+          {
+            "path": "/usr",
+            "access": "0xc"
+          },
+          {
+            "path": "/lib",
+            "access": "0xc"
+          },
+          {
+            "path": "/lib64",
+            "access": "0xc"
+          },
+          {
+            "path": "/etc",
+            "access": "0xc"
+          },
+          {
+            "path": "/proc",
+            "access": "0xc"
+          },
+          {
+            "path": "/dev",
+            "access": "0xc"
+          },
+          {
+            "path": "/usr/local/bin/bun",
+            "access": "0x5"
+          },
+          {
+            "path": "/app",
+            "access": "0xc"
+          },
+          {
+            "path": "/data",
+            "access": "0xc"
+          },
+          {
+            "path": "/tmp/app",
+            "access": "0x57be"
+          },
+          {
+            "path": "/out",
+            "access": "0x57be"
+          },
+          {
+            "path": "/usr/bin/git",
+            "access": "0x5"
+          }
+        ],
+        "netRules": [
+          {
+            "port": 3128,
+            "access": "0x2"
+          }
+        ]
+      },
+      "seccomp": {
+        "deny": [
+          "ptrace",
+          "process_vm_readv",
+          "process_vm_writev",
+          "keyctl",
+          "add_key",
+          "request_key",
+          "bpf",
+          "perf_event_open",
+          "userfaultfd",
+          "mount",
+          "umount2",
+          "pivot_root",
+          "unshare",
+          "setns",
+          "kexec_load",
+          "init_module",
+          "finit_module",
+          "open_by_handle_at"
+        ],
+        "ioctlDeny": [
+          21522,
+          21532
+        ]
+      },
+      "report": [
+        {
+          "capability": "fs.read",
+          "by": "os",
+          "note": "bind mounts + Landlock"
+        },
+        {
+          "capability": "fs.write",
+          "by": "os",
+          "note": "bind mounts + Landlock"
+        },
+        {
+          "capability": "net",
+          "by": "proxy",
+          "note": "network namespace (loopback only) + proxy unix socket; the proxy checks hosts"
+        },
+        {
+          "capability": "exec",
+          "by": "os",
+          "note": "Landlock EXECUTE on listed paths"
+        },
+        {
+          "capability": "clipboard.write",
+          "by": "host",
+          "note": "no socket mounted; host IPC"
+        }
+      ],
+      "landlockOnly": [
+        {
+          "capability": "net",
+          "by": "unenforced",
+          "note": "TCP ports 443 to any address; UDP open"
+        }
+      ]
+    }
+  }
+}

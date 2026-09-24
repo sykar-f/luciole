@@ -828,6 +828,8 @@ const ClientEnvironment = z.object({
   AIRTTY_SESSION: z.optional(SessionId),
   /** Set by src/launcher: what sessions are kept under instead of the Server's URL. */
   AIRTTY_SESSION_KEY: z.optional(z.string().check(z.minLength(1))),
+  /** Development only: the address of `airtty devtools` (src/devtools/client-agent.ts). */
+  AIRTTY_DEVTOOLS: z.optional(z.string()),
 });
 /** What `airtty dev` sends the Client it supervises (src/commands/dev.ts). */
 const DevMessage = z.union([
@@ -893,6 +895,12 @@ export async function run(
     server: sessionKey ?? env.data.AIRTTY_SESSION_KEY ?? url,
     id: env.data.AIRTTY_SESSION,
   });
+  const devtools = env.data.AIRTTY_DEVTOOLS
+    ? (await import("./devtools/client-agent")).startClientAgent({
+        address: env.data.AIRTTY_DEVTOOLS,
+        name,
+      })
+    : undefined;
   const app = create({
     url: connection.url,
     fetch: connection.fetch,
@@ -900,6 +908,7 @@ export async function run(
     latencyMs: env.data.AIRTTY_LATENCY_MS,
     network: networkFromEnv(process.env),
     session: session.restored,
+    ...(devtools && { wrapTransport: devtools.wrapTransport }),
   });
   // Claims the session at once: another Client starting now must not take it.
   session.flush(app.restoration.snapshot());
@@ -932,6 +941,7 @@ export async function run(
   for (const signal of ["SIGTERM", "SIGINT", "SIGHUP"] as const) process.on(signal, interrupted);
   app.quit = quit;
   renderer = await createCliRenderer({ exitOnCtrlC: false });
+  devtools?.attach(app, renderer);
   const root = createRoot(renderer);
   // RouterProvider's Transitioner performs the initial load.
   root.render(<Shell app={app} />);

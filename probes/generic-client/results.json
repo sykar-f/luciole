@@ -1,0 +1,112 @@
+{
+  "bundle": {
+    "app": "examples/mdreader",
+    "bytes": 20099,
+    "gzip": 7472,
+    "unminifiedBytes": 36066,
+    "clientModules": 8,
+    "sources": 15,
+    "builtins": [],
+    "airttyBuildMs": 1970.061,
+    "bundleMs": 34.675,
+    "abi": {
+      "version": 1,
+      "specifiers": [
+        "@opentui/core",
+        "@opentui/keymap",
+        "@opentui/keymap/react",
+        "@opentui/react",
+        "@opentui/react/jsx-runtime",
+        "@tanstack/react-router",
+        "airtty/client",
+        "airtty/route-tree",
+        "react",
+        "react/jsx-runtime",
+        "zod",
+        "zod/mini"
+      ],
+      "packages": {
+        "react": "19.3.0",
+        "@opentui/core": "0.5.12",
+        "@opentui/react": "0.5.12",
+        "@opentui/keymap": "0.5.12",
+        "@tanstack/react-router": "1.170.38",
+        "zod": "4.6.5",
+        "react-server-dom-webpack": "19.3.0"
+      },
+      "key": "1-d2119857fce326e0"
+    }
+  },
+  "runtime": {
+    "bytes": 292255,
+    "gzip": 67884,
+    "buildMs": 6.835
+  },
+  "cold": {
+    "manifest": 5.955,
+    "verify": 0.294,
+    "download": 0.231,
+    "hash": 0.521,
+    "evalMs": 2.886,
+    "firstFrameMs": 152.983,
+    "cacheHit": false
+  },
+  "warm": {
+    "manifest": 0.467,
+    "verify": 0.901,
+    "cache": 0.31,
+    "totalMs": 1.692,
+    "cacheHit": true
+  },
+  "frame": "┌──────────────────────────────────────────────────────────────────────────────────────────────────┐\n│ MDREADER  …                                                                ● watching  Connected │\n│                                                                                                  │\n│   README.md                                                                                      │\n│   4 lines · 44 B · modified Sep 24, 2026 at 3:30 PM                                              │\n│                                                                                                  │\n│   Handbook                                                                                       │\n│                                                                                                  │\n│   Downloaded, verified, rendered.                                                                │\n│                                                                                                  │\n│                                                                                                  │\n│                                                                                                  │",
+  "hits": {
+    "manifest": 6,
+    "bundle": 2,
+    "forwarded": 3
+  },
+  "assertions": [
+    {
+      "name": "bundle binds the signed build ID",
+      "ok": true
+    },
+    {
+      "name": "downloaded mdreader renders its home document",
+      "ok": true
+    },
+    {
+      "name": "imported Server Function (useLive) reaches its own Server",
+      "ok": true
+    },
+    {
+      "name": "warm start reads the bundle from the cache",
+      "ok": true
+    },
+    {
+      "name": "tampered bundle refused",
+      "ok": true,
+      "detail": "http://127.0.0.1:61661: bundle does not match the signed hash"
+    },
+    {
+      "name": "manifest altered after signing refused",
+      "ok": true,
+      "detail": "http://127.0.0.1:61661: manifest signature does not verify"
+    },
+    {
+      "name": "publisher key change refused for a pinned origin",
+      "ok": true,
+      "detail": "http://127.0.0.1:61661: publisher key changed (pinned 081035a2215bb6c8…)"
+    },
+    {
+      "name": "bundle for another runtime ABI refused",
+      "ok": true,
+      "detail": "http://127.0.0.1:61661: bundle built for runtime ABI 0-0000000000000000, this Client has 1-d2119857fce326e0"
+    },
+    {
+      "name": "require outside the ABI and the declared built-ins refused",
+      "ok": true,
+      "detail": "probe requires node:child_process, outside the runtime ABI"
+    }
+  ],
+  "ranAt": "2026-09-24T14:31:02.745Z",
+  "bun": "1.4.2"
+}

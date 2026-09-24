@@ -9,6 +9,7 @@ import type { CacheHandler } from "./cache/handler";
 import { TAGS_HEADER, renderPage } from "./cache/render";
 import { Tag, configureCache, invalidateTags, type CacheEvent } from "./cache/runtime";
 import { assertUncached } from "./cache/scope";
+import { devtoolsInstrument } from "./devtools/server-agent";
 export { memoryCache, type CacheEntry, type CacheHandler } from "./cache/handler";
 export { sqliteCache } from "./cache/sqlite";
 export { cacheLife, cacheTag, type CacheEvent, type CacheProfile } from "./cache/runtime";
@@ -170,6 +171,8 @@ const ServerEnvironment = z.object({
   // Test-only switches; never enabled by a request.
   AIRTTY_TEST: z.string().optional(),
   AIRTTY_TEST_DROP_ONCE: z.string().optional(),
+  // Development only: the address of `airtty devtools` (src/devtools/server-agent.ts).
+  AIRTTY_DEVTOOLS: z.string().optional(),
 });
 // The Client's event clock (src/transport.ts): `at` compares across both processes.
 const now = () => performance.timeOrigin + performance.now();
@@ -251,10 +254,16 @@ export function serve(config: ServerConfig) {
     if (login.auth !== "public")
       throw new Error(`Authentication route must be public: ${auth.unauthorizedPath}`);
   }
+  const instrument = devtoolsInstrument(config.instrument, env.data.AIRTTY_DEVTOOLS, {
+    buildId: config.buildId,
+    getCallId,
+    invalidateTag: (tag) => invalidate({ tag }),
+  });
+  // The cache reports through the same instrument as requests: the DevTools see both.
   configureCache({
     buildId: config.buildId,
     handler: config.cache,
-    onEvent: config.instrument?.onEvent,
+    onEvent: instrument?.onEvent,
     callId: getCallId,
   });
   const metrics = { renders: 0, actions: 0 };
@@ -418,8 +427,8 @@ export function serve(config: ServerConfig) {
       // Where future middlewares go (a render cache, for instance): around `handle`,
       // keyed by `kind`, with the request's callId, before any page or action code runs
       // and with the Response it produced. Instrumentation is the first of them.
-      const kind = config.instrument && kindOf(req, url);
-      if (config.instrument && kind) return observe(req, url, kind, config.instrument.onEvent);
+      const kind = instrument && kindOf(req, url);
+      if (instrument && kind) return observe(req, url, kind, instrument.onEvent);
       return handle(req, url, req.headers.get("x-airtty-call") ?? crypto.randomUUID());
     },
   };

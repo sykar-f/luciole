@@ -67,11 +67,21 @@
       }
     },
     {
-      "files": ["examples/forge/server/ci.ts", "examples/forge/server/seed.ts"],
+      "files": [
+        "examples/forge/server/ci.ts",
+        "examples/forge/server/seed.ts",
+        "src/devtools/fixtures.ts"
+      ],
       "rules": {
         "no-magic-numbers": "off"
       }
     }
   ],
-  "ignorePatterns": ["**/node_modules/**", "**/.airtty/**", "**/routeTree.gen.ts"]
+  "ignorePatterns": [
+    "**/node_modules/**",
+    "**/.airtty/**",
+    "**/routeTree.gen.ts",
+    "probes/vt-embed/**",
+    "probes/devtools-tanstack/**"
+  ]
 }
