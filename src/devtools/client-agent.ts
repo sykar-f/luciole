@@ -2,7 +2,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import type { CliRenderer } from "@opentui/core";
 import type { Application, ApplicationEvent } from "../client";
 import { messageOf } from "../guards";
-import { TransportError, type Transport } from "../transport";
+import type { Transport } from "../transport";
 import { createComponentTracker, fiberChannel } from "./fibers";
 import { createOverlay } from "./overlay";
 import { captureConsole, consoleText, preview } from "./preview";
@@ -94,13 +94,11 @@ export function startClientAgent({
   });
   let latencyMs = 0;
   // Added before the request is sent: the Network panel shows it as the loader's wait.
+  // Cancelled meanwhile, the request goes on to the transport with its aborted signal,
+  // which fails it as not sent, with the transport's own error. (Importing the
+  // transport here would put Flight's top-level await in this lazily loaded chunk.)
   const wait = async (signal: AbortSignal | undefined) => {
-    if (!latencyMs) return;
-    try {
-      await delay(latencyMs, undefined, { signal });
-    } catch (error) {
-      throw new TransportError(messageOf(error), "not-sent");
-    }
+    if (latencyMs) await delay(latencyMs, undefined, { signal }).catch(() => {});
   };
   const wrapTransport = (inner: Transport): Transport => ({
     async render(routeId, params, signal, search, context) {
