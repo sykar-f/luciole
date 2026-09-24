@@ -3,7 +3,7 @@ import { expect, test } from "bun:test";
 import { createRoute } from "@tanstack/react-router";
 import { createApplication, type ApplicationEvent } from "../src/client";
 import { loadPage, pageRoute, rootRoute } from "../src/route-tree";
-import { createHttpTransport, type Fetch, type TransportEvent } from "../src/transport";
+import { createHttpTransport, now, type Fetch, type TransportEvent } from "../src/transport";
 import { renderBody, until } from "./helpers";
 
 // One Flight model row: the root value, as JSON (see tests/http-transport.test.ts).
@@ -38,10 +38,11 @@ test("every request sends its callId, and its events carry it with a timestamp",
     fetch: server(sent),
     onEvent: (event) => events.push(event),
   });
-  const before = Date.now();
+  // Bracketed with the clock `at` comes from: the window is exact, whatever the load.
+  const before = now();
   await transport.render("/", {}, new AbortController().signal, {}, { cause: "navigation" });
   expect(await transport.call("a.ts#run", [])).toBe(42);
-  const after = Date.now();
+  const after = now();
   expect(sent).toHaveLength(2);
   expect(new Set(sent).size).toBe(2);
   expect(events.map((e) => [e.type, e.kind, e.callId])).toEqual([
@@ -54,10 +55,14 @@ test("every request sends its callId, and its events carry it with a timestamp",
     ["chunk", "action", sent[1]],
     ["end", "action", sent[1]],
   ]);
-  for (const { at } of events) {
-    // `at` comes from the monotonic clock: allow for its drift from the wall clock.
-    expect(at).toBeGreaterThanOrEqual(before - 5);
-    expect(at).toBeLessThanOrEqual(after + 5);
+  const ats = events.map((e) => e.at);
+  expect(ats).toEqual([...ats].sort((a, b) => a - b));
+  for (const at of ats) {
+    expect(at).toBeGreaterThanOrEqual(before);
+    expect(at).toBeLessThanOrEqual(after);
+    // Epoch milliseconds, not the process-relative performance.now(): within a minute of
+    // the wall clock (the monotonic clock drifts from it by milliseconds, never minutes).
+    expect(Math.abs(at - Date.now())).toBeLessThan(60_000);
   }
   expect(events.flatMap((e) => (e.type === "request" ? [e.cause] : []))).toEqual([
     "navigation",
