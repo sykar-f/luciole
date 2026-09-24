@@ -11,6 +11,7 @@ import { bundleMessages, logMessages } from "./bundle-errors";
 import { formatIdentity, type BinaryIdentity } from "./launcher/identity";
 import { checkAppName } from "./launcher/paths";
 import { readJsonFile } from "./package-json";
+import { matchesDist, publishedDist } from "./registry/npm";
 import { checkSigning, notarizeClient, signClient, type SignOptions } from "./sign";
 
 export const COMPILE_TARGETS = [
@@ -207,22 +208,6 @@ async function compileEntry(
 
 const defaultCache = () => join(process.env.XDG_CACHE_HOME || join(homedir(), ".cache"), "airtty");
 
-/** The part of an npm version document that locates and verifies the tarball. */
-const VersionDocument = z.object({
-  dist: z.object({
-    tarball: z.string().min(1),
-    integrity: z.string().min(1).optional(),
-    shasum: z.string().min(1).optional(),
-  }),
-});
-/** The `dist` entry of an npm version document, when it can be verified. */
-function publishedDist(document: unknown) {
-  const parsed = VersionDocument.safeParse(document);
-  if (!parsed.success) return undefined;
-  const { dist } = parsed.data;
-  return dist.integrity || dist.shasum ? dist : undefined;
-}
-
 /**
  * Bun's stock runtime for `target` (`@oven/bun-<os>-<arch>` on npm), downloaded on the
  * first use, checked against the integrity the registry publishes, then reused offline.
@@ -257,12 +242,7 @@ export async function fetchRuntime(
   const dist = publishedDist(await (await download(metadata)).json());
   if (!dist) throw new Error(`${metadata} publishes no tarball with an integrity`);
   const tarball = new Uint8Array(await (await download(dist.tarball)).arrayBuffer());
-  const digest = (algorithm: "sha512" | "sha1", encoding: "base64" | "hex") =>
-    new Bun.CryptoHasher(algorithm).update(tarball).digest(encoding);
-  const verified = dist.integrity?.startsWith("sha512-")
-    ? digest("sha512", "base64") === dist.integrity.slice("sha512-".length)
-    : dist.shasum !== undefined && digest("sha1", "hex") === dist.shasum;
-  if (!verified)
+  if (!matchesDist(tarball, dist))
     throw new Error(`${dist.tarball} does not match the integrity published by ${registry}`);
   await mkdir(runtimes, { recursive: true });
   const staging = await mkdtemp(join(runtimes, `.${name}-`));
