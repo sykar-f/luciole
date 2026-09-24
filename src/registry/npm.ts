@@ -10,7 +10,8 @@
  * not verified, so this protects from a damaged download, not from a compromised
  * registry.
  */
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { mkdtemp, rename, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
@@ -147,7 +148,7 @@ export function npmRegistry(location = registryUrl()): Registry {
         app: parsed.data.airtty,
       };
     },
-    async download(release, target) {
+    async download(release, target, directory) {
       const holder = release.app.binaries[target];
       if (!holder)
         throw new Error(
@@ -167,20 +168,21 @@ export function npmRegistry(location = registryUrl()): Registry {
       const tarball = new Uint8Array(await response.arrayBuffer());
       if (!matchesDist(tarball, dist))
         throw new Error(`${dist.tarball} does not match the integrity published by ${location}`);
-      return binaryIn(tarball, release.app.name, dist.tarball);
+      await buildIn(tarball, release.app.name, dist.tarball, directory);
     },
   };
 }
 
-/** `package/bin/<app>` of an npm tarball. */
-async function binaryIn(tarball: Uint8Array, app: string, source: string) {
+/** Extracts `package/bin/` of an npm tarball (`<app>`, `native/`) into `directory`. */
+async function buildIn(tarball: Uint8Array, app: string, source: string, directory: string) {
   const staging = await mkdtemp(join(tmpdir(), "airtty-package-"));
   try {
-    const tar = Bun.spawnSync(["tar", "xzf", "-", "-C", staging, `package/bin/${app}`], {
+    const tar = Bun.spawnSync(["tar", "xzf", "-", "-C", staging, "package/bin"], {
       stdin: tarball,
     });
-    if (tar.exitCode !== 0) throw new Error(`${source} holds no package/bin/${app}`);
-    return new Uint8Array(await readFile(join(staging, "package/bin", app)));
+    if (tar.exitCode !== 0 || !existsSync(join(staging, "package/bin", app)))
+      throw new Error(`${source} holds no package/bin/${app}`);
+    await rename(join(staging, "package/bin"), directory);
   } finally {
     await rm(staging, { recursive: true, force: true });
   }

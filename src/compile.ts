@@ -4,12 +4,19 @@
  * Validated by probes/compile (OpenTUI embeds its native library through `type: "file"`).
  */
 import { homedir } from "node:os";
-import { join, resolve } from "node:path";
-import { mkdir, mkdtemp, rename, rm } from "node:fs/promises";
+import { dirname, join, resolve } from "node:path";
+import { cp, mkdir, mkdtemp, rename, rm } from "node:fs/promises";
 import { z } from "zod";
 import { bundleMessages, logMessages } from "./bundle-errors";
 import { formatIdentity, type BinaryIdentity } from "./launcher/identity";
 import { checkAppName } from "./launcher/paths";
+import {
+  layOutNative,
+  NATIVE_DIRECTORY,
+  NATIVE_SERVER,
+  nativePackage,
+  nativeTarget,
+} from "./native";
 import { readJsonFile } from "./package-json";
 import { matchesDist, publishedDist } from "./registry/npm";
 import { checkSigning, notarizeClient, signClient, type SignOptions } from "./sign";
@@ -117,35 +124,68 @@ const framework = import.meta.dir;
 export async function compileApp(
   output: string,
   options: CompileOptions & { name: string },
-): Promise<Compiled & { identity: BinaryIdentity }> {
+): Promise<Compiled & { identity: BinaryIdentity; native?: string }> {
   const { target } = parseTarget(options.target ?? hostTarget());
   const buildId = await readBuildId(output);
   const staging = join(output, "binary");
   await rm(staging, { recursive: true, force: true });
+  const outfile = resolve(
+    options.outfile ?? join(output, "bin", suffix(options), checkAppName(options.name)),
+  );
+  // Native packages stay out of the bundle: a compiled binary cannot resolve packages at
+  // run time, so the Server then runs from native/server.js, next to native/node_modules,
+  // with the binary acting as Bun (src/launcher/binary.ts).
+  const natives = new Map<string, string>();
   const server = await Bun.build({
     entrypoints: [join(output, "server/index.js")],
     outdir: staging,
     naming: "server.js",
     target: "bun",
     conditions: ["react-server"],
+    // Set so that the binary acts as Bun; the application's own children must not.
+    banner: "delete process.env.BUN_BE_BUN;",
+    plugins: [
+      {
+        name: "airtty-native",
+        setup(b) {
+          b.onResolve({ filter: /^[^./]/ }, (a) => {
+            const found = a.importer ? nativePackage(a.path, a.importer) : undefined;
+            if (!found) return undefined;
+            natives.set(found.name, found.directory);
+            return { path: a.path, external: true };
+          });
+        },
+      },
+    ],
   }).catch((error: unknown) => {
     throw new Error(bundleMessages(error).join("\n"));
   });
   if (!server.success) throw new Error(logMessages(server.logs));
+  const nativeDirectory = join(dirname(outfile), NATIVE_DIRECTORY);
+  const previous = nativeTarget(nativeDirectory);
+  if (natives.size && previous && previous !== target)
+    throw new Error(
+      `${nativeDirectory} holds native packages for ${previous}: compile ${target} into ` +
+        "another directory (--outfile)",
+    );
+  if (natives.size || previous === target)
+    await layOutNative(natives, {
+      destination: nativeDirectory,
+      target,
+      nativeDir: options.nativeDir ? resolve(options.nativeDir) : undefined,
+    });
+  if (natives.size) await cp(join(staging, "server.js"), join(nativeDirectory, NATIVE_SERVER));
   const identity: BinaryIdentity = { name: checkAppName(options.name), buildId, target };
   const entry = join(staging, "entry.js");
   await Bun.write(
     entry,
     `import {main} from ${JSON.stringify(join(framework, "launcher/binary.ts"))};\n` +
       `await main(${JSON.stringify(formatIdentity(identity))},{` +
-      `server:()=>import("./server.js"),client:()=>import("../client/index.js")});\n`,
+      `server:${natives.size ? "null" : '()=>import("./server.js")'},client:()=>import("../client/index.js")});\n`,
   );
   try {
-    const compiled = await compileEntry(entry, {
-      ...options,
-      outfile: options.outfile ?? join(output, "bin", `${options.name}-${suffix(options)}`),
-    });
-    return { ...compiled, identity };
+    const compiled = await compileEntry(entry, { ...options, outfile });
+    return { ...compiled, identity, native: natives.size ? nativeDirectory : undefined };
   } finally {
     await rm(staging, { recursive: true, force: true });
   }

@@ -5,6 +5,7 @@ import { realpathSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { bundleMessages, logMessages } from "./bundle-errors";
+import { nativePackage } from "./native";
 import { readJsonFile, readPackageJson } from "./package-json";
 import { ROUTE_TREE_FILE, compileRouteGraph, renderRouteTree } from "./route-graph";
 import { cachedFunctions, cacheSource, staleTimeOf } from "./cache/transform";
@@ -539,6 +540,14 @@ export async function build(directory: string, output = join(directory, ".airtty
                   ? undefined
                   : { path: Bun.resolveSync(a.path, framework) },
               );
+              // Native code cannot be bundled: resolved at run time, from node_modules or
+              // from an app binary's native/ (src/native.ts, src/compile.ts).
+              if (role === "server")
+                b.onResolve({ filter: /^[^./]/ }, (a) =>
+                  a.importer && nativePackage(a.path, a.importer)
+                    ? { path: a.path, external: true }
+                    : undefined,
+                );
               // Side markers carry no code of their own.
               b.onResolve({ filter: /^(server-only|client-only)$/ }, (a) => ({
                 path: a.path,

@@ -11,8 +11,10 @@
  *                                      the Server there (installed on first use),
  *                                      the Client here, through ssh
  */
-import { resolve } from "node:path";
+import { spawn } from "node:child_process";
+import { dirname, join, resolve } from "node:path";
 import { messageOf } from "../guards";
+import { NATIVE_DIRECTORY, NATIVE_SERVER } from "../native";
 import { formatIdentity, parseIdentity, type BinaryIdentity } from "./identity";
 import { DEFAULT_GRACE_MS, parseDuration } from "./lifetime";
 import { ensureServer, formatEnsured, newClientId, serverId } from "./managed";
@@ -35,7 +37,8 @@ const isClientModule = (value: unknown): value is ClientModule =>
   "run" in value &&
   typeof value.run === "function";
 
-export type Roles = { server: () => Promise<unknown>; client: () => Promise<unknown> };
+/** `server` is null when the Server runs from native/server.js (src/compile.ts). */
+export type Roles = { server: (() => Promise<unknown>) | null; client: () => Promise<unknown> };
 
 const usage = (name: string) =>
   `Usage: ${name} [--grace <duration>] [--on [user@]host [--target <binary>]]\n` +
@@ -101,7 +104,17 @@ async function serve(identity: BinaryIdentity, args: readonly string[], roles: R
     delete process.env.AIRTTY_SOCKET;
   }
   if (socket !== undefined) process.env.AIRTTY_SOCKET = resolve(socket);
-  await roles.server();
+  if (roles.server) return roles.server();
+  // With native packages, the Server sits next to them: this binary runs it as Bun, which
+  // resolves packages (a compiled binary does not). Signals and the exit code pass through.
+  const native = process.env.AIRTTY_NATIVE_DIR ?? join(dirname(process.execPath), NATIVE_DIRECTORY);
+  const child = spawn(process.execPath, [join(native, NATIVE_SERVER)], {
+    stdio: "inherit",
+    env: { ...process.env, BUN_BE_BUN: "1" },
+  });
+  for (const signal of ["SIGTERM", "SIGINT", "SIGHUP"] as const)
+    process.on(signal, () => child.kill(signal));
+  child.once("exit", (code, signal) => process.exit(code ?? (signal ? 1 : 0)));
 }
 
 const grace = (options: Map<string, string>) => {

@@ -55,7 +55,7 @@ Notes y crée `notes.sqlite`, mdreader y lit ses fichiers.
 ## Binaire autonome à deux rôles
 
 ```text
-airtty build --compile [--name notes] [--target t] …   → .airtty/bin/notes-<target>
+airtty build --compile [--name notes] [--target t] …   → .airtty/bin/<os>-<arch>/notes (+ native/)
 ```
 
 Le binaire contient le Client **et** le Server d'un même build, plus le lanceur
@@ -84,6 +84,34 @@ octets d'un binaire étranger sans l'exécuter.
 Le build l'avertit à chaque `--compile` : le binaire contient le code Server, métier
 compris, lisible par qui le reçoit. `--client-only` produit l'ancien artefact, Client seul, pour une app dont le code Server
 ne doit pas arriver sur les postes des utilisateurs.
+
+### Modules natifs côté Server
+
+Un paquet à code natif (un addon `.node` et les bibliothèques qu'il lie) ne tient pas dans
+un fichier unique. `src/native.ts` le reconnaît : il contient un `.node`, dépend d'un
+chargeur (node-gyp-build, bindings, prebuild-install, node-pre-gyp) ou a, parmi ses
+optionalDependencies, des paquets de plateforme (`os`/`cpu`) qui en contiennent un (sharp
+et ses `@img/*`). Le build le laisse externe côté Server (un `onResolve` dans
+`build.ts`) : `airtty ./app` le résout dans `node_modules` comme avant.
+
+`--compile` pose alors, à côté du binaire, `native/node_modules/` avec ces paquets, leurs
+dépendances et les seuls paquets de plateforme de la cible, dans la disposition
+d'installation : l'addon de sharp trouve libvips par ses chemins relatifs
+(`../../sharp-libvips-<plateforme>/lib`). Un binaire compilé ne résout aucun paquet à
+l'exécution (vérifié : ni `require`, ni `createRequire`, ni `Bun.resolveSync`, ni un
+plugin d'exécution) : le Server de ces apps est donc `native/server.js`, que le binaire
+lance en se comportant comme Bun (`BUN_BE_BUN=1`, retiré aussitôt de l'environnement du
+Server), avec la même interface (`serve`, cycle de vie, signaux, code de sortie).
+`AIRTTY_NATIVE_DIR` remplace l'emplacement. Pour une autre plateforme, installer ses
+paquets dans un répertoire passé en `--native-dir`
+(`bun add sharp --os=linux --cpu=x64`) ; un paquet sans code natif pour la cible est
+refusé avec cette indication. `native/TARGET` empêche de mélanger deux cibles dans un
+même répertoire.
+
+`native/` voyage avec le binaire : dans l'archive de `--on` (couverte par
+`SHA256SUMS`), dans le paquet npm de plateforme (`bin/native/`), et dans
+`apps/<app>/<buildId>/` à l'installation. Référence : `examples/files` (miniatures sharp)
+compilé fonctionne loin de tout `node_modules` (`tests/native.test.ts`).
 
 ### `--on user@host`
 
@@ -208,16 +236,16 @@ Une app publiée, à la manière d'esbuild :
   },
   "optionalDependencies": { "@ada/notes-darwin-arm64": "1.2.0", "@ada/notes-linux-x64": "1.2.0" },
 }
-// @ada/notes-linux-x64 : { "os": ["linux"], "cpu": ["x64"], "libc": ["glibc"], "files": ["bin"] } + bin/notes
+// @ada/notes-linux-x64 : { "os": ["linux"], "cpu": ["x64"], "libc": ["glibc"], "files": ["bin"] } + bin/notes (+ bin/native/)
 ```
 
 Ce sont de vrais paquets installables ; le registre n'est jamais utilisé comme base de
 données : ce qui est installé est noté localement.
 
 ```text
-airtty build --compile --name notes --target bun-darwin-arm64 --outfile dist/notes-darwin-arm64
-airtty build --compile --name notes --target bun-linux-x64 --native-dir … --outfile dist/notes-linux-x64
-airtty pack --package @ada/notes --version 1.2.0 dist/notes-*   → npm/…, à publier plateformes d'abord
+airtty build --compile --name notes --target bun-darwin-arm64
+airtty build --compile --name notes --target bun-linux-x64 --native-dir …
+airtty pack --package @ada/notes --version 1.2.0 .airtty/bin/*/notes   → npm/…, plateformes d'abord
 ```
 
 Installé dans `$XDG_DATA_HOME/airtty/apps/<app>/` : `installed.json` (paquet, version,
@@ -272,8 +300,6 @@ injoignable). Les permissions par origine viendront plus tard.
 
 ## Limites connues
 
-- Le Server d'un binaire est bundlé entier : un module natif `.node` côté Server n'est
-  pas encore pris en charge (Notes n'en a pas).
 - `--on` ne nettoie pas les anciens builds sur l'hôte distant.
 - Le tunnel relancé n'invite jamais (`BatchMode`) : une authentification par mot de
   passe seul ne se rétablit pas toute seule ; il faut relancer le Client.

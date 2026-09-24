@@ -224,7 +224,7 @@ export async function runOn(
       );
       const upload = await sshRun(ssh, [...command, remote(UPLOAD, name, identity.buildId)], {
         env,
-        input: await packBundle(name, binary),
+        input: await packBundle(name, binary, target),
       });
       if (upload.code !== 0)
         throw new Error(

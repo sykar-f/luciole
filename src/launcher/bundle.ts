@@ -5,7 +5,8 @@
  */
 import { cp, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, relative } from "node:path";
+import { dirname, join, relative } from "node:path";
+import { NATIVE_DIRECTORY, nativeTarget } from "../native";
 
 export const SUMS = "SHA256SUMS";
 
@@ -29,11 +30,21 @@ export async function checksums(directory: string) {
   return lines.join("\n") + "\n";
 }
 
-/** A tar of `<app>` (from `binary`) and its SHA256SUMS, ready to extract in place. */
-export async function packBundle(app: string, binary: string) {
+/**
+ * A tar of `<app>` (from `binary`), the `native/` next to it when there is one, and their
+ * SHA256SUMS, ready to extract in place.
+ */
+export async function packBundle(app: string, binary: string, target: string) {
   const staging = await mkdtemp(join(tmpdir(), "airtty-bundle-"));
   try {
     await cp(binary, join(staging, app));
+    const native = join(dirname(binary), NATIVE_DIRECTORY);
+    const nativeFor = nativeTarget(native);
+    if (nativeFor !== undefined) {
+      if (nativeFor !== target)
+        throw new Error(`${native} is for ${nativeFor}, not ${target}: next to the wrong binary`);
+      await cp(native, join(staging, NATIVE_DIRECTORY), { recursive: true, dereference: true });
+    }
     await writeFile(join(staging, SUMS), await checksums(staging));
     // macOS tar would add AppleDouble files for extended attributes.
     const tar = Bun.spawnSync(["tar", "cf", "-", "-C", staging, "."], {

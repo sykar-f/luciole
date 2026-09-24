@@ -147,7 +147,9 @@ export async function ensureServer(options: EnsureOptions): Promise<EnsuredServe
   for (;;) {
     const status = await serverStatus(socket);
     if (status?.buildId === options.buildId)
-      return done(status.pid, status.pid !== child.pid, () => child.stdin?.destroy());
+      // Started here (its pid may be a child of `command`: an app binary with native
+      // packages runs its Server as a child).
+      return done(status.pid, false, () => child.stdin?.destroy());
     if (exited !== undefined || performance.now() > deadline) {
       // Two launches at once: the other one's Server may have taken the socket.
       const other = await serverStatus(socket);
