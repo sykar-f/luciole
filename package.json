@@ -44,6 +44,8 @@
     "test:pty:lifetime": "python3 scripts/pty-lifetime.py",
     "test:pty:sandbox": "python3 scripts/pty-sandbox.py",
     "test:linux": "bun scripts/linux-client.ts",
+    "test:linux:sandbox": "bun scripts/linux-sandbox.ts",
+    "build:sandbox": "bun scripts/build-sandbox.ts",
     "verify": "bun run check && bun run lint && bun run format:check && bun test --timeout 20000 && bun run build",
     "lint": "oxlint --deny-warnings .",
     "lint:fix": "oxlint --fix ."
