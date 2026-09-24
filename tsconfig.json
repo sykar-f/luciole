@@ -6,6 +6,7 @@
     "**/.airtty",
     "probes/compile/wrapper.ts",
     "src/devtools/airtty-devtools",
-    "probes/vt-embed"
+    "probes/vt-embed",
+    "probes/devtools-tanstack"
   ]
 }

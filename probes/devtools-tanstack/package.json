@@ -1,7 +1,8 @@
 {
   "private": true,
   "scripts": {
-    "probe": "bun run probe.ts"
+    "probe": "bun run probe.ts",
+    "check": "tsc --noEmit -p . && oxlint -c oxlint.json --deny-warnings ."
   },
   "dependencies": {
     "@tanstack/devtools-event-bus": "0.4.3",

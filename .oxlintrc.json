@@ -81,6 +81,7 @@
     "**/node_modules/**",
     "**/.airtty/**",
     "**/routeTree.gen.ts",
-    "probes/vt-embed/**"
+    "probes/vt-embed/**",
+    "probes/devtools-tanstack/**"
   ]
 }

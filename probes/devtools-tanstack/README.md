@@ -4,6 +4,11 @@ Exécutée le 24 septembre 2026 sur macOS, Bun 1.4.2, `@tanstack/devtools-event-
 0.4.3 et `@tanstack/devtools-event-client` 0.4.4. `bun install` puis `bun run probe`
 depuis ce dossier ; `results.json` garde la dernière exécution.
 
+Ses dépendances lui sont propres : le `tsconfig.json` et l'oxlint racine l'excluent pour
+qu'un checkout neuf passe `bun run verify` sans elles. Il se vérifie à part, après son
+`bun install` : `bun run check` (`tsc -p .` + `oxlint -c oxlint.json`, nommé ainsi pour
+qu'oxlint lancé à la racine ne le découvre pas).
+
 **Question.** Un futur front web des DevTools d'airtty pourrait-il réutiliser le shell
 de TanStack DevTools, donc leur bus d'événements, sans que notre conception en dépende ?
 
