@@ -89,6 +89,8 @@ const ActionEnvelope = z.object({
   callId: z.string(),
   value: z.unknown(),
   invalidate: z.array(z.string()),
+  /** Cache tags the Server Function invalidated with `invalidate({ tag })`. */
+  tags: z.optional(z.array(z.string())),
 });
 
 export type RouteParams = Record<string, string>;
@@ -109,8 +111,11 @@ export type RequestCause =
   | "action"
   | "live"
   | "unknown";
-/** What the caller knows about a request that the request itself does not carry. */
-export type RequestContext = { cause?: RequestCause };
+/**
+ * What the caller knows about a request that the request itself does not carry, and
+ * `onTags`, told the "use cache" tags a rendered page read (none when the header is absent).
+ */
+export type RequestContext = { cause?: RequestCause; onTags?: (tags: readonly string[]) => void };
 
 /**
  * The only way the Client reaches a Server. `render` resolves with the root Flight
@@ -219,8 +224,8 @@ export type HttpTransportOptions = {
   fetch?: Fetch;
   /** Receives Server Function calls made by references decoded from Flight. */
   callServer: (id: string, args: unknown[]) => Promise<unknown>;
-  /** Paths a successful Server Function declared changed (`invalidate()` on the Server). */
-  onInvalidate?: (paths: string[]) => void;
+  /** Paths and cache tags a successful Server Function declared changed (`invalidate()`). */
+  onInvalidate?: (paths: string[], tags: string[]) => void;
   /** Every request's lifecycle, chunks included; see `TransportEvent`. */
   onEvent?: (event: TransportEvent) => void;
   network?: NetworkConditions;
@@ -365,6 +370,7 @@ export function createHttpTransport(options: HttpTransportOptions): Transport {
         body: observe(response.body, tag, start, fault === "cut"),
         settle,
         callId: tag.callId,
+        tags: response.headers.get("x-airtty-tags"),
       };
     } catch (e) {
       settle();
@@ -392,7 +398,7 @@ export function createHttpTransport(options: HttpTransportOptions): Transport {
       try {
         const query = new URLSearchParams({ route: routeId, params: JSON.stringify(params) });
         if (Object.keys(search).length) query.set("search", JSON.stringify(search));
-        const { body, settle } = await request(
+        const { body, settle, tags } = await request(
           `/render?${query}`,
           {},
           { kind: "render", target: routeId },
@@ -408,6 +414,7 @@ export function createHttpTransport(options: HttpTransportOptions): Transport {
           settle();
         }
         if (!isReactNode(tree)) throw new TransportError("Invalid render response");
+        context?.onTags?.(tags ? tags.split(",") : []);
         return tree;
       } finally {
         signal.removeEventListener("abort", cancel);
@@ -433,8 +440,8 @@ export function createHttpTransport(options: HttpTransportOptions): Transport {
       const envelope = ActionEnvelope.safeParse(decoded);
       if (!envelope.success || envelope.data.callId !== callId)
         throw new TransportError("Invalid action response");
-      const { invalidate, value } = envelope.data;
-      if (invalidate.length) options.onInvalidate?.(invalidate);
+      const { invalidate, tags = [], value } = envelope.data;
+      if (invalidate.length || tags.length) options.onInvalidate?.(invalidate, tags);
       return guardStream(value);
     },
     setToken(next) {

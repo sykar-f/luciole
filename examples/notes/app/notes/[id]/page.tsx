@@ -1,9 +1,10 @@
 import { NotePageFrame } from "../../../components/NoteFrame";
-import { loadNote } from "../../../server/repository";
+import { getSession } from "airtty/server";
+import { noteOf } from "../../../server/queries";
 import { saveNote, getOperation } from "../../../actions/notes";
 import { NoteEditor } from "../../../components/NoteEditor";
 export default async function Page({ params }: { params: { id: string } }) {
-  const note = loadNote(params.id);
+  const note = await noteOf(getSession().userId, params.id);
   return (
     <NotePageFrame title={`${note.title} · version ${note.version}`}>
       <NoteEditor
