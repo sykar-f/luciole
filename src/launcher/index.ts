@@ -54,7 +54,7 @@ function clientArgs(args: readonly string[]) {
 async function runBuilt(
   directory: string,
   name: string,
-  url: string | undefined,
+  { url, sessionKey }: { url: string | undefined; sessionKey: string },
   options: LaunchOptions,
 ) {
   const bun = process.execPath;
@@ -72,6 +72,7 @@ async function runBuilt(
       ATTACHED_FLAG,
     ],
     client,
+    sessionKey,
   });
 }
 
@@ -88,7 +89,13 @@ export async function launch(target: string, options: LaunchOptions = {}): Promi
       if (!existsSync(join(resolution.directory, "app")))
         throw new Error(`${resolution.directory} is not an airtty app (no app/ directory)`);
       await build(resolution.directory);
-      return runBuilt(resolution.directory, basename(resolution.directory), url, options);
+      return runBuilt(
+        resolution.directory,
+        basename(resolution.directory),
+        // The app, wherever its Server's socket is this time.
+        { url, sessionKey: `local:${resolution.directory}` },
+        options,
+      );
     }
     case "git": {
       const url = clientArgs(options.args ?? []);
@@ -97,7 +104,10 @@ export async function launch(target: string, options: LaunchOptions = {}): Promi
         confirm,
         log,
       });
-      return runBuilt(directory, basename(directory), url, options);
+      const { url: repository, directory: inside } = resolution.source;
+      // The repository, not its checkout: a new commit restores the same sessions.
+      const sessionKey = `git:${repository}${inside ? `/${inside}` : ""}`;
+      return runBuilt(directory, basename(directory), { url, sessionKey }, options);
     }
     case "url":
       throw new Error(

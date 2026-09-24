@@ -165,11 +165,19 @@ export function runForeground(command: readonly string[], env: NodeJS.ProcessEnv
   });
 }
 
-/** Starts the Server, runs the Client against it, then stops the Server. */
-export async function runLocal(options: ServerOptions & { client: readonly string[] }) {
+/**
+ * Starts the Server, runs the Client against it, then stops the Server. `sessionKey`
+ * keys the Client's restorable sessions (its socket's URL changes on every launch).
+ */
+export async function runLocal(
+  options: ServerOptions & { client: readonly string[]; sessionKey: string },
+) {
   const server = await startServer(options);
   try {
-    return await runForeground([...options.client, "--url", server.url], options.env);
+    return await runForeground([...options.client, "--url", server.url], {
+      ...(options.env ?? process.env),
+      AIRTTY_SESSION_KEY: options.sessionKey,
+    });
   } finally {
     await server.stop();
   }

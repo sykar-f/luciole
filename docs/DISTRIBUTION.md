@@ -46,6 +46,12 @@ Durée de vie : le lanceur garde ouverte l'entrée standard du Server sans jamai
 tué par SIGKILL, ou quand ssh perd la connexion d'un Server distant, stdin atteint sa
 fin et le Server s'arrête. Ni fichier pid, ni scrutation.
 
+La session restaurable du Client (historique et champs, reprise après crash) est
+rattachée à une clé stable plutôt qu'à l'URL du socket, qui change à chaque lancement :
+`local:<répertoire>` pour un chemin, `git:<url>[/<dir>]` pour une source git (un nouveau
+commit garde les sessions), `local:<app>` pour un binaire, `ssh:<hôte>/<app>` avec `--on`.
+Le lanceur la passe par `AIRTTY_SESSION_KEY` ou `run(create, { name, sessionKey })`.
+
 Ce que le Server écrit va dans `$XDG_STATE_HOME/airtty/<app>/server.log`, jamais sur
 l'écran du Client ; un Server qui ne démarre pas est expliqué par la fin de ce log.
 Le Server tourne dans le répertoire courant de l'utilisateur, comme toute commande :
@@ -226,9 +232,6 @@ injoignable). Les permissions par origine viendront plus tard.
 
 ## Limites connues
 
-- La session restaurable d'un Client lancé localement est rattachée à son URL, donc au
-  socket, différent à chaque lancement : la reprise après crash ne s'applique pas encore
-  aux lancements locaux. Il faudrait que `run()` accepte une clé de session stable.
 - Le Server d'un binaire est bundlé entier : un module natif `.node` côté Server n'est
   pas encore pris en charge (Notes n'en a pas).
 - `--on` ne nettoie pas les anciens builds sur l'hôte distant.

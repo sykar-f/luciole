@@ -22,7 +22,7 @@ type ClientModule = {
   createApp: (options: Record<string, unknown>) => unknown;
   run: (
     create: (options: Record<string, unknown>) => unknown,
-    options: { name: string },
+    options: { name: string; sessionKey?: string },
   ) => unknown;
 };
 const isClientModule = (value: unknown): value is ClientModule =>
@@ -61,10 +61,10 @@ function flags(args: readonly string[], known: readonly string[], valued: readon
   return values;
 }
 
-async function runClient(identity: BinaryIdentity, roles: Roles) {
+async function runClient(identity: BinaryIdentity, roles: Roles, sessionKey?: string) {
   const client = await roles.client();
   if (!isClientModule(client)) throw new Error("This binary holds no airtty Client");
-  await client.run(client.createApp, { name: identity.name });
+  await client.run(client.createApp, { name: identity.name, sessionKey });
 }
 
 async function serve(args: readonly string[], roles: Roles) {
@@ -116,9 +116,14 @@ async function start(text: string, roles: Roles) {
           directories: directories(),
           log: (message) => console.error(message),
         });
-  // Handed to the Client like a user's own --url; the Server stops when it exits.
+  // Handed to the Client like a user's own --url; the Server stops when it exits. Its
+  // sessions are kept under the app (and host), not the socket of this launch.
   process.argv.push("--url", server.url);
-  await runClient(identity, roles);
+  await runClient(
+    identity,
+    roles,
+    destination === undefined ? `local:${identity.name}` : `ssh:${destination}/${identity.name}`,
+  );
 }
 
 export async function main(identity: string, roles: Roles) {

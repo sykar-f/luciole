@@ -12,7 +12,7 @@ import { connect, socketDirectory } from "../src/connect";
 import { messageOf } from "../src/guards";
 import { readBinaryIdentity, type BinaryIdentity } from "../src/launcher/identity";
 import { runOn } from "../src/launcher/remote";
-import { rejectionOf } from "./helpers";
+import { leaveCrashedSession, rejectionOf } from "./helpers";
 
 const root = resolve("examples/notes");
 let work: string, binary: string, identity: BinaryIdentity;
@@ -123,6 +123,8 @@ test("`notes` alone runs both roles here, and its Server ends with the Client", 
   const run = await mkdtemp(join(tmpdir(), "airtty-local-"));
   try {
     await copyFile(binary, join(run, "notes"));
+    // A crashed local Client of this app, on a note: restored though the socket is new.
+    await leaveCrashedSession(join(run, ".local/state"), "notes", "local:notes", "/notes/1");
     const log = join(run, "screen.log");
     const client = Bun.spawn(inPty(log, "./notes"), {
       cwd: run,
@@ -132,7 +134,7 @@ test("`notes` alone runs both roles here, and its Server ends with the Client", 
     });
     let screen = "";
     const deadline = performance.now() + 15000;
-    while (performance.now() < deadline && !screen.includes("First note")) {
+    while (performance.now() < deadline && !screen.includes("baseline:")) {
       await Bun.sleep(100);
       screen = Bun.stripANSI(await readFile(log, "utf8").catch(() => ""));
     }
@@ -142,7 +144,7 @@ test("`notes` alone runs both roles here, and its Server ends with the Client", 
     expect(sockets()).toHaveLength(1);
     await Bun.write(join(run, "stop"), "");
     await Promise.race([client.exited, Bun.sleep(15000).then(() => client.kill())]);
-    expect(screen).toContain("First note");
+    expect(screen).toContain("baseline:");
     // The Server's data lives where the user ran it; its log in their state directory.
     expect(existsSync(join(run, "notes.sqlite"))).toBe(true);
     expect(existsSync(join(run, ".local/state/airtty/notes/server.log"))).toBe(true);

@@ -3,6 +3,7 @@ import { existsSync, readdirSync } from "node:fs";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { leaveCrashedSession } from "./helpers";
 
 const cli = resolve("src/cli.ts");
 
@@ -19,6 +20,13 @@ test("`airtty ./app` builds it, runs its Server on a socket and its Client here"
   const temporary = await mkdtemp("/tmp/airtty-t-");
   const run = await mkdtemp(join(tmpdir(), "airtty-launch-"));
   try {
+    // A Client of this app crashed on a note: the new launch, on another socket, reopens it.
+    await leaveCrashedSession(
+      join(run, "state"),
+      "notes",
+      `local:${resolve("examples/notes")}`,
+      "/notes/1",
+    );
     const log = join(run, "screen.log");
     const child = Bun.spawn(inPty(log, `${process.execPath} ${cli} ${resolve("examples/notes")}`), {
       cwd: run,
@@ -35,7 +43,7 @@ test("`airtty ./app` builds it, runs its Server on a socket and its Client here"
     });
     let screen = "";
     const deadline = performance.now() + 30000;
-    while (performance.now() < deadline && !screen.includes("First note")) {
+    while (performance.now() < deadline && !screen.includes("baseline:")) {
       await Bun.sleep(100);
       screen = Bun.stripANSI(await readFile(log, "utf8").catch(() => ""));
     }
@@ -43,7 +51,7 @@ test("`airtty ./app` builds it, runs its Server on a socket and its Client here"
     expect(sockets()).toHaveLength(1);
     await Bun.write(join(run, "stop"), "");
     await Promise.race([child.exited, Bun.sleep(5000).then(() => child.kill())]);
-    expect(screen).toContain("First note");
+    expect(screen).toContain("baseline:");
     expect(existsSync(join(run, "state/airtty/notes/server.log"))).toBe(true);
     const gone = performance.now() + 3000;
     while (sockets().length && performance.now() < gone) await Bun.sleep(50);

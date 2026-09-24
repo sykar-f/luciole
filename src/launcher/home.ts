@@ -42,6 +42,7 @@ export async function openLauncher(options: LaunchOptions = {}) {
           ATTACHED_FLAG,
         ],
         client: [bun, join(APP, ".airtty/client/index.js")],
+        sessionKey: "local:airtty",
       });
       let target: string;
       try {
