@@ -10,6 +10,9 @@ Objectif : un Client airtty capable d'ouvrir plusieurs applications à la fois, 
 navigateur à onglets ou un multiplexeur local (tmux, herdr) : applications airtty
 téléchargées depuis leur Server, applications installées, shells, vim.
 
+Les décisions prises sur la conception sont regroupées en [section 8](#8-décisions) ;
+le reste du document en tient compte.
+
 ## 1. Modèle
 
 ### L'origine
@@ -36,14 +39,27 @@ jamais. `inline` est un choix explicite de l'utilisateur pour une origine de con
 
 À la Deno : `fs.read`/`fs.write` par chemin, `net` par hôte, `exec` (par binaire) et
 `pty`, `clipboard.read`/`clipboard.write`, `notify`, `open-url`, `secrets`,
-`input.global`, `tabs.message`. Déclarées dans le manifeste de l'application, accordées
-par l'utilisateur ou par flag (`--allow-net=api.example.com`), mémorisées par origine.
+`input.global`, `tabs.message`. Déclarées **statiquement** dans le champ
+`airtty.capabilities` du `package.json` de l'application (décision 3), lisible avant
+toute exécution ; feat/distribution définit déjà le champ `airtty` (`name`, `buildId`,
+`binaries`), `capabilities` s'y ajoute avec le schéma Zod du probe sandbox
+(`probes/sandbox/capabilities.ts`). Le build recopie ce champ dans le manifeste signé
+(section 2) : une origine URL les annonce sans que le Client lise le `package.json`, et
+une application installée les donne par son `package.json`. Le build compare ce champ à
+l'audit des built-ins Node du bundle Client (`fs/*` → `fs.*`, `child_process` → `exec`,
+`net`/`http`/`tls` → `net`) et signale ce qui est utilisé sans être déclaré. Les
+capacités sont accordées par l'utilisateur ou par flag (`--allow-net=api.example.com`),
+mémorisées par origine.
 
-Règle d'affichage, vérifiée par le probe sandbox : **une capacité n'est montrée que si
-quelqu'un l'applique**. En `inline` et `process`, l'écran d'origine dit « aucune
-isolation » et n'offre aucun interrupteur par capacité. En `sandbox`, chaque capacité
-accordée a une ligne qui dit qui l'applique (OS, proxy, hôte). Tout accorder équivaut à
-passer en `process` : le Client le propose au lieu de simuler une sandbox vide.
+Règle d'affichage, vérifiée par le probe sandbox : **une capacité n'est présentée comme
+appliquée que si quelqu'un l'applique**. En `sandbox`, chaque capacité accordée a une
+ligne qui dit qui l'applique (OS, proxy, hôte). En `process`, l'écran d'origine dit
+« aucune isolation ». En `inline` (décision 5), tout est permis, y compris
+`child_process` : le lanceur l'affiche explicitement avant l'ouverture, par exemple
+« inline : confiance totale, ce code a tous les droits de votre compte ; capacités
+déclarées, non appliquées : fs.read, exec… ». Aucun interrupteur par capacité n'est
+proposé dans ces deux modes. Tout accorder équivaut à passer en `process` : le Client
+le propose au lieu de simuler une sandbox vide.
 
 Qui applique quoi (mesuré, voir probes/sandbox) :
 
@@ -66,6 +82,13 @@ toujours par un proxy de sortie tenu par l'hôte ; l'enfant ne résout même pas
 Aujourd'hui chaque application distribue son propre Client : `.airtty/client/index.js`
 embarque le runtime airtty, TanStack Router et le keymap ; seuls React, OpenTUI et Flight
 sont external (`src/build.ts:441`). Un Client générique inverse la relation.
+
+Point d'entrée (décision 2) : pas de nouvelle commande. `airtty https://…` passe par le
+lanceur de feat/distribution, qui résout son argument dans l'ordre chemin → installé →
+npm → git → URL. Le Client générique se branche sur la dernière étape (URL :
+`GET /manifest`, puis ce qui suit) ; les étapes installé, npm et git fournissent un
+paquet dont le `package.json` porte déjà `airtty` (`name`, `buildId`, `binaries`,
+`capabilities`), et le même chargeur évalue son bundle sans téléchargement.
 
 - **Runtime** : React, OpenTUI, keymap, TanStack Router, Zod, le runtime airtty. Compilé
   dans le binaire du Client générique. Il doit lui-même être un artefact de build : la
@@ -143,19 +166,38 @@ Deux faits contraignent la solution :
   (`React.lazy`), longtemps après le décodage. Aucun « résolveur de la réponse courante »
   n'est fiable.
 
-L'id doit donc porter l'origine. Il la porte déjà : `src/build.ts:408` préfixe chaque id
-de Client Reference et de Server Function par le buildId (24 hex).
+L'id doit donc porter le pane qui le résout. Le buildId que `src/build.ts:408` met déjà
+en tête de chaque id ne suffit pas : deux panes de la même application (le cas du
+multiplexeur, ou deux origines servant le même build) partagent alors une entrée. Mesuré
+(`panes/build`) : les Client References du premier pane sont résolues avec l'instance de
+modules du second, et ses Server Functions importées partent par l'Application du
+second.
 
-**Refactor** (`src/flight/client.ts`, ≈ 30 lignes) : un registre `prefix → resolver` ;
-`installResolver(next)` devient `registerModules(buildId, resolver): () => void`, et le
-global aiguille sur le préfixe. Le Client d'aujourd'hui (une application) ne change pas
-de comportement. Le build ne change pas.
+**Décision 4 : préfixe par instance, dès maintenant.** Chaque pane reçoit une clé
+d'instance (`p1`, `p2`…, `[a-z0-9-]{1,32}`), que son Transport envoie dans
+`x-airtty-instance` à chaque requête. Le Server écrit les Client References de la réponse
+`<clé>@<buildId>/<chemin>` : Flight lit `manifest[id].id` pour chaque référence, il suffit
+de lui passer une copie du manifeste préfixée par la clé. Sans en-tête, les ids restent
+ceux d'aujourd'hui : le Client actuel ne change pas. Les ids de Server Functions ne
+changent pas (le Server les connaît ainsi). Mesuré (`panes/instance`, Server patché par
+`probes/inline/instance-server.ts`, sans toucher `src/`) : deux panes de mdreader contre
+deux Servers affichent chacun son document, résolvent avec leurs propres modules et
+envoient leurs actions par leur propre Application.
 
-Cas limite : deux origines qui servent **le même build** (staging et production)
-partagent le préfixe. v1 : l'hôte refuse de monter la seconde en `inline` et la propose
-en `process`. Si le besoin se confirme, un préfixe d'instance (« royaume ») envoyé par le
-Client (`x-airtty-realm`) et ajouté par le Server aux ids du manifeste qu'il passe à
-`renderToReadableStream` (un `Proxy` par requête dans `src/server.ts`).
+**Refactor** :
+
+- `src/flight/client.ts` (≈ 30 lignes) : un registre `clé → resolver` ;
+  `installResolver(next)` devient `registerModules(key, resolver): () => void`, le global
+  aiguille sur le préfixe `<clé>@`, et sans préfixe sur l'unique résolveur enregistré (le
+  Client actuel).
+- `src/transport.ts` (≈ 3 lignes) : l'en-tête `x-airtty-instance` quand
+  `HttpTransportOptions.instance` est défini ; `ApplicationOptions.instance` le transmet.
+  Réglé par l'hôte (`<Embed>`, Client générique), jamais par l'application.
+- `src/server.ts` (≈ 15 lignes) : l'en-tête validé par Zod, une copie préfixée du
+  manifeste par clé passée à `renderToReadableStream`. La clé est choisie par le Client :
+  les copies sont gardées dans un cache borné (ou calculées par un `Proxy` sans cache),
+  jamais sans limite.
+- Le build ne change pas.
 
 ### O2. `let current: Application`
 
@@ -166,13 +208,14 @@ Les références reçues **par Flight** (Server Function passée en prop par une
 sont pas concernées : elles utilisent le `callServer` de leur réponse. Mesuré :
 `useLive(watchLibrary)` de mdreader part vers le Server de files.
 
-**Refactor** (`src/client.tsx`, ≈ 20 lignes) : le même registre par préfixe associe le
-buildId à son Application ; `actionReference` aiguille sur le préfixe de l'id d'action.
-`current` disparaît. Pour le Client générique, chaque évaluation de bundle reçoit de
-toute façon son propre `airtty/client` (table `require`) : l'hôte peut aussi y lier
-`actionReference` à l'Application de l'origine, ce que fait le probe.
+**Refactor** (`src/client.tsx`, ≈ 20 lignes) : les ids d'action ne portent pas la clé
+d'instance, l'aiguillage par préfixe est donc exclu ici. Chaque pane évalue son bundle
+avec sa propre table `require` : son `airtty/client` a un `actionReference` lié à
+l'Application du pane (c'est ce que fait le probe). `current` disparaît au profit de
+cette liaison ; le Client actuel, un seul pane, lie l'unique Application, et ne change
+pas de comportement.
 
-Une **Application par origine**, chacune avec son Transport (déjà par instance), son
+Une **Application par pane**, chacune avec son Transport (déjà par instance), son
 routeur en memory history (déjà), son `Restoration`, son bearer (déjà), ses listeners.
 Le reste de l'état « par processus » vit dans `run()` (`src/client.tsx:782-849` : signaux,
 session, supervision `airtty dev`) : il reste au niveau du Client hôte, pas des embeds.
@@ -195,20 +238,23 @@ inactif recevrait encore la frappe (le renderer route la touche au renderable fo
 hors keymap). L'hôte doit mémoriser et retirer le focus à la bascule, et le rendre au
 retour.
 
-API publique touchée : `Shell` gagne une variante embarquable (voir questions ouvertes).
+API publique (décision 1) : un nouvel export `<Embed>` dans `airtty/client`, `Shell`
+reste inchangé. Forme proposée, celle du probe (`EmbedShell`) :
+`<Embed app={Application} name={string} active={boolean} />`, qui porte le keymap du
+pane, sa boundary et le rendu du focus à la bascule.
 
 ### O4. Une erreur de rendu efface tout
 
 `createRoot` d'OpenTUI pose une error boundary à la racine : un rendu qui jette dans une
 application remplace l'écran entier (mesuré). **Refactor** : une boundary par embed dans
-le Shell embarquable ; l'erreur n'atteint jamais la racine.
+`<Embed>` ; l'erreur n'atteint jamais la racine.
 
 ### O5. Le build n'a qu'une sortie Client
 
 `src/build.ts:440-448` génère un Client complet. **Refactor** : une seconde sortie
-`.airtty/app/` (bundle `bun-cjs` sans runtime + `manifest.json` signé), produite par la
-même passe (les graphes, les ids et les stubs sont déjà calculés) ; la validation des
-frontières est inchangée. Le probe la reconstruit en 130 lignes hors de `src/` en
+`.airtty/app/` (bundle `bun-cjs` sans runtime + `manifest.json` signé, qui recopie
+`airtty.capabilities` du `package.json`), produite par la même passe (les graphes, les
+ids et les stubs sont déjà calculés) ; la validation des frontières est inchangée. Le probe la reconstruit en 130 lignes hors de `src/` en
 relisant `.airtty/manifest.json`.
 
 ### O6. Le Server ne sert pas de bundle
@@ -301,50 +347,64 @@ atteindre le presse-papiers sans passer par la vérification de capacité).
 
 ## 6. Risques
 
-| Risque                                                                              | Mitigation                                                                                  |
-| ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| ABI trop large : chaque mise à jour de React/OpenTUI casse tous les bundles publiés | ABI minimale, Client générique multi-ABI (plusieurs runtimes en cache), refus explicite     |
-| `inline` perçu comme sûr                                                            | jamais par défaut pour une URL ; écran d'origine « aucune isolation » ; audit des built-ins |
-| TOFU : première connexion détournée                                                 | empreinte affichée au premier usage, épinglage hors bande (`airtty trust <origine> <fpr>`)  |
-| Rotation de clé impossible                                                          | déclaration de rotation signée par l'ancienne clé (à concevoir)                             |
-| Seatbelt : `sandbox-exec` obsolète, SBPL non documenté                              | `sandbox_init` via FFI ; profil testé à chaque version de macOS (probe = test)              |
-| `localhost:<port du proxy>` autorise tout service qui prendrait ce port             | proxy lancé avant l'enfant, port tenu ; sur Linux, socket unix seul                         |
-| PTY en sandbox : la règle couvre tous les `/dev/ttys*`                              | règle sur le chemin exact du PTY alloué                                                     |
-| Deux origines servant le même build                                                 | refus en `inline` (v1), préfixe de royaume ensuite                                          |
-| Focus global OpenTUI                                                                | l'hôte retire et rend le focus à la bascule                                                 |
-| Fidélité VT (images kitty de files, souris, séquences rares)                        | voir section 4 ; v2 par diffs de cellules OpenTUI                                           |
+| Risque                                                                              | Mitigation                                                                                                               |
+| ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| ABI trop large : chaque mise à jour de React/OpenTUI casse tous les bundles publiés | ABI minimale, Client générique multi-ABI (plusieurs runtimes en cache), refus explicite                                  |
+| `inline` perçu comme sûr                                                            | jamais par défaut pour une URL ; le lanceur affiche « confiance totale, capacités non appliquées » ; audit des built-ins |
+| TOFU : première connexion détournée                                                 | empreinte affichée au premier usage, épinglage hors bande (`airtty trust <origine> <fpr>`)                               |
+| Rotation de clé impossible                                                          | déclaration de rotation signée par l'ancienne clé (à concevoir)                                                          |
+| Seatbelt : `sandbox-exec` obsolète, SBPL non documenté                              | `sandbox_init` via FFI ; profil testé à chaque version de macOS (probe = test)                                           |
+| `localhost:<port du proxy>` autorise tout service qui prendrait ce port             | proxy lancé avant l'enfant, port tenu ; sur Linux, socket unix seul                                                      |
+| PTY en sandbox : la règle couvre tous les `/dev/ttys*`                              | règle sur le chemin exact du PTY alloué                                                                                  |
+| Clés d'instance choisies par le Client : une copie du manifeste par clé côté Server | cache borné, ou `Proxy` sans cache ; clé validée par Zod                                                                 |
+| Capacités déclarées dans le `package.json` et usage réel divergents                 | le build compare avec l'audit des built-ins ; en `sandbox`, l'OS tranche de toute façon                                  |
+| Dépendance au lanceur et au champ `airtty` de feat/distribution                     | étape 5 après leur merge ; `capabilities` ajouté à leur schéma par un diff court                                         |
+| Focus global OpenTUI                                                                | l'hôte retire et rend le focus à la bascule                                                                              |
+| Fidélité VT (images kitty de files, souris, séquences rares)                        | voir section 4 ; v2 par diffs de cellules OpenTUI                                                                        |
 
 ## 7. Plan d'implémentation dans `src/`
 
 Chaque étape est mergeable seule et garde `bun run verify` et les smokes PTY verts.
 
-| Étape | Contenu                                                                                                                             | Fichiers                                                    | Estimation |
-| ----- | ----------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- | ---------- |
-| 1     | Registre par préfixe : `registerModules`, `actionReference` aiguillé, suppression de `current` ; tests à deux Applications (O1, O2) | `flight/client.ts`, `client.tsx`, `tests/`                  | 2 j        |
-| 2     | Shell embarquable : keymap par embed, boundary, focus rendu à la bascule (O3, O4) ; test inline à deux apps (repris du probe)       | `client.tsx` (ou `embed.tsx`), `tests/`                     | 3 j        |
-| 3     | Sortie `.airtty/app/` : bundle sans runtime, audit des built-ins, refus du TLA, manifeste ; runtime bundlé ; `src/abi.ts`           | `build.ts` (ajout localisé), `abi.ts`                       | 3 j        |
-| 4     | Signature (`airtty keys`, `airtty build --sign-bundle`), routes `/manifest` et `/bundle`                                            | `commands/keys.ts`, `server.ts` (2 routes), `sign.ts`       | 2 j        |
-| 5     | Client générique `airtty open <url>` : chargeur, TOFU, cache, stockage par origine, onglets, bascule clavier ; mode `inline`        | `commands/open.ts`, `generic/*`, `session.ts`, `connect.ts` | 5 j        |
-| 6     | Mode `process` : widget VT, PTY, clavier/souris/resize, multiplexeur local (shell, vim, apps airtty)                                | `vt/*`                                                      | 5–8 j      |
-| 7     | Mode `sandbox` macOS : profil généré, proxy de sortie, IPC des capacités médiées, écran des capacités, flags `--allow-*`            | `sandbox/*`                                                 | 6–8 j      |
-| 8     | Sandbox Linux : bwrap + lanceur Landlock/seccomp, relais proxy ; CI Linux                                                           | `sandbox/linux.ts`, lanceur natif                           | 5–7 j      |
+| Étape | Contenu                                                                                                                                                                                                                          | Fichiers                                                                       | Estimation |
+| ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | ---------- |
+| 1     | Préfixe d'instance : `registerModules`, `x-airtty-instance` (Transport, Server, manifeste préfixé en cache borné), `actionReference` lié au pane, fin de `current` ; tests à deux panes du même build et de deux builds (O1, O2) | `flight/client.ts`, `client.tsx`, `transport.ts`, `server.ts`, `tests/`        | 3 j        |
+| 2     | Export `<Embed>` : keymap par pane, boundary, focus rendu à la bascule (O3, O4) ; test inline à deux apps (repris du probe)                                                                                                      | `client.tsx` (ou `embed.tsx`), `tests/`                                        | 3 j        |
+| 3     | Sortie `.airtty/app/` : bundle sans runtime, audit des built-ins, refus du TLA ; `airtty.capabilities` (schéma Zod partagé, recopié dans le manifeste, comparé à l'audit) ; runtime bundlé ; `src/abi.ts`                        | `build.ts` (ajout localisé), `abi.ts`, `capabilities.ts`                       | 3,5 j      |
+| 4     | Signature (`airtty keys`, `airtty build --sign-bundle`), routes `/manifest` et `/bundle`                                                                                                                                         | `commands/keys.ts`, `server.ts` (2 routes), `sign.ts`                          | 2 j        |
+| 5     | Client générique branché sur le lanceur de feat/distribution (étape URL ; paquets installés, npm, git par le même chargeur) : TOFU, cache, stockage par origine, onglets, bascule clavier ; mode `inline` et son avertissement   | module du lanceur (feat/distribution), `generic/*`, `session.ts`, `connect.ts` | 4 j        |
+| 6     | Mode `process` : widget VT, PTY, clavier/souris/resize, multiplexeur local (shell, vim, apps airtty)                                                                                                                             | `vt/*`                                                                         | 5–8 j      |
+| 7     | Mode `sandbox` macOS : profil généré depuis `airtty.capabilities`, proxy de sortie, IPC des capacités médiées, écran des capacités, flags `--allow-*`                                                                            | `sandbox/*`                                                                    | 6–8 j      |
+| 8     | Sandbox Linux : bwrap + lanceur Landlock/seccomp, relais proxy ; CI Linux                                                                                                                                                        | `sandbox/linux.ts`, lanceur natif                                              | 5–7 j      |
 
-Total : 31–38 jours. Les étapes 1–2 profitent aussi aux applications actuelles (tests à
-plusieurs Applications, boundary) et ne dépendent pas des décisions ouvertes ci-dessous
-sauf pour le nom du Shell embarquable.
+Total : 31,5–38,5 jours (auparavant 31–38). Détail de l'écart :
 
-## 8. Questions ouvertes (API publique)
+- étape 1, +1 j : le préfixe d'instance touche aussi le Transport et le Server ;
+- étape 3, +0,5 j : le champ `capabilities` et sa comparaison avec l'audit ;
+- étape 5, −1 j : pas de commande ni d'analyse d'arguments, le lanceur les fournit.
 
-À trancher avant l'étape correspondante ; le probe a pris un parti sans l'imposer.
+Dépendances : l'étape 5 suit le merge de feat/distribution (lanceur, champ `airtty`).
+Les étapes 1 à 4 n'en dépendent pas. L'ordre de merge prévu (use-cache → devtools →
+distribution) le permet. Les étapes 1–2 profitent aussi aux applications actuelles
+(tests à plusieurs Applications, boundary).
 
-1. **Shell embarquable** (étape 2) : `Shell` gagne-t-il des props (`active`, `name`), ou un
-   nouvel export (`EmbedShell`, `airtty/embed`) ? Le probe utilise un composant séparé.
-2. **Nom et forme de la commande** (étape 5) : `airtty open <url>` ou un binaire distinct
-   (`airtty-browser`) ? Le Client générique change-t-il le nom de session (`name`) ?
-3. **Déclaration des capacités** (étapes 3, 7) : dans `airtty.json` de l'application (déjà
-   lu par le build pour `serverPackages`) ou dans un export du layout racine ?
-4. **Même build, deux origines** : refus en `inline` (v1 proposé) ou royaumes tout de
-   suite ?
-5. **Bundle `inline` et built-ins** : un bundle qui déclare `child_process` peut-il
-   seulement être `inline` si l'utilisateur l'accepte explicitement, ou est-il forcé en
-   `process`/`sandbox` ?
+## 8. Décisions
+
+Tranchées le 24 septembre 2026 sur les questions ouvertes de la première version de ce
+document.
+
+1. **Pane embarquable** : un nouvel export `<Embed>`, pas de nouvelles props sur `Shell`
+   (O3, étape 2).
+2. **Point d'entrée** : pas de nouvelle commande ; `airtty https://…` passe par le lanceur
+   de feat/distribution (chemin → installé → npm → git → URL), sur lequel se branche le
+   Client générique (section 2, étape 5).
+3. **Capacités** : déclarées statiquement dans `airtty.capabilities` du `package.json`,
+   lisibles avant toute exécution ; le build les recopie dans le manifeste signé
+   (section 1, étapes 3 et 7).
+4. **Deux origines ou deux instances du même build** : préfixe par instance dès
+   maintenant (O1 ; probe `panes/instance`, étape 1).
+5. **Accès Node sensibles en `inline`** : autorisés ; `inline` = confiance totale,
+   capacités non appliquées, et le lanceur l'affiche explicitement (section 1, étape 5).
+
+Question restante, sans effet sur l'API publique : la forme exacte du message du lanceur
+en `inline`, à régler avec feat/distribution.
