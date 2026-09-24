@@ -60,7 +60,8 @@ export type {
 type Navigation = { type: "navigation"; at: number; path: string };
 /**
  * A page loader, identified by the route it renders (`routeId`, the request's `target`).
- * `source` is `router-cache` when the router showed its cached tree without calling it.
+ * `source` is `router-cache` when the router showed its cached tree without calling it:
+ * that load has an `end` only.
  */
 type Loader = {
   type: "loader";
@@ -327,16 +328,18 @@ export class Application {
     };
   };
   // Pages of the resolved location whose loader did not run: the router's cache served
-  // them without a request (fresh within `staleTime`, preloaded, or Escape).
+  // them without a request (fresh within `staleTime`, preloaded, or Escape). Nothing
+  // started, so only the `end` of a load that took no time.
   private reportCachedPages(href: string) {
     const routes: string[] = this.router.state.matches.map((m: { routeId: string }) => m.routeId);
     for (const route of routes) {
       const routeId = this.pageRoutes.get(route);
       if (!routeId || this.loaded.has(`${route}\0${href}`)) continue;
-      const loader = { type: "loader", routeId, href, cause: "navigation" } as const;
-      this.emit({ ...loader, source: "router-cache", phase: "start", at: now() });
       this.emit({
-        ...loader,
+        type: "loader",
+        routeId,
+        href,
+        cause: "navigation",
         source: "router-cache",
         phase: "end",
         at: now(),

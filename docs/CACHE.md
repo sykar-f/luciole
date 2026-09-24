@@ -217,7 +217,9 @@ cette valeur ; `stale` précède le `write` du rafraîchissement.
 Client, via `onEvent` : chaque `loader` porte `source`. `network` : le loader a tourné
 (requête, ou réponse d'un décorateur de transport). `router-cache` : une navigation a
 affiché une page que le routeur avait en cache sans appeler son loader (fraîche selon
-`staleTime`, préchargée, ou Échap) ; une paire `start`/`end` est alors émise avec `ms: 0`.
+`staleTime`, préchargée, ou Échap) : rien n'a commencé, seul un `end` est émis, avec
+`ms: 0` et `result: "ok"`. Un consommateur distingue les deux par `source === "router-cache"`,
+pas par la présence de `source`, que porte chaque `loader`.
 L'événement `invalidate` porte `tags` quand des tags ont été invalidés.
 
 ## Dans Notes

@@ -109,10 +109,7 @@ test("a tag invalidation purges the Server cache and revalidates only the routes
     const loaders = events.flatMap((e) =>
       e.type === "loader" ? [[e.phase, e.routeId, e.source]] : [],
     );
-    expect(loaders).toEqual([
-      ["start", "/c", "router-cache"],
-      ["end", "/c", "router-cache"],
-    ]);
+    expect(loaders).toEqual([["end", "/c", "router-cache"]]);
     // A network load says so.
     events.length = 0;
     await act(async () => {
