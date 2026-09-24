@@ -14,7 +14,7 @@ import type { BoxRenderable, KeyEvent } from "@opentui/core";
 import { useRenderer } from "@opentui/react";
 import { useKeymap } from "@opentui/keymap/react";
 import { messageOf } from "../guards";
-import { spawnPty, type Pty } from "./pty";
+import { spawnPty, type Pty, type PtyOptions } from "./pty";
 import { queryResponder, VtTerminalRenderable, type Palette } from "./gaps";
 
 // The renderable's own colors (white on black), reported to programs that ask.
@@ -47,7 +47,33 @@ export type TerminalProps = {
   height?: number | `${number}%`;
 };
 
+/** What `TerminalView` hands the function that starts its program. */
+export type TerminalIo = Pick<PtyOptions, "cols" | "rows" | "onData" | "onExit">;
+/**
+ * `<Terminal>` with its own way of starting the program (the sandbox starts it under
+ * Seatbelt, src/sandbox/spawn.ts): not exported by airtty/client. `program` identifies
+ * the program: a new one replaces the running one.
+ */
+export type TerminalViewProps = Omit<TerminalProps, "command" | "cwd" | "env"> & {
+  program: string;
+  spawn: (io: TerminalIo) => Pty;
+  /** What the program's name is in an error line. */
+  label: string;
+};
+
 export function Terminal(props: TerminalProps) {
+  const { command, cwd, env, ...view } = props;
+  return (
+    <TerminalView
+      {...view}
+      program={JSON.stringify(command)}
+      label={command.join(" ")}
+      spawn={(io) => spawnPty({ ...io, command, cwd, env })}
+    />
+  );
+}
+
+export function TerminalView(props: TerminalViewProps) {
   const renderer = useRenderer();
   const keymap = useKeymap();
   const host = useRef<BoxRenderable>(null);
@@ -58,7 +84,7 @@ export function Terminal(props: TerminalProps) {
   useLayoutEffect(() => {
     latest.current = props;
   });
-  const command = JSON.stringify(props.command);
+  const command = props.program;
   useLayoutEffect(() => {
     const box = host.current;
     if (!box) return;
@@ -83,18 +109,15 @@ export function Terminal(props: TerminalProps) {
           // A missing program is the user's input, not a crash of the tree: say it in the
           // pane, as a terminal would, and report the end.
           failed = true;
-          terminal.write(`${latest.current.command.join(" ")}: ${messageOf(error)}\r\n`);
+          terminal.write(`${latest.current.label}: ${messageOf(error)}\r\n`);
           latest.current.onExit?.(null);
         }
       },
     });
     const start = (cols: number, rows: number) =>
-      spawnPty({
-        command: latest.current.command,
+      latest.current.spawn({
         cols,
         rows,
-        env: latest.current.env,
-        cwd: latest.current.cwd,
         onData: (bytes) => {
           if (!terminal.isDestroyed) terminal.write(bytes);
           // A program that asks and never hears back hangs or guesses.
