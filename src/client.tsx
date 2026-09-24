@@ -826,6 +826,8 @@ const ClientEnvironment = z.object({
   AIRTTY_LATENCY_MS: z._default(z.coerce.number().check(z.gte(0)), 0),
   /** Set by `airtty dev`: the session this Client reopens after each rebuild. */
   AIRTTY_SESSION: z.optional(SessionId),
+  /** Set by src/launcher: what sessions are kept under instead of the Server's URL. */
+  AIRTTY_SESSION_KEY: z.optional(z.string().check(z.minLength(1))),
   /** Development only: the address of `airtty devtools` (src/devtools/client-agent.ts). */
   AIRTTY_DEVTOOLS: z.optional(z.string()),
 });
@@ -859,7 +861,17 @@ function bearerFromSupervisor(send: (message: unknown) => void) {
 }
 export async function run(
   create: (options: Record<string, unknown>) => Application,
-  { name = "airtty" }: { name?: string } = {},
+  {
+    name = "airtty",
+    sessionKey,
+  }: {
+    name?: string;
+    /**
+     * Keys the sessions this Client restores, instead of the Server's URL: the launcher
+     * gives one per app and target, since its local socket changes on every launch.
+     */
+    sessionKey?: string;
+  } = {},
 ) {
   const env = ClientEnvironment.safeParse(process.env);
   if (!env.success) throw new Error(`Invalid Client environment: ${z.prettifyError(env.error)}`);
@@ -878,7 +890,11 @@ export async function run(
       : undefined;
   const handed = supervised ? await bearerFromSupervisor(supervised) : undefined;
   // Keyed by the address the user gave: a tunnel's local port changes on every start.
-  const session = openSession({ name, server: url, id: env.data.AIRTTY_SESSION });
+  const session = openSession({
+    name,
+    server: sessionKey ?? env.data.AIRTTY_SESSION_KEY ?? url,
+    id: env.data.AIRTTY_SESSION,
+  });
   const devtools = env.data.AIRTTY_DEVTOOLS
     ? (await import("./devtools/client-agent")).startClientAgent({
         address: env.data.AIRTTY_DEVTOOLS,

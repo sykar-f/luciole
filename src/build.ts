@@ -461,7 +461,7 @@ export async function build(directory: string, output = join(directory, ".airtty
     `\nconst actions=new Map([${[...actions].flatMap((p, i) => moduleAt(p).actionExports.map((n) => `[${quote(id(p) + "#" + n)},{fn:A${i}[${quote(n)}],auth:${quote(moduleAuth(moduleAt(p)))}}]`)).join(",")}]);\n` +
     `serve({buildId:${quote(buildId)},manifest:${quote(manifest)},actions,routes:new Map([${routes.map((r) => `[${quote(r.id)},{component:${r.name},auth:${quote(r.auth)},url:${quote(r.url)},params:${quote(r.params)}}]`).join(",")}])${hasAuth ? ",auth:Auth" : ""}${hasCache ? ",cache:Cache" : ""}});`;
   const clientSource =
-    `export {Shell} from ${quote(join(framework, "client.tsx"))};import {createApplication,run} from ${quote(join(framework, "client.tsx"))};import {routeTree} from ${quote(routeTreeFile)};\n` +
+    `export {Shell,run} from ${quote(join(framework, "client.tsx"))};import {createApplication,run} from ${quote(join(framework, "client.tsx"))};import {routeTree} from ${quote(routeTreeFile)};\n` +
     [...clients].map((p, i) => `import * as C${i} from ${quote(p)};`).join("\n") +
     `\nconst modules=new Map([${[...clients].map((p, i) => `[${quote(id(p))},C${i}]`).join(",")}]);export function createApp(options){return createApplication({...options,routeTree,buildId:${quote(buildId)},title:${quote(basename(root).toUpperCase())},resolveModule:id=>{if(!modules.has(id))throw new Error('Unknown module '+id);return modules.get(id)}})};if(import.meta.main)await run(createApp,{name:${quote(basename(root))}});`;
   const external = [

@@ -195,3 +195,25 @@ export async function rejectionOf(promise: Promise<unknown>): Promise<unknown> {
   }
   throw new Error("Expected a rejection, the promise resolved");
 }
+
+/**
+ * Writes the session a crashed Client would have left (src/session.ts) under `key`: on
+ * the second of two history entries, owned by a process that no longer exists.
+ */
+export async function leaveCrashedSession(state: string, name: string, key: string, href: string) {
+  const dead = Bun.spawnSync(["true"]).pid;
+  await Bun.write(
+    join(state, "airtty", name, "sessions", `${crypto.randomUUID()}.json`),
+    JSON.stringify({
+      version: 1,
+      server: key,
+      pid: dead,
+      updatedAt: Date.now(),
+      index: 1,
+      entries: [
+        { href: "/", fields: {} },
+        { href, fields: {} },
+      ],
+    }),
+  );
+}

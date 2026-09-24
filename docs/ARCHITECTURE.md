@@ -21,7 +21,9 @@ L’application est une codebase unique ; son build produit deux programmes.
 | `src/not-found.ts`   | Passage de `notFound()` à travers Flight (digest), partagé par le Server et le Client.                                          |
 | `src/compile.ts`     | Client autonome en un exécutable (`airtty build --compile`) et runtime Bun officiel (`airtty runtime`).                         |
 | `src/sign.ts`        | Signature Developer ID, hardened runtime et notarisation du Client macOS (`--sign`, `--notarize`).                              |
-| `src/connect.ts`     | URL du Server côté Client (`--url` > `AIRTTY_URL` > `~/.config/airtty/<app>.json`) et tunnel `ssh://`.                          |
+| `src/connect.ts`     | URL du Server côté Client (`--url` > `AIRTTY_URL` > `~/.config/airtty/<app>.json`), tunnel `ssh://` et socket `unix:`.          |
+| `src/launcher/`      | `airtty <cible>` et binaires d'app : résolution, lancement local sur socket, git, `--on` ([DISTRIBUTION](DISTRIBUTION.md)).     |
+| `src/registry/`      | Registre d'apps (`Registry`, npm), paquets par plateforme, apps installées dans `$XDG_DATA_HOME/airtty/apps`.                   |
 | `src/guards.ts`      | Gardes de type Server/Client ; `package-json.ts` (JSON validé par Zod), `bundle-errors.ts` (échecs de Bun.build).               |
 | `src/cache/`         | `"use cache"` ([CACHE.md](CACHE.md)) : transformation du build, clé, durées, tags, dédup, handlers mémoire et SQLite.           |
 | `src/flight/`        | Adapter du vrai codec React Flight et contrat de résolution des modules Client.                                                 |
@@ -116,6 +118,9 @@ signatures npm ne sont pas vérifiées). `--sign <identité>` et `--notarize <pr
 (`src/sign.ts`) signent le binaire macOS (hardened runtime, entitlements minimaux de
 Bun) et le font notariser ; rien n'est exigé par défaut. Voir
 [probes/compile](../probes/compile/README.md).
+
+`--compile` produit par défaut le binaire complet de l'app (Client et Server, voir
+[DISTRIBUTION.md](DISTRIBUTION.md)) ; `--client-only` garde le Client seul.
 
 Ce n’est pas encore un Client générique qui télécharge une application en ouvrant
 une URL. Chaque application distribue son propre Client de confiance. L’interface
