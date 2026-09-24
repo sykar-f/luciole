@@ -28,3 +28,17 @@ jobs:
       # The compiled Client in Debian (glibc) and Alpine (musl) containers without Bun.
       - if: runner.os == 'Linux'
         run: bun scripts/linux-client.ts
+  # The sandbox mode on Linux (docs/EMBEDDING.md, step 8), in containers, one per
+  # mechanism (namespaces, bubblewrap, Landlock alone), plus the launcher's own tests and
+  # a check that the committed launcher is what its sources build.
+  linux-sandbox:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: oven-sh/setup-bun@v2.2.0
+        with:
+          bun-version: 1.4.2
+      - run: bun install --frozen-lockfile
+      - run: bun scripts/build-sandbox.ts --check --arch x64
+      - run: bun scripts/linux-sandbox.ts --arch x64
