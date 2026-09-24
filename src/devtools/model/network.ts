@@ -225,9 +225,12 @@ export function createNetworkModel() {
           loaders.push({ at: p.at, routeId: p.routeId, href: p.href, cause: p.cause });
           return;
         }
-        // Answered by the router's cache (or a decorator that says so): no request, its
-        // own row, never the one of an earlier load of the same page.
-        const started = p.source
+        // Every loader says where its answer came from (feat/use-cache: `network` or
+        // `router-cache`; absent from older Clients, which means `network`). The router's
+        // cache answers without a request: its own row, never the one of an earlier load
+        // of the same page.
+        const cached = p.source === "router-cache";
+        const started = cached
           ? undefined
           : loaders.findLast(
               (l) =>
@@ -249,7 +252,7 @@ export function createNetworkModel() {
           target: p.routeId,
           cause: p.cause,
           href: p.href,
-          source: p.source ?? (p.result === "aborted" ? "aborted" : "no-request"),
+          source: cached ? "router-cache" : p.result === "aborted" ? "aborted" : "no-request",
           loader: { start: started?.at ?? p.at, end: p.at, result: p.result },
           client: { chunks: [], bytes: 0 },
           server: {},

@@ -148,8 +148,9 @@ export function startClientAgent({
       router.subscribe(event, routerChanged);
 
     // A resolved navigation whose page no loader fetched came from TanStack's cache:
-    // Chrome's "(memory cache)" row. feat/use-cache may report it itself (`source`); then
-    // synthesizing stops.
+    // Chrome's "(memory cache)" row. A Client that labels its loaders with `source`
+    // (feat/use-cache: `network` | `router-cache`, on every loader) reports those rows
+    // itself: synthesizing stops at its first loader.
     const loaded = new Set<string>();
     const routeOfHref = new Map<string, string>();
     const preloaded = new Set<string>();

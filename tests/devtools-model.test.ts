@@ -1,5 +1,8 @@
 import { expect, test } from "bun:test";
 import { fixtureSession, FIXTURE_START } from "../src/devtools/fixtures";
+import { message, PLUGIN } from "../src/devtools/protocol";
+import { parseEvent } from "../src/devtools/schema";
+import type { Stored } from "../src/devtools/model/session";
 import { toHar } from "../src/devtools/model/har";
 import { cacheBadge, phases, rowStatus } from "../src/devtools/model/network";
 import { createSession } from "../src/devtools/model/session";
@@ -113,4 +116,30 @@ test("a HAR export carries timings and the airtty fields", () => {
   expect(har.log.entries.find((e) => e._airtty.callId === "c6")?._airtty).toMatchObject({
     doubleInvalidation: "action:c4",
   });
+});
+
+test("loaders labelled `network` join their request; `router-cache` ones get their own row", () => {
+  const events: Stored[] = [];
+  const push = (suffix: string, payload: Record<string, unknown>) => {
+    const event = parseEvent(message(PLUGIN.client, suffix, { type: suffix, ...payload }));
+    if (!event) throw new Error(`invalid ${suffix}`);
+    events.push({ seq: events.length + 1, source: 1, event });
+  };
+  const loader = { routeId: "/notes/[id]", href: "/notes/1", cause: "navigation" };
+  const request = { id: 1, callId: "n1", kind: "render", target: "/notes/[id]" };
+  // feat/use-cache labels every loader, network ones included.
+  push("loader", { ...loader, at: 100, phase: "start", source: "network" });
+  push("request", { ...request, at: 101, cause: "navigation" });
+  push("response", { ...request, at: 110, status: 200, ms: 9 });
+  push("end", { ...request, at: 112, ms: 11, bytes: 10, cancelled: false });
+  push("loader", { ...loader, at: 113, phase: "end", ms: 13, result: "ok", source: "network" });
+  // Back to the same page later: TanStack's cache answers, no request.
+  push("loader", { ...loader, at: 200, phase: "end", ms: 0, result: "ok", source: "router-cache" });
+  const rows = loaded(events).network.rows();
+  expect(rows.map((row) => [row.key, row.source, rowStatus(row), cacheBadge(row)])).toEqual([
+    ["n1", "network", "done", undefined],
+    ["loader:1", "router-cache", "cached", "router"],
+  ]);
+  expect(rows[0]?.loader).toEqual({ start: 100, end: 113, result: "ok" });
+  expect(rows[1]?.loader).toEqual({ start: 200, end: 200, result: "ok" });
 });
