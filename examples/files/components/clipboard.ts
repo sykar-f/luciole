@@ -1,25 +1,18 @@
 import type { CliRenderer } from "@opentui/core";
+import { CapabilityDenied, host } from "airtty/client";
 
-// Runs in the Client, on the terminal's machine: its clipboard is the user's. The system
-// tool is tried first (a multiplexer may drop OSC 52), then OSC 52 through the terminal.
-const TOOLS: Record<string, string[][]> = {
-  darwin: [["pbcopy"]],
-  linux: [["wl-copy"], ["xclip", "-selection", "clipboard"], ["xsel", "--clipboard", "--input"]],
-};
-
-async function viaTool(text: string) {
-  for (const command of TOOLS[process.platform] ?? []) {
-    if (!Bun.which(command[0])) continue;
-    const tool = Bun.spawn(command, { stdin: "pipe", stdout: "ignore", stderr: "ignore" });
-    void tool.stdin.write(text);
-    await tool.stdin.end();
-    if ((await tool.exited) === 0) return true;
-  }
-  return false;
-}
-
-/** Copies `text`; `false` when neither the system nor the terminal accepted it. */
+/**
+ * Copies `text`; `false` when nothing accepted it. The host first: the Client itself
+ * (the system tool) on its own or inline, the host process when sandboxed, which may
+ * refuse. Then OSC 52 through the terminal (a multiplexer may drop it), unless the host
+ * refused: a sandboxed application's OSC 52 never reaches the clipboard anyway.
+ */
 export async function copy(renderer: CliRenderer, text: string) {
-  if (await viaTool(text).catch(() => false)) return true;
+  try {
+    await host.clipboard.write(text);
+    return true;
+  } catch (error: unknown) {
+    if (error instanceof CapabilityDenied) return false;
+  }
   return renderer.isOsc52Supported() && renderer.copyToClipboardOSC52(text);
 }
