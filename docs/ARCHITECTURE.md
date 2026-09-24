@@ -5,24 +5,25 @@ L’application est une codebase unique ; son build produit deux programmes.
 
 ## Le framework que nous développons
 
-| Fichier              | Responsabilité                                                                                                       |
-| -------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `src/cli.ts`         | Création du starter, commandes dev/build/start, supervision des processus et erreurs de rebuild.                     |
-| `src/build.ts`       | Lecture de l’AST, graphes Client/Server, validation des frontières, références Flight, routes, manifests et bundles. |
-| `src/route-graph.ts` | Compilation pure de `app/` en route graph : layouts, pages, groupes, params, catch-all, loading/error/not-found.     |
-| `src/server.ts`      | HTTP, contexte de session, registre des pages, Server Functions, `notFound()`, `invalidate()`, réponses live.        |
-| `src/route-tree.tsx` | Fabriques de routes de `app/routeTree.gen.ts` : layouts, pages, loaders Flight, écrans error/not-found, Échap.       |
-| `src/transport.ts`   | Interface `Transport` et adapter HTTP/Flight : build ID, bearer, timeout, `outcome`, événements, réseau simulé.      |
-| `src/client.tsx`     | Runtime terminal : TanStack Router, keymap, loaders Flight, actions, invalidation, live, observabilité, hooks.       |
-| `src/restore.ts`     | Session façon navigateur : historique et texte des champs nommés par entrée, groupes, oubli à l'envoi.               |
-| `src/fields.tsx`     | `Input` et `Textarea` contrôlés et restaurables, `useRestoredFields` ; `runtime-context.ts` porte le contexte.       |
-| `src/session.ts`     | Fichier de session d'un Client (`$XDG_STATE_HOME/airtty/<app>/sessions`), reprise après crash, suppression.          |
-| `src/not-found.ts`   | Passage de `notFound()` à travers Flight (digest), partagé par le Server et le Client.                               |
-| `src/compile.ts`     | Client autonome en un exécutable (`airtty build --compile`) et runtime Bun officiel (`airtty runtime`).              |
-| `src/sign.ts`        | Signature Developer ID, hardened runtime et notarisation du Client macOS (`--sign`, `--notarize`).                   |
-| `src/connect.ts`     | URL du Server côté Client (`--url` > `AIRTTY_URL` > `~/.config/airtty/<app>.json`) et tunnel `ssh://`.               |
-| `src/guards.ts`      | Gardes de type Server/Client ; `package-json.ts` (JSON validé par Zod), `bundle-errors.ts` (échecs de Bun.build).    |
-| `src/flight/`        | Adapter du vrai codec React Flight et contrat de résolution des modules Client.                                      |
+| Fichier              | Responsabilité                                                                                                                  |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `src/cli.ts`         | Arguments et registre des sous-commandes (`src/commands/index.ts`), une par module : init, dev, build, runtime, start, connect. |
+| `src/commands/`      | Création du starter, dev (supervision des processus, erreurs de rebuild), build, start/connect, runtime.                        |
+| `src/build.ts`       | Lecture de l’AST, graphes Client/Server, validation des frontières, références Flight, routes, manifests et bundles.            |
+| `src/route-graph.ts` | Compilation pure de `app/` en route graph : layouts, pages, groupes, params, catch-all, loading/error/not-found.                |
+| `src/server.ts`      | HTTP, contexte de session, registre des pages, Server Functions, `notFound()`, `invalidate()`, réponses live.                   |
+| `src/route-tree.tsx` | Fabriques de routes de `app/routeTree.gen.ts` : layouts, pages, loaders Flight, écrans error/not-found, Échap.                  |
+| `src/transport.ts`   | Interface `Transport` et adapter HTTP/Flight : build ID, bearer, timeout, `outcome`, événements, réseau simulé.                 |
+| `src/client.tsx`     | Runtime terminal : TanStack Router, keymap, loaders Flight, actions, invalidation, live, observabilité, hooks.                  |
+| `src/restore.ts`     | Session façon navigateur : historique et texte des champs nommés par entrée, groupes, oubli à l'envoi.                          |
+| `src/fields.tsx`     | `Input` et `Textarea` contrôlés et restaurables, `useRestoredFields` ; `runtime-context.ts` porte le contexte.                  |
+| `src/session.ts`     | Fichier de session d'un Client (`$XDG_STATE_HOME/airtty/<app>/sessions`), reprise après crash, suppression.                     |
+| `src/not-found.ts`   | Passage de `notFound()` à travers Flight (digest), partagé par le Server et le Client.                                          |
+| `src/compile.ts`     | Client autonome en un exécutable (`airtty build --compile`) et runtime Bun officiel (`airtty runtime`).                         |
+| `src/sign.ts`        | Signature Developer ID, hardened runtime et notarisation du Client macOS (`--sign`, `--notarize`).                              |
+| `src/connect.ts`     | URL du Server côté Client (`--url` > `AIRTTY_URL` > `~/.config/airtty/<app>.json`) et tunnel `ssh://`.                          |
+| `src/guards.ts`      | Gardes de type Server/Client ; `package-json.ts` (JSON validé par Zod), `bundle-errors.ts` (échecs de Bun.build).               |
+| `src/flight/`        | Adapter du vrai codec React Flight et contrat de résolution des modules Client.                                                 |
 
 `tests/`, `probes/` et `scripts/` servent à développer et vérifier le framework.
 Ils ne sont pas du code à recopier dans chaque application.
@@ -141,3 +142,4 @@ générique) s'y branchent par ces points, dans leurs propres fichiers, sans mod
 | `ApplicationOptions.wrapTransport`                                      | Décorer le `Transport` du Client : cache, enregistrement.            |
 | `Application.onEvent` : `at`, `callId`, `cause`, `invalidate`, `loader` | Chronologie, corrélation Client/Server, doubles invalidations.       |
 | `serve({ instrument })`, `ServerEvent`                                  | Événements Server par `callId` ; emplacement des futurs middlewares. |
+| `src/commands/<nom>.ts` + une ligne dans `src/commands/index.ts`        | Nouvelle sous-commande `airtty <nom>` (`Command { usage, run }`).    |

@@ -751,7 +751,7 @@ const ClientEnvironment = z.object({
   /** Set by `airtty dev`: the session this Client reopens after each rebuild. */
   AIRTTY_SESSION: z.optional(SessionId),
 });
-/** What `airtty dev` sends the Client it supervises (src/cli.ts). */
+/** What `airtty dev` sends the Client it supervises (src/commands/dev.ts). */
 const DevMessage = z.union([
   z.object({ type: z.literal("build-error"), message: z.string() }),
   z.object({ type: z.literal("bearer"), token: z.optional(z.string()) }),
