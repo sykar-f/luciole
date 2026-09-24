@@ -1,5 +1,12 @@
 # Client générique : télécharger, vérifier, rendre une application
 
+> **Depuis l'étape 1** (`feat/embed-instance`) : `src/` fait lui-même ce que ce probe
+> émulait (préfixe d'instance côté Server, registre `registerModules`, liaison des
+> Server Functions importées par bundle via `createActions`) ; `actionReference` et
+> `installResolver` n'existent plus. Le probe reste la trace de la recherche : il se relance
+> depuis le commit `ce81fa1` (`git worktree add --detach <dir> ce81fa1`). Les tests qui le
+> remplacent sont dans `tests/instance.test.tsx` ; l'étape 3 reprendra son chargeur.
+
 Exécuté avec succès le 24 septembre 2026, macOS 26.6.2 (arm64), Bun 1.4.2, depuis la
 racine du dépôt :
 

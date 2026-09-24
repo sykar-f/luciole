@@ -391,6 +391,18 @@ distribution) le permet. Les étapes 1–2 profitent aussi aux applications actu
 
 ### Avancement
 
+- **Étape 1 (préfixe d'instance, O1, O2)** : livrée sur `feat/embed-instance`.
+  `ApplicationOptions.instance` (clé `[a-z0-9-]{1,32}`, `src/instance.ts`) envoyée en
+  `x-airtty-instance` ; le Server passe à Flight une copie du manifeste préfixée par clé
+  (cache borné à 64 copies, analyse paresseuse), dans le flux imbriqué de la page comme
+  dans l'enveloppe ; `registerModules(key, resolver)` remplace `installResolver`, dans un
+  registre partagé par toutes les copies du runtime (`globalThis`). `let current` est
+  supprimé : le build émet par bundle un module `airtty:actions` (`createActions()` de
+  `airtty/client`) que les stubs `"use server"` importent et que `createApp` lie à
+  l'Application qu'il crée. Écart : cette liaison par bundle touche `src/build.ts`
+  (≈ 15 lignes) ; elle sert telle quelle aux bundles du Client générique (étape 3), sans
+  table `require` à surcharger. Deux panes d'un même build = deux évaluations du bundle.
+
 - **Étape 6 (mode `process`)** : livrée sur `feat/embed-process`, avant l'étape 1 (use-cache
   et distribution modifiaient alors `server.ts`, `transport.ts` et `client.tsx`).
   `<Terminal>` dans `airtty/client` (`src/vt/`), exemple `examples/mux`, smoke
