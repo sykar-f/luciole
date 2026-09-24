@@ -211,7 +211,11 @@ const state = useCapability("clipboard.write"); // "granted" | "denied" | "promp
   `useGlobalKey("ctrl+s", fn)` se désabonnent au démontage ; `useCapability(name)` re-rend
   quand l'utilisateur accorde ou refuse. Pas de `useHost()` : `host` est l'API de base.
 - Une séquence OSC 52 écrite par une application sandboxée n'atteint jamais le
-  presse-papiers : seule la voie `host` est vérifiée.
+  presse-papiers : seule la voie `host` est vérifiée. Sous Linux, seccomp refuse à
+  l'application tout socket Unix (D-Bus, Wayland, X11) : la voie `host` est la seule.
+- Mécanisme selon le système (`airtty <url>`) : Seatbelt (macOS) ; `airtty-sandbox` avec
+  espaces de noms, ou sous bubblewrap (Linux), par défaut ; Landlock seul (réseau non
+  confiné par hôte) seulement avec `--sandbox`. L'écran des capacités nomme le mécanisme.
 
 ## Observabilité
 

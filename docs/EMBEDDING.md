@@ -1,6 +1,6 @@
 # Client générique et applications embarquées
 
-Statut : étapes 1 à 7 livrées (voir [Avancement](#avancement)) ; la conception ci-dessous
+Statut : étapes 1 à 8 livrées (voir [Avancement](#avancement)) ; la conception ci-dessous
 s'appuie sur quatre probes exécutés le 24 septembre 2026 (macOS 26.6.2 arm64,
 Bun 1.4.2) : [inline](../probes/inline/README.md),
 [generic-client](../probes/generic-client/README.md),
@@ -24,11 +24,11 @@ telle que l'utilisateur l'a donnée, pas l'adresse locale d'un tunnel), un paque
 
 ### Trois modes d'isolation, un curseur par origine
 
-| Mode      | Où tourne l'application                                        | Isolation                     | Rendu                        | Pour                                          |
-| --------- | -------------------------------------------------------------- | ----------------------------- | ---------------------------- | --------------------------------------------- |
-| `inline`  | dans le processus du Client, même arbre React                  | aucune                        | direct, focus/thème partagés | code de confiance : local, installé, signé    |
-| `process` | processus enfant, sans sandbox                                 | crashs uniquement             | widget VT (PTY + émulateur)  | multiplexeur local : shells, vim, apps airtty |
-| `sandbox` | processus enfant sous sandbox OS (Seatbelt ; bwrap + Landlock) | crashs + capacités appliquées | widget VT                    | URL distante, paquet non signé                |
+| Mode      | Où tourne l'application                                      | Isolation                     | Rendu                        | Pour                                          |
+| --------- | ------------------------------------------------------------ | ----------------------------- | ---------------------------- | --------------------------------------------- |
+| `inline`  | dans le processus du Client, même arbre React                | aucune                        | direct, focus/thème partagés | code de confiance : local, installé, signé    |
+| `process` | processus enfant, sans sandbox                               | crashs uniquement             | widget VT (PTY + émulateur)  | multiplexeur local : shells, vim, apps airtty |
+| `sandbox` | processus enfant sous sandbox OS (Seatbelt ; airtty-sandbox) | crashs + capacités appliquées | widget VT                    | URL distante, paquet non signé                |
 
 Défauts : local ou installé → `process` ; URL distante ou paquet non signé → `sandbox`.
 L'utilisateur surcharge (réglage mémorisé par origine, ou flag CLI) ; l'application
@@ -63,15 +63,15 @@ le propose au lieu de simuler une sandbox vide.
 
 Qui applique quoi (mesuré, voir probes/sandbox) :
 
-| Capacité                                         | macOS                                                                      | Linux                                                   |
-| ------------------------------------------------ | -------------------------------------------------------------------------- | ------------------------------------------------------- |
-| `fs.read`, `fs.write`                            | OS (Seatbelt, par chemin)                                                  | OS (montages bwrap ; Landlock en plus)                  |
-| `net` par hôte                                   | proxy de l'hôte ; l'OS limite l'enfant au port du proxy                    | proxy via socket unix ; `--unshare-net` bloque le reste |
-| `net: *`                                         | OS                                                                         | OS                                                      |
-| `exec` (par binaire, hérité par les descendants) | OS                                                                         | OS avec Landlock ; sans Landlock, non applicable        |
-| `pty`                                            | refusée en sandbox : `/dev/ttys*` ouvrirait les autres terminaux (étape 7) | OS (`--dev`)                                            |
-| `clipboard.*`, `notify`, `open-url`, `secrets`   | hôte : la voie directe (mach-lookup) est bloquée par l'OS                  | hôte : aucun socket système monté                       |
-| `input.global`, `tabs.message`                   | hôte (IPC)                                                                 | hôte (IPC)                                              |
+| Capacité                                         | macOS                                                                      | Linux                                                                   |
+| ------------------------------------------------ | -------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `fs.read`, `fs.write`                            | OS (Seatbelt, par chemin)                                                  | Landlock (+ montages bwrap sous bubblewrap)                             |
+| `net` par hôte                                   | proxy de l'hôte ; l'OS limite l'enfant au port du proxy                    | proxy ; espace de noms réseau (userns, bwrap) ; refusé en Landlock seul |
+| `net: *`                                         | OS                                                                         | OS                                                                      |
+| `exec` (par binaire, hérité par les descendants) | OS                                                                         | Landlock ; bwrap sans Landlock : refusé                                 |
+| `pty`                                            | refusée en sandbox : `/dev/ttys*` ouvrirait les autres terminaux (étape 7) | devpts privé (userns, bwrap) ; refusé en Landlock seul                  |
+| `clipboard.*`, `notify`, `open-url`, `secrets`   | hôte : la voie directe (mach-lookup) est bloquée par l'OS                  | hôte : seccomp refuse les sockets Unix (D-Bus, Wayland, X11)            |
+| `input.global`, `tabs.message`                   | hôte (IPC)                                                                 | hôte (IPC)                                                              |
 
 Seatbelt ne connaît que `*` et `localhost` comme hôte distant : un nom ou une IP dans le
 profil est une erreur de compilation du profil (vérifié). Le filtrage par hôte passe donc
@@ -334,11 +334,9 @@ macOS, Seatbelt (probe : 38/38 assertions) :
   `sandbox_init_with_parameters` par `bun:ffi` fonctionne aussi (API privée ; le lanceur
   doit être minimal, ce qu'il a ouvert avant reste utilisable).
 
-Linux (conteneur privilégié, bwrap 0.12, Landlock ABI 8) : bubblewrap exécuté
-réellement (montages, `--unshare-net` + relais vers le socket unix du proxy, PTY via
-`--dev`) ; Landlock et seccomp (TIOCSTI, ptrace…) générés, **pas encore appliqués** : il
-faut les poser dans le processus juste avant l'`exec` de l'enfant, ce que Bun ne permet
-pas : c'est le rôle du lanceur Rust retenu (décision 6).
+Linux : voir l'étape 8 (Avancement) ; le lanceur natif `airtty-sandbox` applique
+Landlock et seccomp juste avant l'`exec` de l'enfant (décision 6), avec ses propres espaces
+de noms ou sous bubblewrap quand le système les permet.
 
 Les capacités médiées par l'hôte (`clipboard`, `notify`, `open-url`, `secrets`,
 `input.global`, `tabs.message`) passent par un canal IPC hôte ↔ enfant : un
@@ -390,6 +388,65 @@ distribution) le permet. Les étapes 1–2 profitent aussi aux applications actu
 (tests à plusieurs Applications, boundary).
 
 ### Avancement
+
+- **Étape 8 (mode `sandbox` Linux)** : livrée sur `feat/embed-sandbox-linux`
+  (`native/airtty-sandbox/`, `src/sandbox/{mechanism,linux,confine,bridge}.ts`). Un lanceur
+  natif en Rust, **`airtty-sandbox`**, reçoit une politique JSON structurée (validée par
+  Zod côté hôte et par serde, champs inconnus refusés, côté lanceur ; argv exécuté, jamais
+  de shell), puis dans l'ordre : espaces de noms, relais, Landlock (appels système directs,
+  droits selon l'ABI), seccomp, `execv`. Le mécanisme est choisi au lancement, le plus fort
+  d'abord (`--probe` du lanceur) :
+  - **`userns`** : le lanceur crée lui-même les espaces de noms utilisateur, montage, IPC,
+    réseau (boucle locale seule) et PID (dans un processus intermédiaire : après
+    `unshare(CLONE_NEWPID)` le superviseur ne pourrait plus créer les threads de ses
+    relais). Le Server et le proxy sont joints par des relais 127.0.0.1:3000/3128 vers des
+    sockets Unix de l'hôte. Landlock ABI ≥ 1.
+  - **`bwrap`** : le système refuse les espaces de noms au lanceur (Ubuntu ≥ 23.10,
+    AppArmor) mais permet bubblewrap : bwrap fait les espaces de noms et ne monte que le
+    nécessaire (ce qui confine les fichiers même sans Landlock) ; le lanceur ajoute
+    Landlock s'il existe, seccomp et les relais.
+  - **`landlock`** (ABI ≥ 6, portée des signaux) : aucun espace de noms. Fichiers,
+    exécution et signaux confinés ; **le réseau ne l'est pas par hôte** (Landlock filtre
+    TCP par port, vers toute adresse ; UDP refusé par seccomp). Jamais par défaut : une URL
+    s'ouvre avec `--sandbox` explicite, un `net` par hôte est refusé, et l'écran le dit
+    (« réseau N'EST PAS confiné par hôte »).
+  - sinon, le mode est refusé avec la raison (ABI, espaces de noms, bubblewrap).
+
+  **Mode par défaut d'une URL sous Linux** : `sandbox` quand le mécanisme confine le
+  réseau (`userns`, `bwrap`) ; sinon refus expliqué, `--sandbox` ou `--inline`.
+  Mesures (Linux 7.0, Landlock ABI 8, conteneurs OrbStack arm64) :
+  - **Landlock ne restreint pas la connexion à un socket Unix nommé** (écriture refusée,
+    `connect` accepté) : sans espace de noms montage, D-Bus, Wayland, X11 resteraient
+    joignables. seccomp refuse donc à l'enfant `socket(AF_UNIX)` (et netlink, packet),
+    `socketpair` reste permis (le canal IPC est hérité) ; le Server d'un tunnel ssh est
+    relayé en TCP. Aussi refusés : `ioctl(TIOCSTI|TIOCLINUX)`, `ptrace`,
+    `process_vm_*`, `io_uring_*` (ses opérations échapperaient au filtre), espaces de noms
+    et montages (`clone3` répond ENOSYS pour exposer les drapeaux de `clone`), trousseaux
+    du noyau, `bpf`, `perf_event_open`, `userfaultfd`, modules, `kexec`.
+  - l'`execve` d'un binaire dynamique exige EXECUTE sur son interpréteur ELF
+    (`ld-linux-*`) ; le résolveur de Bun liste le répertoire qui contient `node_modules`
+    (droit READ_DIR seul, ses fichiers restent fermés) ; `/proc` limité à `/proc/self`
+    (après le fork) et à quelques fichiers.
+  - **`pty` accordable avec un devpts privé** (`userns` : `devpts newinstance` sur
+    `/dev/pts` ; `bwrap` : `--dev`) : l'enfant ouvre ses propres PTY, écrire sur le chemin
+    du terminal d'un autre processus échoue (testé). Refusée en `landlock` (même raison
+    que Seatbelt : `/dev/pts` entier ouvrirait les terminaux de l'utilisateur).
+  - démarrage (`bun -e`, médiane de 15) : nu 1,7–1,9 ms ; `landlock` +0,4 ms ; `userns`
+    +1,8 ms ; `bwrap` +4 ms.
+
+  Distribution : binaires statiques musl par architecture (`dist/linux-x64`,
+  `dist/linux-arm64`, 520–570 Ko), valables sur glibc et musl, commités avec `SHA256SUMS`
+  que l'hôte vérifie avant usage ; `bun scripts/build-sandbox.ts [--check]` les reconstruit
+  à l'identique (image Rust épinglée par digest, `Cargo.lock`, dépendances épinglées :
+  `libc`, `seccompiler`, `serde`, `serde_json`). L'utilisateur n'installe rien ; le Client
+  générique étant airtty lui-même, rien ne change pour `airtty build --compile`.
+  Tests : `bun scripts/linux-sandbox.ts` (conteneurs Debian, utilisateur non root, un par
+  mécanisme : `tests/sandbox.test.ts`, `test:pty:sandbox`, `cargo test`) ; job CI
+  `linux-sandbox` (x64, `--check` compris). Tous verts en arm64. Limites : x64 n'est pas
+  testable émulé sur arm64 (Rosetta : ni Landlock ni `open_tree`), il l'est en CI ; bwrap
+  dans Docker demande `systempaths=unconfined` (monter un `/proc` neuf), pas un vrai hôte ;
+  le chemin AppArmor d'Ubuntu (bwrap autorisé, lanceur refusé) est simulé en forçant le
+  mécanisme (`AIRTTY_SANDBOX_MECHANISM`), pas mesuré sur Ubuntu.
 
 - **Étape 7 (mode `sandbox` macOS)** : livrée sur `feat/embed-sandbox-macos`
   (`src/sandbox/`). **Mode par défaut d'une URL sur macOS** : `airtty <url>` ouvre

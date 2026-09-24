@@ -8,19 +8,21 @@ Une même bibliothèque, `src/launcher/`, lance une app d'où qu'elle vienne. El
 
 Résolution explicite, première correspondance (`resolveTarget`) :
 
-| Cible                                | Exemple                                 | Effet                                                            |
-| ------------------------------------ | --------------------------------------- | ---------------------------------------------------------------- |
-| chemin (`./`, `../`, `/`, `~/`, `.`) | `airtty ./examples/notes`               | build, puis lancement local                                      |
-| app installée                        | `airtty notes`                          | son binaire                                                      |
-| spec npm                             | `airtty @ada/notes@^1.2`                | installée après confirmation si absente, puis lancée             |
-| source git                           | `airtty github:ada/tools#v1/apps/notes` | fetch, confiance, install, build (en cache), lancement local     |
-| URL de Server                        | `airtty https://notes.example.com`      | Client générique : bundle signé, clé épinglée, `--inline` requis |
+| Cible                                | Exemple                                 | Effet                                                               |
+| ------------------------------------ | --------------------------------------- | ------------------------------------------------------------------- |
+| chemin (`./`, `../`, `/`, `~/`, `.`) | `airtty ./examples/notes`               | build, puis lancement local                                         |
+| app installée                        | `airtty notes`                          | son binaire                                                         |
+| spec npm                             | `airtty @ada/notes@^1.2`                | installée après confirmation si absente, puis lancée                |
+| source git                           | `airtty github:ada/tools#v1/apps/notes` | fetch, confiance, install, build (en cache), lancement local        |
+| URL de Server                        | `airtty https://notes.example.com`      | Client générique : bundle signé, clé épinglée, `sandbox` par défaut |
 
 Une URL de Server ouvre l'app par son bundle signé (`/manifest`, `/bundle/<sha256>`) dans
 le Client générique, en onglets (plusieurs URL possibles) : voir
-[EMBEDDING.md](EMBEDDING.md), étape 5. Tant que le mode `sandbox` n'existe pas, rien ne
-s'ouvre sans `--inline` explicite (mémorisé par origine) ; `airtty trust <url> <SHA256:…>`
-épingle hors bande une nouvelle clé d'éditeur.
+[EMBEDDING.md](EMBEDDING.md), étapes 5, 7 et 8. Elle s'ouvre dans le mode `sandbox` où il
+confine aussi le réseau (macOS ; Linux avec espaces de noms ou bubblewrap, grâce à
+`native/airtty-sandbox`, livré compilé) ; ailleurs, rien ne s'ouvre sans `--sandbox` ou
+`--inline` explicite (mémorisé par origine) ; `airtty trust <url> <SHA256:…>` épingle hors
+bande une nouvelle clé d'éditeur.
 
 Un mot nu (`notes`) est une app installée s'il en existe une, sinon une spec npm. Un
 chemin relatif sans `./` est refusé avec cette indication plutôt que deviné.
