@@ -11,18 +11,20 @@ Aucune dépendance propre : le probe utilise les paquets du dépôt et importe `
 le modifier. Il construit `examples/mdreader` (`src/build.ts`), en tire un bundle Client
 « runtime external », le signe, le sert par `GET /manifest` et `GET /bundle` devant le
 vrai Server de l'application, puis un Client générique le télécharge, le vérifie,
-l'évalue et le rend dans OpenTUI (`testRender`).
+l'évalue et le rend dans OpenTUI (`testRender`). Le Server est lancé par
+`../inline/instance-server.ts` : il écrit les Client References avec la clé d'instance
+du pane (décision 4 de docs/EMBEDDING.md).
 
 ## Fichiers
 
-| Fichier            | Rôle                                                                                                                                                        |
-| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `abi.ts`           | ABI de runtime : 12 spécifiers autorisés, version manuelle + versions exactes des paquets, clé `1-<sha256>`.                                                |
-| `runtime-entry.ts` | Surface du runtime (airtty client/route-tree, TanStack) ; `runtime.ts` la bundle (redirection `isServer` de TanStack) et fournit la table `require`.        |
-| `bundle.ts`        | Bundle d'application : Client Components + route tree + stubs d'actions, format `bun-cjs`, ABI en external, audit des built-ins Node via le metafile.       |
-| `loader.ts`        | Manifeste Zod, signature Ed25519, épinglage TOFU par origine (`known-origins.json`), ABI, cache par sha256, évaluation avec un `require` limité.            |
-| `publish.ts`       | Clés de l'éditeur, manifeste signé, serveur `/manifest` + `/bundle` qui relaie le reste (render, action, flux live) vers le Server de l'application.        |
-| `host.tsx`         | Plusieurs Applications par processus : résolveur aiguilleur par préfixe, `airtty/client` par origine, keymap scopé, error boundary par embed (voir inline). |
+| Fichier            | Rôle                                                                                                                                                                   |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `abi.ts`           | ABI de runtime : 12 spécifiers autorisés, version manuelle + versions exactes des paquets, clé `1-<sha256>`.                                                           |
+| `runtime-entry.ts` | Surface du runtime (airtty client/route-tree, TanStack) ; `runtime.ts` la bundle (redirection `isServer` de TanStack) et fournit la table `require`.                   |
+| `bundle.ts`        | Bundle d'application : Client Components + route tree + stubs d'actions, format `bun-cjs`, ABI en external, audit des built-ins Node via le metafile.                  |
+| `loader.ts`        | Manifeste Zod, signature Ed25519, épinglage TOFU par origine (`known-origins.json`), ABI, cache par sha256, évaluation avec un `require` limité.                       |
+| `publish.ts`       | Clés de l'éditeur, manifeste signé, serveur `/manifest` + `/bundle` qui relaie le reste (render, action, flux live) vers le Server de l'application.                   |
+| `host.tsx`         | `createPanes` : une Application par pane, résolveur aiguilleur par préfixe d'instance, `airtty/client` par pane, keymap scopé, error boundary par embed (voir inline). |
 
 ## Assertions (toutes vertes)
 

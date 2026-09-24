@@ -13,7 +13,7 @@ import type { Application, ApplicationEvent } from "../../src/client";
 import { messageOf } from "../../src/guards";
 import type { AbiSpecifier } from "../generic-client/abi";
 import { bundleApp, type AppBundle } from "../generic-client/bundle";
-import { EmbedShell, createOrigins } from "../generic-client/host";
+import { EmbedShell, createPanes } from "../generic-client/host";
 import { evaluateBundle, type LoadedBundle } from "../generic-client/loader";
 import { abiModules, loadRuntime, type Runtime } from "../generic-client/runtime";
 
@@ -82,6 +82,8 @@ async function settle(ui: TestUI) {
 const buildOf = (id: string) => id.split("/")[0] ?? "";
 
 const docs = await mkdtemp(join(tmpdir(), "airtty-inline-docs-"));
+const otherDocs = await mkdtemp(join(tmpdir(), "airtty-inline-docs-"));
+await Bun.write(join(otherDocs, "README.md"), "# Second pane\n\nServed by another mdreader.\n");
 const files = await mkdtemp(join(tmpdir(), "airtty-inline-files-"));
 await Bun.write(join(docs, "README.md"), "# Handbook\n\nRendered by mdreader, inline.\n");
 await Bun.write(join(docs, "guide.md"), "# Guide\n\nThe next document.\n");
@@ -93,9 +95,18 @@ const bundles: Record<string, AppBundle> = {
   mdreader: await bundleApp(md.dir),
   files: await bundleApp(fx.dir),
 };
+// Servers with the proposed instance prefix (instance-server.ts); a request without
+// `x-airtty-instance`, as in `today`, gets the ids src/server.ts writes now.
+const start = (dir: string, env: Record<string, string>) =>
+  launch(join(import.meta.dir, "instance-server.ts"), {
+    SERVER_ENTRY: join(dir, ".airtty/server/index.js"),
+    ...env,
+  });
 const servers = {
-  mdreader: await launch(join(md.dir, ".airtty/server/index.js"), md.env),
-  files: await launch(join(fx.dir, ".airtty/server/index.js"), fx.env),
+  mdreader: await start(md.dir, md.env),
+  files: await start(fx.dir, fx.env),
+  // A second Server of the same build: the multiplexer's two panes of one application.
+  mdreader2: await start(md.dir, { MD_PATH: otherDocs }),
 };
 const { runtime } = await loadRuntime();
 results.bundles = Object.fromEntries(
@@ -205,15 +216,17 @@ async function today(rt: Runtime) {
 /** Proposed: one module router, per-origin actionReference, scoped keymaps, boundaries. */
 async function proposed(rt: Runtime) {
   armed = false;
-  const origins = createOrigins(rt);
+  const panes = createPanes(rt, { routeBy: "instance" });
   const rss0 = process.memoryUsage().rss;
   let t = performance.now();
-  const mdBundle = evaluate("mdreader", origins.abiFor(bundles.mdreader?.buildId ?? ""));
-  const mdApp = origins.mount(mdBundle, { url: servers.mdreader.url });
+  const mdKey = panes.open(bundles.mdreader?.buildId ?? "");
+  const mdBundle = evaluate("mdreader", panes.abiFor(mdKey));
+  const mdApp = panes.mount(mdKey, mdBundle, { url: servers.mdreader.url });
   const firstMs = performance.now() - t;
   t = performance.now();
-  const fxBundle = evaluate("files", origins.abiFor(bundles.files?.buildId ?? ""));
-  const fxApp = origins.mount(fxBundle, { url: servers.files.url });
+  const fxKey = panes.open(bundles.files?.buildId ?? "");
+  const fxBundle = evaluate("files", panes.abiFor(fxKey));
+  const fxApp = panes.mount(fxKey, fxBundle, { url: servers.files.url });
   const secondMs = performance.now() - t;
   const mdLog = record(mdApp);
   const fxLog = record(fxApp);
@@ -362,12 +375,88 @@ async function proposed(rt: Runtime) {
   await act(async () => ui.renderer.destroy());
 }
 
+/**
+ * Two panes of one application (one build), each against its own Server: keyed by build
+ * ID, the panes share one entry; keyed by instance (decided), each keeps its modules and
+ * its Application.
+ */
+async function samePanes(rt: Runtime, routeBy: "build" | "instance") {
+  const panes = createPanes(rt, { routeBy });
+  const S = `panes/${routeBy}`;
+  const open = (url: string) => {
+    const key = panes.open(bundles.mdreader?.buildId ?? "");
+    const loaded = evaluate("mdreader", panes.abiFor(key));
+    // Counts the Client References this pane's own module instance resolved.
+    let resolved = 0;
+    const modules = new Map(loaded.modules);
+    const get = modules.get.bind(modules);
+    modules.get = (id) => {
+      resolved++;
+      return get(id);
+    };
+    const app = panes.mount(key, { ...loaded, modules }, { url });
+    return { app, log: record(app), resolved: () => resolved };
+  };
+  const a = open(servers.mdreader.url);
+  const b = open(servers.mdreader2.url);
+  const ui = await testRender(
+    <box flexDirection="row" flexGrow={1}>
+      <EmbedShell runtime={rt} app={a.app} name="a" active />
+      <EmbedShell runtime={rt} app={b.app} name="b" active={false} />
+    </box>,
+    { width: WIDTH, height: HEIGHT },
+  );
+  const frame = await settle(ui);
+  const both =
+    frame.includes("Rendered by mdreader, inline.") &&
+    frame.includes("Served by another mdreader.");
+  const counts = `pane a resolved ${a.resolved()}, pane b ${b.resolved()}`;
+  const actions = `pane a sent ${a.log.actions().length} actions, pane b ${b.log.actions().length}`;
+  if (routeBy === "build") {
+    check(
+      S,
+      "pane a's Client References are resolved with pane b's module instance",
+      a.resolved() === 0 && b.resolved() > 0,
+      counts,
+    );
+    check(
+      S,
+      "pane a's imported Server Functions leave through pane b's Application",
+      a.log.actions().length === 0 && b.log.actions().length > 1,
+      actions,
+    );
+  } else {
+    check(S, "each pane renders its own Server's document", both);
+    check(
+      S,
+      "each pane resolves with its own module instance",
+      a.resolved() > 0 && b.resolved() > 0,
+      counts,
+    );
+    check(
+      S,
+      "each pane's imported Server Functions use its own Application",
+      a.log.actions().length > 0 && b.log.actions().length > 0,
+      actions,
+    );
+  }
+  results[S] = {
+    resolved: { a: a.resolved(), b: b.resolved() },
+    actions: { a: a.log.actions().length, b: b.log.actions().length },
+  };
+  await act(async () => ui.renderer.destroy());
+}
+
 try {
   await today(runtime);
   await proposed(runtime);
+  await samePanes(runtime, "build");
+  await samePanes(runtime, "instance");
 } finally {
   await servers.mdreader.stop();
+  await servers.mdreader2.stop();
   await servers.files.stop();
+  await rm(otherDocs, { recursive: true, force: true });
   await rm(docs, { recursive: true, force: true });
   await rm(files, { recursive: true, force: true });
 }

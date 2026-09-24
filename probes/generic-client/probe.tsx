@@ -13,7 +13,7 @@ import type { ApplicationEvent } from "../../src/client";
 import { messageOf } from "../../src/guards";
 import { runtimeAbi } from "./abi";
 import { bundleApp } from "./bundle";
-import { EmbedShell, createOrigins } from "./host";
+import { EmbedShell, createPanes } from "./host";
 import { evaluateBundle, fetchBundle, TrustError } from "./loader";
 import { publisherKeys, serveBundle, signBundle } from "./publish";
 import { loadRuntime } from "./runtime";
@@ -60,7 +60,11 @@ results.bundle = {
   bundleMs: round(bundle.bundleMs),
   abi,
 };
-const server = await launch(join(appDir, ".airtty/server/index.js"), { MD_PATH: library });
+// The Server with the proposed instance prefix (probes/inline/instance-server.ts).
+const server = await launch(join(import.meta.dir, "../inline/instance-server.ts"), {
+  SERVER_ENTRY: join(appDir, ".airtty/server/index.js"),
+  MD_PATH: library,
+});
 const keys = publisherKeys();
 const signed = signBundle(bundle, keys);
 const front = serveBundle({ upstream: server.url, signed, code: bundle.code });
@@ -76,15 +80,16 @@ try {
   const coldStart = performance.now();
   const cold = await fetchBundle(front.url, { store, abiKey: abi.key });
   const evalStart = performance.now();
-  const origins = createOrigins(runtime);
+  const panes = createPanes(runtime, { routeBy: "instance" });
+  const pane = panes.open(cold.manifest.buildId);
   const loaded = evaluateBundle(cold.code, {
     filename: `airtty-app:${cold.origin}/${cold.manifest.sha256}.js`,
-    abi: origins.abiFor(cold.manifest.buildId),
+    abi: panes.abiFor(pane),
     builtins: cold.manifest.builtins,
   });
   const evalMs = performance.now() - evalStart;
   check("bundle binds the signed build ID", loaded.buildId === cold.manifest.buildId);
-  const app = origins.mount(loaded, { url: front.url });
+  const app = panes.mount(pane, loaded, { url: front.url });
   const events: ApplicationEvent[] = [];
   app.onEvent((e) => events.push(e));
   await app.router.load();
@@ -163,7 +168,7 @@ try {
     Promise.resolve().then(() =>
       evaluateBundle(`(function(exports, require){require("node:child_process")})`, {
         filename: "probe",
-        abi: origins.abiFor("probe"),
+        abi: panes.abiFor(panes.open("probe")),
         builtins: [],
       }),
     ),

@@ -16,60 +16,97 @@ import type { AbiSpecifier } from "./abi";
 import type { LoadedBundle } from "./loader";
 import { abiModules, type Runtime } from "./runtime";
 
+/** Every Client pane: one Application, one module instance, one key. */
+type PaneOptions = Omit<ApplicationOptions, "routeTree" | "buildId" | "resolveModule">;
+export const INSTANCE_HEADER = "x-airtty-instance";
+
 /**
- * Several applications in one Client process, one Application each. Stands for the
+ * Several applications in one Client process, one Application per pane. Stands for the
  * refactor proposed in docs/EMBEDDING.md, done from outside src/:
  *
- * - `resolveModule`: one router for every Application, by the id's prefix (the build ID
- *   the Server wrote). React Flight's browser codec reads the single global
- *   `__webpack_require__`, so per-Application resolvers overwrite one another.
- * - `abiFor(buildId)`: a per-origin `airtty/client` whose `actionReference` calls that
- *   origin's Application, instead of the process-wide `current` of src/client.tsx.
+ * - `resolveModule`: one router for every pane, by the prefix of the id the Server wrote.
+ *   React Flight's browser codec reads the single global `__webpack_require__`, lazily at
+ *   render, so per-Application resolvers overwrite one another.
+ * - `abiFor(key)`: a per-pane `airtty/client` whose `actionReference` calls that pane's
+ *   Application, instead of the process-wide `current` of src/client.tsx.
+ *
+ * `routeBy: "instance"` (decided): each pane has its own key, sent as
+ * `x-airtty-instance`, and the Server prefixes Client Reference ids with it
+ * (`p2@<buildId>/<path>`, see probes/inline/instance-server.ts). Two panes of one build
+ * keep their own modules. `routeBy: "build"` keys by the build ID the ids already carry,
+ * with no Server change: kept to show why it is not enough.
  */
-export function createOrigins(runtime: Runtime) {
-  const origins = new Map<string, { modules: LoadedBundle["modules"]; app?: Application }>();
-  const prefixOf = (id: string) => id.slice(0, id.indexOf("/"));
+export function createPanes(runtime: Runtime, { routeBy }: { routeBy: "instance" | "build" }) {
+  const panes = new Map<
+    string,
+    { modules?: LoadedBundle["modules"]; app?: Application; resolved: number }
+  >();
+  let opened = 0;
+  const split = (id: string) => {
+    const at = routeBy === "instance" ? id.indexOf("@") : id.indexOf("/");
+    return routeBy === "instance"
+      ? { key: id.slice(0, at), local: id.slice(at + 1) }
+      : { key: id.slice(0, at), local: id };
+  };
   const resolveModule = (id: string) => {
-    const module = origins.get(prefixOf(id))?.modules.get(id);
-    if (!module) throw new Error(`Unknown Client module: ${id}`);
+    const { key, local } = split(id);
+    const pane = panes.get(key);
+    const module = pane?.modules?.get(local);
+    if (!pane || !module) throw new Error(`Unknown Client module: ${id}`);
+    pane.resolved++;
     return module;
   };
-  const appOf = (buildId: string) => {
-    const app = origins.get(buildId)?.app;
-    if (!app) throw new Error(`No Application mounted for ${buildId}`);
+  const appOf = (key: string) => {
+    const app = panes.get(key)?.app;
+    if (!app) throw new Error(`No Application mounted for ${key}`);
     return app;
   };
   const base = abiModules(runtime);
   return {
     resolveModule,
-    /** The ABI a bundle of `buildId` is evaluated against. */
-    abiFor(buildId: string) {
+    /** A key for a new pane of `buildId`; with `build`, every pane of a build shares it. */
+    open(buildId: string) {
+      const key = routeBy === "instance" ? `p${++opened}` : buildId;
+      panes.set(key, { resolved: 0 });
+      return key;
+    },
+    /** The ABI the bundle of pane `key` is evaluated against. */
+    abiFor(key: string) {
       const client = {
         ...runtime.airttyClient,
         actionReference: (id: string) =>
-          runtime.flight.createServerReference(id, (key: string, args: unknown[]) =>
-            appOf(buildId).callServer(key, args),
+          runtime.flight.createServerReference(id, (action: string, args: unknown[]) =>
+            appOf(key).callServer(action, args),
           ),
       };
       return (specifier: AbiSpecifier) =>
         specifier === "airtty/client" ? client : base[specifier];
     },
-    mount(
-      bundle: LoadedBundle,
-      options: Omit<ApplicationOptions, "routeTree" | "buildId" | "resolveModule">,
-    ) {
-      if (origins.get(bundle.buildId)?.app)
-        throw new Error(`${bundle.buildId} is mounted: one Application per build in this probe`);
-      origins.set(bundle.buildId, { modules: bundle.modules });
+    mount(key: string, bundle: LoadedBundle, options: PaneOptions) {
+      const pane = panes.get(key);
+      if (!pane) throw new Error(`No pane ${key}`);
+      const inner = options.fetch ?? fetch;
       const app = runtime.airttyClient.createApplication({
         ...options,
+        // The instance travels with every request; the Server writes it into the ids.
+        fetch:
+          routeBy === "instance"
+            ? (input, init) => {
+                const headers = new Headers(init.headers);
+                headers.set(INSTANCE_HEADER, key);
+                return inner(input, { ...init, headers });
+              }
+            : options.fetch,
         routeTree: bundle.routeTree,
         buildId: bundle.buildId,
         resolveModule,
       });
-      origins.set(bundle.buildId, { modules: bundle.modules, app });
+      pane.modules = bundle.modules;
+      pane.app = app;
       return app;
     },
+    /** How many Client References pane `key`'s modules resolved. */
+    resolutions: (key: string) => panes.get(key)?.resolved ?? 0,
   };
 }
 

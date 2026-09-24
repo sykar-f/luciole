@@ -21,19 +21,39 @@
   "today": {
     "frameAfterCrash": "                                                                                                                                                                \n                                                                                                                                                                \n  Error: host-injected crash                                                                                                                                    \n      at Bomb (/Users/sykar-f/workdir/drafts/airtty-worktrees/embedding/probes/inline/probe.tsx:50:23)                                                          \n      at react_stack_bottom_frame (/Users/sykar-f/workdir/drafts/airtty-worktrees/embedding/node_modules/react-reconciler/cjs/react-reconciler.development.js:  \n  17596:20)                                                                                                                                                     \n      at renderWithHooks (/Users/sykar-f/workdir/drafts/airtty-worktrees/embedding/node_modules/react-reconciler/cjs/react-reconciler.development.js:5335:22)   \n      at updateFunctionComponent (/Users/sykar-f/workdir/drafts/airtty-worktrees/embedding/node_modules/react-reconciler/cjs/react-reconciler.development.js:   \n  7720:19)                                                                                                                                                      \n      at runWithFiberInDEV (/Users/sykar-f/workdir/drafts/airtty-worktrees/embedding/node_modules/react-reconciler/cjs/react-reconciler.development.js:2508:    \n  13)                                                                                                                                                           \n      at performUnitOfWork (/Users/sykar-f/workdir/drafts/airtty-worktrees/embedding/node_modules/react-reconciler/cjs/react-reconciler.development.js:15273:   "
   },
-  "frame": "┌──────────────────────────────────────────────────────────────────────────────┐┌──────────────────────────────────────────────────────────────────────────────┐\n│ MDREADER  /var/folders/vp/5qk3...73K4OI · 2 documents  ● watching  Connected ││                                                                              │\n│                                                                              ││ TERMINAL / FILES · Connected                                                 │\n│ ┌─ airtty-inline-docs-73K4OI ────┐  README.md                                ││                                                                              │\n│ │ / find a document              │  4 lines · 42 B · ...4, 2026 at 2:41 PM   ││ airtty-inline-files-2hokjE                                                   │\n│ │ guide.md                       │                                           ││ /private/var/folders/vp/5qk3l0jx25j_...irtty-inline-files-2hokjE · 2 entries │\n│ │ README.md                      │  Handbook                                 ││                                                                              │\n│ │                                │                                           ││ / filter type to narrow this directory   2/2 shown · dotfiles none · by name │\n│ │                                │  Rendered by mdreader, inline.            ││                                                                              │\n│ │                                │                                           ││ ┌─ root ───────────────────────────────────────────────┐ ┌─────────────────┐ │\n│ │                                │                                           ││ │· alpha-inline.txt                                6 B │ │                 │ │\n│ │                                │                                           ││ │· beta-inline.txt                                 5 B │ │                 │ │",
+  "frame": "┌──────────────────────────────────────────────────────────────────────────────┐┌──────────────────────────────────────────────────────────────────────────────┐\n│ MDREADER  /var/folders/vp/5qk3...I6hKxx · 2 documents  ● watching  Connected ││                                                                              │\n│                                                                              ││ TERMINAL / FILES · Connected                                                 │\n│ ┌─ airtty-inline-docs-I6hKxx ────┐  README.md                                ││                                                                              │\n│ │ / find a document              │  4 lines · 42 B · ...4, 2026 at 3:32 PM   ││ airtty-inline-files-fW10Rq                                                   │\n│ │ guide.md                       │                                           ││ /private/var/folders/vp/5qk3l0jx25j_...irtty-inline-files-fW10Rq · 2 entries │\n│ │ README.md                      │  Handbook                                 ││                                                                              │\n│ │                                │                                           ││ / filter type to narrow this directory   2/2 shown · dotfiles none · by name │\n│ │                                │  Rendered by mdreader, inline.            ││                                                                              │\n│ │                                │                                           ││ ┌─ root ───────────────────────────────────────────────┐ ┌─────────────────┐ │\n│ │                                │                                           ││ │· alpha-inline.txt                                6 B │ │                 │ │\n│ │                                │                                           ││ │· beta-inline.txt                                 5 B │ │                 │ │",
   "focusedAfterMount": null,
   "proposed": {
     "evaluateAndMountMs": {
-      "first": 2.2,
-      "second": 1.9
+      "first": 0.8,
+      "second": 0.7
     },
     "rssMB": {
-      "beforeRender": 690.8,
-      "afterBothRendered": 673.2,
+      "beforeRender": 384,
+      "afterBothRendered": 416.6,
       "note": "includes the test renderer's buffers"
     },
-    "frameAfterCrash": "┌──────────────────────────────────────────────────────────────────────────────┐┌──────────────────────────────────────────────────────────────────────────────┐\n│ MDREADER  /var/folders/vp/5qk3...73K4OI · 2 documents  ● watching  Connected ││files crashed: host-injected crash                                            │\n│                                                                              ││                                                                              │\n│ ┌─ airtty-inline-docs-73K4OI ────┐  README.md                                ││                                                                              │\n│ │ / find a document              │  4 lines · 42 B · ...4, 2026 at 2:41 PM   ││                                                                              │\n│ │ guide.md                       │                                           ││                                                                              │\n│ │ README.md                      │  Handbook                                 ││                                                                              │\n│ │                                │                                           ││                                                                              │\n│ │                                │  Rendered by mdreader, inline.            ││                                                                              │\n│ │                                │                                           ││                                                                              │\n│ │                                │                                           ││                                                                              │\n│ │                                │                                           ││                                                                              │"
+    "frameAfterCrash": "┌──────────────────────────────────────────────────────────────────────────────┐┌──────────────────────────────────────────────────────────────────────────────┐\n│ MDREADER  /var/folders/vp/5qk3...I6hKxx · 2 documents  ● watching  Connected ││files crashed: host-injected crash                                            │\n│                                                                              ││                                                                              │\n│ ┌─ airtty-inline-docs-I6hKxx ────┐  README.md                                ││                                                                              │\n│ │ / find a document              │  4 lines · 42 B · ...4, 2026 at 3:32 PM   ││                                                                              │\n│ │ guide.md                       │                                           ││                                                                              │\n│ │ README.md                      │  Handbook                                 ││                                                                              │\n│ │                                │                                           ││                                                                              │\n│ │                                │  Rendered by mdreader, inline.            ││                                                                              │\n│ │                                │                                           ││                                                                              │\n│ │                                │                                           ││                                                                              │\n│ │                                │                                           ││                                                                              │"
+  },
+  "panes/build": {
+    "resolved": {
+      "a": 0,
+      "b": 2
+    },
+    "actions": {
+      "a": 0,
+      "b": 4
+    }
+  },
+  "panes/instance": {
+    "resolved": {
+      "a": 1,
+      "b": 1
+    },
+    "actions": {
+      "a": 2,
+      "b": 2
+    }
   },
   "assertions": [
     {
@@ -116,8 +136,37 @@
       "scenario": "proposed",
       "name": "a crash in files' embed leaves mdreader running",
       "ok": true
+    },
+    {
+      "scenario": "panes/build",
+      "name": "pane a's Client References are resolved with pane b's module instance",
+      "ok": true,
+      "detail": "pane a resolved 0, pane b 2"
+    },
+    {
+      "scenario": "panes/build",
+      "name": "pane a's imported Server Functions leave through pane b's Application",
+      "ok": true,
+      "detail": "pane a sent 0 actions, pane b 4"
+    },
+    {
+      "scenario": "panes/instance",
+      "name": "each pane renders its own Server's document",
+      "ok": true
+    },
+    {
+      "scenario": "panes/instance",
+      "name": "each pane resolves with its own module instance",
+      "ok": true,
+      "detail": "pane a resolved 1, pane b 1"
+    },
+    {
+      "scenario": "panes/instance",
+      "name": "each pane's imported Server Functions use its own Application",
+      "ok": true,
+      "detail": "pane a sent 2 actions, pane b 2"
     }
   ],
-  "ranAt": "2026-09-24T13:41:23.782Z",
+  "ranAt": "2026-09-24T14:32:27.320Z",
   "bun": "1.4.2"
 }
