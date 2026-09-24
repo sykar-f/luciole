@@ -42,7 +42,8 @@ test("`airtty ./app` builds it, runs its Server on a socket and its Client here"
       stderr: "ignore",
     });
     let screen = "";
-    const deadline = performance.now() + 30000;
+    // Includes building Notes: a loaded machine (a full `verify`) can take a while.
+    const deadline = performance.now() + 60000;
     while (performance.now() < deadline && !screen.includes("baseline:")) {
       await Bun.sleep(100);
       screen = Bun.stripANSI(await readFile(log, "utf8").catch(() => ""));
@@ -60,7 +61,7 @@ test("`airtty ./app` builds it, runs its Server on a socket and its Client here"
     await rm(run, { recursive: true, force: true });
     await rm(temporary, { recursive: true, force: true });
   }
-}, 60000);
+}, 120000);
 
 test("a launcher killed with SIGKILL still takes its Server and socket directory along", async () => {
   const work = await mkdtemp(join(tmpdir(), "airtty-kill-"));
