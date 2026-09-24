@@ -13,6 +13,7 @@ import {
 import { Capabilities } from "../../../capabilities";
 import { messageOf } from "../../../guards";
 import { enforcement, ENFORCERS } from "../../../sandbox/grants";
+import { mechanismName } from "../../../sandbox/mechanism";
 import type { Question } from "../../../sandbox/permissions";
 import { openSandbox, type Sandbox } from "../../../sandbox/spawn";
 import { readOrigin, writeOrigin } from "../../origin";
@@ -45,6 +46,18 @@ const Tab = z.object({
     }),
   ),
   child: z.optional(z.string()),
+  /** What confines it (src/sandbox/mechanism.ts). */
+  mechanism: z.optional(
+    z.union([
+      z.object({ kind: z.literal("seatbelt") }),
+      z.object({
+        kind: z.enum(["userns", "bwrap", "landlock"]),
+        landlockAbi: z.number(),
+        launcher: z.string(),
+        bwrap: z.optional(z.string()),
+      }),
+    ]),
+  ),
 });
 type Tab = z.infer<typeof Tab>;
 function tabsFromEnvironment(): Tab[] {
@@ -154,13 +167,13 @@ function SandboxTab({ tab, id, hub, active, onClose, ask, onGrants }: TabProps) 
     latest.current = { ask, onGrants };
   });
   useEffect(() => {
-    const { runtime, child } = tab;
-    if (!runtime || !child) return;
+    const { runtime, child, mechanism } = tab;
+    if (!runtime || !child || !mechanism) return;
     let opened: Sandbox | undefined;
     let closed = false;
     let leave = () => {};
     openSandbox(
-      { ...tab, runtime, child },
+      { ...tab, runtime, child, mechanism },
       {
         perform: hub.perform(id, tab.origin),
         ask: (question) => latest.current.ask(question),
@@ -197,7 +210,7 @@ function SandboxTab({ tab, id, hub, active, onClose, ask, onGrants }: TabProps) 
       void opened?.close();
     };
   }, [tab, id, hub]);
-  if (!tab.runtime || !tab.child)
+  if (!tab.runtime || !tab.child || !tab.mechanism)
     return <text fg="#ff6b6b">{tab.origin}: no sandbox runtime was prepared</text>;
   if (failure) return <text fg="#ff6b6b">{failure}</text>;
   if (!sandbox) return <text fg="#8b98a5">Opening {tab.origin} in the sandbox…</text>;
@@ -217,11 +230,14 @@ function SandboxTab({ tab, id, hub, active, onClose, ask, onGrants }: TabProps) 
 /** What the status line says of the active tab: who enforces what, or nothing. */
 function statusOf(tab: Tab | undefined, granted: Capabilities | undefined) {
   if (!tab) return "";
-  if (tab.mode === "inline") return "inline · confiance totale · aucune capacité appliquée";
-  const lines = enforcement(granted ?? tab.granted).map(
+  if (tab.mode === "inline" || !tab.mechanism)
+    return "inline · confiance totale · aucune capacité appliquée";
+  const lines = enforcement(granted ?? tab.granted, tab.mechanism).map(
     (line) => `${line.capability.split(" ")[0]} (${ENFORCERS[line.by]})`,
   );
-  return `sandbox · Seatbelt · ${lines.length ? lines.join(", ") : "aucune capacité accordée"}`;
+  // Short: the line shares its row with the help.
+  const network = tab.mechanism.kind === "landlock" ? ", réseau non confiné" : "";
+  return `sandbox · ${mechanismName(tab.mechanism)}${network} · ${lines.length ? lines.join(", ") : "aucune capacité accordée"}`;
 }
 
 export function Browser({ children }: { children: ReactNode }) {

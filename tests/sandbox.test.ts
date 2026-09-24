@@ -1,30 +1,27 @@
 /**
- * The `sandbox` mode on macOS (docs/EMBEDDING.md, step 7): what the generated Seatbelt
- * profile really lets a child do, the egress proxy, the IPC channel of mediated
- * capabilities, and an application opened by URL, sandboxed, end to end. Seatbelt exists
- * on macOS only: elsewhere these tests are skipped, explicitly (Linux is step 8).
+ * The `sandbox` mode (docs/EMBEDDING.md, steps 7 and 8), with the mechanism this system
+ * has (src/sandbox/mechanism.ts): Seatbelt on macOS; on Linux airtty-sandbox with
+ * namespaces, under bubblewrap, or Landlock alone. What a confined child really can do,
+ * the egress proxy, the IPC channel of mediated capabilities, and an application opened
+ * by URL, sandboxed, end to end. Without a sandbox on this system (no prebuilt launcher,
+ * say) these tests are skipped, explicitly: `bun scripts/linux-sandbox.ts` runs them in
+ * Linux containers.
  */
 import { test, expect } from "bun:test";
-import {
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  realpathSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
-import { homedir, tmpdir } from "node:os";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createServer } from "node:net";
+import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { connect as connectTcp } from "node:net";
 import { createTestRenderer } from "@opentui/core/testing";
 import { build } from "../src/build";
 import { Capabilities } from "../src/capabilities";
 import { messageOf } from "../src/guards";
-import { prepareOrigin, SANDBOX_HEADER } from "../src/generic/prepare";
+import { prepareOrigin, sandboxHeader } from "../src/generic/prepare";
 import type { HostRequest } from "../src/host";
 import { directories } from "../src/launcher/paths";
 import { generatePublisherKey, readPublisherKey } from "../src/publisher";
+import { confine, scratch as newScratch } from "../src/sandbox/confine";
 import {
   beyond,
   enforcement,
@@ -33,103 +30,144 @@ import {
   unenforceable,
 } from "../src/sandbox/grants";
 import { answer } from "../src/sandbox/ipc";
+import { launcherPolicy, linuxCommand } from "../src/sandbox/linux";
+import type { LinuxMechanism, Mechanism } from "../src/sandbox/mechanism";
 import { createPermissions, type Question } from "../src/sandbox/permissions";
-import { sandboxed, seatbeltProfile, type ServerRoute } from "../src/sandbox/profile";
 import { hostAllowed, startProxy } from "../src/sandbox/proxy";
-import { buildChild, sandboxRuntime, sandboxSupported } from "../src/sandbox/runtime";
+import { buildChild, sandboxAvailability, sandboxRuntime } from "../src/sandbox/runtime";
 import { openSandbox } from "../src/sandbox/spawn";
 import { spawnPty } from "../src/vt/pty";
 import { VtTerminalRenderable } from "../src/vt/gaps";
 import { launch, until } from "./helpers";
 
-const macOS = test.skipIf(!sandboxSupported());
+const availability = sandboxAvailability();
+const mechanism: Mechanism | undefined = availability.mechanism;
+const confined = test.skipIf(!mechanism);
+const onMacOS = test.skipIf(mechanism?.kind !== "seatbelt");
+const onLinux = test.skipIf(!mechanism || mechanism.kind === "seatbelt");
+/** Whether the mechanism gives the child a devpts of its own (the `pty` capability). */
+const privateDevpts = mechanism?.kind === "userns" || mechanism?.kind === "bwrap";
 const NONE = Capabilities.parse({});
 const caps = (value: unknown) => Capabilities.parse(value);
-const scratch = () => realpathSync(mkdtempSync(join(tmpdir(), "airtty-sandbox-test-")));
+const scratch = () => newScratch().path;
 const SRC = resolve("src");
+/** Refusals, as each mechanism reports them: Seatbelt, Landlock, nothing mounted (bwrap). */
+const REFUSED = /^(EPERM|EACCES|ENOENT|EROFS|ECONNREFUSED|ENETUNREACH)$/;
 
 type Outcome = { ok: boolean; detail: string };
+type Confined = {
+  /** Runs `script` (Bun, one JSON line `{ ok, detail }` on stdout) confined. */
+  run(script: string): Promise<Outcome>;
+  profile: () => string;
+  tty: () => string;
+  proxyDecisions: () => readonly { host: string; allowed: boolean }[];
+  close(): Promise<void>;
+};
 /**
- * Runs `script` (Bun, one JSON line `{ ok, detail }` on stdout) on a PTY under the profile
- * generated for `granted`, as the host runs a sandboxed Client.
+ * The confinement a sandboxed Client gets for `granted` (src/sandbox/confine.ts), with its
+ * Server at `server` (a loopback port by default, nothing listening). Scripts find the
+ * Server's address in AIRTTY_TEST_SERVER and the proxy in HTTP_PROXY.
  */
-async function inSandbox(
-  script: string,
+async function confinedFor(
   granted: Capabilities,
-  options: { server?: ServerRoute; proxyPort?: number; ipc?: (message: unknown) => void } = {},
-): Promise<Outcome & { profile: string; tty: string }> {
-  const tmp = scratch();
-  let output = "";
+  options: { server?: string; readable?: string[] } = {},
+): Promise<Confined> {
+  if (!mechanism) throw new Error("no sandbox here");
+  const tmp = newScratch();
+  const url = options.server ?? "http://127.0.0.1:9";
+  const confinement = await confine({
+    mechanism,
+    runtime: sandboxRuntime(),
+    granted,
+    tmp: tmp.path,
+    readable: options.readable ?? [],
+    writable: [],
+    server: { url, connection: { url, close() {} } },
+    resolve: () => "127.0.0.1",
+    onProfile: (text) => (profile = text),
+  });
   let profile = "";
   let tty = "";
-  const code = await new Promise<number | null>((done, fail) => {
-    try {
-      spawnPty({
-        cols: 80,
-        rows: 24,
-        cwd: tmp,
-        environment: "replace",
-        env: {
-          PATH: "/usr/bin:/bin",
-          HOME: tmp,
-          TMPDIR: tmp,
-          BUN_RUNTIME_TRANSPILER_CACHE_PATH: "0",
-        },
-        ipc: options.ipc,
-        command: (slave) => {
-          tty = slave;
-          profile = seatbeltProfile({
-            runtime: sandboxRuntime(),
-            capabilities: granted,
-            tmp,
-            readable: [],
-            writable: [],
-            tty: slave,
-            server: options.server ?? { kind: "proxy" },
-            proxyPort: options.proxyPort,
-          });
-          return sandboxed(profile, [sandboxRuntime().bun, "-e", script]);
-        },
-        onData: (bytes) => (output += new TextDecoder().decode(bytes)),
-        onExit: done,
-      });
-    } catch (error: unknown) {
-      fail(error);
-    }
-  });
-  rmSync(tmp, { recursive: true, force: true });
-  const line = output.split(/\r?\n/).findLast((l) => l.startsWith('{"ok"'));
-  if (!line) return { ok: false, detail: `exit ${code}: ${output.slice(-500)}`, profile, tty };
-  const parsed: unknown = JSON.parse(line);
-  if (typeof parsed !== "object" || parsed === null || !("ok" in parsed) || !("detail" in parsed))
-    throw new Error(line);
-  return { ok: parsed.ok === true, detail: String(parsed.detail), profile, tty };
+  const run = async (script: string) => {
+    let output = "";
+    const code = await new Promise<number | null>((done, fail) => {
+      try {
+        spawnPty({
+          cols: 80,
+          rows: 24,
+          cwd: tmp.path,
+          environment: "replace",
+          env: {
+            PATH: "/usr/bin:/bin",
+            HOME: tmp.path,
+            TMPDIR: tmp.path,
+            BUN_RUNTIME_TRANSPILER_CACHE_PATH: "0",
+            AIRTTY_TEST_SERVER: new URL(confinement.serverUrl).host,
+            ...confinement.env,
+          },
+          command: (slave) => {
+            tty = slave;
+            return confinement.command(slave, [sandboxRuntime().bun, "-e", script]);
+          },
+          onData: (bytes) => (output += new TextDecoder().decode(bytes)),
+          onExit: done,
+        });
+      } catch (error: unknown) {
+        fail(error);
+      }
+    });
+    const line = output.split(/\r?\n/).findLast((l) => l.startsWith('{"ok"'));
+    if (!line) return { ok: false, detail: `exit ${code}: ${output.slice(-800)}` };
+    const parsed: unknown = JSON.parse(line);
+    if (typeof parsed !== "object" || parsed === null || !("ok" in parsed) || !("detail" in parsed))
+      throw new Error(line);
+    return { ok: parsed.ok === true, detail: String(parsed.detail) };
+  };
+  return {
+    run,
+    profile: () => profile,
+    tty: () => tty,
+    proxyDecisions: () => confinement.proxy?.decisions ?? [],
+    close: async () => {
+      await confinement.close();
+      tmp.remove();
+    },
+  };
+}
+async function inSandbox(script: string, granted: Capabilities) {
+  const sandbox = await confinedFor(granted);
+  try {
+    return { ...(await sandbox.run(script)), profile: sandbox.profile(), tty: sandbox.tty() };
+  } finally {
+    await sandbox.close();
+  }
 }
 /** A script body whose returned value (or thrown error) becomes the outcome. */
 const attempt = (body: string) =>
-  `const report=(ok,detail)=>console.log(JSON.stringify({ok,detail:String(detail)}));` +
+  // It exits once it reported: an open socket would keep it running.
+  `const report=(ok,detail)=>{console.log(JSON.stringify({ok,detail:String(detail)}));setTimeout(()=>process.exit(0),50)};` +
   `try{const r=await (async()=>{${body}})();report(true,r)}catch(e){report(false,e.code??e.message)}`;
 
-macOS(
-  "the profile opens the PTY by its exact path, and Bun and OpenTUI start under it",
-  async () => {
-    const run = await inSandbox(
-      attempt(
-        `process.stdin.setRawMode(true);process.stdin.setRawMode(false);` +
-          `const {createTestRenderer}=await import(${JSON.stringify(Bun.resolveSync("@opentui/core/testing", SRC))});` +
-          `const {renderer}=await createTestRenderer({width:10,height:2});renderer.destroy();return "raw mode, renderer"`,
-      ),
-      // The test's own renderer import is read from node_modules, which the runtime opens.
-      NONE,
-    );
-    expect(run).toMatchObject({ ok: true, detail: "raw mode, renderer" });
-    expect(run.profile).toContain("(deny default)");
-    expect(run.profile).toContain(`(allow file-ioctl (literal "${run.tty}"))`);
-    expect(run.profile).not.toContain("ttys[0-9]");
-  },
-);
+confined("Bun and OpenTUI start confined, raw mode on their own terminal included", async () => {
+  const run = await inSandbox(
+    attempt(
+      `process.stdin.setRawMode(true);process.stdin.setRawMode(false);` +
+        `const {createTestRenderer}=await import(${JSON.stringify(Bun.resolveSync("@opentui/core/testing", SRC))});` +
+        `const {renderer}=await createTestRenderer({width:10,height:2});renderer.destroy();return "raw mode, renderer"`,
+    ),
+    NONE,
+  );
+  expect(run).toMatchObject({ ok: true, detail: "raw mode, renderer" });
+});
 
-macOS("another terminal of the user stays closed to the child", async () => {
+onMacOS("the Seatbelt profile names the PTY by its exact path", async () => {
+  const run = await inSandbox(attempt(`return "ok"`), NONE);
+  expect(run.profile).toContain("(deny default)");
+  expect(run.profile).toContain(`(allow file-ioctl (literal "${run.tty}"))`);
+  expect(run.profile).not.toContain("ttys[0-9]");
+});
+
+confined("another terminal of the user stays closed to the child", async () => {
   // A PTY this process holds, as another terminal window would.
   let victim = "";
   const holder = spawnPty({
@@ -147,13 +185,14 @@ macOS("another terminal of the user stays closed to the child", async () => {
       attempt(`require("node:fs").openSync(${JSON.stringify(victim)},"r+");return "opened"`),
       NONE,
     );
-    expect(run).toMatchObject({ ok: false, detail: "EPERM" });
+    expect(run.ok).toBe(false);
+    expect(run.detail).toMatch(REFUSED);
   } finally {
     holder.kill();
   }
 });
 
-macOS("~/.ssh and ungranted paths are unreadable; writes land only where granted", async () => {
+confined("~/.ssh and ungranted paths are unreadable; writes land only where granted", async () => {
   const home = scratch();
   try {
     mkdirSync(join(home, "granted"));
@@ -178,27 +217,29 @@ macOS("~/.ssh and ungranted paths are unreadable; writes land only where granted
       detail: "granted data",
     });
     // The real ~/.ssh when there is one, and an ungranted file in any case.
-    if (existsSync(secret))
-      expect(await read(secret)).toMatchObject({ ok: false, detail: "EPERM" });
+    if (existsSync(secret)) {
+      const ssh = await read(secret);
+      expect(ssh.ok).toBe(false);
+      expect(ssh.detail).toMatch(REFUSED);
+    }
     writeFileSync(join(home, "outside.txt"), "not granted");
-    expect(await read(join(home, "outside.txt"))).toMatchObject({ ok: false, detail: "EPERM" });
+    const outside = await read(join(home, "outside.txt"));
+    expect(outside.ok).toBe(false);
+    expect(outside.detail).toMatch(REFUSED);
     expect(await write(join(home, "granted/new.txt"))).toMatchObject({ ok: true });
     expect(readFileSync(join(home, "granted/new.txt"), "utf8")).toBe("x");
-    expect(await write(join(home, "readonly/new.txt"))).toMatchObject({
-      ok: false,
-      detail: "EPERM",
-    });
-    expect(await write(join(home, "outside-new.txt"))).toMatchObject({
-      ok: false,
-      detail: "EPERM",
-    });
+    for (const path of [join(home, "readonly/new.txt"), join(home, "outside-new.txt")]) {
+      const denied = await write(path);
+      expect(denied.ok).toBe(false);
+      expect(denied.detail).toMatch(REFUSED);
+    }
     expect(existsSync(join(home, "outside-new.txt"))).toBe(false);
   } finally {
     rmSync(home, { recursive: true, force: true });
   }
 });
 
-macOS("the clipboard's service is out of reach, even through a granted binary", async () => {
+onMacOS("the clipboard's service is out of reach, even through a granted binary", async () => {
   const run = await inSandbox(
     attempt(
       `const r=Bun.spawnSync(["/usr/bin/pbcopy"],{stdin:new TextEncoder().encode("from the sandbox")});` +
@@ -211,57 +252,196 @@ macOS("the clipboard's service is out of reach, even through a granted binary", 
   expect(run.detail).toMatch(/pbcopy status [1-9]/);
 });
 
+onLinux("a session bus, a display socket: no Unix socket is reachable, even readable", async () => {
+  // As the user's D-Bus or Wayland socket: a listening Unix socket the child can see.
+  const home = scratch();
+  const path = join(home, "bus.sock");
+  let accepted = 0;
+  const bus = createServer(() => void accepted++);
+  await new Promise<void>((done) => bus.listen(path, done));
+  try {
+    const sandbox = await confinedFor(caps({ fs: { read: [home] } }));
+    try {
+      const run = await sandbox.run(
+        attempt(
+          `return await new Promise((ok,no)=>{const s=require("node:net").connect(${JSON.stringify(path)});` +
+            `s.on("connect",()=>{s.destroy();ok("connected")});s.on("error",no)})`,
+        ),
+      );
+      expect(run.ok).toBe(false);
+      expect(accepted).toBe(0);
+    } finally {
+      await sandbox.close();
+    }
+  } finally {
+    bus.close();
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+
 const TCP_TIMEOUT_MS = 2000;
-const tcp = (port: number) =>
+const tcp = (address: string) =>
   attempt(
-    `return await new Promise((ok,no)=>{const s=require("node:net").connect({host:"127.0.0.1",port:${port}});` +
+    `const [host,port]=${address}.split(":");` +
+      `return await new Promise((ok,no)=>{const s=require("node:net").connect({host,port:Number(port)});` +
       `const t=setTimeout(()=>no(new Error("timeout")),${TCP_TIMEOUT_MS});` +
       `s.on("connect",()=>{clearTimeout(t);s.destroy();ok("connected")});s.on("error",e=>{clearTimeout(t);no(e)})})`,
   );
 
-macOS("the network: the Server's port and the proxy, which applies the host list", async () => {
+confined("the network: the Server always, the proxy for granted hosts, nothing else", async () => {
   const server = Bun.serve({
     port: 0,
     hostname: "127.0.0.1",
-    fetch: (r) => new Response(`server ${new URL(r.url).host}`),
+    fetch: (r) => new Response(`server ${new URL(r.url).pathname}`),
   });
   const other = Bun.serve({ port: 0, hostname: "127.0.0.1", fetch: () => new Response("other") });
-  const granted = caps({ net: ["api.test"] });
-  const proxy = await startProxy({ allow: [...granted.net], resolve: () => "127.0.0.1" });
+  // A host list cannot be confined by Landlock alone: then only the Server's route is tested.
+  const hosts = caps({ net: ["api.test"] });
+  const granted = mechanism && unenforceable(hosts, mechanism) ? NONE : hosts;
+  const sandbox = await confinedFor(granted, { server: `http://127.0.0.1:${server.port}` });
   try {
-    const route: ServerRoute = { kind: "loopback", port: server.port ?? 0 };
-    const options = { server: route, proxyPort: proxy.port };
-    // The Server, always; any other local port, never (a direct connection bypasses the proxy).
-    expect(await inSandbox(tcp(server.port ?? 0), granted, options)).toMatchObject({ ok: true });
-    expect(await inSandbox(tcp(other.port ?? 0), granted, options)).toMatchObject({ ok: false });
+    // The Server, always (directly, or through the launcher's relay).
+    expect(await sandbox.run(tcp("process.env.AIRTTY_TEST_SERVER"))).toMatchObject({ ok: true });
+    expect(
+      await sandbox.run(
+        attempt(
+          `const r=await fetch("http://"+process.env.AIRTTY_TEST_SERVER+"/x");return await r.text()`,
+        ),
+      ),
+    ).toMatchObject({ ok: true, detail: "server /x" });
+    // Any other local port, never: a direct connection bypasses the proxy.
+    expect(await sandbox.run(tcp(JSON.stringify(`127.0.0.1:${other.port}`)))).toMatchObject({
+      ok: false,
+    });
+    // The child resolves no name: DNS is the proxy's.
+    expect(
+      await sandbox.run(
+        attempt(`return (await require("node:dns/promises").lookup("example.com")).address`),
+      ),
+    ).toMatchObject({ ok: false });
+    if (granted === NONE) return;
     // Through the proxy: the granted host is served, another is refused (403).
     const via = (host: string) =>
-      inSandbox(
+      sandbox.run(
         attempt(
-          `const r=await fetch("http://${host}:${other.port}/",{proxy:"http://127.0.0.1:${proxy.port}"});return r.status+" "+(await r.text())`,
+          `const r=await fetch("http://${host}:${other.port}/",{proxy:process.env.HTTP_PROXY});return r.status+" "+(await r.text())`,
         ),
-        granted,
-        options,
       );
     expect(await via("api.test")).toMatchObject({ ok: true, detail: "200 other" });
     expect(await via("evil.test")).toMatchObject({ ok: true, detail: "403 " });
-    expect(proxy.decisions.map((d) => [d.host, d.allowed])).toEqual([
+    expect(sandbox.proxyDecisions().map((d) => [d.host, d.allowed])).toEqual([
       ["api.test", true],
       ["evil.test", false],
     ]);
-    // The child resolves no name: DNS is the proxy's.
-    expect(
-      await inSandbox(
-        attempt(`return (await require("node:dns/promises").lookup("localhost")).address`),
-        granted,
-        options,
-      ),
-    ).toMatchObject({ ok: false });
   } finally {
-    await proxy.stop();
+    await sandbox.close();
     await server.stop(true);
     await other.stop(true);
   }
+});
+
+onLinux("UDP never leaves without a network namespace, nor inside one", async () => {
+  const run = await inSandbox(
+    attempt(
+      `const s=require("node:dgram").createSocket("udp4");` +
+        `return await new Promise((ok,no)=>{s.on("error",no);setTimeout(()=>no(new Error("no answer")),2000);` +
+        `s.send("x",53,"8.8.8.8",(e)=>e?no(e):ok("sent"))})`,
+    ),
+    NONE,
+  );
+  expect(run.ok).toBe(false);
+});
+
+const PTY_ECHO = attempt(
+  `let out="";const t=new Bun.Terminal({cols:20,rows:5,data:(_t,d)=>{out+=new TextDecoder().decode(d)}});` +
+    `const c=Bun.spawn(["/bin/echo","own-pty"],{terminal:t});await c.exited;await Bun.sleep(100);t.close();return out.trim()`,
+);
+test.skipIf(!privateDevpts)(
+  "pty: the child's own terminals in a private devpts, none of the user's",
+  async () => {
+    let victim = "";
+    const holder = spawnPty({
+      cols: 10,
+      rows: 5,
+      command: (slave) => {
+        victim = slave;
+        return ["/bin/sleep", "5"];
+      },
+      onData: () => {},
+      onExit: () => {},
+    });
+    try {
+      const granted = caps({ pty: true, exec: ["/bin/echo"] });
+      if (!mechanism) throw new Error("no sandbox here");
+      expect(unenforceable(granted, mechanism)).toBeUndefined();
+      expect(await inSandbox(PTY_ECHO, granted)).toMatchObject({ ok: true, detail: "own-pty" });
+      // The user's terminal is not in the child's devpts: its path names nothing, or one of
+      // the child's own; writing there never reaches the holder.
+      const run = await inSandbox(
+        attempt(
+          `require("node:fs").writeFileSync(${JSON.stringify(victim)},"leak");return "written"`,
+        ),
+        granted,
+      );
+      expect(run.ok).toBe(false);
+    } finally {
+      holder.kill();
+    }
+  },
+);
+
+test("pty is refused where no private devpts exists; offered where one does", () => {
+  const pty = caps({ pty: true });
+  const linux = (kind: LinuxMechanism["kind"], landlockAbi = 8): LinuxMechanism => ({
+    kind,
+    landlockAbi,
+    launcher: "/x/airtty-sandbox",
+  });
+  expect(unenforceable(pty, { kind: "seatbelt" })).toContain("/dev/ttys*");
+  expect(unenforceable(pty, linux("landlock"))).toContain("/dev/pts");
+  expect(unenforceable(pty, linux("userns"))).toBeUndefined();
+  expect(unenforceable(pty, linux("bwrap"))).toBeUndefined();
+  expect(unenforceable(caps({ net: ["a.test"] }), linux("landlock"))).toContain("any address");
+  expect(unenforceable(caps({ net: ["a.test"] }), linux("userns"))).toBeUndefined();
+  expect(unenforceable(caps({ exec: ["/bin/ls"] }), linux("bwrap", 0))).toContain("Landlock");
+  expect(unenforceable(caps({ exec: ["/bin/ls"] }), linux("bwrap", 1))).toBeUndefined();
+});
+
+test("the Linux policy: structured, per mechanism, with the child's grants only", () => {
+  const runtime = { bun: "/usr/local/bin/bun", libraries: [], code: ["/opt/airtty/src"] };
+  const plan = (kind: LinuxMechanism["kind"], landlockAbi = 8) => ({
+    mechanism: { kind, landlockAbi, launcher: "/opt/airtty-sandbox", bwrap: "/usr/bin/bwrap" },
+    runtime,
+    capabilities: caps({ fs: { read: ["/data"] }, exec: ["/bin/ls"], pty: true }),
+    tmp: "/tmp/s",
+    readable: ["/app"],
+    writable: ["/state"],
+    network: { mode: "isolated" as const, relays: [{ port: 3000, socket: "/run/s.sock" }] },
+  });
+  const userns = launcherPolicy(plan("userns"));
+  expect(userns).toMatchObject({ version: 1, namespaces: true, devpts: true });
+  for (const path of ["/usr", "/opt/airtty/src", "/app", "/data"])
+    expect(userns.landlock?.read).toContain(path);
+  expect(userns.landlock?.readWrite).toEqual(["/tmp/s", "/state", "/dev/null"]);
+  for (const path of ["/usr/local/bin/bun", "/bin/ls"])
+    expect(userns.landlock?.execute).toContain(path);
+  expect(userns.landlock?.devices).toEqual(["/dev/ptmx", "/dev/pts"]);
+  expect(userns.seccomp).toEqual({ denyUdp: false });
+  // Home is never readable wholesale.
+  expect(userns.landlock?.read).not.toContain(homedir());
+  const landlock = launcherPolicy({ ...plan("landlock"), network: { mode: "ports", tcp: [3000] } });
+  expect(landlock).toMatchObject({ namespaces: false, devpts: false, seccomp: { denyUdp: true } });
+  expect(landlock.landlock?.minAbi).toBe(6);
+  // bubblewrap: namespaces and mounts around the launcher; one argv, no shell.
+  const argv = linuxCommand(plan("bwrap"), ["/usr/local/bin/bun", "child.js"]);
+  expect(argv[0]).toBe("/usr/bin/bwrap");
+  for (const flag of ["--unshare-net", "--unshare-user", "--dev", "--proc"])
+    expect(argv).toContain(flag);
+  const launcherAt = argv.lastIndexOf("/opt/airtty-sandbox");
+  expect(argv.slice(launcherAt + 3)).toEqual(["--", "/usr/local/bin/bun", "child.js"]);
+  expect(JSON.parse(argv[launcherAt + 2] ?? "")).toMatchObject({ namespaces: false });
+  // Without Landlock, bubblewrap's mounts are all there is.
+  expect(launcherPolicy(plan("bwrap", 0)).landlock).toBeNull();
 });
 
 test("the proxy matches hosts, suffixes and ports, and dials one host per connection", async () => {
@@ -391,11 +571,14 @@ test("grants: flags, what is declared beyond, and what cannot be enforced", () =
   expect(merged.exec).toEqual(["/bin/ls", "/bin/cat"]);
   expect(beyond(caps({ net: ["a.test"], notify: true }), merged)).toBeUndefined();
   expect(beyond(caps({ net: ["b.test"] }), merged)?.net).toEqual(["b.test"]);
-  expect(unenforceable(caps({ pty: true }))).toContain("every terminal");
+  const seatbelt: Mechanism = { kind: "seatbelt" };
+  expect(unenforceable(caps({ pty: true }), seatbelt)).toContain("every terminal");
   expect(
-    unenforceable(caps({ fs: { read: ["/"], write: ["/"] }, net: ["*"], exec: true })),
+    unenforceable(caps({ fs: { read: ["/"], write: ["/"] }, net: ["*"], exec: true }), seatbelt),
   ).toContain("enforce nothing");
-  expect(enforcement(merged).map((line) => [line.capability.split(" ")[0], line.by])).toEqual([
+  expect(
+    enforcement(merged, seatbelt).map((line) => [line.capability.split(" ")[0], line.by]),
+  ).toEqual([
     ["net", "proxy"],
     ["exec", "os"],
     ["notify", "host"],
@@ -457,7 +640,7 @@ const PROBE_APP = {
     `return <text>probe {s}</text>}`,
 };
 
-macOS(
+confined(
   "an application opened by URL runs sandboxed: shown by the VT stream, host asked over IPC",
   async () => {
     const home = scratch();
@@ -483,7 +666,8 @@ macOS(
       const open = async (allow: Capabilities, ask?: (question: Question) => Promise<boolean>) => {
         const prepared = await prepareOrigin(server.url, {
           allow,
-          sandbox: true,
+          // Landlock alone is never the default: the test asks for the sandbox.
+          mode: "sandbox",
           directories: directories(env),
           env,
           confirm: () => Promise.resolve(true),
@@ -491,7 +675,12 @@ macOS(
         });
         const performed: HostRequest[] = [];
         const sandbox = await openSandbox(
-          { ...prepared, runtime: sandboxRuntime(), child },
+          {
+            ...prepared,
+            mechanism: prepared.mechanism ?? { kind: "seatbelt" },
+            runtime: sandboxRuntime(),
+            child,
+          },
           { env, ask, perform: (request) => (performed.push(request), Promise.resolve(undefined)) },
         );
         let output = "";
@@ -521,7 +710,7 @@ macOS(
       // The clipboard not granted: the request is refused by the host, never performed.
       const refused = await open(parseAllowFlags(["--allow-notify"]));
       expect(refused.prepared.mode).toBe("sandbox");
-      expect(logs.join("\n")).toContain(SANDBOX_HEADER);
+      if (mechanism) expect(logs.join("\n")).toContain(sandboxHeader(mechanism));
       expect(refused.outcome).toBe("denied clipboard.write");
       expect(refused.performed).toEqual([]);
       // The OSC 52 is only part of the VT stream, which the widget does not act on (above).
@@ -547,5 +736,5 @@ macOS(
       rmSync(app, { recursive: true, force: true });
     }
   },
-  60_000,
+  120_000,
 );

@@ -11,6 +11,7 @@
 import { homedir } from "node:os";
 import { isAbsolute, resolve } from "node:path";
 import { Capabilities } from "../capabilities";
+import type { Mechanism } from "./mechanism";
 
 /** Who applies a grant: the kernel sandbox, the host's egress proxy, the host over IPC. */
 export type Enforcer = "os" | "proxy" | "host";
@@ -144,18 +145,44 @@ export function beyond(wanted: Capabilities, granted: Capabilities): Capabilitie
   return JSON.stringify(more) === JSON.stringify(NONE) ? undefined : more;
 }
 
+/** Who confines files and execution with `mechanism`, as the screen says it. */
+function fileEnforcer(mechanism: Mechanism) {
+  if (mechanism.kind === "seatbelt") return "Seatbelt";
+  if (mechanism.kind === "bwrap")
+    return mechanism.landlockAbi ? "montages bubblewrap et Landlock" : "montages bubblewrap";
+  return "Landlock";
+}
+/** Whether `mechanism` gives the child a private devpts, apart from the user's terminals. */
+const privateDevpts = (mechanism: Mechanism) =>
+  mechanism.kind === "userns" || mechanism.kind === "bwrap";
+
 /**
- * Why these grants cannot be enforced by a macOS sandbox, or `undefined`. `pty`: Seatbelt
- * only matches the slave's path, and the child's own PTYs get paths nobody knows in
- * advance; the only rule that lets it use them (/dev/ttys*) also opens every terminal of
- * the user (measured), where it could read what is typed. Everything at once: the
- * sandbox would enforce nothing, so it is not pretended.
+ * Why `mechanism` cannot enforce these grants, or `undefined`. Measured (probes/sandbox,
+ * tests/sandbox.test.ts):
+ *
+ * - `pty` needs the child's own PTYs apart from the user's terminals. Seatbelt only
+ *   matches paths, and its only workable rule (/dev/ttys*) opens every terminal of the
+ *   user; Landlock alone is the same with /dev/pts. A private devpts (namespaces) does it.
+ * - `exec` per binary needs Landlock: bubblewrap alone mounts binaries, it cannot tell
+ *   exec from read.
+ * - `net` by host needs the child kept off every other address: a network namespace, or
+ *   Seatbelt. Landlock alone filters TCP by port, to any address.
+ * - everything at once: the sandbox would enforce nothing.
  */
-export function unenforceable(caps: Capabilities): string | undefined {
-  if (caps.pty)
+export function unenforceable(caps: Capabilities, mechanism: Mechanism): string | undefined {
+  if (caps.pty && !privateDevpts(mechanism))
+    return mechanism.kind === "seatbelt"
+      ? "pty cannot be confined on macOS: Seatbelt would have to open every terminal of " +
+          "yours (/dev/ttys*), where the application could read what you type in them"
+      : "pty cannot be confined without namespaces: Landlock would have to open every " +
+          "terminal of yours (/dev/pts), where the application could read what you type in them";
+  if (caps.exec !== false && mechanism.kind === "bwrap" && !mechanism.landlockAbi)
+    return "exec cannot be confined without Landlock: bubblewrap cannot tell running a binary from reading it";
+  const hosts = caps.net.length > 0 && !caps.net.includes("*");
+  if (hosts && mechanism.kind === "landlock")
     return (
-      "pty cannot be confined on macOS: Seatbelt would have to open every terminal of " +
-      "yours (/dev/ttys*), where the application could read what you type in them"
+      `net ${caps.net.join(" ")} cannot be confined without a network namespace: Landlock ` +
+      "filters TCP by port, towards any address"
     );
   const everywhere = (paths: readonly string[]) => paths.includes("/");
   if (
@@ -168,40 +195,55 @@ export function unenforceable(caps: Capabilities): string | undefined {
   return undefined;
 }
 
-const MEDIATED = "l'OS bloque la voie directe, l'hôte vérifie chaque demande (IPC)";
-/** One line per granted capability: who applies it and how (macOS). */
-export function enforcement(caps: Capabilities): Enforced[] {
+/** How the direct route of a mediated capability is closed, for its line. */
+function mediated(mechanism: Mechanism) {
+  return mechanism.kind === "seatbelt"
+    ? "l'OS bloque la voie directe (services mach), l'hôte vérifie chaque demande (IPC)"
+    : "seccomp refuse les sockets Unix (D-Bus, Wayland, X11), l'hôte vérifie chaque demande (IPC)";
+}
+/** One line per granted capability: who applies it and how. */
+export function enforcement(caps: Capabilities, mechanism: Mechanism): Enforced[] {
   const lines: Enforced[] = [];
+  const files = fileEnforcer(mechanism);
   if (caps.fs.read.length)
     lines.push({
       capability: `fs.read ${caps.fs.read.join(" ")}`,
       by: "os",
-      how: "Seatbelt, lecture par chemin",
+      how: `${files}, lecture par chemin`,
     });
   if (caps.fs.write.length)
     lines.push({
       capability: `fs.write ${caps.fs.write.join(" ")}`,
       by: "os",
-      how: "Seatbelt, écriture par chemin",
+      how: `${files}, écriture par chemin`,
     });
-  if (caps.net.includes("*"))
-    lines.push({ capability: "net *", by: "os", how: "Seatbelt, tout le réseau" });
+  if (caps.net.includes("*")) lines.push({ capability: "net *", by: "os", how: "tout le réseau" });
   else if (caps.net.length)
     lines.push({
       capability: `net ${caps.net.join(" ")}`,
       by: "proxy",
-      how: "liste d'hôtes au proxy ; Seatbelt limite l'app au port du proxy",
+      how:
+        mechanism.kind === "seatbelt"
+          ? "liste d'hôtes au proxy ; Seatbelt limite l'app au port du proxy"
+          : "liste d'hôtes au proxy ; l'app n'a que la boucle locale (espace de noms réseau)",
     });
+  const inherited = mechanism.kind === "seatbelt" ? "sandbox héritée" : "confinement hérité";
   if (caps.exec === true)
-    lines.push({ capability: "exec", by: "os", how: "Seatbelt, tout binaire, sandbox héritée" });
+    lines.push({ capability: "exec", by: "os", how: `${files}, tout binaire, ${inherited}` });
   else if (caps.exec !== false && caps.exec.length)
     lines.push({
       capability: `exec ${caps.exec.join(" ")}`,
       by: "os",
-      how: "Seatbelt, ces binaires, sandbox héritée",
+      how: `${files}, ces binaires, ${inherited}`,
+    });
+  if (caps.pty && privateDevpts(mechanism))
+    lines.push({
+      capability: "pty",
+      by: "os",
+      how: "devpts privé : ses propres terminaux, aucun des vôtres",
     });
   const host = (on: boolean, capability: string) => {
-    if (on) lines.push({ capability, by: "host", how: MEDIATED });
+    if (on) lines.push({ capability, by: "host", how: mediated(mechanism) });
   };
   host(caps.clipboard.read, "clipboard.read");
   host(caps.clipboard.write, "clipboard.write");

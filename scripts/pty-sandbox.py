@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
-"""`airtty http://…` in a real PTY on macOS: the application runs sandboxed by default.
+"""`airtty http://…` in a real PTY: the application runs sandboxed.
 
 Journey, offline and on private XDG directories: a publisher key, mdreader built with a
 signed bundle, its Server on a local port → without a terminal to confirm on, nothing
 opens → with --yes the capabilities screen says who enforces what (the Server's port by
 the OS, nothing else granted), the key is pinned, the app runs in its own process, which
-the kernel reports sandboxed, drawn by the VT widget, and follows its keys → a second
+the kernel reports confined (Seatbelt on macOS; seccomp and no_new_privs on Linux), drawn
+by the VT widget, and follows its keys → a second
 launch needs no question → Ctrl+C in the app
 ends it, which closes its tab and the Client → --allow-read is granted, remembered and
 shown as enforced by the OS → --inline switches the origin to inline.
-Elsewhere than macOS the sandbox mode does not exist yet: the script says so and passes.
+On Linux the mechanism is what this system allows, or AIRTTY_SANDBOX_MECHANISM
+(scripts/linux-sandbox.ts runs each); Landlock alone confines no network by host, so it is
+never the default: the journey asks for it with --sandbox. Elsewhere: skipped, said so.
 """
 import fcntl
 import json
@@ -79,9 +82,22 @@ class Terminal:
 
 
 def main():
-    if sys.platform != "darwin":
-        print(json.dumps({"skipped": "the sandbox mode exists on macOS only (step 8: Linux)"}))
+    if sys.platform not in ("darwin", "linux"):
+        print(json.dumps({"skipped": f"no sandbox mode on {sys.platform}"}))
         return
+    # What this system allows (src/sandbox/mechanism.ts): nothing → said so, and skipped.
+    availability = json.loads(
+        subprocess.run(
+            [BUN, "-e", "import {sandboxAvailability} from './src/sandbox/runtime';"
+             "console.log(JSON.stringify(sandboxAvailability()))"],
+            cwd=ROOT, capture_output=True, text=True, check=True,
+        ).stdout
+    )
+    if not availability.get("mechanism"):
+        print(json.dumps({"skipped": f"no sandbox mechanism here: {availability.get('reason')}"}))
+        return
+    # Landlock alone is never the default for a URL: the user asks for it.
+    explicit = ["--sandbox"] if os.environ.get("AIRTTY_SANDBOX_MECHANISM") == "landlock" else []
     with tempfile.TemporaryDirectory(prefix="airtty-pty-sandbox-") as directory:
         base = pathlib.Path(directory)
         env = {
@@ -152,33 +168,39 @@ def main():
             return [
                 line
                 for line in listed.stdout.splitlines()
-                if re.match(r"\s*\d+ \S*/bun \S*/sandbox/\.airtty/child\.js --url ", line)
+                if re.match(r"\s*\d+ \S*/bun (--no-install )?\S*/sandbox/\.airtty/child\.js --url ", line)
                 and directory in line
             ]
 
         try:
             # No terminal to confirm on: nothing of the application runs.
-            refused = airtty(url)
+            refused = airtty(url, *explicit)
             assert refused.returncode != 0 and "not opened" in refused.stderr, refused.stderr
-            assert "Sandbox (Seatbelt)" in refused.stderr, refused.stderr
+            assert "Sandbox (" in refused.stderr, refused.stderr
 
             # Sandboxed by default: the screen, the pinned key, the app in its own process.
-            client, master, slave, before = session("--yes")
+            client, master, slave, before = session("--yes", *explicit)
             t = Terminal(master)
             t.wait_for("alpha-sandbox")
-            t.wait_for("sandbox · Seatbelt · aucune capacité accordée")
+            t.wait_for("aucune capacité accordée")
+            t.wait_for("sandbox · ")
             t.wait_for(f"mdreader · {url}")
             shown = t.raw.decode("utf-8", "replace")
-            assert "Sandbox (Seatbelt)" in shown and fingerprint.group(0) in shown, shown[:2000]
-            assert f"Server de l'app {url} — OS (Seatbelt, localhost:{port} seulement)" in shown
+            assert "Sandbox (" in shown and fingerprint.group(0) in shown, shown[:2000]
+            assert f"Server de l'app {url} — " in shown, shown[:2000]
             assert "Capacités accordées : aucune" in shown
             children = sandboxed_children()
             assert len(children) == 1, children
-            # The kernel's word: the app's process runs under a Seatbelt profile.
-            libsystem = ctypes.CDLL("/usr/lib/libSystem.B.dylib")
-            libsystem.sandbox_check.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int]
+            # The kernel's word: the app's process runs confined.
             child_pid = int(children[0].split()[0])
-            assert libsystem.sandbox_check(child_pid, None, 0) == 1, "the app is not sandboxed"
+            if sys.platform == "darwin":
+                libsystem = ctypes.CDLL("/usr/lib/libSystem.B.dylib")
+                libsystem.sandbox_check.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int]
+                assert libsystem.sandbox_check(child_pid, None, 0) == 1, "the app is not sandboxed"
+            else:
+                status = pathlib.Path(f"/proc/{child_pid}/status").read_text()
+                assert "\nSeccomp:\t2\n" in status, status
+                assert "\nNoNewPrivs:\t1\n" in status, status
             t.send(b"[")  # mdreader's key, through the VT widget to the sandboxed Client
             t.wait_for("beta-sandbox")
             # Ctrl+C reaches the app, which quits: its tab closes, then the Client.
@@ -193,12 +215,12 @@ def main():
             assert record["publisher"]["fingerprint"] == fingerprint.group(0), record
 
             # Remembered: no question; a flag grants more, shown with who enforces it.
-            client, master, slave, before = session(f"--allow-read={granted}")
+            client, master, slave, before = session(f"--allow-read={granted}", *explicit)
             t = Terminal(master)
             t.wait_for("alpha-sandbox")
-            t.wait_for("sandbox · Seatbelt · fs.read (OS)")
+            t.wait_for("fs.read (OS)")
             shown = t.raw.decode("utf-8", "replace")
-            assert f"fs.read {granted} — OS (Seatbelt, lecture par chemin)" in shown, shown[:2000]
+            assert f"fs.read {granted} — OS (" in shown, shown[:2000]
             t.send(b"\x0f")
             t.send(b"q")
             finish(t, client, master, slave, before)

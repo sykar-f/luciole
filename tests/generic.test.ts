@@ -77,7 +77,7 @@ test("prepareOrigin without a sandbox: signature, first-use pin, explicit inline
   // `sandbox: false`: what a system without the sandbox mode does (Linux until step 8).
   const options = (inline: boolean) => ({
     mode: inline ? ("inline" as const) : undefined,
-    sandbox: false,
+    sandbox: { mechanism: undefined, reason: "none in this test" },
     directories: dirs,
     env,
     log: (m: string) => void logs.push(m),

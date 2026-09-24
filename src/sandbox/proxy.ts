@@ -27,7 +27,9 @@ export function hostAllowed(patterns: readonly string[], host: string, port: num
 
 export type ProxyDecision = { method: string; host: string; port: number; allowed: boolean };
 export type EgressProxy = {
+  /** Its loopback port; 0 when it listens on `path`. */
   port: number;
+  path: string | undefined;
   /** Every request seen, allowed or not (tests; a future network panel). */
   decisions: readonly ProxyDecision[];
   stop(): Promise<void>;
@@ -37,6 +39,8 @@ export async function startProxy(options: {
   allow: readonly string[];
   /** Name → address actually dialled (tests map fictitious names to 127.0.0.1). */
   resolve?: (host: string) => string;
+  /** A Unix socket instead of a loopback port: a Linux sandbox reaches it by a relay. */
+  path?: string;
 }): Promise<EgressProxy> {
   const decisions: ProxyDecision[] = [];
   const sockets = new Set<Socket>();
@@ -104,11 +108,16 @@ export async function startProxy(options: {
     };
     client.on("data", onData);
   });
-  await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
+  const { path } = options;
+  await new Promise<void>((done) =>
+    path === undefined ? server.listen(0, "127.0.0.1", done) : server.listen(path, done),
+  );
   const address = server.address();
-  if (!address || typeof address === "string") throw new Error("The egress proxy has no port");
+  const port = address && typeof address !== "string" ? address.port : 0;
+  if (path === undefined && !port) throw new Error("The egress proxy has no port");
   return {
-    port: address.port,
+    port,
+    path,
     decisions,
     stop: () =>
       new Promise<void>((done) => {

@@ -7,7 +7,8 @@ import { spawnSync } from "node:child_process";
 import { existsSync, realpathSync } from "node:fs";
 import { basename, dirname, join, sep } from "node:path";
 import { ABI_PACKAGES } from "../abi";
-import { SANDBOX_EXEC, type SandboxRuntime } from "./profile";
+import { detectMechanism, type Availability } from "./mechanism";
+import type { SandboxRuntime } from "./profile";
 
 /** airtty's `src/` and the directory holding its package.json. */
 const SOURCES = dirname(import.meta.dir);
@@ -20,8 +21,12 @@ export const CHILD_ENTRY = join(import.meta.dir, ".airtty", "child.js");
 // Files Bun reads next to the sources it runs: module type, path aliases, its settings.
 const MANIFESTS = ["package.json", "tsconfig.json", "tsconfig.base.json", "bunfig.toml"];
 
-/** Whether this machine can run the `sandbox` mode (macOS with sandbox-exec). */
-export const sandboxSupported = () => process.platform === "darwin" && existsSync(SANDBOX_EXEC);
+let availability: Availability | undefined;
+/** What confines a sandboxed Client here (src/sandbox/mechanism.ts), found once. */
+export const sandboxAvailability = (env: NodeJS.ProcessEnv = process.env) =>
+  (availability ??= detectMechanism(ROOT, env));
+/** Whether this machine can run the `sandbox` mode at all. */
+export const sandboxSupported = () => sandboxAvailability().mechanism !== undefined;
 
 /** The `node_modules` directory a package resolves from, seen from airtty's sources. */
 function nodeModulesOf(name: string) {
@@ -31,8 +36,12 @@ function nodeModulesOf(name: string) {
   return file.slice(0, at + `${sep}node_modules`.length);
 }
 
-/** Non-system dylibs `bun` links (Nix installs ICU next to it), by their directories. */
+/**
+ * Non-system dylibs `bun` links on macOS (Nix installs ICU next to it), by their
+ * directories. On Linux its system libraries are under /usr and /lib, read anyway.
+ */
 function libraries(bun: string) {
+  if (process.platform !== "darwin") return [];
   const listed = spawnSync("otool", ["-L", bun], { encoding: "utf8" }).stdout ?? "";
   return [
     ...new Set(

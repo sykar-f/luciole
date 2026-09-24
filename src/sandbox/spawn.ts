@@ -1,26 +1,27 @@
 /**
  * One sandboxed origin (docs/EMBEDDING.md, section 5), from the host's side: the route to
- * its Server, the egress proxy, a private scratch directory, then its Client started
- * under Seatbelt on a PTY the VT widget shows, with an IPC channel for the capabilities
+ * its Server, the egress proxy, a private scratch directory (src/sandbox/confine.ts), then
+ * its Client started confined (Seatbelt, or airtty-sandbox on Linux) on a PTY the VT
+ * widget shows, with an IPC channel for the capabilities
  * the host mediates. Everything is set up before the child starts (the proxy listens,
  * its port is held) and torn down after it ends.
  */
-import { mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync } from "node:fs";
-import { homedir, tmpdir } from "node:os";
+import { mkdirSync, readdirSync, realpathSync } from "node:fs";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import type { Capabilities } from "../capabilities";
-import { connect, type Connection } from "../connect";
+import { connect } from "../connect";
 import type { CapabilityState, HostEvent, HostRequest, MediatedCapability } from "../host";
 import { sessionDirectory } from "../session";
 import { spawnPty, type Pty } from "../vt/pty";
 import type { TerminalIo } from "../vt/terminal";
 import { answer } from "./ipc";
 import { createPermissions, type Permissions, type Question } from "./permissions";
-import { sandboxed, seatbeltProfile, type SandboxRuntime, type ServerRoute } from "./profile";
-import { startProxy, type EgressProxy } from "./proxy";
+import { confine, scratch, type Confinement } from "./confine";
+import type { Mechanism } from "./mechanism";
+import type { SandboxRuntime } from "./profile";
+import type { EgressProxy } from "./proxy";
 
-const LOOPBACK = new Set(["127.0.0.1", "localhost", "[::1]"]);
-const DEFAULT_PORTS: Record<string, number> = { "http:": 80, "https:": 443 };
 // Passed through: how the user reads text and time, nothing that names a secret or a path.
 const PASSED = ["LANG", "LC_ALL", "LC_CTYPE", "LC_MESSAGES", "TZ"];
 
@@ -43,6 +44,8 @@ export type SandboxOrigin = {
    */
   runtime: SandboxRuntime;
   child: string;
+  /** What confines it on this system (src/sandbox/mechanism.ts), found by the launcher. */
+  mechanism: Mechanism;
 };
 export type SandboxOptions = {
   /** Performs a granted request (src/host.ts, `performDirectly` or the host's tabs). */
@@ -69,24 +72,6 @@ export type Sandbox = {
   close(): Promise<void>;
 };
 
-/** How the child reaches the Server, and the URL it is given for it. */
-function routeOf(
-  url: string,
-  connection: Connection,
-): { route: ServerRoute; url: string; allow?: string } {
-  if (connection.socket)
-    return { route: { kind: "socket", path: connection.socket }, url: `unix:${connection.socket}` };
-  const parsed = new URL(url);
-  const port = Number(parsed.port) || DEFAULT_PORTS[parsed.protocol];
-  if (!port) throw new Error(`${url}: no port to reach`);
-  // The child resolves no name: localhost is given as an address.
-  if (LOOPBACK.has(parsed.hostname)) {
-    parsed.hostname = "127.0.0.1";
-    return { route: { kind: "loopback", port }, url: parsed.href };
-  }
-  return { route: { kind: "proxy" }, url, allow: `${parsed.hostname}:${port}` };
-}
-
 export async function openSandbox(
   origin: SandboxOrigin,
   options: SandboxOptions,
@@ -94,17 +79,9 @@ export async function openSandbox(
   const env = options.env ?? process.env;
   const { granted, runtime } = origin;
   const connection = await connect(origin.url, undefined, env);
-  let proxy: EgressProxy | undefined;
-  let tmp: string | undefined;
+  const tmp = scratch();
+  let confinement: Confinement | undefined;
   try {
-    const server = routeOf(origin.url, connection);
-    const anyHost = granted.net.includes("*");
-    if (!anyHost && (granted.net.length || server.allow))
-      proxy = await startProxy({
-        allow: [...granted.net, ...(server.allow ? [server.allow] : [])],
-        resolve: options.resolve,
-      });
-    tmp = realpathSync(mkdtempSync(join(tmpdir(), "airtty-sandbox-")));
     const sessions = sessionDirectory(origin.sessions, env);
     mkdirSync(sessions, { recursive: true, mode: 0o700 });
     // The manifest, and the cached bundle its link points to.
@@ -112,22 +89,28 @@ export async function openSandbox(
       origin.app,
       ...readdirSync(origin.app).map((f) => realpathSync(join(origin.app, f))),
     ];
-    const proxyUrl = proxy && `http://127.0.0.1:${proxy.port}`;
+    confinement = await confine({
+      mechanism: origin.mechanism,
+      runtime,
+      granted,
+      tmp: tmp.path,
+      readable,
+      writable: [sessions],
+      server: { url: origin.url, connection },
+      resolve: options.resolve,
+      onProfile: options.onProfile,
+    });
+    const confined = confinement;
     const childEnv: Record<string, string> = {
       PATH: "/usr/bin:/bin",
-      HOME: tmp,
-      TMPDIR: tmp,
+      HOME: tmp.path,
+      TMPDIR: tmp.path,
       // Where sessionDirectory() put the origin's sessions, which the profile opens.
       XDG_STATE_HOME: env.XDG_STATE_HOME || join(homedir(), ".local", "state"),
       // Nothing to cache: the child could not write it anyway.
       BUN_RUNTIME_TRANSPILER_CACHE_PATH: "0",
       ...Object.fromEntries(PASSED.flatMap((name) => (env[name] ? [[name, env[name]]] : []))),
-      ...(proxyUrl && {
-        HTTP_PROXY: proxyUrl,
-        HTTPS_PROXY: proxyUrl,
-        // A loopback Server is reached directly (the profile allows its port).
-        NO_PROXY: server.route.kind === "loopback" ? "127.0.0.1" : "",
-      }),
+      ...confined.env,
     };
     const permissions = createPermissions({
       granted,
@@ -141,7 +124,7 @@ export async function openSandbox(
     const argv = [
       origin.child,
       "--url",
-      server.url,
+      confined.serverUrl,
       "--bundle",
       origin.app,
       "--origin",
@@ -152,42 +135,31 @@ export async function openSandbox(
       origin.fingerprint,
     ];
     let child: Pty | undefined;
-    const scratch = tmp;
     // A host that quits through process.exit unmounts nothing: the child, which has its
     // own session, must not outlive it, nor its scratch directory.
     const exit = () => {
       child?.kill();
-      rmSync(scratch, { recursive: true, force: true });
+      tmp.remove();
     };
     process.on("exit", exit);
     return {
-      proxy,
+      proxy: confined.proxy,
       permissions,
       spawn: (io) => {
         child = spawnPty({
           ...io,
-          cwd: scratch,
+          cwd: tmp.path,
           env: childEnv,
           environment: "replace",
-          command: (tty) => {
-            const profile = seatbeltProfile({
-              runtime,
-              capabilities: granted,
-              tmp: scratch,
-              readable,
-              writable: [sessions],
-              tty,
-              server: server.route,
-              proxyPort: proxy?.port,
-            });
-            options.onProfile?.(profile);
-            return sandboxed(profile, [
+          command: (tty) =>
+            confined.command(tty, [
               runtime.bun,
+              // Never fetch a package: what it lacks is an error, not a download.
+              "--no-install",
               ...argv,
               "--capabilities",
               JSON.stringify(permissions.states()),
-            ]);
-          },
+            ]),
           ipc: (message) =>
             void answer(message, (request) => permissions.allow(request), options.perform).then(
               (reply) => {
@@ -204,13 +176,13 @@ export async function openSandbox(
         process.off("exit", exit);
         exit();
         connection.close();
-        await proxy?.stop();
+        await confined.close();
       },
     };
   } catch (error: unknown) {
     connection.close();
-    await proxy?.stop();
-    if (tmp) rmSync(tmp, { recursive: true, force: true });
+    await confinement?.close();
+    tmp.remove();
     throw error;
   }
 }

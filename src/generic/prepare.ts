@@ -27,15 +27,20 @@ import {
   unenforceable,
 } from "../sandbox/grants";
 import { stillDenied } from "../sandbox/permissions";
-import { sandboxSupported } from "../sandbox/runtime";
+import { mechanismName, type Availability, type Mechanism } from "../sandbox/mechanism";
+import { sandboxAvailability } from "../sandbox/runtime";
 import { originDirectory, originOf, originSessions, readOrigin, writeOrigin } from "./origin";
 
 /** Shown before an inline application opens (docs/EMBEDDING.md, decision 5). */
 export const INLINE_WARNING =
   "Confiance totale : cette app s'exécute dans le processus du lanceur ; aucune capacité n'est appliquée.";
 /** Shown before a sandboxed application opens, above what it is granted. */
-export const SANDBOX_HEADER =
-  "Sandbox (Seatbelt) : l'app ne lit, n'écrit, n'exécute et ne joint que ce qui suit, chaque ligne dit qui l'applique.";
+export const sandboxHeader = (mechanism: Mechanism) =>
+  mechanism.kind === "landlock"
+    ? `Sandbox (${mechanismName(mechanism)}) : l'app ne lit, n'écrit et n'exécute que ce qui ` +
+      "suit ; son réseau N'EST PAS confiné par hôte (voir la ligne du Server). Chaque ligne dit qui l'applique."
+    : `Sandbox (${mechanismName(mechanism)}) : l'app ne lit, n'écrit, n'exécute et ne joint que ` +
+      "ce qui suit, chaque ligne dit qui l'applique.";
 const NOT_FOUND = 404;
 const NOTHING = Capabilities.parse({});
 
@@ -52,6 +57,8 @@ export type PreparedOrigin = {
   /** `openSession` name of the origin's own sessions. */
   sessions: string;
   mode: Mode;
+  /** What confines it, in the sandbox mode. */
+  mechanism?: Mechanism;
   /** Mediated capabilities the user refused at run time (src/sandbox/permissions.ts). */
   denied: string[];
   /** What the sandbox enforces; nothing is enforced inline. */
@@ -62,8 +69,8 @@ export type PrepareOptions = {
   mode?: Mode;
   /** `--allow-*` flags: granted on top of what the origin has, and remembered. */
   allow?: Capabilities;
-  /** Whether this system runs the sandbox mode; by default, macOS with Seatbelt. */
-  sandbox?: boolean;
+  /** What this system's sandbox is (src/sandbox/mechanism.ts); by default, detected. */
+  sandbox?: Availability;
   directories: Pick<Directories, "bundles">;
   confirm: Confirm;
   log: (message: string) => void;
@@ -71,21 +78,42 @@ export type PrepareOptions = {
 };
 
 /** Who lets the child reach its Server: the only network it has without `net`. */
-function serverLine(url: string) {
+function serverLine(url: string, mechanism: Mechanism) {
   const parsed = new URL(url);
-  if (parsed.protocol === "ssh:") return `OS (Seatbelt, le socket du tunnel ssh de l'hôte)`;
-  if (["127.0.0.1", "localhost", "[::1]"].includes(parsed.hostname))
-    return `OS (Seatbelt, localhost:${parsed.port || "80"} seulement)`;
-  return "proxy (l'OS limite l'app au port du proxy de l'hôte)";
+  const local =
+    parsed.protocol === "ssh:" || ["127.0.0.1", "localhost", "[::1]"].includes(parsed.hostname);
+  const port = parsed.port || (parsed.protocol === "https:" ? "443" : "80");
+  switch (mechanism.kind) {
+    case "seatbelt":
+      if (parsed.protocol === "ssh:") return "OS (Seatbelt, le socket du tunnel ssh de l'hôte)";
+      return local
+        ? `OS (Seatbelt, localhost:${port} seulement)`
+        : "proxy (l'OS limite l'app au port du proxy de l'hôte)";
+    case "userns":
+    case "bwrap":
+      return local
+        ? "OS (espace de noms réseau : un relais vers ce Server, rien d'autre)"
+        : "proxy (espace de noms réseau : l'app ne joint que le proxy de l'hôte)";
+    case "landlock":
+      return (
+        "Landlock : le port TCP du Server (et du proxy) seulement, mais vers toute adresse : " +
+        "réseau non confiné par hôte, faute d'espace de noms réseau"
+      );
+  }
 }
 /** The capabilities screen: every grant with who applies it, never one that nobody does. */
-export function describeSandbox(url: string, caps: Capabilities, refused: readonly string[]) {
-  const lines = enforcement(caps).map(
+export function describeSandbox(
+  url: string,
+  caps: Capabilities,
+  refused: readonly string[],
+  mechanism: Mechanism,
+) {
+  const lines = enforcement(caps, mechanism).map(
     (line) => `  ${line.capability} — ${ENFORCERS[line.by]} (${line.how})`,
   );
   return [
-    SANDBOX_HEADER,
-    `  Server de l'app ${url} — ${serverLine(url)}`,
+    sandboxHeader(mechanism),
+    `  Server de l'app ${url} — ${serverLine(url, mechanism)}`,
     ...(lines.length ? lines : ["  Capacités accordées : aucune"]),
     ...refused.map((why) => `  refusée : ${why}`),
   ].join("\n");
@@ -94,28 +122,37 @@ export function describeSandbox(url: string, caps: Capabilities, refused: readon
 export async function prepareOrigin(url: string, options: PrepareOptions): Promise<PreparedOrigin> {
   const env = options.env ?? process.env;
   const origin = originOf(url);
-  const sandbox = options.sandbox ?? sandboxSupported();
+  const availability = options.sandbox ?? sandboxAvailability(env);
+  const mechanism = availability.mechanism;
   const allow = options.allow ?? NOTHING;
   const flagged = declaredNames(allow);
   // Decided before the Server is even contacted: nothing of an origin the user has not
   // chosen to open is fetched.
   const record = readOrigin(origin, env);
-  const mode = options.mode ?? record?.mode ?? (sandbox ? "sandbox" : undefined);
+  // Sandboxed by default only where the sandbox confines the network too.
+  const byDefault = availability.mechanism && availability.byDefault ? "sandbox" : undefined;
+  const mode = options.mode ?? record?.mode ?? byDefault;
   if (!mode)
     throw new Error(
-      `${origin}: an application opened by URL would run with your rights, and the ` +
-        `sandbox mode does not exist on ${process.platform} yet (docs/EMBEDDING.md, step 8). ` +
-        `If you trust it fully, open it inline: airtty ${url} --inline`,
+      availability.mechanism
+        ? `${origin}: this system's sandbox (${mechanismName(availability.mechanism)}) cannot ` +
+            "confine the network by host (no network namespace: Landlock filters TCP by port, " +
+            `towards any address). To open it sandboxed all the same: airtty ${url} --sandbox; ` +
+            `if you trust it fully: airtty ${url} --inline`
+        : `${origin}: an application opened by URL would run with your rights, and this ` +
+            `system has no sandbox mode (${availability.reason}). If you trust it fully, open ` +
+            `it inline: airtty ${url} --inline`,
     );
-  if (mode === "sandbox" && !sandbox)
+  if (mode === "sandbox" && !mechanism)
     throw new Error(
-      `${origin}: the sandbox mode does not exist on ${process.platform} yet (docs/EMBEDDING.md, step 8)`,
+      `${origin}: the sandbox mode is not available here: ${"reason" in availability ? availability.reason : ""}`,
     );
   if (mode === "inline" && flagged.length)
     throw new Error(
       `${flagged.join(", ")}: --allow-* flags grant sandbox capabilities, and inline enforces none`,
     );
-  if (allow.pty) throw new Error(`--allow-pty: ${unenforceable(allow)}`);
+  const impossibleFlag = mode === "sandbox" && mechanism && unenforceable(allow, mechanism);
+  if (impossibleFlag) throw new Error(`${flagged.join(", ")}: ${impossibleFlag}`);
   // The Server's own address, through a tunnel for ssh://; the origin stays the URL given.
   const connection = await connect(url, undefined, env);
   try {
@@ -165,16 +202,27 @@ export async function prepareOrigin(url: string, options: PrepareOptions): Promi
           `First use of ${origin}: trust publisher key ${fingerprint} and open it inline?`,
         );
       else if (modeChanged) await accept(`Open ${origin} inline from now on?`);
-    } else {
+    } else if (mechanism) {
       const kept = mergeCapabilities(modeChanged ? NOTHING : (record?.granted ?? NOTHING), allow);
-      // What the application declares beyond what it has, offered once. Never pty: it
-      // cannot be confined on macOS, it is shown as refused.
-      const wanted = beyond({ ...declared, pty: false }, kept);
-      const refused = declared.pty ? [`pty — ${unenforceable({ ...NOTHING, pty: true })}`] : [];
+      // What the application declares beyond what it has, offered once, except what this
+      // mechanism cannot enforce: shown as refused, never offered.
+      let offerable = declared;
+      const refused: string[] = [];
+      const refuse = (part: Partial<Capabilities>, without: Partial<Capabilities>) => {
+        const why = unenforceable({ ...NOTHING, ...part }, mechanism);
+        if (!why) return;
+        refused.push(why);
+        offerable = { ...offerable, ...without };
+      };
+      if (declared.pty) refuse({ pty: true }, { pty: false });
+      if (declared.exec !== false) refuse({ exec: declared.exec }, { exec: false });
+      if (declared.net.length && !declared.net.includes("*"))
+        refuse({ net: declared.net }, { net: [] });
+      const wanted = beyond(offerable, kept);
       const offered = wanted ? mergeCapabilities(kept, wanted) : kept;
-      const impossible = unenforceable(offered);
+      const impossible = unenforceable(offered, mechanism);
       if (impossible) throw new Error(`${origin}: not opened in the sandbox, ${impossible}`);
-      options.log(`${heading}\n${describeSandbox(url, offered, refused)}`);
+      options.log(`${heading}\n${describeSandbox(url, offered, refused, mechanism)}`);
       granted = offered;
       if (firstUse)
         await accept(
@@ -232,6 +280,7 @@ export async function prepareOrigin(url: string, options: PrepareOptions): Promi
       fingerprint,
       sessions: originSessions(origin),
       mode,
+      ...(mode === "sandbox" && mechanism && { mechanism }),
       granted,
       denied,
     };
