@@ -75,7 +75,7 @@ sont comptés comme `hit`. Une exception n'est jamais mise en cache.
 Appelables uniquement pendant l'exécution d'une fonction `"use cache"` (sinon ils lèvent).
 
 - `cacheTag(...tags)` : étiquette le résultat. Un tag est fait de 1 à 256 caractères ASCII
-  visibles, sans virgule (il voyage dans un en-tête) ; au plus 64 par résultat. Encoder
+  visibles, sans virgule ; au plus 64 par résultat. Encoder
   les identifiants libres (`encodeURIComponent`), comme `examples/notes/server/tags.ts`.
 - `cacheLife(profil | { revalidate?, expire? })`, en **secondes** comme Next.js.
   Profils (`revalidate` / `expire`) : `default` (900 / jamais), `seconds` (1 / 60),
@@ -201,23 +201,42 @@ suite.
 
 ## Tags d'un rendu et invalidation précise côté Client
 
-Pendant `/render`, chaque lecture cachée (hit ou miss) ajoute ses tags à ceux du rendu.
-Le Server les envoie dans l'en-tête `x-airtty-tags` (liste séparée par des virgules).
-Pour les connaître avant les en-têtes, il exécute d'abord **la fonction de la page**, dans
-la même tâche Flight (hooks, `use()`, `notFound()` et digests se comportent comme avant),
-et répond quand elle s'est résolue ; le contenu sous `Suspense` continue d'arriver dans le
-flux comme avant.
+Pendant `/render`, chaque lecture cachée (hit ou miss) ajoute ses tags à ceux du rendu,
+y compris celles des composants Server asynchrones sous `Suspense`. Les tags voyagent
+**dans le flux Flight** : le modèle racine de `/render` est
+
+```ts
+{
+  tree: ReadableStream<Uint8Array>;
+  tags: Promise<string[]>;
+}
+```
+
+`tree` est la page rendue dans **son propre flux Flight**, que le Client décode à son tour ;
+`tags` se résout quand ce flux s'est terminé, donc quand tout le rendu l'est (`Suspense`
+compris). Pourquoi un flux imbriqué plutôt que `{ tree, tags }` directement dans une seule
+réponse : Flight ne signale à personne qu'une réponse est complète en continuant de la
+diffuser, et une promesse en attente dans la même réponse l'empêcherait justement de se
+terminer. Le flux de la page, lui, se termine : c'est lui qu'on observe. Le coût est un
+encadrement binaire des octets de la page (quelques octets par morceau) et un second
+décodage côté Client.
+
+Rien n'attend la page avant les en-têtes : ils partent tout de suite, la coquille suit dès
+que Flight l'écrit, et les tags arrivent après le dernier morceau. Il n'y a plus d'en-tête
+`x-airtty-tags`.
 
 Le Client retient les tags de chaque arbre chargé (par l'objet que garde son match
 TanStack). À l'invalidation par tag, il revalide les routes dont l'arbre a lu un de ces
 tags, plus celles dont il ne connaît pas les tags (encore en chargement, ou rendues par un
 transport qui n'en envoie pas) : jamais une route qui a pu lire un tag n'est oubliée.
-`useInvalidation((paths, tags) => …)` reçoit aussi les tags.
+`useInvalidation((paths, tags) => …)` reçoit aussi les tags. Le loader se résout avec
+l'arbre, avant les tags : entre les deux, la route compte comme ayant lu n'importe quel tag.
+Un flux coupé ne livre jamais ses tags ; la route reste alors dans ce cas prudent.
+`Transport.render` les rapporte par `RequestContext.onTags`, appelé après sa résolution.
 
-**Limite :** une lecture cachée faite _après_ la résolution de la fonction de page (un
-composant Server asynchrone sous `Suspense`) n'est pas rattachée à la route. Lire les
-données cachées dans la fonction de page (le motif de Notes et Forge), ou invalider aussi
-le chemin.
+Avec `staleTime` 0 (le défaut), TanStack recharge toute route **montée** à chaque
+invalidation, ciblée ou non : la précision porte sur les routes en cache et sur les pages
+qui déclarent un `staleTime`.
 
 ## `staleTime` d'une page
 
@@ -270,4 +289,3 @@ l'autre note, en cache dans le routeur, n'est pas redemandée. La liste déclare
   chemin). Hors d'une Server Function, un tag ne purge que le Server (plus haut).
 - Dédup et invalidation des calculs en vol sont par processus ; SQLite partage les
   entrées, pas les calculs.
-- Tags des lectures sous `Suspense` non attribués (plus haut).
