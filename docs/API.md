@@ -13,6 +13,7 @@ Entrée `airtty/client` (Client Components uniquement) :
 | `useLive(source, args, { limit }?)`                                                                                                    | `{ items, done, error }` d'une Server Function génératrice, abonnée tant que le composant est monté.                                             |
 | `useBindings()`, `useActiveKeys()`, `useKeymap()`, `usePendingSequence()`                                                              | Keymap OpenTUI réexportée : couches de raccourcis liées au cycle de vie des composants.                                                          |
 | `<KeyHelp groups? inline? />`                                                                                                          | Aide générée depuis les raccourcis actifs qui déclarent un `desc` (filtrés par `group`).                                                         |
+| `<Terminal command active prefix? cwd? env? onExit? />`                                                                                | Un programme local (shell, vim, un Client airtty) sur un PTY, rendu dans l'arbre ; voir « Terminaux embarqués ».                                 |
 | `<DebugOverlay limit? />`                                                                                                              | Requêtes, requêtes ouvertes, octets, dernier RTT et derniers événements depuis son montage.                                                      |
 | `instrumentTracing(app, tracer)`                                                                                                       | Un span par requête vers un `Tracer` OpenTelemetry (ou compatible) ; renvoie la fonction d'arrêt.                                                |
 | `TransportError`, `BuildMismatch`, `AuthenticationRequired`                                                                            | Échecs de transport typés ; `outcome` vaut `not-sent`, `rejected` ou `unknown`.                                                                  |
@@ -121,6 +122,32 @@ useBindings(
 
 Une couche vit avec son composant : quitter une page retire ses raccourcis et leur
 aide. `useKeyboard` d'OpenTUI reste utilisable à côté.
+
+## Terminaux embarqués
+
+`<Terminal>` lance un programme local sur un pseudo-terminal (`Bun.Terminal`, POSIX
+seulement) et l'affiche dans l'arbre de l'application : le mode `process` de
+[EMBEDDING.md](EMBEDDING.md). Aucune isolation : le programme a les droits de
+l'utilisateur, comme dans tmux. L'émulateur est l'`EmbeddedTerminalRenderable` d'OpenTUI
+(libghostty-vt) ; clavier, souris, collage, rapports de focus et redimensionnement suivent
+les modes demandés par le programme.
+
+```tsx
+<Terminal command={["vim", file]} active={pane === "editor"} prefix="ctrl+o" flexGrow={1} />
+```
+
+- `command` démarre au premier layout, à la taille du pane ; changer `command` relance le
+  programme. `onExit(code)` signale sa fin (`null` : tué par un signal, ou introuvable, le
+  message s'affiche alors dans le pane). Démonter le composant raccroche le programme
+  (`SIGHUP`), et le quitter du Client aussi : le PTY fermé raccroche toute sa session.
+- `active` donne les touches au terminal (il prend le focus). Pendant ce temps, il reçoit
+  **toutes** les touches, `Ctrl+C` compris, avant les raccourcis de l'application : seule
+  `prefix` et la séquence qu'elle ouvre restent aux `useBindings` de l'application. La
+  syntaxe du keymap écrit une séquence par juxtaposition : `"ctrl+oo"` est Ctrl+O puis O.
+- L'hôte décide de la bascule (touche préfixe, clic) ; `examples/mux` en est un exemple.
+
+`<Terminal>` sert au multiplexeur local. Une application airtty embarquée dans le même
+processus passera par `<Embed>` (étape 2 d'EMBEDDING.md), pas par un terminal.
 
 ## Observabilité
 
