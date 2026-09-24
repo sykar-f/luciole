@@ -4,17 +4,19 @@ import { createRoute } from "@tanstack/react-router";
 import { createApplication, type ApplicationEvent } from "../src/client";
 import { loadPage, pageRoute, rootRoute } from "../src/route-tree";
 import { createHttpTransport, type Fetch, type TransportEvent } from "../src/transport";
-import { until } from "./helpers";
+import { renderBody, until } from "./helpers";
 
 // One Flight model row: the root value, as JSON (see tests/http-transport.test.ts).
 const row = (value: unknown) => new Response(`0:${JSON.stringify(value)}\n`);
+// A `/render` answer: that row as the page stream of `{ tree, tags }`.
+const page = (value: unknown) => new Response(renderBody(`0:${JSON.stringify(value)}\n`));
 const callIdOf = (init: RequestInit) => new Headers(init.headers).get("x-airtty-call") ?? "";
 // Answers every render with a string, and every call with 42; `#run` invalidates "/".
 const server: (sent: string[]) => Fetch = (sent) => (url, init) => {
   sent.push(callIdOf(init));
   return Promise.resolve(
     url.pathname === "/render"
-      ? row(`page ${url.searchParams.get("route")}`)
+      ? page(`page ${url.searchParams.get("route")}`)
       : row({
           kind: "result",
           callId: callIdOf(init),

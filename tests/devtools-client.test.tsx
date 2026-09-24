@@ -12,11 +12,13 @@ import { parseEvent, type DevtoolsEvent } from "../src/devtools/schema";
 import { listenBus, type Connection } from "../src/devtools/wire";
 import { loadPage, pageRoute, rootRoute } from "../src/route-tree";
 import type { Fetch } from "../src/transport";
-import { present, until } from "./helpers";
+import { present, renderBody, until } from "./helpers";
 
-// Answers every render with a string, as the Server's root Flight row.
+// Answers every render with a string, as the page of the Server's `{ tree, tags }` model.
 const fetchPage: Fetch = (url) =>
-  Promise.resolve(new Response(`0:${JSON.stringify(`page ${url.searchParams.get("route")}`)}\n`));
+  Promise.resolve(
+    new Response(renderBody(`0:${JSON.stringify(`page ${url.searchParams.get("route")}`)}\n`)),
+  );
 
 test("the Client agent streams events and router state, and obeys commands", async () => {
   const dir = await mkdtemp(join(tmpdir(), "airtty-devtools-"));

@@ -267,8 +267,8 @@ Entrée `airtty/server` :
   (`type: "cache"`) de `"use cache"`. C'est aussi l'emplacement des
   futurs middlewares (commentaire dans `serve`) ; le build ne le passe pas encore.
   `/action` répond `Server-Timing: total;dur=…` (jusqu'au retour de la fonction, donc
-  au modèle racine). `/render` n'en a pas : les en-têtes partent dès la
-  résolution de la fonction de page (pour `x-airtty-tags`), son contenu suit dans le flux.
+  au modèle racine). `/render` n'en a pas : la page se rend dans le flux, après les
+  en-têtes. Son modèle racine est `{ tree, tags }` ([CACHE.md](CACHE.md)).
 
 `AIRTTY_SOCKET=/chemin` fait écouter `serve()` sur ce socket Unix (0600) plutôt qu'en
 TCP ; la ligne `ready` nomme alors `socket`. Côté Client, `--url unix:/chemin` s'y

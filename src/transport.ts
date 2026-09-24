@@ -93,6 +93,13 @@ const ActionEnvelope = z.object({
   tags: z.optional(z.array(z.string())),
 });
 
+/** What the Server's `/render` answers (src/cache/render.ts), checked to be there. */
+const RenderModel = z.object({
+  tree: z.custom<ReadableStream<Uint8Array>>((value) => value instanceof ReadableStream),
+  tags: z.custom<PromiseLike<unknown>>(isThenable),
+});
+const Tags = z.array(z.string());
+
 export type RouteParams = Record<string, string>;
 /** URL search values: strings only, validated again by the Server. */
 export type RouteSearch = Record<string, string>;
@@ -113,7 +120,8 @@ export type RequestCause =
   | "unknown";
 /**
  * What the caller knows about a request that the request itself does not carry, and
- * `onTags`, told the "use cache" tags a rendered page read (none when the header is absent).
+ * `onTags`, told the "use cache" tags a rendered page read once its render ended, Suspense
+ * content included (after `render` resolved; never if the stream is cut).
  */
 export type RequestContext = { cause?: RequestCause; onTags?: (tags: readonly string[]) => void };
 
@@ -370,7 +378,6 @@ export function createHttpTransport(options: HttpTransportOptions): Transport {
         body: observe(response.body, tag, start, fault === "cut"),
         settle,
         callId: tag.callId,
-        tags: response.headers.get("x-airtty-tags"),
       };
     } catch (e) {
       settle();
@@ -398,7 +405,7 @@ export function createHttpTransport(options: HttpTransportOptions): Transport {
       try {
         const query = new URLSearchParams({ route: routeId, params: JSON.stringify(params) });
         if (Object.keys(search).length) query.set("search", JSON.stringify(search));
-        const { body, settle, tags } = await request(
+        const { body, settle } = await request(
           `/render?${query}`,
           {},
           { kind: "render", target: routeId },
@@ -407,14 +414,23 @@ export function createHttpTransport(options: HttpTransportOptions): Transport {
         );
         let tree: unknown;
         try {
-          tree = await decode(body, options.callServer);
+          // `{ tree, tags }` (src/cache/render.ts): the page is a Flight stream of its own.
+          const page = RenderModel.safeParse(await decode(body, options.callServer));
+          if (!page.success) throw new TransportError("Invalid render response");
+          tree = await decode(page.data.tree, options.callServer);
+          page.data.tags.then(
+            (read) => {
+              const tags = Tags.safeParse(read);
+              if (tags.success) context?.onTags?.(tags.data);
+            },
+            () => {},
+          );
         } catch (e) {
           throw decodeFailure(e);
         } finally {
           settle();
         }
         if (!isReactNode(tree)) throw new TransportError("Invalid render response");
-        context?.onTags?.(tags ? tags.split(",") : []);
         return tree;
       } finally {
         signal.removeEventListener("abort", cancel);
