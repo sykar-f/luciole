@@ -187,6 +187,30 @@ ce que déclare son `package.json` est refusé.
 | `airtty remove <app>…`           | supprime l'app et ses binaires                            |
 | `airtty pack …`                  | paquets npm à partir de binaires compilés d'un même build |
 
+## Lanceur : `airtty` sans argument
+
+`airtty` seul ouvre le lanceur, une app airtty (`src/launcher/airtty/`) lancée comme
+n'importe quelle app locale (`src/launcher/home.ts`). Il liste les apps installées,
+cherche dans le registre, installe, met à jour et supprime par ses Server Functions,
+qui appellent la même bibliothèque (`src/registry/apps.ts`, `resolveTarget`). Son champ
+accepte aussi toute cible d'`airtty <cible>` (chemin, source git, URL).
+
+Pour lancer, le Server écrit la cible dans un fichier de passage privé
+(`AIRTTY_LAUNCHER_HANDOFF`) et le Client quitte ; `airtty` lance alors la cible au
+premier plan, terminal et invites de confiance compris, puis rouvre le lanceur avec
+son issue (`AIRTTY_LAUNCHER_NOTICE` : code de sortie ou erreur). Quitter le lanceur sans
+choisir termine `airtty`.
+
+| Touche        | Effet                                                                                                 |
+| ------------- | ----------------------------------------------------------------------------------------------------- |
+| Tab           | champ → apps installées → résultats                                                                   |
+| Entrée        | champ : recherche, ou lance un chemin / une source git ; liste : lance ; résultat : installe et lance |
+| `u`, `U`, `x` | met à jour l'app, toutes les apps, supprime l'app                                                     |
+| `i`           | installe le résultat sans le lancer                                                                   |
+
+Vérifié par `bun run test:pty:launcher` (hors ligne : app installée factice, registre
+injoignable). Les permissions par origine viendront plus tard.
+
 ## Répertoires (XDG)
 
 | Quoi                                  | Où                                                        |

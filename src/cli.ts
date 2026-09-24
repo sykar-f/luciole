@@ -18,10 +18,11 @@ const optional = (key: string) => {
 };
 const directory = resolve(option("--app", "examples/notes"));
 async function main() {
-  // Anything else that is not a flag is something to launch: `airtty ./notes`.
+  // Anything else that is not a flag is something to launch (`airtty ./notes`); nothing
+  // at all opens the launcher.
   const subcommand =
     command === undefined
-      ? undefined
+      ? fallback
       : (commands.get(command) ?? (command.startsWith("-") ? undefined : fallback));
   if (!subcommand)
     throw new Error(
