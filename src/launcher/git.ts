@@ -21,7 +21,7 @@ import * as z from "zod/mini";
 import { build } from "../build";
 import { messageOf } from "../guards";
 import { withLock } from "./lock";
-import type { Directories } from "./paths";
+import { APP_NAME, type Directories } from "./paths";
 import type { Confirm } from "./prompt";
 
 export type GitSource = {
@@ -200,20 +200,33 @@ async function lsRemote(git: string, url: string, ref: string | undefined) {
   throw new Error(`${url} has no branch or tag "${ref}"`);
 }
 
-/** Shallow, blobless fetch of one commit, published whole by a rename. */
+/**
+ * The directory a repository is checked out as: its name, so that an app at its root is
+ * named after it (the build names the Client and its title after the directory).
+ */
+export function repositoryName(url: string) {
+  const name = (url.replace(/\/+$/, "").split(/[/:]/).at(-1) ?? "").replace(/\.git$/, "");
+  return APP_NAME.test(name) ? name : "app";
+}
+
+/**
+ * Shallow, blobless fetch of one commit into `<root>/<sha>/<repository name>`, published
+ * whole by a rename.
+ */
 async function checkout(git: string, url: string, sha: string, root: string) {
   const target = join(root, sha);
-  if (existsSync(target)) return target;
+  const repository = join(target, repositoryName(url));
+  if (existsSync(target)) return repository;
   await mkdir(root, { recursive: true });
   const staging = await mkdtemp(join(root, ".fetch-"));
+  const cwd = join(staging, repositoryName(url));
   try {
-    await run([git, "init", "-q"], { cwd: staging });
-    await run([git, "remote", "add", "origin", url], { cwd: staging });
-    await run([git, "fetch", "-q", "--depth", "1", "--filter=blob:none", "origin", sha], {
-      cwd: staging,
-    });
+    await mkdir(cwd);
+    await run([git, "init", "-q"], { cwd });
+    await run([git, "remote", "add", "origin", url], { cwd });
+    await run([git, "fetch", "-q", "--depth", "1", "--filter=blob:none", "origin", sha], { cwd });
     await run([git, "-c", "advice.detachedHead=false", "checkout", "-q", "--detach", sha], {
-      cwd: staging,
+      cwd,
     });
     await rename(staging, target).catch((error: unknown) => {
       if (!existsSync(target)) throw error;
@@ -221,7 +234,7 @@ async function checkout(git: string, url: string, sha: string, root: string) {
   } finally {
     await rm(staging, { recursive: true, force: true });
   }
-  return target;
+  return repository;
 }
 
 async function commitSummary(git: string, checkoutDirectory: string) {

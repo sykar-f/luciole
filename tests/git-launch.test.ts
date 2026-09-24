@@ -5,7 +5,12 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { build } from "../src/build";
 import { messageOf } from "../src/guards";
-import { parseGitSource, prepareGitApp, type GitOptions } from "../src/launcher/git";
+import {
+  parseGitSource,
+  prepareGitApp,
+  repositoryName,
+  type GitOptions,
+} from "../src/launcher/git";
 import { rejectionOf } from "./helpers";
 
 let work: string, remote: string;
@@ -39,6 +44,13 @@ beforeAll(async () => {
   commit("Notes");
 });
 afterAll(() => rm(work, { recursive: true, force: true }));
+
+test("a repository is checked out under its own name", () => {
+  expect(repositoryName("https://github.com/ada/notes.git")).toBe("notes");
+  expect(repositoryName("git@example.com:ada/tools.git")).toBe("tools");
+  expect(repositoryName("file:///srv/tools/")).toBe("tools");
+  expect(repositoryName("file:///srv/-x")).toBe("app");
+});
 
 test("git sources: hosts, URLs, refs and subdirectories", () => {
   expect(parseGitSource("github:ada/notes")).toEqual({
@@ -125,9 +137,9 @@ test("a branch is checked on every launch; only a new commit is fetched, trusted
   h.answer = true;
   const first = await prepareGitApp(source, h.options);
   expect(first.sha).toBe(git(remote, "rev-parse", "HEAD"));
-  // <cache>/<hash of the url>/<sha>/<directory>
+  // <cache>/<hash of the url>/<sha>/<repository>/<directory>
   expect(first.directory).toStartWith(join(work, "cache/git/"));
-  expect(first.directory).toEndWith(join(first.sha, "apps/notes"));
+  expect(first.directory).toEndWith(join(first.sha, "remote/apps/notes"));
   expect(existsSync(join(first.directory, ".airtty/server/index.js"))).toBe(true);
   // Shallow: one commit only.
   expect(git(join(first.directory, "../.."), "rev-list", "--count", "HEAD")).toBe("1");
