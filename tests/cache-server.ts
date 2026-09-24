@@ -26,9 +26,9 @@ serve({
   actions: new Map([
     [
       "a.ts#bump",
-      action(() => {
-        invalidate({ tag: "count" });
+      action(async () => {
         invalidate("/");
+        await invalidate({ tag: "count" });
         return "bumped";
       }),
     ],

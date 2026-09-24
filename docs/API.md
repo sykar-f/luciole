@@ -249,8 +249,9 @@ Entrée `airtty/server` :
 - `getOptionalSession()` : la même session, ou `null` dans une page/action publique.
 - `getCallId()` : identifiant de requête de transport, distinct de l'opération métier.
 - `notFound(what?)` : termine le rendu d'une page avec le `not-found.tsx` le plus proche.
-- `invalidate(path? | { tag })` : dans une Server Function, déclare les routes à revalider,
-  ou un tag de cache à purger.
+- `invalidate(path?)` : dans une Server Function, déclare les routes à revalider.
+  `invalidate({ tag })` : purge un tag de cache (`Promise<void>`), partout côté Server ;
+  seule une Server Function prévient aussi son Client.
 - `cacheLife(profil | durées)`, `cacheTag(...tags)`, `memoryCache()`, `sqliteCache({ path })`,
   types `CacheHandler`, `CacheEntry`, `CacheEvent` : cache `"use cache"`, voir [CACHE.md](CACHE.md).
   `getSession()` et `getOptionalSession()` lèvent dans une fonction cachée.

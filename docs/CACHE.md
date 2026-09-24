@@ -25,7 +25,7 @@ import { getSession, invalidate } from "airtty/server";
 
 export async function saveNote(snapshot: Snapshot) {
   const result = save(snapshot);
-  if (result.ok) invalidate({ tag: `notes:${getSession().userId}` });
+  if (result.ok) await invalidate({ tag: `notes:${getSession().userId}` });
   return result;
 }
 ```
@@ -152,14 +152,20 @@ supprimé les entrées avant de se résoudre : le Client relit juste après.
 | `invalidate("/repos/web")` | Revalide ce chemin et ses descendants, jamais un simple préfixe.            |
 | `invalidate({ tag: "t" })` | Purge les résultats étiquetés `t`, puis revalide les routes qui ont lu `t`. |
 
+```ts
+function invalidate(path?: string): void; // Server Function seulement
+function invalidate(target: { tag: string }): Promise<void>; // partout côté Server
+```
+
 Pourquoi un objet plutôt qu'une convention sur la chaîne (« commence par `/` ») ou une
 seconde fonction : un seul verbe pour « ceci a changé », et le **type** distingue les deux
 cas. Un tag qui commencerait par `/` n'est jamais pris pour un chemin, TypeScript guide
 l'appel, et les appels existants `invalidate(path?)` ne changent pas. Les deux formes se
 combinent dans une même Server Function.
 
-Comme `invalidate(path)`, la forme `{ tag }` n'existe que dans une Server Function. La
-purge commence tout de suite ; la réponse de l'action attend qu'elle soit finie. Un calcul
+La purge commence tout de suite et la promesse se résout quand les entrées ont disparu.
+Dans une Server Function, la réponse l'attend de toute façon : `await` ne coûte rien et
+satisfait `no-floating-promises`. Un calcul
 commencé avant l'invalidation n'écrit pas son résultat s'il porte un tag invalidé, et les
 appels suivants ne le rejoignent plus. Les tags invalidés voyagent dans l'enveloppe de la
 réponse (`tags`) avec les chemins : une réponse perdue n'invalide rien côté Client (la
@@ -167,6 +173,31 @@ purge Server, elle, a eu lieu).
 
 Un chemin ne purge pas le cache Server : les entrées ne savent pas quelles routes les ont
 lues. Pour purger, invalider par tag.
+
+### Hors d'une Server Function
+
+`invalidate({ tag })` s'appelle aussi **hors de toute Server Function** : tâche de fond,
+webhook, pendant un rendu, agent DevTools. Il purge alors **le cache Server seulement** :
+aucune réponse ne part vers un Client, donc aucun Client n'est prévenu ni ne revalide.
+Chacun lit les données fraîches à son prochain rendu de la route (navigation, `refresh()`,
+fin du `staleTime`, autre invalidation) ; un arbre déjà en cache dans un routeur reste
+affiché jusque-là. L'événement `cache` (`op: "invalidate"`, `key` et `fn` vides, `tags`)
+est émis comme dans une action, avec `callId: ""` hors requête.
+
+`invalidate(path)` hors d'une Server Function reste une erreur : sans réponse, aucun Client
+ne peut l'entendre.
+
+**Entrée pour l'agent DevTools Server** (`src/devtools/`, dans le processus Server) :
+
+```ts
+import { invalidate } from "../server"; // airtty/server pour une application
+
+await invalidate({ tag: "notes:local" }); // rejette si le handler échoue
+```
+
+Le bundle Server ne contient qu'une copie du runtime : l'agent purge le même cache que
+les pages. Un tag invalide (virgule, espace, non-ASCII, > 256 caractères) lève tout de
+suite.
 
 ## Tags d'un rendu et invalidation précise côté Client
 
@@ -236,7 +267,7 @@ l'autre note, en cache dans le routeur, n'est pas redemandée. La liste déclare
   refuse les éléments ; il faudrait décoder du Flight côté Server avec un manifest de
   références Client.
 - Pas d'invalidation par tag depuis le Client (`useApplication().invalidate` reste par
-  chemin), ni hors d'une Server Function (tâche de fond, webhook).
+  chemin). Hors d'une Server Function, un tag ne purge que le Server (plus haut).
 - Dédup et invalidation des calculs en vol sont par processus ; SQLite partage les
   entrées, pas les calculs.
 - Tags des lectures sous `Suspense` non attribués (plus haut).

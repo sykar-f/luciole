@@ -14,7 +14,7 @@ import {
 } from "../src/cache/runtime";
 import { sqliteCache } from "../src/cache/sqlite";
 import { messageOf } from "../src/guards";
-import { getOptionalSession, getSession } from "../src/server";
+import { getOptionalSession, getSession, invalidate } from "../src/server";
 
 // Run by tests/cache.test.ts under the `react-server` condition, like the Server itself:
 // `bun test` alone resolves React's Client build. tests/helpers.ts imports `act`, which
@@ -150,6 +150,27 @@ test("a tag invalidation drops its entries only", async () => {
     ["note:1"],
     ["notes"],
   ]);
+});
+
+test("outside a Server Function, a tag invalidation purges the Server cache only", async () => {
+  // A background job, a webhook or the DevTools agent: no request, hence no Client to tell.
+  let runs = 0;
+  const read = cached(async () => {
+    cacheTag("jobs");
+    return ++runs;
+  }, "server/q.ts#jobs");
+  await read();
+  const purge = invalidate({ tag: "jobs" });
+  expect(purge).toBeInstanceOf(Promise);
+  await purge;
+  expect(await read()).toBe(2);
+  expect(events.find((e) => e.op === "invalidate")).toMatchObject({
+    key: "",
+    fn: "",
+    tags: ["jobs"],
+  });
+  expect(() => invalidate("/")).toThrow("invalidate(path) is only available in Server Functions");
+  expect(() => invalidate({ tag: "a,b" })).toThrow("tags are");
 });
 
 test("the session is refused inside a cached function", async () => {

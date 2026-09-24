@@ -22,9 +22,8 @@ type Context = {
   callId: string;
   /** Set during a Server Function call only: the paths it declared changed. */
   invalidations?: Set<string>;
-  /** Likewise, the cache tags it invalidated and their purges, awaited before answering. */
-  tags?: Set<string>;
-  purges?: Promise<void>[];
+  /** Likewise, the cache tags it invalidated, each with its purge, awaited before answering. */
+  purges?: Map<string, Promise<void>>;
 };
 const context = new AsyncLocalStorage<Context>();
 export function getSession() {
@@ -47,30 +46,38 @@ export function getOptionalSession() {
 export function notFound(what?: string): never {
   throw new NotFoundError(what);
 }
+const MAX_INVALIDATED_PATH = 1000;
 /**
  * Declares, from a Server Function, that data shown under `path` changed. The Client
  * revalidates the matching routes and notifies `useInvalidation` subscribers after the
- * call answers; `"/"` (the default) covers every route. `{ tag }` drops the "use cache"
- * results labelled `tag` before the call answers, then the Client revalidates only the
- * routes whose render read one of them (see docs/CACHE.md).
+ * call answers; `"/"` (the default) covers every route.
  */
-const MAX_INVALIDATED_PATH = 1000;
-export function invalidate(path: string | { tag: string } = "/") {
+export function invalidate(path?: string): void;
+/**
+ * Drops the "use cache" results labelled `tag`; resolves once they are gone. Callable
+ * anywhere on the Server. In a Server Function, the call also answers only after the
+ * purge, and its Client revalidates the routes whose render read `tag`. Elsewhere (a
+ * background job, a webhook, the DevTools agent) only the Server cache is purged: no
+ * Client is told, each sees fresh data on its next render (see docs/CACHE.md).
+ */
+export function invalidate(target: { tag: string }): Promise<void>;
+export function invalidate(target: string | { tag: string } = "/"): void | Promise<void> {
   const c = context.getStore();
-  if (!c?.invalidations) throw new Error("invalidate() is only available in Server Functions");
-  if (typeof path === "object" && path !== null) {
-    const tag = Tag.parse(path.tag);
-    if (c.tags?.has(tag)) return;
-    c.tags?.add(tag);
+  if (typeof target === "object" && target !== null) {
+    const tag = Tag.parse(target.tag);
+    const known = c?.purges?.get(tag);
+    if (known) return known;
     const purge = invalidateTags([tag]);
-    // Awaited by the action; an action that throws first must not leave it unhandled.
+    // A caller that never awaits (or an action that throws first) must not leave it unhandled.
     purge.catch(() => {});
-    c.purges?.push(purge);
-    return;
+    c?.purges?.set(tag, purge);
+    return purge;
   }
-  if (typeof path !== "string" || !path.startsWith("/") || path.length > MAX_INVALIDATED_PATH)
+  if (!c?.invalidations)
+    throw new Error("invalidate(path) is only available in Server Functions: no Client to tell");
+  if (typeof target !== "string" || !target.startsWith("/") || target.length > MAX_INVALIDATED_PATH)
     throw new Error("invalidate() takes an absolute path");
-  c.invalidations.add(path);
+  c.invalidations.add(target);
 }
 export function getCallId() {
   return context.getStore()?.callId;
@@ -299,11 +306,10 @@ export function serve(config: ServerConfig) {
         }
         if (url.pathname === "/action" && req.method === "POST") {
           const invalidations = new Set<string>(),
-            tags = new Set<string>(),
-            purges: Promise<void>[] = [];
+            purges = new Map<string, Promise<void>>();
           const store = context.getStore();
           if (!store) throw new Error("No request context");
-          Object.assign(store, { invalidations, tags, purges });
+          Object.assign(store, { invalidations, purges });
           const entry = config.actions.get(req.headers.get("x-airtty-action") ?? "");
           if (!entry) return new Response("Unknown action", { status: STATUS.notFound });
           if (entry.auth === "required" && !session) return unauthorized();
@@ -318,7 +324,7 @@ export function serve(config: ServerConfig) {
             });
           const value: unknown = await entry.fn(...args.data);
           // The Client refetches as soon as it reads the answer: purged entries first.
-          await Promise.all(purges);
+          await Promise.all(purges.values());
           // A live response may stay quiet longer than the idle timeout; it ends with
           // its generator or when the Client goes away.
           if (isAsyncIterable(value)) server.timeout(req, 0);
@@ -335,7 +341,13 @@ export function serve(config: ServerConfig) {
           }
           return new Response(
             renderToReadableStream(
-              { kind: "result", value, callId, invalidate: [...invalidations], tags: [...tags] },
+              {
+                kind: "result",
+                value,
+                callId,
+                invalidate: [...invalidations],
+                tags: [...purges.keys()],
+              },
               config.manifest,
             ),
             {

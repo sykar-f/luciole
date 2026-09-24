@@ -11,18 +11,20 @@ export async function saveNote(snapshot: Snapshot): Promise<SaveResult> {
   const input = SnapshotInput.parse(snapshot);
   await Bun.sleep(delayMs);
   const result = save(input);
-  if (result.ok) changed(result.note.id);
+  if (result.ok) await changed(result.note.id);
   return result;
 }
 export async function getOperation(id: string): Promise<SaveResult | null> {
   const result = operation(OperationId.parse(id));
-  if (result?.ok) changed(result.note.id);
+  if (result?.ok) await changed(result.note.id);
   return result;
 }
 // A committed save changes the list and that note's page (title, version): their cached
 // reads are dropped, and the Client revalidates only the routes that read them.
-function changed(id: string) {
+async function changed(id: string) {
   const owner = getSession().userId;
-  invalidate({ tag: notesTag(owner) });
-  invalidate({ tag: noteTag(owner, id) });
+  await Promise.all([
+    invalidate({ tag: notesTag(owner) }),
+    invalidate({ tag: noteTag(owner, id) }),
+  ]);
 }
