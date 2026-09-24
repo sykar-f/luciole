@@ -1,8 +1,9 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useTerminalDimensions } from "@opentui/react";
+import { useRenderer, useTerminalDimensions } from "@opentui/react";
 import { useBindings } from "airtty/client";
 import type { ComponentNode } from "../../schema";
+import { openInEditor } from "./editor";
 import { useDevtools, useTicker } from "./store";
 import { color, fit, Line, useSelection } from "./ui";
 
@@ -16,7 +17,8 @@ type Command = (role: string, suffix: string, payload: unknown) => Promise<unkno
 const FLASH_MS = 800;
 const TICK_MS = 100;
 const PROP_WIDTH = 40;
-const DETAIL_LINES = 8,
+const HOOK_LINES = 3;
+const DETAIL_LINES = 11,
   CHROME_LINES = 6;
 /**
  * Framework and router plumbing, hidden by default (`a` shows it): OpenTUI's root
@@ -77,6 +79,8 @@ export function ComponentsPanel({ command }: { command: Command }) {
   const [showAll, setShowAll] = useState(false);
   const [highlight, setHighlight] = useState(false);
   const [unnecessaryOnly, setUnnecessaryOnly] = useState(false);
+  const [notice, setNotice] = useState("");
+  const renderer = useRenderer();
   const commit = store.session.components();
   const nodes = commit?.nodes ?? [];
   const tree = visibleTree(nodes, showAll, unnecessaryOnly);
@@ -84,6 +88,7 @@ export function ComponentsPanel({ command }: { command: Command }) {
   const now = useTicker(TICK_MS, false, { key: commit?.at, duration: FLASH_MS });
   const list = useSelection(tree, height - CHROME_LINES - DETAIL_LINES);
   const selected = list.selected?.node;
+  const selectedSource = selected ? store.session.sourceOf(selected) : undefined;
   // The selected component is outlined in the application's terminal.
   useEffect(() => {
     void command("client", "select", { id: selected?.id ?? null }).catch(() => {});
@@ -112,6 +117,16 @@ export function ComponentsPanel({ command }: { command: Command }) {
           desc: unnecessaryOnly ? "all renders" : "unnecessary only",
           group: "panel",
         },
+        ...(selectedSource
+          ? [
+              {
+                key: "o",
+                cmd: () => setNotice(openInEditor(renderer, store.session.root(), selectedSource)),
+                desc: "open in editor",
+                group: "panel",
+              },
+            ]
+          : []),
         {
           key: "a",
           cmd: () => setShowAll(!showAll),
@@ -120,7 +135,7 @@ export function ComponentsPanel({ command }: { command: Command }) {
         },
       ],
     }),
-    [highlight, unnecessaryOnly, showAll],
+    [highlight, unnecessaryOnly, showAll, selectedSource, renderer, store],
   );
 
   const unavailable = store.session.componentsUnavailable();
@@ -158,6 +173,9 @@ export function ComponentsPanel({ command }: { command: Command }) {
                 <span fg={color.server}>{` ${node.env ?? "Server"}`}</span>
               ) : null}
               {node.key ? <span fg={color.faint}>{` key=${node.key}`}</span> : null}
+              {store.session.sourceOf(node) ? (
+                <span fg={color.faint}>{` · ${store.session.sourceOf(node)}`}</span>
+              ) : null}
               {node.renders ? <span fg={color.muted}>{` ×${node.renders}`}</span> : null}
               {node.unnecessary ? <span fg={color.warn}> ⚠ unnecessary</span> : null}
               {node.reason && !node.unnecessary && node.reason !== "mount" ? (
@@ -167,12 +185,20 @@ export function ComponentsPanel({ command }: { command: Command }) {
           );
         })}
       </box>
-      <Inspector node={selected} />
+      <Inspector node={selected} source={selectedSource} notice={notice} />
     </box>
   );
 }
 
-function Inspector({ node }: { node: ComponentNode | undefined }) {
+function Inspector({
+  node,
+  source,
+  notice,
+}: {
+  node: ComponentNode | undefined;
+  source: string | undefined;
+  notice: string;
+}) {
   if (!node) return <box height={DETAIL_LINES} flexShrink={0} />;
   const props = Object.entries(node.props ?? {});
   return (
@@ -198,7 +224,10 @@ function Inspector({ node }: { node: ComponentNode | undefined }) {
           : "–"}
       </Line>
       <Line fg={color.accent}>hooks</Line>
-      <Line fg={color.muted}>{node.hooks?.length ? node.hooks.join("  ") : "–"}</Line>
+      <text height={HOOK_LINES} flexShrink={0} wrapMode="word" fg={color.muted}>
+        {node.hooks?.length ? node.hooks.join(" · ") : "–"}
+      </text>
+      <Line fg={color.faint}>{notice || (source ? `${source} · o opens it in $EDITOR` : "")}</Line>
     </box>
   );
 }

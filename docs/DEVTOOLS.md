@@ -142,7 +142,8 @@ qui l'a demandée (même route, même cause) :
 L'arbre des composants Client et, au-dessus des éléments qu'ils ont produits, les
 **Server Components** que Flight décrit en développement (`_debugInfo`, marqués `◇`).
 Pour chaque composant : nombre de rendus, raison du dernier (`mount`, `props: a, b`,
-`state`, `context`, `parent`), props, valeurs des hooks d'état, position à l'écran.
+`state`, `context`, `parent`), props, hooks nommés, position à l'écran, et l'emplacement
+dans les sources (« Nom · fichier:ligne », `o` l'ouvre dans `$VISUAL`/`$EDITOR`).
 
 - **Rendu inutile** (`⚠`) : rendu avec des props, un état et un contexte égaux (au sens de
   `memo()`), seulement parce que son parent a rendu. `u` n'affiche que ceux-là.
@@ -155,8 +156,53 @@ Pour chaque composant : nombre de rendus, raison du dernier (`mount`, `props: a,
 - La plomberie (bordure d'erreur d'OpenTUI, providers du Shell, matches et outlets de
   TanStack Router, `Suspense` du routeur) est masquée ; `a` l'affiche.
 
-Limites : les noms sont ceux des fonctions après bundling (un nom en collision devient
-`Page2`) ; les hooks ne sont pas nommés (React DevTools relit les sources pour cela).
+Noms, emplacements et hooks viennent du build (section suivante). Un éditeur de terminal
+prend le panneau des DevTools le temps de l'édition ; un éditeur graphique (`code`,
+`cursor`, `zed`…) est seulement lancé à la bonne ligne.
+
+## Noms, sources et source maps
+
+**Source maps.** `airtty build` (donc `airtty dev`) écrit `index.js.map` à côté de chaque
+bundle, Client et Server, lié par `//# sourceMappingURL` (`sourcemap: "linked"`). Lié plutôt
+qu'externe : Bun applique alors la map aux stack traces à l'exécution (en développement
+comme en production) et un débogueur la trouve ; une map externe ne serait lue par rien.
+Pas en ligne : elle doublerait le bundle, que `--compile` embarque. Pour que la map pointe
+sur les lignes d'origine, le build laisse Bun retirer le TypeScript des fichiers `.ts/.tsx`
+(Bun ne compose pas une map fournie par un plugin) ; le `@jsxImportSource` de chaque rôle
+passe en pragma sur la première ligne, et le runtime JSX reste celui de production. Les
+DevTools en profitent sans lire la map elles-mêmes : la pile d'une erreur loguée (panneau
+Console) est déjà en fichiers et lignes d'origine. Limite : un Client compilé
+(`--compile`) est reconstruit depuis `index.js` sans sa map ; ses piles restent en
+coordonnées du bundle. La map du Client contient les sources du graphe Client, déjà
+livrées lisibles (le bundle n'est pas minifié) ; celle du Server reste sur le Server.
+
+**Noms des composants.** Le bundler renomme les identifiants en collision (chaque `Page`
+devient `Page2`, `Page3`…). La transformation de chaque module (`src/build-names.ts`,
+appelée depuis celle de `build.ts`) ajoute en fin de module un `displayName` d'origine et
+un `__airtty = { source, hooks }` à chaque composant (fonction, classe, `memo`/`forwardRef`
+nommés) et hook custom de premier niveau, des sources de l'application et du framework,
+pas des paquets. L'export par défaut d'un fichier de route prend le nom de sa route quand le
+sien est absent ou générique (`Page`, `Layout`…) : `app/notes/[id]/page.tsx` →
+`NotesIdPage`, `app/layout.tsx` → `RootLayout`, `app/page.tsx` → `HomePage` ; un export par
+défaut anonyme ailleurs prend celui de son fichier (`note-list.tsx` → `NoteList`). Aucune
+ligne ne bouge. Les Server Components en profitent aussi : Flight transmet ce `displayName`
+dans `_debugInfo`, et l'agent Server envoie dans son `hello` les emplacements par nom
+(Flight ne transmet pas le fichier).
+
+**Noms des hooks.** Par annotation au build plutôt qu'à la manière de React DevTools
+(rendre à nouveau le composant sous un dispatcher enregistreur, passer la pile de chaque
+hook par les source maps, relire le fichier à cette ligne) : une passe sur l'AST par module
+au build, rien à l'exécution, aucun code applicatif relancé, pas de bibliothèque de source
+maps. Chaque composant et hook custom garde la liste de ses appels de hooks, dans l'ordre
+d'évaluation, avec la variable qu'ils alimentent (`const [draft, setDraft] = useState()` →
+`draft`, `const { a, b } = useX()` → `a, b`). Les DevTools déroulent cette liste contre les
+nœuds de la fibre : un hook de React compte pour un nombre de nœuds fixe (table
+`PRIMITIVE_NODES`, vérifiée par un test pour le reconciler épinglé), un hook custom annoté
+se déroule à son tour (`local › open`). Limite : un hook d'un paquet (TanStack, OpenTUI)
+n'est pas annoté, son nombre de nœuds est inconnu ; les nœuds avant le premier et après le
+dernier restent nommés exactement, ceux d'un unique hook de paquet entre les deux portent
+son nom (`usePackage › state`), le reste est numéroté (`state #4`). Un compte qui ne tombe
+pas juste ne nomme rien plutôt que de nommer faux.
 
 ### 3 Console
 
@@ -291,7 +337,8 @@ sous `airtty dev` : `bun run test:pty:devtools`.
   l'`invalidate()` Server d'une invalidation des routes Client concernées).
 - Keymap : les couches de raccourcis actives de l'application (l'instance du keymap vit
   dans le `Shell`, non exposée) ; seul le journal des touches existe.
-- Nommer les hooks et désambiguïser les noms renommés par le bundler (source maps).
+- Nommer l'intérieur des hooks de paquets (source maps + AST à la React DevTools, sur
+  demande pour le composant sélectionné).
 - Plusieurs Clients connectés : les commandes vont à tous, les panneaux mélangent leurs
   arbres et routeurs (dernier état reçu).
 - Front web sur le shell TanStack (voir la sonde).
