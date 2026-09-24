@@ -3,7 +3,14 @@ import { chmod, mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import { configPath, DEFAULT_URL, openTunnel, serverUrl } from "../src/connect";
+import {
+  configPath,
+  connect,
+  DEFAULT_URL,
+  openTunnel,
+  serverUrl,
+  socketDirectory,
+} from "../src/connect";
 import { messageOf } from "../src/guards";
 import { rejectionOf, until } from "./helpers";
 
@@ -22,9 +29,10 @@ if (destination.endsWith("refused.example")) {
   process.exit(255);
 }
 if (!destination.endsWith("silent.example")) {
+  // socket:host:port, or socket:/remote/socket.
   const [socket, host, port] = args[args.indexOf("-L") + 1].split(":");
   createServer((client) => {
-    const upstream = connect(Number(port), host);
+    const upstream = port === undefined ? connect({ path: host }) : connect(Number(port), host);
     client.pipe(upstream).pipe(client);
     client.on("error", () => upstream.destroy());
     upstream.on("error", () => client.destroy());
@@ -115,6 +123,44 @@ test("ssh:// forwards a private socket to the remote Server and stops with the C
   const defaults = await lastCall();
   expect(defaults.args.slice(5)).toEqual(["--", "server.example"]);
   expect(defaults.args[4]).toEndWith(":127.0.0.1:3000");
+});
+
+test("ssh:// to a path forwards to a remote Unix socket, with the caller's options", async () => {
+  const remote = join(socketDirectory("airtty-remote-"), "s");
+  const upstream = Bun.serve({ unix: remote, fetch: () => new Response("over the socket") });
+  try {
+    const tunnel = await openTunnel(`ssh://server.example${remote}`, {
+      ssh: fakeSsh,
+      options: ["-o", "ControlPath=/x"],
+    });
+    if (!tunnel.fetch) throw new Error("An ssh tunnel provides its fetch");
+    expect(await (await tunnel.fetch(new URL("/", tunnel.url), {})).text()).toBe("over the socket");
+    const call = await lastCall();
+    expect(call.args[4]).toEndWith(`:${remote}`);
+    expect(call.args.slice(5)).toEqual(["-o", "ControlPath=/x", "--", "server.example"]);
+    tunnel.close();
+  } finally {
+    await upstream.stop(true);
+    await rm(dirname(remote), { recursive: true, force: true });
+  }
+});
+
+test("unix: reaches a local socket; relative paths are refused", async () => {
+  const socket = join(socketDirectory("airtty-local-"), "s");
+  const upstream = Bun.serve({ unix: socket, fetch: (r) => new Response(new URL(r.url).pathname) });
+  try {
+    const connection = await connect(`unix:${socket}`);
+    if (!connection.fetch) throw new Error("A socket connection provides its fetch");
+    expect(await (await connection.fetch(new URL("/health", connection.url), {})).text()).toBe(
+      "/health",
+    );
+    expect(messageOf(await rejectionOf(connect("unix:relative/s")))).toContain(
+      "expected unix:/absolute/path",
+    );
+  } finally {
+    await upstream.stop(true);
+    await rm(dirname(socket), { recursive: true, force: true });
+  }
 });
 
 test("a long TMPDIR still yields a socket path that fits", async () => {
