@@ -150,6 +150,10 @@ voir [CACHE.md](CACHE.md).
 
 `<DebugOverlay />` ignore `invalidate` et `loader` ; `instrumentTracing` aussi.
 
+En développement, `AIRTTY_DEVTOOLS=<adresse>` envoie ces événements, ceux du Server, les
+logs des deux processus et l'arbre des composants à `airtty devtools`, lancé dans un autre
+terminal ; sans la variable, rien n'est chargé. Voir [DEVTOOLS.md](DEVTOOLS.md).
+
 ## Champs restaurables
 
 Le Client joue le rôle du navigateur, il garde donc ce qu'un navigateur garde d'une

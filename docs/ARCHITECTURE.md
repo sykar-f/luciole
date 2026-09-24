@@ -25,6 +25,7 @@ L’application est une codebase unique ; son build produit deux programmes.
 | `src/guards.ts`      | Gardes de type Server/Client ; `package-json.ts` (JSON validé par Zod), `bundle-errors.ts` (échecs de Bun.build).               |
 | `src/cache/`         | `"use cache"` ([CACHE.md](CACHE.md)) : transformation du build, clé, durées, tags, dédup, handlers mémoire et SQLite.           |
 | `src/flight/`        | Adapter du vrai codec React Flight et contrat de résolution des modules Client.                                                 |
+| `src/devtools/`      | DevTools (dev) : protocole, agents `AIRTTY_DEVTOOLS`, hook de fibers, app `airtty devtools` ; [DEVTOOLS.md](DEVTOOLS.md).       |
 
 `tests/`, `probes/` et `scripts/` servent à développer et vérifier le framework.
 Ils ne sont pas du code à recopier dans chaque application.

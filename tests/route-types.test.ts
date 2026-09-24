@@ -61,10 +61,15 @@ export function Bad() {
 }, 60000);
 
 test("checked-in example route trees match the route graph", async () => {
-  for (const example of ["examples/notes", "examples/latency", "examples/forge"]) {
+  for (const example of [
+    "examples/notes",
+    "examples/latency",
+    "examples/forge",
+    "src/devtools/airtty-devtools",
+  ]) {
     const file = join(resolve(example), ROUTE_TREE_FILE);
     const committed = await readFile(file, "utf8");
     await build(resolve(example));
     expect(await readFile(file, "utf8")).toBe(committed);
   }
-});
+}, 60000);
