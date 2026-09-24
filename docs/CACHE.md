@@ -77,17 +77,18 @@ Appelables uniquement pendant l'exécution d'une fonction `"use cache"` (sinon i
 - `cacheTag(...tags)` : étiquette le résultat. Un tag est fait de 1 à 256 caractères ASCII
   visibles, sans virgule (il voyage dans un en-tête) ; au plus 64 par résultat. Encoder
   les identifiants libres (`encodeURIComponent`), comme `examples/notes/server/tags.ts`.
-- `cacheLife(profil | { stale?, revalidate?, expire? })`, en **secondes** comme Next.js.
-  Profils : `default` (300 / 900 / jamais), `seconds` (30 / 1 / 60), `minutes`
-  (300 / 60 / 3600), `hours` (300 / 3600 / 86 400), `days`, `weeks`, `max`. Un champ
+- `cacheLife(profil | { revalidate?, expire? })`, en **secondes** comme Next.js.
+  Profils (`revalidate` / `expire`) : `default` (900 / jamais), `seconds` (1 / 60),
+  `minutes` (60 / 3600), `hours` (3600 / 86 400), `days`, `weeks`, `max`. Un champ
   omis reprend `default` ; `revalidate` ne dépasse pas `expire`. Plusieurs appels : la
   durée la plus courte de chaque champ gagne.
   - âge < `revalidate` : `hit` ;
   - `revalidate` ≤ âge < `expire` : `stale`, l'ancienne valeur est servie tout de suite et
     une nouvelle est calculée derrière (un échec garde l'ancienne jusqu'à `expire`) ;
   - âge ≥ `expire` : `miss`, l'appelant attend le calcul.
-  - `stale` est conservé dans l'entrée mais n'a pas d'effet : la fraîcheur côté Client
-    est `export const staleTime` de la page (plus bas).
+  - Pas de `stale` (la fraîcheur côté Client de Next.js) : elle ne s'appliquerait à rien
+    ici, et `cacheLife({ stale })` est refusé. La fraîcheur côté Client est
+    `export const staleTime` de la page (plus bas).
 
 Une fonction cachée qui en appelle une autre hérite de ses tags et de sa durée la plus
 courte : invalider le tag intérieur invalide aussi le résultat extérieur.
@@ -111,8 +112,7 @@ type CacheEntry = {
   value: string; // résultat encodé, opaque
   tags: readonly string[];
   createdAt: number; // epoch ms
-  stale: number; // secondes
-  revalidate: number;
+  revalidate: number; // secondes
   expire: number; // Infinity : jamais
 };
 type CacheHandler = {
@@ -235,7 +235,6 @@ l'autre note, en cache dans le routeur, n'est pas redemandée. La liste déclare
 - Pas de mise en cache d'arbres React (composants, pages) : le codec de réponse de Flight
   refuse les éléments ; il faudrait décoder du Flight côté Server avec un manifest de
   références Client.
-- `stale` de `cacheLife` n'influence pas le Client ; `staleTime` est déclaré par page.
 - Pas d'invalidation par tag depuis le Client (`useApplication().invalidate` reste par
   chemin), ni hors d'une Server Function (tâche de fond, webhook).
 - Dédup et invalidation des calculs en vol sont par processus ; SQLite partage les

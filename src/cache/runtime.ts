@@ -22,29 +22,30 @@ export type CacheEvent = {
   at: number;
 };
 
-/** Next.js's profiles, in seconds: `stale` for Clients, then `revalidate` and `expire`. */
+/**
+ * Next.js's profiles, in seconds. Their `stale` (Client freshness) is left out: a page's
+ * `export const staleTime` sets it here.
+ */
 const MINUTE = 60,
   HOUR = 3600,
   DAY = 86_400,
   WEEK = 604_800,
   MONTH = 2_592_000,
-  FIVE_MINUTES = 300,
   FIFTEEN_MINUTES = 900;
 export const CACHE_PROFILES = {
-  default: { stale: FIVE_MINUTES, revalidate: FIFTEEN_MINUTES, expire: Infinity },
-  seconds: { stale: 30, revalidate: 1, expire: MINUTE },
-  minutes: { stale: FIVE_MINUTES, revalidate: MINUTE, expire: HOUR },
-  hours: { stale: FIVE_MINUTES, revalidate: HOUR, expire: DAY },
-  days: { stale: FIVE_MINUTES, revalidate: DAY, expire: WEEK },
-  weeks: { stale: FIVE_MINUTES, revalidate: WEEK, expire: MONTH },
-  max: { stale: FIVE_MINUTES, revalidate: MONTH, expire: Infinity },
+  default: { revalidate: FIFTEEN_MINUTES, expire: Infinity },
+  seconds: { revalidate: 1, expire: MINUTE },
+  minutes: { revalidate: MINUTE, expire: HOUR },
+  hours: { revalidate: HOUR, expire: DAY },
+  days: { revalidate: DAY, expire: WEEK },
+  weeks: { revalidate: WEEK, expire: MONTH },
+  max: { revalidate: MONTH, expire: Infinity },
 } as const satisfies Record<string, CacheLife>;
 export type CacheProfile = keyof typeof CACHE_PROFILES;
 
 const Seconds = z.number().nonnegative();
 const Life = z
   .strictObject({
-    stale: Seconds.optional(),
     revalidate: Seconds.optional(),
     expire: Seconds.optional(),
   })
@@ -69,7 +70,6 @@ function scope(api: string): CacheScope {
 }
 // Always a new object of three fields: `b` may be a whole entry, value and tags included.
 const shortest = (a: CacheLife | undefined, b: CacheLife): CacheLife => ({
-  stale: Math.min(a?.stale ?? Infinity, b.stale),
   revalidate: Math.min(a?.revalidate ?? Infinity, b.revalidate),
   expire: Math.min(a?.expire ?? Infinity, b.expire),
 });

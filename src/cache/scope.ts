@@ -1,7 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 
 /** Seconds; `Infinity` never expires. See `cacheLife` (src/cache/runtime.ts). */
-export type CacheLife = { stale: number; revalidate: number; expire: number };
+export type CacheLife = { revalidate: number; expire: number };
 /** The `"use cache"` function running now: what `cacheTag` and `cacheLife` declare. */
 export type CacheScope = { fn: string; tags: Set<string>; life: CacheLife | undefined };
 export const cacheScope = new AsyncLocalStorage<CacheScope>();

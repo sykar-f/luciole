@@ -113,7 +113,13 @@ test("profiles, the shortest life and invalid ones", async () => {
   await read();
   const [write] = events;
   const entry = handler.get(write.key);
-  expect(entry).toMatchObject({ stale: 300, revalidate: 5, expire: 86_400 });
+  expect(entry).toMatchObject({ revalidate: 5, expire: 86_400 });
+  // Client freshness is a page's staleTime: cacheLife has no `stale` to mislead with.
+  expect(entry && "stale" in entry).toBe(false);
+  const stale = cached(async () => {
+    Reflect.apply(cacheLife, undefined, [{ stale: 30 }]);
+  }, "server/q.ts#stale");
+  expect(messageOf(await rejectionOf(stale()))).toContain("stale");
   const unknown = cached(async () => {
     // A JavaScript caller is not held to the profile names: checked at run time.
     Reflect.apply(cacheLife, undefined, ["forever"]);
@@ -221,7 +227,6 @@ test("the SQLite handler keeps entries across instances, by tag and within its b
     value,
     tags,
     createdAt,
-    stale: 1,
     revalidate: 2,
     expire: Infinity,
   });

@@ -8,7 +8,6 @@ const Row = z.object({
   value: z.string(),
   tags: z.string(),
   created: z.number(),
-  stale: z.number(),
   revalidate: z.number(),
   expire: z.number().nullable(),
 });
@@ -28,15 +27,15 @@ export function sqliteCache({
   const db = new Database(path, { create: true });
   db.exec(
     "PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;" +
-      "CREATE TABLE IF NOT EXISTS airtty_cache(key TEXT PRIMARY KEY, value TEXT NOT NULL, tags TEXT NOT NULL, created REAL NOT NULL, stale REAL NOT NULL, revalidate REAL NOT NULL, expire REAL);" +
+      "CREATE TABLE IF NOT EXISTS airtty_cache(key TEXT PRIMARY KEY, value TEXT NOT NULL, tags TEXT NOT NULL, created REAL NOT NULL, revalidate REAL NOT NULL, expire REAL);" +
       "CREATE TABLE IF NOT EXISTS airtty_cache_tags(tag TEXT NOT NULL, key TEXT NOT NULL REFERENCES airtty_cache(key) ON DELETE CASCADE, PRIMARY KEY(tag, key));" +
       "CREATE INDEX IF NOT EXISTS airtty_cache_created ON airtty_cache(created);",
   );
   const select = db.query(
-    "SELECT value, tags, created, stale, revalidate, expire FROM airtty_cache WHERE key=?",
+    "SELECT value, tags, created, revalidate, expire FROM airtty_cache WHERE key=?",
   );
   const remove = db.query("DELETE FROM airtty_cache WHERE key=?");
-  const insert = db.query("INSERT INTO airtty_cache VALUES(?,?,?,?,?,?,?)");
+  const insert = db.query("INSERT INTO airtty_cache VALUES(?,?,?,?,?,?)");
   const tag = db.query("INSERT INTO airtty_cache_tags VALUES(?,?)");
   const evict = db.query(
     "DELETE FROM airtty_cache WHERE key IN (SELECT key FROM airtty_cache ORDER BY created DESC LIMIT -1 OFFSET ?)",
@@ -48,7 +47,6 @@ export function sqliteCache({
       entry.value,
       JSON.stringify(entry.tags),
       entry.createdAt,
-      entry.stale,
       entry.revalidate,
       Number.isFinite(entry.expire) ? entry.expire : null,
     );
@@ -64,7 +62,6 @@ export function sqliteCache({
         value: parsed.value,
         tags: Tags.parse(JSON.parse(parsed.tags)),
         createdAt: parsed.created,
-        stale: parsed.stale,
         revalidate: parsed.revalidate,
         expire: parsed.expire ?? Infinity,
       };
