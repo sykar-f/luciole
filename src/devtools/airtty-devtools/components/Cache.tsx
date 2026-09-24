@@ -1,14 +1,17 @@
 "use client";
+import { useState } from "react";
 import { useTerminalDimensions } from "@opentui/react";
+import { useBindings } from "airtty/client";
 import { useDevtools, useTicker } from "./store";
 import { age, clock, color, fit, Line, ms, useSelection } from "./ui";
 
 /**
  * The Server cache, as its events describe it (feat/use-cache's `cache` events): each
  * entry with its function, tags, age and hit rate, and tag invalidations. The Client
- * router's cache is in the Router panel. Invalidating a Server entry from here waits for
- * an entry point in feat/use-cache.
+ * router's cache is in the Router panel. `x` invalidates a tag of the selected entry on the
+ * Server, outside any request: the Server cache is purged, no Client is told.
  */
+type Command = (role: string, suffix: string, payload: unknown) => Promise<{ sent: number }>;
 const TICK_MS = 1000;
 const RECENT_USES = 4,
   PERCENT = 100,
@@ -18,7 +21,7 @@ const KEY = 28,
   OP = 10,
   AGE = 8,
   CHROME_LINES = 8,
-  DETAIL_LINES = 5;
+  DETAIL_LINES = 7;
 const OP_COLOR: Record<string, string> = {
   hit: color.ok,
   miss: color.cache,
@@ -27,13 +30,46 @@ const OP_COLOR: Record<string, string> = {
   invalidate: color.error,
 };
 
-export function CachePanel() {
+export function CachePanel({ command }: { command: Command }) {
   const store = useDevtools();
+  const [tagIndex, setTagIndex] = useState(0);
+  const [status, setStatus] = useState("");
   const { height } = useTerminalDimensions();
   const entries = store.session.cache();
   const now = useTicker(TICK_MS, entries.length > 0);
   const list = useSelection(entries, height - CHROME_LINES - DETAIL_LINES);
   const selected = list.selected;
+  const tags = selected?.tags ?? [];
+  const tag = tags.length ? tags[tagIndex % tags.length] : undefined;
+  useBindings(
+    () => ({
+      bindings: [
+        ...(tags.length > 1
+          ? [{ key: "t", cmd: () => setTagIndex((i) => i + 1), desc: "next tag", group: "panel" }]
+          : []),
+        ...(tag
+          ? [
+              {
+                key: "x",
+                cmd: () =>
+                  void command("server", "cache-invalidate", { tag }).then(
+                    ({ sent }) =>
+                      setStatus(
+                        sent
+                          ? `Asked the Server to purge tag "${tag}"; its invalidate events follow. No Client is told: each sees fresh data on its next render.`
+                          : "No Server connected.",
+                      ),
+                    (e: unknown) => setStatus(`Failed: ${String(e)}`),
+                  ),
+                desc: `invalidate ${tag}`,
+                group: "panel",
+              },
+            ]
+          : []),
+      ],
+    }),
+    [tags, tag, command],
+  );
   if (!entries.length)
     return (
       <box flexDirection="column">
@@ -105,8 +141,11 @@ export function CachePanel() {
             <Line fg={color.muted}>
               {`written ${selected.writtenAt ? clock(selected.writtenAt) : "–"} · last ${selected.lastOp} ${clock(selected.lastAt)}${selected.invalidatedAt ? ` · invalidated ${clock(selected.invalidatedAt)}` : ""}`}
             </Line>
-            <Line fg={color.muted}>{`tags ${selected.tags.join(", ") || "–"}`}</Line>
+            <Line fg={color.muted}>
+              {`tags ${selected.tags.map((t) => (t === tag ? `[${t}]` : t)).join(", ") || "–"}${tag ? " · x invalidates the [tag] on the Server only (no Client told)" : ""}`}
+            </Line>
             <Line fg={color.faint}>{uses ? `requests: ${uses}` : ""}</Line>
+            <Line fg={color.warn}>{status}</Line>
           </>
         ) : null}
       </box>

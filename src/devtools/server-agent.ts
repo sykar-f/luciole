@@ -2,6 +2,7 @@ import { basename, dirname } from "node:path";
 import type { ServerInstrument } from "../server";
 import { message, parseAddress, PLUGIN, PROTOCOL_VERSION } from "./protocol";
 import { captureConsole, consoleText } from "./preview";
+import { parseCommand, type Command } from "./schema";
 import { connectAgent } from "./wire";
 
 /** `ServerEvent | CacheEvent`: requests and "use cache" operations alike. */
@@ -17,7 +18,15 @@ type Observed = Parameters<ServerInstrument["onEvent"]>[0];
 export function devtoolsInstrument(
   instrument: ServerInstrument | undefined,
   address: string | undefined,
-  context: { buildId: string; getCallId: () => string | undefined },
+  context: {
+    buildId: string;
+    getCallId: () => string | undefined;
+    /**
+     * `invalidate({ tag })` of src/server.ts, handed in by `serve()`: imported here, it
+     * would close an import cycle and load the react-server runtime with this module.
+     */
+    invalidateTag: (tag: string) => Promise<void>;
+  },
 ): ServerInstrument | undefined {
   if (!address) return instrument;
   if (process.env.NODE_ENV === "production") {
@@ -34,6 +43,10 @@ export function devtoolsInstrument(
       // `<app>/.airtty/server/index.js`, as `airtty dev` and `start` run it.
       app: entry ? basename(dirname(dirname(dirname(entry)))) : undefined,
       buildId: context.buildId,
+    },
+    onCommand: (value) => {
+      const command = parseCommand(value);
+      if (command) obey(command, context.invalidateTag);
     },
   });
   captureConsole((level, args) =>
@@ -52,4 +65,21 @@ export function devtoolsInstrument(
       instrument?.onEvent(event);
     },
   };
+}
+
+/**
+ * The Cache panel's invalidation: outside any request, `invalidate({ tag })` purges the
+ * Server cache only (it emits `cache` `invalidate` events, callId ""); no Client is told,
+ * each sees fresh data on its next render. A failure lands in the Console panel.
+ */
+function obey(command: Command, invalidateTag: (tag: string) => Promise<void>) {
+  if (command.suffix !== "cache-invalidate") return;
+  const { tag } = command.payload;
+  try {
+    invalidateTag(tag).catch((error: unknown) =>
+      console.error(`DevTools: invalidating tag "${tag}" failed:`, error),
+    );
+  } catch (error) {
+    console.error(`DevTools: invalid tag "${tag}":`, error);
+  }
 }

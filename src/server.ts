@@ -252,6 +252,7 @@ export function serve(config: ServerConfig) {
   const instrument = devtoolsInstrument(config.instrument, env.data.AIRTTY_DEVTOOLS, {
     buildId: config.buildId,
     getCallId,
+    invalidateTag: (tag) => invalidate({ tag }),
   });
   // The cache reports through the same instrument as requests: the DevTools see both.
   configureCache({

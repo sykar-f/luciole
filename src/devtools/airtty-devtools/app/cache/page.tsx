@@ -1,5 +1,6 @@
+import { command } from "../../actions/bus";
 import { CachePanel } from "../../components/Cache";
 
 export default function CachePage() {
-  return <CachePanel />;
+  return <CachePanel command={command} />;
 }

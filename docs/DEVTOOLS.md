@@ -185,8 +185,15 @@ sélectionné dans l'application, `I` tout, `r` rafraîchit.
 
 Le cache Server tel que ses événements le décrivent : entrées, fonction, tags, âge depuis
 l'écriture, succès/échecs/périmés, invalidations par tag, requêtes qui l'ont lu.
-L'invalidation d'une entrée Server depuis les DevTools attend un point d'entrée côté
-feat/use-cache.
+
+`t` choisit un tag de l'entrée sélectionnée, `x` l'invalide : la commande
+`airtty-devtools:cache-invalidate` fait appeler `invalidate({ tag })` par l'agent Server
+(la fonction lui est passée par `serve()`, pour ne pas importer `server.ts` dans un
+cycle). Hors de toute requête, cela **purge le cache Server seulement** : aucun Client
+n'est prévenu, chacun verra des données fraîches à son prochain rendu, ce que le panneau
+rappelle. Le Server émet alors un événement `cache` `invalidate` par tag (`key` et
+`callId` vides), qui marque invalides les entrées portant ce tag ; une erreur arrive dans
+la Console.
 
 ### 6 Input
 
@@ -211,17 +218,19 @@ voyage dans des champs `_airtty`).
 
 ## Contrat avec feat/use-cache
 
-Les DevTools codent contre deux événements, simulés par `src/devtools/fixtures.ts`
-(`--demo`, tests) en attendant la fusion :
+feat/use-cache est fusionné ; `src/devtools/fixtures.ts` simule toujours ses événements
+pour `--demo` et les tests :
 
-- **Server** : `instrument.onEvent({ type: "cache", op: "hit" | "miss" | "stale" | "write" | "invalidate", key, fn, tags, callId?, ms?, at })`.
-  L'agent Server les transmet (`airtty-server:cache`). Une fois `ServerEvent` étendu, il
-  faudra aussi les passer à l'`instrument` configuré (commentaire dans
-  `server-agent.ts`).
-- **Client** : un événement `loader` avec `source: "router-cache"`, sans requête, pour une
-  navigation servie par le cache du routeur. Tant que le Client ne l'émet pas, l'agent le
-  **synthétise** (`synthetic: true`) : une navigation résolue dont aucun loader n'a
-  demandé la page. Dès qu'un `loader` natif porte `source`, la synthèse s'arrête.
+- **Server** : `ServerInstrument.onEvent` reçoit `ServerEvent | CacheEvent`, avec
+  `CacheEvent = { type: "cache", op: "hit" | "miss" | "stale" | "write" | "invalidate", key, fn, tags, callId, ms, at }`.
+  `serve()` passe l'instrument combiné (DevTools + configuré) au runtime du cache :
+  l'agent envoie chaque événement aux DevTools (`airtty-server:cache`) puis à
+  l'`instrument` configuré, qui reçoit exactement ce qu'il recevrait sans les DevTools.
+- **Client** : chaque `loader` porte `source` (`network` ou `router-cache`) ; un
+  `router-cache`, sans requête, a sa propre ligne, un `network` se relie à sa requête.
+  L'agent ne **synthétise** ces lignes (`synthetic: true`) que pour un Client plus ancien
+  dont les loaders ne portent pas `source` : la synthèse s'arrête au premier loader qui
+  en porte un.
 
 ## React DevTools
 
@@ -278,8 +287,8 @@ sous `airtty dev` : `bun run test:pty:devtools`.
 
 ## Reste à faire
 
-- Invalidation d'une entrée du cache Server depuis le panneau Cache (point d'entrée de
-  feat/use-cache) ; transmission des événements `cache` à l'`instrument` configuré.
+- Invalider aussi les Clients depuis le panneau Cache (une commande qui ferait suivre
+  l'`invalidate()` Server d'une invalidation des routes Client concernées).
 - Keymap : les couches de raccourcis actives de l'application (l'instance du keymap vit
   dans le `Shell`, non exposée) ; seul le journal des touches existe.
 - Nommer les hooks et désambiguïser les noms renommés par le bundler (source maps).

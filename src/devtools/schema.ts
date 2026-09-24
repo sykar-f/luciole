@@ -248,6 +248,8 @@ const commands = {
   highlight: z.object({ enabled: z.boolean(), unnecessaryOnly: z.optional(z.boolean()) }),
   select: z.object({ id: z.nullable(z.number()) }),
   snapshot: z.object({}),
+  /** To the Server: purge the "use cache" results labelled `tag` (no Client is told). */
+  "cache-invalidate": z.object({ tag: z.string() }),
 };
 type Commands = typeof commands;
 export type Command = {

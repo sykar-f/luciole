@@ -4,7 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseEvent, type DevtoolsEvent } from "../src/devtools/schema";
 import { devtoolsInstrument } from "../src/devtools/server-agent";
-import { listenBus } from "../src/devtools/wire";
+import { message, PLUGIN } from "../src/devtools/protocol";
+import { listenBus, type Connection } from "../src/devtools/wire";
 import { createHttpTransport, type TransportEvent } from "../src/transport";
 import { launch, until } from "./helpers";
 
@@ -76,6 +77,7 @@ test("cache events reach the DevTools and the configured instrument alike", asyn
   const instrument = devtoolsInstrument({ onEvent: (e) => configured.push(e) }, `unix:${path}`, {
     buildId: "build-1",
     getCallId: () => undefined,
+    invalidateTag: () => Promise.resolve(),
   });
   const cache = {
     type: "cache" as const,
@@ -93,6 +95,37 @@ test("cache events reach the DevTools and the configured instrument alike", asyn
     expect(received.find((e) => e.type === "airtty-server:cache")?.payload).toMatchObject(cache);
     expect(configured).toEqual([cache]);
   } finally {
+    bus.close();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("the Cache panel's command purges a tag on the Server, outside any request", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "airtty-devtools-"));
+  const path = join(dir, "bus.sock");
+  const received: DevtoolsEvent[] = [];
+  const connections: Connection[] = [];
+  const bus = await listenBus({
+    address: { kind: "unix", path },
+    onOpen: (connection) => connections.push(connection),
+    onMessage: (_c, value) => {
+      const event = parseEvent(value);
+      if (event) received.push(event);
+    },
+  });
+  const server = await launch("tests/devtools-server.ts", { AIRTTY_DEVTOOLS: `unix:${path}` });
+  try {
+    await until(() => received.some((e) => e.type === "airtty:hello"));
+    connections[0]?.send(message(PLUGIN.control, "cache-invalidate", { tag: "notes" }));
+    await until(() => received.some((e) => e.type === "airtty-server:cache"));
+    // No request: the Server cache only, no Client told (callId "").
+    expect(received.find((e) => e.type === "airtty-server:cache")?.payload).toMatchObject({
+      op: "invalidate",
+      tags: ["notes"],
+      callId: "",
+    });
+  } finally {
+    await server.stop();
     bus.close();
     await rm(dir, { recursive: true, force: true });
   }

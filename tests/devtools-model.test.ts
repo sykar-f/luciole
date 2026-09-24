@@ -143,3 +143,35 @@ test("loaders labelled `network` join their request; `router-cache` ones get the
   expect(rows[0]?.loader).toEqual({ start: 100, end: 113, result: "ok" });
   expect(rows[1]?.loader).toEqual({ start: 200, end: 200, result: "ok" });
 });
+
+test("a tag invalidation marks the entries carrying the tag, and creates none", () => {
+  const events: Stored[] = [];
+  const cache = (op: string, key: string, tags: string[], callId: string, at: number) => {
+    const event = parseEvent(
+      message(PLUGIN.server, "cache", {
+        type: "cache",
+        op,
+        key,
+        fn: key ? "f" : "",
+        tags,
+        callId,
+        ms: 1,
+        at,
+      }),
+    );
+    if (!event) throw new Error("invalid cache event");
+    events.push({ seq: events.length + 1, source: 2, event });
+  };
+  cache("write", "a", ["notes"], "c1", 1);
+  cache("write", "b", ["other"], "c1", 2);
+  // What `invalidate({ tag })` emits outside a request (the DevTools' Cache panel).
+  cache("invalidate", "", ["notes"], "", 3);
+  const session = loaded(events);
+  expect(session.cache().map((e) => [e.key, e.invalidatedAt])).toEqual([
+    ["a", 3],
+    ["b", undefined],
+  ]);
+  expect(session.tagInvalidations()).toEqual([{ at: 3, tags: ["notes"], key: "" }]);
+  // The invalidation belongs to no request: only the writes' request has a row.
+  expect(session.network.rows().map((row) => row.callId)).toEqual(["c1"]);
+});

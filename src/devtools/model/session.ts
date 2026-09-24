@@ -93,6 +93,18 @@ export function createSession() {
         return;
       case "airtty-server:cache": {
         const p = event.payload;
+        // A tag invalidation names tags, not an entry (use-cache emits `key: ""`): every
+        // entry carrying one of them is gone.
+        if (p.op === "invalidate" && !p.key) {
+          tagInvalidations.push({ at: p.at, tags: p.tags, key: "" });
+          for (const entry of cache.values())
+            if (entry.tags.some((tag) => p.tags.includes(tag))) {
+              entry.invalidatedAt = p.at;
+              entry.lastOp = p.op;
+              entry.lastAt = p.at;
+            }
+          return;
+        }
         const entry: CacheEntry = cache.get(p.key) ?? {
           key: p.key,
           fn: p.fn,
