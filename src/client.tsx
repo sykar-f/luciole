@@ -100,7 +100,7 @@ export type { Session, SessionEntry } from "./restore";
 export { Embed } from "./embed";
 export type { EmbedProps } from "./embed";
 export { openApplication } from "./app-bundle";
-export type { OpenApplicationOptions } from "./app-bundle";
+export type { OpenApplicationOptions, PublisherCheck } from "./app-bundle";
 // Local programs on a PTY, for multiplexers (the `process` mode of docs/EMBEDDING.md).
 export { Terminal } from "./vt/terminal";
 export type { TerminalProps } from "./vt/terminal";

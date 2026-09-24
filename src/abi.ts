@@ -73,6 +73,11 @@ export const AppManifest = z.object({
   builtins: z.array(z.string()),
   /** `airtty.capabilities` of the application's package.json, when it declares them. */
   capabilities: z.optional(Capabilities),
+  /**
+   * The publisher's Ed25519 signature (src/publisher.ts) over every other field, with the
+   * key that made it (SPKI, base64). Absent when the build was not asked to sign.
+   */
+  signature: z.optional(z.object({ publicKey: z.string(), value: z.string() })),
 });
 export type AppManifest = z.infer<typeof AppManifest>;
 export const APP_MANIFEST = "manifest.json";

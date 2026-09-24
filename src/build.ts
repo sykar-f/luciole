@@ -13,6 +13,7 @@ import { annotateNames } from "./build-names";
 import { ABI_KEY, APP_MANIFEST, isAbiSpecifier, type AppManifest } from "./abi";
 import { Capabilities, undeclaredUses } from "./capabilities";
 import * as zm from "zod/mini";
+import { signManifest, type PublisherKey } from "./publisher";
 const framework = dirname(import.meta.path);
 const quote = JSON.stringify;
 // Resolved from the framework so starters using a file: dependency find their copy.
@@ -63,6 +64,11 @@ export type BuildOptions = {
    * `"required"` (`airtty build --app-bundle`) fails the build instead.
    */
   appBundle?: "auto" | "required";
+  /**
+   * Signs the bundle's manifest with this publisher key (`airtty build --sign-bundle`,
+   * src/publisher.ts). Implies `appBundle: "required"`: nothing to sign otherwise.
+   */
+  signBundle?: PublisherKey;
 };
 // `airtty.capabilities` of the application's own package.json (decision 3): optional.
 const AppPackage = zm.looseObject({
@@ -71,12 +77,16 @@ const AppPackage = zm.looseObject({
 /**
  * `.airtty/app/manifest.json`: the bundle's identity, ABI and hash, the built-ins it
  * requires and the capabilities the application declares, compared with those built-ins.
- * Unsigned until step 4 (docs/EMBEDDING.md).
+ * Signed with the publisher's key when the build is asked to (src/publisher.ts).
  */
 async function writeAppManifest(
   root: string,
   directory: string,
-  { buildId, builtins }: { buildId: string; builtins: string[] },
+  {
+    buildId,
+    builtins,
+    publisher,
+  }: { buildId: string; builtins: string[]; publisher?: PublisherKey },
 ) {
   const code = await readFile(join(directory, "index.cjs"), "utf8");
   const packageFile = Bun.file(join(root, "package.json"));
@@ -107,7 +117,10 @@ async function writeAppManifest(
     builtins,
     capabilities,
   };
-  await Bun.write(join(directory, APP_MANIFEST), JSON.stringify(manifest, null, 2));
+  await Bun.write(
+    join(directory, APP_MANIFEST),
+    JSON.stringify(publisher ? signManifest(manifest, publisher) : manifest, null, 2),
+  );
 }
 /** `name` or `@scope/name`: the directories a package owns below `node_modules/`. */
 const packageDepth = (name: string) => (name.startsWith("@") ? 2 : 1);
@@ -163,8 +176,9 @@ function packageOfFile(file: string) {
 export async function build(
   directory: string,
   output = join(directory, ".airtty"),
-  { appBundle = "auto" }: BuildOptions = {},
+  { appBundle: wanted = "auto", signBundle }: BuildOptions = {},
 ) {
+  const appBundle = signBundle ? "required" : wanted;
   const root = await realpath(directory),
     modules = new Map<string, Module>();
   const { serverPackages } = await readConfig(root);
@@ -832,7 +846,11 @@ export async function build(
       ),
     );
     if (!appSkipped)
-      await writeAppManifest(root, join(temp, "app"), { buildId, builtins: appBuiltins });
+      await writeAppManifest(root, join(temp, "app"), {
+        buildId,
+        builtins: appBuiltins,
+        publisher: signBundle,
+      });
     // Failed builds never touch the active artefacts.
     const backup = output + "-previous";
     await rm(backup, { recursive: true, force: true });

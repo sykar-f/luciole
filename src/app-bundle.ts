@@ -28,6 +28,7 @@ import * as AirttyRouteTree from "./route-tree";
 import { ABI_KEY, APP_MANIFEST, AppManifest, type AbiSpecifier } from "./abi";
 import { connect } from "./connect";
 import { InstanceKey } from "./instance";
+import { verifyManifest } from "./publisher";
 import type { Application, ApplicationOptions } from "./client";
 
 /** What each ABI specifier is in this runtime: the modules this very copy runs. */
@@ -52,6 +53,8 @@ const requireBuiltin = createRequire(import.meta.url);
 type Actions = { bind: (app: Application) => void };
 export type AppBundle = {
   manifest: AppManifest;
+  /** Fingerprint of the key that signed the manifest; `undefined` when unsigned. */
+  publisher: string | undefined;
   buildId: string;
   routeTree: AnyRoute;
   modules: ReadonlyMap<string, Record<string, unknown>>;
@@ -68,7 +71,21 @@ const isActions = (value: unknown): value is Actions =>
  * Reads and checks the bundle in `directory` (its manifest, its ABI, its hash), then
  * evaluates it: a new module instance on every call. Undeclared built-ins are refused.
  */
-export async function loadAppBundle(directory: string): Promise<AppBundle> {
+/**
+ * What a host asks of a bundle's publisher. Step 5 (generic Client) passes
+ * `{ required: true, trust }` for a downloaded bundle, `trust` pinning the key per origin
+ * on first use and refusing a changed one; a local bundle may be unsigned.
+ */
+export type PublisherCheck = {
+  /** Refuse an unsigned manifest. */
+  required?: boolean;
+  /** Called with the verified key's fingerprint, before any evaluation; throws to refuse. */
+  trust?: (fingerprint: string, manifest: AppManifest) => void | Promise<void>;
+};
+export async function loadAppBundle(
+  directory: string,
+  { publisher }: { publisher?: PublisherCheck } = {},
+): Promise<AppBundle> {
   const manifestFile = join(directory, APP_MANIFEST);
   const manifestBlob = Bun.file(manifestFile);
   if (!(await manifestBlob.exists()))
@@ -79,6 +96,11 @@ export async function loadAppBundle(directory: string): Promise<AppBundle> {
   const parsed = AppManifest.safeParse(await manifestBlob.json());
   if (!parsed.success) throw new Error(`${manifestFile}: ${z.prettifyError(parsed.error)}`);
   const manifest = parsed.data;
+  // Signed right or refused; unsigned only if the host accepts it (src/publisher.ts).
+  const fingerprint = verifyManifest(manifest);
+  if (!fingerprint && publisher?.required)
+    throw new Error(`${directory}: the manifest is not signed by its publisher`);
+  if (fingerprint) await publisher?.trust?.(fingerprint, manifest);
   if (manifest.abi !== ABI_KEY)
     throw new Error(
       `${directory}: built for runtime ABI ${manifest.abi}, this Client runs ${ABI_KEY}: rebuild the application or update the Client`,
@@ -112,6 +134,7 @@ export async function loadAppBundle(directory: string): Promise<AppBundle> {
     if (isRecord(value)) modules.set(id, value);
   return {
     manifest,
+    publisher: fingerprint,
     buildId: manifest.buildId,
     routeTree: exported.routeTree,
     modules,
@@ -129,6 +152,8 @@ export type OpenApplicationOptions = Omit<
   url: string;
   /** The pane's instance key; a new one by default. */
   instance?: string;
+  /** What the bundle's signature must satisfy (`PublisherCheck`); by default none. */
+  publisher?: PublisherCheck;
 };
 const INSTANCE_BYTES = 4;
 const HEX = 16;
@@ -141,9 +166,9 @@ const newInstance = () =>
  * the Application closes that connection.
  */
 export async function openApplication(options: OpenApplicationOptions): Promise<Application> {
-  const { bundle, url, instance = newInstance(), ...rest } = options;
+  const { bundle, url, instance = newInstance(), publisher, ...rest } = options;
   InstanceKey.parse(instance);
-  const loaded = await loadAppBundle(bundle);
+  const loaded = await loadAppBundle(bundle, { publisher });
   const connection = await connect(url);
   try {
     const app = AirttyClient.createApplication({

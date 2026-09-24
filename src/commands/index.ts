@@ -4,6 +4,7 @@ import { build } from "./build";
 import { dev } from "./dev";
 import { devtools } from "./devtools";
 import { init } from "./init";
+import { keys } from "./keys";
 import { launch } from "./launch";
 import { pack } from "./pack";
 import { runtime } from "./runtime";
@@ -17,6 +18,7 @@ export const commands: ReadonlyMap<string, Command> = new Map([
   ["dev", dev],
   ["devtools", devtools],
   ["build", build],
+  ["keys", keys],
   ["runtime", runtime],
   ["start", start],
   ["connect", connect],
