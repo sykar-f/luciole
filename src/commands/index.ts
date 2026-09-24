@@ -8,6 +8,7 @@ import { keys } from "./keys";
 import { launch } from "./launch";
 import { pack } from "./pack";
 import { runtime } from "./runtime";
+import { trust } from "./trust";
 import { connect, start } from "./start";
 /**
  * Every `airtty` subcommand, by name. A new one is a module in this directory and one
@@ -19,6 +20,7 @@ export const commands: ReadonlyMap<string, Command> = new Map([
   ["devtools", devtools],
   ["build", build],
   ["keys", keys],
+  ["trust", trust],
   ["runtime", runtime],
   ["start", start],
   ["connect", connect],

@@ -81,6 +81,7 @@ beforeAll(async () => {
   directories = {
     apps: join(work, "data/apps"),
     git: join(work, "cache/git"),
+    bundles: join(work, "cache/bundles"),
     config: join(work, "config"),
     state: join(work, "state"),
   };
@@ -285,8 +286,9 @@ test("targets resolve in order: path, installed app, npm spec, git source, Serve
     kind: "url",
     url: "https://notes.example.com",
   });
+  // Not chosen inline: refused before any request reaches the Server.
   expect(
     messageOf(await rejectionOf(launch("https://notes.example.com", { directories }))),
-  ).toContain("not supported yet");
+  ).toContain("airtty https://notes.example.com --inline");
   expect(() => resolveTarget("examples/notes", at)).toThrow("start it with ./");
 });

@@ -78,3 +78,22 @@ export function undeclaredUses(builtins: readonly string[], caps: Capabilities) 
       : [];
   });
 }
+
+/** The capabilities `caps` declares, one name each, for what a host shows the user. */
+export function granted(caps: Capabilities): string[] {
+  const names: string[] = [];
+  if (caps.fs.read.length) names.push(`fs.read ${caps.fs.read.join(" ")}`);
+  if (caps.fs.write.length) names.push(`fs.write ${caps.fs.write.join(" ")}`);
+  if (caps.net.length) names.push(`net ${caps.net.join(" ")}`);
+  if (caps.exec === true) names.push("exec");
+  else if (caps.exec !== false && caps.exec.length) names.push(`exec ${caps.exec.join(" ")}`);
+  if (caps.pty) names.push("pty");
+  if (caps.clipboard.read) names.push("clipboard.read");
+  if (caps.clipboard.write) names.push("clipboard.write");
+  if (caps.notify) names.push("notify");
+  if (caps.openUrl) names.push("open-url");
+  if (caps.secrets.length) names.push(`secrets ${caps.secrets.join(" ")}`);
+  if (caps.inputGlobal) names.push("input.global");
+  if (caps.tabsMessage) names.push("tabs.message");
+  return names;
+}

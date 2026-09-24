@@ -1,0 +1,156 @@
+import { test, expect, spyOn } from "bun:test";
+import { existsSync, lstatSync } from "node:fs";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
+import { loadAppBundle } from "../src/app-bundle";
+import { build } from "../src/build";
+import { messageOf } from "../src/guards";
+import { urlArgs } from "../src/generic/launch";
+import {
+  originDirectory,
+  originOf,
+  originSessions,
+  pinPublisher,
+  readOrigin,
+} from "../src/generic/origin";
+import { INLINE_WARNING, prepareOrigin } from "../src/generic/prepare";
+import { directories } from "../src/launcher/paths";
+import { generatePublisherKey, publisherIdentity, readPublisherKey } from "../src/publisher";
+import { launch, rejectionOf } from "./helpers";
+
+test("an origin is the URL the user gave, normalized", () => {
+  expect(originOf("http://127.0.0.1:4000/some/path?q=1")).toBe("http://127.0.0.1:4000");
+  expect(originOf("https://Notes.Example.com/")).toBe("https://notes.example.com");
+  expect(originOf("ssh://ada@Host.example:2222/run/notes.sock")).toBe(
+    "ssh://ada@host.example:2222/run/notes.sock",
+  );
+  expect(() => originOf("unix:/tmp/x.sock")).toThrow("http(s):// or ssh://");
+  expect(originSessions("http://a")).toMatch(/^origins\/[0-9a-f]{64}$/);
+});
+
+test("a URL launch takes more URLs as tabs and --inline, nothing else", () => {
+  expect(urlArgs("http://a", ["--inline", "https://b"])).toEqual({
+    urls: ["http://a", "https://b"],
+    inline: true,
+  });
+  expect(() => urlArgs("http://a", ["--url", "x"])).toThrow("--inline");
+});
+
+const latency = resolve("examples/latency");
+async function temporary(prefix: string) {
+  return mkdtemp(join(tmpdir(), prefix));
+}
+
+test("prepareOrigin: signature, first-use pin, explicit inline, cache, changed key", async () => {
+  const home = await temporary("airtty-generic-");
+  const env: NodeJS.ProcessEnv = {
+    ...process.env,
+    HOME: home,
+    XDG_CONFIG_HOME: join(home, "config"),
+    XDG_STATE_HOME: join(home, "state"),
+    XDG_CACHE_HOME: join(home, "cache"),
+  };
+  const dirs = directories(env);
+  const logs: string[] = [];
+  const questions: string[] = [];
+  let answer = true;
+  const options = (inline: boolean) => ({
+    inline,
+    directories: dirs,
+    env,
+    log: (m: string) => void logs.push(m),
+    confirm: (q: string) => {
+      questions.push(q);
+      return Promise.resolve(answer);
+    },
+  });
+  const buildSigned = async (keysHome: string) => {
+    const keyEnv = { ...env, XDG_CONFIG_HOME: keysHome };
+    if (!existsSync(join(keysHome, "airtty/keys/publisher.pem"))) generatePublisherKey(keyEnv);
+    const key = readPublisherKey(keyEnv);
+    await build(latency, undefined, { signBundle: key });
+    return publisherIdentity(key).fingerprint;
+  };
+  const server = join(latency, ".airtty/server/index.js");
+  let running = await launch(server);
+  try {
+    // Restarted on its port: one origin across rebuilds, as a deployed Server keeps its URL.
+    const port = String(running.port);
+    const restart = async () => {
+      await running.stop();
+      running = await launch(server, { PORT: port });
+    };
+    const fingerprint = await buildSigned(join(home, "publisher-a"));
+    await restart();
+    const url = running.url;
+    const origin = originOf(url);
+
+    // Nothing opens without the user choosing inline: the sandbox does not exist yet.
+    expect(messageOf(await rejectionOf(prepareOrigin(url, options(false))))).toContain(
+      `airtty ${url} --inline`,
+    );
+    // Declined at the first-use question: nothing pinned.
+    answer = false;
+    expect(messageOf(await rejectionOf(prepareOrigin(url, options(true))))).toContain("not opened");
+    expect(readOrigin(origin, env)).toBeUndefined();
+
+    answer = true;
+    const bundleRequests = () =>
+      fetchSpy.mock.calls.filter(([input]) =>
+        (input instanceof Request ? input.url : input.toString()).includes("/bundle/"),
+      ).length;
+    const fetchSpy = spyOn(globalThis, "fetch");
+    try {
+      const prepared = await prepareOrigin(url, options(true));
+      expect(questions.at(-1)).toContain(`trust publisher key ${fingerprint}`);
+      expect(logs.join("\n")).toContain(INLINE_WARNING);
+      expect(logs.join("\n")).toContain("Capacités déclarées (non appliquées) : aucune");
+      const record = readOrigin(origin, env);
+      expect(record?.publisher?.fingerprint).toBe(fingerprint);
+      expect(record?.mode).toBe("inline");
+      expect(prepared.app).toBe(join(originDirectory(origin, env), "app"));
+      expect(lstatSync(join(prepared.app, "index.cjs")).isSymbolicLink()).toBe(true);
+      const loaded = await loadAppBundle(prepared.app, {
+        publisher: {
+          required: true,
+          trust: (f) => {
+            expect(f).toBe(fingerprint);
+          },
+        },
+      });
+      expect(loaded.manifest.name).toBe("latency");
+      expect(bundleRequests()).toBe(1);
+
+      // Remembered: no flag, no question, and the bundle comes from the cache.
+      const asked = questions.length;
+      await prepareOrigin(url, options(false));
+      expect(questions.length).toBe(asked);
+      expect(bundleRequests()).toBe(1);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+
+    // Another key for the same origin: refused, with the out-of-band way to accept it.
+    const rotated = await buildSigned(join(home, "publisher-b"));
+    await restart();
+    const refused = messageOf(await rejectionOf(prepareOrigin(url, options(true))));
+    expect(refused).toContain("publisher key changed");
+    expect(refused).toContain(`airtty trust ${origin} ${rotated}`);
+    pinPublisher(origin, rotated, env);
+    await prepareOrigin(url, options(false));
+    expect(readOrigin(origin, env)?.publisher?.fingerprint).toBe(rotated);
+    expect(() => pinPublisher(origin, "not-a-fingerprint", env)).toThrow("SHA256");
+
+    // An unsigned bundle is never opened by URL.
+    await build(latency);
+    await restart();
+    expect(messageOf(await rejectionOf(prepareOrigin(url, options(true))))).toContain(
+      "not signed by its publisher",
+    );
+  } finally {
+    await running.stop();
+    await build(latency);
+    await rm(home, { recursive: true, force: true });
+  }
+}, 120_000);

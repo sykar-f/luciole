@@ -10,7 +10,8 @@ const YES = "--yes";
  * target, the launcher UI opens.
  */
 export const launch: Command = {
-  usage: "[<path | app | npm spec | git source> [--yes] [--url url]]",
+  usage:
+    "[<path | app | npm spec | git source> [--yes] [--url url] | <server url…> [--inline] [--yes]]",
   async run({ args }) {
     const [target, ...rest] = args;
     const confirm = rest.includes(YES) ? { confirm: acceptAll } : {};

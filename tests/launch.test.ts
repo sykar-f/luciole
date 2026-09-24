@@ -131,7 +131,7 @@ test("the CLI explains what it cannot launch", () => {
     return { code: result.exitCode, stderr: result.stderr.toString() };
   };
   expect(airtty("https://notes.example.com")).toMatchObject({ code: 1 });
-  expect(airtty("https://notes.example.com").stderr).toContain("not supported yet");
+  expect(airtty("https://notes.example.com").stderr).toContain("--inline");
   expect(airtty("./no-such-app").stderr).toContain("is not an airtty app");
   expect(airtty("examples/notes").stderr).toContain("start it with ./");
   expect(airtty("--nope").stderr).toContain("Usage: airtty");

@@ -6,7 +6,8 @@
  *   3. an npm spec (`@scope/notes@1.2`, `notes@^1`): installed if needed, then run;
  *   4. a git source (`github:user/repo#ref/dir`, `https://github.com/…`, `git+ssh://…`):
  *      fetched, trusted, built, then run locally;
- *   5. a Server URL (`http(s)://`, `ssh://`): not yet, there is no generic Client.
+ *   5. a Server URL (`http(s)://`, `ssh://`): its signed bundle, opened by the generic
+ *      Client (src/generic), inline only when the user says so (`--inline`).
  *
  * Arguments after the target go to the app: `--url` makes it a Client of that Server;
  * an app binary also takes `--on host` and `serve`.
@@ -14,6 +15,7 @@
 import { existsSync } from "node:fs";
 import { basename, join } from "node:path";
 import { build } from "../build";
+import { launchUrls } from "../generic/launch";
 import { readBuildId } from "../compile";
 import { binaryOf, findInstalled, install, listInstalled } from "../registry/apps";
 import { npmRegistry } from "../registry/npm";
@@ -117,11 +119,8 @@ export async function launch(target: string, options: LaunchOptions = {}): Promi
       return runBuilt(directory, basename(directory), { ...parsed, sessionKey }, options);
     }
     case "url":
-      throw new Error(
-        `${resolution.url}: launching from a Server URL is not supported yet ` +
-          "(no generic Client). Run the app's own Client against it: " +
-          `airtty <app> --url ${resolution.url}`,
-      );
+      // The generic Client: the app comes from its Server (src/generic).
+      return launchUrls(resolution.url, { ...options, directories, log, confirm });
     case "installed": {
       const installed = await findInstalled(directories, resolution.name);
       if (!installed) throw new Error(`${target} is not installed`);

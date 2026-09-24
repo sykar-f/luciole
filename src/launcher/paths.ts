@@ -1,6 +1,7 @@
 /**
  * Where the launcher keeps things, by the XDG base directories: installed apps are data
- * (`~/.local/share`), git checkouts and builds a cache (`~/.cache`, safe to delete), the
+ * (`~/.local/share`), git checkouts, builds and downloaded bundles a cache (`~/.cache`,
+ * safe to delete), the
  * trust the user granted is configuration (`~/.config`), Server logs are state.
  */
 import { homedir } from "node:os";
@@ -11,6 +12,8 @@ export type Directories = {
   apps: string;
   /** `$XDG_CACHE_HOME/airtty/git`: checkouts and builds of git sources. */
   git: string;
+  /** `$XDG_CACHE_HOME/airtty/bundles`: application bundles downloaded by URL, by hash. */
+  bundles: string;
   /** `$XDG_CONFIG_HOME/airtty`: trust.json. */
   config: string;
   /** `$XDG_STATE_HOME/airtty`: `<app>/server.log`, next to the Client's sessions. */
@@ -24,6 +27,7 @@ export function directories(env: NodeJS.ProcessEnv = process.env): Directories {
   return {
     apps: join(base("XDG_DATA_HOME", ".local/share"), "apps"),
     git: join(base("XDG_CACHE_HOME", ".cache"), "git"),
+    bundles: join(base("XDG_CACHE_HOME", ".cache"), "bundles"),
     config: base("XDG_CONFIG_HOME", ".config"),
     state: base("XDG_STATE_HOME", ".local/state"),
   };

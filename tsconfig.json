@@ -8,6 +8,7 @@
     "src/devtools/airtty-devtools",
     "probes/vt-embed",
     "probes/devtools-tanstack",
-    "src/launcher/airtty"
+    "src/launcher/airtty",
+    "src/generic/browser"
   ]
 }
