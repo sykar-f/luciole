@@ -225,6 +225,12 @@ export type Fetch = (input: URL, init: RequestInit) => Promise<Response>;
 export type HttpTransportOptions = {
   url: string;
   buildId: string;
+  /**
+   * The pane's instance key, sent as `x-airtty-instance`: the Server prefixes the Client
+   * Reference ids it writes with it (`<key>@<buildId>/<path>`). Set by a host, never by
+   * an application.
+   */
+  instance?: string;
   token?: string;
   timeoutMs?: number;
   /** Additional simulated round-trip latency for every application request. */
@@ -316,6 +322,7 @@ export function createHttpTransport(options: HttpTransportOptions): Transport {
     const headers = new Headers(init.headers);
     headers.set("x-airtty-build", options.buildId);
     headers.set("x-airtty-call", tag.callId);
+    if (options.instance) headers.set("x-airtty-instance", options.instance);
     if (token) headers.set("authorization", `Bearer ${token}`);
     const deadline = new AbortController();
     const timer = setTimeout(

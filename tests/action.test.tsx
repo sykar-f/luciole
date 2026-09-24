@@ -6,7 +6,7 @@ import { testRender } from "@opentui/react/test-utils";
 import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
 import { z } from "zod";
-import { decode, encodeReply, installResolver } from "../src/flight/client";
+import { decode, encodeReply, registerModules } from "../src/flight/client";
 import { isReactNode } from "../src/transport";
 import { destroy, type TestUI } from "./helpers";
 // The first line tests/action-server.ts prints.
@@ -63,7 +63,7 @@ test("milestone 1: Flight action via HTTP, local typing, refresh without remount
         />
       );
     }
-    installResolver(() => ({ Editor }));
+    registerModules("", () => ({ Editor }));
     const initial = await load();
     function Shell() {
       const [tree, setTree] = useState<ReactNode>(initial);

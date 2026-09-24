@@ -22,7 +22,8 @@ import {
   type AnyRouter,
   type RouterHistory,
 } from "@tanstack/react-router";
-import { installResolver, createServerReference, type ModuleResolver } from "./flight/client";
+import { registerModules, createServerReference, type ModuleResolver } from "./flight/client";
+import { InstanceKey } from "./instance";
 import { readNotFound } from "./not-found";
 import { connect, serverUrl } from "./connect";
 import { messageOf } from "./guards";
@@ -118,6 +119,13 @@ export type ApplicationOptions = {
   url: string;
   buildId: string;
   resolveModule: ModuleResolver;
+  /**
+   * The pane's instance key (`[a-z0-9-]{1,32}`), for a host that shows several
+   * Applications in one process: two panes of one build keep their own modules. Sent as
+   * `x-airtty-instance`; set by the host, never by the application. Without it, the
+   * Client is the single Application it has always been.
+   */
+  instance?: string;
   /** `routeTree` exported by the generated `app/routeTree.gen.ts`. */
   routeTree: AnyRoute;
   token?: string;
@@ -151,12 +159,27 @@ function installTerminalGlobals() {
   if (!("scrollTo" in globalThis)) Object.assign(globalThis, { scrollTo: () => {} });
 }
 
-let current: Application;
-export function actionReference(id: string) {
-  return createServerReference(id, (key: string, args: unknown[]) => {
-    if (!current) throw new Error("Application not mounted");
-    return current.callServer(key, args);
-  });
+/**
+ * The Server Functions one bundle evaluation imports ("use server" modules reached from
+ * Client Components), bound to the Application that evaluation created. The build emits
+ * one binding per bundle (`airtty:actions`): the runtime holds no Application of its own,
+ * so a runtime shared by several bundles (the generic Client) never sends a pane's call
+ * through another pane (docs/EMBEDDING.md, O2). References decoded from Flight carry
+ * their response's Application already.
+ */
+export function createActions() {
+  let application: Application | undefined;
+  return {
+    reference: (id: string) =>
+      createServerReference(id, (key: string, args: unknown[]) => {
+        if (!application) throw new Error("Application not mounted");
+        return application.callServer(key, args);
+      }),
+    /** The latest Application of this evaluation receives its imported calls. */
+    bind: (app: Application) => {
+      application = app;
+    },
+  };
 }
 
 /** What TanStack's `onResolved` tells of the location it resolved. */
@@ -221,12 +244,14 @@ export class Application {
       : undefined;
     this.restoration = new Restoration(restored);
     installTerminalGlobals();
-    installResolver(options.resolveModule);
+    if (options.instance !== undefined) InstanceKey.parse(options.instance);
+    registerModules(options.instance ?? "", options.resolveModule);
     const inner =
       options.transport ??
       createHttpTransport({
         url: options.url,
         buildId: options.buildId,
+        instance: options.instance,
         token: options.token,
         timeoutMs: options.timeoutMs,
         latencyMs: options.latencyMs,
@@ -276,10 +301,6 @@ export class Application {
       this.purgeAfterLoad = false;
       this.router.clearCache();
     });
-    // Generated action proxies are module-level functions with no React context: they reach
-    // the one Application of this process through `current`, set by its constructor.
-    // oxlint-disable-next-line typescript/no-this-alias -- the process-wide registration above.
-    current = this;
     this.restoration.sync(this.history);
   }
   subscribe = (f: () => void) => {

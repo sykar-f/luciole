@@ -5,6 +5,7 @@ import { z } from "zod";
 import { decodeReply, renderToReadableStream } from "./flight/server";
 import { isAsyncIterable, messageOf } from "./guards";
 import { managedLifetime } from "./launcher/lifetime";
+import { INSTANCE_HEADER, InstanceKey, instanceManifests } from "./instance";
 import { NotFoundError } from "./not-found";
 import type { CacheHandler } from "./cache/handler";
 import { renderPage } from "./cache/render";
@@ -268,6 +269,7 @@ export function serve(config: ServerConfig) {
     callId: getCallId,
   });
   const metrics = { renders: 0, actions: 0 };
+  const manifestFor = instanceManifests(config.manifest);
   // `failed` hears a handler's exception before it becomes the generic 500.
   async function handle(req: Request, url: URL, callId: string, failed?: (error: unknown) => void) {
     const arrived = performance.now();
@@ -283,6 +285,12 @@ export function serve(config: ServerConfig) {
         return new Response("Incompatible build: install matching Client and Server", {
           status: STATUS.conflict,
         });
+      // A pane of a multi-pane host: its Client References carry its key (docs/EMBEDDING.md).
+      const instance = req.headers.get(INSTANCE_HEADER);
+      const key = instance === null ? undefined : InstanceKey.safeParse(instance);
+      if (key && !key.success)
+        return new Response("Invalid instance key", { status: STATUS.badRequest });
+      const manifest = manifestFor(key?.data);
       const unauthorized = () =>
         new Response("Authentication required", {
           status: STATUS.unauthorized,
@@ -307,7 +315,7 @@ export function serve(config: ServerConfig) {
           metrics.renders++;
           const tree = React.createElement(route.component, { params, searchParams });
           // `{ tree, tags }`: the cache tags the page read follow it (docs/CACHE.md).
-          const body = renderPage(tree, (model) => renderToReadableStream(model, config.manifest));
+          const body = renderPage(tree, (model) => renderToReadableStream(model, manifest));
           return new Response(body, {
             headers: {
               "content-type": "text/x-component",
@@ -359,7 +367,7 @@ export function serve(config: ServerConfig) {
                 invalidate: [...invalidations],
                 tags: [...purges.keys()],
               },
-              config.manifest,
+              manifest,
             ),
             {
               headers: {
