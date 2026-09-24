@@ -14,10 +14,12 @@
 import { existsSync } from "node:fs";
 import { basename, join } from "node:path";
 import { build } from "../build";
+import { readBuildId } from "../compile";
 import { binaryOf, findInstalled, install, listInstalled } from "../registry/apps";
 import { npmRegistry } from "../registry/npm";
 import type { Registry } from "../registry/registry";
-import { ATTACHED_FLAG } from "./attach";
+import { DEFAULT_GRACE_MS, parseDuration } from "./lifetime";
+import { serverId } from "./managed";
 import { prepareGitApp } from "./git";
 import { runForeground, runLocal } from "./local";
 import { directories as defaultDirectories, type Directories } from "./paths";
@@ -27,7 +29,7 @@ import { resolveTarget } from "./target";
 export { resolveTarget, type Resolution } from "./target";
 
 export type LaunchOptions = {
-  /** For the app: `--url <url>`, or an app binary's own arguments. */
+  /** For the app: `--url`, `--grace`, or an app binary's own arguments. */
   args?: readonly string[];
   directories?: Directories;
   registry?: Registry;
@@ -38,39 +40,44 @@ export type LaunchOptions = {
   env?: NodeJS.ProcessEnv;
 };
 
-/** `--url <url>` only: a built directory has no binary to take `--on` or `serve`. */
-function clientArgs(args: readonly string[]) {
-  if (!args.length) return undefined;
-  const [flag, url, ...rest] = args;
-  if (flag !== "--url" || !url || rest.length)
-    throw new Error(
-      `A built app takes --url <url> only (got ${args.join(" ")}); ` +
-        "for --on or serve, compile it: airtty build --compile",
-    );
-  return url;
+/**
+ * `--url <url>` (Client only) and `--grace <duration>` (how long a local Server waits
+ * for its Client to come back): a built directory has no binary to take `--on` or `serve`.
+ */
+export function builtArgs(args: readonly string[]) {
+  let url: string | undefined;
+  let graceMs = DEFAULT_GRACE_MS;
+  for (let i = 0; i < args.length; i += 2) {
+    const [flag, value] = [args[i], args[i + 1]];
+    if (flag === "--url" && value) url = value;
+    else if (flag === "--grace" && value) graceMs = parseDuration(value);
+    else
+      throw new Error(
+        `A built app takes --url <url> and --grace <duration> (got ${args.join(" ")}); ` +
+          "for --on or serve, compile it: airtty build --compile",
+      );
+  }
+  return { url, graceMs };
 }
 
 /** Runs a directory holding `.airtty/` (from `airtty build`): locally, or as a Client. */
 async function runBuilt(
   directory: string,
   name: string,
-  { url, sessionKey }: { url: string | undefined; sessionKey: string },
+  { url, graceMs, sessionKey }: ReturnType<typeof builtArgs> & { sessionKey: string },
   options: LaunchOptions,
 ) {
   const bun = process.execPath;
   const client = [bun, join(directory, ".airtty/client/index.js")];
   if (url) return runForeground([...client, "--url", url], options.env);
   return runLocal({
+    id: serverId(sessionKey),
     name,
+    buildId: await readBuildId(join(directory, ".airtty")),
+    graceMs,
     directories: options.directories ?? defaultDirectories(),
     env: options.env,
-    command: () => [
-      bun,
-      "--conditions=react-server",
-      join(import.meta.dir, "serve.ts"),
-      join(directory, ".airtty/server/index.js"),
-      ATTACHED_FLAG,
-    ],
+    command: [bun, "--conditions=react-server", join(directory, ".airtty/server/index.js")],
     client,
     sessionKey,
   });
@@ -85,7 +92,7 @@ export async function launch(target: string, options: LaunchOptions = {}): Promi
   switch (resolution.kind) {
     case "path": {
       // Arguments are checked before a build, which takes a while.
-      const url = clientArgs(options.args ?? []);
+      const parsed = builtArgs(options.args ?? []);
       if (!existsSync(join(resolution.directory, "app")))
         throw new Error(`${resolution.directory} is not an airtty app (no app/ directory)`);
       await build(resolution.directory);
@@ -93,12 +100,12 @@ export async function launch(target: string, options: LaunchOptions = {}): Promi
         resolution.directory,
         basename(resolution.directory),
         // The app, wherever its Server's socket is this time.
-        { url, sessionKey: `local:${resolution.directory}` },
+        { ...parsed, sessionKey: `local:${resolution.directory}` },
         options,
       );
     }
     case "git": {
-      const url = clientArgs(options.args ?? []);
+      const parsed = builtArgs(options.args ?? []);
       const { directory } = await prepareGitApp(resolution.source, {
         directories,
         confirm,
@@ -107,7 +114,7 @@ export async function launch(target: string, options: LaunchOptions = {}): Promi
       const { url: repository, directory: inside } = resolution.source;
       // The repository, not its checkout: a new commit restores the same sessions.
       const sessionKey = `git:${repository}${inside ? `/${inside}` : ""}`;
-      return runBuilt(directory, basename(directory), { url, sessionKey }, options);
+      return runBuilt(directory, basename(directory), { ...parsed, sessionKey }, options);
     }
     case "url":
       throw new Error(

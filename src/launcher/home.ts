@@ -8,11 +8,13 @@
 import { readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { build } from "../build";
+import { readBuildId } from "../compile";
 import { socketDirectory } from "../connect";
 import { messageOf } from "../guards";
-import { ATTACHED_FLAG } from "./attach";
 import { launch, type LaunchOptions } from "./index";
 import { runLocal } from "./local";
+import { DEFAULT_GRACE_MS } from "./lifetime";
+import { serverId } from "./managed";
 import { directories as defaultDirectories } from "./paths";
 
 const APP = join(import.meta.dir, "airtty");
@@ -21,6 +23,7 @@ export async function openLauncher(options: LaunchOptions = {}) {
   const directories = options.directories ?? defaultDirectories(options.env);
   const bun = process.execPath;
   await build(APP);
+  const buildId = await readBuildId(join(APP, ".airtty"));
   let notice: string | undefined;
   for (;;) {
     const handoff = socketDirectory("airtty-home-");
@@ -34,13 +37,10 @@ export async function openLauncher(options: LaunchOptions = {}) {
           AIRTTY_LAUNCHER_HANDOFF: choice,
           ...(notice ? { AIRTTY_LAUNCHER_NOTICE: notice } : {}),
         },
-        command: () => [
-          bun,
-          "--conditions=react-server",
-          join(import.meta.dir, "serve.ts"),
-          join(APP, ".airtty/server/index.js"),
-          ATTACHED_FLAG,
-        ],
+        id: serverId("local:airtty"),
+        buildId,
+        graceMs: DEFAULT_GRACE_MS,
+        command: [bun, "--conditions=react-server", join(APP, ".airtty/server/index.js")],
         client: [bun, join(APP, ".airtty/client/index.js")],
         sessionKey: "local:airtty",
       });

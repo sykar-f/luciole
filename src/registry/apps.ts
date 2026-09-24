@@ -13,6 +13,7 @@ import { chmod, mkdir, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
 import { hostTarget } from "../compile";
+import { checksums, SUMS } from "../launcher/bundle";
 import { readBinaryIdentity } from "../launcher/identity";
 import { withLock } from "../launcher/lock";
 import { checkAppName, type Directories } from "../launcher/paths";
@@ -88,28 +89,30 @@ async function place(release: Release, spec: PackageSpec, options: InstallOption
     return { installed, changed: false };
   }
   log(`Downloading ${release.package}@${release.version} for ${target}…`);
-  const bytes = await registry.download(release, target);
+  // Downloaded aside, checked, then swapped in whole, with its SHA256SUMS.
   const build = join(directory, release.app.buildId);
-  await mkdir(build, { recursive: true });
-  const temporary = join(build, `.${app}.${process.pid}`);
-  await writeFile(temporary, bytes);
-  await chmod(temporary, EXECUTABLE);
-  const identity = await readBinaryIdentity(temporary).catch(async (error: unknown) => {
-    await rm(temporary, { force: true });
-    throw error;
-  });
-  if (
-    identity.name !== app ||
-    identity.buildId !== release.app.buildId ||
-    identity.target !== target
-  ) {
-    await rm(temporary, { force: true });
-    throw new Error(
-      `${release.package}@${release.version} for ${target} holds ${identity.name} ` +
-        `${identity.buildId} for ${identity.target}, not what its package.json declares`,
-    );
+  const staging = `${build}.new.${process.pid}`;
+  await rm(staging, { recursive: true, force: true });
+  await mkdir(directory, { recursive: true });
+  try {
+    await registry.download(release, target, staging);
+    await chmod(join(staging, app), EXECUTABLE);
+    const identity = await readBinaryIdentity(join(staging, app));
+    if (
+      identity.name !== app ||
+      identity.buildId !== release.app.buildId ||
+      identity.target !== target
+    )
+      throw new Error(
+        `${release.package}@${release.version} for ${target} holds ${identity.name} ` +
+          `${identity.buildId} for ${identity.target}, not what its package.json declares`,
+      );
+    await writeFile(join(staging, SUMS), await checksums(staging));
+    await rm(build, { recursive: true, force: true });
+    await rename(staging, build);
+  } finally {
+    await rm(staging, { recursive: true, force: true });
   }
-  await rename(temporary, join(build, app));
   const installed: Installed = {
     app,
     package: release.package,

@@ -47,6 +47,10 @@ export interface Registry {
   search(text: string): Promise<readonly Listing[]>;
   /** The newest release `spec` designates now. */
   resolve(spec: PackageSpec): Promise<Release>;
-  /** The release's binary for `target`, verified against what the registry published. */
-  download(release: Release, target: string): Promise<Uint8Array>;
+  /**
+   * Writes the release's build for `target` into `directory` (which must not exist):
+   * `<app>` and, for an app with native packages, `native/`; verified against what the
+   * registry published.
+   */
+  download(release: Release, target: string, directory: string): Promise<void>;
 }

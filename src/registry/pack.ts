@@ -1,11 +1,13 @@
 /**
  * Turns an app's binaries into npm packages (src/registry/npm.ts): one per target,
- * holding `bin/<app>` and declaring its `os`/`cpu`/`libc`, and the app's own package
+ * holding `bin/<app>` (and `bin/native/` when the app has native packages) and declaring
+ * its `os`/`cpu`/`libc`, and the app's own package
  * whose `airtty` field maps each target to it. Publish the platform packages first:
  * the app's package refers to them.
  */
-import { chmod, copyFile, mkdir, rm } from "node:fs/promises";
-import { join } from "node:path";
+import { chmod, copyFile, cp, mkdir, rm } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import { NATIVE_DIRECTORY, nativeTarget } from "../native";
 import { readBinaryIdentity, type BinaryIdentity } from "../launcher/identity";
 import { APP_KEYWORD } from "./npm";
 import { parsePackageSpec, type AppField } from "./registry";
@@ -59,6 +61,17 @@ export async function packApp(options: PackOptions) {
     await mkdir(join(directory, "bin"), { recursive: true });
     await copyFile(file, join(directory, "bin", name));
     await chmod(join(directory, "bin", name), EXECUTABLE);
+    // An app with native packages ships them next to its binary (src/compile.ts).
+    const native = join(dirname(file), NATIVE_DIRECTORY);
+    const nativeFor = nativeTarget(native);
+    if (nativeFor !== undefined) {
+      if (nativeFor !== identity.target)
+        throw new Error(`${native} is for ${nativeFor}, not ${identity.target}`);
+      await cp(native, join(directory, "bin", NATIVE_DIRECTORY), {
+        recursive: true,
+        dereference: true,
+      });
+    }
     await Bun.write(
       join(directory, "package.json"),
       JSON.stringify(

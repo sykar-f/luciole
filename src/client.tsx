@@ -926,6 +926,9 @@ export async function run(
   session.flush(app.restoration.snapshot());
   app.restoration.subscribe(() => session.schedule(app.restoration.snapshot()));
   if (supervised) app.onTokenChange((token) => supervised({ type: "bearer", token }));
+  // Nothing reconnects by itself, but a managed Server's tunnel does (src/launcher): the
+  // status follows it, Disconnected then Connected, the Client's state kept.
+  connection.managed?.watch(() => void app.refresh());
   process.on("message", (received: unknown) => {
     const message = DevMessage.safeParse(received);
     if (!message.success || message.data.type !== "build-error") return;
@@ -945,9 +948,10 @@ export async function run(
     session.flush(app.restoration.snapshot());
     stop();
   };
+  // Voluntary: a Server the launcher manages stops once its last Client left it.
   const quit = () => {
     session.remove();
-    stop();
+    void (connection.managed?.leave() ?? Promise.resolve()).then(stop);
   };
   // SIGHUP: the terminal closed; the Client and its tunnel must not outlive it.
   for (const signal of ["SIGTERM", "SIGINT", "SIGHUP"] as const) process.on(signal, interrupted);

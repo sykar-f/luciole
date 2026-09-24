@@ -3,6 +3,8 @@ import { existsSync, readdirSync } from "node:fs";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { z } from "zod";
+import { serverStatus } from "../src/launcher/managed";
 import { leaveCrashedSession } from "./helpers";
 
 const cli = resolve("src/cli.ts");
@@ -34,7 +36,7 @@ test("`airtty ./app` builds it, runs its Server on a socket and its Client here"
         ...process.env,
         TERM: "xterm-256color",
         TMPDIR: temporary,
-        XDG_RUNTIME_DIR: "",
+        XDG_RUNTIME_DIR: temporary,
         XDG_STATE_HOME: join(run, "state"),
         NOTES_DB: join(run, "notes.sqlite"),
       },
@@ -48,7 +50,8 @@ test("`airtty ./app` builds it, runs its Server on a socket and its Client here"
       await Bun.sleep(100);
       screen = Bun.stripANSI(await readFile(log, "utf8").catch(() => ""));
     }
-    const sockets = () => readdirSync(temporary).filter((entry) => entry.startsWith("airtty-"));
+    const sockets = () =>
+      readdirSync(join(temporary, "airtty")).filter((entry) => entry.endsWith(".sock"));
     expect(sockets()).toHaveLength(1);
     await Bun.write(join(run, "stop"), "");
     await Promise.race([child.exited, Bun.sleep(5000).then(() => child.kill())]);
@@ -63,39 +66,62 @@ test("`airtty ./app` builds it, runs its Server on a socket and its Client here"
   }
 }, 120000);
 
-test("a launcher killed with SIGKILL still takes its Server and socket directory along", async () => {
+test("a launcher killed with SIGKILL leaves its Server in grace, or stops it with no grace", async () => {
   const work = await mkdtemp(join(tmpdir(), "airtty-kill-"));
-  const script = join(work, "launcher.ts");
-  await Bun.write(
-    script,
-    `import { startServer } from ${JSON.stringify(resolve("src/launcher/local.ts"))};
-const server = await startServer({
-  name: "instrumented",
+  const runtime = await mkdtemp("/tmp/airtty-rt-");
+  // A launcher holding its Server's stdin, as `airtty ./app` and app binaries do.
+  const launcher = async (graceMs: number) => {
+    const script = join(work, `launcher-${graceMs}.ts`);
+    await Bun.write(
+      script,
+      `import { ensureServer, serverId } from ${JSON.stringify(resolve("src/launcher/managed.ts"))};
+const server = await ensureServer({
+  id: serverId("local:kill-${graceMs}"),
+  name: "kill",
+  buildId: "build-1",
+  command: [process.execPath, "--conditions=react-server", ${JSON.stringify(resolve("tests/lifetime-server.ts"))}],
+  graceMs: ${graceMs},
   directories: { state: ${JSON.stringify(join(work, "state"))} },
-  command: () => [process.execPath, "--conditions=react-server", ${JSON.stringify(resolve("src/launcher/serve.ts"))}, ${JSON.stringify(resolve("tests/instrument-server.ts"))}, "--attached"],
+  client: "crashing",
+  attach: true,
 });
-console.log(server.url);
+console.log(JSON.stringify({ socket: server.socket, pid: server.pid }));
 setInterval(() => {}, 1000);`,
-  );
-  const launcher = Bun.spawn([process.execPath, script], { stdout: "pipe", stderr: "inherit" });
-  try {
-    const reader = launcher.stdout.getReader();
-    let url = "";
-    while (!url.includes("\n")) {
+    );
+    const child = Bun.spawn([process.execPath, script], {
+      stdout: "pipe",
+      stderr: "inherit",
+      env: { ...process.env, XDG_RUNTIME_DIR: runtime },
+    });
+    const reader = child.stdout.getReader();
+    let line = "";
+    while (!line.includes("\n")) {
       const { value, done } = await reader.read();
       if (done) throw new Error("The launcher exited");
-      url += new TextDecoder().decode(value);
+      line += new TextDecoder().decode(value);
     }
-    const socket = url.trim().slice("unix:".length);
-    expect(existsSync(socket)).toBe(true);
-    launcher.kill("SIGKILL");
-    await launcher.exited;
+    const started = z.object({ socket: z.string(), pid: z.number() }).parse(JSON.parse(line));
+    child.kill("SIGKILL");
+    await child.exited;
+    return started;
+  };
+  try {
+    const kept = await launcher(60_000);
+    const inGrace = async () => {
+      const status = await serverStatus(kept.socket);
+      return status?.pid === kept.pid && status.graceUntil !== undefined;
+    };
     const deadline = performance.now() + 5000;
-    while (existsSync(join(socket, "..")) && performance.now() < deadline) await Bun.sleep(50);
-    expect(existsSync(join(socket, ".."))).toBe(false);
+    while (!(await inGrace()) && performance.now() < deadline) await Bun.sleep(50);
+    expect(await inGrace()).toBe(true);
+    await fetch("http://localhost/lifetime/stop", { method: "POST", unix: kept.socket });
+    const stopped = await launcher(0);
+    const gone = performance.now() + 5000;
+    while (existsSync(stopped.socket) && performance.now() < gone) await Bun.sleep(50);
+    expect(existsSync(stopped.socket)).toBe(false);
   } finally {
-    launcher.kill("SIGKILL");
     await rm(work, { recursive: true, force: true });
+    await rm(runtime, { recursive: true, force: true });
   }
 });
 
