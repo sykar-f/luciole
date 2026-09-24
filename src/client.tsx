@@ -91,6 +91,12 @@ export type ApplicationOptions = {
   fetch?: Fetch;
   /** Replaces the HTTP/Flight transport. */
   transport?: Transport;
+  /**
+   * Decorates the transport in use (`transport`, or the HTTP/Flight one): a cache or a
+   * recorder lives in its own module and forwards to `inner`. What it throws reaches
+   * the application as is, so it must keep `TransportError`s and their `outcome`.
+   */
+  wrapTransport?: (inner: Transport) => Transport;
   initialPath?: string;
   /**
    * History and named fields to restore (after a crash or a development rebuild):
@@ -163,7 +169,7 @@ export class Application {
     this.restoration = new Restoration(restored);
     installTerminalGlobals();
     installResolver(options.resolveModule);
-    this.transport =
+    const inner =
       options.transport ??
       createHttpTransport({
         url: options.url,
@@ -178,6 +184,7 @@ export class Application {
         onInvalidate: (paths) => void this.invalidate(paths).catch(() => {}),
         onEvent: (event) => this.emit(event),
       });
+    this.transport = options.wrapTransport?.(inner) ?? inner;
     this.history = createMemoryHistory({
       initialEntries: restored?.entries.map((e) => e.href) ?? [options.initialPath ?? "/"],
     });

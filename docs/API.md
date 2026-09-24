@@ -275,6 +275,18 @@ timeout, la latence simulée (`latencyMs`, `network`), les erreurs typées, les
 événements (`onEvent`), l'invalidation (`onInvalidate`) et le décodage Flight
 progressif. Le runtime et les tests utilisent aussi des transports factices.
 
+`ApplicationOptions.transport` remplace ce transport ; `wrapTransport(inner)` le
+décore (cache, enregistreur, rejeu) depuis un module séparé, sans toucher au runtime :
+
+```ts
+createApp({
+  wrapTransport: (inner) => ({ ...inner, render: (...a) => cached(a) ?? inner.render(...a) }),
+});
+```
+
+Le décorateur voit chaque `render` et `call` ; ce qu'il lève arrive tel quel à
+l'application : il doit laisser passer les `TransportError` et leur `outcome`.
+
 ## Authentification des routes et actions
 
 Les pages et les modules `"use server"` exigent une session par défaut. Une page

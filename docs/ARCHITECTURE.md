@@ -129,3 +129,13 @@ fichier de session par Client. C'est un mécanisme sans sens métier : il ne sai
 qu'est un Draft, ni comment régler un conflit ; il survit au rebuild de `airtty dev`,
 à un crash et à un terminal fermé, et disparaît quand l'utilisateur quitte. Voir
 [API.md](API.md#champs-restaurables).
+
+## Points d'extension
+
+Les chantiers qui s'ajoutent au framework (DevTools, cache, distribution, Client
+générique) s'y branchent par ces points, dans leurs propres fichiers, sans modifier
+`client.tsx`, `transport.ts`, `server.ts` ni `cli.ts` :
+
+| Point                              | Pour                                                      |
+| ---------------------------------- | --------------------------------------------------------- |
+| `ApplicationOptions.wrapTransport` | Décorer le `Transport` du Client : cache, enregistrement. |
