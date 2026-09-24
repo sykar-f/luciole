@@ -2,3 +2,6 @@ node_modules/
 .airtty/
 *.sqlite*
 *.log
+__pycache__/
+.airtty-*/
+examples/chat/pty-frame.txt
