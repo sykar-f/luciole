@@ -9,6 +9,18 @@ bun src/cli.ts dev --app examples/mux        # bun run mux
 MUX_PANES='[["htop"],["vim","README.md"]]' bun run mux
 ```
 
+Un pane peut aussi être une autre application airtty, affichée inline (`<Embed>`) avec
+son Server déjà lancé :
+
+```sh
+bun --conditions=react-server examples/mdreader/.airtty/server/index.js &   # PORT=3000
+MUX_APPS='[{"name":"docs","client":"examples/mdreader/.airtty/client/index.js","url":"http://127.0.0.1:3000"}]' bun run mux
+```
+
+Mêmes touches, même préfixe : `Ctrl+O` passe d'un terminal à l'application et
+inversement ; dans l'application, `Ctrl+C` ferme son pane. `inline` = confiance totale :
+l'application tourne dans le processus du multiplexeur.
+
 Au départ : votre `$SHELL` et, si vim est installé, vim. Un pane dont le programme se
 termine se ferme ; le dernier ferme le multiplexeur.
 
@@ -26,4 +38,5 @@ Les panes vivent dans le layout racine (`components/Mux.tsx`) : ils persistent q
 que soit la page. La ligne d'aide est la page, rendue par le Server.
 
 Smoke PTY : `bun run test:pty:mux` (shell et vim, `Ctrl+C` vers le shell, préfixe,
-fermeture d'un pane, redimensionnement, sortie sans programme orphelin).
+fermeture d'un pane, redimensionnement, sortie sans programme orphelin ; puis mdreader
+inline à côté d'un shell).
