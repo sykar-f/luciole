@@ -366,9 +366,15 @@ export function serve(config: ServerConfig) {
       return handle(req, url, req.headers.get("x-airtty-call") ?? crypto.randomUUID());
     },
   };
+  // On a socket Bun's default idle timeout (10 s) would cut a slow page, action or live
+  // stream, and it ignores `server.timeout(req, 0)` there (tests/socket-timeout.test.ts):
+  // the timeout is disabled. The socket is private to its user, so there is no stranger's
+  // idle connection to shed; the Client's own request timeout still applies. Bun's types
+  // refuse idleTimeout next to `unix` though it honors it: set outside the literal.
+  const unix = { ...options, unix: socket ?? "" };
+  Object.assign(unix, { idleTimeout: 0 });
   const server = socket
-    ? // Bun's types refuse idleTimeout on a socket: its default (10 s) applies there.
-      Bun.serve({ ...options, unix: socket })
+    ? Bun.serve(unix)
     : Bun.serve({ ...options, hostname, port: env.data.PORT, idleTimeout: IDLE_TIMEOUT_SECONDS });
   // Bun creates the socket 0755; Linux checks write access on connect. Its directory
   // should be private too: macOS ignores a socket's own mode.
