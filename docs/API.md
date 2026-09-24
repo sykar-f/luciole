@@ -132,7 +132,7 @@ doivent rester légers.
 Chaque événement porte `at` (epoch ms, horloge monotone : `performance.timeOrigin +
 performance.now()`). Ceux du transport portent aussi `callId`, envoyé au Server en
 `x-airtty-call` sur `/render` comme sur `/action` ; le Server le retrouve dans
-`getCallId()`. `request` porte sa
+`getCallId()` et dans ses `ServerEvent`. `request` porte sa
 `cause`, déterminée au mieux par le Client : `navigation`, `preload`, `refresh`,
 `invalidation`, `action`, `live`, sinon `unknown`. Un `Transport` la reçoit en dernier
 argument de `render`/`call` (`{ cause }`). S'y ajoutent :
@@ -245,6 +245,15 @@ Entrée `airtty/server` :
 - `getCallId()` : identifiant de requête de transport, distinct de l'opération métier.
 - `notFound(what?)` : termine le rendu d'une page avec le `not-found.tsx` le plus proche.
 - `invalidate(path?)` : dans une Server Function, déclare les routes à revalider.
+- `serve({ …, instrument? })` : `instrument.onEvent(event)` reçoit un `ServerEvent` pour
+  chaque `/render` et `/action` : `request`, `response` (`status`, `ms`), `end` (`bytes`,
+  `cancelled`, à la fin du corps, live compris) ou `error` (exception d'un handler, avant
+  le `500` générique), avec `callId`, `kind`, `target` (routeId ou id d'action) et `at`.
+  Sans `instrument`, aucune réponse n'est enveloppée. C'est aussi l'emplacement des
+  futurs middlewares (commentaire dans `serve`) ; le build ne le passe pas encore.
+  `/action` répond `Server-Timing: total;dur=…` (jusqu'au retour de la fonction, donc
+  au modèle racine). `/render` n'en a pas : la page se rend dans le flux, après les
+  en-têtes.
 
 Le framework ne rafraîchit rien de lui-même après une Server Function : une lecture
 (`getOperation`, identité publique, recherche) ne coûte aucun rendu de page.

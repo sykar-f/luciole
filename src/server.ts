@@ -2,7 +2,7 @@ import React from "react";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { z } from "zod";
 import { decodeReply, renderToReadableStream } from "./flight/server";
-import { isAsyncIterable } from "./guards";
+import { isAsyncIterable, messageOf } from "./guards";
 import { NotFoundError } from "./not-found";
 export type Session = { userId: string; [key: string]: unknown };
 export type RouteAuth = "public" | "required";
@@ -67,12 +67,34 @@ export type ServerRoute = {
  * request, unchecked: validating them is the function's own first step.
  */
 export type ServerFunction = (...args: unknown[]) => unknown;
+/**
+ * What the Server observes of each `/render` and `/action`, for DevTools, logs or
+ * tracing. `callId` is the Client's `x-airtty-call`, also in its `TransportEvent`s;
+ * `target` is the routeId or Server Function id as requested (unchecked). `at` is epoch
+ * milliseconds, `ms` counts from the request's arrival. `end` follows the body, a live
+ * one included; `error` replaces `response` when a handler threw (the Client gets a
+ * generic 500), and ends a body that failed while streaming.
+ */
+export type ServerEvent = {
+  callId: string;
+  at: number;
+  kind: "render" | "action";
+  target: string;
+} & (
+  | { type: "request" }
+  | { type: "response"; status: number; ms: number }
+  | { type: "end"; ms: number; bytes: number; cancelled: boolean }
+  | { type: "error"; ms: number; message: string }
+);
+/** Receives `ServerEvent`s synchronously, on the request path: keep it cheap, never throw. */
+export type ServerInstrument = { onEvent: (event: ServerEvent) => void };
 export type ServerConfig = {
   buildId: string;
   manifest: unknown;
   actions: Map<string, { fn: ServerFunction; auth: RouteAuth }>;
   routes: Map<string, ServerRoute>;
   auth?: AuthConfig;
+  instrument?: ServerInstrument;
 };
 /** JSON text from a request, parsed then checked by `schema`; `null` when either fails. */
 function parseJson<T>(schema: z.ZodType<T>, raw: string) {
@@ -109,6 +131,50 @@ const ServerEnvironment = z.object({
   AIRTTY_TEST: z.string().optional(),
   AIRTTY_TEST_DROP_ONCE: z.string().optional(),
 });
+// The Client's event clock (src/transport.ts): `at` compares across both processes.
+const now = () => performance.timeOrigin + performance.now();
+const ROUTES = { "/render": "render", "/action": "action" } as const;
+const kindOf = (req: Request, url: URL) =>
+  url.pathname === "/render" && req.method === "GET"
+    ? ROUTES["/render"]
+    : url.pathname === "/action" && req.method === "POST"
+      ? ROUTES["/action"]
+      : undefined;
+// Counts what the Client reads of a response, to its end, failure or cancellation.
+function observeBody(
+  body: ReadableStream<Uint8Array> | null,
+  emit: (
+    event: { type: "end"; bytes: number; cancelled: boolean } | { type: "error"; message: string },
+  ) => void,
+) {
+  let bytes = 0;
+  if (!body) {
+    emit({ type: "end", bytes, cancelled: false });
+    return null;
+  }
+  const reader = body.getReader();
+  return new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      try {
+        const { done, value } = await reader.read();
+        if (done) {
+          emit({ type: "end", bytes, cancelled: false });
+          controller.close();
+          return;
+        }
+        bytes += value.byteLength;
+        controller.enqueue(value);
+      } catch (e) {
+        emit({ type: "error", message: messageOf(e) });
+        controller.error(e);
+      }
+    },
+    cancel(reason) {
+      emit({ type: "end", bytes, cancelled: true });
+      return reader.cancel(reason);
+    },
+  });
+}
 const STATUS = {
   badRequest: 400,
   unauthorized: 401,
@@ -121,7 +187,8 @@ export function serve(config: ServerConfig) {
   const env = ServerEnvironment.safeParse(process.env);
   if (!env.success) throw new Error(`Invalid Server environment: ${z.prettifyError(env.error)}`);
   const { AIRTTY_HOST: hostname, AIRTTY_TOKEN: token } = env.data;
-  const testing = env.data.AIRTTY_TEST === "1";
+  const testing = env.data.AIRTTY_TEST === "1",
+    dropOnce = testing && env.data.AIRTTY_TEST_DROP_ONCE === "1";
   const paramSchemas = new Map(
     [...config.routes].map(([id, route]) => [id, paramsSchema(route)] as const),
   );
@@ -144,108 +211,157 @@ export function serve(config: ServerConfig) {
       throw new Error(`Authentication route must be public: ${auth.unauthorizedPath}`);
   }
   const metrics = { renders: 0, actions: 0 };
+  // `failed` hears a handler's exception before it becomes the generic 500.
+  async function handle(req: Request, url: URL, callId: string, failed?: (error: unknown) => void) {
+    const arrived = performance.now();
+    if (req.headers.has("origin"))
+      return new Response("Browser origins are unsupported", { status: STATUS.forbidden });
+    try {
+      const session = await auth.authenticate(req);
+      if (url.pathname === "/health") {
+        if (!session) return new Response("Unauthorized", { status: STATUS.unauthorized });
+        return Response.json({ buildId: config.buildId, pid: process.pid });
+      }
+      if (req.headers.get("x-airtty-build") !== config.buildId)
+        return new Response("Incompatible build: install matching Client and Server", {
+          status: STATUS.conflict,
+        });
+      const unauthorized = () =>
+        new Response("Authentication required", {
+          status: STATUS.unauthorized,
+          headers: auth.unauthorizedPath ? { "x-airtty-login": auth.unauthorizedPath } : undefined,
+        });
+      // Awaited: a rejection must reach the generic 500 below, never Bun's error page.
+      return await context.run({ session, callId }, async () => {
+        if (url.pathname === "/render" && req.method === "GET") {
+          const routeId = url.searchParams.get("route") ?? "";
+          const route = config.routes.get(routeId);
+          const schema = paramSchemas.get(routeId);
+          if (!route || !schema)
+            return new Response("Route not found", { status: STATUS.notFound });
+          const params = parseJson(schema, url.searchParams.get("params") ?? "{}");
+          if (!params)
+            return new Response("Invalid route parameters", { status: STATUS.badRequest });
+          const search = url.searchParams.get("search");
+          const searchParams = search === null ? {} : parseJson(Search, search);
+          if (!searchParams)
+            return new Response("Invalid search parameters", { status: STATUS.badRequest });
+          if (route.auth === "required" && !session) return unauthorized();
+          metrics.renders++;
+          const tree = React.createElement(route.component, { params, searchParams });
+          return new Response(renderToReadableStream(tree, config.manifest), {
+            headers: {
+              "content-type": "text/x-component",
+              "cache-control": "no-store",
+            },
+          });
+        }
+        if (url.pathname === "/action" && req.method === "POST") {
+          const invalidations = new Set<string>();
+          const store = context.getStore();
+          if (!store) throw new Error("No request context");
+          store.invalidations = invalidations;
+          const entry = config.actions.get(req.headers.get("x-airtty-action") ?? "");
+          if (!entry) return new Response("Unknown action", { status: STATUS.notFound });
+          if (entry.auth === "required" && !session) return unauthorized();
+          metrics.actions++;
+          const body = req.headers.get("content-type")?.startsWith("multipart/form-data")
+            ? await req.formData()
+            : await req.text();
+          const args = Arguments.safeParse(await decodeReply(body, {}));
+          if (!args.success)
+            return new Response("Arguments must be an array", {
+              status: STATUS.badRequest,
+            });
+          const value: unknown = await entry.fn(...args.data);
+          // A live response may stay quiet longer than the idle timeout; it ends with
+          // its generator or when the Client goes away.
+          if (isAsyncIterable(value)) server.timeout(req, 0);
+          // Test-only fault injection occurs strictly after business commit; never enabled by a request.
+          if (
+            dropOnce &&
+            typeof value === "object" &&
+            value !== null &&
+            "ok" in value &&
+            value.ok
+          ) {
+            void server.stop(true);
+            process.exit(0);
+          }
+          return new Response(
+            renderToReadableStream(
+              { kind: "result", value, callId, invalidate: [...invalidations] },
+              config.manifest,
+            ),
+            {
+              headers: {
+                "content-type": "text/x-component",
+                // The root value exists once the function returned: the Client's wait
+                // for it, minus the network. A page renders inside its stream, after
+                // the headers, so `/render` has no such figure.
+                "server-timing": `total;dur=${(performance.now() - arrived).toFixed(1)}`,
+              },
+            },
+          );
+        }
+        if (url.pathname === "/test-metrics" && testing)
+          return session ? Response.json(metrics) : unauthorized();
+        return new Response("Not found", { status: STATUS.notFound });
+      });
+    } catch (error) {
+      failed?.(error);
+      const callId = req.headers.get("x-airtty-call") ?? "request";
+      console.error("Request failed", callId, error instanceof Error ? error.name : "Error");
+      return new Response("Server request failed", { status: STATUS.serverError });
+    }
+  }
+  // Emits `ServerEvent`s around `handle`, following the body to its end.
+  async function observe(
+    req: Request,
+    url: URL,
+    kind: ServerEvent["kind"],
+    onEvent: ServerInstrument["onEvent"],
+  ) {
+    const start = performance.now();
+    const ms = () => Math.round(performance.now() - start);
+    const callId = req.headers.get("x-airtty-call") ?? crypto.randomUUID();
+    const tag = {
+      callId,
+      kind,
+      target:
+        (kind === "render" ? url.searchParams.get("route") : req.headers.get("x-airtty-action")) ??
+        "",
+    };
+    onEvent({ ...tag, at: now(), type: "request" });
+    let threw = false;
+    const response = await handle(req, url, callId, (error) => {
+      threw = true;
+      onEvent({ ...tag, at: now(), type: "error", ms: ms(), message: messageOf(error) });
+    });
+    if (threw) return response;
+    onEvent({ ...tag, at: now(), type: "response", status: response.status, ms: ms() });
+    const body = observeBody(response.body, (event) =>
+      onEvent({ ...tag, at: now(), ms: ms(), ...event }),
+    );
+    return new Response(body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: response.headers,
+    });
+  }
   const server = Bun.serve({
     hostname,
     port: env.data.PORT,
     maxRequestBodySize: MAX_REQUEST_BYTES,
     idleTimeout: IDLE_TIMEOUT_SECONDS,
-    async fetch(req) {
+    fetch(req) {
       const url = new URL(req.url);
-      if (req.headers.has("origin"))
-        return new Response("Browser origins are unsupported", { status: STATUS.forbidden });
-      try {
-        const session = await auth.authenticate(req);
-        if (url.pathname === "/health") {
-          if (!session) return new Response("Unauthorized", { status: STATUS.unauthorized });
-          return Response.json({ buildId: config.buildId, pid: process.pid });
-        }
-        if (req.headers.get("x-airtty-build") !== config.buildId)
-          return new Response("Incompatible build: install matching Client and Server", {
-            status: STATUS.conflict,
-          });
-        const unauthorized = () =>
-          new Response("Authentication required", {
-            status: STATUS.unauthorized,
-            headers: auth.unauthorizedPath
-              ? { "x-airtty-login": auth.unauthorizedPath }
-              : undefined,
-          });
-        const callId = req.headers.get("x-airtty-call") ?? crypto.randomUUID();
-        // Awaited: a rejection must reach the generic 500 below, never Bun's error page.
-        return await context.run({ session, callId }, async () => {
-          if (url.pathname === "/render" && req.method === "GET") {
-            const routeId = url.searchParams.get("route") ?? "";
-            const route = config.routes.get(routeId);
-            const schema = paramSchemas.get(routeId);
-            if (!route || !schema)
-              return new Response("Route not found", { status: STATUS.notFound });
-            const params = parseJson(schema, url.searchParams.get("params") ?? "{}");
-            if (!params)
-              return new Response("Invalid route parameters", { status: STATUS.badRequest });
-            const search = url.searchParams.get("search");
-            const searchParams = search === null ? {} : parseJson(Search, search);
-            if (!searchParams)
-              return new Response("Invalid search parameters", { status: STATUS.badRequest });
-            if (route.auth === "required" && !session) return unauthorized();
-            metrics.renders++;
-            const tree = React.createElement(route.component, { params, searchParams });
-            return new Response(renderToReadableStream(tree, config.manifest), {
-              headers: {
-                "content-type": "text/x-component",
-                "cache-control": "no-store",
-              },
-            });
-          }
-          if (url.pathname === "/action" && req.method === "POST") {
-            const invalidations = new Set<string>();
-            const store = context.getStore();
-            if (!store) throw new Error("No request context");
-            store.invalidations = invalidations;
-            const entry = config.actions.get(req.headers.get("x-airtty-action") ?? "");
-            if (!entry) return new Response("Unknown action", { status: STATUS.notFound });
-            if (entry.auth === "required" && !session) return unauthorized();
-            metrics.actions++;
-            const body = req.headers.get("content-type")?.startsWith("multipart/form-data")
-              ? await req.formData()
-              : await req.text();
-            const args = Arguments.safeParse(await decodeReply(body, {}));
-            if (!args.success)
-              return new Response("Arguments must be an array", {
-                status: STATUS.badRequest,
-              });
-            const value: unknown = await entry.fn(...args.data);
-            // A live response may stay quiet longer than the idle timeout; it ends with
-            // its generator or when the Client goes away.
-            if (isAsyncIterable(value)) server.timeout(req, 0);
-            // Test-only fault injection occurs strictly after business commit; never enabled by a request.
-            if (
-              testing &&
-              env.data.AIRTTY_TEST_DROP_ONCE === "1" &&
-              typeof value === "object" &&
-              value !== null &&
-              "ok" in value &&
-              value.ok
-            ) {
-              void server.stop(true);
-              process.exit(0);
-            }
-            return new Response(
-              renderToReadableStream(
-                { kind: "result", value, callId, invalidate: [...invalidations] },
-                config.manifest,
-              ),
-              { headers: { "content-type": "text/x-component" } },
-            );
-          }
-          if (url.pathname === "/test-metrics" && testing)
-            return session ? Response.json(metrics) : unauthorized();
-          return new Response("Not found", { status: STATUS.notFound });
-        });
-      } catch (error) {
-        const callId = req.headers.get("x-airtty-call") ?? "request";
-        console.error("Request failed", callId, error instanceof Error ? error.name : "Error");
-        return new Response("Server request failed", { status: STATUS.serverError });
-      }
+      // Where future middlewares go (a render cache, for instance): around `handle`,
+      // keyed by `kind`, with the request's callId, before any page or action code runs
+      // and with the Response it produced. Instrumentation is the first of them.
+      const kind = config.instrument && kindOf(req, url);
+      if (config.instrument && kind) return observe(req, url, kind, config.instrument.onEvent);
+      return handle(req, url, req.headers.get("x-airtty-call") ?? crypto.randomUUID());
     },
   });
   console.log(
