@@ -255,6 +255,10 @@ Entrée `airtty/server` :
   au modèle racine). `/render` n'en a pas : la page se rend dans le flux, après les
   en-têtes.
 
+`AIRTTY_SOCKET=/chemin` fait écouter `serve()` sur ce socket Unix (0600) plutôt qu'en
+TCP ; la ligne `ready` nomme alors `socket`. Côté Client, `--url unix:/chemin` s'y
+connecte. C'est ainsi que le lanceur démarre une app locale ([DISTRIBUTION.md](DISTRIBUTION.md)).
+
 Le framework ne rafraîchit rien de lui-même après une Server Function : une lecture
 (`getOperation`, identité publique, recherche) ne coûte aucun rendu de page.
 
