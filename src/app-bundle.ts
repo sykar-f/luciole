@@ -161,6 +161,29 @@ const newInstance = () =>
   `p${[...crypto.getRandomValues(new Uint8Array(INSTANCE_BYTES))].map((b) => b.toString(HEX).padStart(2, "0")).join("")}`;
 
 /**
+ * An Application of an evaluated bundle: its routes and modules, its Server Functions and
+ * `host` bound to it. `openApplication` and a sandboxed Client (src/sandbox/child.ts) use it.
+ */
+export function applicationOf(
+  loaded: AppBundle,
+  options: Omit<ApplicationOptions, "routeTree" | "buildId" | "resolveModule">,
+) {
+  const app = AirttyClient.createApplication({
+    title: loaded.manifest.name.toUpperCase(),
+    ...options,
+    routeTree: loaded.routeTree,
+    buildId: loaded.buildId,
+    resolveModule: (id) => {
+      const found = loaded.modules.get(id);
+      if (!found) throw new Error(`Unknown module ${id}`);
+      return found;
+    },
+  });
+  loaded.actions.bind(app);
+  return app;
+}
+
+/**
  * An Application for a pane: its bundle evaluated against this runtime (its own modules
  * and Server Function binding), an instance key, the connection to its Server. Disposing
  * the Application closes that connection.
@@ -171,21 +194,12 @@ export async function openApplication(options: OpenApplicationOptions): Promise<
   const loaded = await loadAppBundle(bundle, { publisher });
   const connection = await connect(url);
   try {
-    const app = AirttyClient.createApplication({
-      title: loaded.manifest.name.toUpperCase(),
+    const app = applicationOf(loaded, {
       ...rest,
       url: connection.url,
       fetch: connection.fetch,
-      routeTree: loaded.routeTree,
-      buildId: loaded.buildId,
       instance,
-      resolveModule: (id) => {
-        const found = loaded.modules.get(id);
-        if (!found) throw new Error(`Unknown module ${id}`);
-        return found;
-      },
     });
-    loaded.actions.bind(app);
     app.onDispose(() => connection.close());
     return app;
   } catch (error) {

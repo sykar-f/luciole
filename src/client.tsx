@@ -965,8 +965,13 @@ function bearerFromSupervisor(send: (message: unknown) => void) {
     send({ type: "hello" });
   });
 }
+/** What `run()` gives the function that creates its Application. */
+export type RunOptions = Pick<
+  ApplicationOptions,
+  "url" | "fetch" | "token" | "latencyMs" | "network" | "session" | "wrapTransport"
+>;
 export async function run(
-  create: (options: Record<string, unknown>) => Application,
+  create: (options: RunOptions) => Application,
   {
     name = "airtty",
     sessionKey,

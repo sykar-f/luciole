@@ -59,6 +59,8 @@ export async function serverUrl({
 export type Connection = {
   url: string;
   fetch?: Fetch;
+  /** The Unix socket requests go through (`unix:`, an ssh tunnel): a sandbox grants it. */
+  socket?: string;
   close(): void;
   /** Present when the launcher manages the Server's lifetime (src/launcher/lifetime.ts). */
   managed?: ManagedConnection;
@@ -116,8 +118,9 @@ function keepAlive(fetchServer: Fetch, client: string, pingMs: number): ManagedC
 
 const UNIX = "unix:";
 /** Requests through a Unix socket: the host is only a name for HTTP. */
-const throughSocket = (socket: string): Pick<Connection, "url" | "fetch"> => ({
+const throughSocket = (socket: string): Pick<Connection, "url" | "fetch" | "socket"> => ({
   url: "http://localhost",
+  socket,
   fetch: (input, init) => fetch(input, { ...init, unix: socket }),
 });
 
