@@ -5,7 +5,8 @@
   "type": "module",
   "packageManager": "bun@1.4.2",
   "bin": {
-    "airtty": "./src/cli.ts"
+    "airtty": "./src/cli.ts",
+    "airttyx": "./src/airttyx.ts"
   },
   "exports": {
     "./client": "./src/client.tsx",

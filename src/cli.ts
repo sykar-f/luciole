@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 import { resolve } from "node:path";
-import { commands } from "./commands";
+import { commands, fallback } from "./commands";
 import { messageOf } from "./guards";
 const args = process.argv.slice(2),
   command = args[0];
@@ -18,9 +18,15 @@ const optional = (key: string) => {
 };
 const directory = resolve(option("--app", "examples/notes"));
 async function main() {
-  const subcommand = command === undefined ? undefined : commands.get(command);
+  // Anything else that is not a flag is something to launch: `airtty ./notes`.
+  const subcommand =
+    command === undefined
+      ? undefined
+      : (commands.get(command) ?? (command.startsWith("-") ? undefined : fallback));
   if (!subcommand)
-    throw new Error(`Usage: airtty ${[...commands.values()].map((c) => c.usage).join(" | ")}`);
+    throw new Error(
+      `Usage: airtty ${[...commands.values(), fallback].map((c) => c.usage).join(" | ")}`,
+    );
   await subcommand.run({ args, option, optional, directory });
 }
 main().catch((error: unknown) => {
