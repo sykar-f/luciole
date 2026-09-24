@@ -25,7 +25,7 @@
     "mdreader": "bun src/cli.ts dev --app examples/mdreader",
     "chat": "bun src/cli.ts dev --app examples/chat",
     "agent": "bun src/cli.ts dev --app examples/agent",
-    "check": "tsc --noEmit && tsc --noEmit -p examples/notes && tsc --noEmit -p examples/latency && tsc --noEmit -p examples/forge && tsc --noEmit -p examples/files && tsc --noEmit -p examples/mdreader && tsc --noEmit -p examples/chat && tsc --noEmit -p examples/agent",
+    "check": "tsc --noEmit && tsc --noEmit -p examples/notes && tsc --noEmit -p examples/latency && tsc --noEmit -p examples/forge && tsc --noEmit -p examples/files && tsc --noEmit -p examples/mdreader && tsc --noEmit -p examples/chat && tsc --noEmit -p examples/agent && tsc --noEmit -p src/devtools/airtty-devtools",
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
     "test:pty": "python3 scripts/pty-smoke.py",

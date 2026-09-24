@@ -81,7 +81,8 @@ export function createSession() {
     const from = sources.get(source);
     switch (event.type) {
       case "airtty:hello":
-        sources.set(source, { id: source, ...event.payload, connected: true });
+        // A recorded hello describes a process, not a connection: keep what is known.
+        sources.set(source, { id: source, ...event.payload, connected: from?.connected ?? true });
         return;
       case "airtty:dropped":
         dropped += event.payload.count;

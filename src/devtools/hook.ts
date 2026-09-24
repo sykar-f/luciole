@@ -50,8 +50,20 @@ async function reactDevtoolsFirst() {
     self: globalThis.self ?? globalThis,
   });
   try {
-    const { default: devtools } = await import("react-devtools-core");
-    devtools.initialize();
+    // Named at runtime: react-devtools-core ships no types and is OpenTUI's optional peer.
+    const specifier = "react-devtools-core";
+    const loaded: unknown = await import(specifier);
+    const devtools: unknown =
+      typeof loaded === "object" && loaded !== null && "default" in loaded
+        ? loaded.default
+        : loaded;
+    if (
+      typeof devtools === "object" &&
+      devtools !== null &&
+      "initialize" in devtools &&
+      typeof devtools.initialize === "function"
+    )
+      Reflect.apply(devtools.initialize, devtools, []);
   } catch {
     // Not installed: OpenTUI prints how to install it; our own hook serves meanwhile.
   }
