@@ -18,6 +18,9 @@ export type Source = {
   app?: string;
   buildId?: string;
   components?: boolean;
+  root?: string;
+  /** Server Components' sources by name (`hello`). */
+  sources?: Record<string, string>;
   connected: boolean;
 };
 
@@ -28,6 +31,8 @@ export type LogEntry = {
   level: ConsoleLevel;
   text: string;
   callId?: string;
+  /** A logged error's stack, already mapped to the original files. */
+  stack?: string;
 };
 export type CacheEntry = {
   key: string;
@@ -163,6 +168,18 @@ export function createSession() {
       for (const source of next) sources.set(source.id, { ...sources.get(source.id), ...source });
     },
     sources: () => [...sources.values()],
+    /** Where a component is defined: its own record, or a Server Component's by name. */
+    sourceOf(node: ComponentNode) {
+      if (node.source) return node.source;
+      if (node.kind !== "server") return undefined;
+      for (const source of sources.values()) {
+        const found = source.sources?.[node.name];
+        if (found) return found;
+      }
+      return undefined;
+    },
+    /** The application's directory, as its processes reported it. */
+    root: () => [...sources.values()].find((s) => s.root)?.root,
     logs: () => logs,
     cache: () => [...cache.values()].sort((a, b) => b.lastAt - a.lastAt),
     tagInvalidations: () => tagInvalidations,

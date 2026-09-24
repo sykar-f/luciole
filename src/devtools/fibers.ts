@@ -15,6 +15,7 @@ import { preview } from "./preview";
 type Fiber = {
   tag: number;
   type: unknown;
+  elementType: unknown;
   key: string | null;
   memoizedProps: unknown;
   memoizedState: unknown;
@@ -40,8 +41,9 @@ const rootFiber = (root: unknown) =>
   typeof root === "object" && root !== null && "current" in root && isFiber(root.current)
     ? root.current
     : undefined;
+// Functions too: a component's `displayName` and annotation live on it.
 const field = (value: unknown, key: string): unknown =>
-  typeof value === "object" && value !== null && key in value
+  ((typeof value === "object" && value !== null) || typeof value === "function") && key in value
     ? Object.getOwnPropertyDescriptor(value, key)?.value
     : undefined;
 const child = (fiber: Fiber) => (isFiber(fiber.child) ? fiber.child : null);
@@ -83,7 +85,29 @@ const nameOf = (type: unknown): string => {
   const inner = field(type, "render") ?? field(type, "type");
   return inner === undefined || inner === type ? "Anonymous" : nameOf(inner);
 };
-const fiberName = (fiber: Fiber) => (fiber.tag === TAG.suspense ? "Suspense" : nameOf(fiber.type));
+// A memo's name (and annotation, src/build-names.ts) is on the wrapper, its fiber's `elementType`.
+const fiberName = (fiber: Fiber) =>
+  fiber.tag === TAG.suspense ? "Suspense" : nameOf(fiber.elementType ?? fiber.type);
+/** What the build recorded (src/devtools/annotate.ts): source `file:line` and hook calls. */
+type Annotation = { source?: string; hooks: (readonly [unknown, string, string | null])[] };
+function annotationOf(value: unknown): Annotation | undefined {
+  const found = field(value, "__airtty");
+  const hooks = field(found, "hooks");
+  if (!Array.isArray(hooks)) return undefined;
+  const source = field(found, "source");
+  return {
+    source: typeof source === "string" ? source : undefined,
+    hooks: hooks.flatMap((entry: unknown) =>
+      Array.isArray(entry) && typeof entry[1] === "string"
+        ? [[entry[0], entry[1], typeof entry[2] === "string" ? entry[2] : null] as const]
+        : [],
+    ),
+  };
+}
+const fiberAnnotation = (fiber: Fiber) =>
+  annotationOf(fiber.elementType) ??
+  annotationOf(fiber.type) ??
+  annotationOf(field(fiber.type, "render"));
 
 /** A Server Component, as Flight describes it in development (`ReactComponentInfo`). */
 type ServerInfo = { name: string; env?: string; key?: string };
@@ -150,24 +174,115 @@ function hostRect(fiber: Fiber): Rect | undefined {
   return union(rects);
 }
 
-/** A hook's state, from the fiber's `memoizedState` list: what the panel can name without source maps. */
+/**
+ * Hook nodes each of React's hooks adds to a fiber (react-reconciler 0.33; checked by
+ * tests/devtools-fibers.test.ts). `useContext`, `use` and `useDebugValue` add none.
+ */
+export const PRIMITIVE_NODES: Record<string, number> = {
+  useState: 1,
+  useReducer: 1,
+  useRef: 1,
+  useMemo: 1,
+  useCallback: 1,
+  useEffect: 1,
+  useLayoutEffect: 1,
+  useInsertionEffect: 1,
+  useImperativeHandle: 1,
+  useId: 1,
+  useDeferredValue: 1,
+  useSyncExternalStore: 2,
+  useTransition: 2,
+  useOptimistic: 1,
+  useActionState: 3,
+  useEffectEvent: 1,
+  useContext: 0,
+  use: 0,
+  useDebugValue: 0,
+};
+const MAX_EXPANSION_DEPTH = 6;
+/** A run of known hook nodes, or a custom hook from a package, of unknown length. */
+type Segment = { labels: string[] } | { unknown: string };
+/**
+ * The hook nodes a function's recorded calls produce, labelled with the variables they
+ * feed. An annotated custom hook expands into its own calls (`draft › value`).
+ */
+function expand(annotation: Annotation, prefix: string, depth: number): Segment[] {
+  const segments: Segment[] = [];
+  const known = (labels: string[]) => {
+    const last = segments.at(-1);
+    if (last && "labels" in last) last.labels.push(...labels);
+    else segments.push({ labels });
+  };
+  for (const [ref, callee, binding] of annotation.hooks) {
+    const label = `${prefix}${binding ?? callee}`;
+    const count = PRIMITIVE_NODES[callee];
+    if (count !== undefined) {
+      known(Array.from({ length: count }, (_, i) => (i ? `${label} (${callee} ${i + 1})` : label)));
+      continue;
+    }
+    const inner = annotationOf(ref);
+    if (inner && depth < MAX_EXPANSION_DEPTH)
+      for (const segment of expand(inner, `${label} › `, depth + 1))
+        if ("labels" in segment) known(segment.labels);
+        else segments.push(segment);
+    else segments.push({ unknown: label });
+  }
+  return segments;
+}
+/**
+ * One label per node, or `undefined` where it cannot be known: the nodes before the first
+ * package hook and after the last are counted exactly; those of a single package hook in
+ * between are its own. With two package hooks, the nodes between them stay unnamed.
+ */
+function hookLabels(annotation: Annotation | undefined, nodes: number): (string | undefined)[] {
+  const labels: (string | undefined)[] = Array.from({ length: nodes }, () => undefined);
+  if (!annotation) return labels;
+  const segments = expand(annotation, "", 0);
+  const firstUnknown = segments.findIndex((s) => "unknown" in s);
+  const flat = (list: Segment[]) => list.flatMap((s) => ("labels" in s ? s.labels : []));
+  if (firstUnknown < 0) {
+    const all = flat(segments);
+    // A count that disagrees with the fiber: the annotation is stale or wrong, say nothing.
+    return all.length === nodes ? all : labels;
+  }
+  const lastUnknown = segments.findLastIndex((s) => "unknown" in s);
+  const before = flat(segments.slice(0, firstUnknown));
+  const after = flat(segments.slice(lastUnknown + 1));
+  if (before.length + after.length > nodes) return labels;
+  before.forEach((label, i) => (labels[i] = label));
+  after.forEach((label, i) => (labels[nodes - after.length + i] = label));
+  const middle = segments.slice(firstUnknown, lastUnknown + 1);
+  const only = middle.length === 1 ? middle[0] : undefined;
+  if (only && "unknown" in only)
+    for (let i = before.length; i < nodes - after.length; i++) labels[i] = `${only.unknown} ›`;
+  return labels;
+}
+/** A hook node's value, as its shape tells: state, effect, ref or memoized value. */
+function hookValue(hook: unknown) {
+  const state = field(hook, "memoizedState");
+  const queue = field(hook, "queue");
+  if (queue && typeof field(queue, "dispatch") === "function")
+    return { kind: "state", value: preview(state) };
+  if (typeof field(state, "create") === "function") return { kind: "effect", value: "effect" };
+  if (state && typeof state === "object" && Object.keys(state).join() === "current")
+    return { kind: "ref", value: `ref ${preview(field(state, "current"))}` };
+  if (Array.isArray(state) && state.length === 2) return { kind: "memo", value: preview(state[0]) };
+  return { kind: "value", value: preview(state) };
+}
+/** Each hook of a component with the variable it feeds, when the build recorded it. */
 function hooks(fiber: Fiber): string[] {
   if (fiber.tag === TAG.class) return [`state: ${preview(fiber.memoizedState)}`];
-  const out: string[] = [];
-  let hook: unknown = fiber.memoizedState;
-  while (hook && out.length < MAX_HOOKS) {
-    const state = field(hook, "memoizedState");
-    const queue = field(hook, "queue");
-    if (queue && typeof field(queue, "dispatch") === "function")
-      out.push(`state: ${preview(state)}`);
-    else if (typeof field(state, "create") === "function") out.push("effect");
-    else if (state && typeof state === "object" && Object.keys(state).join() === "current")
-      out.push("ref");
-    else if (Array.isArray(state) && state.length === 2) out.push("memo");
-    else out.push(preview(state));
-    hook = field(hook, "next");
-  }
-  return out;
+  const nodes: unknown[] = [];
+  for (let hook: unknown = fiber.memoizedState; hook; hook = field(hook, "next")) nodes.push(hook);
+  const labels = hookLabels(fiberAnnotation(fiber), nodes.length);
+  return nodes.slice(0, MAX_HOOKS).map((hook, i) => {
+    const { kind, value } = hookValue(hook);
+    const label = labels[i];
+    if (kind === "effect") return label ? `${label}: effect` : "effect";
+    // Inside a package's hook: its name, and what the node holds.
+    if (label?.endsWith("›")) return `${label} ${kind}: ${value}`;
+    return `${label ?? `${kind} #${i + 1}`}: ${value}`;
+  });
 }
 const propsOf = (fiber: Fiber): Record<string, string> => {
   const props = fiber.memoizedProps;
@@ -324,6 +439,7 @@ export function createComponentTracker(now: () => number) {
           parent: owner,
           depth: level,
           name: fiberName(fiber),
+          source: fiberAnnotation(fiber)?.source,
           kind: "client",
           key: fiber.key ?? undefined,
           renders: entry?.renders ?? 0,

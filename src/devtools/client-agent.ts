@@ -5,8 +5,8 @@ import { messageOf } from "../guards";
 import type { Transport } from "../transport";
 import { createComponentTracker, fiberChannel } from "./fibers";
 import { createOverlay } from "./overlay";
-import { captureConsole, consoleText, preview } from "./preview";
-import { message, parseAddress, PLUGIN, PROTOCOL_VERSION } from "./protocol";
+import { captureConsole, consoleText, errorStack, preview } from "./preview";
+import { appRoot, message, parseAddress, PLUGIN, PROTOCOL_VERSION } from "./protocol";
 import { parseCommand, type Command, type RouterMatch } from "./schema";
 import { connectAgent } from "./wire";
 
@@ -88,6 +88,7 @@ export function startClientAgent({
       role: "client",
       pid: process.pid,
       app: name,
+      root: appRoot(process.argv[1]),
       components: channel !== undefined,
     },
     onCommand: (value) => {
@@ -190,12 +191,22 @@ export function startClientAgent({
 
     // Console: the TUI owns stdout, so this is the only place Client logs are readable.
     let console = captureConsole((level, args) =>
-      send(PLUGIN.console, "entry", { at: now(), level, text: consoleText(args) }),
+      send(PLUGIN.console, "entry", {
+        at: now(),
+        level,
+        text: consoleText(args),
+        stack: errorStack(args),
+      }),
     );
     setInterval(() => {
       if (globalThis.console === console.target) return;
       console = captureConsole((level, args) =>
-        send(PLUGIN.console, "entry", { at: now(), level, text: consoleText(args) }),
+        send(PLUGIN.console, "entry", {
+          at: now(),
+          level,
+          text: consoleText(args),
+          stack: errorStack(args),
+        }),
       );
     }, CONSOLE_CHECK_MS).unref();
 

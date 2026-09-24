@@ -55,6 +55,15 @@ export function consoleText(args: readonly unknown[]): string {
   }
 }
 
+/**
+ * The stack of the first error logged, mapped by Bun through the bundle's linked source
+ * map: original files and lines, for the Console panel.
+ */
+export function errorStack(args: readonly unknown[]): string | undefined {
+  const error = args.find((arg): arg is Error => arg instanceof Error);
+  return typeof error?.stack === "string" ? error.stack.slice(0, MAX_CONSOLE_TEXT) : undefined;
+}
+
 export const CONSOLE_LEVELS = ["log", "info", "warn", "error", "debug"] as const;
 export type Level = (typeof CONSOLE_LEVELS)[number];
 type Method = (...args: unknown[]) => void;

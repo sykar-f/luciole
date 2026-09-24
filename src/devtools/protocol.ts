@@ -1,5 +1,5 @@
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 /**
  * The DevTools wire protocol. A message is TanStack DevTools' event shape
@@ -43,7 +43,15 @@ export type Hello = {
   buildId?: string;
   /** Whether the fiber hook was preloaded (Components panel), Client only. */
   components?: boolean;
+  /** The application's directory: sources are relative to it. */
+  root?: string;
+  /** Server Components' sources by name (src/devtools/annotate.ts), Server only. */
+  sources?: Record<string, string>;
 };
+
+/** `<root>/.airtty/<role>/index.js`, as `airtty dev` and `start` run a built process. */
+export const appRoot = (entry: string | undefined) =>
+  entry ? dirname(dirname(dirname(entry))) : undefined;
 
 /**
  * Where the DevTools listen and inspected processes connect: a Unix socket (a path, or
