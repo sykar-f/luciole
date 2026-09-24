@@ -5,35 +5,37 @@ L’application est une codebase unique ; son build produit deux programmes.
 
 ## Le framework que nous développons
 
-| Fichier               | Responsabilité                                                                                                                  |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `src/cli.ts`          | Arguments et registre des sous-commandes (`src/commands/index.ts`), une par module : init, dev, build, runtime, start, connect. |
-| `src/commands/`       | Création du starter, dev (supervision des processus, erreurs de rebuild), build, start/connect, runtime.                        |
-| `src/build.ts`        | Lecture de l’AST, graphes Client/Server, validation des frontières, références Flight, routes, manifests et bundles.            |
-| `src/route-graph.ts`  | Compilation pure de `app/` en route graph : layouts, pages, groupes, params, catch-all, loading/error/not-found.                |
-| `src/server.ts`       | HTTP, contexte de session, registre des pages, Server Functions, `notFound()`, `invalidate()`, réponses live.                   |
-| `src/route-tree.tsx`  | Fabriques de routes de `app/routeTree.gen.ts` : layouts, pages, loaders Flight, écrans error/not-found, Échap.                  |
-| `src/transport.ts`    | Interface `Transport` et adapter HTTP/Flight : build ID, bearer, timeout, `outcome`, événements, réseau simulé.                 |
-| `src/client.tsx`      | Runtime terminal : TanStack Router, keymap, loaders Flight, actions, invalidation, live, observabilité, hooks.                  |
-| `src/restore.ts`      | Session façon navigateur : historique et texte des champs nommés par entrée, groupes, oubli à l'envoi.                          |
-| `src/fields.tsx`      | `Input` et `Textarea` contrôlés et restaurables, `useRestoredFields` ; `runtime-context.ts` porte le contexte.                  |
-| `src/session.ts`      | Fichier de session d'un Client (`$XDG_STATE_HOME/airtty/<app>/sessions`), reprise après crash, suppression.                     |
-| `src/not-found.ts`    | Passage de `notFound()` à travers Flight (digest), partagé par le Server et le Client.                                          |
-| `src/compile.ts`      | Client autonome en un exécutable (`airtty build --compile`) et runtime Bun officiel (`airtty runtime`).                         |
-| `src/sign.ts`         | Signature Developer ID, hardened runtime et notarisation du Client macOS (`--sign`, `--notarize`).                              |
-| `src/connect.ts`      | URL du Server côté Client (`--url` > `AIRTTY_URL` > `~/.config/airtty/<app>.json`), tunnel `ssh://` et socket `unix:`.          |
-| `src/launcher/`       | `airtty <cible>` et binaires d'app : résolution, lancement local sur socket, git, `--on` ([DISTRIBUTION](DISTRIBUTION.md)).     |
-| `src/registry/`       | Registre d'apps (`Registry`, npm), paquets par plateforme, apps installées dans `$XDG_DATA_HOME/airtty/apps`.                   |
-| `src/guards.ts`       | Gardes de type Server/Client ; `package-json.ts` (JSON validé par Zod), `bundle-errors.ts` (échecs de Bun.build).               |
-| `src/cache/`          | `"use cache"` ([CACHE.md](CACHE.md)) : transformation du build, clé, durées, tags, dédup, handlers mémoire et SQLite.           |
-| `src/abi.ts`          | ABI de runtime des bundles d'application : spécifiers, versions, clé ; schéma de `.airtty/app/manifest.json`.                   |
-| `src/app-bundle.ts`   | `openApplication` : vérifie et évalue un bundle d'application contre le runtime de l'hôte (table `require` de l'ABI).           |
-| `src/capabilities.ts` | `airtty.capabilities` (schéma Zod partagé) et comparaison avec les built-ins requis par le Client.                              |
-| `src/embed.tsx`       | `<Embed>`, `openApplication` : une autre application airtty par pane, keymap filtré, focus, boundary.                           |
-| `src/vt/`             | `<Terminal>` : programme local sur PTY (`Bun.Terminal`) rendu par l'émulateur d'OpenTUI ; trous d'OpenTUI comblés (`gaps.ts`).  |
-| `src/instance.ts`     | Clé d'instance d'un pane (`x-airtty-instance`) et copies préfixées du manifeste Client, bornées, côté Server.                   |
-| `src/flight/`         | Adapter du vrai codec React Flight et contrat de résolution des modules Client.                                                 |
-| `src/devtools/`       | DevTools (dev) : protocole, agents `AIRTTY_DEVTOOLS`, hook de fibers, app `airtty devtools` ; [DEVTOOLS.md](DEVTOOLS.md).       |
+| Fichier               | Responsabilité                                                                                                                        |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/cli.ts`          | Arguments et registre des sous-commandes (`src/commands/index.ts`), une par module : init, dev, build, runtime, start, connect.       |
+| `src/commands/`       | Création du starter, dev (supervision des processus, erreurs de rebuild), build, start/connect, runtime.                              |
+| `src/build.ts`        | Lecture de l’AST, graphes Client/Server, validation des frontières, références Flight, routes, manifests et bundles.                  |
+| `src/route-graph.ts`  | Compilation pure de `app/` en route graph : layouts, pages, groupes, params, catch-all, loading/error/not-found.                      |
+| `src/server.ts`       | HTTP, contexte de session, registre des pages, Server Functions, `notFound()`, `invalidate()`, réponses live.                         |
+| `src/route-tree.tsx`  | Fabriques de routes de `app/routeTree.gen.ts` : layouts, pages, loaders Flight, écrans error/not-found, Échap.                        |
+| `src/transport.ts`    | Interface `Transport` et adapter HTTP/Flight : build ID, bearer, timeout, `outcome`, événements, réseau simulé.                       |
+| `src/client.tsx`      | Runtime terminal : TanStack Router, keymap, loaders Flight, actions, invalidation, live, observabilité, hooks.                        |
+| `src/restore.ts`      | Session façon navigateur : historique et texte des champs nommés par entrée, groupes, oubli à l'envoi.                                |
+| `src/fields.tsx`      | `Input` et `Textarea` contrôlés et restaurables, `useRestoredFields` ; `runtime-context.ts` porte le contexte.                        |
+| `src/session.ts`      | Fichier de session d'un Client (`$XDG_STATE_HOME/airtty/<app>/sessions`), reprise après crash, suppression.                           |
+| `src/not-found.ts`    | Passage de `notFound()` à travers Flight (digest), partagé par le Server et le Client.                                                |
+| `src/compile.ts`      | Client autonome en un exécutable (`airtty build --compile`) et runtime Bun officiel (`airtty runtime`).                               |
+| `src/sign.ts`         | Signature Developer ID, hardened runtime et notarisation du Client macOS (`--sign`, `--notarize`).                                    |
+| `src/publisher.ts`    | Clé d'éditeur Ed25519 des bundles d'application (`airtty keys`, `--sign-bundle`), signature canonique du manifeste. Pas Developer ID. |
+| `src/app-routes.ts`   | `GET /manifest` et `GET /bundle/<sha256>` du Server, publics, lus une fois au démarrage ; 404 sans bundle.                            |
+| `src/connect.ts`      | URL du Server côté Client (`--url` > `AIRTTY_URL` > `~/.config/airtty/<app>.json`), tunnel `ssh://` et socket `unix:`.                |
+| `src/launcher/`       | `airtty <cible>` et binaires d'app : résolution, lancement local sur socket, git, `--on` ([DISTRIBUTION](DISTRIBUTION.md)).           |
+| `src/registry/`       | Registre d'apps (`Registry`, npm), paquets par plateforme, apps installées dans `$XDG_DATA_HOME/airtty/apps`.                         |
+| `src/guards.ts`       | Gardes de type Server/Client ; `package-json.ts` (JSON validé par Zod), `bundle-errors.ts` (échecs de Bun.build).                     |
+| `src/cache/`          | `"use cache"` ([CACHE.md](CACHE.md)) : transformation du build, clé, durées, tags, dédup, handlers mémoire et SQLite.                 |
+| `src/abi.ts`          | ABI de runtime des bundles d'application : spécifiers, versions, clé ; schéma de `.airtty/app/manifest.json`.                         |
+| `src/app-bundle.ts`   | `openApplication` : vérifie et évalue un bundle d'application contre le runtime de l'hôte (table `require` de l'ABI).                 |
+| `src/capabilities.ts` | `airtty.capabilities` (schéma Zod partagé) et comparaison avec les built-ins requis par le Client.                                    |
+| `src/embed.tsx`       | `<Embed>`, `openApplication` : une autre application airtty par pane, keymap filtré, focus, boundary.                                 |
+| `src/vt/`             | `<Terminal>` : programme local sur PTY (`Bun.Terminal`) rendu par l'émulateur d'OpenTUI ; trous d'OpenTUI comblés (`gaps.ts`).        |
+| `src/instance.ts`     | Clé d'instance d'un pane (`x-airtty-instance`) et copies préfixées du manifeste Client, bornées, côté Server.                         |
+| `src/flight/`         | Adapter du vrai codec React Flight et contrat de résolution des modules Client.                                                       |
+| `src/devtools/`       | DevTools (dev) : protocole, agents `AIRTTY_DEVTOOLS`, hook de fibers, app `airtty devtools` ; [DEVTOOLS.md](DEVTOOLS.md).             |
 
 `tests/`, `probes/` et `scripts/` servent à développer et vérifier le framework.
 Ils ne sont pas du code à recopier dans chaque application.
@@ -104,8 +106,10 @@ sources de l’application + framework
 Node requis, `airtty.capabilities` du `package.json` de l'application (comparées aux
 built-ins, avec un avertissement). Du Client code avec un top-level await (que CommonJS
 n'exprime pas) : le build réussit sans `.airtty/app/` et le signale (fichier:ligne) ;
-`airtty build --app-bundle` en fait un échec. Non signé avant
-l'étape 4 d'[EMBEDDING.md](EMBEDDING.md).
+`airtty build --app-bundle` en fait un échec. `airtty build --sign-bundle` signe le
+manifeste avec la clé d'éditeur Ed25519 (`airtty keys`), sur un encodage canonique de ses
+champs ; le Server sert `GET /manifest` et `GET /bundle/<sha256>` (immuable), sans session
+ni en-tête de build.
 
 Le Client contient le runtime terminal et les Client Components de **cette
 application**. Le Server contient le runtime HTTP, les routes, les actions et le

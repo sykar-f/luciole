@@ -142,7 +142,10 @@ const app = await openApplication({ bundle: "…/mdreader/.airtty/app", url });
   Functions lui sont propres, React, OpenTUI, le routeur et le keymap sont ceux de
   l'hôte). Il lui donne une clé d'instance (`x-airtty-instance`) et ouvre sa connexion
   (`http`, `unix:`, `ssh://`, comme `--url`). Un bundle construit pour une autre ABI, un
-  fichier modifié ou un `require` hors ABI et hors built-ins déclarés sont refusés.
+  fichier modifié ou un `require` hors ABI et hors built-ins déclarés sont refusés. Un
+  manifeste signé (`airtty build --sign-bundle`) est vérifié ; une signature invalide est
+  refusée. `publisher: { required?, trust? }` exige une signature et reçoit l'empreinte
+  de la clé avant toute évaluation (l'épinglage par origine du Client générique).
 - `active` : seul le pane actif entend les touches, et ses raccourcis globaux avec. Un
   pane inactif ne garde rien de focalisé : ce qui avait le focus le retrouve quand il
   redevient actif.

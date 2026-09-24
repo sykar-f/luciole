@@ -391,6 +391,19 @@ distribution) le permet. Les étapes 1–2 profitent aussi aux applications actu
 
 ### Avancement
 
+- **Étape 4 (signature, routes, O6)** : livrée sur `feat/embed-sign`. Clé d'éditeur
+  Ed25519 (`src/publisher.ts`) : `airtty keys [generate]` (empreinte `SHA256:…` comme
+  ssh), fichier `$XDG_CONFIG_HOME/airtty/keys/publisher.pem` (ou `AIRTTY_PUBLISHER_KEY`),
+  0600 dans un répertoire 0700, refusée si d'autres peuvent la lire, jamais remplacée
+  par `generate`. `airtty build --sign-bundle` (implique `--app-bundle`) signe un encodage
+  canonique : préfixe de domaine puis tableau ordonné des champs, `capabilities` à clés
+  triées, clé publique comprise. Le Server sert `GET /manifest` (texte écrit par le
+  build, `no-cache`) et `GET /bundle/<sha256>` (`immutable`) avant la session et le
+  contrôle de build ; sans bundle, 404. `loadAppBundle` vérifie toute signature présente
+  et offre `publisher: { required, trust }`, où l'étape 5 branchera l'épinglage par
+  origine. Écart : `/bundle` porte le hash dans son chemin (une URL = un contenu, d'où
+  `immutable`).
+
 - **Étape 3 (bundle d'application, ABI, capacités, O5)** : livrée sur `feat/embed-bundle`.
   `airtty build` produit `.airtty/app/` (troisième rôle du build, traité comme le Client
   pour les frontières : `index.cjs` `bun-cjs` + `manifest.json` non signé). `src/abi.ts` :
