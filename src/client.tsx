@@ -108,7 +108,16 @@ export type { TerminalProps } from "./vt/terminal";
 // Capabilities the host mediates (clipboard, notifications…). The build gives each bundle
 // its own `host`, bound to its Application (airtty:actions); this one is bound to none.
 export { CapabilityDenied } from "./host";
-export type { GlobalKey, Host, HostChannel, HostEvent, HostRequest } from "./host";
+export type {
+  CapabilityState,
+  GlobalKey,
+  Host,
+  HostChannel,
+  HostEvent,
+  HostRequest,
+  MediatedCapability,
+} from "./host";
+export { useCapability, useGlobalKey, useHostMessage } from "./host-hooks";
 export const host = createHost(() => undefined);
 // Keybindings are OpenTUI's keymap, re-exported so every layer shares the Shell's instance.
 // A binding's `desc` (and `group`) feeds `<KeyHelp />`.

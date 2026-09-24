@@ -67,22 +67,38 @@ export const GlobalKey = z.object({
   shift: z.boolean(),
 });
 export type GlobalKey = z.infer<typeof GlobalKey>;
+/** The capabilities a host mediates, as `airtty.capabilities` names them to the user. */
+export const MediatedCapability = z.enum([
+  "clipboard.read",
+  "clipboard.write",
+  "notify",
+  "open-url",
+  "secrets",
+  "tabs.message",
+  "input.global",
+]);
+export type MediatedCapability = z.infer<typeof MediatedCapability>;
+/**
+ * Where a capability stands for this application: `granted`, `denied` by the user, or
+ * `prompt`: not decided, the host asks the user at the first request. Outside the
+ * sandbox (a standalone Client, an inline pane) everything is `granted`.
+ */
+export const CapabilityState = z.enum(["granted", "denied", "prompt"]);
+export type CapabilityState = z.infer<typeof CapabilityState>;
+export const CapabilityStates = z.partialRecord(MediatedCapability, CapabilityState);
+export type CapabilityStates = z.infer<typeof CapabilityStates>;
 /** What the host sends unasked. */
 export const HostEvent = z.discriminatedUnion("type", [
   z.object({ type: z.literal("tabs.message"), from: z.string(), message: Message }),
   z.object({ type: z.literal("input.key"), key: GlobalKey }),
+  z.object({
+    type: z.literal("capability"),
+    capability: MediatedCapability,
+    state: CapabilityState,
+  }),
 ]);
 export type HostEvent = z.infer<typeof HostEvent>;
 
-/** The capabilities a host mediates, as `airtty.capabilities` names them to the user. */
-export type MediatedCapability =
-  | "clipboard.read"
-  | "clipboard.write"
-  | "notify"
-  | "open-url"
-  | "secrets"
-  | "tabs.message"
-  | "input.global";
 export const capabilityOf = (request: HostRequest): MediatedCapability =>
   request.type === "secret"
     ? "secrets"
@@ -103,6 +119,8 @@ export class CapabilityDenied extends Error {
 /** Who answers an Application's requests: the Client itself, or its host over IPC. */
 export type HostChannel = {
   request(request: HostRequest): Promise<unknown>;
+  /** Where `capability` stands now; a `capability` event says when it changes. */
+  state(capability: MediatedCapability): CapabilityState;
   /** Events the host sends; returns the unsubscription. */
   listen(listener: (event: HostEvent) => void): () => void;
 };
@@ -217,6 +235,8 @@ export function directChannel(origin: string): HostChannel {
   const perform = performDirectly(origin);
   return {
     request: async (request) => perform(HostRequest.parse(request)),
+    // Nothing is enforced here: the Client has the user's rights.
+    state: () => "granted",
     listen: () => () => {},
   };
 }
@@ -249,7 +269,7 @@ export type Host = {
 const unbound = (): HostChannel => {
   const fail = () =>
     Promise.reject(new Error("host is bound per bundle to its Application; none is mounted"));
-  return { request: fail, listen: () => () => {} };
+  return { request: fail, state: () => "granted", listen: () => () => {} };
 };
 
 /** The `host` of one bundle evaluation, asking through `application()`'s channel. */

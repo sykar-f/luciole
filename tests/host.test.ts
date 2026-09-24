@@ -20,6 +20,7 @@ function recording(answer: (request: HostRequest) => unknown = () => undefined) 
       asked.push(request);
       return Promise.resolve(answer(request));
     },
+    state: () => "granted",
     listen: () => () => {},
   };
   return { asked, channel };
