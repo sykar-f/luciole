@@ -391,6 +391,18 @@ distribution) le permet. Les étapes 1–2 profitent aussi aux applications actu
 
 ### Avancement
 
+- **Étape 2 (`<Embed>`, O3, O4)** : livrée sur `feat/embed-pane` (`src/embed.tsx`).
+  `<Embed app name active prefix? />` (copie du runtime de l'hôte) garde le cadre, la
+  boundary par pane, le focus mis de côté quand le pane est inactif (et celui qu'il prend
+  pendant ce temps), et filtre les touches ; il rend `app.view`, la vue de la copie du
+  runtime du pane (keymap, routeur, contexte `useApplication` de cette copie : chaque
+  Client construit embarque la sienne). `openApplication({ client, url, instance? })`
+  évalue le bundle une fois par pane, choisit la clé d'instance, ouvre la connexion.
+  `Application.dispose()`, `disposed`, `onDispose()`. Écarts : `prefix` s'ajoute à
+  `<Embed>` comme à `<Terminal>` (une seule touche pour les deux, pas de contexte
+  partagé) ; `app.quit` d'un pane est laissé à l'hôte (`Ctrl+C` ne quitte jamais l'hôte
+  depuis un pane). `examples/mux` montre mdreader à côté d'un shell (`MUX_APPS`).
+
 - **Étape 1 (préfixe d'instance, O1, O2)** : livrée sur `feat/embed-instance`.
   `ApplicationOptions.instance` (clé `[a-z0-9-]{1,32}`, `src/instance.ts`) envoyée en
   `x-airtty-instance` ; le Server passe à Flight une copie du manifeste préfixée par clé
