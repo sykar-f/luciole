@@ -46,22 +46,6 @@ export type Hello = {
 };
 
 /**
- * The cache contract feat/use-cache emits through `serve({ instrument })`: one event per
- * cache operation, attributed to the request (`callId`) that caused it.
- */
-export type CacheEvent = {
-  type: "cache";
-  op: "hit" | "miss" | "stale" | "write" | "invalidate";
-  key: string;
-  /** The cached function's id. */
-  fn: string;
-  tags: readonly string[];
-  callId?: string;
-  ms?: number;
-  at: number;
-};
-
-/**
  * Where the DevTools listen and inspected processes connect: a Unix socket (a path, or
  * `unix:` + path) or a WebSocket (`ws://host:port`). `AIRTTY_DEVTOOLS=1` means the
  * default socket.

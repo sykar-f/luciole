@@ -71,7 +71,7 @@ const serverBase = {
   kind: z.enum(["render", "action"]),
   target: z.string(),
 };
-/** `ServerEvent` (src/server.ts) and the cache contract (`CacheEvent`, src/devtools/protocol.ts). */
+/** `ServerEvent` and `CacheEvent` (src/server.ts, src/cache/runtime.ts). */
 const server = {
   request: z.looseObject({ ...serverBase, type: z.literal("request") }),
   response: z.looseObject({

@@ -60,13 +60,16 @@ test("the Client agent streams events and router state, and obeys commands", asy
     await app.router.load();
     await app.router.preloadRoute({ to: "/b" });
     await app.router.navigate({ to: "/b" });
-    await until(() => of("airtty-client:loader").some((e) => e.payload.synthetic));
-    // TanStack served the preloaded /b: no request, a "(memory cache)" row instead.
-    expect(of("airtty-client:loader").find((e) => e.payload.synthetic)?.payload).toMatchObject({
-      routeId: "/b",
-      source: "router-cache",
-      cause: "preload",
-    });
+    const cached = () =>
+      of("airtty-client:loader").filter((e) => e.payload.source === "router-cache");
+    await until(() => cached().length > 0);
+    // TanStack served the preloaded /b: no request, a "(memory cache)" row instead. The
+    // Client reports it itself (every loader carries `source`), so the agent adds none.
+    expect(cached().map((e) => e.payload)).toMatchObject([
+      { routeId: "/b", phase: "end", cause: "navigation" },
+    ]);
+    await until(() => of("airtty-router:state").some((e) => e.payload.href === "/b"));
+    expect(of("airtty-client:loader").filter((e) => e.payload.synthetic)).toEqual([]);
     expect(of("airtty:hello")[0]?.payload).toMatchObject({ role: "client", app: "test" });
     expect(of("airtty-components:unavailable")).toHaveLength(1);
     await until(() => of("airtty-router:state").some((e) => e.payload.href === "/b"));

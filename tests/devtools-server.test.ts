@@ -3,6 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseEvent, type DevtoolsEvent } from "../src/devtools/schema";
+import { devtoolsInstrument } from "../src/devtools/server-agent";
 import { listenBus } from "../src/devtools/wire";
 import { createHttpTransport, type TransportEvent } from "../src/transport";
 import { launch, until } from "./helpers";
@@ -55,6 +56,43 @@ test("AIRTTY_DEVTOOLS streams the Server's events and logs under the Client's ca
     expect(logs).toContainEqual(["warn", "running { n: 1 }", action]);
   } finally {
     await server.stop();
+    bus.close();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("cache events reach the DevTools and the configured instrument alike", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "airtty-devtools-"));
+  const path = join(dir, "bus.sock");
+  const received: DevtoolsEvent[] = [];
+  const bus = await listenBus({
+    address: { kind: "unix", path },
+    onMessage: (_c, value) => {
+      const event = parseEvent(value);
+      if (event) received.push(event);
+    },
+  });
+  const configured: unknown[] = [];
+  const instrument = devtoolsInstrument({ onEvent: (e) => configured.push(e) }, `unix:${path}`, {
+    buildId: "build-1",
+    getCallId: () => undefined,
+  });
+  const cache = {
+    type: "cache" as const,
+    op: "hit" as const,
+    key: "k",
+    fn: "notes#get",
+    tags: ["notes"],
+    callId: "c1",
+    ms: 1,
+    at: Date.now(),
+  };
+  try {
+    instrument?.onEvent(cache);
+    await until(() => received.some((e) => e.type === "airtty-server:cache"));
+    expect(received.find((e) => e.type === "airtty-server:cache")?.payload).toMatchObject(cache);
+    expect(configured).toEqual([cache]);
+  } finally {
     bus.close();
     await rm(dir, { recursive: true, force: true });
   }

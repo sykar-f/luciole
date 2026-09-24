@@ -1,12 +1,11 @@
 import { basename, dirname } from "node:path";
-import type { ServerEvent, ServerInstrument } from "../server";
-import { message, parseAddress, PLUGIN, PROTOCOL_VERSION, type CacheEvent } from "./protocol";
+import type { ServerInstrument } from "../server";
+import { message, parseAddress, PLUGIN, PROTOCOL_VERSION } from "./protocol";
 import { captureConsole, consoleText } from "./preview";
 import { connectAgent } from "./wire";
 
-/** Whatever the Server's instrument receives: its own events and the cache's (feat/use-cache). */
-type Observed = ServerEvent | CacheEvent;
-const isCache = (event: Observed): event is CacheEvent => event.type === "cache";
+/** `ServerEvent | CacheEvent`: requests and "use cache" operations alike. */
+type Observed = Parameters<ServerInstrument["onEvent"]>[0];
 
 /**
  * The Server's side of `airtty devtools`: `serve()` calls it with `AIRTTY_DEVTOOLS`. Without
@@ -49,9 +48,8 @@ export function devtoolsInstrument(
   );
   return {
     onEvent(event: Observed) {
-      agent.send(message(PLUGIN.server, isCache(event) ? "cache" : event.type, event));
-      // Cache events are not `ServerEvent`s yet: forwarded once feat/use-cache adds them.
-      if (!isCache(event)) instrument?.onEvent(event);
+      agent.send(message(PLUGIN.server, event.type, event));
+      instrument?.onEvent(event);
     },
   };
 }
