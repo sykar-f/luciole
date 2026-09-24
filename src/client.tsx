@@ -750,6 +750,8 @@ const ClientEnvironment = z.object({
   AIRTTY_LATENCY_MS: z._default(z.coerce.number().check(z.gte(0)), 0),
   /** Set by `airtty dev`: the session this Client reopens after each rebuild. */
   AIRTTY_SESSION: z.optional(SessionId),
+  /** Development only: the address of `airtty devtools` (src/devtools/client-agent.ts). */
+  AIRTTY_DEVTOOLS: z.optional(z.string()),
 });
 /** What `airtty dev` sends the Client it supervises (src/commands/dev.ts). */
 const DevMessage = z.union([
@@ -801,6 +803,12 @@ export async function run(
   const handed = supervised ? await bearerFromSupervisor(supervised) : undefined;
   // Keyed by the address the user gave: a tunnel's local port changes on every start.
   const session = openSession({ name, server: url, id: env.data.AIRTTY_SESSION });
+  const devtools = env.data.AIRTTY_DEVTOOLS
+    ? (await import("./devtools/client-agent")).startClientAgent({
+        address: env.data.AIRTTY_DEVTOOLS,
+        name,
+      })
+    : undefined;
   const app = create({
     url: connection.url,
     fetch: connection.fetch,
@@ -808,6 +816,7 @@ export async function run(
     latencyMs: env.data.AIRTTY_LATENCY_MS,
     network: networkFromEnv(process.env),
     session: session.restored,
+    ...(devtools && { wrapTransport: devtools.wrapTransport }),
   });
   // Claims the session at once: another Client starting now must not take it.
   session.flush(app.restoration.snapshot());
@@ -840,6 +849,7 @@ export async function run(
   for (const signal of ["SIGTERM", "SIGINT", "SIGHUP"] as const) process.on(signal, interrupted);
   app.quit = quit;
   renderer = await createCliRenderer({ exitOnCtrlC: false });
+  devtools?.attach(app, renderer);
   const root = createRoot(renderer);
   // RouterProvider's Transitioner performs the initial load.
   root.render(<Shell app={app} />);

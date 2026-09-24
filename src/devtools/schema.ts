@@ -175,7 +175,6 @@ const payloads = {
       href: z.string(),
       resolvedHref: z.optional(z.string()),
       matches: z.array(RouterMatch),
-      pending: z.array(RouterMatch),
       cached: z.array(RouterMatch),
     }),
   },
