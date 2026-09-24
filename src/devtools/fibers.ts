@@ -89,14 +89,20 @@ const nameOf = (type: unknown): string => {
 const fiberName = (fiber: Fiber) =>
   fiber.tag === TAG.suspense ? "Suspense" : nameOf(fiber.elementType ?? fiber.type);
 /** What the build recorded (src/devtools/annotate.ts): source `file:line` and hook calls. */
-type Annotation = { source?: string; hooks: (readonly [unknown, string, string | null])[] };
+type Annotation = {
+  source?: string;
+  file?: string;
+  hooks: (readonly [unknown, string, string | null])[];
+};
 function annotationOf(value: unknown): Annotation | undefined {
   const found = field(value, "__airtty");
   const hooks = field(found, "hooks");
   if (!Array.isArray(hooks)) return undefined;
   const source = field(found, "source");
+  const file = field(found, "file");
   return {
     source: typeof source === "string" ? source : undefined,
+    file: typeof file === "string" ? file : undefined,
     hooks: hooks.flatMap((entry: unknown) =>
       Array.isArray(entry) && typeof entry[1] === "string"
         ? [[entry[0], entry[1], typeof entry[2] === "string" ? entry[2] : null] as const]
@@ -440,6 +446,7 @@ export function createComponentTracker(now: () => number) {
           depth: level,
           name: fiberName(fiber),
           source: fiberAnnotation(fiber)?.source,
+          file: fiberAnnotation(fiber)?.file,
           kind: "client",
           key: fiber.key ?? undefined,
           renders: entry?.renders ?? 0,

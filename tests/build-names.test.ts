@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { build } from "../src/build";
 import { annotateNames, routeComponentName } from "../src/build-names";
+import { sourceLocation } from "../src/devtools/airtty-devtools/components/editor";
 import { importClient } from "./helpers";
 
 const runtime = "/fw/devtools/annotate.ts";
@@ -25,7 +26,7 @@ test("route files get a name from their route when theirs is absent or generic",
     "export default function Page() {\n  return null;\n}\n",
     "app/notes/[id]/page.tsx",
   );
-  expect(calls(page)).toEqual(['Page,"NotesIdPage","app/notes/[id]/page.tsx:1",[]']);
+  expect(calls(page)).toEqual(['Page,"NotesIdPage","app/notes/[id]/page.tsx:1",[],null']);
   // An author's own name stays.
   const named = annotated("export default function NoteScreen() { return null }", "app/page.tsx");
   expect(calls(named)[0]).toStartWith('NoteScreen,"NoteScreen"');
@@ -34,11 +35,11 @@ test("route files get a name from their route when theirs is absent or generic",
 test("anonymous default exports are named without moving a line", () => {
   const fn = annotated("\n\nexport default function () {\n  return null;\n}\n", "app/layout.tsx");
   expect(fn.split("\n")[2]).toBe("export default function __airttyDefault () {");
-  expect(calls(fn)).toEqual(['__airttyDefault,"RootLayout","app/layout.tsx:3",[]']);
+  expect(calls(fn)).toEqual(['__airttyDefault,"RootLayout","app/layout.tsx:3",[],null']);
   const arrow = annotated("export default memo(() => null);\n", "components/note-list.tsx");
   expect(arrow.split("\n")[0]).toBe("const __airttyDefault = memo(() => null);");
   expect(arrow).toContain("export default __airttyDefault;");
-  expect(calls(arrow)).toEqual(['__airttyDefault,"NoteList","components/note-list.tsx:1",[]']);
+  expect(calls(arrow)).toEqual(['__airttyDefault,"NoteList","components/note-list.tsx:1",[],null']);
 });
 
 test("hook calls are recorded in evaluation order with the variable they feed", () => {
@@ -55,10 +56,10 @@ export function Editor() {
 const helper = () => useState(1);
 `);
   expect(calls(out)).toEqual([
-    'useLocal,null,"components/X.tsx:3",[["useState","useState","open"]]',
+    'useLocal,null,"components/X.tsx:3",[["useState","useState","open"]],null',
     // useLocal() runs before useDraft(): its argument. Custom hooks the module can refer
     // to are passed as values, React's own by name; the effect's callback is not the body.
-    'Editor,"Editor","components/X.tsx:4",[["useState","useState","draft"],[useLocal,"useLocal",null],[useDraft,"useDraft","save, edit"],["useRef","useRef","input"],["useEffect","useEffect",null]]',
+    'Editor,"Editor","components/X.tsx:4",[["useState","useState","draft"],[useLocal,"useLocal",null],[useDraft,"useDraft","save, edit"],["useRef","useRef","input"],["useEffect","useEffect",null]],null',
   ]);
   expect(out).toContain(`import {annotate as __airttyAnnotate} from "${runtime}";`);
   // Nothing to annotate, nothing changes.
@@ -92,3 +93,25 @@ test("a built Client names its components and records their source and hooks", a
     await rm(dir, { recursive: true, force: true });
   }
 }, 60_000);
+
+test("framework components read airtty/<file>, and open at their real path", () => {
+  const framework = resolve("src");
+  const out = annotateNames("export function Input() { return null }\n", {
+    path: join(framework, "fields.tsx"),
+    relative: "../../src/fields.tsx",
+    runtime,
+  });
+  expect(calls(out)).toEqual([
+    `Input,"Input","airtty/fields.tsx:1",[],${JSON.stringify(join(framework, "fields.tsx"))}`,
+  ]);
+  // An application file keeps its relative source and no absolute path.
+  expect(calls(annotated("export function A() { return null }\n"))).toEqual([
+    'A,"A","components/X.tsx:1",[],null',
+  ]);
+  expect(sourceLocation("/app", "airtty/fields.tsx:76", "/fw/src/fields.tsx")).toEqual({
+    path: "airtty/fields.tsx",
+    file: "/fw/src/fields.tsx",
+    line: "76",
+  });
+  expect(sourceLocation("/app", "app/page.tsx:3").file).toBe("/app/app/page.tsx");
+});

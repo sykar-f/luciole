@@ -118,6 +118,8 @@ const ComponentNode = z.object({
   env: z.optional(z.string()),
   /** Where it is defined, `file:line` relative to the application (src/build-names.ts). */
   source: z.optional(z.string()),
+  /** The absolute file to open, when it lies outside the application (the framework). */
+  file: z.optional(z.string()),
   renders: z.number(),
   /** When it last rendered, epoch ms. */
   renderedAt: z.optional(z.number()),

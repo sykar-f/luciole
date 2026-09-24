@@ -1,5 +1,5 @@
 import ts from "@typescript/typescript6";
-import { basename, extname } from "node:path";
+import { basename, dirname, extname, relative as relativeTo } from "node:path";
 
 /**
  * What the build tells the runtime about each component and custom hook of a module, for
@@ -34,6 +34,8 @@ const ROUTE_KINDS: Record<string, string> = {
   "not-found": "NotFound",
 };
 const DEFAULT_REF = "__airttyDefault";
+/** The framework's sources: shown as `airtty/<file>`, not as a path climbing out of the app. */
+const FRAMEWORK = dirname(import.meta.path);
 const MAX_BINDING_NAMES = 3;
 const pascal = (text: string) =>
   text
@@ -147,6 +149,12 @@ export function annotateNames(
   const file = ts.createSourceFile(path, text, ts.ScriptTarget.ESNext, true);
   const scope = moduleScopeOf(file);
   const route = routeComponentName(relative);
+  // What the DevTools show, and, for a file outside the application, the absolute path
+  // they open (inside, `relative` joined to the application's root).
+  const label = path.startsWith(`${FRAMEWORK}/`)
+    ? `airtty/${relativeTo(FRAMEWORK, path)}`
+    : relative;
+  const absolute = relative.startsWith("..") ? path : null;
   // The name a route file's default export often has, the same in every route: `Page`.
   const generic = ROUTE_KINDS[basename(relative, extname(relative))];
   const entries: Entry[] = [];
@@ -234,7 +242,7 @@ export function annotateNames(
   // loses its own annotation only.
   const annotations = entries.map(
     (e) =>
-      `try{__airttyAnnotate(${e.ref},${JSON.stringify(e.kind === "component" ? e.name : null)},${JSON.stringify(`${relative}:${e.line}`)},${hooks(e.hooks)})}catch{}`,
+      `try{__airttyAnnotate(${e.ref},${JSON.stringify(e.kind === "component" ? e.name : null)},${JSON.stringify(`${label}:${e.line}`)},${hooks(e.hooks)},${JSON.stringify(absolute)})}catch{}`,
   );
   return `${out}\n${exportDefault ? `export default ${DEFAULT_REF};\n` : ""}import {annotate as __airttyAnnotate} from ${JSON.stringify(runtime)};\n${annotations.join("\n")}\n`;
 }
