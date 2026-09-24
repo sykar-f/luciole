@@ -391,6 +391,20 @@ distribution) le permet. Les étapes 1–2 profitent aussi aux applications actu
 
 ### Avancement
 
+- **Étape 3 (bundle d'application, ABI, capacités, O5)** : livrée sur `feat/embed-bundle`.
+  `airtty build` produit `.airtty/app/` (troisième rôle du build, traité comme le Client
+  pour les frontières : `index.cjs` `bun-cjs` + `manifest.json` non signé). `src/abi.ts` :
+  11 spécifiers, `ABI_VERSION` 1, versions épinglées (un test les compare à
+  `package.json`), clé `1-<sha256 court>`. Audit des built-ins par le metafile ;
+  top-level await refusé avec fichier et ligne ; `airtty.capabilities` (schéma de
+  `src/capabilities.ts`, repris du probe sandbox, ajouté à `AppField` du registre)
+  recopié dans le manifeste et comparé à l'audit (avertissement). `openApplication({
+bundle, url })` évalue ce bundle contre le runtime de l'hôte (`src/app-bundle.ts`) :
+  plus de copie du runtime par pane, `app.view` et les contextes sont ceux de l'hôte.
+  Écarts : `zod` classique n'est pas dans l'ABI (le runtime Client ne le contient pas,
+  une application qui l'utilise l'embarque) ; l'option `client` d'`openApplication`
+  devient `bundle` ; une application qui ne déclare rien ne reçoit pas d'avertissement.
+
 - **Étape 2 (`<Embed>`, O3, O4)** : livrée sur `feat/embed-pane` (`src/embed.tsx`).
   `<Embed app name active prefix? />` (copie du runtime de l'hôte) garde le cadre, la
   boundary par pane, le focus mis de côté quand le pane est inactif (et celui qu'il prend

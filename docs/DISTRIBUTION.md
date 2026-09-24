@@ -242,6 +242,10 @@ Une app publiée, à la manière d'esbuild :
 Ce sont de vrais paquets installables ; le registre n'est jamais utilisé comme base de
 données : ce qui est installé est noté localement.
 
+Le champ `airtty` accepte aussi `capabilities` (schéma `src/capabilities.ts`, décision 3
+d'[EMBEDDING.md](EMBEDDING.md)) : ce que l'app déclare pouvoir faire, lisible avant toute
+exécution. Déclarer n'est pas appliquer : seul le mode `sandbox` les appliquera.
+
 ```text
 airtty build --compile --name notes --target bun-darwin-arm64
 airtty build --compile --name notes --target bun-linux-x64 --native-dir …

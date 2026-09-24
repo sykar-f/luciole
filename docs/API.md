@@ -13,7 +13,7 @@ Entrée `airtty/client` (Client Components uniquement) :
 | `useLive(source, args, { limit }?)`                                                                                                    | `{ items, done, error }` d'une Server Function génératrice, abonnée tant que le composant est monté.                                             |
 | `useBindings()`, `useActiveKeys()`, `useKeymap()`, `usePendingSequence()`                                                              | Keymap OpenTUI réexportée : couches de raccourcis liées au cycle de vie des composants.                                                          |
 | `<KeyHelp groups? inline? />`                                                                                                          | Aide générée depuis les raccourcis actifs qui déclarent un `desc` (filtrés par `group`).                                                         |
-| `<Embed app name active prefix? />`, `openApplication({ client, url, instance? })`                                                     | Une autre application airtty dans un pane de celle-ci ; voir « Applications embarquées ».                                                        |
+| `<Embed app name active prefix? />`, `openApplication({ bundle, url, instance? })`                                                     | Une autre application airtty dans un pane de celle-ci ; voir « Applications embarquées ».                                                        |
 | `<Terminal command active prefix? cwd? env? onExit? />`                                                                                | Un programme local (shell, vim, un Client airtty) sur un PTY, rendu dans l'arbre ; voir « Terminaux embarqués ».                                 |
 | `<DebugOverlay limit? />`                                                                                                              | Requêtes, requêtes ouvertes, octets, dernier RTT et derniers événements depuis son montage.                                                      |
 | `instrumentTracing(app, tracer)`                                                                                                       | Un span par requête vers un `Tracer` OpenTelemetry (ou compatible) ; renvoie la fonction d'arrêt.                                                |
@@ -131,14 +131,18 @@ processus et le même arbre React : le mode `inline` de [EMBEDDING.md](EMBEDDING
 sans isolation (confiance totale).
 
 ```tsx
-const app = await openApplication({ client: "…/mdreader/.airtty/client/index.js", url });
+const app = await openApplication({ bundle: "…/mdreader/.airtty/app", url });
 <Embed app={app} name="docs" active={pane === "docs"} prefix="ctrl+o" flexGrow={1} />;
 ```
 
-- `openApplication` évalue le Client construit **une fois par pane** (ses modules et la
-  liaison de ses Server Functions lui sont propres), lui donne une clé d'instance
-  (`x-airtty-instance`, deux panes d'un même build restent distincts) et ouvre sa
-  connexion (`http`, `unix:`, `ssh://`, comme `--url`).
+- `openApplication` lit le **bundle d'application** (`.airtty/app/`, produit par
+  `airtty build`) : ses Client Components, son route tree et ses stubs de Server
+  Functions, sans runtime. Il vérifie sa clé d'ABI et son hash, puis l'évalue **une fois
+  par pane** contre le runtime de l'hôte (ses modules et la liaison de ses Server
+  Functions lui sont propres, React, OpenTUI, le routeur et le keymap sont ceux de
+  l'hôte). Il lui donne une clé d'instance (`x-airtty-instance`) et ouvre sa connexion
+  (`http`, `unix:`, `ssh://`, comme `--url`). Un bundle construit pour une autre ABI, un
+  fichier modifié ou un `require` hors ABI et hors built-ins déclarés sont refusés.
 - `active` : seul le pane actif entend les touches, et ses raccourcis globaux avec. Un
   pane inactif ne garde rien de focalisé : ce qui avait le focus le retrouve quand il
   redevient actif.
