@@ -136,6 +136,7 @@ Les chantiers qui s'ajoutent au framework (DevTools, cache, distribution, Client
 générique) s'y branchent par ces points, dans leurs propres fichiers, sans modifier
 `client.tsx`, `transport.ts`, `server.ts` ni `cli.ts` :
 
-| Point                              | Pour                                                      |
-| ---------------------------------- | --------------------------------------------------------- |
-| `ApplicationOptions.wrapTransport` | Décorer le `Transport` du Client : cache, enregistrement. |
+| Point                                                                   | Pour                                                           |
+| ----------------------------------------------------------------------- | -------------------------------------------------------------- |
+| `ApplicationOptions.wrapTransport`                                      | Décorer le `Transport` du Client : cache, enregistrement.      |
+| `Application.onEvent` : `at`, `callId`, `cause`, `invalidate`, `loader` | Chronologie, corrélation Client/Server, doubles invalidations. |

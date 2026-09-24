@@ -35,8 +35,10 @@ import {
   createHttpTransport,
   isReactNode,
   networkFromEnv,
+  now,
   type Fetch,
   type NetworkConditions,
+  type RequestCause,
   type RouteParams,
   type RouteSearch,
   type Transport,
@@ -48,13 +50,28 @@ export type {
   Fetch,
   NetworkConditions,
   Outcome,
+  RequestCause,
+  RequestContext,
   RouteParams,
   RouteSearch,
   Transport,
   TransportEvent,
 } from "./transport";
-/** A transport event, or a resolved navigation. */
-export type ApplicationEvent = TransportEvent | { type: "navigation"; path: string };
+type Navigation = { type: "navigation"; at: number; path: string };
+/** A page loader, identified by the route it renders (`routeId`, the request's `target`). */
+type Loader = { type: "loader"; at: number; routeId: string; href: string; cause: RequestCause };
+/**
+ * A transport event; a resolved navigation; an invalidation, declared by a Server
+ * Function (`server`) or by Client code, `refresh()` included (`client`); or a page
+ * loader starting and ending, whatever the transport did (a decorator may answer it).
+ * Every event carries `at`, in epoch milliseconds.
+ */
+export type ApplicationEvent =
+  | TransportEvent
+  | Navigation
+  | { type: "invalidate"; at: number; paths: readonly string[]; origin: "server" | "client" }
+  | (Loader & { phase: "start" })
+  | (Loader & { phase: "end"; ms: number; result: "ok" | "error" | "aborted" });
 export type { ErrorProps, LayoutProps, LoadingProps, NotFoundProps } from "./route-tree";
 export { Input, Textarea, useRestoredFields } from "./fields";
 export type { FieldInputProps, FieldTextareaProps, RestoredFields } from "./fields";
@@ -146,6 +163,10 @@ export class Application {
   private listeners = new Set<() => void>();
   private invalidationListeners = new Set<(paths: readonly string[]) => void>();
   private nextSignal: AbortSignal | undefined;
+  private nextCause: RequestCause | undefined;
+  // The revalidation in progress, so its loads report why they run. Overlapping ones
+  // keep the latest cause: attribution is best effort, never a guarantee.
+  private revalidation: { cause: RequestCause } | undefined;
   private eventListeners = new Set<(event: ApplicationEvent) => void>();
   private purgeAfterLoad = false;
   private bearer: string | undefined;
@@ -181,7 +202,8 @@ export class Application {
         fetch: options.fetch,
         callServer: this.callServer,
         // Not awaited: a confirmed result never waits for, nor fails with, the refresh.
-        onInvalidate: (paths) => void this.invalidate(paths).catch(() => {}),
+        onInvalidate: (paths) =>
+          void this.revalidate(paths, "server", "invalidation").catch(() => {}),
         onEvent: (event) => this.emit(event),
       });
     this.transport = options.wrapTransport?.(inner) ?? inner;
@@ -212,7 +234,7 @@ export class Application {
     this.router.subscribe("onBeforeNavigate", () => this.restoration.sync(this.history));
     this.router.subscribe("onResolved", ({ toLocation }: { toLocation: { pathname: string } }) => {
       this.restoration.sync(this.history);
-      this.emit({ type: "navigation", path: toLocation.pathname });
+      this.emit({ type: "navigation", at: now(), path: toLocation.pathname });
       if (!this.purgeAfterLoad) return;
       this.purgeAfterLoad = false;
       this.router.clearCache();
@@ -255,7 +277,7 @@ export class Application {
     this.purge();
     // Loads still in flight (a navigation, a background revalidation) asked with the
     // previous bearer: superseding them is what keeps their answers off the screen.
-    void this.router.invalidate().catch(() => {});
+    void this.revalidating("invalidation", () => this.router.invalidate()).catch(() => {});
   };
   private purge() {
     this.router.clearCache();
@@ -272,33 +294,53 @@ export class Application {
     };
   };
   /** Revalidates the destination, or the mounted route, keeping it on failure. */
-  refresh = () => this.invalidate();
+  refresh = () => this.revalidate(["/"], "client", "refresh");
   /**
    * Revalidates the routes under `paths` (all by default) and tells `useInvalidation`
    * subscribers, for data read outside route loaders. Server Functions trigger it with
    * `invalidate()` on the Server; Client code may call it after its own changes.
    */
-  invalidate = (paths: readonly string[] = ["/"]) => {
+  invalidate = (paths: readonly string[] = ["/"]) =>
+    this.revalidate(paths, "client", "invalidation");
+  private revalidate(paths: readonly string[], origin: "server" | "client", cause: RequestCause) {
+    this.emit({ type: "invalidate", at: now(), paths, origin });
     for (const listener of this.invalidationListeners) listener(paths);
     const covers = (pathname: string) =>
       paths.some(
         (p) => p === "/" || pathname === p || pathname.startsWith(p.endsWith("/") ? p : p + "/"),
       );
-    return paths.includes("/")
-      ? this.router.invalidate()
-      : this.router.invalidate({ filter: (match: { pathname: string }) => covers(match.pathname) });
-  };
+    return this.revalidating(cause, () =>
+      paths.includes("/")
+        ? this.router.invalidate()
+        : this.router.invalidate({
+            filter: (match: { pathname: string }) => covers(match.pathname),
+          }),
+    );
+  }
+  private revalidating(cause: RequestCause, start: () => Promise<void>) {
+    const mark = { cause };
+    this.revalidation = mark;
+    const done = () => {
+      if (this.revalidation === mark) this.revalidation = undefined;
+    };
+    const pending = start();
+    pending.then(done, done);
+    return pending;
+  }
   /**
    * Runs `call` with `signal` bound to the Server Function it calls synchronously. Flight
    * references call `callServer` synchronously, so the signal reaches that one request;
-   * aborting it cancels the request and any stream it still returns.
+   * aborting it cancels the request and any stream it still returns. `cause` labels that
+   * request in events (`useLive` passes `live`).
    */
-  withSignal = <T,>(signal: AbortSignal, call: () => T): T => {
+  withSignal = <T,>(signal: AbortSignal, call: () => T, cause?: RequestCause): T => {
     this.nextSignal = signal;
+    this.nextCause = cause;
     try {
       return call();
     } finally {
       this.nextSignal = undefined;
+      this.nextCause = undefined;
     }
   };
   /**
@@ -335,7 +377,13 @@ export class Application {
   async renderPage(
     routeId: string,
     params: RouteParams,
-    load: { signal: AbortSignal; href: string; route: string; search?: RouteSearch },
+    load: {
+      signal: AbortSignal;
+      href: string;
+      route: string;
+      search?: RouteSearch;
+      preload?: boolean;
+    },
   ): Promise<React.ReactNode> {
     // Read before the request: a revalidation of the resolved location keeps its tree.
     const refreshing = this.router.state.resolvedLocation?.href === load.href;
@@ -343,13 +391,32 @@ export class Application {
       ? this.router.state.matches.find((m: { routeId: string }) => m.routeId === load.route)
           ?.loaderData
       : undefined;
+    const loader = {
+      type: "loader",
+      routeId,
+      href: load.href,
+      cause: load.preload
+        ? "preload"
+        : refreshing
+          ? (this.revalidation?.cause ?? "unknown")
+          : "navigation",
+    } as const;
+    const started = performance.now();
+    let result: "ok" | "error" | "aborted" = "error";
+    this.emit({ ...loader, phase: "start", at: now() });
     try {
-      const tree = await this.transport.render(routeId, params, load.signal, load.search ?? {});
+      const tree = await this.transport.render(routeId, params, load.signal, load.search ?? {}, {
+        cause: loader.cause,
+      });
+      result = load.signal.aborted ? "aborted" : "ok";
       // A superseded load may still answer; only the current one reports status.
       if (!load.signal.aborted) this.report("Connected");
       return tree;
     } catch (e) {
-      if (load.signal.aborted) throw e; // superseded: TanStack discards this load
+      if (load.signal.aborted) {
+        result = "aborted";
+        throw e; // superseded: TanStack discards this load
+      }
       // An answer, not a failure: the page's not-found screen replaces even a mounted tree.
       if (readNotFound(e)) {
         this.report("Connected");
@@ -368,6 +435,9 @@ export class Application {
       }
       this.report(statusOf(e));
       throw e;
+    } finally {
+      const ms = Math.round(performance.now() - started);
+      this.emit({ ...loader, phase: "end", at: now(), ms, result });
     }
   }
   /**
@@ -376,10 +446,12 @@ export class Application {
    */
   callServer = async (id: string, args: unknown[]) => {
     // Read before the first await: `withSignal` sets it for this call only.
-    const signal = this.nextSignal;
+    const signal = this.nextSignal,
+      cause = this.nextCause ?? "action";
     this.nextSignal = undefined;
+    this.nextCause = undefined;
     try {
-      const value = await this.transport.call(id, args, signal);
+      const value = await this.transport.call(id, args, signal, { cause });
       this.report("Connected", this.error);
       // No automatic refresh: the code that mutates calls router.invalidate().
       return value;
@@ -438,8 +510,10 @@ export function useLive<T, A extends unknown[]>(
       });
     void (async () => {
       try {
-        const iterable = await app.withSignal(controller.signal, () =>
-          source(...latestArgs.current),
+        const iterable = await app.withSignal(
+          controller.signal,
+          () => source(...latestArgs.current),
+          "live",
         );
         for await (const item of iterable) {
           if (controller.signal.aborted) return;
@@ -501,7 +575,7 @@ type DebugState = {
   lastRtt: number | undefined;
   recent: readonly string[];
 };
-const describeEvent = (event: ApplicationEvent) => {
+const describeEvent = (event: TransportEvent | Navigation) => {
   if (event.type === "navigation") return `navigate ${event.path}`;
   const at = `${event.kind} ${event.target.split("#").at(-1)}`;
   if (event.type === "request") return `→ ${at}`;
@@ -527,6 +601,8 @@ export function DebugOverlay({ limit = 6 }: { limit?: number }) {
   useEffect(
     () =>
       app.onEvent((event) => {
+        // Loaders and invalidations are for richer tools; the overlay stays as it was.
+        if (event.type === "loader" || event.type === "invalidate") return;
         if (event.type === "chunk") {
           setState((s) => ({ ...s, bytes: s.bytes + event.bytes }));
           return;
@@ -581,7 +657,7 @@ export function instrumentTracing(app: Application, tracer: TracerLike) {
   const spans = new Map<number, ReturnType<TracerLike["startSpan"]>>();
   const ERROR = 2; // OpenTelemetry SpanStatusCode.ERROR
   return app.onEvent((event) => {
-    if (event.type === "navigation") return;
+    if (!("kind" in event)) return;
     if (event.type === "request") {
       spans.set(
         event.id,

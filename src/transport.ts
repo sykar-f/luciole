@@ -96,6 +96,23 @@ export type RouteParams = Record<string, string>;
 export type RouteSearch = Record<string, string>;
 
 /**
+ * Why the Client sends a request, as far as it can tell: `preload` is TanStack's
+ * preloading, `refresh` the user's own reload, `invalidation` one declared by
+ * `invalidate()` (Server or Client), `live` a `useLive` subscription. Anything the
+ * Client cannot attribute is `unknown`.
+ */
+export type RequestCause =
+  | "navigation"
+  | "preload"
+  | "refresh"
+  | "invalidation"
+  | "action"
+  | "live"
+  | "unknown";
+/** What the caller knows about a request that the request itself does not carry. */
+export type RequestContext = { cause?: RequestCause };
+
+/**
  * The only way the Client reaches a Server. `render` resolves with the root Flight
  * model; nested Suspense content and async iterables keep streaming after it.
  * Aborting `signal` and the request timeout both apply only until that root model
@@ -107,23 +124,40 @@ export interface Transport {
     params: RouteParams,
     signal: AbortSignal,
     search?: RouteSearch,
+    context?: RequestContext,
   ): Promise<ReactNode>;
-  call(actionId: string, args: unknown[], signal?: AbortSignal): Promise<unknown>;
+  call(
+    actionId: string,
+    args: unknown[],
+    signal?: AbortSignal,
+    context?: RequestContext,
+  ): Promise<unknown>;
   setToken(token?: string): void;
 }
 
 /**
  * What the transport observes, request by request: for an overlay, logs or tracing.
- * `id` correlates the events of one request; `target` is its route or Server Function.
+ * `id` correlates the events of one request in this Client; `callId` is sent as
+ * `x-airtty-call` and correlates it with the Server's own events. `target` is its route
+ * or Server Function; `at` is when the event happened, in epoch milliseconds.
  */
-export type TransportEvent = { id: number; kind: "render" | "action"; target: string } & (
-  | { type: "request" }
+export type TransportEvent = {
+  id: number;
+  callId: string;
+  at: number;
+  kind: "render" | "action";
+  target: string;
+} & (
+  | { type: "request"; cause: RequestCause }
   | { type: "response"; status: number; ms: number }
   | { type: "chunk"; bytes: number }
   | { type: "end"; ms: number; bytes: number; cancelled: boolean }
   | { type: "error"; ms: number; outcome: Outcome; message: string }
 );
 type RequestMeta = { kind: "render" | "action"; target: string };
+type Tag = RequestMeta & { id: number; callId: string };
+/** Epoch milliseconds from the monotonic clock durations use: `at` and `ms` agree. */
+export const now = () => performance.timeOrigin + performance.now();
 /**
  * Simulated faults, for testing an application's own handling:
  * - `refuse`: the request is never sent (`not-sent`);
@@ -210,17 +244,11 @@ export function createHttpTransport(options: HttpTransportOptions): Transport {
 
   // Counts what the caller actually reads: chunks, bytes, the end or the failure of the
   // body, so a stream that outlives its request still reports how it ended.
-  function observe(
-    body: ReadableStream<Uint8Array> | null,
-    id: number,
-    meta: RequestMeta,
-    start: number,
-    cut: boolean,
-  ) {
+  function observe(body: ReadableStream<Uint8Array> | null, tag: Tag, start: number, cut: boolean) {
     let bytes = 0;
     const ms = () => Math.round(performance.now() - start);
     if (!body) {
-      emit({ id, ...meta, type: "end", ms: ms(), bytes, cancelled: false });
+      emit({ ...tag, at: now(), type: "end", ms: ms(), bytes, cancelled: false });
       return new ReadableStream<Uint8Array>({ start: (controller) => controller.close() });
     }
     const reader = body.getReader();
@@ -233,21 +261,28 @@ export function createHttpTransport(options: HttpTransportOptions): Transport {
           }
           const { done, value } = await reader.read();
           if (done) {
-            emit({ id, ...meta, type: "end", ms: ms(), bytes, cancelled: false });
+            emit({ ...tag, at: now(), type: "end", ms: ms(), bytes, cancelled: false });
             controller.close();
             return;
           }
           bytes += value.byteLength;
           if (network.chunkDelayMs) await delay(network.chunkDelayMs);
-          emit({ id, ...meta, type: "chunk", bytes: value.byteLength });
+          emit({ ...tag, at: now(), type: "chunk", bytes: value.byteLength });
           controller.enqueue(value);
         } catch (e) {
-          emit({ id, ...meta, type: "error", ms: ms(), outcome: "unknown", message: messageOf(e) });
+          emit({
+            ...tag,
+            at: now(),
+            type: "error",
+            ms: ms(),
+            outcome: "unknown",
+            message: messageOf(e),
+          });
           controller.error(e);
         }
       },
       cancel(reason) {
-        emit({ id, ...meta, type: "end", ms: ms(), bytes, cancelled: true });
+        emit({ ...tag, at: now(), type: "end", ms: ms(), bytes, cancelled: true });
         return reader.cancel(reason);
       },
     });
@@ -255,12 +290,19 @@ export function createHttpTransport(options: HttpTransportOptions): Transport {
 
   // The timeout bounds the wait for the root model, not the stream behind it: a
   // Suspense boundary or an async iterable may legitimately stream for longer.
-  async function request(path: string, init: RequestInit, meta: RequestMeta, cancel?: AbortSignal) {
-    const id = ++sequence,
-      start = performance.now();
-    emit({ id, ...meta, type: "request" });
+  async function request(
+    path: string,
+    init: RequestInit,
+    meta: RequestMeta,
+    cancel: AbortSignal | undefined,
+    context: RequestContext = {},
+  ) {
+    const tag: Tag = { id: ++sequence, callId: crypto.randomUUID(), ...meta };
+    const start = performance.now();
+    emit({ ...tag, at: now(), type: "request", cause: context.cause ?? "unknown" });
     const headers = new Headers(init.headers);
     headers.set("x-airtty-build", options.buildId);
+    headers.set("x-airtty-call", tag.callId);
     if (token) headers.set("authorization", `Bearer ${token}`);
     const deadline = new AbortController();
     const timer = setTimeout(
@@ -313,19 +355,23 @@ export function createHttpTransport(options: HttpTransportOptions): Transport {
           response.status < STATUS.serverError ? "rejected" : "unknown",
         );
       emit({
-        id,
-        ...meta,
+        ...tag,
+        at: now(),
         type: "response",
         status: response.status,
         ms: Math.round(performance.now() - start),
       });
-      return { body: observe(response.body, id, meta, start, fault === "cut"), settle };
+      return {
+        body: observe(response.body, tag, start, fault === "cut"),
+        settle,
+        callId: tag.callId,
+      };
     } catch (e) {
       settle();
       const error = e instanceof TransportError ? e : new TransportError(messageOf(e));
       emit({
-        id,
-        ...meta,
+        ...tag,
+        at: now(),
         type: "error",
         ms: Math.round(performance.now() - start),
         outcome: error.outcome,
@@ -336,7 +382,7 @@ export function createHttpTransport(options: HttpTransportOptions): Transport {
   }
 
   return {
-    async render(routeId, params, signal, search = {}) {
+    async render(routeId, params, signal, search = {}, context) {
       // Detach the stream from the caller once the root model is decoded: a cached
       // tree must keep receiving its Suspense chunks after its route is left.
       const stream = new AbortController();
@@ -351,6 +397,7 @@ export function createHttpTransport(options: HttpTransportOptions): Transport {
           {},
           { kind: "render", target: routeId },
           stream.signal,
+          context,
         );
         let tree: unknown;
         try {
@@ -366,17 +413,17 @@ export function createHttpTransport(options: HttpTransportOptions): Transport {
         signal.removeEventListener("abort", cancel);
       }
     },
-    async call(actionId, args, signal) {
-      const callId = crypto.randomUUID();
-      const { body, settle } = await request(
+    async call(actionId, args, signal, context) {
+      const { body, settle, callId } = await request(
         "/action",
         {
           method: "POST",
-          headers: { "x-airtty-action": actionId, "x-airtty-call": callId },
+          headers: { "x-airtty-action": actionId },
           body: await encodeReply(args),
         },
         { kind: "action", target: actionId },
         signal,
+        context,
       );
       const decoded = await Promise.resolve(decode(body, options.callServer))
         .catch((e: unknown) => {

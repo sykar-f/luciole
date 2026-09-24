@@ -100,6 +100,7 @@ type PageLoaderContext = {
   abortController: AbortController;
   location: { href: string };
   route: { id: string };
+  preload: boolean;
 };
 
 /**
@@ -108,7 +109,7 @@ type PageLoaderContext = {
  * inference site and widen the params TanStack derives from the literal path.
  */
 export function loadPage(
-  { context, params: all, deps, abortController, location, route }: PageLoaderContext,
+  { context, params: all, deps, abortController, location, route, preload }: PageLoaderContext,
   routeId: string,
   params: readonly string[],
   splat?: string,
@@ -118,6 +119,7 @@ export function loadPage(
     href: location.href,
     route: route.id,
     search: deps.search,
+    preload,
   });
 }
 

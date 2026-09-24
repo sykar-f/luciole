@@ -129,6 +129,22 @@ les exporte en spans OpenTelemetry sans dépendance du framework à OTel (le `Tr
 est typé structurellement). Les écouteurs s'exécutent sur le chemin chaud : ils
 doivent rester légers.
 
+Chaque événement porte `at` (epoch ms, horloge monotone : `performance.timeOrigin +
+performance.now()`). Ceux du transport portent aussi `callId`, envoyé au Server en
+`x-airtty-call` sur `/render` comme sur `/action` ; le Server le retrouve dans
+`getCallId()`. `request` porte sa
+`cause`, déterminée au mieux par le Client : `navigation`, `preload`, `refresh`,
+`invalidation`, `action`, `live`, sinon `unknown`. Un `Transport` la reçoit en dernier
+argument de `render`/`call` (`{ cause }`). S'y ajoutent :
+
+| Événement    | Champs                                                                                                       |
+| ------------ | ------------------------------------------------------------------------------------------------------------ |
+| `navigation` | `path`                                                                                                       |
+| `invalidate` | `paths`, `origin` (`server` : `invalidate()` d'une Server Function ; `client` : `invalidate()`, `refresh()`) |
+| `loader`     | `phase` (`start`, `end`), `routeId`, `href`, `cause` ; à la fin `ms` et `result` (`ok`, `error`, `aborted`)  |
+
+`<DebugOverlay />` ignore `invalidate` et `loader` ; `instrumentTracing` aussi.
+
 ## Champs restaurables
 
 Le Client joue le rôle du navigateur, il garde donc ce qu'un navigateur garde d'une
