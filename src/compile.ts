@@ -8,6 +8,9 @@ import { join, resolve } from "node:path";
 import { mkdir, mkdtemp, rename, rm } from "node:fs/promises";
 import { z } from "zod";
 import { bundleMessages, logMessages } from "./bundle-errors";
+import { formatIdentity, type BinaryIdentity } from "./launcher/identity";
+import { checkAppName } from "./launcher/paths";
+import { readJsonFile } from "./package-json";
 import { checkSigning, notarizeClient, signClient, type SignOptions } from "./sign";
 
 export const COMPILE_TARGETS = [
@@ -88,16 +91,76 @@ async function resolveRuntime(target: CompileTarget, options: CompileOptions) {
 export async function compileClient(
   output: string,
   options: CompileOptions & { name: string },
-): Promise<{ outfile: string; target: CompileTarget; warning?: string; notarization?: string }> {
+): Promise<Compiled> {
+  return compileEntry(join(output, "client/index.js"), {
+    ...options,
+    outfile: options.outfile ?? join(output, "client", `${options.name}-${suffix(options)}`),
+  });
+}
+
+const BuildManifest = z.object({ buildId: z.string().min(1) });
+const framework = import.meta.dir;
+
+/**
+ * The whole app in one executable: Client and Server of one build, and the launcher that
+ * picks the role (src/launcher/binary.ts). `notes` runs both locally, `notes serve` the
+ * Server alone, `notes --url …` the Client alone, `notes --on host` the Server there.
+ *
+ * The two roles need React under different export conditions, which one bundle cannot
+ * mix: the Server is bundled first, whole, under `react-server`, then embedded next to
+ * the Client, which keeps the default conditions. Each role loads only its own half.
+ */
+export async function compileApp(
+  output: string,
+  options: CompileOptions & { name: string },
+): Promise<Compiled & { identity: BinaryIdentity }> {
+  const { target } = parseTarget(options.target ?? hostTarget());
+  const { buildId } = await readJsonFile(join(output, "manifest.json"), BuildManifest);
+  const staging = join(output, "binary");
+  await rm(staging, { recursive: true, force: true });
+  const server = await Bun.build({
+    entrypoints: [join(output, "server/index.js")],
+    outdir: staging,
+    naming: "server.js",
+    target: "bun",
+    conditions: ["react-server"],
+  }).catch((error: unknown) => {
+    throw new Error(bundleMessages(error).join("\n"));
+  });
+  if (!server.success) throw new Error(logMessages(server.logs));
+  const identity: BinaryIdentity = { name: checkAppName(options.name), buildId, target };
+  const entry = join(staging, "entry.js");
+  await Bun.write(
+    entry,
+    `import {main} from ${JSON.stringify(join(framework, "launcher/binary.ts"))};\n` +
+      `await main(${JSON.stringify(formatIdentity(identity))},{` +
+      `server:()=>import("./server.js"),client:()=>import("../client/index.js")});\n`,
+  );
+  try {
+    const compiled = await compileEntry(entry, {
+      ...options,
+      outfile: options.outfile ?? join(output, "bin", `${options.name}-${suffix(options)}`),
+    });
+    return { ...compiled, identity };
+  } finally {
+    await rm(staging, { recursive: true, force: true });
+  }
+}
+
+type Compiled = { outfile: string; target: CompileTarget; warning?: string; notarization?: string };
+const suffix = (options: CompileOptions) => (options.target ?? hostTarget()).replace(/^bun-/, "");
+
+async function compileEntry(
+  entry: string,
+  options: CompileOptions & { outfile: string },
+): Promise<Compiled> {
   const { target, os, musl } = parseTarget(options.target ?? hostTarget());
   checkSigning(target, options);
-  const outfile = resolve(
-    options.outfile ?? join(output, "client", `${options.name}-${target.replace(/^bun-/, "")}`),
-  );
+  const outfile = resolve(options.outfile);
   const nativeDir = options.nativeDir ? resolve(options.nativeDir) : undefined;
   const runtime = await resolveRuntime(target, options);
   const result = await Bun.build({
-    entrypoints: [join(output, "client/index.js")],
+    entrypoints: [entry],
     compile: {
       target,
       outfile,
