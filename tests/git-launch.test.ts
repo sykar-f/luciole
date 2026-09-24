@@ -118,7 +118,7 @@ function harness(): Harness {
   return h;
 }
 
-test("a branch is checked on every launch; only a new commit is fetched, trusted and built", async () => {
+test("a repository is accepted once; a new commit is fetched, announced and built", async () => {
   const h = harness();
   const source = { url: `file://${remote}`, directory: "apps/notes" };
   // Refused: nothing of the repository ran, nothing is remembered.
@@ -145,16 +145,34 @@ test("a branch is checked on every launch; only a new commit is fetched, trusted
   expect(await prepareGitApp(source, h.options)).toEqual(first);
   expect(h.builds).toHaveLength(1);
   expect(h.questions).toHaveLength(2);
-  // A new commit: asked again, naming what was accepted before, then built.
+  // New commits of the accepted repository: no question, an account of them, a build.
   await Bun.write(join(remote, "apps/notes/README.md"), "Notes\n");
-  const second = commit("Add a README");
+  commit("Add a README");
+  await Bun.write(join(remote, "apps/notes/CHANGES.md"), "Changes\n");
+  const second = commit("Add a changelog");
   const next = await prepareGitApp(source, h.options);
   expect(next.sha).toBe(second);
-  expect(h.questions[2]).toContain(`changed since ${first.sha.slice(0, 12)}`);
-  expect(h.questions[2]).toContain("Add a README");
+  expect(h.questions).toHaveLength(2);
+  const account = h.logs.find((line) => line.includes("changed since")) ?? "";
+  expect(account).toStartWith(`file://${remote} changed since ${first.sha.slice(0, 12)}:`);
+  const [, newest, older] = account.split("\n");
+  expect(newest).toBe(`  ${second.slice(0, 7)} Add a changelog`);
+  expect(older).toMatch(/^  [0-9a-f]{7} Add a README$/);
   expect(h.builds).toHaveLength(2);
+  // Many commits: the account stays short and says it is cut.
+  for (let i = 1; i <= 12; i++) {
+    await Bun.write(join(remote, "apps/notes/CHANGES.md"), `Change ${i}\n`);
+    commit(`Change ${i}`);
+  }
+  h.logs.length = 0;
+  await prepareGitApp(source, h.options);
+  const long = (h.logs.find((line) => line.includes("changed since")) ?? "").split("\n");
+  expect(long).toHaveLength(12);
+  expect(long[1]).toEndWith("Change 12");
+  expect(long.at(-1)).toBe("  … (earlier commits not shown)");
+  expect(h.questions).toHaveLength(2);
   const trust: unknown = JSON.parse(await readFile(join(work, "config/trust.json"), "utf8"));
-  expect(trust).toMatchObject({ [`file://${remote}`]: { sha: second } });
+  expect(trust).toMatchObject({ [`file://${remote}`]: { sha: git(remote, "rev-parse", "HEAD") } });
 }, 60000);
 
 test("offline, a branch launches its last checkout with a warning; tags and shas never ask", async () => {

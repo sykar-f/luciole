@@ -7,9 +7,11 @@
  * with `git ls-remote` on every launch; a commit sha or a tag never moves, so it is not.
  * Offline, the last checkout of that ref is launched with a warning.
  *
- * A repository is arbitrary code, its Server included: its first commit and every new one
- * are shown and must be accepted before anything of it runs (install scripts, bundler
- * macros, the app). The answer is remembered in `<config>/trust.json`.
+ * A repository is arbitrary code, its Server included: the first time a repository (its
+ * URL) is launched, its commit is shown and must be accepted before anything of it runs
+ * (install scripts, bundler macros, the app). The answer is remembered by URL in
+ * `<config>/trust.json`; later commits of that repository run after a short account of
+ * the new commits.
  */
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
@@ -42,7 +44,7 @@ export type GitOptions = {
 
 /** What the cache remembers of each ref: where it pointed, and whether it can move. */
 const Refs = z.record(z.string(), z.object({ sha: z.string(), fixed: z.boolean() }));
-/** `<config>/trust.json`: the commit the user last accepted, per repository. */
+/** `<config>/trust.json`: repositories the user accepted, with the last commit run. */
 const Trust = z.record(z.string(), z.object({ sha: z.string(), at: z.string() }));
 /** Next to a built app: what its build was made from. */
 const Built = z.object({ lock: z.string(), framework: z.string() });
@@ -188,27 +190,63 @@ async function commitSummary(git: string, checkoutDirectory: string) {
   ).trim();
 }
 
+// A new commit of an accepted repository is announced with at most this many commits.
+const NEW_COMMITS_SHOWN = 10;
+
 /**
- * Asks before the first commit of a repository runs, then before each new one. Refusing
- * stops the launch before anything of the repository ran.
+ * The commits after `previous` up to `sha`, newest first, at most NEW_COMMITS_SHOWN:
+ * the checkout is deepened just enough. `more` when `previous` was not reached (more
+ * commits, or a rewritten history); offline, only the new commit itself is known.
+ */
+async function newCommits(git: string, repository: string, previous: string, sha: string) {
+  await run([git, "fetch", "-q", "--depth", String(NEW_COMMITS_SHOWN + 1), "origin", sha], {
+    cwd: repository,
+  }).catch(() => undefined);
+  const lines = (
+    await run([git, "log", `-${NEW_COMMITS_SHOWN + 1}`, "--format=%H %h %s", sha], {
+      cwd: repository,
+    })
+  )
+    .trim()
+    .split("\n");
+  const reached = lines.findIndex((line) => line.startsWith(previous));
+  const listed = (reached < 0 ? lines : lines.slice(0, reached)).slice(0, NEW_COMMITS_SHOWN);
+  return {
+    commits: listed.map((line) => line.slice(line.indexOf(" ") + 1)),
+    more: reached < 0,
+  };
+}
+
+/**
+ * A repository is accepted once, by URL: its first launch shows the commit and asks;
+ * refusing stops the launch before anything of it ran. A new commit of an accepted
+ * repository runs without asking, after a short account of what changed.
  */
 async function ensureTrusted(
   source: GitSource,
   sha: string,
-  checkoutDirectory: string,
-  { directories, confirm, git = "git" }: GitOptions,
+  repository: string,
+  { directories, confirm, log, git = "git" }: GitOptions,
 ) {
   const file = join(directories.config, "trust.json");
   const trust = await readJson(file, Trust, {});
   const previous = trust[source.url];
   if (previous?.sha === sha) return;
-  const summary = await commitSummary(git, checkoutDirectory);
-  const question =
-    `${source.url} ${previous ? `changed since ${short(previous.sha)}` : "was never run here"}.\n` +
-    `Commit ${sha}\n  ${summary}\n` +
-    "It runs as you, its Server included. Run it?";
-  if (!(await confirm(question)))
-    throw new Error(`${source.url} at ${short(sha)} was not accepted: nothing was run`);
+  if (previous) {
+    const { commits, more } = await newCommits(git, repository, previous.sha, sha);
+    log(
+      `${source.url} changed since ${short(previous.sha)}:\n` +
+        commits.map((commit) => `  ${commit}`).join("\n") +
+        (more ? "\n  … (earlier commits not shown)" : ""),
+    );
+  } else {
+    const summary = await commitSummary(git, repository);
+    const question =
+      `${source.url} was never run here.\nCommit ${sha}\n  ${summary}\n` +
+      "It runs as you, its Server included. Run it?";
+    if (!(await confirm(question)))
+      throw new Error(`${source.url} at ${short(sha)} was not accepted: nothing was run`);
+  }
   await writeJson(file, { ...trust, [source.url]: { sha, at: new Date().toISOString() } });
 }
 

@@ -8,13 +8,13 @@ Une même bibliothèque, `src/launcher/`, lance une app d'où qu'elle vienne. El
 
 Résolution explicite, première correspondance (`resolveTarget`) :
 
-| Cible                                | Exemple                                 | Effet                                                           |
-| ------------------------------------ | --------------------------------------- | --------------------------------------------------------------- |
-| chemin (`./`, `../`, `/`, `~/`, `.`) | `airtty ./examples/notes`               | build, puis lancement local                                     |
-| app installée                        | `airtty notes`                          | son binaire                                                     |
-| spec npm                             | `airtty @ada/notes@^1.2`                | installée après confirmation si absente, puis lancée            |
-| source git                           | `airtty github:ada/tools#v1/apps/notes` | fetch, confirmation, install, build (en cache), lancement local |
-| URL de Server                        | `airtty https://notes.example.com`      | refusée : « non supporté encore » (pas de Client générique)     |
+| Cible                                | Exemple                                 | Effet                                                        |
+| ------------------------------------ | --------------------------------------- | ------------------------------------------------------------ |
+| chemin (`./`, `../`, `/`, `~/`, `.`) | `airtty ./examples/notes`               | build, puis lancement local                                  |
+| app installée                        | `airtty notes`                          | son binaire                                                  |
+| spec npm                             | `airtty @ada/notes@^1.2`                | installée après confirmation si absente, puis lancée         |
+| source git                           | `airtty github:ada/tools#v1/apps/notes` | fetch, confiance, install, build (en cache), lancement local |
+| URL de Server                        | `airtty https://notes.example.com`      | refusée : « non supporté encore » (pas de Client générique)  |
 
 Un mot nu (`notes`) est une app installée s'il en existe une, sinon une spec npm. Un
 chemin relatif sans `./` est refusé avec cette indication plutôt que deviné.
@@ -118,7 +118,7 @@ refs.json                  où pointait chaque ref, et si elle peut bouger (bran
 ```
 
 À chaque lancement d'une branche (ou du HEAD distant) : `git ls-remote`. Commit
-inchangé → lancé directement. Nouveau commit → fetch, confirmation,
+inchangé → lancé directement. Nouveau commit → fetch, résumé des nouveaux commits,
 `bun install --frozen-lockfile` (s'il y a un `bun.lock`, celui de l'app ou d'un espace de
 travail englobant), build, lancement. Build refait aussi si `bun.lock` ou les sources
 du framework ont changé. Un sha complet ou un tag ne bouge pas : aucune vérification
@@ -126,10 +126,12 @@ après la première résolution. Hors ligne, une branche relance son dernier che
 un avertissement. Un verrou par commit sépare les lancements concurrents.
 
 **Confiance.** Un dépôt est du code arbitraire, Server compris ; les scripts
-d'installation et les macros du bundler s'exécutent avant l'app. Au premier lancement
-d'un dépôt et à chaque nouveau commit, le lanceur affiche le dépôt, le commit (sha,
-sujet, auteur, date) et le commit précédemment accepté, puis demande confirmation
-**avant** install et build. La réponse est mémorisée par URL dans
+d'installation et les macros du bundler s'exécutent avant l'app. La confiance porte
+sur le **dépôt** (son URL) : au premier lancement d'un dépôt, le lanceur affiche l'URL et
+le commit (sha, sujet, auteur, date) et demande confirmation **avant** install et build.
+Un nouveau commit d'un dépôt accepté se lance sans question, après un court résumé des
+nouveaux commits depuis le dernier lancé (sha court et sujet, dix au plus, puis « … » ;
+hors ligne ou historique réécrit, le résumé le signale). Mémorisé dans
 `$XDG_CONFIG_HOME/airtty/trust.json`. Sans terminal, la réponse est non (sauf `--yes`).
 Le comportement par défaut de Bun est conservé : aucun script de cycle de vie d'une
 dépendance ne s'exécute sauf si l'app la déclare dans `trustedDependencies`. Un
