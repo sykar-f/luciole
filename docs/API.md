@@ -13,6 +13,7 @@ Entrée `airtty/client` (Client Components uniquement) :
 | `useLive(source, args, { limit }?)`                                                                                                    | `{ items, done, error }` d'une Server Function génératrice, abonnée tant que le composant est monté.                                             |
 | `useBindings()`, `useActiveKeys()`, `useKeymap()`, `usePendingSequence()`                                                              | Keymap OpenTUI réexportée : couches de raccourcis liées au cycle de vie des composants.                                                          |
 | `<KeyHelp groups? inline? />`                                                                                                          | Aide générée depuis les raccourcis actifs qui déclarent un `desc` (filtrés par `group`).                                                         |
+| `<Embed app name active prefix? />`, `openApplication({ client, url, instance? })`                                                     | Une autre application airtty dans un pane de celle-ci ; voir « Applications embarquées ».                                                        |
 | `<Terminal command active prefix? cwd? env? onExit? />`                                                                                | Un programme local (shell, vim, un Client airtty) sur un PTY, rendu dans l'arbre ; voir « Terminaux embarqués ».                                 |
 | `<DebugOverlay limit? />`                                                                                                              | Requêtes, requêtes ouvertes, octets, dernier RTT et derniers événements depuis son montage.                                                      |
 | `instrumentTracing(app, tracer)`                                                                                                       | Un span par requête vers un `Tracer` OpenTelemetry (ou compatible) ; renvoie la fonction d'arrêt.                                                |
@@ -123,6 +124,32 @@ useBindings(
 Une couche vit avec son composant : quitter une page retire ses raccourcis et leur
 aide. `useKeyboard` d'OpenTUI reste utilisable à côté.
 
+## Applications embarquées
+
+`<Embed>` montre une autre application airtty dans un pane de celle-ci, dans le même
+processus et le même arbre React : le mode `inline` de [EMBEDDING.md](EMBEDDING.md),
+sans isolation (confiance totale).
+
+```tsx
+const app = await openApplication({ client: "…/mdreader/.airtty/client/index.js", url });
+<Embed app={app} name="docs" active={pane === "docs"} prefix="ctrl+o" flexGrow={1} />;
+```
+
+- `openApplication` évalue le Client construit **une fois par pane** (ses modules et la
+  liaison de ses Server Functions lui sont propres), lui donne une clé d'instance
+  (`x-airtty-instance`, deux panes d'un même build restent distincts) et ouvre sa
+  connexion (`http`, `unix:`, `ssh://`, comme `--url`).
+- `active` : seul le pane actif entend les touches, et ses raccourcis globaux avec. Un
+  pane inactif ne garde rien de focalisé : ce qui avait le focus le retrouve quand il
+  redevient actif.
+- `prefix` : comme pour `<Terminal>`, la touche de l'hôte et la séquence qu'elle ouvre
+  restent aux raccourcis de l'hôte, même si l'application lie la même touche. Une seule
+  touche bascule entre terminaux et applications.
+- Une erreur de rendu dans le pane s'affiche dans le pane et n'atteint jamais la racine.
+- `app.dispose()` libère un pane fermé : requêtes et flux live arrêtés, modules
+  désenregistrés, connexion fermée (`onDispose`). `app.quit`, que `run()` règle pour
+  un Client seul, est à l'hôte : `examples/mux` y ferme le pane (`Ctrl+C`).
+
 ## Terminaux embarqués
 
 `<Terminal>` lance un programme local sur un pseudo-terminal (`Bun.Terminal`, POSIX
@@ -146,8 +173,8 @@ les modes demandés par le programme.
   syntaxe du keymap écrit une séquence par juxtaposition : `"ctrl+oo"` est Ctrl+O puis O.
 - L'hôte décide de la bascule (touche préfixe, clic) ; `examples/mux` en est un exemple.
 
-`<Terminal>` sert au multiplexeur local. Une application airtty embarquée dans le même
-processus passera par `<Embed>` (étape 2 d'EMBEDDING.md), pas par un terminal.
+`<Terminal>` sert aux programmes locaux ; une application airtty dans le même processus
+passe par `<Embed>`.
 
 ## Observabilité
 

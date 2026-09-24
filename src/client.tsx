@@ -29,6 +29,7 @@ import { connect, serverUrl } from "./connect";
 import { messageOf } from "./guards";
 import { Restoration, type Session } from "./restore";
 import { Runtime } from "./runtime-context";
+import { ApplicationView } from "./embed";
 import { openSession, SessionId } from "./session";
 import {
   AuthenticationRequired,
@@ -95,6 +96,9 @@ export type { ErrorProps, LayoutProps, LoadingProps, NotFoundProps } from "./rou
 export { Input, Textarea, useRestoredFields } from "./fields";
 export type { FieldInputProps, FieldTextareaProps, RestoredFields } from "./fields";
 export type { Session, SessionEntry } from "./restore";
+// Other airtty applications in this tree, one pane each (the `inline` mode).
+export { Embed, openApplication } from "./embed";
+export type { EmbedProps, OpenApplicationOptions } from "./embed";
 // Local programs on a PTY, for multiplexers (the `process` mode of docs/EMBEDDING.md).
 export { Terminal } from "./vt/terminal";
 export type { TerminalProps } from "./vt/terminal";
@@ -226,6 +230,16 @@ export class Application {
   private purgeAfterLoad = false;
   private bearer: string | undefined;
   private tokenListeners = new Set<(token: string | undefined) => void>();
+  private disposeListeners = new Set<() => void>();
+  // Aborted by dispose(): every request of a closed pane stops, live streams included.
+  private disposal = new AbortController();
+  private unregisterModules: () => void;
+  /**
+   * This Application's own view, from the runtime copy that created it: a pane's hooks
+   * (router, keymap, `useApplication`) read that copy's contexts, so `<Embed>` renders
+   * this view rather than providers of its own.
+   */
+  readonly view = ApplicationView;
   readonly options: ApplicationOptions;
   /** The router's history, typed: `router` is not (see above). */
   readonly history: RouterHistory;
@@ -245,7 +259,7 @@ export class Application {
     this.restoration = new Restoration(restored);
     installTerminalGlobals();
     if (options.instance !== undefined) InstanceKey.parse(options.instance);
-    registerModules(options.instance ?? "", options.resolveModule);
+    this.unregisterModules = registerModules(options.instance ?? "", options.resolveModule);
     const inner =
       options.transport ??
       createHttpTransport({
@@ -345,6 +359,32 @@ export class Application {
    * Called with each new bearer. The development supervisor uses it to hand the bearer to
    * the Client it restarts after a rebuild, in memory only.
    */
+  /**
+   * Frees a pane that closes: its requests and live streams stop, its Client modules are
+   * unregistered, its listeners run once (`onDispose`). Calls after it fail at once. A
+   * single-pane Client never needs it: its process ends.
+   */
+  dispose = () => {
+    if (this.disposal.signal.aborted) return;
+    this.disposal.abort(new Error("Application disposed"));
+    this.unregisterModules();
+    for (const listener of this.disposeListeners) listener();
+    this.disposeListeners.clear();
+    this.listeners.clear();
+    this.eventListeners.clear();
+    this.invalidationListeners.clear();
+    this.tokenListeners.clear();
+  };
+  get disposed() {
+    return this.disposal.signal.aborted;
+  }
+  /** Runs `listener` once, when the Application is disposed (a connection to close). */
+  onDispose = (listener: () => void) => {
+    this.disposeListeners.add(listener);
+    return () => {
+      this.disposeListeners.delete(listener);
+    };
+  };
   onTokenChange = (listener: (token: string | undefined) => void) => {
     this.tokenListeners.add(listener);
     return () => {
@@ -506,7 +546,8 @@ export class Application {
       const record = () => {
         if (tags && typeof page === "object" && page !== null) this.pageTags.set(page, tags);
       };
-      const tree = await this.transport.render(routeId, params, load.signal, load.search ?? {}, {
+      const signal = AbortSignal.any([load.signal, this.disposal.signal]);
+      const tree = await this.transport.render(routeId, params, signal, load.search ?? {}, {
         cause: loader.cause,
         onTags: (read) => {
           tags = read;
@@ -558,7 +599,12 @@ export class Application {
     this.nextSignal = undefined;
     this.nextCause = undefined;
     try {
-      const value = await this.transport.call(id, args, signal, { cause });
+      const value = await this.transport.call(
+        id,
+        args,
+        signal ? AbortSignal.any([signal, this.disposal.signal]) : this.disposal.signal,
+        { cause },
+      );
       this.report("Connected", this.error);
       // No automatic refresh: the code that mutates calls router.invalidate().
       return value;

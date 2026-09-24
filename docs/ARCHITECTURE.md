@@ -26,6 +26,7 @@ L’application est une codebase unique ; son build produit deux programmes.
 | `src/registry/`      | Registre d'apps (`Registry`, npm), paquets par plateforme, apps installées dans `$XDG_DATA_HOME/airtty/apps`.                   |
 | `src/guards.ts`      | Gardes de type Server/Client ; `package-json.ts` (JSON validé par Zod), `bundle-errors.ts` (échecs de Bun.build).               |
 | `src/cache/`         | `"use cache"` ([CACHE.md](CACHE.md)) : transformation du build, clé, durées, tags, dédup, handlers mémoire et SQLite.           |
+| `src/embed.tsx`      | `<Embed>`, `openApplication` : une autre application airtty par pane, keymap filtré, focus, boundary.                           |
 | `src/vt/`            | `<Terminal>` : programme local sur PTY (`Bun.Terminal`) rendu par l'émulateur d'OpenTUI ; trous d'OpenTUI comblés (`gaps.ts`).  |
 | `src/instance.ts`    | Clé d'instance d'un pane (`x-airtty-instance`) et copies préfixées du manifeste Client, bornées, côté Server.                   |
 | `src/flight/`        | Adapter du vrai codec React Flight et contrat de résolution des modules Client.                                                 |
