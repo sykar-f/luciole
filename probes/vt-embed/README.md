@@ -24,6 +24,17 @@ bun v2-estimate.ts              # esquisse v2 : diffs de cellules comparés au f
 bun demo.tsx                    # démo manuelle : $SHELL | vim, Ctrl-O focus, Ctrl-Q quitter
 ```
 
+Ses dépendances ne sont pas installées par `bun install` à la racine : `bun run verify`
+exclut donc ce dossier (`tsconfig.json` et `.oxlintrc.json` racine), pour passer sur un
+checkout neuf et en CI. Il se vérifie à part, après son `bun install` :
+
+```sh
+cd probes/vt-embed && bun run check   # tsc -p . (tsconfig.json local) + oxlint -c oxlint.json
+```
+
+`oxlint.json` étend la config racine ; il ne s'appelle pas `.oxlintrc.json` pour qu'oxlint,
+lancé à la racine, ne le découvre pas et ne relinte pas ce dossier.
+
 `bunfig.toml` désactive l'installation des peers : `@opentui/core` et `react` se
 résolvent depuis la racine du dépôt, donc une seule instance de React et d'OpenTUI.
 Les flux mesurés sont enregistrés une fois dans `.out/streams/` (ignoré par git).

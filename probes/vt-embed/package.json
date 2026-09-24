@@ -2,6 +2,9 @@
   "name": "airtty-vt-embed-probe",
   "private": true,
   "type": "module",
+  "scripts": {
+    "check": "tsc --noEmit -p . && oxlint -c oxlint.json --deny-warnings ."
+  },
   "dependencies": {
     "@xterm/addon-serialize": "0.14.0",
     "@xterm/addon-unicode-graphemes": "0.4.0",

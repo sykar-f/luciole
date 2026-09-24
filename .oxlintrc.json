@@ -73,5 +73,10 @@
       }
     }
   ],
-  "ignorePatterns": ["**/node_modules/**", "**/.airtty/**", "**/routeTree.gen.ts"]
+  "ignorePatterns": [
+    "**/node_modules/**",
+    "**/.airtty/**",
+    "**/routeTree.gen.ts",
+    "probes/vt-embed/**"
+  ]
 }
