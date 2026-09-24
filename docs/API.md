@@ -15,6 +15,8 @@ Entrée `airtty/client` (Client Components uniquement) :
 | `<KeyHelp groups? inline? />`                                                                                                          | Aide générée depuis les raccourcis actifs qui déclarent un `desc` (filtrés par `group`).                                                         |
 | `<Embed app name active prefix? />`, `openApplication({ bundle, url, instance? })`                                                     | Une autre application airtty dans un pane de celle-ci ; voir « Applications embarquées ».                                                        |
 | `<Terminal command active prefix? cwd? env? onExit? />`                                                                                | Un programme local (shell, vim, un Client airtty) sur un PTY, rendu dans l'arbre ; voir « Terminaux embarqués ».                                 |
+| `host`, `CapabilityDenied`                                                                                                             | Ce que l'application demande à son hôte (presse-papiers, notification, URL, secret, onglets) ; voir « Capacités médiées ».                       |
+| `useHostMessage(fn)`, `useGlobalKey(key, fn)`, `useCapability(name)`                                                                   | Messages des autres onglets et touches globales tant que le composant est monté ; état `granted`, `denied` ou `prompt` d'une capacité.           |
 | `<DebugOverlay limit? />`                                                                                                              | Requêtes, requêtes ouvertes, octets, dernier RTT et derniers événements depuis son montage.                                                      |
 | `instrumentTracing(app, tracer)`                                                                                                       | Un span par requête vers un `Tracer` OpenTelemetry (ou compatible) ; renvoie la fonction d'arrêt.                                                |
 | `TransportError`, `BuildMismatch`, `AuthenticationRequired`                                                                            | Échecs de transport typés ; `outcome` vaut `not-sent`, `rejected` ou `unknown`.                                                                  |
@@ -182,6 +184,34 @@ les modes demandés par le programme.
 
 `<Terminal>` sert aux programmes locaux ; une application airtty dans le même processus
 passe par `<Embed>`.
+
+## Capacités médiées
+
+Ce que l'OS ne sait pas accorder à la pièce (presse-papiers, notifications, ouvrir une
+URL, secrets, messages entre onglets, touches tapées ailleurs) passe par `host`, importé
+d'`airtty/client`. Le build en donne un **par bundle**, lié à l'Application du pane comme
+ses Server Functions : deux panes demandent chacun avec leur origine et leurs capacités.
+
+```tsx
+import { CapabilityDenied, host, useCapability } from "airtty/client";
+
+await host.clipboard.write(path); // rejet CapabilityDenied si l'hôte refuse
+const state = useCapability("clipboard.write"); // "granted" | "denied" | "prompt"
+```
+
+- `host.clipboard.read()` / `.write(text)`, `host.notify({ title, body? })`,
+  `host.openUrl(url)` (http(s) seulement), `host.secret(name)` (entrée du trousseau de
+  l'origine, `undefined` si absente), `host.tabs.post(message)` / `.onMessage(fn)`,
+  `host.input.onGlobalKey(fn)`. Chaque requête est validée par Zod.
+- Qui répond : un Client autonome ou un pane `inline` exécute lui-même, avec les droits de
+  l'utilisateur (`pbcopy`, `osascript`, `open`, `security`) ; tout y est `granted`. Un
+  Client en mode `sandbox` demande à l'hôte par IPC, qui vérifie la capacité accordée à
+  l'origine, demande à l'utilisateur si elle n'est pas décidée (`prompt`), puis exécute.
+- Hooks, sur le même canal que le `host` du pane : `useHostMessage(fn)` et
+  `useGlobalKey("ctrl+s", fn)` se désabonnent au démontage ; `useCapability(name)` re-rend
+  quand l'utilisateur accorde ou refuse. Pas de `useHost()` : `host` est l'API de base.
+- Une séquence OSC 52 écrite par une application sandboxée n'atteint jamais le
+  presse-papiers : seule la voie `host` est vérifiée.
 
 ## Observabilité
 

@@ -1,7 +1,7 @@
 # Client générique et applications embarquées
 
-Statut : **recherche**, branche `research/embedding`. Rien n'est livré dans `src/` ; tout ce
-qui suit s'appuie sur quatre probes exécutés le 24 septembre 2026 (macOS 26.6.2 arm64,
+Statut : étapes 1 à 7 livrées (voir [Avancement](#avancement)) ; la conception ci-dessous
+s'appuie sur quatre probes exécutés le 24 septembre 2026 (macOS 26.6.2 arm64,
 Bun 1.4.2) : [inline](../probes/inline/README.md),
 [generic-client](../probes/generic-client/README.md),
 [vt-embed](../probes/vt-embed/README.md), [sandbox](../probes/sandbox/README.md).
@@ -63,15 +63,15 @@ le propose au lieu de simuler une sandbox vide.
 
 Qui applique quoi (mesuré, voir probes/sandbox) :
 
-| Capacité                                         | macOS                                                     | Linux                                                   |
-| ------------------------------------------------ | --------------------------------------------------------- | ------------------------------------------------------- |
-| `fs.read`, `fs.write`                            | OS (Seatbelt, par chemin)                                 | OS (montages bwrap ; Landlock en plus)                  |
-| `net` par hôte                                   | proxy de l'hôte ; l'OS limite l'enfant au port du proxy   | proxy via socket unix ; `--unshare-net` bloque le reste |
-| `net: *`                                         | OS                                                        | OS                                                      |
-| `exec` (par binaire, hérité par les descendants) | OS                                                        | OS avec Landlock ; sans Landlock, non applicable        |
-| `pty`                                            | OS (`/dev/ptmx`)                                          | OS (`--dev`)                                            |
-| `clipboard.*`, `notify`, `open-url`, `secrets`   | hôte : la voie directe (mach-lookup) est bloquée par l'OS | hôte : aucun socket système monté                       |
-| `input.global`, `tabs.message`                   | hôte (IPC)                                                | hôte (IPC)                                              |
+| Capacité                                         | macOS                                                                      | Linux                                                   |
+| ------------------------------------------------ | -------------------------------------------------------------------------- | ------------------------------------------------------- |
+| `fs.read`, `fs.write`                            | OS (Seatbelt, par chemin)                                                  | OS (montages bwrap ; Landlock en plus)                  |
+| `net` par hôte                                   | proxy de l'hôte ; l'OS limite l'enfant au port du proxy                    | proxy via socket unix ; `--unshare-net` bloque le reste |
+| `net: *`                                         | OS                                                                         | OS                                                      |
+| `exec` (par binaire, hérité par les descendants) | OS                                                                         | OS avec Landlock ; sans Landlock, non applicable        |
+| `pty`                                            | refusée en sandbox : `/dev/ttys*` ouvrirait les autres terminaux (étape 7) | OS (`--dev`)                                            |
+| `clipboard.*`, `notify`, `open-url`, `secrets`   | hôte : la voie directe (mach-lookup) est bloquée par l'OS                  | hôte : aucun socket système monté                       |
+| `input.global`, `tabs.message`                   | hôte (IPC)                                                                 | hôte (IPC)                                              |
 
 Seatbelt ne connaît que `*` et `localhost` comme hôte distant : un nom ou une IP dans le
 profil est une erreur de compilation du profil (vérifié). Le filtrage par hôte passe donc
@@ -356,7 +356,7 @@ atteindre le presse-papiers sans passer par la vérification de capacité).
 | Rotation de clé impossible                                                          | déclaration de rotation signée par l'ancienne clé (à concevoir)                                                          |
 | Seatbelt : `sandbox-exec` obsolète, SBPL non documenté                              | `sandbox_init` via FFI ; profil testé à chaque version de macOS (probe = test)                                           |
 | `localhost:<port du proxy>` autorise tout service qui prendrait ce port             | proxy lancé avant l'enfant, port tenu ; sur Linux, socket unix seul                                                      |
-| PTY en sandbox : la règle couvre tous les `/dev/ttys*`                              | règle sur le chemin exact du PTY alloué                                                                                  |
+| PTY en sandbox : la règle couvre tous les `/dev/ttys*`                              | règle sur le chemin exact du PTY alloué (étape 7) ; `pty` refusée en sandbox macOS                                       |
 | Clés d'instance choisies par le Client : une copie du manifeste par clé côté Server | cache borné, ou `Proxy` sans cache ; clé validée par Zod                                                                 |
 | Capacités déclarées dans le `package.json` et usage réel divergents                 | le build compare avec l'audit des built-ins ; en `sandbox`, l'OS tranche de toute façon                                  |
 | Dépendance au lanceur et au champ `airtty` de feat/distribution                     | étape 5 après leur merge ; `capabilities` ajouté à leur schéma par un diff court                                         |
@@ -390,6 +390,52 @@ distribution) le permet. Les étapes 1–2 profitent aussi aux applications actu
 (tests à plusieurs Applications, boundary).
 
 ### Avancement
+
+- **Étape 7 (mode `sandbox` macOS)** : livrée sur `feat/embed-sandbox-macos`
+  (`src/sandbox/`). **Mode par défaut d'une URL sur macOS** : `airtty <url>` ouvre
+  l'origine en `sandbox` ; `--inline` reste un choix explicite et mémorisé, `--sandbox`
+  y revient ; ailleurs (Linux jusqu'à l'étape 8), refus sans `--inline` comme avant.
+  Avant toute exécution, l'**écran des capacités** donne la route du Server et chaque
+  capacité accordée avec qui l'applique (OS, proxy, hôte), plus une ligne « refusée » pour
+  ce qui ne peut pas l'être ; les capacités déclarées sont acceptées une fois par origine,
+  les drapeaux `--allow-read=…`, `--allow-write=…`, `--allow-net=…`, `--allow-exec[=…]`,
+  `--allow-secrets=…`, `--allow-clipboard-read|write`, `--allow-notify`,
+  `--allow-open-url`, `--allow-input-global`, `--allow-tabs-message` en ajoutent, le tout
+  mémorisé dans `origin.json` (`granted`, `denied`). Mécanismes :
+  - **Seatbelt par `sandbox-exec`**, pas `sandbox_init_with_parameters` par `bun:ffi` :
+    la même API privée, mais un processus neuf confiné dès sa première instruction, alors
+    qu'un Bun qui se sandboxe lui-même garde ce qu'il a ouvert avant et démarre sans
+    confinement. Sans `/usr/bin/sandbox-exec`, le mode est refusé, jamais simulé.
+  - **Profil généré** (`profile.ts`) : `deny default`, le minimum mesuré par le probe,
+    lecture d'airtty et de ses `node_modules`, du bundle épinglé, écriture de `sessions/`
+    de l'origine et d'un répertoire privé (`TMPDIR`, `HOME`), puis les capacités.
+    **PTY : `file-ioctl` sur le chemin exact de l'esclave alloué** (trouvé par numéro de
+    périphérique, Bun ne l'expose pas) ; sans elle `setRawMode` échoue (EPERM).
+  - **Réseau** : le Server toujours joignable (port loopback, socket du tunnel ssh tenu
+    par l'hôte, ou proxy pour un Server distant) ; `net` par hôte via le proxy de l'hôte,
+    lancé avant l'enfant et tenu jusqu'à sa fin, qui résout les noms et n'ouvre qu'un
+    hôte par connexion (`Connection: close`) ; `net: *` par l'OS.
+  - **Capacités médiées** : `host` dans `airtty/client`, un par bundle (lié comme
+    `airtty:actions`), et les hooks `useHostMessage`, `useGlobalKey`, `useCapability`.
+    L'enfant demande par l'IPC de Bun (socketpair hérité) ; l'hôte valide (Zod), vérifie
+    la capacité, demande à l'utilisateur si elle n'est pas décidée (`Ctrl+O y`/`n`, réponse
+    mémorisée), puis exécute. Un OSC 52 de l'enfant n'est qu'un octet du flux VT : le
+    widget ne le transmet pas (testé).
+  - L'enfant est un Client `run()` construit depuis `src/sandbox/child.ts` (redirection
+    TanStack du rôle Client) ; il quitte quand son canal IPC se ferme, même si l'hôte est
+    tué (`SIGKILL` mesuré).
+
+  Mesures (macOS 26.6.2, Bun 1.4.2) : mdreader sandboxé par URL, de l'ouverture de la
+  sandbox au premier texte rendu, 280–330 ms (Server local) ; construction de l'enfant
+  ≈ 15 ms à chaud. Écarts : **`pty` est refusée en sandbox sur macOS** : la seule règle
+  qui laisse l'enfant utiliser ses propres PTY (`/dev/ttys*`, celle du probe) lui ouvre
+  aussi les terminaux des autres sessions de l'utilisateur (mesuré : ouverture en
+  lecture-écriture d'un PTY tenu par un autre processus) ; `(allow pseudo-tty)` ne suffit
+  pas. Une capacité déclarée `pty` est affichée « refusée », `--allow-pty` est une erreur.
+  `host.secret` lit seulement (trousseau `airtty:<origine>`, rempli par l'utilisateur) ;
+  `input.global` ne se demande pas à l'exécution (manifeste ou drapeau). Une capacité
+  appliquée par l'OS ne change pas pendant l'exécution (profil fixe) ; seules les
+  médiées peuvent être accordées en cours de route.
 
 - **Étape 5 (Client générique)** : livrée sur `feat/embed-generic` (`src/generic/`).
   `airtty <url> [<url>…] [--inline] [--yes]` : l'étape URL du lanceur prépare chaque
