@@ -130,8 +130,9 @@ test("the CLI explains what it cannot launch", () => {
     const result = Bun.spawnSync([process.execPath, cli, ...args]);
     return { code: result.exitCode, stderr: result.stderr.toString() };
   };
-  expect(airtty("https://notes.example.com")).toMatchObject({ code: 1 });
-  expect(airtty("https://notes.example.com").stderr).toContain("--inline");
+  // Refused before the Server is contacted: what a URL takes is said.
+  expect(airtty("https://notes.example.com", "--nope")).toMatchObject({ code: 1 });
+  expect(airtty("https://notes.example.com", "--nope").stderr).toContain("--inline or --sandbox");
   expect(airtty("./no-such-app").stderr).toContain("is not an airtty app");
   expect(airtty("examples/notes").stderr).toContain("start it with ./");
   expect(airtty("--nope").stderr).toContain("Usage: airtty");

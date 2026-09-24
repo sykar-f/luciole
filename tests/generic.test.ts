@@ -15,6 +15,7 @@ import {
   readOrigin,
 } from "../src/generic/origin";
 import { INLINE_WARNING, prepareOrigin } from "../src/generic/prepare";
+import { Capabilities } from "../src/capabilities";
 import { directories } from "../src/launcher/paths";
 import { generatePublisherKey, publisherIdentity, readPublisherKey } from "../src/publisher";
 import { launch, rejectionOf } from "./helpers";
@@ -29,11 +30,29 @@ test("an origin is the URL the user gave, normalized", () => {
   expect(originSessions("http://a")).toMatch(/^origins\/[0-9a-f]{64}$/);
 });
 
-test("a URL launch takes more URLs as tabs and --inline, nothing else", () => {
+test("a URL launch takes more URLs as tabs, a mode and --allow-* flags, nothing else", () => {
   expect(urlArgs("http://a", ["--inline", "https://b"])).toEqual({
     urls: ["http://a", "https://b"],
-    inline: true,
+    mode: "inline",
+    allow: Capabilities.parse({}),
   });
+  const { mode, allow } = urlArgs(
+    "http://a",
+    [
+      "--sandbox",
+      "--allow-read=/data,docs",
+      "--allow-net=api.example.com",
+      "--allow-clipboard-write",
+    ],
+    "/home/ada",
+  );
+  expect(mode).toBe("sandbox");
+  expect(allow.fs.read).toEqual(["/data", "/home/ada/docs"]);
+  expect(allow.net).toEqual(["api.example.com"]);
+  expect(allow.clipboard).toEqual({ read: false, write: true });
+  expect(() => urlArgs("http://a", ["--inline", "--sandbox"])).toThrow("exclude each other");
+  expect(() => urlArgs("http://a", ["--allow-everything"])).toThrow("--allow-read");
+  expect(() => urlArgs("http://a", ["--allow-net=not a host"])).toThrow();
   expect(() => urlArgs("http://a", ["--url", "x"])).toThrow("--inline");
 });
 
@@ -42,7 +61,7 @@ async function temporary(prefix: string) {
   return mkdtemp(join(tmpdir(), prefix));
 }
 
-test("prepareOrigin: signature, first-use pin, explicit inline, cache, changed key", async () => {
+test("prepareOrigin without a sandbox: signature, first-use pin, explicit inline, cache, changed key", async () => {
   const home = await temporary("airtty-generic-");
   const env: NodeJS.ProcessEnv = {
     ...process.env,
@@ -55,8 +74,10 @@ test("prepareOrigin: signature, first-use pin, explicit inline, cache, changed k
   const logs: string[] = [];
   const questions: string[] = [];
   let answer = true;
+  // `sandbox: false`: what a system without the sandbox mode does (Linux until step 8).
   const options = (inline: boolean) => ({
-    inline,
+    mode: inline ? ("inline" as const) : undefined,
+    sandbox: false,
     directories: dirs,
     env,
     log: (m: string) => void logs.push(m),
@@ -86,7 +107,7 @@ test("prepareOrigin: signature, first-use pin, explicit inline, cache, changed k
     const url = running.url;
     const origin = originOf(url);
 
-    // Nothing opens without the user choosing inline: the sandbox does not exist yet.
+    // Nothing opens without the user choosing inline where the sandbox does not exist.
     expect(messageOf(await rejectionOf(prepareOrigin(url, options(false))))).toContain(
       `airtty ${url} --inline`,
     );

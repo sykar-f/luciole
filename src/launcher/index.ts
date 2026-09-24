@@ -7,7 +7,8 @@
  *   4. a git source (`github:user/repo#ref/dir`, `https://github.com/…`, `git+ssh://…`):
  *      fetched, trusted, built, then run locally;
  *   5. a Server URL (`http(s)://`, `ssh://`): its signed bundle, opened by the generic
- *      Client (src/generic), inline only when the user says so (`--inline`).
+ *      Client (src/generic), sandboxed where the system allows it (macOS), inline only
+ *      when the user says so (`--inline`).
  *
  * Arguments after the target go to the app: `--url` makes it a Client of that Server;
  * an app binary also takes `--on host` and `serve`.

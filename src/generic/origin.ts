@@ -6,7 +6,8 @@
  * Everything the generic Client keeps about an origin lives under
  * `$XDG_STATE_HOME/airtty/origins/<sha256(origin)>/`, private to the user: `origin.json`
  * (the publisher key pinned on first use, the mode the user chose, the capabilities the
- * application declared when the user accepted it), `app/` (its current manifest and a
+ * application declared when the user accepted it and those the user granted it in the
+ * sandbox), `app/` (its current manifest and a
  * link to the cached bundle) and `sessions/` (its history and named fields). Another
  * origin never reads it.
  */
@@ -45,10 +46,14 @@ export const OriginRecord = z.object({
   publisher: z.optional(
     z.object({ fingerprint: z.string().check(z.regex(FINGERPRINT)), pinnedAt: z.string() }),
   ),
-  /** What the user chose explicitly; `inline` only until the sandbox exists. */
-  mode: z.optional(z.literal("inline")),
+  /** The mode the user accepted: `sandbox` by default where it exists, `inline` by choice. */
+  mode: z.optional(z.enum(["inline", "sandbox"])),
   /** What the application declared when the user accepted it. */
   capabilities: z.optional(Capabilities),
+  /** What the user granted in the sandbox: accepted declarations and `--allow-*` flags. */
+  granted: z.optional(Capabilities),
+  /** Mediated capabilities the user refused when asked (`secrets:<name>` for a secret). */
+  denied: z.optional(z.array(z.string())),
   acceptedAt: z.optional(z.string()),
 });
 export type OriginRecord = z.infer<typeof OriginRecord>;

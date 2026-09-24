@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { z } from "zod";
 import { hostTarget } from "../src/compile";
+import { sandboxSupported } from "../src/sandbox/runtime";
 import { messageOf } from "../src/guards";
 import { launch, resolveTarget } from "../src/launcher";
 import type { Directories } from "../src/launcher/paths";
@@ -286,9 +287,12 @@ test("targets resolve in order: path, installed app, npm spec, git source, Serve
     kind: "url",
     url: "https://notes.example.com",
   });
-  // Not chosen inline: refused before any request reaches the Server.
-  expect(
-    messageOf(await rejectionOf(launch("https://notes.example.com", { directories }))),
-  ).toContain("airtty https://notes.example.com --inline");
+  // Without the sandbox mode and not chosen inline: refused before any request reaches
+  // the Server. With it (macOS), sandboxed by default: the Server is asked for its manifest.
+  const refusal = messageOf(
+    await rejectionOf(launch("https://notes.example.com", { directories })),
+  );
+  if (sandboxSupported()) expect(refusal).not.toContain("--inline");
+  else expect(refusal).toContain("airtty https://notes.example.com --inline");
   expect(() => resolveTarget("examples/notes", at)).toThrow("start it with ./");
 });

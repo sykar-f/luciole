@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import * as z from "zod/mini";
+import type { KeyEvent } from "@opentui/core";
+import { useRenderer } from "@opentui/react";
 import {
   Embed,
   openApplication,
@@ -8,11 +10,20 @@ import {
   useBindings,
   type Application,
 } from "airtty/client";
+import { Capabilities } from "../../../capabilities";
+import { messageOf } from "../../../guards";
+import { enforcement, ENFORCERS } from "../../../sandbox/grants";
+import type { Question } from "../../../sandbox/permissions";
+import { openSandbox, type Sandbox } from "../../../sandbox/spawn";
+import { readOrigin, writeOrigin } from "../../origin";
 import { openSession, type SessionStore } from "../../../session";
+import { TerminalView } from "../../../vt/terminal";
+import { createHub, inlineChannel, type Hub } from "../../hub";
 
 /**
- * The generic Client (docs/EMBEDDING.md, step 5): each origin the launcher prepared
- * (src/generic/prepare.ts) in a tab, inline. Ctrl+O is the host's only key.
+ * The generic Client (docs/EMBEDDING.md, steps 5 and 7): each origin the launcher
+ * prepared (src/generic/prepare.ts) in a tab, inline or sandboxed. Ctrl+O is the host's
+ * only key.
  */
 const PREFIX = "ctrl+o";
 const Tab = z.object({
@@ -22,6 +33,18 @@ const Tab = z.object({
   app: z.string(),
   fingerprint: z.string(),
   sessions: z.string(),
+  mode: z.enum(["inline", "sandbox"]),
+  granted: Capabilities,
+  denied: z.optional(z.array(z.string())),
+  /** Sandboxed tabs: Bun, airtty and the built child, found by the launcher. */
+  runtime: z.optional(
+    z.object({
+      bun: z.string(),
+      libraries: z.array(z.string()),
+      code: z.array(z.string()),
+    }),
+  ),
+  child: z.optional(z.string()),
 });
 type Tab = z.infer<typeof Tab>;
 function tabsFromEnvironment(): Tab[] {
@@ -39,7 +62,18 @@ const open = new Set<() => void>();
  * key the launcher pinned, with the origin's own sessions (history and named fields).
  * Ctrl+C in it closes its tab.
  */
-function OriginTab({ tab, active, onClose }: { tab: Tab; active: boolean; onClose: () => void }) {
+type TabProps = {
+  tab: Tab;
+  id: number;
+  hub: Hub;
+  active: boolean;
+  onClose: () => void;
+  /** Asks the user about a capability the tab's application requests. */
+  ask: (question: Question) => Promise<boolean>;
+  /** The tab's grants changed (the user answered): for the status line. */
+  onGrants: (granted: Capabilities) => void;
+};
+function OriginTab({ tab, id, hub, active, onClose }: TabProps) {
   const [app, setApp] = useState<Application | undefined>();
   const [failure, setFailure] = useState("");
   const close = useRef(onClose);
@@ -51,6 +85,8 @@ function OriginTab({ tab, active, onClose }: { tab: Tab; active: boolean; onClos
     let closed = false;
     // Sessions of this origin only, keyed by the origin as the user gave it.
     const session: SessionStore = openSession({ name: tab.sessions, server: tab.origin });
+    // Its `host` requests, answered here: inline, nothing is enforced.
+    const channel = inlineChannel(hub, id, tab.origin);
     // A signal or a crash ends the process without unmounting: save first.
     const save = () => {
       if (opened) session.flush(opened.restoration.snapshot());
@@ -67,6 +103,7 @@ function OriginTab({ tab, active, onClose }: { tab: Tab; active: boolean; onClos
       bundle: tab.app,
       url: tab.url,
       session: session.restored,
+      host: channel,
       publisher: {
         required: true,
         trust: (fingerprint) => {
@@ -90,19 +127,107 @@ function OriginTab({ tab, active, onClose }: { tab: Tab; active: boolean; onClos
     );
     return () => {
       closed = true;
+      channel.close();
       if (open.has(forget)) save();
       process.off("exit", save);
       open.delete(forget);
       opened?.dispose();
     };
-  }, [tab]);
+  }, [tab, id, hub]);
   if (failure) return <text fg="#ff6b6b">{failure}</text>;
   if (!app) return <text fg="#8b98a5">Opening {tab.origin}…</text>;
   return <Embed app={app} name={tab.name} active={active} prefix={PREFIX} flexGrow={1} />;
 }
 
+/**
+ * One origin in the sandbox (src/sandbox): its Client runs in a process of its own under
+ * Seatbelt, shown by the VT widget; what it asks of `host` arrives over IPC and is
+ * checked against its grants. Its end (Ctrl+C in it) closes the tab.
+ */
+function SandboxTab({ tab, id, hub, active, onClose, ask, onGrants }: TabProps) {
+  const [sandbox, setSandbox] = useState<Sandbox | undefined>();
+  const [failure, setFailure] = useState("");
+  const close = useRef(onClose);
+  const latest = useRef({ ask, onGrants });
+  useLayoutEffect(() => {
+    close.current = onClose;
+    latest.current = { ask, onGrants };
+  });
+  useEffect(() => {
+    const { runtime, child } = tab;
+    if (!runtime || !child) return;
+    let opened: Sandbox | undefined;
+    let closed = false;
+    let leave = () => {};
+    openSandbox(
+      { ...tab, runtime, child },
+      {
+        perform: hub.perform(id, tab.origin),
+        ask: (question) => latest.current.ask(question),
+        // The user's answer is remembered for the origin, as its accepted grants are.
+        onChange: () => {
+          if (!opened) return;
+          const record = readOrigin(tab.origin);
+          const { permissions } = opened;
+          if (record)
+            writeOrigin({
+              ...record,
+              granted: permissions.granted(),
+              denied: permissions.denied(),
+            });
+          latest.current.onGrants(permissions.granted());
+        },
+      },
+    ).then(
+      (created) => {
+        if (closed) return void created.close();
+        opened = created;
+        leave = hub.join(id, {
+          origin: tab.origin,
+          hears: (event) => created.permissions.hears(event),
+          deliver: (event) => created.deliver(event),
+        });
+        setSandbox(created);
+      },
+      (error: unknown) => setFailure(`${tab.origin}: ${messageOf(error)}`),
+    );
+    return () => {
+      closed = true;
+      leave();
+      void opened?.close();
+    };
+  }, [tab, id, hub]);
+  if (!tab.runtime || !tab.child)
+    return <text fg="#ff6b6b">{tab.origin}: no sandbox runtime was prepared</text>;
+  if (failure) return <text fg="#ff6b6b">{failure}</text>;
+  if (!sandbox) return <text fg="#8b98a5">Opening {tab.origin} in the sandbox…</text>;
+  return (
+    <TerminalView
+      program={tab.origin}
+      label={tab.name}
+      spawn={(io) => sandbox.spawn(io)}
+      active={active}
+      prefix={PREFIX}
+      onExit={() => close.current()}
+      flexGrow={1}
+    />
+  );
+}
+
+/** What the status line says of the active tab: who enforces what, or nothing. */
+function statusOf(tab: Tab | undefined, granted: Capabilities | undefined) {
+  if (!tab) return "";
+  if (tab.mode === "inline") return "inline · confiance totale · aucune capacité appliquée";
+  const lines = enforcement(granted ?? tab.granted).map(
+    (line) => `${line.capability.split(" ")[0]} (${ENFORCERS[line.by]})`,
+  );
+  return `sandbox · Seatbelt · ${lines.length ? lines.join(", ") : "aucune capacité accordée"}`;
+}
+
 export function Browser({ children }: { children: ReactNode }) {
   const host = useApplication();
+  const renderer = useRenderer();
+  const [hub] = useState(createHub);
   const [{ tabs, active }, setTabs] = useState(() => ({
     tabs: tabsFromEnvironment().map((tab, id) => ({ ...tab, id })),
     active: 0,
@@ -125,7 +250,29 @@ export function Browser({ children }: { children: ReactNode }) {
     for (const forget of open) forget();
     host.quit?.();
   };
+  // Grants the user added while the tabs run, and the questions waiting for an answer.
+  const [live, setLive] = useState<ReadonlyMap<number, Capabilities>>(new Map());
+  const [questions, setQuestions] = useState<
+    readonly { id: number; origin: string; question: Question; answer: (yes: boolean) => void }[]
+  >([]);
+  const askFor = (id: number, origin: string) => (question: Question) =>
+    new Promise<boolean>((resolve) =>
+      setQuestions((q) => [...q, { id, origin, question, answer: resolve }]),
+    );
+  const reply = (yes: boolean) =>
+    setQuestions(([first, ...rest]) => {
+      first?.answer(yes);
+      return rest;
+    });
+  const pending = questions[0];
   const empty = tabs.length === 0;
+  useEffect(() => hub.focus(active), [hub, active]);
+  // Keys the host sees go to the tabs without the focus that may hear them (input.global).
+  useEffect(() => {
+    const listener = (event: KeyEvent) => hub.key(event);
+    renderer.keyInput.on("keypress", listener);
+    return () => void renderer.keyInput.off("keypress", listener);
+  }, [hub, renderer]);
   useEffect(() => {
     if (empty) host.quit?.();
   }, [host, empty]);
@@ -135,9 +282,15 @@ export function Browser({ children }: { children: ReactNode }) {
         { key: `${PREFIX}o`, cmd: cycle, desc: "next tab", group: "browser" },
         { key: `${PREFIX}x`, cmd: () => close(active), desc: "close tab", group: "browser" },
         { key: `${PREFIX}q`, cmd: quit, desc: "quit", group: "browser" },
+        ...(pending
+          ? [
+              { key: `${PREFIX}y`, cmd: () => reply(true), desc: "grant", group: "browser" },
+              { key: `${PREFIX}n`, cmd: () => reply(false), desc: "refuse", group: "browser" },
+            ]
+          : []),
       ],
     }),
-    [host, active],
+    [host, active, pending],
   );
   return (
     <box flexDirection="column" flexGrow={1}>
@@ -149,14 +302,30 @@ export function Browser({ children }: { children: ReactNode }) {
           </text>
         ))}
       </box>
-      {tabs.map((tab) => (
-        <box key={tab.id} flexGrow={1} flexDirection="column" visible={tab.id === active}>
-          <OriginTab tab={tab} active={tab.id === active} onClose={() => close(tab.id)} />
-        </box>
-      ))}
+      {tabs.map((tab) => {
+        const Pane = tab.mode === "sandbox" ? SandboxTab : OriginTab;
+        return (
+          <box key={tab.id} flexGrow={1} flexDirection="column" visible={tab.id === active}>
+            <Pane
+              tab={tab}
+              id={tab.id}
+              hub={hub}
+              active={tab.id === active}
+              onClose={() => close(tab.id)}
+              ask={askFor(tab.id, tab.origin)}
+              onGrants={(granted) => setLive((m) => new Map(m).set(tab.id, granted))}
+            />
+          </box>
+        );
+      })}
       <box flexDirection="row" height={1} flexShrink={0} gap={2}>
         <text id="browser-status" wrapMode="none" fg="#ffbc66">
-          inline · confiance totale · aucune capacité appliquée
+          {pending
+            ? `${pending.origin} demande ${[pending.question.capability, pending.question.detail].filter(Boolean).join(" ")} — Ctrl+O y accorder · Ctrl+O n refuser`
+            : statusOf(
+                tabs.find((tab) => tab.id === active),
+                live.get(active),
+              )}
         </text>
         {children}
       </box>

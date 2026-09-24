@@ -151,11 +151,13 @@ def main():
             start_server()
             url = f"http://127.0.0.1:{port}"
 
-            # Without --inline nothing of the application runs.
+            # Without --inline nothing of the application runs: refused where the sandbox
+            # does not exist, offered sandboxed on macOS, where no terminal confirms it here.
             refused = subprocess.run(
                 [BUN, str(ROOT / "src/cli.ts"), url], env=env, capture_output=True, text=True
             )
-            assert refused.returncode != 0 and "--inline" in refused.stderr, refused.stderr
+            assert refused.returncode != 0, refused.stderr
+            assert "--inline" in refused.stderr or "not opened" in refused.stderr, refused.stderr
 
             # First use: the warning, the capabilities, the pinned key; the app in a tab.
             client, master, slave, before = session("--inline", "--yes")

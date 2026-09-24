@@ -1,8 +1,9 @@
 /**
- * `airtty <url> [<url>…] [--inline]`: the launcher's URL step (src/launcher/index.ts). Each
- * origin is prepared in this process, which still has the terminal for questions
- * (src/generic/prepare.ts); then the generic Client (./browser, itself an airtty app run
- * like the launcher's UI) opens them in tabs.
+ * `airtty <url> [<url>…] [--inline | --sandbox] [--allow-…]`: the launcher's URL step
+ * (src/launcher/index.ts). Each origin is prepared in this process, which still has the
+ * terminal for questions (src/generic/prepare.ts); then the generic Client (./browser,
+ * itself an airtty app run like the launcher's UI) opens them in tabs, inline or
+ * sandboxed (src/sandbox).
  */
 import { join } from "node:path";
 import { build } from "../build";
@@ -13,25 +14,38 @@ import { runLocal } from "../launcher/local";
 import { serverId } from "../launcher/managed";
 import { directories as defaultDirectories } from "../launcher/paths";
 import { askTerminal } from "../launcher/prompt";
-import { prepareOrigin } from "./prepare";
+import { isAllowFlag, parseAllowFlags } from "../sandbox/grants";
+import { buildChild, sandboxRuntime } from "../sandbox/runtime";
+import { prepareOrigin, type Mode } from "./prepare";
 
 const APP = join(import.meta.dir, "browser");
 const SERVER_URL = /^(?:https?|ssh):\/\//;
 
-/** The URLs and `--inline` a URL launch takes; anything else is refused. */
-export function urlArgs(target: string, args: readonly string[]) {
+/**
+ * The URLs, the mode and the `--allow-*` flags a URL launch takes; anything else is
+ * refused. The mode and the flags apply to every URL given.
+ */
+export function urlArgs(target: string, args: readonly string[], cwd?: string) {
   const urls = [target];
-  let inline = false;
+  let mode: Mode | undefined;
+  const flags: string[] = [];
   for (const arg of args) {
-    if (arg === "--inline") inline = true;
+    const chosen = arg === "--inline" ? "inline" : arg === "--sandbox" ? "sandbox" : undefined;
+    if (chosen && mode && mode !== chosen)
+      throw new Error("--inline and --sandbox exclude each other");
+    if (chosen) mode = chosen;
+    else if (isAllowFlag(arg)) flags.push(arg);
     else if (SERVER_URL.test(arg)) urls.push(arg);
-    else throw new Error(`A Server URL takes other Server URLs (tabs) and --inline (got ${arg})`);
+    else
+      throw new Error(
+        `A Server URL takes other Server URLs (tabs), --inline or --sandbox, and --allow-* flags (got ${arg})`,
+      );
   }
-  return { urls, inline };
+  return { urls, mode, allow: parseAllowFlags(flags, cwd) };
 }
 
 export async function launchUrls(target: string, options: LaunchOptions): Promise<number> {
-  const { urls, inline } = urlArgs(target, options.args ?? []);
+  const { urls, mode, allow } = urlArgs(target, options.args ?? [], options.cwd);
   const env = options.env ?? process.env;
   const directories = options.directories ?? defaultDirectories(env);
   const log = options.log ?? ((message: string) => console.error(message));
@@ -39,7 +53,8 @@ export async function launchUrls(target: string, options: LaunchOptions): Promis
   for (const url of urls)
     tabs.push(
       await prepareOrigin(url, {
-        inline,
+        mode,
+        allow,
         directories,
         confirm: options.confirm ?? askTerminal,
         log,
@@ -47,11 +62,21 @@ export async function launchUrls(target: string, options: LaunchOptions): Promis
       }),
     );
   await build(APP);
+  // The sandboxed Client, run from airtty's tree (src/sandbox/runtime.ts): found here,
+  // where airtty runs from its sources, and handed to the bundled generic Client.
+  const sandbox = tabs.some((tab) => tab.mode === "sandbox")
+    ? { runtime: sandboxRuntime(), child: await buildChild() }
+    : undefined;
   const bun = process.execPath;
   return runLocal({
     name: "browser",
     directories,
-    env: { ...env, AIRTTY_GENERIC_TABS: JSON.stringify(tabs) },
+    env: {
+      ...env,
+      AIRTTY_GENERIC_TABS: JSON.stringify(
+        tabs.map((tab) => ({ ...tab, ...(tab.mode === "sandbox" && sandbox) })),
+      ),
+    },
     id: serverId("local:airtty-browser"),
     buildId: await readBuildId(join(APP, ".airtty")),
     graceMs: DEFAULT_GRACE_MS,

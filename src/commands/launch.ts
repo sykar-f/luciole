@@ -11,7 +11,7 @@ const YES = "--yes";
  */
 export const launch: Command = {
   usage:
-    "[<path | app | npm spec | git source> [--yes] [--url url] | <server url…> [--inline] [--yes]]",
+    "[<path | app | npm spec | git source> [--yes] [--url url] | <server url…> [--inline | --sandbox] [--allow-…] [--yes]]",
   async run({ args }) {
     const [target, ...rest] = args;
     const confirm = rest.includes(YES) ? { confirm: acceptAll } : {};
