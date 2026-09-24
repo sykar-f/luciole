@@ -100,6 +100,9 @@ export async function compileClient(
 }
 
 const BuildManifest = z.object({ buildId: z.string().min(1) });
+/** The build id of a build output directory (`.airtty`). */
+export const readBuildId = async (output: string) =>
+  (await readJsonFile(join(output, "manifest.json"), BuildManifest)).buildId;
 const framework = import.meta.dir;
 
 /**
@@ -116,7 +119,7 @@ export async function compileApp(
   options: CompileOptions & { name: string },
 ): Promise<Compiled & { identity: BinaryIdentity }> {
   const { target } = parseTarget(options.target ?? hostTarget());
-  const { buildId } = await readJsonFile(join(output, "manifest.json"), BuildManifest);
+  const buildId = await readBuildId(output);
   const staging = join(output, "binary");
   await rm(staging, { recursive: true, force: true });
   const server = await Bun.build({

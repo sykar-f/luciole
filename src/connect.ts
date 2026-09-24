@@ -56,7 +56,63 @@ export async function serverUrl({
 }
 
 /** Where requests go, and what to stop when the Client quits. */
-export type Connection = { url: string; fetch?: Fetch; close(): void };
+export type Connection = {
+  url: string;
+  fetch?: Fetch;
+  close(): void;
+  /** Present when the launcher manages the Server's lifetime (src/launcher/lifetime.ts). */
+  managed?: ManagedConnection;
+};
+export type ManagedConnection = {
+  /** Called whenever pings start or stop reaching the Server (a tunnel down, say). */
+  watch(onChange: (reachable: boolean) => void): void;
+  /** Tells the Server this Client quits on purpose: the last one to leave stops it. */
+  leave(): Promise<void>;
+};
+
+const DEFAULT_PING_MS = 10_000;
+const LEAVE_TIMEOUT_MS = 1000;
+/** Set by src/launcher for a Client of a Server it manages. */
+const LifetimeEnvironment = z.object({
+  AIRTTY_LIFETIME_CLIENT: z.optional(z.string().check(z.minLength(1))),
+  AIRTTY_PING_MS: z._default(z.coerce.number().check(z.gte(1)), DEFAULT_PING_MS),
+});
+
+/**
+ * Pings the Server now and every `AIRTTY_PING_MS` (10 s): the Server's watchdog hears
+ * this Client, and a change in whether pings get through is reported to the Client.
+ */
+function keepAlive(fetchServer: Fetch, client: string, pingMs: number): ManagedConnection {
+  const listeners = new Set<(reachable: boolean) => void>();
+  let reachable: boolean | undefined;
+  const call = (path: string, signal?: AbortSignal) =>
+    fetchServer(new URL(path, "http://localhost"), {
+      method: "POST",
+      headers: { "x-airtty-client": client },
+      signal,
+    });
+  const ping = async () => {
+    const now = await call("/lifetime/ping", AbortSignal.timeout(pingMs)).then(
+      (response) => response.ok,
+      () => false,
+    );
+    if (now === reachable) return;
+    const before = reachable;
+    reachable = now;
+    // The first answer only sets the baseline: the Client starts connected anyway.
+    if (before !== undefined) for (const listener of listeners) listener(now);
+  };
+  void ping();
+  setInterval(() => void ping(), pingMs).unref();
+  return {
+    watch: (onChange) => void listeners.add(onChange),
+    leave: () =>
+      call("/lifetime/leave", AbortSignal.timeout(LEAVE_TIMEOUT_MS)).then(
+        () => undefined,
+        () => undefined,
+      ),
+  };
+}
 
 const UNIX = "unix:";
 /** Requests through a Unix socket: the host is only a name for HTTP. */
@@ -65,14 +121,34 @@ const throughSocket = (socket: string): Pick<Connection, "url" | "fetch"> => ({
   fetch: (input, init) => fetch(input, { ...init, unix: socket }),
 });
 
-/** Opens the tunnel of an `ssh://` URL, the socket of a `unix:` one; others are used as is. */
-export function connect(url: string, options?: TunnelOptions): Promise<Connection> {
+/**
+ * Opens the tunnel of an `ssh://` URL, the socket of a `unix:` one; others are used as
+ * is. A socket of a Server the launcher manages (AIRTTY_LIFETIME_CLIENT) is kept alive.
+ */
+export function connect(
+  url: string,
+  options?: TunnelOptions,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<Connection> {
   if (url.startsWith("ssh://")) return openTunnel(url, options);
   if (url.startsWith(UNIX)) {
     const socket = url.slice(UNIX.length);
     if (!socket.startsWith("/"))
       return Promise.reject(new Error(`${url}: expected unix:/absolute/path`));
-    return Promise.resolve({ ...throughSocket(socket), close() {} });
+    const lifetime = LifetimeEnvironment.safeParse(env);
+    if (!lifetime.success)
+      return Promise.reject(
+        new Error(`Invalid lifetime environment: ${z.prettifyError(lifetime.error)}`),
+      );
+    const through = throughSocket(socket);
+    const client = lifetime.data.AIRTTY_LIFETIME_CLIENT;
+    return Promise.resolve({
+      ...through,
+      close() {},
+      ...(client && through.fetch
+        ? { managed: keepAlive(through.fetch, client, lifetime.data.AIRTTY_PING_MS) }
+        : {}),
+    });
   }
   return Promise.resolve({ url, close() {} });
 }

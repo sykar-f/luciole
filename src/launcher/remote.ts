@@ -16,18 +16,24 @@
  * single quotes nor backslashes: every common login shell, fish included, passes them
  * to sh unchanged. Arguments are app names, build ids and hex: nothing to quote.
  */
-import { spawn, spawnSync } from "node:child_process";
+import { spawn, spawnSync, type ChildProcess } from "node:child_process";
+import { connect as connectSocket } from "node:net";
 import { rmSync } from "node:fs";
 import { join } from "node:path";
 import { socketDirectory } from "../connect";
 import { packBundle } from "./bundle";
 import { readBinaryIdentity, type BinaryIdentity } from "./identity";
-import { startServer, type LocalServer } from "./local";
-import { checkAppName, type Directories } from "./paths";
+import { parseEnsured } from "./managed";
+import { checkAppName } from "./paths";
 
 // The ssh executable, as git's GIT_SSH: a wrapper, or a test's stand-in.
 const sshCommand = (env: NodeJS.ProcessEnv) => env.AIRTTY_SSH || "ssh";
-const RANDOM_BYTES = 8;
+const TUNNEL_READY_MS = 60_000;
+const POLL_MS = 100;
+const BACKOFF_FIRST_MS = 1000;
+const BACKOFF_MAX_MS = 30_000;
+// ssh itself notices a dead connection: 3 unanswered keepalives, 10 s apart.
+const KEEPALIVE = ["-o", "ServerAliveInterval=10", "-o", "ServerAliveCountMax=3"];
 
 const INSTALL_DIRECTORY = 'd="${XDG_DATA_HOME:-$HOME/.local/share}/airtty/apps/$1/$2"; b="$d/$1"';
 
@@ -73,12 +79,12 @@ mv "$t" "$d"
 rm -rf "$d.old.$$" "$d.lock"
 echo installed`;
 
-/** Runs the Server attached to ssh's stdin; its directory goes with it. */
+/**
+ * Finds or starts the managed Server of this session key there, detached from ssh: it
+ * outlives a cut connection, in grace, and prints its socket once it answers.
+ */
 const SERVE = `${INSTALL_DIRECTORY}
-s="/tmp/airtty-$3"
-mkdir -m 700 "$s" || exit 1
-"$b" serve --socket "$s/s" --attached
-rm -rf "$s"`;
+exec "$b" serve --detach --id $3 --grace $4`;
 
 const remote = (script: string, ...args: readonly string[]) =>
   `sh -c '${script}' airtty ${args.join(" ")}`;
@@ -112,11 +118,14 @@ export function hostTargetOf(probe: string) {
 
 export type RunOnOptions = {
   identity: BinaryIdentity;
+  /** The Server's id there: from the session key (src/launcher/managed.ts). */
+  id: string;
+  /** How long the Server waits there for a lost Client. */
+  graceMs: number;
   /** This binary: copied when the host's platform is its own. */
   self: string;
   /** A binary of the same build for the host's platform, when it differs. */
   target?: string;
-  directories: Pick<Directories, "state">;
   log: (message: string) => void;
   env?: NodeJS.ProcessEnv;
 };
@@ -160,7 +169,10 @@ function sshRun(
  * Makes sure the build runs on `destination`, starts its Server there and forwards it:
  * resolves once the Server listens, with the `unix:` URL the Client connects to.
  */
-export async function runOn(destination: string, options: RunOnOptions): Promise<LocalServer> {
+export async function runOn(
+  destination: string,
+  options: RunOnOptions,
+): Promise<{ url: string; stop(): Promise<void> }> {
   const { identity, log, env = process.env } = options;
   const name = checkAppName(identity.name);
   const ssh = sshCommand(env);
@@ -219,34 +231,132 @@ export async function runOn(destination: string, options: RunOnOptions): Promise
           `Installing on ${host} failed: ${upload.stderr.trim() || upload.stdout.trim()}`,
         );
     }
-    const id = Buffer.from(crypto.getRandomValues(new Uint8Array(RANDOM_BYTES))).toString("hex");
-    const server = await startServer({
-      name,
-      log: "remote-server.log",
-      directories: options.directories,
+    const started = await sshRun(
+      ssh,
+      [...command, remote(SERVE, name, identity.buildId, options.id, String(options.graceMs))],
+      { env },
+    );
+    const server = parseEnsured(started.stdout);
+    if (started.code !== 0 || !server)
+      throw new Error(
+        `Starting ${name} on ${host} failed: ${started.stderr.trim() || started.stdout.trim()}`,
+      );
+    if (server.reattached) log(`${name} on ${host}: back to its running Server`);
+    const tunnel = await superviseTunnel({
+      ssh,
+      shared,
+      to,
+      remoteSocket: server.socket,
       env,
-      command: (socket) => [
-        ssh,
-        ...reuse,
-        "-o",
-        "ExitOnForwardFailure=yes",
-        "-L",
-        `${socket}:/tmp/airtty-${id}/s`,
-        ...to,
-        remote(SERVE, name, identity.buildId, id),
-      ],
     });
-    return {
-      url: server.url,
-      async stop() {
-        await server.stop();
-        process.off("exit", closeMaster);
-        closeMaster();
-      },
+    const stop = () => {
+      tunnel.stop();
+      process.off("exit", stop);
+      closeMaster();
     };
+    process.off("exit", closeMaster);
+    process.on("exit", stop);
+    return { url: tunnel.url, stop: async () => stop() };
   } catch (error: unknown) {
     process.off("exit", closeMaster);
     closeMaster();
     throw error;
   }
+}
+
+const accepts = (path: string) =>
+  new Promise<boolean>((resolve) => {
+    const socket = connectSocket({ path });
+    socket.once("connect", () => {
+      socket.destroy();
+      resolve(true);
+    });
+    socket.once("error", () => resolve(false));
+  });
+
+/**
+ * `ssh -N -L <local socket>:<remote socket>`, kept up while the Client runs: when it
+ * ends (a cut network, a sleeping laptop), it is started again after 1 s, 2 s, 4 s… up to
+ * 30 s, on the same local socket, so the Client reaches the same Server again. Later
+ * attempts never prompt (BatchMode): a password cannot be typed over the Client's screen.
+ */
+async function superviseTunnel({
+  ssh,
+  shared,
+  to,
+  remoteSocket,
+  env,
+}: {
+  ssh: string;
+  shared: readonly string[];
+  to: readonly string[];
+  remoteSocket: string;
+  env: NodeJS.ProcessEnv;
+}) {
+  const directory = socketDirectory("airtty-tunnel-");
+  const local = join(directory, "s");
+  let child: ChildProcess | undefined;
+  let stopped = false;
+  let delay = BACKOFF_FIRST_MS;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const open = (batch: boolean) => {
+    const current = spawn(
+      ssh,
+      [
+        ...shared,
+        "-o",
+        "ControlMaster=no",
+        "-N",
+        "-o",
+        "ExitOnForwardFailure=yes",
+        "-o",
+        "StreamLocalBindUnlink=yes",
+        ...KEEPALIVE,
+        ...(batch ? ["-o", "BatchMode=yes"] : []),
+        "-L",
+        `${local}:${remoteSocket}`,
+        ...to,
+      ],
+      { stdio: ["ignore", "ignore", batch ? "ignore" : "inherit"], env },
+    );
+    child = current;
+    current.once("exit", () => {
+      if (stopped || child !== current) return;
+      timer = setTimeout(() => {
+        void (async () => {
+          open(true);
+          const deadline = performance.now() + delay;
+          while (!stopped && child?.exitCode === null && performance.now() < deadline) {
+            if (await accepts(local)) {
+              delay = BACKOFF_FIRST_MS;
+              return;
+            }
+            await Bun.sleep(POLL_MS);
+          }
+        })();
+      }, delay);
+      delay = Math.min(delay * 2, BACKOFF_MAX_MS);
+    });
+    return current;
+  };
+  const first = open(false);
+  const deadline = performance.now() + TUNNEL_READY_MS;
+  while (!(await accepts(local))) {
+    if (first.exitCode !== null || first.signalCode !== null || performance.now() > deadline) {
+      stopped = true;
+      first.kill();
+      rmSync(directory, { recursive: true, force: true });
+      throw new Error(`ssh: no tunnel to ${remoteSocket}`);
+    }
+    await Bun.sleep(POLL_MS);
+  }
+  return {
+    url: `unix:${local}`,
+    stop() {
+      stopped = true;
+      clearTimeout(timer);
+      child?.kill();
+      rmSync(directory, { recursive: true, force: true });
+    },
+  };
 }

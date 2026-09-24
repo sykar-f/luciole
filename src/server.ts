@@ -4,6 +4,7 @@ import { chmodSync } from "node:fs";
 import { z } from "zod";
 import { decodeReply, renderToReadableStream } from "./flight/server";
 import { isAsyncIterable, messageOf } from "./guards";
+import { managedLifetime } from "./launcher/lifetime";
 import { NotFoundError } from "./not-found";
 import type { CacheHandler } from "./cache/handler";
 import { TAGS_HEADER, renderPage } from "./cache/render";
@@ -420,10 +421,16 @@ export function serve(config: ServerConfig) {
       headers: response.headers,
     });
   }
+  // A Server the launcher manages lives as long as its Clients (src/launcher/lifetime.ts).
+  const lifetime = socket
+    ? managedLifetime(process.env, { buildId: config.buildId, socket, stop: () => shutdown() })
+    : undefined;
   const options = {
     maxRequestBodySize: MAX_REQUEST_BYTES,
     fetch(req: Request) {
       const url = new URL(req.url);
+      const managed = lifetime?.handle(req, url);
+      if (managed) return managed;
       // Where future middlewares go (a render cache, for instance): around `handle`,
       // keyed by `kind`, with the request's callId, before any page or action code runs
       // and with the Response it produced. Instrumentation is the first of them.

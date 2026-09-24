@@ -31,20 +31,15 @@ interroger le registre, donc aussi hors ligne.
 
 ## Lancement local : un socket, pas de port
 
-`startServer` (`src/launcher/local.ts`) démarre le Server avec `AIRTTY_SOCKET` :
-`serve()` écoute alors sur ce socket Unix (mode 0600) au lieu de TCP, dans un répertoire
-0700 créé pour ce lancement (`$XDG_RUNTIME_DIR`, sinon `$TMPDIR` s'il est assez court
-pour `sun_path`, sinon `/tmp`). Pas de conflit de port entre apps ni entre deux copies
-de la même, et personne d'autre ne peut s'y connecter. La ligne `ready` du Server nomme
-alors `socket` au lieu de `port`.
+`ensureServer` (`src/launcher/managed.ts`) démarre le Server avec `AIRTTY_SOCKET` :
+`serve()` écoute alors sur ce socket Unix (mode 0600) au lieu de TCP, dans le répertoire
+0700 de l'utilisateur (`$XDG_RUNTIME_DIR/airtty`, sinon `/tmp/airtty-<uid>`, dont le
+propriétaire et le mode sont vérifiés). Le chemin est stable : `<sha256(clé de
+session)[:16]>.sock`. Pas de conflit de port, et personne d'autre ne peut s'y connecter.
+Deux lancements de la même cible partagent le même Server.
 
 Le Client reçoit `--url unix:/chemin/s` ; `connect()` (`src/connect.ts`) envoie ses
-requêtes par ce socket, sans changement de `client.tsx` ni de `transport.ts`.
-
-Durée de vie : le lanceur garde ouverte l'entrée standard du Server sans jamais y
-écrire (`--attached`, `src/launcher/attach.ts`). Quand le lanceur se termine, même
-tué par SIGKILL, ou quand ssh perd la connexion d'un Server distant, stdin atteint sa
-fin et le Server s'arrête. Ni fichier pid, ni scrutation.
+requêtes par ce socket, sans changement de `transport.ts`.
 
 La session restaurable du Client (historique et champs, reprise après crash) est
 rattachée à une clé stable plutôt qu'à l'URL du socket, qui change à chaque lancement :
@@ -66,13 +61,14 @@ airtty build --compile [--name notes] [--target t] …   → .airtty/bin/notes-<
 Le binaire contient le Client **et** le Server d'un même build, plus le lanceur
 (`src/launcher/binary.ts`) :
 
-| Commande                                         | Rôle                                                        |
-| ------------------------------------------------ | ----------------------------------------------------------- |
-| `notes`                                          | les deux, ici ; Server sur socket privé                     |
-| `notes serve [--http [host]:port \| --socket p]` | Server seul (sans option : `PORT`, `AIRTTY_HOST`, …)        |
-| `notes --url <url>`                              | Client seul                                                 |
-| `notes --on [user@]host[:port] [--target f]`     | Server sur l'hôte (installé au besoin), Client ici, via ssh |
-| `notes --version`                                | identité : app, build ID, cible                             |
+| Commande                                                 | Rôle                                                        |
+| -------------------------------------------------------- | ----------------------------------------------------------- |
+| `notes [--grace d]`                                      | les deux, ici ; Server sur socket privé                     |
+| `notes serve [--http [host]:port \| --socket p]`         | Server seul (sans option : `PORT`, `AIRTTY_HOST`, …)        |
+| `notes serve --detach --id <id> [--grace d]`             | Server géré, détaché (utilisé par `--on`)                   |
+| `notes --url <url>`                                      | Client seul                                                 |
+| `notes --on [user@]host[:port] [--target f] [--grace d]` | Server sur l'hôte (installé au besoin), Client ici, via ssh |
+| `notes --version`                                        | identité : app, build ID, cible                             |
 
 `--http :8080` écoute sur la boucle locale ; `0.0.0.0:8080` doit être explicite (et
 exige toujours `AIRTTY_TOKEN` ou `server/auth.ts`, comme `serve()`).
@@ -104,14 +100,53 @@ ne doit pas arriver sur les postes des utilisateurs.
    build altéré est refusé avec l'explication, jamais lancé. Un répertoire verrou
    contenant le pid de l'envoyeur fait attendre les lancements concurrents ; un verrou
    dont le pid est mort est repris.
-4. `<app> serve --socket /tmp/airtty-<aléa>/s --attached` démarre dans un répertoire
-   `mkdir -m 700`, transféré socket à socket par la même commande ssh (`-L`). Le
-   Server s'arrête avec ssh, son répertoire est supprimé.
+4. `<app> serve --detach --id <id> --grace <ms>` retrouve le Server géré de cette clé
+   (`ssh:<hôte>/<app>`) dans le répertoire runtime de l'hôte, ou en démarre un, détaché
+   de ssh, puis rend la main avec le chemin de son socket.
+5. Un tunnel `ssh -N -L <socket local>:<socket distant>` le relie au Client
+   (`ServerAliveInterval=10`, `ServerAliveCountMax=3`). S'il tombe alors que le Client
+   vit, il est relancé après 1 s, 2 s, 4 s… jusqu'à 30 s, sur le même socket local, sans
+   invite (`BatchMode`) : le Client retrouve le même Server.
 
 Les scripts distants passent par `sh -c '<script>'` et ne contiennent ni apostrophe ni
 barre oblique inverse : bash, zsh et fish les transmettent tels quels à `sh`.
 
 `airtty connect ssh://host/dir/sock` sait aussi joindre un socket distant.
+
+## Cycle de vie du Server
+
+Local ou `--on`, le même mécanisme (`src/launcher/lifetime.ts` dans le Server,
+`managed.ts` dans le lanceur, `connect.ts` dans le Client) :
+
+| Événement                                                                                   | Effet                                                                   |
+| ------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Le Client tourne                                                                            | ping `POST /lifetime/ping` toutes les 10 s (toute requête compte aussi) |
+| Ctrl+C, `app.quit` (sortie volontaire)                                                      | `POST /lifetime/leave` ; dernier Client parti : arrêt immédiat          |
+| Aucune requête ni ping pendant 30 s (watchdog)                                              | ce Client est perdu                                                     |
+| Fin de l'entrée standard du Server sans `leave` (lanceur local mort, crash, terminal fermé) | le Client du lanceur est perdu                                          |
+| Dernier Client perdu                                                                        | grâce : 15 min par défaut, `--grace <durée>`, `0` = arrêt immédiat      |
+| Un Client revient pendant la grâce                                                          | rattaché, la grâce s'arrête                                             |
+| Grâce écoulée                                                                               | arrêt                                                                   |
+
+Le Server est détaché (sa propre session, sa sortie dans son log) : il survit au
+lanceur, au terminal fermé et à ssh. Un nouveau lancement de la même cible avec la même
+clé de session le retrouve à son socket et vérifie son build (`GET /lifetime/status`) :
+même build, il s'y rattache ; autre build, il l'arrête (`POST /lifetime/stop`) et en
+démarre un nouveau. `--grace` se passe au lanceur (`airtty ./app --grace 5m`) ou au
+binaire (`notes --grace 0`, `notes --on host --grace 1h`).
+
+Pendant une coupure, le Client vivant voit ses pings échouer : il passe
+« Disconnected », puis « Connected » dès qu'ils repassent (tunnel relancé), sans rien
+perdre de son état. Un Client mort puis relancé rouvre sa route et ses champs nommés par
+sa session (clé stable), auprès du même Server s'il est encore en grâce.
+
+**Ce que garantit le framework** : un Server qui survit à la perte du Client pendant la
+grâce, avec ses données en mémoire ; le tunnel rétabli ; la route et le texte des champs
+nommés (`<Input name>`, `<Textarea name>`) restaurés. **Ce qui reste à l'application** :
+tout autre état mémoire du Client (brouillons hors champs nommés, sélection, défilement :
+voir les `draft.ts` de Notes et Forge), et le sens métier d'une opération dont l'issue
+est `unknown` (a-t-elle eu lieu ? faut-il la rejouer ?), que seul le domaine sait
+trancher, par exemple avec des identifiants d'opération idempotents.
 
 ## Sources git
 
@@ -226,18 +261,21 @@ injoignable). Les permissions par origine viendront plus tard.
 
 ## Répertoires (XDG)
 
-| Quoi                                  | Où                                                        |
-| ------------------------------------- | --------------------------------------------------------- |
-| apps installées, installations `--on` | `$XDG_DATA_HOME/airtty/apps/<app>/`                       |
-| checkouts et builds git               | `$XDG_CACHE_HOME/airtty/git/`                             |
-| confiance accordée aux dépôts         | `$XDG_CONFIG_HOME/airtty/trust.json`                      |
-| logs des Servers lancés               | `$XDG_STATE_HOME/airtty/<app>/{server,remote-server}.log` |
-| sockets                               | `$XDG_RUNTIME_DIR`, `$TMPDIR` ou `/tmp`, répertoires 0700 |
+| Quoi                                  | Où                                                         |
+| ------------------------------------- | ---------------------------------------------------------- |
+| apps installées, installations `--on` | `$XDG_DATA_HOME/airtty/apps/<app>/`                        |
+| checkouts et builds git               | `$XDG_CACHE_HOME/airtty/git/`                              |
+| confiance accordée aux dépôts         | `$XDG_CONFIG_HOME/airtty/trust.json`                       |
+| logs des Servers lancés               | `$XDG_STATE_HOME/airtty/<app>/server.log` (de chaque hôte) |
+| sockets des Servers gérés             | `$XDG_RUNTIME_DIR/airtty` ou `/tmp/airtty-<uid>` (0700)    |
+| sockets des tunnels                   | `$XDG_RUNTIME_DIR`, `$TMPDIR` ou `/tmp`, répertoires 0700  |
 
 ## Limites connues
 
 - Le Server d'un binaire est bundlé entier : un module natif `.node` côté Server n'est
   pas encore pris en charge (Notes n'en a pas).
 - `--on` ne nettoie pas les anciens builds sur l'hôte distant.
+- Le tunnel relancé n'invite jamais (`BatchMode`) : une authentification par mot de
+  passe seul ne se rétablit pas toute seule ; il faut relancer le Client.
 - Le registre npm privé (jeton) n'est pas géré ; `update` ne concerne pas les sources git.
 - `hostTarget()` ne détecte pas musl : sur Alpine, `install` choisirait le binaire glibc.

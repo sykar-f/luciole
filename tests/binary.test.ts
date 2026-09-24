@@ -11,23 +11,25 @@ import { compileApp, hostTarget } from "../src/compile";
 import { connect, socketDirectory } from "../src/connect";
 import { messageOf } from "../src/guards";
 import { readBinaryIdentity, type BinaryIdentity } from "../src/launcher/identity";
+import { serverId } from "../src/launcher/managed";
 import { runOn } from "../src/launcher/remote";
-import { leaveCrashedSession, rejectionOf } from "./helpers";
+import { leaveCrashedSession, rejectionOf, until } from "./helpers";
 
 const root = resolve("examples/notes");
 let work: string, binary: string, identity: BinaryIdentity;
 
-// Stands for OpenSSH on a host that is this machine with its own HOME: runs the remote
-// command with sh (in a directory of its own: two Notes Servers cannot share one
-// database), forwards -L local:remote sockets, and treats the master connection (-M)
-// and its control commands (-O) as done.
+// Stands for OpenSSH on a host that is this machine with its own HOME and runtime
+// directory: runs the remote command with sh (in a directory of its own: two Notes
+// Servers cannot share one database), forwards -L local:remote sockets (-N: nothing
+// else, until killed, like a tunnel), and treats the master connection (-M) and its
+// control commands (-O) as done. Each call is logged with its pid.
 const FAKE_SSH = `
-import { appendFileSync, mkdtempSync } from "node:fs";
+import { appendFileSync, mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { connect, createServer } from "node:net";
 import { spawn } from "node:child_process";
 const args = process.argv.slice(2);
-appendFileSync(process.env.FAKE_SSH_LOG, JSON.stringify(args) + "\\n");
+appendFileSync(process.env.FAKE_SSH_LOG, JSON.stringify({ pid: process.pid, args }) + "\\n");
 if (args.includes("-M") || args.includes("-O")) process.exit(0);
 let i = 0, forward;
 for (; i < args.length && args[i] !== "--"; i++) {
@@ -37,6 +39,8 @@ for (; i < args.length && args[i] !== "--"; i++) {
 const command = args.slice(i + 2).join(" ");
 if (forward) {
   const at = forward.indexOf(":");
+  // StreamLocalBindUnlink=yes: a socket left by a previous tunnel is replaced.
+  rmSync(forward.slice(0, at), { force: true });
   createServer((client) => {
     const upstream = connect({ path: forward.slice(at + 1) });
     client.pipe(upstream).pipe(client);
@@ -44,13 +48,16 @@ if (forward) {
     upstream.on("error", () => client.destroy());
   }).listen(forward.slice(0, at));
 }
-const home = process.env.FAKE_REMOTE_HOME;
-const child = spawn("/bin/sh", ["-c", command], {
-  stdio: "inherit",
-  cwd: mkdtempSync(join(home, "session-")),
-  env: { PATH: process.env.PATH, HOME: home },
-});
-child.on("exit", (code) => process.exit(code ?? 1));
+if (!command) setInterval(() => {}, 1000);
+else {
+  const home = process.env.FAKE_REMOTE_HOME;
+  const child = spawn("/bin/sh", ["-c", command], {
+    stdio: "inherit",
+    cwd: mkdtempSync(join(home, "session-")),
+    env: { PATH: process.env.PATH, HOME: home, XDG_RUNTIME_DIR: process.env.FAKE_REMOTE_RUNTIME },
+  });
+  child.on("exit", (code) => process.exit(code ?? 1));
+}
 `;
 
 beforeAll(async () => {
@@ -117,7 +124,7 @@ const inPty = (log: string, command: string) => {
   return ["/bin/sh", "-c", `(while [ ! -f stop ]; do sleep 0.1; done; printf '\\003') | ${script}`];
 };
 
-test("`notes` alone runs both roles here, and its Server ends with the Client", async () => {
+test("`notes` alone runs both roles here; quitting on purpose stops its Server", async () => {
   // A short TMPDIR, cleaned by this test: the launcher's socket directories go there.
   const temporary = await mkdtemp("/tmp/airtty-t-");
   const run = await mkdtemp(join(tmpdir(), "airtty-local-"));
@@ -128,7 +135,13 @@ test("`notes` alone runs both roles here, and its Server ends with the Client", 
     const log = join(run, "screen.log");
     const client = Bun.spawn(inPty(log, "./notes"), {
       cwd: run,
-      env: { HOME: run, TERM: "xterm-256color", PATH: "/usr/bin:/bin", TMPDIR: temporary },
+      env: {
+        HOME: run,
+        TERM: "xterm-256color",
+        PATH: "/usr/bin:/bin",
+        TMPDIR: temporary,
+        XDG_RUNTIME_DIR: temporary,
+      },
       stdout: "ignore",
       stderr: "ignore",
     });
@@ -138,9 +151,9 @@ test("`notes` alone runs both roles here, and its Server ends with the Client", 
       await Bun.sleep(100);
       screen = Bun.stripANSI(await readFile(log, "utf8").catch(() => ""));
     }
-    // Listening now: one private socket directory, no TCP port. (Bun also extracts
-    // OpenTUI's native library there.)
-    const sockets = () => readdirSync(temporary).filter((entry) => entry.startsWith("airtty-"));
+    // Listening now on its socket in the runtime directory, no TCP port.
+    const sockets = () =>
+      readdirSync(join(temporary, "airtty")).filter((entry) => entry.endsWith(".sock"));
     expect(sockets()).toHaveLength(1);
     await Bun.write(join(run, "stop"), "");
     await Promise.race([client.exited, Bun.sleep(15000).then(() => client.kill())]);
@@ -157,6 +170,7 @@ test("`notes` alone runs both roles here, and its Server ends with the Client", 
   }
 }, 60000);
 
+const SshCall = z.object({ pid: z.number(), args: z.array(z.string()) });
 async function sshCalls(file: string) {
   const text = await Bun.file(file)
     .text()
@@ -165,58 +179,93 @@ async function sshCalls(file: string) {
     .trim()
     .split("\n")
     .filter(Boolean)
-    .map((line) => z.array(z.string()).parse(JSON.parse(line)));
+    .map((line) => SshCall.parse(JSON.parse(line)));
 }
 
-test("--on installs the binary once on the host, then serves through ssh", async () => {
-  const remoteHome = await mkdtemp(join(tmpdir(), "airtty-remote-"));
-  const state = await mkdtemp(join(tmpdir(), "airtty-state-"));
-  const log = join(remoteHome, "ssh.jsonl");
-  const env = {
-    ...process.env,
-    AIRTTY_SSH: join(work, "ssh"),
-    FAKE_SSH_LOG: log,
-    FAKE_REMOTE_HOME: remoteHome,
+/** A remote host for --on: its HOME, its runtime directory, the fake ssh's settings. */
+async function fakeHost() {
+  const home = await mkdtemp(join(tmpdir(), "airtty-remote-"));
+  // Short: socket paths must fit sun_path.
+  const runtime = await mkdtemp("/tmp/airtty-rrt-");
+  const log = join(home, "ssh.jsonl");
+  return {
+    home,
+    log,
+    env: {
+      ...process.env,
+      AIRTTY_SSH: join(work, "ssh"),
+      FAKE_SSH_LOG: log,
+      FAKE_REMOTE_HOME: home,
+      FAKE_REMOTE_RUNTIME: runtime,
+    },
+    installed: join(home, `.local/share/airtty/apps/notes/${identity.buildId}/notes`),
+    /** Stops whatever Server is left there, then removes the host. */
+    async remove() {
+      for (const entry of readdirSync(join(runtime, "airtty")).filter((e) => e.endsWith(".sock")))
+        await fetch("http://localhost/lifetime/stop", {
+          method: "POST",
+          unix: join(runtime, "airtty", entry),
+        }).catch(() => undefined);
+      await rm(home, { recursive: true, force: true });
+      await rm(runtime, { recursive: true, force: true });
+    },
   };
+}
+
+/** A Client of a --on Server, as the binary runs one: pinging, able to leave. */
+const clientOf = (url: string, id = "test") =>
+  connect(url, undefined, { AIRTTY_LIFETIME_CLIENT: id, AIRTTY_PING_MS: "100" });
+const Health = z.object({ buildId: z.string(), pid: z.number() });
+async function health(url: string) {
+  const connection = await connect(url);
+  const response = await connection.fetch?.(new URL("/health", connection.url), {});
+  return Health.parse(await response?.json());
+}
+
+test("--on installs once, verifies the install, and serves through a tunnel", async () => {
+  const host = await fakeHost();
   const messages: string[] = [];
   const options = {
     identity,
+    id: serverId("ssh:test/notes"),
+    graceMs: 60_000,
     self: binary,
-    directories: { state },
     log: (message: string) => messages.push(message),
-    env,
+    env: host.env,
   };
-  const installed = join(remoteHome, `.local/share/airtty/apps/notes/${identity.buildId}/notes`);
   try {
-    // Two launches at once: one uploads, the other waits for it.
+    // Two launches at once (two session keys): one uploads, the other waits for it.
     const servers = await Promise.all([
-      runOn("alice@host.example", options),
+      runOn("alice@host.example", { ...options, id: serverId("ssh:alice/notes") }),
       runOn("host.example:2222", options),
     ]);
-    expect(existsSync(installed)).toBe(true);
-    expect(await readBinaryIdentity(installed)).toEqual(identity);
+    expect(await readBinaryIdentity(host.installed)).toEqual(identity);
+    for (const server of servers)
+      expect(await health(server.url)).toMatchObject({ buildId: identity.buildId });
+    const calls = await sshCalls(host.log);
+    expect(calls.some(({ args }) => args.includes("-p") && args.includes("2222"))).toBe(true);
+    expect(calls.some(({ args }) => args.includes("alice@host.example"))).toBe(true);
+    // The tunnel notices a dead connection by itself.
+    expect(calls.some(({ args }) => args.includes("ServerAliveInterval=10"))).toBe(true);
     for (const server of servers) {
-      const connection = await connect(server.url);
-      const health = await connection.fetch?.(new URL("/health", connection.url), {});
-      expect(await health?.json()).toMatchObject({ buildId: identity.buildId });
+      await (await clientOf(server.url)).managed?.leave();
+      await server.stop();
     }
-    const calls = await sshCalls(log);
-    expect(calls.some((args) => args.includes("-p") && args.includes("2222"))).toBe(true);
-    expect(calls.some((args) => args.includes("alice@host.example"))).toBe(true);
-    await Promise.all(servers.map((server) => server.stop()));
-    // Installed: the next launch uploads nothing.
+    // Installed and intact: the next launch uploads nothing.
     messages.length = 0;
     const again = await runOn("host.example", options);
     expect(messages).toEqual([]);
+    await (await clientOf(again.url)).managed?.leave();
     await again.stop();
     // Damaged or altered on the host: reinstalled, never run as found.
-    await appendFile(installed, "tampered");
+    await appendFile(host.installed, "tampered");
     const repaired = await runOn("host.example", options);
     expect(messages.join("\n")).toContain("does not match its SHA256SUMS: reinstalling");
-    expect(await Bun.file(installed).bytes()).toEqual(await Bun.file(binary).bytes());
+    expect(await Bun.file(host.installed).bytes()).toEqual(await Bun.file(binary).bytes());
+    await (await clientOf(repaired.url)).managed?.leave();
     await repaired.stop();
     // With no binary for that platform at hand, the launch is refused instead.
-    await appendFile(installed, "tampered");
+    await appendFile(host.installed, "tampered");
     expect(
       messageOf(
         await rejectionOf(
@@ -227,17 +276,49 @@ test("--on installs the binary once on the host, then serves through ssh", async
         ),
       ),
     ).toContain("does not match its SHA256SUMS (damaged or altered)");
-    // The remote Server and its socket directory are gone with the tunnel.
-    const deadline = performance.now() + 5000;
-    const leftovers = () =>
-      readdirSync("/tmp").filter((entry) => /^airtty-[0-9a-f]{16}$/.test(entry)).length;
-    while (leftovers() && performance.now() < deadline) await Bun.sleep(50);
-    expect(leftovers()).toBe(0);
   } finally {
-    await rm(remoteHome, { recursive: true, force: true });
-    await rm(state, { recursive: true, force: true });
+    await host.remove();
   }
-}, 60000);
+}, 90000);
+
+test("--on: a lost Client finds its Server again; a cut tunnel comes back by itself", async () => {
+  const host = await fakeHost();
+  const messages: string[] = [];
+  const options = {
+    identity,
+    id: serverId("ssh:host.example/notes"),
+    graceMs: 60_000,
+    self: binary,
+    log: (message: string) => messages.push(message),
+    env: host.env,
+  };
+  try {
+    const first = await runOn("host.example", options);
+    const pid = (await health(first.url)).pid;
+    // The Client dies without leaving (its tunnel with it): the Server stays, in grace.
+    await first.stop();
+    messages.length = 0;
+    const second = await runOn("host.example", options);
+    expect(messages).toContain("notes on host.example: back to its running Server");
+    expect((await health(second.url)).pid).toBe(pid);
+    // The network drops: the tunnel is killed under a living Client.
+    const client = await clientOf(second.url);
+    const seen: boolean[] = [];
+    client.managed?.watch((reachable) => seen.push(reachable));
+    await Bun.sleep(300);
+    const tunnels = (await sshCalls(host.log)).filter(({ args }) => args.includes("-N"));
+    process.kill(tunnels.at(-1)?.pid ?? 0, "SIGKILL");
+    await until(() => seen.includes(false), 5000);
+    // Started again after 1 s, on the same local socket: the same Server answers.
+    await until(() => seen.at(-1) === true, 10000);
+    expect(seen).toEqual([false, true]);
+    expect((await health(second.url)).pid).toBe(pid);
+    await client.managed?.leave();
+    await second.stop();
+  } finally {
+    await host.remove();
+  }
+}, 90000);
 
 test("--on a host of another platform needs a binary of the same build for it", async () => {
   const remoteHome = await mkdtemp(join(tmpdir(), "airtty-remote-"));
@@ -249,8 +330,9 @@ test("--on a host of another platform needs a binary of the same build for it", 
   };
   const options = {
     identity: { ...identity, target: "bun-linux-riscv" },
+    id: serverId("ssh:host.example/notes"),
+    graceMs: 0,
     self: binary,
-    directories: { state: remoteHome },
     log: () => {},
     env,
   };

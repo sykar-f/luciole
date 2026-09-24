@@ -2,18 +2,20 @@
  * The entry of an app binary (`airtty build --compile`, src/compile.ts), which holds the
  * Client and the Server of one build:
  *
- *   notes                              both, here: the Server on a private socket
+ *   notes [--grace d]                  both, here: the Server on a socket of this user,
+ *                                      found again within its grace (src/launcher/managed.ts)
  *   notes serve [--http [host]:port | --socket path]   the Server alone
+ *   notes serve --detach --id <id> [--grace d]         a managed Server in the background
  *   notes --url <url>                  the Client alone, to that Server
- *   notes --on [user@]host [--target <notes binary for host>]
+ *   notes --on [user@]host [--target <notes binary for host>] [--grace d]
  *                                      the Server there (installed on first use),
  *                                      the Client here, through ssh
  */
 import { resolve } from "node:path";
 import { messageOf } from "../guards";
-import { ATTACHED_FLAG, exitWithStdin } from "./attach";
 import { formatIdentity, parseIdentity, type BinaryIdentity } from "./identity";
-import { startServer } from "./local";
+import { DEFAULT_GRACE_MS, parseDuration } from "./lifetime";
+import { ensureServer, formatEnsured, newClientId, serverId } from "./managed";
 import { directories } from "./paths";
 import { runOn } from "./remote";
 
@@ -36,8 +38,9 @@ const isClientModule = (value: unknown): value is ClientModule =>
 export type Roles = { server: () => Promise<unknown>; client: () => Promise<unknown> };
 
 const usage = (name: string) =>
-  `Usage: ${name} [--url <url> | --on [user@]host [--target <binary>]]\n` +
-  `       ${name} serve [--http [host]:port | --socket <path>]\n` +
+  `Usage: ${name} [--grace <duration>] [--on [user@]host [--target <binary>]]\n` +
+  `       ${name} --url <url>\n` +
+  `       ${name} serve [--http [host]:port | --socket <path> | --detach --id <id> [--grace d]]\n` +
   `       ${name} --version`;
 
 /** `[host]:port`; an empty host is the loopback, never every interface. */
@@ -67,10 +70,28 @@ async function runClient(identity: BinaryIdentity, roles: Roles, sessionKey?: st
   await client.run(client.createApp, { name: identity.name, sessionKey });
 }
 
-async function serve(args: readonly string[], roles: Roles) {
-  const options = flags(args, [ATTACHED_FLAG], ["--http", "--socket"]);
+async function serve(identity: BinaryIdentity, args: readonly string[], roles: Roles) {
+  const options = flags(args, ["--detach"], ["--http", "--socket", "--id", "--grace"]);
   const http = options.get("--http"),
     socket = options.get("--socket");
+  if (options.has("--detach")) {
+    // A managed Server in the background, found again by its id, or started (--on).
+    const id = options.get("--id");
+    if (!id || !/^[0-9a-f]{16}$/.test(id) || http !== undefined || socket !== undefined)
+      throw new Error("serve --detach takes --id <16 hex digits> [--grace <duration>]");
+    const server = await ensureServer({
+      id,
+      name: identity.name,
+      buildId: identity.buildId,
+      command: [process.execPath, "serve"],
+      graceMs: grace(options),
+      directories: directories(),
+    });
+    console.log(formatEnsured(server));
+    return;
+  }
+  if (options.has("--id") || options.has("--grace"))
+    throw new Error("--id and --grace go with --detach");
   if (http !== undefined && socket !== undefined)
     throw new Error("--http and --socket are exclusive");
   // The Server reads its address from its environment (src/server.ts).
@@ -80,50 +101,62 @@ async function serve(args: readonly string[], roles: Roles) {
     delete process.env.AIRTTY_SOCKET;
   }
   if (socket !== undefined) process.env.AIRTTY_SOCKET = resolve(socket);
-  if (options.has(ATTACHED_FLAG)) exitWithStdin();
   await roles.server();
 }
+
+const grace = (options: Map<string, string>) => {
+  const text = options.get("--grace");
+  return text === undefined ? DEFAULT_GRACE_MS : parseDuration(text);
+};
 
 async function start(text: string, roles: Roles) {
   const identity = parseIdentity(text);
   if (!identity) throw new Error("Damaged binary: no identity");
   const [first, ...rest] = process.argv.slice(2);
-  if (first === "serve") return serve(rest, roles);
+  if (first === "serve") return serve(identity, rest, roles);
   const args = first === undefined ? [] : [first, ...rest];
   if (args.includes("--help") || args.includes("-h")) return console.log(usage(identity.name));
   if (args.includes("--version"))
     return console.log(JSON.stringify({ ...identity, identity: formatIdentity(identity) }));
-  const options = flags(args, [], ["--url", "--on", "--target"]);
+  const options = flags(args, [], ["--url", "--on", "--target", "--grace"]);
   const destination = options.get("--on");
   if (options.has("--url")) {
-    if (destination !== undefined) throw new Error("--url and --on are exclusive");
+    if (destination !== undefined || options.has("--grace"))
+      throw new Error("--url goes alone: the Server is not this binary's to manage");
     // The Client reads --url itself (src/connect.ts).
     return runClient(identity, roles);
   }
   if (options.has("--target") && destination === undefined)
     throw new Error("--target goes with --on");
+  // Sessions are kept under the app (and host), not the socket of this launch; the same
+  // key finds a Server left in grace by a previous launch.
+  const sessionKey =
+    destination === undefined ? `local:${identity.name}` : `ssh:${destination}/${identity.name}`;
+  const client = newClientId();
   const server =
     destination === undefined
-      ? await startServer({
+      ? await ensureServer({
+          id: serverId(sessionKey),
           name: identity.name,
-          command: () => [process.execPath, "serve", ATTACHED_FLAG],
+          buildId: identity.buildId,
+          command: [process.execPath, "serve"],
+          graceMs: grace(options),
           directories: directories(),
+          client,
+          attach: true,
         })
       : await runOn(destination, {
           identity,
+          id: serverId(sessionKey),
+          graceMs: grace(options),
           self: process.execPath,
           target: options.get("--target"),
-          directories: directories(),
           log: (message) => console.error(message),
         });
-  // Handed to the Client like a user's own --url; the Server stops when it exits. Its
-  // sessions are kept under the app (and host), not the socket of this launch.
+  // Handed to the Client like a user's own --url; it pings the Server as this Client.
   process.argv.push("--url", server.url);
-  await runClient(
-    identity,
-    roles,
-    destination === undefined ? `local:${identity.name}` : `ssh:${destination}/${identity.name}`,
-  );
+  process.env.AIRTTY_LIFETIME_CLIENT = client;
+  await runClient(identity, roles, sessionKey);
 }
 
 export async function main(identity: string, roles: Roles) {
