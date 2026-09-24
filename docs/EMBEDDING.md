@@ -337,7 +337,8 @@ macOS, Seatbelt (probe : 38/38 assertions) :
 Linux (conteneur privilégié, bwrap 0.12, Landlock ABI 8) : bubblewrap exécuté
 réellement (montages, `--unshare-net` + relais vers le socket unix du proxy, PTY via
 `--dev`) ; Landlock et seccomp (TIOCSTI, ptrace…) générés, **pas encore appliqués** : il
-faut un petit lanceur natif ou `bwrap --seccomp` + `landrun`.
+faut les poser dans le processus juste avant l'`exec` de l'enfant, ce que Bun ne permet
+pas : c'est le rôle du lanceur Rust retenu (décision 6).
 
 Les capacités médiées par l'hôte (`clipboard`, `notify`, `open-url`, `secrets`,
 `input.global`, `tabs.message`) passent par un canal IPC hôte ↔ enfant : un
@@ -375,7 +376,7 @@ Chaque étape est mergeable seule et garde `bun run verify` et les smokes PTY ve
 | 5     | Client générique branché sur le lanceur de feat/distribution (étape URL ; paquets installés, npm, git par le même chargeur) : TOFU, cache, stockage par origine, onglets, bascule clavier ; mode `inline` et son avertissement   | module du lanceur (feat/distribution), `generic/*`, `session.ts`, `connect.ts` | 4 j        |
 | 6     | Mode `process` : widget VT, PTY, clavier/souris/resize, multiplexeur local (shell, vim, apps airtty)                                                                                                                             | `vt/*`                                                                         | 5–8 j      |
 | 7     | Mode `sandbox` macOS : profil généré depuis `airtty.capabilities`, proxy de sortie, IPC des capacités médiées, écran des capacités, flags `--allow-*`                                                                            | `sandbox/*`                                                                    | 6–8 j      |
-| 8     | Sandbox Linux : bwrap + lanceur Landlock/seccomp, relais proxy ; CI Linux                                                                                                                                                        | `sandbox/linux.ts`, lanceur natif                                              | 5–7 j      |
+| 8     | Sandbox Linux : lanceur Rust Landlock + seccomp (décision 6), repli bwrap ; CI Linux                                                                                                                                             | `sandbox/linux.ts`, lanceur natif                                              | 5–7 j      |
 
 Total : 31,5–38,5 jours (auparavant 31–38). Détail de l'écart :
 
@@ -405,6 +406,14 @@ document.
    maintenant (O1 ; probe `panes/instance`, étape 1).
 5. **Accès Node sensibles en `inline`** : autorisés ; `inline` = confiance totale,
    capacités non appliquées, et le lanceur l'affiche explicitement (section 1, étape 5).
+
+6. **Sandbox Linux** : un **lanceur natif en Rust** (`airtty-sandbox`, livré compilé avec
+   airtty) applique lui-même Landlock (fichiers, exécution par binaire, ports TCP depuis
+   l'ABI 4 / noyau 6.7 : sortie réseau forcée vers le proxy de l'hôte sans namespace) et
+   seccomp (TIOCSTI, `ptrace`…), puis `exec` l'enfant. Pas de dépendance à bwrap ni à
+   `landrun`, pas besoin des user namespaces (restreints par AppArmor sur Ubuntu ≥ 23.10).
+   Noyau sans Landlock suffisant : bwrap s'il est présent, sinon le mode `sandbox` est
+   **refusé** avec un message clair, jamais simulé.
 
 Question restante, sans effet sur l'API publique : la forme exacte du message du lanceur
 en `inline`, à régler avec feat/distribution.

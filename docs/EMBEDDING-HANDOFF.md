@@ -47,6 +47,13 @@ Sur `main` (après le merge d'`integration`) :
 5. `inline` autorise tout, y compris `child_process` ; le lanceur l'affiche avant
    l'ouverture. Texte proposé, à caler avec le lanceur : « Confiance totale : cette app
    s'exécute dans le processus du lanceur ; aucune capacité n'est appliquée. »
+6. Sandbox Linux : un **lanceur natif en Rust** (`airtty-sandbox`, livré compilé avec
+   airtty) applique lui-même Landlock (fichiers, exécution par binaire, ports TCP depuis
+   l'ABI 4 / noyau 6.7 : sortie réseau forcée vers le proxy de l'hôte sans namespace) et
+   seccomp (TIOCSTI, `ptrace`…), puis `exec` l'enfant. Pas de dépendance à bwrap ni à
+   `landrun`, pas besoin des user namespaces (restreints par AppArmor sur Ubuntu ≥ 23.10).
+   Noyau sans Landlock suffisant : bwrap s'il est présent, sinon le mode `sandbox` est
+   **refusé** avec un message clair, jamais simulé.
 
 ## Commencer ici
 
@@ -72,7 +79,7 @@ change pas le comportement d'une application existante (un seul pane = aujourd'h
 | 5     | Client générique sur l'étape URL du lanceur, TOFU, stockage par origine, onglets | 4 j        |
 | 6     | Mode `process` : widget VT (`EmbeddedTerminalRenderable` d'OpenTUI), PTY Bun     | 5–8 j      |
 | 7     | Mode `sandbox` macOS : Seatbelt généré, proxy de sortie, IPC des capacités       | 6–8 j      |
-| 8     | Sandbox Linux : bwrap + Landlock/seccomp réellement appliqués, CI Linux          | 5–7 j      |
+| 8     | Sandbox Linux : lanceur Rust Landlock + seccomp (décision 6), repli bwrap, CI    | 5–7 j      |
 
 Les étapes 1, 2 et 6 servent déjà le multiplexeur local sans rien de la sécurité : si
 l'objectif prioritaire est tmux/herdr, l'ordre 1 → 2 → 6 est légitime.
