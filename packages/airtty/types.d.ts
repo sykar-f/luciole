@@ -24,6 +24,17 @@ declare module "react-server-dom-webpack/server.node" {
   ): { pipe(stream: NodeJS.WritableStream): void; abort(): void };
   export function decodeReply(body: string | FormData, manifest: unknown): Promise<unknown>;
 }
+// The web target's Server (src/flight/server.edge.ts): the same codec on web streams.
+declare module "react-server-dom-webpack/server.edge" {
+  export function registerClientReference<T>(value: T, id: string, name: string): T;
+  export function registerServerReference<T>(value: T, id: string, name: string): T;
+  export function renderToReadableStream(
+    model: unknown,
+    manifest: unknown,
+    options?: { onError?: (error: unknown) => string | undefined },
+  ): ReadableStream<Uint8Array>;
+  export function decodeReply(body: string | FormData, manifest: unknown): Promise<unknown>;
+}
 
 // The original isolated RSC probe uses the Node decoder without Server Functions; the
 // Server's "use cache" encodes arguments and results with its reply encoder.
