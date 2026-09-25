@@ -1,0 +1,330 @@
+---
+import Guide from "../../layouts/Guide.astro";
+import Sequence from "../../components/guide/Sequence.astro";
+import Excerpt from "../../components/guide/Excerpt.astro";
+import Sample from "../../components/guide/Sample.astro";
+import Step from "../../components/guide/Step.astro";
+import Src from "../../components/guide/Src.astro";
+import Callout from "../../components/guide/Callout.astro";
+import Quiz from "../../components/guide/Quiz.astro";
+
+const B = "packages/airtty/src/build.ts";
+
+// The two graphs of Notes, as the build computes them (clientGraph and serverGraph of manifest.json).
+type Node = { id: string; label: string; x: number; y: number; tone: "server" | "client" | "shared"; tag?: string };
+const W = 214;
+const H = 30;
+const nodes: Node[] = [
+  { id: "home", label: "app/page.tsx", x: 30, y: 70, tone: "server", tag: "page" },
+  { id: "note", label: "app/notes/[id]/page.tsx", x: 30, y: 130, tone: "server", tag: "page" },
+  { id: "queries", label: "server/queries.ts", x: 30, y: 210, tone: "server", tag: "use cache" },
+  { id: "repo", label: "server/repository.ts", x: 30, y: 270, tone: "server" },
+  { id: "actions", label: "actions/notes.ts", x: 30, y: 340, tone: "server", tag: "use server" },
+  { id: "list", label: "components/NoteList.tsx", x: 516, y: 70, tone: "client", tag: "use client" },
+  { id: "editor", label: "components/NoteEditor.tsx", x: 516, y: 130, tone: "client", tag: "use client" },
+  { id: "draft", label: "components/draft.ts", x: 516, y: 190, tone: "client", tag: "use client" },
+  { id: "layout", label: "app/layout.tsx", x: 516, y: 260, tone: "client", tag: "layout" },
+  { id: "loading", label: "app/notes/[id]/loading.tsx", x: 516, y: 310, tone: "client", tag: "loading" },
+  { id: "frame", label: "components/NoteFrame.tsx", x: 273, y: 400, tone: "shared", tag: "sans directive" },
+];
+const at = (id: string) => {
+  const node = nodes.find((n) => n.id === id);
+  if (!node) throw new Error(id);
+  return node;
+};
+const right = (n: Node) => [n.x + W, n.y + H / 2] as const;
+const left = (n: Node) => [n.x, n.y + H / 2] as const;
+const bottom = (n: Node, dx = W / 2) => [n.x + dx, n.y + H] as const;
+const top = (n: Node, dx = W / 2) => [n.x + dx, n.y] as const;
+type Edge = { d: string; kind: "import" | "reference" };
+const line = (a: readonly [number, number], b: readonly [number, number], kind: Edge["kind"] = "import"): Edge => ({ d: `M${a[0]} ${a[1]} L${b[0]} ${b[1]}`, kind });
+const edges: Edge[] = [
+  line(right(at("home")), left(at("list")), "reference"),
+  line(right(at("note")), left(at("editor")), "reference"),
+  line(bottom(at("note"), 60), top(at("queries"), 60)),
+  line(bottom(at("queries"), 60), top(at("repo"), 60)),
+  { d: `M${at("note").x} ${at("note").y + H / 2} H14 V${at("actions").y + H / 2} H${at("actions").x}`, kind: "import" },
+  line(bottom(at("editor"), 40), top(at("draft"), 40)),
+  line(bottom(at("note"), 180), top(at("frame"), 40)),
+  line(bottom(at("loading"), 30), top(at("frame"), 180)),
+];
+---
+
+<Guide
+  slug="build"
+  outcomes={[
+    "suivre <code>airtty build</code> de la commande jusqu'au dossier <code>.airtty/</code> ;",
+    "expliquer comment un composant Client ou une Server Function devient une <strong>référence</strong> ;",
+    "lire une erreur de frontière et savoir quel import la provoque.",
+  ]}
+>
+  <h2>En une phrase</h2>
+  <p>Le build lit <code>app/</code>, suit les imports pour construire <strong>deux graphes</strong> (ce que le Server exécute, ce que le Client exécute), refuse tout ce qui franchirait la frontière dans le mauvais sens, puis produit deux programmes où le code de l'autre côté est remplacé par des <strong>références</strong>.</p>
+
+  <h2>Le parcours</h2>
+  <Sequence
+    title="airtty build"
+    lanes={[
+      { id: "cli", label: "CLI", sub: "commands/build.ts", tone: "neutral" },
+      { id: "build", label: "build()", sub: "build.ts", tone: "build" },
+      { id: "bun", label: "Bun.build", sub: "plugin des frontières", tone: "build" },
+      { id: "disk", label: "Disque", sub: "app/ et .airtty/", tone: "neutral" },
+    ]}
+    messages={[
+      { phase: "Lire" },
+      { from: "cli", to: "build", label: "build(dossier, options)", n: 1 },
+      { from: "build", to: "build", label: "app/ → route graph", n: 2 },
+      { from: "build", to: "build", label: "AST : directives, imports", n: 3 },
+      { phase: "Vérifier" },
+      { from: "build", to: "build", label: "graphes Server et Client", n: 4 },
+      { from: "build", to: "build", label: "build ID", n: 5 },
+      { phase: "Produire" },
+      { from: "build", to: "disk", label: "app/routeTree.gen.ts", n: 6 },
+      { from: "build", to: "bun", label: "entrées server, client, app", n: 7 },
+      { from: "bun", to: "bun", label: "remplace par des références", n: 8 },
+      { from: "bun", to: "disk", label: "bundles dans .airtty-<uuid>", n: 9 },
+      { from: "build", to: "disk", label: "rename → .airtty/", n: 10 },
+    ]}
+    caption="Tout ce qui précède l'étape 10 se passe dans un dossier temporaire : un build qui échoue ne touche jamais .airtty/."
+  />
+
+  <Step n="1" tone="neutral" where="CLI" title="La commande lit ses options, puis délègue">
+    <p><Src path="packages/airtty/src/cli.ts" /> trouve la sous-commande dans le registre <Src path="packages/airtty/src/commands/index.ts" />. <Src path="packages/airtty/src/commands/build.ts" /> lit tous les drapeaux d'abord (<code>--compile</code>, <code>--sign-bundle</code>, <code>--web</code>), puis appelle <code>build()</code>. Sans <code>--app</code>, le dossier par défaut est <code>examples/notes</code>.</p>
+  </Step>
+
+  <Step n="2" tone="build" title="app/ devient un route graph">
+    <p>Le build parcourt <code>app/</code> et ne garde que les fichiers de convention : <code>page</code>, <code>layout</code>, <code>loading</code>, <code>error</code>, <code>not-found</code>. <Src path="packages/airtty/src/route-graph.ts" find="export function compileRouteGraph" /> les transforme en une structure pure : segments, <code>[param]</code>, <code>[...splat]</code>, <code>(groupe)</code>. Un layout racine est obligatoire et les collisions sont refusées.</p>
+  </Step>
+
+  <Step n="3" tone="build" title="Chaque source est lue par l'API TypeScript">
+    <p>Pour chaque fichier atteint, le build relève la directive en tête, les imports statiques et les exports. Il refuse d'emblée les directives en conflit, un <code>"use server"</code> dans une fonction, et les <code>import()</code> ou <code>require</code> dynamiques. <strong>Seuls les imports relatifs sont suivis</strong> : les paquets npm sont contrôlés plus tard, à l'étape 8.</p>
+  </Step>
+
+  <Step n="4" tone="build" title="Deux graphes, et la frontière entre eux">
+    <p>Le graphe Server part de chaque page. Il s'arrête sur un fichier <code>"use client"</code>, qu'il note comme <em>frontière</em>. Le graphe Client part de chaque frontière, des layouts et des écrans de chargement. S'il rencontre un <code>"use server"</code>, il repasse côté Server au lieu d'embarquer le fichier.</p>
+    <Excerpt path={B} find="function clientVisit(p: string, from?: string)" until="Server-only source in Client graph" tone="build" mark={['"use cache" module in Client graph', "Server-only source in Client graph"]} />
+    <p>Une règle y est purement textuelle : tout fichier dont un dossier du chemin s'appelle <code>server</code> est interdit au Client, avec ou sans directive.</p>
+  </Step>
+
+  <Step n="5" tone="build" title="Le build ID : une empreinte de tout ce qui compte">
+    <p>Le build ID est une empreinte sha256, tronquée à 24 caractères hexadécimaux, de trois choses : les sources de l'app, <strong>tous</strong> les fichiers du framework et le <code>bun.lock</code> qui gouverne l'installation.</p>
+    <Excerpt path={B} find='const hash = createHash("sha256");' until="for (const lock of new Set" tone="build" />
+    <p>Conséquence : mettre à jour le framework change le build ID, même si l'app n'a pas bougé. Un Client et un Server issus de deux builds ne se parleront pas (chapitre 3).</p>
+  </Step>
+
+  <Step n="6" tone="build" title="Le route tree typé est écrit dans app/">
+    <p>Le build génère <code>app/routeTree.gen.ts</code> pour TanStack Router. Ce fichier est <strong>versionné</strong> et réécrit seulement si son contenu change. C'est le seul fichier source que le build modifie.</p>
+  </Step>
+
+  <Step n="7" tone="build" title="Trois programmes d'entrée">
+    <p>Le build écrit trois fichiers d'entrée, puis les confie à <code>Bun.build</code> :</p>
+    <ul>
+      <li><strong>server</strong> : importe les pages et les actions, puis appelle <code>serve(&#123; buildId, manifest, routes… &#125;)</code> ;</li>
+      <li><strong>client</strong> : crée l'application avec une table <code>resolveModule</code> des composants Client ;</li>
+      <li><strong>app</strong> : le Client sans runtime, pour qu'un hôte l'ouvre (chapitre 8).</li>
+    </ul>
+  </Step>
+
+  <Step n="8" tone="build" title="Le plugin remplace le code de l'autre côté par des références">
+    <p>C'est le cœur du mécanisme. Pendant le bundling, le plugin <code>airtty-boundaries</code> intercepte chaque module :</p>
+    <Excerpt path={B} find='if (serverSide && m?.directive === "use client")' count={17} tone="build" mark={["registerClientReference", "actions.reference("]} />
+    <ul>
+      <li>Côté Server, un fichier <code>"use client"</code> devient une liste de <strong>Client References</strong>. Ce sont des fonctions qui lèvent une erreur si on les appelle : le Server ne peut que les <em>nommer</em> dans un rendu.</li>
+      <li>Côté Client, un fichier <code>"use server"</code> devient des <strong>Server References</strong>, <code>actions.reference("id#nom")</code> : l'appel part en requête.</li>
+      <li>Une fonction <code>"use cache"</code> est enveloppée par le runtime du cache (chapitre 6).</li>
+    </ul>
+    <p>Le plugin refuse aussi un <em>paquet</em> npm Client qui importerait <code>server-only</code> ou <code>airtty/server</code>. L'étape 4 ne pouvait pas le voir.</p>
+  </Step>
+
+  <Step n="9" tone="build" title="Les bundles sont écrits à part">
+    <p>Chaque rôle devient un seul <code>index.js</code>, sans découpage : React, React Server DOM et OpenTUI restent externes. Le bundle <code>app</code> est en CommonJS, sauf si du code Client utilise un <code>await</code> au niveau du module : le build le saute alors avec un avertissement.</p>
+  </Step>
+
+  <Step n="10" tone="build" title="Un seul rename rend le build visible">
+    <Excerpt path={B} find="// Failed builds never touch the active artefacts." until="throw error;" tone="build" />
+  </Step>
+
+  <h2>Les deux graphes de Notes</h2>
+  <p>Voici ce que calcule l'étape 4 pour Notes. Chaque flèche en pointillés franchit la frontière : ce n'est pas un import mais une <strong>référence</strong>, que le Client résoudra avec ses propres modules.</p>
+
+  <figure>
+    <div class="diagram">
+      <svg viewBox="0 0 760 450" role="img" aria-label="Graphe Server et graphe Client de Notes">
+        <defs>
+          <marker id="g-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 1 L9 5 L0 9 z" fill="#98a6ba" /></marker>
+          <marker id="g-ref" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 1 L9 5 L0 9 z" fill="#c9a8ff" /></marker>
+        </defs>
+        <text x="30" y="30" class="col s">Graphe Server</text>
+        <text x="730" y="30" class="col c" text-anchor="end">Graphe Client</text>
+        <text x="380" y="30" class="boundary-label" text-anchor="middle">frontière</text>
+        <line x1="380" y1="40" x2="380" y2="380" class="boundary" />
+        {edges.map((edge) => <path d={edge.d} class={`edge ${edge.kind}`} marker-end={`url(#${edge.kind === "reference" ? "g-ref" : "g-arrow"})`} />)}
+        <text x="380" y="80" class="ref-label" text-anchor="middle">référence</text>
+        <text x="380" y="140" class="ref-label" text-anchor="middle">référence</text>
+        {
+          nodes.map((n) => (
+            <g>
+              <rect x={n.x} y={n.y} width={W} height={H} rx="7" class={`node ${n.tone}`} />
+              <text x={n.x + 10} y={n.y + 19} class="node-label">{n.label}</text>
+              {n.tag && <text x={n.x + W - 8} y={n.y - 5} class="tag" text-anchor="end">{n.tag}</text>}
+            </g>
+          ))
+        }
+      </svg>
+    </div>
+    <figcaption>NoteFrame.tsx n'a pas de directive : il est copié dans les deux programmes. actions/notes.ts n'est jamais dans le graphe Client : la page le passe en prop, et Flight transmet sa référence.</figcaption>
+  </figure>
+
+  <h2>Ce que le build produit</h2>
+  <Sample
+    label="bun run build, sur examples/notes"
+    code={`.airtty/
+├── server/     index.js      le programme Server
+├── client/     index.js      le programme Client
+├── app/        index.cjs     le Client sans runtime, pour un hôte
+│               manifest.json buildId, clé d'ABI, sha256
+├── manifest.json             graphes, routes, références
+├── metadata.json             nom, identifiant, icône
+└── icon.png`}
+  />
+  <p>Le <code>manifest.json</code> garde la trace des deux graphes et des routes. Chaque clé de référence commence par le build ID : une référence d'un autre build ne peut pas se résoudre.</p>
+  <Sample
+    lang="json"
+    label=".airtty/manifest.json (extrait)"
+    code={`{
+  "buildId": "e01495558432a2514ca7203e",
+  "manifest": {
+    "e01495558432a2514ca7203e/components/NoteList.tsx#NoteList": {
+      "id": "e01495558432a2514ca7203e/components/NoteList.tsx", "chunks": [], "name": "NoteList" }
+  },
+  "routes": [
+    { "id": "/notes/[id]", "url": "/notes/$id", "auth": "required",
+      "page": "app/notes/[id]/page.tsx",
+      "layouts": ["app/layout.tsx", "app/notes/layout.tsx"],
+      "loading": "app/notes/[id]/loading.tsx", "error": "app/error.tsx" }
+  ]
+}`}
+  />
+
+  <h2>Quand ça casse</h2>
+  <p>Chaque violation cite le fichier, la ligne et la colonne, puis la <strong>chaîne d'imports</strong> qui y mène. Voici quatre erreurs réelles, provoquées sur des copies modifiées de Notes :</p>
+  <Sample
+    label="airtty build, quatre violations"
+    code={`components/NoteEditor.tsx:3:1: Server-only import in Client graph: ../server/repository
+  via app/notes/[id]/page.tsx → components/NoteEditor.tsx
+
+app/notes/layout.tsx:1:1: layout.tsx must declare "use client" and a default export
+
+app/page.tsx:10:34: Inline Server Functions and closure captures are unsupported;
+  export an async function from a "use server" module
+
+app/page.tsx:1:1: OpenTUI native runtime is Client-only
+  via app/page.tsx`}
+  />
+  <p>Lis la chaîne <code>via</code> de droite à gauche : elle part du fichier fautif et remonte jusqu'au point d'entrée qui l'a fait entrer dans le mauvais graphe.</p>
+
+  <Callout kind="piege">
+    <ul>
+      <li><code>airtty build</code> écrit dans tes sources : <code>app/routeTree.gen.ts</code> est versionné.</li>
+      <li>Le build remplace <em>tout</em> <code>.airtty/</code> : un dossier <code>web/</code> produit par un <code>--web</code> précédent disparaît au build suivant sans <code>--web</code>.</li>
+      <li><Src path="packages/airtty/src/framework-hash.ts" /> n'entre pas dans le build ID. Il sert aux caches du lanceur git et du runtime web ; le build ID refait sa propre empreinte du framework.</li>
+    </ul>
+  </Callout>
+
+  <Callout kind="retenir">
+    <ul>
+      <li>Deux graphes, calculés depuis les pages (Server) et depuis les frontières <code>"use client"</code> (Client).</li>
+      <li>Ce qui appartient à l'autre côté est remplacé par une <strong>référence</strong> dont l'id commence par le build ID.</li>
+      <li>Le build ID couvre l'app, tout le framework et le lockfile.</li>
+      <li>Tout est construit à part puis publié par un seul <code>rename</code>.</li>
+    </ul>
+  </Callout>
+
+  <Callout kind="essaie">
+    <p>Dans une copie de Notes, importe <code>../server/repository</code> depuis <code>components/NoteEditor.tsx</code>, puis lance <code>bun packages/airtty/src/cli.ts build --app &lt;copie&gt;</code>. Avant de lancer, prédis le message et sa chaîne <code>via</code>.</p>
+  </Callout>
+
+  <Quiz
+    items={[
+      {
+        q: "Un fichier <code>lib/server/format.ts</code> sans directive est importé par un Client Component. Que se passe-t-il ?",
+        a: "<p>Le build échoue : <code>clientVisit</code> refuse tout fichier dont un dossier du chemin s'appelle <code>server</code>, avec le message <code>Server-only source in Client graph</code> et la chaîne <code>via</code>.</p>",
+      },
+      {
+        q: "Pourquoi <code>actions/notes.ts</code> n'apparaît-il pas dans le graphe Client de Notes, alors que l'éditeur appelle <code>saveNote</code> ?",
+        a: "<p>Aucun Client Component ne l'importe : c'est la page Server qui le passe en prop. Côté Server, le plugin enregistre <code>saveNote</code> comme Server Reference, Flight transmet sa référence, et le Client la décode en une fonction qui envoie un <code>POST /action</code>.</p>",
+      },
+      {
+        q: "Que devient <code>NoteEditor</code> dans le bundle Server ?",
+        a: "<p>Une Client Reference, <code>registerClientReference(…, \"&lt;buildId&gt;/components/NoteEditor.tsx\", \"NoteEditor\")</code>, dont l'implémentation lève <code>Cannot invoke Client export on Server</code>. Le Server peut la placer dans un arbre, pas l'exécuter.</p>",
+      },
+      {
+        q: "Tu mets à jour le framework sans toucher à l'app. Le build ID change-t-il ?",
+        a: "<p>Oui : il couvre chaque <code>.ts</code> et <code>.tsx</code> du framework, plus le <code>bun.lock</code>. Un Client compilé avant la mise à jour recevra un 409 du nouveau Server.</p>",
+      },
+    ]}
+  />
+</Guide>
+
+<style>
+  .col {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .col.s { fill: #ffbc66; }
+  .col.c { fill: #67d9bc; }
+
+  .boundary {
+    stroke: #c9a8ff;
+    stroke-dasharray: 3 5;
+    opacity: 0.6;
+  }
+
+  .boundary-label,
+  .ref-label {
+    fill: #c9a8ff;
+    font-size: 10.5px;
+  }
+
+  .ref-label {
+    paint-order: stroke;
+    stroke: #0a0f18;
+    stroke-width: 4px;
+  }
+
+  .edge {
+    fill: none;
+    stroke-width: 1.3;
+  }
+
+  .edge.import {
+    stroke: #98a6ba;
+    opacity: 0.7;
+  }
+
+  .edge.reference {
+    stroke: #c9a8ff;
+    stroke-dasharray: 5 4;
+  }
+
+  .node {
+    stroke-width: 1;
+  }
+
+  .node.server { fill: rgb(255 188 102 / 0.09); stroke: rgb(255 188 102 / 0.6); }
+  .node.client { fill: rgb(103 217 188 / 0.09); stroke: rgb(103 217 188 / 0.6); }
+  .node.shared { fill: rgb(152 166 186 / 0.08); stroke: rgb(152 166 186 / 0.6); stroke-dasharray: 4 3; }
+
+  .node-label {
+    fill: #edf1f7;
+    font-size: 11.5px;
+  }
+
+  .tag {
+    fill: #7d8aa0;
+    font-size: 10px;
+  }
+</style>

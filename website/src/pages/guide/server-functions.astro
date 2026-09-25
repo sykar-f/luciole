@@ -1,0 +1,273 @@
+---
+import Guide from "../../layouts/Guide.astro";
+import Sequence from "../../components/guide/Sequence.astro";
+import Excerpt from "../../components/guide/Excerpt.astro";
+import Sample from "../../components/guide/Sample.astro";
+import Step from "../../components/guide/Step.astro";
+import Src from "../../components/guide/Src.astro";
+import Callout from "../../components/guide/Callout.astro";
+import Quiz from "../../components/guide/Quiz.astro";
+
+const T = "packages/airtty/src/transport.ts";
+
+// The three outcomes, by when the failure happened.
+const zones = [
+  {
+    x: 20,
+    title: "Avant l'envoi",
+    cases: ["connexion refusée", "annulé avant fetch", "faute simulée refuse"],
+    outcome: "not-sent",
+    ran: "Le Server n'a rien reçu.",
+    tone: "client",
+  },
+  {
+    x: 268,
+    title: "Le Server répond 4xx",
+    cases: ["409 build différent", "401 non authentifié", "400, 404"],
+    outcome: "rejected",
+    ran: "Refusé avant le code de l'app.",
+    tone: "server",
+  },
+  {
+    x: 516,
+    title: "Tout le reste",
+    cases: ["délai dépassé en route", "réponse perdue, 5xx", "flux coupé ou illisible"],
+    outcome: "unknown",
+    ran: "L'action a peut-être tourné.",
+    tone: "fault",
+  },
+];
+---
+
+<Guide
+  slug="server-functions"
+  outcomes={[
+    "suivre un appel à <code>saveNote</code> du clavier jusqu'à SQLite et retour ;",
+    "dire, pour un échec donné, si l'issue est <code>not-sent</code>, <code>rejected</code> ou <code>unknown</code>, et ce que l'app peut en conclure ;",
+    "expliquer comment une sauvegarde rafraîchit exactement les pages qui en dépendent.",
+  ]}
+>
+  <h2>En une phrase</h2>
+  <p>Le Client reçoit une <strong>référence</strong> vers <code>saveNote</code>. L'appeler encode les arguments en Flight et envoie un <code>POST /action</code>. Le Server exécute la fonction, invalide des tags de cache et répond une enveloppe : le résultat, plus la liste des tags touchés. Si l'appel échoue, le framework ne réessaie jamais. Il dit seulement <strong>ce qu'il sait</strong> du sort de la requête, et c'est l'app qui décide.</p>
+
+  <h2>Le parcours</h2>
+  <Sequence
+    title="Enregistrer une note"
+    lanes={[
+      { id: "editor", label: "NoteEditor", sub: "Client Component", tone: "client" },
+      { id: "transport", label: "Transport", sub: "transport.ts", tone: "wire" },
+      { id: "server", label: "Server", sub: "server.ts", tone: "server" },
+      { id: "action", label: "saveNote", sub: "actions/notes.ts", tone: "server" },
+    ]}
+    messages={[
+      { phase: "Dans le terminal" },
+      { from: "editor", to: "editor", label: "Entrée : Draft → Snapshot", n: 1 },
+      { from: "editor", to: "transport", label: "saveAction(snapshot)", n: 2 },
+      { from: "transport", to: "transport", label: "encodeReply(args)", n: 3 },
+      { phase: "Sur le Server" },
+      { from: "transport", to: "server", label: "POST /action, x-airtty-action", n: 4 },
+      { from: "server", to: "server", label: "auth, build, action connue ?", n: 5 },
+      { from: "server", to: "action", label: "fn(...args) dans le contexte", n: 6 },
+      { from: "action", to: "action", label: "UPDATE, puis invalidate(tags)", n: 7 },
+      { from: "action", to: "server", label: "SaveResult", n: 8, back: true },
+      { from: "server", to: "transport", label: "{ value, callId, tags }", n: 9, back: true },
+      { phase: "De retour dans le terminal" },
+      { from: "transport", to: "transport", label: "revalide les pages touchées", n: 10 },
+      { from: "transport", to: "editor", label: "value → Draft confirmé", n: 11, back: true },
+    ]}
+    caption="Le Server n'écrit sa réponse (9) qu'une fois les tags purgés (7) : le Client peut relire tout de suite sans tomber sur l'ancienne valeur."
+  />
+
+  <Step n="1" tone="client" title="L'app prépare un Snapshot, sa propre politique">
+    <p>Le framework ne sait pas ce qu'est un Draft. Notes le définit dans <Src path="examples/notes/components/draft.ts" /> : chaque envoi fige le texte en un <em>Snapshot</em>, avec un <code>operationId</code> unique. Cet identifiant rendra l'opération idempotente côté Server.</p>
+    <Excerpt path="examples/notes/components/NoteEditor.tsx" find="fields = useRestoredFields" count={3} tone="client" mark={["fields.submit(() => saveAction(snapshot)"]} />
+    <p><code>fields.submit</code> oublie le texte restaurable avant l'envoi et le remet si l'envoi échoue sans avoir abouti (chapitre 7).</p>
+  </Step>
+
+  <Step n="2–3" tone="wire" title="Appeler la référence, c'est envoyer une requête">
+    <p><code>saveAction</code> est arrivée dans la page sous la forme <code>$h3</code>. React Flight l'a décodée en une fonction branchée sur <code>callServer</code> de l'application. Cette fonction encode les arguments avec <code>encodeReply</code>, le format Flight des données envoyées au Server.</p>
+    <Sample
+      lang="http"
+      label="POST /action capturé sur un Server Notes"
+      code={`POST /action
+x-airtty-build:  e01495558432a2514ca7203e
+x-airtty-call:   11111111-2222-3333-4444-555555555555
+x-airtty-action: e01495558432a2514ca7203e/actions/notes.ts#saveNote
+
+[{"id":"1","value":"Buy milk","version":1,"revision":3,"operationId":"3f1c2a9e-…"}]`}
+    />
+  </Step>
+
+  <Step n="4–6" tone="server" title="Le Server trouve l'action dans une table générée">
+    <p>Les mêmes contrôles que pour <code>/render</code> passent d'abord : auth, puis build ID. Ensuite, l'action est cherchée par son id dans une <code>Map</code> écrite au build. Aucune fonction non déclarée <code>"use server"</code> ne peut donc être appelée.</p>
+    <Excerpt path="packages/airtty/src/server.ts" find='const entry = config.actions.get(req.headers.get("x-airtty-action") ?? "");' count={15} tone="server" mark={["config.actions.get", 'entry.auth === "required" && !session', "await entry.fn(...args.data)", "await Promise.all(purges.values())"]} />
+    <p>Attention : les arguments arrivent <strong>non validés</strong>. C'est à l'action de les vérifier ; <code>saveNote</code> commence par <code>SnapshotInput.parse</code>.</p>
+  </Step>
+
+  <Step n="7" tone="server" title="L'action écrit, puis invalide ce qui a changé">
+    <Excerpt path="examples/notes/actions/notes.ts" find="export async function saveNote" until="^}" tone="server" />
+    <Excerpt path="examples/notes/actions/notes.ts" find="async function changed(id: string) {" until="^}" tone="server" />
+    <p>Deux tags : la liste de l'utilisateur et cette note-là. <code>invalidate</code> purge les entrées du cache Server qui les portent (chapitre 6), et retient les tags pour la réponse. <code>save()</code> tourne dans une transaction SQLite : si l'<code>operationId</code> est déjà connu, elle renvoie le résultat enregistré au lieu d'écrire une seconde fois.</p>
+  </Step>
+
+  <Step n="8–9" tone="server" title="La réponse est une enveloppe Flight">
+    <Sample
+      lang="json"
+      label="réponse capturée"
+      code={`0:{"kind":"result",
+   "value":{"ok":true,"note":{"id":"1","title":"First note","value":"Buy milk","version":2},"operationId":"3f1c2a9e-…"},
+   "callId":"11111111-2222-3333-4444-555555555555",
+   "invalidate":[],
+   "tags":["notes:local","note:local:1"]}`}
+    />
+  </Step>
+
+  <Step n="10–11" tone="wire" title="Le Client vérifie, revalide, puis rend la valeur">
+    <Excerpt path={T} find="const envelope = ActionEnvelope.safeParse(decoded);" count={6} tone="wire" mark={["envelope.data.callId !== callId", "options.onInvalidate?.(invalidate, tags)"]} />
+    <p>Le Client connaît les tags lus par chaque page affichée ou en cache (la dernière ligne de chaque <code>/render</code>, chapitre 4). Il ne recharge que les routes qui ont lu <code>notes:local</code> ou <code>note:local:1</code>, même si la liste déclarait un <code>staleTime</code> de 30 s. La page de la note 2 n'est pas redemandée.</p>
+  </Step>
+
+  <h2>Les trois issues d'un échec</h2>
+  <p>Quand un appel échoue, la seule question utile pour l'app est : <strong>l'action a-t-elle tourné ?</strong> Le Transport y répond par <code>TransportError.outcome</code>, et la réponse dépend du moment où l'échec survient.</p>
+
+  <figure>
+    <div class="diagram">
+      <svg viewBox="0 0 764 290" role="img" aria-label="Les trois issues d'un échec selon le moment où il survient">
+        <defs>
+          <marker id="o-time" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 1 L9 5 L0 9 z" fill="#5d6b80" /></marker>
+        </defs>
+        <line x1="20" y1="22" x2="744" y2="22" stroke="#5d6b80" stroke-width="1.2" marker-end="url(#o-time)" />
+        <text x="20" y="14" class="o-small">le temps d'une requête →</text>
+        {
+          zones.map((zone) => (
+            <g>
+              <rect x={zone.x} y="40" width="228" height="236" rx="12" class={`o-zone ${zone.tone}`} />
+              <text x={zone.x + 16} y="68" class="o-title">{zone.title}</text>
+              {zone.cases.map((c, i) => <text x={zone.x + 16} y={96 + i * 22} class="o-case">· {c}</text>)}
+              <rect x={zone.x + 16} y="178" width={zone.outcome.length * 8.4 + 22} height="28" rx="14" class={`o-pill ${zone.tone}`} />
+              <text x={zone.x + 27} y="197" class={`o-outcome ${zone.tone}`}>{zone.outcome}</text>
+              <text x={zone.x + 16} y="238" class="o-ran">{zone.ran}</text>
+            </g>
+          ))
+        }
+      </svg>
+    </div>
+    <figcaption>Une même cause, comme un délai dépassé, donne not-sent si elle frappe avant le fetch et unknown si elle frappe pendant.</figcaption>
+  </figure>
+
+  <p>Toutes ces décisions se prennent dans <Src path={T} find="// Before fetch starts, a failure or cancellation provably sent nothing." /> et dans les lignes qui suivent :</p>
+  <Excerpt path={T} find="// The Server answers 4xx only before running application code; a 5xx may follow it." count={5} tone="wire" />
+
+  <p>Notes traduit ces issues en états de Draft :</p>
+  <Excerpt path="examples/notes/components/draft.ts" find="save: async (action: (s: Snapshot) => Promise<SaveResult>) => {" count={14} tone="client" mark={['e.outcome !== "unknown"', "draft.markUnknown()"]} />
+  <div class="table">
+    <table>
+      <thead><tr><th>Issue</th><th>Notes affiche</th><th>Et ensuite</th></tr></thead>
+      <tbody>
+        <tr><td><code>not-sent</code>, <code>rejected</code></td><td>« Not saved »</td><td>le texte est intact, réessayer est sans risque</td></tr>
+        <tr><td><code>unknown</code></td><td>« Unknown outcome »</td><td>Ctrl+O appelle <code>getOperation(operationId)</code> pour demander au Server ce qu'est devenue l'opération</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Simuler un mauvais réseau</h2>
+  <p>Ces variables ne sont lues que par le <strong>Client</strong>, dans son Transport. Le Server n'en sait rien.</p>
+  <div class="table">
+    <table>
+      <thead><tr><th>Variable</th><th>Effet</th></tr></thead>
+      <tbody>
+        <tr><td><code>AIRTTY_LATENCY_MS</code></td><td>aller-retour : la moitié avant l'envoi, la moitié après la réponse</td></tr>
+        <tr><td><code>AIRTTY_JITTER_MS</code></td><td>un aléa ajouté à chaque sens</td></tr>
+        <tr><td><code>AIRTTY_FAULT=refuse:0.1,drop:0.05,cut:0.05</code></td><td>une faute tirée par requête : <code>refuse</code> donne <code>not-sent</code>, <code>drop</code> et <code>cut</code> donnent <code>unknown</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>Avec <code>drop</code>, la requête part vraiment : le Server exécute l'action, et c'est la réponse qui est jetée. C'est exactement le cas qu'<code>unknown</code> décrit.</p>
+
+  <Callout kind="piege">
+    <ul>
+      <li>Un Snapshot invalide fait lever <code>SnapshotInput.parse</code> dans l'action, ce qui donne un 500 et donc <code>unknown</code>. Pourtant, rien n'a été écrit.</li>
+      <li><code>x-airtty-call</code> change à chaque requête : l'idempotence repose sur l'<code>operationId</code> de l'app, jamais sur le <code>callId</code>.</li>
+      <li>La revalidation n'est pas attendue : <code>draft.confirm</code> s'exécute pendant que le routeur recharge la page.</li>
+      <li>Notes n'a pas de <code>server/auth.ts</code> : ses actions sont quand même protégées (<code>auth: "required"</code>), et l'identité vient de l'auth par défaut, le bearer <code>AIRTTY_TOKEN</code> ou, à défaut, l'utilisateur <code>local</code>.</li>
+    </ul>
+  </Callout>
+
+  <Callout kind="retenir">
+    <ul>
+      <li>Une Server Function est un <code>export async function</code> d'un fichier <code>"use server"</code>. Son id est <code>&lt;buildId&gt;/chemin#nom</code>.</li>
+      <li>Elle est protégée par défaut ; seul <code>export const auth = "public"</code> l'ouvre.</li>
+      <li>Le framework ne rejoue jamais un appel. Il rapporte <code>not-sent</code>, <code>rejected</code> ou <code>unknown</code>.</li>
+      <li>Les tags de l'enveloppe ciblent la revalidation : seules les pages qui les ont lus sont rechargées.</li>
+    </ul>
+  </Callout>
+
+  <Callout kind="essaie">
+    <p>Lance Notes avec <code>AIRTTY_FAULT=drop:0.3 bun run dev</code>. La faute touche toutes les requêtes, ouvertures de pages comprises : réessaie jusqu'à ouvrir une note. Enregistre ensuite plusieurs fois. Quand « Unknown outcome » apparaît, prédis la version que Ctrl+O va révéler, puis vérifie. La valeur a bien été écrite : seule la réponse s'est perdue.</p>
+  </Callout>
+
+  <Quiz
+    items={[
+      {
+        q: "Le Server crashe juste après avoir enregistré la note. Quelle issue reçoit le Client, et comment Notes s'en sort-il ?",
+        a: "<p><code>unknown</code> : <code>fetch</code> échoue sans code « non connecté », ou reçoit un 5xx. Notes passe le Draft en « Unknown outcome » ; Ctrl+O appelle <code>getOperation(operationId)</code>, qui relit la table <code>operations</code>.</p>",
+      },
+      {
+        q: "Pourquoi un 404 sur <code>/action</code> est-il <code>rejected</code> et pas <code>unknown</code> ?",
+        a: "<p>Le Server n'émet de 4xx qu'<em>avant</em> d'exécuter le code de l'app, ici quand l'action est inconnue. Le Transport en conclut que rien n'a tourné.</p>",
+      },
+      {
+        q: "Après avoir enregistré la note 1, quelles pages le Client recharge-t-il ?",
+        a: "<p>Celles dont le rendu a lu <code>notes:local</code> ou <code>note:local:1</code> : la liste et la note 1. La note 2 a lu <code>note:local:2</code> et reste en cache. Une page dont les tags ne sont pas encore arrivés est rechargée par prudence.</p>",
+      },
+      {
+        q: "Où est décidé qu'une action exige une session ?",
+        a: "<p>Au build : <code>auth</code> vaut <code>\"required\"</code> sauf <code>export const auth = \"public\"</code> dans le module, et la valeur est écrite dans la <code>Map</code> des actions. Au runtime, <code>server.ts</code> répond 401 si elle est requise sans session.</p>",
+      },
+    ]}
+  />
+</Guide>
+
+<style>
+  .o-small {
+    fill: #5d6b80;
+    font-size: 10.5px;
+  }
+
+  .o-zone {
+    stroke-width: 1;
+  }
+
+  .o-zone.client { fill: rgb(103 217 188 / 0.05); stroke: rgb(103 217 188 / 0.4); }
+  .o-zone.server { fill: rgb(255 188 102 / 0.05); stroke: rgb(255 188 102 / 0.4); }
+  .o-zone.fault { fill: rgb(255 123 114 / 0.05); stroke: rgb(255 123 114 / 0.4); }
+
+  .o-title {
+    fill: #edf1f7;
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .o-case {
+    fill: #b7c2d3;
+    font-size: 11.5px;
+  }
+
+  .o-pill.client { fill: rgb(103 217 188 / 0.14); }
+  .o-pill.server { fill: rgb(255 188 102 / 0.14); }
+  .o-pill.fault { fill: rgb(255 123 114 / 0.14); }
+
+  .o-outcome {
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .o-outcome.client { fill: #67d9bc; }
+  .o-outcome.server { fill: #ffbc66; }
+  .o-outcome.fault { fill: #ff7b72; }
+
+  .o-ran {
+    fill: #98a6ba;
+    font-size: 11px;
+  }
+</style>

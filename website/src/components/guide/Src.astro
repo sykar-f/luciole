@@ -1,0 +1,45 @@
+---
+// A file:line reference found by an anchor in the checkout, linked to GitHub.
+import { locate } from "../../lib/guide/source";
+import { source } from "../../lib/links";
+
+interface Props {
+  path: string;
+  /** Text on the line to point at; without it, the file itself. */
+  find?: string;
+  after?: string;
+}
+
+const { path, find, after } = Astro.props;
+const line = find === undefined ? undefined : locate(path, find, after);
+const name = path.replace(/^packages\/airtty\//, "");
+const href = line ? `${source(path)}#L${line}` : source(path);
+---
+
+<a class="src" href={href} title={path}><code>{name}{line && <span>:{line}</span>}</code></a>
+
+<style>
+  .src {
+    text-decoration: none;
+  }
+
+  .src code {
+    padding: 0.08em 0.32em;
+    border: 1px solid var(--rule);
+    border-radius: 5px;
+    background: rgb(255 255 255 / 0.04);
+    color: var(--mist);
+    font-size: 0.82em;
+    white-space: nowrap;
+    transition: border-color 0.15s, color 0.15s;
+  }
+
+  .src:hover code {
+    border-color: var(--rule-strong);
+    color: var(--paper);
+  }
+
+  .src span {
+    color: var(--dim);
+  }
+</style>

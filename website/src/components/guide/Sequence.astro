@@ -1,0 +1,264 @@
+---
+// A sequence diagram laid out from its own labels: every gap between two lanes is as wide as
+// the longest label that crosses it, so no label overflows and none has to be placed by hand.
+import type { Tone } from "../../lib/guide/tones";
+
+interface Lane {
+  id: string;
+  label: string;
+  sub?: string;
+  tone: Tone;
+}
+
+type Message =
+  | { from: string; to: string; label: string; n?: number; back?: boolean; tone?: Tone }
+  | { phase: string };
+
+interface Props {
+  title: string;
+  lanes: Lane[];
+  messages: Message[];
+  caption?: string;
+}
+
+const { title, lanes, messages, caption } = Astro.props;
+
+const CHAR = 6.9; // 11.5px Geist Mono
+const HEAD_CHAR = 7.6;
+const ROW = 38;
+const HEAD = 46;
+const PAD = 16;
+const MIN_GAP = 150;
+// Breathing room, in SVG units: around a lane's header text, around an arrow's label, around a
+// step box and its text, between the headers and the first row.
+const HEAD_MARGIN = 28;
+const GAP_MARGIN = 40;
+const LABEL_MARGIN = 44;
+const SELF_PADDING = 18;
+const SELF_MARGIN = 30;
+const SELF_OFFSET = 16;
+const FIRST_ROW = 26;
+const BOTTOM = 8;
+// Arrows start clear of the numbered badge, and stop just short of the target lane.
+const BADGE_CLEARANCE = 12;
+const ARROW_INSET = 4;
+const HALF = 0.5;
+
+const at = (id: string) => {
+  const i = lanes.findIndex((lane) => lane.id === id);
+  if (i === -1) throw new Error(`Sequence « ${title} » : couloir inconnu ${id}`);
+  return i;
+};
+
+// The width each gap between lane i and i + 1 needs.
+const gaps = lanes.slice(1).map((lane, i) => {
+  const heads = (Math.max(lanes[i].label.length, lanes[i].sub?.length ?? 0) + Math.max(lane.label.length, lane.sub?.length ?? 0)) * HEAD_CHAR * HALF + GAP_MARGIN;
+  return Math.max(MIN_GAP, heads);
+});
+const selfWidth = (label: string) => label.length * CHAR + SELF_PADDING;
+for (const message of messages) {
+  if ("phase" in message) continue;
+  const a = at(message.from);
+  const b = at(message.to);
+  if (a === b) {
+    // A step on one lane: its box sits right of the lane, or left of the last one.
+    const gap = a < lanes.length - 1 ? a : a - 1;
+    if (gap >= 0) gaps[gap] = Math.max(gaps[gap], selfWidth(message.label) + SELF_MARGIN);
+    continue;
+  }
+  const [low, high] = a < b ? [a, b] : [b, a];
+  const need = message.label.length * CHAR + LABEL_MARGIN;
+  const have = gaps.slice(low, high).reduce((sum, gap) => sum + gap, 0);
+  if (need > have) {
+    const extra = (need - have) / (high - low);
+    for (let g = low; g < high; g += 1) gaps[g] += extra;
+  }
+}
+
+const firstHead = Math.max(lanes[0].label.length, lanes[0].sub?.length ?? 0) * HEAD_CHAR + HEAD_MARGIN;
+const lastLane = lanes[lanes.length - 1];
+const lastHead = Math.max(lastLane.label.length, lastLane.sub?.length ?? 0) * HEAD_CHAR + HEAD_MARGIN;
+const xs = [PAD + firstHead / 2];
+for (const gap of gaps) xs.push(xs[xs.length - 1] + gap);
+const width = xs[xs.length - 1] + lastHead / 2 + PAD;
+const top = HEAD + FIRST_ROW;
+const height = top + messages.length * ROW + BOTTOM;
+const id = title.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+
+const tones: Tone[] = ["client", "server", "wire", "build", "neutral"];
+const rows = messages.map((message, i) => {
+  const y = top + i * ROW + ROW / 2;
+  if ("phase" in message) return { kind: "phase" as const, y, label: message.phase };
+  const a = at(message.from);
+  const b = at(message.to);
+  const tone = message.tone ?? lanes[a].tone;
+  if (a === b) {
+    const w = selfWidth(message.label);
+    const right = a < lanes.length - 1;
+    const x = right ? xs[a] + SELF_OFFSET : xs[a] - SELF_OFFSET - w;
+    return { kind: "self" as const, y, x, w, lane: xs[a], tone, label: message.label, n: message.n };
+  }
+  const dir = b > a ? 1 : -1;
+  return {
+    kind: "arrow" as const,
+    y,
+    x1: xs[a] + dir * (message.n ? BADGE_CLEARANCE : ARROW_INSET),
+    x2: xs[b] - dir * ARROW_INSET,
+    mid: (xs[a] + xs[b]) / 2,
+    lane: xs[a],
+    tone,
+    back: message.back ?? false,
+    label: message.label,
+    n: message.n,
+  };
+});
+---
+
+<figure>
+  <div class="diagram">
+    <svg viewBox={`0 0 ${Math.ceil(width)} ${height}`} role="img" aria-label={title} style={`min-width: ${Math.min(Math.ceil(width), 600)}px`}>
+      <defs>
+        {
+          tones.map((tone) => (
+            <marker id={`${id}-${tone}`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 1 L9 5 L0 9 z" class={`fill-${tone}`} />
+            </marker>
+          ))
+        }
+      </defs>
+
+      {
+        lanes.map((lane, i) => {
+          const w = Math.max(lane.label.length, lane.sub?.length ?? 0) * HEAD_CHAR + HEAD_MARGIN;
+          return (
+            <g>
+              <line x1={xs[i]} y1={HEAD} x2={xs[i]} y2={height - 4} class={`life stroke-${lane.tone}`} />
+              <rect x={xs[i] - w / 2} y="1" width={w} height={HEAD - 2} rx="8" class={`head tone-${lane.tone}`} />
+              <text x={xs[i]} y={lane.sub ? 20 : 28} class="head-label" text-anchor="middle">{lane.label}</text>
+              {lane.sub && <text x={xs[i]} y="36" class="head-sub" text-anchor="middle">{lane.sub}</text>}
+            </g>
+          );
+        })
+      }
+
+      {
+        rows.map((row) =>
+          row.kind === "phase" ? (
+            <g>
+              <line x1={PAD} x2={width - PAD} y1={row.y + 6} y2={row.y + 6} class="phase-rule" />
+              <text x={PAD} y={row.y} class="phase">{row.label}</text>
+            </g>
+          ) : row.kind === "self" ? (
+            <g>
+              <rect x={row.x} y={row.y - 12} width={row.w} height="24" rx="6" class={`self tone-${row.tone}`} />
+              <text x={row.x + 9} y={row.y + 4} class="label">{row.label}</text>
+              {row.n && <circle cx={row.lane} cy={row.y} r="9.5" class={`badge tone-${row.tone}`} />}
+              {row.n && <text x={row.lane} y={row.y + 3.6} class="badge-n" text-anchor="middle">{row.n}</text>}
+            </g>
+          ) : (
+            <g>
+              <line
+                x1={row.x1}
+                y1={row.y}
+                x2={row.x2}
+                y2={row.y}
+                class:list={["arrow", `stroke-${row.tone}`, { back: row.back }]}
+                marker-end={`url(#${id}-${row.tone})`}
+              />
+              <text x={row.mid} y={row.y - 7} class="label" text-anchor="middle">{row.label}</text>
+              {row.n && <circle cx={row.lane} cy={row.y} r="9.5" class={`badge tone-${row.tone}`} />}
+              {row.n && <text x={row.lane} y={row.y + 3.6} class="badge-n" text-anchor="middle">{row.n}</text>}
+            </g>
+          ),
+        )
+      }
+    </svg>
+  </div>
+  {caption && <figcaption>{caption}</figcaption>}
+</figure>
+
+<style>
+  svg {
+    --t-client: #67d9bc;
+    --t-server: #ffbc66;
+    --t-wire: #a9b8ff;
+    --t-build: #c9a8ff;
+    --t-neutral: #98a6ba;
+  }
+
+  .head {
+    stroke-width: 1;
+  }
+
+  .head-label {
+    fill: #edf1f7;
+    font-size: 12.5px;
+    font-weight: 600;
+  }
+
+  .head-sub {
+    fill: #7d8aa0;
+    font-size: 10.5px;
+  }
+
+  .life {
+    stroke-dasharray: 2 5;
+    stroke-width: 1;
+    opacity: 0.45;
+  }
+
+  .arrow {
+    stroke-width: 1.4;
+  }
+
+  .arrow.back {
+    stroke-dasharray: 5 4;
+  }
+
+  .label {
+    fill: #d5dce8;
+    font-size: 11.5px;
+  }
+
+  .self {
+    stroke-width: 1;
+  }
+
+  .badge {
+    stroke-width: 1.2;
+    fill: #0c121c !important;
+  }
+
+  .badge-n {
+    fill: #edf1f7;
+    font-size: 10px;
+    font-weight: 600;
+  }
+
+  .phase {
+    fill: #5d6b80;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .phase-rule {
+    stroke: rgb(255 255 255 / 0.06);
+  }
+
+  .stroke-client { stroke: var(--t-client); }
+  .stroke-server { stroke: var(--t-server); }
+  .stroke-wire { stroke: var(--t-wire); }
+  .stroke-build { stroke: var(--t-build); }
+  .stroke-neutral { stroke: var(--t-neutral); }
+  .fill-client { fill: var(--t-client); }
+  .fill-server { fill: var(--t-server); }
+  .fill-wire { fill: var(--t-wire); }
+  .fill-build { fill: var(--t-build); }
+  .fill-neutral { fill: var(--t-neutral); }
+  .tone-client { stroke: var(--t-client); fill: rgb(103 217 188 / 0.09); }
+  .tone-server { stroke: var(--t-server); fill: rgb(255 188 102 / 0.09); }
+  .tone-wire { stroke: var(--t-wire); fill: rgb(169 184 255 / 0.09); }
+  .tone-build { stroke: var(--t-build); fill: rgb(201 168 255 / 0.09); }
+  .tone-neutral { stroke: var(--t-neutral); fill: rgb(152 166 186 / 0.07); }
+</style>

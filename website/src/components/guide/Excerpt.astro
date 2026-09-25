@@ -1,0 +1,119 @@
+---
+// Real lines of the checkout, found by anchors at build time. `mark` highlights the lines that
+// carry the point, so the eye goes there first.
+import { Code } from "astro:components";
+import type { BundledLanguage, ShikiTransformer } from "shiki";
+import { night } from "../../lib/codeTheme";
+import { excerpt, whole } from "../../lib/guide/source";
+import { source } from "../../lib/links";
+import type { Tone } from "../../lib/guide/tones";
+
+interface Props {
+  path: string;
+  find?: string;
+  until?: string;
+  count?: number;
+  after?: string;
+  mark?: string[];
+  tone?: Tone;
+  lang?: BundledLanguage;
+  caption?: string;
+}
+
+const { path, find, until, count, after, mark = [], tone = "neutral", caption } = Astro.props;
+const lang: BundledLanguage =
+  Astro.props.lang ?? (path.endsWith(".rs") ? "rust" : path.endsWith(".json") ? "json" : "tsx");
+const picked = find === undefined ? { code: whole(path), start: 1, end: whole(path).split("\n").length } : excerpt(path, { find, until, count, after });
+const name = path.replace(/^packages\/airtty\//, "");
+const lines = picked.start === picked.end ? `${picked.start}` : `${picked.start}–${picked.end}`;
+
+for (const text of mark) {
+  if (!picked.code.includes(text)) throw new Error(`Guide : ${JSON.stringify(text)} n'est pas dans l'extrait de ${path}:${lines}`);
+}
+const transformers: ShikiTransformer[] = [
+  {
+    name: "guide-mark",
+    line(node, line) {
+      const text = this.source.split("\n")[line - 1] ?? "";
+      if (mark.some((m) => text.includes(m))) this.addClassToHast(node, "marked");
+    },
+  },
+];
+---
+
+<figure class={`excerpt tone-${tone}`}>
+  <div class="bar">
+    <a href={`${source(path)}#L${picked.start}${picked.end > picked.start ? `-L${picked.end}` : ""}`}>{name}<span>:{lines}</span></a>
+  </div>
+  <Code code={picked.code} lang={lang} theme={night} transformers={transformers} />
+  {caption && <figcaption>{caption}</figcaption>}
+</figure>
+
+<style>
+  .excerpt {
+    margin: 1.4em 0;
+  }
+
+  .bar {
+    padding: 7px 14px;
+    border: 1px solid var(--rule);
+    border-bottom: 0;
+    border-radius: 10px 10px 0 0;
+    background: rgb(255 255 255 / 0.03);
+    font: 400 0.75rem / 1.5 var(--mono);
+    box-shadow: inset 3px 0 0 var(--tone);
+  }
+
+  .bar a {
+    color: var(--mist);
+    text-decoration: none;
+  }
+
+  .bar a:hover {
+    color: var(--paper);
+  }
+
+  .bar span {
+    color: var(--dim);
+  }
+
+  .tone-client { --tone: var(--client); }
+  .tone-server { --tone: var(--server); }
+  .tone-wire { --tone: #a9b8ff; }
+  .tone-build { --tone: #c9a8ff; }
+  .tone-neutral { --tone: var(--rule-strong); }
+
+  .excerpt :global(pre) {
+    margin: 0;
+    padding: 12px 0;
+    border: 1px solid var(--rule);
+    border-radius: 0 0 10px 10px;
+    background: #07101f !important;
+    overflow-x: auto;
+    font: 400 0.8rem / 1.65 var(--term);
+    font-variant-ligatures: none;
+    scrollbar-width: thin;
+  }
+
+  .excerpt :global(pre code) {
+    display: block;
+    width: max-content;
+    min-width: 100%;
+  }
+
+  .excerpt :global(.line) {
+    display: inline-block;
+    width: 100%;
+    padding: 0 16px;
+  }
+
+  /* With marked lines, the rest steps back. */
+  .excerpt:has(:global(.marked)) :global(.line:not(.marked)) {
+    opacity: 0.55;
+  }
+
+  .excerpt :global(.marked) {
+    background: linear-gradient(90deg, rgb(255 255 255 / 0.07), transparent 80%);
+    box-shadow: inset 2px 0 var(--tone);
+  }
+</style>

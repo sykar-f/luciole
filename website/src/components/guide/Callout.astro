@@ -1,0 +1,74 @@
+---
+// Three kinds of aside, always titled the same way so the reader learns to spot them.
+interface Props {
+  kind: "retenir" | "piege" | "essaie";
+  title?: string;
+}
+
+const { kind, title } = Astro.props;
+const heading = { retenir: "À retenir", piege: "Piège", essaie: "Essaie" }[kind];
+---
+
+<aside class={`callout ${kind}`}>
+  <p class="title">{heading}{title && <span> · {title}</span>}</p>
+  <div class="content"><slot /></div>
+</aside>
+
+<style>
+  .callout {
+    margin: 1.8em 0 !important;
+    padding: 14px 18px 16px;
+    border: 1px solid;
+    border-radius: 10px;
+    font-size: 0.94rem;
+  }
+
+  .title {
+    margin-bottom: 6px;
+    font: 600 0.75rem / 1.4 var(--mono);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .title span {
+    color: var(--paper);
+    font-weight: 500;
+    letter-spacing: 0;
+    text-transform: none;
+  }
+
+  .content > :global(* + *) {
+    margin-top: 0.6em;
+  }
+
+  .content :global(ul) {
+    margin: 0;
+  }
+
+  .retenir {
+    border-color: rgb(103 217 188 / 0.3);
+    background: rgb(103 217 188 / 0.05);
+  }
+
+  .retenir .title {
+    color: var(--client);
+  }
+
+  .piege {
+    border-color: rgb(255 123 114 / 0.3);
+    background: rgb(255 123 114 / 0.05);
+  }
+
+  .piege .title {
+    color: var(--fault);
+  }
+
+  .essaie {
+    border-color: rgb(169 184 255 / 0.3);
+    background: rgb(169 184 255 / 0.05);
+  }
+
+  .essaie .title {
+    color: #a9b8ff;
+  }
+</style>

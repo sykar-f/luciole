@@ -1,0 +1,182 @@
+---
+import Guide from "../../layouts/Guide.astro";
+import Sequence from "../../components/guide/Sequence.astro";
+import Excerpt from "../../components/guide/Excerpt.astro";
+import Sample from "../../components/guide/Sample.astro";
+import Step from "../../components/guide/Step.astro";
+import Src from "../../components/guide/Src.astro";
+import Callout from "../../components/guide/Callout.astro";
+import Quiz from "../../components/guide/Quiz.astro";
+---
+
+<Guide
+  slug="demarrage"
+  outcomes={[
+    "dessiner l'arbre de processus de <code>airtty dev</code> et dire ce qui survit à un rebuild ;",
+    "donner l'ordre dans lequel le Client cherche l'URL de son Server ;",
+    "expliquer pourquoi un Client et un Server de deux builds différents ne se parlent pas.",
+  ]}
+>
+  <h2>En une phrase</h2>
+  <p><code>airtty dev</code> est un <strong>superviseur</strong> : il construit, lance le Server, attend qu'il annonce son port, lance le Client pointé dessus, puis recommence tout à chaque fichier modifié. <code>start</code> et <code>connect</code> lancent un seul programme déjà construit, sans rien surveiller.</p>
+
+  <h2>Le parcours de airtty dev</h2>
+  <Sequence
+    title="airtty dev"
+    lanes={[
+      { id: "you", label: "Toi", sub: "l'éditeur", tone: "neutral" },
+      { id: "dev", label: "Superviseur", sub: "commands/dev.ts", tone: "neutral" },
+      { id: "server", label: "Server", sub: "processus Bun", tone: "server" },
+      { id: "client", label: "Client", sub: "processus Bun, TTY", tone: "client" },
+    ]}
+    messages={[
+      { phase: "Démarrer" },
+      { from: "dev", to: "dev", label: "build()", n: 1, tone: "build" },
+      { from: "dev", to: "server", label: "spawn, PORT=0", n: 2 },
+      { from: "server", to: "dev", label: '{"ready":true,"port":…}', n: 3, back: true },
+      { from: "dev", to: "client", label: "spawn --url 127.0.0.1:port", n: 4 },
+      { from: "client", to: "dev", label: "IPC hello", n: 5, back: true },
+      { from: "dev", to: "client", label: "IPC bearer", n: 6 },
+      { from: "client", to: "server", label: "GET /render, x-airtty-build", n: 7, tone: "wire" },
+      { phase: "Tu enregistres un fichier" },
+      { from: "you", to: "dev", label: "fichier .ts modifié", n: 8 },
+      { from: "dev", to: "dev", label: "150 ms, puis build()", n: 9, tone: "build" },
+      { from: "dev", to: "server", label: "SIGTERM (si build ok)", n: 10 },
+      { from: "dev", to: "client", label: "SIGTERM, puis retour à 2", n: 11 },
+    ]}
+    caption="Il n'y a pas de rechargement à chaud : un rebuild réussi tue et relance les deux processus. Un rebuild raté ne tue rien."
+  />
+
+  <Step n="1–2" tone="neutral" where="Superviseur" title="Construire, puis lancer le Server sur un port libre">
+    <p>Le superviseur construit (chapitre 2), lie <code>.airtty/node_modules</code> aux dépendances du framework, et seulement ensuite arrête les anciens processus. Le Server est lancé avec la condition <code>react-server</code> et <code>PORT=0</code> : le système choisit le port.</p>
+    <Excerpt path="packages/airtty/src/commands/dev.ts" find="await build(directory);" count={13} mark={["await build(directory);", "await Promise.all([stop(client), stop(server)]);", 'PORT: process.env.PORT ?? "0"'] } />
+    <p>L'ordre compte : <code>stop()</code> vient <em>après</em> <code>build()</code>. Si le build échoue, l'exception saute l'arrêt et l'ancien couple Server et Client continue de tourner.</p>
+  </Step>
+
+  <Step n="3" tone="server" title="Le Server annonce qu'il écoute">
+    <p><Src path="packages/airtty/src/serve.ts" /> valide l'environnement, refuse une écoute exposée au réseau sans authentification, puis imprime une ligne JSON sur stdout. Le superviseur attend cette ligne, au plus 10 secondes.</p>
+    <Excerpt path="packages/airtty/src/serve.ts" find="// A socket is reachable by whoever may open its file" until="} satisfies AuthConfig);" tone="server" mark={["Remote binding requires AIRTTY_TOKEN"]} />
+    <p>Sans <code>server/auth.ts</code>, l'authentification par défaut compare le bearer à <code>AIRTTY_TOKEN</code>. Si ce token n'est pas défini, toute requête reçoit l'utilisateur <code>AIRTTY_USER</code>, <code>"local"</code> par défaut. C'est le cas de Notes.</p>
+  </Step>
+
+  <Step n="4" tone="client" title="Le Client est lancé avec l'URL et un canal IPC">
+    <p>Le Client hérite du terminal (stdin, stdout) et reçoit un canal IPC ainsi qu'un identifiant de session, <code>AIRTTY_SESSION</code>, stable pour toute la durée de <code>airtty dev</code>. Ce même identifiant permettra au prochain Client de reprendre la même session (chapitre 7).</p>
+  </Step>
+
+  <Step n="5–6" tone="client" title="Le bearer passe par le superviseur, jamais par le disque">
+    <p>Au démarrage, le Client dit <code>hello</code> et attend au plus une seconde le token du Client précédent. Le superviseur le garde en mémoire : après un rebuild, l'utilisateur n'a pas à se reconnecter.</p>
+    <Excerpt path="packages/airtty/src/commands/dev.ts" find="const activeClient = client;" until="else console.error(message);" mark={['activeClient.send({ type: "bearer", token: bearer })', 'client.send({ type: "build-error", message })']} />
+    <p>Le bloc <code>catch</code> gère le build raté : le message part au Client vivant, qui l'affiche en bandeau orange au-dessus de son layout.</p>
+  </Step>
+
+  <Step n="7" tone="wire" title="Chaque requête porte le build ID">
+    <p>Le Transport du Client pose <code>x-airtty-build</code> sur chaque requête. Le Server le compare au sien <strong>avant tout code applicatif</strong> :</p>
+    <Excerpt path="packages/airtty/src/server.ts" find="const session = await auth.authenticate(req);" count={9} tone="server" mark={['req.headers.get("x-airtty-build") !== config.buildId']} />
+    <p><code>/health</code> échappe à ce contrôle : c'est le moyen de connaître le build ID d'un Server. Côté Client, le 409 devient une erreur <code>BuildMismatch</code> : le statut affiche « Incompatible build » et le Client reste ouvert.</p>
+  </Step>
+
+  <Step n="8–11" tone="neutral" where="Superviseur" title="Un fichier change : tout recommence">
+    <p>Le watcher ignore <code>.airtty</code>, <code>node_modules</code> et <code>routeTree.gen.ts</code> (que le build réécrit lui-même), ainsi que tout ce qui n'est pas <code>.ts</code>, <code>.tsx</code>, <code>.js</code> ou <code>.jsx</code>. Les événements sont regroupés sur 150 ms, et un seul rebuild tourne à la fois. Si des fichiers changent pendant un rebuild, un autre suit.</p>
+  </Step>
+
+  <h2>Qui supervise qui</h2>
+  <Sample
+    label="arbre de processus de airtty dev"
+    code={`bun cli.ts dev                                  superviseur : watcher, bearer en mémoire
+├── bun --conditions=react-server .airtty/server/index.js     PORT=0, stdout lu par le superviseur
+└── bun .airtty/client/index.js --url http://127.0.0.1:<port>  TTY hérité + IPC, AIRTTY_SESSION`}
+  />
+  <div class="table">
+    <table>
+      <thead><tr><th>Après un rebuild réussi</th><th>Survit ?</th><th>Pourquoi</th></tr></thead>
+      <tbody>
+        <tr><td>page courante, historique</td><td class="c">oui</td><td>fichier de session, même <code>AIRTTY_SESSION</code></td></tr>
+        <tr><td>texte des champs nommés</td><td class="c">oui</td><td>idem (chapitre 7)</td></tr>
+        <tr><td>connexion (bearer)</td><td class="c">oui</td><td>gardé en mémoire par le superviseur</td></tr>
+        <tr><td>état React, Drafts en mémoire</td><td class="s">non</td><td>le processus Client est neuf</td></tr>
+        <tr><td>cache du Server</td><td class="s">non</td><td>le processus Server est neuf (cache mémoire par défaut)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Comment le Client trouve son Server</h2>
+  <p>Hors de <code>airtty dev</code>, personne ne donne l'URL au Client. Il la cherche dans cet ordre, et s'arrête à la première trouvée :</p>
+  <ol>
+    <li>l'option <code>--url</code> ;</li>
+    <li>la variable <code>AIRTTY_URL</code> ;</li>
+    <li>le fichier <code>$XDG_CONFIG_HOME/airtty/&lt;app&gt;.json</code> ;</li>
+    <li><code>http://127.0.0.1:3000</code>, le port par défaut du Server hors dev.</li>
+  </ol>
+  <Excerpt path="packages/airtty/src/connect.ts" find='const flag = argv.indexOf("--url");' until="return DEFAULT_URL;" tone="client" />
+  <p>Ensuite, <Src path="packages/airtty/src/connect.ts" /> interprète l'URL. <code>ssh://hôte</code> ouvre un tunnel <code>ssh -N -L</code> vers un socket local, dans un dossier en 0700, et ce tunnel meurt avec le Client. <code>unix:/chemin/absolu</code> parle à un socket Unix. Tout le reste est utilisé tel quel.</p>
+
+  <h2>start et connect</h2>
+  <p>Ces deux commandes supposent le build fait. Elles lancent un seul processus en <code>NODE_ENV=production</code>, lui relaient les signaux et reprennent son code de sortie.</p>
+  <div class="table">
+    <table>
+      <thead><tr><th>Commande</th><th>Lance</th></tr></thead>
+      <tbody>
+        <tr><td><code>airtty start</code></td><td class="s">le Server (<code>--role server</code> par défaut)</td></tr>
+        <tr><td><code>airtty start --role client</code></td><td class="c">le Client, avec l'URL trouvée comme ci-dessus</td></tr>
+        <tr><td><code>airtty connect ssh://prod</code></td><td class="c">le Client, avec cette URL</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Quand ça casse</h2>
+  <div class="table">
+    <table>
+      <thead><tr><th>Situation</th><th>Ce qu'on voit</th></tr></thead>
+      <tbody>
+        <tr><td>erreur de build en dev</td><td>bandeau orange « Build failed » dans le Client vivant ; l'ancien code tourne toujours</td></tr>
+        <tr><td>Server sans ligne ready en 10 s</td><td><code>Server startup timeout</code> sur stderr ; l'ancien Client est déjà arrêté</td></tr>
+        <tr><td>écoute non locale sans token</td><td>le Server refuse de démarrer : <code>Remote binding requires AIRTTY_TOKEN…</code></td></tr>
+        <tr><td>Server injoignable</td><td>statut « Disconnected », issue <code>not-sent</code></td></tr>
+        <tr><td>build ID différent</td><td>409, statut « Incompatible build », le Client reste ouvert</td></tr>
+        <tr><td>bearer absent ou faux</td><td>401, redirection vers la page de login si l'app en déclare une</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <Callout kind="piege">
+    <ul>
+      <li>Modifier <code>package.json</code>, <code>airtty.json</code> ou l'icône ne déclenche pas de rebuild.</li>
+      <li>Quitter le Client arrête tout <code>airtty dev</code>, Server compris. Mais un Client qui meurt <em>pendant</em> un rebuild ne l'arrête pas.</li>
+      <li><Src path="packages/airtty/src/host.ts" /> n'a rien à voir avec la connexion : ce sont les capacités que l'app demande à son hôte, comme le presse-papier ou les notifications.</li>
+    </ul>
+  </Callout>
+
+  <Callout kind="retenir">
+    <ul>
+      <li>Le superviseur ne tue l'ancien couple qu'après un build réussi.</li>
+      <li>Le Server annonce son port par une ligne JSON ; le Client le reçoit en <code>--url</code>.</li>
+      <li>Le build ID voyage dans chaque requête et le Server le vérifie en premier.</li>
+      <li>Ce qui survit à un rebuild : la session sur disque et le bearer en mémoire du superviseur.</li>
+    </ul>
+  </Callout>
+
+  <Callout kind="essaie">
+    <p>Lance <code>bun run build</code>, puis démarre le Server seul : <code>PORT=38471 bun --conditions=react-server examples/notes/.airtty/server/index.js</code>. Interroge-le avec <code>curl localhost:38471/health</code>, puis <code>curl -i "localhost:38471/render?route=/"</code>. Prédis le code de la seconde réponse avant de lancer : ce sera un 409, faute d'en-tête <code>x-airtty-build</code>.</p>
+  </Callout>
+
+  <Quiz
+    items={[
+      {
+        q: "Pendant <code>airtty dev</code>, tu introduis une erreur de frontière et tu enregistres. Le Server tourne-t-il encore ?",
+        a: "<p>Oui. <code>build()</code> lève avant l'appel à <code>stop()</code>, et <code>.airtty/</code> est intact grâce au dossier temporaire. Le superviseur envoie <code>build-error</code> au Client, qui l'affiche en bandeau jusqu'au prochain build réussi.</p>",
+      },
+      {
+        q: "<code>AIRTTY_URL</code> est défini et tu lances <code>airtty start --role client --url http://a:1</code>. Quelle URL gagne ?",
+        a: "<p><code>--url</code> : l'option passe avant la variable, qui passe avant le fichier de config.</p>",
+      },
+      {
+        q: "Pourquoi l'utilisateur n'a-t-il pas à se reconnecter après un rebuild ?",
+        a: "<p>Chaque Client remonte son token au superviseur par IPC, et le suivant le récupère en disant <code>hello</code>. Le token vit dans la mémoire du superviseur, jamais sur disque.</p>",
+      },
+      {
+        q: "Un Client compilé la semaine dernière se connecte à un Server rebuildé après une mise à jour du framework. Que voit l'utilisateur ?",
+        a: "<p>« Incompatible build ». Le build ID couvre le framework, donc le Server répond 409 à la première requête. Le Client lève <code>BuildMismatch</code>, purge le cache du routeur et reste ouvert.</p>",
+      },
+    ]}
+  />
+</Guide>

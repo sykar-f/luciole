@@ -1,0 +1,510 @@
+---
+import Base from "../../layouts/Base.astro";
+import "../../styles/guide.css";
+import { chapters, parts } from "../../lib/guide/chapters";
+
+const number = (slug: string) => String(chapters.findIndex((c) => c.slug === slug) + 1).padStart(2, "0");
+const total = chapters.reduce((sum, chapter) => sum + chapter.minutes, 0);
+
+// A numbered disc on the map, linking to the chapter that explains that part.
+const chip = (slug: string, x: number, y: number) => ({ slug, x, y, n: number(slug) });
+const chips = [
+  chip("build", 388, 40),
+  chip("demarrage", 630, 210),
+  chip("navigation", 580, 214),
+  chip("server-functions", 680, 214),
+  chip("cache", 666, 337),
+  chip("session", 700, 127),
+  chip("distribution", 964, 40),
+  chip("web-desktop", 964, 184),
+  chip("devtools", 964, 250),
+];
+
+const pill = (label: string, x: number, y: number, tone: "client" | "server") => ({ label, x, y, tone, w: label.length * 6.9 + 20 });
+const pills = [
+  pill("OpenTUI", 516, 104, "client"),
+  pill("TanStack Router", 594, 104, "client"),
+  pill("Transport", 516, 134, "client"),
+  pill("Session", 608, 134, "client"),
+  pill("Pages", 516, 314, "server"),
+  pill("Server Functions", 574, 314, "server"),
+  pill("Cache", 516, 344, "server"),
+  pill("SQLite", 580, 344, "server"),
+];
+
+const files: [string, "client" | "server"][] = [
+  ["app/layout.tsx", "client"],
+  ["app/page.tsx", "server"],
+  ["app/notes/[id]/page.tsx", "server"],
+  ["app/notes/[id]/loading.tsx", "client"],
+  ["components/NoteEditor.tsx", "client"],
+  ["actions/notes.ts", "server"],
+  ["server/queries.ts", "server"],
+];
+
+const hosts = ["Terminal", "Binaire compilé", "airtty <url>", "Navigateur (WASM)", "Fenêtre desktop"];
+---
+
+<Base title="Guide d'architecture · airtty" description="Comprendre airtty de bout en bout, un parcours à la fois." lang="fr">
+  <div class="guide">
+    <header class="top">
+      <div class="top-inner">
+        <a class="mark" href="/guide/">air<span class="c">tty</span> <span class="slash">/</span> guide</a>
+        <a class="site" href="/">Le site</a>
+      </div>
+    </header>
+
+    <main class="index">
+      <section class="intro">
+        <p class="kicker">Guide d'architecture</p>
+        <h1>Comprendre airtty de bout en bout</h1>
+        <p class="lede-fr">Onze chapitres courts, à lire dans l'ordre. Chacun suit <strong>un seul parcours réel</strong> dans le code, par exemple une touche pressée, un build ou un crash, et le montre pas à pas, avec les fichiers et les lignes qui le font.</p>
+        <p class="total">{chapters.length} chapitres · environ {Math.round(total / 5) * 5} minutes au total</p>
+      </section>
+
+      <section class="map-section" aria-labelledby="map-title">
+        <h2 id="map-title">La carte</h2>
+        <p class="hint">Chaque numéro renvoie au chapitre qui explique cette partie. Clique dessus.</p>
+        <div class="diagram">
+          <svg viewBox="0 0 990 400" role="img" aria-label="Carte d'airtty : ton application, le build, le Client, le Server, où tourne le Client et les DevTools">
+            <defs>
+              <marker id="m-build" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 1 L9 5 L0 9 z" fill="#c9a8ff" /></marker>
+              <marker id="m-client" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 1 L9 5 L0 9 z" fill="#67d9bc" /></marker>
+              <marker id="m-server" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 1 L9 5 L0 9 z" fill="#ffbc66" /></marker>
+            </defs>
+
+            <!-- Your application -->
+            <rect x="16" y="40" width="232" height="330" rx="12" class="box neutral" />
+            <text x="32" y="68" class="title">Ton application</text>
+            <text x="32" y="86" class="sub">un seul dossier, deux côtés</text>
+            {
+              files.map(([name, tone], i) => (
+                <g>
+                  <rect x="32" y={112 + i * 28} width="8" height="8" rx="2" class={`dot ${tone}`} />
+                  <text x="48" y={120 + i * 28} class="file">{name}</text>
+                </g>
+              ))
+            }
+            <rect x="32" y="328" width="8" height="8" rx="2" class="dot client" />
+            <text x="48" y="336" class="sub">"use client"</text>
+            <rect x="140" y="328" width="8" height="8" rx="2" class="dot server" />
+            <text x="156" y="336" class="sub">Server</text>
+
+            <!-- The build -->
+            <line x1="248" y1="205" x2="282" y2="205" class="link build" marker-end="url(#m-build)" />
+            <rect x="286" y="40" width="102" height="330" rx="12" class="box build" />
+            <text x="337" y="196" class="title" text-anchor="middle">airtty</text>
+            <text x="337" y="214" class="title" text-anchor="middle">build</text>
+            <text x="337" y="236" class="sub" text-anchor="middle">sépare</text>
+
+            <line x1="388" y1="100" x2="496" y2="100" class="link build" marker-end="url(#m-build)" />
+            <text x="442" y="92" class="small" text-anchor="middle">.airtty/client</text>
+            <line x1="388" y1="310" x2="496" y2="310" class="link build" marker-end="url(#m-build)" />
+            <text x="442" y="302" class="small" text-anchor="middle">.airtty/server</text>
+
+            <!-- Client -->
+            <rect x="500" y="40" width="276" height="130" rx="12" class="box client" />
+            <text x="516" y="66" class="title c">Client</text>
+            <text x="516" y="84" class="sub">dans le terminal de l'utilisateur</text>
+
+            <!-- Server -->
+            <rect x="500" y="250" width="276" height="130" rx="12" class="box server" />
+            <text x="516" y="276" class="title s">Server</text>
+            <text x="516" y="294" class="sub">là où vivent les données</text>
+
+            {
+              pills.map((p) => (
+                <g>
+                  <rect x={p.x} y={p.y - 15} width={p.w} height="22" rx="11" class={`pill ${p.tone}`} />
+                  <text x={p.x + 10} y={p.y} class="pill-text">{p.label}</text>
+                </g>
+              ))
+            }
+
+            <!-- The wire -->
+            <line x1="580" y1="176" x2="580" y2="244" class="link client" marker-end="url(#m-client)" />
+            <line x1="680" y1="244" x2="680" y2="176" class="link server" marker-end="url(#m-server)" />
+            <text x="568" y="214" class="small" text-anchor="end" dy="-4">requête</text>
+            <text x="692" y="214" class="small" dy="-12">React Flight</text>
+            <text x="692" y="214" class="small dim" dy="4">HTTP · unix · SSH</text>
+
+            <!-- Where the Client runs -->
+            <line x1="776" y1="105" x2="808" y2="105" class="link neutral" />
+            <rect x="812" y="40" width="152" height="176" rx="12" class="box neutral" />
+            <text x="826" y="66" class="title">Où tourne</text>
+            <text x="826" y="84" class="title">le Client</text>
+            {hosts.map((host, i) => <text x="826" y={112 + i * 21} class="file">{host}</text>)}
+
+            <!-- DevTools -->
+            <rect x="812" y="250" width="152" height="130" rx="12" class="box neutral dashed" />
+            <text x="826" y="276" class="title">DevTools</text>
+            <text x="826" y="296" class="sub">observent les deux</text>
+            <text x="826" y="312" class="sub">côtés pendant qu'ils</text>
+            <text x="826" y="328" class="sub">tournent</text>
+            <line x1="776" y1="315" x2="808" y2="315" class="link neutral dashed" />
+
+            {
+              chips.map((c) => (
+                <a href={`/guide/${c.slug}/`} class="chip-link">
+                  <title>{chapters.find((ch) => ch.slug === c.slug)?.title}</title>
+                  <circle cx={c.x} cy={c.y} r="12" class="chip" />
+                  <text x={c.x} y={c.y + 4} class="chip-n" text-anchor="middle">{c.n}</text>
+                </a>
+              ))
+            }
+          </svg>
+        </div>
+      </section>
+
+      <section class="how" aria-labelledby="how-title">
+        <h2 id="how-title">Comment lire ce guide</h2>
+        <ol class="rules">
+          <li><strong>Dans l'ordre.</strong> Chaque chapitre ne s'appuie que sur les précédents.</li>
+          <li><strong>Toujours la même forme.</strong> Un schéma, des étapes numérotées comme sur le schéma, ce qu'il faut retenir, ce qui casse, puis quelques questions.</li>
+          <li><strong>Les couleurs disent où ça tourne :</strong> <span class="c">Client</span>, <span class="s">Server</span>, <span class="w">réseau</span>, <span class="b">build</span>.</li>
+          <li><strong>Le code cité est le vrai.</strong> Les extraits et les <code>fichier:ligne</code> sont relus dans le dépôt à chaque build du site : si le code change, le build échoue au lieu de laisser le guide mentir.</li>
+        </ol>
+      </section>
+
+      <section class="chapters" aria-labelledby="chapters-title">
+        <h2 id="chapters-title">Les chapitres</h2>
+        {
+          parts.map((part) => (
+            <div class="part">
+              <h3>{part}</h3>
+              <ol>
+                {chapters.map((chapter) =>
+                  chapter.part === part ? (
+                    <li><a href={`/guide/${chapter.slug}/`}> <span class="n">{number(chapter.slug)}</span> <span class="text"> <span class="name">{chapter.title}</span> <span class="q">{chapter.question}</span> </span> <span class="min">{chapter.minutes} min</span> </a></li>
+                  ) : null,
+                )}
+              </ol>
+            </div>
+          ))
+        }
+      </section>
+    </main>
+  </div>
+</Base>
+
+<style>
+  .top {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    border-bottom: 1px solid var(--rule);
+    background: rgb(7 11 18 / 0.8);
+    backdrop-filter: blur(14px) saturate(1.4);
+  }
+
+  .top-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    max-width: calc(1080px + 2 * var(--gutter));
+    height: 54px;
+    margin-inline: auto;
+    padding-inline: var(--gutter);
+    font-size: 0.82rem;
+  }
+
+  .mark {
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    text-decoration: none;
+  }
+
+  .slash {
+    color: var(--dim);
+    font-weight: 400;
+  }
+
+  .site {
+    color: var(--mist);
+    text-decoration: none;
+  }
+
+  .index {
+    max-width: calc(1080px + 2 * var(--gutter));
+    margin-inline: auto;
+    padding: 0 var(--gutter) 120px;
+    font: 400 1rem / 1.75 var(--sans);
+    color: #d5dce8;
+  }
+
+  .intro {
+    max-width: 760px;
+    padding-top: clamp(48px, 8vw, 96px);
+  }
+
+  .kicker {
+    color: var(--client);
+    font: 400 0.8rem / 1.5 var(--mono);
+  }
+
+  h1 {
+    margin-top: 14px;
+    font-size: clamp(2.2rem, 1.4rem + 3vw, 3.6rem);
+  }
+
+  .lede-fr {
+    margin-top: 20px;
+    color: var(--mist);
+    font-size: 1.15rem;
+    line-height: 1.65;
+  }
+
+  .lede-fr strong {
+    color: var(--paper);
+  }
+
+  .total {
+    margin-top: 16px;
+    color: var(--dim);
+    font: 400 0.8rem / 1.5 var(--mono);
+  }
+
+  h2 {
+    font-size: clamp(1.4rem, 1.1rem + 1vw, 1.8rem);
+    letter-spacing: -0.035em;
+  }
+
+  .map-section,
+  .how,
+  .chapters {
+    margin-top: clamp(56px, 8vw, 88px);
+  }
+
+  .hint {
+    margin: 8px 0 18px;
+    color: var(--dim);
+    font-size: 0.9rem;
+  }
+
+  .diagram svg {
+    min-width: 760px;
+  }
+
+  .box {
+    stroke-width: 1;
+  }
+
+  .box.neutral {
+    fill: rgb(152 166 186 / 0.04);
+    stroke: rgb(152 166 186 / 0.35);
+  }
+
+  .box.build {
+    fill: rgb(201 168 255 / 0.08);
+    stroke: rgb(201 168 255 / 0.55);
+  }
+
+  .box.client {
+    fill: rgb(103 217 188 / 0.06);
+    stroke: rgb(103 217 188 / 0.55);
+  }
+
+  .box.server {
+    fill: rgb(255 188 102 / 0.06);
+    stroke: rgb(255 188 102 / 0.55);
+  }
+
+  .dashed {
+    stroke-dasharray: 4 4;
+  }
+
+  .title {
+    fill: #edf1f7;
+    font-size: 13.5px;
+    font-weight: 600;
+  }
+
+  .title.c {
+    fill: #67d9bc;
+  }
+
+  .title.s {
+    fill: #ffbc66;
+  }
+
+  .sub {
+    fill: #7d8aa0;
+    font-size: 11px;
+  }
+
+  .file {
+    fill: #c4ccd8;
+    font-size: 11.5px;
+  }
+
+  .small {
+    fill: #c4ccd8;
+    font-size: 11px;
+  }
+
+  .small.dim {
+    fill: #7d8aa0;
+  }
+
+  .dot.client {
+    fill: #67d9bc;
+  }
+
+  .dot.server {
+    fill: #ffbc66;
+  }
+
+  .link {
+    stroke-width: 1.4;
+  }
+
+  .link.build {
+    stroke: #c9a8ff;
+  }
+
+  .link.client {
+    stroke: #67d9bc;
+  }
+
+  .link.server {
+    stroke: #ffbc66;
+    stroke-dasharray: 5 4;
+  }
+
+  .link.neutral {
+    stroke: rgb(152 166 186 / 0.5);
+  }
+
+  .pill.client {
+    fill: rgb(103 217 188 / 0.1);
+    stroke: rgb(103 217 188 / 0.4);
+  }
+
+  .pill.server {
+    fill: rgb(255 188 102 / 0.1);
+    stroke: rgb(255 188 102 / 0.4);
+  }
+
+  .pill-text {
+    fill: #edf1f7;
+    font-size: 11.5px;
+  }
+
+  .chip {
+    fill: #edf1f7;
+    stroke: #070b12;
+    stroke-width: 3;
+    transition: fill 0.15s;
+  }
+
+  .chip-n {
+    fill: #070b12;
+    font-size: 10.5px;
+    font-weight: 700;
+    pointer-events: none;
+  }
+
+  .chip-link:hover .chip,
+  .chip-link:focus-visible .chip {
+    fill: #67d9bc;
+  }
+
+  .rules {
+    display: grid;
+    gap: 10px;
+    max-width: 760px;
+    margin-top: 16px;
+    padding-left: 1.3em;
+  }
+
+  .rules li::marker {
+    color: var(--dim);
+  }
+
+  .rules strong {
+    color: var(--paper);
+  }
+
+  .rules code {
+    padding: 0.08em 0.32em;
+    border: 1px solid var(--rule);
+    border-radius: 5px;
+    background: rgb(255 255 255 / 0.04);
+    font-size: 0.86em;
+  }
+
+  .part {
+    margin-top: 28px;
+  }
+
+  .part h3 {
+    color: var(--dim);
+    font-size: 0.75rem;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .part ol {
+    display: grid;
+    gap: 8px;
+    margin: 10px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .part a {
+    display: grid;
+    grid-template-columns: 40px minmax(0, 1fr) auto;
+    align-items: baseline;
+    gap: 14px;
+    padding: 14px 18px;
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    background: rgb(255 255 255 / 0.015);
+    text-decoration: none;
+    transition: border-color 0.2s, background 0.2s;
+  }
+
+  .part a:hover {
+    border-color: rgb(103 217 188 / 0.5);
+    background: var(--client-soft);
+  }
+
+  .n {
+    color: var(--client);
+    font: 600 0.9rem / 1.4 var(--mono);
+  }
+
+  .text {
+    display: grid;
+    gap: 2px;
+  }
+
+  .name {
+    color: var(--paper);
+    font: 600 1rem / 1.4 var(--mono);
+    letter-spacing: -0.02em;
+  }
+
+  .q {
+    color: var(--mist);
+    font-size: 0.92rem;
+  }
+
+  .min {
+    color: var(--dim);
+    font: 400 0.75rem / 1.4 var(--mono);
+    white-space: nowrap;
+  }
+
+  @media (max-width: 560px) {
+    .part a {
+      grid-template-columns: 32px minmax(0, 1fr);
+    }
+
+    .min {
+      display: none;
+    }
+  }
+</style>

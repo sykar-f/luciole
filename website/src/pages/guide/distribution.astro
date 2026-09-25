@@ -1,0 +1,244 @@
+---
+import Guide from "../../layouts/Guide.astro";
+import Sequence from "../../components/guide/Sequence.astro";
+import Excerpt from "../../components/guide/Excerpt.astro";
+import Step from "../../components/guide/Step.astro";
+import Src from "../../components/guide/Src.astro";
+import Callout from "../../components/guide/Callout.astro";
+import Quiz from "../../components/guide/Quiz.astro";
+
+// airtty <cible>: the resolution order, and what each form runs.
+const forms = [
+  { form: "./examples/notes", kind: "chemin", runs: "build, puis Server + Client locaux", trust: "ton propre code" },
+  { form: "notes", kind: "app installée", runs: "son binaire : Server + Client", trust: "vérifiée à l'installation" },
+  { form: "@ada/notes@^1", kind: "paquet npm", runs: "installe si besoin, puis binaire", trust: "intégrité npm du paquet" },
+  { form: "github:ada/notes", kind: "source git", runs: "clone, install, build, puis local", trust: "ta confirmation du dépôt" },
+  { form: "https://notes.example.com", kind: "URL", runs: "Client générique + bundle signé", trust: "clé d'éditeur épinglée" },
+];
+const ROW = 50;
+---
+
+<Guide
+  slug="distribution"
+  outcomes={[
+    "dire ce que lance <code>airtty &lt;cible&gt;</code> pour chacune des cinq formes de cible ;",
+    "expliquer le cycle de vie d'un Server géré : socket, ping, grâce ;",
+    "retracer la chaîne de confiance d'une app ouverte par URL, et dire qui vérifie quoi.",
+  ]}
+>
+  <h2>En une phrase</h2>
+  <p>Une app arrive sur une machine sous deux formes. Soit du <strong>code complet</strong> (un dossier, un dépôt git, un paquet, un binaire) : il tourne avec tes droits, Server compris, et la confiance porte sur sa provenance. Soit un <strong>bundle Client signé</strong>, téléchargé depuis une URL : il tourne contre le runtime du Client générique, et la confiance porte sur une clé d'éditeur épinglée.</p>
+
+  <h2>Cinq formes de cible</h2>
+  <p><Src path="packages/airtty/src/launcher/target.ts" find="export function resolveTarget(" /> essaie les formes dans cet ordre et s'arrête à la première qui correspond. Il ne devine jamais : un chemin relatif sans <code>./</code> est refusé.</p>
+  <figure>
+    <div class="diagram">
+      <svg viewBox={`0 0 764 ${forms.length * ROW + 36}`} role="img" aria-label="Les cinq formes de cible de airtty, dans l'ordre de résolution">
+        <defs>
+          <marker id="d-down" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 1 L9 5 L0 9 z" fill="#5d6b80" /></marker>
+        </defs>
+        <text x="30" y="18" class="d-head">ordre</text>
+        <text x="64" y="18" class="d-head">cible</text>
+        <text x="268" y="18" class="d-head">ce qui tourne</text>
+        <text x="540" y="18" class="d-head">confiance</text>
+        <line x1="36" y1="34" x2="36" y2={forms.length * ROW + 26} stroke="#5d6b80" stroke-width="1.2" marker-end="url(#d-down)" />
+        {
+          forms.map((f, i) => {
+            const y = 32 + i * ROW;
+            const url = f.kind === "URL";
+            return (
+              <g>
+                <rect x="56" y={y} width="692" height={ROW - 10} rx="9" class:list={["d-row", { url }]} />
+                <text x="72" y={y + 17} class="d-form">{f.form}</text>
+                <text x="72" y={y + 32} class="d-kind">{f.kind}</text>
+                <text x="268" y={y + 25} class="d-runs">{f.runs}</text>
+                <text x="540" y={y + 25} class:list={["d-trust", { url }]}>{f.trust}</text>
+              </g>
+            );
+          })
+        }
+      </svg>
+    </div>
+    <figcaption>Les quatre premières formes exécutent du code complet avec tes droits. La dernière n'exécute qu'un bundle Client.</figcaption>
+  </figure>
+
+  <h2>Un Server géré, sur un socket privé</h2>
+  <p>Pour les quatre formes de code complet, le Server tourne <strong>détaché</strong>, sur un socket Unix, et survit un moment au Client. Il est rangé sous une clé stable (<code>local:&lt;app&gt;</code>…), la même que celle des sessions (chapitre 7).</p>
+  <Sequence
+    title="Server géré"
+    lanes={[
+      { id: "launcher", label: "Lanceur", sub: "launcher/managed.ts", tone: "neutral" },
+      { id: "server", label: "Server détaché", sub: "socket Unix 0600", tone: "server" },
+      { id: "client", label: "Client", sub: "au premier plan", tone: "client" },
+    ]}
+    messages={[
+      { from: "launcher", to: "server", label: "GET /lifetime/status", n: 1 },
+      { from: "server", to: "launcher", label: "même build : on se rattache", n: 2, back: true },
+      { from: "launcher", to: "server", label: "sinon : stop, puis démarrage", n: 3 },
+      { from: "launcher", to: "client", label: "--url unix:<socket>", n: 4 },
+      { from: "client", to: "server", label: "ping toutes les 10 s", n: 5, tone: "wire" },
+      { from: "client", to: "server", label: "Ctrl+C : POST /lifetime/leave", n: 6, tone: "wire" },
+      { from: "server", to: "server", label: "Client perdu : grâce de 15 min", n: 7 },
+    ]}
+    caption="Relancer l'app pendant la grâce retrouve le même Server (même socket, même build) et la session orpheline."
+  />
+  <Excerpt path="packages/airtty/src/launcher/managed.ts" find="export async function ensureServer(" count={16} mark={["if (found?.buildId === options.buildId) return done(found.pid, true);", "if (found) await stopServer(socket);"]} />
+
+  <h2>Un binaire, deux rôles</h2>
+  <p><code>airtty build --compile</code> produit un exécutable unique contenant le runtime Bun, le Client, le Server et un lanceur, sous une identité lisible sans l'exécuter : <code>airtty-binary:1:&lt;app&gt;:&lt;buildId&gt;:&lt;cible&gt;;</code>. Le même fichier se comporte selon ses options :</p>
+  <div class="table">
+    <table>
+      <thead><tr><th>Commande</th><th>Rôle</th></tr></thead>
+      <tbody>
+        <tr><td><code>notes</code></td><td>Server géré local + Client ici</td></tr>
+        <tr><td><code>notes serve</code></td><td class="s">Server seul</td></tr>
+        <tr><td><code>notes --url U</code></td><td class="c">Client seul</td></tr>
+        <tr><td><code>notes --on ada@box</code></td><td>Server installé et lancé sur <code>box</code> par ssh, tunnel, Client ici</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>Avec <code>--on</code>, le binaire distant est vérifié par son <code>SHA256SUMS</code> <strong>à chaque lancement</strong>, sur l'hôte distant. Une nouvelle version est envoyée, vérifiée à côté, puis substituée en entier. Pour le Client seul, il faut <code>--client-only</code> : sans cette option, le binaire embarque le Server, donc le code métier.</p>
+
+  <h2>Par URL : la chaîne de confiance</h2>
+  <p><code>airtty https://notes.example.com</code> n'installe rien. Le Client générique télécharge le <strong>bundle d'application</strong> (<code>.airtty/app/</code>, chapitre 2) et l'exécute contre son propre runtime. Le Server de l'app ne fait que relayer : ce n'est pas lui qu'on croit, c'est la clé de l'éditeur.</p>
+  <Sequence
+    title="Ouvrir une app par URL"
+    lanes={[
+      { id: "publisher", label: "Éditeur", sub: "sa machine", tone: "build" },
+      { id: "server", label: "Server de l'app", sub: "relais", tone: "server" },
+      { id: "launcher", label: "Lanceur", sub: "generic/prepare.ts", tone: "neutral" },
+      { id: "host", label: "Hôte ou enfant", sub: "exécute le bundle", tone: "client" },
+    ]}
+    messages={[
+      { from: "publisher", to: "server", label: "build --sign-bundle", n: 1 },
+      { from: "launcher", to: "server", label: "GET /manifest", n: 2 },
+      { from: "launcher", to: "launcher", label: "signature, ABI, clé épinglée", n: 3 },
+      { from: "launcher", to: "server", label: "GET /bundle/<sha256>", n: 4 },
+      { from: "launcher", to: "launcher", label: "sha256 vérifié, mis en cache", n: 5 },
+      { from: "launcher", to: "host", label: "onglet inline ou sandbox", n: 6 },
+      { from: "host", to: "host", label: "revérifie tout", n: 7 },
+      { from: "host", to: "host", label: "require limité à l'ABI", n: 8 },
+    ]}
+  />
+
+  <Step n="1" tone="build" title="L'éditeur signe le manifeste">
+    <p><code>airtty keys generate</code> crée une clé Ed25519 en 0600 et ne remplace jamais une clé existante. <code>airtty build --sign-bundle</code> signe les champs du manifeste, encodés de façon canonique, et non le JSON tel quel :</p>
+    <Excerpt path="packages/airtty/src/publisher.ts" find="export function signedBytes(" until="^}" tone="build" mark={["manifest.sha256", "publicKey,"]} />
+    <p>Le sha256 du bundle est signé : changer un seul octet du code invalide la signature.</p>
+  </Step>
+
+  <Step n="2–3" tone="neutral" where="Lanceur" title="Le lanceur vérifie avant de télécharger le code">
+    <p>Avant tout contact, il décide du mode : <code>sandbox</code> si le système sait confiner le réseau, sinon il refuse, sauf <code>--inline</code> explicite. Puis il lit le manifeste :</p>
+    <Excerpt path="packages/airtty/src/generic/prepare.ts" find="const manifest = AppManifest.parse(JSON.parse(text));" count={16} mark={["verifyManifest(manifest)", "manifest.abi !== ABI_KEY", "pinned && pinned !== fingerprint"]} />
+    <p>La clé publique voyage <em>dans</em> le manifeste. La signature prouve donc seulement la cohérence ; c'est l'<strong>épinglage</strong> qui prouve l'identité. Au premier usage, le lanceur affiche l'empreinte et demande (TOFU, <em>trust on first use</em>). Ensuite, une autre clé est refusée, et seul <code>airtty trust &lt;url&gt; SHA256:…</code>, hors bande, la remplace.</p>
+  </Step>
+
+  <Step n="4–5" tone="neutral" where="Lanceur" title="Le bundle est adressé par son hash">
+    <p><code>GET /bundle/&lt;sha256&gt;</code> est immuable. Les octets reçus sont comparés au sha256 signé, puis publiés dans <code>$XDG_CACHE_HOME/airtty/bundles/</code> par un <code>rename</code>. <code>/manifest</code> et <code>/bundle</code> ne demandent ni session ni build ID : c'est par eux qu'un hôte apprend le build.</p>
+  </Step>
+
+  <Step n="6–8" tone="client" title="Celui qui exécute revérifie">
+    <p>L'hôte (onglet <code>inline</code>) ou l'enfant confiné (onglet <code>sandbox</code>) revérifie la signature contre l'empreinte épinglée, l'ABI et le sha256. La vérification a lieu là où le code s'exécute, pas seulement dans le lanceur. Le bundle est ensuite évalué avec un <code>require</code> qui ne connaît que le runtime :</p>
+    <Excerpt path="packages/airtty/src/app-evaluate.ts" find="if (evaluation.sha256 !== manifest.sha256)" count={10} tone="client" mark={["if (specifier in RUNTIME)", "outside the runtime ABI"]} />
+    <p>L'<strong>ABI</strong> est une liste fermée de spécifiers (React, OpenTUI, TanStack Router, <code>airtty/client</code>…) avec leurs versions. Sa clé, par exemple <code>1-e2931d7662791000</code>, doit être identique côté bundle et côté hôte.</p>
+  </Step>
+
+  <h2>Inline ou sandbox</h2>
+  <div class="table">
+    <table>
+      <thead><tr><th>Mode</th><th>Où tourne le bundle</th><th>Isolation</th></tr></thead>
+      <tbody>
+        <tr><td><code>inline</code></td><td>dans le processus de l'hôte, en <code>&lt;Embed&gt;</code></td><td>aucune : confiance totale, à demander explicitement</td></tr>
+        <tr><td><code>sandbox</code></td><td>un processus enfant, relié par PTY et IPC</td><td>macOS : Seatbelt. Linux : <code>airtty-sandbox</code> (Rust : espaces de noms, Landlock, seccomp)</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>En sandbox, l'enfant ne lit que le runtime et son bundle, n'écrit que dans ses sessions et un dossier temporaire, et ne joint que le Server de l'app et le proxy de l'hôte, qui filtre par nom d'hôte. Le presse-papier, les notifications et l'ouverture d'URL passent par l'IPC, et c'est l'hôte qui décide, en demandant à l'utilisateur si besoin. Voir <Src path="packages/airtty/src/sandbox/spawn.ts" />.</p>
+
+  <h2>Une app dans une autre : Embed</h2>
+  <p><Src path="packages/airtty/src/embed.tsx" /> monte l'Application d'un autre bundle dans un pane, dans le même arbre React. Chaque pane a son propre Transport, avec l'en-tête <code>x-airtty-instance</code> qui préfixe ses Client References. Le pane a aussi un keymap filtré, un focus mis de côté quand il est inactif, et une frontière d'erreur qui confine un crash au seul pane. <code>examples/mux</code> s'en sert.</p>
+
+  <Callout kind="piege">
+    <ul>
+      <li>Une app installée n'est <strong>pas</strong> revérifiée au lancement : son <code>SHA256SUMS</code> ne sert qu'à <code>--on</code>.</li>
+      <li>Le champ <code>size</code> du manifeste est signé mais jamais comparé aux octets reçus ; seul le sha256 l'est.</li>
+      <li><code>openApplication</code> sans option <code>publisher</code> accepte un bundle non signé : seul le Client générique exige une signature.</li>
+      <li>Un binaire compilé n'embarque pas <code>.airtty/app/</code> : il ne peut pas être ouvert par URL.</li>
+      <li>Avec <code>--on</code>, le Server distant est lancé par <code>serve --detach</code> (<Src path="packages/airtty/src/launcher/remote.ts" />) : il survit à la coupure de ssh pendant sa grâce, et relancer retrouve le même Server.</li>
+    </ul>
+  </Callout>
+
+  <Callout kind="retenir">
+    <ul>
+      <li>Code complet (chemin, installée, npm, git) : Server géré sur socket Unix, confiance dans la provenance.</li>
+      <li>URL : bundle Client seul, signature Ed25519, clé épinglée au premier usage, sha256 et ABI vérifiés par le lanceur <em>et</em> par celui qui exécute.</li>
+      <li>Le Server d'une app ouverte par URL n'est qu'un relais : il ne peut pas substituer un bundle.</li>
+    </ul>
+  </Callout>
+
+  <Quiz
+    items={[
+      {
+        q: "Qu'est-ce qui empêche un Server compromis de servir un autre bundle à un utilisateur qui a déjà ouvert l'app ?",
+        a: "<p>Le sha256 du bundle est dans le manifeste signé, et la clé qui signe doit être celle épinglée dans <code>origin.json</code>. Il faudrait la clé privée de l'éditeur, ou un changement de clé, que le lanceur refuse.</p>",
+      },
+      {
+        q: "Tu lances <code>notes</code>, le Client crashe, tu relances <code>notes</code>. Que se passe-t-il côté Server ?",
+        a: "<p>Même clé <code>local:notes</code>, donc même socket. <code>/lifetime/status</code> renvoie le même build ID : le lanceur se rattache au Server, qui était en grâce. Le Client reprend la session orpheline.</p>",
+      },
+      {
+        q: "Pourquoi l'enfant sandboxé revérifie-t-il la signature, alors que le lanceur l'a déjà fait ?",
+        a: "<p>Parce que c'est lui qui exécute le code. Il compare l'empreinte à celle que l'hôte lui passe, qui est la clé épinglée : la vérification a lieu au point d'exécution.</p>",
+      },
+      {
+        q: "Un bundle fait <code>require(\"node:child_process\")</code> sans l'avoir déclaré. Que se passe-t-il ?",
+        a: "<p>L'évaluation lève <code>… outside the runtime ABI</code> : le <code>require</code> du bundle ne connaît que la table de l'ABI et les built-ins déclarés dans son manifeste.</p>",
+      },
+    ]}
+  />
+</Guide>
+
+<style>
+  .d-head {
+    fill: #5d6b80;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .d-row {
+    fill: rgb(152 166 186 / 0.04);
+    stroke: rgb(152 166 186 / 0.3);
+  }
+
+  .d-row.url {
+    fill: rgb(103 217 188 / 0.06);
+    stroke: rgb(103 217 188 / 0.5);
+  }
+
+  .d-form {
+    fill: #edf1f7;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .d-kind {
+    fill: #7d8aa0;
+    font-size: 10.5px;
+  }
+
+  .d-runs {
+    fill: #c4ccd8;
+    font-size: 11.5px;
+  }
+
+  .d-trust {
+    fill: #ffbc66;
+    font-size: 11.5px;
+  }
+
+  .d-trust.url {
+    fill: #67d9bc;
+  }
+
+</style>

@@ -1,0 +1,285 @@
+---
+import Guide from "../../layouts/Guide.astro";
+import Sequence from "../../components/guide/Sequence.astro";
+import Excerpt from "../../components/guide/Excerpt.astro";
+import Src from "../../components/guide/Src.astro";
+import Callout from "../../components/guide/Callout.astro";
+import Quiz from "../../components/guide/Quiz.astro";
+
+// Where each part of the framework lives: the map a reader comes back to.
+const areas: { name: string; tone: string; chapter: string; files: [string, string][] }[] = [
+  {
+    name: "CLI et commandes",
+    tone: "neutral",
+    chapter: "demarrage",
+    files: [
+      ["cli.ts", "arguments, registre des sous-commandes"],
+      ["commands/", "une sous-commande par fichier : dev, build, start…"],
+    ],
+  },
+  {
+    name: "Build",
+    tone: "build",
+    chapter: "build",
+    files: [
+      ["build.ts", "AST, graphes, frontières, bundles, build ID"],
+      ["route-graph.ts", "app/ → route graph, pur"],
+      ["cache/transform.ts", "\"use cache\" au build"],
+    ],
+  },
+  {
+    name: "Runtime Server",
+    tone: "server",
+    chapter: "navigation",
+    files: [
+      ["serve.ts", "écoute, auth par défaut, ligne ready"],
+      ["server.ts", "routes /render et /action, session, invalidate"],
+      ["cache/", "clés, tags, handlers mémoire et SQLite"],
+    ],
+  },
+  {
+    name: "Réseau",
+    tone: "wire",
+    chapter: "server-functions",
+    files: [
+      ["transport.ts", "requêtes, en-têtes, timeout, outcome"],
+      ["flight/", "codec React Flight, résolution des modules"],
+      ["connect.ts", "URL du Server, tunnel ssh, socket unix"],
+    ],
+  },
+  {
+    name: "Runtime Client",
+    tone: "client",
+    chapter: "navigation",
+    files: [
+      ["run.tsx", "démarrage du Client, renderer OpenTUI"],
+      ["client.tsx", "Application, keymap, hooks, invalidation"],
+      ["route-tree.tsx", "layouts, pages, loaders Flight"],
+      ["session.ts · restore.ts · fields.tsx", "historique et champs restaurés"],
+    ],
+  },
+  {
+    name: "Distribution",
+    tone: "neutral",
+    chapter: "distribution",
+    files: [
+      ["compile.ts · sign.ts", "binaire unique, signature macOS"],
+      ["launcher/ · registry/", "airtty <cible>, apps installées"],
+      ["generic/ · app-bundle.ts · abi.ts", "airtty <url>, bundles vérifiés"],
+      ["sandbox/", "confinement des apps d'une origine"],
+    ],
+  },
+  {
+    name: "Autres hôtes",
+    tone: "neutral",
+    chapter: "web-desktop",
+    files: [
+      ["web/ · web-runtime.ts", "la même app dans un navigateur"],
+      ["embed.tsx", "une app dans un pane d'une autre"],
+      ["vt/", "un programme local sur PTY, dans un pane"],
+    ],
+  },
+  {
+    name: "Outillage",
+    tone: "neutral",
+    chapter: "devtools",
+    files: [["devtools/", "agents, protocole, app airtty devtools"]],
+  },
+];
+---
+
+<Guide
+  slug="carte"
+  outcomes={[
+    "nommer les trois programmes d'airtty et dire où chacun tourne ;",
+    "dire d'un fichier de Notes s'il s'exécute sur le Client ou le Server, et pourquoi ;",
+    "retrouver le dossier de <code>packages/airtty/src</code> qui porte une responsabilité donnée.",
+  ]}
+>
+  <h2>En une phrase</h2>
+  <p>Tu écris une application dans <strong>un seul dossier</strong>. <code>airtty build</code> la coupe en <strong>deux programmes</strong> : un <span class="s">Server</span> qui lit les données et rend des pages, et un <span class="c">Client</span> qui dessine dans le terminal et gère le clavier. Les deux se parlent en <span class="w">React Flight</span>, le format de sérialisation des React Server Components.</p>
+
+  <h2>Une minute de Notes</h2>
+  <p>Tout le guide s'appuie sur <code>examples/notes</code>, une petite app de notes. Voici ce qui se passe quand on ouvre une note, qu'on la modifie puis qu'on l'enregistre. Garde ce schéma en tête : les chapitres 4 et 5 le détaillent ligne par ligne.</p>
+
+  <Sequence
+    title="Une minute de Notes"
+    lanes={[
+      { id: "user", label: "Utilisateur", tone: "neutral" },
+      { id: "client", label: "Client", sub: "terminal", tone: "client" },
+      { id: "server", label: "Server", sub: "processus Bun", tone: "server" },
+      { id: "db", label: "SQLite", tone: "server" },
+    ]}
+    messages={[
+      { phase: "Ouvrir une note" },
+      { from: "user", to: "client", label: "Entrée", n: 1 },
+      { from: "client", to: "client", label: "loading.tsx dessiné", n: 2 },
+      { from: "client", to: "server", label: "GET /render /notes/1", n: 3, tone: "wire" },
+      { from: "server", to: "db", label: "SELECT (ou cache)", n: 4 },
+      { from: "server", to: "client", label: "arbre React en Flight", n: 5, back: true, tone: "wire" },
+      { from: "client", to: "client", label: "OpenTUI dessine la page", n: 6 },
+      { phase: "Modifier, puis enregistrer" },
+      { from: "user", to: "client", label: "frappes : restent locales", n: 7 },
+      { from: "user", to: "client", label: "Entrée", n: 8 },
+      { from: "client", to: "server", label: "POST /action saveNote", n: 9, tone: "wire" },
+      { from: "server", to: "db", label: "UPDATE + invalidate", n: 10 },
+      { from: "server", to: "client", label: "résultat + tags invalidés", n: 11, back: true, tone: "wire" },
+    ]}
+    caption="Chaque frappe (7) reste dans le terminal. Seuls l'ouverture (3) et l'enregistrement (9) traversent le réseau."
+  />
+
+  <p>Ce schéma montre l'idée centrale. <strong>Le Client ne connaît pas la base, le Server ne connaît pas le clavier.</strong> Entre les deux ne circulent que deux choses : des <em>pages rendues</em> (un arbre React sérialisé) et des <em>appels de fonctions</em>.</p>
+
+  <h2>Trois programmes</h2>
+  <div class="table">
+    <table>
+      <thead><tr><th>Programme</th><th>Où il tourne</th><th>Ce qu'il contient</th><th>Ce qu'il n'a jamais</th></tr></thead>
+      <tbody>
+        <tr><td class="b">Build</td><td>la machine du développeur, une fois</td><td>le compilateur : lit <code>app/</code>, vérifie les frontières, écrit <code>.airtty/</code></td><td>—</td></tr>
+        <tr><td class="s">Server</td><td>là où vivent les données</td><td>les pages, les Server Functions, le cache, l'accès SQLite</td><td>OpenTUI, le clavier, l'écran</td></tr>
+        <tr><td class="c">Client</td><td>le terminal de l'utilisateur</td><td>OpenTUI, TanStack Router, les Client Components, le Transport</td><td>les sources Server, la base, les secrets</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>Server et Client portent le même <strong>build ID</strong>, une empreinte calculée au build. Chaque requête le transporte, et le Server refuse celles qui ne portent pas le sien. Un Client et un Server issus de deux builds différents ne peuvent donc jamais se parler (chapitre 3).</p>
+
+  <h2>Une directive décide du côté</h2>
+  <p>La première ligne d'un fichier place tout son code d'un côté. C'est l'unique règle à connaître pour lire une app airtty :</p>
+  <div class="table">
+    <table>
+      <thead><tr><th>En tête du fichier</th><th>S'exécute</th><th>Dans Notes</th></tr></thead>
+      <tbody>
+        <tr><td><code>"use client"</code></td><td class="c">dans le terminal</td><td><code>app/layout.tsx</code>, <code>components/NoteEditor.tsx</code></td></tr>
+        <tr><td><code>"use server"</code></td><td class="s">sur le Server, appelable depuis le Client</td><td><code>actions/notes.ts</code></td></tr>
+        <tr><td><code>"use cache"</code></td><td class="s">sur le Server, résultat mémorisé</td><td><code>server/queries.ts</code></td></tr>
+        <tr><td>rien</td><td>du côté de celui qui l'importe</td><td><code>app/page.tsx</code> (Server), <code>components/NoteFrame.tsx</code> (les deux)</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>La page d'une note est un Server Component : elle lit la base puis passe au composant Client la note et une Server Function.</p>
+
+  <Excerpt path="examples/notes/app/notes/[id]/page.tsx" find="export default async function Page" until="^}" tone="server" mark={["noteOf(getSession()", "saveAction={saveNote}"]} />
+
+  <p>Deux choses traversent ici la frontière. <code>initialNote</code> est une donnée : elle est sérialisée. <code>saveAction</code> est une fonction du Server : le Client reçoit une <strong>référence</strong> vers elle, jamais son code. L'appeler envoie une requête (chapitre 5).</p>
+
+  <Callout kind="piege">
+    <p>Sans directive, un fichier n'est ni Client ni Server : il est copié dans chaque programme qui l'importe. <code>NoteFrame.tsx</code> est ainsi bundlé des deux côtés. Autre règle, purement textuelle : tout fichier dont un dossier du chemin s'appelle <code>server</code> est interdit au Client.</p>
+  </Callout>
+
+  <h2>Le dépôt</h2>
+  <div class="table">
+    <table>
+      <thead><tr><th>Dossier</th><th>Rôle</th></tr></thead>
+      <tbody>
+        <tr><td><code>packages/airtty/</code></td><td>le framework : CLI, build, runtimes Client et Server. Plus un sandbox en Rust dans <code>native/</code>.</td></tr>
+        <tr><td><code>packages/desktop/</code></td><td>prototype d'app desktop (Electrobun, xterm.js)</td></tr>
+        <tr><td><code>examples/</code></td><td>huit apps, chacune un package : notes, forge, chat, files, mux…</td></tr>
+        <tr><td><code>tests/</code> · <code>scripts/</code></td><td>tests d'intégration qui construisent et lancent les exemples ; parcours PTY</td></tr>
+        <tr><td><code>probes/</code> · <code>website/</code></td><td>hors de l'espace de travail, chacun avec son propre lockfile</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Où vit quoi dans le framework</h2>
+  <p>Les chemins sont relatifs à <code>packages/airtty/src/</code>. La couleur dit où tourne le code, et chaque bloc renvoie au chapitre qui le traverse.</p>
+  <div class="areas">
+    {
+      areas.map((area) => (
+        <a class={`area tone-${area.tone}`} href={`/guide/${area.chapter}/`}>
+          <p class="area-name">{area.name}</p>
+          <dl>
+            {area.files.map(([file, role]) => (
+              <div>
+                <dt>{file}</dt>
+                <dd>{role}</dd>
+              </div>
+            ))}
+          </dl>
+        </a>
+      ))
+    }
+  </div>
+
+  <p>Le framework s'étend sans toucher à ses fichiers centraux (<Src path="packages/airtty/src/client.tsx" />, <Src path="packages/airtty/src/transport.ts" />, <Src path="packages/airtty/src/server.ts" />). Pour cela, il offre des points d'extension : décorer le Transport (<code>wrapTransport</code>), écouter les événements (<code>onEvent</code>, <code>serve(&#123; instrument &#125;)</code>), ajouter une sous-commande dans <code>commands/</code>. Les DevTools et le cache s'y branchent.</p>
+
+  <Callout kind="retenir">
+    <ul>
+      <li>Trois programmes : le build découpe, le Server rend, le Client dessine.</li>
+      <li>La directive en tête de fichier décide du côté ; sans directive, le fichier suit celui qui l'importe.</li>
+      <li>Entre Client et Server ne circulent que des arbres rendus et des appels de fonctions, en Flight, sous un même build ID.</li>
+    </ul>
+  </Callout>
+
+  <Quiz
+    items={[
+      {
+        q: "Où s'exécute <code>server/queries.ts</code>, et que se passe-t-il si un Client Component l'importe ?",
+        a: "<p>Sur le Server : il commence par <code>\"use cache\"</code>. Si un Client Component l'importe, le build échoue, et pour deux raisons : un module <code>\"use cache\"</code> est refusé dans le graphe Client, et son chemin contient un dossier <code>server</code>.</p>",
+      },
+      {
+        q: "Dans la page d'une note, qu'est-ce que le Client reçoit pour <code>saveAction</code> ?",
+        a: "<p>Une référence de Server Function (un identifiant), pas du code. L'appeler côté Client déclenche un <code>POST /action</code> vers le Server.</p>",
+      },
+      {
+        q: "L'utilisateur tape vingt caractères dans l'éditeur. Combien de requêtes partent ?",
+        a: "<p>Aucune. <code>NoteEditor</code> est un Client Component : chaque frappe est traitée et dessinée dans le terminal. Seul l'enregistrement traverse.</p>",
+      },
+      {
+        q: "Dans quel dossier de <code>src/</code> chercher le code qui décide si une requête a « peut-être » abouti ?",
+        a: "<p><code>transport.ts</code> : c'est lui qui attribue l'issue <code>not-sent</code>, <code>rejected</code> ou <code>unknown</code> (chapitre 5).</p>",
+      },
+    ]}
+  />
+</Guide>
+
+<style>
+  .areas {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 12px;
+  }
+
+  .area {
+    display: block;
+    padding: 14px 16px;
+    border: 1px solid var(--rule);
+    border-top: 2px solid var(--tone);
+    border-radius: 10px;
+    background: rgb(255 255 255 / 0.015);
+    text-decoration: none;
+    transition: background 0.2s;
+  }
+
+  .area:hover {
+    background: rgb(255 255 255 / 0.04);
+  }
+
+  .area-name {
+    color: var(--tone-text, var(--paper));
+    font: 600 0.85rem / 1.4 var(--mono);
+  }
+
+  dl {
+    display: grid;
+    gap: 8px;
+    margin: 10px 0 0;
+  }
+
+  dt {
+    color: var(--paper);
+    font: 400 0.78rem / 1.4 var(--mono);
+  }
+
+  dd {
+    margin: 0;
+    color: var(--mist);
+    font-size: 0.82rem;
+    line-height: 1.45;
+  }
+
+  .tone-client { --tone: var(--client); --tone-text: var(--client); }
+  .tone-server { --tone: var(--server); --tone-text: var(--server); }
+  .tone-wire { --tone: #a9b8ff; --tone-text: #a9b8ff; }
+  .tone-build { --tone: #c9a8ff; --tone-text: #c9a8ff; }
+  .tone-neutral { --tone: var(--rule-strong); }
+</style>

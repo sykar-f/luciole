@@ -1,0 +1,141 @@
+---
+import Guide from "../../layouts/Guide.astro";
+import Sequence from "../../components/guide/Sequence.astro";
+import Excerpt from "../../components/guide/Excerpt.astro";
+import Sample from "../../components/guide/Sample.astro";
+import Step from "../../components/guide/Step.astro";
+import Src from "../../components/guide/Src.astro";
+import Callout from "../../components/guide/Callout.astro";
+import Quiz from "../../components/guide/Quiz.astro";
+---
+
+<Guide
+  slug="session"
+  outcomes={[
+    "dire ce que le framework garde d'un Client, où, et ce qu'il laisse à l'app ;",
+    "distinguer une interruption (la session reste) d'une sortie voulue (elle disparaît) ;",
+    "expliquer pourquoi un texte envoyé n'est jamais reproposé après une issue <code>unknown</code>.",
+  ]}
+>
+  <h2>En une phrase</h2>
+  <p>Le Client joue le rôle d'un navigateur : il garde, dans un fichier par Client, l'<strong>historique</strong> et le <strong>texte des champs nommés</strong> de chaque entrée. Ce fichier survit à un rebuild, à un crash et à un terminal fermé, et disparaît quand l'utilisateur quitte. Il ne sait rien du métier : ce qu'est un brouillon et comment régler un conflit, c'est l'app qui le décide.</p>
+
+  <h2>Le parcours</h2>
+  <Sequence
+    title="Un crash, puis le retour"
+    lanes={[
+      { id: "field", label: "Champ nommé", sub: "<Input name>", tone: "client" },
+      { id: "client", label: "Client", sub: "run.tsx", tone: "client" },
+      { id: "file", label: "Fichier", sub: "sessions/<uuid>.json", tone: "neutral" },
+      { id: "next", label: "Client suivant", sub: "même clé", tone: "client" },
+    ]}
+    messages={[
+      { phase: "Pendant la frappe" },
+      { from: "field", to: "client", label: "save(texte, typed)", n: 1 },
+      { from: "client", to: "file", label: "écriture 200 ms plus tard", n: 2 },
+      { phase: "Le Client s'arrête" },
+      { from: "client", to: "file", label: "signal : flush, le fichier reste", n: 3 },
+      { from: "client", to: "client", label: "ou crash : dernière écriture", n: 4 },
+      { phase: "Un Client revient" },
+      { from: "next", to: "file", label: "orphelin de même clé ?", n: 5, back: true },
+      { from: "next", to: "file", label: "rename atomique, puis flush", n: 6, back: true },
+      { from: "next", to: "next", label: "historique restauré", n: 7 },
+      { from: "next", to: "field", label: "le champ se remplit au montage", n: 8, back: true },
+    ]}
+    caption="Sous airtty dev, pas d'orphelin à chercher : le superviseur donne au nouveau Client l'id de la session (AIRTTY_SESSION), qui la relit directement."
+  />
+
+  <Step n="1–2" tone="client" title="Seule la frappe crée un champ gardé">
+    <p>Un <code>&lt;Input name="note/text"&gt;</code> enregistre son texte dans l'entrée d'historique où il est apparu. Une valeur posée par le code de l'app ne crée jamais de champ gardé : seule une frappe de l'utilisateur en crée un.</p>
+    <Excerpt path="packages/airtty/src/restore.ts" find="save(place: Place, name: string, value: string" count={13} tone="client" mark={["if (typed) this.sent.delete(key);", "else if (this.sent.has(key)"]} />
+    <p>Le fichier est réécrit 200 ms après le dernier changement, par écriture dans un fichier temporaire puis <code>rename</code>, en mode 0600. Un texte vide ou de plus de 100 000 caractères n'est pas gardé, et l'historique est plafonné à 50 entrées.</p>
+  </Step>
+
+  <Step n="3–4" tone="client" title="Interrompu ou quitté : deux fins différentes">
+    <Excerpt path="packages/airtty/src/run.tsx" find="// A signal is not the user's choice" count={11} tone="client" mark={["session.flush(app.restoration.snapshot())", "session.remove()"]} />
+    <div class="table">
+      <table>
+        <thead><tr><th>Ce qui arrive</th><th>Session</th></tr></thead>
+        <tbody>
+          <tr><td>rebuild de <code>airtty dev</code> (SIGTERM)</td><td class="c">écrite, gardée</td></tr>
+          <tr><td>terminal fermé (SIGHUP)</td><td class="c">écrite, gardée</td></tr>
+          <tr><td>crash dur (SIGKILL)</td><td class="c">gardée, avec au plus 200 ms de retard</td></tr>
+          <tr><td>Ctrl+C, <code>app.quit</code></td><td class="s">supprimée</td></tr>
+          <tr><td>fenêtre desktop fermée (SIGHUP en mode desktop)</td><td class="s">supprimée : c'est un choix de l'utilisateur</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </Step>
+
+  <Step n="5–7" tone="client" title="Le Client suivant reprend l'orphelin, atomiquement">
+    <p>Au démarrage, <Src path="packages/airtty/src/session.ts" /> parcourt les fichiers de l'app. Il ignore ceux dont le processus vit encore et supprime ceux de plus de 7 jours. Parmi les orphelins de la même <strong>clé de Server</strong>, il prend le plus récent :</p>
+    <Excerpt path="packages/airtty/src/session.ts" find="let restored = id ? read(path) : undefined;" count={12} tone="client" mark={["renameSync(candidate.file, path);", "write(restored);"]} />
+    <p>Si deux Clients démarrent en même temps, un seul <code>rename</code> réussit. Le gagnant réécrit aussitôt le fichier avec son propre pid pour le réclamer.</p>
+    <p>La clé n'est pas l'URL du socket, qui change d'un lancement à l'autre. C'est un identifiant stable fourni par le lanceur : <code>local:&lt;dossier&gt;</code>, <code>git:&lt;url&gt;</code>, <code>local:&lt;app&gt;</code> pour un binaire, ou <code>ssh:&lt;hôte&gt;/&lt;app&gt;</code>.</p>
+  </Step>
+
+  <Step n="8" tone="client" title="Le champ se remplit au montage">
+    <p>Quand la page restaurée remonte, chaque champ nommé retrouve son texte une seule fois. Ce texte passe par <code>onInput</code>, comme une frappe : le brouillon de l'app se reconstruit par le chemin habituel.</p>
+  </Step>
+
+  <h2>Oublier à l'envoi</h2>
+  <p>Un piège guette tout brouillon restauré. L'utilisateur envoie, le Client crashe pendant la requête, puis revient : faut-il reproposer le texte ? Si l'envoi a abouti, le reproposer inviterait à l'envoyer deux fois. <code>useRestoredFields(group).submit</code> tranche :</p>
+  <Excerpt path="packages/airtty/src/fields.tsx" find="async submit<T>(action: () => Promise<T>" count={12} tone="client" mark={["app.restoration.take(place, group)", 'e.outcome !== "unknown"']} />
+  <ol>
+    <li>Le texte du groupe est <strong>retiré</strong> de la session avant l'envoi.</li>
+    <li>Il est <strong>remis</strong> si l'action répond un échec métier (<code>failed(result)</code>), ou si la requête n'a certainement pas eu lieu (<code>not-sent</code>, <code>rejected</code>).</li>
+    <li>Il reste <strong>oublié</strong> après un <code>unknown</code> : le framework ne sait pas, donc il ne repropose pas. L'app tranche ; dans Notes, c'est Ctrl+O.</li>
+  </ol>
+  <p>Notes l'utilise pour son éditeur, et Forge pour son formulaire de pull request :</p>
+  <Excerpt path="examples/notes/components/NoteEditor.tsx" find="fields = useRestoredFields" count={3} tone="client" />
+
+  <h2>Le fichier</h2>
+  <Sample
+    lang="json"
+    label="forme d'un fichier de session (d'après le schéma de session.ts)"
+    code={`~/.local/state/airtty/notes/sessions/3f1c….json   (0600)
+{"version":1,"server":"local:/Users/ada/examples/notes","pid":48213,"updatedAt":1790350000000,
+ "index":1,
+ "entries":[{"href":"/","fields":{}},
+            {"href":"/notes/42","fields":{"note/text":"brouillon pas encore envoyé"}}]}`}
+  />
+  <p>Pas de données de page, qui reviennent du Server, et <strong>jamais de bearer</strong>. Sous <code>airtty dev</code>, le token passe d'un Client au suivant par la mémoire du superviseur (chapitre 3). Au changement de compte, les champs de toutes les entrées sont oubliés.</p>
+
+  <Callout kind="piege">
+    <ul>
+      <li>Lancer le même dossier avec <code>--url</code> range les sessions sous l'URL, pas sous la clé du lanceur : elles ne se retrouvent pas.</li>
+      <li>Un pid recyclé par le système fait passer un orphelin pour vivant : il n'est alors ni repris ni supprimé.</li>
+      <li>Les Drafts de Notes vivent en mémoire : un rebuild les perd. Seul le texte du champ nommé revient.</li>
+    </ul>
+  </Callout>
+
+  <Callout kind="retenir">
+    <ul>
+      <li>Un fichier par Client, comme un onglet : historique, et texte des champs nommés par entrée.</li>
+      <li>Un signal garde la session, une sortie voulue la supprime.</li>
+      <li>Reprise par <code>rename</code> atomique de l'orphelin le plus récent de même clé.</li>
+      <li>Oublier à l'envoi, remettre seulement si l'envoi n'a certainement pas eu lieu.</li>
+    </ul>
+  </Callout>
+
+  <Callout kind="essaie">
+    <p>Dans <code>airtty dev</code>, ouvre une note, tape quelques mots sans enregistrer, puis modifie un fichier <code>.tsx</code>. Le Client redémarre sur la même note avec ton texte. Recommence, mais quitte avec Ctrl+C puis relance : cette fois, le texte a disparu.</p>
+  </Callout>
+
+  <Quiz
+    items={[
+      {
+        q: "Pourquoi <code>run()</code> écrit-il la session juste après l'avoir ouverte ?",
+        a: "<p>Pour la réclamer : le fichier repris porte encore le pid du Client mort. Tant que le nouveau Client n'y a pas écrit le sien, un autre Client qui démarre pourrait le prendre pour un orphelin.</p>",
+      },
+      {
+        q: "L'utilisateur envoie une note, la réponse se perd (<code>unknown</code>), puis le Client crashe. Le texte revient-il ?",
+        a: "<p>Non. <code>submit</code> l'a retiré avant l'envoi, et une issue <code>unknown</code> ne le remet pas. C'est à l'app de trancher, par exemple avec Ctrl+O dans Notes.</p>",
+      },
+      {
+        q: "Qu'est-ce qui distingue, pour la session, un rebuild de <code>airtty dev</code> d'un Ctrl+C ?",
+        a: "<p>Le rebuild envoie SIGTERM : le Client écrit la session et la garde, et le suivant la relit par son id. Ctrl+C est une sortie voulue : la session est supprimée.</p>",
+      },
+    ]}
+  />
+</Guide>
