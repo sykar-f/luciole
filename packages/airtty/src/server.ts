@@ -231,35 +231,41 @@ const STATUS = {
   conflict: 409,
   serverError: 500,
 } as const;
-export function serve(config: ServerConfig) {
-  const env = ServerEnvironment.safeParse(process.env);
-  if (!env.success) throw new Error(`Invalid Server environment: ${z.prettifyError(env.error)}`);
-  const { AIRTTY_HOST: hostname, AIRTTY_TOKEN: token, AIRTTY_SOCKET: socket } = env.data;
-  const testing = env.data.AIRTTY_TEST === "1",
-    dropOnce = testing && env.data.AIRTTY_TEST_DROP_ONCE === "1";
+/**
+ * What the handler asks of where it runs. `serve()` answers for Bun; a host without a
+ * listening server (a browser Worker, docs/WEB.md W2) leaves both out.
+ */
+export type HandlerOptions = {
+  /** Who is signed in: `server/auth.ts`, or `serve()`'s bearer check. */
+  auth: AuthConfig;
+  /** Development only: the address of `airtty devtools`. */
+  devtools?: string;
+  /** Exposes `/test-metrics`. */
+  testing?: boolean;
+  /** A live response is about to start: it must outlive any idle timeout. */
+  keepAlive?: (req: Request) => void;
+  /**
+   * Test-only fault: called after a Server Function that returned `{ ok: true }` has
+   * committed, before its response is written.
+   */
+  dropAfterCommit?: () => void;
+};
+/**
+ * The Server as a function of a Request: pages, Server Functions, the application
+ * bundle, instrumentation. Everything that listens, binds or exits stays in `serve()`.
+ */
+export function createHandler(config: ServerConfig, options: HandlerOptions) {
+  const { auth, testing = false } = options;
   const paramSchemas = new Map(
     [...config.routes].map(([id, route]) => [id, paramsSchema(route)] as const),
   );
-  // A socket is reachable by whoever may open its file: nothing binds to the network.
-  if (!socket && !["127.0.0.1", "localhost", "::1"].includes(hostname) && !token && !config.auth)
-    throw new Error(
-      "Remote binding requires AIRTTY_TOKEN or server/auth.ts and a TLS reverse proxy",
-    );
-  const auth: AuthConfig =
-    config.auth ??
-    ({
-      authenticate(request) {
-        if (token && request.headers.get("authorization") !== `Bearer ${token}`) return null;
-        return { userId: env.data.AIRTTY_USER };
-      },
-    } satisfies AuthConfig);
   if (auth.unauthorizedPath) {
     const login = [...config.routes.values()].find((r) => r.url === auth.unauthorizedPath);
     if (!login) throw new Error(`Authentication route not found: ${auth.unauthorizedPath}`);
     if (login.auth !== "public")
       throw new Error(`Authentication route must be public: ${auth.unauthorizedPath}`);
   }
-  const instrument = devtoolsInstrument(config.instrument, env.data.AIRTTY_DEVTOOLS, {
+  const instrument = devtoolsInstrument(config.instrument, options.devtools, {
     buildId: config.buildId,
     getCallId,
     invalidateTag: (tag) => invalidate({ tag }),
@@ -353,18 +359,16 @@ export function serve(config: ServerConfig) {
           await Promise.all(purges.values());
           // A live response may stay quiet longer than the idle timeout; it ends with
           // its generator or when the Client goes away.
-          if (isAsyncIterable(value)) server.timeout(req, 0);
+          if (isAsyncIterable(value)) options.keepAlive?.(req);
           // Test-only fault injection occurs strictly after business commit; never enabled by a request.
           if (
-            dropOnce &&
+            options.dropAfterCommit &&
             typeof value === "object" &&
             value !== null &&
             "ok" in value &&
             value.ok
-          ) {
-            void server.stop(true);
-            process.exit(0);
-          }
+          )
+            options.dropAfterCommit();
           return new Response(
             renderToReadableStream(
               {
@@ -432,6 +436,46 @@ export function serve(config: ServerConfig) {
       headers: response.headers,
     });
   }
+  return (req: Request, url = new URL(req.url)) => {
+    // Where future middlewares go (a render cache, for instance): around `handle`,
+    // keyed by `kind`, with the request's callId, before any page or action code runs
+    // and with the Response it produced. Instrumentation is the first of them.
+    const kind = instrument && kindOf(req, url);
+    if (instrument && kind) return observe(req, url, kind, instrument.onEvent);
+    return handle(req, url, req.headers.get("x-airtty-call") ?? crypto.randomUUID());
+  };
+}
+export function serve(config: ServerConfig) {
+  const env = ServerEnvironment.safeParse(process.env);
+  if (!env.success) throw new Error(`Invalid Server environment: ${z.prettifyError(env.error)}`);
+  const { AIRTTY_HOST: hostname, AIRTTY_TOKEN: token, AIRTTY_SOCKET: socket } = env.data;
+  const testing = env.data.AIRTTY_TEST === "1",
+    dropOnce = testing && env.data.AIRTTY_TEST_DROP_ONCE === "1";
+  // A socket is reachable by whoever may open its file: nothing binds to the network.
+  if (!socket && !["127.0.0.1", "localhost", "::1"].includes(hostname) && !token && !config.auth)
+    throw new Error(
+      "Remote binding requires AIRTTY_TOKEN or server/auth.ts and a TLS reverse proxy",
+    );
+  const auth: AuthConfig =
+    config.auth ??
+    ({
+      authenticate(request) {
+        if (token && request.headers.get("authorization") !== `Bearer ${token}`) return null;
+        return { userId: env.data.AIRTTY_USER };
+      },
+    } satisfies AuthConfig);
+  const handler = createHandler(config, {
+    auth,
+    devtools: env.data.AIRTTY_DEVTOOLS,
+    testing,
+    keepAlive: (req) => server.timeout(req, 0),
+    dropAfterCommit: dropOnce
+      ? () => {
+          void server.stop(true);
+          process.exit(0);
+        }
+      : undefined,
+  });
   // A Server the launcher manages lives as long as its Clients (src/launcher/lifetime.ts).
   const lifetime = socket
     ? managedLifetime(process.env, { buildId: config.buildId, socket, stop: () => shutdown() })
@@ -440,14 +484,7 @@ export function serve(config: ServerConfig) {
     maxRequestBodySize: MAX_REQUEST_BYTES,
     fetch(req: Request) {
       const url = new URL(req.url);
-      const managed = lifetime?.handle(req, url);
-      if (managed) return managed;
-      // Where future middlewares go (a render cache, for instance): around `handle`,
-      // keyed by `kind`, with the request's callId, before any page or action code runs
-      // and with the Response it produced. Instrumentation is the first of them.
-      const kind = instrument && kindOf(req, url);
-      if (instrument && kind) return observe(req, url, kind, instrument.onEvent);
-      return handle(req, url, req.headers.get("x-airtty-call") ?? crypto.randomUUID());
+      return lifetime?.handle(req, url) ?? handler(req, url);
     },
   };
   // On a socket Bun's default idle timeout (10 s) would cut a slow page, action or live
