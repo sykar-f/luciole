@@ -5,7 +5,6 @@ import { z } from "zod";
 
 // The first line a production Server prints once it listens (src/server.ts).
 const ServerReady = z.object({ ready: z.literal(true), port: z.number().int() });
-const { PYTHON } = z.object({ PYTHON: z.string().default("python3") }).parse(process.env);
 const temp = await mkdtemp(join(tmpdir(), "airtty-release-"));
 async function run(cmd: string[], cwd: string) {
   const child = Bun.spawn(cmd, {
@@ -106,8 +105,8 @@ try {
     const ready = ServerReady.parse(JSON.parse(line.split("\n")[0]));
     await run(
       [
-        PYTHON,
-        "scripts/pty-smoke.py",
+        process.execPath,
+        "scripts/pty/smoke.ts",
         "--client",
         join(built, "client/index.js"),
         "--url",

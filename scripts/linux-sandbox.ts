@@ -1,6 +1,6 @@
 // Runs the sandbox mode's tests on Linux, in containers, once per mechanism
 // (src/sandbox/mechanism.ts): airtty-sandbox with its own namespaces, under bubblewrap,
-// and Landlock alone. Each runs tests/sandbox.test.ts and scripts/pty-sandbox.py as a
+// and Landlock alone. Each runs tests/sandbox.test.ts and scripts/pty/sandbox.ts as a
 // user (not root), on a copy of this checkout with its own Linux node_modules; then
 // `cargo test` for the launcher itself.
 //   bun scripts/linux-sandbox.ts [--arch arm64|x64] [--only userns|bwrap|landlock]
@@ -22,9 +22,9 @@ if (arch !== "arm64" && arch !== "x64") throw new Error("--arch must be arm64 or
 const platform = arch === "arm64" ? "linux/arm64" : "linux/amd64";
 const only = option("--only");
 const IMAGE = `airtty-linux-sandbox:${arch}`;
-// Bun's image (Debian), bubblewrap, pyte for the PTY journey, ps for its process checks.
+// Bun's image (Debian), bubblewrap, ps for the PTY journey's process checks.
 const DOCKERFILE = `FROM oven/bun:1.4.2
-RUN apt-get update && apt-get install -y --no-install-recommends bubblewrap python3 python3-pyte procps \\
+RUN apt-get update && apt-get install -y --no-install-recommends bubblewrap procps \\
  && rm -rf /var/lib/apt/lists/* && useradd -m ada
 `;
 // Docker masks parts of /proc, which forbids mounting a fresh one (bubblewrap's --proc)
@@ -84,7 +84,7 @@ try {
     `bun -e "import {sandboxAvailability as a} from './packages/airtty/src/sandbox/runtime';const r=a();if(!r.mechanism){console.log('skipped: '+r.reason);process.exit(${SKIPPED})}"`,
     `echo "mechanism: $AIRTTY_SANDBOX_MECHANISM, probe: $(${join("/src", "packages/airtty/native/airtty-sandbox/dist", `linux-${arch}`, "airtty-sandbox")} --probe)"`,
     "bun test --timeout 60000 tests/sandbox.test.ts",
-    "python3 scripts/pty-sandbox.py",
+    "bun scripts/pty/sandbox.ts",
   ].join("\n");
   for (const { mechanism, flags } of CASES) {
     if (only && only !== mechanism) continue;
