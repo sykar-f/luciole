@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import { build } from "../src/build";
+import { build } from "../packages/airtty/src/build";
 import { importClient } from "./helpers";
 
 // Inside the checkout so `airtty` and its packages resolve like in an example.

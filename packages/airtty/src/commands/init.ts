@@ -2,7 +2,7 @@ import { join, resolve } from "node:path";
 import { cp, mkdir, readdir } from "node:fs/promises";
 import { z } from "zod";
 import { readJsonFile, readPackageJson } from "../package-json";
-import { frameworkRoot, type Command } from "./command";
+import { frameworkRoot, workspaceRoot, type Command } from "./command";
 /** The formatter options a starter's generated JSON files follow. */
 const FormatterConfig = z.object({
   printWidth: z.number().int().positive(),
@@ -16,7 +16,7 @@ export const init: Command = {
     if ((await readdir(target).catch((): string[] => [])).length)
       throw new Error("Target already contains a project");
     await mkdir(target, { recursive: true });
-    await cp(join(frameworkRoot, "examples/notes"), target, {
+    await cp(join(workspaceRoot, "examples/notes"), target, {
       recursive: true,
       filter: (p) =>
         !p.includes(".airtty") &&
@@ -25,6 +25,19 @@ export const init: Command = {
         !p.endsWith(".sqlite-shm"),
     });
     const frameworkPackage = await readPackageJson(join(frameworkRoot, "package.json"));
+    const notesPackage = await readPackageJson(join(workspaceRoot, "examples/notes/package.json"));
+    // A starter is no workspace member: `catalog:` becomes the version the workspace pins.
+    const catalog =
+      (await readPackageJson(join(workspaceRoot, "package.json"))).workspaces?.catalog ?? {};
+    const pinned = (dependencies: Record<string, string> = {}) =>
+      Object.fromEntries(
+        Object.entries(dependencies).map(([name, range]) => {
+          if (range !== "catalog:") return [name, range];
+          const version = catalog[name];
+          if (!version) throw new Error(`${name}: catalog: without a version in the workspace`);
+          return [name, version];
+        }),
+      );
     await Bun.write(
       join(target, "package.json"),
       JSON.stringify(
@@ -33,10 +46,10 @@ export const init: Command = {
           type: "module",
           packageManager: frameworkPackage.packageManager,
           dependencies: {
-            ...frameworkPackage.dependencies,
+            ...pinned(notesPackage.dependencies),
             airtty: `file:${frameworkRoot}`,
           },
-          devDependencies: frameworkPackage.devDependencies,
+          devDependencies: pinned(frameworkPackage.devDependencies),
           overrides: frameworkPackage.overrides,
           scripts: {
             dev: "airtty dev --app .",
@@ -72,11 +85,11 @@ export const init: Command = {
       ".gitignore",
       ".bun-version",
     ]) {
-      await cp(join(frameworkRoot, file), join(target, file), { recursive: true });
+      await cp(join(workspaceRoot, file), join(target, file), { recursive: true });
     }
     const { format } = await import("oxfmt");
     const { printWidth, sortImports, sortPackageJson } = await readJsonFile(
-      join(frameworkRoot, ".oxfmtrc.json"),
+      join(workspaceRoot, ".oxfmtrc.json"),
       FormatterConfig,
     );
     for (const name of ["package.json", "tsconfig.json"]) {

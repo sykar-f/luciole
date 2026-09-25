@@ -14,30 +14,34 @@ import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { connect as connectTcp } from "node:net";
 import { createTestRenderer } from "@opentui/core/testing";
-import { build } from "../src/build";
-import { Capabilities } from "../src/capabilities";
-import { messageOf } from "../src/guards";
-import { prepareOrigin, sandboxHeader } from "../src/generic/prepare";
-import type { HostRequest } from "../src/host";
-import { directories } from "../src/launcher/paths";
-import { generatePublisherKey, readPublisherKey } from "../src/publisher";
-import { confine, scratch as newScratch } from "../src/sandbox/confine";
+import { build } from "../packages/airtty/src/build";
+import { Capabilities } from "../packages/airtty/src/capabilities";
+import { messageOf } from "../packages/airtty/src/guards";
+import { prepareOrigin, sandboxHeader } from "../packages/airtty/src/generic/prepare";
+import type { HostRequest } from "../packages/airtty/src/host";
+import { directories } from "../packages/airtty/src/launcher/paths";
+import { generatePublisherKey, readPublisherKey } from "../packages/airtty/src/publisher";
+import { confine, scratch as newScratch } from "../packages/airtty/src/sandbox/confine";
 import {
   beyond,
   enforcement,
   mergeCapabilities,
   parseAllowFlags,
   unenforceable,
-} from "../src/sandbox/grants";
-import { answer } from "../src/sandbox/ipc";
-import { launcherPolicy, linuxCommand } from "../src/sandbox/linux";
-import type { LinuxMechanism, Mechanism } from "../src/sandbox/mechanism";
-import { createPermissions, type Question } from "../src/sandbox/permissions";
-import { hostAllowed, startProxy } from "../src/sandbox/proxy";
-import { buildChild, sandboxAvailability, sandboxRuntime } from "../src/sandbox/runtime";
-import { openSandbox } from "../src/sandbox/spawn";
-import { spawnPty } from "../src/vt/pty";
-import { VtTerminalRenderable } from "../src/vt/gaps";
+} from "../packages/airtty/src/sandbox/grants";
+import { answer } from "../packages/airtty/src/sandbox/ipc";
+import { launcherPolicy, linuxCommand } from "../packages/airtty/src/sandbox/linux";
+import type { LinuxMechanism, Mechanism } from "../packages/airtty/src/sandbox/mechanism";
+import { createPermissions, type Question } from "../packages/airtty/src/sandbox/permissions";
+import { hostAllowed, startProxy } from "../packages/airtty/src/sandbox/proxy";
+import {
+  buildChild,
+  sandboxAvailability,
+  sandboxRuntime,
+} from "../packages/airtty/src/sandbox/runtime";
+import { openSandbox } from "../packages/airtty/src/sandbox/spawn";
+import { spawnPty } from "../packages/airtty/src/vt/pty";
+import { VtTerminalRenderable } from "../packages/airtty/src/vt/gaps";
 import { launch, until } from "./helpers";
 
 const availability = sandboxAvailability();
@@ -50,7 +54,7 @@ const privateDevpts = mechanism?.kind === "userns" || mechanism?.kind === "bwrap
 const NONE = Capabilities.parse({});
 const caps = (value: unknown) => Capabilities.parse(value);
 const scratch = () => newScratch().path;
-const SRC = resolve("src");
+const SRC = resolve("packages/airtty/src");
 /** Refusals, as each mechanism reports them: Seatbelt, Landlock, nothing mounted (bwrap). */
 const REFUSED = /^(EPERM|EACCES|ENOENT|EROFS|ECONNREFUSED|ENETUNREACH)$/;
 

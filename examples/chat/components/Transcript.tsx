@@ -129,7 +129,7 @@ function Welcome({ setup }: { setup: Setup }) {
             Create a key at https://openrouter.ai/keys, then restart with it:
           </text>
           <text fg={color.accent}>
-            {"  "}OPENROUTER_API_KEY=sk-or-… bun src/cli.ts dev --app examples/chat
+            {"  "}OPENROUTER_API_KEY=sk-or-… bun packages/airtty/src/cli.ts dev --app examples/chat
           </text>
           <text fg={color.muted}>
             The key stays on the Server: the terminal Client never receives it.

@@ -2,11 +2,11 @@ import { expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { parseEvent, type DevtoolsEvent } from "../src/devtools/schema";
-import { devtoolsInstrument } from "../src/devtools/server-agent";
-import { message, PLUGIN } from "../src/devtools/protocol";
-import { listenBus, type Connection } from "../src/devtools/wire";
-import { createHttpTransport, type TransportEvent } from "../src/transport";
+import { parseEvent, type DevtoolsEvent } from "../packages/airtty/src/devtools/schema";
+import { devtoolsInstrument } from "../packages/airtty/src/devtools/server-agent";
+import { message, PLUGIN } from "../packages/airtty/src/devtools/protocol";
+import { listenBus, type Connection } from "../packages/airtty/src/devtools/wire";
+import { createHttpTransport, type TransportEvent } from "../packages/airtty/src/transport";
 import { launch, until } from "./helpers";
 
 test("AIRTTY_DEVTOOLS streams the Server's events and logs under the Client's callId", async () => {

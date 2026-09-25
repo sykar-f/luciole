@@ -9,6 +9,8 @@ const PackageJson = z.object({
   dependencies: Dependencies.optional(),
   devDependencies: Dependencies.optional(),
   overrides: z.record(z.string(), z.unknown()).optional(),
+  /** A workspace root's shared versions, which members name as `catalog:`. */
+  workspaces: z.object({ catalog: Dependencies.optional() }).optional(),
 });
 
 /** Reads a JSON file and checks it against `schema`, naming the file on failure. */

@@ -55,7 +55,9 @@ const runtime = (proxyPort?: number): Runtime => ({
   code: [
     here,
     join(root, "node_modules"),
-    ...["tsconfig.json", "tsconfig.base.json", "package.json"].map((f) => join(root, f)),
+    ...["tsconfig.json", "packages/airtty", "package.json", "bunfig.toml"].map((f) =>
+      join(root, f),
+    ),
   ],
   tmp: join(scratch, "tmp"),
   proxyPort,

@@ -8,7 +8,7 @@ import * as keymap from "@opentui/keymap";
 import * as keymapReact from "@opentui/keymap/react";
 import * as zod from "zod";
 import * as zodMini from "zod/mini";
-import { logMessages } from "../../src/bundle-errors";
+import { logMessages } from "../../packages/airtty/src/bundle-errors";
 import type { AbiSpecifier } from "./abi";
 import type * as RuntimeEntry from "./runtime-entry";
 

@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { join } from "node:path";
-import { readPackageJson } from "../../src/package-json";
+import { readPackageJson } from "../../packages/airtty/src/package-json";
 
 /**
  * The runtime ABI: the only specifiers an application bundle may import from the generic

@@ -1,7 +1,11 @@
 import { expect, test } from "bun:test";
 import { createInterface } from "node:readline";
 import { z } from "zod";
-import { createHttpTransport, TransportError, type TransportEvent } from "../src/transport";
+import {
+  createHttpTransport,
+  TransportError,
+  type TransportEvent,
+} from "../packages/airtty/src/transport";
 import { launch, rejectionOf, until } from "./helpers";
 
 // The cache's ServerEvent (src/cache/runtime.ts), as tests/cache-server.ts prints it.

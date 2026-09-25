@@ -79,12 +79,12 @@ with tempfile.TemporaryDirectory(prefix='airtty-pty-devtools-') as directory:
     socket = f'unix:{directory}/bus.sock'
     env = {**os.environ, 'TERM': 'xterm-256color', 'XDG_STATE_HOME': f'{directory}/state'}
     try:
-        devtools = Term([bun, 'src/cli.ts', 'devtools', '--listen', socket], env)
+        devtools = Term([bun, 'packages/airtty/src/cli.ts', 'devtools', '--listen', socket], env)
         terms.append(devtools)
         wait_for(devtools, 'AIRTTY_DEVTOOLS=')
         app = Term(
-            [bun, 'src/cli.ts', 'dev', '--app', 'examples/notes'],
-            {**env, 'AIRTTY_DEVTOOLS': socket, 'BUN_OPTIONS': f'--preload={root}/src/devtools/hook.ts', 'NOTES_DB': f'{directory}/notes.sqlite'},
+            [bun, 'packages/airtty/src/cli.ts', 'dev', '--app', 'examples/notes'],
+            {**env, 'AIRTTY_DEVTOOLS': socket, 'BUN_OPTIONS': f'--preload={root}/packages/airtty/src/devtools/hook.ts', 'NOTES_DB': f'{directory}/notes.sqlite'},
         )
         terms.append(app)
         wait_for(app, 'First note', 60)

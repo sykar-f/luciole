@@ -5,13 +5,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createRoute } from "@tanstack/react-router";
 import { createTestRenderer } from "@opentui/core/testing";
-import { createApplication } from "../src/client";
-import { startClientAgent } from "../src/devtools/client-agent";
-import { message, PLUGIN } from "../src/devtools/protocol";
-import { parseEvent, type DevtoolsEvent } from "../src/devtools/schema";
-import { listenBus, type Connection } from "../src/devtools/wire";
-import { loadPage, pageRoute, rootRoute } from "../src/route-tree";
-import type { Fetch } from "../src/transport";
+import { createApplication } from "../packages/airtty/src/client";
+import { startClientAgent } from "../packages/airtty/src/devtools/client-agent";
+import { message, PLUGIN } from "../packages/airtty/src/devtools/protocol";
+import { parseEvent, type DevtoolsEvent } from "../packages/airtty/src/devtools/schema";
+import { listenBus, type Connection } from "../packages/airtty/src/devtools/wire";
+import { loadPage, pageRoute, rootRoute } from "../packages/airtty/src/route-tree";
+import type { Fetch } from "../packages/airtty/src/transport";
 import { present, renderBody, until } from "./helpers";
 
 // Answers every render with a string, as the page of the Server's `{ tree, tags }` model.

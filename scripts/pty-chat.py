@@ -79,7 +79,7 @@ def launch(env, directory):
     fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", ROWS, COLS, 0, 0))
     before = termios.tcgetattr(slave)
     dev = subprocess.Popen(
-        [BUN, str(ROOT / "src/cli.ts"), "dev", "--app", str(APP)],
+        [BUN, str(ROOT / "packages/airtty/src/cli.ts"), "dev", "--app", str(APP)],
         stdin=slave, stdout=slave, stderr=slave, start_new_session=True,
         env={**env, "TERM": "xterm-256color", "XDG_STATE_HOME": directory + "/state"},
     )

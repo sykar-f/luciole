@@ -5,8 +5,8 @@ import { testRender } from "@opentui/react/test-utils";
 import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { build } from "../src/build";
-import type { Transport } from "../src/transport";
+import { build } from "../packages/airtty/src/build";
+import type { Transport } from "../packages/airtty/src/transport";
 import { importClient, destroy, type TestUI } from "./helpers";
 
 const files: Record<string, string> = {

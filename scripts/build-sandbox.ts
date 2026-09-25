@@ -22,7 +22,7 @@ const ARCHS = {
     image: "rust@sha256:7027e56e68dfd2c7bc66383bda559e1e1efb72301f55e4252925f6fa637d979d",
   },
 } as const;
-const crate = resolve("native/airtty-sandbox");
+const crate = resolve("packages/airtty/native/airtty-sandbox");
 const dist = join(crate, "dist");
 
 const args = process.argv.slice(2);

@@ -4,9 +4,9 @@ import { readFile, rm } from "node:fs/promises";
 import { isBuiltin } from "node:module";
 import { join, relative } from "node:path";
 import { z } from "zod";
-import { build } from "../../src/build";
-import { logMessages } from "../../src/bundle-errors";
-import { readJsonFile } from "../../src/package-json";
+import { build } from "../../packages/airtty/src/build";
+import { logMessages } from "../../packages/airtty/src/bundle-errors";
+import { readJsonFile } from "../../packages/airtty/src/package-json";
 import { isAbiSpecifier, runtimeAbi } from "./abi";
 
 const quote = JSON.stringify;

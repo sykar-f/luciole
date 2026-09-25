@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test";
 import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import { build } from "../src/build";
-import { ROUTE_TREE_FILE } from "../src/route-graph";
+import { build } from "../packages/airtty/src/build";
+import { ROUTE_TREE_FILE } from "../packages/airtty/src/route-graph";
 
 // Inside the checkout so `airtty` and TanStack resolve like in an example.
 test("generated route tree types navigation targets and params", async () => {
@@ -10,7 +10,7 @@ test("generated route tree types navigation targets and params", async () => {
   try {
     const files: Record<string, string> = {
       "tsconfig.json": JSON.stringify({
-        extends: "../tsconfig.base.json",
+        extends: "../packages/airtty/tsconfig.base.json",
         include: ["app", "components"],
       }),
       "app/layout.tsx": `"use client";import type {LayoutProps} from "airtty/client";export default function Layout({children}:LayoutProps){return <box>{children}</box>}`,
@@ -65,7 +65,7 @@ test("checked-in example route trees match the route graph", async () => {
     "examples/notes",
     "examples/latency",
     "examples/forge",
-    "src/devtools/airtty-devtools",
+    "packages/airtty/src/devtools/airtty-devtools",
   ]) {
     const file = join(resolve(example), ROUTE_TREE_FILE);
     const committed = await readFile(file, "utf8");

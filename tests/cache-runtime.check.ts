@@ -3,7 +3,7 @@ import React from "react";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { memoryCache, type CacheHandler } from "../src/cache/handler";
+import { memoryCache, type CacheHandler } from "../packages/airtty/src/cache/handler";
 import {
   cacheLife,
   cacheTag,
@@ -11,10 +11,10 @@ import {
   configureCache,
   invalidateTags,
   type CacheEvent,
-} from "../src/cache/runtime";
-import { sqliteCache } from "../src/cache/sqlite";
-import { messageOf } from "../src/guards";
-import { getOptionalSession, getSession, invalidate } from "../src/server";
+} from "../packages/airtty/src/cache/runtime";
+import { sqliteCache } from "../packages/airtty/src/cache/sqlite";
+import { messageOf } from "../packages/airtty/src/guards";
+import { getOptionalSession, getSession, invalidate } from "../packages/airtty/src/server";
 
 // Run by tests/cache.test.ts under the `react-server` condition, like the Server itself:
 // `bun test` alone resolves React's Client build. tests/helpers.ts imports `act`, which

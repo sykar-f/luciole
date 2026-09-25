@@ -92,7 +92,7 @@ def main():
 
         def airtty(*args, config=None, **kwargs):
             return subprocess.run(
-                [BUN, str(ROOT / "src/cli.ts"), *args],
+                [BUN, str(ROOT / "packages/airtty/src/cli.ts"), *args],
                 env={**env, **({"XDG_CONFIG_HOME": config} if config else {})},
                 capture_output=True,
                 text=True,
@@ -130,7 +130,7 @@ def main():
             fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", ROWS, COLS, 0, 0))
             before = termios.tcgetattr(slave)
             client = subprocess.Popen(
-                [BUN, str(ROOT / "src/cli.ts"), url, *args],
+                [BUN, str(ROOT / "packages/airtty/src/cli.ts"), url, *args],
                 cwd=directory,
                 stdin=slave,
                 stdout=slave,
@@ -154,7 +154,7 @@ def main():
             # Without --inline nothing of the application runs: refused where the sandbox
             # does not exist, offered sandboxed on macOS, where no terminal confirms it here.
             refused = subprocess.run(
-                [BUN, str(ROOT / "src/cli.ts"), url], env=env, capture_output=True, text=True
+                [BUN, str(ROOT / "packages/airtty/src/cli.ts"), url], env=env, capture_output=True, text=True
             )
             assert refused.returncode != 0, refused.stderr
             assert "--inline" in refused.stderr or "not opened" in refused.stderr, refused.stderr
@@ -190,7 +190,7 @@ def main():
             key_b = publish(str(base / "publisher-b"))
             start_server()
             changed = subprocess.run(
-                [BUN, str(ROOT / "src/cli.ts"), url], env=env, capture_output=True, text=True
+                [BUN, str(ROOT / "packages/airtty/src/cli.ts"), url], env=env, capture_output=True, text=True
             )
             assert changed.returncode != 0, changed
             assert "publisher key changed" in changed.stderr, changed.stderr
@@ -210,7 +210,7 @@ def main():
             stop_server()
             # The example keeps an unsigned build, as the repository expects.
             subprocess.run(
-                [BUN, str(ROOT / "src/cli.ts"), "build", "--app", str(MDREADER)],
+                [BUN, str(ROOT / "packages/airtty/src/cli.ts"), "build", "--app", str(MDREADER)],
                 env=env,
                 stdout=subprocess.DEVNULL,
                 check=True,

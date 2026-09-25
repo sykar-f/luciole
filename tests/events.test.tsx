@@ -1,9 +1,14 @@
 /** @jsxImportSource @opentui/react */
 import { expect, test } from "bun:test";
 import { createRoute } from "@tanstack/react-router";
-import { createApplication, type ApplicationEvent } from "../src/client";
-import { loadPage, pageRoute, rootRoute } from "../src/route-tree";
-import { createHttpTransport, now, type Fetch, type TransportEvent } from "../src/transport";
+import { createApplication, type ApplicationEvent } from "../packages/airtty/src/client";
+import { loadPage, pageRoute, rootRoute } from "../packages/airtty/src/route-tree";
+import {
+  createHttpTransport,
+  now,
+  type Fetch,
+  type TransportEvent,
+} from "../packages/airtty/src/transport";
 import { renderBody, until } from "./helpers";
 
 // One Flight model row: the root value, as JSON (see tests/http-transport.test.ts).

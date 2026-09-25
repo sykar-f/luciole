@@ -7,9 +7,9 @@ import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { z } from "zod";
-import { build } from "../src/build";
-import { compileClient } from "../src/compile";
-import { readJsonFile } from "../src/package-json";
+import { build } from "../packages/airtty/src/build";
+import { compileClient } from "../packages/airtty/src/compile";
+import { readJsonFile } from "../packages/airtty/src/package-json";
 import { launch } from "../tests/helpers";
 
 const args = process.argv.slice(2);

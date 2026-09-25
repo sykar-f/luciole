@@ -2,11 +2,16 @@ import { test, expect } from "bun:test";
 import { mkdtemp, mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { loadAppBundle } from "../src/app-bundle";
-import { build } from "../src/build";
-import { CapabilityDenied, createApplication, host, type HostChannel } from "../src/client";
-import { directChannel, HostRequest } from "../src/host";
-import { messageOf } from "../src/guards";
+import { loadAppBundle } from "../packages/airtty/src/app-bundle";
+import { build } from "../packages/airtty/src/build";
+import {
+  CapabilityDenied,
+  createApplication,
+  host,
+  type HostChannel,
+} from "../packages/airtty/src/client";
+import { directChannel, HostRequest } from "../packages/airtty/src/host";
+import { messageOf } from "../packages/airtty/src/guards";
 import { rejectionOf } from "./helpers";
 
 const isCall = (value: unknown): value is (text: string) => Promise<unknown> =>

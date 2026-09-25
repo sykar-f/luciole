@@ -2,10 +2,15 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { connect } from "../src/connect";
-import { messageOf } from "../src/guards";
-import { parseDuration } from "../src/launcher/lifetime";
-import { ensureServer, serverId, serverStatus, type EnsureOptions } from "../src/launcher/managed";
+import { connect } from "../packages/airtty/src/connect";
+import { messageOf } from "../packages/airtty/src/guards";
+import { parseDuration } from "../packages/airtty/src/launcher/lifetime";
+import {
+  ensureServer,
+  serverId,
+  serverStatus,
+  type EnsureOptions,
+} from "../packages/airtty/src/launcher/managed";
 import { rejectionOf, until } from "./helpers";
 
 let work: string, runtime: string;

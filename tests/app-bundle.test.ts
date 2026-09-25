@@ -3,20 +3,21 @@ import { mkdtemp, mkdir, rm } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { z } from "zod";
-import { ABI_KEY, ABI_PACKAGES, ABI_SPECIFIERS, AppManifest } from "../src/abi";
-import { loadAppBundle, runtimeSpecifiers } from "../src/app-bundle";
-import { build } from "../src/build";
-import { messageOf } from "../src/guards";
-import { readJsonFile } from "../src/package-json";
+import { ABI_KEY, ABI_PACKAGES, ABI_SPECIFIERS, AppManifest } from "../packages/airtty/src/abi";
+import { loadAppBundle, runtimeSpecifiers } from "../packages/airtty/src/app-bundle";
+import { build } from "../packages/airtty/src/build";
+import { messageOf } from "../packages/airtty/src/guards";
+import { readJsonFile } from "../packages/airtty/src/package-json";
 import { rejectionOf } from "./helpers";
 
 test("the ABI names the installed versions and the runtime provides every specifier", async () => {
-  const pkg = await readJsonFile(
+  // The workspace catalog pins every version the framework and the examples declare.
+  const { workspaces } = await readJsonFile(
     "package.json",
-    z.object({ dependencies: z.record(z.string(), z.string()) }),
+    z.object({ workspaces: z.object({ catalog: z.record(z.string(), z.string()) }) }),
   );
   for (const [name, version] of Object.entries(ABI_PACKAGES))
-    expect(`${name}@${pkg.dependencies[name]}`).toBe(`${name}@${version}`);
+    expect(`${name}@${workspaces.catalog[name]}`).toBe(`${name}@${version}`);
   expect(runtimeSpecifiers().sort()).toEqual([...ABI_SPECIFIERS].sort());
   expect(ABI_KEY).toMatch(/^\d+-[0-9a-f]{16}$/);
 });

@@ -26,7 +26,7 @@ with tempfile.TemporaryDirectory(prefix='airtty-pty-launcher-') as directory:
     master, slave = pty.openpty()
     fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack('HHHH', ROWS, COLUMNS, 0, 0))
     before = termios.tcgetattr(slave)
-    client = subprocess.Popen([bun, str(root / 'src/cli.ts')], cwd=directory, stdin=slave, stdout=slave,
+    client = subprocess.Popen([bun, str(root / 'packages/airtty/src/cli.ts')], cwd=directory, stdin=slave, stdout=slave,
                               stderr=slave, env=env, start_new_session=True)
     screen = pyte.Screen(COLUMNS, ROWS)
     stream = pyte.ByteStream(screen)

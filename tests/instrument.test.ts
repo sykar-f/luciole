@@ -1,7 +1,11 @@
 import { expect, test } from "bun:test";
 import { createInterface } from "node:readline";
 import { z } from "zod";
-import { createHttpTransport, TransportError, type TransportEvent } from "../src/transport";
+import {
+  createHttpTransport,
+  TransportError,
+  type TransportEvent,
+} from "../packages/airtty/src/transport";
 import { launch, rejectionOf, until } from "./helpers";
 
 // What tests/instrument-server.ts prints for each ServerEvent (src/server.ts).

@@ -15,8 +15,10 @@ export type CommandContext = {
 /** A subcommand: its fragment of the usage line, and what it does. */
 export type Command = { usage: string; run: (context: CommandContext) => Promise<void> };
 
-/** The checkout of the framework: starters copy from it, `dev` reuses its packages. */
+/** The framework package (`packages/airtty`): `dev` reuses its packages. */
 export const frameworkRoot = resolve(import.meta.dir, "../..");
+/** The workspace holding it: starters copy its Notes example and tooling configuration. */
+export const workspaceRoot = resolve(frameworkRoot, "../..");
 
 // A child that ignores SIGTERM this long is killed.
 const STOP_GRACE_MS = 1500;

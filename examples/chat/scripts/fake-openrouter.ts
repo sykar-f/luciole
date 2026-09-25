@@ -3,7 +3,7 @@
 //
 //   bun examples/chat/scripts/fake-openrouter.ts            # prints {"port": …}
 //   OPENROUTER_API_KEY=sk-or-fake OPENROUTER_BASE_URL=http://127.0.0.1:<port>/api/v1 \
-//     bun src/cli.ts dev --app examples/chat
+//     bun packages/airtty/src/cli.ts dev --app examples/chat
 //
 // It streams an echo of the last message in Markdown, a few reasoning chunks first, and
 // the usage with its cost last. The key `sk-or-bad` is refused (401); a message containing

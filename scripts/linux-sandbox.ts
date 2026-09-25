@@ -44,7 +44,7 @@ const CASES = [
 ] as const;
 
 const SKIPPED = 3;
-const launcher = resolve(`native/airtty-sandbox/dist/linux-${arch}/airtty-sandbox`);
+const launcher = resolve(`packages/airtty/native/airtty-sandbox/dist/linux-${arch}/airtty-sandbox`);
 if (!existsSync(launcher)) throw new Error(`${launcher} is missing: bun scripts/build-sandbox.ts`);
 
 async function run(cmd: string[], stdin?: string) {
@@ -81,8 +81,8 @@ try {
     "mkdir -p ~/.ssh && echo 'Host secret' > ~/.ssh/config",
     // A mechanism this kernel does not allow (Landlock ABI < 6 for Landlock alone, say) is
     // skipped, and said so; the run fails if none ran at all.
-    `bun -e "import {sandboxAvailability as a} from './src/sandbox/runtime';const r=a();if(!r.mechanism){console.log('skipped: '+r.reason);process.exit(${SKIPPED})}"`,
-    `echo "mechanism: $AIRTTY_SANDBOX_MECHANISM, probe: $(${join("/src", "native/airtty-sandbox/dist", `linux-${arch}`, "airtty-sandbox")} --probe)"`,
+    `bun -e "import {sandboxAvailability as a} from './packages/airtty/src/sandbox/runtime';const r=a();if(!r.mechanism){console.log('skipped: '+r.reason);process.exit(${SKIPPED})}"`,
+    `echo "mechanism: $AIRTTY_SANDBOX_MECHANISM, probe: $(${join("/src", "packages/airtty/native/airtty-sandbox/dist", `linux-${arch}`, "airtty-sandbox")} --probe)"`,
     "bun test --timeout 60000 tests/sandbox.test.ts",
     "python3 scripts/pty-sandbox.py",
   ].join("\n");
@@ -120,7 +120,7 @@ try {
   }
   if (!only) {
     console.log(`\n=== cargo test (${arch})`);
-    const crate = resolve("native/airtty-sandbox");
+    const crate = resolve("packages/airtty/native/airtty-sandbox");
     const code = await run([
       "docker",
       "run",

@@ -4,10 +4,10 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { z } from "zod";
-import { serverStatus } from "../src/launcher/managed";
+import { serverStatus } from "../packages/airtty/src/launcher/managed";
 import { leaveCrashedSession } from "./helpers";
 
-const cli = resolve("src/cli.ts");
+const cli = resolve("packages/airtty/src/cli.ts");
 
 // macOS and util-linux spell script(1) differently; see tests/compile.test.ts.
 const inPty = (log: string, command: string) => {
@@ -74,7 +74,7 @@ test("a launcher killed with SIGKILL leaves its Server in grace, or stops it wit
     const script = join(work, `launcher-${graceMs}.ts`);
     await Bun.write(
       script,
-      `import { ensureServer, serverId } from ${JSON.stringify(resolve("src/launcher/managed.ts"))};
+      `import { ensureServer, serverId } from ${JSON.stringify(resolve("packages/airtty/src/launcher/managed.ts"))};
 const server = await ensureServer({
   id: serverId("local:kill-${graceMs}"),
   name: "kill",

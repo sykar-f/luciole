@@ -10,15 +10,15 @@ import { createRootRoute } from "@tanstack/react-router";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { build } from "../src/build";
+import { build } from "../packages/airtty/src/build";
 import {
   Application,
   Embed,
   openApplication,
   type ApplicationEvent,
   type ApplicationOptions,
-} from "../src/client";
-import { ApplicationView } from "../src/embed";
+} from "../packages/airtty/src/client";
+import { ApplicationView } from "../packages/airtty/src/embed";
 import { destroy, launch, rejectionOf, until, type TestUI } from "./helpers";
 
 const mdreader = resolve("examples/mdreader");

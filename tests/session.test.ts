@@ -3,8 +3,13 @@ import { spawnSync } from "node:child_process";
 import { mkdtemp, readdir, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { Session } from "../src/restore";
-import { ORPHAN_RETENTION_MS, SAVE_DELAY_MS, openSession, sessionDirectory } from "../src/session";
+import type { Session } from "../packages/airtty/src/restore";
+import {
+  ORPHAN_RETENTION_MS,
+  SAVE_DELAY_MS,
+  openSession,
+  sessionDirectory,
+} from "../packages/airtty/src/session";
 
 let state: string;
 beforeEach(async () => {

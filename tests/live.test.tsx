@@ -5,7 +5,7 @@ import { testRender } from "@opentui/react/test-utils";
 import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { build } from "../src/build";
+import { build } from "../packages/airtty/src/build";
 import { z } from "zod";
 import { launch, importClient, readManifest, destroy, type TestUI } from "./helpers";
 

@@ -4,7 +4,7 @@ import { act } from "react";
 import { testRender } from "@opentui/react/test-utils";
 import { BoxRenderable, InputRenderable, ScrollBoxRenderable } from "@opentui/core";
 import { join, resolve } from "node:path";
-import { build } from "../src/build";
+import { build } from "../packages/airtty/src/build";
 import {
   launch,
   until,

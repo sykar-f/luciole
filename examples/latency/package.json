@@ -1,0 +1,10 @@
+{
+  "name": "@airtty-examples/latency",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "airtty": "workspace:*",
+    "@tanstack/react-router": "catalog:",
+    "react": "catalog:"
+  }
+}

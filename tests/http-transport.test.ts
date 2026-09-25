@@ -5,8 +5,8 @@ import {
   TransportError,
   createHttpTransport,
   type Fetch,
-} from "../src/transport";
-import { messageOf } from "../src/guards";
+} from "../packages/airtty/src/transport";
+import { messageOf } from "../packages/airtty/src/guards";
 import { rejectionOf, renderBody } from "./helpers";
 
 const base = {

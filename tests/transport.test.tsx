@@ -8,7 +8,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { Database } from "bun:sqlite";
 import { z } from "zod";
-import { build } from "../src/build";
+import { build } from "../packages/airtty/src/build";
 import {
   launch,
   until,

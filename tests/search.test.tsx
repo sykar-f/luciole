@@ -6,7 +6,7 @@ import type { RouterHistory } from "@tanstack/react-router";
 import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { build } from "../src/build";
+import { build } from "../packages/airtty/src/build";
 import { launch, importClient, destroy, metricsOf, type TestUI } from "./helpers";
 
 // `AnyRouter` types its history as `any`: checked before use.

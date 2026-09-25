@@ -10,8 +10,8 @@ import {
   openTunnel,
   serverUrl,
   socketDirectory,
-} from "../src/connect";
-import { messageOf } from "../src/guards";
+} from "../packages/airtty/src/connect";
+import { messageOf } from "../packages/airtty/src/guards";
 import { rejectionOf, until } from "./helpers";
 
 let work: string, fakeSsh: string, server: ReturnType<typeof Bun.serve>;
@@ -185,7 +185,7 @@ test("a signal while ssh authenticates stops ssh and removes the socket director
   const script = join(work, "waiting-client.ts");
   await Bun.write(
     script,
-    `import { openTunnel } from ${JSON.stringify(resolve("src/connect.ts"))};
+    `import { openTunnel } from ${JSON.stringify(resolve("packages/airtty/src/connect.ts"))};
 await openTunnel("ssh://silent.example", { ssh: ${JSON.stringify(fakeSsh)} });`,
   );
   const calls = () => readFileSync(join(work, "calls.jsonl"), "utf8").length;

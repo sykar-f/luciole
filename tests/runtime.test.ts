@@ -2,9 +2,9 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import { mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { build } from "../src/build";
-import { compileClient, fetchRuntime, hostTarget } from "../src/compile";
-import { messageOf } from "../src/guards";
+import { build } from "../packages/airtty/src/build";
+import { compileClient, fetchRuntime, hostTarget } from "../packages/airtty/src/compile";
+import { messageOf } from "../packages/airtty/src/guards";
 import { rejectionOf } from "./helpers";
 
 // A registry serving a fake runtime package, the way npm publishes @oven/bun-<os>-<arch>.

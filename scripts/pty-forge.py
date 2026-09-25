@@ -78,7 +78,7 @@ class Terminal:
 
 
 def main():
-    subprocess.run([BUN, str(ROOT / "src/cli.ts"), "build", "--app", str(APP)], check=True, stdout=subprocess.DEVNULL)
+    subprocess.run([BUN, str(ROOT / "packages/airtty/src/cli.ts"), "build", "--app", str(APP)], check=True, stdout=subprocess.DEVNULL)
     with tempfile.TemporaryDirectory(prefix="forge-pty-") as directory:
         server = client = master = slave = None
         try:

@@ -5,8 +5,8 @@ import { testRender } from "@opentui/react/test-utils";
 import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { build } from "../src/build";
-import type { Application } from "../src/client";
+import { build } from "../packages/airtty/src/build";
+import type { Application } from "../packages/airtty/src/client";
 import { launch, importClient, readManifest, rejectionOf, destroy, type TestUI } from "./helpers";
 
 async function authFixture(directory: string) {

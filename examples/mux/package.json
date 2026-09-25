@@ -1,0 +1,11 @@
+{
+  "name": "@airtty-examples/mux",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "airtty": "workspace:*",
+    "@tanstack/react-router": "catalog:",
+    "react": "catalog:",
+    "zod": "catalog:"
+  }
+}

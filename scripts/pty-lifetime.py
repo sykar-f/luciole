@@ -40,7 +40,7 @@ with tempfile.TemporaryDirectory(prefix='airtty-pty-lifetime-') as directory, \
         state['screen'] = pyte.Screen(COLUMNS, ROWS)
         state['stream'] = pyte.ByteStream(state['screen'])
         state['captured'] = b''
-        state['launcher'] = subprocess.Popen([bun, str(root / 'src/cli.ts'), str(root / 'examples/notes')],
+        state['launcher'] = subprocess.Popen([bun, str(root / 'packages/airtty/src/cli.ts'), str(root / 'examples/notes')],
                                              cwd=directory, stdin=slave, stdout=slave, stderr=slave, env=env,
                                              start_new_session=True)
 

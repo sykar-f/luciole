@@ -6,8 +6,8 @@ import { testRender } from "@opentui/react/test-utils";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { build } from "../src/build";
-import { instrumentTracing } from "../src/client";
+import { build } from "../packages/airtty/src/build";
+import { instrumentTracing } from "../packages/airtty/src/client";
 import { launch, until, importClient, destroy, draftOf, renderable, type TestUI } from "./helpers";
 
 const root = resolve("examples/notes");

@@ -3,18 +3,18 @@ import { createHash } from "node:crypto";
 import { chmod, mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { AppManifest } from "../src/abi";
-import { loadAppBundle } from "../src/app-bundle";
-import { appRoutes } from "../src/app-routes";
-import { build } from "../src/build";
-import { Capabilities } from "../src/capabilities";
-import { messageOf } from "../src/guards";
+import { AppManifest } from "../packages/airtty/src/abi";
+import { loadAppBundle } from "../packages/airtty/src/app-bundle";
+import { appRoutes } from "../packages/airtty/src/app-routes";
+import { build } from "../packages/airtty/src/build";
+import { Capabilities } from "../packages/airtty/src/capabilities";
+import { messageOf } from "../packages/airtty/src/guards";
 import {
   generatePublisherKey,
   publisherIdentity,
   readPublisherKey,
   verifyManifest,
-} from "../src/publisher";
+} from "../packages/airtty/src/publisher";
 import { launch, rejectionOf } from "./helpers";
 
 const PERMISSIONS = 0o777;

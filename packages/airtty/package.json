@@ -1,0 +1,38 @@
+{
+  "name": "airtty",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "airtty": "./src/cli.ts",
+    "airttyx": "./src/airttyx.ts"
+  },
+  "exports": {
+    "./client": "./src/client.tsx",
+    "./server": "./src/server.ts",
+    "./route-tree": "./src/route-tree.tsx",
+    "./build": "./src/build.ts",
+    "./tsconfig": "./tsconfig.base.json"
+  },
+  "dependencies": {
+    "@opentui/core": "0.5.12",
+    "@opentui/keymap": "0.5.12",
+    "@opentui/react": "0.5.12",
+    "@tanstack/react-router": "1.170.38",
+    "@typescript/typescript6": "6.0.2",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-reconciler": "0.33.0",
+    "react-server-dom-webpack": "19.3.0",
+    "typescript": "7.0.2",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@types/bun": "1.4.2",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "oxfmt": "0.70.0",
+    "oxlint": "1.85.0",
+    "oxlint-tsgolint": "7.0.2002"
+  }
+}

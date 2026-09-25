@@ -1,0 +1,14 @@
+{
+  "name": "@airtty-examples/forge",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "airtty": "workspace:*",
+    "@opentui/core": "catalog:",
+    "@opentui/react": "catalog:",
+    "@tanstack/react-form": "catalog:",
+    "@tanstack/react-router": "catalog:",
+    "react": "catalog:",
+    "zod": "catalog:"
+  }
+}

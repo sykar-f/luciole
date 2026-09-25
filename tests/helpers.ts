@@ -4,8 +4,8 @@ import { createInterface } from "node:readline";
 import { act, type ReactNode } from "react";
 import type { testRender } from "@opentui/react/test-utils";
 import { z } from "zod";
-import type { Application, ApplicationOptions } from "../src/client";
-import { readJsonFile } from "../src/package-json";
+import type { Application, ApplicationOptions } from "../packages/airtty/src/client";
+import { readJsonFile } from "../packages/airtty/src/package-json";
 import type { DraftStore } from "../examples/notes/components/draft";
 
 /** `value`, which the test expects to exist: fails naming `what` when the domain has none. */

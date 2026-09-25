@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { z } from "zod";
-import { PRIMITIVE_NODES } from "../src/devtools/fibers";
+import { PRIMITIVE_NODES } from "../packages/airtty/src/devtools/fibers";
 
 const Output = z.object({
   owner: z.enum(["airtty", "react-devtools"]),
@@ -24,11 +24,14 @@ const Output = z.object({
 });
 // The fixture runs in its own process, with the hook preloaded as docs/DEVTOOLS.md says.
 async function spawnFixture(fixture: string, env: Record<string, string> = {}) {
-  const child = Bun.spawn([process.execPath, "--preload", "./src/devtools/hook.ts", fixture], {
-    env: { ...process.env, ...env },
-    stdout: "pipe",
-    stderr: "pipe",
-  });
+  const child = Bun.spawn(
+    [process.execPath, "--preload", "./packages/airtty/src/devtools/hook.ts", fixture],
+    {
+      env: { ...process.env, ...env },
+      stdout: "pipe",
+      stderr: "pipe",
+    },
+  );
   const [stdout, stderr] = await Promise.all([
     new Response(child.stdout).text(),
     new Response(child.stderr).text(),

@@ -1,0 +1,5 @@
+# The layout the framework had before workspaces: one tree at the root. The isolated
+# linker (the workspace default) is untested with the single React, OpenTUI Core and
+# reconciler that tests/dependencies.test.ts requires.
+[install]
+linker = "hoisted"

@@ -1,9 +1,9 @@
 import { expect, test } from "bun:test";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import { build } from "../src/build";
-import { annotateNames, routeComponentName } from "../src/build-names";
-import { sourceLocation } from "../src/devtools/airtty-devtools/components/editor";
+import { build } from "../packages/airtty/src/build";
+import { annotateNames, routeComponentName } from "../packages/airtty/src/build-names";
+import { sourceLocation } from "../packages/airtty/src/devtools/airtty-devtools/components/editor";
 import { importClient } from "./helpers";
 
 const runtime = "/fw/devtools/annotate.ts";
@@ -95,7 +95,7 @@ test("a built Client names its components and records their source and hooks", a
 }, 60_000);
 
 test("framework components read airtty/<file>, and open at their real path", () => {
-  const framework = resolve("src");
+  const framework = resolve("packages/airtty/src");
   const out = annotateNames("export function Input() { return null }\n", {
     path: join(framework, "fields.tsx"),
     relative: "../../src/fields.tsx",

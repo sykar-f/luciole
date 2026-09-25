@@ -3,13 +3,13 @@ import { Database } from "bun:sqlite";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { build } from "../src/build";
+import { build } from "../packages/airtty/src/build";
 import {
   createHttpTransport,
   networkFromEnv,
   TransportError,
   type Outcome,
-} from "../src/transport";
+} from "../packages/airtty/src/transport";
 import { z } from "zod";
 import { launch, until } from "./helpers";
 

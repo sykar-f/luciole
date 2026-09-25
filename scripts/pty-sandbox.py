@@ -88,7 +88,7 @@ def main():
     # What this system allows (src/sandbox/mechanism.ts): nothing → said so, and skipped.
     availability = json.loads(
         subprocess.run(
-            [BUN, "-e", "import {sandboxAvailability} from './src/sandbox/runtime';"
+            [BUN, "-e", "import {sandboxAvailability} from './packages/airtty/src/sandbox/runtime';"
              "console.log(JSON.stringify(sandboxAvailability()))"],
             cwd=ROOT, capture_output=True, text=True, check=True,
         ).stdout
@@ -118,7 +118,7 @@ def main():
 
         def airtty(*args, config=None, **kwargs):
             return subprocess.run(
-                [BUN, str(ROOT / "src/cli.ts"), *args],
+                [BUN, str(ROOT / "packages/airtty/src/cli.ts"), *args],
                 env={**env, **({"XDG_CONFIG_HOME": config} if config else {})},
                 capture_output=True,
                 text=True,
@@ -144,7 +144,7 @@ def main():
             fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", ROWS, COLS, 0, 0))
             before = termios.tcgetattr(slave)
             client = subprocess.Popen(
-                [BUN, str(ROOT / "src/cli.ts"), url, *args],
+                [BUN, str(ROOT / "packages/airtty/src/cli.ts"), url, *args],
                 cwd=directory,
                 stdin=slave,
                 stdout=slave,
@@ -244,7 +244,7 @@ def main():
                 server.wait(timeout=5)
             # The example keeps an unsigned build, as the repository expects.
             subprocess.run(
-                [BUN, str(ROOT / "src/cli.ts"), "build", "--app", str(MDREADER)],
+                [BUN, str(ROOT / "packages/airtty/src/cli.ts"), "build", "--app", str(MDREADER)],
                 env=env,
                 stdout=subprocess.DEVNULL,
                 check=True,

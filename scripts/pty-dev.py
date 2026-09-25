@@ -6,7 +6,7 @@ with tempfile.TemporaryDirectory(prefix='airtty-dev-') as directory:
  app=pathlib.Path(directory)/'app-source';shutil.copytree(root/'examples/notes',app,ignore=shutil.ignore_patterns('.airtty','*.sqlite*'))
  master,slave=pty.openpty();fcntl.ioctl(slave,termios.TIOCSWINSZ,struct.pack('HHHH',32,140,0,0));before=termios.tcgetattr(slave)
  sessions=pathlib.Path(directory)/'state'/'airtty'/'app-source'/'sessions'
- dev=subprocess.Popen([bun,str(root/'src/cli.ts'),'dev','--app',str(app)],stdin=slave,stdout=slave,stderr=slave,env={**os.environ,'TERM':'xterm-256color','NOTES_DB':directory+'/notes.sqlite','XDG_STATE_HOME':directory+'/state'},start_new_session=True)
+ dev=subprocess.Popen([bun,str(root/'packages/airtty/src/cli.ts'),'dev','--app',str(app)],stdin=slave,stdout=slave,stderr=slave,env={**os.environ,'TERM':'xterm-256color','NOTES_DB':directory+'/notes.sqlite','XDG_STATE_HOME':directory+'/state'},start_new_session=True)
  screen=pyte.Screen(140,32);stream=pyte.ByteStream(screen);raw=b''
  def pump():
   global raw

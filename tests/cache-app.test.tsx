@@ -5,8 +5,8 @@ import { testRender } from "@opentui/react/test-utils";
 import { mkdir, mkdtemp, readFile, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { build } from "../src/build";
-import type { ApplicationEvent } from "../src/client";
+import { build } from "../packages/airtty/src/build";
+import type { ApplicationEvent } from "../packages/airtty/src/client";
 import { destroy, importClient, launch, until, type TestUI } from "./helpers";
 
 // Two cached reads with their own tag, an action that invalidates one tag, a page with a

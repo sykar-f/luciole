@@ -5,7 +5,7 @@ import {
   registerServerReference,
   renderToReadableStream,
   decodeReply,
-} from "../src/flight/server";
+} from "../packages/airtty/src/flight/server";
 let saved = "";
 const Editor = registerClientReference((_props: { save: typeof save }) => null, "editor", "Editor");
 const save = registerServerReference(

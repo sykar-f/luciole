@@ -1,0 +1,14 @@
+{
+  "name": "@airtty-examples/files",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "airtty": "workspace:*",
+    "@opentui/core": "catalog:",
+    "@opentui/react": "catalog:",
+    "@tanstack/react-router": "catalog:",
+    "react": "catalog:",
+    "sharp": "catalog:",
+    "zod": "catalog:"
+  }
+}

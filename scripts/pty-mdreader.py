@@ -202,7 +202,7 @@ class Session:
 
 def main():
     subprocess.run(
-        [BUN, str(ROOT / "src/cli.ts"), "build", "--app", str(APP)], check=True, stdout=subprocess.DEVNULL
+        [BUN, str(ROOT / "packages/airtty/src/cli.ts"), "build", "--app", str(APP)], check=True, stdout=subprocess.DEVNULL
     )
     with tempfile.TemporaryDirectory(prefix="mdreader-pty-") as directory:
         docs = library(directory)

@@ -3,8 +3,8 @@ import { beforeAll, expect, test } from "bun:test";
 import { chmod, mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { build } from "../src/build";
-import { messageOf } from "../src/guards";
+import { build } from "../packages/airtty/src/build";
+import { messageOf } from "../packages/airtty/src/guards";
 import { forgeDirectory, startForge } from "./forge-helpers";
 import { present, rejectionOf } from "./helpers";
 

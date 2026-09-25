@@ -1,11 +1,11 @@
 import { expect, test } from "bun:test";
-import { fixtureSession, FIXTURE_START } from "../src/devtools/fixtures";
-import { message, PLUGIN } from "../src/devtools/protocol";
-import { parseEvent } from "../src/devtools/schema";
-import type { Stored } from "../src/devtools/model/session";
-import { toHar } from "../src/devtools/model/har";
-import { cacheBadge, phases, rowStatus } from "../src/devtools/model/network";
-import { createSession } from "../src/devtools/model/session";
+import { fixtureSession, FIXTURE_START } from "../packages/airtty/src/devtools/fixtures";
+import { message, PLUGIN } from "../packages/airtty/src/devtools/protocol";
+import { parseEvent } from "../packages/airtty/src/devtools/schema";
+import type { Stored } from "../packages/airtty/src/devtools/model/session";
+import { toHar } from "../packages/airtty/src/devtools/model/har";
+import { cacheBadge, phases, rowStatus } from "../packages/airtty/src/devtools/model/network";
+import { createSession } from "../packages/airtty/src/devtools/model/session";
 
 const loaded = (events = fixtureSession()) => {
   const session = createSession();

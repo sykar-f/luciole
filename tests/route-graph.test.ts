@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { compileRouteGraph } from "../src/route-graph";
+import { compileRouteGraph } from "../packages/airtty/src/route-graph";
 
 test("nested layouts, pathless groups, index pages and inherited loading", () => {
   const graph = compileRouteGraph([

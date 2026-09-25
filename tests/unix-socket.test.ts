@@ -5,8 +5,8 @@ import { rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { createInterface } from "node:readline";
 import { z } from "zod";
-import { connect, socketDirectory } from "../src/connect";
-import { createHttpTransport } from "../src/transport";
+import { connect, socketDirectory } from "../packages/airtty/src/connect";
+import { createHttpTransport } from "../packages/airtty/src/transport";
 
 const Ready = z.object({ ready: z.literal(true), socket: z.string(), buildId: z.string() });
 

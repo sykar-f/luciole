@@ -6,7 +6,7 @@ PTY answers no kitty query) → text preview with line numbers → open a direct
 screen under latency) → code preview → back to the parent with the selection kept →
 dotfiles → binary hex dump → zoom → quit. Observes PTY output, not photons.
 
-Build first: bun src/cli.ts build --app examples/files
+Build first: bun packages/airtty/src/cli.ts build --app examples/files
 """
 import fcntl
 import json

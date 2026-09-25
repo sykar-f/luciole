@@ -1,33 +1,49 @@
 {
-  "name": "airtty",
-  "version": "0.1.0",
+  "name": "airtty-workspace",
   "private": true,
   "type": "module",
   "packageManager": "bun@1.4.2",
-  "bin": {
-    "airtty": "./src/cli.ts",
-    "airttyx": "./src/airttyx.ts"
-  },
-  "exports": {
-    "./client": "./src/client.tsx",
-    "./server": "./src/server.ts",
-    "./route-tree": "./src/route-tree.tsx",
-    "./build": "./src/build.ts",
-    "./tsconfig": "./tsconfig.base.json"
+  "workspaces": {
+    "packages": [
+      "packages/*",
+      "examples/*"
+    ],
+    "catalog": {
+      "@opentui/core": "0.5.12",
+      "@opentui/keymap": "0.5.12",
+      "@opentui/react": "0.5.12",
+      "@tanstack/react-form": "1.33.5",
+      "@tanstack/react-router": "1.170.38",
+      "@types/bun": "1.4.2",
+      "@types/react": "19.3.0",
+      "@types/react-dom": "19.3.0",
+      "@typescript/typescript6": "6.0.2",
+      "marked": "17.0.1",
+      "oxfmt": "0.70.0",
+      "oxlint": "1.85.0",
+      "oxlint-tsgolint": "7.0.2002",
+      "react": "19.3.0",
+      "react-dom": "19.3.0",
+      "react-reconciler": "0.33.0",
+      "react-server-dom-webpack": "19.3.0",
+      "sharp": "0.35.4",
+      "typescript": "7.0.2",
+      "zod": "4.6.5"
+    }
   },
   "scripts": {
     "test": "bun test --timeout 20000",
     "probes": "cd probes/rsc && bun install --frozen-lockfile && bun probe.tsx && cd ../rpc && bun install --frozen-lockfile && bun probe.tsx",
-    "build": "bun src/cli.ts build",
-    "dev": "bun src/cli.ts dev",
-    "forge": "FORGE_GIT_REPO=. bun src/cli.ts dev --app examples/forge",
+    "build": "bun packages/airtty/src/cli.ts build",
+    "dev": "bun packages/airtty/src/cli.ts dev",
+    "forge": "FORGE_GIT_REPO=. bun packages/airtty/src/cli.ts dev --app examples/forge",
     "forge:operator": "bun examples/forge/scripts/operator.ts",
-    "files": "bun src/cli.ts dev --app examples/files",
-    "mdreader": "bun src/cli.ts dev --app examples/mdreader",
-    "mux": "bun src/cli.ts dev --app examples/mux",
-    "chat": "bun src/cli.ts dev --app examples/chat",
-    "agent": "bun src/cli.ts dev --app examples/agent",
-    "check": "tsc --noEmit && tsc --noEmit -p examples/notes && tsc --noEmit -p examples/latency && tsc --noEmit -p examples/forge && tsc --noEmit -p examples/files && tsc --noEmit -p examples/mdreader && tsc --noEmit -p examples/chat && tsc --noEmit -p examples/agent && tsc --noEmit -p examples/mux && tsc --noEmit -p src/devtools/airtty-devtools && tsc --noEmit -p src/launcher/airtty && tsc --noEmit -p src/generic/browser",
+    "files": "bun packages/airtty/src/cli.ts dev --app examples/files",
+    "mdreader": "bun packages/airtty/src/cli.ts dev --app examples/mdreader",
+    "mux": "bun packages/airtty/src/cli.ts dev --app examples/mux",
+    "chat": "bun packages/airtty/src/cli.ts dev --app examples/chat",
+    "agent": "bun packages/airtty/src/cli.ts dev --app examples/agent",
+    "check": "tsc --noEmit && tsc --noEmit -p packages/airtty && tsc --noEmit -p examples/notes && tsc --noEmit -p examples/latency && tsc --noEmit -p examples/forge && tsc --noEmit -p examples/files && tsc --noEmit -p examples/mdreader && tsc --noEmit -p examples/chat && tsc --noEmit -p examples/agent && tsc --noEmit -p examples/mux && tsc --noEmit -p packages/airtty/src/devtools/airtty-devtools && tsc --noEmit -p packages/airtty/src/launcher/airtty && tsc --noEmit -p packages/airtty/src/generic/browser",
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
     "test:pty": "python3 scripts/pty-smoke.py",
@@ -50,28 +66,20 @@
     "lint": "oxlint --deny-warnings .",
     "lint:fix": "oxlint --fix ."
   },
-  "dependencies": {
-    "@opentui/core": "0.5.12",
-    "@opentui/keymap": "0.5.12",
-    "@opentui/react": "0.5.12",
-    "@tanstack/react-router": "1.170.38",
-    "@typescript/typescript6": "6.0.2",
-    "marked": "17.0.1",
-    "react": "19.3.0",
-    "react-dom": "19.3.0",
-    "react-reconciler": "0.33.0",
-    "react-server-dom-webpack": "19.3.0",
-    "sharp": "0.35.4",
-    "typescript": "7.0.2",
-    "zod": "4.6.5"
-  },
   "devDependencies": {
-    "@tanstack/react-form": "1.33.5",
-    "@types/bun": "1.4.2",
-    "@types/react": "19.3.0",
-    "@types/react-dom": "19.3.0",
-    "oxfmt": "0.70.0",
-    "oxlint": "1.85.0",
-    "oxlint-tsgolint": "7.0.2002"
+    "airtty": "workspace:*",
+    "@opentui/core": "catalog:",
+    "@opentui/keymap": "catalog:",
+    "@opentui/react": "catalog:",
+    "@tanstack/react-router": "catalog:",
+    "react": "catalog:",
+    "sharp": "catalog:",
+    "zod": "catalog:",
+    "@types/bun": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "oxfmt": "catalog:",
+    "oxlint": "catalog:",
+    "oxlint-tsgolint": "catalog:"
   }
 }

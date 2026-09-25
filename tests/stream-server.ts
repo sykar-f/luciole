@@ -1,5 +1,5 @@
-import { renderPage } from "../src/cache/render";
-import { renderToReadableStream } from "../src/flight/server";
+import { renderPage } from "../packages/airtty/src/cache/render";
+import { renderToReadableStream } from "../packages/airtty/src/flight/server";
 // A root model (children: a title, then lines) whose async iterable outlives the Client's
 // request timeout.
 async function* lines() {

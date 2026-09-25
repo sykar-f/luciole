@@ -108,7 +108,7 @@ with tempfile.TemporaryDirectory(prefix="airtty-agent-") as directory:
         "XDG_STATE_HOME": str(state),
     }
     dev = subprocess.Popen(
-        [BUN, str(ROOT / "src/cli.ts"), "dev", "--app", str(ROOT / "examples/agent")],
+        [BUN, str(ROOT / "packages/airtty/src/cli.ts"), "dev", "--app", str(ROOT / "examples/agent")],
         stdin=slave, stdout=slave, stderr=slave, env=env, start_new_session=True,
     )
     term = Terminal(master)

@@ -2,8 +2,8 @@ import { test, expect } from "bun:test";
 import { mkdtemp, mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { build } from "../src/build";
-import { messageOf } from "../src/guards";
+import { build } from "../packages/airtty/src/build";
+import { messageOf } from "../packages/airtty/src/guards";
 import { readManifest, rejectionOf } from "./helpers";
 async function fixture(files: Record<string, string>, run: (dir: string) => Promise<void>) {
   const dir = await mkdtemp(join(tmpdir(), "airtty-build-"));

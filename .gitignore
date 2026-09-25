@@ -5,4 +5,4 @@ node_modules/
 __pycache__/
 .airtty-*/
 examples/chat/pty-frame.txt
-native/airtty-sandbox/target/
+packages/airtty/native/airtty-sandbox/target/

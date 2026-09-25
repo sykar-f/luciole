@@ -3,10 +3,14 @@ import { existsSync } from "node:fs";
 import { cp, mkdtemp, readFile, rename, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { build } from "../src/build";
-import { messageOf } from "../src/guards";
-import { prepareGitApp, repositoryName, type GitOptions } from "../src/launcher/git";
-import { parseGitSource } from "../src/launcher/git-source";
+import { build } from "../packages/airtty/src/build";
+import { messageOf } from "../packages/airtty/src/guards";
+import {
+  prepareGitApp,
+  repositoryName,
+  type GitOptions,
+} from "../packages/airtty/src/launcher/git";
+import { parseGitSource } from "../packages/airtty/src/launcher/git-source";
 import { rejectionOf } from "./helpers";
 
 let work: string, remote: string;

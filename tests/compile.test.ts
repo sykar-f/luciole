@@ -2,9 +2,9 @@ import { expect, test } from "bun:test";
 import { copyFile, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { build } from "../src/build";
-import { compileClient, hostTarget } from "../src/compile";
-import { messageOf } from "../src/guards";
+import { build } from "../packages/airtty/src/build";
+import { compileClient, hostTarget } from "../packages/airtty/src/compile";
+import { messageOf } from "../packages/airtty/src/guards";
 import { launch, rejectionOf } from "./helpers";
 
 const root = resolve("examples/notes");
@@ -121,10 +121,13 @@ test("signing is only accepted where it can succeed", async () => {
 
 test("a publishing flag without its value is refused before any build", () => {
   const cli = (...flags: string[]) =>
-    Bun.spawnSync([process.execPath, "src/cli.ts", "build", "--compile", ...flags], {
-      stdout: "pipe",
-      stderr: "pipe",
-    });
+    Bun.spawnSync(
+      [process.execPath, "packages/airtty/src/cli.ts", "build", "--compile", ...flags],
+      {
+        stdout: "pipe",
+        stderr: "pipe",
+      },
+    );
   // Last on the line, or followed by another flag: both used to mean "not requested".
   for (const flags of [
     ["--sign", "Developer ID Application: Acme", "--notarize"],

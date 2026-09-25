@@ -2,13 +2,13 @@ import { afterAll, expect, test } from "bun:test";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { governingLock } from "../src/lockfile";
+import { governingLock } from "../packages/airtty/src/lockfile";
 
 const work = await mkdtemp(join(tmpdir(), "airtty-lockfile-"));
 afterAll(() => rm(work, { recursive: true, force: true }));
 
 test("the framework of this checkout is governed by its root lock", () => {
-  expect(governingLock(resolve("src"))).toBe(resolve("bun.lock"));
+  expect(governingLock(resolve("packages/airtty/src"))).toBe(resolve("bun.lock"));
 });
 
 test("a workspace member and a package installed below an app share the enclosing lock", async () => {

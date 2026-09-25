@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { join, sep } from "node:path";
 import { watch } from "node:fs";
 import { symlink } from "node:fs/promises";
 import { spawn, type ChildProcess } from "node:child_process";
@@ -17,6 +17,18 @@ const ClientMessage = z.union([
 ]);
 /** The line a Server prints once it listens (src/server.ts). */
 const ServerReady = z.object({ ready: z.literal(true), port: z.number().int() });
+/**
+ * The node_modules the framework's packages come from: its own, or the workspace root's
+ * where they are hoisted. React stands for all of them.
+ */
+function frameworkModules() {
+  const react = Bun.resolveSync("react/package.json", frameworkRoot);
+  return react.slice(
+    0,
+    react.lastIndexOf(`${sep}node_modules${sep}`) + `${sep}node_modules`.length,
+  );
+}
+
 export const dev: Command = {
   usage: "dev",
   async run({ directory }) {
@@ -49,11 +61,7 @@ export const dev: Command = {
         try {
           await build(directory);
           // Development reuses the framework installation, even for a starter elsewhere.
-          await symlink(
-            join(frameworkRoot, "node_modules"),
-            join(directory, ".airtty/node_modules"),
-            "dir",
-          );
+          await symlink(frameworkModules(), join(directory, ".airtty/node_modules"), "dir");
           if (closing) break;
           await Promise.all([stop(client), stop(server)]);
           server = spawn(

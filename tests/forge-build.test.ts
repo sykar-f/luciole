@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { build } from "../src/build";
+import { build } from "../packages/airtty/src/build";
 import { createForge } from "../examples/forge/server/forge";
 import { importGitRepository } from "../examples/forge/server/git-import";
 import { openDatabase } from "../examples/forge/server/schema";

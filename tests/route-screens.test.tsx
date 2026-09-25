@@ -5,8 +5,8 @@ import { testRender } from "@opentui/react/test-utils";
 import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { build } from "../src/build";
-import { compileRouteGraph } from "../src/route-graph";
+import { build } from "../packages/airtty/src/build";
+import { compileRouteGraph } from "../packages/airtty/src/route-graph";
 import { launch, importClient, readManifest, destroy, type TestUI } from "./helpers";
 
 /** The layout's mount stamp: unchanged while the layout stays mounted. */

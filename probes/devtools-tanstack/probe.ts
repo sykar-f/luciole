@@ -6,10 +6,10 @@
  */
 import { ServerEventBus } from "@tanstack/devtools-event-bus/server";
 import { EventClient } from "@tanstack/devtools-event-client";
-import { fixtureSession } from "../../src/devtools/fixtures";
-import { message, PLUGIN, type Message } from "../../src/devtools/protocol";
-import { parseCommand, parseEvent } from "../../src/devtools/schema";
-import { encode } from "../../src/devtools/wire";
+import { fixtureSession } from "../../packages/airtty/src/devtools/fixtures";
+import { message, PLUGIN, type Message } from "../../packages/airtty/src/devtools/protocol";
+import { parseCommand, parseEvent } from "../../packages/airtty/src/devtools/schema";
+import { encode } from "../../packages/airtty/src/devtools/wire";
 
 const POLL_MS = 10,
   SETTLE_MS = 50;

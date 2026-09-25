@@ -8,7 +8,7 @@ import { testRender } from "@opentui/react/test-utils";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { build } from "../src/build";
+import { build } from "../packages/airtty/src/build";
 import { createRootRoute } from "@tanstack/react-router";
 import {
   Embed,
@@ -18,9 +18,9 @@ import {
   type Application,
   type ApplicationEvent,
   type Transport,
-} from "../src/client";
-import { registerModules, splitInstance } from "../src/flight/client";
-import { instanceManifests } from "../src/instance";
+} from "../packages/airtty/src/client";
+import { registerModules, splitInstance } from "../packages/airtty/src/flight/client";
+import { instanceManifests } from "../packages/airtty/src/instance";
 import { destroy, importClient, launch, readManifest, until, type TestUI } from "./helpers";
 
 test("an instance key is read before the build ID's slash only", () => {

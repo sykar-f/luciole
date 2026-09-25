@@ -10,8 +10,8 @@ import {
 } from "@opentui/keymap/addons";
 import { createOpenTuiKeymapHost } from "@opentui/keymap/opentui";
 import { KeymapProvider } from "@opentui/keymap/react";
-import type { Application, ApplicationOptions } from "../../src/client";
-import { messageOf } from "../../src/guards";
+import type { Application, ApplicationOptions } from "../../packages/airtty/src/client";
+import { messageOf } from "../../packages/airtty/src/guards";
 import type { AbiSpecifier } from "./abi";
 import type { LoadedBundle } from "./loader";
 import { abiModules, type Runtime } from "./runtime";

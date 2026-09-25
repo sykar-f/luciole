@@ -1,0 +1,14 @@
+{
+  "name": "@airtty-examples/mdreader",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "airtty": "workspace:*",
+    "@opentui/core": "catalog:",
+    "@opentui/react": "catalog:",
+    "@tanstack/react-router": "catalog:",
+    "marked": "catalog:",
+    "react": "catalog:",
+    "zod": "catalog:"
+  }
+}

@@ -3,21 +3,25 @@ import { existsSync, lstatSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { loadAppBundle } from "../src/app-bundle";
-import { build } from "../src/build";
-import { messageOf } from "../src/guards";
-import { urlArgs } from "../src/generic/launch";
+import { loadAppBundle } from "../packages/airtty/src/app-bundle";
+import { build } from "../packages/airtty/src/build";
+import { messageOf } from "../packages/airtty/src/guards";
+import { urlArgs } from "../packages/airtty/src/generic/launch";
 import {
   originDirectory,
   originOf,
   originSessions,
   pinPublisher,
   readOrigin,
-} from "../src/generic/origin";
-import { INLINE_WARNING, prepareOrigin } from "../src/generic/prepare";
-import { Capabilities } from "../src/capabilities";
-import { directories } from "../src/launcher/paths";
-import { generatePublisherKey, publisherIdentity, readPublisherKey } from "../src/publisher";
+} from "../packages/airtty/src/generic/origin";
+import { INLINE_WARNING, prepareOrigin } from "../packages/airtty/src/generic/prepare";
+import { Capabilities } from "../packages/airtty/src/capabilities";
+import { directories } from "../packages/airtty/src/launcher/paths";
+import {
+  generatePublisherKey,
+  publisherIdentity,
+  readPublisherKey,
+} from "../packages/airtty/src/publisher";
 import { launch, rejectionOf } from "./helpers";
 
 test("an origin is the URL the user gave, normalized", () => {

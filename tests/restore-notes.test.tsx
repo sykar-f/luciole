@@ -6,8 +6,8 @@ import { InputRenderable } from "@opentui/core";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import type { Application, Session } from "../src/client";
-import { build } from "../src/build";
+import type { Application, Session } from "../packages/airtty/src/client";
+import { build } from "../packages/airtty/src/build";
 import { destroy, draftOf, importClient, launch, renderable, until, type TestUI } from "./helpers";
 
 const appDir = resolve("examples/notes");

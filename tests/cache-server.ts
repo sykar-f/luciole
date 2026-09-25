@@ -1,6 +1,6 @@
 import React, { Suspense } from "react";
-import { cached } from "../src/cache/runtime";
-import { cacheTag, invalidate, serve, type ServerFunction } from "../src/server";
+import { cached } from "../packages/airtty/src/cache/runtime";
+import { cacheTag, invalidate, serve, type ServerFunction } from "../packages/airtty/src/server";
 // A Server built by hand, like tests/instrument-server.ts: a page reading a cached
 // function, actions invalidating its tag, and every ServerEvent printed as a JSON line.
 let runs = 0;

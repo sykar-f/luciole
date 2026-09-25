@@ -1,5 +1,5 @@
 import React from "react";
-import { serve } from "../src/server";
+import { serve } from "../packages/airtty/src/server";
 // A Server built by hand whose build id a test chooses (TEST_BUILD_ID), to exercise the
 // launcher's managed lifetime (src/launcher/lifetime.ts).
 serve({

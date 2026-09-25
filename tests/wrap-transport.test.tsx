@@ -6,8 +6,8 @@ import {
   TransportError,
   type ApplicationOptions,
   type Transport,
-} from "../src/client";
-import type { Fetch } from "../src/transport";
+} from "../packages/airtty/src/client";
+import type { Fetch } from "../packages/airtty/src/transport";
 import { rejectionOf } from "./helpers";
 
 const base = {

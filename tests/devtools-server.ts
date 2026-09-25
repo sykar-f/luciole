@@ -1,5 +1,5 @@
 import React from "react";
-import { serve } from "../src/server";
+import { serve } from "../packages/airtty/src/server";
 // A Server built by hand for tests/devtools-server.test.ts: AIRTTY_DEVTOOLS is its only
 // instrumentation. The page and the action log, to check logs carry their callId.
 serve({

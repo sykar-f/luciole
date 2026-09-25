@@ -148,7 +148,7 @@ def alive(pid):
 def inline_app():
     """mdreader inline next to a shell: one prefix for both, keys to the active pane only."""
     subprocess.run(
-        [BUN, str(ROOT / "src/cli.ts"), "build", "--app", str(MDREADER)],
+        [BUN, str(ROOT / "packages/airtty/src/cli.ts"), "build", "--app", str(MDREADER)],
         check=True,
         stdout=subprocess.DEVNULL,
     )
@@ -203,7 +203,7 @@ def inline_app():
 
 def main():
     subprocess.run(
-        [BUN, str(ROOT / "src/cli.ts"), "build", "--app", str(APP)], check=True, stdout=subprocess.DEVNULL
+        [BUN, str(ROOT / "packages/airtty/src/cli.ts"), "build", "--app", str(APP)], check=True, stdout=subprocess.DEVNULL
     )
     right = [VIM, "-u", "NONE", "-N"] if VIM else ["/bin/sh"]
     server = client = master = slave = None

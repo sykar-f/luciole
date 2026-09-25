@@ -20,13 +20,12 @@ try {
   const checkout = join(temp, "checkout");
   await mkdir(checkout);
   for (const name of [
-    "src",
+    "packages",
     "examples",
     "package.json",
     "bun.lock",
+    "bunfig.toml",
     "tsconfig.json",
-    "tsconfig.base.json",
-    "types.d.ts",
     ".oxlintrc.json",
     ".oxfmtrc.json",
     ".vscode",
@@ -43,7 +42,10 @@ try {
     });
   await run([process.execPath, "install", "--frozen-lockfile"], checkout);
   await run([process.execPath, "run", "check"], checkout);
-  await run([process.execPath, "src/cli.ts", "init", join(temp, "starter")], checkout);
+  await run(
+    [process.execPath, "packages/airtty/src/cli.ts", "init", join(temp, "starter")],
+    checkout,
+  );
   const starter = join(temp, "starter");
   await run([process.execPath, "install"], starter);
   await run([process.execPath, "run", "check"], starter);

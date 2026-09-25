@@ -8,10 +8,14 @@ import {
   PLUGIN,
   PROTOCOL_VERSION,
   type Address,
-} from "../src/devtools/protocol";
-import { parseCommand, parseEvent, type DevtoolsEvent } from "../src/devtools/schema";
-import { connectAgent, listenBus, type Connection } from "../src/devtools/wire";
-import { messageOf } from "../src/guards";
+} from "../packages/airtty/src/devtools/protocol";
+import {
+  parseCommand,
+  parseEvent,
+  type DevtoolsEvent,
+} from "../packages/airtty/src/devtools/schema";
+import { connectAgent, listenBus, type Connection } from "../packages/airtty/src/devtools/wire";
+import { messageOf } from "../packages/airtty/src/guards";
 import { rejectionOf, until } from "./helpers";
 
 const hello = { protocol: PROTOCOL_VERSION, role: "client" as const, pid: process.pid };
