@@ -88,3 +88,32 @@ Ce qu'une page n'a pas et que le bundle navigateur fournit (`src/browser-node/`)
 
 - le coût des copies à chaque appel sur un écran réel (Notes) ;
 - ce que retirer images et tree-sitter du module gagne en poids.
+
+## `async-context/` : `AsyncLocalStorage` sans le moteur (R2)
+
+```sh
+bun probes/web/async-context/check.ts
+```
+
+Le Server garde trois contextes à travers les `await` (requête, `cacheScope`,
+`renderTags`). Chrome 153 n'a pas `AsyncContext` ; Bun remplace `node:async_hooks` par un
+module vide en cible navigateur.
+
+- `src/async-context.ts` : `AsyncLocalStorage` (`run`, `getStore`, `exit`, `enterWith`,
+  `bind`, `snapshot`) sur des frames chaînés, chaque storage gardant ses valeurs dans une
+  `WeakMap` ; `install()` patche `then`, `setTimeout`, `setInterval`, `queueMicrotask`.
+- `src/transform.ts` (API TypeScript 6, comme `src/cache/transform.ts`) :
+  `await x` → `__ac.resume(__ac.save(), await x)`, idem pour `yield` dans un générateur
+  async, et `for await` restaure son frame à chaque tour et à la sortie.
+- `plugin.ts` : `node:async_hooks` → le runtime, et la transformation sur chaque module.
+
+| Variante (50 requêtes entrelacées)       | Désaccords |
+| ---------------------------------------- | ---------- |
+| `AsyncLocalStorage` de Bun (référence)   | 0          |
+| runtime de la sonde, sans transformation | 750        |
+| runtime + transformation, sous Bun       | 0          |
+| runtime + transformation, Worker Chrome  | 0          |
+
+Limite : du code non transformé qui reprend seul (un flux natif qui tire) voit le dernier
+frame courant. Les stores valent pour le code que le build a transformé : tout le bundle
+`web-server`, dépendances comprises.

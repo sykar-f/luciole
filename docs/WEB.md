@@ -1,7 +1,7 @@
 # Étude — cible web : le Client (et le Server) dans un navigateur
 
-> **Statut : décisions prises (§ 7) ; R1 levé par un spike ([probes/web](../probes/web/README.md)),
-> R2 ouvert.** Rien n'est encore modifié dans `src/`.
+> **Statut : décisions prises (§ 7) ; R1 et R2 levés par des spikes
+> ([probes/web](../probes/web/README.md)).** Rien n'est encore modifié dans `src/`.
 
 ## Décision proposée
 
@@ -307,15 +307,19 @@ NativeSpanFeed) servis par des vues vivantes. Une app `@opentui/react` avec `<in
 815 Ko brotli au total. Yoga passe en `-fno-exceptions` ; les structs partagées passent
 leurs longueurs en `u64`.
 
-**R2 — contexte asynchrone sans `AsyncLocalStorage`.** Le proposal TC39
-`AsyncContext` n'est pas acquis dans tous les navigateurs. Pistes, dans l'ordre :
-`AsyncContext` natif là où il existe ; un polyfill qui réécrit les `await` au build
-(plugin `onLoad` sur le seul bundle `web-server`) ; en dernier recours, sérialiser les
-requêtes du Worker hors flux live, acceptable pour un Server à un seul utilisateur mais
-pas pour un rendu qui attend une action.
+**R2 — contexte asynchrone sans `AsyncLocalStorage`. Levé** ([probes/web](../probes/web/README.md)).
+Chrome 153 n'a pas `AsyncContext`, et Bun ne polyfille pas `node:async_hooks` pour le
+navigateur. Le bundle `web-server` reçoit donc son propre `AsyncLocalStorage` (même API)
+et une transformation au build (API TypeScript, comme `"use cache"`) : chaque `await x`
+devient `__ac.resume(__ac.save(), await x)`, de même pour `yield` des générateurs async et
+`for await` ; `then`, `setTimeout`, `setInterval`, `queueMicrotask` sont patchés. Sur 50
+requêtes entrelacées (délais, `Promise.all`, micro-tâches, flux live, `run` imbriqués) :
+0 désaccord sous Bun et dans un Worker Chrome, comme le vrai `AsyncLocalStorage` ; 750
+sans la transformation. Limite : du code non transformé qui reprend seul (un flux natif)
+voit le dernier contexte courant ; les stores ne valent que pour le code transformé.
 
-**R3 — poids.** React, TanStack, OpenTUI JS et le `.wasm` : à mesurer au spike ;
-chargé une fois par version d'ABI et mis en cache immuable.
+**R3 — poids.** Mesuré au spike : 815 Ko brotli (React, OpenTUI, xterm.js, `.wasm`),
+sans TanStack ni le runtime airtty ; chargé une fois par version d'ABI, cache immuable.
 
 **R4 — dette de maintenance.** Le backend FFI et le build wasm vivent dans airtty
 (décision 4) : ils touchent l'intérieur d'OpenTUI et peuvent casser à chaque version.
