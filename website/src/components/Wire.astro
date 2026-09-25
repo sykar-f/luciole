@@ -1,0 +1,1183 @@
+---
+// A playable model of the Notes example under simulated latency and faults (the same knobs
+// as AIRTTY_LATENCY_MS and AIRTTY_FAULT). It shows what stays in the terminal and what
+// crosses the wire: selection and typing never leave; opening and saving a note do.
+const faults = [
+  { id: "none", label: "Deliver", env: "" },
+  { id: "refuse", label: "Lose the request", env: "refuse:1" },
+  { id: "reject", label: "Server refuses", env: "" },
+  { id: "drop", label: "Lose the response", env: "drop:1" },
+];
+---
+
+<section class="section wire-section" id="wire" aria-labelledby="wire-title">
+  <div class="wrap">
+    <div class="section-head">
+      <p class="label">latency</p>
+      <h2 id="wire-title">The Server is 500 ms away. Your keyboard isn't.</h2>
+      <p class="lede">
+        A small Notes app, running under simulated latency. Move through the list, open a note, edit
+        it, save it. Watch what stays in the terminal and what has to cross the wire.
+      </p>
+    </div>
+
+    <div class="demo" data-demo>
+      <div class="side">
+        <p class="side-label"><span class="client">Client</span> in your terminal</p>
+        <div class="tty" data-tty tabindex="0" aria-label="Notes app. Use the arrow keys, Enter, Ctrl+S and Escape.">
+          <p class="tty-head">
+            <span>TERMINAL / NOTES</span>
+            <span class="wake" aria-hidden="true">click here, then ↑ ↓</span>
+            <span class="ok" data-conn>Connected</span>
+          </p>
+          <div class="panes">
+            <ul class="list" data-list aria-label="Notes"></ul>
+            <div class="page" data-page></div>
+          </div>
+          <p class="status" data-status aria-live="polite">Pick a note with ↑ ↓, open it with Enter.</p>
+          <p class="help" data-help></p>
+        </div>
+      </div>
+
+      <div class="wire" aria-hidden="true">
+        <div class="track" data-track></div>
+        <p class="wire-note" data-wire-note>500 ms round trip</p>
+      </div>
+
+      <div class="side">
+        <p class="side-label"><span class="server">Server</span> where the data lives</p>
+        <div class="backend">
+          <p class="db-name">notes.sqlite</p>
+          <table class="db">
+            <thead><tr><th>id</th><th>title</th><th>body</th><th>v</th></tr></thead>
+            <tbody data-db></tbody>
+          </table>
+          <ol class="log" data-log aria-live="polite" aria-label="Server log">
+            <li class="muted">Listening. Nothing has reached the Server yet.</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <label class="rtt">
+        <span>Round trip</span>
+        <input data-rtt type="range" min="0" max="1500" step="50" value="500" />
+      </label>
+      <fieldset class="faults">
+        <legend>Next request</legend>
+        {
+          faults.map((fault, i) => (
+            <label>
+              <input type="radio" name="fault" value={fault.id} data-env={fault.env} checked={i === 0} />
+              <span>{fault.label}</span>
+            </label>
+          ))
+        }
+      </fieldset>
+    </div>
+
+    <div class="timeline-head">
+      <p>What just happened</p>
+      <p class="tally"><span class="client" data-local-count>0</span> local <span class="server" data-server-count>0</span> over the wire</p>
+    </div>
+    <ol class="timeline" data-timeline aria-live="polite">
+      <li class="empty">Your actions will show up here, sorted by where they ran.</li>
+    </ol>
+    <p class="repro">
+      The same, for real, on your machine: <code data-repro>AIRTTY_LATENCY_MS=500 bun run dev</code>
+    </p>
+
+    <dl class="outcomes">
+      <div>
+        <dt><code>not-sent</code></dt>
+        <dd>The request never left the terminal. Nothing happened on the Server; retrying is safe.</dd>
+      </div>
+      <div>
+        <dt><code>rejected</code></dt>
+        <dd>The Server answered and said no. Your Draft is still in the field.</dd>
+      </div>
+      <div>
+        <dt><code>unknown</code></dt>
+        <dd>
+          The Server may have committed it. airtty never replays it behind your back: the app decides,
+          here by asking the Server what became of the operation.
+        </dd>
+      </div>
+    </dl>
+  </div>
+</section>
+
+<script>
+  const FAULTS = ["none", "refuse", "reject", "drop"] as const;
+  type Fault = (typeof FAULTS)[number];
+  type Note = { id: number; title: string; body: string; version: number };
+  type View = "list" | "loading" | "note" | "error";
+  type Outcome<T> = { ok: true; value: T; ms: number } | { ok: false; outcome: "not-sent" | "rejected" | "unknown"; ms: number };
+
+  const REFUSAL_MS = 400;
+  const LOG_LINES = 10;
+  const TIMELINE_LINES = 7;
+  const ID_LENGTH = 5;
+  const QUIET_MS = 1400;
+  const SPARK_MS = 700;
+  // Flight adds row ids, references and the envelope to the JSON of the tree.
+  const FLIGHT_OVERHEAD = 180;
+  const PREVIEW = 18;
+
+  function pick<T extends Element>(selector: string, type: new () => T): T {
+    const found = document.querySelector(selector);
+    if (!(found instanceof type)) throw new Error(`The latency demo lacks ${selector}`);
+    return found;
+  }
+
+  const tty = pick("[data-tty]", HTMLElement);
+  const list = pick("[data-list]", HTMLUListElement);
+  const page = pick("[data-page]", HTMLElement);
+  const status = pick("[data-status]", HTMLElement);
+  const help = pick("[data-help]", HTMLElement);
+  const conn = pick("[data-conn]", HTMLElement);
+  const track = pick("[data-track]", HTMLElement);
+  const wireNote = pick("[data-wire-note]", HTMLElement);
+  const db = pick("[data-db]", HTMLTableSectionElement);
+  const log = pick("[data-log]", HTMLOListElement);
+  const timeline = pick("[data-timeline]", HTMLOListElement);
+  const localCount = pick("[data-local-count]", HTMLElement);
+  const serverCount = pick("[data-server-count]", HTMLElement);
+  const rttInput = pick("[data-rtt]", HTMLInputElement);
+  const repro = pick("[data-repro]", HTMLElement);
+  const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // The Server: a table and the outcome of every save, as Notes stores them.
+  const table: Note[] = [
+    { id: 1, title: "Groceries", body: "Buy milk", version: 1 },
+    { id: 2, title: "Standup", body: "Ship the landing page", version: 3 },
+    { id: 3, title: "Ideas", body: "A TTY, over the air", version: 1 },
+  ];
+  const operations = new Map<string, number>();
+
+  // The Client: what it last received, and what the reader is doing with it.
+  let rows = table.map(({ id, title, version }) => ({ id, title, version }));
+  let selected = 0;
+  let view: View = "list";
+  let open: Note | null = null;
+  let draft = "";
+  let pending = false;
+  let unknown: string | null = null;
+  let navigation = 0;
+  let locals = 0;
+  let remotes = 0;
+
+  const rtt = () => Number(rttInput.value);
+  const fault = (): Fault => {
+    const chosen = document.querySelector<HTMLInputElement>('input[name="fault"]:checked')?.value;
+    return FAULTS.find((f) => f === chosen) ?? "none";
+  };
+  const wait = (ms: number) => new Promise((done) => setTimeout(done, ms));
+  const escape = (text: string) =>
+    text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+  // Timeline ---------------------------------------------------------------------------
+  type Entry = { side: "local" | "server" | "fault"; text: string; ms: number | null; count?: number };
+  let lastTyping: { item: HTMLLIElement; entry: Entry } | null = null;
+
+  const renderEntry = (item: HTMLLIElement, entry: Entry) => {
+    const badge = { local: "LOCAL", server: "SERVER", fault: "FAULT" }[entry.side];
+    const ms = entry.ms === null ? "" : `${Math.round(entry.ms)} ms`;
+    item.className = `is-${entry.side}`;
+    item.innerHTML = `<span class="badge">${badge}</span><span class="what">${escape(entry.text)}</span><span class="ms">${ms}</span>`;
+  };
+
+  const note = (entry: Entry, typing = false) => {
+    if (entry.side === "local") locals += 1;
+    else remotes += entry.side === "server" ? 1 : 0;
+    localCount.textContent = String(locals);
+    serverCount.textContent = String(remotes);
+    timeline.querySelector(".empty")?.remove();
+    if (typing && lastTyping && timeline.firstElementChild === lastTyping.item) {
+      lastTyping.entry.count = (lastTyping.entry.count ?? 1) + 1;
+      lastTyping.entry.text = `typed ${lastTyping.entry.count} keys, each drawn by the Client`;
+      renderEntry(lastTyping.item, lastTyping.entry);
+      return;
+    }
+    const item = document.createElement("li");
+    renderEntry(item, entry);
+    timeline.prepend(item);
+    while (timeline.children.length > TIMELINE_LINES) timeline.lastElementChild?.remove();
+    lastTyping = typing ? { item, entry } : null;
+  };
+
+  const serverLog = (text: string, tone = "") => {
+    const line = document.createElement("li");
+    line.textContent = text;
+    if (tone) line.className = tone;
+    log.append(line);
+    log.querySelector(".muted")?.remove();
+    while (log.children.length > LOG_LINES) log.firstElementChild?.remove();
+  };
+
+  // The wire ---------------------------------------------------------------------------
+  const travel = async (direction: "out" | "back", tone: string, lost = false) => {
+    const half = rtt() / 2;
+    const packet = document.createElement("span");
+    packet.className = `packet ${tone}`;
+    track.append(packet);
+    const [from, to] = direction === "out" ? ["0%", "100%"] : ["100%", "0%"];
+    const axis = track.clientHeight > track.clientWidth ? "top" : "left";
+    const duration = lost ? half / 2 : half;
+    if (!reduced && half > 0)
+      packet.animate(
+        [
+          { [axis]: from, opacity: 1 },
+          { [axis]: lost ? "50%" : to, opacity: lost ? 0 : 1 },
+        ],
+        { duration, easing: "linear", fill: "forwards" },
+      );
+    // The timer is the network; the animation only shows it.
+    await wait(duration);
+    packet.remove();
+    if (lost) await wait(half / 2);
+  };
+
+  let quiet: ReturnType<typeof setTimeout> | undefined;
+  const spark = () => {
+    const dot = document.createElement("span");
+    dot.className = "spark";
+    track.append(dot);
+    setTimeout(() => dot.remove(), SPARK_MS);
+    wireNote.classList.add("typing");
+    wireNote.textContent = "nothing crosses";
+    clearTimeout(quiet);
+    quiet = setTimeout(() => {
+      wireNote.classList.remove("typing");
+      conditions();
+    }, QUIET_MS);
+  };
+
+  // One request: the fault applies, the Server runs `serve` when (and if) it arrives.
+  async function call<T>(label: string, serve: () => { value: T; ok: boolean }): Promise<Outcome<T>> {
+    const started = performance.now();
+    const mode = fault();
+    const elapsed = () => performance.now() - started;
+    if (mode === "refuse") {
+      await wait(Math.min(rtt(), REFUSAL_MS));
+      note({ side: "fault", text: `${label}: never sent, nothing reached the Server`, ms: elapsed() });
+      return { ok: false, outcome: "not-sent", ms: elapsed() };
+    }
+    await travel("out", "client-packet");
+    const result = serve();
+    if (mode === "reject" || !result.ok) {
+      serverLog(`${label}: refused, nothing written`, "bad");
+      await travel("back", "fault-packet");
+      note({ side: "fault", text: `${label}: refused by the Server`, ms: elapsed() });
+      return { ok: false, outcome: "rejected", ms: elapsed() };
+    }
+    if (mode === "drop") {
+      serverLog("answer lost on the way back", "bad");
+      await travel("back", "server-packet", true);
+      note({ side: "fault", text: `${label}: done on the Server, answer lost`, ms: elapsed() });
+      return { ok: false, outcome: "unknown", ms: elapsed() };
+    }
+    await travel("back", "server-packet");
+    return { ok: true, value: result.value, ms: elapsed() };
+  }
+
+  const bytes = (value: unknown) => new TextEncoder().encode(JSON.stringify(value)).length + FLIGHT_OVERHEAD;
+
+  // Server Components and Server Functions --------------------------------------------
+  const renderList = () => {
+    const value = table.map(({ id, title, version }) => ({ id, title, version }));
+    serverLog("GET /render /");
+    serverLog("  SELECT id, title, version FROM notes", "sql");
+    serverLog(`  ← ${bytes(value)} bytes of Flight`, "dim");
+    return { value, ok: true };
+  };
+
+  const renderNote = (id: number) => {
+    const found = table.find((row) => row.id === id);
+    serverLog(`GET /render /notes/${id}`);
+    serverLog(`  SELECT * FROM notes WHERE id = ${id}`, "sql");
+    serverLog(`  ← ${bytes(found)} bytes of Flight`, "dim");
+    return { value: found ? { ...found } : null, ok: Boolean(found) };
+  };
+
+  const saveNote = (id: number, body: string, base: number, op: string) => {
+    const row = table.find((r) => r.id === id);
+    serverLog(`POST /action saveNote(${op})`);
+    if (!row || row.version !== base) return { value: null, ok: false };
+    row.body = body;
+    row.version += 1;
+    operations.set(op, row.version);
+    serverLog(`  UPDATE notes SET body = ?, version = ${row.version} WHERE id = ${id}`, "sql");
+    serverLog(`  invalidate("notes", "note:${id}")`, "dim");
+    paintDb(id);
+    return { value: { ...row }, ok: true };
+  };
+
+  const getOperation = (op: string) => {
+    serverLog(`POST /action getOperation(${op})`);
+    serverLog(`  SELECT version FROM operations WHERE id = '${op}'`, "sql");
+    return { value: operations.get(op) ?? null, ok: true };
+  };
+
+  // Drawing ----------------------------------------------------------------------------
+  const paintDb = (changed?: number) => {
+    db.innerHTML = table
+      .map(
+        (row) =>
+          `<tr class="${row.id === changed ? "changed" : ""}"><td>${row.id}</td><td>${escape(row.title)}</td><td>${escape(row.body.length > PREVIEW ? `${row.body.slice(0, PREVIEW)}…` : row.body)}</td><td>${row.version}</td></tr>`,
+      )
+      .join("");
+  };
+
+  const keys: Record<View, [string, string][]> = {
+    list: [
+      ["↑↓", "select"],
+      ["enter", "open"],
+    ],
+    loading: [["esc", "cancel"]],
+    note: [
+      ["ctrl+s", "save"],
+      ["esc", "list"],
+    ],
+    error: [
+      ["r", "retry"],
+      ["esc", "list"],
+    ],
+  };
+
+  const paint = () => {
+    list.innerHTML = rows
+      .map(
+        (row, i) =>
+          `<li><button type="button" data-row="${i}" class="${i === selected ? "on" : ""}" tabindex="-1">${i === selected ? "›" : " "} ${escape(row.title)}<span>v${row.version}</span></button></li>`,
+      )
+      .join("");
+    if (view === "list") page.innerHTML = `<p class="hint">Open a note to load it from the Server.</p>`;
+    if (view === "loading")
+      page.innerHTML = `<p class="title">Opening note…</p><p class="skeleton"></p><p class="skeleton short"></p><p class="tag">loading.tsx, drawn by the Client</p>`;
+    if (view === "error")
+      page.innerHTML = `<p class="title bad">Could not load this note.</p><p class="tag">error.tsx: r retries</p>`;
+    if (view === "note" && open) {
+      const field = page.querySelector<HTMLInputElement>("[data-draft]");
+      if (!field) {
+        page.innerHTML = `<p class="title" data-title></p><input data-draft spellcheck="false" autocomplete="off" aria-label="Note text" /><p class="tag">page.tsx, rendered by the Server</p>`;
+      }
+      const title = page.querySelector("[data-title]");
+      if (title) title.textContent = `${open.title}, version ${open.version}${draft !== open.body ? " (unsaved)" : ""}`;
+      const input = page.querySelector<HTMLInputElement>("[data-draft]");
+      if (input && input.value !== draft) input.value = draft;
+    }
+    help.innerHTML = [...keys[view], ...(unknown ? [["ctrl+o", "ask the Server"] satisfies [string, string]] : [])]
+      .map(([key, what]) => `<button type="button" data-key="${key}"><kbd>${key}</kbd> ${what}</button>`)
+      .join("");
+  };
+
+  const say = (text: string, tone = "") => {
+    status.textContent = text;
+    status.dataset.tone = tone;
+  };
+
+  // Actions ----------------------------------------------------------------------------
+  const move = (step: number) => {
+    if (view !== "list" && view !== "note") return;
+    selected = (selected + step + rows.length) % rows.length;
+    paint();
+    note({ side: "local", text: `selected "${rows[selected]?.title}"`, ms: 0 });
+    spark();
+  };
+
+  const openNote = async () => {
+    const row = rows[selected];
+    if (!row) return;
+    const ticket = (navigation += 1);
+    view = "loading";
+    paint();
+    note({ side: "local", text: "loading.tsx drawn at once", ms: 0 });
+    say(`Opening "${row.title}"…`, "busy");
+    const result = await call(`open /notes/${row.id}`, () => renderNote(row.id));
+    if (ticket !== navigation) return;
+    if (!result.ok || !result.value) {
+      view = "error";
+      paint();
+      say(result.ok ? "Not found." : `Navigation ${result.outcome}. Your list is still here.`, "bad");
+      return;
+    }
+    open = result.value;
+    draft = open.body;
+    view = "note";
+    paint();
+    page.querySelector<HTMLInputElement>("[data-draft]")?.focus();
+    note({ side: "server", text: `opened "${open.title}": page rendered on the Server`, ms: result.ms });
+    say("Loaded. Type, then Ctrl+S (or Enter) to save.", "ok");
+  };
+
+  const back = () => {
+    navigation += 1;
+    view = "list";
+    paint();
+    tty.focus();
+    note({ side: "local", text: "back to the list, from the Client's cache", ms: 0 });
+    say("Back. The list came from cache: no request.", "");
+  };
+
+  const refreshList = async () => {
+    const result = await call("refresh /", renderList);
+    if (!result.ok) return false;
+    rows = result.value;
+    paint();
+    note({ side: "server", text: "list refreshed after invalidate()", ms: result.ms });
+    return true;
+  };
+
+  const save = async () => {
+    if (!open || pending) return;
+    const target = open;
+    const op = crypto.randomUUID().slice(0, ID_LENGTH);
+    pending = true;
+    unknown = null;
+    say("Saving… keep typing, nothing here waits.", "busy");
+    const result = await call(`saveNote(${op})`, () => saveNote(target.id, draft, target.version, op));
+    pending = false;
+    if (!result.ok) {
+      if (result.outcome === "unknown") unknown = op;
+      say(
+        result.outcome === "unknown"
+          ? "Unknown outcome. Not replayed: Ctrl+O asks the Server."
+          : result.outcome === "rejected"
+            ? "Refused. Your Draft is kept."
+            : "Not sent. Nothing reached the Server.",
+        result.outcome === "unknown" ? "warn" : "bad",
+      );
+      paint();
+      return;
+    }
+    if (result.value) open = { ...target, body: result.value.body, version: result.value.version };
+    paint();
+    note({ side: "server", text: `saved "${target.title}" as version ${open.version}`, ms: result.ms });
+    const version = open.version;
+    say(`Saved as version ${version}. Refreshing what it invalidated…`, "ok");
+    if (await refreshList()) say(`Saved as version ${version}. The list is up to date.`, "ok");
+  };
+
+  const resolve = async () => {
+    const op = unknown;
+    if (!op || !open) return;
+    unknown = null;
+    const target = open;
+    say(`Asking the Server about ${op}…`, "busy");
+    const result = await call(`getOperation(${op})`, () => getOperation(op));
+    if (!result.ok || result.value === null) {
+      unknown = op;
+      paint();
+      say("Still unknown. Try again.", "warn");
+      return;
+    }
+    open = { ...target, body: draft, version: result.value };
+    paint();
+    note({ side: "server", text: `resolved: the save had committed as version ${result.value}`, ms: result.ms });
+    say(`Resolved: it had committed as version ${result.value}.`, "ok");
+    if (await refreshList()) say(`Resolved: version ${result.value}. The list is up to date.`, "ok");
+  };
+
+  const press = (key: string) => {
+    if (key === "↑↓") move(1);
+    else if (key === "enter" && view === "list") void openNote();
+    else if (key === "ctrl+s") void save();
+    else if (key === "esc") back();
+    else if (key === "r" && view === "error") void openNote();
+    else if (key === "ctrl+o") void resolve();
+  };
+
+  // Keys the terminal handles, by where the focus is: the list, or the note's field.
+  const listKeys: Record<string, () => void> = {
+    ArrowDown: () => move(1),
+    j: () => move(1),
+    ArrowUp: () => move(-1),
+    k: () => move(-1),
+    Enter: () => view === "list" && void openNote(),
+    r: () => view === "error" && void openNote(),
+  };
+
+  tty.addEventListener("keydown", (event) => {
+    const inField = event.target instanceof HTMLInputElement;
+    if (event.key === "Escape") {
+      event.preventDefault();
+      back();
+      return;
+    }
+    if ((event.key === "s" || event.key === "o") && event.ctrlKey) {
+      event.preventDefault();
+      press(event.key === "s" ? "ctrl+s" : "ctrl+o");
+      return;
+    }
+    if (inField) {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        void save();
+      } else if (event.key.length === 1 || event.key === "Backspace") {
+        note({ side: "local", text: "typed 1 key, drawn by the Client", ms: 0 }, true);
+        spark();
+      }
+      return;
+    }
+    const action = listKeys[event.key];
+    if (!action) return;
+    event.preventDefault();
+    action();
+  });
+
+  // The terminal takes the keyboard wherever it is clicked, as a real one would.
+  tty.addEventListener("pointerdown", (event) => {
+    if (!(event.target instanceof HTMLInputElement)) {
+      event.preventDefault();
+      tty.focus();
+    }
+  });
+  tty.addEventListener("focus", () => tty.classList.add("awake"));
+
+  tty.addEventListener("input", (event) => {
+    if (!(event.target instanceof HTMLInputElement)) return;
+    draft = event.target.value;
+    paint();
+  });
+
+  tty.addEventListener("click", (event) => {
+    if (!(event.target instanceof Element)) return;
+    const row = event.target.closest<HTMLElement>("[data-row]");
+    if (row) {
+      selected = Number(row.dataset.row);
+      note({ side: "local", text: `selected "${rows[selected]?.title}"`, ms: 0 });
+      void openNote();
+      return;
+    }
+    const key = event.target.closest<HTMLElement>("[data-key]")?.dataset.key;
+    if (key) press(key);
+  });
+
+  // Conditions -------------------------------------------------------------------------
+  const conditions = () => {
+    const env = document.querySelector<HTMLInputElement>('input[name="fault"]:checked')?.dataset.env;
+    if (!wireNote.classList.contains("typing")) wireNote.textContent = `${rtt()} ms round trip`;
+    repro.textContent = `AIRTTY_LATENCY_MS=${rtt()}${env ? ` AIRTTY_FAULT=${env}` : ""} bun run dev`;
+    conn.textContent = fault() === "none" ? "Connected" : "Connected, flaky";
+  };
+  rttInput.addEventListener("input", conditions);
+  for (const radio of document.querySelectorAll('input[name="fault"]')) radio.addEventListener("change", conditions);
+
+  conditions();
+  paintDb();
+  paint();
+</script>
+
+<style>
+  .wire-section {
+    background:
+      radial-gradient(40% 50% at 10% 50%, rgb(103 217 188 / 0.07), transparent),
+      radial-gradient(40% 50% at 90% 50%, rgb(255 188 102 / 0.06), transparent);
+  }
+
+  .demo {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(80px, 0.3fr) minmax(0, 1fr);
+    align-items: stretch;
+  }
+
+  .side {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 0;
+  }
+
+  .side-label {
+    color: var(--mist);
+    font-size: 0.85rem;
+  }
+
+  .tty,
+  .backend {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 16px 18px;
+    border: 1px solid;
+    border-radius: 14px;
+    background: linear-gradient(180deg, #0d131c, var(--screen));
+    font: 400 0.8rem / 1.6 var(--term);
+    font-variant-ligatures: none;
+  }
+
+  .tty {
+    min-height: 330px;
+    border-color: rgb(103 217 188 / 0.4);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.05),
+      0 0 80px -20px rgb(103 217 188 / 0.35);
+    outline: none;
+  }
+
+  .tty:focus-visible {
+    border-color: var(--client);
+  }
+
+  .tty-head {
+    display: flex;
+    justify-content: space-between;
+    color: var(--client);
+  }
+
+  .ok {
+    color: var(--mist);
+  }
+
+  .wake {
+    padding: 0 8px;
+    border: 1px solid rgb(103 217 188 / 0.4);
+    border-radius: 999px;
+    background: var(--client-soft);
+    font-size: 0.7rem;
+    animation: pulse 1.2s ease-in-out infinite alternate;
+  }
+
+  .tty:global(.awake) .wake {
+    display: none;
+  }
+
+  .panes {
+    flex: 1;
+    display: grid;
+    grid-template-columns: minmax(120px, 0.8fr) minmax(0, 1.4fr);
+    gap: 10px;
+    margin: 12px 0;
+  }
+
+  .list,
+  .page {
+    margin: 0;
+    padding: 8px;
+    border: 1px solid var(--rule-strong);
+    border-radius: 6px;
+  }
+
+  .list {
+    list-style: none;
+  }
+
+  .list :global(button) {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+    padding: 3px 6px;
+    border: 0;
+    border-radius: 4px;
+    background: none;
+    color: var(--paper);
+    font: inherit;
+    text-align: left;
+    white-space: pre;
+    cursor: pointer;
+  }
+
+  .list :global(button span) {
+    color: var(--dim);
+  }
+
+  .list :global(button.on) {
+    background: var(--client-soft);
+    color: var(--client);
+  }
+
+  .page {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .page :global(.title) {
+    color: var(--paper);
+  }
+
+  .page :global(.bad) {
+    color: var(--fault);
+  }
+
+  .page :global(.hint) {
+    color: var(--dim);
+  }
+
+  .page :global(.tag) {
+    margin-top: auto;
+    color: var(--dim);
+    font-size: 0.7rem;
+  }
+
+  .page :global(.skeleton) {
+    height: 10px;
+    border-radius: 3px;
+    background: rgb(255 255 255 / 0.1);
+    animation: pulse 0.9s ease-in-out infinite alternate;
+  }
+
+  .page :global(.skeleton.short) {
+    width: 60%;
+  }
+
+  @keyframes pulse {
+    to {
+      opacity: 0.3;
+    }
+  }
+
+  .page :global(input) {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--client);
+    border-radius: 4px;
+    background: var(--night-deep);
+    color: var(--paper);
+    font: inherit;
+    caret-color: var(--client);
+    outline: none;
+  }
+
+  .status {
+    min-height: 1.6em;
+    color: var(--mist);
+  }
+
+  .status[data-tone="ok"] {
+    color: var(--client);
+  }
+
+  .status[data-tone="busy"] {
+    color: var(--paper);
+  }
+
+  .status[data-tone="bad"] {
+    color: var(--fault);
+  }
+
+  .status[data-tone="warn"] {
+    color: var(--server);
+  }
+
+  .help {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 14px;
+    margin-top: 6px;
+  }
+
+  .help :global(button) {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--dim);
+    font: inherit;
+    font-size: 0.75rem;
+    cursor: pointer;
+  }
+
+  .help :global(button:hover) {
+    color: var(--paper);
+  }
+
+  .help :global(kbd) {
+    color: var(--client);
+  }
+
+  .wire {
+    display: grid;
+    align-content: center;
+    justify-items: center;
+    padding-top: 30px;
+  }
+
+  .track {
+    position: relative;
+    width: 100%;
+    height: 2px;
+    background: linear-gradient(90deg, rgb(103 217 188 / 0.6), rgb(255 188 102 / 0.6));
+    box-shadow: 0 0 16px rgb(255 255 255 / 0.15);
+  }
+
+  .track :global(.packet) {
+    position: absolute;
+    top: 50%;
+    width: 14px;
+    height: 14px;
+    margin: -7px 0 0 -7px;
+    border-radius: 3px;
+  }
+
+  .track :global(.client-packet) {
+    background: var(--client);
+    box-shadow: 0 0 18px var(--client);
+  }
+
+  .track :global(.server-packet) {
+    background: var(--server);
+    box-shadow: 0 0 18px var(--server);
+  }
+
+  .track :global(.fault-packet) {
+    background: var(--fault);
+    box-shadow: 0 0 18px var(--fault);
+  }
+
+  /* A local action lights the Client end of the wire and dies there: it never crosses. */
+  .track :global(.spark) {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    width: 10px;
+    height: 10px;
+    margin: -5px 0 0 -5px;
+    border-radius: 50%;
+    background: var(--client);
+    box-shadow: 0 0 14px var(--client);
+    animation: spark 0.7s ease-out forwards;
+  }
+
+  @keyframes spark {
+    40% {
+      transform: translateX(14px);
+    }
+    to {
+      transform: translateX(4px) scale(0.3);
+      opacity: 0;
+    }
+  }
+
+  .wire-note {
+    margin-top: 12px;
+    color: var(--dim);
+    font-size: 0.72rem;
+    text-align: center;
+  }
+
+  .wire-note:global(.typing) {
+    color: var(--client);
+  }
+
+  .backend {
+    gap: 10px;
+    border-color: rgb(255 188 102 / 0.35);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.05),
+      0 0 80px -20px rgb(255 188 102 / 0.25);
+  }
+
+  .db-name {
+    color: var(--server);
+  }
+
+  .db {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.75rem;
+  }
+
+  .db th,
+  .db :global(td) {
+    padding: 3px 6px;
+    border-bottom: 1px solid var(--rule);
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  .db th {
+    color: var(--dim);
+    font-weight: 400;
+  }
+
+  .db :global(td:nth-child(3)) {
+    color: var(--mist);
+  }
+
+  .db :global(tr.changed td) {
+    animation: flash 1.6s ease-out;
+  }
+
+  @keyframes flash {
+    from {
+      background: rgb(255 188 102 / 0.35);
+      color: #fff;
+    }
+  }
+
+  .log {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    gap: 2px;
+    min-height: 150px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: 0.72rem;
+    line-height: 1.5;
+  }
+
+  .log :global(li) {
+    color: var(--paper);
+    overflow-wrap: anywhere;
+  }
+
+  .log :global(.sql) {
+    color: var(--server);
+  }
+
+  .log :global(.dim),
+  .log :global(.muted) {
+    color: var(--dim);
+  }
+
+  .log :global(.bad) {
+    color: var(--fault);
+  }
+
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 16px 40px;
+    margin-top: 28px;
+    padding: 14px 20px;
+    border: 1px solid var(--rule);
+    border-radius: 14px;
+    background: rgb(255 255 255 / 0.02);
+  }
+
+  .rtt {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    color: var(--mist);
+    font-size: 0.85rem;
+  }
+
+  .rtt input {
+    width: 180px;
+    accent-color: var(--server);
+  }
+
+  .faults {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  .faults legend {
+    float: left;
+    margin-right: 8px;
+    color: var(--mist);
+    font-size: 0.85rem;
+  }
+
+  .faults label {
+    position: relative;
+  }
+
+  .faults input {
+    position: absolute;
+    opacity: 0;
+  }
+
+  .faults span {
+    display: inline-block;
+    padding: 5px 12px;
+    border: 1px solid var(--rule-strong);
+    border-radius: 999px;
+    color: var(--mist);
+    font-size: 0.8rem;
+    cursor: pointer;
+  }
+
+  .faults input:checked + span {
+    border-color: var(--paper);
+    background: var(--paper);
+    color: var(--night);
+  }
+
+  .faults input:focus-visible + span {
+    outline: 2px solid var(--client);
+    outline-offset: 2px;
+  }
+
+  .timeline-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    margin-top: 28px;
+    color: var(--mist);
+    font-size: 0.85rem;
+  }
+
+  .tally span {
+    font-weight: 600;
+  }
+
+  .timeline {
+    display: grid;
+    gap: 6px;
+    min-height: 120px;
+    margin: 10px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .timeline :global(li) {
+    display: grid;
+    grid-template-columns: 74px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 14px;
+    padding: 8px 14px;
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    background: rgb(255 255 255 / 0.02);
+    font-size: 0.8rem;
+    animation: arrive 0.4s ease-out;
+  }
+
+  @keyframes arrive {
+    from {
+      opacity: 0;
+      transform: translateY(-4px);
+    }
+  }
+
+  .timeline :global(.empty) {
+    display: block;
+    color: var(--dim);
+  }
+
+  .timeline :global(.badge) {
+    justify-self: start;
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-size: 0.68rem;
+    font-weight: 600;
+  }
+
+  .timeline :global(.is-local .badge) {
+    background: var(--client-soft);
+    color: var(--client);
+  }
+
+  .timeline :global(.is-server .badge) {
+    background: var(--server-soft);
+    color: var(--server);
+  }
+
+  .timeline :global(.is-fault .badge) {
+    background: rgb(255 123 114 / 0.14);
+    color: var(--fault);
+  }
+
+  .timeline :global(.ms) {
+    color: var(--dim);
+    font-size: 0.75rem;
+  }
+
+  .timeline :global(.is-local .ms) {
+    color: var(--client);
+  }
+
+  .repro {
+    margin-top: 14px;
+    color: var(--dim);
+    font-size: 0.8rem;
+  }
+
+  .repro code {
+    color: var(--mist);
+    overflow-wrap: anywhere;
+  }
+
+  .outcomes {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+    margin: clamp(48px, 6vw, 72px) 0 0;
+  }
+
+  .outcomes div {
+    padding: 20px 22px 22px;
+    border: 1px solid var(--rule);
+    border-radius: 14px;
+    background: linear-gradient(180deg, rgb(255 255 255 / 0.03), transparent);
+  }
+
+  .outcomes dt code {
+    padding: 0;
+    background: none;
+    font-size: 0.9rem;
+  }
+
+  .outcomes div:nth-child(1) dt code {
+    color: var(--mist);
+  }
+
+  .outcomes div:nth-child(2) dt code {
+    color: var(--fault);
+  }
+
+  .outcomes div:nth-child(3) dt code {
+    color: var(--server);
+  }
+
+  .outcomes dd {
+    margin: 8px 0 0;
+    color: var(--mist);
+    font-size: 0.85rem;
+  }
+
+  @media (max-width: 900px) {
+    .demo {
+      grid-template-columns: 1fr;
+    }
+
+    .wire {
+      height: 100px;
+      padding: 0;
+    }
+
+    .track {
+      width: 2px;
+      height: 64px;
+      background: linear-gradient(rgb(103 217 188 / 0.6), rgb(255 188 102 / 0.6));
+    }
+
+    .track :global(.packet),
+    .track :global(.spark) {
+      left: 50%;
+      top: 0;
+    }
+
+    .outcomes {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 520px) {
+    .panes {
+      grid-template-columns: 1fr;
+    }
+
+    .timeline :global(li) {
+      grid-template-columns: auto minmax(0, 1fr);
+    }
+
+    .timeline :global(.ms) {
+      grid-column: 2;
+    }
+  }
+</style>

@@ -1,0 +1,166 @@
+---
+import Screen from "./Screen.astro";
+import { frame } from "../lib/frames";
+
+const apps = [
+  {
+    name: "Forge",
+    frame: "forge-files",
+    run: "bun run forge",
+    about:
+      "Code review: pull requests, coloured diffs, line comments, live CI logs and merge. Built to push the framework past its contract.",
+  },
+  {
+    name: "Files",
+    frame: "files",
+    run: "bun run files",
+    about:
+      "An explorer with previews, filters and a context menu. Opening a folder is a navigation; selection and sorting never touch the network.",
+  },
+  {
+    name: "mdreader",
+    frame: "mdreader",
+    run: "MD_PATH=docs bun run mdreader",
+    about:
+      "A folder of Markdown in two panes, with tables, code and outlines. It reloads when a file changes and keeps your place.",
+  },
+  {
+    name: "mux",
+    frame: "mux",
+    run: "bun run mux",
+    about:
+      "A small tmux built with <Terminal>: your shell, vim, and another airtty app loaded into a pane of its own.",
+  },
+  {
+    name: "DevTools",
+    frame: "devtools-network",
+    run: "bun packages/airtty/src/cli.ts devtools --demo",
+    about:
+      "Both processes in one waterfall, with the cache that answered, component trees and logs. The DevTools are an airtty app too.",
+  },
+];
+---
+
+<section class="section" id="apps" aria-labelledby="apps-title">
+  <div class="wrap">
+    <div class="section-head center">
+      <p class="label">examples</p>
+      <h2 id="apps-title">Real apps, in the repository today.</h2>
+      <p class="lede">
+        Every screen on this page was captured from these examples running in a terminal, then drawn
+        here cell by cell. Each one is a single command away.
+      </p>
+    </div>
+
+    <div class="gallery" data-tabs>
+      <div class="tabs" role="tablist" aria-label="Example applications">
+        {
+          apps.map((app, i) => (
+            <button
+              type="button"
+              role="tab"
+              id={`app-tab-${i}`}
+              aria-controls={`app-panel-${i}`}
+              aria-selected={i === 0 ? "true" : "false"}
+              tabindex={i === 0 ? 0 : -1}
+            >
+              {app.name}
+            </button>
+          ))
+        }
+      </div>
+      {
+        apps.map((app, i) => (
+          <div
+            role="tabpanel"
+            id={`app-panel-${i}`}
+            aria-labelledby={`app-tab-${i}`}
+            class="view"
+            hidden={i !== 0}
+          >
+            <Screen frame={frame(app.frame)} glow />
+            <div class="about">
+              <p>{app.about}</p>
+              <code>
+                <span aria-hidden="true">$ </span>
+                {app.run}
+              </code>
+            </div>
+          </div>
+        ))
+      }
+    </div>
+  </div>
+</section>
+
+<style>
+  .gallery {
+    display: grid;
+    gap: 32px;
+  }
+
+  .tabs {
+    display: flex;
+    flex-wrap: wrap;
+    justify-self: center;
+    gap: 4px;
+    padding: 4px;
+    border: 1px solid var(--rule);
+    border-radius: 12px;
+    background: rgb(255 255 255 / 0.02);
+  }
+
+  button {
+    padding: 8px 16px;
+    border: 1px solid transparent;
+    border-radius: 9px;
+    background: none;
+    color: var(--mist);
+    font: 500 0.85rem / 1 var(--mono);
+    cursor: pointer;
+    transition:
+      color 0.15s,
+      background 0.15s;
+  }
+
+  button:hover {
+    color: var(--paper);
+  }
+
+  button[aria-selected="true"] {
+    border-color: var(--rule-strong);
+    background: rgb(255 255 255 / 0.07);
+    color: var(--paper);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.08);
+  }
+
+  .view {
+    display: grid;
+    gap: 22px;
+  }
+
+  .about {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px 40px;
+    padding: 0 4px;
+  }
+
+  .about p {
+    max-width: 70ch;
+    color: var(--mist);
+    font-size: 0.85rem;
+  }
+
+  .about code {
+    color: var(--client);
+    font-size: 0.8rem;
+    overflow-wrap: anywhere;
+  }
+
+  .about code span {
+    color: var(--dim);
+  }
+</style>

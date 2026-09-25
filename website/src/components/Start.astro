@@ -1,0 +1,139 @@
+---
+import CopyCommand from "./CopyCommand.astro";
+import { doc, repo } from "../lib/links";
+
+const steps = [
+  {
+    title: "Install Bun 1.4.2",
+    body: "airtty runs on Bun, on macOS and Linux. The version is pinned in .bun-version.",
+    lines: ["curl -fsSL https://bun.sh/install | bash -s bun-v1.4.2"],
+  },
+  {
+    title: "Clone and install",
+    body: "One lockfile for the framework and every example.",
+    lines: [`git clone ${repo}`, "cd airtty && bun install --frozen-lockfile"],
+  },
+  {
+    title: "Run an example, then slow it down",
+    body: "Notes starts with bun run dev. Add half a second to every request and keep typing.",
+    lines: ["bun run forge", "AIRTTY_LATENCY_MS=500 bun run forge"],
+  },
+  {
+    title: "Start your own app",
+    body: "One app/ folder with pages, components, actions and server code. No manifest, no RPC.",
+    lines: ["bun packages/airtty/src/cli.ts init ../my-app", "cd ../my-app && bun install && bun run dev"],
+  },
+];
+
+const docs = [
+  ["ARCHITECTURE.md", "Architecture"],
+  ["API.md", "API"],
+  ["ROUTER.md", "Routing"],
+  ["DISTRIBUTION.md", "Distribution"],
+  ["EMBEDDING.md", "Embedding and sandbox"],
+  ["DEVTOOLS.md", "DevTools"],
+];
+---
+
+<section class="section" id="start" aria-labelledby="start-title">
+  <div class="wrap">
+    <div class="section-head">
+      <p class="label">get started</p>
+      <h2 id="start-title">Get started in four steps.</h2>
+      <p class="lede">The documentation lives next to the code, in French for now.</p>
+    </div>
+    <ol class="steps">
+      {
+        steps.map((step, i) => (
+          <li>
+            <p class="n" aria-hidden="true">{i + 1}</p>
+            <div class="text">
+              <h3>{step.title}</h3>
+              <p>{step.body}</p>
+            </div>
+            <CopyCommand lines={step.lines} />
+          </li>
+        ))
+      }
+    </ol>
+    <nav class="docs" aria-label="Documentation">
+      {docs.map(([file, label]) => <a href={doc(file!)}>{label}</a>)}
+    </nav>
+  </div>
+</section>
+
+<style>
+  .steps {
+    display: grid;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .steps {
+    gap: 12px;
+  }
+
+  li {
+    display: grid;
+    grid-template-columns: 44px minmax(0, 5fr) minmax(0, 6fr);
+    gap: 24px;
+    align-items: center;
+    padding: 20px 20px 20px 22px;
+    border: 1px solid var(--rule);
+    border-radius: 14px;
+    background: linear-gradient(180deg, rgb(255 255 255 / 0.03), transparent);
+  }
+
+  .n {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border: 1px solid rgb(103 217 188 / 0.4);
+    border-radius: 8px;
+    background: var(--client-soft);
+    color: var(--client);
+    font: 600 0.9rem / 1 var(--mono);
+  }
+
+  .text {
+    display: grid;
+    gap: 6px;
+  }
+
+  .text p {
+    color: var(--mist);
+    font-size: 0.95rem;
+  }
+
+  .docs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 36px;
+  }
+
+  .docs a {
+    padding: 8px 14px;
+    border: 1px solid var(--rule-strong);
+    border-radius: 999px;
+    color: var(--paper);
+    font-size: 0.9rem;
+    text-decoration: none;
+  }
+
+  .docs a:hover {
+    border-color: var(--client);
+  }
+
+  @media (max-width: 860px) {
+    li {
+      grid-template-columns: 40px minmax(0, 1fr);
+    }
+
+    li > :global(:last-child) {
+      grid-column: 1 / -1;
+    }
+  }
+</style>

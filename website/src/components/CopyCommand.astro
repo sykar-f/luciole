@@ -1,0 +1,95 @@
+---
+interface Props {
+  lines: string[];
+  label?: string;
+}
+
+const { lines, label } = Astro.props;
+---
+
+<div class="command" data-copy={lines.join("\n")}>
+  <div class:list={["head", { bare: !label }]}>
+    {label && <span>{label}</span>}
+    <button type="button" data-copy-button>Copy</button>
+  </div>
+  <pre><code>{lines.map((line) => <span class="line"><span class="prompt" aria-hidden="true">$ </span>{line}</span>)}</code></pre>
+</div>
+
+<script>
+  const CONFIRMATION_MS = 1800;
+  for (const box of document.querySelectorAll<HTMLElement>("[data-copy]")) {
+    const button = box.querySelector<HTMLButtonElement>("[data-copy-button]");
+    button?.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(box.dataset.copy ?? "");
+        button.textContent = "Copied";
+      } catch {
+        button.textContent = "Select and copy";
+      }
+      setTimeout(() => (button.textContent = "Copy"), CONFIRMATION_MS);
+    });
+  }
+</script>
+
+<style>
+  .command {
+    position: relative;
+    border: 1px solid var(--rule-strong);
+    border-radius: 8px;
+    background: var(--night-deep);
+    overflow: hidden;
+  }
+
+  .head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 8px 8px 14px;
+    border-bottom: 1px solid var(--rule);
+    color: var(--mist);
+    font-size: 0.85rem;
+  }
+
+  .head.bare {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    padding: 0;
+    border: 0;
+  }
+
+  .head.bare + pre {
+    padding-right: 80px;
+  }
+
+  button {
+    padding: 4px 10px;
+    border: 1px solid var(--rule-strong);
+    border-radius: 5px;
+    background: var(--night-raised);
+    color: var(--paper);
+    font: 500 0.8rem / 1.4 var(--mono);
+    cursor: pointer;
+  }
+
+  button:hover {
+    border-color: var(--client);
+  }
+
+  pre {
+    margin: 0;
+    padding: 14px;
+    overflow-x: auto;
+    font: 400 0.86rem / 1.7 var(--mono);
+  }
+
+  .line {
+    display: block;
+  }
+
+  .prompt {
+    color: var(--client);
+    user-select: none;
+  }
+</style>

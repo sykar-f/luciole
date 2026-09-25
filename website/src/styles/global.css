@@ -1,0 +1,280 @@
+/* Two accents, two meanings, everywhere on the page:
+   teal is what runs in the user's terminal (the Client), amber what runs on the Server. */
+:root {
+  color-scheme: dark;
+
+  --night: #070b12;
+  --night-raised: #0c121c;
+  --night-deep: #05080d;
+  --rule: rgb(255 255 255 / 0.07);
+  --rule-strong: rgb(255 255 255 / 0.13);
+  --paper: #edf1f7;
+  --mist: #98a6ba;
+  --dim: #5d6b80;
+  --client: #67d9bc;
+  --client-soft: rgb(103 217 188 / 0.12);
+  --server: #ffbc66;
+  --server-soft: rgb(255 188 102 / 0.12);
+  --fault: #ff7b72;
+  --screen: #0a0f16;
+  --screen-fg: #e6edf3;
+
+  /* One mono for the page, one for terminal cells: JetBrains Mono draws every box glyph. */
+  --mono: "Geist Mono Variable", ui-monospace, monospace;
+  --term: "JetBrains Mono Variable", ui-monospace, monospace;
+
+  --step--1: 0.8rem;
+  --step-0: 0.95rem;
+  --step-1: 1.1rem;
+  --step-3: clamp(1.8rem, 1.2rem + 2vw, 2.9rem);
+  --step-4: clamp(2.5rem, 1.4rem + 4.2vw, 5.2rem);
+
+  --gutter: clamp(16px, 4vw, 48px);
+  --measure: 64ch;
+  --page: 1200px;
+  --radius: 12px;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* Components set display on their panels; hidden must still win. */
+[hidden] {
+  display: none !important;
+}
+
+/* Anchored sections stop below the sticky header, not under it. */
+[id] {
+  scroll-margin-top: 76px;
+}
+
+html {
+  background: var(--night);
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  position: relative;
+  margin: 0;
+  background: var(--night);
+  color: var(--paper);
+  font: 400 var(--step-0) / 1.7 var(--mono);
+  overflow-x: clip;
+}
+
+/* A dotted grid over the whole page, fading towards the edges. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: radial-gradient(rgb(255 255 255 / 0.07) 1px, transparent 1px) 0 0 / 22px 22px;
+  mask-image: radial-gradient(ellipse 80% 70% at 50% 30%, #000 30%, transparent 100%);
+  pointer-events: none;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  font-family: var(--mono);
+  font-weight: 600;
+  letter-spacing: -0.045em;
+  line-height: 1.05;
+  text-wrap: balance;
+}
+
+h2 {
+  font-size: var(--step-3);
+}
+
+h3 {
+  font-size: var(--step-1);
+  letter-spacing: -0.02em;
+  line-height: 1.35;
+}
+
+p {
+  margin: 0;
+  text-wrap: pretty;
+}
+
+a {
+  color: inherit;
+  text-decoration-color: var(--rule-strong);
+  text-underline-offset: 0.25em;
+  transition: text-decoration-color 0.15s;
+}
+
+a:hover {
+  text-decoration-color: currentColor;
+}
+
+code,
+kbd {
+  font-family: var(--mono);
+  font-size: 0.92em;
+  font-variant-ligatures: none;
+}
+
+:where(p, li, dd) > code {
+  padding: 0.1em 0.35em;
+  border: 1px solid var(--rule);
+  border-radius: 5px;
+  background: rgb(255 255 255 / 0.04);
+  color: var(--paper);
+}
+
+kbd {
+  padding: 0.05em 0.4em;
+  border: 1px solid var(--rule-strong);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  font-size: 0.8em;
+}
+
+:focus-visible {
+  outline: 2px solid var(--client);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+::selection {
+  background: rgb(103 217 188 / 0.3);
+}
+
+.wrap {
+  width: 100%;
+  max-width: calc(var(--page) + 2 * var(--gutter));
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+
+.section {
+  position: relative;
+  padding-block: clamp(80px, 11vw, 150px);
+}
+
+/* Sections are separated by a line that fades out at both ends. */
+.section::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: min(var(--page), 100% - 2 * var(--gutter));
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--rule-strong), transparent);
+  transform: translateX(-50%);
+}
+
+.label {
+  color: var(--client);
+  font-size: var(--step--1);
+  letter-spacing: 0.01em;
+}
+
+.label::before {
+  content: "// ";
+  color: var(--dim);
+}
+
+.lede {
+  max-width: var(--measure);
+  color: var(--mist);
+  font-size: var(--step-1);
+  line-height: 1.7;
+}
+
+.section-head {
+  display: grid;
+  gap: 18px;
+  max-width: 860px;
+  margin-bottom: clamp(44px, 6vw, 76px);
+}
+
+.section-head.center {
+  justify-items: center;
+  margin-inline: auto;
+  text-align: center;
+}
+
+.client {
+  color: var(--client);
+}
+
+.server {
+  color: var(--server);
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  height: 42px;
+  padding: 0 18px;
+  border: 1px solid var(--rule-strong);
+  border-radius: 9px;
+  background: rgb(255 255 255 / 0.03);
+  color: var(--paper);
+  font: 500 0.88rem / 1 var(--mono);
+  text-decoration: none;
+  transition:
+    border-color 0.2s,
+    background 0.2s,
+    box-shadow 0.2s;
+}
+
+.button:hover {
+  border-color: rgb(255 255 255 / 0.28);
+  background: rgb(255 255 255 / 0.06);
+}
+
+.button.primary {
+  border-color: transparent;
+  background: linear-gradient(180deg, #8ae8d0, var(--client));
+  color: #04120d;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.5),
+    0 8px 30px -8px rgb(103 217 188 / 0.6);
+}
+
+.button.primary:hover {
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.5),
+    0 10px 40px -8px rgb(103 217 188 / 0.8);
+}
+
+/* A panel: raised, with a light edge on top. */
+.panel {
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, rgb(255 255 255 / 0.035), rgb(255 255 255 / 0.01));
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.05);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

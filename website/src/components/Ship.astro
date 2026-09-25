@@ -1,0 +1,209 @@
+---
+import { doc } from "../lib/links";
+
+const ways = [
+  {
+    command: "airtty ./my-app",
+    where: "here",
+    what: "Builds the folder and opens it. Client and Server talk over a private Unix socket: no port to pick, nothing else can connect.",
+  },
+  {
+    command: "airtty build --compile",
+    where: "here",
+    what: "One executable per OS and architecture, Bun runtime and OpenTUI inside. The machine that runs it needs neither Bun nor node_modules. Signed and notarized for macOS on request.",
+  },
+  {
+    command: "notes --on build-box",
+    where: "build-box",
+    what: "Installs the Server on the host over SSH if it is missing, detaches it, and tunnels back. A dropped connection comes back on its own; the Server waits for you.",
+  },
+  {
+    command: "notes --url ssh://alice@notes.example.com",
+    where: "notes.example.com",
+    what: "Joins a Server that already runs elsewhere. OpenSSH handles the login: your keys, your agent, your ProxyJump.",
+  },
+  {
+    command: "airtty github:ada/tools#v1/apps/notes",
+    where: "here",
+    what: "Fetches a git source, asks you to trust it once, installs and builds it, then launches from cache.",
+  },
+  {
+    command: "airtty https://notes.example.com",
+    where: "notes.example.com",
+    what: "Opens an app by URL in the generic Client, in tabs: a signed bundle, the publisher's key pinned on first use, sandboxed by default.",
+  },
+];
+---
+
+<section class="section" id="ship" aria-labelledby="ship-title">
+  <div class="wrap grid">
+    <div class="section-head">
+      <p class="label">distribution</p>
+      <h2 id="ship-title">One build. Every way to open it.</h2>
+      <p class="lede">
+        A terminal app should start like any command: on your laptop, on a machine you reach over SSH,
+        or from a URL. Both halves always come from the same build.
+      </p>
+      <p class="more">
+        Server lifetime, reconnection and the registry: <a href={doc("DISTRIBUTION.md")}
+          >DISTRIBUTION.md</a
+        >
+      </p>
+    </div>
+
+    <div class="shell">
+      <div class="chrome" aria-hidden="true">
+        <span class="lights"><i></i><i></i><i></i></span>
+        <span>~/my-app</span>
+      </div>
+      <ul class="ways">
+        {
+          ways.map((way) => (
+            <li>
+              <p class="line">
+                <code>
+                  <span class="prompt" aria-hidden="true">$ </span>
+                  {way.command}
+                </code>
+                <span class:list={["where", { remote: way.where !== "here" }]}>
+                  <span class="visually-hidden">Server runs on </span>
+                  {way.where === "here" ? "server: here" : `server: ${way.where}`}
+                </span>
+              </p>
+              <p class="what">{way.what}</p>
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+  </div>
+</section>
+
+<style>
+  .grid {
+    display: grid;
+    grid-template-columns: minmax(0, 4fr) minmax(0, 7fr);
+    gap: clamp(40px, 5vw, 80px);
+    align-items: start;
+  }
+
+  .section-head {
+    position: sticky;
+    top: 100px;
+    margin: 0;
+  }
+
+  .more {
+    color: var(--dim);
+    font-size: 0.8rem;
+  }
+
+  .shell {
+    border: 1px solid var(--rule-strong);
+    border-radius: 14px;
+    background: linear-gradient(180deg, #0d131c, var(--night-deep));
+    overflow: hidden;
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.05),
+      0 40px 100px -50px rgb(0 0 0 / 0.9);
+  }
+
+  .chrome {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--rule);
+    background: rgb(255 255 255 / 0.02);
+    color: var(--dim);
+    font-size: 0.75rem;
+  }
+
+  .lights {
+    display: flex;
+    gap: 7px;
+  }
+
+  .lights i {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: rgb(255 255 255 / 0.1);
+  }
+
+  .ways {
+    margin: 0;
+    padding: 8px 0;
+    list-style: none;
+  }
+
+  li {
+    padding: 16px 22px;
+    transition: background 0.15s;
+  }
+
+  li:hover {
+    background: rgb(255 255 255 / 0.025);
+  }
+
+  li + li {
+    border-top: 1px dashed var(--rule);
+  }
+
+  .line {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 6px 16px;
+  }
+
+  .line code {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--paper);
+    font: 500 0.85rem / 1.5 var(--term);
+    overflow-wrap: anywhere;
+  }
+
+  .prompt {
+    color: var(--client);
+  }
+
+  .where {
+    padding: 2px 9px;
+    border: 1px solid rgb(103 217 188 / 0.3);
+    border-radius: 999px;
+    background: var(--client-soft);
+    color: var(--client);
+    font-size: 0.7rem;
+    white-space: nowrap;
+  }
+
+  .where.remote {
+    border-color: rgb(255 188 102 / 0.3);
+    background: var(--server-soft);
+    color: var(--server);
+  }
+
+  .what {
+    margin-top: 6px;
+    color: var(--dim);
+    font-size: 0.8rem;
+  }
+
+  .what::before {
+    content: "# ";
+  }
+
+  @media (max-width: 900px) {
+    .grid {
+      grid-template-columns: 1fr;
+    }
+
+    .section-head {
+      position: static;
+    }
+  }
+</style>

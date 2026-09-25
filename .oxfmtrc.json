@@ -11,6 +11,9 @@
     "**/bun.lock",
     "docs/HANDOFF.md",
     "docs/pty-frame.txt",
-    "probes/**/results.json"
+    "probes/**/results.json",
+    "website/src/frames/*.json",
+    "website/dist/**",
+    "website/.astro/**"
   ]
 }

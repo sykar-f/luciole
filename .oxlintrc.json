@@ -82,6 +82,8 @@
     "**/.airtty/**",
     "**/routeTree.gen.ts",
     "probes/vt-embed/**",
-    "probes/devtools-tanstack/**"
+    "probes/devtools-tanstack/**",
+    "website/dist/**",
+    "website/.astro/**"
   ]
 }

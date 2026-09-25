@@ -1,0 +1,291 @@
+---
+import Screen, { type Region } from "./Screen.astro";
+import { frame } from "../lib/frames";
+import { repo } from "../lib/links";
+
+// Where each file of examples/forge drew on the captured screen.
+const parts: (Region & { file: string; note: string })[] = [
+  {
+    id: "root",
+    side: "client",
+    file: "app/layout.tsx",
+    note: "Connection status and global keys, mounted once.",
+    rects: [
+      { row: 1, col: 0, rows: 1, cols: 140 },
+      { row: 38, col: 0, rows: 1, cols: 140 },
+    ],
+  },
+  {
+    id: "sidebar",
+    side: "client",
+    file: "app/(app)/layout.tsx",
+    note: "Sidebar, identity and unsaved Drafts. It survives every navigation.",
+    rects: [{ row: 3, col: 1, rows: 34, cols: 30 }],
+  },
+  {
+    id: "tabs",
+    side: "client",
+    file: "pulls/[number]/layout.tsx",
+    note: "Tabs switch pages without leaving the pull request.",
+    rects: [{ row: 4, col: 33, rows: 1, cols: 106 }],
+  },
+  {
+    id: "page",
+    side: "server",
+    file: "pulls/[number]/page.tsx",
+    note: "Reads the database on the Server, reaches the terminal as React Flight.",
+    rects: [{ row: 5, col: 33, rows: 32, cols: 106 }],
+  },
+];
+---
+
+<section class="hero" id="top">
+  <div class="wrap">
+    <div class="intro">
+      <a class="status" href="#limits">
+        <span class="dot" aria-hidden="true"></span>
+        Open source, experimental
+        <span class="arrow" aria-hidden="true">›</span>
+      </a>
+      <h1>Build terminal apps<br class="wide" /> like web apps.</h1>
+      <p class="lede">
+        A React framework for the terminal. Pages render on a <span class="server">Server</span>,
+        stream to a native terminal <span class="client">Client</span>, and your keystrokes never wait
+        for the network.
+      </p>
+      <div class="actions">
+        <a class="button primary" href="#start">Get started</a>
+        <a class="button" href={repo}>View on GitHub</a>
+      </div>
+      <p class="needs">Bun 1.4.2, macOS and Linux</p>
+    </div>
+
+    <div class="showcase" data-hero-stage>
+      <Screen frame={frame("forge-pr")} regions={parts} printed glow tilt />
+      <ul class="legend" aria-label="What each file of Forge drew on this screen">
+        {
+          parts.map((part) => (
+            <li>
+              <button type="button" class:list={["part", part.side]} data-part={part.id}>
+                <span class="file">{part.file}</span>
+                <span class="note">{part.note}</span>
+              </button>
+            </li>
+          ))
+        }
+      </ul>
+      <p class="caption">
+        Forge, a code-review app from the repository. Hover a file to see what it drew.
+      </p>
+    </div>
+  </div>
+</section>
+
+<script>
+  // The screen has printed by then; each part stays lit this long.
+  const INTRO_MS = 1300;
+  const STEP_MS = 900;
+  const stage = document.querySelector<HTMLElement>("[data-hero-stage]");
+  if (stage) {
+    const regions = [...stage.querySelectorAll<HTMLElement>("[data-region]")];
+    const buttons = [...stage.querySelectorAll<HTMLButtonElement>("[data-part]")];
+    let touched = false;
+    const light = (id: string | null) => {
+      for (const region of regions) region.classList.toggle("lit", region.dataset.region === id);
+      for (const button of buttons) button.classList.toggle("on", button.dataset.part === id);
+    };
+    for (const button of buttons) {
+      const show = () => {
+        touched = true;
+        light(button.dataset.part ?? null);
+      };
+      button.addEventListener("pointerenter", show);
+      button.addEventListener("focus", show);
+      button.addEventListener("click", show);
+      button.addEventListener("pointerleave", () => light(null));
+      button.addEventListener("blur", () => light(null));
+    }
+    // Once the screen has printed, walk through its parts once, unless the reader already is.
+    if (!matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      const order = buttons.map((b) => b.dataset.part ?? null);
+      order.forEach((id, i) =>
+        setTimeout(() => !touched && light(id), INTRO_MS + i * STEP_MS),
+      );
+      setTimeout(() => !touched && light(null), INTRO_MS + order.length * STEP_MS);
+    }
+  }
+</script>
+
+<style>
+  .hero {
+    position: relative;
+    padding: clamp(64px, 10vw, 128px) 0 clamp(72px, 9vw, 120px);
+    overflow: hidden;
+  }
+
+  .hero::before {
+    content: "";
+    position: absolute;
+    top: -30%;
+    left: 50%;
+    width: 1100px;
+    height: 700px;
+    background: radial-gradient(closest-side, rgb(103 217 188 / 0.13), transparent);
+    transform: translateX(-50%);
+    pointer-events: none;
+  }
+
+  .intro {
+    position: relative;
+    display: grid;
+    justify-items: center;
+    gap: 26px;
+    margin-bottom: clamp(56px, 8vw, 96px);
+    text-align: center;
+  }
+
+  .status {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 14px 6px 12px;
+    border: 1px solid var(--rule-strong);
+    border-radius: 999px;
+    background: rgb(255 255 255 / 0.03);
+    color: var(--mist);
+    font-size: 0.8rem;
+    text-decoration: none;
+    backdrop-filter: blur(8px);
+  }
+
+  .status:hover {
+    color: var(--paper);
+    border-color: rgb(255 255 255 / 0.25);
+  }
+
+  .dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--server);
+    box-shadow: 0 0 10px var(--server);
+  }
+
+  .arrow {
+    color: var(--dim);
+  }
+
+  h1 {
+    font-size: var(--step-4);
+    background: linear-gradient(180deg, #fff 30%, #9fb0c6);
+    background-clip: text;
+    color: transparent;
+  }
+
+  @media (max-width: 600px) {
+    .wide {
+      display: none;
+    }
+  }
+
+  .intro .lede {
+    max-width: 58ch;
+  }
+
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 12px;
+  }
+
+  .needs {
+    color: var(--dim);
+    font-size: var(--step--1);
+  }
+
+  .legend {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+    margin: 22px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .part {
+    display: grid;
+    align-content: start;
+    gap: 6px;
+    width: 100%;
+    height: 100%;
+    padding: 14px 16px;
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    background: rgb(255 255 255 / 0.02);
+    color: var(--mist);
+    font: 400 0.8rem / 1.5 var(--mono);
+    text-align: left;
+    cursor: default;
+    transition:
+      border-color 0.2s,
+      background 0.2s,
+      box-shadow 0.2s;
+  }
+
+  .file {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--paper);
+    font-weight: 500;
+    overflow-wrap: anywhere;
+  }
+
+  .file::before {
+    content: "";
+    flex-shrink: 0;
+    width: 7px;
+    height: 7px;
+    border-radius: 2px;
+  }
+
+  .part.client .file::before {
+    background: var(--client);
+  }
+
+  .part.server .file::before {
+    background: var(--server);
+  }
+
+  .part.client.on {
+    border-color: rgb(103 217 188 / 0.5);
+    background: var(--client-soft);
+    box-shadow: 0 0 30px -10px rgb(103 217 188 / 0.5);
+  }
+
+  .part.server.on {
+    border-color: rgb(255 188 102 / 0.5);
+    background: var(--server-soft);
+    box-shadow: 0 0 30px -10px rgb(255 188 102 / 0.5);
+  }
+
+  .caption {
+    margin-top: 16px;
+    color: var(--dim);
+    font-size: var(--step--1);
+    text-align: center;
+  }
+
+  @media (max-width: 900px) {
+    .legend {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 520px) {
+    .legend {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

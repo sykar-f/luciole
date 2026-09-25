@@ -1,0 +1,258 @@
+---
+// Notes itself, running in this tab: `airtty build --web-local` copied to public/demo/notes/
+// by scripts/demo.ts. Nothing loads until the reader asks: the page stays light.
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { join } from "node:path";
+import { gzipSync } from "node:zlib";
+import { doc } from "../lib/links";
+
+const DEMO = "/demo/notes/";
+const MB = 1_000_000;
+const directory = join(process.cwd(), "public", DEMO);
+
+/** What a first visit downloads, compressed as a static host serves it. */
+function weight() {
+  try {
+    const files = readdirSync(directory, { recursive: true, encoding: "utf8" });
+    const bytes = files
+      .map((file) => join(directory, file))
+      .filter((path) => statSync(path).isFile())
+      .reduce((sum, path) => sum + gzipSync(readFileSync(path)).length, 0);
+    return `${(bytes / MB).toFixed(1)} MB`;
+  } catch {
+    console.warn(`${directory} is missing: run \`bun run demo\` before building the page.`);
+    return undefined;
+  }
+}
+const size = weight();
+
+const halves = [
+  {
+    side: "client",
+    name: "Client",
+    what: "The same terminal Client, OpenTUI compiled to WebAssembly, drawing into xterm.js.",
+  },
+  {
+    side: "server",
+    name: "Server",
+    what: "Your Server Components and actions, in a SharedWorker shared by every tab of the app.",
+  },
+  {
+    side: "server",
+    name: "Data",
+    what: "SQLite in WebAssembly, saved to this browser's private storage after every action.",
+  },
+];
+---
+
+<section class="section" id="try" aria-labelledby="try-title">
+  <div class="wrap">
+    <div class="section-head center">
+      <p class="label">live demo</p>
+      <h2 id="try-title">Try it in your browser.</h2>
+      <p class="lede">
+        This is Notes, the example app, built with <code>airtty build --web-local</code>. Both
+        halves run in this tab: no install, no server, only static files.
+      </p>
+    </div>
+
+    <figure class="term">
+      <div class="bar">
+        <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span class="title">notes, in this tab</span>
+        <a class="size" href={DEMO} target="_blank">Open full page</a>
+      </div>
+      <div class="screen" data-demo={DEMO}>
+        <div class="start">
+          <button type="button" class="button primary" data-demo-start>Start Notes</button>
+          <p class="note">
+            {size ? `${size}, downloaded once.` : "Downloaded once."} Your notes stay in this browser.
+          </p>
+        </div>
+      </div>
+      <figcaption class="keys">
+        <span>Click a note or press <kbd>Enter</kbd> to open it; <kbd>Enter</kbd> saves it.</span>
+        <span>The app lists its other keys at the bottom.</span>
+        <span>Reload the page: your notes are still there.</span>
+      </figcaption>
+    </figure>
+
+    <ul class="halves">
+      {
+        halves.map((half) => (
+          <li class={half.side}>
+            <p class="name">{half.name}</p>
+            <p>{half.what}</p>
+          </li>
+        ))
+      }
+    </ul>
+    <p class="more">
+      How the Server fits in a Worker, and what it cannot do there: <a href={doc("WEB.md")}
+        >WEB.md</a
+      >
+    </p>
+  </div>
+</section>
+
+<script>
+  for (const screen of document.querySelectorAll<HTMLElement>("[data-demo]")) {
+    screen.querySelector("[data-demo-start]")?.addEventListener("click", () => {
+      const frame = document.createElement("iframe");
+      frame.title = "Notes, an airtty app running in this page";
+      frame.src = screen.dataset.demo ?? "";
+      frame.allow = "clipboard-write";
+      // The terminal takes the keyboard as soon as it is drawn.
+      frame.addEventListener("load", () => frame.focus(), { once: true });
+      screen.replaceChildren(frame);
+    });
+  }
+</script>
+
+<style>
+  .lede code {
+    white-space: nowrap;
+  }
+
+  .term {
+    max-width: 1000px;
+    margin: 0 auto;
+    border: 1px solid transparent;
+    border-radius: 14px;
+    background:
+      linear-gradient(180deg, #0e141d, var(--screen)) padding-box,
+      linear-gradient(
+          135deg,
+          rgb(103 217 188 / 0.55),
+          rgb(255 255 255 / 0.08) 35%,
+          rgb(255 255 255 / 0.05) 65%,
+          rgb(255 188 102 / 0.45)
+        )
+        border-box;
+    overflow: hidden;
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.06),
+      0 50px 120px -50px rgb(0 0 0 / 0.95);
+  }
+
+  .bar {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 16px;
+    padding: 10px 14px;
+    border-bottom: 1px solid rgb(255 255 255 / 0.06);
+    background: rgb(255 255 255 / 0.02);
+    color: var(--dim);
+    font: 500 0.72rem / 1.4 var(--mono);
+  }
+
+  .lights {
+    display: flex;
+    gap: 7px;
+  }
+
+  .lights i {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: rgb(255 255 255 / 0.1);
+  }
+
+  .title {
+    color: var(--mist);
+    white-space: nowrap;
+  }
+
+  .size {
+    justify-self: end;
+    color: var(--dim);
+  }
+
+  .size:hover {
+    color: var(--paper);
+  }
+
+  /* The demo page paints #0c0c0c behind its terminal: the frame matches it. */
+  .screen {
+    display: grid;
+    height: clamp(360px, 60vh, 560px);
+    background: #0c0c0c;
+  }
+
+  .start {
+    display: grid;
+    place-content: center;
+    justify-items: center;
+    gap: 16px;
+    padding: 24px;
+    background: radial-gradient(60% 60% at 50% 45%, rgb(103 217 188 / 0.08), transparent 70%);
+    text-align: center;
+  }
+
+  .note {
+    color: var(--dim);
+    font-size: 0.8rem;
+  }
+
+  /* Created by the script: outside the component's scoped styles. */
+  .screen :global(iframe) {
+    width: 100%;
+    height: 100%;
+    border: 0;
+  }
+
+  .keys {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 22px;
+    padding: 10px 14px;
+    border-top: 1px solid rgb(255 255 255 / 0.06);
+    color: var(--dim);
+    font-size: 0.75rem;
+  }
+
+  .halves {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0 40px;
+    max-width: 1000px;
+    margin: 40px auto 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .halves li {
+    padding-top: 16px;
+    border-top: 1px solid var(--rule);
+    color: var(--mist);
+    font-size: 0.9rem;
+  }
+
+  .name {
+    margin-bottom: 6px;
+    font-weight: 600;
+  }
+
+  .client .name {
+    color: var(--client);
+  }
+
+  .server .name {
+    color: var(--server);
+  }
+
+  .more {
+    max-width: 1000px;
+    margin: 28px auto 0;
+    color: var(--dim);
+    font-size: 0.8rem;
+  }
+
+  @media (max-width: 860px) {
+    .halves {
+      grid-template-columns: 1fr;
+      gap: 20px;
+    }
+  }
+</style>

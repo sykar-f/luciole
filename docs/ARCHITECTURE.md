@@ -10,6 +10,7 @@ Le dépôt est un espace de travail Bun (`workspaces` du `package.json` racine) 
 | `tests/`            | Tests d'intégration du framework, qui construisent et lancent les exemples.                                                              |
 | `scripts/`          | Parcours PTY, installation neuve, conteneurs Linux, build du sandbox.                                                                    |
 | `probes/`           | Sondes historiques, hors espace de travail, chacune avec son propre lockfile.                                                            |
+| `website/`          | Page de présentation (Astro), hors espace de travail, avec son propre lockfile ; écrans capturés des exemples.                           |
 
 Le catalogue (`workspaces.catalog`) fixe une version par paquet pour la racine et les
 exemples. `airtty` garde des versions exactes plutôt que `catalog:` : un starter hors de
