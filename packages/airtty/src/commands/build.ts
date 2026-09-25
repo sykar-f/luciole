@@ -2,10 +2,11 @@ import { basename } from "node:path";
 import { build as buildApplication } from "../build";
 import { compileApp, compileClient } from "../compile";
 import { publisherIdentity, readPublisherKey } from "../publisher";
+import { installWebRuntime } from "../web-runtime";
 import type { Command } from "./command";
 export const build: Command = {
   usage:
-    "build [--app-bundle] [--sign-bundle] [--compile [--name n] [--client-only] [--target t] [--runtime official|host|<bun>] [--portable] [--native-dir dir] [--outfile f] [--sign identity [--notarize profile]]]",
+    "build [--app-bundle] [--sign-bundle] [--web] [--compile [--name n] [--client-only] [--target t] [--runtime official|host|<bun>] [--portable] [--native-dir dir] [--outfile f] [--sign identity [--notarize profile]]]",
   async run({ args, optional, directory }) {
     // Every flag is read first: a missing value fails before a long build.
     const compile = args.includes("--compile")
@@ -23,10 +24,14 @@ export const build: Command = {
     // --sign-bundle: the publisher key (`airtty keys`), read before a long build fails on it.
     const signBundle = args.includes("--sign-bundle") ? readPublisherKey() : undefined;
     // --app-bundle: the application must be embeddable (.airtty/app), or the build fails.
+    // --web: browsers open the application from its Server (docs/WEB.md), so it needs its
+    // bundle, and this ABI's web runtime next to it.
+    const web = args.includes("--web");
     const result = await buildApplication(directory, undefined, {
-      appBundle: args.includes("--app-bundle") ? "required" : "auto",
+      appBundle: args.includes("--app-bundle") || web ? "required" : "auto",
       signBundle,
     });
+    if (web) console.log({ web: await installWebRuntime(result.output) });
     if (signBundle) console.log({ signedBundle: publisherIdentity(signBundle).fingerprint });
     console.log(result);
     if (!compile) return;

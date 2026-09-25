@@ -257,7 +257,8 @@ async function compileEntry(
   };
 }
 
-const defaultCache = () => join(process.env.XDG_CACHE_HOME || join(homedir(), ".cache"), "airtty");
+export const defaultCache = () =>
+  join(process.env.XDG_CACHE_HOME || join(homedir(), ".cache"), "airtty");
 
 /**
  * Bun's stock runtime for `target` (`@oven/bun-<os>-<arch>` on npm), downloaded on the

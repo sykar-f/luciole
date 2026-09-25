@@ -10,6 +10,7 @@ import { pack } from "./pack";
 import { runtime } from "./runtime";
 import { trust } from "./trust";
 import { connect, start } from "./start";
+import { webRuntime } from "./web";
 /**
  * Every `airtty` subcommand, by name. A new one is a module in this directory and one
  * line here; the order is the usage line's.
@@ -22,6 +23,7 @@ export const commands: ReadonlyMap<string, Command> = new Map([
   ["keys", keys],
   ["trust", trust],
   ["runtime", runtime],
+  ["web-runtime", webRuntime],
   ["start", start],
   ["connect", connect],
   ["search", search],
