@@ -9,8 +9,11 @@
  *    checked before it replaces anything) when the platforms match, otherwise the one
  *    given with `--target`; a lock directory lets one of concurrent launches upload
  *    while the others wait for it.
- * 4. `<app> serve --socket` runs there in a fresh private directory, its socket
- *    forwarded to a local one by the same ssh command; it stops when ssh goes away.
+ * 4. `<app> serve --detach --id <id> --grace <ms>` finds the managed Server of this
+ *    session key in the host's runtime directory, or starts one detached from ssh, and
+ *    prints its socket. The Server outlives ssh and stops after its grace period.
+ * 5. `ssh -N -L` forwards that socket to a local one while the Client runs, and is
+ *    restarted with backoff when it drops: the Client finds the same Server.
  *
  * Remote commands are `sh -c '<script>' airtty <args>`, whose scripts hold neither
  * single quotes nor backslashes: every common login shell, fish included, passes them

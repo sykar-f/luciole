@@ -79,7 +79,7 @@ export type BuildOptions = {
   signBundle?: PublisherKey;
   /**
    * Also builds the Server for the browser (`.airtty/web-server/server-worker.js`, `airtty
-   * build --web=local`): the same entry, run by a Worker (docs/WEB.md, step 3).
+   * build --web-local`): the same entry, run by a Worker (docs/WEB.md, step 3).
    */
   webServer?: boolean;
 };

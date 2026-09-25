@@ -634,7 +634,9 @@ export class Application {
         { cause },
       );
       this.report("Connected", this.error);
-      // No automatic refresh: the code that mutates calls router.invalidate().
+      // No refresh of its own: the routes to revalidate are the paths and tags the
+      // Server Function declared (`invalidate()`), which the transport hands to
+      // `onInvalidate` from the action's envelope.
       return value;
     } catch (e) {
       if (e instanceof BuildMismatch) this.purge();

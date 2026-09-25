@@ -52,7 +52,7 @@ const Life = z
   .transform((life) => ({ ...CACHE_PROFILES.default, ...life }))
   .refine((life) => life.revalidate <= life.expire, "revalidate must not exceed expire");
 const MAX_TAGS = 64;
-/** Tags travel in a header, comma-separated: visible ASCII, no comma, no space. */
+/** A tag: 1 to 256 visible ASCII characters, no comma, no space (docs/CACHE.md). */
 export const Tag = z
   .string()
   .regex(/^[\x21-\x2b\x2d-\x7e]{1,256}$/, "tags are 1–256 visible ASCII characters, no comma");

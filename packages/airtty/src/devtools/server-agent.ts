@@ -24,7 +24,7 @@ export function devtoolsInstrument(
     buildId: string;
     getCallId: () => string | undefined;
     /**
-     * `invalidate({ tag })` of src/server.ts, handed in by `serve()`: imported here, it
+     * `invalidate({ tag })` of src/server.ts, handed in by `createHandler()`: imported here, it
      * would close an import cycle and load the react-server runtime with this module.
      */
     invalidateTag: (tag: string) => Promise<void>;
