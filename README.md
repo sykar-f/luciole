@@ -193,30 +193,23 @@ depuis macOS.
 ```text
 app/.airtty/
   manifest.json           # build, graphes, route graph et Client References
-  client/                 # index.js, package.json, bun.lock
-  server/                 # index.js, package.json, bun.lock
+  client/                 # index.js
+  server/                 # index.js
 ```
 
-Copier **tout le répertoire du rôle** sur sa machine cible puis installer ses
-dépendances. Aucune source Server n’est nécessaire sur la machine Client :
-
-```sh
-# Dans la copie server/ :
-bun install --frozen-lockfile
-NODE_ENV=production NOTES_DB=/chemin/notes.sqlite PORT=3000 \
-  bun --conditions=react-server index.js
-
-# Dans la copie client/, sur la machine du terminal :
-bun install --frozen-lockfile
-NODE_ENV=production bun index.js --url http://127.0.0.1:3000
-```
+Ces répertoires s’exécutent depuis l’installation de l’application
+(`airtty ./app`, `airtty dev`) : ils résolvent React et OpenTUI dans ses
+`node_modules`. Pour exécuter un rôle sur une autre machine, compiler un binaire pour sa
+plateforme (`airtty build --compile --target …`, voir
+[DISTRIBUTION.md](docs/DISTRIBUTION.md)) : ni Bun ni `node_modules` n’y sont
+nécessaires, et un Server Linux peut servir un Client macOS du même build.
 
 Les deux rôles doivent provenir du **même build**. Un hash de sources, runtime et
 lockfile lie modules et actions ; un désaccord est refusé avant décodage, sans
-réinitialiser les Drafts déjà montés. Les dépendances natives OpenTUI sont installées
-pour la plateforme cible. Pour conserver un lockfile unique et vérifié, les deux
-artefacts embarquent le même manifeste de dépendances, y compris l’outillage ;
-le bundle Server n’importe pas OpenTUI et le bundle Client ne contient pas le métier.
+réinitialiser les Drafts déjà montés. Le lockfile entre dans ce hash parce qu’il décrit
+les paquets de toutes les plateformes : les binaires de chaque cible d’une même version
+gardent le même identifiant. Le bundle Server n’importe pas OpenTUI et le bundle Client
+ne contient pas le métier.
 
 ## Connexion distante
 

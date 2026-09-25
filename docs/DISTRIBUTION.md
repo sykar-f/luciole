@@ -110,9 +110,11 @@ l'exécution (vérifié : ni `require`, ni `createRequire`, ni `Bun.resolveSync`
 plugin d'exécution) : le Server de ces apps est donc `native/server.js`, que le binaire
 lance en se comportant comme Bun (`BUN_BE_BUN=1`, retiré aussitôt de l'environnement du
 Server), avec la même interface (`serve`, cycle de vie, signaux, code de sortie).
-`AIRTTY_NATIVE_DIR` remplace l'emplacement. Pour une autre plateforme, installer ses
-paquets dans un répertoire passé en `--native-dir`
-(`bun add sharp --os=linux --cpu=x64`) ; un paquet sans code natif pour la cible est
+`AIRTTY_NATIVE_DIR` remplace l'emplacement. Pour une autre plateforme, installer les
+paquets de l'app pour cette cible **depuis son lockfile**, puis passer ce répertoire en
+`--native-dir` : copier `package.json` et `bun.lock`, puis
+`bun install --frozen-lockfile --os=linux --cpu=x64`. Les versions restent celles du
+lockfile, comme sur la plateforme de build (`bun add` résoudrait la version du jour) ; un paquet sans code natif pour la cible est
 refusé avec cette indication. `native/TARGET` empêche de mélanger deux cibles dans un
 même répertoire.
 

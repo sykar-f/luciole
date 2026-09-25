@@ -114,14 +114,23 @@ ni en-tête de build.
 
 Le Client contient le runtime terminal et les Client Components de **cette
 application**. Le Server contient le runtime HTTP, les routes, les actions et le
-métier. Chacun embarque `index.js`, `package.json` et `bun.lock` ; installer ses
-dépendances puis lancer Bun. Le Client n’a pas besoin des sources Server ni de la
-base. Les deux artefacts doivent correspondre au même identifiant de build.
+métier. Chacun est un `index.js` qui s’exécute depuis l’installation de l’application :
+React, React Server DOM et OpenTUI restent externes et s’y résolvent. Le Client n’a pas
+besoin des sources Server ni de la base. Les deux artefacts doivent correspondre au
+même identifiant de build.
 
-Le packaging actuel privilégie la reproductibilité : les manifests de dépendances
-des deux rôles sont identiques et incluent aussi les outils de développement.
-Réduire ces manifests et publier le package sont des travaux de packaging futurs.
-Le code métier reste exclu du bundle Client malgré ce manifeste commun.
+`.airtty/client` et `.airtty/server` ne sont pas une forme de livraison : ils
+n’embarquent ni manifeste ni lockfile à installer ailleurs. Une machine dont on connaît
+la plateforme reçoit un binaire compilé (ci-dessous) ; une cible inconnue part de la
+source (`airtty git+…`), installée depuis son `bun.lock` et buildée sur place.
+
+L’identifiant de build inclut le `bun.lock` qui gouverne l’installation
+(`src/lockfile.ts` : le plus proche au-dessus du framework, puis de l’application,
+sans dépasser le checkout git) : le checkout du framework, la racine d’un espace de
+travail, ou l’application qui a installé `airtty`. Ce fichier liste les paquets de
+toutes les plateformes, contrairement à `node_modules` : un Server Linux et un Client
+macOS compilés depuis les mêmes sources partagent le même identifiant, ce que `--on`
+exige.
 
 `airtty build --compile [--target …]` produit aussi le Client en un seul exécutable
 (runtime Bun, bibliothèque native OpenTUI et build ID embarqués) : la machine du

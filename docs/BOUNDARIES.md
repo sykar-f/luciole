@@ -108,8 +108,8 @@ Client package db-client imports server-only: it is Server-only
 ```
 
 Le manifest liste les packages réellement embarqués dans le Client, avec leur version,
-d'après le bundler lui-même ; le `bun.lock` de l'application entre dans l'identifiant
-de build. Ces contrôles protègent la frontière Client/Server ; ce n'est pas un sandbox :
+d'après le bundler lui-même ; le `bun.lock` qui gouverne l'installation de
+l'application entre dans l'identifiant de build. Ces contrôles protègent la frontière Client/Server ; ce n'est pas un sandbox :
 le code d'un package s'exécute avec les droits de son processus.
 
 Les imports applicatifs utilisent des chemins relatifs avec extensions omises
