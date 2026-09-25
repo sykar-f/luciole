@@ -1,8 +1,8 @@
 # Étude — cible web : le Client (et le Server) dans un navigateur
 
-> **Statut : étapes 0 à 3 faites** (§ 5) : le Client web tourne contre un vrai Server
-> (`--web`), et l'application entière dans un site statique (`--web-local`). Reste la
-> landing (étape 4).
+> **Statut : étapes 0 à 4 faites** (§ 5) : le Client web tourne contre un vrai Server
+> (`--web`), l'application entière dans un site statique (`--web-local`), et la landing
+> (`website/`) ouvre Notes ainsi. Reste le shell hébergé ailleurs (étape 5).
 
 ## Décision proposée
 
@@ -28,8 +28,8 @@ d'OpenTUI passe en WebAssembly.
 ┌───────────────────────────────────────────────────────────────────────────┐
 │ page                                                                      │
 │  ┌─────────────┐  ANSI   ┌────────────────────────────────────────────┐   │
-│  │ ghostty-web │ ◀────── │ runtime web (build du framework, par ABI)  │   │
-│  │ ou xterm.js │ ──────▶ │  React, TanStack, keymap, airtty/client    │   │
+│  │  xterm.js   │ ◀────── │ runtime web (build du framework, par ABI)  │   │
+│  │             │ ──────▶ │  React, TanStack, keymap, airtty/client    │   │
 │  └─────────────┘ touches │  @opentui/core + FfiBackend WASM           │   │
 │                          │  bundle d'app évalué (.airtty/app)         │   │
 │                          └──────────────┬─────────────────────────────┘   │
@@ -47,14 +47,14 @@ d'OpenTUI passe en WebAssembly.
 ## Mode d'emploi (Client web)
 
 ```sh
-ZIG=/chemin/zig-0.16.0 airtty web-runtime        # une fois par clé d'ABI : ~30 s, réseau
+ZIG=/chemin/zig-0.16.0 airtty web-runtime        # une fois par ABI et framework : ~30 s, réseau
 airtty build --web                                # .airtty/web/ à côté de server/, client/, app/
 AIRTTY_WEB_ORIGIN=https://notes.example.com PORT=3000 bun --conditions=react-server .airtty/server/index.js
 ```
 
 Le navigateur ouvre `https://notes.example.com/` et arrive sur `/_airtty/web/`. Le runtime
-est dans `$XDG_CACHE_HOME/airtty/web/<clé d'ABI>/` ; `airtty build --web` le prépare s'il
-manque. En local : `AIRTTY_WEB_ORIGIN=http://127.0.0.1:3000`.
+est dans `$XDG_CACHE_HOME/airtty/web/<clé d'ABI>-<hash du framework>/` : la page est
+aussi du code du framework. `airtty build --web` le prépare s'il manque. En local : `AIRTTY_WEB_ORIGIN=http://127.0.0.1:3000`.
 
 | Fichier                             | Rôle                                                                             |
 | ----------------------------------- | -------------------------------------------------------------------------------- |
@@ -107,69 +107,60 @@ Ce que le code Server d'une app peut utiliser ici : `bun:sqlite` (le sous-ensemb
 | `airtty.capabilities` + built-ins du manifeste | refuser avant évaluation une app qui exige `fs`, `exec`, `pty`                |
 | Contrat `AIRTTY_DESKTOP` (DESKTOP.md)          | déjà un hôte « fenêtre » avec xterm.js ; mêmes gestes, même vue               |
 
-## 2. Obstacles dans `src/` et refactors proposés
+## 2. Obstacles dans `src/` et refactors faits
 
-Chaque refactor est d'abord fait **à comportement constant** pour le terminal, vérifié par
-les tests et parcours PTY existants, avant qu'une ligne web n'existe.
+Chaque refactor a d'abord été fait **à comportement constant** pour le terminal, vérifié
+par les tests et parcours PTY existants, avant qu'une ligne web n'existe.
 
 **Variantes de plateforme.** Un module lié à Bun ou Node qui a un équivalent navigateur
 garde son nom et reçoit, au même chemin sous `src/web/platform/`, une variante aux mêmes
 exports ; le build navigateur la prend (`src/web/platform.ts`), le reste du code ne sait
 rien. Sous `src/web/`, un `tsconfig` avec le DOM, que le reste du package n'a pas. Après
-l'étape 1 : `run.tsx`, `host-direct.ts`, `app-bundle.ts`, `vt/terminal.tsx`,
-`flight/server.ts`. `client.tsx`, le transport, `host.ts` et `app-evaluate.ts` sont
-neutres.
+l'étape 3 : `run.tsx`, `host-direct.ts`, `app-bundle.ts`, `vt/terminal.tsx`,
+`flight/server.ts`, `serve.ts`. `client.tsx`, le transport, `host.ts` et `app-evaluate.ts`
+sont neutres.
 
-### W1. `run()` mélange l'Application et la plateforme terminal
+### W1. `run()` mélangeait l'Application et la plateforme terminal
 
-`client.tsx` importe `connect`, `session`, lit `process.env`, écoute les signaux et
-`process.on("message")`, crée le renderer sur le TTY. Le reste (`Application`,
-`Shell`, hooks) est neutre.
+`client.tsx` importait `connect`, `session`, lisait `process.env`, écoutait les signaux
+et `process.on("message")`, créait le renderer sur le TTY.
 
-**Refactor** : `run()` part dans `src/platform/terminal.tsx` (réexporté par
-`airtty/client` pour ne rien casser) ; `client.tsx` n'importe plus rien de Node. Le
-runtime web a son pendant, `src/platform/web.tsx` :
+**Fait** : `run()` vit dans `src/run.tsx` (réexporté par `airtty/client`) ; `client.tsx`
+n'importe plus rien de Node. Sa variante `src/web/platform/run.tsx` exporte le même
+`run()`, qui monte xterm.js sur `#airtty`, et `runInPage(create, { element, server,
+fetch, name, sessionKey })` pour une page qui choisit son élément et son `fetch`.
 
-```ts
-runInBrowser({
-  element, // où monter l'émulateur
-  bundle, // AppBundle déjà vérifié (W3)
-  fetch, // réseau ou Worker (W2)
-  storage, // SessionStore web (W4)
-  host, // HostChannel web
-});
-```
+### W2. `serve()` liait le handler à `Bun.serve`
 
-### W2. `serve()` lie le handler à `Bun.serve`
+**Fait** : `createHandler(config, options)` (`src/server.ts`) porte auth, routes,
+actions, Flight, cache et instrumentation ; `serve()` (`src/serve.ts`) y ajoute
+l'environnement, `Bun.serve`, le socket et le cycle de vie. La variante
+`src/web/platform/serve.ts` appelle `createHandler` et répond aux onglets par
+`MessagePort` ; les corps restent des `ReadableStream`, donc le live et le streaming
+Flight passent tels quels.
 
-**Refactor** : extraire `createHandler(config): (req: Request) => Promise<Response>`
-(auth, routes, actions, Flight, cache, instrumentation) ; `serve()` devient
-`createHandler` + environnement + `Bun.serve` + socket + `managedLifetime`. Le Worker
-web appelle `createHandler` et répond aux `postMessage` du Client ; les corps restent des
-`ReadableStream` (transférables), donc le live et le streaming Flight passent tels quels.
+### W3. `loadAppBundle` lisait le disque et évaluait par `node:vm`
 
-### W3. `loadAppBundle` lit le disque et évalue par `node:vm`
+**Fait** : `evaluateAppBundle(evaluation)` (`src/app-evaluate.ts`) vérifie et évalue ;
+la table `RUNTIME` de l'ABI y vit, partagée par les deux runtimes. Le terminal lit le
+disque et compile par `node:vm` (`src/app-bundle.ts`) ; le web lit par `fetch`, hache par
+`crypto.subtle` et évalue par un `import()` de module `Blob`.
 
-**Refactor** : séparer la vérification et l'évaluation pures
-(`evaluateAppBundle(manifest, code, require)`, hash par une fonction injectée) du
-chargement disque. Le web lit par `fetch`, hache par `crypto.subtle`, évalue par
-`new Function`. La table `RUNTIME` de l'ABI est la même ; elle vit dans un module partagé
-par les deux runtimes.
+### W4. Session et hôte supposaient le système de fichiers et des binaires
 
-### W4. Session et hôte supposent le système de fichiers et des binaires
+**Fait** : `SessionStore` (`src/session.ts`) garde le fichier XDG du terminal ; la page
+range sa session dans `localStorage`, par nom d'app et Server. `performDirectly`
+(`src/host-direct.ts` : `pbcopy`, `open`…) a sa variante web, qui répond par
+`navigator.clipboard`, `window.open` et `Notification` ; une page n'a pas de trousseau.
 
-`SessionStore` devient une interface : fichier XDG pour le terminal, `localStorage` (ou
-IndexedDB) par origine pour le web. `directChannel` (`child_process`, `pbcopy`,
-`open`…) garde son rôle terminal ; `webChannel` répond par `navigator.clipboard`,
-`window.open`, `Notification`.
+### W5. Flight côté Server passait par `node:stream`
 
-### W5. Flight côté Server passe par `node:stream`
-
-`src/flight/server.ts` convertit un `PassThrough`. `src/flight/server.web.ts` offre les
-mêmes exports sur `react-server-dom-webpack/server.edge` (flux web), octet pour octet
-identiques. Le Server Bun garde l'entrée Node : l'entrée edge n'active le stockage par
-requête de React (`React.cache`) qu'avec un `AsyncLocalStorage` **global**, que Bun n'a
-pas ; le Worker web le fournira (W6).
+`src/flight/server.ts` convertit un `PassThrough`. Sa variante
+`src/web/platform/flight/server.ts` offre les mêmes exports sur
+`react-server-dom-webpack/server.edge` (flux web), aux mêmes digests. Le Server Bun garde
+l'entrée Node : l'entrée edge n'active le stockage par requête de React (`React.cache`)
+qu'avec un `AsyncLocalStorage` **global**, que Bun n'a pas ; le Worker web le fournit
+(W6).
 
 ### W6. Le contexte de requête repose sur `AsyncLocalStorage`
 
@@ -179,7 +170,7 @@ des Server Functions. Le navigateur n'a pas `node:async_hooks`. Voir risque R2.
 
 ### W7. OpenTUI charge une bibliothèque native
 
-`@opentui/core` appelle `libopentui` par `bun:ffi`. Il faut un `libopentui.wasm` réduit
+`@opentui/core` appelle `libopentui` par `bun:ffi`. Il faut un `opentui.wasm` réduit
 et un `FfiBackend` WebAssembly, injecté par alias de build tant qu'OpenTUI n'offre pas
 de point d'injection. Ghostty (widget `<Terminal>`) reste hors du cœur : son stub
 existe déjà (`embedded-terminal/unavailable.zig`). Voir risque R1.
@@ -188,8 +179,9 @@ existe déjà (`embedded-terminal/unavailable.zig`). Voir risque R1.
 
 Trois ajouts, sans toucher aux rôles `server`, `client`, `app` :
 
-- **runtime web** : construit par le framework, **une fois par clé d'ABI**, pas par
-  application (`target: "browser"`, alias des modules de plateforme, `.wasm` à côté). Il
+- **runtime web** : construit par le framework, **une fois par clé d'ABI et version du
+  framework**, pas par application (`target: "browser"`, alias des modules de plateforme,
+  `.wasm` à côté). Il
   peut être publié et mis en cache comme un navigateur l'est ;
 - **rôle `web-server`** (optionnel) : le graphe Server de l'app, `conditions:
 ["react-server", "browser"]`, `target: "browser"`, avec les substitutions de W9 ;
@@ -217,7 +209,7 @@ await du bundle d'app) :
 ### Client web → vrai Server
 
 Le Server sert le shell sous un chemin réservé (`GET /_airtty/web/…`, statique, opt-in
-par `serve --web` ou `airtty.web` dans `package.json`) : **même origine**, donc ni CORS
+par `airtty build --web` et `AIRTTY_WEB_ORIGIN`) : **même origine**, donc ni CORS
 ni clé épinglée à gérer ; TLS authentifie le Server comme pour tout site. Le shell lit
 `/manifest`, télécharge `/bundle/<sha256>` (immuable, cacheable), refuse une clé d'ABI
 autre que la sienne (même message que le terminal) et ouvre l'app.
@@ -230,7 +222,7 @@ autre que la sienne (même message que le terminal) et ouvre l'app.
      │                     │ ① GET /_airtty/web/                      │
      │                     │─────────────────────────────────────────▶│ routes /_airtty/web/*
      │                     │◀──────── index.html, runtime.js,         │ (nouvelles, opt-in)
-     │                     │          libopentui.wasm, xterm.js       │
+     │                     │          opentui.wasm, xterm.css         │
      │                     │                                          │
      │                     │ ② GET /manifest                          │
      │                     │─────────────────────────────────────────▶│ appRoutes
@@ -313,8 +305,7 @@ partagé par toute l'origine : le Server web range ses données sous le nom de l
   redimensionnement appelle `renderer.resize`. Restent à fournir `process.on`,
   `process.platform/env`, `events`, et des `fs` inertes (logs) : un petit module
   `process` du runtime web.
-- Émulateur : **ghostty-web** si son API compatible xterm.js tient ses promesses (même VT
-  que le cœur d'OpenTUI), sinon **xterm.js** (déjà utilisé par `packages/desktop`).
+- Émulateur : **xterm.js** (décision 3), comme `packages/desktop`.
 - Plus tard, un renderer qui peint directement le buffer de cellules d'OpenTUI sur un
   canvas supprimerait l'aller-retour ANSI ; ce n'est pas nécessaire pour commencer.
 - Clavier : les gestes suivent `AIRTTY_DESKTOP` (Ctrl+C à l'app) ; les raccourcis du
@@ -326,9 +317,9 @@ partagé par toute l'origine : le Server web range ses données sous le nom de l
 | ----- | ---------------------------------------------------------------- | ------------------------------------------------------ |
 | 0     | Spikes R1 et R2, hors de `src/`, dans `probes/web/` — **fait**   | une `<box>` rendue ; un `await` qui garde son contexte |
 | 1     | W1 à W5 à comportement constant — **fait**                       | `bun run verify`, parcours PTY                         |
-| 2     | Runtime web + Client web servi par le Server (`/_airtty/web`)    | `examples/notes` ouvert dans Chrome, headless          |
+| 2     | Runtime web + Client web servi par le Server — **fait**          | `examples/notes` ouvert dans Chrome, headless          |
 | 3     | W6, rôle `web-server`, W9, `airtty build --web-local` — **fait** | `bun run test:web:local` : Notes en site statique      |
-| 4     | Landing : `iframe` de notes dans `website/`                      | capture de la page                                     |
+| 4     | Landing : `iframe` de notes dans `website/` — **fait**           | capture de la page                                     |
 | 5     | Shell hébergé ailleurs (CORS, signature, clé épinglée)           | —                                                      |
 
 Les tests navigateur suivent le modèle des parcours PTY : un script Bun qui pilote
@@ -387,7 +378,8 @@ sans la transformation. Limite : du code non transformé qui reprend seul (un fl
 voit le dernier contexte courant ; les stores ne valent que pour le code transformé.
 
 **R3 — poids.** Mesuré au spike : 815 Ko brotli (React, OpenTUI, xterm.js, `.wasm`),
-sans TanStack ni le runtime airtty ; chargé une fois par version d'ABI, cache immuable.
+sans TanStack ni le runtime airtty. La démo Notes complète de `website/` (`--web-local`,
+Server et SQLite compris) pèse ~1,7 Mo compressé, chargée à la demande.
 
 **R4 — dette de maintenance.** Le backend FFI et le build wasm vivent dans airtty
 (décision 4) : ils touchent l'intérieur d'OpenTUI et peuvent casser à chaque version.
@@ -410,7 +402,7 @@ faudra une persistance incrémentale.
    petite interface (écrire, recevoir les touches, taille) : ghostty-web, compatible
    avec son API, reste une option si la fidélité le demande.
 4. **Backend FFI WASM dans airtty.** Un plugin de build remplace `platform/ffi` et la
-   résolution de la bibliothèque d'OpenTUI ; airtty compile `libopentui.wasm` depuis les
+   résolution de la bibliothèque d'OpenTUI ; airtty compile `opentui.wasm` depuis les
    sources de la version fixée par l'ABI. Chaque mise à jour d'OpenTUI change déjà la clé
    d'ABI : c'est là que le backend est revérifié (un test du runtime web par clé). Un point
    d'injection upstream reste souhaitable ; il n'est pas un prérequis.

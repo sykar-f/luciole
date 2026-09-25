@@ -254,7 +254,7 @@ données : ce qui est installé est noté localement.
 
 Le champ `airtty` accepte aussi `capabilities` (schéma `src/capabilities.ts`, décision 3
 d'[EMBEDDING.md](EMBEDDING.md)) : ce que l'app déclare pouvoir faire, lisible avant toute
-exécution. Déclarer n'est pas appliquer : seul le mode `sandbox` les appliquera.
+exécution. Déclarer n'est pas appliquer : seul le mode `sandbox` les applique.
 
 ```text
 airtty build --compile --name notes --target bun-darwin-arm64
@@ -299,7 +299,8 @@ choisir termine `airtty`.
 | `i`           | installe le résultat sans le lancer                                                                   |
 
 Vérifié par `bun run test:pty:launcher` (hors ligne : app installée factice, registre
-injoignable). Les permissions par origine viendront plus tard.
+injoignable). Les capacités accordées à une URL sont mémorisées par origine
+(`origin.json`, [EMBEDDING.md](EMBEDDING.md), étape 7).
 
 ## Répertoires (XDG)
 
@@ -308,6 +309,10 @@ injoignable). Les permissions par origine viendront plus tard.
 | apps installées, installations `--on` | `$XDG_DATA_HOME/airtty/apps/<app>/`                        |
 | checkouts et builds git               | `$XDG_CACHE_HOME/airtty/git/`                              |
 | confiance accordée aux dépôts         | `$XDG_CONFIG_HOME/airtty/trust.json`                       |
+| clé d'éditeur (`airtty keys`)         | `$XDG_CONFIG_HOME/airtty/keys/publisher.pem`               |
+| origines ouvertes par URL             | `$XDG_STATE_HOME/airtty/origins/<sha256(origine)>/`        |
+| bundles téléchargés par URL           | `$XDG_CACHE_HOME/airtty/bundles/<sha256>.cjs`              |
+| runtime web (`airtty build --web`)    | `$XDG_CACHE_HOME/airtty/web/<ABI>-<framework>/`            |
 | logs des Servers lancés               | `$XDG_STATE_HOME/airtty/<app>/server.log` (de chaque hôte) |
 | sockets des Servers gérés             | `$XDG_RUNTIME_DIR/airtty` ou `/tmp/airtty-<uid>` (0700)    |
 | sockets des tunnels                   | `$XDG_RUNTIME_DIR`, `$TMPDIR` ou `/tmp`, répertoires 0700  |
