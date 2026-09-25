@@ -19,7 +19,7 @@ l'émulateur des parcours PTY : une boîte arrondie titrée et son texte.
 
 ### Résultat
 
-**Levé pour le rendu de base.** `createCliRenderer`, Yoga, `BoxRenderable` et
+**Levé.** `createCliRenderer`, Yoga, `BoxRenderable` et
 `TextRenderable` tournent sur le module WASM, sans thread, vers un `stdout` quelconque par
 NativeSpanFeed. Écran vérifié par un émulateur ; deux builds depuis un clone neuf
 donnent un module identique à l'octet.
@@ -65,7 +65,26 @@ largeur), un `<scrollbox>` des notes soumises, Échap pour quitter, le clavier l
 `stdin` du PTY. `NATIVE=1` lance la même source sur l'OpenTUI natif publié : **l'écran
 final est identique à l'octet** entre natif et WASM.
 
-### Reste à prouver
+### Dans Chrome : `check-browser.ts`
 
-- le même probe dans Chrome, derrière xterm.js ;
-- le coût des copies à chaque appel sur un écran réel (Notes).
+Le même composant (`src/form-app.tsx`) dans une page : OpenTUI écrit ses frames dans
+xterm.js, xterm.js rend les touches comme `stdin` du renderer. `../cdp.ts` pilote un Chrome
+headless par le protocole DevTools, sans dépendance : il tape, lit le buffer de xterm.js
+et capture `.airtty/browser/screen.png`. Premier frame en ~260 ms en local ; même écran
+final qu'en natif.
+
+Ce qu'une page n'a pas et que le bundle navigateur fournit (`src/browser-node/`) :
+`process`, `global`, `Buffer` ; `fs` inerte ou refusé, `url`, `os`, `console` ;
+`module`, `worker_threads`, `child_process`, `tty` chargeables mais refusés à l'usage.
+`events`, `stream`, `buffer`, `path`, `util` restent les polyfills de Bun.
+
+| Charge utile (minifiée)            | Brotli     |
+| ---------------------------------- | ---------- |
+| JS : React, OpenTUI, xterm.js, app | 457 Ko     |
+| `opentui.wasm`                     | 357 Ko     |
+| **Total**                          | **815 Ko** |
+
+### Reste à mesurer
+
+- le coût des copies à chaque appel sur un écran réel (Notes) ;
+- ce que retirer images et tree-sitter du module gagne en poids.

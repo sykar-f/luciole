@@ -1,7 +1,7 @@
 # Étude — cible web : le Client (et le Server) dans un navigateur
 
-> **Statut : étude, décisions prises (§ 7).** Rien n'est implémenté. Deux inconnues
-> bloquantes (R1, R2) se lèvent par des spikes avant toute modification de `src/`.
+> **Statut : décisions prises (§ 7) ; R1 levé par un spike ([probes/web](../probes/web/README.md)),
+> R2 ouvert.** Rien n'est encore modifié dans `src/`.
 
 ## Décision proposée
 
@@ -299,10 +299,13 @@ La sortie est déjà prête : un `stdout` autre que `process.stdout` passe par
 NativeSpanFeed, synchrone, vers `stdout.write` avec contre-pression ; `stdin` est un
 `Readable` quelconque ; `renderer.resize(w, h)` remplace SIGWINCH.
 
-Spike : `libopentui` réduit en `wasm32-wasi` (renderer, buffer, texte, édition, Yoga,
-uucode), backend par alias qui marshalle et copie les buffers retenus, un
-`<box><text>` rendu avec `useThread: false` et un `stdout` custom, sous Bun puis dans
-Chrome. Il tranche en un essai Yoga, les pointeurs retenus et les structs.
+**Levé** par le spike ([probes/web](../probes/web/README.md)) : un patch de 5 fichiers
+natifs (sans effet sur la dylib native, exports identiques), un backend `FfiBackend` WASM
+substitué au build, et les deux alias de mémoire native d'OpenTUI (cellules, compteurs de
+NativeSpanFeed) servis par des vues vivantes. Une app `@opentui/react` avec `<input>` et
+`<scrollbox>` rend le même écran qu'en natif, sous Bun et dans Chrome derrière xterm.js ;
+815 Ko brotli au total. Yoga passe en `-fno-exceptions` ; les structs partagées passent
+leurs longueurs en `u64`.
 
 **R2 — contexte asynchrone sans `AsyncLocalStorage`.** Le proposal TC39
 `AsyncContext` n'est pas acquis dans tous les navigateurs. Pistes, dans l'ordre :

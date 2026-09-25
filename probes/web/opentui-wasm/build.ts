@@ -4,7 +4,7 @@
  * OPENTUI_SRC: the OpenTUI checkout at the version the ABI pins (v0.5.12).
  */
 import { join, resolve } from "node:path";
-import { opentuiWasm } from "./plugin";
+import { browserNode, opentuiWasm } from "./plugin";
 
 const [entry, outdir, targetArgument = "bun"] = process.argv.slice(2);
 const target = targetArgument === "browser" ? "browser" : "bun";
@@ -21,6 +21,7 @@ const result = await Bun.build({
   sourcemap: "linked",
   plugins: [
     opentuiWasm,
+    ...(target === "browser" ? [browserNode] : []),
     {
       name: "opentui-source",
       setup(b) {
