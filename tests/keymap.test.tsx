@@ -56,3 +56,38 @@ test("help is generated from the keymap layers mounted right now", async () => {
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test("a desktop window leaves Ctrl+C to the application", async () => {
+  await build(root);
+  const dir = await mkdtemp(join(tmpdir(), "airtty-keymap-"));
+  const server = await launch(join(root, ".airtty/server/index.js"), {
+    NOTES_DB: join(dir, "notes.sqlite"),
+  });
+  const { createApp, Shell } = await importClient(root, "keymap-desktop");
+  const app = createApp({ url: server.url, quitOnCtrlC: false });
+  let quits = 0;
+  app.quit = () => void quits++;
+  let rendered: TestUI | undefined;
+  try {
+    await app.router.load();
+    const ui = await testRender(<Shell app={app} />, { width: 100, height: 24 });
+    rendered = ui;
+    await ui.renderOnce();
+    const { x, y, width } = renderable(ui, "notes-footer", Renderable);
+    const footer = ui
+      .captureCharFrame()
+      .split("\n")
+      [y].slice(x, x + width)
+      .trim();
+    expect(footer).toBe("ctrl+r reconnect · ctrl+t requests");
+    await act(async () => {
+      ui.mockInput.pressCtrlC();
+      await Bun.sleep(50);
+    });
+    expect(quits).toBe(0);
+  } finally {
+    await destroy(rendered);
+    await server.stop();
+    await rm(dir, { recursive: true, force: true });
+  }
+});

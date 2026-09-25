@@ -73,7 +73,7 @@ const open = new Set<() => void>();
 /**
  * One origin: its bundle evaluated against this runtime, refused unless signed by the
  * key the launcher pinned, with the origin's own sessions (history and named fields).
- * Ctrl+C in it closes its tab.
+ * Ctrl+C in it closes its tab, as it quits the host (not in a desktop window).
  */
 type TabProps = {
   tab: Tab;
@@ -87,6 +87,7 @@ type TabProps = {
   onGrants: (granted: Capabilities) => void;
 };
 function OriginTab({ tab, id, hub, active, onClose }: TabProps) {
+  const { quitOnCtrlC } = useApplication().options;
   const [app, setApp] = useState<Application | undefined>();
   const [failure, setFailure] = useState("");
   const close = useRef(onClose);
@@ -117,6 +118,7 @@ function OriginTab({ tab, id, hub, active, onClose }: TabProps) {
       url: tab.url,
       session: session.restored,
       host: channel,
+      quitOnCtrlC,
       publisher: {
         required: true,
         trust: (fingerprint) => {
@@ -146,7 +148,7 @@ function OriginTab({ tab, id, hub, active, onClose }: TabProps) {
       open.delete(forget);
       opened?.dispose();
     };
-  }, [tab, id, hub]);
+  }, [tab, id, hub, quitOnCtrlC]);
   if (failure) return <text fg="#ff6b6b">{failure}</text>;
   if (!app) return <text fg="#8b98a5">Opening {tab.origin}…</text>;
   return <Embed app={app} name={tab.name} active={active} prefix={PREFIX} flexGrow={1} />;
@@ -155,7 +157,8 @@ function OriginTab({ tab, id, hub, active, onClose }: TabProps) {
 /**
  * One origin in the sandbox (src/sandbox): its Client runs in a process of its own under
  * Seatbelt, shown by the VT widget; what it asks of `host` arrives over IPC and is
- * checked against its grants. Its end (Ctrl+C in it) closes the tab.
+ * checked against its grants. Its end (Ctrl+C in it, outside a desktop window) closes
+ * the tab.
  */
 function SandboxTab({ tab, id, hub, active, onClose, ask, onGrants }: TabProps) {
   const [sandbox, setSandbox] = useState<Sandbox | undefined>();

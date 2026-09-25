@@ -22,8 +22,9 @@ import type { Mechanism } from "./mechanism";
 import type { SandboxRuntime } from "./profile";
 import type { EgressProxy } from "./proxy";
 
-// Passed through: how the user reads text and time, nothing that names a secret or a path.
-const PASSED = ["LANG", "LC_ALL", "LC_CTYPE", "LC_MESSAGES", "TZ"];
+// Passed through: how the user reads text and time, and whether a desktop window hosts
+// the Client (Ctrl+C then quits nothing); nothing that names a secret or a path.
+const PASSED = ["LANG", "LC_ALL", "LC_CTYPE", "LC_MESSAGES", "TZ", "AIRTTY_DESKTOP"];
 
 export type SandboxOrigin = {
   origin: string;

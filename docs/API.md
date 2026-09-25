@@ -112,7 +112,9 @@ d'annulation à n'importe quel appel de Server Function.
 
 `Shell` installe la keymap par défaut d'OpenTUI (`@opentui/keymap`). Le framework ne
 déclare que `ctrl+c` (quitter) et, pendant une navigation, `escape` (annuler), dans le
-groupe `airtty`. Tout le reste appartient à l'application :
+groupe `airtty`. Dans une fenêtre desktop (`AIRTTY_DESKTOP=1`, option
+`quitOnCtrlC: false`), `ctrl+c` n'est plus déclaré : on quitte en fermant la fenêtre
+([DESKTOP.md](DESKTOP.md)). Tout le reste appartient à l'application :
 
 ```tsx
 useBindings(
@@ -257,12 +259,14 @@ entrées**. Rien d'autre : les données de page reviennent du Server en naviguan
 token reste à l'application, un champ sans `name` n'est jamais écrit (un PIN, un mot de
 passe).
 
-| Quand                                                | Ce qui revient                                                     |
-| ---------------------------------------------------- | ------------------------------------------------------------------ |
-| Retour sur une entrée d'historique (`u`, back)       | Le texte des champs nommés de cette entrée                         |
-| Rebuild de `airtty dev`                              | La page, l'historique, les champs nommés et le bearer (en mémoire) |
-| Crash, `kill -9`, terminal fermé, SSH coupé (SIGHUP) | La page, l'historique et les champs nommés, au prochain lancement  |
-| Ctrl+C ou `app.quit()` : sortie volontaire           | Rien : la session est supprimée, comme un navigateur fermé exprès  |
+| Quand                                                   | Ce qui revient                                                     |
+| ------------------------------------------------------- | ------------------------------------------------------------------ |
+| Retour sur une entrée d'historique (`u`, back)          | Le texte des champs nommés de cette entrée                         |
+| Rebuild de `airtty dev`                                 | La page, l'historique, les champs nommés et le bearer (en mémoire) |
+| Crash, `kill -9`, terminal fermé, SSH coupé (SIGHUP)    | La page, l'historique et les champs nommés, au prochain lancement  |
+| SIGTERM (arrêt de la machine), fenêtre desktop comprise | La page, l'historique et les champs nommés, au prochain lancement  |
+| Ctrl+C ou `app.quit()` : sortie volontaire              | Rien : la session est supprimée, comme un navigateur fermé exprès  |
+| Fenêtre desktop fermée (SIGHUP sous `AIRTTY_DESKTOP`)   | Rien : fermer la fenêtre, c'est quitter l'application              |
 
 - **Par entrée d'historique**, comme un navigateur : rouvrir la même page par un lien
   crée une nouvelle entrée, vide. Garder un texte par document, quel que soit le

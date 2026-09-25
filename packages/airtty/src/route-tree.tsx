@@ -237,10 +237,14 @@ function Runtime({ children }: { children: ReactNode }) {
   const { activity, buildError } = useConnection();
   // The framework's only layer (`group: "airtty"`). Ctrl+C also works without React: run()
   // listens to the renderer directly. Escape still reaches the application's bindings.
+  // Without `quitOnCtrlC` (a desktop window), Ctrl+C is the application's.
+  const quitOnCtrlC = app.options.quitOnCtrlC !== false;
   useBindings(
     () => ({
       bindings: [
-        { key: "ctrl+c", cmd: () => app.quit?.(), desc: "quit", group: "airtty" },
+        ...(quitOnCtrlC
+          ? [{ key: "ctrl+c", cmd: () => app.quit?.(), desc: "quit", group: "airtty" }]
+          : []),
         ...(activity === "navigate"
           ? [
               {
@@ -255,7 +259,7 @@ function Runtime({ children }: { children: ReactNode }) {
           : []),
       ],
     }),
-    [activity, app],
+    [activity, app, quitOnCtrlC],
   );
   return (
     <box flexDirection="column" flexGrow={1}>

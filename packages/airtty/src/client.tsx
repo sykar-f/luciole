@@ -177,6 +177,11 @@ export type ApplicationOptions = {
    * user's rights; a sandboxed Client's host process over IPC (src/sandbox/ipc.ts).
    */
   host?: HostChannel;
+  /**
+   * Ctrl+C calls `quit` (the default). `false` when a window owns the Client's end
+   * (`AIRTTY_DESKTOP`): the key reaches the application's own bindings instead.
+   */
+  quitOnCtrlC?: boolean;
 };
 
 // TanStack scroll restoration calls the global scrollTo() after every rendered load.
@@ -230,8 +235,9 @@ export class Application {
   /** Development only: the last build failure, shown until the next successful build. */
   buildError = "";
   /**
-   * Set by `run()`: ends the terminal Client on purpose (Ctrl+C). Its session is
-   * deleted, as a browser closed by the user does not offer to restore its tabs.
+   * Set by `run()`: ends the terminal Client on purpose (Ctrl+C, or its desktop window
+   * closed). Its session is deleted, as a browser closed by the user does not offer to
+   * restore its tabs.
    */
   quit: (() => void) | undefined;
   private revision = 0;
@@ -936,6 +942,11 @@ const ClientEnvironment = z.object({
   AIRTTY_SESSION_KEY: z.optional(z.string().check(z.minLength(1))),
   /** Development only: the address of `airtty devtools` (src/devtools/client-agent.ts). */
   AIRTTY_DEVTOOLS: z.optional(z.string()),
+  /**
+   * Set by a desktop host (docs/DESKTOP.md): the Client fills a window of its own. Closing
+   * the window quits; Ctrl+C belongs to the application.
+   */
+  AIRTTY_DESKTOP: z.optional(z.literal("1")),
 });
 /** What `airtty dev` sends the Client it supervises (src/commands/dev.ts). */
 const DevMessage = z.union([
@@ -968,7 +979,7 @@ function bearerFromSupervisor(send: (message: unknown) => void) {
 /** What `run()` gives the function that creates its Application. */
 export type RunOptions = Pick<
   ApplicationOptions,
-  "url" | "fetch" | "token" | "latencyMs" | "network" | "session" | "wrapTransport"
+  "url" | "fetch" | "token" | "latencyMs" | "network" | "session" | "wrapTransport" | "quitOnCtrlC"
 >;
 export async function run(
   create: (options: RunOptions) => Application,
@@ -986,6 +997,7 @@ export async function run(
 ) {
   const env = ClientEnvironment.safeParse(process.env);
   if (!env.success) throw new Error(`Invalid Client environment: ${z.prettifyError(env.error)}`);
+  const desktop = env.data.AIRTTY_DESKTOP === "1";
   // Resolved before the renderer takes the terminal: ssh may prompt for a passphrase.
   const url = await serverUrl({ name }).catch((error: unknown) => {
     console.error(messageOf(error));
@@ -1019,6 +1031,7 @@ export async function run(
     latencyMs: env.data.AIRTTY_LATENCY_MS,
     network: networkFromEnv(process.env),
     session: session.restored,
+    quitOnCtrlC: !desktop,
     ...(devtools && { wrapTransport: devtools.wrapTransport }),
   });
   // Claims the session at once: another Client starting now must not take it.
@@ -1036,6 +1049,14 @@ export async function run(
   });
   // Handlers first: from here on a signal must stop the tunnel, the renderer is optional.
   let renderer: CliRenderer | undefined;
+  // One end only: a hangup reaches the Client twice (from the kernel, and forwarded by a
+  // launcher in between), and a quit waits for its leave.
+  let ending = false;
+  const end = (how: () => void) => () => {
+    if (ending) return;
+    ending = true;
+    how();
+  };
   const stop = () => {
     renderer?.destroy();
     connection.close();
@@ -1043,17 +1064,20 @@ export async function run(
   };
   // A signal is not the user's choice (a rebuild, a closed terminal, a killed process):
   // the session stays on disk to be restored. Quitting (Ctrl+C, `app.quit`) deletes it.
-  const interrupted = () => {
+  const interrupted = end(() => {
     session.flush(app.restoration.snapshot());
     stop();
-  };
+  });
   // Voluntary: a Server the launcher manages stops once its last Client left it.
-  const quit = () => {
+  const quit = end(() => {
     session.remove();
     void (connection.managed?.leave() ?? Promise.resolve()).then(stop);
-  };
-  // SIGHUP: the terminal closed; the Client and its tunnel must not outlive it.
-  for (const signal of ["SIGTERM", "SIGINT", "SIGHUP"] as const) process.on(signal, interrupted);
+  });
+  // SIGHUP: the terminal closed; the Client and its tunnel must not outlive it. A desktop
+  // window is the application itself: closing it hangs its PTY up, and the user quit.
+  process.on("SIGTERM", interrupted);
+  process.on("SIGINT", interrupted);
+  process.on("SIGHUP", desktop ? quit : interrupted);
   app.quit = quit;
   renderer = await createCliRenderer({ exitOnCtrlC: false });
   devtools?.attach(app, renderer);
@@ -1062,7 +1086,8 @@ export async function run(
   root.render(<Shell app={app} />);
   // Unless something already took the key: a focused <Terminal> sends Ctrl+C to its
   // program. A tree that failed to mount prevents nothing, so Ctrl+C still quits.
-  renderer.keyInput.on("keypress", (key) => {
-    if (key.ctrl && key.name === "c" && !key.defaultPrevented) quit();
-  });
+  if (app.options.quitOnCtrlC !== false)
+    renderer.keyInput.on("keypress", (key) => {
+      if (key.ctrl && key.name === "c" && !key.defaultPrevented) quit();
+    });
 }
