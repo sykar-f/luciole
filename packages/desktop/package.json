@@ -12,8 +12,7 @@
     "airtty": "workspace:*",
     "@xterm/addon-fit": "catalog:",
     "@xterm/addon-webgl": "catalog:",
-    "@xterm/xterm": "catalog:",
-    "zod": "catalog:"
+    "@xterm/xterm": "catalog:"
   },
   "devDependencies": {
     "electrobun": "catalog:"

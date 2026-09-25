@@ -8,11 +8,11 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { ApplicationMenu, BrowserView, BrowserWindow, PATHS, app } from "electrobun/main";
 import type { TerminalRPC } from "../protocol";
-import { BUNDLED, stagedApp } from "../staged";
+import { BUNDLED, METADATA, readMetadata } from "../staged";
 import { createWindowSession } from "./session";
 
 const bundled = join(PATHS.RESOURCES_FOLDER, "app", BUNDLED);
-const { name } = stagedApp.parse(JSON.parse(readFileSync(join(bundled, "app.json"), "utf8")));
+const { name, displayName } = readMetadata(readFileSync(join(bundled, METADATA), "utf8"));
 
 const session = createWindowSession({
   command: [join(bundled, "bin", name)],
@@ -32,7 +32,7 @@ const rpc = BrowserView.defineRPC<TerminalRPC>({
   },
 });
 const mainWindow = new BrowserWindow({
-  title: name,
+  title: displayName,
   url: "views://terminal/index.html",
   frame: { width: 1000, height: 680 },
   rpc,

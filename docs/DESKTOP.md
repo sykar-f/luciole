@@ -51,8 +51,8 @@ fenêtre (webview système)          processus principal (Bun)            PTY
 
 | Fichier                | Rôle                                                                        |
 | ---------------------- | --------------------------------------------------------------------------- |
-| `scripts/stage.ts`     | Build de l'app et binaire à deux rôles dans `.stage/bin`, `.stage/app.json` |
-| `electrobun.config.ts` | Nom de l'app (du stage), main Bun, vue `terminal`, copie du binaire         |
+| `scripts/stage.ts`     | Build, binaire à deux rôles, métadonnées et icône (iconset macOS) du stage  |
+| `electrobun.config.ts` | Nom, identifiant, version et icône de l'app ; main Bun, vue, binaire copié  |
 | `src/host/session.ts`  | PTY ↔ vue, sans Electrobun : testé par `tests/desktop-session.test.ts`      |
 | `src/host/index.ts`    | Fenêtre, RPC, menus (Cmd+Q, Cmd+W, copier, coller), hangup à la fermeture   |
 | `src/view/index.ts`    | xterm.js (WebGL si disponible), taille ajustée à la fenêtre                 |
@@ -76,11 +76,18 @@ Vérifié à la main sur macOS (arm64), avec `examples/notes` : rendu OpenTUI fi
 (Cmd+V) de l'Unicode, CJK en double largeur compris ; Cmd+W, Cmd+Q ou le menu Close
 arrêtent le Client et le Server géré aussitôt, et suppriment la session.
 
+Le bundle prend ce que l'app déclare d'elle-même (métadonnées, [API.md](API.md)) :
+`displayName` nomme l'app (`Notes.app`, titre de fenêtre, menus), `identifier` devient
+son identifiant de bundle (`dev.airtty.desktop.<app>` sinon), `version` et `description`
+viennent de son `package.json`. L'icône devient un iconset sur macOS (`sips`, puis
+`iconutil` par Electrobun), un PNG sous Windows et Linux.
+
 Limites connues du prototype :
 
-- Une app par build : le stage est unique, l'identifiant `dev.airtty.desktop.<app>`.
-- Pas d'icône (`icon.iconset`), pas de signature ni de notarisation : `build.mac.codesign`
-  et `notarize` d'Electrobun, à relier à `--sign` du binaire embarqué (`src/sign.ts`).
+- Une app par build : le stage est unique.
+- Pas de signature ni de notarisation : `build.mac.codesign` et `notarize`
+  d'Electrobun, à relier à `--sign` du binaire embarqué (`src/sign.ts`). Electrobun
+  n'écrit pas non plus `CFBundleShortVersionString` dans l'`Info.plist`.
 - Le bundle pèse ~140 Mo : Bun pour l'hôte, plus le binaire de l'app qui embarque le sien.
   Cottontail pour l'hôte (s'il gagne un PTY) ou un Client seul (`--client-only`)
   réduiraient cela.

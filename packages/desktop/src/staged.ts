@@ -1,16 +1,16 @@
 /**
- * What `bun run stage` leaves for the build (scripts/stage.ts): the app's two-role binary
- * in `.stage/bin`, described by `.stage/app.json`. The bundle keeps the same layout
+ * What `bun run stage` leaves for the build (scripts/stage.ts), in `.stage/`: the app's
+ * two-role binary in `bin/`, its built metadata (`metadata.json`, airtty/metadata) and its
+ * icon, as a PNG and, on macOS, as an iconset. The bundle keeps `bin/` and the metadata
  * under `airtty/`, next to the views.
  */
-import * as z from "zod/mini";
+import { AppMetadata } from "airtty/metadata";
 
 export const STAGE = ".stage";
 /** Where the staged files land in the bundle, relative to `Resources/app`. */
 export const BUNDLED = "airtty";
+export const METADATA = "metadata.json";
+export const ICON_PNG = "icon.png";
+export const ICONSET = "icon.iconset";
 
-export const stagedApp = z.object({
-  /** The binary's file name in `bin/`, and the application's name. */
-  name: z.string().check(z.regex(/^[a-z0-9][\w.-]{0,63}$/i)),
-});
-export type StagedApp = z.infer<typeof stagedApp>;
+export const readMetadata = (text: string) => AppMetadata.parse(JSON.parse(text));

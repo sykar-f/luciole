@@ -98,6 +98,7 @@
     },
     "examples/notes": {
       "name": "@airtty-examples/notes",
+      "version": "0.1.0",
       "dependencies": {
         "@opentui/core": "catalog:",
         "@opentui/react": "catalog:",
@@ -143,7 +144,6 @@
         "@xterm/addon-webgl": "catalog:",
         "@xterm/xterm": "catalog:",
         "airtty": "workspace:*",
-        "zod": "catalog:",
       },
       "devDependencies": {
         "electrobun": "catalog:",

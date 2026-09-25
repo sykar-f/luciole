@@ -4,12 +4,32 @@
  *   bun run stage <app directory> [airtty build flags: --runtime, --target, --sign…]
  *
  * Builds it and compiles its two-role binary (`airtty build --compile`) into
- * .stage/bin, then writes .stage/app.json. electrobun.config.ts copies both into the
- * bundle and names the app after it; the host (src/host/index.ts) runs the binary.
+ * .stage/bin, then stages what its build says of it (`.airtty/metadata.json`, the icon).
+ * electrobun.config.ts names and decorates the bundle with them; the host
+ * (src/host/index.ts) runs the binary under the window's title.
  */
+import { copyFile, mkdir, rm } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
-import { rm } from "node:fs/promises";
-import { STAGE, stagedApp, type StagedApp } from "../src/staged";
+import { APP_METADATA } from "airtty/metadata";
+import { ICON_PNG, ICONSET, METADATA, STAGE, readMetadata } from "../src/staged";
+
+// Sizes of a macOS iconset, in points: each at 1x and 2x, up to 1024 pixels.
+const ICONSET_POINTS = ["16", "32", "128", "256", "512"];
+
+/** A macOS iconset from one PNG, with the system's own resampler (`iconutil` reads it). */
+async function writeIconset(png: string, directory: string) {
+  await mkdir(directory, { recursive: true });
+  for (const points of ICONSET_POINTS)
+    for (const scale of [1, 2]) {
+      const pixels = String(Number(points) * scale);
+      const file = `icon_${points}x${points}${scale === 2 ? "@2x" : ""}.png`;
+      const resized = Bun.spawnSync(
+        ["sips", "-z", pixels, pixels, png, "--out", join(directory, file)],
+        { stdout: "ignore", stderr: "inherit" },
+      );
+      if (resized.exitCode !== 0) throw new Error(`sips could not write ${file}`);
+    }
+}
 
 const [directory, ...flags] = process.argv.slice(2);
 if (!directory) throw new Error("Usage: bun run stage <app directory> [airtty build flags]");
@@ -23,6 +43,13 @@ const compiled = Bun.spawnSync(
   { stdout: "inherit", stderr: "inherit" },
 );
 if (compiled.exitCode !== 0) process.exit(compiled.exitCode ?? 1);
-const app: StagedApp = { name };
-await Bun.write(join(stage, "app.json"), JSON.stringify(stagedApp.parse(app)));
-console.log({ staged: name, binary: join(stage, "bin", name) });
+
+const output = join(root, ".airtty");
+const metadata = readMetadata(await Bun.file(join(output, APP_METADATA)).text());
+await Bun.write(join(stage, METADATA), JSON.stringify(metadata, null, 2));
+if (metadata.icon) {
+  await copyFile(join(output, metadata.icon), join(stage, ICON_PNG));
+  if (process.platform === "darwin")
+    await writeIconset(join(stage, ICON_PNG), join(stage, ICONSET));
+}
+console.log({ staged: metadata.displayName, binary: join(stage, "bin", name) });
