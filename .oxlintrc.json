@@ -61,7 +61,7 @@
   },
   "overrides": [
     {
-      "files": ["tests/**"],
+      "files": ["tests/**", "scripts/pty/**"],
       "rules": {
         "no-magic-numbers": "off"
       }
