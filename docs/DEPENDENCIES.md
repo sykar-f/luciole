@@ -3,7 +3,7 @@
 Les versions stables ont été comparées aux tags `latest` du registre npm, aux
 versions PyPI et aux releases officielles des outils. Les versions expérimentales
 et canary ne sont pas sélectionnées. Les manifests et lockfiles du framework et
-des deux sondes sont à jour ; `bun outdated` ne signale aucune mise à jour.
+des deux sondes d'origine (`probes/rsc`, `probes/rpc`) étaient à jour ; `bun outdated` ne signalait aucune mise à jour.
 
 | Dépendance                                   | Version  |
 | -------------------------------------------- | -------- |
@@ -23,6 +23,17 @@ des deux sondes sont à jour ; `bun outdated` ne signale aucune mise à jour.
 | zod                                          | 4.6.5    |
 | actions/checkout                             | v7.0.1   |
 | oven-sh/setup-bun                            | v2.2.0   |
+
+Ajoutées au catalogue après ce contrôle, sans comparaison aux tags `latest` :
+
+| Dépendance                      | Version        | Utilisée par                            |
+| ------------------------------- | -------------- | --------------------------------------- |
+| @sqlite.org/sqlite-wasm         | 3.53.4-build1  | framework, runtime navigateur           |
+| @xterm/xterm / @xterm/addon-fit | 6.0.0 / 0.11.0 | framework, runtime navigateur ; desktop |
+| @xterm/addon-webgl              | 0.19.0         | desktop                                 |
+| electrobun                      | 2.0.1          | desktop                                 |
+| marked                          | 17.0.1         | mdreader                                |
+| sharp                           | 0.35.4         | files                                   |
 
 TypeScript 7 vérifie le projet. Le compilateur du framework utilise le paquet
 officiel de compatibilité `@typescript/typescript6`, qui fournit l’ancienne API AST
@@ -55,8 +66,8 @@ Zod 4.6.5 valide les données externes (variables d'environnement, `airtty.json`
 lu sur disque, requêtes reçues par le Server, enveloppes reçues par le Client). Le
 bundle Client n'embarque que `zod/mini`, l'API fonctionnelle tree-shakable de la même
 version : mesuré isolément sur un schéma d'enveloppe, `zod/mini` ajoute 28 Ko non
-minifiés, contre 156 Ko pour l'API classique. Avec tous les schémas du Client, le bundle
-complet de Notes passe de 415 à 460 Ko ([VALIDATION.md](VALIDATION.md)), sans différence
+minifiés, contre 156 Ko pour l'API classique. Au moment de la mesure, avec tous les schémas
+du Client, le bundle complet de Notes passait de 415 à 460 Ko ([VALIDATION.md](VALIDATION.md)), sans différence
 de démarrage mesurable. Le Server, le build et les tests utilisent l'API classique.
 
 `oxlint-tsgolint` fournit à Oxlint les informations de types (`options.typeAware`) :
@@ -71,13 +82,13 @@ actualiser : aucun patch local ne masque l’avertissement.
 
 Les transitives ont été rafraîchies dans les plages autorisées par leurs packages
 parents. Certaines versions plus anciennes peuvent rester imposées par ces derniers.
-`bun audit --json` retourne `{}` pour les trois lockfiles : aucun avis connu
-signalé au moment du contrôle.
+`bun audit --json` retournait `{}` pour le lockfile racine et ceux des deux sondes
+d'origine : aucun avis connu signalé au moment du contrôle. Les autres sondes et
+`website/` ont leur propre lockfile, hors de ce contrôle.
 
 Sources des outils : [checkout](https://github.com/actions/checkout/releases/tag/v7.0.1),
 [setup-bun](https://github.com/oven-sh/setup-bun/releases/tag/v2.2.0).
 Les versions npm sont vérifiables avec `npm view <package> dist-tags.latest`.
 
 La validation locale est décrite dans [VALIDATION.md](VALIDATION.md).
-Le workflow GitHub macOS/Linux a été actualisé mais n’a pas encore été exécuté
-sur GitHub.
+Le workflow macOS/Linux s’exécute sur GitHub Actions à chaque push et pull request.

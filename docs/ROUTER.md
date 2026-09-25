@@ -22,16 +22,17 @@ Supersède :
 
 ## Seams
 
-| Module               | Interface                                                    | Adapters / tests                           |
-| -------------------- | ------------------------------------------------------------ | ------------------------------------------ |
-| `src/route-graph.ts` | `compileRouteGraph(files)` → layouts, pages, diagnostics     | fonction pure, `tests/route-graph.test.ts` |
-| `src/transport.ts`   | `Transport { render, call, setToken }`                       | HTTP/Flight, transports factices           |
-| `src/client.tsx`     | `createApplication`, `Shell`, hooks réexportés               | Client généré piloté dans OpenTUI          |
-| `src/server.ts`      | registre autoritaire `routeId → { component, auth, params }` | Server réel lancé par les tests            |
-| `src/build.ts`       | spec de route tree Client + registre Server, manifests       | fixtures temporaires                       |
+| Module               | Interface                                                          | Adapters / tests                           |
+| -------------------- | ------------------------------------------------------------------ | ------------------------------------------ |
+| `src/route-graph.ts` | `compileRouteGraph(files)` → layouts, pages ; lève ses diagnostics | fonction pure, `tests/route-graph.test.ts` |
+| `src/transport.ts`   | `Transport { render, call, setToken }`                             | HTTP/Flight, transports factices           |
+| `src/client.tsx`     | `createApplication`, `Shell`, hooks réexportés                     | Client généré piloté dans OpenTUI          |
+| `src/server.ts`      | registre autoritaire `routeId → { component, auth, url, params }`  | Server réel lancé par les tests            |
+| `src/build.ts`       | `app/routeTree.gen.ts` + registre Server, manifests                | fixtures temporaires                       |
 
-Le build n'utilise pas le plugin de génération de TanStack : il génère une spec
-(`root`, `layouts`, `pages`) que `buildRouteTree` transforme en routes code-based.
+Le build n'utilise pas le plugin de génération de TanStack : il écrit
+`app/routeTree.gen.ts`, des routes code-based (`createRoute`) construites avec les
+fabriques de `src/route-tree.tsx` (`rootRoute`, `layoutRoute`, `pageRoute`, `loadPage`).
 Le Server ne fait plus de matching de chemin : il reçoit un `routeId` et des
 paramètres, qu'il valide.
 

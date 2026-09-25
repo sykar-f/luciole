@@ -88,8 +88,11 @@ Ils ne demandent aucun package : le build les résout en modules vides, et
 ## Packages
 
 Un Client Component peut importer n'importe quel package installé, sans le déclarer :
-le bundler l'embarque avec ses dépendances transitives. Le Client tourne sur Bun, pas
-dans un navigateur : un package qui utilise `node:path` y fonctionne normalement.
+le bundler l'embarque avec ses dépendances transitives. Le Client tourne sur Bun : un
+package qui utilise `node:path` y fonctionne normalement. Dans le runtime navigateur
+(`--web`), les built-ins Node sont remplacés par des substituts, et ceux qu'une page ne
+peut pas fournir (`node:child_process`, `node:tty`…) échouent à l'usage (voir
+[WEB.md](WEB.md)).
 
 Un package qui importe `server-only` ou `airtty/server` et atteint le bundle Client,
 ou qui importe `client-only` et atteint le bundle Server, fait échouer le build. Pour
@@ -123,9 +126,11 @@ les réexports et le maintien du dernier build utilisable en cas d’erreur.
 Le hash de build inclut les sources accessibles (dont tous les layouts, loadings et
 écrans d'erreur), tous les fichiers du runtime et les lockfiles.
 Les artefacts sont construits dans un répertoire temporaire, puis publiés après
-succès des deux compilations. Le build ne fait pas d’installation réseau et ne
-modifie pas le build actif en cas de diagnostic de compilation. Seul `--compile`
-peut accéder au réseau, une fois par cible et version de Bun, pour mettre en cache
-le runtime Bun officiel (voir [ARCHITECTURE.md](ARCHITECTURE.md#deux-formes-de-distribution)). `bun run check`
+succès de toutes les compilations (Server, Client, bundle d'application, et Server
+navigateur avec `--web-local`). Le build ne fait pas d’installation réseau et ne
+modifie pas le build actif en cas de diagnostic de compilation. Seuls `--compile` et
+`--web` peuvent accéder au réseau : `--compile` une fois par cible et version de Bun,
+pour mettre en cache le runtime Bun officiel ; `--web` une fois par framework, pour
+préparer le runtime navigateur (voir [ARCHITECTURE.md](ARCHITECTURE.md#deux-formes-de-distribution)). `bun run check`
 valide séparément les types du framework et de l’exemple ; la compilation d’un
 starter utilise la transpilation TypeScript, pas une vérification exhaustive des types.

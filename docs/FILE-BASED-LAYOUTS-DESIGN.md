@@ -3,8 +3,17 @@
 > **Supersédé.** La recommandation d'un routeur interne (option A) et le rejet de
 > l'adapter TanStack (option C) sont remplacés par la migration complète vers
 > TanStack Router, modèle B : voir [ROUTER.md](ROUTER.md). Les conventions de
-> fichiers, les diagnostics de collision et la séparation « composition n'est pas
-> persistance » restent valables ; les layouts sont désormais Client et persistants.
+> fichiers (`layout.tsx`, `(group)`, `[param]`) et les diagnostics de collision restent
+> valables. Le reste décrit l'état d'avant la migration :
+>
+> - les layouts sont toujours Client (`"use client"`) et persistants
+>   ([BOUNDARIES.md](BOUNDARIES.md)) : ils ne lisent pas la session Server, et la
+>   section « Composition n'est pas persistance » ne s'applique plus ;
+> - le module pur proposé ici s'appelle `src/route-graph.ts` (`compileRouteGraph`) ;
+>   `src/route-tree.tsx` fournit les fabriques de routes TanStack ;
+> - `error.tsx`, `not-found.tsx`, le catch-all `[...name]` et les layouts persistants,
+>   « à différer » ci-dessous, sont pris en charge. Restent absents les paramètres
+>   optionnels et l'héritage d'`auth` par un layout.
 
 ## Décision proposée
 

@@ -58,10 +58,10 @@ délai aléatoire à chaque trajet, `AIRTTY_CHUNK_DELAY_MS` ralentit chaque chun
 stream Flight, et `AIRTTY_FAULT=refuse:0.1,drop:0.05,cut:0.05` injecte des fautes :
 requête jamais envoyée, réponse perdue après exécution sur le Server, corps coupé.
 
-C’est une simulation de latence de requête/réponse, pas une émulation TCP : elle
-ne simule pas bande passante, pertes, jitter, ni le délai individuel de chaque
-chunk d’un stream Flight. Elle suppose le Client exécuté localement ; exécuter le
-Client lui-même à travers SSH ajoute la latence du terminal à chaque interaction.
+C’est une simulation au niveau des requêtes, pas une émulation TCP : elle ne simule
+ni bande passante ni pertes de paquets. Elle suppose le Client exécuté localement ;
+exécuter le Client lui-même à travers SSH ajoute la latence du terminal à chaque
+interaction.
 `NOTES_DELAY_MS` reste uniquement une sonde de traitement métier pour Notes.
 
 Le test `tests/latency.test.tsx` vérifie les délais, la saisie, le scroll effectif,
@@ -85,7 +85,7 @@ Un refresh conserve l’éditeur monté avec un indicateur « Refreshing… ». 
 localement la luminosité grise de son squelette pendant l’attente ; cette animation
 est arrêtée au démontage et ne fait aucun appel réseau. L’application peut fournir
 ses propres `loading.tsx` Client, hérités depuis les répertoires parents.
-Voir le [contrat de navigation](docs/API.md#navigation-et-chargement-local).
+Voir le [contrat de navigation](docs/API.md#navigation-layouts-et-chargement-local).
 
 ## Démo complexe : Forge
 
@@ -138,9 +138,13 @@ bun packages/airtty/src/cli.ts start --role client --url http://127.0.0.1:3000
 Pour distribuer le Client sans Bun ni `node_modules` sur la machine du terminal :
 
 ```sh
-bun packages/airtty/src/cli.ts build --compile                        # exécutable pour cette machine
+bun packages/airtty/src/cli.ts build --compile --client-only          # Client seul, pour cette machine
 ./examples/notes/.airtty/client/notes-darwin-arm64 --url http://127.0.0.1:3000
 ```
+
+Sans `--client-only`, `--compile` produit le binaire complet de l’app, Client et Server
+(code métier compris), dans `.airtty/bin/<os>-<arch>/notes` : le build avertit que
+quiconque le reçoit peut lire ce code. Voir [DISTRIBUTION.md](docs/DISTRIBUTION.md).
 
 Le binaire embarque le runtime Bun, la bibliothèque native d’OpenTUI et l’identifiant
 de build. Le runtime est par défaut celui que Bun publie sur npm pour la cible
@@ -193,9 +197,14 @@ depuis macOS.
 ```text
 app/.airtty/
   manifest.json           # build, graphes, route graph et Client References
+  metadata.json           # nom affiché, identifiant, icône (package.json)
   client/                 # index.js
   server/                 # index.js
+  app/                    # bundle d'application pour un hôte (index.cjs, manifest.json)
 ```
+
+`--web` ajoute `web/`, le runtime navigateur ; `--web-local` ajoute en plus `web-server/`
+(voir [WEB.md](docs/WEB.md)).
 
 Ces répertoires s’exécutent depuis l’installation de l’application
 (`airtty ./app`, `airtty dev`) : ils résolvent React et OpenTUI dans ses
@@ -253,7 +262,8 @@ limiter l’accès réseau au backend et configurer `AIRTTY_TOKEN` sur les deux 
 ou fournir l'adapter `server/auth.ts`. Une écoute hors loopback (`AIRTTY_HOST`)
 est refusée sans l'un de ces deux mécanismes. Le Client transmet le token par en-tête
 Authorization ; utiliser une URL HTTPS pour éviter sa transmission en clair. Les
-requêtes portant un Origin de navigateur sont refusées.
+requêtes portant un Origin de navigateur sont refusées, sauf celles de l’origine
+déclarée par `AIRTTY_WEB_ORIGIN` pour un build `--web` (voir [WEB.md](docs/WEB.md)).
 
 Le MVP offre une **session mono-utilisateur** : le token est associé côté Server
 à `AIRTTY_USER` (défaut `local`). `getSession()` fournit cette identité aux actions
@@ -313,8 +323,9 @@ vrai PTY (`Bun.Terminal`), écran reconstruit par l’émulateur d’OpenTUI, r�
 requêtes du terminal, attente d’une frame synchronisée complète.
 `scripts/clean-install.ts` part d’une copie sans dépendances ni artefacts, crée un
 starter, installe les rôles séparément et pilote le Client de production dans un PTY.
-La CI couvre macOS et Linux ; son workflow est fourni, son exécution hébergée
-n’a pas encore eu lieu. Voir [les preuves et limites](docs/VALIDATION.md).
+La CI (`.github/workflows/ci.yml`) s’exécute sur GitHub Actions à chaque push et pull
+request, sous macOS et Linux, plus le mode sandbox Linux en conteneurs. Voir
+[les preuves et limites](docs/VALIDATION.md).
 
 ## Contrat et limites
 
@@ -352,10 +363,11 @@ n’a pas encore eu lieu. Voir [les preuves et limites](docs/VALIDATION.md).
   consultation résout un résultat perdu ; ce n’est pas une garantie générique
   exactly-once. Si aucun résultat n’est retrouvé, l’opération reste inconnue et n’est
   pas rejouée.
-- Distribution par bundle applicatif de confiance. Le point de résolution de modules
-  reste remplaçable ; ni téléchargement de code distant, ni Client universel, ni sandbox.
-  Le Client peut être livré en un seul exécutable (`build --compile`), signé et notarisé
-  sur demande (`--sign`, `--notarize`) ; la notarisation n’a pas été exécutée faute
-  d’identité Developer ID.
+- Chaque application distribue son Client ou son binaire. Une URL de Server s’ouvre
+  aussi dans le Client générique (`airtty <url>`) : bundle signé par l’éditeur, clé
+  épinglée par origine, mode `sandbox` par défaut là où il confine aussi le réseau ; voir
+  [DISTRIBUTION.md](docs/DISTRIBUTION.md). Le Client peut être livré en un seul
+  exécutable (`build --compile`), signé et notarisé sur demande (`--sign`,
+  `--notarize`) ; la notarisation n’a pas été exécutée faute d’identité Developer ID.
 - Le parcours distant a été testé macOS → Linux via SSH ; aucune campagne WAN,
   mesure écran physique ou garantie de résistance à une boucle infinie Client.

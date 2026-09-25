@@ -187,13 +187,10 @@ est émis comme dans une action, avec `callId: ""` hors requête.
 `invalidate(path)` hors d'une Server Function reste une erreur : sans réponse, aucun Client
 ne peut l'entendre.
 
-**Entrée pour l'agent DevTools Server** (`src/devtools/`, dans le processus Server) :
-
-```ts
-import { invalidate } from "../server"; // airtty/server pour une application
-
-await invalidate({ tag: "notes:local" }); // rejette si le handler échoue
-```
+**Agent DevTools Server** (`src/devtools/server-agent.ts`, dans le processus Server) :
+il n'importe pas `src/server.ts`, ce qui fermerait un cycle d'imports. `createHandler`
+lui passe `invalidateTag`, qui appelle `invalidate({ tag })` et rejette si le handler
+échoue. Une application appelle directement `invalidate` d'`airtty/server`.
 
 Le bundle Server ne contient qu'une copie du runtime : l'agent purge le même cache que
 les pages. Un tag invalide (virgule, espace, non-ASCII, > 256 caractères) lève tout de
