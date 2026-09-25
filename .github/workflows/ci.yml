@@ -16,6 +16,10 @@ jobs:
         with:
           bun-version: 1.4.2
       - run: bun install --frozen-lockfile
+      # website/ has its own lockfile, but the root lint type-checks its sources: they need
+      # Astro's packages and the types `astro sync` generates (website/.astro, not committed).
+      - run: bun install --frozen-lockfile && bunx astro sync
+        working-directory: website
       - run: bun run probes
       - run: bun run verify
       - run: bun run test:pty
