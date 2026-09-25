@@ -21,11 +21,7 @@ des deux sondes sont à jour ; `bun outdated` ne signale aucune mise à jour.
 | oxlint-tsgolint                              | 7.0.2002 |
 | oxfmt                                        | 0.70.0   |
 | zod                                          | 4.6.5    |
-| Python (local et CI)                         | 3.14.7   |
-| pyte                                         | 0.8.2    |
-| wcwidth                                      | 0.8.4    |
 | actions/checkout                             | v7.0.1   |
-| actions/setup-python                         | v7.0.0   |
 | oven-sh/setup-bun                            | v2.2.0   |
 
 TypeScript 7 vérifie le projet. Le compilateur du framework utilise le paquet
@@ -78,10 +74,7 @@ parents. Certaines versions plus anciennes peuvent rester imposées par ces dern
 `bun audit --json` retourne `{}` pour les trois lockfiles : aucun avis connu
 signalé au moment du contrôle.
 
-Sources des outils : [Python](https://www.python.org/downloads/),
-[pyte](https://pypi.org/project/pyte/), [wcwidth](https://pypi.org/project/wcwidth/),
-[checkout](https://github.com/actions/checkout/releases/tag/v7.0.1),
-[setup-python](https://github.com/actions/setup-python/releases/tag/v7.0.0),
+Sources des outils : [checkout](https://github.com/actions/checkout/releases/tag/v7.0.1),
 [setup-bun](https://github.com/oven-sh/setup-bun/releases/tag/v2.2.0).
 Les versions npm sont vérifiables avec `npm view <package> dist-tags.latest`.
 

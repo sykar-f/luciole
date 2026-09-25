@@ -33,7 +33,7 @@ bun packages/airtty/src/cli.ts start --role client --app examples/forge --url ht
 Réglages Server : `FORGE_SLOW_MS` (travail simulé, défaut 250 ms, rend le streaming
 visible), `FORGE_CI_SCALE` (durée de la CI, défaut 1), `FORGE_GIT_REPO` et
 `FORGE_GIT_COMMITS`, et pour les tests `FORGE_CLOCK_START` (date ISO : l'horloge du Server
-part de là puis avance ; `scripts/pty-forge.py` fige ainsi les âges affichés). Ils sont validés par Zod au démarrage : une valeur invalide arrête
+part de là puis avance ; `scripts/pty/forge.ts` fige ainsi les âges affichés). Ils sont validés par Zod au démarrage : une valeur invalide arrête
 le Server en nommant la variable.
 
 Chaque opération du domaine (`server/forge.ts`) reçoit ses entrées comme `unknown`, telles
@@ -99,7 +99,7 @@ Ce qui est ouvert, et pourquoi :
 Preuves : `tests/forge-editor.test.tsx` (build refusé pour une page qui importe le vrai
 module ; `EDITOR` factice lancé par le processus Client, `+9`, fichier non inscriptible,
 contenu identique à la révision, instantané supprimé, touches actives au retour) et
-`scripts/pty-forge.py` (vrai PTY, artefacts de production : l'éditeur factice écrit sur le
+`scripts/pty/forge.ts` (vrai PTY, artefacts de production : l'éditeur factice écrit sur le
 terminal, reçoit une ligne tapée qui commence par `i`, Forge ne l'exécute pas, puis le
 parcours reprend).
 
@@ -159,8 +159,8 @@ Dans un second terminal, `bun run forge:operator` joue le second opérateur (mê
 | Formulaire et restauration | nouvelle PR : TanStack Form, `Input`/`Textarea` nommés, `useRestoredFields`, `useOperation`    | `forge.test.tsx` : validation locale sans requête, formulaire rendu après redémarrage |
 | Résultat inconnu           | ledger `operations` + `components/operations.ts` pour review/merge/rerun                       | `forge.test.tsx` : merge perdu résolu, jamais rejoué                                  |
 | OpenTUI                    | `diff`, `code`/tree-sitter, `markdown`, `textarea`, `input`, `scrollbox`, `ascii-font`, souris | `forge.test.tsx`, captures PTY                                                        |
-| Build séparé et production | deux artefacts, lockfiles                                                                      | `scripts/pty-forge.py` sur les artefacts, [capture](forge-pty-frame.txt)              |
-| `client-only`              | `components/editor.ts` : `e` ouvre le fichier relu dans `$EDITOR`, UI suspendue puis restaurée | `forge-editor.test.tsx`, `scripts/pty-forge.py`                                       |
+| Build séparé et production | deux artefacts, lockfiles                                                                      | `scripts/pty/forge.ts` sur les artefacts, [capture](forge-pty-frame.txt)              |
+| `client-only`              | `components/editor.ts` : `e` ouvre le fichier relu dans `$EDITOR`, UI suspendue puis restaurée | `forge-editor.test.tsx`, `scripts/pty/forge.ts`                                       |
 
 ## Ce que la démo a poussé dans le framework
 

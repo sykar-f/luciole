@@ -37,7 +37,7 @@ architecture tourne émulée.
 bun scripts/linux-sandbox.ts [--arch arm64|x64] [--only userns|bwrap|landlock]
 ```
 
-Conteneurs Debian avec Bun, bubblewrap et pyte : `tests/sandbox.test.ts` et
-`scripts/pty-sandbox.py` par mécanisme, puis `cargo test`. L'émulation x86_64 d'une
+Conteneurs Debian avec Bun et bubblewrap : `tests/sandbox.test.ts` et
+`scripts/pty/sandbox.ts` par mécanisme, puis `cargo test`. L'émulation x86_64 d'une
 machine arm64 (Rosetta) n'a ni Landlock ni les appels de montage dont bubblewrap a besoin :
 x64 se teste sur une machine x64 (le job CI `linux-sandbox`).

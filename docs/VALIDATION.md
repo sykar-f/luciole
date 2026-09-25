@@ -38,13 +38,13 @@ utilisé dans le compilateur.
 
 ## Jalons et preuves
 
-| Jalon             | Vérification réalisée                                                                                                                                                                                                                                                                                                                             |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1 — action réelle | `tests/action.test.tsx` : référence dans Flight, interaction Entrée OpenTUI, appel HTTP avec `abc`, PIDs distincts, résultat affiché, `abcd` et même instance après refresh.                                                                                                                                                                      |
-| 2 — compilation   | `tests/build.test.ts` : exports Client et réexports, proxy d’action importée, manifests générés, exclusion du marqueur métier, diagnostics transitifs/marker/inline, builtins acceptés côté Client, build actif conservé lors d’une erreur. Starter sans registre manuel.                                                                         |
-| 3 — Notes         | `tests/notes.test.tsx`, `draft.test.ts`, validation métier dans `transport.test.tsx` : SQLite, versions, conflits, normalisation conditionnelle, Baseline `abc`/Draft `abcd`, retour au Draft visité, identité différente, store borné.                                                                                                           |
-| 4 — réseau        | `transport.test.tsx` : navigations inversées, incompatibilité réelle HTTP 409, refresh en erreur après succès, arrêt du processus Server après commit avant réponse, redémarrage sur la même base/URL puis consultation du résultat sans nouvelle sauvegarde. Compteurs inchangés pendant frappe, déplacement du curseur, focus et scroll locaux. |
-| 5 — livraison     | Artefacts indépendants avec lockfiles ; README, API, starter ; `scripts/clean-install.ts` installe une copie neuve et les deux rôles séparément ; `pty-smoke.py` pilote le Client de production ; `pty-dev.py` vérifie erreur de compilation, saisie conservée, rebuild valide, restauration du terminal et absence de processus enfant orphelin. |
+| Jalon             | Vérification réalisée                                                                                                                                                                                                                                                                                                                                             |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1 — action réelle | `tests/action.test.tsx` : référence dans Flight, interaction Entrée OpenTUI, appel HTTP avec `abc`, PIDs distincts, résultat affiché, `abcd` et même instance après refresh.                                                                                                                                                                                      |
+| 2 — compilation   | `tests/build.test.ts` : exports Client et réexports, proxy d’action importée, manifests générés, exclusion du marqueur métier, diagnostics transitifs/marker/inline, builtins acceptés côté Client, build actif conservé lors d’une erreur. Starter sans registre manuel.                                                                                         |
+| 3 — Notes         | `tests/notes.test.tsx`, `draft.test.ts`, validation métier dans `transport.test.tsx` : SQLite, versions, conflits, normalisation conditionnelle, Baseline `abc`/Draft `abcd`, retour au Draft visité, identité différente, store borné.                                                                                                                           |
+| 4 — réseau        | `transport.test.tsx` : navigations inversées, incompatibilité réelle HTTP 409, refresh en erreur après succès, arrêt du processus Server après commit avant réponse, redémarrage sur la même base/URL puis consultation du résultat sans nouvelle sauvegarde. Compteurs inchangés pendant frappe, déplacement du curseur, focus et scroll locaux.                 |
+| 5 — livraison     | Artefacts indépendants avec lockfiles ; README, API, starter ; `scripts/clean-install.ts` installe une copie neuve et les deux rôles séparément ; `scripts/pty/smoke.ts` pilote le Client de production ; `scripts/pty/dev.ts` vérifie erreur de compilation, saisie conservée, rebuild valide, restauration du terminal et absence de processus enfant orphelin. |
 
 `bun run verify` : **93 tests passent**, vérification des types et build passent.
 `bun run format:check` passe. Le workflow CI macOS/Linux est livré ; il n’a pas
@@ -52,9 +52,13 @@ encore été exécuté sur GitHub, car ce dépôt local n’a pas été publié.
 
 ## PTY et deux machines
 
-Les PTY utilisent un parseur d’écran pyte, les vraies séquences clavier et le
-renderer natif. Les assertions attendent les frames synchronisées complètes,
-pas seulement un fragment d’octets. Capture textuelle : [pty-frame.txt](pty-frame.txt).
+Les parcours PTY (`scripts/pty/`, scripts Bun) reconstruisent l’écran avec
+l’émulateur d’OpenTUI (libghostty-vt), envoient les vraies séquences clavier et
+passent par le renderer natif. Les assertions attendent une frame synchronisée
+complète, dessinée après la dernière touche, pas seulement un fragment d’octets.
+Jusqu’au 25 septembre 2026 ces parcours étaient des scripts Python (`scripts/pty-*.py`,
+écran reconstruit par pyte) : les résultats consignés avant cette date viennent de ces
+versions, aux assertions identiques. Capture textuelle : [pty-frame.txt](pty-frame.txt).
 
 Parcours : liste → détail → `abc` → sauvegarde avec 700 ms de délai métier → frappe
 `d` avant réponse → Baseline `abc`/Draft `abcd` → liste → détail avec Draft conservé.
@@ -83,7 +87,7 @@ La distribution universelle de code et sa sandbox restent des extensions.
 
 ## Simulation de latence réseau
 
-`AIRTTY_LATENCY_MS=500 NOTES_DELAY_MS=0 /tmp/airtty-pty-venv/bin/python scripts/pty-smoke.py`
+`AIRTTY_LATENCY_MS=500 NOTES_DELAY_MS=0 bun run test:pty`
 a passé le parcours PTY avec 500 ms de délai aller-retour simulé et aucun délai
 métier. Sur cette exécution, la frappe pendant la sauvegarde apparaît dans la
 sortie PTY en **16,78 ms** ; ce n’est pas une mesure de latence physique de l’écran.
@@ -99,7 +103,7 @@ Les limites de cette simulation sont décrites dans le [README](../README.md#tes
 
 ## Chargement local des routes
 
-Avec le même RTT simulé de 500 ms et sans délai métier, `pty-smoke.py` vérifie
+Avec le même RTT simulé de 500 ms et sans délai métier, `scripts/pty/smoke.ts` vérifie
 maintenant que le squelette « Opening note 1… » apparaît avant la réponse réseau.
 Observation de la sortie PTY après migration TanStack Router (22 septembre 2026) :
 **9,74 ms** pour le loading, **16,7 ms** pour la frappe pendant la sauvegarde. Ce sont des observations ponctuelles de sortie PTY,
@@ -142,11 +146,11 @@ types des quatre programmes, Oxlint sans avertissement, format et build.
 | Latence 500 ms       | `forge-latency.test.tsx` : filtre, hover et molette sans requête ; PR préchargée ouverte en moins de 250 ms sans rendu supplémentaire ; loading immédiat et géométrie identique à la page chargée.                      |
 | Frontières           | `forge-build.test.ts` : SQL, git, sessions, seed et injection de fautes absents du bundle Client ; aucune page dans le graphe Client ; payload Flight sans token ni session ; import git réel de ce dépôt.              |
 | Correctifs framework | `server-errors.test.ts` (500 générique sans fuite), `stream.test.ts` (stream au-delà du timeout), `search.test.tsx` (search textuelle, cache par search, retour arrière), purge des arbres privés dans `auth.test.tsx`. |
-| Production           | `scripts/pty-forge.py` sur les artefacts, 500 ms de RTT : login → approbation → commentaire → fichiers → checks → merge ; terminal restauré, code de sortie 0.                                                          |
+| Production           | `scripts/pty/forge.ts` sur les artefacts, 500 ms de RTT : login → approbation → commentaire → fichiers → checks → merge ; terminal restauré, code de sortie 0.                                                          |
 
 Observations PTY de production (sortie PTY, pas écran physique), 500 ms de RTT
 simulé : ouverture d'une PR préchargée **63 ms**, frappe dans un Draft **7 ms**.
-Capture finale : [forge-pty-frame.txt](forge-pty-frame.txt). `pty-smoke.py` (Notes)
+Capture finale : [forge-pty-frame.txt](forge-pty-frame.txt). `scripts/pty/smoke.ts` (Notes)
 passe toujours sous la même latence.
 
 Rendu mesuré dans le renderer de test : diff de 1 443 lignes affiché et parcouru
@@ -155,8 +159,8 @@ Rendu mesuré dans le renderer de test : diff de 1 443 lignes affiché et parcou
 
 ## Contrat « l'erreur au développeur » (23 septembre 2026)
 
-`bun run verify` : **93 tests passent**. Les trois parcours PTY (`pty-smoke.py`, y
-compris sous 500 ms de RTT, `pty-dev.py`, `pty-forge.py`) et `clean-install.ts`
+`bun run verify` : **93 tests passent**. Les trois parcours PTY (`scripts/pty/smoke.ts`, y
+compris sous 500 ms de RTT, `scripts/pty/dev.ts`, `scripts/pty/forge.ts`) et `clean-install.ts`
 passent sur macOS arm64.
 
 | Capacité                 | Preuve                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
@@ -203,7 +207,7 @@ Les 32 nombres restants sont dans les deux tables de données de Forge exemptée
 | Racine d'un rendu           | `http-transport.test.ts` : une racine qui n'est pas un nœud React est refusée ; `stream.test.ts` : ses flux continuent. |
 | Params et search Server     | `auth.test.tsx` : mêmes refus 400 qu'avant (clés en trop, JSON invalide, valeurs non textuelles), écrits en schémas.    |
 | Arguments des exemples      | `forge-domain.test.ts` (verdict, opération) et `outcome.test.ts` (Notes) : argument invalide refusé avant tout effet.   |
-| Zod applicatif sans install | `pty-dev.py` : une application copiée sans `node_modules` compile avec le Zod du framework.                             |
+| Zod applicatif sans install | `scripts/pty/dev.ts` : une application copiée sans `node_modules` compile avec le Zod du framework.                     |
 
 Limite : une Server Function qui refuse ses arguments répond 500 (`unknown`), pas `rejected` :
 le framework ne peut pas savoir qu'aucun code applicatif n'a tourné avant ce refus.
@@ -216,8 +220,8 @@ strictes, y est tenu : schémas pour la config utilisateur, le document npm, la 
 `notarytool` et la requête `fileSource` ; type `Fetch` pour le tunnel ; nombres nommés ;
 tests sur `rejectionOf`, `present`, `renderable` et `readManifest`.
 
-`bun run verify` : **112 tests passent**, lint strict et type-aware compris. `pty-smoke.py`,
-`pty-dev.py`, `pty-forge.py` (avec l'ouverture dans `$EDITOR`) et `clean-install.ts`
+`bun run verify` : **112 tests passent**, lint strict et type-aware compris. `scripts/pty/smoke.ts`,
+`scripts/pty/dev.ts`, `scripts/pty/forge.ts` (avec l'ouverture dans `$EDITOR`) et `clean-install.ts`
 passent sur macOS arm64.
 
 Correctifs issus de la relecture des branches, chacun avec un test qui échoue sans lui :
@@ -235,7 +239,7 @@ réelles, éditeurs réels (vim, `code --wait`) : seul un éditeur factice est p
 ## Champs restaurables et formulaires (23 septembre 2026)
 
 `bun run verify` : **128 tests passent** (types, lint, format, build compris). Les
-parcours PTY `pty-restore.py` (nouveau), `pty-dev.py`, `pty-smoke.py` et `pty-forge.py`
+parcours PTY `scripts/pty/restore.ts` (nouveau), `scripts/pty/dev.ts`, `scripts/pty/smoke.ts` et `scripts/pty/forge.ts`
 passent sur macOS arm64 ; `clean-install.ts` et `test:linux` n'ont pas été relancés.
 
 | Capacité                  | Preuve                                                                                                                                                                                                                                                                |
@@ -243,8 +247,8 @@ passent sur macOS arm64 ; `clean-install.ts` et `test:linux` n'ont pas été rel
 | Session par entrée        | `restore.test.ts` : texte rendu au retour sur l'entrée, entrée neuve vide après un push, replace qui garde la même adresse seulement, champ rattaché à son entrée de montage, valeur posée par l'application sans effet, groupe oublié à l'envoi puis rendu, plafond. |
 | Redémarrage et envoi      | `restore-notes.test.tsx` (vrai Server Notes) : texte tapé revenu dans un Client neuf et Draft sale ; envoi refusé à la connexion (`not-sent`) : texte gardé ; envoi commis : texte oublié ; premier bearer : gardé, bearer remplacé : oublié.                         |
 | Fichier de session        | `session.test.ts` : `0600` et répertoire `0700`, reprise de la session la plus récente d'un Client mort pour la même adresse, jamais deux fois ni celle d'un Client vivant, écriture après une pause, suppression, sessions trop anciennes ou illisibles écartées.    |
-| Crash, signal, sortie     | `pty-restore.py` (Client de production) : texte revenu après `kill -9` et après SIGTERM, fichier `0600`, session supprimée par Ctrl+C et rien de restauré au lancement suivant.                                                                                       |
-| Rebuild de développement  | `pty-dev.py` : après un rebuild valide, le nouveau Client rouvre la note avec le texte tapé pendant l'erreur de build ; Ctrl+C ne laisse aucune session.                                                                                                              |
+| Crash, signal, sortie     | `scripts/pty/restore.ts` (Client de production) : texte revenu après `kill -9` et après SIGTERM, fichier `0600`, session supprimée par Ctrl+C et rien de restauré au lancement suivant.                                                                               |
+| Rebuild de développement  | `scripts/pty/dev.ts` : après un rebuild valide, le nouveau Client rouvre la note avec le texte tapé pendant l'erreur de build ; Ctrl+C ne laisse aucune session.                                                                                                      |
 | TanStack Form             | `forge.test.tsx` : validation locale sans requête ; titre et description tapés, Client neuf avec la session et le bearer : champs rendus, Ctrl+S ouvre la PR, texte oublié ensuite. Parcours existant d'ouverture de PR inchangé.                                     |
 | Opération jamais exécutée | `forge.test.tsx` : merge refusé à la connexion affiché « not sent », base inchangée, nouvelle tentative qui merge.                                                                                                                                                    |
 

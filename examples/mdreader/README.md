@@ -73,8 +73,8 @@ comme un pager.
   `components/Reader.tsx` (défilement, plan, position mémorisée par document).
 - `app/loading.tsx`, `not-found.tsx`, `error.tsx` : même cadre (`components/frames.tsx`).
 
-Vérification : `python scripts/pty-mdreader.py` (pyte, cf. `scripts/requirements-pty.txt`)
-construit l'application et parcourt une bibliothèque temporaire dans un vrai PTY.
+Vérification : `bun run test:pty:mdreader` (`scripts/pty/mdreader.ts`) construit
+l'application et parcourt une bibliothèque temporaire dans un vrai PTY.
 
 ## Limites
 

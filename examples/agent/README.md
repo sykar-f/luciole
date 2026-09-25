@@ -72,7 +72,7 @@ répond en quelques secondes. `AGENT_MODEL=gpt-5.6-sol` pour les tâches diffici
 tsc --noEmit -p examples/agent
 oxlint --deny-warnings examples/agent
 oxfmt --check examples/agent
-python scripts/pty-agent.py   # vrai pi, vrai modèle : consomme un peu de quota
+bun run test:pty:agent   # vrai pi, vrai modèle : consomme un peu de quota
 ```
 
 Le parcours PTY lance `airtty dev` avec un sandbox et un état temporaires, envoie un

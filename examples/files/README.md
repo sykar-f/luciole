@@ -136,10 +136,10 @@ tsc --noEmit -p examples/files
 oxlint --deny-warnings examples/files
 oxfmt --check examples/files
 bun packages/airtty/src/cli.ts build --app examples/files
-python3 scripts/pty-files.py          # pyte requis (scripts/requirements-pty.txt)
+bun run test:pty:files
 ```
 
-`scripts/pty-files.py` lance le Server et le Client construits dans un vrai PTY
+`scripts/pty/files.ts` lance le Server et le Client construits dans un vrai PTY
 (140×40, 500 ms de RTT simulé) sur une arborescence de test : filtre, aperçu image en
 demi-blocs (plus de 20 paires de couleurs truecolor), commandes kitty émises quand on
 force le protocole, texte avec numéros de ligne, ouverture d'un dossier avec écran de

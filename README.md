@@ -300,16 +300,19 @@ bun run verify               # types, lint, format, intégration et build
 bun run format:check
 bun audit --json
 
-python3 -m venv /tmp/airtty-pty
-/tmp/airtty-pty/bin/pip install -r scripts/requirements-pty.txt
-/tmp/airtty-pty/bin/python scripts/pty-smoke.py
-/tmp/airtty-pty/bin/python scripts/pty-dev.py
-PYTHON=/tmp/airtty-pty/bin/python bun scripts/clean-install.ts
+bun run test:pty              # Notes en production dans un vrai PTY
+bun run test:pty:dev          # airtty dev : erreur de build, rebuild, processus enfants
+bun scripts/clean-install.ts
 bun run test:linux            # Client compilé exécuté sous Linux (Docker), glibc et musl
 ```
 
-Le dernier test part d’une copie sans dépendances ni artefacts, crée un starter,
-installe les rôles séparément et pilote le Client de production dans un PTY.
+Les parcours PTY sont des scripts Bun (`scripts/pty/`, un par parcours, `bun run
+test:pty:<parcours>` : forge, files, mdreader, mux, chat, agent, devtools, launcher,
+generic, lifetime, restore, sandbox). Ils partagent un driver (`scripts/pty/driver.ts`) :
+vrai PTY (`Bun.Terminal`), écran reconstruit par l’émulateur d’OpenTUI, réponses aux
+requêtes du terminal, attente d’une frame synchronisée complète.
+`scripts/clean-install.ts` part d’une copie sans dépendances ni artefacts, crée un
+starter, installe les rôles séparément et pilote le Client de production dans un PTY.
 La CI couvre macOS et Linux ; son workflow est fourni, son exécution hébergée
 n’a pas encore eu lieu. Voir [les preuves et limites](docs/VALIDATION.md).
 

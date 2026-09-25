@@ -122,8 +122,8 @@ après le décodage. Aucun « résolveur de la réponse courante » n'est fiable
 - **OpenTUI 0.5.12** : F1–F12, `Alt+x`, Backspace sans protocole kitty, DA1/DA2, OSC 10/11
   manquent ; `probes/vt-embed/gaps.ts` les comble. À remonter en amont plutôt qu'à
   recopier dans `src/`.
-- **PTY smokes** : `pyte` s'installe dans un venv (README, section tests PTY) ou par
-  `uv run --no-project --with-requirements scripts/requirements-pty.txt python3 …`.
+- **PTY smokes** : scripts Bun sous `scripts/pty/` (`bun run test:pty:<parcours>`), sans
+  dépendance hors du dépôt ; l'écran est reconstruit par l'émulateur d'OpenTUI.
 
 ## Règles de travail
 

@@ -73,10 +73,10 @@ L'aide en bas d'écran est générée depuis les raccourcis actifs, comme dans F
 
 ```sh
 tsc --noEmit -p examples/chat && oxlint --deny-warnings examples/chat && oxfmt --check examples/chat
-python3 scripts/pty-chat.py        # pyte requis (scripts/requirements-pty.txt)
+bun run test:pty:chat
 ```
 
-`scripts/pty-chat.py` lance `airtty dev` dans un PTY contre le faux serveur : message sans
+`scripts/pty/chat.ts` lance `airtty dev` dans un PTY contre le faux serveur : message sans
 clé, réponse streamée et rendue en Markdown, usage et coût, historique renvoyé au modèle,
 Échap qui interrompt la requête amont, Ctrl+G, erreur en cours de flux, Ctrl+N et
 Ctrl+↓, sortie propre du terminal. Il écrit le dernier écran dans `pty-frame.txt`.
