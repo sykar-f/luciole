@@ -63,6 +63,13 @@ d'OpenTUI passe en WebAssembly.
 Chaque refactor est d'abord fait **à comportement constant** pour le terminal, vérifié par
 les tests et parcours PTY existants, avant qu'une ligne web n'existe.
 
+**Variantes de plateforme.** Un module lié à Bun ou Node qui a un équivalent navigateur
+garde son nom et reçoit un voisin `X.web.ts` (ou `.web.tsx`) aux mêmes exports ; le build
+navigateur prend la variante quand elle existe, le reste du code ne sait rien. Après
+l'étape 1 : `run.tsx`, `host-direct.ts`, `app-bundle.ts`, `vt/terminal.tsx`,
+`flight/server.ts`. `client.tsx`, le transport, `host.ts` et `app-evaluate.ts` sont
+neutres.
+
 ### W1. `run()` mélange l'Application et la plateforme terminal
 
 `client.tsx` importe `connect`, `session`, lit `process.env`, écoute les signaux et
@@ -108,9 +115,11 @@ IndexedDB) par origine pour le web. `directChannel` (`child_process`, `pbcopy`,
 
 ### W5. Flight côté Server passe par `node:stream`
 
-`src/flight/server.ts` convertit un `PassThrough`. Passer à
-`react-server-dom-webpack/server.edge` (flux web natifs) partout supprime la conversion,
-côté Bun comme côté navigateur.
+`src/flight/server.ts` convertit un `PassThrough`. `src/flight/server.web.ts` offre les
+mêmes exports sur `react-server-dom-webpack/server.edge` (flux web), octet pour octet
+identiques. Le Server Bun garde l'entrée Node : l'entrée edge n'active le stockage par
+requête de React (`React.cache`) qu'avec un `AsyncLocalStorage` **global**, que Bun n'a
+pas ; le Worker web le fournira (W6).
 
 ### W6. Le contexte de requête repose sur `AsyncLocalStorage`
 
@@ -201,6 +210,15 @@ Un shell hébergé ailleurs (`airtty.dev/open?url=…`) est une seconde étape :
 explicite côté Server, signature d'éditeur vérifiée et clé épinglée par origine en
 `localStorage`, comme le Client générique.
 
+**Origine déclarée.** Le Server refuse aujourd'hui toute requête portant `Origin`
+(`handle`, « Browser origins are unsupported ») : une page quelconque ne doit pas piloter
+un Server local. Un navigateur envoie `Origin` à chaque `POST`, même vers son origine. Le
+mode web accepte donc **une seule origine, déclarée** par l'opérateur
+(`AIRTTY_WEB_ORIGIN=https://notes.example.com`) : `Origin` doit lui être égale, et `Host`
+aussi. Comparer `Origin` à `Host` ne suffirait pas : un DNS rebinding donne à une page
+hostile un `Host` à son nom. Sans origine déclarée, pas de routes `/_airtty/web` et le
+refus actuel reste entier.
+
 Authentification : inchangée. `server/auth.ts` et sa route publique de connexion
 fonctionnent comme dans le terminal ; le bearer vit en mémoire (ou `sessionStorage`),
 jamais en `localStorage`.
@@ -254,14 +272,14 @@ partagé par toute l'origine : le Server web range ses données sous le nom de l
 
 ## 5. Plan
 
-| Étape | Contenu                                                       | Vérifié par                                            |
-| ----- | ------------------------------------------------------------- | ------------------------------------------------------ |
-| 0     | Spikes R1 et R2, hors de `src/`, dans `probes/web/`           | une `<box>` rendue ; un `await` qui garde son contexte |
-| 1     | W1 à W5 à comportement constant                               | `bun run verify`, parcours PTY                         |
-| 2     | Runtime web + Client web servi par le Server (`/_airtty/web`) | `examples/notes` ouvert dans Chrome, headless          |
-| 3     | W6, rôle `web-server`, W9, `airtty build --web=local`         | notes, chat, latency tout navigateur                   |
-| 4     | Landing : `iframe` de notes dans `website/`                   | capture de la page                                     |
-| 5     | Shell hébergé ailleurs (CORS, signature, clé épinglée)        | —                                                      |
+| Étape | Contenu                                                        | Vérifié par                                            |
+| ----- | -------------------------------------------------------------- | ------------------------------------------------------ |
+| 0     | Spikes R1 et R2, hors de `src/`, dans `probes/web/` — **fait** | une `<box>` rendue ; un `await` qui garde son contexte |
+| 1     | W1 à W5 à comportement constant — **fait**                     | `bun run verify`, parcours PTY                         |
+| 2     | Runtime web + Client web servi par le Server (`/_airtty/web`)  | `examples/notes` ouvert dans Chrome, headless          |
+| 3     | W6, rôle `web-server`, W9, `airtty build --web=local`          | notes, chat, latency tout navigateur                   |
+| 4     | Landing : `iframe` de notes dans `website/`                    | capture de la page                                     |
+| 5     | Shell hébergé ailleurs (CORS, signature, clé épinglée)         | —                                                      |
 
 Les tests navigateur suivent le modèle des parcours PTY : un script Bun qui pilote
 Chrome headless (CDP), tape, et lit l'écran par le buffer de l'émulateur plutôt que par
