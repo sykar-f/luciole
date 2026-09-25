@@ -15,6 +15,13 @@ import { ABI_KEY, APP_MANIFEST, isAbiSpecifier, type AppManifest } from "./abi";
 import { readAppDeclaration, writeAppMetadata } from "./app-metadata";
 import { undeclaredUses, type Capabilities } from "./capabilities";
 import { signManifest, type PublisherKey } from "./publisher";
+import {
+  copyWebServerFiles,
+  transformAsyncContext,
+  WEB_SERVER_FILE,
+  WEB_SERVER_SETUP,
+  webServerPlugins,
+} from "./web/server-build";
 const framework = dirname(import.meta.path);
 const quote = JSON.stringify;
 // Resolved from the framework so starters using a file: dependency find their copy.
@@ -70,6 +77,11 @@ export type BuildOptions = {
    * src/publisher.ts). Implies `appBundle: "required"`: nothing to sign otherwise.
    */
   signBundle?: PublisherKey;
+  /**
+   * Also builds the Server for the browser (`.airtty/web-server/server-worker.js`, `airtty
+   * build --web=local`): the same entry, run by a Worker (docs/WEB.md, step 3).
+   */
+  webServer?: boolean;
 };
 /**
  * `.airtty/app/manifest.json`: the bundle's identity, ABI and hash, the built-ins it
@@ -170,7 +182,7 @@ function packageOfFile(file: string) {
 export async function build(
   directory: string,
   output = join(directory, ".airtty"),
-  { appBundle: wanted = "auto", signBundle }: BuildOptions = {},
+  { appBundle: wanted = "auto", signBundle, webServer = false }: BuildOptions = {},
 ) {
   const appBundle = signBundle ? "required" : wanted;
   const root = await realpath(directory),
@@ -578,23 +590,43 @@ export async function build(
     "react-reconciler",
   ];
   try {
-    for (const role of ["server", "client", "app"] as const) {
-      // The application bundle is Client code: same boundaries, same stubs.
-      const clientSide = role !== "server";
+    type Role = "server" | "client" | "app" | "web-server";
+    const roles: readonly Role[] = [
+      "server",
+      "client",
+      "app",
+      ...(webServer ? ["web-server" as const] : []),
+    ];
+    for (const role of roles) {
+      // The application bundle is Client code: same boundaries, same stubs. The browser's
+      // Server is the Server: same stubs, references and cache, another platform.
+      const serverSide = role === "server" || role === "web-server";
+      const clientSide = !serverSide;
+      const browserServer = role === "web-server";
       const entry = join(temp, `${role}-entry.ts`);
       await Bun.write(
         entry,
-        role === "server" ? serverSource : role === "client" ? clientSource : appSource,
+        browserServer
+          ? `import ${quote(WEB_SERVER_SETUP)};\n${serverSource}`
+          : role === "server"
+            ? serverSource
+            : role === "client"
+              ? clientSource
+              : appSource,
       );
       const result = await Bun.build({
         entrypoints: [entry],
         outdir: join(temp, role),
-        naming: role === "app" ? "index.cjs" : "index.js",
-        target: "bun",
+        naming: role === "app" ? "index.cjs" : browserServer ? WEB_SERVER_FILE : "index.js",
+        target: browserServer ? "browser" : "bun",
         // bun-cjs: a function of (exports, require, module…) the host calls with the ABI.
         ...(role === "app" ? { format: "cjs" as const } : {}),
-        external: role === "app" ? [] : external,
-        conditions: role === "server" ? ["react-server"] : [],
+        external: role === "app" || browserServer ? [] : external,
+        conditions: serverSide ? ["react-server"] : [],
+        // A browser bundle carries no environment: React's production builds, as the page's.
+        ...(browserServer
+          ? { minify: true, define: { "process.env.NODE_ENV": JSON.stringify("production") } }
+          : {}),
         metafile: clientSide,
         // Next to the bundle, and linked from it: Bun maps runtime stack traces through it
         // (development and production alike) and a debugger finds it. Inline would double
@@ -604,6 +636,7 @@ export async function build(
         // build has no `jsxDEV`. Each file's pragma picks the import source.
         jsx: { runtime: "automatic", development: false },
         plugins: [
+          ...(browserServer ? webServerPlugins : []),
           {
             name: "airtty-boundaries",
             setup(b) {
@@ -613,7 +646,8 @@ export async function build(
               // already checked, with file and line, on the module graphs.
               b.onResolve({ filter: /.*/ }, (a) => {
                 if (!a.importer) return undefined;
-                edges[role === "app" ? "client" : role].push([a.importer, a.path]);
+                if (!browserServer)
+                  edges[clientSide ? "client" : "server"].push([a.importer, a.path]);
                 const owner = packageOfFile(a.importer);
                 if (!owner || a.path.startsWith(".")) return undefined;
                 const why = clientSide
@@ -709,7 +743,7 @@ export async function build(
               b.onLoad({ filter: /\.[tj]sx?$/ }, async (a) => {
                 const m = modules.get(a.path);
                 let source = m?.text ?? (await readFile(a.path, "utf8"));
-                if (role === "server" && m?.directive === "use client")
+                if (serverSide && m?.directive === "use client")
                   source =
                     `import {registerClientReference as ref} from ${quote(join(framework, "flight/server.ts"))};\n` +
                     m.exports
@@ -727,13 +761,13 @@ export async function build(
                           `export const ${n}=actions.reference(${quote(id(m.path) + "#" + n)});`,
                       )
                       .join("\n");
-                else if (role === "server" && m?.directive === "use server")
+                else if (serverSide && m?.directive === "use server")
                   source +=
                     `\nimport {registerServerReference as register} from ${quote(join(framework, "flight/server.ts"))};\n` +
                     m.actionExports
                       .map((n) => `register(${n},${quote(id(m.path))},${quote(n)});`)
                       .join("\n");
-                if (role === "server" && m?.cached.length)
+                if (serverSide && m?.cached.length)
                   source += cacheSource(
                     m.cached,
                     (n) => `${relative(root, m.path)}#${n}`,
@@ -747,7 +781,9 @@ export async function build(
                     relative: relative(root, a.path),
                     runtime: join(framework, "devtools/annotate.ts"),
                   });
-                const jsxImportSource = role === "server" ? "react" : "@opentui/react";
+                // Without async context in a Worker, every wait carries its store (W6).
+                if (browserServer) source = transformAsyncContext(source, a.path);
+                const jsxImportSource = serverSide ? "react" : "@opentui/react";
                 // TypeScript is Bun's to strip, so the source map points at the original
                 // lines (Bun does not compose a plugin's own map). The pragma shares the
                 // first line: no line moves. Application code is erasable syntax only.
@@ -817,6 +853,7 @@ export async function build(
           .sort(([a], [b]) => (a < b ? -1 : 1))
           .map(([name, version]) => ({ name, version }));
       }
+      if (browserServer) copyWebServerFiles(join(temp, role));
       await rm(entry);
     }
     await Bun.write(

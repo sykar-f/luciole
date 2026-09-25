@@ -52,16 +52,25 @@ async function moduleOf(code: string, name: string): Promise<unknown> {
  */
 export async function loadAppBundle(
   server: string | URL,
-  { publisher }: { publisher?: PublisherCheck } = {},
+  {
+    publisher,
+    files,
+  }: {
+    publisher?: PublisherCheck;
+    /** Static copies of `.airtty/app` instead of the Server's routes (an in-browser Server). */
+    files?: URL;
+  } = {},
 ): Promise<AppBundle> {
-  const manifestUrl = new URL("manifest", server);
+  const manifestUrl = files ? new URL("manifest.json", files) : new URL("manifest", server);
   const parsed = AppManifest.safeParse(JSON.parse(await text(manifestUrl)));
   if (!parsed.success) throw new Error(`${manifestUrl.href}: ${z.prettifyError(parsed.error)}`);
   const manifest = parsed.data;
   if (publisher?.required)
     throw new Error(`${manifestUrl.href}: publisher signatures are not verified in a page`);
   checkAbi(manifest, manifestUrl.href);
-  const file = new URL(`bundle/${manifest.sha256}`, server);
+  const file = files
+    ? new URL(manifest.bundle, files)
+    : new URL(`bundle/${manifest.sha256}`, server);
   const code = await text(file);
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(code));
   const wrapper = await moduleOf(code, file.href);

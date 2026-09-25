@@ -16,7 +16,7 @@
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
-import { dirname, join, relative, resolve } from "node:path";
+import { dirname, join, relative } from "node:path";
 import * as z from "zod/mini";
 import { build } from "../build";
 import { messageOf } from "../guards";
@@ -24,7 +24,7 @@ import { describeSource, type GitSource } from "./git-source";
 import { withLock } from "./lock";
 import { APP_NAME, type Directories } from "./paths";
 import type { Confirm } from "./prompt";
-import { governingLock } from "../lockfile";
+import { frameworkHash } from "../framework-hash";
 
 const FULL_SHA = /^[0-9a-f]{40}$/;
 // What a commit or a cache key reads as: enough to tell apart, short enough to read.
@@ -75,23 +75,6 @@ async function writeJson(file: string, value: unknown) {
 }
 
 const sha256 = (data: string | Uint8Array) => createHash("sha256").update(data).digest("hex");
-
-const frameworkDirectory = resolve(import.meta.dir, "..");
-let frameworkHash: Promise<string> | undefined;
-/** The framework's sources and lockfile: a build made by another airtty is redone. */
-function framework() {
-  frameworkHash ??= (async () => {
-    const hash = createHash("sha256");
-    for (const file of [
-      ...new Bun.Glob("**/*.{ts,tsx}").scanSync({ cwd: frameworkDirectory }),
-    ].sort())
-      hash.update(file).update(await readFile(join(frameworkDirectory, file)));
-    const lock = governingLock(frameworkDirectory);
-    if (lock) hash.update(await readFile(lock));
-    return hash.digest("hex");
-  })();
-  return frameworkHash;
-}
 
 async function run(
   command: readonly string[],
@@ -273,7 +256,7 @@ async function installAndBuild(app: string, repository: string, options: GitOpti
   const lock = found ? sha256(await readFile(join(found, "bun.lock"))) : "none";
   const marker = join(app, ".airtty-launch.json");
   const built = await readJson(marker, z.optional(Built), undefined);
-  const current = { lock, framework: await framework() };
+  const current = { lock, framework: await frameworkHash() };
   if (built?.lock === current.lock && built.framework === current.framework) return;
   // Bun runs no dependency's lifecycle scripts unless the app lists it in
   // trustedDependencies: that default is kept, never widened here.
