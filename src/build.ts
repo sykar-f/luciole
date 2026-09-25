@@ -6,7 +6,8 @@ import { createHash } from "node:crypto";
 import { z } from "zod";
 import { bundleMessages, logMessages } from "./bundle-errors";
 import { nativePackage } from "./native";
-import { readJsonFile, readPackageJson } from "./package-json";
+import { governingLock } from "./lockfile";
+import { readJsonFile } from "./package-json";
 import { ROUTE_TREE_FILE, compileRouteGraph, renderRouteTree } from "./route-graph";
 import { cachedFunctions, cacheSource, staleTimeOf } from "./cache/transform";
 import { annotateNames } from "./build-names";
@@ -512,10 +513,15 @@ export async function build(
   // Every runtime source, so a new framework module can never be left out of the identity.
   for (const e of [...new Bun.Glob("**/*.{ts,tsx}").scanSync({ cwd: framework })].sort())
     hash.update(e).update(await readFile(join(framework, e)));
-  hash.update(await readFile(join(framework, "../bun.lock")));
-  // The application's packages (bundled into the Client) are part of the build too.
-  const appLock = Bun.file(join(root, "bun.lock"));
-  if (await appLock.exists()) hash.update(await appLock.text());
+  // The packages of the framework and of the application (bundled into the Client) are
+  // part of the build too: one lock when they share an installation (a workspace).
+  const frameworkLock = governingLock(framework);
+  if (!frameworkLock)
+    throw new Error(
+      `No bun.lock governs the airtty installation at ${framework}: install it with Bun`,
+    );
+  const appLock = governingLock(root);
+  for (const lock of new Set([frameworkLock, appLock])) if (lock) hash.update(await readFile(lock));
   let clientPackages: { name: string; version: string }[] = [];
   const buildId = hash.digest("hex").slice(0, BUILD_ID_LENGTH),
     id = (p: string) => `${buildId}/${relative(root, p)}`;
@@ -816,23 +822,6 @@ export async function build(
           .sort(([a], [b]) => (a < b ? -1 : 1))
           .map(([name, version]) => ({ name, version }));
       }
-      const pkg = await readPackageJson(join(framework, "../package.json"));
-      await Bun.write(
-        join(temp, role, "package.json"),
-        JSON.stringify(
-          {
-            name: pkg.name,
-            private: true,
-            type: "module",
-            dependencies: pkg.dependencies,
-            devDependencies: pkg.devDependencies,
-            overrides: pkg.overrides,
-          },
-          null,
-          2,
-        ),
-      );
-      await Bun.write(join(temp, role, "bun.lock"), await readFile(join(framework, "../bun.lock")));
       await rm(entry);
     }
     await Bun.write(

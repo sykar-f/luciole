@@ -233,8 +233,9 @@ async function compileEntry(
     const missing = /Could not resolve: "(@opentui\/core-[\w-]+)"/.exec(messages)?.[1];
     if (missing)
       throw new Error(
-        `${missing} is not installed for ${target}: install it for that platform ` +
-          `(bun add ${missing} --os=${os} --cpu=*) in a directory passed as --native-dir`,
+        `${missing} is not installed for ${target}: install the app's packages for that ` +
+          `platform from its lock (bun install --frozen-lockfile --os=${os} --cpu=* next to ` +
+          `a copy of its package.json and bun.lock) and pass that directory as --native-dir`,
       );
     throw new Error(messages);
   });

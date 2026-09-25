@@ -24,6 +24,7 @@ import { describeSource, type GitSource } from "./git-source";
 import { withLock } from "./lock";
 import { APP_NAME, type Directories } from "./paths";
 import type { Confirm } from "./prompt";
+import { governingLock } from "../lockfile";
 
 const FULL_SHA = /^[0-9a-f]{40}$/;
 // What a commit or a cache key reads as: enough to tell apart, short enough to read.
@@ -85,7 +86,8 @@ function framework() {
       ...new Bun.Glob("**/*.{ts,tsx}").scanSync({ cwd: frameworkDirectory }),
     ].sort())
       hash.update(file).update(await readFile(join(frameworkDirectory, file)));
-    hash.update(await readFile(join(frameworkDirectory, "../bun.lock")).catch(() => ""));
+    const lock = governingLock(frameworkDirectory);
+    if (lock) hash.update(await readFile(lock));
     return hash.digest("hex");
   })();
   return frameworkHash;

@@ -177,8 +177,9 @@ export async function layOutNative(
   for (const [name, source] of packages)
     if (!(await place(name, source, destination)))
       throw new Error(
-        `${name} has no native code for ${target} here: install it for that target ` +
-          `(bun add ${name} --os=… --cpu=…) in a directory passed as --native-dir`,
+        `${name} has no native code for ${target} here: install the app's packages for ` +
+          `that target from its lock (bun install --frozen-lockfile --os=… --cpu=… next to ` +
+          `a copy of its package.json and bun.lock) and pass that directory as --native-dir`,
       );
   await writeFile(join(destination, "package.json"), '{ "private": true }\n');
   await writeFile(join(destination, TARGET_FILE), `${target}\n`);

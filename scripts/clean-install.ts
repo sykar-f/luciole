@@ -75,13 +75,11 @@ try {
     await rm(typeProbe);
   }
   await run([process.execPath, "run", "build"], starter);
-  for (const role of ["client", "server"]) {
-    const dest = join(temp, role);
-    await cp(join(temp, "starter/.airtty", role), dest, { recursive: true });
-    await run([process.execPath, "install", "--frozen-lockfile"], dest);
-  }
+  // The built roles run from the starter's own installation: an app ships to another
+  // machine as a compiled binary (airtty build --compile), not as .airtty/ to install.
+  const built = join(starter, ".airtty");
   const child = Bun.spawn(
-    [process.execPath, "--conditions=react-server", join(temp, "server/index.js")],
+    [process.execPath, "--conditions=react-server", join(built, "server/index.js")],
     {
       cwd: temp,
       env: {
@@ -109,13 +107,13 @@ try {
         PYTHON,
         "scripts/pty-smoke.py",
         "--client",
-        join(temp, "client/index.js"),
+        join(built, "client/index.js"),
         "--url",
         `http://127.0.0.1:${ready.port}`,
       ],
       process.cwd(),
     );
-    console.log("Fresh starter and independently installed production artefacts passed.");
+    console.log("Fresh starter and its production build passed.");
   } finally {
     child.kill();
     await child.exited;
