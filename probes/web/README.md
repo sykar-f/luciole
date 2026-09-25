@@ -58,8 +58,14 @@ sources, et le plugin y substitue, en vérifiant que chaque source attendue est 
   mémoire du module, refaites après `memory.grow` ; les données d'un span sont copiées au
   drain.
 
+### Interactif : `check-form.ts`
+
+`src/form.tsx` : `@opentui/react`, un `<input>` saisi au clavier (accents, CJK en double
+largeur), un `<scrollbox>` des notes soumises, Échap pour quitter, le clavier lu sur le
+`stdin` du PTY. `NATIVE=1` lance la même source sur l'OpenTUI natif publié : **l'écran
+final est identique à l'octet** entre natif et WASM.
+
 ### Reste à prouver
 
-- `@opentui/react`, `<input>`, `<scrollbox>`, l'entrée clavier par `stdin` ;
 - le même probe dans Chrome, derrière xterm.js ;
 - le coût des copies à chaque appel sur un écran réel (Notes).
