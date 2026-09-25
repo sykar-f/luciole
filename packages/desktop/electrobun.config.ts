@@ -11,20 +11,23 @@ import { BUNDLED, ICON_PNG, ICONSET, METADATA, STAGE, readMetadata } from "./src
 
 // Hutch loads this file from elsewhere: the stage is found from here, not the cwd.
 const staged = (file: string) => fileURLToPath(new URL(`${STAGE}/${file}`, import.meta.url));
-if (!existsSync(staged(METADATA)))
-  throw new Error("No staged application: run `bun run stage <app directory>` first");
-const app = readMetadata(readFileSync(staged(METADATA), "utf8"));
-const icon = app.icon ? `${STAGE}/${ICON_PNG}` : undefined;
+// Without a stage (`electrobun prepare`, `bun run check` on a fresh checkout) the config
+// still loads, with nothing staged to copy; the postBuild hook refuses to build it.
+const app = existsSync(staged(METADATA))
+  ? readMetadata(readFileSync(staged(METADATA), "utf8"))
+  : undefined;
+const name = app?.name ?? "airtty-desktop";
+const icon = app?.icon ? `${STAGE}/${ICON_PNG}` : undefined;
 const iconset = existsSync(staged(ICONSET)) ? `${STAGE}/${ICONSET}` : undefined;
 
 export default {
   app: {
-    name: app.displayName,
+    name: app?.displayName ?? name,
     // Declared by the application, or one of its own under a namespace no one else uses.
     identifier:
-      app.identifier ?? `dev.airtty.desktop.${app.name.toLowerCase().replace(/[^a-z0-9]/g, "-")}`,
-    version: app.version ?? "0.0.0",
-    description: app.description,
+      app?.identifier ?? `dev.airtty.desktop.${name.toLowerCase().replace(/[^a-z0-9]/g, "-")}`,
+    version: app?.version ?? "0.0.0",
+    description: app?.description,
   },
   build: {
     // Bun, the runtime airtty/pty is written and tested for, and the one the app binary
@@ -36,8 +39,10 @@ export default {
     copy: {
       "src/view/index.html": "views/terminal/index.html",
       "src/view/window.css": "views/terminal/window.css",
-      [`${STAGE}/${METADATA}`]: `${BUNDLED}/${METADATA}`,
-      [`${STAGE}/bin`]: `${BUNDLED}/bin`,
+      ...(app && {
+        [`${STAGE}/${METADATA}`]: `${BUNDLED}/${METADATA}`,
+        [`${STAGE}/bin`]: `${BUNDLED}/bin`,
+      }),
     },
     // The system webview: the terminal needs nothing Chromium adds.
     mac: { bundleCEF: false, ...(iconset && { icons: iconset }) },

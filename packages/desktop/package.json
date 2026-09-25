@@ -6,7 +6,7 @@
     "stage": "bun scripts/stage.ts",
     "dev": "electrobun dev",
     "build": "electrobun build --env=stable",
-    "check": "electrobun prepare && tsc --noEmit",
+    "check": "electrobun prepare && tsc --noEmit && oxlint --deny-warnings -c ../../.oxlintrc.json src scripts electrobun.config.ts",
     "smoke": "bun scripts/smoke.ts"
   },
   "dependencies": {

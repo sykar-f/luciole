@@ -72,7 +72,9 @@ bun run check                               # SDK projeté (.hutch/devkit) + tsc
 
 La première commande Electrobun télécharge Hutch (son outil de build) dans `~/.hutch` ;
 le SDK n'est pas sur npm, il est projeté dans `.hutch/devkit` (ignoré par git). C'est
-pourquoi `bun run check` à la racine ne vérifie pas `packages/desktop`.
+pourquoi `bun run check` et `bun run lint` à la racine laissent de côté les fichiers
+qui importent ce SDK : `bun run check` du package les vérifie, SDK projeté. Sans app
+stagée, la configuration se charge quand même ; seul un build la réclame.
 
 Le stage compile toujours avec `--portable` : un runtime qui lie autre chose que les
 bibliothèques du système (un Bun de Nix ou de Homebrew, `--runtime host`) échoue là

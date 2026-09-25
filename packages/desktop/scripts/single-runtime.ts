@@ -27,10 +27,13 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join, relative } from "node:path";
-import { BUNDLED, METADATA, readMetadata } from "../src/staged";
+import { BUNDLED, METADATA, STAGE, readMetadata } from "../src/staged";
 
 const { ELECTROBUN_OS: os, ELECTROBUN_BUILD_DIR: buildDir } = process.env;
 if (!buildDir) throw new Error("single-runtime: run as Electrobun's postBuild hook");
+// The config loads without a stage, for `electrobun prepare`; a build needs one.
+if (!existsSync(new URL(`../${STAGE}/${METADATA}`, import.meta.url)))
+  throw new Error("No staged application: run `bun run stage <app directory>` first");
 if (os !== "macos") {
   console.log(`single-runtime: ${os} keeps Electrobun's Bun`);
   process.exit(0);
