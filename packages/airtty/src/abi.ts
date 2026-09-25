@@ -2,7 +2,7 @@
  * The runtime ABI (docs/EMBEDDING.md, section 2): what an application bundle
  * (`.airtty/app/`) may import from the Client that evaluates it. Everything else is
  * bundled into the application. The table that satisfies these specifiers lives in the
- * runtime (src/app-bundle.ts); tests/abi.test.ts checks both lists agree and that the
+ * runtime (src/app-evaluate.ts); tests/abi.test.ts checks both lists agree and that the
  * versions below are the ones installed.
  *
  * `ABI_VERSION` is bumped by hand when an export of `airtty/client` or `airtty/route-tree`

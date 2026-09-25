@@ -562,7 +562,7 @@ export async function build(
     [...clients].map((p, i) => `import * as C${i} from ${quote(p)};`).join("\n") +
     `\nconst modules=new Map([${[...clients].map((p, i) => `[${quote(id(p))},C${i}]`).join(",")}]);export function createApp(options){const app=createApplication({...options,routeTree,buildId:${quote(buildId)},title:${quote(basename(root).toUpperCase())},resolveModule:id=>{if(!modules.has(id))throw new Error('Unknown module '+id);return modules.get(id)}});actions.bind(app);return app};if(import.meta.main)await run(createApp,{name:${quote(basename(root))}});`;
   // The application bundle: what the Client source has, minus the runtime, which the host
-  // that evaluates it provides through the ABI (src/abi.ts, src/app-bundle.ts).
+  // that evaluates it provides through the ABI (src/abi.ts, src/app-evaluate.ts).
   const appSource =
     `export {routeTree} from ${quote(routeTreeFile)};import {actions} from "airtty:actions";export {actions};\n` +
     [...clients].map((p, i) => `import * as C${i} from ${quote(p)};`).join("\n") +
