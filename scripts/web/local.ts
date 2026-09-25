@@ -40,11 +40,18 @@ const files = Bun.serve({
 const report: Record<string, unknown> = {};
 try {
   await using browser = await Browser.start();
+  // Headless, the window never has the focus: the terminal would see no focus change.
+  await browser.send("Emulation.setFocusEmulationEnabled", { enabled: true });
   const started = performance.now();
   await browser.open(files.url.href);
   console.log(await browser.waitFor(shows("First note"), "the Notes screen"));
   report.firstScreenMs = Math.round(performance.now() - started);
   report.sharedWorker = await browser.evaluate("typeof SharedWorker === 'function'");
+
+  // The terminal loses the focus, then a click in it brings it back: it must still draw
+  // what the application sends.
+  await browser.evaluate(`document.querySelector(".xterm-helper-textarea").blur()`);
+  await browser.click(".xterm-screen");
 
   const BASE36 = 36;
   const marker = `local${Date.now().toString(BASE36)}`;
@@ -65,6 +72,14 @@ try {
   await browser.waitFor(shows("First note"), "the list again");
   await browser.press("Enter");
   report.persistedAcrossLoads = !!(await browser.waitFor(shows(marker), "the stored note"));
+
+  // A click on a note opens it, as Enter does.
+  await browser.press("Escape");
+  await browser.waitFor(shows("YOUR NOTES"), "the list once more");
+  await browser.clickAt(
+    `(() => { const row = [...document.querySelectorAll(".xterm-rows > div")].find((r) => r.textContent.includes("Second note")).getBoundingClientRect(); return { x: row.x + row.width / 4, y: row.y + row.height / 2 }; })()`,
+  );
+  report.openedByClick = !!(await browser.waitFor(shows("Second note ·"), "the clicked note"));
   await browser.screenshot(join(example("notes"), ".airtty/web-local.png"));
 } finally {
   await files.stop(true);

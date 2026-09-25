@@ -25,6 +25,7 @@ const Evaluated = z.object({
   exceptionDetails: z.optional(z.object({ text: z.string() })),
 });
 const Screenshot = z.object({ data: z.string() });
+const Point = z.object({ x: z.number(), y: z.number() });
 const Thrown = z.object({
   exceptionDetails: z.object({
     text: z.string(),
@@ -160,6 +161,25 @@ export class Browser implements AsyncDisposable {
     const base = { key, code, windowsVirtualKeyCode: keyCode, nativeVirtualKeyCode: keyCode };
     await this.send("Input.dispatchKeyEvent", { type: "keyDown", ...base, text });
     await this.send("Input.dispatchKeyEvent", { type: "keyUp", ...base });
+  }
+
+  /** A left click at `expression`, a point `{ x, y }` in the page's coordinates. */
+  async clickAt(expression: string) {
+    const point = Point.parse(await this.evaluate(expression));
+    for (const type of ["mousePressed", "mouseReleased"])
+      await this.send("Input.dispatchMouseEvent", {
+        type,
+        ...point,
+        button: "left",
+        clickCount: 1,
+      });
+  }
+
+  /** A left click in the middle of the first element `selector` matches. */
+  async click(selector: string) {
+    await this.clickAt(
+      `(() => { const r = document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()`,
+    );
   }
 
   async screenshot(file: string) {
