@@ -98,6 +98,10 @@ export async function runInPage(
   app.restoration.subscribe(() => session.schedule(app.restoration.snapshot()));
   addEventListener("pagehide", () => session.flush(app.restoration.snapshot()));
 
+  // OpenTUI replaces the global requestAnimationFrame with its render loop's (renderer.ts),
+  // and xterm.js draws through it: after a focus change a request can wait there forever,
+  // the terminal no longer drawn. The page keeps the browser's.
+  const { requestAnimationFrame, cancelAnimationFrame } = globalThis;
   const size = { columns: terminal.cols, rows: terminal.rows };
   const renderer = await createCliRenderer({
     stdin,
@@ -108,6 +112,7 @@ export async function runInPage(
     exitOnCtrlC: false,
     exitSignals: [],
   });
+  Object.assign(globalThis, { requestAnimationFrame, cancelAnimationFrame });
   terminal.onResize(({ cols, rows }) => renderer.resize(cols, rows));
   new ResizeObserver(() => fit.fit()).observe(element);
   app.quit = () => {
