@@ -66,6 +66,7 @@
     "test:pty:lifetime": "bun scripts/pty/lifetime.ts",
     "test:pty:sandbox": "bun scripts/pty/sandbox.ts",
     "test:web": "bun scripts/web/notes.ts",
+    "test:web:local": "bun scripts/web/local.ts",
     "test:linux": "bun scripts/linux-client.ts",
     "test:linux:sandbox": "bun scripts/linux-sandbox.ts",
     "build:sandbox": "bun scripts/build-sandbox.ts",
