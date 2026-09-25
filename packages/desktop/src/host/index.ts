@@ -3,10 +3,9 @@
  * (./session.ts). The window is the application: closing it, or quitting, hangs the
  * PTY up, and the program's end closes the window, which ends the host.
  */
-import { readFileSync } from "node:fs";
-import { homedir } from "node:os";
+import { mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { ApplicationMenu, BrowserView, BrowserWindow, PATHS, app } from "electrobun/main";
+import { ApplicationMenu, BrowserView, BrowserWindow, PATHS, Utils, app } from "electrobun/main";
 import type { TerminalRPC } from "../protocol";
 import { BUNDLED, METADATA, readMetadata } from "../staged";
 import { createWindowSession } from "./session";
@@ -14,11 +13,14 @@ import { createWindowSession } from "./session";
 const bundled = join(PATHS.RESOURCES_FOLDER, "app", BUNDLED);
 const { name, displayName } = readMetadata(readFileSync(join(bundled, METADATA), "utf8"));
 
+// The app's own data directory (~/Library/Application Support/<identifier>/… on macOS):
+// what it writes by relative path stays its own, never in the user's home or the bundle.
+const cwd = Utils.paths.userData;
+mkdirSync(cwd, { recursive: true });
+
 const session = createWindowSession({
   command: [join(bundled, "bin", name)],
-  // Started from the Finder, the host's directory is the bundle's: the user's home is
-  // what a terminal would open in.
-  cwd: homedir(),
+  cwd,
   send: (data) => mainWindow.webview.rpc?.send.output({ data }),
   onExit: () => mainWindow.close(),
 });
