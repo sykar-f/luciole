@@ -6,7 +6,8 @@
     "stage": "bun scripts/stage.ts",
     "dev": "electrobun dev",
     "build": "electrobun build --env=stable",
-    "check": "electrobun prepare && tsc --noEmit"
+    "check": "electrobun prepare && tsc --noEmit",
+    "smoke": "bun scripts/smoke.ts"
   },
   "dependencies": {
     "airtty": "workspace:*",

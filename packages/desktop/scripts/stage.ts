@@ -39,7 +39,19 @@ const name = basename(root);
 const stage = resolve(import.meta.dir, "..", STAGE);
 await rm(stage, { recursive: true, force: true });
 const compiled = Bun.spawnSync(
-  ["airtty", "build", "--app", root, "--compile", "--outfile", join(stage, "bin", name), ...flags],
+  // --portable: the bundle is for other people's machines; a runtime that links anything
+  // but the system's libraries fails here rather than on their Mac.
+  [
+    "airtty",
+    "build",
+    "--app",
+    root,
+    "--compile",
+    "--portable",
+    "--outfile",
+    join(stage, "bin", name),
+    ...flags,
+  ],
   { stdout: "inherit", stderr: "inherit" },
 );
 if (compiled.exitCode !== 0) process.exit(compiled.exitCode ?? 1);

@@ -28,7 +28,8 @@ export default {
   },
   build: {
     // Bun, the runtime airtty/pty is written and tested for, and the one the app binary
-    // already carries. Cottontail, the default, has Bun.Terminal too but is no smaller.
+    // carries: scripts/single-runtime.ts has the host run on it. Cottontail, the default,
+    // has Bun.Terminal too but cannot be replaced by the app binary.
     mainProcess: "bun",
     bun: { entrypoint: "src/host/index.ts" },
     views: { terminal: { entrypoint: "src/view/index.ts" } },
@@ -43,4 +44,6 @@ export default {
     linux: { bundleCEF: false, ...(icon && { icon }) },
     win: { bundleCEF: false, ...(icon && { icon }) },
   },
+  // The app binary also runs the host: one Bun in the bundle (docs/DESKTOP.md).
+  scripts: { postBuild: "scripts/single-runtime.ts" },
 } satisfies ElectrobunConfig;

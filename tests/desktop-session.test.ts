@@ -6,11 +6,12 @@ import { expect, test } from "bun:test";
 import { createWindowSession } from "../packages/desktop/src/host/session";
 import { until } from "./helpers";
 
-function open(script: string) {
+function open(script: string, env?: Record<string, string>) {
   let output = "";
   let exit: number | null | undefined;
   const session = createWindowSession({
     command: ["/bin/sh", "-c", script],
+    env,
     send: (data) => {
       output += data;
     },
@@ -28,6 +29,12 @@ test("the program runs in desktop mode, at the view's size, and receives its inp
   window.session.input("é\r");
   await until(() => window.output().includes("got é"));
   await until(() => window.exit() === 0);
+});
+
+test("the program is never told to act as Bun, as a single-runtime host is", async () => {
+  const window = open('echo "[${BUN_BE_BUN-unset}]"', { BUN_BE_BUN: "1" });
+  await until(() => window.exit() !== undefined);
+  expect(window.output()).toContain("[unset]");
 });
 
 test("a character split across reads reaches the view whole", async () => {

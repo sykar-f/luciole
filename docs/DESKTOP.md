@@ -50,27 +50,59 @@ fenêtre (webview système)          processus principal (Bun)            PTY
                                   └──────────────────────────┘        └──────────────┘
 ```
 
-| Fichier                | Rôle                                                                        |
-| ---------------------- | --------------------------------------------------------------------------- |
-| `scripts/stage.ts`     | Build, binaire à deux rôles, métadonnées et icône (iconset macOS) du stage  |
-| `electrobun.config.ts` | Nom, identifiant, version et icône de l'app ; main Bun, vue, binaire copié  |
-| `src/host/session.ts`  | PTY ↔ vue, sans Electrobun : testé par `tests/desktop-session.test.ts`      |
-| `src/host/index.ts`    | Fenêtre, RPC, menus (Cmd+Q, Cmd+W, copier, coller), hangup à la fermeture   |
-| `src/view/index.ts`    | xterm.js (WebGL si disponible), taille ajustée à la fenêtre                 |
-| `src/protocol.ts`      | Messages RPC : `open`, `input`, `resize` vers l'hôte ; `output` vers la vue |
+| Fichier                     | Rôle                                                                        |
+| --------------------------- | --------------------------------------------------------------------------- |
+| `scripts/stage.ts`          | Build, binaire à deux rôles, métadonnées et icône (iconset macOS) du stage  |
+| `electrobun.config.ts`      | Nom, identifiant, version et icône de l'app ; main Bun, vue, binaire copié  |
+| `scripts/single-runtime.ts` | Hook `postBuild` : le binaire de l'app exécute aussi l'hôte (un seul Bun)   |
+| `scripts/smoke.ts`          | Ouvre le bundle construit comme sur un Mac neuf et vérifie toute la chaîne  |
+| `src/host/session.ts`       | PTY ↔ vue, sans Electrobun : testé par `tests/desktop-session.test.ts`      |
+| `src/host/index.ts`         | Fenêtre, RPC, menus (Cmd+Q, Cmd+W, copier, coller), hangup à la fermeture   |
+| `src/view/index.ts`         | xterm.js (WebGL si disponible), taille ajustée à la fenêtre                 |
+| `src/protocol.ts`           | Messages RPC : `open`, `input`, `resize` vers l'hôte ; `output` vers la vue |
 
 ```sh
 cd packages/desktop
-bun run stage ../../examples/notes          # build + binaire (runtime Bun officiel)
-bun run stage ../../examples/notes --runtime host   # hors ligne, pour essayer ici
+bun run stage ../../examples/notes          # build + binaire portable (Bun officiel)
 bunx electrobun dev                         # build de dev et lancement
 bun run build                               # build stable : build/, artifacts/
+bun run smoke                               # lance le bundle construit et le vérifie
 bun run check                               # SDK projeté (.hutch/devkit) + tsc
 ```
 
 La première commande Electrobun télécharge Hutch (son outil de build) dans `~/.hutch` ;
 le SDK n'est pas sur npm, il est projeté dans `.hutch/devkit` (ignoré par git). C'est
 pourquoi `bun run check` à la racine ne vérifie pas `packages/desktop`.
+
+Le stage compile toujours avec `--portable` : un runtime qui lie autre chose que les
+bibliothèques du système (un Bun de Nix ou de Homebrew, `--runtime host`) échoue là
+plutôt que sur le Mac de l'utilisateur. Rien dans le bundle ne cherche un Bun installé.
+
+### Un seul Bun
+
+Le binaire de l'app (`airtty build --compile`) embarque un Bun complet, et Electrobun en
+livre un autre pour l'hôte. Le hook `postBuild` (`scripts/single-runtime.ts`), exécuté
+avant qu'Electrobun ne signe le bundle, fait tourner l'hôte sur le binaire de l'app :
+
+```text
+Contents/MacOS/launcher      natif Electrobun : lance « bun main.js »
+Contents/MacOS/bun           script : BUN_BE_BUN=1 exec ./<app> "$@"
+Contents/MacOS/<app>         le binaire de l'app, à côté des bibliothèques d'Electrobun
+Resources/app/airtty/bin/<app> → lien vers MacOS/<app>, que l'hôte lance sur le PTY
+
+launcher ─▶ <app> en Bun (hôte, main.js) ─▶ <app> (Client, sur le PTY) ─▶ <app> serve
+```
+
+Le binaire compilé ignore son programme sous `BUN_BE_BUN=1` et se comporte comme `bun` ;
+l'hôte le lance ensuite sans cette variable (`src/host/session.ts`). Il est déplacé dans
+`MacOS/` parce qu'Electrobun charge ses bibliothèques à côté de l'exécutable en cours.
+Le bundle passe de 140 à 80 Mo (55 à 31 Mo en zip). En contrepartie, Electrobun tourne
+sur le Bun de l'app (1.4.2) plutôt que sur celui qu'il fixe (1.4.0) : `bun run smoke`
+le vérifie après chaque build. macOS seulement ; ailleurs le bundle garde ses deux Bun.
+
+L'app tourne dans son répertoire de données (`Utils.paths.userData`,
+`~/Library/Application Support/<identifier>/…`) : ce qu'elle écrit par chemin relatif
+lui reste, jamais dans le répertoire de l'utilisateur ni dans le bundle.
 
 Vérifié à la main sur macOS (arm64), avec `examples/notes` : rendu OpenTUI fidèle
 (couleurs, cadres, curseur), Ctrl+C sans effet, Entrée et la saisie vont à l'app, coller
@@ -89,9 +121,8 @@ Limites connues du prototype :
 - Pas de signature ni de notarisation : `build.mac.codesign` et `notarize`
   d'Electrobun, à relier à `--sign` du binaire embarqué (`src/sign.ts`). Electrobun
   n'écrit pas non plus `CFBundleShortVersionString` dans l'`Info.plist`.
-- Le bundle pèse ~140 Mo : le Bun de l'hôte (61 Mo), plus le binaire de l'app qui
-  embarque le sien (73 Mo, dont moins d'1 Mo de code). Le binaire de l'app peut servir
-  de runtime à l'hôte (`BUN_BE_BUN=1`) : essayé à la main, le bundle tombe à 80 Mo.
+- Signature et notarisation du script `MacOS/bun` non essayées : si la notarisation le
+  refuse, un lanceur compilé minuscule le remplacera.
 - La frappe d'accents par `osascript keystroke` arrive fausse ; le collage passe. À
   confirmer au clavier réel, touches mortes et méthodes de saisie comprises.
 - Linux et Windows non essayés ; Windows n'a pas de PTY dans Bun (`src/vt/pty.ts`).

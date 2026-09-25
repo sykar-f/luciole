@@ -4,6 +4,9 @@
  *
  * The program runs under `AIRTTY_DESKTOP=1` (docs/DESKTOP.md): Ctrl+C is the
  * application's, and `hangUp()`, what closing the window does, is the user's quit.
+ *
+ * Never under `BUN_BE_BUN`: in a single-runtime bundle (scripts/single-runtime.ts) the
+ * host is the app binary acting as Bun, and the app it starts must be itself again.
  */
 import { spawnPty, type Pty } from "airtty/pty";
 
@@ -49,7 +52,7 @@ export function createWindowSession(options: WindowSessionOptions): WindowSessio
         cols: size.cols,
         rows: size.rows,
         cwd: options.cwd,
-        env: { ...options.env, AIRTTY_DESKTOP: "1" },
+        env: { ...options.env, AIRTTY_DESKTOP: "1", BUN_BE_BUN: undefined },
         onData: (bytes) => {
           pending += decoder.decode(bytes, { stream: true });
           if (scheduled) return;
