@@ -1,7 +1,7 @@
 # Étude — cible web : le Client (et le Server) dans un navigateur
 
-> **Statut : décisions prises (§ 7) ; R1 et R2 levés par des spikes
-> ([probes/web](../probes/web/README.md)).** Rien n'est encore modifié dans `src/`.
+> **Statut : étapes 0 à 2 faites** (§ 5) : le Client web tourne contre un vrai Server.
+> Reste la forme « tout dans le navigateur » (étape 3) et la landing (étape 4).
 
 ## Décision proposée
 
@@ -43,6 +43,28 @@ d'OpenTUI passe en WebAssembly.
 └───────────────────────────────────────────────────────────────────────────┘
 ```
 
+## Mode d'emploi (Client web)
+
+```sh
+ZIG=/chemin/zig-0.16.0 airtty web-runtime        # une fois par clé d'ABI : ~30 s, réseau
+airtty build --web                                # .airtty/web/ à côté de server/, client/, app/
+AIRTTY_WEB_ORIGIN=https://notes.example.com PORT=3000 bun --conditions=react-server .airtty/server/index.js
+```
+
+Le navigateur ouvre `https://notes.example.com/` et arrive sur `/_airtty/web/`. Le runtime
+est dans `$XDG_CACHE_HOME/airtty/web/<clé d'ABI>/` ; `airtty build --web` le prépare s'il
+manque. En local : `AIRTTY_WEB_ORIGIN=http://127.0.0.1:3000`.
+
+| Fichier                             | Rôle                                                                             |
+| ----------------------------------- | -------------------------------------------------------------------------------- |
+| `src/web-runtime.ts`                | Préparation par clé d'ABI : OpenTUI au tag de l'ABI, patch, Zig, bundle ; copie  |
+| `src/web-routes.ts`                 | `/_airtty/web/*` et l'origine déclarée (`Origin` et `Host`)                      |
+| `src/web/build.ts`                  | Bundle de la page : variantes, OpenTUI depuis ses sources, shims Node, clé d'ABI |
+| `src/web/platform/`                 | Variantes : `run`, `app-bundle`, `host-direct`, `vt/terminal`, `flight/server`   |
+| `src/web/opentui/`, `src/web/node/` | Backend FFI WASM d'OpenTUI ; built-ins Node d'une page                           |
+| `web/opentui-v0.5.12.patch`         | Le patch natif d'OpenTUI (cible wasm32-wasi)                                     |
+| `scripts/web/`                      | Driver CDP et parcours navigateur (`bun run test:web`)                           |
+
 ## 1. Ce que l'architecture offre déjà
 
 | Couture existante                              | Ce qu'elle rend possible                                                      |
@@ -64,8 +86,9 @@ Chaque refactor est d'abord fait **à comportement constant** pour le terminal, 
 les tests et parcours PTY existants, avant qu'une ligne web n'existe.
 
 **Variantes de plateforme.** Un module lié à Bun ou Node qui a un équivalent navigateur
-garde son nom et reçoit un voisin `X.web.ts` (ou `.web.tsx`) aux mêmes exports ; le build
-navigateur prend la variante quand elle existe, le reste du code ne sait rien. Après
+garde son nom et reçoit, au même chemin sous `src/web/platform/`, une variante aux mêmes
+exports ; le build navigateur la prend (`src/web/platform.ts`), le reste du code ne sait
+rien. Sous `src/web/`, un `tsconfig` avec le DOM, que le reste du package n'a pas. Après
 l'étape 1 : `run.tsx`, `host-direct.ts`, `app-bundle.ts`, `vt/terminal.tsx`,
 `flight/server.ts`. `client.tsx`, le transport, `host.ts` et `app-evaluate.ts` sont
 neutres.
