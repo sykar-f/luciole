@@ -1,5 +1,4 @@
 import { isValidElement, type ReactNode } from "react";
-import { setTimeout as delay } from "node:timers/promises";
 import * as z from "zod/mini";
 import { decode, encodeReply } from "./flight/client";
 import { errorDigest, isAsyncIterable, messageOf } from "./guards";
@@ -220,6 +219,27 @@ export function networkFromEnv(env: Record<string, string | undefined>): Network
 }
 
 /** What the transport calls to send a request: `fetch` itself, or any stand-in. */
+/**
+ * Waits `ms`, or rejects as soon as `signal` aborts, as `node:timers/promises` does: an
+ * `AbortError` whose cause is the signal's reason. On web APIs, so the transport runs in
+ * a page too (docs/WEB.md, W1).
+ */
+function delay(ms: number, signal?: AbortSignal) {
+  return new Promise<void>((resolve, reject) => {
+    const abort = () => {
+      clearTimeout(timer);
+      const cause: unknown = signal?.reason;
+      reject(Object.assign(new DOMException("The operation was aborted", "AbortError"), { cause }));
+    };
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", abort);
+      resolve();
+    }, ms);
+    if (signal?.aborted) abort();
+    else signal?.addEventListener("abort", abort, { once: true });
+  });
+}
+
 export type Fetch = (input: URL, init: RequestInit) => Promise<Response>;
 
 export type HttpTransportOptions = {
@@ -336,7 +356,7 @@ export function createHttpTransport(options: HttpTransportOptions): Transport {
       // Before fetch starts, a failure or cancellation provably sent nothing.
       try {
         const before = oneWay();
-        if (before) await delay(before, undefined, { signal });
+        if (before) await delay(before, signal);
         signal.throwIfAborted();
         if (fault === "refuse") throw new Error("Simulated refused connection");
       } catch (e) {
@@ -357,7 +377,7 @@ export function createHttpTransport(options: HttpTransportOptions): Transport {
         );
       }
       const after = oneWay();
-      if (after) await delay(after, undefined, { signal });
+      if (after) await delay(after, signal);
       if (fault === "drop") {
         await response.body?.cancel();
         throw new TransportError("Simulated lost response");
