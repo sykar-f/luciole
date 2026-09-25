@@ -11,10 +11,10 @@ Deux panneaux de terminal :
 
 ```sh
 # panneau 1 : les DevTools
-bun src/cli.ts devtools            # airtty devtools, une fois le package installé
+bun packages/airtty/src/cli.ts devtools            # airtty devtools, une fois le package installé
 
 # panneau 2 : l'application inspectée
-eval "$(bun src/cli.ts devtools --env)"
+eval "$(bun packages/airtty/src/cli.ts devtools --env)"
 bun run dev                        # ou n'importe quel `airtty dev --app …`
 ```
 

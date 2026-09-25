@@ -194,7 +194,7 @@ bun run build
 Construire aussi explicitement la démo :
 
 ```sh
-bun src/cli.ts build --app examples/control-room
+bun packages/airtty/src/cli.ts build --app examples/control-room
 ```
 
 Lancer ensuite son Server et son Client de production sur un port isolé dans le

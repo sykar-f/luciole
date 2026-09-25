@@ -6,9 +6,9 @@ d'un dossier, hex dump d'un binaire). Le système de fichiers est lu par le Serv
 Client ne reçoit que des chemins relatifs à la racine.
 
 ```sh
-bun src/cli.ts dev --app examples/files                     # racine : répertoire courant
-FILES_ROOT=~/Pictures bun src/cli.ts dev --app examples/files
-AIRTTY_LATENCY_MS=500 bun src/cli.ts dev --app examples/files  # même parcours à 500 ms de RTT
+bun packages/airtty/src/cli.ts dev --app examples/files                     # racine : répertoire courant
+FILES_ROOT=~/Pictures bun packages/airtty/src/cli.ts dev --app examples/files
+AIRTTY_LATENCY_MS=500 bun packages/airtty/src/cli.ts dev --app examples/files  # même parcours à 500 ms de RTT
 ```
 
 ## Clavier
@@ -135,7 +135,7 @@ bloquait l'interface 30 à 150 ms par image ; avec les vignettes, l'interface r�
 tsc --noEmit -p examples/files
 oxlint --deny-warnings examples/files
 oxfmt --check examples/files
-bun src/cli.ts build --app examples/files
+bun packages/airtty/src/cli.ts build --app examples/files
 python3 scripts/pty-files.py          # pyte requis (scripts/requirements-pty.txt)
 ```
 

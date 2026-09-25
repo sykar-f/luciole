@@ -6,8 +6,10 @@ pour le lint type-aware) et Oxfmt 0.70.0.
 Toutes ces versions sont fixées dans `package.json` et le lockfile.
 
 `tsconfig.base.json` définit le mode strict, les types Bun (qui exposent aussi les
-API Node), la résolution ESM Bundler et le JSX OpenTUI. `tsconfig.json` inclut le
-framework, l’exemple, les tests, les scripts et les sondes. Les imports publics
+API Node), la résolution ESM Bundler et le JSX OpenTUI ; il vit dans
+`packages/airtty/` et s'exporte en `airtty/tsconfig`, que chaque exemple étend comme un
+starter. `packages/airtty/tsconfig.json` couvre le framework, le `tsconfig.json` racine
+les tests, les scripts et les sondes, et chaque exemple a le sien. Les imports publics
 `airtty/client` et `/server` passent par les exports du package :
 aucun alias TypeScript ne masque une dépendance absente.
 
@@ -18,7 +20,7 @@ déclaration manquante du décodeur Flight Node, références Client typées com
 fonctions retournant `void`, appel spread d’une fonction typée et inference trop
 large des fixtures. Elles sont corrigées sans `ts-ignore` ni désactivation du mode strict.
 
-Flight n’expose pas de déclarations pour les entrées utilisées. `types.d.ts` contient
+Flight n’expose pas de déclarations pour les entrées utilisées. `packages/airtty/types.d.ts` contient
 le contrat d’intégration local ; les adapters l’incluent aussi pour les applications
 consommatrices. Cela ne représente pas une validation statique des données réseau :
 la validation métier reste côté Server. `skipLibCheck` est limité à la vérification
@@ -86,8 +88,9 @@ configurations via les outils CLI/LSP. Sources :
 
 ## Starters
 
-`airtty init` génère une application avec une dépendance locale `file:` vers ce
-framework, sa configuration TypeScript héritée de `airtty/tsconfig`,
+`airtty init` génère une application depuis l'exemple Notes, avec les dépendances que
+Notes déclare (versions du catalogue résolues), une dépendance locale `file:` vers
+`packages/airtty`, sa configuration TypeScript héritée de `airtty/tsconfig`,
 les configurations Oxc, les réglages VS Code et les commandes check/lint/format.
 Après `bun install`, ces commandes fonctionnent depuis le starter. Les deux
 fichiers JSON générés sont formatés par Oxfmt dès la création.

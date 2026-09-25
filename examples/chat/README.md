@@ -9,7 +9,7 @@ les événements de chaque réponse.
 
 ```sh
 export OPENROUTER_API_KEY=sk-or-…          # https://openrouter.ai/keys
-bun src/cli.ts dev --app examples/chat
+bun packages/airtty/src/cli.ts dev --app examples/chat
 ```
 
 | Variable              | Défaut                         | Rôle                                             |
@@ -28,7 +28,7 @@ Sans clé ni réseau, un faux OpenRouter local suffit :
 ```sh
 bun examples/chat/scripts/fake-openrouter.ts     # affiche {"port": …}
 OPENROUTER_API_KEY=sk-or-fake OPENROUTER_BASE_URL=http://127.0.0.1:<port>/api/v1 \
-  bun src/cli.ts dev --app examples/chat
+  bun packages/airtty/src/cli.ts dev --app examples/chat
 ```
 
 Il renvoie un écho Markdown du dernier message (précédé de reasoning), puis l'usage et le

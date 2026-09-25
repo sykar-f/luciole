@@ -5,7 +5,7 @@ un petit tmux construit avec `<Terminal>` (`airtty/client`). C'est le mode `proc
 [EMBEDDING.md](../../docs/EMBEDDING.md) : aucune isolation, les programmes ont vos droits.
 
 ```sh
-bun src/cli.ts dev --app examples/mux        # bun run mux
+bun packages/airtty/src/cli.ts dev --app examples/mux        # bun run mux
 MUX_PANES='[["htop"],["vim","README.md"]]' bun run mux
 ```
 

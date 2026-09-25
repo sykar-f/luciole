@@ -25,9 +25,9 @@ ce checkout, qui devient le dépôt `airtty` : la démo revoit le code du framew
 Production, deux artefacts :
 
 ```sh
-bun src/cli.ts build --app examples/forge
-FORGE_DB=/tmp/forge.sqlite bun src/cli.ts start --role server --app examples/forge
-bun src/cli.ts start --role client --app examples/forge --url http://127.0.0.1:3000
+bun packages/airtty/src/cli.ts build --app examples/forge
+FORGE_DB=/tmp/forge.sqlite bun packages/airtty/src/cli.ts start --role server --app examples/forge
+bun packages/airtty/src/cli.ts start --role client --app examples/forge --url http://127.0.0.1:3000
 ```
 
 Réglages Server : `FORGE_SLOW_MS` (travail simulé, défaut 250 ms, rend le streaming

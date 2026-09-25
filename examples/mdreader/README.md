@@ -7,9 +7,9 @@ tree-sitter). Titres, emphase, listes et cases à cocher, citations, blocs de co
 colorés, tableaux et liens : aucun parseur n'est écrit ici.
 
 ```sh
-bun src/cli.ts dev --app examples/mdreader                        # dossier courant
-MD_PATH=docs bun src/cli.ts dev --app examples/mdreader           # un dossier
-MD_PATH=README.md bun src/cli.ts dev --app examples/mdreader      # un seul fichier
+bun packages/airtty/src/cli.ts dev --app examples/mdreader                        # dossier courant
+MD_PATH=docs bun packages/airtty/src/cli.ts dev --app examples/mdreader           # un dossier
+MD_PATH=README.md bun packages/airtty/src/cli.ts dev --app examples/mdreader      # un seul fichier
 ```
 
 `MD_PATH` est résolu par le Server, depuis son répertoire courant. `/` affiche

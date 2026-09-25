@@ -37,7 +37,7 @@ refresh ne transforme pas une sauvegarde confirmée en échec.
 ```sh
 AIRTTY_LATENCY_MS=500 bun run dev
 # Banc de test dédié : input, scroll et hover pendant un appel distant
-AIRTTY_LATENCY_MS=500 bun src/cli.ts dev --app examples/latency
+AIRTTY_LATENCY_MS=500 bun packages/airtty/src/cli.ts dev --app examples/latency
 ```
 
 `AIRTTY_LATENCY_MS` ajoute un délai aller-retour à **chaque requête applicative**
@@ -107,7 +107,7 @@ cinq minutes, matrice de preuves et limites : [docs/FORGE.md](docs/FORGE.md).
 Depuis le checkout du framework :
 
 ```sh
-bun src/cli.ts init /tmp/my-airtty-app
+bun packages/airtty/src/cli.ts init /tmp/my-airtty-app
 cd /tmp/my-airtty-app
 bun install
 bun run check
@@ -122,7 +122,7 @@ conserver celui-ci pendant le développement. `bun install` installe le CLI et l
 outils du starter. Il n’y a aucun manifest ni RPC à écrire. Le starter possède
 son `tsconfig.json`, les configurations Oxc et les réglages VS Code.
 Le CLI est aussi déclaré sous le nom `airtty` dans `package.json` ; dans ce
-checkout, `bun src/cli.ts` exécute les mêmes commandes sans installation globale.
+checkout, `bun packages/airtty/src/cli.ts` exécute les mêmes commandes sans installation globale.
 
 ## Production : deux artefacts
 
@@ -130,15 +130,15 @@ Depuis le checkout du framework :
 
 ```sh
 bun run build
-bun src/cli.ts start --role server
+bun packages/airtty/src/cli.ts start --role server
 # Dans un autre terminal :
-bun src/cli.ts start --role client --url http://127.0.0.1:3000
+bun packages/airtty/src/cli.ts start --role client --url http://127.0.0.1:3000
 ```
 
 Pour distribuer le Client sans Bun ni `node_modules` sur la machine du terminal :
 
 ```sh
-bun src/cli.ts build --compile                        # exécutable pour cette machine
+bun packages/airtty/src/cli.ts build --compile                        # exécutable pour cette machine
 ./examples/notes/.airtty/client/notes-darwin-arm64 --url http://127.0.0.1:3000
 ```
 
@@ -171,7 +171,7 @@ fichier téléchargé par un navigateur (attribut de quarantaine). Pour le distr
 ```sh
 # Une fois : identifiants App Store Connect dans le trousseau
 xcrun notarytool store-credentials airtty-notary --apple-id … --team-id … --password …
-bun src/cli.ts build --compile \
+bun packages/airtty/src/cli.ts build --compile \
   --sign "Developer ID Application: Exemple SAS (TEAMID1234)" --notarize airtty-notary
 ```
 
@@ -230,8 +230,8 @@ Le Server écoute par défaut sur loopback. Pour une connexion privée, garder c
 
 ```sh
 ./notes-darwin-arm64 --url ssh://alice@notes.example.com   # Server distant sur 127.0.0.1:3000
-bun src/cli.ts connect ssh://alice@notes.example.com:2222/4000   # ssh sur 2222, Server sur 4000
-bun src/cli.ts connect ssh://alice@bastion/10.0.0.5:3000         # Server joint depuis la machine ssh
+bun packages/airtty/src/cli.ts connect ssh://alice@notes.example.com:2222/4000   # ssh sur 2222, Server sur 4000
+bun packages/airtty/src/cli.ts connect ssh://alice@bastion/10.0.0.5:3000         # Server joint depuis la machine ssh
 ```
 
 Forme : `ssh://[user@]host[:port-ssh][/[hôte-distant:]port-distant]`. Avant de prendre
@@ -285,7 +285,7 @@ bun run format         # Oxfmt
 bun run format:check   # vérification sans écriture
 ```
 
-`tsconfig.base.json` porte les options communes (Bun/Node, JSX OpenTUI, modules ESM).
+`packages/airtty/tsconfig.base.json` (exporté `airtty/tsconfig`) porte les options communes (Bun/Node, JSX OpenTUI, modules ESM).
 Le projet et les starters utilisent cette base ; les fichiers générés et
 `node_modules` sont exclus. Prettier est remplacé par Oxlint 1.85.0 et Oxfmt 0.70.0,
 versions épinglées. Oxc assure le lint/format ; le compilateur du framework utilise

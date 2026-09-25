@@ -5,7 +5,7 @@ texte streamé, appels d'outils (`read`, `bash`, `edit`, `write`) avec arguments
 résultats repliables, état en cours/idle, interruption et nouvelle session.
 
 ```sh
-bun src/cli.ts dev --app examples/agent
+bun packages/airtty/src/cli.ts dev --app examples/agent
 ```
 
 Prérequis : le CLI `pi` (v0.85) dans le `PATH` et le provider `openai-codex` connecté

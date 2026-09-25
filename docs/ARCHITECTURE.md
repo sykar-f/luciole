@@ -1,7 +1,24 @@
 # Structure et distribution
 
-Le dépôt contient **un framework** et **une application exemple**.
-L’application est une codebase unique ; son build produit deux programmes.
+Le dépôt est un espace de travail Bun (`workspaces` du `package.json` racine) :
+
+| Répertoire         | Contenu                                                                                                                                  |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/airtty/` | Le framework, package `airtty` : `src/`, `tsconfig.base.json` (exporté `airtty/tsconfig`), `types.d.ts`, `native/airtty-sandbox` (Rust). |
+| `examples/<app>/`  | Une application par dossier, chacune un package qui déclare `airtty` (`workspace:*`) et les paquets qu'elle importe (`catalog:`).        |
+| `tests/`           | Tests d'intégration du framework, qui construisent et lancent les exemples.                                                              |
+| `scripts/`         | Parcours PTY, installation neuve, conteneurs Linux, build du sandbox.                                                                    |
+| `probes/`          | Sondes historiques, hors espace de travail, chacune avec son propre lockfile.                                                            |
+
+Le catalogue (`workspaces.catalog`) fixe une version par paquet pour la racine et les
+exemples. `airtty` garde des versions exactes plutôt que `catalog:` : un starter hors de
+l'espace de travail l'installe par `file:`, où le catalogue n'existe pas ;
+`tests/dependencies.test.ts` vérifie que les deux sources donnent les mêmes versions. Le
+linker reste `hoisted` (`bunfig.toml`) : un seul `node_modules`, à la racine.
+
+Dans la suite de la documentation et dans les commentaires du code, `src/…` et
+`native/…` désignent `packages/airtty/src/…` et `packages/airtty/native/…`. Chaque
+application est une codebase unique ; son build produit deux programmes.
 
 ## Le framework que nous développons
 

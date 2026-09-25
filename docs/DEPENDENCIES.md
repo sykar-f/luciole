@@ -48,12 +48,12 @@ TanStack Router est épinglé exactement ; seul `@tanstack/react-router` est dé
 ses paquets `router-core`, `history` et `react-store` sont des transitives du
 lockfile. Il est embarqué dans le bundle Client (voir [ROUTER.md](ROUTER.md)).
 
-TanStack Form 1.33.5 est une dépendance de développement : le framework ne l'importe
+TanStack Form 1.33.5 est une dépendance de Forge seul : le framework ne l'importe
 pas, le formulaire de nouvelle pull request de Forge l'utilise pour montrer qu'une
 bibliothèque de formulaires s'utilise telle quelle avec `Input`, `Textarea` et
 `useRestoredFields` (voir [API.md](API.md)). Il partage `@tanstack/store` 0.11.1 avec le
-Router : une seule copie dans le lockfile. `airtty init` recopie les dépendances de
-développement du framework : un starter l'a donc à disposition, sans l'importer.
+Router : une seule copie dans le lockfile. Un starter reçoit les dépendances de Notes et
+l'outillage du framework : ni TanStack Form, ni `marked` (mdreader), ni `sharp` (files).
 
 Zod 4.6.5 valide les données externes (variables d'environnement, `airtty.json`, JSON
 lu sur disque, requêtes reçues par le Server, enveloppes reçues par le Client). Le
