@@ -36,9 +36,10 @@ même option.
 ## L'hôte Electrobun : `packages/desktop`
 
 Un prototype d'hôte : une fenêtre [Electrobun](https://framework.blackboard.sh/electrobun/)
-dont le processus principal est Bun (`build.mainProcess: "bun"` ; Electrobun 2 prend
-Cottontail par défaut, qui n'a pas `Bun.Terminal`), et une vue xterm.js dans le webview
-du système.
+dont le processus principal est Bun (`build.mainProcess: "bun"`), et une vue xterm.js
+dans le webview du système. Electrobun 2 prend par défaut Cottontail, son propre runtime
+(JavaScriptCore, API Bun) : il a `Bun.Terminal` et un vrai PTY, mais pèse autant que Bun
+(~60 Mo) et `airtty/pty` n'a été éprouvé que sous Bun.
 
 ```text
 fenêtre (webview système)          processus principal (Bun)            PTY
@@ -88,9 +89,9 @@ Limites connues du prototype :
 - Pas de signature ni de notarisation : `build.mac.codesign` et `notarize`
   d'Electrobun, à relier à `--sign` du binaire embarqué (`src/sign.ts`). Electrobun
   n'écrit pas non plus `CFBundleShortVersionString` dans l'`Info.plist`.
-- Le bundle pèse ~140 Mo : Bun pour l'hôte, plus le binaire de l'app qui embarque le sien.
-  Cottontail pour l'hôte (s'il gagne un PTY) ou un Client seul (`--client-only`)
-  réduiraient cela.
+- Le bundle pèse ~140 Mo : le Bun de l'hôte (61 Mo), plus le binaire de l'app qui
+  embarque le sien (73 Mo, dont moins d'1 Mo de code). Le binaire de l'app peut servir
+  de runtime à l'hôte (`BUN_BE_BUN=1`) : essayé à la main, le bundle tombe à 80 Mo.
 - La frappe d'accents par `osascript keystroke` arrive fausse ; le collage passe. À
   confirmer au clavier réel, touches mortes et méthodes de saisie comprises.
 - Linux et Windows non essayés ; Windows n'a pas de PTY dans Bun (`src/vt/pty.ts`).

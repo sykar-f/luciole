@@ -27,7 +27,8 @@ export default {
     description: app.description,
   },
   build: {
-    // Bun, not Cottontail: the host needs Bun.Terminal (airtty/pty).
+    // Bun, the runtime airtty/pty is written and tested for, and the one the app binary
+    // already carries. Cottontail, the default, has Bun.Terminal too but is no smaller.
     mainProcess: "bun",
     bun: { entrypoint: "src/host/index.ts" },
     views: { terminal: { entrypoint: "src/view/index.ts" } },
