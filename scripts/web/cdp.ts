@@ -1,7 +1,7 @@
 /**
  * A headless Chrome driven over the DevTools protocol, without a dependency: what the
- * web probes need of a browser (open a page, evaluate, type, capture). The browser-side
- * counterpart of scripts/pty/driver.ts.
+ * web journeys and probes need of a browser (open a page, evaluate, type, capture): the
+ * browser-side counterpart of scripts/pty/driver.ts.
  */
 import { existsSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
