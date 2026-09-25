@@ -1,7 +1,8 @@
 # Étude — cible web : le Client (et le Server) dans un navigateur
 
-> **Statut : étapes 0 à 2 faites** (§ 5) : le Client web tourne contre un vrai Server.
-> Reste la forme « tout dans le navigateur » (étape 3) et la landing (étape 4).
+> **Statut : étapes 0 à 3 faites** (§ 5) : le Client web tourne contre un vrai Server
+> (`--web`), et l'application entière dans un site statique (`--web-local`). Reste la
+> landing (étape 4).
 
 ## Décision proposée
 
@@ -64,6 +65,32 @@ manque. En local : `AIRTTY_WEB_ORIGIN=http://127.0.0.1:3000`.
 | `src/web/opentui/`, `src/web/node/` | Backend FFI WASM d'OpenTUI ; built-ins Node d'une page                           |
 | `web/opentui-v0.5.12.patch`         | Le patch natif d'OpenTUI (cible wasm32-wasi)                                     |
 | `scripts/web/`                      | Driver CDP et parcours navigateur (`bun run test:web`)                           |
+
+## Mode d'emploi (tout dans le navigateur)
+
+```sh
+airtty build --web-local          # .airtty/web/ : page, runtime, server-worker.js, sqlite3.wasm, app/
+```
+
+`.airtty/web/` se sert tel quel par n'importe quel hébergement statique (`application/wasm`
+pour les `.wasm`). La page charge le bundle d'app depuis `app/` et ouvre un SharedWorker
+nommé comme l'app (`server-worker.js`) : l'entrée Server générée, bundlée pour le
+navigateur, dont `serve()` répond aux onglets par `MessagePort`. Les bases SQLite vivent en
+mémoire (SQLite WASM) et sont écrites dans OPFS (`airtty/<app>/`) après chaque Server
+Function, avant sa réponse.
+
+| Fichier                                | Rôle                                                                                     |
+| -------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `src/build.ts` (rôle `web-server`)     | Même entrée et mêmes réécritures que le Server ; cible navigateur ; transformation async |
+| `src/web/server-build.ts`              | Plugins du rôle, amorçage, `sqlite3.wasm` à côté                                         |
+| `src/web/server/`                      | Accueil des onglets, amorçage, protocole, côté Worker et côté page, instantanés OPFS     |
+| `src/web/platform/serve.ts`            | `serve()` du Worker : `createHandler`, persistance après chaque action                   |
+| `src/web/async-context/`               | `AsyncLocalStorage` et transformation des `await` (R2)                                   |
+| `src/web/node/bun-sqlite.ts`, `bun.ts` | `bun:sqlite` sur SQLite WASM (parité testée) ; `Bun.sleep`, `env`, `nanoseconds`         |
+
+Ce que le code Server d'une app peut utiliser ici : `bun:sqlite` (le sous-ensemble ci-dessus),
+`Bun.sleep`, `crypto`, `fetch` vers la même origine. `fs`, `child_process`, `Bun.spawn`,
+`Bun.Terminal` échouent à l'usage avec un message ; ces apps gardent `--web`.
 
 ## 1. Ce que l'architecture offre déjà
 
@@ -252,8 +279,8 @@ grâce. Fermer l'onglet est une interruption (session gardée), pas un quit.
 ### Tout dans le navigateur
 
 ```text
-airtty build --web            → .airtty/web/ (Client web seul, Server à indiquer)
-airtty build --web=local      → .airtty/web/ avec server-worker.js (tout navigateur)
+airtty build --web            → .airtty/web/ (Client web seul, servi par le Server)
+airtty build --web-local      → .airtty/web/ : site statique, Server dans un SharedWorker
 ```
 
 Le Server est un **SharedWorker** (décision 2) : une instance par origine, partagée par
@@ -295,14 +322,14 @@ partagé par toute l'origine : le Server web range ses données sous le nom de l
 
 ## 5. Plan
 
-| Étape | Contenu                                                        | Vérifié par                                            |
-| ----- | -------------------------------------------------------------- | ------------------------------------------------------ |
-| 0     | Spikes R1 et R2, hors de `src/`, dans `probes/web/` — **fait** | une `<box>` rendue ; un `await` qui garde son contexte |
-| 1     | W1 à W5 à comportement constant — **fait**                     | `bun run verify`, parcours PTY                         |
-| 2     | Runtime web + Client web servi par le Server (`/_airtty/web`)  | `examples/notes` ouvert dans Chrome, headless          |
-| 3     | W6, rôle `web-server`, W9, `airtty build --web=local`          | notes, chat, latency tout navigateur                   |
-| 4     | Landing : `iframe` de notes dans `website/`                    | capture de la page                                     |
-| 5     | Shell hébergé ailleurs (CORS, signature, clé épinglée)         | —                                                      |
+| Étape | Contenu                                                          | Vérifié par                                            |
+| ----- | ---------------------------------------------------------------- | ------------------------------------------------------ |
+| 0     | Spikes R1 et R2, hors de `src/`, dans `probes/web/` — **fait**   | une `<box>` rendue ; un `await` qui garde son contexte |
+| 1     | W1 à W5 à comportement constant — **fait**                       | `bun run verify`, parcours PTY                         |
+| 2     | Runtime web + Client web servi par le Server (`/_airtty/web`)    | `examples/notes` ouvert dans Chrome, headless          |
+| 3     | W6, rôle `web-server`, W9, `airtty build --web-local` — **fait** | `bun run test:web:local` : Notes en site statique      |
+| 4     | Landing : `iframe` de notes dans `website/`                      | capture de la page                                     |
+| 5     | Shell hébergé ailleurs (CORS, signature, clé épinglée)           | —                                                      |
 
 Les tests navigateur suivent le modèle des parcours PTY : un script Bun qui pilote
 Chrome headless (CDP), tape, et lit l'écran par le buffer de l'émulateur plutôt que par
