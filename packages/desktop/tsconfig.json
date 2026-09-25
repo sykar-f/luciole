@@ -1,0 +1,15 @@
+{
+  "extends": "airtty/tsconfig",
+  "compilerOptions": {
+    "lib": ["ESNext", "DOM"],
+    "types": ["bun"],
+    "paths": {
+      "electrobun": ["./.hutch/devkit/api/sdks/main/index.ts"],
+      "electrobun/main": ["./.hutch/devkit/api/sdks/main/index.ts"],
+      "electrobun/rpc": ["./.hutch/devkit/api/sdks/main/entries/rpc.ts"],
+      "electrobun/view": ["./.hutch/devkit/api/browser/index.ts"]
+    }
+  },
+  "include": ["src", "scripts", "electrobun.config.ts", "hutch.config.ts"],
+  "exclude": ["**/node_modules", ".hutch", "build"]
+}

@@ -12,6 +12,7 @@
     "./server": "./src/server.ts",
     "./route-tree": "./src/route-tree.tsx",
     "./build": "./src/build.ts",
+    "./pty": "./src/vt/pty.ts",
     "./tsconfig": "./tsconfig.base.json"
   },
   "dependencies": {

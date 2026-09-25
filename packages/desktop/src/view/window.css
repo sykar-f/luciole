@@ -1,0 +1,14 @@
+/* The window is the terminal: no margin, no scrollbar, the program's own background. */
+html,
+body,
+#terminal {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #0d1117;
+}
+#terminal {
+  box-sizing: border-box;
+  padding: 6px 8px;
+}

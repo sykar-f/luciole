@@ -136,6 +136,19 @@
         "oxlint-tsgolint": "7.0.2002",
       },
     },
+    "packages/desktop": {
+      "name": "airtty-desktop",
+      "dependencies": {
+        "@xterm/addon-fit": "catalog:",
+        "@xterm/addon-webgl": "catalog:",
+        "@xterm/xterm": "catalog:",
+        "airtty": "workspace:*",
+        "zod": "catalog:",
+      },
+      "devDependencies": {
+        "electrobun": "catalog:",
+      },
+    },
   },
   "catalog": {
     "@opentui/core": "0.5.12",
@@ -147,6 +160,10 @@
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "@typescript/typescript6": "6.0.2",
+    "@xterm/addon-fit": "0.11.0",
+    "@xterm/addon-webgl": "0.19.0",
+    "@xterm/xterm": "6.0.0",
+    "electrobun": "2.0.1",
     "marked": "17.0.1",
     "oxfmt": "0.70.0",
     "oxlint": "1.85.0",
@@ -456,6 +473,12 @@
 
     "@webassemblyjs/wast-printer": ["@webassemblyjs/wast-printer@1.14.1", "", { "dependencies": { "@webassemblyjs/ast": "1.14.1", "@xtuc/long": "4.2.2" } }, "sha512-kPSSXE6De1XOR820C90RIo2ogvZG+c3KiHzqUoO/F34Y2shGzesfqv7o57xrxovZJH/MetF5UjroJ/R/3isoiw=="],
 
+    "@xterm/addon-fit": ["@xterm/addon-fit@0.11.0", "", {}, "sha512-jYcgT6xtVYhnhgxh3QgYDnnNMYTcf8ElbxxFzX0IZo+vabQqSPAjC3c1wJrKB5E19VwQei89QCiZZP86DCPF7g=="],
+
+    "@xterm/addon-webgl": ["@xterm/addon-webgl@0.19.0", "", {}, "sha512-b3fMOsyLVuCeNJWxolACEUED0vm7qC0cy4wRvf3oURSzDTYVQiGPhTnhWZwIHdvC48Y+oLhvYXnY4XDXPoJo6A=="],
+
+    "@xterm/xterm": ["@xterm/xterm@6.0.0", "", {}, "sha512-TQwDdQGtwwDt+2cgKDLn0IRaSxYu1tSUjgKarSDkUM0ZNiSRXFpjxEsvc/Zgc5kq5omJ+V0a8/kIM2WD3sMOYg=="],
+
     "@xtuc/ieee754": ["@xtuc/ieee754@1.2.0", "", {}, "sha512-DX8nKgqcGwsc0eJSqYt5lwP4DH5FlHnmuWWBRy7X0NcaGR0ZtuyeESgMwTYVEtxmsNGY+qit4QYT/MIYTOTPeA=="],
 
     "@xtuc/long": ["@xtuc/long@4.2.2", "", {}, "sha512-NuHqBY1PB/D8xU6s/thBgOAiAP7HOYDQ32+BFZILJ8ivkUkAHQnWfn6WhL79Owj1qmUnoN/YPhktdIoucipkAQ=="],
@@ -465,6 +488,8 @@
     "acorn-loose": ["acorn-loose@8.5.2", "", { "dependencies": { "acorn": "^8.15.0" } }, "sha512-PPvV6g8UGMGgjrMu+n/f9E/tCSkNQ2Y97eFvuVdJfG11+xdIeDcLyNdC8SHcrHbRqkfwLASdplyR6B6sKM1U4A=="],
 
     "airtty": ["airtty@workspace:packages/airtty"],
+
+    "airtty-desktop": ["airtty-desktop@workspace:packages/desktop"],
 
     "ajv": ["ajv@8.20.0", "", { "dependencies": { "fast-deep-equal": "^3.1.3", "fast-uri": "^3.0.1", "json-schema-traverse": "^1.0.0", "require-from-string": "^2.0.2" } }, "sha512-Thbli+OlOj+iMPYFBVBfJ3OmCAnaSyNn4M1vz9T6Gka5Jt9ba/HIR56joy65tY6kx/FCF5VXNB819Y7/GUrBGA=="],
 
@@ -497,6 +522,8 @@
     "detect-libc": ["detect-libc@2.1.2", "", {}, "sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ=="],
 
     "diff": ["diff@9.0.0", "", {}, "sha512-svtcdpS8CgJyqAjEQIXdb3OjhFVVYjzGAPO8WGCmRbrml64SPw/jJD4GoE98aR7r25A0XcgrK3F02yw9R/vhQw=="],
+
+    "electrobun": ["electrobun@2.0.1", "", { "bin": { "electrobun": "bin/electrobun.cjs" } }, "sha512-1+OjJ0tMemjVrUEsh/AhmxnqUNpyCfJslCbcWOvkogFJuNVMmTlWMzyZem/Ts/7lg8f7ULWu8uuQBsKeGQsu7A=="],
 
     "electron-to-chromium": ["electron-to-chromium@1.5.434", "", {}, "sha512-7EeFW9OLf1NN9NKQP9xdOE/XKqjxv7JDPP6AEAkHli11+Fae1OaLoNuAf13hQv1PPNtuES0pLQSPk2+fS3s8ww=="],
 

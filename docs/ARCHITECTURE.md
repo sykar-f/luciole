@@ -2,13 +2,14 @@
 
 Le dépôt est un espace de travail Bun (`workspaces` du `package.json` racine) :
 
-| Répertoire         | Contenu                                                                                                                                  |
-| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `packages/airtty/` | Le framework, package `airtty` : `src/`, `tsconfig.base.json` (exporté `airtty/tsconfig`), `types.d.ts`, `native/airtty-sandbox` (Rust). |
-| `examples/<app>/`  | Une application par dossier, chacune un package qui déclare `airtty` (`workspace:*`) et les paquets qu'elle importe (`catalog:`).        |
-| `tests/`           | Tests d'intégration du framework, qui construisent et lancent les exemples.                                                              |
-| `scripts/`         | Parcours PTY, installation neuve, conteneurs Linux, build du sandbox.                                                                    |
-| `probes/`          | Sondes historiques, hors espace de travail, chacune avec son propre lockfile.                                                            |
+| Répertoire          | Contenu                                                                                                                                  |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/airtty/`  | Le framework, package `airtty` : `src/`, `tsconfig.base.json` (exporté `airtty/tsconfig`), `types.d.ts`, `native/airtty-sandbox` (Rust). |
+| `packages/desktop/` | Prototype d'app desktop (Electrobun, xterm.js) : le binaire d'une app sur un PTY, dans une fenêtre ([DESKTOP](DESKTOP.md)).              |
+| `examples/<app>/`   | Une application par dossier, chacune un package qui déclare `airtty` (`workspace:*`) et les paquets qu'elle importe (`catalog:`).        |
+| `tests/`            | Tests d'intégration du framework, qui construisent et lancent les exemples.                                                              |
+| `scripts/`          | Parcours PTY, installation neuve, conteneurs Linux, build du sandbox.                                                                    |
+| `probes/`           | Sondes historiques, hors espace de travail, chacune avec son propre lockfile.                                                            |
 
 Le catalogue (`workspaces.catalog`) fixe une version par paquet pour la racine et les
 exemples. `airtty` garde des versions exactes plutôt que `catalog:` : un starter hors de

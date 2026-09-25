@@ -1,0 +1,21 @@
+{
+  "name": "airtty-desktop",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "stage": "bun scripts/stage.ts",
+    "dev": "electrobun dev",
+    "build": "electrobun build --env=stable",
+    "check": "electrobun prepare && tsc --noEmit"
+  },
+  "dependencies": {
+    "airtty": "workspace:*",
+    "@xterm/addon-fit": "catalog:",
+    "@xterm/addon-webgl": "catalog:",
+    "@xterm/xterm": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "electrobun": "catalog:"
+  }
+}

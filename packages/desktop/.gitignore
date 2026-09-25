@@ -1,0 +1,5 @@
+# Electrobun's SDK projection (`electrobun prepare`), its builds, and the staged app.
+.hutch/
+build/
+artifacts/
+.stage/
