@@ -8,6 +8,7 @@ import { createRequire } from "node:module";
 import { join } from "node:path";
 import type { BunPlugin } from "bun";
 import { ABI_KEY } from "../abi";
+import { abiKeyLiteral } from "./abi-key";
 import { bundleMessages, logMessages } from "../bundle-errors";
 import { browserNode } from "./node/plugin";
 import { opentuiWasm } from "./opentui/plugin";
@@ -15,28 +16,6 @@ import { platformVariants } from "./platform";
 
 export const WEB_RUNTIME_FILES = ["index.html", "runtime.js", "opentui.wasm", "xterm.css"] as const;
 const require = createRequire(import.meta.url);
-
-/**
- * src/abi.ts with its key written in: the page cannot hash synchronously, and the key is
- * this build's anyway. Fails the build if the expression it replaces changed.
- */
-const abiKeyLiteral: BunPlugin = {
-  name: "airtty-abi-key",
-  setup(build) {
-    build.onLoad({ filter: /\/src\/abi\.ts$/ }, async (args) => {
-      const text = await Bun.file(args.path).text();
-      const next = text
-        .replace(
-          /export const ABI_KEY = `\$\{ABI_VERSION\}-\$\{createHash\([\s\S]*?\.slice\(0, KEY_HEX\)\}`;/,
-          `export const ABI_KEY = ${JSON.stringify(ABI_KEY)};`,
-        )
-        .replace('import { createHash } from "node:crypto";\n', "");
-      if (next.includes("createHash"))
-        throw new Error(`${args.path}: the ABI key is no longer computed as expected`);
-      return { loader: "ts", contents: next };
-    });
-  },
-};
 
 /** `@opentui/core` from the checkout prepare.ts made: its sources, not the npm bundle. */
 const opentuiSources = (checkout: string): BunPlugin => ({

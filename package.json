@@ -12,6 +12,7 @@
       "@opentui/core": "0.5.12",
       "@opentui/keymap": "0.5.12",
       "@opentui/react": "0.5.12",
+      "@sqlite.org/sqlite-wasm": "3.53.4-build1",
       "@tanstack/react-form": "1.33.5",
       "@tanstack/react-router": "1.170.38",
       "@types/bun": "1.4.2",

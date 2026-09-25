@@ -6,7 +6,7 @@
  */
 import type { BunPlugin } from "bun";
 import { existsSync } from "node:fs";
-import { dirname, join, relative, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 
 const SOURCE = resolve(import.meta.dir, "..");
 const PLATFORM = join(import.meta.dir, "platform");
@@ -14,7 +14,7 @@ const EXTENSIONS = ["", ".ts", ".tsx"];
 
 /** The file `specifier` names from `importer`, when it is a framework source. */
 function frameworkFile(specifier: string, importer: string) {
-  const base = resolve(dirname(importer), specifier);
+  const base = isAbsolute(specifier) ? specifier : resolve(dirname(importer), specifier);
   return EXTENSIONS.map((extension) => base + extension).find(
     (file) => file.startsWith(SOURCE) && !file.startsWith(PLATFORM) && existsSync(file),
   );
@@ -23,7 +23,8 @@ function frameworkFile(specifier: string, importer: string) {
 export const platformVariants: BunPlugin = {
   name: "airtty-web-platform",
   setup(build) {
-    build.onResolve({ filter: /^\.\.?\// }, (args) => {
+    // Relative imports, and the absolute ones src/build.ts writes into generated code.
+    build.onResolve({ filter: /^(\.\.?)?\// }, (args) => {
       const file = frameworkFile(args.path, args.importer);
       if (!file) return undefined;
       const variant = join(PLATFORM, relative(SOURCE, file));
