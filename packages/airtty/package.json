@@ -13,6 +13,7 @@
     "./route-tree": "./src/route-tree.tsx",
     "./build": "./src/build.ts",
     "./pty": "./src/vt/pty.ts",
+    "./metadata": "./src/app-metadata.ts",
     "./tsconfig": "./tsconfig.base.json"
   },
   "dependencies": {

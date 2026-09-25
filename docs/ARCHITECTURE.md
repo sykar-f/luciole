@@ -50,6 +50,7 @@ application est une codebase unique ; son build produit deux programmes.
 | `src/abi.ts`          | ABI de runtime des bundles d'application : spécifiers, versions, clé ; schéma de `.airtty/app/manifest.json`.                              |
 | `src/app-bundle.ts`   | `openApplication` : vérifie et évalue un bundle d'application contre le runtime de l'hôte (table `require` de l'ABI).                      |
 | `src/capabilities.ts` | `airtty.capabilities` (schéma Zod partagé) et comparaison avec les built-ins requis par le Client.                                         |
+| `src/app-metadata.ts` | `airtty.displayName`, `identifier`, `icon` du `package.json` : vérifiés, écrits dans `.airtty/metadata.json`.                              |
 | `src/embed.tsx`       | `<Embed>`, `openApplication` : une autre application airtty par pane, keymap filtré, focus, boundary.                                      |
 | `src/vt/`             | `<Terminal>` : programme local sur PTY (`Bun.Terminal`) rendu par l'émulateur d'OpenTUI ; trous d'OpenTUI comblés (`gaps.ts`).             |
 | `src/instance.ts`     | Clé d'instance d'un pane (`x-airtty-instance`) et copies préfixées du manifeste Client, bornées, côté Server.                              |

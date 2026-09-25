@@ -1,7 +1,14 @@
 {
   "name": "@airtty-examples/notes",
   "private": true,
+  "version": "0.1.0",
+  "description": "A personal notebook: notes kept in SQLite on the Server.",
   "type": "module",
+  "airtty": {
+    "displayName": "Notes",
+    "identifier": "dev.airtty.examples.notes",
+    "icon": "assets/icon.png"
+  },
   "dependencies": {
     "airtty": "workspace:*",
     "@opentui/core": "catalog:",

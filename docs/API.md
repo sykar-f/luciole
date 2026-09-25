@@ -219,6 +219,31 @@ const state = useCapability("clipboard.write"); // "granted" | "denied" | "promp
   espaces de noms, ou sous bubblewrap (Linux), par défaut ; Landlock seul (réseau non
   confiné par hôte) seulement avec `--sandbox`. L'écran des capacités nomme le mécanisme.
 
+## Métadonnées de l'application
+
+Ce que les hôtes montrent d'une application sans l'exécuter (une fenêtre desktop, son
+bundle, une liste d'apps) se déclare dans le champ `airtty` de son `package.json`, à côté
+de `capabilities` :
+
+```jsonc
+{
+  "version": "0.1.0", // du paquet : version du bundle desktop
+  "description": "A personal notebook: notes kept in SQLite on the Server.",
+  "airtty": {
+    "displayName": "Notes", // titre de fenêtre, menu, Dock ; le nom du répertoire sinon
+    "identifier": "dev.airtty.examples.notes", // DNS inversé : identifiant du bundle macOS
+    "icon": "assets/icon.png", // PNG carré, 512 px ou plus (1024 pour le Retina)
+  },
+}
+```
+
+Le build vérifie la déclaration avant de construire (une icône absente, trop petite ou
+hors du répertoire l'arrête aussitôt) et écrit `.airtty/metadata.json`, valeurs par
+défaut appliquées, avec `.airtty/icon.png` à côté. Un hôte lit cette sortie, jamais les
+sources : `AppMetadata` (`airtty/metadata`, `src/app-metadata.ts`) en est le schéma.
+`name` reste le nom du répertoire, qui nomme binaires, sessions et sockets ; seul
+`displayName` est fait pour être lu.
+
 ## Observabilité
 
 `useApplication().onEvent(listener)` reçoit chaque événement de transport

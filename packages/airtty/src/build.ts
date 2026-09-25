@@ -12,8 +12,8 @@ import { ROUTE_TREE_FILE, compileRouteGraph, renderRouteTree } from "./route-gra
 import { cachedFunctions, cacheSource, staleTimeOf } from "./cache/transform";
 import { annotateNames } from "./build-names";
 import { ABI_KEY, APP_MANIFEST, isAbiSpecifier, type AppManifest } from "./abi";
-import { Capabilities, undeclaredUses } from "./capabilities";
-import * as zm from "zod/mini";
+import { readAppDeclaration, writeAppMetadata } from "./app-metadata";
+import { undeclaredUses, type Capabilities } from "./capabilities";
 import { signManifest, type PublisherKey } from "./publisher";
 const framework = dirname(import.meta.path);
 const quote = JSON.stringify;
@@ -71,10 +71,6 @@ export type BuildOptions = {
    */
   signBundle?: PublisherKey;
 };
-// `airtty.capabilities` of the application's own package.json (decision 3): optional.
-const AppPackage = zm.looseObject({
-  airtty: zm.optional(zm.looseObject({ capabilities: zm.optional(Capabilities) })),
-});
 /**
  * `.airtty/app/manifest.json`: the bundle's identity, ABI and hash, the built-ins it
  * requires and the capabilities the application declares, compared with those built-ins.
@@ -86,20 +82,17 @@ async function writeAppManifest(
   {
     buildId,
     builtins,
+    capabilities,
     publisher,
-  }: { buildId: string; builtins: string[]; publisher?: PublisherKey },
+  }: {
+    buildId: string;
+    builtins: string[];
+    /** `airtty.capabilities` of the application's package.json (decision 3): optional. */
+    capabilities?: Capabilities;
+    publisher?: PublisherKey;
+  },
 ) {
   const code = await readFile(join(directory, "index.cjs"), "utf8");
-  const packageFile = Bun.file(join(root, "package.json"));
-  let capabilities: AppManifest["capabilities"];
-  if (await packageFile.exists()) {
-    const parsed = AppPackage.safeParse(await packageFile.json());
-    if (!parsed.success)
-      throw new Error(
-        `${packageFile.name}: airtty.capabilities: ${zm.prettifyError(parsed.error)}`,
-      );
-    capabilities = parsed.data.airtty?.capabilities;
-  }
   // Declaring is a claim the host shows before opening the application: one the Client
   // code visibly exceeds is reported. An application that declares nothing claims nothing.
   if (capabilities)
@@ -183,6 +176,8 @@ export async function build(
   const root = await realpath(directory),
     modules = new Map<string, Module>();
   const { serverPackages } = await readConfig(root);
+  // Checked before the long part: a wrong icon or capability fails at once.
+  const declaration = await readAppDeclaration(root);
   // How each module was first reached, per graph: boundary errors show the whole chain.
   const serverParent = new Map<string, string>(),
     clientParent = new Map<string, string>();
@@ -852,8 +847,10 @@ export async function build(
       await writeAppManifest(root, join(temp, "app"), {
         buildId,
         builtins: appBuiltins,
+        capabilities: declaration.capabilities,
         publisher: signBundle,
       });
+    await writeAppMetadata(temp, declaration);
     // Failed builds never touch the active artefacts.
     const backup = output + "-previous";
     await rm(backup, { recursive: true, force: true });
