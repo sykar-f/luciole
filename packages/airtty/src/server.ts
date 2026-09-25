@@ -6,6 +6,7 @@ import { decodeReply, renderToReadableStream } from "./flight/server";
 import { isAsyncIterable, messageOf } from "./guards";
 import { managedLifetime } from "./launcher/lifetime";
 import { appRoutes } from "./app-routes";
+import { WebOrigin, webAccess, type WebAccess } from "./web-routes";
 import { INSTANCE_HEADER, InstanceKey, instanceManifests } from "./instance";
 import { NotFoundError } from "./not-found";
 import type { CacheHandler } from "./cache/handler";
@@ -138,6 +139,8 @@ export type ServerConfig = {
   cache?: CacheHandler;
   /** The build's application bundle (`.airtty/app`), served to hosts when it exists. */
   appBundle?: string;
+  /** The build's web runtime (`.airtty/web`, `airtty build --web`), for browsers. */
+  web?: string;
 };
 /** JSON text from a request, parsed then checked by `schema`; `null` when either fails. */
 function parseJson<T>(schema: z.ZodType<T>, raw: string) {
@@ -178,6 +181,8 @@ const ServerEnvironment = z.object({
   AIRTTY_TEST_DROP_ONCE: z.string().optional(),
   // Development only: the address of `airtty devtools` (src/devtools/server-agent.ts).
   AIRTTY_DEVTOOLS: z.string().optional(),
+  /** The one browser origin the web runtime is served to (src/web-routes.ts). */
+  AIRTTY_WEB_ORIGIN: WebOrigin.optional(),
 });
 // The Client's event clock (src/transport.ts): `at` compares across both processes.
 const now = () => performance.timeOrigin + performance.now();
@@ -242,6 +247,8 @@ export type HandlerOptions = {
   devtools?: string;
   /** Exposes `/test-metrics`. */
   testing?: boolean;
+  /** What browsers may do; by default nothing (src/web-routes.ts). */
+  web?: WebAccess;
   /** A live response is about to start: it must outlive any idle timeout. */
   keepAlive?: (req: Request) => void;
   /**
@@ -255,7 +262,7 @@ export type HandlerOptions = {
  * bundle, instrumentation. Everything that listens, binds or exits stays in `serve()`.
  */
 export function createHandler(config: ServerConfig, options: HandlerOptions) {
-  const { auth, testing = false } = options;
+  const { auth, testing = false, web = webAccess(undefined, undefined) } = options;
   const paramSchemas = new Map(
     [...config.routes].map(([id, route]) => [id, paramsSchema(route)] as const),
   );
@@ -283,8 +290,10 @@ export function createHandler(config: ServerConfig, options: HandlerOptions) {
   // `failed` hears a handler's exception before it becomes the generic 500.
   async function handle(req: Request, url: URL, callId: string, failed?: (error: unknown) => void) {
     const arrived = performance.now();
-    if (req.headers.has("origin"))
+    if (!web.admits(req))
       return new Response("Browser origins are unsupported", { status: STATUS.forbidden });
+    const page = web.serve(req, url);
+    if (page) return page;
     // Before the session and the build check: how a host learns the build (src/app-routes.ts).
     const bundled = bundleRoutes(req, url);
     if (bundled) return bundled;
@@ -468,6 +477,7 @@ export function serve(config: ServerConfig) {
     auth,
     devtools: env.data.AIRTTY_DEVTOOLS,
     testing,
+    web: webAccess(config.web, env.data.AIRTTY_WEB_ORIGIN),
     keepAlive: (req) => server.timeout(req, 0),
     dropAfterCommit: dropOnce
       ? () => {

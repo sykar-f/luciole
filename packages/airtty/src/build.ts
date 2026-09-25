@@ -556,7 +556,7 @@ export async function build(
     "\n" +
     [...actions].map((p, i) => `import * as A${i} from ${quote(p)};`).join("\n") +
     `\nconst actions=new Map([${[...actions].flatMap((p, i) => moduleAt(p).actionExports.map((n) => `[${quote(id(p) + "#" + n)},{fn:A${i}[${quote(n)}],auth:${quote(moduleAuth(moduleAt(p)))}}]`)).join(",")}]);\n` +
-    `serve({buildId:${quote(buildId)},manifest:${quote(manifest)},actions,routes:new Map([${routes.map((r) => `[${quote(r.id)},{component:${r.name},auth:${quote(r.auth)},url:${quote(r.url)},params:${quote(r.params)}}]`).join(",")}])${hasAuth ? ",auth:Auth" : ""}${hasCache ? ",cache:Cache" : ""},appBundle:import.meta.dir+"/../app"});`;
+    `serve({buildId:${quote(buildId)},manifest:${quote(manifest)},actions,routes:new Map([${routes.map((r) => `[${quote(r.id)},{component:${r.name},auth:${quote(r.auth)},url:${quote(r.url)},params:${quote(r.params)}}]`).join(",")}])${hasAuth ? ",auth:Auth" : ""}${hasCache ? ",cache:Cache" : ""},appBundle:import.meta.dir+"/../app",web:import.meta.dir+"/../web"});`;
   const clientSource =
     `export {Shell,run} from ${quote(join(framework, "client.tsx"))};import {createApplication,run} from ${quote(join(framework, "client.tsx"))};import {routeTree} from ${quote(routeTreeFile)};import {actions} from "airtty:actions";\n` +
     [...clients].map((p, i) => `import * as C${i} from ${quote(p)};`).join("\n") +
