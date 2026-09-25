@@ -1,6 +1,5 @@
 // oxlint-disable-next-line typescript/triple-slash-reference -- the ambient Flight declarations (see src/flight/server.ts).
 /// <reference path="../../types.d.ts" />
-import { createHash } from "node:crypto";
 import { encodeReply } from "react-server-dom-webpack/client.node";
 import { decodeReply } from "../flight/server";
 import { isAsyncIterable, messageOf } from "../guards";
@@ -65,8 +64,16 @@ export function decodeValue(stored: string): Promise<unknown> {
   return decodeReply(form, {});
 }
 
-/** Function id, build and arguments: a new build never reads another build's entries. */
+const HEX = 16;
+/**
+ * Function id, build and arguments: a new build never reads another build's entries.
+ * SHA-256 by WebCrypto, which the Server has in Bun and in a browser Worker alike.
+ */
 export async function keyOf(buildId: string, fn: string, args: unknown[]) {
   const encoded = JSON.stringify(await encode(args, "arguments"));
-  return createHash("sha256").update(`${buildId}\0${fn}\0${encoded}`).digest("hex");
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(`${buildId}\0${fn}\0${encoded}`),
+  );
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(HEX).padStart(2, "0")).join("");
 }
