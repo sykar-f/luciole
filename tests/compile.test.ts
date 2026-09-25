@@ -3,7 +3,7 @@ import { copyFile, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { build } from "../packages/airtty/src/build";
-import { compileClient, hostTarget } from "../packages/airtty/src/compile";
+import { compileClient, hostTarget, runtimePortability } from "../packages/airtty/src/compile";
 import { messageOf } from "../packages/airtty/src/guards";
 import { launch, rejectionOf } from "./helpers";
 
@@ -100,6 +100,21 @@ test("unsupported targets and missing native packages are explained", async () =
   );
   expect(messageOf(missing)).toContain("--native-dir");
 }, 60000);
+
+// Only where the Bun running the tests links libraries other Macs lack (Nix, Homebrew).
+test.if(runtimePortability(process.execPath) !== undefined)(
+  "--portable refuses a runtime other machines could not start, before compiling",
+  async () => {
+    const { output } = await build(root);
+    const outfile = join(tmpdir(), "airtty-never-portable");
+    const refused = await rejectionOf(
+      compileClient(output, { name: "notes", outfile, runtime: "host", portable: true }),
+    );
+    expect(messageOf(refused)).toContain("may not start on other Macs");
+    expect(await Bun.file(outfile).exists()).toBe(false);
+  },
+  60000,
+);
 
 test("signing is only accepted where it can succeed", async () => {
   const { output } = await build(root);

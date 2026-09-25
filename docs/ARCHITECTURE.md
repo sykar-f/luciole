@@ -161,7 +161,8 @@ puis publié par un seul `rename` dans `$XDG_CACHE_HOME/airtty/runtime/` : une
 interruption ne laisse pas d'entrée partielle. Les compilations suivantes n'utilisent
 plus le réseau ; `airtty runtime` remplit ce cache à l'avance. `--runtime host`
 embarque le Bun local (déconseillé s'il vient de Nix ou Homebrew, le build l'indique)
-et `--runtime <chemin>` un exécutable choisi. L'empreinte protège contre une archive
+et `--runtime <chemin>` un exécutable choisi ; `--portable` fait de cet avertissement
+une erreur, avant de compiler, pour un binaire destiné à d'autres machines. L'empreinte protège contre une archive
 tronquée ou modifiée en transit ; elle ne protège pas d'un registre compromis (les
 signatures npm ne sont pas vérifiées). `--sign <identité>` et `--notarize <profil>`
 (`src/sign.ts`) signent le binaire macOS (hardened runtime, entitlements minimaux de

@@ -42,9 +42,14 @@ export type CompileOptions = {
   /**
    * Bun executable embedded in the binary: `"official"` (default) is Bun's stock runtime
    * for the target, downloaded once by `fetchRuntime`; `"host"` is the Bun running the
-   * build (see `hostRuntimeWarning`); anything else is the path of a Bun executable.
+   * build (see `runtimePortability`); anything else is the path of a Bun executable.
    */
   runtime?: string;
+  /**
+   * Fails, before building, when the runtime links libraries other machines may lack,
+   * instead of warning: for binaries shipped to other people (a desktop bundle).
+   */
+  portable?: boolean;
   /** Where `@opentui/core-<os>-<arch>` of a foreign target is installed. */
   nativeDir?: string;
 } & RuntimeSource &
@@ -67,7 +72,7 @@ function parseTarget(target: string) {
  * A macOS Bun from Nix or Homebrew may link libraries that other Macs do not have: the
  * binary built on it would not start there. Returns why, or nothing when it is stock.
  */
-export function hostRuntimeWarning(runtime = process.execPath) {
+export function runtimePortability(runtime: string) {
   if (process.platform !== "darwin") return undefined;
   const otool = Bun.spawnSync(["otool", "-L", runtime]);
   if (otool.exitCode !== 0) return undefined;
@@ -203,6 +208,8 @@ async function compileEntry(
   const outfile = resolve(options.outfile);
   const nativeDir = options.nativeDir ? resolve(options.nativeDir) : undefined;
   const runtime = await resolveRuntime(target, options);
+  const portability = runtimePortability(runtime);
+  if (portability && options.portable) throw new Error(portability);
   const result = await Bun.build({
     entrypoints: [entry],
     compile: {
@@ -244,7 +251,7 @@ async function compileEntry(
   return {
     outfile,
     target,
-    warning: runtime === process.execPath ? hostRuntimeWarning(runtime) : undefined,
+    warning: portability,
     notarization:
       options.notarize === undefined ? undefined : await notarizeClient(outfile, options.notarize),
   };
