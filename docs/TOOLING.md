@@ -40,15 +40,18 @@ Les règles suivantes sont vérifiées, pas seulement suivies :
 | Pas d'`enum`, de `namespace` ni de parameter properties  | `erasableSyntaxOnly` (TypeScript)                                                                   |
 | `catch (error)` est `unknown`                            | `strict` (TypeScript), `use-unknown-in-catch-callback-variable`                                     |
 | Égalité stricte                                          | `eqeqeq`                                                                                            |
-| Constantes nommées plutôt que valeurs magiques           | `no-magic-numbers` (hors tests)                                                                     |
+| Constantes nommées plutôt que valeurs magiques           | `no-magic-numbers` (hors tests et parcours PTY)                                                     |
 
 Le lint type-aware utilise `oxlint-tsgolint` et les `tsconfig.json` du projet ; il ajoute
 les règles de correction qui demandent des types (`await-thenable`, `no-floating-promises`,
 `unbound-method`…). `no-magic-numbers` accepte -1, 0, 1, 2, les index et les valeurs par
 défaut ; dans les tests, une valeur attendue écrite en clair reste plus lisible qu'une
-constante. `examples/forge/server/ci.ts` et `seed.ts` en sont aussi exemptés : ce sont
-des tables de données de démonstration (horaires du script CI simulé, jeu de données
-généré), où nommer chaque valeur n'ajouterait aucun sens. `readonly` et `ReadonlyArray` pour les données immuables ne sont pas vérifiables
+constante, et il en va de même des parcours PTY (`scripts/pty/`). Sont aussi exemptés
+des tables de données de démonstration, où nommer chaque valeur n'ajouterait aucun sens :
+`examples/forge/server/ci.ts` et `seed.ts` (horaires du script CI simulé, jeu de données
+généré), `packages/airtty/src/devtools/fixtures.ts` (session DevTools simulée) et les
+pages du guide du site (`.oxlintrc.json`, `overrides`). `readonly` et `ReadonlyArray`
+pour les données immuables ne sont pas vérifiables
 automatiquement sans bruit (`prefer-readonly-parameter-types` signale chaque paramètre
 d'une bibliothèque) : ils restent une règle de revue.
 
@@ -57,19 +60,36 @@ internes gardent de simples types TypeScript.
 
 ## Commandes et CI
 
-- `bun run check` : TypeScript, tous les fichiers du projet.
-- `bun run lint` / `lint:fix` : Oxlint, avec TypeScript et règles React pertinentes.
+- `bun run check` : TypeScript sur le framework, ses applications internes (DevTools,
+  lanceur, Client générique, runtime web), les exemples, les tests, les scripts et les
+  sondes. `packages/desktop` et `website/` ont chacun leur propre `check` (Electrobun,
+  `astro check`), absent de celui de la racine.
+- `bun run lint` / `lint:fix` : Oxlint, avec TypeScript et règles React pertinentes, sur
+  tout le dépôt sauf quatre fichiers de `packages/desktop` qui ont besoin des types
+  d'Electrobun : le `check` de ce paquet les lint après `electrobun prepare`.
 - `bun run format` / `format:check` : Oxfmt.
-- `bun run verify` : types, lint, format, tests et build ; même commande en CI.
+- `bun run verify` : types, lint, format, tests et build.
 
-Le lint ne tolère aucun warning. Les seuls commentaires d’exception ciblent le
-registre singleton nécessaire aux proxies Flight et l’inclusion des déclarations
-ambiantes dans les adapters ; il n’existe pas de désactivation globale des hooks.
+La CI (`.github/workflows/ci.yml`, GitHub Actions) tourne à chaque push et pull request.
+Le job `verify`, sous macOS et Linux, enchaîne `bun install --frozen-lockfile`, la même
+installation dans `website/` suivie de `astro sync` (le lint type-checke ses sources, qui
+ont besoin des paquets d'Astro et des types générés dans `website/.astro`),
+`bun run probes`, `bun run verify`, `test:pty`, `test:pty:dev` et
+`scripts/clean-install.ts`, puis, sous Linux seulement, `scripts/linux-client.ts`. Le job
+`linux-sandbox` vérifie que le lanceur versionné est celui que ses sources construisent
+(`scripts/build-sandbox.ts --check`), puis lance `scripts/linux-sandbox.ts`. En local,
+`bun run build:sandbox` et `bun run test:linux:sandbox` lancent ces deux scripts.
+
+Le lint ne tolère aucun warning. Les seuls commentaires d’exception
+(`typescript/triple-slash-reference`) incluent les déclarations ambiantes de Flight dans
+les adapters ; il n’existe pas de désactivation globale des hooks.
 Les dépendances des effets React, imports inutilisés et écritures pendant le rendu
 signalés par Oxlint ont été corrigés.
 
 Le handoff historique, les résultats bruts de sondes et la capture PTY ne sont pas
-reformatés. Les sources des sondes sont bien couvertes par TypeScript et Oxlint.
+reformatés. Les sources des sondes sont couvertes par TypeScript et Oxlint, sauf
+`probes/vt-embed` et `probes/devtools-tanstack` (chacune avec son propre `tsconfig.json`,
+exclues du contrôle racine et du lint) et `probes/compile/wrapper.ts`, exclu du contrôle.
 
 ## VS Code
 

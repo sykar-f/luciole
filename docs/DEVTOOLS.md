@@ -49,16 +49,18 @@ application inspectée                                   DevTools (une app airtt
 Les DevTools **sont une application airtty** (`src/devtools/airtty-devtools/`), ce qui
 fait tourner le framework sur lui-même : leur Server tient le bus et le journal, leur
 Client lit ce journal par une Server Function live (`subscribe`, générateur asynchrone),
-chaque panneau est une route dont la page Server passe la Server Function `command` au
-panneau Client, le filtre de la console voyage en search param (`/console?callId=…`).
+chaque panneau est une route ; celles qui pilotent l'application (Components, Router,
+Cache, Conditions) reçoivent de leur page Server la Server Function `command`, le filtre
+de la console voyage en search param (`/console?callId=…`).
 `airtty devtools` (`src/commands/devtools.ts`) construit cette application et lance ses
 deux processus en retirant `AIRTTY_DEVTOOLS` et le preload de leur environnement : les
 DevTools ne s'inspectent jamais elles-mêmes.
 
 Les DevTools écoutent, les processus inspectés se connectent. Chacun envoie d'abord un
-`hello` (rôle, pid, application, build, preload présent), puis ses messages. Tant
-qu'aucune DevTools n'écoute, un processus garde ses 2 000 derniers messages et réessaie
-chaque seconde ; ses sockets sont `unref` (ils ne retiennent jamais un processus) et un
+`hello` (protocole, rôle, pid, application, répertoire ; le Server y ajoute son build et
+les sources des Server Components, le Client la présence du preload), puis ses messages.
+Tant qu'aucune DevTools n'écoute, un processus garde ses 2 000 derniers messages et
+réessaie chaque seconde ; ses sockets sont `unref` (ils ne retiennent jamais un processus) et un
 lecteur qui ne lit plus ne peut pas lui faire dépasser 8 Mio en attente (les messages en
 trop sont comptés et signalés, `airtty:dropped`).
 
@@ -67,7 +69,8 @@ macOS), nommé par uid, en `0600`. Un socket laissé par des DevTools mortes est
 jamais celui de DevTools vivantes. En `ws://`, le listener refuse toute requête portant un
 en-tête `Origin` (une page web ne peut pas piloter l'application) ; il écoute sur l'hôte
 donné, à garder local. Les commandes possibles restent de développement : invalider,
-rafraîchir, conditions réseau, flash.
+rafraîchir, conditions réseau, flash, et purger un tag du cache Server (la seule qui
+modifie l'état du Server).
 
 ## Protocole
 
@@ -77,16 +80,16 @@ L'enveloppe est celle de TanStack DevTools (`@tanstack/devtools-event-client`) :
 type Message = { type: `${pluginId}:${suffix}`; pluginId: string; payload: unknown };
 ```
 
-| Plugin              | Suffixes                                                                                                              | Émis par         |
-| ------------------- | --------------------------------------------------------------------------------------------------------------------- | ---------------- |
-| `airtty`            | `hello`, `dropped`                                                                                                    | chaque processus |
-| `airtty-client`     | un par `ApplicationEvent.type` : `request`, `response`, `chunk`, `end`, `error`, `navigation`, `invalidate`, `loader` | Client           |
-| `airtty-server`     | un par `ServerEvent.type`, et `cache`                                                                                 | Server           |
-| `airtty-console`    | `entry` (`level`, `text`, `callId` côté Server)                                                                       | les deux         |
-| `airtty-components` | `commit` (arbre aplati, rendus), `unavailable`                                                                        | Client           |
-| `airtty-router`     | `state` (matches, matches en cache, location)                                                                         | Client           |
-| `airtty-input`      | `key`                                                                                                                 | Client           |
-| `airtty-devtools`   | commandes : `invalidate`, `refresh`, `network`, `highlight`, `select`, `snapshot`                                     | DevTools         |
+| Plugin              | Suffixes                                                                                                                      | Émis par         |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+| `airtty`            | `hello`, `dropped`                                                                                                            | chaque processus |
+| `airtty-client`     | un par `ApplicationEvent.type` : `request`, `response`, `chunk`, `end`, `error`, `navigation`, `invalidate`, `loader`         | Client           |
+| `airtty-server`     | un par `ServerEvent.type`, et `cache`                                                                                         | Server           |
+| `airtty-console`    | `entry` (`level`, `text`, `stack`, `callId` côté Server)                                                                      | les deux         |
+| `airtty-components` | `commit` (arbre aplati, rendus), `unavailable`                                                                                | Client           |
+| `airtty-router`     | `state` (matches, matches en cache, location)                                                                                 | Client           |
+| `airtty-input`      | `key`                                                                                                                         | Client           |
+| `airtty-devtools`   | commandes : `invalidate`, `refresh`, `network`, `highlight`, `select`, `snapshot` (au Client), `cache-invalidate` (au Server) | DevTools         |
 
 Les payloads sont validés par Zod à l'arrivée (`src/devtools/schema.ts`), en objets
 « loose » : un champ ajouté par une version plus récente du framework atteint la vue
@@ -102,8 +105,9 @@ processus qui tient le bus ; notre conception n'en dépend pas.
 ## Panneaux
 
 Touches communes : `1`–`7` ou `Tab` changent de panneau, `j`/`k`/flèches sélectionnent,
-`G` suit le plus récent, `p` met en pause (les événements sont gardés et appliqués à la
-reprise), `C` vide, `E` exporte.
+`G` suit le plus récent dans les listes live (Network, Console) et revient en tête
+ailleurs, `p` met en pause (les événements sont gardés et appliqués à la reprise), `C`
+vide, `E` exporte.
 
 ### 1 Network
 
@@ -127,8 +131,9 @@ qui l'a demandée (même route, même cause) :
   cache) » de Chrome) ; `hit`, `miss`, `stale`, `part` selon les événements `cache` du
   Server pour ce `callId`.
 - **`↳` waterfall séquentiel** : la requête est partie moins de 25 ms après la réponse
-  d'une autre (elle l'attendait probablement). Ne comptent ni un redémarrage après
-  annulation, ni le rendu que l'invalidation d'une action a demandé (son lien est la cause).
+  d'une autre (elle l'attendait probablement). Ne comptent ni un préchargement, ni un flux
+  live, ni un redémarrage après annulation, ni le rendu que l'invalidation d'une action a
+  demandé (son lien est la cause).
 - **`⟳` double invalidation** : une même cause a rendu deux fois la même page. La cause
   d'une invalidation est l'action dont la réponse est arrivée dans les 250 ms qui
   précèdent (sinon elle-même) : l'`invalidate()` du Server et celui du composant après la
@@ -234,7 +239,7 @@ l'écriture, succès/échecs/périmés, invalidations par tag, requêtes qui l'o
 
 `t` choisit un tag de l'entrée sélectionnée, `x` l'invalide : la commande
 `airtty-devtools:cache-invalidate` fait appeler `invalidate({ tag })` par l'agent Server
-(la fonction lui est passée par `serve()`, pour ne pas importer `server.ts` dans un
+(la fonction lui est passée par `createHandler()`, pour ne pas importer `server.ts` dans un
 cycle). Hors de toute requête, cela **purge le cache Server seulement** : aucun Client
 n'est prévenu, chacun verra des données fraîches à son prochain rendu, ce que le panneau
 rappelle. Le Server émet alors un événement `cache` `invalidate` par tag (`key` et
@@ -269,7 +274,7 @@ pour `--demo` et les tests :
 
 - **Server** : `ServerInstrument.onEvent` reçoit `ServerEvent | CacheEvent`, avec
   `CacheEvent = { type: "cache", op: "hit" | "miss" | "stale" | "write" | "invalidate", key, fn, tags, callId, ms, at }`.
-  `serve()` passe l'instrument combiné (DevTools + configuré) au runtime du cache :
+  `createHandler()` passe l'instrument combiné (DevTools + configuré) au runtime du cache :
   l'agent envoie chaque événement aux DevTools (`airtty-server:cache`) puis à
   l'`instrument` configuré, qui reçoit exactement ce qu'il recevrait sans les DevTools.
 - **Client** : chaque `loader` porte `source` (`network` ou `router-cache`) ; un
@@ -320,8 +325,10 @@ lit chaque champ interne défensivement et ignore une forme inconnue.
 | ------------------------------------------------- | -------------------------------------------------------------------------------------------- |
 | `src/devtools/protocol.ts`, `schema.ts`           | Enveloppe, plugins, adresses ; validation Zod des événements et commandes.                   |
 | `src/devtools/wire.ts`                            | Socket Unix / WebSocket, backlog, reconnexion, listener.                                     |
-| `src/devtools/server-agent.ts`                    | `devtoolsInstrument()`, appelé par `serve()` : ServerEvent, cache, console.                  |
+| `src/devtools/server-agent.ts`                    | `devtoolsInstrument()`, appelé par `createHandler()` : ServerEvent, cache, console.          |
 | `src/devtools/client-agent.ts`                    | `startClientAgent()`, appelé par `run()` : événements, routeur, console, touches, commandes. |
+| `src/devtools/annotate.ts`                        | Runtime des annotations de noms ajoutées par le build ; sources des Server Components.       |
+| `src/devtools/preview.ts`                         | Texte court et borné d'une valeur : arguments de console, props, état de hook.               |
 | `src/devtools/hook.ts`, `fibers.ts`, `overlay.ts` | Hook préchargé et chaîné, suivi des rendus, flash dans le terminal.                          |
 | `src/devtools/model/`                             | Modèles purs : réseau (waterfalls, doubles invalidations), session, HAR.                     |
 | `src/devtools/fixtures.ts`                        | Session simulée, dont le contrat feat/use-cache.                                             |

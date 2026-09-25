@@ -182,6 +182,8 @@ les modes demandés par le programme.
   **toutes** les touches, `Ctrl+C` compris, avant les raccourcis de l'application : seule
   `prefix` et la séquence qu'elle ouvre restent aux `useBindings` de l'application. La
   syntaxe du keymap écrit une séquence par juxtaposition : `"ctrl+oo"` est Ctrl+O puis O.
+- `scrollback` fixe le nombre de lignes gardées au-dessus de l'écran ; `id`, `flexGrow`,
+  `width` et `height` placent le pane.
 - L'hôte décide de la bascule (touche préfixe, clic) ; `examples/mux` en est un exemple.
 
 `<Terminal>` sert aux programmes locaux ; une application airtty dans le même processus
@@ -389,7 +391,7 @@ Entrée `airtty/server` :
   le `500` générique), avec `callId`, `kind`, `target` (routeId ou id d'action) et `at`.
   Sans `instrument`, aucune réponse n'est enveloppée. S'y ajoutent les `CacheEvent`
   (`type: "cache"`) de `"use cache"`. C'est aussi l'emplacement des
-  futurs middlewares (commentaire dans `serve`) ; le build ne le passe pas encore.
+  futurs middlewares (commentaire dans `createHandler`) ; le build ne le passe pas encore.
   `/action` répond `Server-Timing: total;dur=…` (jusqu'au retour de la fonction, donc
   au modèle racine). `/render` n'en a pas : la page se rend dans le flux, après les
   en-têtes. Son modèle racine est `{ tree, tags }` ([CACHE.md](CACHE.md)).
@@ -415,9 +417,10 @@ enveloppe d'une réponse d'action côté Client (sinon `TransportError`, `unknow
 
 Les fonctions `createApplication`, `Shell`, `serve` et `build` servent au CLI,
 aux tests et aux intégrateurs du framework. Le résolveur de modules est une fonction
-`(moduleId) => exports`, injectée dans `createApplication`. Le MVP accepte un seul
-runtime applicatif par processus Client ; le registre est global pour satisfaire
-le contrat bundler du codec Flight. Aucun chargement de chunks distants.
+`(moduleId) => exports`, injectée dans `createApplication`. Le registre de modules du
+codec Flight est indexé par clé d'instance (`instance`, `x-airtty-instance`) : plusieurs
+Applications partagent un processus Client, chacune avec ses modules (voir
+« Applications embarquées »). Aucun chargement de chunks distants.
 `createApplication({ session })` restaure un historique et ses champs (ce que `run()`
 relit sur disque) ; `app.restoration.snapshot()` donne la session courante, ce qui permet
 de simuler un redémarrage dans un test. `app.onTokenChange(listener)` sert au
@@ -433,8 +436,14 @@ interface Transport {
     params: RouteParams,
     signal: AbortSignal,
     search?: RouteSearch,
+    context?: RequestContext, // { cause?, onTags? }
   ): Promise<ReactNode>;
-  call(actionId: string, args: unknown[], signal?: AbortSignal): Promise<unknown>;
+  call(
+    actionId: string,
+    args: unknown[],
+    signal?: AbortSignal,
+    context?: RequestContext,
+  ): Promise<unknown>;
   setToken(token?: string): void;
 }
 ```
@@ -455,6 +464,20 @@ createApp({
 
 Le décorateur voit chaque `render` et `call` ; ce qu'il lève arrive tel quel à
 l'application : il doit laisser passer les `TransportError` et leur `outcome`.
+
+## Entrées d'intégration
+
+Pour le CLI, les hôtes, le code généré et les tests ; une application n'en a pas besoin.
+
+| Entrée              | API                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `airtty/client`     | `Application` (construite par `createApplication(options)`), `ApplicationOptions`, `ApplicationEvent` (ce que reçoit `onEvent`), `Shell({ app })`, `run(create, { name?, sessionKey? })` et `RunOptions`, `createActions()` (Server Functions et `host` d'une évaluation de bundle, émis par le build). Types `LiveState`, `TracerLike`, `Session` (`{ index, entries }`), `SessionEntry` (`{ href, fields }`), `OpenApplicationOptions`, `PublisherCheck` (`{ required?, trust?(fingerprint, manifest) }`), ceux du transport et de `host`. |
+| `airtty/server`     | `createHandler(config, options)` : le Server comme fonction d'une `Request`, sans écoute ; `serve(config)` l'installe sur `Bun.serve`. `ServerConfig` : `buildId`, `manifest`, `actions`, `routes` (`ServerRoute`), `auth?`, `instrument?` (`ServerInstrument`, `{ onEvent }`), `cache?`, `appBundle?`, `web?`. `HandlerOptions` : `auth`, `devtools?`, `testing?`, `web?`, `keepAlive?`, `dropAfterCommit?`. Types `RouteAuth` (`"public" \| "required"`), `Session`, `ServerFunction`, `ServerEvent`.                                      |
+| `airtty/route-tree` | Ce qu'appelle `app/routeTree.gen.ts` : `rootRoute(Layout, NotFound?)`, `layoutRoute(Layout, params)`, `pageRoute(params, { loading?, error?, notFound?, splat? }?)`, `loadPage(ctx, routeId, params, splat?)`, `validateSearch(raw)` ; types `TerminalRouterContext`, `TerminalRouter` et les props des fichiers de routes.                                                                                                                                                                                                                  |
+| `airtty/build`      | `build(directory, output?, { appBundle?, signBundle?, webServer? }?)` → `{ buildId, output }` (`output` vaut `<directory>/.airtty` par défaut) ; `BuildOptions`.                                                                                                                                                                                                                                                                                                                                                                             |
+| `airtty/pty`        | `spawnPty({ command, cols, rows, env?, environment?, cwd?, ipc?, onData, onExit })` → `Pty` (`write`, `resize`, `kill`, `send`, `pid`) : `Bun.Terminal`, POSIX seulement. `<Terminal>`, le sandbox et l'hôte desktop s'en servent.                                                                                                                                                                                                                                                                                                           |
+| `airtty/metadata`   | `AppMetadata` (schéma de `.airtty/metadata.json`), `readAppDeclaration(root)`, `writeAppMetadata(output, declaration)`, `APP_METADATA`, `APP_ICON`.                                                                                                                                                                                                                                                                                                                                                                                          |
+| `airtty/tsconfig`   | La configuration TypeScript que chaque application étend ([TOOLING.md](TOOLING.md)).                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 
 ## Authentification des routes et actions
 

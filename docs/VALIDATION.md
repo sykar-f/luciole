@@ -9,10 +9,10 @@ TWP. Machine principale : macOS arm64 ; Server distant : Linux x86_64.
 Bun 1.4.2 ; OpenTUI core/react 0.5.12 ; React, react-dom et Flight 19.3.0 ;
 react-reconciler 0.33.0 (plage déclarée par OpenTUI) ; TanStack Router 1.170.38 ;
 TypeScript 7.0.2 et API `@typescript/typescript6` 6.0.2. Le lockfile fixe les transitives.
-Les deux sondes ont leurs propres manifests/lockfiles, sans override du reconciler.
+Chaque sonde a son propre manifest et son lockfile, sans override du reconciler.
 
-`bun audit --json` a retourné `{}` (code 0) sur les trois lockfiles finaux, après mise à jour
-des dépendances. Cela signifie aucun avis connu retourné par cet audit à cette date,
+`bun audit --json` a retourné `{}` (code 0) sur chaque lockfile du dépôt ce jour-là,
+après mise à jour des dépendances. Cela signifie aucun avis connu retourné par cet audit à cette date,
 pas une garantie de sécurité future. Références consultées :
 [Server Functions](https://react.dev/reference/rsc/server-functions),
 [React 19.3](https://react.dev/blog/2026/09/09/react-19-3),
@@ -22,7 +22,9 @@ pas une garantie de sécurité future. Références consultées :
 L’inspection locale d’OpenTUI 0.5.12 (`chunk-3h3pmzdr.js`, `_render`) confirme la
 création d’un container à chaque appel de ce chemin. Le runtime monte une seule
 racine ; ses mises à jour passent par le store du shell. L’adapter se limite aux
-entrées Flight `client.browser` et `server.node`, avec un loader généré synchrone.
+entrées Flight `client.browser` et `server.node`, avec un loader généré synchrone ;
+`client.node` (codec du cache) et `server.edge` (Server du runtime web) s'y sont ajoutés
+depuis.
 
 ## Sondes reproduites
 
@@ -46,9 +48,12 @@ utilisé dans le compilateur.
 | 4 — réseau        | `transport.test.tsx` : navigations inversées, incompatibilité réelle HTTP 409, refresh en erreur après succès, arrêt du processus Server après commit avant réponse, redémarrage sur la même base/URL puis consultation du résultat sans nouvelle sauvegarde. Compteurs inchangés pendant frappe, déplacement du curseur, focus et scroll locaux.                 |
 | 5 — livraison     | Artefacts indépendants avec lockfiles ; README, API, starter ; `scripts/clean-install.ts` installe une copie neuve et les deux rôles séparément ; `scripts/pty/smoke.ts` pilote le Client de production ; `scripts/pty/dev.ts` vérifie erreur de compilation, saisie conservée, rebuild valide, restauration du terminal et absence de processus enfant orphelin. |
 
-`bun run verify` : **93 tests passent**, vérification des types et build passent.
-`bun run format:check` passe. Le workflow CI macOS/Linux est livré ; il n’a pas
-encore été exécuté sur GitHub, car ce dépôt local n’a pas été publié.
+`bun run verify` passe : tests, vérification des types et build. `bun run format:check`
+passe. La CI (`.github/workflows/ci.yml`) tourne sur GitHub Actions à chaque push et pull
+request. Son job `verify`, sous macOS et Linux, enchaîne `bun run probes`, `bun run verify`,
+`test:pty`, `test:pty:dev` et `scripts/clean-install.ts`, puis `scripts/linux-client.ts`
+sous Linux ; le job `linux-sandbox` lance `scripts/build-sandbox.ts --check` et
+`scripts/linux-sandbox.ts` ([TOOLING.md](TOOLING.md#commandes-et-ci)).
 
 ## PTY et deux machines
 
@@ -136,8 +141,8 @@ ne modifie aucune dimension et est arrêtée lorsque le loading est démonté.
 ## Démo Forge — 22 septembre 2026
 
 `examples/forge` ([FORGE.md](FORGE.md)) a été construite pour pousser le framework
-au-delà de son contrat. `bun run verify` : **93 tests passent** (48 avant Forge),
-types des quatre programmes, Oxlint sans avertissement, format et build.
+au-delà de son contrat. `bun run verify` passe : tests, types des quatre programmes,
+Oxlint sans avertissement, format et build.
 
 | Preuve               | Vérification réalisée                                                                                                                                                                                                   |
 | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -159,7 +164,7 @@ Rendu mesuré dans le renderer de test : diff de 1 443 lignes affiché et parcou
 
 ## Contrat « l'erreur au développeur » (23 septembre 2026)
 
-`bun run verify` : **93 tests passent**. Les trois parcours PTY (`scripts/pty/smoke.ts`, y
+`bun run verify` passe. Les trois parcours PTY (`scripts/pty/smoke.ts`, y
 compris sous 500 ms de RTT, `scripts/pty/dev.ts`, `scripts/pty/forge.ts`) et `clean-install.ts`
 passent sur macOS arm64.
 
@@ -176,13 +181,14 @@ passent sur macOS arm64.
 | Client autonome          | `compile.test.ts` : binaire lancé dans un PTY depuis un répertoire vide, sans Bun dans le `PATH` ni `node_modules`, affiche Notes servi par le Server ; build ID embarqué ; cible et paquet natif manquants expliqués.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | Signature macOS          | `compile.test.ts` : le binaire du test PTY est signé ad hoc avec hardened runtime et les entitlements `allow-jit` et `disable-library-validation`, vérifié (`codesign --verify --strict`, flags `adhoc,runtime`), puis s'exécute ; `--sign` hors cible macOS et `--notarize` sans identité Developer ID refusés avant tout build. Contrôlé à la main : sans ces entitlements le binaire échoue (voir `probes/compile`), `notarytool` avec un profil absent produit une erreur explicite. Non exécutés : signature Developer ID, horodatage, notarisation, lancement d'un binaire en quarantaine.                                                                                                                                                                                                                                                                                                                                                                                                    |
 | URL et tunnel SSH        | `connect.test.ts` : priorité `--url` > `AIRTTY_URL` > fichier XDG > défaut, fichier invalide signalé ; un faux `ssh` forwarde la socket Unix vers un Server réel, arguments exacts (`-N`, `ExitOnForwardFailure`, `-p`, `--`), processus et socket supprimés à la fermeture, repli sur `/tmp` quand `TMPDIR` est trop long pour une socket ; refus de clé, blocage d'authentification (délai), hôte commençant par `-` et `ssh` absent expliqués. De bout en bout à la main : binaire compilé sans `--url`, URL `ssh://` lue dans `$XDG_CONFIG_HOME/airtty/notes.json`, vrai OpenSSH vers un `sshd` Alpine (Docker) puis le Server Notes de l'hôte : liste affichée ; `ssh` et sa socket disparaissent après Ctrl+C, SIGTERM et SIGHUP (le Client ignorait SIGHUP et survivait à la fermeture de son terminal : il s'arrête désormais) ; port ssh fermé et JSON invalide donnent un message et le code 1. Non testés : `ProxyJump`, saisie interactive d'une passphrase, Server Linux distant réel. |
-| Client Linux exécuté     | `bun run test:linux` (Docker) : binaires croisés depuis macOS avec `--native-dir` et runtime officiel, lancés dans `debian:bookworm-slim` (glibc) et `alpine:3.22` + `libstdc++` (musl), sans Bun, contre le Server de l'hôte ; `/tmp` `noexec` avec `TMPDIR`. Exécuté sur macOS arm64 (OrbStack) pour arm64 et x64 (Rosetta). `compile.test.ts` passe sous Linux arm64 (`oven/bun:1.4.2`, util-linux). Étape ajoutée au job Linux de la CI, pas encore exécutée par GitHub.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Client Linux exécuté     | `bun run test:linux` (Docker) : binaires croisés depuis macOS avec `--native-dir` et runtime officiel, lancés dans `debian:bookworm-slim` (glibc) et `alpine:3.22` + `libstdc++` (musl), sans Bun, contre le Server de l'hôte ; `/tmp` `noexec` avec `TMPDIR`. Exécuté sur macOS arm64 (OrbStack) pour arm64 et x64 (Rosetta). `compile.test.ts` passe sous Linux arm64 (`oven/bun:1.4.2`, util-linux). Étape du job Linux de la CI.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | Runtime Bun officiel     | `runtime.test.ts` (faux registre npm local) : téléchargement vérifié contre l'`integrity` sha512 publiée, cache publié par un seul `rename` sans résidu, réutilisé sans requête, archive altérée jamais mise en cache, entrée incomplète remplacée ; `--compile` l'utilise par défaut et explique l'absence de réseau ; `--runtime host` refusé pour une cible étrangère. Contrôlé à la main contre registry.npmjs.org : l'archive `@oven/bun-darwin-aarch64@1.4.2` correspond à l'`integrity` et au `shasum` publiés, et le binaire compilé lie `/usr/lib/libicucore.A.dylib`.                                                                                                                                                                                                                                                                                                                                                                                                                     |
 
 ## Typage strict et Zod (23 septembre 2026)
 
-`bun run verify` : **96 tests passent**, avec le lint strict et type-aware actif sur tout le
-dépôt (framework, exemples, tests, scripts, sondes). Les trois parcours PTY, `bun run probes`
+`bun run verify` passe, avec le lint strict et type-aware actif sur le framework, les
+exemples, les tests, les scripts et les sondes (périmètre actuel dans
+[TOOLING.md](TOOLING.md#commandes-et-ci)). Les trois parcours PTY, `bun run probes`
 et `clean-install.ts` (starter neuf, lint strict compris) passent sur macOS arm64.
 
 Mesuré par Oxlint avec les mêmes règles, avant et après, sans aucune dérogation :
@@ -197,7 +203,7 @@ Mesuré par Oxlint avec les mêmes règles, avant et après, sans aucune déroga
 | nombres magiques hors tests                    |   113 |    32 |
 | suppressions de lint (justifiées sur 2 lignes) |     3 |     3 |
 
-Les 32 nombres restants sont dans les deux tables de données de Forge exemptées
+Les 32 nombres restants se trouvaient dans les deux tables de données de Forge exemptées
 (`ci.ts`, `seed.ts`). Le bundle Client de Notes passe de 415 à 460 Ko (`zod/mini`,
 `build.test.ts` vérifie que l'API classique n'y entre pas) ; démarrage inchangé.
 
@@ -220,7 +226,7 @@ strictes, y est tenu : schémas pour la config utilisateur, le document npm, la 
 `notarytool` et la requête `fileSource` ; type `Fetch` pour le tunnel ; nombres nommés ;
 tests sur `rejectionOf`, `present`, `renderable` et `readManifest`.
 
-`bun run verify` : **112 tests passent**, lint strict et type-aware compris. `scripts/pty/smoke.ts`,
+`bun run verify` passe, lint strict et type-aware compris. `scripts/pty/smoke.ts`,
 `scripts/pty/dev.ts`, `scripts/pty/forge.ts` (avec l'ouverture dans `$EDITOR`) et `clean-install.ts`
 passent sur macOS arm64.
 
@@ -238,7 +244,7 @@ réelles, éditeurs réels (vim, `code --wait`) : seul un éditeur factice est p
 
 ## Champs restaurables et formulaires (23 septembre 2026)
 
-`bun run verify` : **128 tests passent** (types, lint, format, build compris). Les
+`bun run verify` passe (tests, types, lint, format, build). Les
 parcours PTY `scripts/pty/restore.ts` (nouveau), `scripts/pty/dev.ts`, `scripts/pty/smoke.ts` et `scripts/pty/forge.ts`
 passent sur macOS arm64 ; `clean-install.ts` et `test:linux` n'ont pas été relancés.
 
@@ -256,5 +262,6 @@ Sondes du scratchpad (hors dépôt) sur le renderer de test OpenTUI : TanStack F
 React Hook Form (`useController`, focus sur erreur compris) et Formik (`useFormik`)
 fonctionnent ; `register()` de React Hook Form (`target.name` sur un événement DOM) et
 `<Form>` de Formik (`Unknown component type: form`) échouent. Non vérifiés : terminal
-physique, SSH réel coupé (SIGHUP n'est exercé que par le code, pas par un parcours),
+physique, restauration après une vraie coupure SSH (aucun parcours PTY n'envoie SIGHUP ;
+l'arrêt du tunnel sur SIGHUP a été vérifié à la main, voir « URL et tunnel SSH »),
 deux Clients lancés au même instant sur une vraie machine.
