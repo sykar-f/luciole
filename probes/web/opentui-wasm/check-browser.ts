@@ -5,7 +5,7 @@
  */
 import { copyFileSync, mkdirSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { Browser } from "../cdp";
+import { Browser } from "../../../scripts/web/cdp";
 
 const wasm = process.env.OPENTUI_WASM_PATH;
 if (!wasm) throw new Error("OPENTUI_WASM_PATH: the opentui.wasm to serve");

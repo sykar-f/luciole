@@ -68,7 +68,7 @@ final est identique à l'octet** entre natif et WASM.
 ### Dans Chrome : `check-browser.ts`
 
 Le même composant (`src/form-app.tsx`) dans une page : OpenTUI écrit ses frames dans
-xterm.js, xterm.js rend les touches comme `stdin` du renderer. `../cdp.ts` pilote un Chrome
+xterm.js, xterm.js rend les touches comme `stdin` du renderer. `scripts/web/cdp.ts` pilote un Chrome
 headless par le protocole DevTools, sans dépendance : il tape, lit le buffer de xterm.js
 et capture `.airtty/browser/screen.png`. Premier frame en ~260 ms en local ; même écran
 final qu'en natif.

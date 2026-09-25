@@ -6,7 +6,7 @@
  */
 import { join } from "node:path";
 import * as z from "zod/mini";
-import { Browser } from "../cdp";
+import { Browser } from "../../../scripts/web/cdp";
 import { asyncContext } from "./plugin";
 
 const here = import.meta.dir;

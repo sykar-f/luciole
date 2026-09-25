@@ -1,0 +1,705 @@
+diff --git a/packages/native/build.zig b/packages/native/build.zig
+index b226da7..8cdbe2a 100644
+--- a/packages/native/build.zig
++++ b/packages/native/build.zig
+@@ -41,6 +41,12 @@ const YOGA_CXX_FLAGS = [_][]const u8{
+     "-frtti",
+ };
+ 
++const YOGA_CXX_FLAGS_WASM = [_][]const u8{
++    "-std=c++20",
++    "-fno-exceptions",
++    "-frtti",
++};
++
+ const YOGA_CXX_SOURCES = [_][]const u8{
+     "yoga/YGConfig.cpp",
+     "yoga/YGEnums.cpp",
+@@ -360,7 +366,9 @@ fn addNativeAudioDependencies(
+     target: std.Build.ResolvedTarget,
+     macos_sdk_path: ?[]const u8,
+ ) void {
+-    addMiniaudioShim(b, module, target, macos_sdk_path);
++    // miniaudio needs threads and a sound device: none in a browser.
++    if (!target.result.cpu.arch.isWasm()) addMiniaudioShim(b, module, target, macos_sdk_path);
++    module.link_libc = true;
+     addImageShim(b, module, target, macos_sdk_path);
+ 
+     switch (target.result.os.tag) {
+@@ -382,7 +390,9 @@ fn addYogaDependencies(b: *std.Build, module: *std.Build.Module) void {
+     module.addCSourceFiles(.{
+         .root = yoga_dep.path(""),
+         .files = &YOGA_CXX_SOURCES,
+-        .flags = &YOGA_CXX_FLAGS,
++        // wasm32 has no C++ exception runtime; Yoga aborts on a fatal assert instead
++        // (debug/AssertFatal.cpp checks __cpp_exceptions).
++        .flags = if (module.resolved_target.?.result.cpu.arch.isWasm()) &YOGA_CXX_FLAGS_WASM else &YOGA_CXX_FLAGS,
+     });
+ }
+ 
+@@ -734,12 +744,22 @@ fn buildTarget(
+         .optimize = optimize,
+         // Release symbols must describe this exact optimized code. The package
+         // build detaches them before stripping only the distribution copy.
+-        .strip = false,
++        .strip = target.result.cpu.arch.isWasm(),
+     });
+ 
+     applyDependencies(b, module, optimize, target, build_options);
+ 
+-    const lib = b.addLibrary(.{
++    // A browser loads a reactor module: no entry point, every `export fn` exported.
++    const lib = if (target.result.cpu.arch.isWasm()) blk: {
++        const wasm = b.addExecutable(.{ .name = LIB_NAME, .root_module = module });
++        wasm.entry = .disabled;
++        wasm.wasi_exec_model = .reactor;
++        wasm.rdynamic = true;
++        // Callbacks from JavaScript are functions the host adds to this table: the host
++        // creates it, growable (wasm-ld gives an exported table a fixed maximum).
++        wasm.import_table = true;
++        break :blk wasm;
++    } else b.addLibrary(.{
+         .name = LIB_NAME,
+         .root_module = module,
+         .linkage = .dynamic,
+diff --git a/packages/native/src/lib.zig b/packages/native/src/lib.zig
+index 0c43928..d04763a 100644
+--- a/packages/native/src/lib.zig
++++ b/packages/native/src/lib.zig
+@@ -265,7 +265,6 @@ comptime {
+     std.debug.assert(@sizeOf(ExternalEmbeddedTerminalCursor) == 14);
+     std.debug.assert(@sizeOf(ExternalEmbeddedTerminalKeyOptions) == 12);
+     _ = native_span_feed;
+-    _ = native_audio;
+     _ = ghostty_vt.vt;
+     _ = native_renderable;
+     _ = native_yoga;
+@@ -738,7 +737,7 @@ export fn createNativeSpanFeed(options_ptr: ?*const native_span_feed.Options) ?*
+     return native_span_feed.createNativeSpanFeedWithAllocator(globalAllocator, options_ptr);
+ }
+ 
+-export fn createAudioEngine(options_ptr: ?*const native_audio.CreateOptions) NativeHandle {
++fn createAudioEngine(options_ptr: ?*const native_audio.CreateOptions) callconv(.c) NativeHandle {
+     const engine = native_audio.create(globalAllocator, options_ptr) orelse return INVALID_HANDLE;
+     return handles.insert(.audio_engine, erasePtr(engine)) catch {
+         native_audio.destroy(engine);
+@@ -746,18 +745,18 @@ export fn createAudioEngine(options_ptr: ?*const native_audio.CreateOptions) Nat
+     };
+ }
+ 
+-export fn destroyAudioEngine(engine_handle: NativeHandle) void {
++fn destroyAudioEngine(engine_handle: NativeHandle) callconv(.c) void {
+     const token = handles.beginDestroy(engine_handle, .audio_engine, native_audio.Engine) orelse return;
+     native_audio.destroy(token.ptr);
+     handles.finishDestroy(token.handle);
+ }
+ 
+-export fn clipboardServiceCreate(
++fn clipboardServiceCreate(
+     max_operations: u32,
+     max_provider_transfers: u32,
+     wayland_seat_pointer: ?[*]const u8,
+     wayland_seat_length: u32,
+-) NativeHandle {
++) callconv(.c) NativeHandle {
+     return clipboard.createService(
+         globalAllocator,
+         max_operations,
+@@ -767,23 +766,23 @@ export fn clipboardServiceCreate(
+     );
+ }
+ 
+-export fn clipboardServiceBeginShutdown(service_handle: NativeHandle) u8 {
++fn clipboardServiceBeginShutdown(service_handle: NativeHandle) callconv(.c) u8 {
+     return @intFromEnum(clipboard.beginServiceShutdown(service_handle));
+ }
+ 
+-export fn clipboardServicePollShutdown(service_handle: NativeHandle) u8 {
++fn clipboardServicePollShutdown(service_handle: NativeHandle) callconv(.c) u8 {
+     return @intFromEnum(clipboard.pollServiceShutdown(service_handle));
+ }
+ 
+-export fn clipboardServiceDestroy(service_handle: NativeHandle) u8 {
++fn clipboardServiceDestroy(service_handle: NativeHandle) callconv(.c) u8 {
+     return @intFromEnum(clipboard.destroyService(service_handle));
+ }
+ 
+-export fn clipboardServiceDrain(service_handle: NativeHandle) u8 {
++fn clipboardServiceDrain(service_handle: NativeHandle) callconv(.c) u8 {
+     return clipboard.drainService(service_handle);
+ }
+ 
+-export fn clipboardReadOperationStart(
++fn clipboardReadOperationStart(
+     service_handle: NativeHandle,
+     request_pointer: ?[*]const u8,
+     request_length: u32,
+@@ -793,7 +792,7 @@ export fn clipboardReadOperationStart(
+     max_conversion_bytes: u32,
+     timeout_ms: u32,
+     out_operation_handle: ?*NativeHandle,
+-) u8 {
++) callconv(.c) u8 {
+     return @intFromEnum(clipboard.startReadOperation(
+         service_handle,
+         request_pointer,
+@@ -807,14 +806,14 @@ export fn clipboardReadOperationStart(
+     ));
+ }
+ 
+-export fn clipboardWriteOperationStart(
++fn clipboardWriteOperationStart(
+     service_handle: NativeHandle,
+     text_pointer: ?[*]const u8,
+     text_length: u32,
+     selection: u8,
+     timeout_ms: u32,
+     out_operation_handle: ?*NativeHandle,
+-) u8 {
++) callconv(.c) u8 {
+     return @intFromEnum(clipboard.startWriteOperation(
+         service_handle,
+         text_pointer,
+@@ -825,12 +824,12 @@ export fn clipboardWriteOperationStart(
+     ));
+ }
+ 
+-export fn clipboardClearOperationStart(
++fn clipboardClearOperationStart(
+     service_handle: NativeHandle,
+     selection: u8,
+     timeout_ms: u32,
+     out_operation_handle: ?*NativeHandle,
+-) u8 {
++) callconv(.c) u8 {
+     return @intFromEnum(clipboard.startClearOperation(
+         service_handle,
+         selection,
+@@ -839,272 +838,272 @@ export fn clipboardClearOperationStart(
+     ));
+ }
+ 
+-export fn clipboardOperationPoll(operation_handle: NativeHandle) u8 {
++fn clipboardOperationPoll(operation_handle: NativeHandle) callconv(.c) u8 {
+     return @intFromEnum(clipboard.pollOperation(operation_handle));
+ }
+ 
+-export fn clipboardOperationCancel(operation_handle: NativeHandle) u8 {
++fn clipboardOperationCancel(operation_handle: NativeHandle) callconv(.c) u8 {
+     return @intFromEnum(clipboard.cancelOperation(operation_handle));
+ }
+ 
+-export fn clipboardOperationResultMimeLength(operation_handle: NativeHandle, out_length: ?*u32) u8 {
++fn clipboardOperationResultMimeLength(operation_handle: NativeHandle, out_length: ?*u32) callconv(.c) u8 {
+     return @intFromEnum(clipboard.resultMimeLength(operation_handle, out_length));
+ }
+ 
+-export fn clipboardOperationResultMimeCopy(operation_handle: NativeHandle, out_pointer: ?[*]u8, capacity: u32) u8 {
++fn clipboardOperationResultMimeCopy(operation_handle: NativeHandle, out_pointer: ?[*]u8, capacity: u32) callconv(.c) u8 {
+     return @intFromEnum(clipboard.resultMimeCopy(operation_handle, out_pointer, capacity));
+ }
+ 
+-export fn clipboardOperationResultDataLength(operation_handle: NativeHandle, out_length: ?*u32) u8 {
++fn clipboardOperationResultDataLength(operation_handle: NativeHandle, out_length: ?*u32) callconv(.c) u8 {
+     return @intFromEnum(clipboard.resultDataLength(operation_handle, out_length));
+ }
+ 
+-export fn clipboardOperationResultDataCopy(operation_handle: NativeHandle, out_pointer: ?[*]u8, capacity: u32) u8 {
++fn clipboardOperationResultDataCopy(operation_handle: NativeHandle, out_pointer: ?[*]u8, capacity: u32) callconv(.c) u8 {
+     return @intFromEnum(clipboard.resultDataCopy(operation_handle, out_pointer, capacity));
+ }
+ 
+-export fn clipboardOperationResultErrorCode(operation_handle: NativeHandle, out_error_code: ?*u32) u8 {
++fn clipboardOperationResultErrorCode(operation_handle: NativeHandle, out_error_code: ?*u32) callconv(.c) u8 {
+     return @intFromEnum(clipboard.resultErrorCode(operation_handle, out_error_code));
+ }
+ 
+-export fn clipboardOperationResultDiagnosticLength(operation_handle: NativeHandle, out_length: ?*u32) u8 {
++fn clipboardOperationResultDiagnosticLength(operation_handle: NativeHandle, out_length: ?*u32) callconv(.c) u8 {
+     return @intFromEnum(clipboard.resultDiagnosticLength(operation_handle, out_length));
+ }
+ 
+-export fn clipboardOperationResultDiagnosticCopy(operation_handle: NativeHandle, out_pointer: ?[*]u8, capacity: u32) u8 {
++fn clipboardOperationResultDiagnosticCopy(operation_handle: NativeHandle, out_pointer: ?[*]u8, capacity: u32) callconv(.c) u8 {
+     return @intFromEnum(clipboard.resultDiagnosticCopy(operation_handle, out_pointer, capacity));
+ }
+ 
+-export fn clipboardOperationDestroy(operation_handle: NativeHandle) u8 {
++fn clipboardOperationDestroy(operation_handle: NativeHandle) callconv(.c) u8 {
+     return @intFromEnum(clipboard.destroyOperation(operation_handle));
+ }
+ 
+-export fn audioRefreshPlaybackDevices(engine_handle: NativeHandle) i32 {
++fn audioRefreshPlaybackDevices(engine_handle: NativeHandle) callconv(.c) i32 {
+     const object_ptr = acquireAudioEngine(engine_handle) orelse return native_audio.Status.err_invalid;
+     return native_audio.refreshPlaybackDevices(object_ptr);
+ }
+ 
+-export fn audioGetPlaybackDeviceCount(engine_handle: NativeHandle) u32 {
++fn audioGetPlaybackDeviceCount(engine_handle: NativeHandle) callconv(.c) u32 {
+     const object_ptr = acquireAudioEngine(engine_handle) orelse return 0;
+     return native_audio.getPlaybackDeviceCount(object_ptr);
+ }
+ 
+-export fn audioGetPlaybackDeviceName(engine_handle: NativeHandle, index: u32, out_ptr: [*]u8, max_len: u32) u32 {
++fn audioGetPlaybackDeviceName(engine_handle: NativeHandle, index: u32, out_ptr: [*]u8, max_len: u32) callconv(.c) u32 {
+     const object_ptr = acquireAudioEngine(engine_handle) orelse return 0;
+     return @intCast(native_audio.getPlaybackDeviceName(object_ptr, index, out_ptr, @as(usize, max_len)));
+ }
+ 
+-export fn audioIsPlaybackDeviceDefault(engine_handle: NativeHandle, index: u32) bool {
++fn audioIsPlaybackDeviceDefault(engine_handle: NativeHandle, index: u32) callconv(.c) bool {
+     const object_ptr = acquireAudioEngine(engine_handle) orelse return false;
+     return native_audio.isPlaybackDeviceDefault(object_ptr, index);
+ }
+ 
+-export fn audioSelectPlaybackDevice(engine_handle: NativeHandle, index: u32) i32 {
++fn audioSelectPlaybackDevice(engine_handle: NativeHandle, index: u32) callconv(.c) i32 {
+     const object_ptr = acquireAudioEngine(engine_handle) orelse return native_audio.Status.err_invalid;
+     return native_audio.selectPlaybackDevice(object_ptr, index);
+ }
+ 
+-export fn audioClearPlaybackDeviceSelection(engine_handle: NativeHandle) void {
++fn audioClearPlaybackDeviceSelection(engine_handle: NativeHandle) callconv(.c) void {
+     const object_ptr = acquireAudioEngine(engine_handle) orelse return;
+     native_audio.clearPlaybackDeviceSelection(object_ptr);
+ }
+ 
+-export fn audioRefreshCaptureDevices(engine_handle: NativeHandle) i32 {
++fn audioRefreshCaptureDevices(engine_handle: NativeHandle) callconv(.c) i32 {
+     const object_ptr = acquireAudioEngine(engine_handle) orelse return native_audio.Status.err_invalid;
+     return native_audio.refreshCaptureDevices(object_ptr);
+ }
+ 
+-export fn audioGetCaptureDeviceCount(engine_handle: NativeHandle) u32 {
++fn audioGetCaptureDeviceCount(engine_handle: NativeHandle) callconv(.c) u32 {
+     const object_ptr = acquireAudioEngine(engine_handle) orelse return 0;
+     return native_audio.getCaptureDeviceCount(object_ptr);
+ }
+ 
+-export fn audioGetCaptureDeviceName(engine_handle: NativeHandle, index: u32, out_ptr: [*]u8, max_len: u32) u32 {
++fn audioGetCaptureDeviceName(engine_handle: NativeHandle, index: u32, out_ptr: [*]u8, max_len: u32) callconv(.c) u32 {
+     const object_ptr = acquireAudioEngine(engine_handle) orelse return 0;
+     return @intCast(native_audio.getCaptureDeviceName(object_ptr, index, out_ptr, @as(usize, max_len)));
+ }
+ 
+-export fn audioIsCaptureDeviceDefault(engine_handle: NativeHandle, index: u32) bool {
++fn audioIsCaptureDeviceDefault(engine_handle: NativeHandle, index: u32) callconv(.c) bool {
+     const object_ptr = acquireAudioEngine(engine_handle) orelse return false;
+     return native_audio.isCaptureDeviceDefault(object_ptr, index);
+ }
+ 
+-export fn audioSelectCaptureDevice(engine_handle: NativeHandle, index: u32) i32 {
++fn audioSelectCaptureDevice(engine_handle: NativeHandle, index: u32) callconv(.c) i32 {
+     const object_ptr = acquireAudioEngine(engine_handle) orelse return native_audio.Status.err_invalid;
+     return native_audio.selectCaptureDevice(object_ptr, index);
+ }
+ 
+-export fn audioClearCaptureDeviceSelection(engine_handle: NativeHandle) void {
++fn audioClearCaptureDeviceSelection(engine_handle: NativeHandle) callconv(.c) void {
+     const object_ptr = acquireAudioEngine(engine_handle) orelse return;
+     native_audio.clearCaptureDeviceSelection(object_ptr);
+ }
+ 
+-export fn audioStartCapture(
++fn audioStartCapture(
+     engine_handle: NativeHandle,
+     options_ptr: ?*const native_audio.StartOptions,
+     channels: u32,
+     capacity_frames: u32,
+-) i32 {
++) callconv(.c) i32 {
+     const object_ptr = acquireAudioEngine(engine_handle) orelse return native_audio.Status.err_invalid;
+     return native_audio.startCapture(object_ptr, options_ptr, channels, capacity_frames);
+ }
+ 
+-export fn audioStopCapture(engine_handle: NativeHandle) i32 {
++fn audioStopCapture(engine_handle: NativeHandle) callconv(.c) i32 {
+     const object_ptr = acquireAudioEngine(engine_handle) orelse return native_audio.Status.err_invalid;
+     return native_audio.stopCapture(object_ptr);
+ }
+ 
+-export fn audioIsCaptureRunning(engine_handle: NativeHandle) bool {
++fn audioIsCaptureRunning(engine_handle: NativeHandle) callconv(.c) bool {
+     const object_ptr = acquireAudioEngine(engine_handle) orelse return false;
+     return native_audio.isCaptureRunning(object_ptr);
+ }
+ 
+-export fn audioReadCapture(
++fn audioReadCapture(
+     engine_handle: NativeHandle,
+     out_ptr: ?[*]f32,
+     out_sample_capacity: u32,
+     frame_count: u32,
+     out_frames_read: ?*u32,
+-) i32 {
++) callconv(.c) i32 {
+     const object_ptr = acquireAudioEngine(engine_handle) orelse return native_audio.Status.err_invalid;
+     return native_audio.readCapture(object_ptr, out_ptr, out_sample_capacity, frame_count, out_frames_read);
+ }
+ 
+-export fn audioGetCaptureStats(engine_handle: NativeHandle, out_stats: ?*native_audio.CaptureStats) i32 {
++fn audioGetCaptureStats(engine_handle: NativeHandle, out_stats: ?*native_audio.CaptureStats) callconv(.c) i32 {
+     const object_ptr = acquireAudioEngine(engine_handle) orelse return native_audio.Status.err_invalid;
+     return native_audio.getCaptureStats(object_ptr, out_stats);
+ }
+ 
+-export fn audioStart(engine_handle: NativeHandle, options_ptr: ?*const native_audio.StartOptions) i32 {
++fn audioStart(engine_handle: NativeHandle, options_ptr: ?*const native_audio.StartOptions) callconv(.c) i32 {
+     const object_ptr = acquireAudioEngine(engine_handle) orelse return native_audio.Status.err_invalid;
+     return native_audio.start(object_ptr, options_ptr);
+ }
+ 
+-export fn audioStartMixer(engine_handle: NativeHandle) i32 {
++fn audioStartMixer(engine_handle: NativeHandle) callconv(.c) i32 {
+     const object_ptr = acquireAudioEngine(engine_handle) orelse return native_audio.Status.err_invalid;
+     return native_audio.startMixer(object_ptr);
+ }
+ 
+-export fn audioStop(engine_handle: NativeHandle) i32 {
++fn audioStop(engine_handle: NativeHandle) callconv(.c) i32 {
+     const object_ptr = acquireAudioEngine(engine_handle) orelse return native_audio.Status.err_invalid;
+     return native_audio.stop(object_ptr);
+ }
+ 
+-export fn audioCreateStream(
++fn audioCreateStream(
+     engine_handle: NativeHandle,
+     options_ptr: ?*const native_audio.StreamOptions,
+     out_stream_id: ?*u32,
+-) i32 {
++) callconv(.c) i32 {
+     const object_ptr = acquireAudioEngine(engine_handle) orelse return native_audio.Status.err_invalid;
+     return native_audio.createStream(object_ptr, options_ptr, out_stream_id);
+ }
+ 
+-export fn audioWriteStream(
++fn audioWriteStream(
+     engine_handle: NativeHandle,
+     stream_id: u32,
+     data_ptr: ?[*]const u8,
+     data_len: u32,
+-) i32 {
++) callconv(.c) i32 {
+     const object_ptr = acquireAudioEngine(engine_handle) orelse return native_audio.Status.err_invalid;
+     return native_audio.writeStream(object_ptr, stream_id, data_ptr, data_len);
+ }
+ 
+-export fn audioEndStream(engine_handle: NativeHandle, stream_id: u32) i32 {
++fn audioEndStream(engine_handle: NativeHandle, stream_id: u32) callconv(.c) i32 {
+     const object_ptr = acquireAudioEngine(engine_handle) orelse return native_audio.Status.err_invalid;
+     return native_audio.endStream(object_ptr, stream_id);
+ }
+ 
+-export fn audioRestartStream(engine_handle: NativeHandle, stream_id: u32) i32 {
++fn audioRestartStream(engine_handle: NativeHandle, stream_id: u32) callconv(.c) i32 {
+     const object_ptr = acquireAudioEngine(engine_handle) orelse return native_audio.Status.err_invalid;
+     return native_audio.restartStream(object_ptr, stream_id);
+ }
+ 
+-export fn audioSetStreamVolume(engine_handle: NativeHandle, stream_id: u32, volume: f32) i32 {
++fn audioSetStreamVolume(engine_handle: NativeHandle, stream_id: u32, volume: f32) callconv(.c) i32 {
+     const object_ptr = acquireAudioEngine(engine_handle) orelse return native_audio.Status.err_invalid;
+     return native_audio.setStreamVolume(object_ptr, stream_id, volume);
+ }
+ 
+-export fn audioSetStreamPan(engine_handle: NativeHandle, stream_id: u32, pan: f32) i32 {
++fn audioSetStreamPan(engine_handle: NativeHandle, stream_id: u32, pan: f32) callconv(.c) i32 {
+     const object_ptr = acquireAudioEngine(engine_handle) orelse return native_audio.Status.err_invalid;
+     return native_audio.setStreamPan(object_ptr, stream_id, pan);
+ }
+ 
+-export fn audioSetStreamGroup(engine_handle: NativeHandle, stream_id: u32, group_id: u32) i32 {
++fn audioSetStreamGroup(engine_handle: NativeHandle, stream_id: u32, group_id: u32) callconv(.c) i32 {
+     const object_ptr = acquireAudioEngine(engine_handle) orelse return native_audio.Status.err_invalid;
+     return native_audio.setStreamGroup(object_ptr, stream_id, group_id);
+ }
+ 
+-export fn audioGetStreamStats(engine_handle: NativeHandle, stream_id: u32, out_stats: ?*native_audio.StreamStats) i32 {
++fn audioGetStreamStats(engine_handle: NativeHandle, stream_id: u32, out_stats: ?*native_audio.StreamStats) callconv(.c) i32 {
+     const object_ptr = acquireAudioEngine(engine_handle) orelse return native_audio.Status.err_invalid;
+     return native_audio.getStreamStats(object_ptr, stream_id, out_stats);
+ }
+ 
+-export fn audioCloseStream(
++fn audioCloseStream(
+     engine_handle: NativeHandle,
+     stream_id: u32,
+     reason: u32,
+     out_final_stats: ?*native_audio.StreamStats,
+-) i32 {
++) callconv(.c) i32 {
+     const object_ptr = acquireAudioEngine(engine_handle) orelse return native_audio.Status.err_invalid;
+     return native_audio.closeStream(object_ptr, stream_id, reason, out_final_stats);
+ }
+ 
+-export fn audioLoad(engine_handle: NativeHandle, data_ptr: ?[*]const u8, data_len: u32, out_sound_id: ?*u32) i32 {
++fn audioLoad(engine_handle: NativeHandle, data_ptr: ?[*]const u8, data_len: u32, out_sound_id: ?*u32) callconv(.c) i32 {
+     const object_ptr = acquireAudioEngine(engine_handle) orelse return native_audio.Status.err_invalid;
+     return native_audio.load(object_ptr, data_ptr, @as(usize, data_len), out_sound_id);
+ }
+ 
+-export fn audioUnload(engine_handle: NativeHandle, sound_id: u32) i32 {
++fn audioUnload(engine_handle: NativeHandle, sound_id: u32) callconv(.c) i32 {
+     const object_ptr = acquireAudioEngine(engine_handle) orelse return native_audio.Status.err_invalid;
+     return native_audio.unload(object_ptr, sound_id);
+ }
+ 
+-export fn audioPlay(engine_handle: NativeHandle, sound_id: u32, options_ptr: ?*const native_audio.VoiceOptions, out_voice_id: ?*u32) i32 {
++fn audioPlay(engine_handle: NativeHandle, sound_id: u32, options_ptr: ?*const native_audio.VoiceOptions, out_voice_id: ?*u32) callconv(.c) i32 {
+     const object_ptr = acquireAudioEngine(engine_handle) orelse return native_audio.Status.err_invalid;
+     return native_audio.play(object_ptr, sound_id, options_ptr, out_voice_id);
+ }
+ 
+-export fn audioStopVoice(engine_handle: NativeHandle, voice_id: u32) i32 {
++fn audioStopVoice(engine_handle: NativeHandle, voice_id: u32) callconv(.c) i32 {
+     const object_ptr = acquireAudioEngine(engine_handle) orelse return native_audio.Status.err_invalid;
+     return native_audio.stopVoice(object_ptr, voice_id);
+ }
+ 
+-export fn audioSetVoiceGroup(engine_handle: NativeHandle, voice_id: u32, group_id: u32) i32 {
++fn audioSetVoiceGroup(engine_handle: NativeHandle, voice_id: u32, group_id: u32) callconv(.c) i32 {
+     const object_ptr = acquireAudioEngine(engine_handle) orelse return native_audio.Status.err_invalid;
+     return native_audio.setVoiceGroup(object_ptr, voice_id, group_id);
+ }
+ 
+-export fn audioCreateGroup(engine_handle: NativeHandle, name_ptr: ?[*]const u8, name_len: u32, out_group_id: ?*u32) i32 {
++fn audioCreateGroup(engine_handle: NativeHandle, name_ptr: ?[*]const u8, name_len: u32, out_group_id: ?*u32) callconv(.c) i32 {
+     const object_ptr = acquireAudioEngine(engine_handle) orelse return native_audio.Status.err_invalid;
+     return native_audio.createGroup(object_ptr, name_ptr, @as(usize, name_len), out_group_id);
+ }
+ 
+-export fn audioSetGroupVolume(engine_handle: NativeHandle, group_id: u32, volume: f32) i32 {
++fn audioSetGroupVolume(engine_handle: NativeHandle, group_id: u32, volume: f32) callconv(.c) i32 {
+     const object_ptr = acquireAudioEngine(engine_handle) orelse return native_audio.Status.err_invalid;
+     return native_audio.setGroupVolume(object_ptr, group_id, volume);
+ }
+ 
+-export fn audioSetMasterVolume(engine_handle: NativeHandle, volume: f32) i32 {
++fn audioSetMasterVolume(engine_handle: NativeHandle, volume: f32) callconv(.c) i32 {
+     const object_ptr = acquireAudioEngine(engine_handle) orelse return native_audio.Status.err_invalid;
+     return native_audio.setMasterVolume(object_ptr, volume);
+ }
+ 
+-export fn audioMixToBuffer(engine_handle: NativeHandle, out_ptr: ?[*]f32, frame_count: u32, channels: u8) i32 {
++fn audioMixToBuffer(engine_handle: NativeHandle, out_ptr: ?[*]f32, frame_count: u32, channels: u8) callconv(.c) i32 {
+     const object_ptr = acquireAudioEngine(engine_handle) orelse return native_audio.Status.err_invalid;
+     return native_audio.mixToBuffer(object_ptr, out_ptr, frame_count, channels);
+ }
+ 
+-export fn audioEnableTap(engine_handle: NativeHandle, enabled: u8, capacity_frames: u32) i32 {
++fn audioEnableTap(engine_handle: NativeHandle, enabled: u8, capacity_frames: u32) callconv(.c) i32 {
+     const object_ptr = acquireAudioEngine(engine_handle) orelse return native_audio.Status.err_invalid;
+     return native_audio.enableTap(object_ptr, enabled == 1, capacity_frames);
+ }
+ 
+-export fn audioReadTap(engine_handle: NativeHandle, out_ptr: ?[*]f32, frame_count: u32, channels: u8, out_frames_read: ?*u32) i32 {
++fn audioReadTap(engine_handle: NativeHandle, out_ptr: ?[*]f32, frame_count: u32, channels: u8, out_frames_read: ?*u32) callconv(.c) i32 {
+     const object_ptr = acquireAudioEngine(engine_handle) orelse return native_audio.Status.err_invalid;
+     return native_audio.readTap(object_ptr, out_ptr, frame_count, channels, out_frames_read);
+ }
+ 
+-export fn audioGetStats(engine_handle: NativeHandle, out_stats: ?*native_audio.Stats) i32 {
++fn audioGetStats(engine_handle: NativeHandle, out_stats: ?*native_audio.Stats) callconv(.c) i32 {
+     const object_ptr = acquireAudioEngine(engine_handle) orelse return native_audio.Status.err_invalid;
+     return native_audio.getStats(object_ptr, out_stats);
+ }
+@@ -1517,9 +1516,9 @@ pub const ExternalCapabilities = extern struct {
+     multiplexer: u8,
+     image_protocol: u8,
+     term_name_ptr: [*]const u8,
+-    term_name_len: usize,
++    term_name_len: u64,
+     term_version_ptr: [*]const u8,
+-    term_version_len: usize,
++    term_version_len: u64,
+     term_from_xtversion: bool,
+     osc52_support: u8,
+ };
+@@ -4001,3 +4000,77 @@ export fn bufferDrawChar(
+     const object_ptr = acquireBuffer(buffer_handle) orelse return;
+     object_ptr.drawChar(char, x, y, ptrToRGBA(fg), ptrToRGBA(bg), attributes);
+ }
++
++// Audio (miniaudio) and the system clipboard have no browser backend: a wasm build
++// leaves their exports out, and the JS side reports them unavailable.
++const is_wasm = builtin.cpu.arch.isWasm();
++const native_only_exports = .{
++    "createAudioEngine",
++    "destroyAudioEngine",
++    "clipboardServiceCreate",
++    "clipboardServiceBeginShutdown",
++    "clipboardServicePollShutdown",
++    "clipboardServiceDestroy",
++    "clipboardServiceDrain",
++    "clipboardReadOperationStart",
++    "clipboardWriteOperationStart",
++    "clipboardClearOperationStart",
++    "clipboardOperationPoll",
++    "clipboardOperationCancel",
++    "clipboardOperationResultMimeLength",
++    "clipboardOperationResultMimeCopy",
++    "clipboardOperationResultDataLength",
++    "clipboardOperationResultDataCopy",
++    "clipboardOperationResultErrorCode",
++    "clipboardOperationResultDiagnosticLength",
++    "clipboardOperationResultDiagnosticCopy",
++    "clipboardOperationDestroy",
++    "audioRefreshPlaybackDevices",
++    "audioGetPlaybackDeviceCount",
++    "audioGetPlaybackDeviceName",
++    "audioIsPlaybackDeviceDefault",
++    "audioSelectPlaybackDevice",
++    "audioClearPlaybackDeviceSelection",
++    "audioRefreshCaptureDevices",
++    "audioGetCaptureDeviceCount",
++    "audioGetCaptureDeviceName",
++    "audioIsCaptureDeviceDefault",
++    "audioSelectCaptureDevice",
++    "audioClearCaptureDeviceSelection",
++    "audioStartCapture",
++    "audioStopCapture",
++    "audioIsCaptureRunning",
++    "audioReadCapture",
++    "audioGetCaptureStats",
++    "audioStart",
++    "audioStartMixer",
++    "audioStop",
++    "audioCreateStream",
++    "audioWriteStream",
++    "audioEndStream",
++    "audioRestartStream",
++    "audioSetStreamVolume",
++    "audioSetStreamPan",
++    "audioSetStreamGroup",
++    "audioGetStreamStats",
++    "audioCloseStream",
++    "audioLoad",
++    "audioUnload",
++    "audioPlay",
++    "audioStopVoice",
++    "audioSetVoiceGroup",
++    "audioCreateGroup",
++    "audioSetGroupVolume",
++    "audioSetMasterVolume",
++    "audioMixToBuffer",
++    "audioEnableTap",
++    "audioReadTap",
++    "audioGetStats",
++};
++comptime {
++    if (is_wasm) _ = @import("wasm-host.zig");
++    if (!is_wasm) {
++        _ = native_audio;
++        for (native_only_exports) |name| @export(&@field(@This(), name), .{ .name = name });
++    }
++}
+diff --git a/packages/native/src/renderer-output.zig b/packages/native/src/renderer-output.zig
+index cb7e952..d684304 100644
+--- a/packages/native/src/renderer-output.zig
++++ b/packages/native/src/renderer-output.zig
+@@ -590,8 +590,10 @@ pub const BufferedBackend = struct {
+         if (self.useThread == use_thread) return;
+ 
+         if (use_thread) {
++            // A single-threaded target (wasm32) renders on the caller's thread only.
++            if (builtin.single_threaded) return;
+             if (self.renderThread == null) {
+-                self.renderThread = std.Thread.spawn(.{}, renderThreadFn, .{self}) catch |err| {
++                self.renderThread = (if (builtin.single_threaded) error.Unsupported else std.Thread.spawn(.{}, renderThreadFn, .{self})) catch |err| {
+                     std.log.warn("Failed to spawn render thread: {}, falling back to non-threaded mode", .{err});
+                     self.useThread = false;
+                     return;
+diff --git a/packages/native/src/text-buffer.zig b/packages/native/src/text-buffer.zig
+index 5f13547..3665e5b 100644
+--- a/packages/native/src/text-buffer.zig
++++ b/packages/native/src/text-buffer.zig
+@@ -40,16 +40,23 @@ pub const TextBuffer = UnifiedTextBuffer;
+ ///
+ /// The color pointers point to 4 consecutive u16 values in the packed RGBA
+ /// format defined by ansi.zig. Use utils.ptrToRGBA to read them.
++/// A StyledChunk length: u64 in the struct, so that JavaScript reads one layout on every
++/// target (wasm32's usize is 4 bytes); a length that does not fit this target's address
++/// space cannot describe memory it has.
++fn chunkLen(len: u64) usize {
++    return @intCast(len);
++}
++
+ pub const StyledChunk = extern struct {
+     text_ptr: [*]const u8,
+-    text_len: usize,
++    text_len: u64,
+     /// Optional foreground color as 4 packed u16 values (see ansi.RGBA).
+     fg_ptr: ?[*]const u16,
+     /// Optional background color as 4 packed u16 values (see ansi.RGBA).
+     bg_ptr: ?[*]const u16,
+     attributes: u32,
+     link_ptr: ?[*]const u8 = null,
+-    link_len: usize = 0,
++    link_len: u64 = 0,
+ };
+ 
+ pub const UnifiedTextBuffer = struct {
+@@ -1141,7 +1148,7 @@ pub const UnifiedTextBuffer = struct {
+         // Calculate total text length
+         var total_len: usize = 0;
+         for (chunks) |chunk| {
+-            total_len += chunk.text_len;
++            total_len += chunkLen(chunk.text_len);
+         }
+ 
+         if (total_len == 0) {
+@@ -1170,10 +1177,10 @@ pub const UnifiedTextBuffer = struct {
+ 
+         var offset: usize = 0;
+         for (chunks) |chunk| {
+-            if (chunk.text_len > 0) {
+-                const chunk_text = chunk.text_ptr[0..chunk.text_len];
+-                @memcpy(full_text[offset .. offset + chunk.text_len], chunk_text);
+-                offset += chunk.text_len;
++            if (chunkLen(chunk.text_len) > 0) {
++                const chunk_text = chunk.text_ptr[0..chunkLen(chunk.text_len)];
++                @memcpy(full_text[offset .. offset + chunkLen(chunk.text_len)], chunk_text);
++                offset += chunkLen(chunk.text_len);
+             }
+         }
+ 
+@@ -1198,7 +1205,7 @@ pub const UnifiedTextBuffer = struct {
+             var line_hint: u32 = 0;
+             for (chunks, 0..) |chunk, i| {
+                 const char_pos = width_cursor.columns;
+-                byte_end += chunk.text_len;
++                byte_end += chunkLen(chunk.text_len);
+                 const char_end = width_cursor.advanceTo(byte_end);
+ 
+                 if (char_end > char_pos) {
+@@ -1207,9 +1214,9 @@ pub const UnifiedTextBuffer = struct {
+ 
+                     var attributes = chunk.attributes;
+                     if (chunk.link_ptr) |link_ptr| {
+-                        if (chunk.link_len > 0) {
++                        if (chunkLen(chunk.link_len) > 0) {
+                             const tracker = self.getLinkTracker();
+-                            const url = link_ptr[0..chunk.link_len];
++                            const url = link_ptr[0..chunkLen(chunk.link_len)];
+                             const link_id = tracker.pool.alloc(url) catch 0;
+                             if (link_id != 0) {
+                                 const maybe_seen = seen_link_ids.getOrPut(self.global_allocator, link_id) catch null;
+diff --git a/packages/native/src/wasm-host.zig b/packages/native/src/wasm-host.zig
+new file mode 100644
+index 0000000..d111a5a
+--- /dev/null
++++ b/packages/native/src/wasm-host.zig
+@@ -0,0 +1,12 @@
++//! What a WebAssembly host needs beyond OpenTUI's own exports: memory it can copy
++//! JavaScript buffers into before a call (the host has no address for its own memory).
++const std = @import("std");
++
++export fn opentuiWasmAlloc(len: usize) ?[*]u8 {
++    const p = std.c.malloc(if (len == 0) 1 else len) orelse return null;
++    return @ptrCast(p);
++}
++
++export fn opentuiWasmFree(ptr: ?[*]u8) void {
++    std.c.free(ptr);
++}

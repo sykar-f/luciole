@@ -6,6 +6,7 @@
     "**/.airtty",
     "src/devtools/airtty-devtools",
     "src/launcher/airtty",
-    "src/generic/browser"
+    "src/generic/browser",
+    "src/web"
   ]
 }

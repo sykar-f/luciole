@@ -47,7 +47,7 @@
     "mux": "bun packages/airtty/src/cli.ts dev --app examples/mux",
     "chat": "bun packages/airtty/src/cli.ts dev --app examples/chat",
     "agent": "bun packages/airtty/src/cli.ts dev --app examples/agent",
-    "check": "tsc --noEmit && tsc --noEmit -p packages/airtty && tsc --noEmit -p examples/notes && tsc --noEmit -p examples/latency && tsc --noEmit -p examples/forge && tsc --noEmit -p examples/files && tsc --noEmit -p examples/mdreader && tsc --noEmit -p examples/chat && tsc --noEmit -p examples/agent && tsc --noEmit -p examples/mux && tsc --noEmit -p packages/airtty/src/devtools/airtty-devtools && tsc --noEmit -p packages/airtty/src/launcher/airtty && tsc --noEmit -p packages/airtty/src/generic/browser",
+    "check": "tsc --noEmit && tsc --noEmit -p packages/airtty && tsc --noEmit -p examples/notes && tsc --noEmit -p examples/latency && tsc --noEmit -p examples/forge && tsc --noEmit -p examples/files && tsc --noEmit -p examples/mdreader && tsc --noEmit -p examples/chat && tsc --noEmit -p examples/agent && tsc --noEmit -p examples/mux && tsc --noEmit -p packages/airtty/src/devtools/airtty-devtools && tsc --noEmit -p packages/airtty/src/launcher/airtty && tsc --noEmit -p packages/airtty/src/generic/browser && tsc --noEmit -p packages/airtty/src/web",
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
     "test:pty": "bun scripts/pty/smoke.ts",

@@ -24,7 +24,7 @@ declare module "react-server-dom-webpack/server.node" {
   ): { pipe(stream: NodeJS.WritableStream): void; abort(): void };
   export function decodeReply(body: string | FormData, manifest: unknown): Promise<unknown>;
 }
-// The web target's Server (src/flight/server.web.ts): the same codec on web streams.
+// The web target's Server (src/web/platform/flight/server.ts): the same codec on web streams.
 declare module "react-server-dom-webpack/server.edge" {
   export function registerClientReference<T>(value: T, id: string, name: string): T;
   export function registerServerReference<T>(value: T, id: string, name: string): T;
