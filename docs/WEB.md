@@ -313,14 +313,17 @@ OPFS est partagé par toute l'origine : le Server web range ses données sous le
 Une page **de la même origine** qui place le runtime dans un `iframe` le pilote ainsi
 (`src/web/embed.ts`, vérifié par `bun run test:web:embed`) :
 
-| Sens              | Forme                                                                                                         | Pour                                                |
-| ----------------- | ------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
-| URL de l'`iframe` | `?columns=140&rows=40`                                                                                        | une grille fixe, la police ajustée pour la contenir |
-| URL de l'`iframe` | `&background=0a0f16&foreground=e6edf3`                                                                        | les couleurs par défaut du terminal et de la page   |
-| runtime → page    | `{ source: "airtty", type: "stage", stage }`, dans l'ordre `runtime`, `bundle`, `server`, `terminal`, `drawn` | afficher le démarrage pendant l'attente             |
-| page → runtime    | `{ source: "airtty", type: "input", data }`                                                                   | taper dans le terminal comme un clavier             |
+| Sens              | Forme                                                                                                                                   | Pour                                                                                                                      |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| URL de l'`iframe` | `?columns=140&rows=40`                                                                                                                  | une grille fixe, la police ajustée pour la contenir                                                                       |
+| URL de l'`iframe` | `&background=0a0f16&foreground=e6edf3`                                                                                                  | les couleurs par défaut du terminal et de la page                                                                         |
+| runtime → page    | `{ source: "airtty", type: "stage", stage }`, dans l'ordre `runtime`, `bundle`, `server`, `terminal`, `drawn`                           | afficher le démarrage pendant l'attente                                                                                   |
+| page → runtime    | `{ source: "airtty", type: "input", data }`                                                                                             | taper dans le terminal comme un clavier                                                                                   |
+| runtime → page    | `{ source: "airtty", type: "event", event }` : les événements du transport (`request`, `response`, `end`, `error`) et les invalidations | montrer ce qui traverse le réseau                                                                                         |
+| page → runtime    | `{ source: "airtty", type: "network", latencyMs, fault? }`                                                                              | un aller-retour simulé (moitié à l'aller, moitié au retour) et la panne de la prochaine requête (`refuse`, `drop`, `cut`) |
 
-Embarqué, le terminal ne prend pas le focus au démarrage : il ferait défiler la page vers
+La latence passe par le `fetch` de l'Application : le transport la mesure comme celle d'un
+Server lointain, et ses propres pannes (`AIRTTY_FAULT`) s'appliquent. Embarqué, le terminal ne prend pas le focus au démarrage : il ferait défiler la page vers
 lui. Une page d'une autre origine n'entend aucune étape (`postMessage` vise l'origine du
 runtime) et ce qu'elle envoie est ignoré : elle ne doit pas piloter une application qu'elle
 encadre. La landing (`LiveTerminal.astro`) montre la capture de l'écran pendant le

@@ -14,7 +14,15 @@ import { createRoot } from "@opentui/react";
 import { Shell, type Application, type ApplicationOptions } from "../../client";
 import type { Session } from "../../restore";
 import { isInputStream, terminalOutput } from "../streams";
-import { embedded, onInput, stage, type Grid, type Look } from "../embed";
+import {
+  controlledNetwork,
+  embedded,
+  onInput,
+  stage,
+  tellEvent,
+  type Grid,
+  type Look,
+} from "../embed";
 
 /** What `run()` gives the function that creates its Application. */
 export type RunOptions = Pick<
@@ -114,12 +122,18 @@ export async function runInPage(
   onInput((data) => stdin.write(data));
 
   const session = pageSession(`airtty:session:${name}:${sessionKey ?? server.href}`);
+  // Framed, the embedding page may slow the network down and hears what crosses it.
+  const control = embedded
+    ? controlledNetwork(fetch ?? ((input, init) => globalThis.fetch(input, init)))
+    : undefined;
   const app = create({
     url: server.href,
-    fetch,
+    fetch: control?.fetch ?? fetch,
+    network: control?.network,
     session: session.restored,
     quitOnCtrlC: false,
   });
+  app.onEvent(tellEvent);
   session.flush(app.restoration.snapshot());
   app.restoration.subscribe(() => session.schedule(app.restoration.snapshot()));
   addEventListener("pagehide", () => session.flush(app.restoration.snapshot()));

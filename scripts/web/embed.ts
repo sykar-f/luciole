@@ -14,6 +14,7 @@ const COLUMNS = 100;
 const ROWS = 30;
 const FRAME_SCREEN = `[...document.querySelector("iframe").contentDocument.querySelectorAll(".xterm-rows > div")]`;
 const OTHER_ORIGIN_WAIT_MS = 1500;
+const LATENCY_MS = 300;
 const DRAW_TIMEOUT_MS = 6000;
 const POLL_MS = 150;
 const frameShows = (text: string) =>
@@ -23,13 +24,20 @@ build(example("notes"), ["--web-local"]);
 const site = join(example("notes"), ".airtty/web");
 const notes = serveSite(site);
 const look = `index.html?columns=${COLUMNS}&rows=${ROWS}&background=0a0f16`;
-// The embedding page: it records every stage it hears, from any origin, and frames `?src=`.
+// The embedding page: it records every message it hears, from any origin, and frames `?src=`.
 const host = `<!doctype html><body style="margin:0"><iframe style="width:1100px;height:640px;border:0"></iframe>
 <script>
+  window.heard = [];
   window.stages = [];
+  window.events = [];
   addEventListener("message", (event) => {
-    if (event.data?.source === "airtty") stages.push(event.data.stage);
+    if (event.data?.source !== "airtty") return;
+    heard.push(event.data);
+    if (event.data.type === "stage") stages.push(event.data.stage);
+    if (event.data.type === "event") events.push(event.data.event);
   });
+  window.send = (message) =>
+    document.querySelector("iframe").contentWindow.postMessage({ source: "airtty", ...message }, "*");
   document.querySelector("iframe").src = new URLSearchParams(location.search).get("src");
 </script>`;
 const hostSite = Bun.serve({
@@ -56,10 +64,24 @@ try {
   // Framed, the terminal leaves the focus where it was: the embedding page's.
   report.focusStayed = await browser.evaluate(`document.activeElement === document.body`);
 
-  await browser.evaluate(
-    `document.querySelector("iframe").contentWindow.postMessage({ source: "airtty", type: "input", data: "\\r" }, "*")`,
-  );
+  // The page slows the network down, then opens the first note: the render it hears
+  // took at least the round trip.
+  await browser.evaluate(`send({ type: "network", latencyMs: ${LATENCY_MS} })`);
+  await browser.evaluate(`send({ type: "input", data: "\\r" })`);
   report.typedByTheHost = !!(await browser.waitFor(frameShows("baseline:"), "the note editor"));
+  report.slowedRender = await browser.waitFor(
+    `events.some((e) => e.type === "end" && e.kind === "render" && e.ms >= ${LATENCY_MS})`,
+    "a render slowed by the page",
+  );
+  // The next request is refused before it leaves: the save fails as not sent.
+  await browser.evaluate(`send({ type: "network", latencyMs: ${LATENCY_MS}, fault: "refuse" })`);
+  await browser.evaluate(`send({ type: "input", data: "x" })`);
+  await browser.waitFor(frameShows("x"), "the edit");
+  await browser.evaluate(`send({ type: "input", data: "\\r" })`);
+  report.refusedSave = await browser.waitFor(
+    `events.some((e) => e.type === "error" && e.kind === "action" && e.outcome === "not-sent")`,
+    "a save refused before it left",
+  );
 
   // Another origin frames Notes: it hears no stage, and what it types is ignored. Its
   // script cannot read the frame; the DevTools protocol reads through it.
@@ -77,7 +99,7 @@ try {
   const screen = await everything();
   report.otherOriginDrawn = screen.includes("First note");
   report.otherOriginTyped = screen.includes("baseline:");
-  report.otherOriginHeard = await browser.evaluate("window.stages.length");
+  report.otherOriginHeard = await browser.evaluate("window.heard.length");
 } finally {
   await notes.stop(true);
   await hostSite.stop(true);
@@ -89,6 +111,8 @@ const expected = {
   pageColour: "rgb(10, 15, 22)",
   focusStayed: true,
   typedByTheHost: true,
+  slowedRender: true,
+  refusedSave: true,
   otherOriginDrawn: true,
   otherOriginTyped: false,
   otherOriginHeard: 0,
