@@ -7,36 +7,11 @@
 import { join } from "node:path";
 import { build, example } from "../pty/harness";
 import { Browser } from "./cdp";
-
-const TYPES: Record<string, string> = {
-  html: "text/html; charset=utf-8",
-  js: "text/javascript; charset=utf-8",
-  cjs: "text/javascript; charset=utf-8",
-  css: "text/css; charset=utf-8",
-  json: "application/json",
-  wasm: "application/wasm",
-  map: "application/json",
-};
-/** The rows xterm.js renders into the DOM, as text. */
-const SCREEN = `[...document.querySelectorAll(".xterm-rows > div")].map((row) => row.textContent).join("\\n")`;
-const shows = (text: string) => `(${SCREEN}).includes(${JSON.stringify(text)}) && (${SCREEN})`;
-const rowWith = (...texts: string[]) =>
-  `[...document.querySelectorAll(".xterm-rows > div")].some((row) => ${texts.map((t) => `row.textContent.includes(${JSON.stringify(t)})`).join(" && ")})`;
+import { rowWith, serveSite, shows } from "./site";
 
 build(example("notes"), ["--web-local"]);
 const site = join(example("notes"), ".airtty/web");
-const files = Bun.serve({
-  port: 0,
-  async fetch(request) {
-    const url = new URL(request.url).pathname;
-    const path = url.endsWith("/") ? `${url}index.html` : url;
-    const file = Bun.file(join(site, path));
-    if (path.includes("..") || !(await file.exists()))
-      return new Response("Not found", { status: 404 });
-    const type = TYPES[path.slice(path.lastIndexOf(".") + 1)] ?? "application/octet-stream";
-    return new Response(file, { headers: { "content-type": type } });
-  },
-});
+const files = serveSite(site);
 const report: Record<string, unknown> = {};
 try {
   await using browser = await Browser.start();

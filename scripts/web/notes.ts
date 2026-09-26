@@ -8,6 +8,7 @@
 import { join } from "node:path";
 import { build, example, startServer } from "../pty/harness";
 import { Browser } from "./cdp";
+import { shows } from "./site";
 
 const FORBIDDEN = 403;
 /** A port nobody listens on now: the Server's origin must name it before it starts. */
@@ -18,9 +19,6 @@ function freePort() {
   if (port === undefined) throw new Error("no free port");
   return port;
 }
-/** The rows xterm.js renders into the DOM, as text. */
-const SCREEN = `[...document.querySelectorAll(".xterm-rows > div")].map((row) => row.textContent).join("\\n")`;
-const shows = (text: string) => `(${SCREEN}).includes(${JSON.stringify(text)}) && (${SCREEN})`;
 
 build(example("notes"), ["--web"]);
 const port = freePort();

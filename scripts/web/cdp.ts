@@ -40,6 +40,7 @@ const Logged = z.object({
 const KEYS = {
   Enter: { code: "Enter", keyCode: 13, text: "\r" },
   Escape: { code: "Escape", keyCode: 27, text: "" },
+  Tab: { code: "Tab", keyCode: 9, text: "\t" },
 } as const;
 
 export class Browser implements AsyncDisposable {
