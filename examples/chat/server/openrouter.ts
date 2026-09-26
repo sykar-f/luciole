@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { ChatEvent, ChatMessage, Pricing, Setup, Usage } from "../components/model";
+import { createFakeProvider } from "./fake-provider";
 
 // The key, the endpoint and every network call stay in this Server module: the Client
 // only ever sees `Setup` (no key) and the events of a reply.
@@ -14,14 +15,20 @@ const MODELS_TIMEOUT_MS = 3000;
 // Retry a failed price lookup at most this often.
 const MODELS_RETRY_MS = 30_000;
 const ERROR_CHARS = 300;
+// Demo mode: the fake provider answers in-process, as OpenRouter would over the network.
+const DEMO_BASE_URL = "https://demo.invalid/api/v1";
+const DEMO_DELAY_MS = 35;
+let demoProvider: ReturnType<typeof createFakeProvider> | undefined;
 
 const Environment = z.object({
   OPENROUTER_API_KEY: z.string().trim().optional(),
   OPENROUTER_MODEL: z.string().trim().optional(),
   OPENROUTER_BASE_URL: z.url({ protocol: /^https?$/ }).optional(),
+  /** "1": a scripted model with no key and no network (the landing page's live demo). */
+  CHAT_DEMO: z.string().optional(),
 });
 
-type Settings = { key?: string; model: string; baseUrl: string; error?: string };
+type Settings = { key?: string; model: string; baseUrl: string; error?: string; demo?: boolean };
 
 /** Read at each call: a restarted Server picks up a new environment. */
 export function settings(): Settings {
@@ -30,11 +37,24 @@ export function settings(): Settings {
     const name = env.error.issues[0]?.path.join(".") ?? "environment";
     return { model: DEFAULT_MODEL, baseUrl: DEFAULT_BASE_URL, error: `${name} is invalid` };
   }
+  if (env.data.CHAT_DEMO === "1")
+    return { key: "demo", model: DEFAULT_MODEL, baseUrl: DEMO_BASE_URL, demo: true };
   return {
     key: env.data.OPENROUTER_API_KEY || undefined,
     model: env.data.OPENROUTER_MODEL || DEFAULT_MODEL,
     baseUrl: (env.data.OPENROUTER_BASE_URL ?? DEFAULT_BASE_URL).replace(/\/+$/, ""),
   };
+}
+
+/** `fetch`, or in demo mode the fake provider, called with the same request. */
+function upstreamOf({ demo }: Settings): (url: string, init: RequestInit) => Promise<Response> {
+  if (!demo) return fetch;
+  demoProvider ??= createFakeProvider({
+    delayMs: DEMO_DELAY_MS,
+    servedBy: "a scripted model, in this Server",
+  });
+  const provider = demoProvider;
+  return (url, init) => provider.handle(new Request(url, init));
 }
 
 const ModelList = z.object({
@@ -51,13 +71,14 @@ type ModelInfo = { name?: string; pricing?: Pricing; contextLength?: number };
 
 // One lookup per model and endpoint; a failure is remembered briefly, not forever.
 const models = new Map<string, Promise<ModelInfo | null>>();
-function modelInfo({ baseUrl, model }: Settings): Promise<ModelInfo | null> {
+function modelInfo(current: Settings): Promise<ModelInfo | null> {
+  const { baseUrl, model } = current;
   const id = `${baseUrl} ${model}`;
   const cached = models.get(id);
   if (cached) return cached;
   const info = (async () => {
     try {
-      const response = await fetch(`${baseUrl}/models`, {
+      const response = await upstreamOf(current)(`${baseUrl}/models`, {
         signal: AbortSignal.timeout(MODELS_TIMEOUT_MS),
       });
       const list = ModelList.safeParse(await response.json());
@@ -83,7 +104,7 @@ export async function describeSetup(): Promise<Setup> {
   const info = current.error ? null : await modelInfo(current);
   return {
     model: current.model,
-    endpoint: new URL(current.baseUrl).host,
+    endpoint: current.demo ? "offline demo model" : new URL(current.baseUrl).host,
     keyMissing: !current.key,
     configError: current.error,
     modelName: info?.name,
@@ -181,7 +202,7 @@ export async function* complete(history: ChatMessage[]): AsyncGenerator<ChatEven
   try {
     let response: Response;
     try {
-      response = await fetch(`${current.baseUrl}/chat/completions`, {
+      response = await upstreamOf(current)(`${current.baseUrl}/chat/completions`, {
         method: "POST",
         signal: upstream.signal,
         headers: {

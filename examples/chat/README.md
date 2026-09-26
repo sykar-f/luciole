@@ -12,18 +12,22 @@ export OPENROUTER_API_KEY=sk-or-…          # https://openrouter.ai/keys
 bun packages/airtty/src/cli.ts dev --app examples/chat
 ```
 
-| Variable              | Défaut                         | Rôle                                             |
-| --------------------- | ------------------------------ | ------------------------------------------------ |
-| `OPENROUTER_API_KEY`  | —                              | Clé OpenRouter, lue uniquement par le Server.    |
-| `OPENROUTER_MODEL`    | `deepseek/deepseek-v4.1-flash` | Tout identifiant de `GET /api/v1/models`.        |
-| `OPENROUTER_BASE_URL` | `https://openrouter.ai/api/v1` | Autre endpoint compatible OpenAI (faux serveur). |
+| Variable              | Défaut                         | Rôle                                                |
+| --------------------- | ------------------------------ | --------------------------------------------------- |
+| `OPENROUTER_API_KEY`  | —                              | Clé OpenRouter, lue uniquement par le Server.       |
+| `OPENROUTER_MODEL`    | `deepseek/deepseek-v4.1-flash` | Tout identifiant de `GET /api/v1/models`.           |
+| `OPENROUTER_BASE_URL` | `https://openrouter.ai/api/v1` | Autre endpoint compatible OpenAI (faux serveur).    |
+| `CHAT_DEMO`           | —                              | `1` : un modèle scripté répond, sans clé ni réseau. |
 
 Le modèle par défaut est le « flash » DeepSeek le plus récent listé par
 `GET https://openrouter.ai/api/v1/models` au 23/09/2026 (0,10 $/M tokens en entrée,
 0,50 $/M en sortie, 1M de contexte). Sans clé, l'écran l'indique et Entrée n'envoie rien ;
 une variable invalide (`OPENROUTER_BASE_URL` qui n'est pas une URL http(s)) est nommée.
 
-Sans clé ni réseau, un faux OpenRouter local suffit :
+Sans clé ni réseau, `CHAT_DEMO=1` fait répondre le faux fournisseur
+(`server/fake-provider.ts`) dans le Server même : la démo live de la landing, dont le Server
+tourne dans la page, où aucune clé ne peut vivre. Le même fournisseur, servi en HTTP, sert
+aux tests et aux captures :
 
 ```sh
 bun examples/chat/scripts/fake-openrouter.ts     # affiche {"port": …}
