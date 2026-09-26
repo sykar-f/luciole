@@ -58,3 +58,30 @@ esac`,
   await rm(join(bin, "claude"));
   expect(await detect("claude", { PATH: bin })).toMatchObject({ installed: false, ready: false });
 });
+
+test("codex: version and sign-in from its own commands, never its auth file", async () => {
+  await stub(
+    "codex",
+    `case "$1" in
+  --version) echo "codex-cli 0.157.0";;
+  login) echo "Logged in using ChatGPT";;
+esac`,
+  );
+  expect(await detect("codex", env())).toEqual({
+    id: "codex",
+    installed: true,
+    version: "0.157.0",
+    ready: true,
+    account: "ChatGPT",
+    fix: undefined,
+    warnings: [],
+  });
+  await stub(
+    "codex",
+    `case "$1" in --version) echo "codex-cli 0.157.0";; login) echo "Not logged in"; exit 1;; esac`,
+  );
+  expect(await detect("codex", env())).toMatchObject({
+    ready: false,
+    fix: "run `codex login` in a terminal",
+  });
+});

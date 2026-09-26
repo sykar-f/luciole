@@ -34,6 +34,10 @@ export function StatusLine({
   const { info, usage } = snap;
   const running = snap.items.filter((i) => i.kind === "subagent" && i.status === "running").length;
   const context = usage.context;
+  const limits = [
+    usage.limits?.fiveHour !== undefined ? `5h ${Math.round(usage.limits.fiveHour)} %` : undefined,
+    usage.limits?.weekly !== undefined ? `7d ${Math.round(usage.limits.weekly)} %` : undefined,
+  ].filter((l) => l !== undefined);
   return (
     <>
       <text flexShrink={0} fg={color.text}>
@@ -53,12 +57,10 @@ export function StatusLine({
           {Math.round((context.used / context.window) * PERCENT)} %
         </text>
       ) : null}
-      {usage.limits &&
-      (usage.limits.fiveHour !== undefined || usage.limits.weekly !== undefined) ? (
+      {limits.length ? (
         <text flexShrink={0} fg={color.muted}>
-          {" │"}
-          {usage.limits.fiveHour !== undefined ? ` 5h ${Math.round(usage.limits.fiveHour)} %` : ""}
-          {usage.limits.weekly !== undefined ? ` · 7d ${Math.round(usage.limits.weekly)} %` : ""}
+          {" │ "}
+          {limits.join(" · ")}
         </text>
       ) : null}
       {usage.costUsd !== undefined ? (

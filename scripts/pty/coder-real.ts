@@ -3,8 +3,9 @@
  *
  *   bun scripts/pty/coder-real.ts claude|codex|pi|opencode [model]
  *
- * The harness starts in a temporary project, answers a one-word prompt, a command
- * approval goes through the dialog, then Ctrl+C quits and no harness process is left.
+ * The harness starts in a temporary project, answers a one-word prompt, writes a file
+ * (through the approval dialog when it asks), then Ctrl+C quits and no harness process
+ * is left.
  * CODER_PTY_FRAMES=<dir> writes each screen there.
  */
 import assert from "node:assert/strict";
@@ -67,9 +68,13 @@ await frame("2-answered");
 
 await t.type("Create a file named hello.txt containing the word hi. Use your file-writing tool.");
 await t.type(Keys.enter);
-await t.waitFor("allow once", { timeout: MODEL_TIMEOUT_MS });
-await frame("3-approval");
-await t.type("y");
+// Claude asks before writing in "ask" mode; Codex writes inside the workspace freely.
+await t.waitFor(/allow once|✎ hello\.txt/, { timeout: MODEL_TIMEOUT_MS });
+const asked = (await t.text()).includes("allow once");
+if (asked) {
+  await frame("3-approval");
+  await t.type("y");
+}
 await t.waitFor("hello.txt", { timeout: MODEL_TIMEOUT_MS });
 assert.ok(
   await eventually(() => Bun.file(join(project, "hello.txt")).size > 0, MODEL_TIMEOUT_MS),

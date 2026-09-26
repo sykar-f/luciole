@@ -5,7 +5,7 @@ Branche `feat/coder`. Référence : [CODER-HANDOFF.md](../CODER-HANDOFF.md) (pri
 
 ## Phase en cours
 
-Phase 5 — adaptateur Codex (`codex app-server`).
+Phase 6 — adaptateur pi (`pi --mode rpc` + extension d'approbation).
 
 ## Fait
 
@@ -41,9 +41,19 @@ Phase 5 — adaptateur Codex (`codex app-server`).
   enregistrées (`scripts/coder/record-claude.ts`), tests de contrat, de détection et de
   conformité, parcours réel manuel `scripts/pty/coder-real.ts claude` (passé).
 
+- **Phase 5** — `feat(coder): drive Codex through its app-server` : adaptateur
+  `server/adapters/codex.ts` (JSON-RPC via `RpcPeer`, `clientInfo.name = "airtty-coder"`,
+  thread par session, approbations commande / fichier / questions comme requêtes de
+  Codex répondues une fois, mode `read` = sandbox lecture seule + `collaborationMode`
+  plan, revue du plan final par coder, mode `edits` = fichiers acceptés d'office,
+  limites par `account/rateLimits/updated`, skills comme commandes), types générés
+  (`scripts/coder/codex-types.ts`, 196 fichiers, exclus du lint et du format),
+  5 échanges enregistrés (`scripts/coder/record-codex.ts`), tests de contrat « pas à
+  pas », détection (`codex --version`, `codex login status`), parcours réel passé.
+
 ## Reste
 
-- Phases 5 à 7 : adaptateurs Codex, pi, opencode, avec leur détection réelle, leurs
+- Phases 6 et 7 : adaptateurs pi et opencode, avec leur détection réelle, leurs
   fixtures enregistrées et leurs tests de contrat ; garde-fous §3 de pi et d'opencode.
 
 ## Décisions prises en cours de route
@@ -88,7 +98,19 @@ Phase 5 — adaptateur Codex (`codex app-server`).
   répertoire suffit (docs/BOUNDARIES.md) et le marqueur empêchait de les importer dans
   `bun test`.
 
+- Codex : la revue de plan n'est pas une requête de Codex (le mode plan finit par un
+  item `plan`) : coder ouvre sa propre revue ; approuver repasse en `ask` et envoie
+  « Implement the plan. », refuser avec un retour l'envoie comme message.
+- Codex : les demandes que coder ne sait pas traiter (élicitations MCP, permissions
+  supplémentaires, outils dynamiques) sont refusées avec un avis dans le transcript.
+
 ## Écarts avec le handoff et la spec
+
+- **Codex 0.157.0, pas 0.156.1** : le profil Nix de l'utilisateur a mis `codex` à jour
+  pendant la session. Les types sont générés depuis le binaire installé (0.157.0) ;
+  l'adaptateur signale une autre version au démarrage. Les échanges enregistrés datent
+  de ce passage (version non conservée par le premier enregistreur ; il la garde
+  désormais dans `userAgent`).
 
 - **Grammaires tree-sitter non ajoutées** (handoff §6). Vérifié sur OpenTUI 0.5.12 : un
   bloc de code d'un langage sans grammaire s'affiche en texte brut, pas vide (#1494 ne

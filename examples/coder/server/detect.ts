@@ -65,6 +65,36 @@ async function claude(env: NodeJS.ProcessEnv): Promise<HarnessStatus> {
   };
 }
 
+async function codex(env: NodeJS.ProcessEnv): Promise<HarnessStatus> {
+  const id = "codex";
+  const binary = Bun.which("codex", { PATH: env.PATH ?? "" });
+  if (!binary)
+    return {
+      id,
+      installed: false,
+      ready: false,
+      fix: "install Codex: https://developers.openai.com/codex",
+      warnings: [],
+    };
+  const [version, login] = await Promise.all([
+    probe([binary, "--version"], env),
+    // Exits 0 when signed in and says how ("Logged in using ChatGPT"): no secret.
+    probe([binary, "login", "status"], env),
+  ]);
+  const ready = login?.code === 0;
+  return {
+    id,
+    installed: true,
+    version: firstLine(version?.stdout ?? "").replace(/^codex-cli\s+/, "") || undefined,
+    ready,
+    account: ready
+      ? firstLine(login.stdout).replace(/^Logged in using\s+/i, "") || undefined
+      : undefined,
+    fix: ready ? undefined : "run `codex login` in a terminal",
+    warnings: [],
+  };
+}
+
 /** Whether `id` can run with this environment. */
 export async function detect(
   id: HarnessId,
@@ -83,6 +113,7 @@ export async function detect(
     case "claude":
       return claude(env);
     case "codex":
+      return codex(env);
     case "pi":
     case "opencode":
       return {

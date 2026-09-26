@@ -39,3 +39,11 @@ test("Claude Code runs as published: the user's binary, the whole environment, n
   // HOME stays the user's: the keychain login depends on it.
   expect(offending(/\bHOME\s*:/)).toEqual([]);
 });
+
+test("Codex is told who drives it: an honest client name, its own login flow", () => {
+  const codex = readFileSync(join(ROOT, "server/adapters/codex.ts"), "utf8");
+  expect(/clientInfo: \{ name: "airtty-coder"/.test(codex)).toBe(true);
+  // Signed out: the user runs Codex's own login, coder never handles its tokens.
+  expect(codex).toContain("run `codex login`");
+  expect(offending(/chatgptAuthTokens|account\/login\/start/)).toEqual([]);
+});
