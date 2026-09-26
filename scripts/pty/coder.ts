@@ -17,6 +17,7 @@ import {
   example,
   report,
   temporaryDirectory,
+  workingIn,
 } from "./harness";
 
 const FRAMES = process.env.CODER_PTY_FRAMES;
@@ -29,10 +30,14 @@ const SHIFT_TAB = "\x1b[Z";
 using directory = temporaryDirectory("airtty-coder-");
 const project = join(directory.path, "project");
 mkdirSync(project);
+/** This journey's coder Servers: a coder the user runs elsewhere is not one of them. */
 const servers = () =>
-  commandOutput(["pgrep", "-f", `${example("coder")}/.airtty/server/index.js`])
-    .split(/\s+/)
-    .filter(Boolean);
+  workingIn(
+    commandOutput(["pgrep", "-f", `${example("coder")}/.airtty/server/index.js`])
+      .split(/\s+/)
+      .filter(Boolean),
+    project,
+  );
 await using t = await drive({
   command: [BUN, CLI, "dev", "--app", example("coder"), "--", "--harness", "fake"],
   cols: 120,
@@ -54,6 +59,8 @@ const prompt = async (text: string) => {
 };
 
 await t.waitFor("scripted demo is ready", { timeout: BOOT_TIMEOUT_MS });
+// The Server is found by its directory: the check at the end is not vacuous.
+assert.equal(servers().length, 1, "one coder Server runs in the project");
 assert.ok((await t.text()).includes(project), "the project directory is shown");
 assert.ok((await t.text()).includes("powered by scripted demo"));
 await frame("1-ready");

@@ -4,7 +4,7 @@
  * JSON report each journey prints. Every resource is `await using`-disposable, so that a
  * failed assertion still stops the processes it started.
  */
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { z } from "zod";
@@ -113,6 +113,17 @@ export const build = (app: string, args: readonly string[] = [], env?: Record<st
 export function commandOutput(command: readonly string[]) {
   const result = Bun.spawnSync([...command], { stdout: "pipe", stderr: "ignore" });
   return result.exitCode === 0 ? result.stdout.toString() : "";
+}
+
+/**
+ * The processes among `pids` working in `directory`: a journey's own, told apart from
+ * the same program the user runs elsewhere (a test's directory is private and unique).
+ */
+export function workingIn(pids: readonly string[], directory: string) {
+  const real = `n${realpathSync(directory)}`;
+  return pids.filter((pid) =>
+    commandOutput(["lsof", "-a", "-p", pid, "-d", "cwd", "-Fn"]).split("\n").includes(real),
+  );
 }
 
 /** Whether a process with this pid exists. */

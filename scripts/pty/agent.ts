@@ -8,7 +8,7 @@
  * writes each screen there.
  */
 import assert from "node:assert/strict";
-import { mkdirSync, readFileSync, realpathSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { ctrl, drive, Keys } from "./driver";
 import {
@@ -20,6 +20,7 @@ import {
   example,
   report,
   temporaryDirectory,
+  workingIn,
 } from "./harness";
 
 const FRAMES = process.env.AGENT_PTY_FRAMES;
@@ -34,18 +35,13 @@ const seconds = (ms: number) => Math.round(ms / (1000 / TENTHS)) / TENTHS;
 
 using directory = temporaryDirectory("airtty-agent-");
 const sandbox = join(directory.path, "sandbox");
-const sandboxReal = join(realpathSync(directory.path), "sandbox");
 /** pi renames its process to "pi" (argv is hidden): found by its working directory. */
 const piProcesses = () =>
-  commandOutput(["pgrep", "-x", "pi"])
-    .split(/\s+/)
-    .filter(Boolean)
-    .filter((pid) =>
-      commandOutput(["lsof", "-a", "-p", pid, "-d", "cwd", "-Fn"])
-        .split("\n")
-        .includes(`n${sandboxReal}`),
-    )
-    .map(Number);
+  existsSync(sandbox)
+    ? workingIn(commandOutput(["pgrep", "-x", "pi"]).split(/\s+/).filter(Boolean), sandbox).map(
+        Number,
+      )
+    : [];
 await using _pi = defer(() => {
   for (const pid of piProcesses()) process.kill(pid, "SIGKILL");
 });
