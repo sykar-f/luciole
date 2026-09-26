@@ -4,7 +4,7 @@ import { frame } from "../lib/frames";
 import { repo } from "../lib/links";
 
 // Forge starts on its sign-in screen: the page signs in as alice and opens the pull request
-// the capture shows, then hands over. A reader coming back finds it where they left it.
+// the capture shows, then hands over. A reader coming back starts there again.
 const signIn: Step[] = [
   { wait: "Demo accounts", type: "alice\r", pause: 250 },
   { wait: "Demo accounts", type: "forge\r" },

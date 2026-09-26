@@ -5,8 +5,7 @@
 import LiveTerminal, { type Step } from "./LiveTerminal.astro";
 import { frame } from "../lib/frames";
 
-// Forge signs in as alice and opens a diff: the capture's screen, or wherever a session
-// restored from the hero already is.
+// Forge signs in as alice and opens a diff: the capture's screen.
 const toDiff: Step[] = [
   { wait: "Demo accounts", type: "alice\r", pause: 250 },
   { wait: "Demo accounts", type: "forge\r" },
@@ -157,7 +156,7 @@ const terminalOnly = [
 
 <script>
   // The picked panel's demo runs while the gallery is near the viewport; any other stops,
-  // its capture back. A demo restarted later finds its session where it left it.
+  // its capture back. A demo restarted later starts again from its first screen.
   const gallery = document.querySelector<HTMLElement>("[data-gallery]");
   if (gallery) {
     let near = false;

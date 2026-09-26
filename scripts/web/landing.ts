@@ -2,8 +2,9 @@
  * The landing page's live demos (website/, LiveTerminal.astro): each one replaces its
  * capture only once its live screen reads as the capture, on a first visit and on a
  * second, and stays so. A demo revealed on a screen still loading, or one the capture no
- * longer shows (an out-of-date capture, a script that no longer reaches it), fails.
- * Builds the demos and the site.
+ * longer shows (an out-of-date capture, a script that no longer reaches it), fails. Each
+ * visit ends with the reader opening a note in Notes: the next one starts at the list
+ * again, as its capture shows. Builds the demos and the site.
  *   bun run test:web:landing
  */
 import { spawnSync } from "node:child_process";
@@ -21,6 +22,11 @@ const MATCHING_ROWS = 0.95;
 const AFTER_MS = 1500;
 const REVEAL_TIMEOUT_MS = 40_000;
 const VISITS = 2;
+/** Notes, in Wire: Return opens the selected note, whose editor shows its baseline. */
+const NOTES_FRAME = `document.querySelector('#wire [data-live] iframe')`;
+const NOTE_EDITOR = "baseline:";
+/** Longer than the runtime's delay before it saves a session (run.tsx, SAVE_DELAY_MS). */
+const SAVED_MS = 500;
 /** How many differing rows a failure quotes. */
 const QUOTED_ROWS = 5;
 
@@ -100,6 +106,16 @@ try {
             `visit ${visit}: ${demo} ${when} on another screen than its capture:\n${JSON.stringify(differ.slice(0, QUOTED_ROWS), null, 2)}`,
           );
     }
+    // The reader goes somewhere the capture does not show; a restored session would
+    // reopen it on the next visit.
+    await browser.evaluate(
+      `${NOTES_FRAME}.contentWindow.postMessage({ source: "airtty", type: "input", data: "\\r" }, location.origin)`,
+    );
+    await browser.waitFor(
+      `[...${NOTES_FRAME}.contentDocument.querySelectorAll(".xterm-rows > div")].some((row) => row.textContent.includes(${JSON.stringify(NOTE_EDITOR)}))`,
+      `a note opened in Notes, visit ${visit}`,
+    );
+    await Bun.sleep(SAVED_MS);
   }
 } finally {
   await site.stop(true);

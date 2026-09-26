@@ -28,6 +28,11 @@ interface Props {
    * `manual`, when its container sends it `live:start` (and `live:stop` puts it back).
    */
   boot?: "eager" | "visible" | "manual";
+  /**
+   * Reopen the demo where the reader left it. Off by default: a visitor comes back to the
+   * screen the capture shows, not to a note they opened last time.
+   */
+  restore?: boolean;
   glow?: boolean;
   tilt?: boolean;
   printed?: boolean;
@@ -38,6 +43,7 @@ const {
   frame,
   script = [],
   boot = "visible",
+  restore = false,
   glow = false,
   tilt = false,
   printed = false,
@@ -49,6 +55,7 @@ const look = new URLSearchParams({
   rows: String(frame.rows),
   background: SCREEN_BACKGROUND.slice(1),
   foreground: SCREEN_FOREGROUND.slice(1),
+  ...(restore ? {} : { restore: "off" }),
 });
 // index.html by name: Astro's dev server serves no directory index from public/.
 const src = `/demo/${demo}/index.html?${look}`;
