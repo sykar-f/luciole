@@ -14,6 +14,7 @@ import { createRoot } from "@opentui/react";
 import { Shell, type Application, type ApplicationOptions } from "../../client";
 import type { Session } from "../../restore";
 import { isInputStream, terminalOutput } from "../streams";
+import { embedded, onInput, stage, type Grid, type Look } from "../embed";
 
 /** What `run()` gives the function that creates its Application. */
 export type RunOptions = Pick<
@@ -29,9 +30,25 @@ export type PageOptions = {
   name: string;
   /** Keys the restored session, instead of the Server's URL. */
   sessionKey?: string;
-};
+} & Look;
 
 const SAVE_DELAY_MS = 200;
+/** What terminals draw with, before a generic monospace. */
+const FONTS =
+  'ui-monospace, "SF Mono", Menlo, "Cascadia Mono", Consolas, "DejaVu Sans Mono", monospace';
+const LARGEST_FONT = 24;
+const SMALLEST_FONT = 4;
+const FONT_STEP = 0.25;
+
+/** The largest font at which `grid` fits the element, then exactly that grid. */
+function fitGrid(terminal: XTerm, fit: FitAddon, grid: Grid) {
+  for (let size = LARGEST_FONT; size >= SMALLEST_FONT; size -= FONT_STEP) {
+    terminal.options.fontSize = size;
+    const room = fit.proposeDimensions();
+    if (room && room.cols >= grid.columns && room.rows >= grid.rows) break;
+  }
+  terminal.resize(grid.columns, grid.rows);
+}
 const StoredSession = z.object({
   index: z.number().check(z.int(), z.gte(0)),
   entries: z.array(z.object({ href: z.string(), fields: z.record(z.string(), z.string()) })),
@@ -75,17 +92,26 @@ function pageSession(key: string) {
 
 export async function runInPage(
   create: (options: RunOptions) => Application,
-  { element, server, fetch, name, sessionKey }: PageOptions,
+  { element, server, fetch, name, sessionKey, grid, background, foreground }: PageOptions,
 ) {
-  const terminal = new XTerm({ cursorBlink: true, allowProposedApi: true });
+  const terminal = new XTerm({
+    cursorBlink: true,
+    allowProposedApi: true,
+    fontFamily: FONTS,
+    theme: { background, foreground },
+  });
   const fit = new FitAddon();
   terminal.loadAddon(fit);
   terminal.open(element);
-  fit.fit();
-  terminal.focus();
+  const layout = () => (grid ? fitGrid(terminal, fit, grid) : fit.fit());
+  layout();
+  // In a page of its own, the terminal is what the reader came for. Framed, a focus
+  // would scroll the embedding page to it: the reader clicks it instead.
+  if (!embedded) terminal.focus();
   const stdin = new PassThrough();
   if (!isInputStream(stdin)) throw new Error("unreachable: a PassThrough is readable");
   terminal.onData((data) => stdin.write(data));
+  onInput((data) => stdin.write(data));
 
   const session = pageSession(`airtty:session:${name}:${sessionKey ?? server.href}`);
   const app = create({
@@ -114,13 +140,15 @@ export async function runInPage(
   });
   Object.assign(globalThis, { requestAnimationFrame, cancelAnimationFrame });
   terminal.onResize(({ cols, rows }) => renderer.resize(cols, rows));
-  new ResizeObserver(() => fit.fit()).observe(element);
+  new ResizeObserver(layout).observe(element);
+  stage("terminal");
   app.quit = () => {
     session.remove();
     renderer.destroy();
     terminal.write("\r\n\x1b[2mSession ended. Reload the page to start again.\x1b[0m\r\n");
   };
   createRoot(renderer).render(<Shell app={app} />);
+  requestAnimationFrame(() => stage("drawn"));
   return app;
 }
 

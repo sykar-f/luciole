@@ -302,10 +302,30 @@ coûte rien. Au démarrage, le SharedWorker recharge le dernier instantané. Le 
 avec la base : adapté à une démo et à une app locale, pas à une grosse base (au-delà,
 une VFS asynchrone demanderait une API `bun:sqlite` asynchrone, donc un autre contrat).
 
-Pour la landing : `website/` embarque `.airtty/web/` de `examples/notes` dans un
-`iframe` (isolation du CSS et du focus clavier). La même règle d'origine vaut : le site
-statique fournit shell, bundle et `server-worker.js` sous sa propre origine. OPFS est
-partagé par toute l'origine : le Server web range ses données sous le nom de l'app.
+Pour la landing : `website/` embarque `.airtty/web/` de `examples/forge` et
+`examples/notes` dans des `iframe` (isolation du CSS et du focus clavier), le runtime
+partagé une fois sous `demo/runtime/` (`website/scripts/demo.ts`). La même règle d'origine
+vaut : le site statique fournit shell, bundle et `server-worker.js` sous sa propre origine.
+OPFS est partagé par toute l'origine : le Server web range ses données sous le nom de l'app.
+
+### Page embarquée
+
+Une page **de la même origine** qui place le runtime dans un `iframe` le pilote ainsi
+(`src/web/embed.ts`, vérifié par `bun run test:web:embed`) :
+
+| Sens              | Forme                                                                                                         | Pour                                                |
+| ----------------- | ------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| URL de l'`iframe` | `?columns=140&rows=40`                                                                                        | une grille fixe, la police ajustée pour la contenir |
+| URL de l'`iframe` | `&background=0a0f16&foreground=e6edf3`                                                                        | les couleurs par défaut du terminal et de la page   |
+| runtime → page    | `{ source: "airtty", type: "stage", stage }`, dans l'ordre `runtime`, `bundle`, `server`, `terminal`, `drawn` | afficher le démarrage pendant l'attente             |
+| page → runtime    | `{ source: "airtty", type: "input", data }`                                                                   | taper dans le terminal comme un clavier             |
+
+Embarqué, le terminal ne prend pas le focus au démarrage : il ferait défiler la page vers
+lui. Une page d'une autre origine n'entend aucune étape (`postMessage` vise l'origine du
+runtime) et ce qu'elle envoie est ignoré : elle ne doit pas piloter une application qu'elle
+encadre. La landing (`LiveTerminal.astro`) montre la capture de l'écran pendant le
+démarrage, la remplace à la même grille, et lit l'écran de l'`iframe` par son DOM pour
+dérouler un script (connexion à Forge).
 
 ## 4. Rendu et entrée
 
