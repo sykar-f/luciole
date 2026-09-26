@@ -24,8 +24,19 @@ type Seed = { env?: Record<string, string>; files?: SnapshotEntry[] };
 const root = resolve(import.meta.dirname, "../..");
 const target = resolve(import.meta.dirname, "../public/demo");
 
-/** `directory` of the checkout under `mount`, only the files `keep` accepts. */
-async function snapshot(directory: string, mount: string, keep: (path: string) => boolean) {
+/**
+ * When the documents were last modified, as the capture dates them (scripts/capture.py,
+ * DOCS_CLOCK): a checkout dates its files from the moment it was made.
+ */
+const DOCS_CLOCK = Date.parse("2026-09-23T09:00:00Z");
+
+/** `directory` of the checkout under `mount`, only the files `keep` accepts, all modified at `clock`. */
+async function snapshot(
+  directory: string,
+  mount: string,
+  keep: (path: string) => boolean,
+  clock: number,
+) {
   const entries: SnapshotEntry[] = [];
   const base = join(root, directory);
   for (const name of await readdir(base, { recursive: true })) {
@@ -35,12 +46,12 @@ async function snapshot(directory: string, mount: string, keep: (path: string) =
     const at = `${mount}/${relative(base, path)}`;
     entries.push(
       info.isDirectory()
-        ? { path: at, kind: "directory", size: 0, mtimeMs: info.mtimeMs }
+        ? { path: at, kind: "directory", size: 0, mtimeMs: clock }
         : {
             path: at,
             kind: "file",
             size: info.size,
-            mtimeMs: info.mtimeMs,
+            mtimeMs: clock,
             content: (await readFile(path)).toString("base64"),
           },
     );
@@ -61,7 +72,7 @@ export const DEMOS: Record<string, { app: string; seed?: () => Promise<Seed> }> 
     app: "examples/mdreader",
     seed: async () => ({
       env: { MD_PATH: "/docs" },
-      files: await snapshot("docs", "/docs", (path) => path.endsWith(".md")),
+      files: await snapshot("docs", "/docs", (path) => path.endsWith(".md"), DOCS_CLOCK),
     }),
   },
   // No key can live in a static site: a scripted model answers, in the Server.

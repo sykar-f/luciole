@@ -11,6 +11,7 @@ renders those cells as HTML: what it shows is what the terminal received, not a 
 
 Needs pyte (scripts/requirements-pty.txt) and a checkout where `bun install` ran.
 """
+import datetime
 import fcntl
 import json
 import os
@@ -39,6 +40,9 @@ CLI = str(ROOT / "packages/airtty/src/cli.ts")
 # The seed's clock (examples/forge/server/seed.ts) plus 22 days, as in scripts/pty-forge.py:
 # the ages Forge shows do not depend on the day of the capture.
 FORGE_CLOCK = "2026-09-23T09:00:00Z"
+# When every document was last modified, as the live demo dates them (scripts/demo.ts,
+# DOCS_CLOCK): a checkout dates its files from the moment it was made.
+DOCS_CLOCK = "2026-09-23T09:00:00Z"
 PRINT = "--print" in sys.argv
 
 
@@ -255,14 +259,21 @@ def files(directory):
 
 
 def mdreader(directory):
-    term = dev("mdreader", {"MD_PATH": str(ROOT / "docs")}, directory, 140, 40)
+    # The live demo's files (website/scripts/demo.ts): the documents only, all modified at
+    # DOCS_CLOCK, shown in UTC and in English, as a reader in the page may see them.
+    docs = pathlib.Path(directory) / "docs"
+    clock = datetime.datetime.fromisoformat(DOCS_CLOCK).timestamp()
+    for source in (ROOT / "docs").rglob("*.md"):
+        copy = docs / source.relative_to(ROOT / "docs")
+        copy.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(source, copy)
+        os.utime(copy, (clock, clock))
+    term = dev("mdreader", {"MD_PATH": str(docs), "TZ": "UTC", "LANG": "en_US.UTF-8"}, directory, 140, 40)
     try:
         term.wait_for("ARCHITECTURE", 120)
         term.idle(1.5)
-        # The live demo reads the same files from /docs (website/scripts/demo.ts).
-        docs = str(ROOT / "docs")
-        shown = [(docs.replace(str(pathlib.Path.home()), "~"), "/docs"), (docs, "/docs")]
-        save(term, "mdreader", "mdreader: Markdown in two panes", shown)
+        # The live demo reads the same files from /docs.
+        save(term, "mdreader", "mdreader: Markdown in two panes", [(str(docs), "/docs")])
     finally:
         term.stop()
 
@@ -281,9 +292,13 @@ def chat(directory):
 
 
 def devtools(directory):
+    # The DevTools application as the live demo runs it (scripts/demo.ts): the demo session
+    # with no bus, so no socket for an application to join and no instructions to join it,
+    # which `airtty devtools --demo` would show.
     term = Terminal(
-        [BUN, CLI, "devtools", "--demo"],
-        {**os.environ, "TERM": "xterm-256color", "COLORTERM": "truecolor", "XDG_STATE_HOME": directory + "/state", "AIRTTY_DESKTOP": "1"},
+        [BUN, CLI, "dev", "--app", str(ROOT / "packages/airtty/src/devtools/airtty-devtools")],
+        {**os.environ, "TERM": "xterm-256color", "COLORTERM": "truecolor", "XDG_STATE_HOME": directory + "/state", "AIRTTY_DESKTOP": "1",
+         "AIRTTY_DEVTOOLS_LISTEN": "none", "AIRTTY_DEVTOOLS_DEMO": "1"},
         140, 40,
     )
     try:
