@@ -84,6 +84,9 @@ suite (délai de 10 s des actions airtty) ; la progression passe par le flux.
   `opencode auth login`).
 - **Pas d'OAuth Anthropic dans pi ni dans opencode** : les modèles Anthropic y sont
   bloqués quand la connexion est un abonnement Claude ; utilisez `--harness claude`.
+- **opencode** : un `opencode serve` par session, sur 127.0.0.1, derrière un mot de passe
+  tiré au hasard à chaque lancement ; le partage public des sessions est désactivé.
+- **Codex** se voit présenter coder sous son nom (`clientInfo.name = "airtty-coder"`).
 - Chaque harness consomme **le quota de l'utilisateur**. Le harness `fake` n'en consomme
   aucun : tests, démo web et découverte de l'interface.
 - « powered by … » en texte seulement : aucune marque n'est reprise.
@@ -96,3 +99,11 @@ bun run test:pty:coder                                    # parcours PTY complet
 ```
 
 Les parcours sur les vrais harnesses sont manuels : ils consomment un peu de quota.
+
+```sh
+bun scripts/pty/coder-real.ts claude|codex|pi|opencode [modèle]
+```
+
+Les adaptateurs sont testés sur des échanges enregistrés une fois sur les vrais binaires
+(`scripts/coder/record-*.ts` → `tests/fixtures/coder/`), rejoués pas à pas
+(`tests/coder-{claude,codex,pi,opencode}.test.ts`).

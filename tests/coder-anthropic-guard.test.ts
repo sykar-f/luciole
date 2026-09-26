@@ -4,11 +4,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   oauthInEnvironment,
+  opencodeAnthropicOAuth,
   piAnthropicOAuth,
   withoutOAuth,
 } from "../examples/coder/server/anthropic-guard";
 
-// docs/CODER-HANDOFF.md §3.5: every way pi could use a Claude subscription is caught,
+// docs/CODER-HANDOFF.md §3.5: every way pi or opencode could use a Claude subscription is caught,
 // and none of them reads a secret into coder.
 let dir: string, pi: string, agent: string;
 beforeAll(async () => {
@@ -83,3 +84,46 @@ test("the environment pi gets has no Anthropic OAuth token left", () => {
     ANTHROPIC_API_KEY: "sk-ant-api03-e",
   });
 });
+
+test.skipIf(!Bun.which("jq"))(
+  "opencode: its login's type through jq, its auth variable's type, what its server offers",
+  async () => {
+    const data = join(dir, "data");
+    const base = env({ XDG_DATA_HOME: data });
+    const get = (answers: Record<string, unknown>) => async (path: string) => answers[path];
+    expect(await opencodeAnthropicOAuth(base, get({}))).toEqual([]);
+    await Bun.write(
+      join(data, "opencode", "auth.json"),
+      JSON.stringify({ anthropic: { type: "oauth", access: "sk-ant-oat01-SECRET" } }),
+    );
+    const reasons = await opencodeAnthropicOAuth(
+      { ...base, OPENCODE_AUTH_CONTENT: JSON.stringify({ anthropic: { type: "oauth" } }) },
+      get({
+        "/provider/auth": { anthropic: [{ type: "oauth", label: "Claude Pro/Max" }] },
+        "/config": { plugin: ["opencode-anthropic-auth@0.0.9", ["other-plugin", {}]] },
+      }),
+    );
+    expect(reasons).toEqual([
+      "opencode's auth.json holds an Anthropic OAuth login",
+      "opencode's auth.json holds an Anthropic OAuth token",
+      "OPENCODE_AUTH_CONTENT holds an Anthropic OAuth login",
+      "opencode offers an Anthropic OAuth login (a plugin adds it)",
+      "opencode loads the plugin opencode-anthropic-auth@0.0.9",
+    ]);
+    expect(JSON.stringify(reasons)).not.toContain("SECRET");
+    // An API key login and a plugin for something else are fine.
+    await Bun.write(
+      join(data, "opencode", "auth.json"),
+      JSON.stringify({ anthropic: { type: "api", key: "sk-ant-api03-x" } }),
+    );
+    expect(
+      await opencodeAnthropicOAuth(
+        base,
+        get({
+          "/provider/auth": { anthropic: [{ type: "api" }] },
+          "/config": { plugin: ["opencode-wakatime"] },
+        }),
+      ),
+    ).toEqual([]);
+  },
+);

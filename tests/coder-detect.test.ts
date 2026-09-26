@@ -121,3 +121,48 @@ esac`,
     }
   },
 );
+
+test.skipIf(!Bun.which("jq"))(
+  "opencode: ready with a credential from its own list; an Anthropic OAuth login is reported",
+  async () => {
+    const data = await mkdtemp(join(tmpdir(), "coder-opencode-data-"));
+    try {
+      // As 1.18.31 prints it, colours included: names and kinds, never a key.
+      await stub(
+        "opencode",
+        `case "$1" in
+  --version) echo "1.18.31";;
+  auth) printf '\\033[0m\\n┌  Credentials \\033[90m~/.local/share/opencode/auth.json\\n│\\n●  OpenCode Zen \\033[90mapi\\n│\\n└  1 credentials\\n\\n┌  Environment\\n│\\n●  OpenAI \\033[90mOPENAI_API_KEY\\n│\\n└  1 environment variables\\n';;
+esac`,
+      );
+      expect(await detect("opencode", env({ XDG_DATA_HOME: data }))).toEqual({
+        id: "opencode",
+        installed: true,
+        version: "1.18.31",
+        ready: true,
+        account: "2 providers",
+        fix: undefined,
+        warnings: [],
+      });
+      await Bun.write(
+        join(data, "opencode", "auth.json"),
+        JSON.stringify({ anthropic: { type: "oauth", access: "sk-ant-oat01-SECRET" } }),
+      );
+      const guarded = await detect("opencode", env({ XDG_DATA_HOME: data }));
+      expect(guarded.warnings).toEqual([
+        "Anthropic models are blocked in opencode: opencode's auth.json holds an Anthropic OAuth login",
+      ]);
+      expect(JSON.stringify(guarded)).not.toContain("SECRET");
+      await stub(
+        "opencode",
+        `case "$1" in --version) echo "1.18.31";; auth) printf '└  0 credentials\\n';; esac`,
+      );
+      expect(await detect("opencode", env({ XDG_DATA_HOME: data }))).toMatchObject({
+        ready: false,
+        fix: "run `opencode auth login` in a terminal (or set an API key)",
+      });
+    } finally {
+      await rm(data, { recursive: true, force: true });
+    }
+  },
+);

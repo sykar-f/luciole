@@ -5,7 +5,7 @@ Branche `feat/coder`. Référence : [CODER-HANDOFF.md](../CODER-HANDOFF.md) (pri
 
 ## Phase en cours
 
-Phase 7 — adaptateur opencode (`opencode serve`, HTTP + SSE).
+Toutes les phases du handoff (0 à 7) sont faites. Voir « Bilan » en fin de document.
 
 ## Fait
 
@@ -62,9 +62,27 @@ Phase 7 — adaptateur opencode (`opencode serve`, HTTP + SSE).
   4 échanges enregistrés, tests de contrat, de la gate (matrice mode × outil × réponse),
   du garde-fou et de la détection ; parcours réel passé.
 
+- **Phase 7** — `feat(coder): drive opencode through its server` : adaptateur
+  `server/adapters/opencode.ts` (un `opencode serve --hostname=127.0.0.1 --port=0` par
+  session, mot de passe aléatoire en Basic auth, `share: "disabled"` ajouté à la
+  configuration, `x-opencode-directory` ; tours par `prompt_async` suivis sur `/event`,
+  fin sur `session.idle` ; parts `text` / `reasoning` / `tool` / `step-finish` /
+  `compaction` ; `permission.asked` → approbation, `question.asked` → question ; modes =
+  règles de session posées à la création et par `PATCH`, `read` lance l'agent `plan` ;
+  commandes par `/session/{id}/command` ; reconnexion du flux avec rattrapage par
+  `/session/status`, `/permission`, `/question`), garde-fou Anthropic
+  (`opencodeAnthropicOAuth` : type d'`auth.json` via `jq`, `OPENCODE_AUTH_CONTENT`,
+  méthode oauth `anthropic` de `/provider/auth`, plugin `/anthropic|claude/i` de
+  `/config` ; vérifié au démarrage, au choix du modèle et avant chaque prompt),
+  détection (`opencode --version`, `opencode auth list`), 6 échanges enregistrés
+  (`scripts/coder/record-opencode.ts`, modèle gratuit OpenCode Zen), 14 tests de
+  contrat, parcours réel passé.
+
 ## Reste
 
-- Phase 7 : adaptateur opencode (détection, fixtures, contrat, garde-fou Anthropic).
+Rien du handoff. Pistes v2 (spec §9) : `/rewind`, `/fork`, `!`, tiroir diff, images,
+injection pendant un tour pour opencode (`/api/*` « v2 » d'opencode, encore
+expérimental).
 
 ## Décisions prises en cours de route
 
@@ -124,6 +142,18 @@ Phase 7 — adaptateur opencode (`opencode serve`, HTTP + SSE).
 - Garde-fou Anthropic : sans `jq`, seuls l'environnement et `pi auth check` sont
   consultés (les tests qui en dépendent sont sautés sans `jq`).
 
+- opencode : `fetch` + SSE écrits à la main plutôt que `@opencode-ai/sdk` : une
+  douzaine de routes, chaque réponse validée par Zod de toute façon ; le SDK aurait
+  ajouté une dépendance et son client généré pour un typage dont coder ne se sert pas.
+- opencode : si l'utilisateur fournit déjà `OPENCODE_CONFIG_CONTENT`, sa configuration
+  est **gardée** et seul `share: "disabled"` y est ajouté (le handoff dit de ne pas
+  l'écraser ; le partage public doit rester coupé dans tous les cas).
+- opencode : pas d'injection pendant un tour (`steer: false`) : un prompt envoyé pendant
+  un tour est mis en file par coder et part à la fin.
+- opencode : fixtures enregistrées avec `opencode/mimo-v2.6-flash-free` (gratuit) : les
+  clés OpenAI / Google de cette machine n'avaient pas de crédit ; `error.jsonl` garde
+  l'échec de crédit OpenAI comme scénario d'erreur.
+
 ## Écarts avec le handoff et la spec
 
 - **Codex 0.157.0, pas 0.156.1** : le profil Nix de l'utilisateur a mis `codex` à jour
@@ -144,3 +174,18 @@ Phase 7 — adaptateur opencode (`opencode serve`, HTTP + SSE).
 
 `bun install --frozen-lockfile` à la racine **et** dans `website/`, puis
 `bunx astro sync` dans `website/` : sans cela `bun run lint` échoue sur les types du site.
+
+## Bilan
+
+- Branche `feat/coder`, non fusionnée, non poussée. Phases 0 à 7 livrées, chacune par un
+  commit atomique ; `bun run verify` vert avant chaque commit significatif (dernier
+  passage : 387 tests réussis, 0 échec).
+- Quatre harnesses réels pilotés (Claude Code, Codex, pi, opencode) plus le harness
+  factice ; chacun a passé le parcours réel sur PTY (`scripts/pty/coder-real.ts`) :
+  réponse, dialogue d'approbation, fichier écrit, aucun processus orphelin.
+- Garde-fous du §3 vérifiés par `tests/coder-compliance.test.ts` (aucun fichier de
+  secrets, aucun endpoint OAuth, binaire `claude` de l'utilisateur, nom de client
+  Codex, serveur opencode verrouillé et sans partage) et par les tests de garde-fou
+  Anthropic (pi et opencode).
+- Pour reprendre : `bun install --frozen-lockfile` (racine et `website/`), `bunx astro
+sync` dans `website/`, puis `bun run coder -- --harness fake` pour la démo.

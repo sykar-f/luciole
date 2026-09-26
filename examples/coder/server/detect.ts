@@ -3,7 +3,7 @@ import { AuthStatus } from "./adapters/claude-protocol";
 import type { HarnessStatus } from "./adapters/types";
 import { parseLine } from "./jsonl";
 import { probe } from "./probe";
-import { piAnthropicOAuth } from "./anthropic-guard";
+import { opencodeAnthropicOAuth, piAnthropicOAuth } from "./anthropic-guard";
 
 /**
  * Whether each harness can run here, found without asking a model anything: its binary,
@@ -106,6 +106,43 @@ async function pi(env: NodeJS.ProcessEnv): Promise<HarnessStatus> {
   };
 }
 
+// `opencode auth list` marks each credential, stored or from the environment, with ●.
+const CREDENTIAL = /^\s*●/;
+
+async function opencode(env: NodeJS.ProcessEnv): Promise<HarnessStatus> {
+  const id = "opencode";
+  const binary = Bun.which("opencode", { PATH: env.PATH ?? "" });
+  if (!binary)
+    return {
+      id,
+      installed: false,
+      ready: false,
+      fix: "install opencode: https://opencode.ai",
+      warnings: [],
+    };
+  const [version, credentials, oauth] = await Promise.all([
+    probe([binary, "--version"], env),
+    // Provider names and how each is signed in ("api", "oauth", a variable's name): no secret.
+    probe([binary, "auth", "list"], env),
+    opencodeAnthropicOAuth(env),
+  ]);
+  const signed =
+    credentials?.code === 0
+      ? Bun.stripANSI(credentials.stdout)
+          .split("\n")
+          .filter((line) => CREDENTIAL.test(line)).length
+      : 0;
+  return {
+    id,
+    installed: true,
+    version: firstLine(version?.stdout ?? "") || undefined,
+    ready: signed > 0,
+    account: signed > 0 ? `${signed} providers` : undefined,
+    fix: signed > 0 ? undefined : "run `opencode auth login` in a terminal (or set an API key)",
+    warnings: oauth.length ? [`Anthropic models are blocked in opencode: ${oauth[0]}`] : [],
+  };
+}
+
 /** Whether `id` can run with this environment. */
 export async function detect(
   id: HarnessId,
@@ -128,13 +165,7 @@ export async function detect(
     case "pi":
       return pi(env);
     case "opencode":
-      return {
-        id,
-        installed: Bun.which(id, { PATH: env.PATH ?? "" }) !== null,
-        ready: false,
-        fix: `${HARNESS_NAMES[id]} is not supported by this build of coder yet`,
-        warnings: [],
-      };
+      return opencode(env);
   }
 }
 

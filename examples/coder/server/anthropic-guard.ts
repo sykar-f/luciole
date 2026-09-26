@@ -74,5 +74,48 @@ export async function piAnthropicOAuth(env: NodeJS.ProcessEnv, pi: string) {
   return reasons;
 }
 
+const opencodeData = (env: NodeJS.ProcessEnv) =>
+  join(env.XDG_DATA_HOME ?? join(env.HOME ?? homedir(), ".local", "share"), "opencode");
+// opencode's credentials may also come from the environment, whole: only the type is kept.
+const OpencodeAuthContent = z.looseObject({
+  anthropic: z.looseObject({ type: z.string().optional() }).optional(),
+});
+const ProviderAuth = z.record(z.string(), z.array(z.looseObject({ type: z.string() })));
+const OpencodeConfig = z.looseObject({
+  plugin: z.array(z.union([z.string(), z.tuple([z.string()]).rest(z.unknown())])).optional(),
+});
+const SUBSCRIPTION_PLUGIN = /anthropic|claude/i;
+/** Asks the running `opencode serve` for a route's JSON; `undefined` when it failed. */
+export type OpencodeGet = (path: string) => Promise<unknown>;
+
+/**
+ * Every sign that opencode would use an Anthropic subscription (opencode-report §4):
+ * its login's type, a login method its server offers, a plugin that adds one.
+ */
+export async function opencodeAnthropicOAuth(env: NodeJS.ProcessEnv, get?: OpencodeGet) {
+  const reasons = oauthInEnvironment(env).map((name) => `${name} is set`);
+  if ((await ask(join(opencodeData(env), "auth.json"), TYPE, env)) === "oauth")
+    reasons.push("opencode's auth.json holds an Anthropic OAuth login");
+  if ((await ask(join(opencodeData(env), "auth.json"), OAUTH_VALUE, env)) === "true")
+    reasons.push("opencode's auth.json holds an Anthropic OAuth token");
+  const content = env.OPENCODE_AUTH_CONTENT;
+  if (
+    content &&
+    OpencodeAuthContent.safeParse(parseLine(content)).data?.anthropic?.type === "oauth"
+  )
+    reasons.push("OPENCODE_AUTH_CONTENT holds an Anthropic OAuth login");
+  if (!get) return reasons;
+  const [methods, config] = await Promise.all([get("/provider/auth"), get("/config")]);
+  const offered = ProviderAuth.safeParse(methods);
+  if (offered.success && offered.data.anthropic?.some((method) => method.type === "oauth"))
+    reasons.push("opencode offers an Anthropic OAuth login (a plugin adds it)");
+  const plugins = OpencodeConfig.safeParse(config);
+  const suspect = (plugins.data?.plugin ?? [])
+    .map((plugin) => (typeof plugin === "string" ? plugin : plugin[0]))
+    .find((name) => SUBSCRIPTION_PLUGIN.test(name));
+  if (suspect) reasons.push(`opencode loads the plugin ${suspect}`);
+  return reasons;
+}
+
 /** Whether a model belongs to Anthropic's own API (Claude through Bedrock, Vertex… is fine). */
 export const isAnthropic = (provider: string) => provider === "anthropic";

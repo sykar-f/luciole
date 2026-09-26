@@ -57,3 +57,17 @@ test("Codex is told who drives it: an honest client name, its own login flow", (
   expect(codex).toContain("run `codex login`");
   expect(offending(/chatgptAuthTokens|account\/login\/start/)).toEqual([]);
 });
+
+test("opencode: its own server, locked to coder, never sharing a session publicly", () => {
+  const opencode = readFileSync(join(ROOT, "server/adapters/opencode.ts"), "utf8");
+  // A random password per launch: no other local process drives the agent.
+  expect(opencode).toContain("const password = crypto.randomUUID();");
+  expect(opencode).toContain("OPENCODE_SERVER_PASSWORD: password");
+  expect(opencode).toContain('"--hostname=127.0.0.1"');
+  expect(opencode).toContain('share: "disabled"');
+  expect(offending(/\/share\b/)).toEqual([]);
+  // The user signs in with opencode's own command.
+  expect(readFileSync(join(ROOT, "server/detect.ts"), "utf8")).toContain(
+    "run `opencode auth login`",
+  );
+});
