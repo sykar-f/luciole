@@ -131,6 +131,8 @@ export class PiHarness implements Harness {
   >();
   private readonly pending = new Map<string, { ui: string; request: Request }>();
   private readonly tools = new Map<string, Item>();
+  /** Tool events, handled one after the other. */
+  private toolEvents: Promise<void> = Promise.resolve();
   private blocked: readonly string[] = [];
   private provider = "";
   private message = 0;
@@ -269,13 +271,13 @@ export class PiHarness implements Harness {
         return this.delta(raw);
       case "message_end":
         return this.messageEnd(raw);
+      // In order: a start reads the file for its diff, its end must not overtake it.
       case "tool_execution_start":
-        void this.toolStart(raw);
-        return;
+        return this.tool(() => this.toolStart(raw));
       case "tool_execution_update":
-        return this.toolUpdate(raw);
+        return this.tool(() => this.toolUpdate(raw));
       case "tool_execution_end":
-        return this.toolEnd(raw);
+        return this.tool(() => this.toolEnd(raw));
       case "queue_update": {
         const queue = Queue.safeParse(raw);
         if (queue.success)
@@ -344,10 +346,15 @@ export class PiHarness implements Harness {
         return;
       }
       case "agent_settled":
-        return void this.settled();
+        // After the turn's last tool event: its items complete before the turn does.
+        return this.tool(() => void this.settled());
       default:
         return;
     }
+  }
+
+  private tool(handle: () => void | Promise<void>) {
+    this.toolEvents = this.toolEvents.then(handle).catch(() => {});
   }
 
   private async settled() {
