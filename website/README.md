@@ -37,16 +37,24 @@ Le chemin absolu du checkout et le `$TMPDIR` de macOS sont remplacés par des ch
 neutres de même largeur. Forge démarre à une date fixe : les âges affichés ne dépendent
 pas du jour de la capture. Après un changement visible d'un exemple, relancer la scène.
 
-## La démo live est reconstruite, pas copiée à la main
+## Les démos live sont reconstruites, pas copiées à la main
 
-« Try it in your browser » charge Notes dans un `iframe`, à la demande (~1,7 Mo
-compressé) : `airtty build --web-local` de `examples/notes`, Client et Server dans
-l'onglet (voir `docs/WEB.md`). `scripts/demo.ts` refait ce build et copie
-`.airtty/web/` sans les source maps dans `public/demo/notes/`, que Git ignore : la démo
-suit toujours le framework et Notes, sans binaires figés dans le dépôt. Après un
-changement du framework ou de Notes, relancer `bun run demo` ; si le framework a changé,
-le runtime web est reconstruit et demande Zig 0.16.0 (`ZIG=/chemin/vers/zig bun run demo`). Sans cette étape, la page
-se construit quand même, avec un avertissement, mais le bouton mène à une 404.
+Le hero fait tourner Forge dans la page : `airtty build --web-local` de `examples/forge`,
+Client et Server dans l'onglet (voir `docs/WEB.md`). `scripts/demo.ts` refait ce build
+pour chaque démo (`forge`, `notes`) et copie `.airtty/web/` sans les source maps dans
+`public/demo/<app>/`, que Git ignore. Le runtime web, commun à toutes les applications, est
+publié une fois dans `public/demo/runtime/` : la première démo lancée met en cache les plus
+gros fichiers des autres. Après un changement du framework ou d'un exemple, relancer
+`bun run demo` ; si le framework a changé, le runtime web est reconstruit et demande Zig
+0.16.0 (`ZIG=/chemin/vers/zig bun run demo`). Sans cette étape, la page se construit
+quand même, mais le hero reste sur sa capture.
+
+`LiveTerminal.astro` dessine d'abord la capture de l'écran (aucune attente, aucun décalage),
+démarre l'application derrière elle dans un `iframe` à la même grille, affiche les étapes
+du démarrage, déroule un script (Forge : connexion en alice, pull request payments#1), puis
+remplace la capture. Un clic sur l'écran donne le clavier à l'application, un clic ailleurs
+le rend à la page. Sous 760 px de large ou avec l'économie de données, rien ne démarre : un
+lien ouvre la démo dans sa propre page.
 
 La page lit aussi les sources de `examples/notes` à la compilation (`?raw`) : le code
 montré dans « One codebase. Two programs. » est celui du dépôt.

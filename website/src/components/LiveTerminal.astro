@@ -1,0 +1,370 @@
+---
+// An example application running in this page (scripts/demo.ts, docs/WEB.md "Page
+// embarquée"), over its own captured screen. The capture is drawn at once, so the page
+// never waits and never shifts; the application starts behind it, its start told step by
+// step, and replaces it cell for cell once it has drawn. A script may walk it to the
+// screen the capture shows first (sign in, open a pull request). The reader takes the
+// keyboard by clicking it: until then, the page scrolls over it as over a picture.
+import Screen from "./Screen.astro";
+import type { Frame } from "../lib/frames";
+
+/**
+ * Wait until the screen shows `wait`, then type `type` into it as a keyboard would, then
+ * let `pause` milliseconds pass: what a key changed (a focused field) is not always text.
+ */
+export type Step = { wait: string; type: string; pause?: number };
+
+interface Props {
+  /** The demo's directory under public/demo/. */
+  demo: string;
+  /** Its captured screen: the poster, and the grid the live terminal keeps. */
+  frame: Frame;
+  script?: Step[];
+  /** `eager` starts with the page; `visible`, when the window comes near the viewport. */
+  boot?: "eager" | "visible";
+  /** The last line of the start log: what the script does before the reveal. */
+  arriving?: string;
+  glow?: boolean;
+  tilt?: boolean;
+  printed?: boolean;
+}
+
+const {
+  demo,
+  frame,
+  script = [],
+  boot = "visible",
+  arriving = "first screen",
+  glow = false,
+  tilt = false,
+  printed = false,
+} = Astro.props;
+
+// The capture's own colours (--screen, --screen-fg): the terminal takes them.
+const look = new URLSearchParams({
+  columns: String(frame.cols),
+  rows: String(frame.rows),
+  background: "0a0f16",
+  foreground: "e6edf3",
+});
+// index.html by name: Astro's dev server serves no directory index from public/.
+const src = `/demo/${demo}/index.html?${look}`;
+
+const steps: [stage: string, what: string][] = [
+  ["runtime", "runtime.js, opentui.wasm"],
+  ["bundle", `${demo}'s Client Components`],
+  ["server", "Server in a Worker, SQLite in WebAssembly"],
+  ["terminal", `xterm.js, ${frame.cols}×${frame.rows}`],
+  ["drawn", arriving],
+];
+---
+
+<div
+  class="live"
+  data-live
+  data-src={src}
+  data-boot={boot}
+  data-script={JSON.stringify(script)}
+>
+  <Screen frame={frame} glow={glow} tilt={tilt} printed={printed}>
+    <div slot="live" class="layer">
+      <ol class="log" aria-live="polite" aria-label={`Starting ${demo} in this page`}>
+        {
+          steps.map(([stage, what]) => (
+            <li data-stage={stage}>
+              <span class="mark" aria-hidden="true" />
+              <span class="stage">{stage}</span>
+              <span class="what">{what}</span>
+            </li>
+          ))
+        }
+      </ol>
+      <span class="take" data-take hidden>Live · click to use the keyboard</span>
+    </div>
+  </Screen>
+  <p class="fallback" data-fallback hidden>
+    Too narrow to run here: <a href={src}>open {demo} in its own page</a>.
+  </p>
+</div>
+
+<script>
+  import * as z from "zod/mini";
+
+  const Stage = z.object({ source: z.literal("airtty"), type: z.literal("stage"), stage: z.string() });
+  const Script = z.array(
+    z.object({ wait: z.string(), type: z.string(), pause: z.optional(z.number()) }),
+  );
+  const Connection = z.object({ saveData: z.optional(z.boolean()) });
+
+  const DRAWN_TIMEOUT_MS = 20_000;
+  const STEP_TIMEOUT_MS = 8_000;
+  const POLL_MS = 80;
+  /** Below this width a wide terminal's cells are too small to read: no start. */
+  const NARROW = "(max-width: 760px)";
+
+  /** The reader asked the browser to spare data: nothing starts by itself. */
+  const saving = () => Connection.safeParse(Reflect.get(navigator, "connection")).data?.saveData === true;
+
+  const sleep = (ms: number) => new Promise((done) => setTimeout(done, ms));
+
+  /** The text xterm.js draws into the frame's DOM (same origin). */
+  const screenOf = (frame: HTMLIFrameElement) =>
+    [...(frame.contentDocument?.querySelectorAll(".xterm-rows > div") ?? [])]
+      .map((row) => row.textContent ?? "")
+      .join("\n");
+
+  /** Waits for `text`, or for `goal`, the script's last screen: then there is nothing to do. */
+  async function until(frame: HTMLIFrameElement, text: string, goal: string) {
+    const deadline = performance.now() + STEP_TIMEOUT_MS;
+    for (;;) {
+      const screen = screenOf(frame);
+      if (screen.includes(goal)) return "arrived";
+      if (screen.includes(text)) return "shown";
+      if (performance.now() > deadline) return "lost";
+      await sleep(POLL_MS);
+    }
+  }
+
+  const type = (frame: HTMLIFrameElement, data: string) =>
+    frame.contentWindow?.postMessage({ source: "airtty", type: "input", data }, location.origin);
+
+  function start(root: HTMLElement) {
+    const layer = root.querySelector<HTMLElement>(".layer");
+    const take = root.querySelector<HTMLElement>("[data-take]");
+    if (!layer || !take || root.dataset.started) return;
+    root.dataset.started = "true";
+    root.classList.add("booting");
+    const script = Script.safeParse(JSON.parse(root.dataset.script ?? "[]"));
+
+    const frame = document.createElement("iframe");
+    frame.title = "An airtty application running in this page";
+    frame.src = root.dataset.src ?? "";
+    frame.allow = "clipboard-write";
+    frame.tabIndex = -1;
+    layer.prepend(frame);
+
+    let drawn = false;
+    const reveal = () => {
+      root.classList.remove("booting");
+      root.classList.add("on");
+      take.hidden = false;
+      layer.setAttribute("role", "button");
+      layer.setAttribute("aria-label", "Use the live application with the keyboard");
+      layer.tabIndex = 0;
+    };
+    const fail = () => {
+      root.classList.remove("booting");
+      frame.remove();
+    };
+    setTimeout(() => drawn || fail(), DRAWN_TIMEOUT_MS);
+
+    addEventListener("message", async (event) => {
+      if (event.source !== frame.contentWindow || event.origin !== location.origin) return;
+      const message = Stage.safeParse(event.data);
+      if (!message.success) return;
+      layer.querySelector(`[data-stage="${message.data.stage}"]`)?.classList.add("done");
+      if (message.data.stage !== "drawn") return;
+      drawn = true;
+      const steps = script.success ? script.data : [];
+      const goal = steps.at(-1)?.wait ?? "";
+      for (const step of steps) {
+        if ((await until(frame, step.wait, goal)) !== "shown") break;
+        if (step.type) type(frame, step.type);
+        if (step.pause) await sleep(step.pause);
+      }
+      reveal();
+    });
+
+    // The reader takes the keyboard; a click anywhere else gives the page back.
+    const hold = (held: boolean) => {
+      root.classList.toggle("held", held);
+      take.hidden = held;
+      frame.tabIndex = held ? 0 : -1;
+      if (!held) return;
+      frame.focus();
+      frame.contentDocument?.querySelector<HTMLElement>(".xterm-helper-textarea")?.focus();
+    };
+    // The whole screen takes the keyboard: a hint in a corner is easy to miss on 40 rows.
+    const takeIfLive = () => root.classList.contains("on") && !root.classList.contains("held") && hold(true);
+    layer.addEventListener("click", takeIfLive);
+    layer.addEventListener("keydown", (event) => {
+      if (event.target !== layer || (event.key !== "Enter" && event.key !== " ")) return;
+      event.preventDefault();
+      takeIfLive();
+    });
+    document.addEventListener("pointerdown", (event) => {
+      if (event.target instanceof Node && !root.contains(event.target)) hold(false);
+    });
+  }
+
+  for (const root of document.querySelectorAll<HTMLElement>("[data-live]")) {
+    if (matchMedia(NARROW).matches || saving()) {
+      root.querySelector<HTMLElement>("[data-fallback]")?.removeAttribute("hidden");
+      continue;
+    }
+    if (root.dataset.boot === "eager") {
+      start(root);
+      continue;
+    }
+    const near = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((entry) => entry.isIntersecting)) return;
+        near.disconnect();
+        start(root);
+      },
+      { rootMargin: "400px 0px" },
+    );
+    near.observe(root);
+  }
+</script>
+
+<style>
+  .layer {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+
+  .layer :global(iframe) {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    background: var(--screen);
+    opacity: 0;
+    transition: opacity 0.6s ease;
+  }
+
+  .on .layer :global(iframe) {
+    opacity: 1;
+  }
+
+  /* Live and not held: the screen is one button; the wheel still scrolls the page. */
+  .on .layer {
+    pointer-events: auto;
+    cursor: pointer;
+  }
+
+  .held .layer {
+    cursor: auto;
+  }
+
+  .held .layer :global(iframe) {
+    pointer-events: auto;
+  }
+
+  /* The capture waits, dimmed, while the application starts behind it. */
+  .live :global(.grid) {
+    transition:
+      opacity 0.6s ease,
+      filter 0.6s ease;
+  }
+
+  .booting :global(.grid) {
+    opacity: 0.35;
+    filter: saturate(0.5) blur(0.5px);
+  }
+
+  .on :global(.grid) {
+    opacity: 0;
+  }
+
+  .log {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    display: grid;
+    gap: 6px;
+    min-width: min(420px, 90%);
+    margin: 0;
+    padding: 16px 18px;
+    border: 1px solid var(--rule-strong);
+    border-radius: 10px;
+    background: rgb(7 11 18 / 0.88);
+    box-shadow: 0 30px 80px -30px rgb(0 0 0 / 0.9);
+    color: var(--mist);
+    font: 400 0.78rem / 1.5 var(--mono);
+    list-style: none;
+    opacity: 0;
+    transform: translate(-50%, -46%);
+    transition:
+      opacity 0.3s ease,
+      transform 0.3s ease;
+    backdrop-filter: blur(6px);
+  }
+
+  .booting .log {
+    opacity: 1;
+    transform: translate(-50%, -50%);
+  }
+
+  .log li {
+    display: grid;
+    grid-template-columns: 10px 76px 1fr;
+    align-items: center;
+    gap: 10px;
+    opacity: 0.45;
+    transition: opacity 0.2s;
+  }
+
+  .log li.done {
+    opacity: 1;
+  }
+
+  .mark {
+    width: 8px;
+    height: 8px;
+    border: 1px solid var(--dim);
+    border-radius: 50%;
+  }
+
+  .done .mark {
+    border-color: var(--client);
+    background: var(--client);
+    box-shadow: 0 0 8px var(--client);
+  }
+
+  .stage {
+    color: var(--paper);
+  }
+
+  .what {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .take {
+    position: absolute;
+    top: 10px;
+    right: 14px;
+    padding: 6px 12px;
+    border: 1px solid rgb(103 217 188 / 0.45);
+    border-radius: 999px;
+    background: rgb(7 11 18 / 0.85);
+    color: var(--client);
+    font: 500 0.75rem / 1.2 var(--mono);
+    backdrop-filter: blur(6px);
+    transition: border-color 0.2s;
+  }
+
+  .on:not(.held) .layer:hover .take {
+    border-color: var(--client);
+  }
+
+  .fallback {
+    margin-top: 14px;
+    color: var(--dim);
+    font-size: var(--step--1);
+    text-align: center;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .layer :global(iframe),
+    .live :global(.grid),
+    .log {
+      transition: none;
+    }
+  }
+</style>

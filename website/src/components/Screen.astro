@@ -67,6 +67,7 @@ const html = frame.cells
           )
         }
       </div>
+      <slot name="live" />
     </div>
   </figure>
 </div>
@@ -174,7 +175,9 @@ const html = frame.cells
     justify-self: end;
   }
 
+  /* A live terminal (LiveTerminal.astro) lies over the capture, in the same box. */
   .screen {
+    position: relative;
     container-type: inline-size;
     overflow: auto hidden;
     padding: 12px 0 14px;

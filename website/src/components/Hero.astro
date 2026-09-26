@@ -1,41 +1,16 @@
 ---
-import Screen, { type Region } from "./Screen.astro";
+import LiveTerminal, { type Step } from "./LiveTerminal.astro";
 import { frame } from "../lib/frames";
 import { repo } from "../lib/links";
 
-// Where each file of examples/forge drew on the captured screen.
-const parts: (Region & { file: string; note: string })[] = [
-  {
-    id: "root",
-    side: "client",
-    file: "app/layout.tsx",
-    note: "Connection status and global keys, mounted once.",
-    rects: [
-      { row: 1, col: 0, rows: 1, cols: 140 },
-      { row: 38, col: 0, rows: 1, cols: 140 },
-    ],
-  },
-  {
-    id: "sidebar",
-    side: "client",
-    file: "app/(app)/layout.tsx",
-    note: "Sidebar, identity and unsaved Drafts. It survives every navigation.",
-    rects: [{ row: 3, col: 1, rows: 34, cols: 30 }],
-  },
-  {
-    id: "tabs",
-    side: "client",
-    file: "pulls/[number]/layout.tsx",
-    note: "Tabs switch pages without leaving the pull request.",
-    rects: [{ row: 4, col: 33, rows: 1, cols: 106 }],
-  },
-  {
-    id: "page",
-    side: "server",
-    file: "pulls/[number]/page.tsx",
-    note: "Reads the database on the Server, reaches the terminal as React Flight.",
-    rects: [{ row: 5, col: 33, rows: 32, cols: 106 }],
-  },
+// Forge starts on its sign-in screen: the page signs in as alice and opens the pull request
+// the capture shows, then hands over. A reader coming back finds it where they left it.
+const signIn: Step[] = [
+  { wait: "Demo accounts", type: "alice\r", pause: 250 },
+  { wait: "Demo accounts", type: "forge\r" },
+  { wait: "REVIEW REQUESTED", type: "j", pause: 250 },
+  { wait: "REVIEW REQUESTED", type: "\r" },
+  { wait: "wants to merge feature/refund-idempotency", type: "" },
 ];
 ---
 
@@ -60,61 +35,24 @@ const parts: (Region & { file: string; note: string })[] = [
       <p class="needs">Bun 1.4.2, macOS and Linux</p>
     </div>
 
-    <div class="showcase" data-hero-stage>
-      <Screen frame={frame("forge-pr")} regions={parts} printed glow tilt />
-      <ul class="legend" aria-label="What each file of Forge drew on this screen">
-        {
-          parts.map((part) => (
-            <li>
-              <button type="button" class:list={["part", part.side]} data-part={part.id}>
-                <span class="file">{part.file}</span>
-                <span class="note">{part.note}</span>
-              </button>
-            </li>
-          ))
-        }
-      </ul>
+    <div class="showcase">
+      <LiveTerminal
+        demo="forge"
+        frame={frame("forge-pr")}
+        script={signIn}
+        boot="eager"
+        arriving="signing in as alice"
+        printed
+        glow
+        tilt
+      />
       <p class="caption">
-        Forge, a code-review app from the repository. Hover a file to see what it drew.
+        Forge, the code-review example, running in this page: its Server in a Worker, its
+        database in SQLite. Click it and review.
       </p>
     </div>
   </div>
 </section>
-
-<script>
-  // The screen has printed by then; each part stays lit this long.
-  const INTRO_MS = 1300;
-  const STEP_MS = 900;
-  const stage = document.querySelector<HTMLElement>("[data-hero-stage]");
-  if (stage) {
-    const regions = [...stage.querySelectorAll<HTMLElement>("[data-region]")];
-    const buttons = [...stage.querySelectorAll<HTMLButtonElement>("[data-part]")];
-    let touched = false;
-    const light = (id: string | null) => {
-      for (const region of regions) region.classList.toggle("lit", region.dataset.region === id);
-      for (const button of buttons) button.classList.toggle("on", button.dataset.part === id);
-    };
-    for (const button of buttons) {
-      const show = () => {
-        touched = true;
-        light(button.dataset.part ?? null);
-      };
-      button.addEventListener("pointerenter", show);
-      button.addEventListener("focus", show);
-      button.addEventListener("click", show);
-      button.addEventListener("pointerleave", () => light(null));
-      button.addEventListener("blur", () => light(null));
-    }
-    // Once the screen has printed, walk through its parts once, unless the reader already is.
-    if (!matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      const order = buttons.map((b) => b.dataset.part ?? null);
-      order.forEach((id, i) =>
-        setTimeout(() => !touched && light(id), INTRO_MS + i * STEP_MS),
-      );
-      setTimeout(() => !touched && light(null), INTRO_MS + order.length * STEP_MS);
-    }
-  }
-</script>
 
 <style>
   .hero {
@@ -204,88 +142,10 @@ const parts: (Region & { file: string; note: string })[] = [
     font-size: var(--step--1);
   }
 
-  .legend {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 10px;
-    margin: 22px 0 0;
-    padding: 0;
-    list-style: none;
-  }
-
-  .part {
-    display: grid;
-    align-content: start;
-    gap: 6px;
-    width: 100%;
-    height: 100%;
-    padding: 14px 16px;
-    border: 1px solid var(--rule);
-    border-radius: 10px;
-    background: rgb(255 255 255 / 0.02);
-    color: var(--mist);
-    font: 400 0.8rem / 1.5 var(--mono);
-    text-align: left;
-    cursor: default;
-    transition:
-      border-color 0.2s,
-      background 0.2s,
-      box-shadow 0.2s;
-  }
-
-  .file {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    color: var(--paper);
-    font-weight: 500;
-    overflow-wrap: anywhere;
-  }
-
-  .file::before {
-    content: "";
-    flex-shrink: 0;
-    width: 7px;
-    height: 7px;
-    border-radius: 2px;
-  }
-
-  .part.client .file::before {
-    background: var(--client);
-  }
-
-  .part.server .file::before {
-    background: var(--server);
-  }
-
-  .part.client.on {
-    border-color: rgb(103 217 188 / 0.5);
-    background: var(--client-soft);
-    box-shadow: 0 0 30px -10px rgb(103 217 188 / 0.5);
-  }
-
-  .part.server.on {
-    border-color: rgb(255 188 102 / 0.5);
-    background: var(--server-soft);
-    box-shadow: 0 0 30px -10px rgb(255 188 102 / 0.5);
-  }
-
   .caption {
     margin-top: 16px;
     color: var(--dim);
     font-size: var(--step--1);
     text-align: center;
-  }
-
-  @media (max-width: 900px) {
-    .legend {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-  }
-
-  @media (max-width: 520px) {
-    .legend {
-      grid-template-columns: 1fr;
-    }
   }
 </style>
