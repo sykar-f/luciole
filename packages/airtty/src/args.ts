@@ -429,9 +429,7 @@ export function defineArgs<Output>(spec: ArgsSpec<Output>): ArgsDefinition<Outpu
   let flags: Flag[] | undefined;
   let adopted: { value: Output } | undefined;
   const compiled = () => (flags ??= grammar(spec.options));
-  const parse = async (argv: readonly string[], context: ParseContext) => {
-    const raw = tokenize(argv, compiled(), context);
-    const result = await spec.options["~standard"].validate(raw);
+  const settle = (result: StandardResult<Output>) => {
     if (result.issues) {
       const messages = result.issues.map((issue) => {
         const key = issuePath(issue.path);
@@ -442,7 +440,14 @@ export function defineArgs<Output>(spec: ArgsSpec<Output>): ArgsDefinition<Outpu
     }
     return result.value;
   };
-  return {
+  const parse = async (argv: readonly string[], context: ParseContext) =>
+    settle(await spec.options["~standard"].validate(tokenize(argv, compiled(), context)));
+  const keep = (value: Output, launch: LaunchArgs, cwd: string) => {
+    adopted = { value };
+    configured = { value, argv: launch.argv, cwd, fingerprint: argsFingerprint(value) };
+    return configured;
+  };
+  const definition: ArgsDefinition<Output> = {
     ...spec,
     brand: ARGS_BRAND,
     flags: compiled,
@@ -470,17 +475,49 @@ export function defineArgs<Output>(spec: ArgsSpec<Output>): ArgsDefinition<Outpu
     },
     jsonSchema: () => spec.options["~standard"].jsonSchema.input({ target: "draft-2020-12" }),
     async adopt(launch, context) {
-      const value = await parse(launch.argv, context);
-      adopted = { value };
-      configured = {
-        value,
-        argv: launch.argv,
-        cwd: context.cwd,
-        fingerprint: argsFingerprint(value),
-      };
-      return configured;
+      return configured ?? keep(await parse(launch.argv, context), launch, context.cwd);
     },
   };
+  // In a Server, parsed as the module is defined: `get()` works at module level, where
+  // the modules importing this one read it before the entry's own code runs.
+  const server = serverLaunch();
+  if (server)
+    try {
+      const launch = decodeLaunchArgs(server.env[ARGS_VARIABLE]);
+      const cwd = launch.cwd ?? server.cwd;
+      const result = spec.options["~standard"].validate(
+        tokenize(launch.argv, compiled(), { cwd, env: server.env }),
+      );
+      if (result instanceof Promise)
+        throw new Error("app/args.ts: an asynchronous schema cannot configure a Server");
+      keep(settle(result), launch, cwd);
+    } catch (error: unknown) {
+      refuse(error);
+    }
+  return definition;
+}
+
+/** A Server that cannot start with the arguments it was given: exit code 2, and why. */
+function refuse(error: unknown): never {
+  console.error(
+    `Invalid application arguments: ${error instanceof Error ? error.message : String(error)}`,
+  );
+  process.exit(USAGE_EXIT_CODE);
+}
+
+// Set by the Server entry before any application module is evaluated (src/args-server.ts).
+const SERVER_LAUNCH = Symbol.for("airtty.args.server");
+const ServerLaunch = z.object({
+  env: z.record(z.string(), z.optional(z.string())),
+  cwd: z.string(),
+});
+/** Marks this process as a Server: definitions evaluated from now on adopt its launch. */
+export function markServer(env: Record<string, string | undefined>, cwd: string) {
+  Reflect.set(globalThis, SERVER_LAUNCH, { env, cwd });
+}
+function serverLaunch() {
+  const parsed = ServerLaunch.safeParse(Reflect.get(globalThis, SERVER_LAUNCH));
+  return parsed.success ? parsed.data : undefined;
 }
 
 /** `app/args.ts`'s default export, as a launcher imports it from a built bundle. */
@@ -560,10 +597,7 @@ export async function configureArgs(
     const launch = decodeLaunchArgs(env[ARGS_VARIABLE]);
     await definition.adopt(launch, { cwd: launch.cwd ?? cwd, env });
   } catch (error: unknown) {
-    console.error(
-      `Invalid application arguments: ${error instanceof Error ? error.message : String(error)}`,
-    );
-    process.exit(USAGE_EXIT_CODE);
+    refuse(error);
   }
 }
 

@@ -671,6 +671,7 @@ async function buildUnlocked(
   )
     await Bun.write(routeTreeFile, routeTreeSource);
   const serverSource =
+    (hasArgs ? `import ${quote(join(framework, "args-server.ts"))};` : "") +
     `import {serve} from ${quote(join(framework, "server.ts"))};${hasAuth ? `import Auth from ${quote(authFile)};` : ""}${hasCache ? `import Cache from ${quote(cacheFile)};` : ""}\n` +
     // The Server parses its launch's arguments before anything reads them.
     (hasArgs

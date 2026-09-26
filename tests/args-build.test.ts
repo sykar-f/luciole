@@ -24,8 +24,10 @@ export default defineArgs({
 });`;
 const files: Record<string, string> = {
   "app/layout.tsx": `"use client";export default function Layout({children}){return children}`,
+  // Read at module level: the Server parses its arguments before any page module runs.
   "app/page.tsx": `import cli from "./args";import {getArgs} from "airtty/server";
-export default function Page(){const {name,dir}=cli.get();return <text>{"HELLO "+name+" IN "+(dir ?? "-")+" SAME "+String(getArgs()===cli.get())}</text>}`,
+const {name,dir}=cli.get();
+export default function Page(){return <text>{"HELLO "+name+" IN "+(dir ?? "-")+" SAME "+String(getArgs()===cli.get())}</text>}`,
   "app/args.ts": ARGS,
   "shared/greeting.ts": `export const GREETING = "world";`,
 };
