@@ -71,6 +71,7 @@
         "examples/forge/server/ci.ts",
         "examples/forge/server/seed.ts",
         "packages/airtty/src/devtools/fixtures.ts",
+        "packages/airtty/src/web/node/sha256.ts",
         "website/src/pages/guide/index.astro",
         "website/src/pages/guide/build.astro"
       ],

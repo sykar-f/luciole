@@ -3,6 +3,11 @@
  * (`/manifest`, `/bundle/<sha256>`), hashed with SubtleCrypto, evaluated as a blob
  * module. The checks, the ABI table and the Application are src/app-evaluate.ts's.
  */
+import * as childProcess from "node:child_process";
+import * as fs from "node:fs";
+import * as fsPromises from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
 import * as z from "zod/mini";
 import { AppManifest } from "../../abi";
 import { applicationOf, checkAbi, evaluateAppBundle, type AppBundle } from "../../app-evaluate";
@@ -16,6 +21,21 @@ export type PublisherCheck = {
   required?: boolean;
   trust?: (fingerprint: string, manifest: AppManifest) => void | Promise<void>;
 };
+
+/**
+ * The Node built-ins a bundle may declare, as this page has them: the runtime's own
+ * stand-ins (src/web/node/). As in the Server's web build (docs/WEB.md, W9), loading
+ * works and using what a page lacks says so, so an app whose terminal-only feature
+ * imports `child_process` still opens, without that feature.
+ */
+const BUILTINS: Record<string, unknown> = {
+  child_process: childProcess,
+  fs,
+  "fs/promises": fsPromises,
+  os,
+  path,
+};
+const builtin = (specifier: string) => BUILTINS[specifier.replace(/^node:/, "")];
 
 const HEX = 16;
 const hex = (bytes: ArrayBuffer) =>
@@ -82,6 +102,7 @@ export async function loadAppBundle(
     file: file.href,
     directory: new URL(".", file).href,
     compile: () => wrapper,
+    builtin,
   });
 }
 
