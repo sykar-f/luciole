@@ -43,6 +43,18 @@
         "zod": "catalog:",
       },
     },
+    "examples/coder": {
+      "name": "@airtty-examples/coder",
+      "dependencies": {
+        "@opentui/core": "catalog:",
+        "@opentui/keymap": "catalog:",
+        "@opentui/react": "catalog:",
+        "@tanstack/react-router": "catalog:",
+        "airtty": "workspace:*",
+        "react": "catalog:",
+        "zod": "catalog:",
+      },
+    },
     "examples/files": {
       "name": "@airtty-examples/files",
       "dependencies": {
@@ -184,6 +196,8 @@
     "@airtty-examples/agent": ["@airtty-examples/agent@workspace:examples/agent"],
 
     "@airtty-examples/chat": ["@airtty-examples/chat@workspace:examples/chat"],
+
+    "@airtty-examples/coder": ["@airtty-examples/coder@workspace:examples/coder"],
 
     "@airtty-examples/files": ["@airtty-examples/files@workspace:examples/files"],
 

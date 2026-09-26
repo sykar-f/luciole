@@ -1,0 +1,20 @@
+{
+  "name": "@airtty-examples/coder",
+  "private": true,
+  "type": "module",
+  "description": "One coding-agent session in a terminal, on Claude Code, Codex, pi or opencode.",
+  "airtty": {
+    "displayName": "coder",
+    "server": "per-launch",
+    "grace": "15m"
+  },
+  "dependencies": {
+    "airtty": "workspace:*",
+    "@opentui/core": "catalog:",
+    "@opentui/keymap": "catalog:",
+    "@opentui/react": "catalog:",
+    "@tanstack/react-router": "catalog:",
+    "react": "catalog:",
+    "zod": "catalog:"
+  }
+}
