@@ -58,11 +58,16 @@ import type { Harness, HarnessContext, HarnessEvent, StartOptions, UserInput } f
  * never the binary the SDK bundles, never `--bare`, the environment passed whole.
  */
 
+/**
+ * Full access is not Claude's `bypassPermissions`: that mode never consults
+ * `canUseTool`, so questions and plan reviews could not reach the user (and the SDK
+ * warns on every query). Claude stays in `default` and coder allows each tool itself.
+ */
 const MODE_TO_CLAUDE: Record<Mode, PermissionMode> = {
   read: "plan",
   ask: "default",
   edits: "acceptEdits",
-  full: "bypassPermissions",
+  full: "default",
 };
 const CLAUDE_TO_MODE: Partial<Record<string, Mode>> = {
   plan: "read",
@@ -580,6 +585,8 @@ export class ClaudeHarness implements Harness {
   private readonly deps: ClaudeDeps;
   private options: StartOptions = { cwd: "", mode: "ask" };
   private sessionId = "";
+  /** Whether Claude Code wrote the session: a resume of one it never wrote fails. */
+  private written = false;
   private query: QueryLike | null = null;
   private inbox: Inbox | null = null;
   private translator: Translator;
@@ -595,23 +602,47 @@ export class ClaudeHarness implements Harness {
   constructor(context: HarnessContext, deps: ClaudeDeps = sdk) {
     this.context = context;
     this.deps = deps;
-    this.translator = new Translator(context.emit, "");
+    this.translator = new Translator(this.relay, "");
   }
 
+  private readonly relay = (event: HarnessEvent) => this.emit(event);
   private emit(event: HarnessEvent) {
-    this.context.emit(event);
+    // Claude reports `default` in full access (MODE_TO_CLAUDE): the mode stays coder's.
+    if (event.type === "info.updated" && event.info.mode === "ask" && this.options.mode === "full")
+      this.context.emit({ ...event, info: { ...event.info, mode: "full" } });
+    else this.context.emit(event);
   }
 
   async start(options: StartOptions) {
     this.options = options;
-    const resume =
+    const wanted =
       options.resume === true
         ? await this.latestSession()
         : typeof options.resume === "string"
           ? options.resume
           : undefined;
+    // A session remembered for this launch may never have been written (no prompt yet).
+    const resume = wanted && (await this.exists(wanted)) ? wanted : undefined;
+    if (wanted && !resume)
+      this.emit({
+        type: "notice",
+        level: "info",
+        text: `No Claude Code session ${wanted} in this directory: a new one starts`,
+      });
     await this.open(resume);
     if (resume) await this.history(resume);
+  }
+
+  private async exists(id: string) {
+    const messages = await this.deps
+      .getSessionMessages(id, { dir: this.options.cwd })
+      .catch(() => []);
+    return messages.length > 0;
+  }
+
+  /** A new query on the current session: resumed once Claude Code wrote it. */
+  private reopen() {
+    return this.written ? this.open(this.sessionId) : this.open(undefined, this.sessionId);
   }
 
   private async latestSession() {
@@ -624,17 +655,18 @@ export class ClaudeHarness implements Harness {
     return latest?.sessionId;
   }
 
-  /** Starts a query: a new session (a chosen id), or a resumed one. */
-  private async open(resume?: string) {
+  /** Starts a query: a new session (a chosen id, or `id`), or a resumed one. */
+  private async open(resume?: string, id?: string) {
     const claude = this.deps.claude();
     if (!claude)
       throw new Error("claude is not on the PATH: install Claude Code (https://code.claude.com)");
     this.stopQuery();
     const generation = ++this.generation;
-    this.sessionId = resume ?? crypto.randomUUID();
+    this.sessionId = resume ?? id ?? crypto.randomUUID();
+    this.written = resume !== undefined;
     const inbox = new Inbox();
     this.inbox = inbox;
-    this.translator = new Translator(this.context.emit, this.options.cwd);
+    this.translator = new Translator(this.relay, this.options.cwd);
     const effort = isEffort(this.options.effort) ? this.options.effort : undefined;
     const q = this.deps.query({
       prompt: inbox,
@@ -652,7 +684,6 @@ export class ClaudeHarness implements Harness {
         systemPrompt: { type: "preset", preset: "claude_code" },
         settingSources: ["user", "project", "local"],
         permissionMode: MODE_TO_CLAUDE[this.options.mode],
-        ...(this.options.mode === "full" ? { allowDangerouslySkipPermissions: true } : {}),
         includePartialMessages: true,
         // Opus 4.7 and later omit thinking text unless asked for a summary.
         thinking: { type: "adaptive", display: "summarized" },
@@ -715,7 +746,7 @@ export class ClaudeHarness implements Harness {
       });
     this.interrupting = false;
     try {
-      await this.open(this.sessionId);
+      await this.reopen();
     } catch (error: unknown) {
       this.emit({ type: "exited", reason: error instanceof Error ? error.message : String(error) });
     }
@@ -821,6 +852,8 @@ export class ClaudeHarness implements Harness {
       suppressAlwaysAllowRule?: boolean;
     },
   ): Promise<PermissionResult> {
+    if (this.options.mode === "full" && !DIALOG_TOOLS.has(tool))
+      return { behavior: "allow", updatedInput: input };
     const id = `claude-${options.toolUseID}-${++this.next}`;
     const openedAt = Date.now();
     let request: Request;
@@ -916,6 +949,7 @@ export class ClaudeHarness implements Harness {
 
   async send({ text }: UserInput) {
     const inbox = await this.ready();
+    this.written = true;
     this.running = true;
     this.emit({ type: "turn.started" });
     inbox.push(text);
@@ -953,14 +987,7 @@ export class ClaudeHarness implements Harness {
 
   async setMode(mode: Mode) {
     await this.initialized;
-    const previous = this.options.mode;
     this.options = { ...this.options, mode };
-    // Bypassing permissions must be allowed when the query starts: a new one, same session.
-    if (mode === "full" && previous !== "full") {
-      if (this.running) throw new Error("Full access starts between turns: interrupt first");
-      await this.open(this.sessionId);
-      return;
-    }
     await this.query?.setPermissionMode(MODE_TO_CLAUDE[mode]);
   }
 

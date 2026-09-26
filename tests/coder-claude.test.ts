@@ -116,6 +116,8 @@ class Replay implements QueryLike {
 function replay(
   name: string,
   answer: (request: Request) => Response = () => ({ kind: "approval", decision: "once" }),
+  /** The messages Claude Code stored for any session asked about. */
+  stored: readonly unknown[] = [],
 ) {
   const events: HarnessEvent[] = [];
   const queries: { options: QueryOptions; query: Replay }[] = [];
@@ -128,7 +130,7 @@ function replay(
       return query;
     },
     listSessions: async () => [],
-    getSessionMessages: async () => [],
+    getSessionMessages: async () => stored,
     claude: () => "/usr/local/bin/claude",
   };
   const harness: ClaudeHarness = new ClaudeHarness(
@@ -310,18 +312,54 @@ test("plan: ExitPlanMode is a plan review; after the SDK's error end, the sessio
   await harness.close();
 });
 
-test("modes map to Claude's; full access needs a query started for it", async () => {
+test("modes map to Claude's; full access stays in the same query", async () => {
   const { harness, queries } = replay("say-ok");
   await harness.start({ cwd: "/project", mode: "ask" });
   await harness.setMode("edits");
   expect(queries[0]?.query.calls).toContain("mode acceptEdits");
   await harness.setMode("full");
-  expect(queries).toHaveLength(2);
-  expect(queries[1]?.options).toMatchObject({
-    permissionMode: "bypassPermissions",
-    allowDangerouslySkipPermissions: true,
-  });
+  // Not bypassPermissions: it would never consult canUseTool (questions, plans).
+  expect(queries).toHaveLength(1);
+  expect(queries[0]?.query.calls.at(-1)).toBe("mode default");
   await harness.setModel("opus", "max");
-  expect(queries[1]?.query.calls).toEqual(["model opus", "effort max"]);
+  expect(queries[0]?.query.calls.slice(-2)).toEqual(["model opus", "effort max"]);
   await harness.close();
+});
+
+test("full access: tools run without asking, questions still reach the user", async () => {
+  const edit = replay("edit", () => {
+    throw new Error("full access asks nothing");
+  });
+  await edit.harness.start({ cwd: "/project", mode: "full" });
+  expect(edit.queries[0]?.options).toMatchObject({ permissionMode: "default" });
+  await edit.harness.send({ text: "run it" });
+  await edit.settled();
+  expect(edit.events.some((e) => e.type === "request.opened")).toBe(false);
+  expect(edit.queries[0]?.query.answers.length).toBeGreaterThan(0);
+  expect(edit.queries[0]?.query.answers.every((a) => a.behavior === "allow")).toBe(true);
+  // Claude reports its own mode, `default`: the status line keeps full access.
+  expect(edit.events.some((e) => e.type === "info.updated" && e.info.mode === "ask")).toBe(false);
+  await edit.harness.close();
+
+  const question = replay("question", () => ({ kind: "question", answers: [["Tabs"]] }));
+  await question.harness.start({ cwd: "/project", mode: "full" });
+  await question.harness.send({ text: "ask me" });
+  await question.settled();
+  expect(question.events.some((e) => e.type === "request.opened")).toBe(true);
+  await question.harness.close();
+});
+
+test("resume: a session Claude Code never wrote starts anew instead of failing", async () => {
+  const missing = replay("say-ok");
+  await missing.harness.start({ cwd: "/project", mode: "ask", resume: "never-written" });
+  expect(missing.queries[0]?.options.resume).toBeUndefined();
+  expect(missing.events.some((e) => e.type === "notice" && e.text.includes("never-written"))).toBe(
+    true,
+  );
+  await missing.harness.close();
+
+  const stored = replay("say-ok", undefined, [{ type: "user" }]);
+  await stored.harness.start({ cwd: "/project", mode: "ask", resume: "written" });
+  expect(stored.queries[0]?.options.resume).toBe("written");
+  await stored.harness.close();
 });

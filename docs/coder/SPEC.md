@@ -146,12 +146,12 @@ usage.updated{context{used, window}, plan?{fiveHour, weekly, resetsAt}, costUsd?
 
 ### 4.4 Modes de permission
 
-| Mode (`--mode`, `/mode`, Maj+Tab) | Claude              | Codex                                                    | pi (gate)                  | opencode (règles de session)    |
-| --------------------------------- | ------------------- | -------------------------------------------------------- | -------------------------- | ------------------------------- |
-| `read` Lecture seule              | `plan`              | `read-only` + `on-request`                               | outils `read,grep,find,ls` | agent `plan` / edit,bash `deny` |
-| `ask` Demander (défaut)           | `default`           | `workspace-write` + `on-request`                         | gate sur tout sauf lecture | edit,bash,webfetch `ask`        |
-| `edits` Éditions auto             | `acceptEdits`       | `workspace-write` + `on-request`, fichiers auto-acceptés | gate sur bash seulement    | edit `allow`, bash `ask`        |
-| `full` Accès complet              | `bypassPermissions` | `danger-full-access` + `never`                           | sans gate                  | tout `allow`                    |
+| Mode (`--mode`, `/mode`, Maj+Tab) | Claude                                                      | Codex                                                    | pi (gate)                  | opencode (règles de session)    |
+| --------------------------------- | ----------------------------------------------------------- | -------------------------------------------------------- | -------------------------- | ------------------------------- |
+| `read` Lecture seule              | `plan`                                                      | `read-only` + `on-request`                               | outils `read,grep,find,ls` | agent `plan` / edit,bash `deny` |
+| `ask` Demander (défaut)           | `default`                                                   | `workspace-write` + `on-request`                         | gate sur tout sauf lecture | edit,bash,webfetch `ask`        |
+| `edits` Éditions auto             | `acceptEdits`                                               | `workspace-write` + `on-request`, fichiers auto-acceptés | gate sur bash seulement    | edit `allow`, bash `ask`        |
+| `full` Accès complet              | `default` + tout accepté par coder (sauf questions et plan) | `danger-full-access` + `never`                           | sans gate                  | tout `allow`                    |
 
 Réponses : `y` une fois · `s` pour la session · `a` toujours (si supporté) · `n` refuser ·
 `Échap` refuser et interrompre.

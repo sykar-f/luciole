@@ -122,6 +122,15 @@ expérimental).
   l'environnement de l'utilisateur. coder, lui, charge `["user","project","local"]`.
 - Claude : la détection n'ouvre pas de `query()` sans prompt (T3) : le démarrage de la
   session le fait déjà (`initializationResult()` → modèles, commandes, compte).
+- Claude : l'accès complet n'est **pas** `bypassPermissions`. Ce mode ne consulte jamais
+  `canUseTool` (les questions et la revue de plan n'arrivaient plus à l'utilisateur) et
+  le SDK écrivait un avertissement sur stderr à chaque requête, par-dessus l'interface.
+  Claude reste en `default` et coder accepte lui-même chaque outil, sauf
+  AskUserQuestion et ExitPlanMode ; passer en accès complet ne rouvre plus de requête.
+- Claude : l'id de session est choisi par coder, mais Claude Code n'écrit la session
+  qu'au premier message. Une requête rouverte avant (redémarrage, session mémorisée du
+  lancement) garde l'id **sans** `resume` ; une reprise demandée d'une session absente
+  démarre une session neuve avec un avis, au lieu de « No conversation found ».
 - Le marqueur `import "server-only"` est retiré des modules sous `server/` : le
   répertoire suffit (docs/BOUNDARIES.md) et le marqueur empêchait de les importer dans
   `bun test`.
