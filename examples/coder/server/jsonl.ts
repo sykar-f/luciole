@@ -1,4 +1,3 @@
-import "server-only";
 import { z } from "zod";
 
 // The last lines a harness wrote to stderr explain an early exit (a bad flag, no login).

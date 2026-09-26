@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "airtty": "workspace:*",
+    "@anthropic-ai/claude-agent-sdk": "catalog:",
     "@opentui/core": "catalog:",
     "@opentui/keymap": "catalog:",
     "@opentui/react": "catalog:",

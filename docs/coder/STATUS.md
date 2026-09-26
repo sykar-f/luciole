@@ -5,7 +5,7 @@ Branche `feat/coder`. Référence : [CODER-HANDOFF.md](../CODER-HANDOFF.md) (pri
 
 ## Phase en cours
 
-Phase 4 — adaptateur Claude Code (Agent SDK).
+Phase 5 — adaptateur Codex (`codex app-server`).
 
 ## Fait
 
@@ -32,10 +32,19 @@ Phase 4 — adaptateur Claude Code (Agent SDK).
   notifications), 9 tests d'intégration (`tests/coder*.test.ts*`), parcours PTY
   `test:pty:coder`.
 
+- **Phase 4** — `feat(coder): drive Claude Code through the Agent SDK` : adaptateur
+  `server/adapters/claude.ts` (une `query()` longue en streaming input, `canUseTool` →
+  approbations, AskUserQuestion → question, ExitPlanMode → revue de plan, TodoWrite →
+  plan, sous-agents, limites 5 h / 7 j par `rate_limit_event`, reprise par
+  `getSessionMessages`), détection (`claude --version`, `claude auth status`), SDK
+  0.3.283 au catalogue avec le binaire embarqué remplacé par un paquet vide, 5 fixtures
+  enregistrées (`scripts/coder/record-claude.ts`), tests de contrat, de détection et de
+  conformité, parcours réel manuel `scripts/pty/coder-real.ts claude` (passé).
+
 ## Reste
 
-- Phases 4 à 7 : adaptateurs Claude, Codex, pi, opencode, avec leur détection réelle,
-  leurs fixtures JSONL enregistrées et leurs tests de contrat ; garde-fous §3 testés.
+- Phases 5 à 7 : adaptateurs Codex, pi, opencode, avec leur détection réelle, leurs
+  fixtures enregistrées et leurs tests de contrat ; garde-fous §3 de pi et d'opencode.
 
 ## Décisions prises en cours de route
 
@@ -65,6 +74,19 @@ Phase 4 — adaptateur Claude Code (Agent SDK).
 - `harness: "fake"` fait partie de l'enum de `--harness` (démo scriptée, documentée).
 - Cible web : `build --web-local` de coder se construit (harness factice) ; pas exécutée
   dans un navigateur dans cette session.
+
+- Claude : le SDK **termine son itérateur par une erreur** après un résultat en erreur
+  (refus avec `interrupt`, interruption) — observé sur le vrai binaire. L'adaptateur
+  rouvre alors une requête sur le même id de session (`resume`), au plus une fois sans
+  message reçu entre-temps, sinon `exited`.
+- Claude : fixtures enregistrées avec `settingSources: []`, sans messages de hooks et
+  avec des listes réduites : elles sont publiques et ne doivent rien porter de
+  l'environnement de l'utilisateur. coder, lui, charge `["user","project","local"]`.
+- Claude : la détection n'ouvre pas de `query()` sans prompt (T3) : le démarrage de la
+  session le fait déjà (`initializationResult()` → modèles, commandes, compte).
+- Le marqueur `import "server-only"` est retiré des modules sous `server/` : le
+  répertoire suffit (docs/BOUNDARIES.md) et le marqueur empêchait de les importer dans
+  `bun test`.
 
 ## Écarts avec le handoff et la spec
 

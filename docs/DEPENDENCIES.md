@@ -34,6 +34,7 @@ Ajoutées au catalogue après ce contrôle, sans comparaison aux tags `latest` :
 | electrobun                      | 2.0.1          | desktop                                 |
 | marked                          | 17.0.1         | mdreader                                |
 | sharp                           | 0.35.4         | files                                   |
+| @anthropic-ai/claude-agent-sdk  | 0.3.283        | coder (couplé à Claude Code 2.1.283)    |
 
 Les arguments de ligne de commande des applications (`airtty/args`, `src/args.ts`)
 n'ajoutent aucune dépendance : le parseur est maison (~300 lignes), piloté par le Standard
@@ -42,6 +43,16 @@ n'ont pas d'intégration de schéma, `util.parseArgs` ne sait pas exprimer une o
 valeur facultative (`--resume [ID]`), clipanion est à l'abandon. Repli « acheter » :
 cleye 2.7.0 (Standard Schema natif) ; évolution si des complétions shell sont voulues :
 @optique/core. Comparatif : `docs/coder/research/cli-args-report.md`.
+
+`@anthropic-ai/claude-agent-sdk` (exemple coder) : sa licence n'est **pas** OSI
+(conditions commerciales d'Anthropic) ; l'exemple est personnel et non commercial. Le
+SDK embarque Claude Code par paquets de plateforme (`optionalDependencies`, ~225 Mo) :
+coder exécute toujours le `claude` de l'utilisateur (`pathToClaudeCodeExecutable`), donc
+les `overrides` du `package.json` racine remplacent ces paquets par un paquet vide
+(`examples/coder/vendor/no-bundled-claude`) : ils ne sont jamais installés, et un test
+vérifie qu'ils ne se résolvent pas. Ses pairs `@anthropic-ai/sdk` et
+`@modelcontextprotocol/sdk` sont installés par Bun comme dépendances transitives ;
+`bun audit --json` rend `{}`.
 
 TypeScript 7 vérifie le projet. Le compilateur du framework utilise le paquet
 officiel de compatibilité `@typescript/typescript6`, qui fournit l’ancienne API AST

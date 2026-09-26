@@ -1,4 +1,3 @@
-import "server-only";
 import {
   HARNESS_NAMES,
   type Capabilities,

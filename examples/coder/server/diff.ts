@@ -1,4 +1,3 @@
-import "server-only";
 import type { FilePatch } from "../components/model";
 
 // Adapted from examples/forge/server/diff.ts: harnesses give edits as before/after

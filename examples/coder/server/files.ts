@@ -1,4 +1,3 @@
-import "server-only";
 import { readdir } from "node:fs/promises";
 import { join, relative } from "node:path";
 

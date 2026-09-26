@@ -1,4 +1,3 @@
-import "server-only";
 import { getLaunch } from "airtty/server";
 import cli from "../app/args";
 

@@ -1,5 +1,5 @@
-import "server-only";
 import type { HarnessId } from "../../components/model";
+import { ClaudeHarness } from "./claude";
 import { FakeHarness } from "./fake";
 import type { Harness, HarnessContext } from "./types";
 
@@ -9,6 +9,7 @@ export function createHarness(id: HarnessId, context: HarnessContext): Harness {
     case "fake":
       return new FakeHarness(context);
     case "claude":
+      return new ClaudeHarness(context);
     case "codex":
     case "pi":
     case "opencode":
