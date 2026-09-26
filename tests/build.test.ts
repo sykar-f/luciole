@@ -1,6 +1,6 @@
 import { test, expect } from "bun:test";
-import { mkdtemp, mkdir, rm } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdtemp, mkdir, rm, stat, symlink } from "node:fs/promises";
+import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { build } from "../packages/airtty/src/build";
 import { messageOf } from "../packages/airtty/src/guards";
@@ -412,3 +412,27 @@ test("the Client bundle embeds zod/mini, never the classic zod API", async () =>
     },
   );
 });
+test("concurrent builds take turns, and an unchanged build keeps the output in place", async () => {
+  await fixture(
+    { "app/page.tsx": `export default function Page(){return <text>HOME</text>}` },
+    async (dir) => {
+      await symlink(resolve("node_modules"), join(dir, "node_modules"), "dir");
+      // Two launches of one application at once: neither swaps directories under the other.
+      const [first, second] = await Promise.all([build(dir), build(dir)]);
+      expect(second.buildId).toBe(first.buildId);
+      const server = join(dir, ".airtty/server/index.js");
+      const { ino } = await stat(server);
+      expect((await build(dir)).buildId).toBe(first.buildId);
+      expect((await stat(server)).ino).toBe(ino);
+      expect(await Bun.file(join(dir, ".airtty-lock")).exists()).toBe(false);
+      // The declaration is part of the identity: its metadata would go stale otherwise.
+      await Bun.write(join(dir, "package.json"), JSON.stringify({ version: "2.0.0" }));
+      const changed = await build(dir);
+      expect(changed.buildId).not.toBe(first.buildId);
+      expect((await stat(server)).ino).not.toBe(ino);
+      // Other options, another output: the Worker Server is missing from the first.
+      await build(dir, undefined, { webServer: true });
+      expect(await Bun.file(join(dir, ".airtty/web-server/server-worker.js")).exists()).toBe(true);
+    },
+  );
+}, 60000);

@@ -7,6 +7,7 @@ import { z } from "zod";
 import { bundleMessages, logMessages } from "./bundle-errors";
 import { nativePackage } from "./native";
 import { governingLock } from "./lockfile";
+import { withLock } from "./launcher/lock";
 import { readJsonFile } from "./package-json";
 import { ROUTE_TREE_FILE, compileRouteGraph, renderRouteTree } from "./route-graph";
 import { cachedFunctions, cacheSource, staleTimeOf } from "./cache/transform";
@@ -179,10 +180,55 @@ function packageOfFile(file: string) {
   const end = at + 1 + packageDepth(parts[at + 1]);
   return { name: parts.slice(at + 1, end).join("/"), dir: parts.slice(0, end).join("/") };
 }
+/**
+ * Builds `directory` into `output`. Concurrent builds of one output (two launches, two
+ * `airtty dev`) take turns on a lock next to it; a build whose identity and options match
+ * the output already there leaves it untouched, so a second launch never swaps directories
+ * under the first one's feet.
+ */
 export async function build(
   directory: string,
   output = join(directory, ".airtty"),
-  { appBundle: wanted = "auto", signBundle, webServer = false }: BuildOptions = {},
+  options: BuildOptions = {},
+) {
+  await mkdir(dirname(output), { recursive: true });
+  return await withLock(`${output}-lock`, () => buildUnlocked(directory, output, options), {
+    waiting: () => console.error(`airtty build: waiting for another build of ${output}`),
+  });
+}
+/** What a build was asked for beyond its sources: an output built otherwise is rebuilt. */
+const BuiltWith = z.object({
+  buildId: z.string(),
+  options: z.object({
+    appBundle: z.enum(["auto", "required"]),
+    webServer: z.boolean(),
+    signed: z.boolean(),
+  }),
+});
+async function upToDate(
+  output: string,
+  buildId: string,
+  options: z.infer<typeof BuiltWith>["options"],
+) {
+  try {
+    const built = BuiltWith.safeParse(
+      JSON.parse(await readFile(join(output, "manifest.json"), "utf8")),
+    );
+    return (
+      built.success &&
+      built.data.buildId === buildId &&
+      built.data.options.appBundle === options.appBundle &&
+      built.data.options.webServer === options.webServer &&
+      built.data.options.signed === options.signed
+    );
+  } catch {
+    return false;
+  }
+}
+async function buildUnlocked(
+  directory: string,
+  output: string,
+  { appBundle: wanted = "auto", signBundle, webServer = false }: BuildOptions,
 ) {
   const appBundle = signBundle ? "required" : wanted;
   const root = await realpath(directory),
@@ -529,6 +575,13 @@ export async function build(
     );
   const appLock = governingLock(root);
   for (const lock of new Set([frameworkLock, appLock])) if (lock) hash.update(await readFile(lock));
+  // What the build reads besides modules: the declaration (metadata, icon) and airtty.json.
+  for (const file of [
+    join(root, "package.json"),
+    join(root, "airtty.json"),
+    ...(declaration.iconFile ? [declaration.iconFile] : []),
+  ])
+    hash.update(relative(root, file)).update(await readFile(file).catch(() => Buffer.alloc(0)));
   let clientPackages: { name: string; version: string }[] = [];
   const buildId = hash.digest("hex").slice(0, BUILD_ID_LENGTH),
     id = (p: string) => `${buildId}/${relative(root, p)}`;
@@ -536,6 +589,9 @@ export async function build(
   for (const p of clients)
     for (const name of moduleAt(p).exports)
       manifest[`${id(p)}#${name}`] = { id: id(p), chunks: [], name };
+  const builtWith = { appBundle, webServer, signed: !!signBundle };
+  // A signature is not part of the identity: a signed build is always made afresh.
+  if (!signBundle && (await upToDate(output, buildId, builtWith))) return { buildId, output };
   const temp = `${output}-${crypto.randomUUID()}`;
   await mkdir(temp, { recursive: true });
   const routes = graph.pages.map((r, i) => ({
@@ -861,6 +917,7 @@ export async function build(
       JSON.stringify(
         {
           buildId,
+          options: builtWith,
           manifest,
           routes: routes.map((r) => ({
             id: r.id,

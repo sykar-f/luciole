@@ -6,6 +6,7 @@ import { createInterface } from "node:readline";
 import { z } from "zod";
 import { build } from "../build";
 import { messageOf } from "../guards";
+import { isCode } from "../launcher/lock";
 import { frameworkRoot, stop, type Command } from "./command";
 const SERVER_STARTUP_MS = 10_000;
 // Editors write a file in several events: one rebuild per burst.
@@ -60,8 +61,13 @@ export const dev: Command = {
         again = false;
         try {
           await build(directory);
-          // Development reuses the framework installation, even for a starter elsewhere.
-          await symlink(frameworkModules(), join(directory, ".airtty/node_modules"), "dir");
+          // Development reuses the framework installation, even for a starter elsewhere;
+          // an unchanged build keeps the link an earlier run made.
+          await symlink(frameworkModules(), join(directory, ".airtty/node_modules"), "dir").catch(
+            (error: unknown) => {
+              if (!isCode(error, "EEXIST")) throw error;
+            },
+          );
           if (closing) break;
           await Promise.all([stop(client), stop(server)]);
           server = spawn(

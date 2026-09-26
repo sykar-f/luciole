@@ -19,7 +19,7 @@ function alive(pid: number) {
   }
 }
 
-const isCode = (e: unknown, code: string) =>
+export const isCode = (e: unknown, code: string) =>
   typeof e === "object" && e !== null && "code" in e && e.code === code;
 
 /** Runs `task` while holding `path` (a directory that must not exist otherwise). */
