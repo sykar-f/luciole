@@ -194,7 +194,9 @@ def dev(app, env, directory, cols, rows, cwd=ROOT):
 
 def forge(directory):
     term = dev("forge", {
-        "FORGE_DB": directory + "/forge.sqlite", "FORGE_GIT_REPO": str(ROOT),
+        # No FORGE_GIT_REPO: the live demo in the page cannot import a git repository,
+        # and the capture it replaces must show the same repositories.
+        "FORGE_DB": directory + "/forge.sqlite",
         "FORGE_CLOCK_START": FORGE_CLOCK, "FORGE_SLOW_MS": "0", "FORGE_CI_SCALE": "0.05",
     }, directory, 140, 40)
     try:
@@ -204,7 +206,7 @@ def forge(directory):
         term.wait_for("RECENT ACTIVITY")
         term.idle(1)
         save(term, "forge-home", "Forge: repositories and activity")
-        term.send(b"2")
+        term.send(b"1")
         term.wait_for("open pull request(s)")
         term.send(b"/")
         term.send(b"idempotency")
@@ -219,6 +221,16 @@ def forge(directory):
         term.send(b"]")
         term.idle(2)
         save(term, "forge-files", "Forge: a diff")
+    finally:
+        term.stop()
+
+
+def notes(directory):
+    term = dev("notes", {"NOTES_DB": directory + "/notes.sqlite"}, directory, 84, 24)
+    try:
+        term.wait_for("First note", 120)
+        term.idle(1)
+        save(term, "notes", "Notes: a Server 500 ms away")
     finally:
         term.stop()
 
@@ -339,7 +351,7 @@ def flight(directory):
         server.terminate()
 
 
-SCENES = {"forge": forge, "files": files, "mdreader": mdreader, "devtools": devtools, "mux": mux, "flight": flight}
+SCENES = {"forge": forge, "notes": notes, "files": files, "mdreader": mdreader, "devtools": devtools, "mux": mux, "flight": flight}
 
 
 def main():

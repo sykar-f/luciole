@@ -176,14 +176,19 @@ const steps: [stage: string, what: string][] = [
     });
 
     // The reader takes the keyboard; a click anywhere else gives the page back.
+    const keyboard = () => {
+      frame.focus();
+      frame.contentDocument?.querySelector<HTMLElement>(".xterm-helper-textarea")?.focus();
+    };
     const hold = (held: boolean) => {
       root.classList.toggle("held", held);
       take.hidden = held;
       frame.tabIndex = held ? 0 : -1;
-      if (!held) return;
-      frame.focus();
-      frame.contentDocument?.querySelector<HTMLElement>(".xterm-helper-textarea")?.focus();
+      if (held) keyboard();
     };
+    // Held, the screen's own focus belongs to the terminal: keys typed there must not fall
+    // on the wrapper.
+    layer.addEventListener("focus", () => root.classList.contains("held") && keyboard());
     // The whole screen takes the keyboard: a hint in a corner is easy to miss on 40 rows.
     const takeIfLive = () => root.classList.contains("on") && !root.classList.contains("held") && hold(true);
     layer.addEventListener("click", takeIfLive);
