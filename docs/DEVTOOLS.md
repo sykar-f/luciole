@@ -28,6 +28,9 @@ bun run dev                        # ou n'importe quel `airtty dev --app …`
 `airtty devtools` écoute sur `--listen`, à défaut sur `AIRTTY_DEVTOOLS` du shell, à défaut
 sur le socket par défaut. `--demo` rejoue une session simulée (voir « Contrat avec
 feat/use-cache »), `--replay fichier.json` rouvre un enregistrement.
+`AIRTTY_DEVTOOLS_LISTEN=none` (côté Server des DevTools) n'ouvre aucun bus : seulement la
+session de démo ou l'enregistrement, et aucune invite de connexion. C'est ainsi que la
+landing fait tourner les DevTools dans une page, où rien ne peut écouter.
 
 **Coût nul sans la variable.** Le Server rend l'`instrument` configuré tel quel (aucune
 réponse n'est enveloppée) ; le Client n'exécute pas l'import dynamique de l'agent. Sous

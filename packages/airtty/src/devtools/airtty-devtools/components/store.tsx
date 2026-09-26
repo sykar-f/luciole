@@ -24,7 +24,7 @@ type Batch = {
   missed: number;
   sources: Source[];
   rejected: number;
-  connect: Connect;
+  connect: Connect | undefined;
 };
 
 class Store {

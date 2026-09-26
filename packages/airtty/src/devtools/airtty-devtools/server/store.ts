@@ -14,7 +14,10 @@ import { listenBus, type Connection } from "../../wire";
  * the Server starts: a DevTools already listening on the same address stops this one.
  */
 const Environment = z.object({
-  /** Set by `airtty devtools` (src/commands/devtools.ts). */
+  /**
+   * Set by `airtty devtools` (src/commands/devtools.ts). `none`: no bus, only a demo or
+   * replayed session (the landing page's live demo, whose Server runs in a page).
+   */
   AIRTTY_DEVTOOLS_LISTEN: z._default(z.string(), "1"),
   AIRTTY_DEVTOOLS_DEMO: z.optional(z.string()),
   AIRTTY_DEVTOOLS_REPLAY: z.optional(z.string()),
@@ -47,21 +50,25 @@ function store(source: number, value: unknown) {
   wake();
 }
 
-const bus = await listenBus({
-  address: parseAddress(env.AIRTTY_DEVTOOLS_LISTEN),
-  onOpen(connection) {
-    connections.set(connection.id, connection);
-    sources.set(connection.id, { id: connection.id, connected: true });
-    wake();
-  },
-  onMessage: (connection, value) => store(connection.id, value),
-  onClose(connection) {
-    connections.delete(connection.id);
-    const source = sources.get(connection.id);
-    if (source) source.connected = false;
-    wake();
-  },
-});
+const NO_BUS = "none";
+const bus =
+  env.AIRTTY_DEVTOOLS_LISTEN === NO_BUS
+    ? undefined
+    : await listenBus({
+        address: parseAddress(env.AIRTTY_DEVTOOLS_LISTEN),
+        onOpen(connection) {
+          connections.set(connection.id, connection);
+          sources.set(connection.id, { id: connection.id, connected: true });
+          wake();
+        },
+        onMessage: (connection, value) => store(connection.id, value),
+        onClose(connection) {
+          connections.delete(connection.id);
+          const source = sources.get(connection.id);
+          if (source) source.connected = false;
+          wake();
+        },
+      });
 // Recorded or simulated sessions play under their own source ids, above any connection's.
 const OFFLINE_SOURCE = 1_000_000;
 // The demo session ends about now: it reads like one just recorded.
@@ -78,8 +85,11 @@ if (env.AIRTTY_DEVTOOLS_REPLAY) {
 }
 for (const source of sources.values()) if (source.id >= OFFLINE_SOURCE) source.connected = false;
 
-/** What the inspected application's environment needs, shown while none is connected. */
-export const connectInfo = {
+/**
+ * What the inspected application's environment needs, shown while none is connected;
+ * nothing without a bus, where nothing can connect.
+ */
+export const connectInfo = bus && {
   address: formatAddress(bus.address),
   hook: env.AIRTTY_DEVTOOLS_HOOK,
 };
