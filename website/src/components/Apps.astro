@@ -1,42 +1,77 @@
 ---
-import Screen from "./Screen.astro";
+// The examples that can run in a page, live (LiveTerminal.astro, scripts/demo.ts): one at a
+// time, the one the reader picked, the others back to their capture. The two that need a
+// real terminal say why, with the command that runs them there.
+import LiveTerminal, { type Step } from "./LiveTerminal.astro";
 import { frame } from "../lib/frames";
+
+// Forge signs in as alice and opens a diff: the capture's screen, or wherever a session
+// restored from the hero already is.
+const toDiff: Step[] = [
+  { wait: "Demo accounts", type: "alice\r", pause: 250 },
+  { wait: "Demo accounts", type: "forge\r" },
+  { wait: "REVIEW REQUESTED", type: "j", pause: 250 },
+  { wait: "REVIEW REQUESTED", type: "\r" },
+  { wait: "wants to merge feature/refund-idempotency", type: "\t", pause: 400 },
+  { wait: "files 0/4 viewed", type: "]", pause: 300 },
+  { wait: "src/ledger.ts · typescript", type: "]" },
+  { wait: "src/refunds.ts · typescript", type: "" },
+];
+// Chat is asked the capture's question, and revealed while the answer streams.
+const ask: Step[] = [
+  { wait: "Ask anything", type: "How does airtty keep typing local when the Server is 500 ms away?\r" },
+  { wait: "Reading", type: "" },
+];
 
 const apps = [
   {
     name: "Forge",
+    demo: "forge",
     frame: "forge-files",
+    script: toDiff,
     run: "bun run forge",
     about:
       "Code review: pull requests, coloured diffs, line comments, live CI logs and merge. Built to push the framework past its contract.",
   },
   {
-    name: "Files",
-    frame: "files",
-    run: "bun run files",
+    name: "Chat",
+    demo: "chat",
+    frame: "chat",
+    script: ask,
+    run: "OPENROUTER_API_KEY=… bun run chat",
     about:
-      "An explorer with previews, filters and a context menu. Opening a folder is a navigation; selection and sorting never touch the network.",
+      "Answers stream token by token from a live Server Function; the key never leaves the Server. Here a scripted model answers, since no key can live in a page.",
   },
   {
     name: "mdreader",
+    demo: "mdreader",
     frame: "mdreader",
+    script: [],
     run: "MD_PATH=docs bun run mdreader",
     about:
-      "A folder of Markdown in two panes, with tables, code and outlines. It reloads when a file changes and keeps your place.",
-  },
-  {
-    name: "mux",
-    frame: "mux",
-    run: "bun run mux",
-    about:
-      "A small tmux built with <Terminal>: your shell, vim, and another airtty app loaded into a pane of its own.",
+      "A folder of Markdown in two panes, with tables, code and outlines: this repository's own docs. On disk, it reloads when a file changes and keeps your place.",
   },
   {
     name: "DevTools",
+    demo: "devtools",
     frame: "devtools-network",
+    script: [],
     run: "bun packages/airtty/src/cli.ts devtools --demo",
     about:
-      "Both processes in one waterfall, with the cache that answered, component trees and logs. The DevTools are an airtty app too.",
+      "Both processes in one waterfall, with the cache that answered, component trees and logs, on a recorded session. The DevTools are an airtty app too.",
+  },
+];
+
+const terminalOnly = [
+  {
+    name: "Files",
+    run: "bun run files",
+    why: "Previews images through a native library, and browses your disk.",
+  },
+  {
+    name: "mux",
+    run: "bun run mux",
+    why: "A small tmux: your shell and vim on real PTYs, with another airtty app in a pane.",
   },
 ];
 ---
@@ -47,12 +82,12 @@ const apps = [
       <p class="label">examples</p>
       <h2 id="apps-title">Real apps, in the repository today.</h2>
       <p class="lede">
-        Every screen on this page was captured from these examples running in a terminal, then drawn
-        here cell by cell. Each one is a single command away.
+        Each one runs below, in this page: its Client in the terminal, its Server in a Worker. Pick
+        one, click it, use it. On your machine, each is a single command away.
       </p>
     </div>
 
-    <div class="gallery" data-tabs>
+    <div class="gallery" data-tabs data-gallery>
       <div class="tabs" role="tablist" aria-label="Example applications">
         {
           apps.map((app, i) => (
@@ -78,7 +113,13 @@ const apps = [
             class="view"
             hidden={i !== 0}
           >
-            <Screen frame={frame(app.frame)} glow />
+            <LiveTerminal
+              demo={app.demo}
+              frame={frame(app.frame)}
+              script={app.script}
+              boot="manual"
+              glow
+            />
             <div class="about">
               <p>{app.about}</p>
               <code>
@@ -90,8 +131,54 @@ const apps = [
         ))
       }
     </div>
+
+    <div class="elsewhere">
+      <p class="elsewhere-head">Only in a real terminal</p>
+      <ul>
+        {
+          terminalOnly.map((app) => (
+            <li>
+              <p class="name">{app.name}</p>
+              <p class="why">{app.why}</p>
+              <code>
+                <span aria-hidden="true">$ </span>
+                {app.run}
+              </code>
+            </li>
+          ))
+        }
+      </ul>
+    </div>
   </div>
 </section>
+
+<script>
+  // The picked panel's demo runs while the gallery is near the viewport; any other stops,
+  // its capture back. A demo restarted later finds its session where it left it.
+  const gallery = document.querySelector<HTMLElement>("[data-gallery]");
+  if (gallery) {
+    let near = false;
+    const panels = [...gallery.querySelectorAll<HTMLElement>('[role="tabpanel"]')];
+    const sync = () => {
+      for (const panel of panels) {
+        const live = panel.querySelector("[data-live]");
+        live?.dispatchEvent(new Event(near && !panel.hidden ? "live:start" : "live:stop"));
+      }
+    };
+    new MutationObserver(sync).observe(gallery, {
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["hidden"],
+    });
+    new IntersectionObserver(
+      (entries) => {
+        near = entries.some((entry) => entry.isIntersecting);
+        sync();
+      },
+      { rootMargin: "400px 0px" },
+    ).observe(gallery);
+  }
+</script>
 
 <style>
   .gallery {
@@ -154,13 +241,55 @@ const apps = [
     font-size: 0.85rem;
   }
 
-  .about code {
+  code {
     color: var(--client);
     font-size: 0.8rem;
     overflow-wrap: anywhere;
   }
 
-  .about code span {
+  code span {
     color: var(--dim);
+  }
+
+  .elsewhere {
+    margin-top: 48px;
+    padding-top: 22px;
+    border-top: 1px solid var(--rule);
+  }
+
+  .elsewhere-head {
+    margin-bottom: 14px;
+    color: var(--dim);
+    font-size: var(--step--1);
+  }
+
+  .elsewhere ul {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px 40px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .elsewhere li {
+    display: grid;
+    gap: 4px;
+  }
+
+  .name {
+    color: var(--paper);
+    font-weight: 600;
+  }
+
+  .why {
+    color: var(--mist);
+    font-size: 0.85rem;
+  }
+
+  @media (max-width: 760px) {
+    .elsewhere ul {
+      grid-template-columns: 1fr;
+    }
   }
 </style>

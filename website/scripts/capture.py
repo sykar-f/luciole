@@ -262,15 +262,8 @@ def mdreader(directory):
 
 
 def chat(directory):
-    base = {k: v for k, v in os.environ.items() if not k.startswith("OPENROUTER_")}
-    fake = subprocess.Popen(
-        [BUN, str(ROOT / "examples/chat/scripts/fake-openrouter.ts")],
-        env={**base, "FAKE_DELAY_MS": "40"}, stdout=subprocess.PIPE, text=True,
-    )
-    port = json.loads(fake.stdout.readline())["port"]
-    term = dev("chat", {
-        "OPENROUTER_API_KEY": "sk-or-fake", "OPENROUTER_BASE_URL": f"http://127.0.0.1:{port}/api/v1",
-    }, directory, 140, 40)
+    # CHAT_DEMO: the scripted model the page's live demo answers with, in the Server.
+    term = dev("chat", {"CHAT_DEMO": "1"}, directory, 140, 40)
     try:
         term.wait_for("Ask anything", 120)
         term.send(b"How does airtty keep typing local when the Server is 500 ms away?\r")
@@ -279,7 +272,6 @@ def chat(directory):
         save(term, "chat", "Chat: streamed answers")
     finally:
         term.stop()
-        fake.terminate()
 
 
 def devtools(directory):
@@ -351,7 +343,7 @@ def flight(directory):
         server.terminate()
 
 
-SCENES = {"forge": forge, "notes": notes, "files": files, "mdreader": mdreader, "devtools": devtools, "mux": mux, "flight": flight}
+SCENES = {"forge": forge, "notes": notes, "chat": chat, "files": files, "mdreader": mdreader, "devtools": devtools, "mux": mux, "flight": flight}
 
 
 def main():

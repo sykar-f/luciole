@@ -41,7 +41,8 @@ pas du jour de la capture. Après un changement visible d'un exemple, relancer l
 
 Le hero fait tourner Forge dans la page : `airtty build --web-local` de `examples/forge`,
 Client et Server dans l'onglet (voir `docs/WEB.md`). `scripts/demo.ts` refait ce build
-pour chaque démo (`forge`, `notes`) et copie `.airtty/web/` sans les source maps dans
+pour chaque démo (`forge`, `notes`, `mdreader`, `chat`, `devtools`) et copie `.airtty/web/`
+sans les source maps dans
 `public/demo/<app>/`, que Git ignore. Le runtime web, commun à toutes les applications, est
 publié une fois dans `public/demo/runtime/` : la première démo lancée met en cache les plus
 gros fichiers des autres. Après un changement du framework ou d'un exemple, relancer
@@ -55,6 +56,14 @@ du démarrage, déroule un script (Forge : connexion en alice, pull request paym
 remplace la capture. Un clic sur l'écran donne le clavier à l'application, un clic ailleurs
 le rend à la page. Sous 760 px de large ou avec l'économie de données, rien ne démarre : un
 lien ouvre la démo dans sa propre page.
+
+Trois sections en font tourner : le hero (Forge), Latency (Notes, dont la page règle
+l'aller-retour et la panne de la prochaine requête, et liste les vraies requêtes) et la
+galerie Examples (Forge, Chat, mdreader, DevTools, une seule vivante à la fois : l'onglet
+choisi). Chaque démo trouve autour d'elle ce que `scripts/demo.ts` écrit dans
+`server-seed.json` : un environnement (`CHAT_DEMO=1`, `MD_PATH=/docs`…) et, pour mdreader,
+les documents du dépôt en lecture seule. Files et mux restent au terminal : une
+bibliothèque d'images native pour l'un, des PTY pour l'autre.
 
 La page lit aussi les sources de `examples/notes` à la compilation (`?raw`) : le code
 montré dans « One codebase. Two programs. » est celui du dépôt.

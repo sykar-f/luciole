@@ -20,8 +20,11 @@ interface Props {
   /** Its captured screen: the poster, and the grid the live terminal keeps. */
   frame: Frame;
   script?: Step[];
-  /** `eager` starts with the page; `visible`, when the window comes near the viewport. */
-  boot?: "eager" | "visible";
+  /**
+   * `eager` starts with the page; `visible`, when the window comes near the viewport;
+   * `manual`, when its container sends it `live:start` (and `live:stop` puts it back).
+   */
+  boot?: "eager" | "visible" | "manual";
   /** The last line of the start log: what the script does before the reveal. */
   arriving?: string;
   glow?: boolean;
@@ -113,26 +116,46 @@ const steps: [stage: string, what: string][] = [
       .map((row) => row.textContent ?? "")
       .join("\n");
 
-  /** Waits for `text`, or for `goal`, the script's last screen: then there is nothing to do. */
-  async function until(frame: HTMLIFrameElement, text: string, goal: string) {
-    const deadline = performance.now() + STEP_TIMEOUT_MS;
-    for (;;) {
-      const screen = screenOf(frame);
-      if (screen.includes(goal)) return "arrived";
-      if (screen.includes(text)) return "shown";
-      if (performance.now() > deadline) return "lost";
-      await sleep(POLL_MS);
+  type Step = z.infer<typeof Script>[number];
+
+  /**
+   * Plays `steps` in order. When the screen shows a later step's text and not the current
+   * one's, the steps between are skipped: a restored session may start past the sign-in. Gives up quietly when nothing it waits for
+   * shows in time, or when the demo stops.
+   */
+  async function play(frame: HTMLIFrameElement, steps: Step[], signal: AbortSignal) {
+    let next = 0;
+    while (next < steps.length) {
+      const deadline = performance.now() + STEP_TIMEOUT_MS;
+      let found = -1;
+      while (found < 0) {
+        if (signal.aborted || performance.now() > deadline) return;
+        const screen = screenOf(frame);
+        // The current step first: two in a row may wait for the same screen.
+        found = screen.includes(steps[next]?.wait ?? "")
+          ? next
+          : steps.findLastIndex((step, i) => i > next && screen.includes(step.wait));
+        if (found < 0) await sleep(POLL_MS);
+      }
+      const step = steps[found];
+      if (step?.type) type(frame, step.type);
+      if (step?.pause) await sleep(step.pause);
+      next = found + 1;
     }
   }
 
   const type = (frame: HTMLIFrameElement, data: string) =>
     frame.contentWindow?.postMessage({ source: "airtty", type: "input", data }, location.origin);
 
+  /** How to stop each started demo: its frame removed, its capture back. */
+  const stops = new WeakMap<HTMLElement, () => void>();
+
   function start(root: HTMLElement) {
     const layer = root.querySelector<HTMLElement>(".layer");
     const take = root.querySelector<HTMLElement>("[data-take]");
-    if (!layer || !take || root.dataset.started) return;
-    root.dataset.started = "true";
+    if (!layer || !take || stops.has(root)) return;
+    const alive = new AbortController();
+    const { signal } = alive;
     root.classList.add("booting");
     const script = Script.safeParse(JSON.parse(root.dataset.script ?? "[]"));
 
@@ -145,6 +168,7 @@ const steps: [stage: string, what: string][] = [
 
     let drawn = false;
     const reveal = () => {
+      if (signal.aborted) return;
       root.classList.remove("booting");
       root.classList.add("on");
       take.hidden = false;
@@ -152,28 +176,34 @@ const steps: [stage: string, what: string][] = [
       layer.setAttribute("aria-label", "Use the live application with the keyboard");
       layer.tabIndex = 0;
     };
-    const fail = () => {
-      root.classList.remove("booting");
+    const stop = () => {
+      alive.abort();
+      stops.delete(root);
       frame.remove();
+      root.classList.remove("booting", "on", "held");
+      take.hidden = true;
+      layer.removeAttribute("role");
+      layer.removeAttribute("aria-label");
+      layer.removeAttribute("tabindex");
+      for (const done of layer.querySelectorAll(".done")) done.classList.remove("done");
     };
-    setTimeout(() => drawn || fail(), DRAWN_TIMEOUT_MS);
+    stops.set(root, stop);
+    setTimeout(() => drawn || stop(), DRAWN_TIMEOUT_MS);
 
-    addEventListener("message", async (event) => {
-      if (event.source !== frame.contentWindow || event.origin !== location.origin) return;
-      const message = Stage.safeParse(event.data);
-      if (!message.success) return;
-      layer.querySelector(`[data-stage="${message.data.stage}"]`)?.classList.add("done");
-      if (message.data.stage !== "drawn") return;
-      drawn = true;
-      const steps = script.success ? script.data : [];
-      const goal = steps.at(-1)?.wait ?? "";
-      for (const step of steps) {
-        if ((await until(frame, step.wait, goal)) !== "shown") break;
-        if (step.type) type(frame, step.type);
-        if (step.pause) await sleep(step.pause);
-      }
-      reveal();
-    });
+    addEventListener(
+      "message",
+      async (event) => {
+        if (event.source !== frame.contentWindow || event.origin !== location.origin) return;
+        const message = Stage.safeParse(event.data);
+        if (!message.success) return;
+        layer.querySelector(`[data-stage="${message.data.stage}"]`)?.classList.add("done");
+        if (message.data.stage !== "drawn") return;
+        drawn = true;
+        await play(frame, script.success ? script.data : [], signal);
+        reveal();
+      },
+      { signal },
+    );
 
     // The reader takes the keyboard; a click anywhere else gives the page back.
     const keyboard = () => {
@@ -182,24 +212,35 @@ const steps: [stage: string, what: string][] = [
     };
     const hold = (held: boolean) => {
       root.classList.toggle("held", held);
-      take.hidden = held;
+      take.hidden = held || !root.classList.contains("on");
       frame.tabIndex = held ? 0 : -1;
       if (held) keyboard();
     };
     // Held, the screen's own focus belongs to the terminal: keys typed there must not fall
     // on the wrapper.
-    layer.addEventListener("focus", () => root.classList.contains("held") && keyboard());
+    layer.addEventListener("focus", () => root.classList.contains("held") && keyboard(), {
+      signal,
+    });
     // The whole screen takes the keyboard: a hint in a corner is easy to miss on 40 rows.
-    const takeIfLive = () => root.classList.contains("on") && !root.classList.contains("held") && hold(true);
-    layer.addEventListener("click", takeIfLive);
-    layer.addEventListener("keydown", (event) => {
-      if (event.target !== layer || (event.key !== "Enter" && event.key !== " ")) return;
-      event.preventDefault();
-      takeIfLive();
-    });
-    document.addEventListener("pointerdown", (event) => {
-      if (event.target instanceof Node && !root.contains(event.target)) hold(false);
-    });
+    const takeIfLive = () =>
+      root.classList.contains("on") && !root.classList.contains("held") && hold(true);
+    layer.addEventListener("click", takeIfLive, { signal });
+    layer.addEventListener(
+      "keydown",
+      (event) => {
+        if (event.target !== layer || (event.key !== "Enter" && event.key !== " ")) return;
+        event.preventDefault();
+        takeIfLive();
+      },
+      { signal },
+    );
+    document.addEventListener(
+      "pointerdown",
+      (event) => {
+        if (event.target instanceof Node && !root.contains(event.target)) hold(false);
+      },
+      { signal },
+    );
   }
 
   for (const root of document.querySelectorAll<HTMLElement>("[data-live]")) {
@@ -207,6 +248,10 @@ const steps: [stage: string, what: string][] = [
       root.querySelector<HTMLElement>("[data-fallback]")?.removeAttribute("hidden");
       continue;
     }
+    // `manual`: a gallery starts and stops its demos as the reader picks one.
+    root.addEventListener("live:start", () => start(root));
+    root.addEventListener("live:stop", () => stops.get(root)?.());
+    if (root.dataset.boot === "manual") continue;
     if (root.dataset.boot === "eager") {
       start(root);
       continue;
