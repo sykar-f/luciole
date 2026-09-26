@@ -9,12 +9,20 @@
  * the next ones reuse the cache. The entry appears in one rename: an interrupted build
  * leaves nothing behind.
  */
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { join, resolve } from "node:path";
 import { ABI_KEY, ABI_PACKAGES, APP_MANIFEST, AppManifest } from "./abi";
 import { defaultCache } from "./compile";
 import { frameworkHash } from "./framework-hash";
-import { buildWebRuntime, WEB_RUNTIME_FILES } from "./web/build";
+import { buildWebRuntime, TREE_SITTER_DIRECTORY, WEB_RUNTIME_FILES } from "./web/build";
 import { WEB_SERVER_FILE } from "./web/server-build";
 
 const OPENTUI_TAG = `v${ABI_PACKAGES["@opentui/core"]}`;
@@ -109,6 +117,9 @@ export async function installWebRuntime(
   rmSync(target, { recursive: true, force: true });
   mkdirSync(join(target, "app"), { recursive: true });
   await copy(source, target, [...WEB_RUNTIME_FILES, "runtime.js.map", "web-runtime.json"]);
+  cpSync(join(source, TREE_SITTER_DIRECTORY), join(target, TREE_SITTER_DIRECTORY), {
+    recursive: true,
+  });
   if (!local) return target;
   await copy(join(output, "web-server"), target, [
     WEB_SERVER_FILE,

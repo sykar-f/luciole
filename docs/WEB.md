@@ -56,15 +56,15 @@ Le navigateur ouvre `https://notes.example.com/` et arrive sur `/_airtty/web/`. 
 est dans `$XDG_CACHE_HOME/airtty/web/<clé d'ABI>-<hash du framework>/` : la page est
 aussi du code du framework. `airtty build --web` le prépare s'il manque. En local : `AIRTTY_WEB_ORIGIN=http://127.0.0.1:3000`.
 
-| Fichier                             | Rôle                                                                             |
-| ----------------------------------- | -------------------------------------------------------------------------------- |
-| `src/web-runtime.ts`                | Préparation par clé d'ABI : OpenTUI au tag de l'ABI, patch, Zig, bundle ; copie  |
-| `src/web-routes.ts`                 | `/_airtty/web/*` et l'origine déclarée (`Origin` et `Host`)                      |
-| `src/web/build.ts`                  | Bundle de la page : variantes, OpenTUI depuis ses sources, shims Node, clé d'ABI |
-| `src/web/platform/`                 | Variantes : `run`, `app-bundle`, `host-direct`, `vt/terminal`, `flight/server`   |
-| `src/web/opentui/`, `src/web/node/` | Backend FFI WASM d'OpenTUI ; built-ins Node d'une page                           |
-| `web/opentui-v0.5.12.patch`         | Le patch natif d'OpenTUI (cible wasm32-wasi)                                     |
-| `scripts/web/`                      | Driver CDP et parcours navigateur (`bun run test:web`)                           |
+| Fichier                             | Rôle                                                                               |
+| ----------------------------------- | ---------------------------------------------------------------------------------- |
+| `src/web-runtime.ts`                | Préparation par clé d'ABI : OpenTUI au tag de l'ABI, patch, Zig, bundle ; copie    |
+| `src/web-routes.ts`                 | `/_airtty/web/*` et l'origine déclarée (`Origin` et `Host`)                        |
+| `src/web/build.ts`                  | Bundle de la page : variantes, OpenTUI depuis ses sources, shims Node, clé d'ABI   |
+| `src/web/platform/`                 | Variantes : `run`, `app-bundle`, `host-direct`, `vt/terminal`, `flight/server`     |
+| `src/web/opentui/`, `src/web/node/` | Backend FFI WASM d'OpenTUI, Worker tree-sitter ; built-ins Node d'une page         |
+| `web/opentui-v0.5.12.patch`         | Le patch natif d'OpenTUI (cible wasm32-wasi)                                       |
+| `scripts/web/`                      | Driver CDP et parcours navigateur (`test:web`, `test:web:local`, `test:web:forge`) |
 
 ## Mode d'emploi (tout dans le navigateur)
 
@@ -79,18 +79,26 @@ navigateur, dont `serve()` répond aux onglets par `MessagePort`. Les bases SQLi
 mémoire (SQLite WASM) et sont écrites dans OPFS (`airtty/<app>/`) après chaque Server
 Function, avant sa réponse.
 
-| Fichier                                | Rôle                                                                                     |
-| -------------------------------------- | ---------------------------------------------------------------------------------------- |
-| `src/build.ts` (rôle `web-server`)     | Même entrée et mêmes réécritures que le Server ; cible navigateur ; transformation async |
-| `src/web/server-build.ts`              | Plugins du rôle, amorçage, `sqlite3.wasm` à côté                                         |
-| `src/web/server/`                      | Accueil des onglets, amorçage, protocole, côté Worker et côté page, instantanés OPFS     |
-| `src/web/platform/serve.ts`            | `serve()` du Worker : `createHandler`, persistance après chaque action                   |
-| `src/web/async-context/`               | `AsyncLocalStorage` et transformation des `await` (R2)                                   |
-| `src/web/node/bun-sqlite.ts`, `bun.ts` | `bun:sqlite` sur SQLite WASM (parité testée) ; `Bun.sleep`, `env`, `nanoseconds`         |
+| Fichier                                | Rôle                                                                                      |
+| -------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `src/build.ts` (rôle `web-server`)     | Même entrée et mêmes réécritures que le Server ; cible navigateur ; transformation async  |
+| `src/web/server-build.ts`              | Plugins du rôle, amorçage, `sqlite3.wasm` à côté                                          |
+| `src/web/server/`                      | Accueil des onglets, amorçage, protocole, côté Worker et côté page, instantanés OPFS      |
+| `src/web/platform/serve.ts`            | `serve()` du Worker : `createHandler`, persistance après chaque action                    |
+| `src/web/async-context/`               | `AsyncLocalStorage` et transformation des `await` (R2)                                    |
+| `src/web/node/bun-sqlite.ts`, `bun.ts` | `bun:sqlite` sur SQLite WASM (parité testée) ; `Bun.sleep`, `env`, `nanoseconds`, SHA-256 |
 
 Ce que le code Server d'une app peut utiliser ici : `bun:sqlite` (le sous-ensemble ci-dessus),
-`Bun.sleep`, `crypto`, `fetch` vers la même origine. `fs`, `child_process`, `Bun.spawn`,
-`Bun.Terminal` échouent à l'usage avec un message ; ces apps gardent `--web`.
+`Bun.sleep`, `crypto`, `fetch` vers la même origine, un SHA-256 synchrone
+(`Bun.CryptoHasher("sha256")`, `createHash("sha256")`, `node/sha256.ts`) et l'encodage
+`base64url` de `Buffer`, que le polyfill de Bun n'a pas (`node/buffer-base64url.ts`). `fs`,
+`child_process`, `Bun.spawn`, `Bun.Terminal` échouent à l'usage avec un message ; ces apps
+gardent `--web`.
+
+Côté Client, la page fournit aussi au bundle d'app les built-ins Node qu'il déclare
+(`child_process`, `fs`, `fs/promises`, `os`, `path`) : les mêmes remplaçants que ceux
+d'OpenTUI, qui échouent à l'usage. Une app dont une fonction réservée au terminal importe
+`child_process` (l'éditeur de Forge, touche `e`) s'ouvre donc, sans cette fonction.
 
 ## 1. Ce que l'architecture offre déjà
 
@@ -200,9 +208,10 @@ await du bundle d'app) :
 | `Bun.sleep`, `crypto`, `path`, `url`                      | équivalents web                                                                                                         |
 | `fs`, `child_process`, `net`, `Bun.spawn`, `Bun.Terminal` | refusés : l'app n'a pas de forme « tout navigateur », seulement « Client web »                                          |
 
-État des exemples : `notes`, `chat`, `latency` peuvent viser les deux formes ; `files`,
-`mdreader`, `agent` (fs) et `forge` (git, CI) seulement le Client web ; `mux` et tout
-`<Terminal>` (PTY) aucune, le runtime web y rend un écran « indisponible ici ».
+État des exemples : `notes`, `chat`, `latency` et `forge` peuvent viser les deux formes
+(Forge sans l'import d'un dépôt git, `FORGE_GIT_REPO`, ni la touche `e`) ; `files`,
+`mdreader` et `agent` (fs) seulement le Client web ; `mux` et tout `<Terminal>` (PTY)
+aucune, le runtime web y rend un écran « indisponible ici ».
 
 ## 3. Les deux formes en détail
 
@@ -364,7 +373,17 @@ substitué au build, et les deux alias de mémoire native d'OpenTUI (cellules, c
 NativeSpanFeed) servis par des vues vivantes. Une app `@opentui/react` avec `<input>` et
 `<scrollbox>` rend le même écran qu'en natif, sous Bun et dans Chrome derrière xterm.js ;
 815 Ko brotli au total. Yoga passe en `-fno-exceptions` ; les structs partagées passent
-leurs longueurs en `u64`.
+leurs longueurs en `u64`. Une lecture restait en 64 bits : le pointeur des sources de
+ligne (`textBufferViewGetLineSources`), dont la moitié haute est en wasm32 la longueur qui
+suit ; lu en 32 bits (`opentui/plugin.ts`), la gouttière de `<code>` et `<diff>` retrouve
+ses numéros.
+
+**Tree-sitter** (coloration de `<code>`, `<diff>`, `<markdown>`) : le runtime web compile
+le Worker d'OpenTUI (`parser.worker.ts`) en script classique, puisqu'OpenTUI le lance par
+`new Worker(url)`, et y remplace `DownloadUtils` par des `fetch` (`tree-sitter-downloads.ts`)
+: le cache HTTP du navigateur tient lieu de répertoire de données. `tree-sitter/` porte le
+Worker, `tree-sitter.wasm` et les parsers par défaut avec leurs requêtes (JavaScript,
+TypeScript, Markdown, Zig), chargés seulement quand un écran colore du code.
 
 **R2 — contexte asynchrone sans `AsyncLocalStorage`. Levé** ([probes/web](../probes/web/README.md)).
 Chrome 153 n'a pas `AsyncContext`, et Bun ne polyfille pas `node:async_hooks` pour le

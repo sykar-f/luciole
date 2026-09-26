@@ -1,11 +1,14 @@
 /**
  * `#opentui/runtime-assets` for the browser: the native library is the `opentui.wasm`
- * that ffi-wasm.ts already instantiated; tree-sitter is out of the spike (docs/WEB.md, R1).
+ * that ffi-wasm.ts already instantiated; tree-sitter's Worker, wasm, parsers and queries
+ * are the web runtime's `tree-sitter/` files (src/web/build.ts), next to `runtime.js`.
  */
-const unavailable = (what: string) => () => {
-  throw new Error(`${what} is not available in the browser runtime yet`);
-};
+const TREE_SITTER = new URL("tree-sitter/", import.meta.url);
+const treeSitterFile = (path: string) => new URL(path, TREE_SITTER).href;
+
 export const resolveNativeLibraryPath = async () => "opentui.wasm";
-export const resolveDefaultParserAsset = unavailable("tree-sitter");
-export const resolveDefaultTreeSitterWorkerPath = unavailable("tree-sitter");
-export const resolveTreeSitterWasm = unavailable("tree-sitter");
+/** `relativePath` is OpenTUI's, `assets/<language>/<file>`, kept under `tree-sitter/`. */
+export const resolveDefaultParserAsset = async (relativePath: string) =>
+  treeSitterFile(relativePath);
+export const resolveDefaultTreeSitterWorkerPath = () => treeSitterFile("parser-worker.js");
+export const resolveTreeSitterWasm = async () => treeSitterFile("tree-sitter.wasm");

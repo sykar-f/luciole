@@ -58,6 +58,14 @@ export const opentuiWasm: BunPlugin = {
       text = `import { retainPtr } from ${JSON.stringify(FFI)}\n${text}`;
       // No file to check: the module is already instantiated.
       text = replace(args.path, text, "if (!existsSync(targetLibPath)) {", "if (false) {");
+      // A line-info pointer read as 8 bytes: in wasm32 its upper half is the length that
+      // follows, and the gutter of <code> and <diff> gets no line sources to number.
+      text = replace(
+        args.path,
+        text,
+        "toPointer(data.getBigUint64(sources.arrayOffset, true))",
+        "toPointer(data.getUint32(sources.arrayOffset, true))",
+      );
       return { loader: "ts", contents: text };
     });
 
