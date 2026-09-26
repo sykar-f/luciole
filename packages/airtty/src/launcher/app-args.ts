@@ -5,7 +5,7 @@
  * with `--help` generated from it; the Server parses them again from `AIRTTY_ARGS`.
  */
 import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { resolve } from "node:path";
 import {
   ARGS_VARIABLE,
   ArgsError,
@@ -26,7 +26,7 @@ export type RuntimeFlag = {
 
 /** The `app/args.ts` a build bundled (`.airtty/args`), or `undefined` when it has none. */
 export async function loadArgs(output: string, version?: string) {
-  const file = join(output, "args/index.js");
+  const file = resolve(output, "args/index.js");
   if (!existsSync(file)) return undefined;
   // A new query per build: a rebuilt module at the same path is evaluated again.
   return definitionOf(await import(`${file}${version ? `?${version}` : ""}`));

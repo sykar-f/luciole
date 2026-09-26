@@ -150,7 +150,8 @@ export const ARGS_FILE = "app/args.ts";
  * supported shapes) and described for metadata.json, which hosts read without running it.
  */
 async function readArgs(bundle: string, root: string): Promise<AppArgs> {
-  const imported: unknown = await import(bundle);
+  // Absolute: a relative path would be resolved as a package name.
+  const imported: unknown = await import(resolve(bundle));
   const definition =
     typeof imported === "object" && imported !== null && "default" in imported
       ? imported.default
