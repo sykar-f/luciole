@@ -2,13 +2,14 @@
 // An example application running in this page (scripts/demo.ts, docs/WEB.md "Page
 // embarquée"), over its own captured screen. The capture is written into an xterm.js of
 // the page's, set up exactly as the runtime sets up its own (font, colours, grid), so
-// when the application has drawn, one terminal replaces the other cell for cell and the
-// reader sees no change. A script may walk it to the screen the capture shows (sign in,
-// open a pull request). The reader takes the keyboard by clicking it: until then, the
-// page scrolls over it as over a picture. The capture's HTML drawing stays for narrow
-// screens, where nothing starts, and for readers without scripts.
+// once the application shows the capture's screen, one terminal replaces the other cell
+// for cell and the reader sees no change. A script may walk it to that screen (sign in,
+// open a pull request); a screen that never comes to match is shown after a while
+// anyway. The reader takes the keyboard by clicking it: until then, the page scrolls over
+// it as over a picture. The capture's HTML drawing stays for narrow screens, where
+// nothing starts, and for readers without scripts.
 import Screen from "./Screen.astro";
-import { ansi, SCREEN_BACKGROUND, SCREEN_FOREGROUND, type Frame } from "../lib/frames";
+import { ansi, lines, SCREEN_BACKGROUND, SCREEN_FOREGROUND, type Frame } from "../lib/frames";
 
 /**
  * Wait until the screen shows `wait`, then type `type` into it as a keyboard would, then
@@ -52,9 +53,11 @@ const look = new URLSearchParams({
 // index.html by name: Astro's dev server serves no directory index from public/.
 const src = `/demo/${demo}/index.html?${look}`;
 
-// Inline JSON: `<` escaped, so no captured text can close its script element.
+// Inline JSON: `<` escaped, so no captured text can close its script element. `lines`: the
+// text the live screen must show before it replaces the capture.
 const stand = JSON.stringify({
   ansi: ansi(frame),
+  lines: lines(frame),
   columns: frame.cols,
   rows: frame.rows,
   background: SCREEN_BACKGROUND,
@@ -102,6 +105,7 @@ const stand = JSON.stringify({
   const Connection = z.object({ saveData: z.optional(z.boolean()) });
   const Stand = z.object({
     ansi: z.string(),
+    lines: z.array(z.string()),
     columns: z.number(),
     rows: z.number(),
     background: z.string(),
@@ -110,6 +114,13 @@ const stand = JSON.stringify({
 
   const DRAWN_TIMEOUT_MS = 20_000;
   const STEP_TIMEOUT_MS = 8_000;
+  /** How long the capture stays up for a live screen that does not come to match it. */
+  const MATCH_TIMEOUT_MS = 8_000;
+  /**
+   * The share of rows that must read as the capture's: a duration measured again (Chat), a
+   * date in the reader's language (mdreader) may differ, not a screen still loading.
+   */
+  const MATCHING_ROWS = 0.95;
   const POLL_MS = 80;
   /** Below this width a wide terminal's cells are too small to read: no start. */
   const NARROW = "(max-width: 760px)";
@@ -135,6 +146,9 @@ const stand = JSON.stringify({
   /** Resolves once a stand-in has drawn its capture: only then may the application load. */
   const standing = new WeakMap<HTMLElement, Promise<void>>();
 
+  const standOf = (root: HTMLElement) =>
+    Stand.safeParse(JSON.parse(root.querySelector("[data-stand]")?.textContent ?? "null"));
+
   function stand(root: HTMLElement) {
     let drawn = () => {};
     standing.set(
@@ -146,8 +160,7 @@ const stand = JSON.stringify({
       }),
     );
     const layer = root.querySelector<HTMLElement>(".layer");
-    const data = root.querySelector("[data-stand]")?.textContent;
-    const parsed = Stand.safeParse(JSON.parse(data ?? "null"));
+    const parsed = standOf(root);
     if (!layer || !parsed.success) return;
     const { ansi, columns, rows, background, foreground } = parsed.data;
     const holder = document.createElement("div");
@@ -193,11 +206,34 @@ const stand = JSON.stringify({
     new ResizeObserver(layout).observe(holder);
   }
 
-  /** The text xterm.js draws into the frame's DOM (same origin). */
-  const screenOf = (frame: HTMLIFrameElement) =>
-    [...(frame.contentDocument?.querySelectorAll(".xterm-rows > div") ?? [])]
-      .map((row) => row.textContent ?? "")
-      .join("\n");
+  /** The rows xterm.js draws into the frame's DOM (same origin), as the capture's `lines`. */
+  const rowsOf = (frame: HTMLIFrameElement) =>
+    [...(frame.contentDocument?.querySelectorAll(".xterm-rows > div") ?? [])].map((row) =>
+      (row.textContent ?? "").replaceAll("\u00a0", " ").trimEnd(),
+    );
+  const screenOf = (frame: HTMLIFrameElement) => rowsOf(frame).join("\n");
+
+  /**
+   * Waits until the live screen reads as the capture, twice in a row: the application may
+   * show the text a script waits for, or draw its first frame, before the rest of its
+   * screen has come (a description streamed later, a list read from the Server). Returns
+   * the rows that still differ when it gives up, none once it matches.
+   */
+  async function settle(frame: HTMLIFrameElement, capture: string[], signal: AbortSignal) {
+    const deadline = performance.now() + MATCH_TIMEOUT_MS;
+    const allowed = Math.floor(capture.length * (1 - MATCHING_ROWS));
+    let previous = "";
+    for (;;) {
+      const rows = rowsOf(frame);
+      const differing = capture.flatMap((line, i) => (rows[i] === line ? [] : [i]));
+      const screen = rows.join("\n");
+      if (differing.length <= allowed && screen === previous) return [];
+      if (signal.aborted || performance.now() > deadline)
+        return differing.map((i) => ({ row: i, capture: capture[i], live: rows[i] }));
+      previous = screen;
+      await sleep(POLL_MS);
+    }
+  }
 
   type Step = z.infer<typeof Script>[number];
 
@@ -242,6 +278,7 @@ const stand = JSON.stringify({
     // A same-origin frame shares this thread: its start would hold the stand-in's paint.
     const ready = standing.get(root) ?? Promise.resolve();
     const script = Script.safeParse(JSON.parse(root.dataset.script ?? "[]"));
+    const capture = standOf(root).data?.lines ?? [];
 
     const frame = document.createElement("iframe");
     frame.title = "An airtty application running in this page";
@@ -281,6 +318,11 @@ const stand = JSON.stringify({
         if (message.data.stage !== "drawn") return;
         drawn = true;
         await play(frame, script.success ? script.data : [], signal);
+        const differing = await settle(frame, capture, signal);
+        // Shown anyway, the application being the point; the capture is then out of date
+        // (scripts/capture.py) or the script no longer reaches its screen.
+        if (import.meta.env.DEV && differing.length && !signal.aborted)
+          console.warn(`${root.dataset.src} does not show its capture:`, differing);
         reveal();
       },
       { signal },

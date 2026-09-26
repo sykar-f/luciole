@@ -44,17 +44,18 @@ export function style([, fg, bg, flags]: Run) {
   return rules.join(";");
 }
 
+/** The text of each row, without its trailing blanks. */
+export const lines = (frame: Frame) =>
+  frame.cells.map((runs) =>
+    runs
+      .map(([t]) => t)
+      .join("")
+      .trimEnd(),
+  );
+
 // The text of a frame, for screen readers and search engines.
 export function text(frame: Frame) {
-  return frame.cells
-    .map((runs) =>
-      runs
-        .map(([t]) => t)
-        .join("")
-        .trimEnd(),
-    )
-    .join("\n")
-    .trim();
+  return lines(frame).join("\n").trim();
 }
 
 export function escape(text: string) {
