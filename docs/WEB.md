@@ -208,10 +208,22 @@ await du bundle d'app) :
 | `Bun.sleep`, `crypto`, `path`, `url`                      | équivalents web                                                                                                         |
 | `fs`, `child_process`, `net`, `Bun.spawn`, `Bun.Terminal` | refusés : l'app n'a pas de forme « tout navigateur », seulement « Client web »                                          |
 
+**`server-seed.json`.** Un site statique peut placer ce fichier à côté de
+`server-worker.js` (`src/web/server/seed.ts`) : `{ "env": { … }, "files": [ … ] }`. `env`
+rejoint `process.env` avant que le code Server de l'app ne le lise ; `files` est un
+instantané en lecture seule (`path`, `kind`, `size`, `mtimeMs`, `content` en base64) sur
+lequel `node:fs` répond, avec les formes de Node (`Stats`, `Dirent`, erreurs `ENOENT`),
+`watch` n'émettant jamais (`node/files.ts`, `tests/web-files.test.ts`). Les écritures
+disent `EROFS`, sauf celles, inertes, qu'OpenTUI fait pour ses journaux. Sans ce fichier,
+rien ne change.
+
 État des exemples : `notes`, `chat`, `latency` et `forge` peuvent viser les deux formes
-(Forge sans l'import d'un dépôt git, `FORGE_GIT_REPO`, ni la touche `e`) ; `files`,
-`mdreader` et `agent` (fs) seulement le Client web ; `mux` et tout `<Terminal>` (PTY)
-aucune, le runtime web y rend un écran « indisponible ici ».
+(Forge sans l'import d'un dépôt git, `FORGE_GIT_REPO`, ni la touche `e` ; Chat sans clé
+avec `CHAT_DEMO=1`) ; `mdreader` et les DevTools aussi, avec une graine (des fichiers
+Markdown et `MD_PATH` ; `AIRTTY_DEVTOOLS_LISTEN=none` et `AIRTTY_DEVTOOLS_DEMO=1`) ;
+`files` (bibliothèque d'images native, `sharp`) et `agent` (processus) seulement le Client
+web ; `mux` et tout `<Terminal>` (PTY) aucune, le runtime web y rend un écran
+« indisponible ici ».
 
 ## 3. Les deux formes en détail
 
