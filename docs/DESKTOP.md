@@ -30,7 +30,9 @@ et la session est alors oubliée comme après un quit.
 
 Les options de l'application (`app/args.ts`) passent comme sur un terminal : l'hôte lance
 le binaire avec la ligne de commande de sa configuration, et le binaire les vérifie puis
-les transmet à son Server ([DISTRIBUTION.md](DISTRIBUTION.md)).
+les transmet à son Server ([DISTRIBUTION.md](DISTRIBUTION.md)). Avec
+`"server": "per-launch"`, une fenêtre est un lancement : fermer la fenêtre est un quit,
+son Server s'arrête.
 
 Côté code, `run()` lit la variable et crée l'Application avec `quitOnCtrlC: false`
 (`ApplicationOptions`) ; `Runtime` ne déclare alors plus `ctrl+c`, et la barre d'aide

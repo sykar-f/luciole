@@ -49,6 +49,10 @@ export const LifetimeStatus = z.object({
   pid: z.number(),
   clients: z.number(),
   graceUntil: z.optional(z.number()),
+  /** The fingerprint of its application arguments, when it has some (src/args.ts). */
+  args: z.optional(z.string()),
+  /** Its launch's id, per-launch (src/launcher/launch-key.ts). */
+  launch: z.optional(z.string()),
 });
 export const CLIENT_HEADER = "x-airtty-client";
 
@@ -59,7 +63,13 @@ export type Lifetime = {
 
 export function managedLifetime(
   env: NodeJS.ProcessEnv,
-  { buildId, socket, stop }: { buildId: string; socket: string; stop: () => void },
+  {
+    buildId,
+    socket,
+    stop,
+    args,
+    launch,
+  }: { buildId: string; socket: string; stop: () => void; args?: string; launch?: string },
 ): Lifetime | undefined {
   const parsed = Environment.safeParse(env);
   if (!parsed.success)
@@ -135,6 +145,8 @@ export function managedLifetime(
           pid: process.pid,
           clients: clients.size,
           ...(grace ? { graceUntil: grace.until } : {}),
+          ...(args ? { args } : {}),
+          ...(launch ? { launch } : {}),
         } satisfies z.infer<typeof LifetimeStatus>);
       if (request.method !== "POST") return new Response("Not found", { status: 404 });
       if (url.pathname === "/lifetime/ping" && client) {

@@ -22,9 +22,12 @@ import { binaryOf, findInstalled, install, listInstalled } from "../registry/app
 import { npmRegistry } from "../registry/npm";
 import type { Registry } from "../registry/registry";
 import { DEFAULT_GRACE_MS, MS_PER_MINUTE, parseDuration } from "./lifetime";
+import { readAppMetadata } from "../app-metadata";
+import { planLaunch } from "./launch-key";
 import {
   checkArgs,
   HELP_FLAG,
+  NEW_FLAG,
   loadArgs,
   refuseArgs,
   runtimeHelp,
@@ -62,6 +65,7 @@ export const BUILT_FLAGS: readonly RuntimeFlag[] = [
     description: `Keep the Server this long after its terminal goes (default ${DEFAULT_GRACE_MS / MS_PER_MINUTE}m)`,
   },
   { name: "yes", description: "Install and run without asking" },
+  NEW_FLAG,
   HELP_FLAG,
 ];
 
@@ -82,8 +86,9 @@ export function builtArgs(args: readonly string[]) {
   if (url !== undefined) refuseArgs(app, "--url joins one that is already running");
   return {
     url,
-    graceMs: grace === undefined ? DEFAULT_GRACE_MS : parseDuration(grace),
+    graceMs: grace === undefined ? undefined : parseDuration(grace),
     help: flags.has("help"),
+    fresh: flags.has("new"),
     app,
   };
 }
@@ -92,7 +97,7 @@ export function builtArgs(args: readonly string[]) {
 async function runBuilt(
   directory: string,
   name: string,
-  { url, graceMs, help, app, sessionKey }: ReturnType<typeof builtArgs> & { sessionKey: string },
+  { url, graceMs, help, fresh, app, target }: ReturnType<typeof builtArgs> & { target: string },
   options: LaunchOptions,
 ) {
   const bun = process.execPath;
@@ -111,21 +116,32 @@ async function runBuilt(
     return 0;
   }
   if (url) return runForeground([...client, "--url", url], options.env);
-  const args = await checkArgs(definition, app, {
-    cwd: options.cwd ?? process.cwd(),
-    env: options.env,
+  const cwd = options.cwd ?? process.cwd();
+  const args = await checkArgs(definition, app, { cwd, env: options.env, name });
+  const metadata = await readAppMetadata(output);
+  const plan = await planLaunch({
     name,
+    target,
+    scope: metadata.server ?? "shared",
+    cwd,
+    fingerprint: args.fingerprint,
+    buildId,
+    fresh,
+    env: options.env,
   });
   return runLocal({
-    id: serverId(sessionKey),
+    id: serverId(plan.key),
     name,
     buildId,
-    graceMs,
+    graceMs: graceMs ?? (metadata.grace ? parseDuration(metadata.grace) : DEFAULT_GRACE_MS),
     directories: options.directories ?? defaultDirectories(),
-    env: { ...(options.env ?? process.env), ...args.env },
+    env: { ...(options.env ?? process.env), ...args.env, ...plan.env },
+    cwd,
+    fingerprint: args.fingerprint,
     command: [bun, "--conditions=react-server", join(directory, ".airtty/server/index.js")],
     client,
-    sessionKey,
+    sessionKey: plan.key,
+    session: plan.session,
   });
 }
 
@@ -146,7 +162,7 @@ export async function launch(target: string, options: LaunchOptions = {}): Promi
         resolution.directory,
         basename(resolution.directory),
         // The app, wherever its Server's socket is this time.
-        { ...parsed, sessionKey: `local:${resolution.directory}` },
+        { ...parsed, target: `local:${resolution.directory}` },
         options,
       );
     }
@@ -159,8 +175,8 @@ export async function launch(target: string, options: LaunchOptions = {}): Promi
       });
       const { url: repository, directory: inside } = resolution.source;
       // The repository, not its checkout: a new commit restores the same sessions.
-      const sessionKey = `git:${repository}${inside ? `/${inside}` : ""}`;
-      return runBuilt(directory, basename(directory), { ...parsed, sessionKey }, options);
+      const target = `git:${repository}${inside ? `/${inside}` : ""}`;
+      return runBuilt(directory, basename(directory), { ...parsed, target }, options);
     }
     case "url":
       // The generic Client: the app comes from its Server (src/generic).

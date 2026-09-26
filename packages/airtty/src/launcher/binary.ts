@@ -5,9 +5,10 @@
  *   notes [--grace d] [app options]    both, here: the Server on a socket of this user,
  *                                      found again within its grace (src/launcher/managed.ts)
  *   notes serve [--http [host]:port | --socket path] [-- app options]   the Server alone
- *   notes serve --detach --id <id> [--grace d] [--args-stdin]
+ *   notes serve --detach --id <id> [--grace d] [--env-stdin]
  *                                      a managed Server in the background; its
- *                                      application arguments come as a line on stdin
+ *                                      application arguments and launch come as a
+ *                                      line on stdin (--on)
  *   notes --url <url>                  the Client alone, to that Server
  *   notes --on [user@]host [--target <notes binary for host>] [--grace d] [app options]
  *                                      the Server there (installed on first use),
@@ -25,17 +26,14 @@ import { DEFAULT_GRACE_MS, parseDuration } from "./lifetime";
 import { ensureServer, formatEnsured, newClientId, serverId } from "./managed";
 import { directories } from "./paths";
 import { runOn } from "./remote";
-import {
-  ArgsError,
-  decodeLaunchArgs,
-  encodeLaunchArgs,
-  isUsageError,
-  USAGE_EXIT_CODE,
-} from "../args";
+import { ArgsError, ARGS_VARIABLE, decodeLaunchArgs, isUsageError, USAGE_EXIT_CODE } from "../args";
+import type { ServerScope } from "../launch";
+import { planLaunch, remoteEnvironment } from "./launch-key";
 import {
   checkArgs,
   definitionOf,
   HELP_FLAG,
+  NEW_FLAG,
   refuseArgs,
   runtimeHelp,
   splitArgs,
@@ -66,6 +64,8 @@ export type Roles = {
   server: (() => Promise<unknown>) | null;
   client: () => Promise<unknown>;
   args?: () => Promise<unknown>;
+  /** What the application's package.json declares of its Server (src/app-metadata.ts). */
+  launch?: { scope?: ServerScope; grace?: string };
 };
 
 const USAGE = (name: string) => [
@@ -83,6 +83,7 @@ const RUNTIME_FLAGS: readonly RuntimeFlag[] = [
   { name: "on", value: "[user@]host", description: "Run the Server on host, over ssh" },
   { name: "target", value: "binary", description: "This app built for the host of --on" },
   { name: "url", value: "url", description: "Join a running Server (no application options)" },
+  NEW_FLAG,
   HELP_FLAG,
   { name: "version", description: "Name, build and target" },
 ];
@@ -93,7 +94,7 @@ const SERVE_FLAGS: readonly RuntimeFlag[] = [
   { name: "detach", description: "" },
   { name: "id", value: "id", description: "" },
   { name: "grace", value: "duration", description: "" },
-  { name: "args-stdin", description: "" },
+  { name: "env-stdin", description: "" },
 ];
 
 /** `[host]:port`; an empty host is the loopback, never every interface. */
@@ -144,27 +145,29 @@ async function serve(identity: BinaryIdentity, args: readonly string[], roles: R
     if (!id || !/^[0-9a-f]{16}$/.test(id) || http !== undefined || socket !== undefined)
       throw new Error("serve --detach takes --id <16 hex digits> [--grace <duration>]");
     // Never on the command line, which other users see: on stdin from --on.
-    const launch = options.has("args-stdin") ? decodeLaunchArgs(await stdinLine()) : undefined;
-    const checked = launch
-      ? await checkArgs(definition, launch.argv, {
-          cwd: launch.cwd ?? process.cwd(),
-          name: identity.name,
-        })
-      : undefined;
+    const sent = options.has("env-stdin")
+      ? remoteEnvironment(await stdinLine(), process.cwd())
+      : {};
+    const launch = decodeLaunchArgs(sent[ARGS_VARIABLE]);
+    const checked = await checkArgs(definition, launch.argv, {
+      cwd: launch.cwd ?? process.cwd(),
+      name: identity.name,
+    });
     const server = await ensureServer({
       id,
       name: identity.name,
       buildId: identity.buildId,
       command: [process.execPath, "serve"],
-      graceMs: grace(options),
+      graceMs: grace(options, roles),
       directories: directories(),
-      env: { ...process.env, ...checked?.env },
+      env: { ...process.env, ...sent },
+      fingerprint: checked.fingerprint,
     });
     console.log(formatEnsured(server));
     return;
   }
-  if (options.has("id") || options.has("grace") || options.has("args-stdin"))
-    throw new Error("--id, --grace and --args-stdin go with --detach");
+  if (options.has("id") || options.has("grace") || options.has("env-stdin"))
+    throw new Error("--id, --grace and --env-stdin go with --detach");
   // `serve -- options`: this very process is the Server, which parses them (src/args.ts).
   if (app.length) {
     const checked = await checkArgs(definition, app, { cwd: process.cwd(), name: identity.name });
@@ -192,8 +195,9 @@ async function serve(identity: BinaryIdentity, args: readonly string[], roles: R
   child.once("exit", (code, signal) => process.exit(code ?? (signal ? 1 : 0)));
 }
 
-const grace = (options: Map<string, string>) => {
-  const text = options.get("grace");
+/** `--grace`, else what the application declares, else 15 minutes. */
+const grace = (options: Map<string, string>, roles: Roles) => {
+  const text = options.get("grace") ?? roles.launch?.grace;
   return text === undefined ? DEFAULT_GRACE_MS : parseDuration(text);
 };
 
@@ -231,37 +235,52 @@ async function start(text: string, roles: Roles) {
     cwd: process.cwd(),
     name: identity.name,
   });
-  // Sessions are kept under the app (and host), not the socket of this launch; the same
-  // key finds a Server left in grace by a previous launch.
-  const sessionKey =
-    destination === undefined ? `local:${identity.name}` : `ssh:${destination}/${identity.name}`;
+  // Sessions are kept under the app (and host) and the application's scope, not the
+  // socket of this launch; the same key finds a Server left in grace by a previous launch.
+  const plan = await planLaunch({
+    name: identity.name,
+    target:
+      destination === undefined ? `local:${identity.name}` : `ssh:${destination}/${identity.name}`,
+    scope: roles.launch?.scope ?? "shared",
+    cwd: process.cwd(),
+    fingerprint: checked.fingerprint,
+    buildId: identity.buildId,
+    fresh: options.has("new"),
+    // A crashed launch's Server there is asked by the remote serve, not from here.
+    ...(destination === undefined ? {} : { running: async () => true }),
+  });
   const client = newClientId();
   const server =
     destination === undefined
       ? await ensureServer({
-          id: serverId(sessionKey),
+          id: serverId(plan.key),
           name: identity.name,
           buildId: identity.buildId,
           command: [process.execPath, "serve"],
-          graceMs: grace(options),
+          graceMs: grace(options, roles),
           directories: directories(),
-          env: { ...process.env, ...checked.env },
+          env: { ...process.env, ...checked.env, ...plan.env },
+          fingerprint: checked.fingerprint,
           client,
           attach: true,
         })
       : await runOn(destination, {
           identity,
-          id: serverId(sessionKey),
-          graceMs: grace(options),
+          id: serverId(plan.key),
+          graceMs: grace(options, roles),
           self: process.execPath,
           target: options.get("target"),
-          args: definition ? encodeLaunchArgs(app) : undefined,
+          launch: {
+            ...(definition ? { args: { v: 1, argv: [...app] } } : {}),
+            launch: { scope: plan.launch.scope, id: plan.launch.id },
+          },
           log: (message) => console.error(message),
         });
   // Handed to the Client like a user's own --url; it pings the Server as this Client.
   process.argv.push("--url", server.url);
   process.env.AIRTTY_LIFETIME_CLIENT = client;
-  await runClient(identity, roles, sessionKey);
+  if (plan.session) process.env.AIRTTY_SESSION = plan.session;
+  await runClient(identity, roles, plan.key);
 }
 
 export async function main(identity: string, roles: Roles) {

@@ -1,7 +1,16 @@
 import React from "react";
+import { z } from "zod";
 import { serve } from "../packages/airtty/src/server";
+import { configureArgs, defineArgs } from "../packages/airtty/src/args";
 // A Server built by hand whose build id a test chooses (TEST_BUILD_ID), to exercise the
-// launcher's managed lifetime (src/launcher/lifetime.ts).
+// launcher's managed lifetime (src/launcher/lifetime.ts); with TEST_ARGS, it declares
+// application arguments (src/args.ts), as a generated Server entry does.
+if (process.env.TEST_ARGS)
+  await configureArgs(
+    defineArgs({ options: z.object({ name: z.string().default("anyone") }).strict() }),
+    process.env,
+    process.cwd(),
+  );
 serve({
   buildId: process.env.TEST_BUILD_ID ?? "build-1",
   manifest: {},

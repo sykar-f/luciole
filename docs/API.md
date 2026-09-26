@@ -276,7 +276,10 @@ import cli from "../app/args";
 export const config = cli.get(); // { harness?: "claude" | "codex"; mode: "read" | "ask"; … }
 ```
 
-`getArgs()` (`airtty/server`) rend la même valeur, non typée. Le Server fait autorité : il
+`getArgs()` (`airtty/server`) rend la même valeur, non typée, et `getLaunch()` le
+lancement : `{ scope, id?, cwd }`, où `scope` est `airtty.server` du `package.json`
+(`shared`, `per-directory` ou `per-launch`, voir
+[DISTRIBUTION.md](DISTRIBUTION.md#qui-partage-un-server--airttyserver)). Le Server fait autorité : il
 reparse lui-même la ligne reçue avant de servir, et une ligne refusée l'arrête (code 2,
 message dans son log). **Un Server = un jeu d'arguments** : `get()` est une constante du
 process, sûre au niveau module, dans un singleton ou sous `"use cache"`. Il n'y a pas

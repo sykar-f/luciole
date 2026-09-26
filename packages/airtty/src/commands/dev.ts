@@ -7,6 +7,7 @@ import { z } from "zod";
 import { isUsageError, USAGE_EXIT_CODE } from "../args";
 import { build } from "../build";
 import { checkArgs, loadArgs, type CheckedArgs } from "../launcher/app-args";
+import { LAUNCH_VARIABLE, type Launch } from "../launch";
 import { messageOf } from "../guards";
 import { isCode } from "../launcher/lock";
 import { frameworkRoot, stop, type Command } from "./command";
@@ -103,7 +104,18 @@ export const dev: Command = {
             ["--conditions=react-server", join(directory, ".airtty/server/index.js")],
             {
               stdio: ["ignore", "pipe", "inherit"],
-              env: { ...process.env, PORT: process.env.PORT ?? "0", ...args.env },
+              env: {
+                ...process.env,
+                PORT: process.env.PORT ?? "0",
+                ...args.env,
+                // Already one Server per run, whatever the application declares.
+                [LAUNCH_VARIABLE]: JSON.stringify({
+                  v: 1,
+                  scope: "per-launch",
+                  id: session,
+                  cwd,
+                } satisfies Launch),
+              },
             },
           );
           const activeServer = server;

@@ -56,6 +56,80 @@ function read(file: string): SessionFile | undefined {
   }
 }
 
+type Orphan = { file: string; data: SessionFile };
+/** Session files left by dead Clients: expired ones are deleted on the way. */
+function orphans(directory: string, except?: string) {
+  const left: Orphan[] = [];
+  for (const entry of readdirSync(directory)) {
+    if (!entry.endsWith(".json")) continue;
+    const file = join(directory, entry);
+    const data = read(file);
+    if (!data || file === except || alive(data.pid)) continue;
+    if (Date.now() - data.updatedAt > ORPHAN_RETENTION_MS) {
+      try {
+        unlinkSync(file);
+      } catch {}
+      continue;
+    }
+    left.push({ file, data });
+  }
+  return left;
+}
+/**
+ * Takes the newest of `candidates` to `path`, marked with this process at once: of two
+ * processes claiming together, one renames it, the other fails and tries the next.
+ */
+function claim(candidates: readonly Orphan[], path: string, write: (session: SessionFile) => void) {
+  for (const candidate of [...candidates].sort((a, b) => b.data.updatedAt - a.data.updatedAt)) {
+    try {
+      renameSync(candidate.file, path);
+      // Still marked with the dead pid: claimed before another process sees it.
+      write(candidate.data);
+      return candidate.data;
+    } catch {}
+  }
+  return undefined;
+}
+
+/**
+ * For a launcher reattaching a crashed Client's launch (src/launcher/launch-key.ts): claims
+ * the newest session a dead Client left whose Server key `accept`s, under a new id, marked
+ * with this process until the Client it starts opens it (`AIRTTY_SESSION`). Resolves with
+ * that id and the key, or `undefined`: nothing to reattach, or no disk.
+ */
+export async function claimOrphan(options: {
+  name: string;
+  accept: (server: string) => boolean | Promise<boolean>;
+  env?: NodeJS.ProcessEnv;
+}) {
+  let directory: string;
+  try {
+    directory = sessionDirectory(options.name, options.env);
+    mkdirSync(directory, { recursive: true, mode: PRIVATE_DIRECTORY });
+  } catch {
+    return undefined;
+  }
+  const accepted: Orphan[] = [];
+  for (const orphan of orphans(directory))
+    if (await options.accept(orphan.data.server)) accepted.push(orphan);
+  const id = crypto.randomUUID();
+  const path = join(directory, `${id}.json`);
+  const claimed = claim(accepted, path, (data) => {
+    const temporary = `${path}.${process.pid}.tmp`;
+    try {
+      writeFileSync(
+        temporary,
+        JSON.stringify({ ...data, pid: process.pid, updatedAt: Date.now() }),
+        {
+          mode: PRIVATE_FILE,
+        },
+      );
+      renameSync(temporary, path);
+    } catch {}
+  });
+  return claimed ? { id, server: claimed.server } : undefined;
+}
+
 export type SessionStore = {
   /** What this Client restores: its own session, or the one a crashed Client left. */
   restored: Session | undefined;
@@ -95,20 +169,7 @@ export function openSession(options: {
     return nothing;
   }
   const path = join(directory, `${id ?? crypto.randomUUID()}.json`);
-  const left: { file: string; data: SessionFile }[] = [];
-  for (const entry of readdirSync(directory)) {
-    if (!entry.endsWith(".json")) continue;
-    const file = join(directory, entry);
-    const data = read(file);
-    if (!data || file === path || alive(data.pid)) continue;
-    if (Date.now() - data.updatedAt > ORPHAN_RETENTION_MS) {
-      try {
-        unlinkSync(file);
-      } catch {}
-      continue;
-    }
-    if (data.server === server) left.push({ file, data });
-  }
+  const left = orphans(directory, path).filter((orphan) => orphan.data.server === server);
   const write = (session: Session) => {
     const file: SessionFile = {
       version: 1,
@@ -125,17 +186,7 @@ export function openSession(options: {
     } catch {}
   };
   let restored = id ? read(path) : undefined;
-  if (!id)
-    for (const candidate of left.sort((a, b) => b.data.updatedAt - a.data.updatedAt)) {
-      try {
-        // Atomic: of two Clients starting together, one takes it, the other fails here.
-        renameSync(candidate.file, path);
-        restored = candidate.data;
-        // Still marked with the dead pid: claim it before another Client sees it.
-        write(restored);
-        break;
-      } catch {}
-    }
+  if (!id) restored = claim(left, path, write);
   let timer: ReturnType<typeof setTimeout> | undefined;
   return {
     restored: restored ? { index: restored.index, entries: restored.entries } : undefined,

@@ -64,6 +64,7 @@
     "test:pty:launcher": "bun scripts/pty/launcher.ts",
     "test:pty:generic": "bun scripts/pty/generic.ts",
     "test:pty:lifetime": "bun scripts/pty/lifetime.ts",
+    "test:pty:launches": "bun scripts/pty/launches.ts",
     "test:pty:sandbox": "bun scripts/pty/sandbox.ts",
     "test:web": "bun scripts/web/notes.ts",
     "test:web:local": "bun scripts/web/local.ts",

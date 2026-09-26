@@ -29,6 +29,7 @@ import { packBundle } from "./bundle";
 import { readBinaryIdentity, type BinaryIdentity } from "./identity";
 import { parseEnsured } from "./managed";
 import { checkAppName } from "./paths";
+import type { RemoteLaunch } from "./launch-key";
 
 // The ssh executable, as git's GIT_SSH: a wrapper, or a test's stand-in.
 const sshCommand = (env: NodeJS.ProcessEnv) => env.AIRTTY_SSH || "ssh";
@@ -88,7 +89,7 @@ echo installed`;
  * outlives a cut connection, in grace, and prints its socket once it answers.
  */
 const SERVE = `${INSTALL_DIRECTORY}
-exec "$b" serve --detach --id $3 --grace $4 $5`;
+exec "$b" serve --detach --id $3 --grace $4 --env-stdin`;
 
 const remote = (script: string, ...args: readonly string[]) =>
   `sh -c '${script}' airtty ${args.join(" ")}`;
@@ -131,10 +132,10 @@ export type RunOnOptions = {
   /** A binary of the same build for the host's platform, when it differs. */
   target?: string;
   /**
-   * The application's arguments (`AIRTTY_ARGS`, src/args.ts), sent on the remote
-   * `serve --detach`'s stdin: a command line there is visible to every user of the host.
+   * The application's arguments and the launch (src/launcher/launch-key.ts), sent on the
+   * remote `serve --detach`'s stdin: a command line there is visible to every user.
    */
-  args?: string;
+  launch?: RemoteLaunch;
   log: (message: string) => void;
   env?: NodeJS.ProcessEnv;
 };
@@ -242,21 +243,8 @@ export async function runOn(
     }
     const started = await sshRun(
       ssh,
-      [
-        ...command,
-        remote(
-          SERVE,
-          name,
-          identity.buildId,
-          options.id,
-          String(options.graceMs),
-          ...(options.args === undefined ? [] : ["--args-stdin"]),
-        ),
-      ],
-      {
-        env,
-        input: options.args === undefined ? undefined : Buffer.from(`${options.args}\n`),
-      },
+      [...command, remote(SERVE, name, identity.buildId, options.id, String(options.graceMs))],
+      { env, input: Buffer.from(`${JSON.stringify(options.launch ?? {})}\n`) },
     );
     const server = parseEnsured(started.stdout);
     if (started.code !== 0 || !server)

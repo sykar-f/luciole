@@ -18,6 +18,7 @@ import {
   nativeTarget,
 } from "./native";
 import { readJsonFile } from "./package-json";
+import { readAppMetadata } from "./app-metadata";
 import { matchesDist, publishedDist } from "./registry/npm";
 import { checkSigning, notarizeClient, signClient, type SignOptions } from "./sign";
 
@@ -181,6 +182,7 @@ export async function compileApp(
     });
   if (natives.size) await cp(join(staging, "server.js"), join(nativeDirectory, NATIVE_SERVER));
   const identity: BinaryIdentity = { name: checkAppName(options.name), buildId, target };
+  const metadata = await readAppMetadata(output);
   const entry = join(staging, "entry.js");
   await Bun.write(
     entry,
@@ -188,7 +190,9 @@ export async function compileApp(
       `await main(${JSON.stringify(formatIdentity(identity))},{` +
       `server:${natives.size ? "null" : '()=>import("./server.js")'},client:()=>import("../client/index.js")` +
       // The application's arguments, parsed by the launcher half before any Server starts.
-      `${(await Bun.file(join(output, "args/index.js")).exists()) ? ',args:()=>import("../args/index.js")' : ""}});\n`,
+      `${(await Bun.file(join(output, "args/index.js")).exists()) ? ',args:()=>import("../args/index.js")' : ""}` +
+      // Which launches share a Server, and its grace: the package.json's, at build time.
+      `,launch:${JSON.stringify({ scope: metadata.server, grace: metadata.grace })}});\n`,
   );
   try {
     const compiled = await compileEntry(entry, { ...options, outfile });

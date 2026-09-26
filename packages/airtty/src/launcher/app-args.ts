@@ -86,6 +86,10 @@ export const runtimeHelp = (flags: readonly RuntimeFlag[]): HelpOptions["runtime
   }));
 
 export const HELP_FLAG: RuntimeFlag = { name: "help", short: "h", description: "Show this help" };
+export const NEW_FLAG: RuntimeFlag = {
+  name: "new",
+  description: "Start a new session instead of reattaching a crashed one (per-launch apps)",
+};
 
 /** What a Server started by this launch receives: `AIRTTY_ARGS`, and the fingerprint. */
 export type CheckedArgs = { env: Record<string, string>; fingerprint?: string };

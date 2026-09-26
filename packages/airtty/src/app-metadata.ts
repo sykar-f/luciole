@@ -14,6 +14,10 @@ import { copyFile } from "node:fs/promises";
 import { basename, isAbsolute, join, relative, resolve } from "node:path";
 import * as z from "zod/mini";
 import { Capabilities } from "./capabilities";
+import { ServerScope } from "./launch";
+
+// A duration as `--grace` takes it (src/launcher/lifetime.ts, parseDuration).
+const Grace = z.string().check(z.regex(/^\d+(ms|s|m|h)?$/, "must be a duration: 15m, 30s, 1h, 0"));
 
 // What macOS names a bundle by, and what keeps its preferences and keychain items apart.
 const Identifier = z
@@ -33,6 +37,8 @@ const AppPackage = z.looseObject({
       identifier: z.optional(Identifier),
       /** A square PNG, 512 pixels or more, relative to the application's directory. */
       icon: z.optional(z.string().check(z.minLength(1))),
+      server: z.optional(ServerScope),
+      grace: z.optional(Grace),
     }),
   ),
 });
@@ -51,6 +57,13 @@ export const AppMetadata = z.object({
   description: z.optional(z.string()),
   /** `icon.png`, next to this file, when the application declares one. */
   icon: z.optional(z.literal(APP_ICON)),
+  /**
+   * Which launches share a Server (src/launcher/launch-key.ts): `shared` (the default),
+   * `per-directory` or `per-launch`.
+   */
+  server: z.optional(ServerScope),
+  /** How long its Server waits for a lost Client, unless `--grace` says (`15m`, `0`…). */
+  grace: z.optional(Grace),
   /** The command-line arguments `app/args.ts` declares (src/args.ts). */
   args: z.optional(
     z.object({
@@ -123,6 +136,8 @@ export async function readAppDeclaration(root: string): Promise<AppDeclaration> 
       version,
       description,
       icon: iconFile ? APP_ICON : undefined,
+      server: airtty.server,
+      grace: airtty.grace,
     },
   };
 }
@@ -131,4 +146,12 @@ export async function readAppDeclaration(root: string): Promise<AppDeclaration> 
 export async function writeAppMetadata(output: string, declaration: AppDeclaration) {
   if (declaration.iconFile) await copyFile(declaration.iconFile, join(output, APP_ICON));
   await Bun.write(join(output, APP_METADATA), JSON.stringify(declaration.metadata, null, 2));
+}
+
+/** A build output's `metadata.json`, checked. */
+export async function readAppMetadata(output: string): Promise<AppMetadata> {
+  const file = Bun.file(join(output, APP_METADATA));
+  const parsed = AppMetadata.safeParse(await file.json());
+  if (!parsed.success) throw new Error(`${file.name}: ${z.prettifyError(parsed.error)}`);
+  return parsed.data;
 }
