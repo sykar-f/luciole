@@ -85,3 +85,39 @@ esac`,
     fix: "run `codex login` in a terminal",
   });
 });
+
+test.skipIf(!Bun.which("jq"))(
+  "pi: ready with usable models; an Anthropic OAuth login is reported, never read",
+  async () => {
+    const agent = await mkdtemp(join(tmpdir(), "coder-pi-agent-"));
+    try {
+      await stub(
+        "pi",
+        `case "$1" in
+  --version) echo "0.87.1";;
+  --offline) printf 'provider model\\nopenai-codex gpt-5.6-luna\\ngoogle gemini-2.5-flash\\n';;
+  auth) echo '{"status":"not_ready","provider":"anthropic","reason":"credentials_not_configured"}';;
+esac`,
+      );
+      const clean = await detect("pi", env({ PI_CODING_AGENT_DIR: agent }));
+      expect(clean).toMatchObject({
+        installed: true,
+        version: "0.87.1",
+        ready: true,
+        account: "2 models",
+        warnings: [],
+      });
+      await Bun.write(
+        join(agent, "auth.json"),
+        JSON.stringify({ anthropic: { type: "oauth", access: "sk-ant-oat01-SECRET" } }),
+      );
+      const guarded = await detect("pi", env({ PI_CODING_AGENT_DIR: agent }));
+      expect(guarded.warnings).toEqual([
+        "Anthropic models are blocked in pi: pi's auth.json holds an Anthropic OAuth login",
+      ]);
+      expect(JSON.stringify(guarded)).not.toContain("SECRET");
+    } finally {
+      await rm(agent, { recursive: true, force: true });
+    }
+  },
+);

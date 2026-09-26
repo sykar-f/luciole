@@ -5,7 +5,7 @@ Branche `feat/coder`. Référence : [CODER-HANDOFF.md](../CODER-HANDOFF.md) (pri
 
 ## Phase en cours
 
-Phase 6 — adaptateur pi (`pi --mode rpc` + extension d'approbation).
+Phase 7 — adaptateur opencode (`opencode serve`, HTTP + SSE).
 
 ## Fait
 
@@ -51,10 +51,20 @@ Phase 6 — adaptateur pi (`pi --mode rpc` + extension d'approbation).
   5 échanges enregistrés (`scripts/coder/record-codex.ts`), tests de contrat « pas à
   pas », détection (`codex --version`, `codex login status`), parcours réel passé.
 
+- **Phase 6** — `feat(coder): drive pi with an approval gate` : adaptateur
+  `server/adapters/pi.ts` (`pi --mode rpc --session-id … --no-approve -e <gate>
+--coder-mode <mode>`, lignes JSON validées, deltas puis `message_end` qui fait foi,
+  fin de tour sur `agent_settled`, statistiques de session pour le contexte et le coût,
+  reprise par `get_messages`, sessions listées en lisant les en-têtes du dossier de
+  pi), extension d'approbation `server/pi-gate.ts` (JS embarqué, écrit en fichier privé
+  au démarrage ; échoue fermé), garde-fou Anthropic `server/anthropic-guard.ts`
+  (environnement, `pi auth check`, type et préfixe via `jq`, jamais une valeur),
+  4 échanges enregistrés, tests de contrat, de la gate (matrice mode × outil × réponse),
+  du garde-fou et de la détection ; parcours réel passé.
+
 ## Reste
 
-- Phases 6 et 7 : adaptateurs pi et opencode, avec leur détection réelle, leurs
-  fixtures enregistrées et leurs tests de contrat ; garde-fous §3 de pi et d'opencode.
+- Phase 7 : adaptateur opencode (détection, fixtures, contrat, garde-fou Anthropic).
 
 ## Décisions prises en cours de route
 
@@ -103,6 +113,16 @@ Phase 6 — adaptateur pi (`pi --mode rpc` + extension d'approbation).
   « Implement the plan. », refuser avec un retour l'envoie comme message.
 - Codex : les demandes que coder ne sait pas traiter (élicitations MCP, permissions
   supplémentaires, outils dynamiques) sont refusées avec un avis dans le transcript.
+
+- pi : `--no-approve` par défaut (les ressources de projet `.pi/` exécutent du code ;
+  elles restent à approuver dans le pi de l'utilisateur). Le mode `read` passe
+  `--tools read,grep,find,ls` au lancement **et** la gate le fait respecter ; changer de
+  mode passe par la commande de la gate `/coder-mode <mode>` (aucun appel au modèle,
+  vérifié sur le vrai binaire).
+- pi : les dialogues `input` / `editor` d'autres extensions sont annulés avec un avis
+  (le dialogue de question de coder ne propose que des options).
+- Garde-fou Anthropic : sans `jq`, seuls l'environnement et `pi auth check` sont
+  consultés (les tests qui en dépendent sont sautés sans `jq`).
 
 ## Écarts avec le handoff et la spec
 

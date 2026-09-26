@@ -68,19 +68,20 @@ await frame("2-answered");
 
 await t.type("Create a file named hello.txt containing the word hi. Use your file-writing tool.");
 await t.type(Keys.enter);
+await frame("3-sent");
 // Claude asks before writing in "ask" mode; Codex writes inside the workspace freely.
 await t.waitFor(/allow once|✎ hello\.txt/, { timeout: MODEL_TIMEOUT_MS });
 const asked = (await t.text()).includes("allow once");
 if (asked) {
-  await frame("3-approval");
+  await frame("4-approval");
   await t.type("y");
 }
 await t.waitFor("hello.txt", { timeout: MODEL_TIMEOUT_MS });
 assert.ok(
   await eventually(() => Bun.file(join(project, "hello.txt")).size > 0, MODEL_TIMEOUT_MS),
-  "the file was written",
+  `the file was written:\n${await t.text()}`,
 );
-await frame("4-written");
+await frame("5-written");
 
 await t.quit(ctrl("c"), EXIT_TIMEOUT_MS);
 assert.ok(

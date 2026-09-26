@@ -2,6 +2,8 @@ import { HARNESS_NAMES, type HarnessId } from "../components/model";
 import { AuthStatus } from "./adapters/claude-protocol";
 import type { HarnessStatus } from "./adapters/types";
 import { parseLine } from "./jsonl";
+import { probe } from "./probe";
+import { piAnthropicOAuth } from "./anthropic-guard";
 
 /**
  * Whether each harness can run here, found without asking a model anything: its binary,
@@ -9,21 +11,6 @@ import { parseLine } from "./jsonl";
  * prints about its login (docs/CODER-HANDOFF.md §3).
  */
 
-// A harness that does not answer `--version` in this time is reported, not awaited.
-const PROBE_TIMEOUT_MS = 10_000;
-
-/** Runs a harness's own command; its output, or `undefined` when it failed or hung. */
-export async function probe(argv: readonly string[], env: NodeJS.ProcessEnv) {
-  try {
-    const child = Bun.spawn([...argv], { env, stdout: "pipe", stderr: "pipe", stdin: "ignore" });
-    const timer = setTimeout(() => child.kill(), PROBE_TIMEOUT_MS);
-    const [stdout, code] = await Promise.all([new Response(child.stdout).text(), child.exited]);
-    clearTimeout(timer);
-    return { stdout, code };
-  } catch {
-    return undefined;
-  }
-}
 const firstLine = (text: string) => text.trim().split("\n")[0] ?? "";
 
 async function claude(env: NodeJS.ProcessEnv): Promise<HarnessStatus> {
@@ -95,6 +82,30 @@ async function codex(env: NodeJS.ProcessEnv): Promise<HarnessStatus> {
   };
 }
 
+async function pi(env: NodeJS.ProcessEnv): Promise<HarnessStatus> {
+  const id = "pi";
+  const binary = Bun.which("pi", { PATH: env.PATH ?? "" });
+  if (!binary)
+    return { id, installed: false, ready: false, fix: "install pi: https://pi.dev", warnings: [] };
+  const [version, models, oauth] = await Promise.all([
+    probe([binary, "--version"], env),
+    // Only models whose provider can be used: a table, one model per line after the head.
+    probe([binary, "--offline", "--list-models"], env),
+    piAnthropicOAuth(env, binary),
+  ]);
+  const usable = models?.code === 0 ? models.stdout.trim().split("\n").length - 1 : 0;
+  return {
+    id,
+    installed: true,
+    version: firstLine(version?.stdout ?? "") || undefined,
+    ready: usable > 0,
+    account: usable > 0 ? `${usable} models` : undefined,
+    fix:
+      usable > 0 ? undefined : "sign in to a provider: run `pi`, then /login (or set an API key)",
+    warnings: oauth.length ? [`Anthropic models are blocked in pi: ${oauth[0]}`] : [],
+  };
+}
+
 /** Whether `id` can run with this environment. */
 export async function detect(
   id: HarnessId,
@@ -115,6 +126,7 @@ export async function detect(
     case "codex":
       return codex(env);
     case "pi":
+      return pi(env);
     case "opencode":
       return {
         id,

@@ -2,6 +2,7 @@ import type { HarnessId } from "../../components/model";
 import { ClaudeHarness } from "./claude";
 import { CodexHarness } from "./codex";
 import { FakeHarness } from "./fake";
+import { PiHarness } from "./pi";
 import type { Harness, HarnessContext } from "./types";
 
 /** The adapter of a harness; each one is written against its own protocol report. */
@@ -14,6 +15,7 @@ export function createHarness(id: HarnessId, context: HarnessContext): Harness {
     case "codex":
       return new CodexHarness(context);
     case "pi":
+      return new PiHarness(context);
     case "opencode":
       throw new Error(`The ${id} adapter is not written yet`);
   }

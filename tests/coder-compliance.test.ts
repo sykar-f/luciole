@@ -27,8 +27,18 @@ test("no credential file, keychain or OAuth endpoint is ever touched", () => {
     [],
   );
   expect(offending(/api\.anthropic\.com|\/api\/oauth|oauth\/token/i)).toEqual([]);
-  // Harness logins: the type of an entry at most, never read here whole.
-  expect(offending(/auth\.json/)).toEqual([]);
+  // Harness logins: the type of an entry, or whether a value has the OAuth prefix, asked
+  // through jq in anthropic-guard.ts; never a file read into coder.
+  expect(
+    offending(/auth\.json/).filter((at) => !at.startsWith("server/anthropic-guard.ts")),
+  ).toEqual([]);
+  const guard = readFileSync(join(ROOT, "server/anthropic-guard.ts"), "utf8");
+  expect(/readFile|\.text\(\)|\.json\(\)|Bun\.file\([^)]*\)\.(text|json|bytes)/.test(guard)).toBe(
+    false,
+  );
+  // Every path to those files goes to jq.
+  for (const line of guard.split("\n").filter((l) => /join\([^)]*"(auth|models)\.json"/.test(l)))
+    expect(line).toContain("ask(");
 });
 
 test("Claude Code runs as published: the user's binary, the whole environment, no --bare", () => {
