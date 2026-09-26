@@ -1,10 +1,12 @@
-import { join, sep } from "node:path";
+import { basename, join, sep } from "node:path";
 import { watch } from "node:fs";
 import { symlink } from "node:fs/promises";
 import { spawn, type ChildProcess } from "node:child_process";
 import { createInterface } from "node:readline";
 import { z } from "zod";
+import { isUsageError, USAGE_EXIT_CODE } from "../args";
 import { build } from "../build";
+import { checkArgs, loadArgs, type CheckedArgs } from "../launcher/app-args";
 import { messageOf } from "../guards";
 import { isCode } from "../launcher/lock";
 import { frameworkRoot, stop, type Command } from "./command";
@@ -30,9 +32,14 @@ function frameworkModules() {
   );
 }
 
+const DEV_USAGE = "dev [--app dir] [-- app arguments]";
 export const dev: Command = {
-  usage: "dev",
-  async run({ directory }) {
+  usage: DEV_USAGE,
+  async run({ directory, rest }) {
+    // The application's arguments (after `--`), checked after each build: its schema may
+    // have changed. The first build's refusal ends the run, a later one is a build error.
+    const cwd = process.cwd();
+    let first = true;
     // One session for every Client of this run: each rebuild reopens it (history and
     // named fields), and the bearer passes from one Client to the next in memory.
     const session = crypto.randomUUID();
@@ -60,7 +67,28 @@ export const dev: Command = {
       do {
         again = false;
         try {
-          await build(directory);
+          const { buildId } = await build(directory);
+          const definition = await loadArgs(join(directory, ".airtty"), buildId);
+          const name = basename(directory);
+          if (first && (rest.includes("--help") || rest.includes("-h"))) {
+            console.log(
+              definition?.help({ name, usage: [`airtty ${DEV_USAGE}`] }) ??
+                `${name} declares no arguments (app/args.ts)`,
+            );
+            await shutdown();
+            return;
+          }
+          let args: CheckedArgs;
+          try {
+            args = await checkArgs(definition, rest, { cwd, name });
+          } catch (error) {
+            if (!first) throw error;
+            console.error(messageOf(error));
+            closing = true;
+            watcher.close();
+            process.exit(isUsageError(error) ? USAGE_EXIT_CODE : 1);
+          }
+          first = false;
           // Development reuses the framework installation, even for a starter elsewhere;
           // an unchanged build keeps the link an earlier run made.
           await symlink(frameworkModules(), join(directory, ".airtty/node_modules"), "dir").catch(
@@ -75,7 +103,7 @@ export const dev: Command = {
             ["--conditions=react-server", join(directory, ".airtty/server/index.js")],
             {
               stdio: ["ignore", "pipe", "inherit"],
-              env: { ...process.env, PORT: process.env.PORT ?? "0" },
+              env: { ...process.env, PORT: process.env.PORT ?? "0", ...args.env },
             },
           );
           const activeServer = server;

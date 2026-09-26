@@ -13,7 +13,8 @@ import { ROUTE_TREE_FILE, compileRouteGraph, renderRouteTree } from "./route-gra
 import { cachedFunctions, cacheSource, staleTimeOf } from "./cache/transform";
 import { annotateNames } from "./build-names";
 import { ABI_KEY, APP_MANIFEST, isAbiSpecifier, type AppManifest } from "./abi";
-import { readAppDeclaration, writeAppMetadata } from "./app-metadata";
+import { readAppDeclaration, writeAppMetadata, type AppArgs } from "./app-metadata";
+import { isArgsDefinition } from "./args";
 import { undeclaredUses, type Capabilities } from "./capabilities";
 import { signManifest, type PublisherKey } from "./publisher";
 import {
@@ -140,7 +141,29 @@ const FRAMEWORK_ENTRIES = new Map([
   ["client", "client.tsx"],
   ["server", "server.ts"],
   ["route-tree", "route-tree.tsx"],
+  ["args", "args.ts"],
 ]);
+/** Where an application declares its command-line arguments. */
+export const ARGS_FILE = "app/args.ts";
+/**
+ * The arguments module just bundled, evaluated: its flags checked (reserved names,
+ * supported shapes) and described for metadata.json, which hosts read without running it.
+ */
+async function readArgs(bundle: string, root: string): Promise<AppArgs> {
+  const imported: unknown = await import(bundle);
+  const definition =
+    typeof imported === "object" && imported !== null && "default" in imported
+      ? imported.default
+      : undefined;
+  if (!isArgsDefinition(definition))
+    throw new Error(`${relative(root, join(root, ARGS_FILE))}: export default defineArgs({...})`);
+  definition.flags();
+  return {
+    summary: definition.summary,
+    examples: definition.examples ? [...definition.examples] : undefined,
+    schema: definition.jsonSchema(),
+  };
+}
 /** `@scope/name/sub` → `@scope/name`; `name/sub` → `name`. */
 const packageOf = (specifier: string) =>
   specifier.split("/").slice(0, packageDepth(specifier)).join("/");
@@ -368,12 +391,16 @@ async function buildUnlocked(
   // Optional like server/auth.ts: its default export is the "use cache" CacheHandler.
   const cacheFile = join(root, "server/cache.ts");
   const hasCache = await Bun.file(cacheFile).exists();
+  // Optional too: the application's command-line arguments (src/args.ts).
+  const argsFile = join(root, ARGS_FILE);
+  const hasArgs = await Bun.file(argsFile).exists();
   for (const p of [
     ...pages,
     ...layouts,
     ...loadings,
     ...(hasAuth ? [authFile] : []),
     ...(hasCache ? [cacheFile] : []),
+    ...(hasArgs ? [argsFile] : []),
   ])
     await read(p);
   const program = ts.createProgram([...modules.keys()], {
@@ -524,6 +551,31 @@ async function buildUnlocked(
     clients.add(p);
   }
   for (const p of clients) clientVisit(p);
+  // app/args.ts runs in the launcher, the app binary and the Server: plain code, no side.
+  const argsGraph = new Set<string>();
+  function argsVisit(p: string) {
+    if (argsGraph.has(p)) return;
+    argsGraph.add(p);
+    const m = moduleAt(p);
+    const chain = via([...argsGraph]);
+    if (m.directive) fail(m, m.ast, `"${m.directive}" module in ${ARGS_FILE}'s graph${chain}`);
+    if (relative(root, p).split("/").includes("server"))
+      fail(m, m.ast, `Server-only source in ${ARGS_FILE}'s graph${chain}`);
+    for (const i of m.imports) {
+      if (
+        ["server-only", "client-only", "airtty/server", "airtty/client"].includes(i.name) ||
+        i.name.startsWith("@opentui/") ||
+        (i.path && relative(root, i.path).split("/").includes("server"))
+      )
+        fail(
+          m,
+          i.node,
+          `${ARGS_FILE} runs in the launcher and on the Server: it cannot import ${i.name}${chain}`,
+        );
+      if (i.path) argsVisit(i.path);
+    }
+  }
+  if (hasArgs) argsVisit(argsFile);
   // Imports the bundler resolved, per role: rebuilds a package violation's chain.
   const edges: Record<"server" | "client", [importer: string, specifier: string][]> = {
     server: [],
@@ -620,6 +672,10 @@ async function buildUnlocked(
     await Bun.write(routeTreeFile, routeTreeSource);
   const serverSource =
     `import {serve} from ${quote(join(framework, "server.ts"))};${hasAuth ? `import Auth from ${quote(authFile)};` : ""}${hasCache ? `import Cache from ${quote(cacheFile)};` : ""}\n` +
+    // The Server parses its launch's arguments before anything reads them.
+    (hasArgs
+      ? `import {configureArgs} from ${quote(join(framework, "args.ts"))};import Args from ${quote(argsFile)};await configureArgs(Args,process.env,process.cwd());\n`
+      : "") +
     routes.map((r) => `import ${r.name} from ${quote(abs(r.file))};`).join("\n") +
     "\n" +
     [...actions].map((p, i) => `import * as A${i} from ${quote(p)};`).join("\n") +
@@ -636,6 +692,7 @@ async function buildUnlocked(
     [...clients].map((p, i) => `import * as C${i} from ${quote(p)};`).join("\n") +
     `\nexport const buildId=${quote(buildId)};export const modules={${[...clients].map((p, i) => `${quote(id(p))}:C${i}`).join(",")}};`;
   let appBuiltins: string[] = [];
+  let args: AppArgs | undefined;
   let appSkipped = false;
   const external = [
     "react",
@@ -646,12 +703,13 @@ async function buildUnlocked(
     "react-reconciler",
   ];
   try {
-    type Role = "server" | "client" | "app" | "web-server";
+    type Role = "server" | "client" | "app" | "web-server" | "args";
     const roles: readonly Role[] = [
       "server",
       "client",
       "app",
       ...(webServer ? ["web-server" as const] : []),
+      ...(hasArgs ? ["args" as const] : []),
     ];
     for (const role of roles) {
       // The application bundle is Client code: same boundaries, same stubs. The browser's
@@ -668,7 +726,9 @@ async function buildUnlocked(
             ? serverSource
             : role === "client"
               ? clientSource
-              : appSource,
+              : role === "args"
+                ? `export {default} from ${quote(argsFile)};`
+                : appSource,
       );
       const result = await Bun.build({
         entrypoints: [entry],
@@ -677,7 +737,8 @@ async function buildUnlocked(
         target: browserServer ? "browser" : "bun",
         // bun-cjs: a function of (exports, require, module…) the host calls with the ABI.
         ...(role === "app" ? { format: "cjs" as const } : {}),
-        external: role === "app" || browserServer ? [] : external,
+        // The arguments module is whole: a launcher imports it from anywhere.
+        external: role === "app" || role === "args" || browserServer ? [] : external,
         conditions: serverSide ? ["react-server"] : [],
         // A browser bundle carries no environment: React's production builds, as the page's.
         ...(browserServer
@@ -741,7 +802,7 @@ async function buildUnlocked(
                 b.onResolve({ filter: /^[@a-z]/ }, (a) =>
                   isAbiSpecifier(a.path) ? { path: a.path, external: true } : undefined,
                 );
-              b.onResolve({ filter: /^airtty\/(client|server|route-tree)$/ }, (a) => {
+              b.onResolve({ filter: /^airtty\/(client|server|route-tree|args)$/ }, (a) => {
                 const entry = FRAMEWORK_ENTRIES.get(a.path.slice("airtty/".length));
                 if (!entry) throw new Error(`Unknown framework entry ${a.path}`);
                 return { path: join(framework, entry) };
@@ -910,6 +971,7 @@ async function buildUnlocked(
           .map(([name, version]) => ({ name, version }));
       }
       if (browserServer) copyWebServerFiles(join(temp, role));
+      if (role === "args") args = await readArgs(join(temp, role, "index.js"), root);
       await rm(entry);
     }
     await Bun.write(
@@ -944,7 +1006,7 @@ async function buildUnlocked(
         capabilities: declaration.capabilities,
         publisher: signBundle,
       });
-    await writeAppMetadata(temp, declaration);
+    await writeAppMetadata(temp, { ...declaration, metadata: { ...declaration.metadata, args } });
     // Failed builds never touch the active artefacts.
     const backup = output + "-previous";
     await rm(backup, { recursive: true, force: true });

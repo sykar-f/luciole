@@ -28,8 +28,17 @@ Un mot nu (`notes`) est une app installée s'il en existe une, sinon une spec np
 chemin relatif sans `./` est refusé avec cette indication plutôt que deviné.
 
 Les arguments qui suivent la cible vont à l'app. Un répertoire buildé (chemin, git)
-accepte `--url <url>` (Client seul), vérifié avant le build ; un binaire reçoit tout
-(`--url`, `--on`, `serve`). `--yes` accepte sans demander installations et commits.
+accepte `--url <url>` (Client seul) et `--grace <durée>`, vérifiés avant le build, puis
+les options que l'app déclare dans `app/args.ts` ([API.md](API.md#arguments-de-lapplication)),
+vérifiées par son schéma avant que son Server démarre ; `--help` liste les unes et les
+autres. Un binaire reçoit tout (`--url`, `--on`, `serve`, les options de l'app). `--yes`
+accepte sans demander installations et commits.
+
+Les options de l'app configurent son Server : elles lui arrivent par `AIRTTY_ARGS`, pas
+par sa ligne de commande (visible de tous par `ps`) ; avec `--on`, par l'entrée standard
+du `serve --detach` distant. Elles sont refusées avec `--url`, `airtty connect` et le
+Client générique, qui rejoignent un Server déjà configuré. Une option inconnue ou une
+valeur refusée sort avec le code 2.
 
 `airttyx <cible>` fait la même chose sans jamais lire la cible comme une
 sous-commande : `airttyx build` lance l'app nommée `build`.
@@ -69,14 +78,14 @@ airtty build --compile [--name notes] [--target t] …   → .airtty/bin/<os>-<a
 Le binaire contient le Client **et** le Server d'un même build, plus le lanceur
 (`src/launcher/binary.ts`) :
 
-| Commande                                                 | Rôle                                                        |
-| -------------------------------------------------------- | ----------------------------------------------------------- |
-| `notes [--grace d]`                                      | les deux, ici ; Server sur socket privé                     |
-| `notes serve [--http [host]:port \| --socket p]`         | Server seul (sans option : `PORT`, `AIRTTY_HOST`, …)        |
-| `notes serve --detach --id <id> [--grace d]`             | Server géré, détaché (utilisé par `--on`)                   |
-| `notes --url <url>`                                      | Client seul                                                 |
-| `notes --on [user@]host[:port] [--target f] [--grace d]` | Server sur l'hôte (installé au besoin), Client ici, via ssh |
-| `notes --version`                                        | identité : app, build ID, cible                             |
+| Commande                                                      | Rôle                                                        |
+| ------------------------------------------------------------- | ----------------------------------------------------------- |
+| `notes [--grace d] [options]`                                 | les deux, ici ; Server sur socket privé                     |
+| `notes serve [--http [host]:port \| --socket p] [-- options]` | Server seul (sans option : `PORT`, `AIRTTY_HOST`, …)        |
+| `notes serve --detach --id <id> [--grace d]`                  | Server géré, détaché (utilisé par `--on`)                   |
+| `notes --url <url>`                                           | Client seul                                                 |
+| `notes --on [user@]host[:port] [--target f] [--grace d]`      | Server sur l'hôte (installé au besoin), Client ici, via ssh |
+| `notes --version`                                             | identité : app, build ID, cible                             |
 
 `--http :8080` écoute sur la boucle locale ; `0.0.0.0:8080` doit être explicite (et
 exige toujours `AIRTTY_TOKEN` ou `server/auth.ts`, comme `serve()`).

@@ -50,6 +50,12 @@ Le graphe Client refuse :
 - `airtty/server` ;
 - `require()` et `import()` dynamiques dans les sources applicatives.
 
+`app/args.ts` n'est d'aucun côté : il tourne dans le lanceur (ou le binaire) pour
+vérifier la ligne de commande et produire `--help`, puis dans le Server qui la reparse.
+Son graphe refuse donc `server-only`, `client-only`, `airtty/server`, `airtty/client`,
+OpenTUI, les modules sous `server/` et toute directive (`"use client"`, `"use server"`,
+`"use cache"`). Le build le bundle à part, entier, dans `.airtty/args/`.
+
 Les builtins `node:*` et `bun:*` ne décident pas du côté d'un module : le Client
 tourne sur Bun, il peut lire un fichier, lancer un processus ou ouvrir une base locale,
 comme un package. Seuls `server-only` (ou le répertoire `server/`) et `client-only`

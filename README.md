@@ -124,6 +124,17 @@ son `tsconfig.json`, les configurations Oxc et les réglages VS Code.
 Le CLI est aussi déclaré sous le nom `airtty` dans `package.json` ; dans ce
 checkout, `bun packages/airtty/src/cli.ts` exécute les mêmes commandes sans installation globale.
 
+Une application qui prend des options de ligne de commande les déclare dans
+`app/args.ts` avec un schéma zod (`defineArgs` de `airtty/args`) : le framework les
+parse partout de la même façon, génère `--help` et les transmet au Server, qui les lit
+typées par `cli.get()`. En développement, elles suivent `--` :
+
+```sh
+bun packages/airtty/src/cli.ts dev --app examples/coder -- --harness codex --mode read
+```
+
+Voir [API.md](docs/API.md#arguments-de-lapplication).
+
 ## Production : deux artefacts
 
 Depuis le checkout du framework :

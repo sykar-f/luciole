@@ -35,6 +35,14 @@ Ajoutées au catalogue après ce contrôle, sans comparaison aux tags `latest` :
 | marked                          | 17.0.1         | mdreader                                |
 | sharp                           | 0.35.4         | files                                   |
 
+Les arguments de ligne de commande des applications (`airtty/args`, `src/args.ts`)
+n'ajoutent aucune dépendance : le parseur est maison (~300 lignes), piloté par le Standard
+Schema et le Standard JSON Schema que zod 4 implémente déjà. commander, citty et cac
+n'ont pas d'intégration de schéma, `util.parseArgs` ne sait pas exprimer une option à
+valeur facultative (`--resume [ID]`), clipanion est à l'abandon. Repli « acheter » :
+cleye 2.7.0 (Standard Schema natif) ; évolution si des complétions shell sont voulues :
+@optique/core. Comparatif : `docs/coder/research/cli-args-report.md`.
+
 TypeScript 7 vérifie le projet. Le compilateur du framework utilise le paquet
 officiel de compatibilité `@typescript/typescript6`, qui fournit l’ancienne API AST
 et résout actuellement TypeScript 6.0.3 via `@typescript/old`. Cette séparation est

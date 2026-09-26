@@ -51,8 +51,18 @@ export const AppMetadata = z.object({
   description: z.optional(z.string()),
   /** `icon.png`, next to this file, when the application declares one. */
   icon: z.optional(z.literal(APP_ICON)),
+  /** The command-line arguments `app/args.ts` declares (src/args.ts). */
+  args: z.optional(
+    z.object({
+      summary: z.optional(z.string()),
+      examples: z.optional(z.array(z.string())),
+      /** The options' JSON Schema (draft 2020-12), as their Standard JSON Schema gives it. */
+      schema: z.record(z.string(), z.unknown()),
+    }),
+  ),
 });
 export type AppMetadata = z.infer<typeof AppMetadata>;
+export type AppArgs = NonNullable<AppMetadata["args"]>;
 
 /** What the application declares: its capabilities, and what hosts show of it. */
 export type AppDeclaration = {

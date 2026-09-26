@@ -17,7 +17,8 @@
  *
  * Remote commands are `sh -c '<script>' airtty <args>`, whose scripts hold neither
  * single quotes nor backslashes: every common login shell, fish included, passes them
- * to sh unchanged. Arguments are app names, build ids and hex: nothing to quote.
+ * to sh unchanged. Arguments are app names, build ids, hex and fixed flags: nothing to
+ * quote. The application's own arguments go on stdin instead.
  */
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { connect as connectSocket } from "node:net";
@@ -87,7 +88,7 @@ echo installed`;
  * outlives a cut connection, in grace, and prints its socket once it answers.
  */
 const SERVE = `${INSTALL_DIRECTORY}
-exec "$b" serve --detach --id $3 --grace $4`;
+exec "$b" serve --detach --id $3 --grace $4 $5`;
 
 const remote = (script: string, ...args: readonly string[]) =>
   `sh -c '${script}' airtty ${args.join(" ")}`;
@@ -129,6 +130,11 @@ export type RunOnOptions = {
   self: string;
   /** A binary of the same build for the host's platform, when it differs. */
   target?: string;
+  /**
+   * The application's arguments (`AIRTTY_ARGS`, src/args.ts), sent on the remote
+   * `serve --detach`'s stdin: a command line there is visible to every user of the host.
+   */
+  args?: string;
   log: (message: string) => void;
   env?: NodeJS.ProcessEnv;
 };
@@ -236,8 +242,21 @@ export async function runOn(
     }
     const started = await sshRun(
       ssh,
-      [...command, remote(SERVE, name, identity.buildId, options.id, String(options.graceMs))],
-      { env },
+      [
+        ...command,
+        remote(
+          SERVE,
+          name,
+          identity.buildId,
+          options.id,
+          String(options.graceMs),
+          ...(options.args === undefined ? [] : ["--args-stdin"]),
+        ),
+      ],
+      {
+        env,
+        input: options.args === undefined ? undefined : Buffer.from(`${options.args}\n`),
+      },
     );
     const server = parseEnsured(started.stdout);
     if (started.code !== 0 || !server)

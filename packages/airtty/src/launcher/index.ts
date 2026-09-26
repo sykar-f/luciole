@@ -21,13 +21,23 @@ import { readBuildId } from "../compile";
 import { binaryOf, findInstalled, install, listInstalled } from "../registry/apps";
 import { npmRegistry } from "../registry/npm";
 import type { Registry } from "../registry/registry";
-import { DEFAULT_GRACE_MS, parseDuration } from "./lifetime";
+import { DEFAULT_GRACE_MS, MS_PER_MINUTE, parseDuration } from "./lifetime";
+import {
+  checkArgs,
+  HELP_FLAG,
+  loadArgs,
+  refuseArgs,
+  runtimeHelp,
+  splitArgs,
+  type RuntimeFlag,
+} from "./app-args";
 import { serverId } from "./managed";
 import { prepareGitApp } from "./git";
 import { runForeground, runLocal } from "./local";
 import { directories as defaultDirectories, type Directories } from "./paths";
 import { askTerminal, type Confirm } from "./prompt";
 
+import { ArgsError } from "../args";
 import { resolveTarget } from "./target";
 export { resolveTarget, type Resolution } from "./target";
 
@@ -43,43 +53,76 @@ export type LaunchOptions = {
   env?: NodeJS.ProcessEnv;
 };
 
+/** The flags a built directory takes; the rest are the application's (`app/args.ts`). */
+export const BUILT_FLAGS: readonly RuntimeFlag[] = [
+  { name: "url", value: "url", description: "Join a running Server (no application options)" },
+  {
+    name: "grace",
+    value: "duration",
+    description: `Keep the Server this long after its terminal goes (default ${DEFAULT_GRACE_MS / MS_PER_MINUTE}m)`,
+  },
+  { name: "yes", description: "Install and run without asking" },
+  HELP_FLAG,
+];
+
 /**
- * `--url <url>` (Client only) and `--grace <duration>` (how long a local Server waits
- * for its Client to come back): a built directory has no binary to take `--on` or `serve`.
+ * `--url <url>` (Client only), `--grace <duration>` (how long a local Server waits for its
+ * Client to come back), `--help`, then the application's own arguments: a built directory
+ * has no binary to take `--on` or `serve`.
  */
 export function builtArgs(args: readonly string[]) {
-  let url: string | undefined;
-  let graceMs = DEFAULT_GRACE_MS;
-  for (let i = 0; i < args.length; i += 2) {
-    const [flag, value] = [args[i], args[i + 1]];
-    if (flag === "--url" && value) url = value;
-    else if (flag === "--grace" && value) graceMs = parseDuration(value);
-    else
-      throw new Error(
-        `A built app takes --url <url> and --grace <duration> (got ${args.join(" ")}); ` +
-          "for --on or serve, compile it: airtty build --compile",
-      );
-  }
-  return { url, graceMs };
+  const { flags, app } = splitArgs(args, BUILT_FLAGS);
+  if (app[0] === "serve" || app.includes("--on") || app.includes("--target"))
+    throw new ArgsError(
+      `A built app takes --url <url>, --grace <duration> and its own options (got ${args.join(" ")}); ` +
+        "for --on or serve, compile it: airtty build --compile",
+    );
+  const url = flags.get("url");
+  const grace = flags.get("grace");
+  if (url !== undefined) refuseArgs(app, "--url joins one that is already running");
+  return {
+    url,
+    graceMs: grace === undefined ? DEFAULT_GRACE_MS : parseDuration(grace),
+    help: flags.has("help"),
+    app,
+  };
 }
 
 /** Runs a directory holding `.airtty/` (from `airtty build`): locally, or as a Client. */
 async function runBuilt(
   directory: string,
   name: string,
-  { url, graceMs, sessionKey }: ReturnType<typeof builtArgs> & { sessionKey: string },
+  { url, graceMs, help, app, sessionKey }: ReturnType<typeof builtArgs> & { sessionKey: string },
   options: LaunchOptions,
 ) {
   const bun = process.execPath;
   const client = [bun, join(directory, ".airtty/client/index.js")];
+  const output = join(directory, ".airtty");
+  const buildId = await readBuildId(output);
+  const definition = await loadArgs(output, buildId);
+  if (help) {
+    console.log(
+      definition?.help({
+        name,
+        usage: [`airtty <app> [options]`],
+        runtime: runtimeHelp(BUILT_FLAGS),
+      }) ?? `Usage: airtty <app> [--url <url>] [--grace <duration>]`,
+    );
+    return 0;
+  }
   if (url) return runForeground([...client, "--url", url], options.env);
+  const args = await checkArgs(definition, app, {
+    cwd: options.cwd ?? process.cwd(),
+    env: options.env,
+    name,
+  });
   return runLocal({
     id: serverId(sessionKey),
     name,
-    buildId: await readBuildId(join(directory, ".airtty")),
+    buildId,
     graceMs,
     directories: options.directories ?? defaultDirectories(),
-    env: options.env,
+    env: { ...(options.env ?? process.env), ...args.env },
     command: [bun, "--conditions=react-server", join(directory, ".airtty/server/index.js")],
     client,
     sessionKey,

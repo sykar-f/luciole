@@ -11,6 +11,7 @@
     "./client": "./src/client.tsx",
     "./server": "./src/server.ts",
     "./route-tree": "./src/route-tree.tsx",
+    "./args": "./src/args.ts",
     "./build": "./src/build.ts",
     "./pty": "./src/vt/pty.ts",
     "./metadata": "./src/app-metadata.ts",

@@ -186,7 +186,9 @@ export async function compileApp(
     entry,
     `import {main} from ${JSON.stringify(join(framework, "launcher/binary.ts"))};\n` +
       `await main(${JSON.stringify(formatIdentity(identity))},{` +
-      `server:${natives.size ? "null" : '()=>import("./server.js")'},client:()=>import("../client/index.js")});\n`,
+      `server:${natives.size ? "null" : '()=>import("./server.js")'},client:()=>import("../client/index.js")` +
+      // The application's arguments, parsed by the launcher half before any Server starts.
+      `${(await Bun.file(join(output, "args/index.js")).exists()) ? ',args:()=>import("../args/index.js")' : ""}});\n`,
   );
   try {
     const compiled = await compileEntry(entry, { ...options, outfile });

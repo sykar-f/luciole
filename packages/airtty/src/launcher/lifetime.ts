@@ -20,6 +20,7 @@ import * as z from "zod/mini";
 const MS = { ms: 1, s: 1000, m: 60_000, h: 3_600_000 } as const;
 const GRACE_MINUTES = 15;
 export const DEFAULT_GRACE_MS = GRACE_MINUTES * MS.m;
+export const MS_PER_MINUTE = MS.m;
 const DEFAULT_WATCHDOG_MS = 30_000;
 // How often clients are checked against the watchdog period.
 const CHECKS_PER_PERIOD = 3;

@@ -12,6 +12,7 @@ import { renderPage } from "./cache/render";
 import { Tag, configureCache, invalidateTags, type CacheEvent } from "./cache/runtime";
 import { assertUncached } from "./cache/scope";
 import { devtoolsInstrument } from "./devtools/server-agent";
+import { configuredArgs } from "./args";
 export { memoryCache, type CacheEntry, type CacheHandler } from "./cache/handler";
 export { sqliteCache } from "./cache/sqlite";
 export { cacheLife, cacheTag, type CacheEvent, type CacheProfile } from "./cache/runtime";
@@ -82,6 +83,14 @@ export function invalidate(target: string | { tag: string } = "/"): void | Promi
   if (typeof target !== "string" || !target.startsWith("/") || target.length > MAX_INVALIDATED_PATH)
     throw new Error("invalidate() takes an absolute path");
   c.invalidations.add(target);
+}
+/**
+ * This Server's application arguments (`app/args.ts`), parsed at its start; `undefined`
+ * when the application declares none. Typed through the definition instead:
+ * `import cli from "../app/args"; cli.get()`.
+ */
+export function getArgs(): unknown {
+  return configuredArgs()?.value;
 }
 export function getCallId() {
   return context.getStore()?.callId;
