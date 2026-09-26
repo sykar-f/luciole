@@ -1,12 +1,14 @@
 ---
 // An example application running in this page (scripts/demo.ts, docs/WEB.md "Page
-// embarquée"), over its own captured screen. The capture is drawn at once, so the page
-// never waits and never shifts; the application starts behind it, its start told step by
-// step, and replaces it cell for cell once it has drawn. A script may walk it to the
-// screen the capture shows first (sign in, open a pull request). The reader takes the
-// keyboard by clicking it: until then, the page scrolls over it as over a picture.
+// embarquée"), over its own captured screen. The capture is written into an xterm.js of
+// the page's, set up exactly as the runtime sets up its own (font, colours, grid), so
+// when the application has drawn, one terminal replaces the other cell for cell and the
+// reader sees no change. A script may walk it to the screen the capture shows (sign in,
+// open a pull request). The reader takes the keyboard by clicking it: until then, the
+// page scrolls over it as over a picture. The capture's HTML drawing stays for narrow
+// screens, where nothing starts, and for readers without scripts.
 import Screen from "./Screen.astro";
-import type { Frame } from "../lib/frames";
+import { ansi, SCREEN_BACKGROUND, SCREEN_FOREGROUND, type Frame } from "../lib/frames";
 
 /**
  * Wait until the screen shows `wait`, then type `type` into it as a keyboard would, then
@@ -25,8 +27,6 @@ interface Props {
    * `manual`, when its container sends it `live:start` (and `live:stop` puts it back).
    */
   boot?: "eager" | "visible" | "manual";
-  /** The last line of the start log: what the script does before the reveal. */
-  arriving?: string;
   glow?: boolean;
   tilt?: boolean;
   printed?: boolean;
@@ -37,29 +37,29 @@ const {
   frame,
   script = [],
   boot = "visible",
-  arriving = "first screen",
   glow = false,
   tilt = false,
   printed = false,
 } = Astro.props;
 
-// The capture's own colours (--screen, --screen-fg): the terminal takes them.
+// The capture's own colours (--screen, --screen-fg): both terminals take them.
 const look = new URLSearchParams({
   columns: String(frame.cols),
   rows: String(frame.rows),
-  background: "0a0f16",
-  foreground: "e6edf3",
+  background: SCREEN_BACKGROUND.slice(1),
+  foreground: SCREEN_FOREGROUND.slice(1),
 });
 // index.html by name: Astro's dev server serves no directory index from public/.
 const src = `/demo/${demo}/index.html?${look}`;
 
-const steps: [stage: string, what: string][] = [
-  ["runtime", "runtime.js, opentui.wasm"],
-  ["bundle", `${demo}'s Client Components`],
-  ["server", "Server in a Worker, SQLite in WebAssembly"],
-  ["terminal", `xterm.js, ${frame.cols}×${frame.rows}`],
-  ["drawn", arriving],
-];
+// Inline JSON: `<` escaped, so no captured text can close its script element.
+const stand = JSON.stringify({
+  ansi: ansi(frame),
+  columns: frame.cols,
+  rows: frame.rows,
+  background: SCREEN_BACKGROUND,
+  foreground: SCREEN_FOREGROUND,
+}).replaceAll("<", "\\u003c");
 ---
 
 <div
@@ -71,20 +71,19 @@ const steps: [stage: string, what: string][] = [
 >
   <Screen frame={frame} glow={glow} tilt={tilt} printed={printed}>
     <div slot="live" class="layer">
-      <ol class="log" aria-live="polite" aria-label={`Starting ${demo} in this page`}>
-        {
-          steps.map(([stage, what]) => (
-            <li data-stage={stage}>
-              <span class="mark" aria-hidden="true" />
-              <span class="stage">{stage}</span>
-              <span class="what">{what}</span>
-            </li>
-          ))
-        }
-      </ol>
       <span class="take" data-take hidden>Live · click to use the keyboard</span>
     </div>
   </Screen>
+  <script type="application/json" data-stand set:html={stand} />
+  <script is:inline>
+    // Before the first paint: where the demo will run, the HTML drawing gives way to the
+    // terminal that stands in for it, not to a font change a moment later.
+    {
+      const root = document.currentScript.parentElement;
+      const narrow = matchMedia("(max-width: 760px)").matches;
+      if (!narrow && navigator.connection?.saveData !== true) root.classList.add("standing");
+    }
+  </script>
   <p class="fallback" data-fallback hidden>
     Too narrow to run here: <a href={src}>open {demo} in its own page</a>.
   </p>
@@ -92,12 +91,22 @@ const steps: [stage: string, what: string][] = [
 
 <script>
   import * as z from "zod/mini";
+  import { Terminal } from "@xterm/xterm";
+  import { FitAddon } from "@xterm/addon-fit";
+  import "@xterm/xterm/css/xterm.css";
 
   const Stage = z.object({ source: z.literal("airtty"), type: z.literal("stage"), stage: z.string() });
   const Script = z.array(
     z.object({ wait: z.string(), type: z.string(), pause: z.optional(z.number()) }),
   );
   const Connection = z.object({ saveData: z.optional(z.boolean()) });
+  const Stand = z.object({
+    ansi: z.string(),
+    columns: z.number(),
+    rows: z.number(),
+    background: z.string(),
+    foreground: z.string(),
+  });
 
   const DRAWN_TIMEOUT_MS = 20_000;
   const STEP_TIMEOUT_MS = 8_000;
@@ -110,6 +119,80 @@ const steps: [stage: string, what: string][] = [
 
   const sleep = (ms: number) => new Promise((done) => setTimeout(done, ms));
 
+  // As the runtime sets up its terminal (packages/airtty/src/web/platform/run.tsx): the same
+  // fonts, and the largest size at which the grid fits, so both draw every cell alike.
+  const FONTS =
+    'ui-monospace, "SF Mono", Menlo, "Cascadia Mono", Consolas, "DejaVu Sans Mono", monospace';
+  const LARGEST_FONT = 24;
+  const SMALLEST_FONT = 4;
+  const FONT_STEP = 0.25;
+
+  /**
+   * The terminal that stands in for the application until it has drawn: the capture,
+   * written once, never focused. It stays under the application's, and shows again when
+   * a gallery stops the demo.
+   */
+  /** Resolves once a stand-in has drawn its capture: only then may the application load. */
+  const standing = new WeakMap<HTMLElement, Promise<void>>();
+
+  function stand(root: HTMLElement) {
+    let drawn = () => {};
+    standing.set(
+      root,
+      new Promise<void>((resolve) => (drawn = resolve)).then(() => {
+        // Told to the container too: a gallery unloads its other demos only then.
+        root.dataset.stood = "";
+        root.dispatchEvent(new Event("live:stood"));
+      }),
+    );
+    const layer = root.querySelector<HTMLElement>(".layer");
+    const data = root.querySelector("[data-stand]")?.textContent;
+    const parsed = Stand.safeParse(JSON.parse(data ?? "null"));
+    if (!layer || !parsed.success) return;
+    const { ansi, columns, rows, background, foreground } = parsed.data;
+    const holder = document.createElement("div");
+    holder.className = "stand";
+    holder.setAttribute("aria-hidden", "true");
+    layer.prepend(holder);
+    const terminal = new Terminal({
+      fontFamily: FONTS,
+      theme: { background, foreground },
+      disableStdin: true,
+      cursorInactiveStyle: "none",
+    });
+    const fit = new FitAddon();
+    terminal.loadAddon(fit);
+    terminal.open(holder);
+    let written = false;
+    const layout = () => {
+      // A hidden gallery panel has no size yet: laid out, then written, once it is shown,
+      // at its grid; written earlier, the capture would be cut to xterm's 80x24.
+      if (!holder.clientWidth) return;
+      // As the runtime (fitGrid): the largest size on FONT_STEP steps at which the grid
+      // fits, by bisection; the same size, so the same cells.
+      const fits = (size: number) => {
+        terminal.options.fontSize = size;
+        const room = fit.proposeDimensions();
+        return room !== undefined && room.cols >= columns && room.rows >= rows;
+      };
+      let low = 0;
+      let high = (LARGEST_FONT - SMALLEST_FONT) / FONT_STEP;
+      while (low < high) {
+        const middle = Math.ceil((low + high) / 2);
+        if (fits(SMALLEST_FONT + middle * FONT_STEP)) low = middle;
+        else high = middle - 1;
+      }
+      terminal.options.fontSize = SMALLEST_FONT + low * FONT_STEP;
+      terminal.resize(columns, rows);
+      if (written) return;
+      written = true;
+      // Written, then painted: the next frame shows it.
+      terminal.write(ansi, () => requestAnimationFrame(() => drawn()));
+    };
+    layout();
+    new ResizeObserver(layout).observe(holder);
+  }
+
   /** The text xterm.js draws into the frame's DOM (same origin). */
   const screenOf = (frame: HTMLIFrameElement) =>
     [...(frame.contentDocument?.querySelectorAll(".xterm-rows > div") ?? [])]
@@ -120,8 +203,8 @@ const steps: [stage: string, what: string][] = [
 
   /**
    * Plays `steps` in order. When the screen shows a later step's text and not the current
-   * one's, the steps between are skipped: a restored session may start past the sign-in. Gives up quietly when nothing it waits for
-   * shows in time, or when the demo stops.
+   * one's, the steps between are skipped: a restored session may start past the sign-in.
+   * Gives up quietly when nothing it waits for shows in time, or when the demo stops.
    */
   async function play(frame: HTMLIFrameElement, steps: Step[], signal: AbortSignal) {
     let next = 0;
@@ -156,7 +239,8 @@ const steps: [stage: string, what: string][] = [
     if (!layer || !take || stops.has(root)) return;
     const alive = new AbortController();
     const { signal } = alive;
-    root.classList.add("booting");
+    // A same-origin frame shares this thread: its start would hold the stand-in's paint.
+    const ready = standing.get(root) ?? Promise.resolve();
     const script = Script.safeParse(JSON.parse(root.dataset.script ?? "[]"));
 
     const frame = document.createElement("iframe");
@@ -164,12 +248,11 @@ const steps: [stage: string, what: string][] = [
     frame.src = root.dataset.src ?? "";
     frame.allow = "clipboard-write";
     frame.tabIndex = -1;
-    layer.prepend(frame);
+    void ready.then(() => signal.aborted || layer.insertBefore(frame, take));
 
     let drawn = false;
     const reveal = () => {
       if (signal.aborted) return;
-      root.classList.remove("booting");
       root.classList.add("on");
       take.hidden = false;
       layer.setAttribute("role", "button");
@@ -180,12 +263,11 @@ const steps: [stage: string, what: string][] = [
       alive.abort();
       stops.delete(root);
       frame.remove();
-      root.classList.remove("booting", "on", "held");
+      root.classList.remove("on", "held");
       take.hidden = true;
       layer.removeAttribute("role");
       layer.removeAttribute("aria-label");
       layer.removeAttribute("tabindex");
-      for (const done of layer.querySelectorAll(".done")) done.classList.remove("done");
     };
     stops.set(root, stop);
     setTimeout(() => drawn || stop(), DRAWN_TIMEOUT_MS);
@@ -196,7 +278,6 @@ const steps: [stage: string, what: string][] = [
         if (event.source !== frame.contentWindow || event.origin !== location.origin) return;
         const message = Stage.safeParse(event.data);
         if (!message.success) return;
-        layer.querySelector(`[data-stage="${message.data.stage}"]`)?.classList.add("done");
         if (message.data.stage !== "drawn") return;
         drawn = true;
         await play(frame, script.success ? script.data : [], signal);
@@ -245,9 +326,11 @@ const steps: [stage: string, what: string][] = [
 
   for (const root of document.querySelectorAll<HTMLElement>("[data-live]")) {
     if (matchMedia(NARROW).matches || saving()) {
+      root.classList.remove("standing");
       root.querySelector<HTMLElement>("[data-fallback]")?.removeAttribute("hidden");
       continue;
     }
+    stand(root);
     // `manual`: a gallery starts and stops its demos as the reader picks one.
     root.addEventListener("live:start", () => start(root));
     root.addEventListener("live:stop", () => stops.get(root)?.());
@@ -283,7 +366,7 @@ const steps: [stage: string, what: string][] = [
     border: 0;
     background: var(--screen);
     opacity: 0;
-    transition: opacity 0.6s ease;
+    transition: opacity 0.15s ease;
   }
 
   .on .layer :global(iframe) {
@@ -304,85 +387,20 @@ const steps: [stage: string, what: string][] = [
     pointer-events: auto;
   }
 
-  /* The capture waits, dimmed, while the application starts behind it. */
-  .live :global(.grid) {
-    transition:
-      opacity 0.6s ease,
-      filter 0.6s ease;
+  /* Where a demo runs, the HTML drawing keeps the window's size; terminals draw in it. */
+  .standing :global(.grid) {
+    visibility: hidden;
   }
 
-  .booting :global(.grid) {
-    opacity: 0.35;
-    filter: saturate(0.5) blur(0.5px);
-  }
-
-  .on :global(.grid) {
-    opacity: 0;
-  }
-
-  .log {
+  /* As the runtime's page lays out #airtty: the same box, so the same cells. Created by
+     the script: outside the component's scoped styles. */
+  .layer :global(.stand) {
     position: absolute;
-    left: 50%;
-    top: 50%;
-    display: grid;
-    gap: 6px;
-    min-width: min(420px, 90%);
-    margin: 0;
-    padding: 16px 18px;
-    border: 1px solid var(--rule-strong);
-    border-radius: 10px;
-    background: rgb(7 11 18 / 0.88);
-    box-shadow: 0 30px 80px -30px rgb(0 0 0 / 0.9);
-    color: var(--mist);
-    font: 400 0.78rem / 1.5 var(--mono);
-    list-style: none;
-    opacity: 0;
-    transform: translate(-50%, -46%);
-    transition:
-      opacity 0.3s ease,
-      transform 0.3s ease;
-    backdrop-filter: blur(6px);
-  }
-
-  .booting .log {
-    opacity: 1;
-    transform: translate(-50%, -50%);
-  }
-
-  .log li {
-    display: grid;
-    grid-template-columns: 10px 76px 1fr;
-    align-items: center;
-    gap: 10px;
-    opacity: 0.45;
-    transition: opacity 0.2s;
-  }
-
-  .log li.done {
-    opacity: 1;
-  }
-
-  .mark {
-    width: 8px;
-    height: 8px;
-    border: 1px solid var(--dim);
-    border-radius: 50%;
-  }
-
-  .done .mark {
-    border-color: var(--client);
-    background: var(--client);
-    box-shadow: 0 0 8px var(--client);
-  }
-
-  .stage {
-    color: var(--paper);
-  }
-
-  .what {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    inset: 0;
+    padding: 8px;
+    box-sizing: border-box;
+    background: var(--screen);
+    pointer-events: none;
   }
 
   .take {
@@ -411,9 +429,7 @@ const steps: [stage: string, what: string][] = [
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .layer :global(iframe),
-    .live :global(.grid),
-    .log {
+    .layer :global(iframe) {
       transition: none;
     }
   }

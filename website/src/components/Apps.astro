@@ -17,10 +17,13 @@ const toDiff: Step[] = [
   { wait: "src/ledger.ts · typescript", type: "]" },
   { wait: "src/refunds.ts · typescript", type: "" },
 ];
-// Chat is asked the capture's question, and revealed while the answer streams.
+// Chat is asked the capture's question, and replaces it once the answer has streamed.
 const ask: Step[] = [
-  { wait: "Ask anything", type: "How does airtty keep typing local when the Server is 500 ms away?\r" },
-  { wait: "Reading", type: "" },
+  {
+    wait: "Ask anything",
+    type: "How does airtty keep typing local when the Server is 500 ms away?\r",
+  },
+  { wait: "Done.", type: "" },
 ];
 
 const apps = [
@@ -160,10 +163,17 @@ const terminalOnly = [
     let near = false;
     const panels = [...gallery.querySelectorAll<HTMLElement>('[role="tabpanel"]')];
     const sync = () => {
-      for (const panel of panels) {
-        const live = panel.querySelector("[data-live]");
-        live?.dispatchEvent(new Event(near && !panel.hidden ? "live:start" : "live:stop"));
-      }
+      const shown = (panel: HTMLElement) => near && !panel.hidden;
+      const signal = (panel: HTMLElement, name: string) =>
+        panel.querySelector("[data-live]")?.dispatchEvent(new Event(name));
+      const stopOthers = () => {
+        for (const panel of panels.filter((p) => !shown(p))) signal(panel, "live:stop");
+      };
+      const picked = panels.find(shown)?.querySelector<HTMLElement>("[data-live]");
+      for (const panel of panels.filter(shown)) signal(panel, "live:start");
+      // Unloading a demo holds this thread: only once the picked one's stand-in has painted.
+      if (!picked || picked.dataset.stood !== undefined) stopOthers();
+      else picked.addEventListener("live:stood", stopOthers, { once: true });
     };
     new MutationObserver(sync).observe(gallery, {
       subtree: true,

@@ -144,13 +144,13 @@ PRIVATE = [(str(ROOT), "/home/ada/src/airtty"), (str(ROOT).replace(str(pathlib.P
 TMPDIR = re.compile(r"/var/folders/[^/]+/[^/]+/T/")
 
 
-def anonymous(rows):
+def anonymous(rows, extra=()):
     """Replace private paths; the columns they free go to the next gap after them.
 
     Padding right after the path would split a sentence ("/tmp/     name.sock"); putting
     the spaces into the next run of blanks keeps right-aligned text where it was.
     """
-    patterns = [(re.compile(re.escape(private)), public) for private, public in PRIVATE]
+    patterns = [(re.compile(re.escape(private)), public) for private, public in (*extra, *PRIVATE)]
     patterns.append((TMPDIR, "/tmp/"))
     for runs in rows:
         deficit = 0
@@ -175,9 +175,10 @@ def anonymous(rows):
     return rows
 
 
-def save(term, name, title):
+def save(term, name, title, replace=()):
+    """`replace`: (text, shown instead) pairs of this scene, before the private paths."""
     OUT.mkdir(parents=True, exist_ok=True)
-    frame = {"title": title, "cols": term.screen.columns, "rows": term.screen.lines, "cells": anonymous(cells(term.screen))}
+    frame = {"title": title, "cols": term.screen.columns, "rows": term.screen.lines, "cells": anonymous(cells(term.screen), replace)}
     (OUT / f"{name}.json").write_text(json.dumps(frame, ensure_ascii=False, separators=(",", ":")) + "\n")
     print(f"captured {name}", flush=True)
     if PRINT:
@@ -187,7 +188,9 @@ def save(term, name, title):
 def dev(app, env, directory, cols, rows, cwd=ROOT):
     return Terminal(
         [BUN, CLI, "dev", "--app", str(ROOT / "examples" / app)],
-        {**os.environ, "TERM": "xterm-256color", "COLORTERM": "truecolor", "XDG_STATE_HOME": directory + "/state", **env},
+        # AIRTTY_DESKTOP: Ctrl+C belongs to the application, as in a page, so the key help
+        # the capture shows is the one the live demo it stands in for draws.
+        {**os.environ, "TERM": "xterm-256color", "COLORTERM": "truecolor", "XDG_STATE_HOME": directory + "/state", "AIRTTY_DESKTOP": "1", **env},
         cols, rows, cwd,
     )
 
@@ -256,7 +259,10 @@ def mdreader(directory):
     try:
         term.wait_for("ARCHITECTURE", 120)
         term.idle(1.5)
-        save(term, "mdreader", "mdreader: Markdown in two panes")
+        # The live demo reads the same files from /docs (website/scripts/demo.ts).
+        docs = str(ROOT / "docs")
+        shown = [(docs.replace(str(pathlib.Path.home()), "~"), "/docs"), (docs, "/docs")]
+        save(term, "mdreader", "mdreader: Markdown in two panes", shown)
     finally:
         term.stop()
 
@@ -277,7 +283,7 @@ def chat(directory):
 def devtools(directory):
     term = Terminal(
         [BUN, CLI, "devtools", "--demo"],
-        {**os.environ, "TERM": "xterm-256color", "COLORTERM": "truecolor", "XDG_STATE_HOME": directory + "/state"},
+        {**os.environ, "TERM": "xterm-256color", "COLORTERM": "truecolor", "XDG_STATE_HOME": directory + "/state", "AIRTTY_DESKTOP": "1"},
         140, 40,
     )
     try:

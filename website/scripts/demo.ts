@@ -50,7 +50,11 @@ async function snapshot(directory: string, mount: string, keep: (path: string) =
 
 /** The applications whose Server can run in a page: where each is, what it finds around it. */
 export const DEMOS: Record<string, { app: string; seed?: () => Promise<Seed> }> = {
-  forge: { app: "examples/forge" },
+  // The capture's clock (scripts/capture.py, FORGE_CLOCK): the same ages on both screens.
+  forge: {
+    app: "examples/forge",
+    seed: async () => ({ env: { FORGE_CLOCK_START: "2026-09-23T09:00:00Z" } }),
+  },
   notes: { app: "examples/notes" },
   // The repository's own documentation, as `MD_PATH=docs bun run mdreader` reads it.
   mdreader: {
