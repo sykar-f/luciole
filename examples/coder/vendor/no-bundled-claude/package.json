@@ -1,0 +1,6 @@
+{
+  "name": "no-bundled-claude",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Stands in for the Agent SDK's bundled Claude Code binary: coder runs the user's own claude, never this one."
+}

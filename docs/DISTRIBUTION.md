@@ -28,8 +28,17 @@ Un mot nu (`notes`) est une app installée s'il en existe une, sinon une spec np
 chemin relatif sans `./` est refusé avec cette indication plutôt que deviné.
 
 Les arguments qui suivent la cible vont à l'app. Un répertoire buildé (chemin, git)
-accepte `--url <url>` (Client seul), vérifié avant le build ; un binaire reçoit tout
-(`--url`, `--on`, `serve`). `--yes` accepte sans demander installations et commits.
+accepte `--url <url>` (Client seul) et `--grace <durée>`, vérifiés avant le build, puis
+les options que l'app déclare dans `app/args.ts` ([API.md](API.md#arguments-de-lapplication)),
+vérifiées par son schéma avant que son Server démarre ; `--help` liste les unes et les
+autres. Un binaire reçoit tout (`--url`, `--on`, `serve`, les options de l'app). `--yes`
+accepte sans demander installations et commits.
+
+Les options de l'app configurent son Server : elles lui arrivent par `AIRTTY_ARGS`, pas
+par sa ligne de commande (visible de tous par `ps`) ; avec `--on`, par l'entrée standard
+du `serve --detach` distant. Elles sont refusées avec `--url`, `airtty connect` et le
+Client générique, qui rejoignent un Server déjà configuré. Une option inconnue ou une
+valeur refusée sort avec le code 2.
 
 `airttyx <cible>` fait la même chose sans jamais lire la cible comme une
 sous-commande : `airttyx build` lance l'app nommée `build`.
@@ -50,10 +59,42 @@ Le Client reçoit `--url unix:/chemin/s` ; `connect()` (`src/connect.ts`) envoie
 requêtes par ce socket, sans changement de `transport.ts`.
 
 La session restaurable du Client (historique et champs, reprise après crash) est
-rattachée à une clé stable plutôt qu'à l'URL du socket, qui change à chaque lancement :
-`local:<répertoire>` pour un chemin, `git:<url>[/<dir>]` pour une source git (un nouveau
-commit garde les sessions), `local:<app>` pour un binaire, `ssh:<hôte>/<app>` avec `--on`.
-Le lanceur la passe par `AIRTTY_SESSION_KEY` ou `run(create, { name, sessionKey })`.
+rattachée à une clé stable plutôt qu'à l'URL du socket, qui change à chaque lancement.
+Elle part de la cible : `local:<répertoire>` pour un chemin, `git:<url>[/<dir>]` pour une
+source git (un nouveau commit garde les sessions), `local:<app>` pour un binaire,
+`ssh:<hôte>/<app>` avec `--on`. Le lanceur la passe par `AIRTTY_SESSION_KEY` ou
+`run(create, { name, sessionKey })`.
+
+### Qui partage un Server : `airtty.server`
+
+L'application choisit dans son `package.json` quels lancements partagent un Server, et
+son délai de grâce par défaut (`--grace` l'emporte) :
+
+```jsonc
+{ "airtty": { "server": "per-launch", "grace": "10m" } }
+```
+
+| `server`          | Clé                                | Pour                                                 |
+| ----------------- | ---------------------------------- | ---------------------------------------------------- |
+| `shared` (défaut) | `<cible>[#<empreinte>]`            | Notes, mdreader : un Server pour tous les lancements |
+| `per-directory`   | `<cible>@<cwd>[#<empreinte>]`      | une app qui écrit dans le répertoire où on la lance  |
+| `per-launch`      | `<cible>@<cwd>[#<empreinte>]!<id>` | coder : une session d'agent par lancement            |
+
+L'empreinte est celle des arguments de l'application, après validation : **un Server = un
+jeu d'arguments**, jamais hérité d'un autre lancement. Elle est absente pour une app qui
+n'en déclare pas (clés inchangées). `GET /lifetime/status` la rend (`args`), avec l'id du
+lancement (`launch`) : un Server d'un autre jeu d'arguments n'est jamais rattaché. Le
+Server tourne dans le répertoire où la commande a été tapée ; `getLaunch()`
+(`airtty/server`) rend `{ scope, id?, cwd }`.
+
+`per-launch` donne à chaque lancement son Server. Quand un Client meurt (crash, terminal
+fermé), son Server attend en grâce ; le lancement suivant dans le même répertoire, avec
+les mêmes arguments, **réclame** le fichier de session laissé par ce Client (renommage
+atomique, `claimOrphan` de `src/session.ts`), en tire l'id du lancement et retrouve ce
+Server, son état, sa route et ses champs nommés. `--new` démarre toujours un lancement
+neuf. Deux relances simultanées ne réclament jamais la même session. `airtty dev` est
+déjà un Server par exécution : il se déclare `per-launch`, d'id sa session de
+développement.
 
 Ce que le Server écrit va dans `$XDG_STATE_HOME/airtty/<app>/server.log`, jamais sur
 l'écran du Client ; un Server qui ne démarre pas est expliqué par la fin de ce log.
@@ -69,14 +110,15 @@ airtty build --compile [--name notes] [--target t] …   → .airtty/bin/<os>-<a
 Le binaire contient le Client **et** le Server d'un même build, plus le lanceur
 (`src/launcher/binary.ts`) :
 
-| Commande                                                 | Rôle                                                        |
-| -------------------------------------------------------- | ----------------------------------------------------------- |
-| `notes [--grace d]`                                      | les deux, ici ; Server sur socket privé                     |
-| `notes serve [--http [host]:port \| --socket p]`         | Server seul (sans option : `PORT`, `AIRTTY_HOST`, …)        |
-| `notes serve --detach --id <id> [--grace d]`             | Server géré, détaché (utilisé par `--on`)                   |
-| `notes --url <url>`                                      | Client seul                                                 |
-| `notes --on [user@]host[:port] [--target f] [--grace d]` | Server sur l'hôte (installé au besoin), Client ici, via ssh |
-| `notes --version`                                        | identité : app, build ID, cible                             |
+| Commande                                                      | Rôle                                                        |
+| ------------------------------------------------------------- | ----------------------------------------------------------- |
+| `notes [--grace d] [options]`                                 | les deux, ici ; Server sur socket privé                     |
+| `notes serve [--http [host]:port \| --socket p] [-- options]` | Server seul (sans option : `PORT`, `AIRTTY_HOST`, …)        |
+| `notes serve --detach --id <id> [--grace d]`                  | Server géré, détaché (utilisé par `--on`)                   |
+| `notes --url <url>`                                           | Client seul                                                 |
+| `notes --on [user@]host[:port] [--target f] [--grace d]`      | Server sur l'hôte (installé au besoin), Client ici, via ssh |
+| `notes --new`                                                 | lancement neuf, sans réclamer de session (`per-launch`)     |
+| `notes --version`                                             | identité : app, build ID, cible                             |
 
 `--http :8080` écoute sur la boucle locale ; `0.0.0.0:8080` doit être explicite (et
 exige toujours `AIRTTY_TOKEN` ou `server/auth.ts`, comme `serve()`).
@@ -138,9 +180,11 @@ compilé fonctionne loin de tout `node_modules` (`tests/native.test.ts`).
    build altéré est refusé avec l'explication, jamais lancé. Un répertoire verrou
    contenant le pid de l'envoyeur fait attendre les lancements concurrents ; un verrou
    dont le pid est mort est repris.
-4. `<app> serve --detach --id <id> --grace <ms>` retrouve le Server géré de cette clé
-   (`ssh:<hôte>/<app>`) dans le répertoire runtime de l'hôte, ou en démarre un, détaché
-   de ssh, puis rend la main avec le chemin de son socket.
+4. `<app> serve --detach --id <id> --grace <ms> --env-stdin` retrouve le Server géré de
+   cette clé (`ssh:<hôte>/<app>`, plus portée et empreinte) dans le répertoire runtime de
+   l'hôte, ou en démarre un, détaché de ssh, puis rend la main avec le chemin de son
+   socket. Les arguments de l'application et le lancement arrivent en une ligne JSON sur
+   son entrée standard ; le répertoire du Server est celui de la session ssh.
 5. Un tunnel `ssh -N -L <socket local>:<socket distant>` le relie au Client
    (`ServerAliveInterval=10`, `ServerAliveCountMax=3`). S'il tombe alors que le Client
    vit, il est relancé après 1 s, 2 s, 4 s… jusqu'à 30 s, sur le même socket local, sans
@@ -169,8 +213,8 @@ Local ou `--on`, le même mécanisme (`src/launcher/lifetime.ts` dans le Server,
 Le Server est détaché (sa propre session, sa sortie dans son log) : il survit au
 lanceur, au terminal fermé et à ssh. Un nouveau lancement de la même cible avec la même
 clé de session le retrouve à son socket et vérifie son build (`GET /lifetime/status`) :
-même build, il s'y rattache ; autre build, il l'arrête (`POST /lifetime/stop`) et en
-démarre un nouveau. `--grace` se passe au lanceur (`airtty ./app --grace 5m`) ou au
+même build et mêmes arguments, il s'y rattache ; sinon il l'arrête
+(`POST /lifetime/stop`) et en démarre un nouveau. `--grace` se passe au lanceur (`airtty ./app --grace 5m`) ou au
 binaire (`notes --grace 0`, `notes --on host --grace 1h`).
 
 Pendant une coupure, le Client vivant voit ses pings échouer : il passe

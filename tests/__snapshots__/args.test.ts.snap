@@ -1,0 +1,30 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`--help lists the application's options, then the runtime's 1`] = `
+"coder 0.1.0: A terminal client for coding agents
+
+Usage:
+  coder [options]
+
+Options:
+  -H, --harness <claude|codex|pi|opencode>  Agent harness
+      --cwd <DIR>
+  -m, --model <value>                       (env CODER_MODEL)
+      --mode <read|ask|edits|full>          (default: ask)
+      --resume [ID]                         Resume the last session, or <ID>
+      --max-turns <integer>
+  -v, --verbose                             (default: false, --no-verbose turns it off)
+  -q, --quiet                               (--no-quiet turns it off)
+      --tag <value>…
+
+Runtime (airtty):
+      --url <url>         Join a running Server (no application options)
+      --grace <duration>  Keep the Server this long after its terminal goes (default 15m)
+      --yes               Install and run without asking
+      --new               Start a new session instead of reattaching a crashed one (per-launch apps)
+  -h, --help              Show this help
+
+Examples:
+  coder -H codex --resume
+"
+`;

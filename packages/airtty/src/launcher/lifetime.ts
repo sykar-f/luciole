@@ -20,6 +20,7 @@ import * as z from "zod/mini";
 const MS = { ms: 1, s: 1000, m: 60_000, h: 3_600_000 } as const;
 const GRACE_MINUTES = 15;
 export const DEFAULT_GRACE_MS = GRACE_MINUTES * MS.m;
+export const MS_PER_MINUTE = MS.m;
 const DEFAULT_WATCHDOG_MS = 30_000;
 // How often clients are checked against the watchdog period.
 const CHECKS_PER_PERIOD = 3;
@@ -48,6 +49,10 @@ export const LifetimeStatus = z.object({
   pid: z.number(),
   clients: z.number(),
   graceUntil: z.optional(z.number()),
+  /** The fingerprint of its application arguments, when it has some (src/args.ts). */
+  args: z.optional(z.string()),
+  /** Its launch's id, per-launch (src/launcher/launch-key.ts). */
+  launch: z.optional(z.string()),
 });
 export const CLIENT_HEADER = "x-airtty-client";
 
@@ -58,7 +63,13 @@ export type Lifetime = {
 
 export function managedLifetime(
   env: NodeJS.ProcessEnv,
-  { buildId, socket, stop }: { buildId: string; socket: string; stop: () => void },
+  {
+    buildId,
+    socket,
+    stop,
+    args,
+    launch,
+  }: { buildId: string; socket: string; stop: () => void; args?: string; launch?: string },
 ): Lifetime | undefined {
   const parsed = Environment.safeParse(env);
   if (!parsed.success)
@@ -134,6 +145,8 @@ export function managedLifetime(
           pid: process.pid,
           clients: clients.size,
           ...(grace ? { graceUntil: grace.until } : {}),
+          ...(args ? { args } : {}),
+          ...(launch ? { launch } : {}),
         } satisfies z.infer<typeof LifetimeStatus>);
       if (request.method !== "POST") return new Response("Not found", { status: 404 });
       if (url.pathname === "/lifetime/ping" && client) {

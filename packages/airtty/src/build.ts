@@ -7,12 +7,14 @@ import { z } from "zod";
 import { bundleMessages, logMessages } from "./bundle-errors";
 import { nativePackage } from "./native";
 import { governingLock } from "./lockfile";
+import { withLock } from "./launcher/lock";
 import { readJsonFile } from "./package-json";
 import { ROUTE_TREE_FILE, compileRouteGraph, renderRouteTree } from "./route-graph";
 import { cachedFunctions, cacheSource, staleTimeOf } from "./cache/transform";
 import { annotateNames } from "./build-names";
 import { ABI_KEY, APP_MANIFEST, isAbiSpecifier, type AppManifest } from "./abi";
-import { readAppDeclaration, writeAppMetadata } from "./app-metadata";
+import { readAppDeclaration, writeAppMetadata, type AppArgs } from "./app-metadata";
+import { isArgsDefinition } from "./args";
 import { undeclaredUses, type Capabilities } from "./capabilities";
 import { signManifest, type PublisherKey } from "./publisher";
 import {
@@ -139,7 +141,30 @@ const FRAMEWORK_ENTRIES = new Map([
   ["client", "client.tsx"],
   ["server", "server.ts"],
   ["route-tree", "route-tree.tsx"],
+  ["args", "args.ts"],
 ]);
+/** Where an application declares its command-line arguments. */
+export const ARGS_FILE = "app/args.ts";
+/**
+ * The arguments module just bundled, evaluated: its flags checked (reserved names,
+ * supported shapes) and described for metadata.json, which hosts read without running it.
+ */
+async function readArgs(bundle: string, root: string): Promise<AppArgs> {
+  // Absolute: a relative path would be resolved as a package name.
+  const imported: unknown = await import(resolve(bundle));
+  const definition =
+    typeof imported === "object" && imported !== null && "default" in imported
+      ? imported.default
+      : undefined;
+  if (!isArgsDefinition(definition))
+    throw new Error(`${relative(root, join(root, ARGS_FILE))}: export default defineArgs({...})`);
+  definition.flags();
+  return {
+    summary: definition.summary,
+    examples: definition.examples ? [...definition.examples] : undefined,
+    schema: definition.jsonSchema(),
+  };
+}
 /** `@scope/name/sub` → `@scope/name`; `name/sub` → `name`. */
 const packageOf = (specifier: string) =>
   specifier.split("/").slice(0, packageDepth(specifier)).join("/");
@@ -179,10 +204,55 @@ function packageOfFile(file: string) {
   const end = at + 1 + packageDepth(parts[at + 1]);
   return { name: parts.slice(at + 1, end).join("/"), dir: parts.slice(0, end).join("/") };
 }
+/**
+ * Builds `directory` into `output`. Concurrent builds of one output (two launches, two
+ * `airtty dev`) take turns on a lock next to it; a build whose identity and options match
+ * the output already there leaves it untouched, so a second launch never swaps directories
+ * under the first one's feet.
+ */
 export async function build(
   directory: string,
   output = join(directory, ".airtty"),
-  { appBundle: wanted = "auto", signBundle, webServer = false }: BuildOptions = {},
+  options: BuildOptions = {},
+) {
+  await mkdir(dirname(output), { recursive: true });
+  return await withLock(`${output}-lock`, () => buildUnlocked(directory, output, options), {
+    waiting: () => console.error(`airtty build: waiting for another build of ${output}`),
+  });
+}
+/** What a build was asked for beyond its sources: an output built otherwise is rebuilt. */
+const BuiltWith = z.object({
+  buildId: z.string(),
+  options: z.object({
+    appBundle: z.enum(["auto", "required"]),
+    webServer: z.boolean(),
+    signed: z.boolean(),
+  }),
+});
+async function upToDate(
+  output: string,
+  buildId: string,
+  options: z.infer<typeof BuiltWith>["options"],
+) {
+  try {
+    const built = BuiltWith.safeParse(
+      JSON.parse(await readFile(join(output, "manifest.json"), "utf8")),
+    );
+    return (
+      built.success &&
+      built.data.buildId === buildId &&
+      built.data.options.appBundle === options.appBundle &&
+      built.data.options.webServer === options.webServer &&
+      built.data.options.signed === options.signed
+    );
+  } catch {
+    return false;
+  }
+}
+async function buildUnlocked(
+  directory: string,
+  output: string,
+  { appBundle: wanted = "auto", signBundle, webServer = false }: BuildOptions,
 ) {
   const appBundle = signBundle ? "required" : wanted;
   const root = await realpath(directory),
@@ -322,12 +392,16 @@ export async function build(
   // Optional like server/auth.ts: its default export is the "use cache" CacheHandler.
   const cacheFile = join(root, "server/cache.ts");
   const hasCache = await Bun.file(cacheFile).exists();
+  // Optional too: the application's command-line arguments (src/args.ts).
+  const argsFile = join(root, ARGS_FILE);
+  const hasArgs = await Bun.file(argsFile).exists();
   for (const p of [
     ...pages,
     ...layouts,
     ...loadings,
     ...(hasAuth ? [authFile] : []),
     ...(hasCache ? [cacheFile] : []),
+    ...(hasArgs ? [argsFile] : []),
   ])
     await read(p);
   const program = ts.createProgram([...modules.keys()], {
@@ -478,6 +552,31 @@ export async function build(
     clients.add(p);
   }
   for (const p of clients) clientVisit(p);
+  // app/args.ts runs in the launcher, the app binary and the Server: plain code, no side.
+  const argsGraph = new Set<string>();
+  function argsVisit(p: string) {
+    if (argsGraph.has(p)) return;
+    argsGraph.add(p);
+    const m = moduleAt(p);
+    const chain = via([...argsGraph]);
+    if (m.directive) fail(m, m.ast, `"${m.directive}" module in ${ARGS_FILE}'s graph${chain}`);
+    if (relative(root, p).split("/").includes("server"))
+      fail(m, m.ast, `Server-only source in ${ARGS_FILE}'s graph${chain}`);
+    for (const i of m.imports) {
+      if (
+        ["server-only", "client-only", "airtty/server", "airtty/client"].includes(i.name) ||
+        i.name.startsWith("@opentui/") ||
+        (i.path && relative(root, i.path).split("/").includes("server"))
+      )
+        fail(
+          m,
+          i.node,
+          `${ARGS_FILE} runs in the launcher and on the Server: it cannot import ${i.name}${chain}`,
+        );
+      if (i.path) argsVisit(i.path);
+    }
+  }
+  if (hasArgs) argsVisit(argsFile);
   // Imports the bundler resolved, per role: rebuilds a package violation's chain.
   const edges: Record<"server" | "client", [importer: string, specifier: string][]> = {
     server: [],
@@ -529,6 +628,13 @@ export async function build(
     );
   const appLock = governingLock(root);
   for (const lock of new Set([frameworkLock, appLock])) if (lock) hash.update(await readFile(lock));
+  // What the build reads besides modules: the declaration (metadata, icon) and airtty.json.
+  for (const file of [
+    join(root, "package.json"),
+    join(root, "airtty.json"),
+    ...(declaration.iconFile ? [declaration.iconFile] : []),
+  ])
+    hash.update(relative(root, file)).update(await readFile(file).catch(() => Buffer.alloc(0)));
   let clientPackages: { name: string; version: string }[] = [];
   const buildId = hash.digest("hex").slice(0, BUILD_ID_LENGTH),
     id = (p: string) => `${buildId}/${relative(root, p)}`;
@@ -536,6 +642,9 @@ export async function build(
   for (const p of clients)
     for (const name of moduleAt(p).exports)
       manifest[`${id(p)}#${name}`] = { id: id(p), chunks: [], name };
+  const builtWith = { appBundle, webServer, signed: !!signBundle };
+  // A signature is not part of the identity: a signed build is always made afresh.
+  if (!signBundle && (await upToDate(output, buildId, builtWith))) return { buildId, output };
   const temp = `${output}-${crypto.randomUUID()}`;
   await mkdir(temp, { recursive: true });
   const routes = graph.pages.map((r, i) => ({
@@ -563,7 +672,12 @@ export async function build(
   )
     await Bun.write(routeTreeFile, routeTreeSource);
   const serverSource =
+    (hasArgs ? `import ${quote(join(framework, "args-server.ts"))};` : "") +
     `import {serve} from ${quote(join(framework, "server.ts"))};${hasAuth ? `import Auth from ${quote(authFile)};` : ""}${hasCache ? `import Cache from ${quote(cacheFile)};` : ""}\n` +
+    // The Server parses its launch's arguments before anything reads them.
+    (hasArgs
+      ? `import {configureArgs} from ${quote(join(framework, "args.ts"))};import Args from ${quote(argsFile)};await configureArgs(Args,process.env,process.cwd());\n`
+      : "") +
     routes.map((r) => `import ${r.name} from ${quote(abs(r.file))};`).join("\n") +
     "\n" +
     [...actions].map((p, i) => `import * as A${i} from ${quote(p)};`).join("\n") +
@@ -580,6 +694,7 @@ export async function build(
     [...clients].map((p, i) => `import * as C${i} from ${quote(p)};`).join("\n") +
     `\nexport const buildId=${quote(buildId)};export const modules={${[...clients].map((p, i) => `${quote(id(p))}:C${i}`).join(",")}};`;
   let appBuiltins: string[] = [];
+  let args: AppArgs | undefined;
   let appSkipped = false;
   const external = [
     "react",
@@ -590,12 +705,13 @@ export async function build(
     "react-reconciler",
   ];
   try {
-    type Role = "server" | "client" | "app" | "web-server";
+    type Role = "server" | "client" | "app" | "web-server" | "args";
     const roles: readonly Role[] = [
       "server",
       "client",
       "app",
       ...(webServer ? ["web-server" as const] : []),
+      ...(hasArgs ? ["args" as const] : []),
     ];
     for (const role of roles) {
       // The application bundle is Client code: same boundaries, same stubs. The browser's
@@ -612,7 +728,9 @@ export async function build(
             ? serverSource
             : role === "client"
               ? clientSource
-              : appSource,
+              : role === "args"
+                ? `export {default} from ${quote(argsFile)};`
+                : appSource,
       );
       const result = await Bun.build({
         entrypoints: [entry],
@@ -621,7 +739,8 @@ export async function build(
         target: browserServer ? "browser" : "bun",
         // bun-cjs: a function of (exports, require, module…) the host calls with the ABI.
         ...(role === "app" ? { format: "cjs" as const } : {}),
-        external: role === "app" || browserServer ? [] : external,
+        // The arguments module is whole: a launcher imports it from anywhere.
+        external: role === "app" || role === "args" || browserServer ? [] : external,
         conditions: serverSide ? ["react-server"] : [],
         // A browser bundle carries no environment: React's production builds, as the page's.
         ...(browserServer
@@ -685,7 +804,7 @@ export async function build(
                 b.onResolve({ filter: /^[@a-z]/ }, (a) =>
                   isAbiSpecifier(a.path) ? { path: a.path, external: true } : undefined,
                 );
-              b.onResolve({ filter: /^airtty\/(client|server|route-tree)$/ }, (a) => {
+              b.onResolve({ filter: /^airtty\/(client|server|route-tree|args)$/ }, (a) => {
                 const entry = FRAMEWORK_ENTRIES.get(a.path.slice("airtty/".length));
                 if (!entry) throw new Error(`Unknown framework entry ${a.path}`);
                 return { path: join(framework, entry) };
@@ -854,6 +973,7 @@ export async function build(
           .map(([name, version]) => ({ name, version }));
       }
       if (browserServer) copyWebServerFiles(join(temp, role));
+      if (role === "args") args = await readArgs(join(temp, role, "index.js"), root);
       await rm(entry);
     }
     await Bun.write(
@@ -861,6 +981,7 @@ export async function build(
       JSON.stringify(
         {
           buildId,
+          options: builtWith,
           manifest,
           routes: routes.map((r) => ({
             id: r.id,
@@ -887,7 +1008,7 @@ export async function build(
         capabilities: declaration.capabilities,
         publisher: signBundle,
       });
-    await writeAppMetadata(temp, declaration);
+    await writeAppMetadata(temp, { ...declaration, metadata: { ...declaration.metadata, args } });
     // Failed builds never touch the active artefacts.
     const backup = output + "-previous";
     await rm(backup, { recursive: true, force: true });

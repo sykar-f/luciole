@@ -106,6 +106,12 @@ les Server Functions en props ou les importe dans des Client Components. Il ne
 rédige ni protocole RPC, ni registre de modules, ni manifest Flight, ni bootstrap
 OpenTUI.
 
+`app/args.ts` est optionnel aussi : il déclare les options de ligne de commande de
+l'application (`defineArgs`, `airtty/args`). Chaque point d'entrée les vérifie et les
+transmet au Server, qui les reparse et fait autorité ; invariant : **un Server = un jeu
+d'arguments**, une constante de son process. Le Client ne les lit pas : la page lui passe
+en props ce dont l'UI a besoin ([API.md](API.md#arguments-de-lapplication)).
+
 `server/auth.ts` est optionnel. Lorsqu'il existe, le build l'inclut uniquement dans
 le graphe Server et injecte son `AuthConfig` dans le runtime. Les pages et actions
 sont protégées par défaut ; `export const auth = "public"` est une exception locale
@@ -121,8 +127,8 @@ SQLite reste côté Server. La navigation est décrite dans [ROUTER.md](ROUTER.m
 ## Deux formes de distribution
 
 **Pour l’auteur d’application**, le produit est le package `airtty` :
-CLI `airtty` et `airttyx`, entrées `/client`, `/server`, `/route-tree`, `/build`, `/pty`,
-`/metadata` et configuration `/tsconfig`.
+CLI `airtty` et `airttyx`, entrées `/client`, `/server`, `/route-tree`, `/args`, `/build`,
+`/pty`, `/metadata` et configuration `/tsconfig`.
 Aujourd’hui il est privé et local ; le starter utilise une dépendance `file:` vers
 le checkout. La publication sur un registre et le nom définitif restent à faire.
 Les outils TypeScript/Oxc accompagnent le développement.

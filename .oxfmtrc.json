@@ -14,6 +14,7 @@
     "probes/**/results.json",
     "website/src/frames/*.json",
     "website/dist/**",
-    "website/.astro/**"
+    "website/.astro/**",
+    "examples/coder/server/adapters/codex-protocol/**"
   ]
 }

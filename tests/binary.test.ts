@@ -355,3 +355,34 @@ test("--on a host of another platform needs a binary of the same build for it", 
     await rm(remoteHome, { recursive: true, force: true });
   }
 }, 60000);
+
+test("--on hands the application's arguments over stdin, never on a command line", async () => {
+  const host = await fakeHost();
+  const options = {
+    identity,
+    id: serverId("ssh:args/notes"),
+    graceMs: 60_000,
+    self: binary,
+    log: () => {},
+    env: host.env,
+  };
+  try {
+    // Notes declares none: the remote Server refuses any, which proves they reached it.
+    const refused = await rejectionOf(
+      runOn("host.example", { ...options, launch: { args: { v: 1, argv: ["--secret-flag"] } } }),
+    );
+    expect(messageOf(refused)).toContain("Unknown argument --secret-flag");
+    const calls = await sshCalls(host.log);
+    expect(calls.some(({ args }) => args.join(" ").includes("--env-stdin"))).toBe(true);
+    expect(calls.some(({ args }) => args.join(" ").includes("--secret-flag"))).toBe(false);
+    const server = await runOn("host.example", {
+      ...options,
+      launch: { args: { v: 1, argv: [] } },
+    });
+    expect(await health(server.url)).toMatchObject({ buildId: identity.buildId });
+    await (await clientOf(server.url)).managed?.leave();
+    await server.stop();
+  } finally {
+    await host.remove();
+  }
+}, 90000);

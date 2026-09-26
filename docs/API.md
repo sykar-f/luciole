@@ -221,6 +221,91 @@ const state = useCapability("clipboard.write"); // "granted" | "denied" | "promp
   espaces de noms, ou sous bubblewrap (Linux), par défaut ; Landlock seul (réseau non
   confiné par hôte) seulement avec `--sandbox`. L'écran des capacités nomme le mécanisme.
 
+## Arguments de l'application
+
+Une application déclare ses options de ligne de commande dans `app/args.ts` (facultatif),
+avec `defineArgs` de `airtty/args` et un schéma zod 4 — plus généralement tout Standard
+Schema qui implémente aussi Standard JSON Schema :
+
+```ts
+// app/args.ts
+import { defineArgs } from "airtty/args";
+import { z } from "zod";
+
+export default defineArgs({
+  summary: "Coding agent client",
+  options: z
+    .object({
+      harness: z.enum(["claude", "codex"]).optional().meta({ short: "H" }),
+      cwd: z.string().optional().meta({ kind: "path", placeholder: "DIR" }),
+      mode: z.enum(["read", "ask"]).default("ask"),
+      resume: z
+        .union([z.literal(true), z.string()])
+        .optional()
+        .meta({ placeholder: "ID" }),
+    })
+    .strict(),
+  examples: ["coder -H codex --resume"],
+});
+```
+
+La grammaire vient du JSON Schema des options (propriété camelCase → `--kebab-case`) :
+
+| Schéma               | Ligne de commande                                                   |
+| -------------------- | ------------------------------------------------------------------- |
+| booléen              | `--flag`, `--no-flag`                                               |
+| chaîne, enum, nombre | `--flag v`, `--flag=v` (nombres convertis avant validation)         |
+| `true \| string`     | `--flag` seul, ou `--flag v` si le mot suivant n'est pas une option |
+| tableau de scalaires | répétable : `--flag a --flag b`                                     |
+
+`.meta()` ajoute `short` (une lettre, `-abc` groupe les booléens), `placeholder`,
+`description`, `kind: "path"` (résolu contre le répertoire où la commande a été tapée) et
+`env` (variable lue quand l'option est absente : ligne de commande > variable > défaut).
+Un objet imbriqué ou une autre union est refusé au build. Une erreur d'usage nomme
+l'option, propose la plus proche (« did you mean ») et sort avec le code 2. `--help` est
+généré : options de l'application, puis options du runtime, puis exemples.
+
+Les options du runtime sont réservées ; le build refuse une application qui déclare
+`--url --on --target --grace --yes --help -h --version --new`.
+
+Côté Server, la valeur est typée par l'import, sans génération de code :
+
+```ts
+import "server-only";
+import cli from "../app/args";
+export const config = cli.get(); // { harness?: "claude" | "codex"; mode: "read" | "ask"; … }
+```
+
+`getArgs()` (`airtty/server`) rend la même valeur, non typée, et `getLaunch()` le
+lancement : `{ scope, id?, cwd }`, où `scope` est `airtty.server` du `package.json`
+(`shared`, `per-directory` ou `per-launch`, voir
+[DISTRIBUTION.md](DISTRIBUTION.md#qui-partage-un-server--airttyserver)). Le Server fait autorité : il
+reparse lui-même la ligne reçue avant de servir, et une ligne refusée l'arrête (code 2,
+message dans son log). **Un Server = un jeu d'arguments** : `get()` est une constante du
+process, sûre au niveau module, dans un singleton ou sous `"use cache"`. Il n'y a pas
+d'API Client : `get()` lève côté Client, la page passe en props ce dont l'UI a besoin
+(avec `--url`, un Client générique ou le web, le Client n'a de toute façon pas
+d'arguments). `app/args.ts` tourne dans le lanceur, le binaire et le Server : il ne peut
+importer ni `server-only`, ni `client-only`, ni `server/`, ni OpenTUI.
+
+Chaque point d'entrée qui démarre un Server accepte les options, les vérifie avant de le
+démarrer et les lui transmet par la variable `AIRTTY_ARGS` (`{v, argv, cwd}`), jamais par
+sa ligne de commande que `ps` montre aux autres utilisateurs :
+
+| Entrée                                            | Options de l'application                                                                     |
+| ------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `airtty dev --app d -- <options>`                 | après `--` ; revérifiées à chaque rebuild                                                    |
+| `airtty ./app <options>`, source git              | tout ce qui n'est pas `--url`, `--grace`, `--yes`, `-h`                                      |
+| binaire `app <options>`                           | tout ce qui n'est pas une option du runtime                                                  |
+| `app serve [--http … \| --socket …] -- <options>` | après `--`                                                                                   |
+| `app --on host <options>`                         | envoyées sur l'entrée standard du `serve --detach` distant ; les chemins se résolvent là-bas |
+| `airtty start --role server -- <options>`         | après `--`                                                                                   |
+| `--url`, `airtty connect`, Client générique       | refusées : ce Client rejoint un Server qui tourne déjà                                       |
+
+Le build bundle `app/args.ts` dans `.airtty/args/` (le lanceur et le binaire l'importent)
+et écrit son JSON Schema dans `.airtty/metadata.json` (`args`), qu'un hôte lit sans
+exécuter l'application.
+
 ## Métadonnées de l'application
 
 Ce que les hôtes montrent d'une application sans l'exécuter (une fenêtre desktop, son

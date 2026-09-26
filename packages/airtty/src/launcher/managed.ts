@@ -84,6 +84,10 @@ export type EnsureOptions = {
   graceMs: number;
   directories: Pick<Directories, "state">;
   env?: NodeJS.ProcessEnv;
+  /** Where it runs: the directory the command was typed in, by default this one. */
+  cwd?: string;
+  /** The fingerprint of its application arguments: a found Server must hold the same. */
+  fingerprint?: string;
   /**
    * The Client of this launch. With `attach`, the Server's stdin is a pipe held by this
    * process: its end without a leave (a crash) counts that Client lost at once.
@@ -112,7 +116,9 @@ export async function ensureServer(options: EnsureOptions): Promise<EnsuredServe
     pid,
     release,
   });
-  if (found?.buildId === options.buildId) return done(found.pid, true);
+  const same = (status: typeof found) =>
+    status?.buildId === options.buildId && status.args === options.fingerprint;
+  if (found && same(found)) return done(found.pid, true);
   if (found) await stopServer(socket);
   // Nobody answers: whatever file is there is left by a Server that died.
   rmSync(socket, { force: true });
@@ -128,6 +134,7 @@ export async function ensureServer(options: EnsureOptions): Promise<EnsuredServe
   const child = spawn(executable, args, {
     // Its own session: a closed terminal's SIGHUP, or the launcher's end, spares it.
     detached: true,
+    cwd: options.cwd,
     stdio: [options.attach ? "pipe" : "ignore", log, log],
     env: {
       ...env,
@@ -146,14 +153,14 @@ export async function ensureServer(options: EnsureOptions): Promise<EnsuredServe
   const deadline = performance.now() + STARTUP_MS;
   for (;;) {
     const status = await serverStatus(socket);
-    if (status?.buildId === options.buildId)
+    if (status && same(status))
       // Started here (its pid may be a child of `command`: an app binary with native
       // packages runs its Server as a child).
       return done(status.pid, false, () => child.stdin?.destroy());
     if (exited !== undefined || performance.now() > deadline) {
       // Two launches at once: the other one's Server may have taken the socket.
       const other = await serverStatus(socket);
-      if (other?.buildId === options.buildId) return done(other.pid, true);
+      if (other && same(other)) return done(other.pid, true);
       const text = readFileSync(logFile, "utf8").slice(start).trim();
       throw new Error(
         `${options.name}: the Server ${exited ?? `did not start in ${STARTUP_MS} ms`}` +

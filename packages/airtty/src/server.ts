@@ -12,6 +12,8 @@ import { renderPage } from "./cache/render";
 import { Tag, configureCache, invalidateTags, type CacheEvent } from "./cache/runtime";
 import { assertUncached } from "./cache/scope";
 import { devtoolsInstrument } from "./devtools/server-agent";
+import { configuredArgs } from "./args";
+import { launchOf, type Launch } from "./launch";
 export { memoryCache, type CacheEntry, type CacheHandler } from "./cache/handler";
 export { sqliteCache } from "./cache/sqlite";
 export { cacheLife, cacheTag, type CacheEvent, type CacheProfile } from "./cache/runtime";
@@ -83,6 +85,22 @@ export function invalidate(target: string | { tag: string } = "/"): void | Promi
     throw new Error("invalidate() takes an absolute path");
   c.invalidations.add(target);
 }
+/**
+ * This Server's application arguments (`app/args.ts`), parsed at its start; `undefined`
+ * when the application declares none. Typed through the definition instead:
+ * `import cli from "../app/args"; cli.get()`.
+ */
+export function getArgs(): unknown {
+  return configuredArgs()?.value;
+}
+/**
+ * This Server's launch: its scope (`airtty.server` of the package.json), its id when each
+ * launch has its own Server (`per-launch`), and the directory the command ran in.
+ */
+export function getLaunch(): Launch {
+  return (launch ??= launchOf(process.env, process.cwd()));
+}
+let launch: Launch | undefined;
 export function getCallId() {
   return context.getStore()?.callId;
 }
@@ -257,8 +275,11 @@ export function createHandler(config: ServerConfig, options: HandlerOptions) {
     invalidateTag: (tag) => invalidate({ tag }),
   });
   // The cache reports through the same instrument as requests: the DevTools see both.
+  // One set of arguments per Server: a cache shared by processes (sqliteCache) keeps
+  // their results apart.
+  const fingerprint = configuredArgs()?.fingerprint;
   configureCache({
-    buildId: config.buildId,
+    buildId: fingerprint ? `${config.buildId}#${fingerprint}` : config.buildId,
     handler: config.cache,
     onEvent: instrument?.onEvent,
     callId: getCallId,

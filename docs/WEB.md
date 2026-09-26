@@ -52,6 +52,12 @@ airtty build --web                                # .airtty/web/ à côté de se
 AIRTTY_WEB_ORIGIN=https://notes.example.com PORT=3000 bun --conditions=react-server .airtty/server/index.js
 ```
 
+Les options de l'application (`app/args.ts`) se donnent au Server, pas au navigateur :
+`AIRTTY_ARGS='{"v":1,"argv":["--mode","read"]}'` devant la commande ci-dessus, ou
+`<app> serve --http :3000 -- --mode read` avec un binaire. Tout dans le navigateur
+(`--web-local`), le Server du SharedWorker n'a pas de ligne de commande : il prend les
+valeurs par défaut du schéma (v1).
+
 Le navigateur ouvre `https://notes.example.com/` et arrive sur `/_airtty/web/`. Le runtime
 est dans `$XDG_CACHE_HOME/airtty/web/<clé d'ABI>-<hash du framework>/` : la page est
 aussi du code du framework. `airtty build --web` le prépare s'il manque. En local : `AIRTTY_WEB_ORIGIN=http://127.0.0.1:3000`.

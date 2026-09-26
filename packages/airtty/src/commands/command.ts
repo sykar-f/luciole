@@ -5,6 +5,8 @@ import type { ChildProcess } from "node:child_process";
 export type CommandContext = {
   /** Everything after `airtty`, the subcommand's own name first. */
   args: readonly string[];
+  /** What follows `--`: the application's arguments (`airtty dev -- --flag`). */
+  rest: readonly string[];
   /** A flag's value, or `fallback` when the flag is absent. */
   option: (key: string, fallback: string) => string;
   /** A flag's value. A flag given without one is refused, never silently dropped. */

@@ -87,6 +87,7 @@
     "probes/vt-embed/**",
     "probes/devtools-tanstack/**",
     "website/dist/**",
-    "website/.astro/**"
+    "website/.astro/**",
+    "examples/coder/server/adapters/codex-protocol/**"
   ]
 }

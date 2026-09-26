@@ -36,6 +36,8 @@ export async function runLocal(
   options: Omit<EnsureOptions, "client" | "attach"> & {
     client: readonly string[];
     sessionKey: string;
+    /** The session file a crashed Client left, claimed for this one (launch-key.ts). */
+    session?: string;
   },
 ) {
   const client = newClientId();
@@ -45,6 +47,7 @@ export async function runLocal(
       ...(options.env ?? process.env),
       AIRTTY_SESSION_KEY: options.sessionKey,
       AIRTTY_LIFETIME_CLIENT: client,
+      ...(options.session ? { AIRTTY_SESSION: options.session } : {}),
     });
   } finally {
     server.release();

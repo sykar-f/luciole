@@ -8,7 +8,8 @@
 import { chmodSync } from "node:fs";
 import { z } from "zod";
 import { managedLifetime } from "./launcher/lifetime";
-import { createHandler, type AuthConfig, type ServerConfig } from "./server";
+import { createHandler, getLaunch, type AuthConfig, type ServerConfig } from "./server";
+import { configuredArgs } from "./args";
 import { WebOrigin, webAccess } from "./web-routes";
 
 const DEFAULT_PORT = 3000,
@@ -65,7 +66,13 @@ export function serve(config: ServerConfig) {
   });
   // A Server the launcher manages lives as long as its Clients (src/launcher/lifetime.ts).
   const lifetime = socket
-    ? managedLifetime(process.env, { buildId: config.buildId, socket, stop: () => shutdown() })
+    ? managedLifetime(process.env, {
+        buildId: config.buildId,
+        socket,
+        stop: () => shutdown(),
+        args: configuredArgs()?.fingerprint,
+        launch: getLaunch().id,
+      })
     : undefined;
   const options = {
     maxRequestBodySize: MAX_REQUEST_BYTES,

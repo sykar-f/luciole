@@ -58,7 +58,9 @@ La clé est le SHA-256 de `buildId`, de l'identifiant de la fonction et des argu
 encodés par le codec de réponse de React Flight (`encodeReply`, celui des arguments de
 Server Functions) : `Date`, `Map`, `Set`, `BigInt`, `undefined` survivent, et un même
 argument donne toujours le même texte. **Un nouveau build ne lit jamais les entrées d'un
-autre.** Le résultat est encodé de la même façon puis décodé à chaque lecture : chaque
+autre.** Quand l'application déclare des arguments (`app/args.ts`), leur empreinte suit
+le `buildId` dans la clé : deux Servers lancés avec des arguments différents ne partagent
+pas les résultats d'un handler commun à plusieurs processus (`sqliteCache`). Le résultat est encodé de la même façon puis décodé à chaque lecture : chaque
 appelant reçoit sa propre copie.
 
 Sont refusés avec une erreur explicite : un async iterable ou un `ReadableStream`
