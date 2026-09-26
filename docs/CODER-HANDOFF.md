@@ -35,17 +35,17 @@ lancement pour permettre plusieurs sessions dans un même projet.
 
 ## 2. Décisions de l'utilisateur (ne pas rediscuter)
 
-| Sujet | Décision |
-|---|---|
-| UX | **Mono-session** comme les CLI claude/codex/pi, pas un multi-threads à la T3 Code |
-| Choix du harness | Flag **`--harness claude\|codex\|pi\|opencode`** |
-| Instances | **Plusieurs sessions en parallèle dans le même projet** doivent être possibles (pas d'instance unique) |
-| Forme | **Exemple airtty** (TUI OpenTUI), pas d'app web/Tauri |
-| Arguments | **Changement architectural du framework** accepté : l'app déclare de vrais arguments CLI avec une bonne DX |
-| Exemple | **Nouvel exemple `examples/coder`** ; **ne pas toucher `examples/agent`** |
-| Nom | `coder` |
-| Ordre | framework → harness factice + Claude → Codex → pi → opencode |
-| Cible | Perso + open source public, **non commercial** |
+| Sujet            | Décision                                                                                                   |
+| ---------------- | ---------------------------------------------------------------------------------------------------------- |
+| UX               | **Mono-session** comme les CLI claude/codex/pi, pas un multi-threads à la T3 Code                          |
+| Choix du harness | Flag **`--harness claude\|codex\|pi\|opencode`**                                                           |
+| Instances        | **Plusieurs sessions en parallèle dans le même projet** doivent être possibles (pas d'instance unique)     |
+| Forme            | **Exemple airtty** (TUI OpenTUI), pas d'app web/Tauri                                                      |
+| Arguments        | **Changement architectural du framework** accepté : l'app déclare de vrais arguments CLI avec une bonne DX |
+| Exemple          | **Nouvel exemple `examples/coder`** ; **ne pas toucher `examples/agent`**                                  |
+| Nom              | `coder`                                                                                                    |
+| Ordre            | framework → harness factice + Claude → Codex → pi → opencode                                               |
+| Cible            | Perso + open source public, **non commercial**                                                             |
 
 Décisions prises par le coordinateur (modifiables si tu as une raison forte, à justifier) :
 
@@ -93,7 +93,7 @@ Règles :
    expose aussi `account/login/start` (le binaire héberge le callback) : acceptable.
 5. **Pas d'OAuth Anthropic dans pi ni dans opencode** :
    - pi : bloquer les modèles Anthropic si `pi auth check --provider anthropic --json
-     --no-refresh` → `authType:"oauth"`, ou `auth.json` `.anthropic.type == "oauth"`, ou
+--no-refresh` → `authType:"oauth"`, ou `auth.json` `.anthropic.type == "oauth"`, ou
      clé commençant par `sk-ant-oat` (auth.json, `models.json`, env `ANTHROPIC_API_KEY`),
      ou env `ANTHROPIC_OAUTH_TOKEN` / `ANTHROPIC_AUTH_TOKEN` présent. **Piège vérifié** :
      `auth check` répond `api_key` pour un jeton OAuth passé par env → tester aussi l'env.
@@ -126,16 +126,22 @@ import { z } from "zod";
 
 export default defineArgs({
   summary: "Coding agent client for Claude Code, Codex, pi and opencode",
-  options: z.object({
-    harness: z.enum(["claude", "codex", "pi", "opencode"]).optional()
-      .meta({ short: "H", description: "Underlying agent harness" }),
-    cwd: z.string().optional().meta({ kind: "path", placeholder: "DIR" }),
-    model: z.string().optional(),
-    effort: z.string().optional(),
-    mode: z.enum(["read", "ask", "edits", "full"]).default("ask"),
-    resume: z.union([z.literal(true), z.string()]).optional()
-      .meta({ placeholder: "ID", description: "Resume the latest or a given session" }),
-  }).strict(),
+  options: z
+    .object({
+      harness: z
+        .enum(["claude", "codex", "pi", "opencode"])
+        .optional()
+        .meta({ short: "H", description: "Underlying agent harness" }),
+      cwd: z.string().optional().meta({ kind: "path", placeholder: "DIR" }),
+      model: z.string().optional(),
+      effort: z.string().optional(),
+      mode: z.enum(["read", "ask", "edits", "full"]).default("ask"),
+      resume: z
+        .union([z.literal(true), z.string()])
+        .optional()
+        .meta({ placeholder: "ID", description: "Resume the latest or a given session" }),
+    })
+    .strict(),
   examples: ["coder --harness codex", "coder -H claude --resume"],
 });
 ```
@@ -182,7 +188,7 @@ déjà faire reprendre la session la plus récente d'un Client mort (rename atom
 À faire :
 
 - Manifeste `package.json` : `"airtty": { "server": "shared" | "per-directory" |
-  "per-launch", "grace": "10m" }`. L'**empreinte des arguments entre toujours dans la
+"per-launch", "grace": "10m" }`. L'**empreinte des arguments entre toujours dans la
   clé** (un Server = un jeu d'arguments = constante de process).
 - `per-launch` (coder) : clé `<target>@<cwd>#<fp>!<launchId>` → un Server par lancement.
 - **Rattachement après crash** : le launcher cherche un fichier de session d'un Client mort
@@ -293,7 +299,7 @@ vrai binaire (petits prompts, `say ok`) rejouées en test de contrat → événe
   (sinon prompt minimal !), `settingSources: ["user","project","local"]`,
   `permissionMode`, `allowDangerouslySkipPermissions` seulement en `full`, `resume` /
   `sessionId`, `includePartialMessages: true`, `canUseTool`, `thinking: {display:
-  "summarized"}` (sinon réflexion omise sur Opus ≥ 4.7), `env: {...process.env}`,
+"summarized"}` (sinon réflexion omise sur Opus ≥ 4.7), `env: {...process.env}`,
   `pathToClaudeCodeExecutable`.
 - **Piège** : `ANTHROPIC_API_KEY` dans l'env **passe avant** l'abonnement en mode SDK →
   afficher un avertissement si `system/init.apiKeySource !== "none"` alors que
@@ -303,7 +309,7 @@ vrai binaire (petits prompts, `say ok`) rejouées en test de contrat → événe
   prompt** pour lire `initializationResult()` (commandes, modèles, compte) sans appel API,
   hooks/MCP désactivés pour la sonde.
 - `canUseTool(tool, input, {suggestions, signal, toolUseID, …})` → `{behavior:"allow",
-  updatedInput, updatedPermissions?}` (« toujours » = renvoyer une `suggestion`) ou
+updatedInput, updatedPermissions?}` (« toujours » = renvoyer une `suggestion`) ou
   `{behavior:"deny", message, interrupt?}`. Pas de timeout.
   **AskUserQuestion** et **ExitPlanMode** arrivent par `canUseTool` (réponse question :
   `updatedInput: {questions, answers: {[question]: label}}` ; plan : capturer le markdown,
@@ -330,10 +336,10 @@ vrai binaire (petits prompts, `say ok`) rejouées en test de contrat → événe
   installé (`codex app-server generate-ts --out … --experimental`), commiter ceux de
   0.156.1, vérifier la version au démarrage.
 - `initialize {clientInfo:{name:"airtty-coder",title,version}, capabilities:
-  {experimentalApi:true}}` puis notification `initialized`.
+{experimentalApi:true}}` puis notification `initialized`.
 - `thread/start {model, cwd, approvalPolicy, sandbox, …}` / `thread/resume` /
   `thread/list {cwd}` ; `turn/start {threadId, input, model, effort, sandboxPolicy,
-  approvalPolicy, collaborationMode}` ; `turn/steer {expectedTurnId}` ; `turn/interrupt` ;
+approvalPolicy, collaborationMode}` ; `turn/steer {expectedTurnId}` ; `turn/interrupt` ;
   `thread/compact/start` ; `thread/fork` ; `review/start` (v2).
 - Notifications : `item/started|completed` (completed fait foi), `item/agentMessage/delta`,
   `item/reasoning/*`, `item/commandExecution/outputDelta`, `turn/diff/updated`,
@@ -361,7 +367,7 @@ vrai binaire (petits prompts, `say ok`) rejouées en test de contrat → événe
   `tool_call` et demande via `ctx.ui.select/confirm` → arrive en `extension_ui_request`
   → répondre `extension_ui_response {id, value|confirmed|cancelled}`. Plusieurs dialogues
   peuvent être en attente (outils parallèles). Modèles : `examples/extensions/
-  permission-gate.ts`, `plan-mode`, `protected-paths` dans le paquet pi installé.
+permission-gate.ts`, `plan-mode`, `protected-paths` dans le paquet pi installé.
   **Point de sécurité : à tester sérieusement.** Mode `read` = `--tools read,grep,find,ls`.
 - Commandes : `prompt {message, images?, streamingBehavior}` (steer/followUp **obligatoire**
   pendant un stream), `steer`, `follow_up`, `abort`, `get_state`, `set_model`,
@@ -383,13 +389,13 @@ vrai binaire (petits prompts, `say ok`) rejouées en test de contrat → événe
 - Client : `@opencode-ai/sdk/v2` (dépendance à ajouter au catalogue) ou fetch + SSE à la
   main si le SDK pèse trop — justifier. Répertoire via `x-opencode-directory`.
 - Tour : `POST /session/{id}/prompt_async {model:{providerID,modelID}, agent, variant,
-  parts}` (204), suivi sur `GET /event` ; fin = `session.status` idle. Deltas :
+parts}` (204), suivi sur `GET /event` ; fin = `session.status` idle. Deltas :
   `message.part.delta` ; snapshots : `message.part.updated` (parts `text`, `reasoning`,
   `tool` avec états, `step-finish` tokens/coût, `patch`, `file`, `subtask`, `compaction`).
 - Permissions : `permission.asked` → `POST /permission/{id}/reply {reply:
-  once|always|reject, message?}` ; questions : `question.asked` →
+once|always|reject, message?}` ; questions : `question.asked` →
   `/question/{id}/reply {answers}` ; modes = règles de session `[{permission, pattern,
-  action}]` posées à la création / `PATCH` (à ré-appliquer à la reprise, comme T3).
+action}]` posées à la création / `PATCH` (à ré-appliquer à la reprise, comme T3).
 - Après reconnexion SSE : re-lire `/session/status`, `/permission`, `/question`.
 - Divers : `/abort`, `/fork`, `/revert`, `/summarize` (compaction), `/todo`, `/diff`,
   `GET /provider` (`connected`, variantes = effort), `/agent` (`build`/`plan`),

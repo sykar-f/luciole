@@ -43,7 +43,7 @@ What the sources say:
    - "Advertised usage limits for Pro and Max plans assume ordinary, individual usage of Claude Code and the Agent SDK."
    - Naming: a product may say it "runs Claude Code". It may not use "Claude Code" or the Anthropic names or logos in its own product name or logo.
 2. **Agent SDK overview and quickstart notes**: "Unless previously approved, Anthropic does not allow third party developers to offer claude.ai login or rate limits for their products, including agents built on the Claude Agent SDK. Use the API key authentication methods …". SDK branding rules allow "Claude Agent", or "{YourAgentName} Powered by Claude". They do not allow "Claude Code" or "Claude Code Agent", or any Claude Code-like ASCII art.
-3. **Help Center 15036540**: dated update of June 15, 2026: *"We're pausing the changes to Claude Agent SDK usage … For now, nothing has changed: Claude Agent SDK, `claude -p`, and third-party app usage still draw from your subscription's usage limits."* The paused plan (a separate monthly Agent SDK credit: Pro $20, Max 5x $100, Max 20x $200, and so on) explicitly listed "Third-party apps that authenticate with your Claude subscription through the Agent SDK" as a covered use. Anthropic therefore expects such apps to exist and to bill against the user's plan.
+3. **Help Center 15036540**: dated update of June 15, 2026: _"We're pausing the changes to Claude Agent SDK usage … For now, nothing has changed: Claude Agent SDK, `claude -p`, and third-party app usage still draw from your subscription's usage limits."_ The paused plan (a separate monthly Agent SDK credit: Pro $20, Max 5x $100, Max 20x $200, and so on) explicitly listed "Third-party apps that authenticate with your Claude subscription through the Agent SDK" as a covered use. Anthropic therefore expects such apps to exist and to bill against the user's plan.
 
 A defensible pattern for a GUI such as T3 Code, which is my synthesis of the sources above:
 
@@ -64,11 +64,11 @@ Technical traps that would silently break subscription use:
 
 ## 1. Integration options
 
-| Option | What it is | Pros | Cons |
-|---|---|---|---|
-| **TS Agent SDK `query()`** (`@anthropic-ai/claude-agent-sdk`) | Library that spawns the Claude Code native binary and speaks its stdin/stdout control protocol | Typed messages; `canUseTool` callback plumbing; hooks as JS callbacks; in-process MCP tools; all runtime control methods; session helpers (`listSessions`, `getSessionMessages`, `forkSession`, `renameSession`, `tagSession`, `deleteSession`); `startup()` and `prewarm()` for low latency | Node, Bun or Deno only; the version is pinned to the bundled CLI |
-| **Python Agent SDK** (`claude-agent-sdk`) | Same approach; `query()` for one-shot, `ClaudeSDKClient` for interactive | Bundles the CLI in platform wheels | Fewer runtime methods (for example, no `applyFlagSettings`); interrupts only via `ClaudeSDKClient` |
-| **Raw CLI** `claude -p --input-format stream-json --output-format stream-json --verbose [--include-partial-messages] [--permission-prompt-tool stdio]` | NDJSON over stdio. This is exactly what the SDK does under the hood. | Any language; uses the user's installed `claude` | The stdio control protocol (`control_request` / `control_response`) is documented only through SDK typings. `--permission-prompt-tool stdio` is an undocumented value. You re-implement the SDK's plumbing. |
+| Option                                                                                                                                                 | What it is                                                                                     | Pros                                                                                                                                                                                                                                                                                         | Cons                                                                                                                                                                                                        |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **TS Agent SDK `query()`** (`@anthropic-ai/claude-agent-sdk`)                                                                                          | Library that spawns the Claude Code native binary and speaks its stdin/stdout control protocol | Typed messages; `canUseTool` callback plumbing; hooks as JS callbacks; in-process MCP tools; all runtime control methods; session helpers (`listSessions`, `getSessionMessages`, `forkSession`, `renameSession`, `tagSession`, `deleteSession`); `startup()` and `prewarm()` for low latency | Node, Bun or Deno only; the version is pinned to the bundled CLI                                                                                                                                            |
+| **Python Agent SDK** (`claude-agent-sdk`)                                                                                                              | Same approach; `query()` for one-shot, `ClaudeSDKClient` for interactive                       | Bundles the CLI in platform wheels                                                                                                                                                                                                                                                           | Fewer runtime methods (for example, no `applyFlagSettings`); interrupts only via `ClaudeSDKClient`                                                                                                          |
+| **Raw CLI** `claude -p --input-format stream-json --output-format stream-json --verbose [--include-partial-messages] [--permission-prompt-tool stdio]` | NDJSON over stdio. This is exactly what the SDK does under the hood.                           | Any language; uses the user's installed `claude`                                                                                                                                                                                                                                             | The stdio control protocol (`control_request` / `control_response`) is documented only through SDK typings. `--permission-prompt-tool stdio` is an undocumented value. You re-implement the SDK's plumbing. |
 
 **Recommendation.** Use the **TypeScript Agent SDK** in streaming-input mode, which is `prompt` as an `AsyncIterable<SDKUserMessage>`. The docs call it "the preferred way" (https://code.claude.com/docs/en/agent-sdk/streaming-vs-single-mode). It is required for `interrupt`, `setPermissionMode`, `setModel`, `applyFlagSettings`, image input and queued messages. The docs point other languages to the raw CLI (https://code.claude.com/docs/en/agent-sdk/overview).
 
@@ -89,71 +89,71 @@ Technical traps that would silently break subscription use:
 
 Source: https://code.claude.com/docs/en/agent-sdk/typescript#options, plus [typings].
 
-| Option | Meaning |
-|---|---|
-| `abortController` | Cancels the query and kills the process (stdin closes first, then the signal fires about 2 s later) |
-| `additionalDirectories` | Extra dirs (`--add-dir`); also loads their skills, commands and agents when the `project` source is on |
-| `agent` | Named agent to run as the main thread |
-| `agents` | `Record<name, AgentDefinition>` programmatic subagents: `description`, `prompt`, `tools`, `disallowedTools`, `model`, `mcpServers`, `skills`, `initialPrompt`, `maxTurns`, `background`, `omitClaudeMd`, `memory`, `effort`, `permissionMode` |
-| `agentProgressSummaries` | One-line progress summaries on `task_progress.summary` for subagents |
-| `allowDangerouslySkipPermissions` | Required to use or switch to `bypassPermissions` |
-| `allowedTools` | Auto-approve rules (for example `"Read"`, `"Bash(npm test *)"`, `"mcp__srv__*"`); does not restrict availability |
-| `betas` | Beta headers (API key only; `context-1m-2025-08-07` is retired) |
-| `canUseTool` | Permission callback (see section 5) |
-| `continue` | Continue the most recent session in `cwd` |
-| `cwd` | Working directory |
-| `debug`, `debugFile` | Debug logging |
-| `disallowedTools` | A bare name removes the tool; a scoped rule denies matches in every mode; `"*"` and `"mcp__*"` globs are supported |
-| `effort` | `'low'|'medium'|'high'|'xhigh'|'max'` |
-| `enableFileCheckpointing` | Track Write, Edit and NotebookEdit changes for `rewindFiles` |
-| `env` | Child environment (**replaces** `process.env`) |
-| `executable`, `executableArgs` | JS runtime for a JS CLI (legacy) |
-| `extraArgs` | Arbitrary CLI flags, for example `{ "replay-user-messages": null }` |
-| `fallbackModel` | Comma-separated fallback chain |
-| `forkSession` | With `resume`, fork to a new session ID |
-| `forwardSubagentText` | Emit subagent text and thinking as messages with `parent_tool_use_id` |
-| `hooks` | `Partial<Record<HookEvent, HookCallbackMatcher[]>>`, JS callbacks |
-| `includeHookEvents` | Emit `hook_started`, `hook_progress` and `hook_response` for all hooks |
-| `includePartialMessages` | Emit `stream_event` partials (token streaming) |
-| `loadTimeoutMs` | *Alpha.* `sessionStore` load timeout |
-| `managedSettings` | Policy-tier settings from the host (restrictive-only filter) |
-| `maxBudgetUsd` | Stop when the client-side cost estimate reaches this value |
-| `maxThinkingTokens` | *Deprecated*; use `thinking` |
-| `maxTurns` | Limit on agentic turns |
-| `mcpServers` | `Record<name, stdio|sse|http|sdk config>` |
-| `model` | Alias (`default`, `best`, `fable`, `opus`, `sonnet`, `haiku`, `opus[1m]`, `sonnet[1m]`, `opusplan`) or full ID |
-| `onElicitation` | MCP elicitation handler (form or url); if unset, elicitation is declined |
-| `onUserDialog`, `supportedDialogKinds` **[typings]** | Host-rendered blocking dialogs (`request_user_dialog`, for example `refusal_fallback_prompt`); the CLI only emits the kinds you declare |
-| `outputFormat` | `{ type:'json_schema', schema }` for structured output (`result.structured_output`) |
-| `pathToClaudeCodeExecutable` | Override the binary |
-| `permissionMode` | `default|acceptEdits|plan|dontAsk|auto|bypassPermissions` (SDK default: `default`) |
-| `permissionPromptToolName` | MCP tool that answers prompts (mutually exclusive with `canUseTool`) |
-| `permissionPrompts` | `'host'` (default) or `'none'` (deny anything that would prompt; also removes AskUserQuestion) |
-| `perTaskStopAffordance` **[typings]** | Declares that the UI has per-task stop buttons; interrupt then spares background tasks |
-| `persistSession` | `false` means no transcript on disk |
-| `planModeInstructions` | Replace the plan-mode workflow body |
-| `pluginDelivery` **[typings]** | `'argv'|'initialize'` |
-| `plugins` | `[{type:'local', path, skipMcpDiscovery?}]` |
-| `projectConfigRoot` | For worktrees: read project config from the main checkout |
-| `promptSuggestions` | Emit `prompt_suggestion` after turns |
-| `resume`, `resumeSessionAt`, `resumeDropsTurn` | Resume by ID, optionally truncating at a message UUID |
-| `sandbox` | `SandboxSettings` (enabled, network allow and deny lists, filesystem allowWrite, denyWrite and denyRead, excludedCommands, and so on) |
-| `sessionId` | Choose the session UUID |
-| `sessionStore`, `sessionStoreFlush` | Mirror transcripts to external storage |
-| `settings` | Inline settings object, JSON string or path (flag-settings layer) |
-| `settingSources` | `['user','project','local']` by default; `[]` disables them (managed settings, `~/.claude.json`, auto-memory and claude.ai connectors still load) |
-| `skills` | `'all'` or a list of names (auto-adds the Skill tool) |
-| `spawnClaudeCodeProcess` | Custom spawn (VM, container, SSH) |
-| `stderr` | stderr callback |
-| `strictMcpConfig` | Use only `mcpServers`; ignore `.mcp.json`, user, plugin and claude.ai connector servers |
-| `systemPrompt` | String, string array, `{type:'custom',prompt,snapshot?}`, or `{type:'preset',preset:'claude_code',append?,excludeDynamicSections?,snapshot?}`. **Default is a minimal prompt, not Claude Code's.** Use the preset for Claude Code behavior. |
-| `taskBudget` | *Alpha.* API-side token budget |
-| `thinking` | `{type:'adaptive'|'enabled'|'disabled', budgetTokens?, display?:'summarized'|'omitted'}`. On Opus 4.7 and later the default display is `omitted`, so set `'summarized'` to show thinking text. |
-| `title` | Session display title |
-| `toolAliases` | Map built-in tools to MCP tools (for example `Bash` to `mcp__ws__bash`) |
-| `toolConfig` | `{ askUserQuestion: { previewFormat: 'markdown'|'html' } }` |
-| `tools` | Array of built-in tool names, or `{type:'preset',preset:'claude_code'}` |
-| `verbatimPrompts` | Send every prompt with `client_composed: true` (no `@` expansion or slash dispatch) |
+| Option                                               | Meaning                                                                                                                                                                                                                                       |
+| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `abortController`                                    | Cancels the query and kills the process (stdin closes first, then the signal fires about 2 s later)                                                                                                                                           |
+| `additionalDirectories`                              | Extra dirs (`--add-dir`); also loads their skills, commands and agents when the `project` source is on                                                                                                                                        |
+| `agent`                                              | Named agent to run as the main thread                                                                                                                                                                                                         |
+| `agents`                                             | `Record<name, AgentDefinition>` programmatic subagents: `description`, `prompt`, `tools`, `disallowedTools`, `model`, `mcpServers`, `skills`, `initialPrompt`, `maxTurns`, `background`, `omitClaudeMd`, `memory`, `effort`, `permissionMode` |
+| `agentProgressSummaries`                             | One-line progress summaries on `task_progress.summary` for subagents                                                                                                                                                                          |
+| `allowDangerouslySkipPermissions`                    | Required to use or switch to `bypassPermissions`                                                                                                                                                                                              |
+| `allowedTools`                                       | Auto-approve rules (for example `"Read"`, `"Bash(npm test *)"`, `"mcp__srv__*"`); does not restrict availability                                                                                                                              |
+| `betas`                                              | Beta headers (API key only; `context-1m-2025-08-07` is retired)                                                                                                                                                                               |
+| `canUseTool`                                         | Permission callback (see section 5)                                                                                                                                                                                                           |
+| `continue`                                           | Continue the most recent session in `cwd`                                                                                                                                                                                                     |
+| `cwd`                                                | Working directory                                                                                                                                                                                                                             |
+| `debug`, `debugFile`                                 | Debug logging                                                                                                                                                                                                                                 |
+| `disallowedTools`                                    | A bare name removes the tool; a scoped rule denies matches in every mode; `"*"` and `"mcp__*"` globs are supported                                                                                                                            |
+| `effort`                                             | `'low'                                                                                                                                                                                                                                        | 'medium'      | 'high'                                           | 'xhigh'                                                                                                           | 'max'` |
+| `enableFileCheckpointing`                            | Track Write, Edit and NotebookEdit changes for `rewindFiles`                                                                                                                                                                                  |
+| `env`                                                | Child environment (**replaces** `process.env`)                                                                                                                                                                                                |
+| `executable`, `executableArgs`                       | JS runtime for a JS CLI (legacy)                                                                                                                                                                                                              |
+| `extraArgs`                                          | Arbitrary CLI flags, for example `{ "replay-user-messages": null }`                                                                                                                                                                           |
+| `fallbackModel`                                      | Comma-separated fallback chain                                                                                                                                                                                                                |
+| `forkSession`                                        | With `resume`, fork to a new session ID                                                                                                                                                                                                       |
+| `forwardSubagentText`                                | Emit subagent text and thinking as messages with `parent_tool_use_id`                                                                                                                                                                         |
+| `hooks`                                              | `Partial<Record<HookEvent, HookCallbackMatcher[]>>`, JS callbacks                                                                                                                                                                             |
+| `includeHookEvents`                                  | Emit `hook_started`, `hook_progress` and `hook_response` for all hooks                                                                                                                                                                        |
+| `includePartialMessages`                             | Emit `stream_event` partials (token streaming)                                                                                                                                                                                                |
+| `loadTimeoutMs`                                      | _Alpha._ `sessionStore` load timeout                                                                                                                                                                                                          |
+| `managedSettings`                                    | Policy-tier settings from the host (restrictive-only filter)                                                                                                                                                                                  |
+| `maxBudgetUsd`                                       | Stop when the client-side cost estimate reaches this value                                                                                                                                                                                    |
+| `maxThinkingTokens`                                  | _Deprecated_; use `thinking`                                                                                                                                                                                                                  |
+| `maxTurns`                                           | Limit on agentic turns                                                                                                                                                                                                                        |
+| `mcpServers`                                         | `Record<name, stdio                                                                                                                                                                                                                           | sse           | http                                             | sdk config>`                                                                                                      |
+| `model`                                              | Alias (`default`, `best`, `fable`, `opus`, `sonnet`, `haiku`, `opus[1m]`, `sonnet[1m]`, `opusplan`) or full ID                                                                                                                                |
+| `onElicitation`                                      | MCP elicitation handler (form or url); if unset, elicitation is declined                                                                                                                                                                      |
+| `onUserDialog`, `supportedDialogKinds` **[typings]** | Host-rendered blocking dialogs (`request_user_dialog`, for example `refusal_fallback_prompt`); the CLI only emits the kinds you declare                                                                                                       |
+| `outputFormat`                                       | `{ type:'json_schema', schema }` for structured output (`result.structured_output`)                                                                                                                                                           |
+| `pathToClaudeCodeExecutable`                         | Override the binary                                                                                                                                                                                                                           |
+| `permissionMode`                                     | `default                                                                                                                                                                                                                                      | acceptEdits   | plan                                             | dontAsk                                                                                                           | auto   | bypassPermissions`(SDK default:`default`) |
+| `permissionPromptToolName`                           | MCP tool that answers prompts (mutually exclusive with `canUseTool`)                                                                                                                                                                          |
+| `permissionPrompts`                                  | `'host'` (default) or `'none'` (deny anything that would prompt; also removes AskUserQuestion)                                                                                                                                                |
+| `perTaskStopAffordance` **[typings]**                | Declares that the UI has per-task stop buttons; interrupt then spares background tasks                                                                                                                                                        |
+| `persistSession`                                     | `false` means no transcript on disk                                                                                                                                                                                                           |
+| `planModeInstructions`                               | Replace the plan-mode workflow body                                                                                                                                                                                                           |
+| `pluginDelivery` **[typings]**                       | `'argv'                                                                                                                                                                                                                                       | 'initialize'` |
+| `plugins`                                            | `[{type:'local', path, skipMcpDiscovery?}]`                                                                                                                                                                                                   |
+| `projectConfigRoot`                                  | For worktrees: read project config from the main checkout                                                                                                                                                                                     |
+| `promptSuggestions`                                  | Emit `prompt_suggestion` after turns                                                                                                                                                                                                          |
+| `resume`, `resumeSessionAt`, `resumeDropsTurn`       | Resume by ID, optionally truncating at a message UUID                                                                                                                                                                                         |
+| `sandbox`                                            | `SandboxSettings` (enabled, network allow and deny lists, filesystem allowWrite, denyWrite and denyRead, excludedCommands, and so on)                                                                                                         |
+| `sessionId`                                          | Choose the session UUID                                                                                                                                                                                                                       |
+| `sessionStore`, `sessionStoreFlush`                  | Mirror transcripts to external storage                                                                                                                                                                                                        |
+| `settings`                                           | Inline settings object, JSON string or path (flag-settings layer)                                                                                                                                                                             |
+| `settingSources`                                     | `['user','project','local']` by default; `[]` disables them (managed settings, `~/.claude.json`, auto-memory and claude.ai connectors still load)                                                                                             |
+| `skills`                                             | `'all'` or a list of names (auto-adds the Skill tool)                                                                                                                                                                                         |
+| `spawnClaudeCodeProcess`                             | Custom spawn (VM, container, SSH)                                                                                                                                                                                                             |
+| `stderr`                                             | stderr callback                                                                                                                                                                                                                               |
+| `strictMcpConfig`                                    | Use only `mcpServers`; ignore `.mcp.json`, user, plugin and claude.ai connector servers                                                                                                                                                       |
+| `systemPrompt`                                       | String, string array, `{type:'custom',prompt,snapshot?}`, or `{type:'preset',preset:'claude_code',append?,excludeDynamicSections?,snapshot?}`. **Default is a minimal prompt, not Claude Code's.** Use the preset for Claude Code behavior.   |
+| `taskBudget`                                         | _Alpha._ API-side token budget                                                                                                                                                                                                                |
+| `thinking`                                           | `{type:'adaptive'                                                                                                                                                                                                                             | 'enabled'     | 'disabled', budgetTokens?, display?:'summarized' | 'omitted'}`. On Opus 4.7 and later the default display is `omitted`, so set `'summarized'` to show thinking text. |
+| `title`                                              | Session display title                                                                                                                                                                                                                         |
+| `toolAliases`                                        | Map built-in tools to MCP tools (for example `Bash` to `mcp__ws__bash`)                                                                                                                                                                       |
+| `toolConfig`                                         | `{ askUserQuestion: { previewFormat: 'markdown'                                                                                                                                                                                               | 'html' } }`   |
+| `tools`                                              | Array of built-in tool names, or `{type:'preset',preset:'claude_code'}`                                                                                                                                                                       |
+| `verbatimPrompts`                                    | Send every prompt with `client_composed: true` (no `@` expansion or slash dispatch)                                                                                                                                                           |
 
 Other top-level functions: `query`, `startup` (returns `WarmQuery`), `prewarm` (returns `SpareProcess.claim()`), `tool`, `createSdkMcpServer`, `listSessions`, `getSessionInfo`, `getSessionMessages`, `getSubagentMessages`, `listSubagents`, `renameSession`, `tagSession`, `deleteSession`, `forkSession(id,{upToMessageId})`, `importSessionToStore`, `resolveSettings` (alpha), `InMemorySessionStore`, `AbortError`.
 
@@ -164,6 +164,7 @@ Other top-level functions: `query`, `startup` (returns `WarmQuery`), `prewarm` (
 Every message carries `uuid` and `session_id`. Wire lines are the same JSON objects. Sources: https://code.claude.com/docs/en/agent-sdk/typescript#message-types, plus [typings].
 
 ### Conversation messages
+
 - **`assistant`**: `{ message: BetaMessage (id, model, content[text|thinking|redacted_thinking|tool_use|server_tool_use…], stop_reason, usage), parent_tool_use_id, error?, aborted?, timestamp?, context_usage?, user_message_uuid(s)? }`. `error` is one of `authentication_failed|oauth_org_not_allowed|account_on_hold|billing_error|rate_limit|overloaded|invalid_request|model_not_found|server_error|max_output_tokens|cloud_credential_error|unknown`.
   - One API message can arrive as several `assistant` frames that share `message.id`, one per content block. The sample shows the thinking block, then the text block.
   - [observed] extra fields: `request_id`, and in `message`: `container`, `stop_details`, `diagnostics`, `context_management`.
@@ -184,6 +185,7 @@ Every message carries `uuid` and `session_id`. Wire lines are the same JSON obje
 - **`conversation_reset`**: `{ new_conversation_id, trigger?: clear|plan_mode_exit|fresh_session|onboarding, user_message_uuid?, timestamp? }`. On this message, reset the transcript view.
 
 ### `type: "system"` subtypes
+
 - **`init`**: `agents?, apiKeySource ('ANTHROPIC_API_KEY'|'apiKeyHelper'|'/login managed key'|'none'), betas?, claude_code_version, cwd, tools[], mcp_servers[{name,status,source?}], model, permissionMode, slash_commands[], terminal_slash_commands?, output_style, skills[], plugins[{name,path}], plugin_errors?, mcp_server_errors?, fast_mode_state?, fast_mode_disabled_reason?, effort?, capabilities?[]`.
   - Capabilities in 2.1.283 **[observed]**: `interrupt_receipt_v1`, `interrupt_cancel_queued_v1`, `msg_lifecycle_v1`, `mcp_read_resource_v1`, `mcp_tool_ui_meta_v1`.
   - [observed] extra fields: `analytics_disabled`, `product_feedback_disabled`, `memory_paths{auto}`, `messaging_socket_path`, `per_turn_effort_active`, `view_mode`, and `plugins[].source/version`.
@@ -212,6 +214,7 @@ Every message carries `uuid` and `session_id`. Wire lines are the same JSON obje
 - **`control_request_progress`** [typings]: progress for long control requests.
 
 ### Other types
+
 - **`tool_progress`**: `{ tool_use_id, tool_name, parent_tool_use_id, elapsed_time_seconds, task_id?, heartbeat? (every 30 s), subagent_type?, subagent_retry? }`.
 - **`auth_status`**: `{ isAuthenticating, output[], error? }`.
 - **`rate_limit_event`**: documented as `{ rate_limit_info:{ status:'allowed'|'allowed_warning'|'rejected', resetsAt?, utilization?, errorCode?:'credits_required', canUserPurchaseCredits?, hasChargeableSavedPaymentMethod? } }`.
@@ -232,33 +235,33 @@ Wire envelope ([typings]):
 
 Documented `Query` methods (https://code.claude.com/docs/en/agent-sdk/typescript#query-object). Methods marked (S) need streaming-input mode.
 
-| Method | Wire subtype | Purpose |
-|---|---|---|
-| `interrupt()` | `interrupt` (`cancel_queued?`) | Stop the current turn. Returns `{still_queued[], cancelled?}` receipt. (S) |
-| `setPermissionMode(mode)` | `set_permission_mode` | Change mode live. (S) |
-| `setModel(model?)` | `set_model` | Switch model; `undefined` or `"default"` resets. Applies mid-turn from the next API call. (S) |
-| `setMaxThinkingTokens(n|null)` | `set_max_thinking_tokens` | Deprecated |
-| `applyFlagSettings(settings)` | `apply_flag_settings` | Any settings key at runtime: `effortLevel` (and `ultracode`), `permissions`, `hooks`, `fastMode`, `agent`, `model`, `skillOverrides`; `null` clears. System prompt changes have no effect mid-session. (S) |
-| `updateSettings(source,{…})` | `update_settings` | Persist `outputStyle` (localSettings) or `effortLevel` (userSettings) |
-| `initializationResult()` / `reinitialize()` | `initialize` | `{commands, agents, output_style, available_output_styles, models, account, fast_mode_state, fast_mode_disabled_reason?, hooks_applied?}`; `reinitialize` re-delivers pending permission requests after a transport gap |
-| `supportedCommands()` | from init / `commands_changed` | `SlashCommand{name,description,argumentHint,aliases?,builtin?}` |
-| `supportedModels()` | init (`list_models` for remote) | `ModelInfo{value,resolvedModel?,displayName,description,supportsEffort?,supportedEffortLevels?,supportsAdaptiveThinking?,supportsFastMode?,supportsAutoMode?}` |
-| `supportedAgents()` | init | `AgentInfo{name,description,model?}` |
-| `mcpServerStatus()` | `mcp_status` | `[{name,status:'connected'|'failed'|'needs-auth'|'pending'|'disabled',serverInfo?,error?,config?,scope?,source?,tools?[]}]` |
-| `reconnectMcpServer(name)` / `toggleMcpServer(name,bool)` / `setMcpServers(map)` | `mcp_reconnect` / `mcp_toggle` / `mcp_set_servers` | MCP management |
-| `readMcpResource(server, 'ui://…')` | `mcp_read_resource` | MCP Apps widget HTML (render sandboxed) |
-| `getContextUsage({detail})` | `get_context_usage` | `/context` data: `categories, totalTokens, maxTokens, percentage, memoryFiles, mcpTools, agents, skills, autoCompactThreshold, isAutoCompactEnabled, messageBreakdown, apiUsage` |
-| `readFile(path,{maxBytes,encoding})` | `read_file` | Read files in the session cwd (for a file viewer) |
-| `reloadSkills()` / `reloadPlugins()` [typings] / `reloadOutputStyles()` [typings] | `reload_*` | Hot reload |
-| `accountInfo()` | from init | `{email?, organization?, subscriptionType?, tokenSource?, apiKeySource?}`. **Auth info without tokens.** |
-| `rewindFiles(userMsgId,{dryRun})` | `rewind_files` | `{canRewind,error?,filesChanged?,insertions?,deletions?,skippedLinks?}` |
-| `streamInput(iterable)` | stdin `user` lines | Push more user messages |
-| `stopTask(taskId)` | `stop_task` | Stop a background task |
-| `backgroundTasks(toolUseId?)` [typings] | `background_tasks` | The Ctrl+B equivalent: background running Bash or subagents |
-| `setMcpPermissionModeOverride(server, 'default'|'auto'|null)` [typings] | — | Tighten-only per-server override |
-| `seedReadState(path, mtime)` [typings] | `seed_read_state` | Internal edit-safety cache |
-| `usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET({skipBehaviors})` [internal] | `get_usage` | `/usage` data including `subscription_type` and plan `rate_limits{five_hour, seven_day, seven_day_opus, seven_day_sonnet, seven_day_oauth_apps, …}` |
-| `close()` | — | Kill the process |
+| Method                                                                                  | Wire subtype                                       | Purpose                                                                                                                                                                                                                 |
+| --------------------------------------------------------------------------------------- | -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `interrupt()`                                                                           | `interrupt` (`cancel_queued?`)                     | Stop the current turn. Returns `{still_queued[], cancelled?}` receipt. (S)                                                                                                                                              |
+| `setPermissionMode(mode)`                                                               | `set_permission_mode`                              | Change mode live. (S)                                                                                                                                                                                                   |
+| `setModel(model?)`                                                                      | `set_model`                                        | Switch model; `undefined` or `"default"` resets. Applies mid-turn from the next API call. (S)                                                                                                                           |
+| `setMaxThinkingTokens(n                                                                 | null)`                                             | `set_max_thinking_tokens`                                                                                                                                                                                               | Deprecated |
+| `applyFlagSettings(settings)`                                                           | `apply_flag_settings`                              | Any settings key at runtime: `effortLevel` (and `ultracode`), `permissions`, `hooks`, `fastMode`, `agent`, `model`, `skillOverrides`; `null` clears. System prompt changes have no effect mid-session. (S)              |
+| `updateSettings(source,{…})`                                                            | `update_settings`                                  | Persist `outputStyle` (localSettings) or `effortLevel` (userSettings)                                                                                                                                                   |
+| `initializationResult()` / `reinitialize()`                                             | `initialize`                                       | `{commands, agents, output_style, available_output_styles, models, account, fast_mode_state, fast_mode_disabled_reason?, hooks_applied?}`; `reinitialize` re-delivers pending permission requests after a transport gap |
+| `supportedCommands()`                                                                   | from init / `commands_changed`                     | `SlashCommand{name,description,argumentHint,aliases?,builtin?}`                                                                                                                                                         |
+| `supportedModels()`                                                                     | init (`list_models` for remote)                    | `ModelInfo{value,resolvedModel?,displayName,description,supportsEffort?,supportedEffortLevels?,supportsAdaptiveThinking?,supportsFastMode?,supportsAutoMode?}`                                                          |
+| `supportedAgents()`                                                                     | init                                               | `AgentInfo{name,description,model?}`                                                                                                                                                                                    |
+| `mcpServerStatus()`                                                                     | `mcp_status`                                       | `[{name,status:'connected'                                                                                                                                                                                              | 'failed'   | 'needs-auth'                     | 'pending' | 'disabled',serverInfo?,error?,config?,scope?,source?,tools?[]}]` |
+| `reconnectMcpServer(name)` / `toggleMcpServer(name,bool)` / `setMcpServers(map)`        | `mcp_reconnect` / `mcp_toggle` / `mcp_set_servers` | MCP management                                                                                                                                                                                                          |
+| `readMcpResource(server, 'ui://…')`                                                     | `mcp_read_resource`                                | MCP Apps widget HTML (render sandboxed)                                                                                                                                                                                 |
+| `getContextUsage({detail})`                                                             | `get_context_usage`                                | `/context` data: `categories, totalTokens, maxTokens, percentage, memoryFiles, mcpTools, agents, skills, autoCompactThreshold, isAutoCompactEnabled, messageBreakdown, apiUsage`                                        |
+| `readFile(path,{maxBytes,encoding})`                                                    | `read_file`                                        | Read files in the session cwd (for a file viewer)                                                                                                                                                                       |
+| `reloadSkills()` / `reloadPlugins()` [typings] / `reloadOutputStyles()` [typings]       | `reload_*`                                         | Hot reload                                                                                                                                                                                                              |
+| `accountInfo()`                                                                         | from init                                          | `{email?, organization?, subscriptionType?, tokenSource?, apiKeySource?}`. **Auth info without tokens.**                                                                                                                |
+| `rewindFiles(userMsgId,{dryRun})`                                                       | `rewind_files`                                     | `{canRewind,error?,filesChanged?,insertions?,deletions?,skippedLinks?}`                                                                                                                                                 |
+| `streamInput(iterable)`                                                                 | stdin `user` lines                                 | Push more user messages                                                                                                                                                                                                 |
+| `stopTask(taskId)`                                                                      | `stop_task`                                        | Stop a background task                                                                                                                                                                                                  |
+| `backgroundTasks(toolUseId?)` [typings]                                                 | `background_tasks`                                 | The Ctrl+B equivalent: background running Bash or subagents                                                                                                                                                             |
+| `setMcpPermissionModeOverride(server, 'default'                                         | 'auto'                                             | null)` [typings]                                                                                                                                                                                                        | —          | Tighten-only per-server override |
+| `seedReadState(path, mtime)` [typings]                                                  | `seed_read_state`                                  | Internal edit-safety cache                                                                                                                                                                                              |
+| `usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET({skipBehaviors})` [internal] | `get_usage`                                        | `/usage` data including `subscription_type` and plan `rate_limits{five_hour, seven_day, seven_day_opus, seven_day_sonnet, seven_day_oauth_apps, …}`                                                                     |
+| `close()`                                                                               | —                                                  | Kill the process                                                                                                                                                                                                        |
 
 Other control subtypes exist on the wire but have no public method: `rename_session`, `set_color`, `get_session_cost`, `get_binary_version`, `file_suggestions` (@-mention autocomplete), `cancel_async_message` (unqueue a message by UUID), `get_settings`, `get_hooks_listing`, `list_permission_rules`, `mcp_call`, `mcp_message`, `register_repo_root`. CLI-to-host requests: `can_use_tool`, `hook_callback`, `elicitation`, `request_user_dialog`.
 
@@ -268,20 +271,21 @@ Other control subtypes exist on the wire but have no public method: `rename_sess
 
 Modes (https://code.claude.com/docs/en/permission-modes, https://code.claude.com/docs/en/agent-sdk/permissions):
 
-| Mode | Behavior |
-|---|---|
-| `default` (labeled **Manual** in the UI; the CLI accepts the alias `manual`) | Reads auto-approved; everything else prompts through `canUseTool` |
-| `acceptEdits` | Edits and filesystem commands (`mkdir`, `touch`, `rm`, `rmdir`, `mv`, `cp`, `sed`) inside the working directories are auto-approved |
-| `plan` | Read-only exploration; edits and file-modifying shell commands always go to `canUseTool`; ends with `ExitPlanMode` |
-| `auto` | A classifier approves or denies prompts (plan and model availability rules apply) |
-| `dontAsk` | Anything that would prompt is denied; `canUseTool` is never called |
-| `bypassPermissions` | Everything is approved (needs `allowDangerouslySkipPermissions`; refused as root) |
+| Mode                                                                         | Behavior                                                                                                                            |
+| ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `default` (labeled **Manual** in the UI; the CLI accepts the alias `manual`) | Reads auto-approved; everything else prompts through `canUseTool`                                                                   |
+| `acceptEdits`                                                                | Edits and filesystem commands (`mkdir`, `touch`, `rm`, `rmdir`, `mv`, `cp`, `sed`) inside the working directories are auto-approved |
+| `plan`                                                                       | Read-only exploration; edits and file-modifying shell commands always go to `canUseTool`; ends with `ExitPlanMode`                  |
+| `auto`                                                                       | A classifier approves or denies prompts (plan and model availability rules apply)                                                   |
+| `dontAsk`                                                                    | Anything that would prompt is denied; `canUseTool` is never called                                                                  |
+| `bypassPermissions`                                                          | Everything is approved (needs `allowDangerouslySkipPermissions`; refused as root)                                                   |
 
 The SDK and `-p` start in `default`. The interactive terminal defaults to `auto` in 2.1.283. `permissions.defaultMode` in settings also applies: the sample `-p` run started in `auto` because this user's `~/.claude/settings.json` sets `"defaultMode": "auto"`.
 
 Evaluation order: hooks, then deny rules, then ask rules, then mode, then allow rules, then `canUseTool`. "Actions no mode auto-approves" always reach the callback, or are denied in `dontAsk`: explicit ask rules, AskUserQuestion, MCP tools with `requiresUserInteraction`, org-`ask` connectors, and `rm`/`rmdir` of critical paths.
 
 **`canUseTool(toolName, input, {signal, suggestions?, blockedPath?, mcpServer?, decisionReason?, toolUseID, agentID?, requestId})`** returns a `PermissionResult`:
+
 - Allow: `{ behavior:'allow', updatedInput?, updatedPermissions?: PermissionUpdate[], toolUseID? }`. `updatedInput` lets you edit the call.
 - Deny: `{ behavior:'deny', message, interrupt?: boolean }`. Claude sees `message`; `interrupt:true` also stops the turn.
 - `null` means your app already answered out of band using `requestId`.
@@ -320,9 +324,18 @@ Deferral: a `PreToolUse` hook can return `permissionDecision:"defer"`. The resul
 
 - **`claude auth status`**: JSON by default (`--text` for human output). **Exit code 0 means logged in; 1 means not.** Verified on 2.1.283:
   ```json
-  {"loggedIn":true,"authMethod":"claude.ai","apiProvider":"firstParty","analyticsDisabled":false,
-   "projectsDirectory":"~/.claude/projects","configDirectory":"~/.claude",
-   "email":"…","orgId":"…","orgName":"…","subscriptionType":"max"}
+  {
+    "loggedIn": true,
+    "authMethod": "claude.ai",
+    "apiProvider": "firstParty",
+    "analyticsDisabled": false,
+    "projectsDirectory": "~/.claude/projects",
+    "configDirectory": "~/.claude",
+    "email": "…",
+    "orgId": "…",
+    "orgName": "…",
+    "subscriptionType": "max"
+  }
   ```
   - `authMethod` values, from the 2.1.283 binary: `claude.ai` | `api_key` | `api_key_helper` | `oauth_token` (`CLAUDE_CODE_OAUTH_TOKEN` or setup-token) | `third_party` (Bedrock, Vertex or Foundry) | `none`. The Console "/login managed key" also reports `claude.ai`, with `apiKeySource` set.
   - Optional `apiKeySource` and `forcedLoginMethod` fields.
@@ -377,7 +390,23 @@ Deferral: a `PreToolUse` hook can return `permissionDecision:"defer"`. The resul
 Order: 5× `hook_started` (SessionStart), `hook_response`/`hook_progress` ×6, `system/init`, `assistant` (thinking block), `assistant` (text block, same `message.id`), `rate_limit_event`, `result/success`. Full file: `/private/tmp/claude-501/research/sample-stream.jsonl`.
 
 ```json
-{"type":"rate_limit_event","rate_limit_info":{"status":"allowed","resetsAt":1790449800,"rateLimitType":"five_hour","overageStatus":"rejected","overageDisabledReason":"out_of_credits","isUsingOverage":false,"unifiedWindows":{"five_hour":{"utilization":0.06,"resetsAt":1790449800},"seven_day":{"utilization":0.2,"resetsAt":1790845200}}}, "uuid":"…","session_id":"…"}
+{
+  "type": "rate_limit_event",
+  "rate_limit_info": {
+    "status": "allowed",
+    "resetsAt": 1790449800,
+    "rateLimitType": "five_hour",
+    "overageStatus": "rejected",
+    "overageDisabledReason": "out_of_credits",
+    "isUsingOverage": false,
+    "unifiedWindows": {
+      "five_hour": { "utilization": 0.06, "resetsAt": 1790449800 },
+      "seven_day": { "utilization": 0.2, "resetsAt": 1790845200 }
+    }
+  },
+  "uuid": "…",
+  "session_id": "…"
+}
 ```
 
 Result keys: `api_error_status, duration_api_ms, duration_ms, fast_mode_disabled_reason, fast_mode_state, first_content_frame_ms, is_error, modelUsage, num_turns, permission_denials, queued_turn_count, result, result_index, session_id, stop_reason, subagent_stats, subtype, terminal_reason, time_to_request_ms, total_cost_usd, ttft_ms, ttft_stream_ms, type, usage, uuid`.

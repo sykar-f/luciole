@@ -15,16 +15,17 @@ T3 Code at `/private/tmp/claude-501/research/t3code/apps/server/src/provider/*`.
 
 ## 1. Integration options
 
-| Option | What it is | Fit for rich client |
-|---|---|---|
-| **`opencode serve` + HTTP/SSE (`@opencode-ai/sdk/v2`)** | Headless HTTP server with an OpenAPI 3.1 spec at `/doc`. Clients use REST plus an SSE bus at `GET /event` (per directory) or `GET /global/event` (all directories). The TUI uses the same server. | **Best.** Full surface: sessions, fork/revert, permissions, questions, todos, diffs, agents, commands, MCP, providers, PTY, find/files, VCS. **This is what T3 Code uses.** |
-| `opencode acp` | Agent Client Protocol over stdio (it also takes `--cwd` and `--port`). | Portable, but the docs say *"Some built-in slash commands like `/undo` and `/redo` are currently unsupported"*. ACP also can't carry opencode-specific features: todos, fork/revert, agents list, model variants, providers/auth, questions. Use it only if coder already speaks ACP for every backend. |
-| `opencode run --format json` | One-shot CLI that prints raw JSON events. It can `--attach <url>` to a running server and takes `--session/--continue/--fork/--agent/--model/--variant/--file/--dir/--auto`. | Only good for scripted turns. It has no interactive permission replies (only `--auto` or config rules) and no mid-turn control. (I did not verify its JSON event schema because that needs a prompt.) |
+| Option                                                  | What it is                                                                                                                                                                                        | Fit for rich client                                                                                                                                                                                                                                                                                     |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`opencode serve` + HTTP/SSE (`@opencode-ai/sdk/v2`)** | Headless HTTP server with an OpenAPI 3.1 spec at `/doc`. Clients use REST plus an SSE bus at `GET /event` (per directory) or `GET /global/event` (all directories). The TUI uses the same server. | **Best.** Full surface: sessions, fork/revert, permissions, questions, todos, diffs, agents, commands, MCP, providers, PTY, find/files, VCS. **This is what T3 Code uses.**                                                                                                                             |
+| `opencode acp`                                          | Agent Client Protocol over stdio (it also takes `--cwd` and `--port`).                                                                                                                            | Portable, but the docs say _"Some built-in slash commands like `/undo` and `/redo` are currently unsupported"_. ACP also can't carry opencode-specific features: todos, fork/revert, agents list, model variants, providers/auth, questions. Use it only if coder already speaks ACP for every backend. |
+| `opencode run --format json`                            | One-shot CLI that prints raw JSON events. It can `--attach <url>` to a running server and takes `--session/--continue/--fork/--agent/--model/--variant/--file/--dir/--auto`.                      | Only good for scripted turns. It has no interactive permission replies (only `--auto` or config rules) and no mid-turn control. (I did not verify its JSON event schema because that needs a prompt.)                                                                                                   |
 
 **Recommendation: `opencode serve` + SDK v2 (or raw HTTP/SSE if coder isn't TS).** T3 Code does exactly this
 (`apps/server/src/provider/opencodeRuntime.ts`, `Layers/OpenCodeAdapter.ts`; `@opencode-ai/sdk` ^1.3.15, `import … from "@opencode-ai/sdk/v2"`, `MINIMUM_OPENCODE_VERSION = "1.14.19"`).
 
 ### Server lifecycle (verified)
+
 - Spawn: `opencode serve --hostname=127.0.0.1 --port=<N>`. `--port 0` (the default) picks a random port. Parse the
   stdout line `opencode server listening on http://127.0.0.1:NNNNN` (the SDK's `createOpencodeServer` and T3
   both use the regex `/on\s+(https?:\/\/[^\s]+)/`). Then check `GET /global/health` → `{"healthy":true,"version":"1.18.31"}`.
@@ -59,36 +60,38 @@ even with credentials configured. **Build on the classic routes.** Keep `/api/se
 (a resumable durable stream) in mind for the future.
 
 ### Sessions (classic)
-| Method/path | Body / params | Returns |
-|---|---|---|
-| `GET /session` | `directory, workspace, scope, path, roots, start, search, limit` | `Session[]` |
-| `GET /experimental/session` | `roots, start, cursor, search, limit, archived` (cross-project) | `GlobalSession[]` |
-| `POST /session` | `{parentID?, title?, agent?, model?:{id,providerID,variant?}, metadata?, permission?: PermissionRule[], workspaceID?}` | `Session` |
-| `GET/PATCH/DELETE /session/{id}` | PATCH `{title?, metadata?, permission?, time?:{archived?}}` | `Session` |
-| `GET /session/status` | – | `Record<sessionID, SessionStatus>` |
-| `GET /session/{id}/children` | – | subagent sessions |
-| `GET /session/{id}/message` | `limit, before` (pagination) | `{info: Message, parts: Part[]}[]` |
-| `GET /session/{id}/message/{mid}`, `DELETE …` | | |
-| `POST /session/{id}/message` (**prompt**, blocks until the turn completes) | `{messageID?, model?:{providerID,modelID}, agent?, noReply?, tools?:Record<string,bool>, format?: OutputFormat (json_schema), system?, variant?, parts: (TextPartInput\|FilePartInput\|AgentPartInput\|SubtaskPartInput)[]}` | `{info: AssistantMessage, parts}` |
-| `POST /session/{id}/prompt_async` | same body | 204. Drive the UI from SSE (**T3 uses this, with a 10 s admission timeout**) |
-| `POST /session/{id}/command` | `{messageID?, agent?, model?: "prov/model", arguments, command, variant?, parts?: FilePart[]}` | runs a slash command template |
-| `POST /session/{id}/shell` | `{agent, model?, command}` | runs a user shell command into the transcript |
-| `POST /session/{id}/abort` | – | bool |
-| `POST /session/{id}/fork` | `{messageID?}` (fork up to a message). The SDK also passes `directory` | new `Session` |
-| `POST /session/{id}/revert` | `{messageID, partID?}` (restores file snapshots and hides later messages) | `Session` (with `revert`) |
-| `POST /session/{id}/unrevert` | – | `Session` |
-| `POST /session/{id}/summarize` (**compact**) | `{providerID, modelID, auto?}` | bool |
-| `POST /session/{id}/init` | `{modelID, providerID, messageID}` (generates AGENTS.md) | bool |
-| `POST/DELETE /session/{id}/share` | – | `Session.share.url` |
-| `GET /session/{id}/diff?messageID=` | – | `SnapshotFileDiff[] {file, patch, additions, deletions, status}` |
-| `GET /session/{id}/todo` | – | `Todo[] {content, status, priority}` |
-| `PATCH/DELETE /session/{id}/message/{mid}/part/{pid}` | edit or delete a part | |
+
+| Method/path                                                                | Body / params                                                                                                                                                                                                                | Returns                                                                      |
+| -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `GET /session`                                                             | `directory, workspace, scope, path, roots, start, search, limit`                                                                                                                                                             | `Session[]`                                                                  |
+| `GET /experimental/session`                                                | `roots, start, cursor, search, limit, archived` (cross-project)                                                                                                                                                              | `GlobalSession[]`                                                            |
+| `POST /session`                                                            | `{parentID?, title?, agent?, model?:{id,providerID,variant?}, metadata?, permission?: PermissionRule[], workspaceID?}`                                                                                                       | `Session`                                                                    |
+| `GET/PATCH/DELETE /session/{id}`                                           | PATCH `{title?, metadata?, permission?, time?:{archived?}}`                                                                                                                                                                  | `Session`                                                                    |
+| `GET /session/status`                                                      | –                                                                                                                                                                                                                            | `Record<sessionID, SessionStatus>`                                           |
+| `GET /session/{id}/children`                                               | –                                                                                                                                                                                                                            | subagent sessions                                                            |
+| `GET /session/{id}/message`                                                | `limit, before` (pagination)                                                                                                                                                                                                 | `{info: Message, parts: Part[]}[]`                                           |
+| `GET /session/{id}/message/{mid}`, `DELETE …`                              |                                                                                                                                                                                                                              |                                                                              |
+| `POST /session/{id}/message` (**prompt**, blocks until the turn completes) | `{messageID?, model?:{providerID,modelID}, agent?, noReply?, tools?:Record<string,bool>, format?: OutputFormat (json_schema), system?, variant?, parts: (TextPartInput\|FilePartInput\|AgentPartInput\|SubtaskPartInput)[]}` | `{info: AssistantMessage, parts}`                                            |
+| `POST /session/{id}/prompt_async`                                          | same body                                                                                                                                                                                                                    | 204. Drive the UI from SSE (**T3 uses this, with a 10 s admission timeout**) |
+| `POST /session/{id}/command`                                               | `{messageID?, agent?, model?: "prov/model", arguments, command, variant?, parts?: FilePart[]}`                                                                                                                               | runs a slash command template                                                |
+| `POST /session/{id}/shell`                                                 | `{agent, model?, command}`                                                                                                                                                                                                   | runs a user shell command into the transcript                                |
+| `POST /session/{id}/abort`                                                 | –                                                                                                                                                                                                                            | bool                                                                         |
+| `POST /session/{id}/fork`                                                  | `{messageID?}` (fork up to a message). The SDK also passes `directory`                                                                                                                                                       | new `Session`                                                                |
+| `POST /session/{id}/revert`                                                | `{messageID, partID?}` (restores file snapshots and hides later messages)                                                                                                                                                    | `Session` (with `revert`)                                                    |
+| `POST /session/{id}/unrevert`                                              | –                                                                                                                                                                                                                            | `Session`                                                                    |
+| `POST /session/{id}/summarize` (**compact**)                               | `{providerID, modelID, auto?}`                                                                                                                                                                                               | bool                                                                         |
+| `POST /session/{id}/init`                                                  | `{modelID, providerID, messageID}` (generates AGENTS.md)                                                                                                                                                                     | bool                                                                         |
+| `POST/DELETE /session/{id}/share`                                          | –                                                                                                                                                                                                                            | `Session.share.url`                                                          |
+| `GET /session/{id}/diff?messageID=`                                        | –                                                                                                                                                                                                                            | `SnapshotFileDiff[] {file, patch, additions, deletions, status}`             |
+| `GET /session/{id}/todo`                                                   | –                                                                                                                                                                                                                            | `Todo[] {content, status, priority}`                                         |
+| `PATCH/DELETE /session/{id}/message/{mid}/part/{pid}`                      | edit or delete a part                                                                                                                                                                                                        |                                                                              |
 
 `Session = {id, slug, projectID, workspaceID?, directory, path?, parentID?, summary?:{additions,deletions,files,diffs?}, cost?, tokens?, share?:{url}, title, agent?, model?, version, metadata?, time:{created,updated,compacting?,archived?}, permission?: PermissionRule[], revert?}`
 
 `SessionStatus = {type:"idle"} | {type:"busy"} | {type:"retry", attempt, message, next, action?}`
 
 ### Messages & parts
+
 - `UserMessage {id, sessionID, role:"user", time.created, agent, model{providerID,modelID,variant?}, system?, tools?, format?, summary?}`
 - `AssistantMessage {id, sessionID, role:"assistant", parentID, providerID, modelID, mode, agent, path{cwd,root}, cost, tokens{total?,input,output,reasoning,cache{read,write}}, finish?, error?, structured?, variant?, summary?, time{created,completed?}}`
 - `Part` union (`type`):
@@ -108,6 +111,7 @@ even with credentials configured. **Build on the classic routes.** Keep `/api/se
 - Errors: `ProviderAuthError{providerID,message}`, `UnknownError`, `MessageOutputLengthError`, `MessageAbortedError`, `StructuredOutputError`, `ContextOverflowError`, `ContentFilterError`, `APIError{message,statusCode?,isRetryable,responseHeaders?,responseBody?}`.
 
 ### Other endpoints
+
 - **Config:** `GET/PATCH /config`, `GET/PATCH /global/config`, `GET /config/providers` → `{providers, default}`.
 - **Providers/models:** `GET /provider` → `{all: Provider[], default: Record<prov,model>, connected: string[]}`. On this machine: 184 providers, connected `google, opencode, zai-coding-plan, kimi-for-coding, cerebras, openai`.
   - `Provider {id, name, source: env|config|custom|api, env[], key?, options, models: Record<id, Model>}`.
@@ -126,7 +130,9 @@ even with credentials configured. **Build on the classic routes.** Keep `/api/se
 - **Misc:** `GET /project`, `/project/current`, `GET /path`, `GET /lsp`, `/formatter`, `/experimental/tool[/ids]`, `/experimental/worktree` (CRUD), PTY (`/pty` + WebSocket connect), `/tui/*` (remote-control a TUI), `POST /log`.
 
 ### SSE events (`GET /event`; each `data:` line is `{id, type, properties}`)
+
 The first event is `server.connected`. There are heartbeat comments (`: heartbeat`). Key types and their `properties`:
+
 - `session.created|updated|deleted {sessionID, info: Session}`
 - `session.status {sessionID, status: SessionStatus}`. `session.idle {sessionID}` means the turn ended.
 - `session.error {sessionID?, error?}`
@@ -150,6 +156,7 @@ The first event is `server.connected`. There are heartbeat comments (`: heartbea
 T3's turn model: it subscribes once per session to `/event`, calls `promptAsync` with a client-generated `messageID`, and marks the turn complete on `session.status` → idle. It sums tokens from `step-finish` parts and reconciles on reconnect with `session.status` + `permission.list` + `question.list`. It warns "OpenCode connection lost. Reconnecting." when the SSE stream drops.
 
 ## 3. Permission model
+
 - Actions: `allow | ask | deny`. Keys: `read, edit, glob, grep, list, bash, task, skill, lsp, question, webfetch, websearch, codesearch, todowrite, external_directory, doom_loop` (see the `PermissionConfig` schema).
 - Config shape: either a single action, or `{ bash: { "git *": "allow", "*": "ask" }, edit: "ask", … }`. Patterns use `*`/`?` wildcards and `~`/`$HOME` expansion. **"Rules are evaluated by pattern match, with the last matching rule winning."** Agent permissions merge over global ones, and agent rules take precedence.
 - Defaults are permissive. Most keys are `allow`. `doom_loop` (the same tool call three times with identical input) and `external_directory` are `ask`. `read` denies `.env` files. (https://opencode.ai/docs/permissions/)
@@ -163,9 +170,10 @@ T3's turn model: it subscribes once per session to `/event`, calls `promptAsync`
 - The CLI flag `--auto` auto-approves everything that isn't explicitly denied.
 
 ## 4. Providers, auth and the Anthropic policy
+
 - Credentials live in `~/.local/share/opencode/auth.json` (XDG_DATA_HOME), one entry per provider. `Auth = {type:"oauth", refresh, access, expires, accountId?, enterpriseUrl?} | {type:"api", key, metadata?} | {type:"wellknown", key, token}`. Env keys also count (e.g. `ANTHROPIC_API_KEY`). The newer DB `credential` table (`integration_id, method_id, …`) was empty here.
 - `opencode providers list` (alias `auth list`) prints each credential with its type, e.g. `●  OpenCode Zen  api`. Environment-based providers show their env var name. It never prints secret values.
-- **Anthropic OAuth:** Anthropic began rejecting third-party OAuth tokens around 2026-01-09. opencode then removed its bundled Claude Pro/Max plugins. The docs say *"Anthropic explicitly prohibits this"* and *"Previous versions of OpenCode came bundled with these plugins but that is no longer the case as of 1.3.0"*. PR #18186 "Remove anthropic references per legal requests" was merged 2026-03-19, per press. On 1.18.31, `GET /provider/auth` lists **no `anthropic` entry**. The OAuth-capable entries are openai, github-copilot, gitlab, poe, digitalocean, snowflake-cortex and xai. **Third-party plugins can still re-add it.**
+- **Anthropic OAuth:** Anthropic began rejecting third-party OAuth tokens around 2026-01-09. opencode then removed its bundled Claude Pro/Max plugins. The docs say _"Anthropic explicitly prohibits this"_ and _"Previous versions of OpenCode came bundled with these plugins but that is no longer the case as of 1.3.0"_. PR #18186 "Remove anthropic references per legal requests" was merged 2026-03-19, per press. On 1.18.31, `GET /provider/auth` lists **no `anthropic` entry**. The OAuth-capable entries are openai, github-copilot, gitlab, poe, digitalocean, snowflake-cortex and xai. **Third-party plugins can still re-add it.**
 - **Detection recipe for coder:** block when any of the following hold, and point the user to `--harness claude`.
   1. `jq -r '.anthropic.type // empty' "${XDG_DATA_HOME:-$HOME/.local/share}/opencode/auth.json"` is `oauth`. This reads only the type field. Also honor `OPENCODE_AUTH_CONTENT` if set.
   2. `GET /provider/auth` contains `anthropic` with any `{type:"oauth"}` method. That means a Claude-subscription plugin is loaded.
@@ -173,18 +181,21 @@ T3's turn model: it subscribes once per session to `/event`, calls `promptAsync`
   4. If none of these hold, `anthropic` is allowed when it is in `GET /provider`.connected **and** auth.json has `type:"api"` or `ANTHROPIC_API_KEY` is set. This is metered API use and is fine.
 
   Enforce at model-selection time (filter out `anthropic/*` in the picker) **and** at prompt time: refuse `promptAsync` when `model.providerID==="anthropic"` and OAuth was detected. Claude models from other providers are billed or licensed separately and are not subscription OAuth: `github-copilot`, `opencode` (Zen), `amazon-bedrock`, `google-vertex-anthropic`, `openrouter`, `azure`, and similar. Leave them allowed, but consider warning on unknown gateways.
+
 - **OpenAI ChatGPT Plus/Pro OAuth** is first-party in opencode ("ChatGPT Pro/Plus (browser|headless)" methods; the docs recommend it). It was introduced in v1.1.11, around Jan 2026. It is widely reported as tolerated or endorsed by OpenAI; I found no prohibition. Low policy risk, but coder should still say it's the user's own subscription.
 - **GitHub Copilot:** there is an official partnership. GitHub Changelog 2026-01-16, "GitHub Copilot now supports OpenCode", covers paid Copilot plans. It gives OAuth device login and includes Claude models, and it is **fine**.
 - **OpenCode Zen** (pay-as-you-go curated gateway, provider id `opencode`, API key from opencode.ai/auth) and **OpenCode Go** (a $10/mo open-weight plan, provider `opencode-go`; usage at `GET https://opencode.ai/zen/go/v1/usage` with a bearer key, per T3's `openCodeUsageLimits.ts`) are opencode's own first-party offerings with no issue. Black ($200/mo) was also launched. Other "coding plan" providers (zai-coding-plan, kimi-for-coding, minimax-coding-plan…) are API keys from those vendors.
 - xAI "SuperGrok Subscription" OAuth, Poe and GitLab OAuth also exist. Their policy status is unknown; no action needed.
 
 ## 5. Session storage, listing and resume
+
 - Storage is SQLite at `~/.local/share/opencode/opencode-stable.db`. The name is channel-specific; T3 globs `opencode(-*)?.db`. Tables: `project, session, message, part, todo, permission, session_share, event, workspace, credential, account, …`. Legacy JSON lives in `storage/message/`. Snapshots (a shadow git) live in `~/.local/share/opencode/snapshot/`.
 - A project's id is the root-commit hash of the git repo. Non-git directories map to project `global` (worktree `/`). Sessions record `directory` and `projectID`.
 - List: `GET /session?directory=<cwd>` gives the project's sessions (`roots=true` skips subagent children; supports `search`, `limit`, `start`). `GET /experimental/session` lists across projects with a cursor. CLI: `opencode session list`, `opencode export <id>`, `opencode import`.
 - Resume: just reuse the session id (`GET /session/{id}`, then prompt). History is server-side. T3 stores `{sessionId}` as its resume cursor. If the session's directory differs from the new cwd, T3 **forks** with `session.fork({sessionID, directory})` to keep history. After resume it re-applies permissions with PATCH. Load the transcript with `GET /session/{id}/message?limit&before`.
 
 ## 6. Other capabilities
+
 - **Todos:** the built-in `todowrite` tool, the `todo.updated` event, and `GET /session/{id}/todo`. Items are `{content, status, priority}`.
 - **Diffs/snapshots:** each step records a snapshot hash (`step-start`/`step-finish.snapshot`). `patch` parts list changed files. `session.diff` events and `GET /session/{id}/diff?messageID=` return unified patches. Undo/redo is `revert`/`unrevert`; `fork` works at any message. VCS routes provide a git-level diff.
 - **Token usage/cost:** `AssistantMessage.tokens/cost` (per message), `step-finish.tokens/cost` (per step), `Session.cost/tokens` (totals). Model pricing and context limits come from `/provider` models (from models.dev). CLI: `opencode stats`.
@@ -198,6 +209,7 @@ T3's turn model: it subscribes once per session to `/event`, calls `promptAsync`
 - **Other:** share (`POST /session/{id}/share` → a public opncd.ai URL; **disable by default in coder**), PTY, worktrees/workspaces, LSP diagnostics, formatters, and a `system` addendum per prompt (T3 injects runtime instructions this way).
 
 ## References
+
 - https://opencode.ai/docs/server/ , /docs/sdk/ , /docs/permissions/ , /docs/acp/ , /docs/providers/
 - https://github.com/anomalyco/opencode (formerly sst/opencode)
 - OpenAPI dump: `GET http://127.0.0.1:<port>/doc` (saved in the scratchpad as openapi.json)

@@ -14,14 +14,14 @@ Researched 2026-09-26 against the local install `pi` **0.87.1** (released 2026-0
 
 pi has four CLI modes plus an in-process SDK (docs `cli-integration.md`, `rpc.md`, `sdk.md`):
 
-| Interface | Invocation | Lifetime | Notes |
-|---|---|---|---|
-| Interactive TUI | `pi` | until exit | not embeddable |
-| Print | `pi -p "…"` | one shot | final text only; nonzero exit on `error`/`aborted` stopReason |
-| JSON | `pi --mode json "…"` | one shot | JSONL: session header + the same event stream as RPC; **no stdin commands** |
-| **RPC** | `pi --mode rpc [opts]` | long-lived | JSONL commands on stdin, responses and events on stdout, extension-UI subprotocol |
-| SDK | `createAgentSession()` from `@earendil-works/pi-coding-agent` | in-process | Node/Bun only; full API (SessionManager, tree navigation, custom tools, ResourceLoader) |
-| `RpcClient` (TS) | exported from the same package | child process | typed wrapper over RPC: `start()`, `promptAndWait()`, `onEvent()`, `waitForIdle()`, `stop()` (`$PI/examples/rpc-client.ts`) |
+| Interface        | Invocation                                                    | Lifetime      | Notes                                                                                                                       |
+| ---------------- | ------------------------------------------------------------- | ------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Interactive TUI  | `pi`                                                          | until exit    | not embeddable                                                                                                              |
+| Print            | `pi -p "…"`                                                   | one shot      | final text only; nonzero exit on `error`/`aborted` stopReason                                                               |
+| JSON             | `pi --mode json "…"`                                          | one shot      | JSONL: session header + the same event stream as RPC; **no stdin commands**                                                 |
+| **RPC**          | `pi --mode rpc [opts]`                                        | long-lived    | JSONL commands on stdin, responses and events on stdout, extension-UI subprotocol                                           |
+| SDK              | `createAgentSession()` from `@earendil-works/pi-coding-agent` | in-process    | Node/Bun only; full API (SessionManager, tree navigation, custom tools, ResourceLoader)                                     |
+| `RpcClient` (TS) | exported from the same package                                | child process | typed wrapper over RPC: `start()`, `promptAndWait()`, `onEvent()`, `waitForIdle()`, `stop()` (`$PI/examples/rpc-client.ts`) |
 
 There is also an experimental remote-session protocol:
 
@@ -39,6 +39,7 @@ Its README says it is experimental, and "peer authentication … not implemented
   - extension dialogs (select, confirm, input, editor).
 
   This matches how the GUI will likely drive Claude Code (stream-json) and Codex (app-server): one child process per session.
+
 - **Use the SDK only if the GUI host is Node/Electron and you need features RPC lacks:**
   - in-file tree navigation (`session.navigateTree()`; RPC only offers fork, clone and switch);
   - custom in-process tools or custom permission hooks without writing an extension file;
@@ -81,40 +82,40 @@ Responses:
 
 ### 2.1 Commands (complete list from `dist/modes/rpc/rpc-types.d.ts` / `rpc-mode.js` switch)
 
-| Command | Fields | Response `data` |
-|---|---|---|
-| `prompt` | `message`, `images?: ImageContent[]`, `streamingBehavior?: "steer"\|"followUp"` (**required while streaming, else error**) | none. Success means accepted, queued or handled, **not completed**. `/ext-cmd` runs immediately; `/skill:x` and `/template` are expanded. |
-| `steer` | `message`, `images?` | none. Delivered after the current turn's tool calls, before the next LLM call. |
-| `follow_up` | `message`, `images?` | none. Delivered when the agent is done. |
-| `abort` | none | none. Waits until idle. |
-| `clear_queue` | none | `{steering:string[], followUp:string[]}`. For Esc behavior, send `clear_queue` and then `abort`. |
-| `new_session` | `parentSession?` | `{cancelled}` (an extension can veto) |
-| `get_state` | none | see the `get_state` example below |
-| `get_messages` | none | `{messages: AgentMessage[]}` (active context) |
-| `set_model` | `provider`, `modelId` | full Model object |
-| `cycle_model` | none | `{model, thinkingLevel, isScoped}` or `null` |
-| `get_available_models` | none | `{models: Model[]}` (only providers with usable auth) |
-| `set_thinking_level` | `level: off\|minimal\|low\|medium\|high\|xhigh\|max` | none |
-| `cycle_thinking_level` | none | `{level}` or `null` |
-| `get_available_thinking_levels` | none | `{levels}` (`["off"]` for non-reasoning models) |
-| `set_steering_mode` / `set_follow_up_mode` | `mode: "all"\|"one-at-a-time"` | none |
-| `compact` | `customInstructions?` | `{summary, firstKeptEntryId, tokensBefore, estimatedTokensAfter, usage, details}` |
-| `set_auto_compaction` | `enabled` | none |
-| `set_auto_retry` | `enabled` | none |
-| `abort_retry` | none | none |
-| `bash` | `command`, `excludeFromContext?`, `id` | `{output, exitCode, cancelled, truncated, fullOutputPath?}`. Streams `bash_execution_update`. The output enters context on the **next** prompt as "Ran \`cmd\`…". This is the equivalent of the TUI's `!cmd` (`!!` corresponds to `excludeFromContext`). |
-| `abort_bash` | none | none |
-| `get_session_stats` | none | see the `get_session_stats` example below |
-| `export_html` | `outputPath?` | `{path}` |
-| `switch_session` | `sessionPath` | `{cancelled}` |
-| `fork` | `entryId` (a user message) | `{text, cancelled}`. Creates a new session file; returns the forked prompt text to prefill the editor. |
-| `clone` | none | `{cancelled}` |
-| `get_fork_messages` | none | `{messages:[{entryId,text}]}` |
-| `get_entries` | `since?` (entry id cursor) | `{entries, leafId}`. Includes pre-compaction entries and abandoned branches; this is the best source for a transcript view. |
-| `get_tree` | none | `{tree:[{entry, children, label?, labelTimestamp?}], leafId}` |
-| `get_last_assistant_text` | none | `{text\|null}` |
-| `set_session_name` | `name` | none |
-| `get_commands` | none | `{commands:[{name, description?, source:"extension"\|"prompt"\|"skill", sourceInfo:{path,source,scope,origin,baseDir?}}]}`. Built-in TUI commands are excluded. |
+| Command                                    | Fields                                                                                                                     | Response `data`                                                                                                                                                                                                                                          |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `prompt`                                   | `message`, `images?: ImageContent[]`, `streamingBehavior?: "steer"\|"followUp"` (**required while streaming, else error**) | none. Success means accepted, queued or handled, **not completed**. `/ext-cmd` runs immediately; `/skill:x` and `/template` are expanded.                                                                                                                |
+| `steer`                                    | `message`, `images?`                                                                                                       | none. Delivered after the current turn's tool calls, before the next LLM call.                                                                                                                                                                           |
+| `follow_up`                                | `message`, `images?`                                                                                                       | none. Delivered when the agent is done.                                                                                                                                                                                                                  |
+| `abort`                                    | none                                                                                                                       | none. Waits until idle.                                                                                                                                                                                                                                  |
+| `clear_queue`                              | none                                                                                                                       | `{steering:string[], followUp:string[]}`. For Esc behavior, send `clear_queue` and then `abort`.                                                                                                                                                         |
+| `new_session`                              | `parentSession?`                                                                                                           | `{cancelled}` (an extension can veto)                                                                                                                                                                                                                    |
+| `get_state`                                | none                                                                                                                       | see the `get_state` example below                                                                                                                                                                                                                        |
+| `get_messages`                             | none                                                                                                                       | `{messages: AgentMessage[]}` (active context)                                                                                                                                                                                                            |
+| `set_model`                                | `provider`, `modelId`                                                                                                      | full Model object                                                                                                                                                                                                                                        |
+| `cycle_model`                              | none                                                                                                                       | `{model, thinkingLevel, isScoped}` or `null`                                                                                                                                                                                                             |
+| `get_available_models`                     | none                                                                                                                       | `{models: Model[]}` (only providers with usable auth)                                                                                                                                                                                                    |
+| `set_thinking_level`                       | `level: off\|minimal\|low\|medium\|high\|xhigh\|max`                                                                       | none                                                                                                                                                                                                                                                     |
+| `cycle_thinking_level`                     | none                                                                                                                       | `{level}` or `null`                                                                                                                                                                                                                                      |
+| `get_available_thinking_levels`            | none                                                                                                                       | `{levels}` (`["off"]` for non-reasoning models)                                                                                                                                                                                                          |
+| `set_steering_mode` / `set_follow_up_mode` | `mode: "all"\|"one-at-a-time"`                                                                                             | none                                                                                                                                                                                                                                                     |
+| `compact`                                  | `customInstructions?`                                                                                                      | `{summary, firstKeptEntryId, tokensBefore, estimatedTokensAfter, usage, details}`                                                                                                                                                                        |
+| `set_auto_compaction`                      | `enabled`                                                                                                                  | none                                                                                                                                                                                                                                                     |
+| `set_auto_retry`                           | `enabled`                                                                                                                  | none                                                                                                                                                                                                                                                     |
+| `abort_retry`                              | none                                                                                                                       | none                                                                                                                                                                                                                                                     |
+| `bash`                                     | `command`, `excludeFromContext?`, `id`                                                                                     | `{output, exitCode, cancelled, truncated, fullOutputPath?}`. Streams `bash_execution_update`. The output enters context on the **next** prompt as "Ran \`cmd\`…". This is the equivalent of the TUI's `!cmd` (`!!` corresponds to `excludeFromContext`). |
+| `abort_bash`                               | none                                                                                                                       | none                                                                                                                                                                                                                                                     |
+| `get_session_stats`                        | none                                                                                                                       | see the `get_session_stats` example below                                                                                                                                                                                                                |
+| `export_html`                              | `outputPath?`                                                                                                              | `{path}`                                                                                                                                                                                                                                                 |
+| `switch_session`                           | `sessionPath`                                                                                                              | `{cancelled}`                                                                                                                                                                                                                                            |
+| `fork`                                     | `entryId` (a user message)                                                                                                 | `{text, cancelled}`. Creates a new session file; returns the forked prompt text to prefill the editor.                                                                                                                                                   |
+| `clone`                                    | none                                                                                                                       | `{cancelled}`                                                                                                                                                                                                                                            |
+| `get_fork_messages`                        | none                                                                                                                       | `{messages:[{entryId,text}]}`                                                                                                                                                                                                                            |
+| `get_entries`                              | `since?` (entry id cursor)                                                                                                 | `{entries, leafId}`. Includes pre-compaction entries and abandoned branches; this is the best source for a transcript view.                                                                                                                              |
+| `get_tree`                                 | none                                                                                                                       | `{tree:[{entry, children, label?, labelTimestamp?}], leafId}`                                                                                                                                                                                            |
+| `get_last_assistant_text`                  | none                                                                                                                       | `{text\|null}`                                                                                                                                                                                                                                           |
+| `set_session_name`                         | `name`                                                                                                                     | none                                                                                                                                                                                                                                                     |
+| `get_commands`                             | none                                                                                                                       | `{commands:[{name, description?, source:"extension"\|"prompt"\|"skill", sourceInfo:{path,source,scope,origin,baseDir?}}]}`. Built-in TUI commands are excluded.                                                                                          |
 
 Example `get_state` data:
 
@@ -128,9 +129,24 @@ Example `get_state` data:
 Example `get_session_stats` data:
 
 ```json
-{"sessionFile":"...","sessionId":"...","userMessages":5,"assistantMessages":5,"toolCalls":12,"toolResults":12,"totalMessages":22,
- "tokens":{"input":50000,"output":10000,"cacheRead":40000,"cacheWrite":5000,"total":105000},"cost":0.45,
- "contextUsage":{"tokens":60000,"contextWindow":200000,"percent":30}}
+{
+  "sessionFile": "...",
+  "sessionId": "...",
+  "userMessages": 5,
+  "assistantMessages": 5,
+  "toolCalls": 12,
+  "toolResults": 12,
+  "totalMessages": 22,
+  "tokens": {
+    "input": 50000,
+    "output": 10000,
+    "cacheRead": 40000,
+    "cacheWrite": 5000,
+    "total": 105000
+  },
+  "cost": 0.45,
+  "contextUsage": { "tokens": 60000, "contextWindow": 200000, "percent": 30 }
+}
 ```
 
 After compaction, `contextUsage.tokens` and `contextUsage.percent` are `null`.
@@ -138,9 +154,18 @@ After compaction, `contextUsage.tokens` and `contextUsage.percent` are `null`.
 Model object:
 
 ```json
-{"id":"claude-sonnet-4-20250514","name":"Claude Sonnet 4","api":"anthropic-messages","provider":"anthropic",
- "baseUrl":"https://api.anthropic.com","reasoning":true,"input":["text","image"],"contextWindow":200000,
- "maxTokens":16384,"cost":{"input":3.0,"output":15.0,"cacheRead":0.3,"cacheWrite":3.75}}
+{
+  "id": "claude-sonnet-4-20250514",
+  "name": "Claude Sonnet 4",
+  "api": "anthropic-messages",
+  "provider": "anthropic",
+  "baseUrl": "https://api.anthropic.com",
+  "reasoning": true,
+  "input": ["text", "image"],
+  "contextWindow": 200000,
+  "maxTokens": 16384,
+  "cost": { "input": 3.0, "output": 15.0, "cacheRead": 0.3, "cacheWrite": 3.75 }
+}
 ```
 
 **Not available over RPC (use the CLI, the SDK, or files instead):**
@@ -290,16 +315,16 @@ GUI to pi (dialogs only):
 
 **Built-in tools** (`cli.md`, `dist/core/tools/`):
 
-| Tool | Default |
-|---|---|
-| `read` (text and images) | on |
-| `bash` | on |
-| `edit` (exact replace) | on |
-| `write` | on |
-| `grep` | off |
-| `find` | off |
-| `ls` | off |
-| `powershell` (Windows) | off |
+| Tool                     | Default |
+| ------------------------ | ------- |
+| `read` (text and images) | on      |
+| `bash`                   | on      |
+| `edit` (exact replace)   | on      |
+| `write`                  | on      |
+| `grep`                   | off     |
+| `find`                   | off     |
+| `ls`                     | off     |
+| `powershell` (Windows)   | off     |
 
 - Change the default set with the `defaultTools` setting.
 - Launch flags: `--tools a,b`, `--exclude-tools`, `--no-tools`, `--no-builtin-tools`.
@@ -387,7 +412,7 @@ pi's own detection logic (`dist/modes/interactive/interactive-mode.js` ~L141, L4
 ```js
 if ((await modelRuntime.checkAuth("anthropic"))?.type === "oauth") warn();
 const apiKey = (await modelRuntime.getAuth("anthropic"))?.auth.apiKey;
-if (apiKey?.startsWith("sk-ant-oat")) warn();   // OAuth access token passed as a "key"
+if (apiKey?.startsWith("sk-ant-oat")) warn(); // OAuth access token passed as a "key"
 ```
 
 **Verified pitfall:** `pi auth check` reports `authType:"api_key"` even when the credential is an OAuth token supplied through `ANTHROPIC_OAUTH_TOKEN`, or as `ANTHROPIC_API_KEY=sk-ant-oat…`. Tested with dummy values, so `authType` alone is not enough.
@@ -426,7 +451,14 @@ Remediation:
 - Header line:
 
   ```json
-  {"type":"session","version":3,"id":"uuid","timestamp":"...","cwd":"/path","parentSession?":"..."}
+  {
+    "type": "session",
+    "version": 3,
+    "id": "uuid",
+    "timestamp": "...",
+    "cwd": "/path",
+    "parentSession?": "..."
+  }
   ```
 
 - Every other entry has `{type, id (8-hex), parentId, timestamp (ISO)}`. The entries form a **tree**, and the leaf is the active branch.

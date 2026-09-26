@@ -23,6 +23,7 @@ Repo: `/Users/sykar-f/workdir/drafts/airtty` (HEAD `01c8558`, clean). Read-only 
 ## 1. Framework model
 
 ### 1.1 Processes, components, boundaries
+
 Sources: `README.md`, `docs/ARCHITECTURE.md`, `docs/BOUNDARIES.md`.
 
 - App layout (`examples/notes` is the canonical one): `app/` (routes), `components/`, `actions/` (`"use server"`), `server/` (server-only business code). Optional files: `server/auth.ts` and `server/cache.ts`.
@@ -37,6 +38,7 @@ Sources: `README.md`, `docs/ARCHITECTURE.md`, `docs/BOUNDARIES.md`.
 - Server Function args arrive **decoded but unchecked**: validate them with Zod (repo rule). A thrown exception becomes a generic 500, which the caller sees as `unknown`.
 
 ### 1.2 Flight streaming, actions, refresh, invalidation
+
 Source: `docs/API.md`.
 
 - A page can pass a `Promise` (read with `use()` under `<Suspense>`) or an async iterable as a prop. Flight streams it in the same response. Forge streams each diff behind its own Suspense boundary.
@@ -53,22 +55,25 @@ Source: `docs/API.md`.
 - `useApplication().withSignal(signal, call)` binds an AbortSignal to any Server Function call.
 
 ### 1.3 Request outcome model
-| outcome | cases | did app code run? |
-|---|---|---|
-| `not-sent` | connection refused, cancelled before send | no |
-| `rejected` | 4xx: auth, BuildMismatch, unknown action | no |
-| `unknown` | timeout, cut or lost response, 5xx | maybe |
+
+| outcome    | cases                                     | did app code run? |
+| ---------- | ----------------------------------------- | ----------------- |
+| `not-sent` | connection refused, cancelled before send | no                |
+| `rejected` | 4xx: auth, BuildMismatch, unknown action  | no                |
+| `unknown`  | timeout, cut or lost response, 5xx        | maybe             |
 
 Notes and Forge policy: never auto-replay an unknown outcome; consult it instead (Ctrl+O, ledger lookup by operation id). See `examples/forge/components/operations.ts` (`useOperation`) and `examples/notes/components/draft.ts`.
 
 For approvals this matters. An `approve(requestId, decision)` action is naturally idempotent if it is keyed by the harness request id, so a retry after `unknown` is safe if the Server ignores duplicate decisions.
 
 ### 1.4 Latency tolerance
+
 - `AIRTTY_LATENCY_MS=500` adds 250 ms before send and 250 ms before delivery, per request.
 - `AIRTTY_JITTER_MS`, `AIRTTY_CHUNK_DELAY_MS`, and `AIRTTY_FAULT=refuse:0.1,drop:0.05,cut:0.05` inject faults.
 - Local interaction (typing, scroll, hover) never waits for the network. Test bench: `examples/latency` and `tests/latency.test.tsx`.
 
 ### 1.5 Routing
+
 Sources: `docs/ROUTER.md`, API.md "Navigation".
 
 - TanStack Router 1.170.38 with memory history is the only navigation authority. The build generates `app/routeTree.gen.ts`; commit it and don't edit it. It gives typed `to` and `params`.
@@ -77,6 +82,7 @@ Sources: `docs/ROUTER.md`, API.md "Navigation".
 - `loading.tsx` replaces only the page, and layouts stay mounted. **Geometry contract**: the loading screen shares the page's frame, so nothing moves. The agent uses `components/Frame.tsx` for both.
 
 ### 1.6 Drafts, restorable fields, session
+
 - The framework keeps only history plus the text of **named fields** (`<Input name="agent/prompt">`, `<Textarea name>`).
 - They are stored per history entry in a `0600` file under `$XDG_STATE_HOME/airtty/<app>/sessions/`.
 - They survive a crash, SIGHUP/SIGTERM and a dev rebuild. **Ctrl+C deletes them.**
@@ -84,6 +90,7 @@ Sources: `docs/ROUTER.md`, API.md "Navigation".
 - Everything else, such as Drafts or selection, is app memory. The pattern is `useSyncExternalStore` stores **above the route tree**: `examples/chat/components/conversations.ts`, `examples/notes/components/draft.ts`, `examples/forge/components/{draft,operations,session}.ts`.
 
 ### 1.7 Keybindings, help bar, focus
+
 - `Shell` installs OpenTUI's default keymap. The framework declares only `ctrl+c` (quit) and `escape` (cancel navigation) in group `airtty`.
 - Apps use `useBindings(() => ({ bindings: [{ key, cmd, desc?, group? }] }), deps)`. A layer lives with its component. Keys without `desc` are active but hidden from help. `<KeyHelp inline groups={[...]} fg accent/>` renders the help bar (`src/client.tsx:876`).
 - Pitfalls recorded in FORGE.md:
@@ -96,6 +103,7 @@ Sources: `docs/ROUTER.md`, API.md "Navigation".
 - Also exported: `useActiveKeys`, `useKeymap`, `usePendingSequence` (a which-key-style pending display).
 
 ### 1.8 Other capabilities worth exploiting
+
 - **`host`** (`airtty/client`): `host.notify({ title, body })`, `host.clipboard.read()/write()`, `host.openUrl`, `host.secret(name)` (keychain), and `useGlobalKey`. Useful for "approval needed" notifications and copying a message or diff.
 - **`<Terminal command active prefix onExit>`** runs a local program on a PTY inside the tree, using OpenTUI's `EmbeddedTerminalRenderable` (libghostty-vt). Uses: an `$EDITOR` for long prompts, a shell pane, or the vendor's own TUI as a fallback. `examples/mux` shows it.
 - **`renderer.suspend()/resume()`** gives the terminal to an external editor (`examples/forge/components/editor.ts`, a `client-only` module).
@@ -118,22 +126,22 @@ Sources: `docs/ROUTER.md`, API.md "Navigation".
 
 Run it with `bun run agent`. Prerequisites: `pi` v0.85 on PATH and the `openai-codex` provider logged in. It has about 1,690 LOC.
 
-| File | Role |
-|---|---|
-| `server/config.ts` (48) | Zod-validated env: `AGENT_MODEL` (default `openai-codex/gpt-5.6-terra`), `AGENT_THINKING` (`off`…`max`), `AGENT_CWD` (default `$TMPDIR/airtty-agent-sandbox`, created), `AGENT_PI`. Session dir is `$XDG_STATE_HOME/airtty/agent/pi-sessions`. |
-| `server/pi.ts` (111) | `PiProcess`: `Bun.spawn(argv, {stdin/stdout/stderr: pipe})`. An LF-only line reader (it deliberately avoids splitting on U+2028). `send(cmd)` gives each command an `id` `c<n>` and correlates responses with a 30 s timeout. It resolves `{success:false}` instead of throwing (on exit, timeout or write failure). Everything that is not a correlated response goes to `onEvent`. It auto-declines `extension_ui_request` (`cancelled: true`). It keeps the last 2 KB of stderr to explain an exit. |
-| `server/protocol.ts` (132) | Zod schemas for the subset of pi RPC it reads: `Part` (text, thinking, toolCall), `Message` (user, assistant with usage/stopReason, toolResult), `AssistantEvent` (`text_*`, `thinking_*`, `toolcall_*` with `contentIndex`), and the `Event` union (response, message_start/end/update, tool_execution_start/update/end, queue_update, auto_retry_*, compaction_start, extension_*, agent_start/end/settled, turn_*). Unknown events are ignored. Also `textOf()`. |
-| `server/transcript.ts` (203) | `Transcript`: reduces events into immutable `Block[]` (user, text, thinking, tool, notice). Blocks are replaced, never mutated, so snapshots stay stable. Tool output is clipped head and tail at 12,000 chars and only the last 400 blocks are kept. `load(messages)` rebuilds after restart from `get_messages`. `settle()` marks unfinished tools as errors. Abort detection handles `stopReason: error` while aborting. |
-| `server/agent.ts` (254) | Singleton `Agent`: lazy `start()` spawns `pi --mode rpc --model … --thinking … --session-dir … --continue --no-extensions --no-skills --no-prompt-templates --tools read,bash,edit,write`, then loads `get_state` and `get_messages`. State machine: `starting/idle/running/aborting/stopped`. `prompt()` becomes `streamingBehavior: "steer"` when busy. `abort()` runs `clear_queue` then `abort`. `newSession()` runs `new_session`. `subscribe()` is a hand-written iterator with a version counter, wake-on-change and a 50 ms throttle, and returns full `Snapshot`s. It kills pi on `process.exit`. |
-| `actions/agent.ts` (33) | `sendPrompt(unknown)` (Zod 1..20,000 chars), `abort`, `newSession`, `feed(_attempt)` returning `agent.subscribe()`. |
-| `components/model.ts` (49) | Types shared by both sides: `Block`, `ToolStatus`, `AgentState`, `Usage`, `Snapshot`, `SendResult`. |
-| `app/page.tsx` | Server: boots pi and renders `<AgentScreen initial={agent.snapshot()}/>` (the first frame without waiting for live). |
-| `app/layout.tsx` | Chrome: heading with connection status and activity, error line, `<KeyHelp inline groups={["agent","global","airtty"]}/>`. |
-| `app/loading.tsx` | The same `Frame` with a `Pulse` skeleton. |
-| `components/AgentScreen.tsx` (283) | `useLive(feed, [attempt], {limit:1})` and `snap = items.at(-1) ?? initial`. Local state: prompt, `mode` (compose/browse), expanded folds, selection, message, double Ctrl+N confirm, spinner tick (only while busy). `send()` goes through `fields.submit(() => sendPrompt(text), {failed})`. Bindings: Ctrl+N, Ctrl+X (only while busy), Ctrl+R (reopens a lost feed via `attempt++`), PgUp/PgDn, Esc to browse, then j/k/↑/↓, Enter/Space fold, `a` fold-all, `i`/Esc back. |
-| `components/Transcript.tsx` (243) | `<scrollbox stickyScroll stickyStart="bottom">`. Renders the block views. Tool header: glyph, name, title, status or duration. Click toggles a fold. A folded running tool shows its last 4 output lines. `scrollChildIntoView(blockId)`. |
-| `components/tools.ts` (112) | Per-tool presentation for pi's 4 tools: title, args (diff-like `-`/`+` lines for `edit`/`write`), status and duration, glyphs. |
-| `Frame.tsx`, `Line.tsx`, `Pulse.tsx`, `theme.ts` | Shared geometry (title, subtitle, bordered conversation, 1-row status, 3-row prompt box), a fixed-height truncated line, the `useTimeline` opacity pulse, and Forge's palette. |
+| File                                             | Role                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `server/config.ts` (48)                          | Zod-validated env: `AGENT_MODEL` (default `openai-codex/gpt-5.6-terra`), `AGENT_THINKING` (`off`…`max`), `AGENT_CWD` (default `$TMPDIR/airtty-agent-sandbox`, created), `AGENT_PI`. Session dir is `$XDG_STATE_HOME/airtty/agent/pi-sessions`.                                                                                                                                                                                                                                                                                                                                                             |
+| `server/pi.ts` (111)                             | `PiProcess`: `Bun.spawn(argv, {stdin/stdout/stderr: pipe})`. An LF-only line reader (it deliberately avoids splitting on U+2028). `send(cmd)` gives each command an `id` `c<n>` and correlates responses with a 30 s timeout. It resolves `{success:false}` instead of throwing (on exit, timeout or write failure). Everything that is not a correlated response goes to `onEvent`. It auto-declines `extension_ui_request` (`cancelled: true`). It keeps the last 2 KB of stderr to explain an exit.                                                                                                     |
+| `server/protocol.ts` (132)                       | Zod schemas for the subset of pi RPC it reads: `Part` (text, thinking, toolCall), `Message` (user, assistant with usage/stopReason, toolResult), `AssistantEvent` (`text_*`, `thinking_*`, `toolcall_*` with `contentIndex`), and the `Event` union (response, message_start/end/update, tool_execution_start/update/end, queue_update, auto_retry__, compaction_start, extension__, agent_start/end/settled, turn_*). Unknown events are ignored. Also `textOf()`.                                                                                                                                        |
+| `server/transcript.ts` (203)                     | `Transcript`: reduces events into immutable `Block[]` (user, text, thinking, tool, notice). Blocks are replaced, never mutated, so snapshots stay stable. Tool output is clipped head and tail at 12,000 chars and only the last 400 blocks are kept. `load(messages)` rebuilds after restart from `get_messages`. `settle()` marks unfinished tools as errors. Abort detection handles `stopReason: error` while aborting.                                                                                                                                                                                |
+| `server/agent.ts` (254)                          | Singleton `Agent`: lazy `start()` spawns `pi --mode rpc --model … --thinking … --session-dir … --continue --no-extensions --no-skills --no-prompt-templates --tools read,bash,edit,write`, then loads `get_state` and `get_messages`. State machine: `starting/idle/running/aborting/stopped`. `prompt()` becomes `streamingBehavior: "steer"` when busy. `abort()` runs `clear_queue` then `abort`. `newSession()` runs `new_session`. `subscribe()` is a hand-written iterator with a version counter, wake-on-change and a 50 ms throttle, and returns full `Snapshot`s. It kills pi on `process.exit`. |
+| `actions/agent.ts` (33)                          | `sendPrompt(unknown)` (Zod 1..20,000 chars), `abort`, `newSession`, `feed(_attempt)` returning `agent.subscribe()`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `components/model.ts` (49)                       | Types shared by both sides: `Block`, `ToolStatus`, `AgentState`, `Usage`, `Snapshot`, `SendResult`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `app/page.tsx`                                   | Server: boots pi and renders `<AgentScreen initial={agent.snapshot()}/>` (the first frame without waiting for live).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `app/layout.tsx`                                 | Chrome: heading with connection status and activity, error line, `<KeyHelp inline groups={["agent","global","airtty"]}/>`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `app/loading.tsx`                                | The same `Frame` with a `Pulse` skeleton.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `components/AgentScreen.tsx` (283)               | `useLive(feed, [attempt], {limit:1})` and `snap = items.at(-1) ?? initial`. Local state: prompt, `mode` (compose/browse), expanded folds, selection, message, double Ctrl+N confirm, spinner tick (only while busy). `send()` goes through `fields.submit(() => sendPrompt(text), {failed})`. Bindings: Ctrl+N, Ctrl+X (only while busy), Ctrl+R (reopens a lost feed via `attempt++`), PgUp/PgDn, Esc to browse, then j/k/↑/↓, Enter/Space fold, `a` fold-all, `i`/Esc back.                                                                                                                              |
+| `components/Transcript.tsx` (243)                | `<scrollbox stickyScroll stickyStart="bottom">`. Renders the block views. Tool header: glyph, name, title, status or duration. Click toggles a fold. A folded running tool shows its last 4 output lines. `scrollChildIntoView(blockId)`.                                                                                                                                                                                                                                                                                                                                                                  |
+| `components/tools.ts` (112)                      | Per-tool presentation for pi's 4 tools: title, args (diff-like `-`/`+` lines for `edit`/`write`), status and duration, glyphs.                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `Frame.tsx`, `Line.tsx`, `Pulse.tsx`, `theme.ts` | Shared geometry (title, subtitle, bordered conversation, 1-row status, 3-row prompt box), a fixed-height truncated line, the `useTimeline` opacity pulse, and Forge's palette.                                                                                                                                                                                                                                                                                                                                                                                                                             |
 
 Tests: there is **no** `tests/agent*.test.tsx`. There is only `scripts/pty/agent.ts`: a real PTY, real pi and a real model (it spends quota). It runs `airtty dev` with a temporary sandbox and state, and checks: prompt, write and bash streamed, file exists, browse/unfold, Ctrl+X on `sleep 30`, Ctrl+N twice, quit, and no orphan pi (found via `pgrep` plus `lsof` cwd).
 
@@ -164,42 +172,43 @@ Tests: there is **no** `tests/agent*.test.tsx`. There is only `scripts/pty/agent
 
 **Reuse vs redesign**
 
-| Reuse (nearly as is) | Redesign |
-|---|---|
+| Reuse (nearly as is)                                                                                                                                                                                                                    | Redesign                                                                                                                                                                                 |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `PiProcess` line reader and correlator, generalised to a JSON-lines RPC helper that codex `app-server` can share. Codex is JSON-RPC 2.0 with `id`, so `send` becomes `request` and server-initiated requests (approvals) need handling. | `Agent` becomes a harness-agnostic `Session` plus `HarnessAdapter` (`start`, `prompt`, `interrupt`, `respond`, `setModel`, `setEffort`, `setMode`, `listSessions`, `resume`, `commands`) |
-| The hand-written `subscribe()` iterator pattern (a must) | The block model: add `plan`/`todo`, `approval`, `diff`, `subagent`/`task` and `system` kinds, plus usage and context fields |
-| `Frame`/`Line`/`Pulse`/`theme`, the loading-geometry discipline | Transcript rendering: markdown text, `<diff>` for edits, tool-specific renderers per harness tool set |
-| `useRestoredFields` + named prompt field, compose/browse mode | Snapshot, or snapshot plus patch, protocol |
-| Zod on every harness line, clip long outputs | Config: `AGENT_HARNESS` env plus a UI switch |
-| PTY journey structure (`scripts/pty/agent.ts`, `harness.ts`, `driver.ts`) | Add a **fake harness** (like chat's `fake-provider.ts`) for deterministic `tests/*.test.tsx` and web demos |
+| The hand-written `subscribe()` iterator pattern (a must)                                                                                                                                                                                | The block model: add `plan`/`todo`, `approval`, `diff`, `subagent`/`task` and `system` kinds, plus usage and context fields                                                              |
+| `Frame`/`Line`/`Pulse`/`theme`, the loading-geometry discipline                                                                                                                                                                         | Transcript rendering: markdown text, `<diff>` for edits, tool-specific renderers per harness tool set                                                                                    |
+| `useRestoredFields` + named prompt field, compose/browse mode                                                                                                                                                                           | Snapshot, or snapshot plus patch, protocol                                                                                                                                               |
+| Zod on every harness line, clip long outputs                                                                                                                                                                                            | Config: `AGENT_HARNESS` env plus a UI switch                                                                                                                                             |
+| PTY journey structure (`scripts/pty/agent.ts`, `harness.ts`, `driver.ts`)                                                                                                                                                               | Add a **fake harness** (like chat's `fake-provider.ts`) for deterministic `tests/*.test.tsx` and web demos                                                                               |
 
 ---
 
 ## 3. Other examples: reusable UI patterns
 
-| Need | Where | Notes |
-|---|---|---|
-| Streaming **markdown** | `examples/chat/components/Transcript.tsx` (`<markdown content syntaxStyle={syntax} conceal streaming={streaming}/>`), `examples/chat/components/syntax.ts` | `SyntaxStyle` is a Client-only native object and never crosses Flight. |
-| Full markdown reader, reflow | `examples/mdreader/components/Reader.tsx`, `server/reflow.ts` | OpenTUI keeps soft line breaks, and reflow joins paragraphs using the `marked` lexer, on the Server. Depends on `marked` (catalog). |
-| Headless live pump into a store | `examples/chat/components/ReplyStream.tsx` + `conversations.ts` | `useLive` → `useEffect` applies new items to a `useSyncExternalStore` store. Esc unmounts it, which closes the Server generator and aborts upstream. |
-| Multi-line prompt | `examples/chat/components/Chat.tsx` | `<Textarea name="chat/prompt">`. Alt+Enter or Ctrl+J for a newline. Reads `field.current.plainText` on submit (quirk). |
-| **Diff** rendering | `examples/forge/components/FilesReview.tsx` (`<diff diff={patch} view="unified"|"split" filetype syntaxStyle showLineNumbers addedBg removedBg …/>`, `highlightLines` cursor), `examples/forge/server/diff.ts` (`unifiedDiff(path, before, after)`, LCS with 3 lines of context) | Directly reusable for Claude `Edit`/`MultiEdit`/`Write`, codex `fileChange` and pi `edit`. |
-| Suspense-streamed heavy items | Forge FilesReview (a `use(file.diff)` per file) | |
-| Lists, filter, pickers | `examples/mdreader/components/Library.tsx` (j/k, g/G, `/` find with `<input>`, filtered list), `examples/forge/components/PullList.tsx` (selection with preload), `packages/airtty/src/launcher/airtty/components/Launcher.tsx` (OpenTUI `<select>`) | No command palette exists yet. A slash-command palette would be new, built from `<input>` plus a filtered list or `<select>`. |
-| Floating menu with its own key layer | `examples/files/components/ContextMenu.tsx` | An overlay that owns the keyboard while open (arrows, j/k, Enter, Esc) and closes on outside click. It is a good template for an **approval dialog** and a model/effort/mode picker. |
-| Forms | `examples/forge/components/NewPullForm.tsx` (TanStack Form with `Input`/`Textarea`/`useRestoredFields`) | |
-| Unknown-outcome operations | `examples/forge/components/operations.ts` (`useOperation`) | |
-| Editing-mode letter keys | `examples/forge/components/editing.tsx` | |
-| External editor | `examples/forge/components/editor.ts` (`client-only`, `renderer.suspend()`) | Compose a long prompt in `$EDITOR`, or open a changed file. |
-| PTY panes, embedded apps | `examples/mux/components/Mux.tsx` (`<Terminal>`, `<Embed>`, `ctrl+o` prefix, `usePendingSequence`) | |
-| Spinner, pulse | agent `AgentScreen` / chat `useSpinner`, `Pulse.tsx` (`useTimeline`) | |
-| Help bar | every `layout.tsx` / `components/Help.tsx` | |
+| Need                                 | Where                                                                                                                                                                                                                                                | Notes                                                                                                                                                                                          |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Streaming **markdown**               | `examples/chat/components/Transcript.tsx` (`<markdown content syntaxStyle={syntax} conceal streaming={streaming}/>`), `examples/chat/components/syntax.ts`                                                                                           | `SyntaxStyle` is a Client-only native object and never crosses Flight.                                                                                                                         |
+| Full markdown reader, reflow         | `examples/mdreader/components/Reader.tsx`, `server/reflow.ts`                                                                                                                                                                                        | OpenTUI keeps soft line breaks, and reflow joins paragraphs using the `marked` lexer, on the Server. Depends on `marked` (catalog).                                                            |
+| Headless live pump into a store      | `examples/chat/components/ReplyStream.tsx` + `conversations.ts`                                                                                                                                                                                      | `useLive` → `useEffect` applies new items to a `useSyncExternalStore` store. Esc unmounts it, which closes the Server generator and aborts upstream.                                           |
+| Multi-line prompt                    | `examples/chat/components/Chat.tsx`                                                                                                                                                                                                                  | `<Textarea name="chat/prompt">`. Alt+Enter or Ctrl+J for a newline. Reads `field.current.plainText` on submit (quirk).                                                                         |
+| **Diff** rendering                   | `examples/forge/components/FilesReview.tsx` (`<diff diff={patch} view="unified"                                                                                                                                                                      | "split" filetype syntaxStyle showLineNumbers addedBg removedBg …/>`, `highlightLines`cursor),`examples/forge/server/diff.ts` (`unifiedDiff(path, before, after)`, LCS with 3 lines of context) | Directly reusable for Claude `Edit`/`MultiEdit`/`Write`, codex `fileChange` and pi `edit`. |
+| Suspense-streamed heavy items        | Forge FilesReview (a `use(file.diff)` per file)                                                                                                                                                                                                      |                                                                                                                                                                                                |
+| Lists, filter, pickers               | `examples/mdreader/components/Library.tsx` (j/k, g/G, `/` find with `<input>`, filtered list), `examples/forge/components/PullList.tsx` (selection with preload), `packages/airtty/src/launcher/airtty/components/Launcher.tsx` (OpenTUI `<select>`) | No command palette exists yet. A slash-command palette would be new, built from `<input>` plus a filtered list or `<select>`.                                                                  |
+| Floating menu with its own key layer | `examples/files/components/ContextMenu.tsx`                                                                                                                                                                                                          | An overlay that owns the keyboard while open (arrows, j/k, Enter, Esc) and closes on outside click. It is a good template for an **approval dialog** and a model/effort/mode picker.           |
+| Forms                                | `examples/forge/components/NewPullForm.tsx` (TanStack Form with `Input`/`Textarea`/`useRestoredFields`)                                                                                                                                              |                                                                                                                                                                                                |
+| Unknown-outcome operations           | `examples/forge/components/operations.ts` (`useOperation`)                                                                                                                                                                                           |                                                                                                                                                                                                |
+| Editing-mode letter keys             | `examples/forge/components/editing.tsx`                                                                                                                                                                                                              |                                                                                                                                                                                                |
+| External editor                      | `examples/forge/components/editor.ts` (`client-only`, `renderer.suspend()`)                                                                                                                                                                          | Compose a long prompt in `$EDITOR`, or open a changed file.                                                                                                                                    |
+| PTY panes, embedded apps             | `examples/mux/components/Mux.tsx` (`<Terminal>`, `<Embed>`, `ctrl+o` prefix, `usePendingSequence`)                                                                                                                                                   |                                                                                                                                                                                                |
+| Spinner, pulse                       | agent `AgentScreen` / chat `useSpinner`, `Pulse.tsx` (`useTimeline`)                                                                                                                                                                                 |                                                                                                                                                                                                |
+| Help bar                             | every `layout.tsx` / `components/Help.tsx`                                                                                                                                                                                                           |                                                                                                                                                                                                |
 
 ---
 
 ## 4. Layout, running, CLI args, tests, conventions
 
 ### 4.1 Example layout
+
 ```
 examples/<app>/
   package.json        {"name":"@airtty-examples/<app>","private":true,"type":"module",
@@ -224,6 +233,7 @@ Root wiring for a new example, `examples/<app>` (see how `agent` was wired in co
 - The linker is `hoisted` (`bunfig.toml`), so there is a single root `node_modules`.
 
 ### 4.2 Running
+
 - Dev: `bun packages/airtty/src/cli.ts dev --app examples/<app>`, or `bun run <app>`. It:
   1. builds,
   2. symlinks node_modules,
@@ -233,6 +243,7 @@ Root wiring for a new example, `examples/<app>` (see how `agent` was wired in co
 - Prod: `airtty build`, then `start --role server` and `start --role client --url`. Or `airtty ./examples/<app>` (the launcher, a detached Server on a unix socket). Or `build --compile`.
 
 ### 4.3 Can we pass `--harness`?
+
 Not as a CLI flag without a framework change:
 
 - `packages/airtty/src/commands/dev.ts`: the Server and Client are spawned with fixed argv. Extra args to `airtty dev` are silently ignored (`cli.ts` only looks up known flags). **Env is inherited**, so `AGENT_HARNESS=codex bun run <app>` works.
@@ -250,6 +261,7 @@ Options:
 (a) + (c) fits best. Also note the launcher's shared-Server semantics: a second `airtty ./app` with a different env attaches to the existing Server.
 
 ### 4.4 Tests
+
 - `bun test --timeout 20000` runs `tests/` only. The examples have no own test dirs.
 - Integration tests build an example, launch its real Server (`tests/helpers.ts` `launch()`, `AIRTTY_TEST=1`, `PORT=0`), import the generated Client (`importClient`), and render `<Shell app>` with OpenTUI's `testRender`. Assertions run on `captureCharFrame()` and on `app.callServer(...)`. Patterns to follow:
   - `tests/live.test.tsx`: an inline fixture app in a temp dir.
@@ -259,6 +271,7 @@ Options:
 - A **fake harness** should back unit and integration tests; chat's `server/fake-provider.ts` plus `scripts/fake-openrouter.ts` are the precedent. Real harness journeys stay manual, as `test:pty:agent` does.
 
 ### 4.5 Conventions
+
 - No `CLAUDE.md` or `AGENTS.md` in the repo.
 - **Docs and READMEs in French.** Code, comments, UI strings and commit messages in **English**.
 - Commits: Conventional Commits with a scope (`feat(agent):`, `fix(website):`, `test(scripts):`, `chore(scripts):`). The body explains why (symptom, root cause, solution for fixes; user need and approach for features) and ends with a `Co-Authored-By` trailer.
