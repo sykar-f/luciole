@@ -38,6 +38,8 @@ export type PageOptions = {
   name: string;
   /** Keys the restored session, instead of the Server's URL. */
   sessionKey?: string;
+  /** `false`: no session restored, none kept (embed.ts, `restoreOf`). */
+  restore?: boolean;
 } & Look;
 
 const SAVE_DELAY_MS = 200;
@@ -113,9 +115,22 @@ function pageSession(key: string) {
   };
 }
 
+/** A session neither read nor written: the application starts at its first route each time. */
+const forgotten = { restored: undefined, schedule() {}, flush() {}, remove() {} };
+
 export async function runInPage(
   create: (options: RunOptions) => Application,
-  { element, server, fetch, name, sessionKey, grid, background, foreground }: PageOptions,
+  {
+    element,
+    server,
+    fetch,
+    name,
+    sessionKey,
+    restore = true,
+    grid,
+    background,
+    foreground,
+  }: PageOptions,
 ) {
   const terminal = new XTerm({
     cursorBlink: true,
@@ -136,7 +151,9 @@ export async function runInPage(
   terminal.onData((data) => stdin.write(data));
   onInput((data) => stdin.write(data));
 
-  const session = pageSession(`airtty:session:${name}:${sessionKey ?? server.href}`);
+  const session = restore
+    ? pageSession(`airtty:session:${name}:${sessionKey ?? server.href}`)
+    : forgotten;
   // Framed, the embedding page may slow the network down and hears what crosses it.
   const control = embedded
     ? controlledNetwork(fetch ?? ((input, init) => globalThis.fetch(input, init)))

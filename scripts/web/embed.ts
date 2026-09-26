@@ -83,6 +83,16 @@ try {
     "a save refused before it left",
   );
 
+  // Framed again, Notes reopens the note left open; with `restore=off`, its list.
+  const reopen = async (src: string) => {
+    await browser.open(new URL(`/host.html?src=/${encodeURIComponent(src)}`, hostSite.url).href);
+    await browser.waitFor(`window.stages.includes("drawn")`, "the drawn stage");
+  };
+  await reopen(look);
+  report.restored = !!(await browser.waitFor(frameShows("baseline:"), "the restored note"));
+  await reopen(`${look}&restore=off`);
+  report.notRestored = !!(await browser.waitFor(frameShows("YOUR NOTES"), "the list of notes"));
+
   // Another origin frames Notes: it hears no stage, and what it types is ignored. Its
   // script cannot read the frame; the DevTools protocol reads through it.
   const framed = new URL(look, notes.url).href;
@@ -113,6 +123,8 @@ const expected = {
   typedByTheHost: true,
   slowedRender: true,
   refusedSave: true,
+  restored: true,
+  notRestored: true,
   otherOriginDrawn: true,
   otherOriginTyped: false,
   otherOriginHeard: 0,

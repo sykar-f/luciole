@@ -9,7 +9,7 @@ import "./setup";
 import { applicationOf, loadAppBundle } from "./platform/app-bundle";
 import { runInPage } from "./platform/run";
 import { connectServer } from "./server/page";
-import { lookOf, stage } from "./embed";
+import { lookOf, restoreOf, stage } from "./embed";
 import { messageOf } from "../guards";
 
 const element = document.getElementById("airtty");
@@ -33,6 +33,7 @@ try {
     server,
     fetch,
     name,
+    restore: restoreOf(location.search),
     ...look,
   });
 } catch (error) {

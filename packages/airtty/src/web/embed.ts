@@ -109,6 +109,13 @@ const Colour = z.string().check(z.regex(/^[0-9a-f]{6}$/i));
 export type Look = { grid?: Grid; background?: string; foreground?: string };
 
 /**
+ * `&restore=off`: the page starts where the application starts, not where the reader left
+ * it, and remembers nothing for next time: the landing page's demos open on the screen
+ * their capture shows, every visit.
+ */
+export const restoreOf = (search: string) => new URLSearchParams(search).get("restore") !== "off";
+
+/**
  * `?columns=140&rows=40`: a fixed grid, the font sized to fit it. `&background=0a0f16`,
  * `&foreground=e6edf3`: the terminal's default colours, those of the embedding page's own
  * drawing of the screen, so one replaces the other without a flash.
