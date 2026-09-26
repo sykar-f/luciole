@@ -48,13 +48,28 @@ const LARGEST_FONT = 24;
 const SMALLEST_FONT = 4;
 const FONT_STEP = 0.25;
 
-/** The largest font at which `grid` fits the element, then exactly that grid. */
-function fitGrid(terminal: XTerm, fit: FitAddon, grid: Grid) {
-  for (let size = LARGEST_FONT; size >= SMALLEST_FONT; size -= FONT_STEP) {
+/**
+ * The largest font, on steps of FONT_STEP, at which `grid` fits the element, then exactly
+ * that grid. A bisection: every measure re-lays the terminal out, and a page that frames
+ * the runtime (a gallery tab) resizes it often. A hidden element, with no size, is left as
+ * it is: nothing would fit, and every size would be measured for nothing.
+ */
+function fitGrid(terminal: XTerm, fit: FitAddon, grid: Grid, element: HTMLElement) {
+  if (!element.clientWidth || !element.clientHeight) return;
+  const fits = (size: number) => {
     terminal.options.fontSize = size;
     const room = fit.proposeDimensions();
-    if (room && room.cols >= grid.columns && room.rows >= grid.rows) break;
+    return room !== undefined && room.cols >= grid.columns && room.rows >= grid.rows;
+  };
+  // Sizes SMALLEST_FONT + k × FONT_STEP: the largest k that fits, else the smallest size.
+  let low = 0;
+  let high = (LARGEST_FONT - SMALLEST_FONT) / FONT_STEP;
+  while (low < high) {
+    const middle = Math.ceil((low + high) / 2);
+    if (fits(SMALLEST_FONT + middle * FONT_STEP)) low = middle;
+    else high = middle - 1;
   }
+  terminal.options.fontSize = SMALLEST_FONT + low * FONT_STEP;
   terminal.resize(grid.columns, grid.rows);
 }
 const StoredSession = z.object({
@@ -111,7 +126,7 @@ export async function runInPage(
   const fit = new FitAddon();
   terminal.loadAddon(fit);
   terminal.open(element);
-  const layout = () => (grid ? fitGrid(terminal, fit, grid) : fit.fit());
+  const layout = () => (grid ? fitGrid(terminal, fit, grid, element) : fit.fit());
   layout();
   // In a page of its own, the terminal is what the reader came for. Framed, a focus
   // would scroll the embedding page to it: the reader clicks it instead.
