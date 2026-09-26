@@ -112,6 +112,14 @@ type ItemProps = {
   onToggle: (id: string) => void;
 };
 
+/**
+ * Whether markdown markers (`**`, `##`, backticks) are hidden: once the text is complete.
+ * While it streams, OpenTUI 0.5.12 redraws the last block from a preview at every change,
+ * markers visible, then hides them when its highlighting comes back: concealed text would
+ * flash between the two at every delta, and its height with it, shaking the transcript.
+ */
+const concealed = (item: { streaming: boolean }) => !item.streaming;
+
 /** One item; finished items keep their identity across updates and are not redrawn. */
 const ItemView = memo(function ItemView({ item, open, selected, now, wide, onToggle }: ItemProps) {
   const toggle = () => onToggle(item.id);
@@ -130,7 +138,12 @@ const ItemView = memo(function ItemView({ item, open, selected, now, wide, onTog
     case "message":
       return (
         <box marginTop={1}>
-          <markdown content={item.text} streaming={item.streaming} conceal syntaxStyle={syntax} />
+          <markdown
+            content={item.text}
+            streaming={item.streaming}
+            conceal={concealed(item)}
+            syntaxStyle={syntax}
+          />
         </box>
       );
     case "reasoning": {
@@ -150,7 +163,7 @@ const ItemView = memo(function ItemView({ item, open, selected, now, wide, onTog
               <markdown
                 content={item.text.trim()}
                 streaming={item.streaming}
-                conceal
+                conceal={concealed(item)}
                 syntaxStyle={muted}
               />
             </box>
