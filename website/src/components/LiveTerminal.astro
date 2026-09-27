@@ -10,6 +10,7 @@
 // nothing starts, and for readers without scripts.
 import Screen from "./Screen.astro";
 import { ansi, lines, patch, SCREEN_BACKGROUND, SCREEN_FOREGROUND, type Frame } from "../lib/frames";
+import { dim, strength } from "../lib/afterglow";
 
 /**
  * Wait until the screen shows `wait`, then type `type` into it as a keyboard would, then
@@ -70,12 +71,16 @@ const src = `/demo/${demo}/index.html?${look}`;
 const HOT = "#145c39";
 const WARM = "#0a2a1b";
 const sequence = [...intro, frame];
+const total = frame.cols * frame.rows;
+// Each screen's glow dims with the share of cells it rewrites (lib/afterglow.ts).
 const frames = sequence.map((next, i) => {
   const before = sequence[i - 1] ?? null;
   const { ansi, cells } = patch(before, next);
-  return { glow: [patch(before, next, HOT).ansi, patch(before, next, WARM).ansi], ansi, cells };
+  const glow = [HOT, WARM].map(
+    (tint) => patch(before, next, dim(tint, SCREEN_BACKGROUND, strength(cells, total))).ansi,
+  );
+  return { glow, ansi, cells };
 });
-const total = frame.cols * frame.rows;
 const count = (cells: number) =>
   `${cells.toLocaleString("en")} of ${total.toLocaleString("en")} cells written`;
 // Without the intro, the counter shows what the last frame wrote.
@@ -136,6 +141,7 @@ const stand = JSON.stringify({
 
 <script>
   import * as z from "zod/mini";
+  import { strength } from "../lib/afterglow";
   import { Terminal } from "@xterm/xterm";
   import { FitAddon } from "@xterm/addon-fit";
   import "@xterm/xterm/css/xterm.css";
@@ -177,7 +183,9 @@ const stand = JSON.stringify({
   const HOT_MS = 70;
   const WARM_MS = 120;
   const HOLD_MS = 700;
-  /** Beyond this many glowing runs at once, a frame is a full redraw: no glow for it. */
+  /** How long a written cell of the live application glows at full strength. */
+  const GLOW_MS = 450;
+  /** Beyond this many runs at once, a row glows once, from its first change to its last. */
   const MOST_GLOWS = 400;
 
   const sleep = (ms: number) => new Promise((done) => setTimeout(done, ms));
@@ -406,10 +414,13 @@ const stand = JSON.stringify({
       before = after;
       if (!written) return;
       hud(root, "live", count(written, total));
-      if (runs.length > MOST_GLOWS) return;
-      for (const [y, x, length] of runs) {
+      // Dimmer and shorter as more of the screen changes at once.
+      const glow = strength(written, total);
+      const lasting = Math.round(GLOW_MS * Math.max(0.4, glow));
+      const shown = runs.length > MOST_GLOWS ? byRow(runs) : runs;
+      for (const [y, x, length] of shown) {
         const cell = document.createElement("i");
-        cell.style.cssText = `left:${box.left + x * width}px;top:${box.top + y * height}px;width:${length * width}px;height:${height}px`;
+        cell.style.cssText = `left:${box.left + x * width}px;top:${box.top + y * height}px;width:${length * width}px;height:${height}px;--glow:${glow};--glow-ms:${lasting}ms`;
         cell.addEventListener("animationend", () => cell.remove());
         layer.append(cell);
       }
@@ -424,6 +435,16 @@ const stand = JSON.stringify({
       watch.disconnect();
       layer.replaceChildren();
     });
+  }
+
+  /** Runs merged per row: from the row's first change to its last. */
+  function byRow(runs: [number, number, number][]) {
+    const rows = new Map<number, [number, number]>();
+    for (const [y, x, length] of runs) {
+      const [from, to] = rows.get(y) ?? [x, x + length];
+      rows.set(y, [Math.min(from, x), Math.max(to, x + length)]);
+    }
+    return [...rows].map(([y, [from, to]]): [number, number, number] => [y, from, to - from]);
   }
 
   const type = (frame: HTMLIFrameElement, data: string) =>
@@ -627,7 +648,8 @@ const stand = JSON.stringify({
     background: rgb(51 255 153 / 0.4);
     box-shadow: 0 0 10px rgb(51 255 153 / 0.5);
     mix-blend-mode: screen;
-    animation: afterglow 0.45s ease-out forwards;
+    opacity: var(--glow, 1);
+    animation: afterglow var(--glow-ms, 0.45s) ease-out forwards;
   }
 
   @keyframes afterglow {
