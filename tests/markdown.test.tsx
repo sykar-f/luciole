@@ -251,6 +251,26 @@ test("a code block sits on the style's panel, its language in a corner", async (
     expect(backgroundAt(setup, row, column)?.equals(panel)).toBe(true);
 });
 
+test("a diff block is colored line by line, even before its closing fence", async () => {
+  const diff = "```diff\n--- a/x.ts\n+++ b/x.ts\n@@ -1 +1 @@\n-old\n+new\n same";
+  for (const content of [diff, `${diff}\n\`\`\``]) {
+    const setup = await render(
+      <Markdown content={content} streaming syntaxStyle={syntax} />,
+      40,
+      12,
+    );
+    const rows = (await settled(setup)).split("\n");
+    const colorOf = (text: string) => {
+      const row = rows.findIndex((line) => line.includes(text));
+      return setup.captureSpans().lines[row]?.spans.find((span) => span.text.includes(text))?.fg;
+    };
+    expect(colorOf("+new")?.equals(RGBA.fromHex(color.ok))).toBe(true);
+    expect(colorOf("-old")?.equals(RGBA.fromHex(color.danger))).toBe(true);
+    expect(colorOf("@@ -1 +1 @@")?.equals(RGBA.fromHex(color.info))).toBe(true);
+    expect(colorOf("same")?.equals(RGBA.fromHex(color.text))).toBe(true);
+  }
+});
+
 test("a click on a link opens it; a drag across it selects instead", async () => {
   const opened: string[] = [];
   const setup = await render(

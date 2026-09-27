@@ -226,7 +226,17 @@ import { Markdown } from "airtty/client";
   d'une, H2 d'une et d'une (2 au-dessus quand il clôt une sous-partie H3), H3 d'une et
   collé à son contenu. Le bandeau est peint, pas écrit : une sélection copie le titre seul.
 - Blocs de code : sur le fond de `markup.raw.block` (`bg`), avec une marge intérieure et le
-  langage discret en haut à droite ; sans ce `bg`, le code reste sans fond.
+  langage discret en haut à droite ; sans ce `bg`, le code reste sans fond. Colorés par
+  Tree-sitter une fois la clôture arrivée : OpenTUI 0.5.12 connaît JavaScript, TypeScript,
+  Markdown et Zig ; `import "airtty/grammars"` (une fois, côté Client) ajoute Bash, C, C++,
+  CSS, Go, HTML, Java, JSON, PHP, Python, Ruby, Rust, TOML et YAML, pour `<code>` et
+  `<diff>` aussi. L'import est facultatif : le build copie chaque grammaire à côté du
+  bundle (environ 11 Mo en tout). Les groupes de style sont ceux des requêtes Tree-sitter
+  (`keyword`, `string`, `function`, `type`, `constant`, `property`, `tag`…, les noms
+  pointés se repliant sur leur base). La cible web garde ces langages en texte brut.
+- Blocs `diff` / `patch` : colorés ligne par ligne sans grammaire, donc dès le streaming :
+  `diff.plus` (lignes `+`), `diff.minus` (`-`), `diff.delta` (`@@`), `diff.header`
+  (`diff`, `index`, `---`, `+++`).
 - Liens : stylés par `markup.link` (le libellé comme l'URL). Un clic (appui et relâche sur
   la même cellule, un glisser sélectionne) appelle `onLink(url)`, et le pointeur devient
   une main au survol ; sans `onLink`, seul un terminal qui dessine les liens OSC 8 peut

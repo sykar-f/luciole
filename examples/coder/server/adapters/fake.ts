@@ -97,6 +97,19 @@ const TABLE_EVERY = 4;
 const QUOTE_EVERY = 5;
 /** The last line of the rich reply: tests wait for it. */
 export const MARKDOWN_END = "That is all for the Markdown tour.";
+// The same step in the languages a reply shows most, then as a diff.
+const CODE_BLOCKS: readonly ((n: number) => string)[] = [
+  (n) =>
+    `\`\`\`ts\nexport function step${n}(input: number) {\n  const doubled = input * 2;\n` +
+    `  return doubled + ${n};\n}\n\`\`\``,
+  (n) =>
+    `\`\`\`python\ndef step${n}(value: int) -> int:\n    return value * 2 + ${n}  # doubled\n\`\`\``,
+  (n) => `\`\`\`rust\nfn step${n}(value: u32) -> u32 {\n    value * 2 + ${n}\n}\n\`\`\``,
+  (n) =>
+    `\`\`\`diff\n--- a/step.ts\n+++ b/step.ts\n@@ -1,3 +1,3 @@\n export function step(input: number) {\n` +
+    `-  return input + ${n};\n+  return input * 2 + ${n};\n }\n\`\`\``,
+];
+const codeBlock = (n: number) => CODE_BLOCKS[(n / CODE_EVERY - 1) % CODE_BLOCKS.length]?.(n) ?? "";
 const section = (n: number) =>
   [
     `## Section ${n}`,
@@ -105,10 +118,7 @@ const section = (n: number) =>
       `terminal, which is where a changing length would move every line below it.`,
     `- first point of section ${n}\n- second point, with **bold** inside\n` +
       `  - nested detail\n  - another *nested* detail\n- third point`,
-    n % CODE_EVERY === 0
-      ? `\`\`\`ts\nexport function step${n}(input: number) {\n  const doubled = input * 2;\n` +
-        `  return doubled + ${n};\n}\n\`\`\``
-      : "",
+    n % CODE_EVERY === 0 ? codeBlock(n) : "",
     n % TABLE_EVERY === 0
       ? `| Name | Kind | Notes |\n| --- | --- | --- |\n| alpha | first | the **leader** |\n` +
         `| beta | second | a longer note in a cell |\n| gamma | third | \`code\` too |`

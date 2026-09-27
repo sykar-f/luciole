@@ -163,7 +163,9 @@ function NodeView({ node, look }: { node: Node; look: Look }) {
           {fill && language ? (
             <text position="absolute" top={0} right={1} fg={palette.label()} content={language} />
           ) : null}
-          {node.closed ? (
+          {node.diff ? (
+            <TextView chunks={node.diff} marginTop={0} />
+          ) : node.closed ? (
             <code
               content={node.text}
               filetype={infoStringToFiletype(node.lang)}

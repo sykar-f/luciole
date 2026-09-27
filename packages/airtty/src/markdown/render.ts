@@ -24,6 +24,8 @@ export type Node =
       /** The fence's info string; highlighting waits for the closing fence. */
       lang: string;
       closed: boolean;
+      /** A diff, colored here line by line (no grammar): the same while it streams. */
+      diff?: readonly TextChunk[];
       marginTop: number;
       indent: number;
     }
@@ -316,7 +318,7 @@ function block(token: MarkedToken, out: Builder, palette: Palette, base: readonl
       list(token, out, palette, base);
       return;
     case "code":
-      out.block(code(token));
+      out.block(code(token, palette));
       return;
     case "blockquote":
       out.block({ kind: "quote", children: quote(token, palette, base) });
@@ -337,7 +339,28 @@ function block(token: MarkedToken, out: Builder, palette: Palette, base: readonl
 
 const FENCE_OPEN = /^ {0,3}(`{3,}|~{3,})/;
 
-function code(token: Tokens.Code) {
+const DIFF_LANGUAGES = new Set(["diff", "patch", "udiff"]);
+/** The style group of a diff line, by its first characters. */
+const diffGroup = (line: string) =>
+  /^(diff |index |\+\+\+ |--- )/.test(line)
+    ? "diff.header"
+    : line.startsWith("@@")
+      ? "diff.delta"
+      : line.startsWith("+")
+        ? "diff.plus"
+        : line.startsWith("-")
+          ? "diff.minus"
+          : undefined;
+
+function diffChunks(text: string, palette: Palette) {
+  return text.split("\n").flatMap((line, i) => {
+    const group = diffGroup(line);
+    const chunks = line ? [palette.chunk(line, group ? [group] : [])] : [];
+    return i ? [palette.chunk("\n", []), ...chunks] : chunks;
+  });
+}
+
+function code(token: Tokens.Code, palette: Palette) {
   const fence = FENCE_OPEN.exec(token.raw)?.[1];
   if (!fence) return { kind: "code" as const, text: token.text, lang: "", closed: true };
   const lines = token.raw.replace(TRAILING_NEWLINES, "").split("\n");
@@ -351,7 +374,11 @@ function code(token: Tokens.Code) {
     !closed && /^ {0,3}(`+|~+)\s*$/.test(lines.at(-1) ?? "") && lines.length > 1
       ? token.text.split("\n").slice(0, -1).join("\n")
       : token.text;
-  return { kind: "code" as const, text, lang: token.lang ?? "", closed };
+  const lang = token.lang ?? "";
+  const diff = DIFF_LANGUAGES.has(lang.trim().split(/\s+/)[0]?.toLowerCase() ?? "")
+    ? diffChunks(text, palette)
+    : undefined;
+  return { kind: "code" as const, text, lang, closed, ...(diff ? { diff } : {}) };
 }
 
 /** A quote's content: its own blocks, drawn in the quote style. */

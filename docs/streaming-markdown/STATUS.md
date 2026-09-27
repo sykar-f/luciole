@@ -182,6 +182,19 @@ et construction des nœuds compris.
   style se replie désormais sur ses parents (`markup.link.label`, puis `markup.link`, puis
   `markup`) : les libellés de liens prennent le style des liens. Une image fait grandir sa
   réponse une fois, à son chargement (jamais de rétrécissement).
+- **Coloration syntaxique** (retour après essai ; dépendance ajoutée sur décision de
+  l'utilisateur, option « paquet npm épinglé ») : `import "airtty/grammars"` enregistre 14
+  grammaires Tree-sitter officielles (paquets `tree-sitter-*`, WebAssembly et requêtes à la
+  même version), épinglées au catalogue et dans `airtty`. Écartés : `tree-sitter-wasms`
+  (grammaires 0.20, dépend de lui-même, ~50 Mo) et `@vscode/tree-sitter-wasm` (moins de
+  langages, pas de requêtes). Entrée à part pour ne pas alourdir toutes les applications :
+  le build copie chaque `.wasm` à côté du bundle (~11 Mo), résolu depuis le module (OpenTUI
+  résoudrait un chemin relatif depuis le dossier courant). Vérifié de bout en bout sur le
+  bundle construit de coder, dans un PTY. Blocs diff colorés sans grammaire (aucun paquet
+  npm n'en fournit), ligne par ligne, stables pendant le streaming. Coder : palette
+  complétée (constantes, propriétés, balises, attributs, modules…) et diffs de fichiers
+  colorés pour ces langages. `tests/grammars.test.tsx` casse si une grammaire ne se charge
+  plus (ABI de web-tree-sitter, requête invalide).
 - **Bord du bandeau** (retour après essai) : le fondu court jusqu'au bord droit du
   document, recalculé à chaque image (redimensionnement compris), et s'éteint vers le fond
   réel du terminal (`renderer.getPalette()`, OSC 11, redemandé quand le terminal change de
