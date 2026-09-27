@@ -49,7 +49,7 @@ const hosts = ["Terminal", "Binaire compilé", "airtty <url>", "Navigateur (WASM
   <div class="guide">
     <header class="top">
       <div class="top-inner">
-        <a class="mark" href="/guide/">air<span class="c">tty</span> <span class="slash">/</span> guide</a>
+        <a class="mark" href="/guide/">air<span class="tty">tty</span> <span class="slash">/</span> guide</a>
         <a class="site" href="/">Le site</a>
       </div>
     </header>
@@ -69,8 +69,8 @@ const hosts = ["Terminal", "Binaire compilé", "airtty <url>", "Navigateur (WASM
           <svg viewBox="0 0 990 400" role="img" aria-label="Carte d'airtty : ton application, le build, le Client, le Server, où tourne le Client et les DevTools">
             <defs>
               <marker id="m-build" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 1 L9 5 L0 9 z" fill="#c9a8ff" /></marker>
-              <marker id="m-client" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 1 L9 5 L0 9 z" fill="#67d9bc" /></marker>
-              <marker id="m-server" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 1 L9 5 L0 9 z" fill="#ffbc66" /></marker>
+              <marker id="m-client" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 1 L9 5 L0 9 z" fill="#33ff99" /></marker>
+              <marker id="m-server" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 1 L9 5 L0 9 z" fill="#ffb000" /></marker>
             </defs>
 
             <!-- Your application -->
@@ -193,8 +193,7 @@ const hosts = ["Terminal", "Binaire compilé", "airtty <url>", "Navigateur (WASM
     top: 0;
     z-index: 10;
     border-bottom: 1px solid var(--rule);
-    background: rgb(7 11 18 / 0.8);
-    backdrop-filter: blur(14px) saturate(1.4);
+    background: var(--night);
   }
 
   .top-inner {
@@ -205,13 +204,16 @@ const hosts = ["Terminal", "Binaire compilé", "airtty <url>", "Navigateur (WASM
     height: 54px;
     margin-inline: auto;
     padding-inline: var(--gutter);
-    font-size: 0.82rem;
+    font: 400 0.82rem / 1.5 var(--mono);
   }
 
   .mark {
     font-weight: 700;
-    letter-spacing: -0.03em;
     text-decoration: none;
+  }
+
+  .tty {
+    color: var(--mist);
   }
 
   .slash {
@@ -229,7 +231,7 @@ const hosts = ["Terminal", "Binaire compilé", "airtty <url>", "Navigateur (WASM
     margin-inline: auto;
     padding: 0 var(--gutter) 120px;
     font: 400 1rem / 1.75 var(--sans);
-    color: #d5dce8;
+    color: #d8d1be;
   }
 
   .intro {
@@ -238,7 +240,7 @@ const hosts = ["Terminal", "Binaire compilé", "airtty <url>", "Navigateur (WASM
   }
 
   .kicker {
-    color: var(--client);
+    color: var(--mist);
     font: 400 0.8rem / 1.5 var(--mono);
   }
 
@@ -290,8 +292,8 @@ const hosts = ["Terminal", "Binaire compilé", "airtty <url>", "Navigateur (WASM
   }
 
   .box.neutral {
-    fill: rgb(152 166 186 / 0.04);
-    stroke: rgb(152 166 186 / 0.35);
+    fill: rgb(163 156 136 / 0.04);
+    stroke: rgb(163 156 136 / 0.35);
   }
 
   .box.build {
@@ -300,13 +302,13 @@ const hosts = ["Terminal", "Binaire compilé", "airtty <url>", "Navigateur (WASM
   }
 
   .box.client {
-    fill: rgb(103 217 188 / 0.06);
-    stroke: rgb(103 217 188 / 0.55);
+    fill: rgb(51 255 153 / 0.06);
+    stroke: rgb(51 255 153 / 0.55);
   }
 
   .box.server {
-    fill: rgb(255 188 102 / 0.06);
-    stroke: rgb(255 188 102 / 0.55);
+    fill: rgb(255 176 0 / 0.06);
+    stroke: rgb(255 176 0 / 0.55);
   }
 
   .dashed {
@@ -314,44 +316,44 @@ const hosts = ["Terminal", "Binaire compilé", "airtty <url>", "Navigateur (WASM
   }
 
   .title {
-    fill: #edf1f7;
+    fill: #e8e1cf;
     font-size: 13.5px;
     font-weight: 600;
   }
 
   .title.c {
-    fill: #67d9bc;
+    fill: #33ff99;
   }
 
   .title.s {
-    fill: #ffbc66;
+    fill: #ffb000;
   }
 
   .sub {
-    fill: #7d8aa0;
+    fill: #968f7b;
     font-size: 11px;
   }
 
   .file {
-    fill: #c4ccd8;
+    fill: #cbc4b1;
     font-size: 11.5px;
   }
 
   .small {
-    fill: #c4ccd8;
+    fill: #cbc4b1;
     font-size: 11px;
   }
 
   .small.dim {
-    fill: #7d8aa0;
+    fill: #968f7b;
   }
 
   .dot.client {
-    fill: #67d9bc;
+    fill: #33ff99;
   }
 
   .dot.server {
-    fill: #ffbc66;
+    fill: #ffb000;
   }
 
   .link {
@@ -363,42 +365,42 @@ const hosts = ["Terminal", "Binaire compilé", "airtty <url>", "Navigateur (WASM
   }
 
   .link.client {
-    stroke: #67d9bc;
+    stroke: #33ff99;
   }
 
   .link.server {
-    stroke: #ffbc66;
+    stroke: #ffb000;
     stroke-dasharray: 5 4;
   }
 
   .link.neutral {
-    stroke: rgb(152 166 186 / 0.5);
+    stroke: rgb(163 156 136 / 0.5);
   }
 
   .pill.client {
-    fill: rgb(103 217 188 / 0.1);
-    stroke: rgb(103 217 188 / 0.4);
+    fill: rgb(51 255 153 / 0.1);
+    stroke: rgb(51 255 153 / 0.4);
   }
 
   .pill.server {
-    fill: rgb(255 188 102 / 0.1);
-    stroke: rgb(255 188 102 / 0.4);
+    fill: rgb(255 176 0 / 0.1);
+    stroke: rgb(255 176 0 / 0.4);
   }
 
   .pill-text {
-    fill: #edf1f7;
+    fill: #e8e1cf;
     font-size: 11.5px;
   }
 
   .chip {
-    fill: #edf1f7;
-    stroke: #070b12;
+    fill: #e8e1cf;
+    stroke: #0b0a07;
     stroke-width: 3;
     transition: fill 0.15s;
   }
 
   .chip-n {
-    fill: #070b12;
+    fill: #0b0a07;
     font-size: 10.5px;
     font-weight: 700;
     pointer-events: none;
@@ -406,7 +408,7 @@ const hosts = ["Terminal", "Binaire compilé", "airtty <url>", "Navigateur (WASM
 
   .chip-link:hover .chip,
   .chip-link:focus-visible .chip {
-    fill: #67d9bc;
+    fill: #33ff99;
   }
 
   .rules {
@@ -428,7 +430,7 @@ const hosts = ["Terminal", "Binaire compilé", "airtty <url>", "Navigateur (WASM
   .rules code {
     padding: 0.08em 0.32em;
     border: 1px solid var(--rule);
-    border-radius: 5px;
+    border-radius: 2px;
     background: rgb(255 255 255 / 0.04);
     font-size: 0.86em;
   }
@@ -460,19 +462,19 @@ const hosts = ["Terminal", "Binaire compilé", "airtty <url>", "Navigateur (WASM
     gap: 14px;
     padding: 14px 18px;
     border: 1px solid var(--rule);
-    border-radius: 10px;
+    border-radius: 4px;
     background: rgb(255 255 255 / 0.015);
     text-decoration: none;
     transition: border-color 0.2s, background 0.2s;
   }
 
   .part a:hover {
-    border-color: rgb(103 217 188 / 0.5);
-    background: var(--client-soft);
+    border-color: var(--mist);
+    background: var(--night-raised);
   }
 
   .n {
-    color: var(--client);
+    color: var(--mist);
     font: 600 0.9rem / 1.4 var(--mono);
   }
 
