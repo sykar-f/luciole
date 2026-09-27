@@ -362,3 +362,18 @@ test("a mouse drag selects the reply's text, markers hidden, for the OSC 52 copy
   });
   expect(setup.renderer.getSelection()?.getSelectedText()).toBe("Some bold words.\n- a code item");
 });
+
+test("however many blocks a transcript holds, the renderer hears one listener per event", async () => {
+  const REPLIES = 12;
+  const setup = await render(
+    Array.from({ length: REPLIES }, (_, i) => (
+      <Markdown key={i} content={`Reply ${i}`} streaming={false} syntaxStyle={syntax} />
+    )),
+  );
+  await act(async () => {
+    await setup.renderOnce();
+  });
+  // Node warns past 10, over the terminal interface; one shared listener stays under it.
+  expect(setup.renderer.listenerCount("capabilities")).toBeLessThanOrEqual(1);
+  expect(setup.renderer.listenerCount("theme_mode")).toBeLessThanOrEqual(1);
+});

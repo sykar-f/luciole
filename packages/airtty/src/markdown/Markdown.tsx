@@ -79,6 +79,36 @@ export function Markdown({ content, streaming, syntaxStyle, onLink, imageBase }:
 // How long the terminal has to report its colors (OSC 11) before bands fade in alpha.
 const PALETTE_TIMEOUT_MS = 1000;
 
+type Renderer = ReturnType<typeof useRenderer>;
+type RendererEvent = "theme_mode" | "capabilities";
+const shared = new WeakMap<Renderer, Map<RendererEvent, Set<() => void>>>();
+/**
+ * Calls `listener` on each `event` of `renderer`, through one listener of the renderer
+ * per event whatever the number of blocks: one each, a transcript of eleven messages
+ * passes Node's limit, whose warning is written over the interface.
+ */
+function onRenderer(renderer: Renderer, event: RendererEvent, listener: () => void) {
+  let events = shared.get(renderer);
+  if (!events) {
+    events = new Map();
+    shared.set(renderer, events);
+  }
+  let listeners = events.get(event);
+  if (!listeners) {
+    const all = new Set<() => void>();
+    listeners = all;
+    events.set(event, all);
+    renderer.on(event, () => {
+      for (const each of all) each();
+    });
+  }
+  const own = listeners;
+  own.add(listener);
+  return () => {
+    own.delete(listener);
+  };
+}
+
 /**
  * The terminal's default background, asked once (OpenTUI caches it) and again when the
  * terminal switches theme; undefined until it answers, or if it never does.
@@ -99,10 +129,10 @@ function useTerminalBackground() {
         .catch(() => undefined);
     };
     ask();
-    renderer.on("theme_mode", ask);
+    const off = onRenderer(renderer, "theme_mode", ask);
     return () => {
       live = false;
-      renderer.off("theme_mode", ask);
+      off();
     };
   }, [renderer]);
   return background;
@@ -115,10 +145,7 @@ function useHyperlinks() {
   useEffect(() => {
     const update = () => setHyperlinks(renderer.capabilities?.hyperlinks === true);
     update();
-    renderer.on("capabilities", update);
-    return () => {
-      renderer.off("capabilities", update);
-    };
+    return onRenderer(renderer, "capabilities", update);
   }, [renderer]);
   return hyperlinks;
 }
