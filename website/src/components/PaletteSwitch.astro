@@ -46,7 +46,7 @@ const axes = [
 
 <script>
   import palettes from "../lib/palettes.json";
-  import { AXES, type Axis, type Choice } from "../lib/palette";
+  import { AXES, isAxis, type Choice } from "../lib/palette";
 
   const KEY = "airtty:palette";
   const root = document.documentElement;
@@ -54,7 +54,13 @@ const axes = [
   const panel = box?.querySelector<HTMLElement>(".panel");
   const toggle = box?.querySelector<HTMLButtonElement>("[data-palette-toggle]");
   const nameOf = box?.querySelector<HTMLElement>("[data-palette-name]");
-  const selects = [...(box?.querySelectorAll<HTMLSelectElement>("select[data-axis]") ?? [])];
+  // Each select with the axis it sets, read once from its data-axis.
+  const selects = [...(box?.querySelectorAll<HTMLSelectElement>("select[data-axis]") ?? [])].flatMap(
+    (select) => {
+      const axis = select.dataset.axis;
+      return isAxis(axis) ? [{ select, axis }] : [];
+    },
+  );
   const suggestions: Record<string, Choice> = palettes.suggestions;
 
   const current = (): Choice => ({
@@ -65,7 +71,7 @@ const axes = [
   const same = (a: Choice, b: Choice) => AXES.every((axis) => a[axis] === b[axis]);
 
   const show = (choice: Choice) => {
-    for (const select of selects) select.value = choice[select.dataset.axis as Axis];
+    for (const { select, axis } of selects) select.value = choice[axis];
     const named = Object.entries(suggestions).find(([, s]) => same(s, choice))?.[0];
     if (nameOf) nameOf.textContent = named ?? "custom";
     for (const button of box?.querySelectorAll<HTMLButtonElement>("[data-suggestion]") ?? [])
@@ -105,9 +111,9 @@ const axes = [
       open(false);
       toggle.focus();
     });
-    for (const select of selects)
+    for (const { select, axis } of selects)
       select.addEventListener("change", () =>
-        apply({ ...current(), [select.dataset.axis as Axis]: select.value }),
+        apply({ ...current(), [axis]: select.value }),
       );
     for (const button of box.querySelectorAll<HTMLButtonElement>("[data-suggestion]"))
       button.addEventListener("click", () => {
