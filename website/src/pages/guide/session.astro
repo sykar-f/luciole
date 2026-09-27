@@ -69,9 +69,11 @@ import Quiz from "../../components/guide/Quiz.astro";
 
   <Step n="5–7" tone="client" title="Le Client suivant reprend l'orphelin, atomiquement">
     <p>Au démarrage, <Src path="packages/airtty/src/session.ts" /> parcourt les fichiers de l'app. Il ignore ceux dont le processus vit encore et supprime ceux de plus de 7 jours. Parmi les orphelins de la même <strong>clé de Server</strong>, il prend le plus récent :</p>
-    <Excerpt path="packages/airtty/src/session.ts" find="let restored = id ? read(path) : undefined;" count={12} tone="client" mark={["renameSync(candidate.file, path);", "write(restored);"]} />
-    <p>Si deux Clients démarrent en même temps, un seul <code>rename</code> réussit. Le gagnant réécrit aussitôt le fichier avec son propre pid pour le réclamer.</p>
-    <p>La clé n'est pas l'URL du socket, qui change d'un lancement à l'autre. C'est un identifiant stable fourni par le lanceur : <code>local:&lt;dossier&gt;</code>, <code>git:&lt;url&gt;</code>, <code>local:&lt;app&gt;</code> pour un binaire, ou <code>ssh:&lt;hôte&gt;/&lt;app&gt;</code>.</p>
+    <Excerpt path="packages/airtty/src/session.ts" find="let restored = id ? read(path) : undefined;" count={2} tone="client" mark={["if (!id) restored = claim(left, path, write);"]} />
+    <Excerpt path="packages/airtty/src/session.ts" find="function claim(" until="^}" tone="client" mark={["renameSync(candidate.file, path);", "write(candidate.data);"]} />
+    <p>Si deux Clients démarrent en même temps, un seul <code>rename</code> réussit ; l'autre passe à l'orphelin suivant. Le gagnant réécrit aussitôt le fichier avec son propre pid pour le réclamer.</p>
+    <p>Pour une app en <code>per-launch</code> (chapitre 8), c'est le lanceur qui réclame l'orphelin, par <code>claimOrphan</code>, avant de lancer quoi que ce soit. Il ne retient qu'un orphelin dont le Server répond encore, avec le même build, et y retrouve l'id du lancement planté, donc ce Server en grâce ; il passe la session au nouveau Client par <code>AIRTTY_SESSION</code>. L'option <code>--new</code> saute cette reprise.</p>
+    <p>La clé n'est pas l'URL du socket, qui change d'un lancement à l'autre. C'est un identifiant stable fourni par le lanceur : <code>local:&lt;dossier&gt;</code>, <code>git:&lt;url&gt;</code>, <code>local:&lt;app&gt;</code> pour un binaire, ou <code>ssh:&lt;hôte&gt;/&lt;app&gt;</code>. Selon la portée du Server et les arguments de l'app, le lanceur y ajoute le dossier courant, l'empreinte des arguments et l'id du lancement (<Src path="packages/airtty/src/launcher/launch-key.ts" />).</p>
   </Step>
 
   <Step n="8" tone="client" title="Le champ se remplit au montage">
