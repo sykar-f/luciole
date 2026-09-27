@@ -9,7 +9,7 @@
 // it as over a picture. The capture's HTML drawing stays for narrow screens, where
 // nothing starts, and for readers without scripts.
 import Screen from "./Screen.astro";
-import { ansi, lines, SCREEN_BACKGROUND, SCREEN_FOREGROUND, type Frame } from "../lib/frames";
+import { ansi, lines, patch, SCREEN_BACKGROUND, SCREEN_FOREGROUND, type Frame } from "../lib/frames";
 
 /**
  * Wait until the screen shows `wait`, then type `type` into it as a keyboard would, then
@@ -33,9 +33,15 @@ interface Props {
    * screen the capture shows, not to a note they opened last time.
    */
   restore?: boolean;
-  glow?: boolean;
-  tilt?: boolean;
   printed?: boolean;
+  /**
+   * Screens drawn before the capture, as a terminal renderer would: from an empty screen,
+   * each writes only the cells that differ from the one before, and those glow a moment.
+   * The screen switches on first. A counter under it says how many cells each wrote.
+   */
+  intro?: Frame[];
+  /** Once live, make each cell the application rewrites glow a moment. */
+  afterglow?: boolean;
 }
 
 const {
@@ -44,9 +50,9 @@ const {
   script = [],
   boot = "visible",
   restore = false,
-  glow = false,
-  tilt = false,
   printed = false,
+  intro = [],
+  afterglow = false,
 } = Astro.props;
 
 // The capture's own colours (--screen, --screen-fg): both terminals take them.
@@ -60,6 +66,21 @@ const look = new URLSearchParams({
 // index.html by name: Astro's dev server serves no directory index from public/.
 const src = `/demo/${demo}/index.html?${look}`;
 
+// The afterglow of a written cell, hot then fading: the green of what the terminal draws.
+const HOT = "#145c39";
+const WARM = "#0a2a1b";
+const sequence = [...intro, frame];
+const frames = sequence.map((next, i) => {
+  const before = sequence[i - 1] ?? null;
+  const { ansi, cells } = patch(before, next);
+  return { glow: [patch(before, next, HOT).ansi, patch(before, next, WARM).ansi], ansi, cells };
+});
+const total = frame.cols * frame.rows;
+const count = (cells: number) =>
+  `${cells.toLocaleString("en")} of ${total.toLocaleString("en")} cells written`;
+// Without the intro, the counter shows what the last frame wrote.
+const lastCells = frames.at(-1)?.cells ?? 0;
+
 // Inline JSON: `<` escaped, so no captured text can close its script element. `lines`: the
 // text the live screen must show before it replaces the capture.
 const stand = JSON.stringify({
@@ -69,6 +90,8 @@ const stand = JSON.stringify({
   rows: frame.rows,
   background: SCREEN_BACKGROUND,
   foreground: SCREEN_FOREGROUND,
+  intro: intro.length ? frames : [],
+  total,
 }).replaceAll("<", "\\u003c");
 ---
 
@@ -78,12 +101,24 @@ const stand = JSON.stringify({
   data-src={src}
   data-boot={boot}
   data-script={JSON.stringify(script)}
+  data-afterglow={afterglow ? "" : undefined}
 >
-  <Screen frame={frame} glow={glow} tilt={tilt} printed={printed}>
+  <Screen frame={frame} printed={printed} poweron={intro.length > 0}>
     <div slot="live" class="layer">
+      <div class="glows" data-glows aria-hidden="true"></div>
       <span class="take" data-take hidden>Live · click to use the keyboard</span>
     </div>
   </Screen>
+  {
+    intro.length > 0 && (
+      <p class="hud" aria-hidden="true">
+        <span data-hud-frame>
+          frame {frames.length}/{frames.length}
+        </span>
+        <span data-hud-cells>{count(lastCells)}</span>
+      </p>
+    )
+  }
   <script type="application/json" data-stand set:html={stand} />
   <script is:inline>
     // Before the first paint: where the demo will run, the HTML drawing gives way to the
@@ -117,6 +152,8 @@ const stand = JSON.stringify({
     rows: z.number(),
     background: z.string(),
     foreground: z.string(),
+    intro: z.array(z.object({ glow: z.array(z.string()), ansi: z.string(), cells: z.number() })),
+    total: z.number(),
   });
 
   const DRAWN_TIMEOUT_MS = 20_000;
@@ -134,6 +171,14 @@ const stand = JSON.stringify({
 
   /** The reader asked the browser to spare data: nothing starts by itself. */
   const saving = () => Connection.safeParse(Reflect.get(navigator, "connection")).data?.saveData === true;
+  const still = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /** How long a written cell glows, hot then warm, and how long each intro screen holds. */
+  const HOT_MS = 70;
+  const WARM_MS = 120;
+  const HOLD_MS = 700;
+  /** Beyond this many glowing runs at once, a frame is a full redraw: no glow for it. */
+  const MOST_GLOWS = 400;
 
   const sleep = (ms: number) => new Promise((done) => setTimeout(done, ms));
 
@@ -152,6 +197,39 @@ const stand = JSON.stringify({
    */
   /** Resolves once a stand-in has drawn its capture: only then may the application load. */
   const standing = new WeakMap<HTMLElement, Promise<void>>();
+  /** Resolves once a stand-in has played its intro: the application shows only then. */
+  const introduced = new WeakMap<HTMLElement, Promise<void>>();
+
+  const count = (cells: number, total: number) =>
+    `${cells.toLocaleString("en")} of ${total.toLocaleString("en")} cells written`;
+
+  /** The counter under the screen, where there is one. */
+  function hud(root: HTMLElement, frame: string, cells: string) {
+    const frameText = root.querySelector("[data-hud-frame]");
+    const cellsText = root.querySelector("[data-hud-cells]");
+    if (frameText) frameText.textContent = frame;
+    if (cellsText) cellsText.textContent = cells;
+  }
+
+  /**
+   * The intro: the screen switches on (CSS), then each screen is written as a renderer
+   * writes it, only the cells that changed, first glowing, then in their own colours.
+   */
+  async function introduce(root: HTMLElement, terminal: Terminal, steps: z.infer<typeof Stand>["intro"], total: number) {
+    const write = (data: string) => new Promise<void>((done) => terminal.write(data, done));
+    const screen = root.querySelector<HTMLElement>(".screen");
+    hud(root, `frame 0/${steps.length}`, count(0, total));
+    await Promise.all(screen?.getAnimations().map((animation) => animation.finished) ?? []);
+    for (const [i, step] of steps.entries()) {
+      hud(root, `frame ${i + 1}/${steps.length}`, count(step.cells, total));
+      await write(step.glow[0] ?? "");
+      await sleep(HOT_MS);
+      await write(step.glow[1] ?? "");
+      await sleep(WARM_MS);
+      await write(step.ansi);
+      if (i < steps.length - 1) await sleep(HOLD_MS);
+    }
+  }
 
   const standOf = (root: HTMLElement) =>
     Stand.safeParse(JSON.parse(root.querySelector("[data-stand]")?.textContent ?? "null"));
@@ -169,7 +247,7 @@ const stand = JSON.stringify({
     const layer = root.querySelector<HTMLElement>(".layer");
     const parsed = standOf(root);
     if (!layer || !parsed.success) return;
-    const { ansi, columns, rows, background, foreground } = parsed.data;
+    const { ansi, columns, rows, background, foreground, intro, total } = parsed.data;
     const holder = document.createElement("div");
     holder.className = "stand";
     holder.setAttribute("aria-hidden", "true");
@@ -206,6 +284,12 @@ const stand = JSON.stringify({
       terminal.resize(columns, rows);
       if (written) return;
       written = true;
+      if (intro.length && !still()) {
+        // Blank until the intro draws it; the application may load meanwhile.
+        requestAnimationFrame(() => drawn());
+        introduced.set(root, introduce(root, terminal, intro, total));
+        return;
+      }
       // Written, then painted: the next frame shows it.
       terminal.write(ansi, () => requestAnimationFrame(() => drawn()));
     };
@@ -270,6 +354,78 @@ const stand = JSON.stringify({
     }
   }
 
+  /**
+   * Each cell the live application rewrites glows a moment, as in the intro. Read from the
+   * rows xterm.js draws in the frame's DOM: a cell is its character and the style of the
+   * element that holds it; the cursor's own classes do not count.
+   */
+  function glow(root: HTMLElement, frame: HTMLIFrameElement, signal: AbortSignal) {
+    const layer = root.querySelector<HTMLElement>("[data-glows]");
+    const stand = standOf(root).data;
+    const inner = frame.contentDocument;
+    const rowsElement = inner?.querySelector<HTMLElement>(".xterm-rows");
+    const screen = inner?.querySelector<HTMLElement>(".xterm-screen");
+    if (!layer || !stand || !rowsElement || !screen) return;
+    const { columns, rows, total } = stand;
+    const cellsOf = (row: Element) => {
+      const cells: string[] = [];
+      for (const node of row.childNodes) {
+        const look =
+          node instanceof HTMLElement
+            ? `${[...node.classList].filter((name) => !name.startsWith("xterm-cursor")).join(" ")}|${node.style.cssText}`
+            : "";
+        for (const char of node.textContent ?? "") cells.push(`${char}${look}`);
+      }
+      return cells;
+    };
+    const snapshot = () => [...rowsElement.children].map(cellsOf);
+    let before = snapshot();
+    let queued = false;
+    const compare = () => {
+      queued = false;
+      if (signal.aborted) return;
+      const after = snapshot();
+      const box = screen.getBoundingClientRect();
+      const width = box.width / columns;
+      const height = box.height / rows;
+      const runs: [number, number, number][] = [];
+      let written = 0;
+      after.forEach((cells, y) => {
+        const old = before[y] ?? [];
+        let start = -1;
+        for (let x = 0; x <= columns; x++) {
+          const changed = x < columns && (cells[x] ?? "") !== (old[x] ?? "");
+          if (changed) written++;
+          if (changed && start < 0) start = x;
+          if (!changed && start >= 0) {
+            runs.push([y, start, x - start]);
+            start = -1;
+          }
+        }
+      });
+      before = after;
+      if (!written) return;
+      hud(root, "live", count(written, total));
+      if (runs.length > MOST_GLOWS) return;
+      for (const [y, x, length] of runs) {
+        const cell = document.createElement("i");
+        cell.style.cssText = `left:${box.left + x * width}px;top:${box.top + y * height}px;width:${length * width}px;height:${height}px`;
+        cell.addEventListener("animationend", () => cell.remove());
+        layer.append(cell);
+      }
+    };
+    const watch = new MutationObserver(() => {
+      if (queued) return;
+      queued = true;
+      requestAnimationFrame(compare);
+    });
+    watch.observe(rowsElement, { childList: true, subtree: true, characterData: true, attributes: true });
+    signal.addEventListener("abort", () => {
+      watch.disconnect();
+      layer.replaceChildren();
+    });
+  }
+
   const type = (frame: HTMLIFrameElement, data: string) =>
     frame.contentWindow?.postMessage({ source: "airtty", type: "input", data }, location.origin);
 
@@ -295,9 +451,14 @@ const stand = JSON.stringify({
     void ready.then(() => signal.aborted || layer.insertBefore(frame, take));
 
     let drawn = false;
-    const reveal = () => {
+    const reveal = async () => {
+      await introduced.get(root);
       if (signal.aborted) return;
       root.classList.add("on");
+      if (root.dataset.afterglow !== undefined && !still()) {
+        hud(root, "live", count(0, standOf(root).data?.total ?? 0));
+        glow(root, frame, signal);
+      }
       take.hidden = false;
       layer.setAttribute("role", "button");
       layer.setAttribute("aria-label", "Use the live application with the keyboard");
@@ -330,7 +491,7 @@ const stand = JSON.stringify({
         // (scripts/capture.py) or the script no longer reaches its screen.
         if (import.meta.env.DEV && differing.length && !signal.aborted)
           console.warn(`${root.dataset.src} does not show its capture:`, differing);
-        reveal();
+        await reveal();
       },
       { signal },
     );
@@ -452,34 +613,68 @@ const stand = JSON.stringify({
     pointer-events: none;
   }
 
+  /* Over the application: the cells it just rewrote, glowing out. Drawn by the script. */
+  .glows {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  .glows :global(i) {
+    position: absolute;
+    background: rgb(51 255 153 / 0.4);
+    box-shadow: 0 0 10px rgb(51 255 153 / 0.5);
+    mix-blend-mode: screen;
+    animation: afterglow 0.45s ease-out forwards;
+  }
+
+  @keyframes afterglow {
+    to {
+      opacity: 0;
+    }
+  }
+
   .take {
     position: absolute;
     top: 10px;
     right: 14px;
-    padding: 6px 12px;
-    border: 1px solid rgb(103 217 188 / 0.45);
-    border-radius: 999px;
-    background: rgb(7 11 18 / 0.85);
+    z-index: 2;
+    padding: 4px 10px;
+    border: 1px solid var(--client);
+    background: var(--screen);
     color: var(--client);
     font: 500 0.75rem / 1.2 var(--mono);
-    backdrop-filter: blur(6px);
-    transition: border-color 0.2s;
   }
 
-  .on:not(.held) .layer:hover .take {
-    border-color: var(--client);
+  .take::before {
+    content: "▸ " / "";
+  }
+
+  .hud {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    margin-top: 10px;
+    color: var(--dim);
+    font: 400 0.75rem / 1.5 var(--mono);
+    font-variant-numeric: tabular-nums;
   }
 
   .fallback {
     margin-top: 14px;
     color: var(--dim);
-    font-size: var(--step--1);
-    text-align: center;
+    font: 400 var(--step--1) / 1.5 var(--mono);
   }
 
   @media (prefers-reduced-motion: reduce) {
     .layer :global(iframe) {
       transition: none;
+    }
+
+    .glows {
+      display: none;
     }
   }
 </style>
