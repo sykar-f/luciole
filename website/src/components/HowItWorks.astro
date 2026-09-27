@@ -1,7 +1,9 @@
 ---
 import { Code } from "astro:components";
 import type { ShikiTransformer } from "shiki";
+import Screen, { type Region } from "./Screen.astro";
 import { night } from "../lib/codeTheme";
+import { frame } from "../lib/frames";
 import { source } from "../lib/links";
 // The real files of examples/notes, read at build time: the page cannot drift from them.
 import rootLayout from "../../../examples/notes/app/layout.tsx?raw";
@@ -24,6 +26,25 @@ const files: { path: string; side: Side; kind: string; note: string; code: strin
   { path: "actions/notes.ts", side: "server", kind: "Server Functions", note: "Called from the terminal like any function. There is no RPC layer to write.", code: actions },
   { path: "server/repository.ts", side: "server", kind: "Server only", note: "SQLite, ownership checks and transactions. Never bundled into the Client.", code: repository },
 ];
+
+// Where each file drew on the list screen of Notes (scripts/capture.py), in cells. The
+// layout, a Client Component, draws the chrome around every page; the Server page sends
+// the list; the repository is where the notes in it were read.
+const list = frame("notes");
+const FULL = { col: 1, cols: 82 };
+const drew: Record<string, Region["rects"]> = {
+  "app/layout.tsx": [
+    { row: 1, rows: 1, ...FULL },
+    { row: 3, rows: 1, ...FULL },
+    { row: 22, rows: 1, ...FULL },
+  ],
+  "app/page.tsx": [{ row: 5, rows: 10, ...FULL }],
+  "server/repository.ts": [{ row: 7, rows: 4, col: 3, cols: 13 }],
+};
+const regions: Region[] = files.flatMap((file, i) => {
+  const rects = drew[file.path];
+  return rects ? [{ id: String(i), side: file.side, rects }] : [];
+});
 
 // Each row of the Flight response, with what to notice in it.
 const flightNotes: [RegExp, string][] = [
@@ -67,10 +88,9 @@ const directives: ShikiTransformer[] = [
       </p>
     </div>
 
-    <div class="explorer" data-tabs>
+    <div class="explorer" data-tabs data-explorer>
       <div class="chrome" aria-hidden="true">
-        <span class="lights"><i></i><i></i><i></i></span>
-        <span>examples/notes</span>
+        <span><b>┤</b> examples/notes <b>├</b></span>
       </div>
       <div class="body">
       <div class="tree" role="tablist" aria-label="Files of the Notes example" aria-orientation="vertical">
@@ -85,6 +105,7 @@ const directives: ShikiTransformer[] = [
               aria-selected={i === 4 ? "true" : "false"}
               tabindex={i === 4 ? 0 : -1}
               class:list={["file", file.side]}
+              data-drew={drew[file.path] ? String(i) : undefined}
             >
               <span class="path">{file.path}</span>
               <span class="kind">{file.kind}</span>
@@ -154,6 +175,18 @@ const directives: ShikiTransformer[] = [
       </div>
     </div>
 
+    <div class="drawn">
+      <Screen frame={list} regions={regions} class="drawn-screen" />
+      <div class="drawn-text">
+        <p>
+          The list screen of Notes, as captured. Pick a file above: the cells it put on this screen
+          light up, <span class="client">green</span> for the Client, <span class="server">amber</span> for
+          the Server.
+        </p>
+        <p class="drawn-now" aria-live="polite" data-drawn-now></p>
+      </div>
+    </div>
+
     <div class="split" aria-label="What airtty build produces">
       <div class="half client-half">
         <p class="out"><code>.airtty/client</code></p>
@@ -193,6 +226,7 @@ const directives: ShikiTransformer[] = [
         if (panel) panel.hidden = !on;
       }
       if (focus) tab.focus();
+      group.dispatchEvent(new CustomEvent("tabs:select", { detail: tab }));
     };
     tabs.forEach((tab, i) => {
       tab.addEventListener("click", () => select(tab, false));
@@ -207,38 +241,65 @@ const directives: ShikiTransformer[] = [
   }
 </script>
 
+<script>
+  // The picked file lights the cells it drew on the Notes screen, and so does the one
+  // under the pointer, for as long as it is there.
+  const explorer = document.querySelector<HTMLElement>("[data-explorer]");
+  const regions = [...document.querySelectorAll<HTMLElement>(".drawn [data-region]")];
+  const now = document.querySelector<HTMLElement>("[data-drawn-now]");
+  if (explorer && now) {
+    const light = (tab: HTMLElement) => {
+      const id = tab.dataset.drew;
+      // A file that draws nothing here leaves the map of those that do, dimmed.
+      for (const region of regions) {
+        region.classList.toggle("lit", region.dataset.region === id);
+        region.classList.toggle("faint", id === undefined);
+      }
+      const path = tab.querySelector(".path")?.textContent ?? "";
+      now.textContent =
+        id === undefined ? `${path}: not on this screen. Dimmed: the files that are.` : `${path}: lit.`;
+    };
+    const picked = () => explorer.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]');
+    explorer.addEventListener("tabs:select", (event) => {
+      if (event instanceof CustomEvent && event.detail instanceof HTMLElement) light(event.detail);
+    });
+    for (const tab of explorer.querySelectorAll<HTMLElement>('[role="tab"]')) {
+      tab.addEventListener("pointerenter", () => light(tab));
+      tab.addEventListener("pointerleave", () => {
+        const current = picked();
+        if (current) light(current);
+      });
+    }
+    const current = picked();
+    if (current) light(current);
+  }
+</script>
+
 <style>
   .explorer {
+    position: relative;
     border: 1px solid var(--rule-strong);
-    border-radius: 14px;
-    background: linear-gradient(180deg, #0d131c, var(--night-deep));
-    overflow: hidden;
-    box-shadow:
-      inset 0 1px 0 rgb(255 255 255 / 0.05),
-      0 40px 100px -50px rgb(0 0 0 / 0.9);
+    border-radius: var(--radius);
+    background: var(--night-deep);
   }
 
+  /* The folder's name set into the top edge, as a terminal box titles itself. */
   .chrome {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    padding: 10px 14px;
-    border-bottom: 1px solid var(--rule);
-    background: rgb(255 255 255 / 0.02);
-    color: var(--dim);
-    font-size: 0.75rem;
+    position: absolute;
+    top: -0.75em;
+    left: 14px;
+    color: var(--mist);
+    font: 400 0.75rem / 1.5 var(--mono);
   }
 
-  .lights {
-    display: flex;
-    gap: 7px;
+  .chrome span {
+    padding: 0 0.5ch;
+    background: var(--night);
   }
 
-  .lights i {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background: rgb(255 255 255 / 0.1);
+  .chrome b {
+    color: var(--rule-strong);
+    font-weight: 400;
   }
 
   .body {
@@ -250,14 +311,14 @@ const directives: ShikiTransformer[] = [
     display: flex;
     flex-direction: column;
     gap: 2px;
-    padding: 14px 10px;
+    padding: 18px 10px 14px;
     border-right: 1px solid var(--rule);
   }
 
   .tree-root {
     padding: 4px 10px 8px;
     color: var(--dim);
-    font-size: 0.72rem;
+    font: 400 0.75rem / 1.5 var(--mono);
   }
 
   .wire-root {
@@ -271,16 +332,14 @@ const directives: ShikiTransformer[] = [
     display: grid;
     gap: 1px;
     padding: 8px 10px 8px 26px;
-    border: 1px solid transparent;
-    border-radius: 8px;
+    border: 0;
+    border-left: 2px solid transparent;
     background: none;
     color: var(--mist);
     font-family: var(--mono);
     text-align: left;
     cursor: pointer;
-    transition:
-      background 0.15s,
-      border-color 0.15s;
+    transition: background 0.15s;
   }
 
   .file::before {
@@ -290,7 +349,6 @@ const directives: ShikiTransformer[] = [
     left: 11px;
     width: 7px;
     height: 7px;
-    border-radius: 2px;
     background: var(--dim);
   }
 
@@ -302,12 +360,14 @@ const directives: ShikiTransformer[] = [
     background: var(--server);
   }
 
+  /* Between the two: neither side's colour. */
   .file.wire::before {
-    background: linear-gradient(135deg, var(--client), var(--server));
+    border: 1px solid var(--mist);
+    background: none;
   }
 
   .file:hover {
-    background: rgb(255 255 255 / 0.03);
+    background: var(--night-raised);
   }
 
   .path {
@@ -317,7 +377,7 @@ const directives: ShikiTransformer[] = [
   }
 
   .kind {
-    font-size: 0.72rem;
+    font-size: 0.75rem;
   }
 
   .file.client .kind {
@@ -329,8 +389,8 @@ const directives: ShikiTransformer[] = [
   }
 
   .file[aria-selected="true"] {
-    border-color: var(--rule-strong);
-    background: rgb(255 255 255 / 0.05);
+    border-left-color: var(--paper);
+    background: var(--night-raised);
   }
 
   .key {
@@ -338,8 +398,8 @@ const directives: ShikiTransformer[] = [
     gap: 6px;
     margin-top: auto;
     padding: 20px 10px 4px;
-    color: var(--dim);
-    font-size: 0.72rem;
+    color: var(--mist);
+    font: 400 0.75rem / 1.5 var(--mono);
   }
 
   .swatch {
@@ -347,7 +407,6 @@ const directives: ShikiTransformer[] = [
     width: 8px;
     height: 8px;
     margin-right: 8px;
-    border-radius: 2px;
   }
 
   .client-swatch {
@@ -367,16 +426,16 @@ const directives: ShikiTransformer[] = [
     justify-content: space-between;
     align-items: baseline;
     gap: 20px;
-    padding: 12px 20px;
+    padding: 14px 20px 12px;
     border-bottom: 1px solid var(--rule);
     color: var(--mist);
-    font-size: 0.8rem;
+    font-size: 0.85rem;
   }
 
   .pane-head a {
     flex-shrink: 0;
-    color: var(--dim);
-    font-size: 0.75rem;
+    color: var(--mist);
+    font: 400 0.75rem / 1.5 var(--mono);
   }
 
   .pane :global(pre) {
@@ -385,7 +444,7 @@ const directives: ShikiTransformer[] = [
     padding: 16px 0;
     background: transparent !important;
     overflow: auto;
-    font: 400 0.8rem / 1.7 var(--term);
+    font: 400 0.8rem / 1.7 var(--mono);
     font-variant-ligatures: none;
     scrollbar-width: thin;
     scrollbar-color: var(--rule-strong) transparent;
@@ -404,12 +463,12 @@ const directives: ShikiTransformer[] = [
   }
 
   .pane :global(.directive-client) {
-    background: linear-gradient(90deg, var(--client-soft), transparent 60%);
+    background: var(--client-soft);
     box-shadow: inset 2px 0 var(--client);
   }
 
   .pane :global(.directive-server) {
-    background: linear-gradient(90deg, var(--server-soft), transparent 60%);
+    background: var(--server-soft);
     box-shadow: inset 2px 0 var(--server);
   }
 
@@ -434,26 +493,50 @@ const directives: ShikiTransformer[] = [
   .flight li::before {
     content: counter(row, decimal-leading-zero);
     color: var(--dim);
-    font: 400 0.72rem / 1.8 var(--term);
+    font: 400 0.75rem / 1.8 var(--mono);
   }
 
   .flight code {
     padding: 0;
-    border: 0;
     background: none;
-    font: 400 0.78rem / 1.8 var(--term);
+    font: 400 0.78rem / 1.8 var(--mono);
     overflow-wrap: anywhere;
   }
 
   .flight-note {
     grid-column: 2;
     color: var(--server);
-    font-size: 0.78rem;
+    font-size: 0.82rem;
   }
 
   .flight-note::before {
     content: "↳ ";
     color: var(--dim);
+  }
+
+  .drawn {
+    display: grid;
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+    gap: 24px 48px;
+    align-items: end;
+    margin-top: clamp(40px, 5vw, 64px);
+  }
+
+  .drawn-text {
+    display: grid;
+    gap: 12px;
+    color: var(--mist);
+    font-size: 0.95rem;
+  }
+
+  .drawn :global(.region.faint) {
+    opacity: 0.35;
+  }
+
+  .drawn-now {
+    min-height: 1.5em;
+    color: var(--paper);
+    font: 400 0.82rem / 1.5 var(--mono);
   }
 
   .split {
@@ -464,49 +547,25 @@ const directives: ShikiTransformer[] = [
   }
 
   .half {
-    position: relative;
     display: grid;
     align-content: start;
     gap: 10px;
-    padding: 26px 26px 28px;
-    border: 1px solid;
-    border-radius: 14px;
-    overflow: hidden;
-  }
-
-  .half::after {
-    content: "";
-    position: absolute;
-    inset: -40% -20% auto auto;
-    width: 60%;
-    aspect-ratio: 1;
-    border-radius: 50%;
-    filter: blur(60px);
-    opacity: 0.16;
-    pointer-events: none;
+    padding: 24px 24px 26px;
+    border: 1px solid var(--rule);
+    border-top: 2px solid;
   }
 
   .half p:not(.out) {
     color: var(--mist);
-    font-size: 0.85rem;
+    font-size: 0.92rem;
   }
 
   .client-half {
-    border-color: rgb(103 217 188 / 0.3);
-    background: linear-gradient(160deg, rgb(103 217 188 / 0.08), transparent 60%);
-  }
-
-  .client-half::after {
-    background: var(--client);
+    border-top-color: var(--client);
   }
 
   .server-half {
-    border-color: rgb(255 188 102 / 0.3);
-    background: linear-gradient(200deg, rgb(255 188 102 / 0.08), transparent 60%);
-  }
-
-  .server-half::after {
-    background: var(--server);
+    border-top-color: var(--server);
   }
 
   .client-half .out code {
@@ -519,7 +578,6 @@ const directives: ShikiTransformer[] = [
 
   .out code {
     padding: 0;
-    border: 0;
     background: none;
     font-size: 0.85rem;
   }
@@ -530,9 +588,8 @@ const directives: ShikiTransformer[] = [
     align-content: center;
     gap: 40px;
     padding: 0 14px;
-    color: var(--dim);
-    font-size: 0.7rem;
-    line-height: 1.5;
+    color: var(--mist);
+    font: 400 0.72rem / 1.5 var(--mono);
     text-align: center;
   }
 
@@ -542,9 +599,7 @@ const directives: ShikiTransformer[] = [
     top: 50%;
     right: 0;
     left: 0;
-    height: 1px;
-    background: linear-gradient(90deg, var(--client), var(--server));
-    opacity: 0.6;
+    border-top: 1px dashed var(--rule-strong);
   }
 
   /* A packet going back and forth: the one motion that is always on, because it is the idea. */
@@ -553,29 +608,31 @@ const directives: ShikiTransformer[] = [
     position: absolute;
     top: calc(50% - 3px);
     left: 0;
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: #fff;
-    box-shadow: 0 0 12px #fff;
-    animation: packet 3.2s ease-in-out infinite alternate;
+    width: 7px;
+    height: 7px;
+    animation: packet 3.2s steps(24) infinite alternate;
   }
 
   @keyframes packet {
     from {
       left: 0;
       background: var(--client);
-      box-shadow: 0 0 12px var(--client);
+    }
+    49.99% {
+      background: var(--client);
+    }
+    50% {
+      background: var(--server);
     }
     to {
-      left: calc(100% - 6px);
+      left: calc(100% - 7px);
       background: var(--server);
-      box-shadow: 0 0 12px var(--server);
     }
   }
 
   @media (max-width: 860px) {
-    .body {
+    .body,
+    .drawn {
       grid-template-columns: 1fr;
     }
 
@@ -601,9 +658,8 @@ const directives: ShikiTransformer[] = [
       top: 0;
       bottom: 0;
       left: 50%;
-      width: 1px;
-      height: auto;
-      background: linear-gradient(var(--client), var(--server));
+      border-top: 0;
+      border-left: 1px dashed var(--rule-strong);
     }
 
     .bridge::after {
