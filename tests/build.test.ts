@@ -436,3 +436,31 @@ test("concurrent builds take turns, and an unchanged build keeps the output in p
     },
   );
 }, 60000);
+test("subpath imports (#name) join the graph: every target of every condition", async () => {
+  await fixture(
+    {
+      "package.json": JSON.stringify({
+        imports: {
+          "#greeting": { browser: "./server/web.ts", default: "./server/terminal.ts" },
+          "#parts/*": "./components/*.tsx",
+        },
+      }),
+      "app/page.tsx": `import {greeting} from '#greeting';import {Badge} from '#parts/badge';export default function Page(){return <Badge text={greeting}/>}`,
+      "server/terminal.ts": `import 'server-only';export const greeting='TERMINAL';`,
+      "server/web.ts": `export const greeting='WEB';`,
+      "components/badge.tsx": `"use client";export function Badge({text}:{text:string}){return <text>{text}</text>}`,
+    },
+    async (dir) => {
+      await symlink(resolve("node_modules"), join(dir, "node_modules"), "dir");
+      const first = await build(dir);
+      const manifest = await readManifest(dir);
+      expect(manifest.serverGraph).toContain("server/terminal.ts");
+      expect(manifest.serverGraph).toContain("server/web.ts");
+      // A "use client" module reached by a subpath import is a Client Reference too.
+      expect(manifest.manifest[`${first.buildId}/components/badge.tsx#Badge`]).toBeDefined();
+      // The browser's target alone changed: still another build, not a stale one skipped.
+      await Bun.write(join(dir, "server/web.ts"), `export const greeting='WEB 2';`);
+      expect((await build(dir)).buildId).not.toBe(first.buildId);
+    },
+  );
+}, 60000);

@@ -44,6 +44,34 @@ type Module = {
 };
 const ROUTE_AUTH = ["public", "required"] as const;
 type RouteAuth = (typeof ROUTE_AUTH)[number];
+const PackageImports = z.object({ imports: z.unknown() });
+/**
+ * Every target a subpath import can resolve to, whatever the conditions (Node's `imports`:
+ * an exact key, or one `*` pattern), or `undefined` when no key matches.
+ */
+function subpathTargets(imports: unknown, name: string): string[] | undefined {
+  if (typeof imports !== "object" || imports === null) return undefined;
+  const leaves = (value: unknown, star: string): string[] =>
+    typeof value === "string"
+      ? [value.replaceAll("*", star)]
+      : Array.isArray(value)
+        ? value.flatMap((v) => leaves(v, star))
+        : typeof value === "object" && value !== null
+          ? Object.values(value).flatMap((v) => leaves(v, star))
+          : [];
+  const entries = Object.entries(imports);
+  const exact = entries.find(([key]) => key === name);
+  if (exact) return leaves(exact[1], "");
+  // The longest prefix wins, as in Node.
+  const patterns = entries.sort(([a], [b]) => b.indexOf("*") - a.indexOf("*"));
+  for (const [key, value] of patterns) {
+    const [prefix, suffix, extra] = key.split("*");
+    if (prefix === undefined || suffix === undefined || extra !== undefined) continue;
+    if (name.length >= key.length - 1 && name.startsWith(prefix) && name.endsWith(suffix))
+      return leaves(value, name.slice(prefix.length, name.length - suffix.length));
+  }
+  return undefined;
+}
 function bundleFailure(error: unknown): never {
   throw new Error(bundleMessages(error).join("\n"));
 }
@@ -289,9 +317,7 @@ async function buildUnlocked(
     if (!m) throw new Error(`Module read without its source: ${path}`);
     return m;
   };
-  async function local(from: string, name: string) {
-    if (!name.startsWith(".")) return;
-    const base = resolve(dirname(from), name);
+  async function file(from: string, base: string, name: string) {
     for (const candidate of [
       base,
       ...[".ts", ".tsx", ".js", ".jsx", "/index.ts", "/index.tsx"].map((s) => base + s),
@@ -299,6 +325,32 @@ async function buildUnlocked(
       if (await Bun.file(candidate).exists()) return await realpath(candidate);
     }
     throw new Error(`${from}: Cannot resolve ${name}`);
+  }
+  /**
+   * The application's files an import names: none for a package, one for a relative path,
+   * and for a subpath import (`#name`, package.json `imports`) the target of every
+   * condition, since each role's bundle picks its own (the browser's Server, the Server).
+   */
+  async function local(from: string, name: string): Promise<string[]> {
+    if (name.startsWith(".")) return [await file(from, resolve(dirname(from), name), name)];
+    if (!name.startsWith("#")) return [];
+    const scope = await packageScope(from);
+    const targets = scope ? subpathTargets(scope.imports, name) : undefined;
+    if (!scope || !targets) throw new Error(`${from}: Cannot resolve ${name}`);
+    const files: string[] = [];
+    for (const target of targets)
+      if (target.startsWith("./")) files.push(await file(from, resolve(scope.dir, target), name));
+    return [...new Set(files)];
+  }
+  /** The package.json `imports` that govern `from`: the nearest package.json, in the app. */
+  async function packageScope(from: string) {
+    for (let dir = dirname(from); dir === root || dir.startsWith(`${root}/`); dir = dirname(dir)) {
+      const manifest = Bun.file(join(dir, "package.json"));
+      if (!(await manifest.exists())) continue;
+      const parsed = PackageImports.safeParse(await manifest.json());
+      return { dir, imports: parsed.success ? parsed.data.imports : undefined };
+    }
+    return undefined;
   }
   async function read(path: string): Promise<Module> {
     const existing = modules.get(path);
@@ -360,10 +412,13 @@ async function buildUnlocked(
     }
     visit(ast);
     m.cached = cachedFunctions(ast, m.directive, (n, message) => fail(m, n, message));
+    const resolved: Module["imports"] = [];
     for (const i of m.imports) {
-      i.path = await local(path, i.name);
-      if (i.path) await read(i.path);
+      const paths = await local(path, i.name);
+      resolved.push(...(paths.length ? paths.map((p) => ({ ...i, path: p })) : [i]));
     }
+    m.imports = resolved;
+    for (const i of m.imports) if (i.path) await read(i.path);
     return m;
   }
   const inventory: string[] = [];

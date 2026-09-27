@@ -19,6 +19,12 @@ accessibles depuis cette frontière appartiennent au graphe Client. Le build gé
 une Client Reference par export runtime et un manifest, puis assemble le registre
 de modules installés dans le bundle Client. Les types seuls ne créent pas d’arête.
 
+Un import local est un chemin relatif ou un import de sous-chemin (`#nom`, champ
+`imports` du `package.json` le plus proche dans l'application). Le second compte pour
+**toutes** ses cibles, quelles que soient les conditions : chaque bundle choisit la
+sienne (le Server web prend `browser`, le Server terminal `default`), mais toutes sont
+vérifiées et entrent dans l'identité du build.
+
 `"use server"` autorise des **déclarations de fonctions async nommées et exportées** :
 
 ```ts
