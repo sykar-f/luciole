@@ -79,10 +79,10 @@ test("opencode: its own server, locked to coder, never sharing a session publicl
 });
 
 test("studio drives the harnesses under its own name, with file tools only and no user settings", () => {
-  const studio = readFileSync(resolve("examples/studio/server/studio.ts"), "utf8");
+  const studio = readFileSync(resolve("examples/studio/server/harness.ts"), "utf8");
   expect(studio).toContain('client: "airtty-studio"');
   expect(studio).toContain("isolated: true");
-  expect(studio).toContain('const TOOLS = ["Read", "Write", "Edit", "Glob", "Grep"] as const;');
+  expect(studio).toContain('export const TOOLS = ["Read", "Write", "Edit", "Glob", "Grep"] as const;');
   // The user signs in with the harness's own command, never through studio.
   expect(
     offending(/oauth|credentials|auth\.json/i).filter((at) =>

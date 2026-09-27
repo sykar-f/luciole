@@ -10,10 +10,6 @@ import { join } from "node:path";
 import { z } from "zod";
 import { serialize } from "airtty/dev";
 import { Capabilities } from "airtty/sandbox";
-import { createHarness } from "@airtty/harness/adapters";
-import type { HarnessStatus } from "@airtty/harness/adapters/types";
-import { detect } from "@airtty/harness/detect";
-import { HARNESS_NAMES, type HarnessId } from "@airtty/harness/model";
 import { HarnessSession } from "@airtty/harness/session";
 import type {
   Diagnostic,
@@ -24,8 +20,8 @@ import type {
   Validation,
 } from "../components/model";
 import { config } from "./config";
-import { Generator, STUDIO_PREFIX } from "./generator";
-import { INSTRUCTIONS } from "./instructions";
+import { STUDIO_PREFIX } from "./generator";
+import { create, pick, START } from "./harness";
 import { policy } from "./policy";
 import { diagnosticsOf, isolationProblem, PreviewServers, type PreviewTarget } from "./preview";
 import { Project } from "./project";
@@ -33,10 +29,6 @@ import { prepare } from "./validate";
 
 // Built by the build itself: whatever the harness does to it, the build writes it again.
 const GENERATED = "app/routeTree.gen.ts";
-// The only tools Claude Code gets: read and write files, search. No shell, no web.
-const TOOLS = ["Read", "Write", "Edit", "Glob", "Grep"] as const;
-// Without --harness: the first ready of these (pi and opencode are coder's only).
-const AUTO_ORDER: readonly HarnessId[] = ["claude", "codex"];
 const REVISIONS_SHOWN = 50;
 // A subscriber gets at most one snapshot per interval.
 const UPDATE_INTERVAL_MS = 50;
@@ -47,22 +39,6 @@ type Cause = "start" | "turn" | "restore" | "capability" | "restart";
 type Listener = () => void;
 
 const isolation = isolationProblem(config.preview);
-
-/** Which harness runs: the one asked for, or the first ready of claude and codex. */
-async function pick(wanted: HarnessId | undefined): Promise<HarnessStatus> {
-  if (wanted) return detect(wanted);
-  const found = await Promise.all(AUTO_ORDER.map((id) => detect(id)));
-  const ready = found.find((status) => status.ready);
-  if (ready) return ready;
-  throw new Error(
-    `No harness is ready: ${found
-      .map(
-        (s) =>
-          `${HARNESS_NAMES[s.id]}: ${s.installed ? (s.fix ?? "not signed in") : "not installed"}`,
-      )
-      .join("; ")}. Try --harness fake for the scripted generator.`,
-  );
-}
 
 class Studio {
   private project: Project | undefined;
@@ -100,10 +76,9 @@ class Studio {
       model: config.model,
       effort: config.effort,
       resume: config.resume,
-      create: (id, context) =>
-        id === "fake" ? new Generator(context) : createHarness(id, context),
+      create,
       pick,
-      start: { client: "airtty-studio", instructions: INSTRUCTIONS, tools: TOOLS, isolated: true },
+      start: START,
       policy,
       onTurnCompleted: (status) => {
         if (status !== "interrupted") void this.validate("turn");
