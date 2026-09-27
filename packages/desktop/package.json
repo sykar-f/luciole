@@ -1,6 +1,7 @@
 {
   "name": "airtty-desktop",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "stage": "bun scripts/stage.ts",
