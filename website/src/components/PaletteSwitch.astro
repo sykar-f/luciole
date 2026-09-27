@@ -1,0 +1,124 @@
+---
+// A preset picker for trying the site's palettes (styles/palettes.css), not a feature of
+// the site: shown by the dev server, or in any build with ?palettes in the address. The
+// palette itself is set before the first paint by Base.astro, which also reads
+// ?palette=<name>; this switches it at once, without a reload, and remembers the choice.
+import names from "../lib/palettes.json";
+---
+
+<div class="switch" data-palette-switch hidden>
+  <label>
+    <span class="name">palette:</span>
+    <select data-palette-select>
+      {names.map((name) => <option value={name}>{name}</option>)}
+    </select>
+    <span class="arrow" aria-hidden="true">▾</span>
+  </label>
+</div>
+
+<script>
+  import names from "../lib/palettes.json";
+
+  const KEY = "airtty:palette";
+  const root = document.documentElement;
+  const box = document.querySelector<HTMLElement>("[data-palette-switch]");
+  const select = box?.querySelector<HTMLSelectElement>("[data-palette-select]");
+  if (box && select && root.dataset.palettes !== undefined) {
+    select.value = root.dataset.palette ?? names[0] ?? "";
+    box.hidden = false;
+    select.addEventListener("change", () => {
+      const name = select.value;
+      root.dataset.palette = name;
+      try {
+        localStorage.setItem(KEY, name);
+      } catch {
+        // Storage refused (private window, blocked site data): the choice lasts the visit.
+      }
+      // In the address too, so a reload or a shared link shows the same preset.
+      const url = new URL(location.href);
+      url.searchParams.set("palette", name);
+      history.replaceState(history.state, "", url);
+      document.querySelector('meta[name="theme-color"]')?.setAttribute(
+        "content",
+        getComputedStyle(root).getPropertyValue("--night").trim(),
+      );
+      // Canvases and terminals read their colours in scripts: told to read them again.
+      document.dispatchEvent(new Event("palette"));
+    });
+  }
+</script>
+
+<style>
+  /* In the spirit of the page: a bracketed command in a corner, out of the way. */
+  .switch {
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    z-index: 30;
+    border: 1px solid var(--rule-strong);
+    background: var(--night);
+    color: var(--mist);
+    font: 400 0.8rem / 1 var(--mono);
+  }
+
+  .switch::before {
+    content: "[ " / "";
+  }
+
+  .switch::after {
+    content: " ]" / "";
+  }
+
+  .switch::before,
+  .switch::after {
+    position: absolute;
+    top: 50%;
+    color: var(--dim);
+    transform: translateY(-50%);
+    pointer-events: none;
+  }
+
+  .switch::before {
+    left: 8px;
+  }
+
+  .switch::after {
+    right: 8px;
+  }
+
+  label {
+    display: flex;
+    align-items: center;
+    gap: 1ch;
+    padding: 0 calc(8px + 2ch) 0 calc(8px + 2ch);
+  }
+
+  select {
+    appearance: none;
+    padding: 9px calc(1.5ch) 9px 0;
+    border: 0;
+    background: none;
+    color: var(--paper);
+    font: inherit;
+    cursor: pointer;
+  }
+
+  select:focus-visible {
+    outline: none;
+  }
+
+  .switch:focus-within {
+    border-color: var(--paper);
+  }
+
+  option {
+    background: var(--night);
+    color: var(--paper);
+  }
+
+  .arrow {
+    margin-left: -1.5ch;
+    color: var(--mist);
+    pointer-events: none;
+  }
+</style>

@@ -9,6 +9,8 @@ import "@fontsource/ibm-plex-sans/600.css";
 import "@fontsource-variable/jetbrains-mono/wght.css";
 import "../styles/palettes.css";
 import "../styles/global.css";
+import PaletteSwitch from "../components/PaletteSwitch.astro";
+import palettes from "../lib/palettes.json";
 
 interface Props {
   title: string;
@@ -17,6 +19,8 @@ interface Props {
 }
 
 const { title, description, lang = "en" } = Astro.props;
+// Trying palettes is for the dev server, or for a build opened with ?palettes.
+const dev = import.meta.env.DEV;
 ---
 
 <!doctype html>
@@ -25,13 +29,38 @@ const { title, description, lang = "en" } = Astro.props;
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content={description} />
-    <meta name="theme-color" content="#0b0a07" />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <meta name="theme-color" />
     <title>{title}</title>
+    <script is:inline define:vars={{ dev, palettes }}>
+      // Before the first paint: the preset asked for (?palette=<name>), or, where palettes
+      // can be tried, the one picked last; phosphor otherwise. Then the browser's bar takes
+      // the page's colour.
+      {
+        const root = document.documentElement;
+        const params = new URLSearchParams(location.search);
+        const trying = dev || params.has("palettes") || params.has("palette");
+        let stored = null;
+        try {
+          stored = localStorage.getItem("airtty:palette");
+        } catch {
+          // Storage refused: the default palette.
+        }
+        const asked = params.get("palette") ?? (trying ? stored : null);
+        if (trying) root.dataset.palettes = "";
+        if (asked && palettes.includes(asked)) root.dataset.palette = asked;
+        // Once the stylesheets have applied.
+        addEventListener("DOMContentLoaded", () => {
+          const night = getComputedStyle(root).getPropertyValue("--night").trim();
+          document.querySelector('meta[name="theme-color"]')?.setAttribute("content", night);
+        });
+      }
+    </script>
   </head>
   <body>
     <slot />
+    <PaletteSwitch />
   </body>
 </html>
