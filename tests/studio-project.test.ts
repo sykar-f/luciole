@@ -14,9 +14,10 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join, relative as relativePath, resolve } from "node:path";
 import { guard } from "../examples/studio/server/guard";
 import { policy } from "../examples/studio/server/policy";
+import { diagnosticsOf } from "../examples/studio/server/preview";
 import { Project } from "../examples/studio/server/project";
 import { TEMPLATE } from "../examples/studio/server/template.gen";
 import { messageOf } from "../packages/airtty/src/guards";
@@ -183,4 +184,20 @@ test("the policy refuses commands and writes outside the app, and leaves questio
 test("the template passes studio's own guard: a harness editing it is never refused for it", () => {
   const changes = new Map(Object.entries(TEMPLATE).filter(([file]) => /\.(ts|tsx)$/.test(file)));
   expect(guard(changes)).toEqual([]);
+});
+
+test("build diagnostics name the app's file, whatever directory studio runs from", () => {
+  const project = "/tmp/studio-diagnostics/app";
+  const relative = relativePath(process.cwd(), `${project}/server/store.ts`);
+  expect(
+    diagnosticsOf(`No matching export in "${relative}" for import "missing"`, project),
+  ).toEqual([
+    {
+      file: "server/store.ts",
+      message: 'No matching export in "server/store.ts" for import "missing"',
+    },
+  ]);
+  expect(
+    diagnosticsOf(`${project}/app/page.tsx:3:5: JSX element 'text' has no closing tag.`, project),
+  ).toEqual([{ file: "app/page.tsx", line: 3, message: "JSX element 'text' has no closing tag." }]);
 });
