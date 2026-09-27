@@ -1,0 +1,21 @@
+{
+  "name": "@airtty-examples/studio",
+  "private": true,
+  "type": "module",
+  "description": "Describe an airtty app to a coding agent and use it as it is being written.",
+  "airtty": {
+    "displayName": "studio",
+    "server": "per-launch",
+    "grace": "15m"
+  },
+  "dependencies": {
+    "airtty": "workspace:*",
+    "@airtty/harness": "workspace:*",
+    "@opentui/core": "catalog:",
+    "@opentui/keymap": "catalog:",
+    "@opentui/react": "catalog:",
+    "@tanstack/react-router": "catalog:",
+    "react": "catalog:",
+    "zod": "catalog:"
+  }
+}

@@ -121,6 +121,19 @@
         "zod": "catalog:",
       },
     },
+    "examples/studio": {
+      "name": "@airtty-examples/studio",
+      "dependencies": {
+        "@airtty/harness": "workspace:*",
+        "@opentui/core": "catalog:",
+        "@opentui/keymap": "catalog:",
+        "@opentui/react": "catalog:",
+        "@tanstack/react-router": "catalog:",
+        "airtty": "workspace:*",
+        "react": "catalog:",
+        "zod": "catalog:",
+      },
+    },
     "packages/airtty": {
       "name": "airtty",
       "version": "0.1.0",
@@ -262,6 +275,8 @@
     "@airtty-examples/mux": ["@airtty-examples/mux@workspace:examples/mux"],
 
     "@airtty-examples/notes": ["@airtty-examples/notes@workspace:examples/notes"],
+
+    "@airtty-examples/studio": ["@airtty-examples/studio@workspace:examples/studio"],
 
     "@airtty/harness": ["@airtty/harness@workspace:packages/harness"],
 
