@@ -1,0 +1,122 @@
+---
+// What people build with it, one example each, as captured screens (scripts/capture.py):
+// the landing runs one demo only, the hero's; these play on /examples, on a click.
+import Screen from "./Screen.astro";
+import { examples } from "../lib/examples";
+import { frame } from "../lib/frames";
+import { source } from "../lib/links";
+
+const uses = [
+  { use: "Coding-agent interface", key: "coder", line: "A session on Claude Code, Codex, pi or opencode, with its diffs and approvals in your terminal." },
+  { use: "Code review", key: "forge", line: "Pull requests, coloured diffs, line comments and live CI logs." },
+  { use: "Document reader", key: "mdreader", line: "A folder of Markdown in two panes, reloaded when a file changes." },
+].map((entry) => ({ ...entry, example: examples[entry.key]! }));
+---
+
+<section class="section" id="build" aria-labelledby="build-title">
+  <div class="wrap">
+    <div class="section-head">
+      <p class="label">build</p>
+      <h2 id="build-title">What you can build.</h2>
+    </div>
+    <ul class="uses">
+      {
+        uses.map(({ use, key, line, example }) => (
+          <li>
+            <Screen frame={frame(example.frame)} class="thumb" />
+            <h3>{use}</h3>
+            <p class="line">{line}</p>
+            <p class="run">
+              <code>
+                <span aria-hidden="true">$ </span>
+                {example.run}
+              </code>
+            </p>
+            <p class="links">
+              <a href={`/examples/#${key}`}>{example.demo ? "Play it" : "See it"}</a>
+              <a href={source(example.source)}>{example.name} source</a>
+            </p>
+          </li>
+        ))
+      }
+    </ul>
+    <p class="all"><a href="/examples/">All examples</a></p>
+  </div>
+</section>
+
+<style>
+  .uses {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 40px clamp(20px, 3vw, 36px);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  li {
+    display: grid;
+    grid-template-rows: auto auto 1fr auto auto;
+    gap: 10px;
+    min-width: 0;
+  }
+
+  /* A thumbnail of the whole screen: the cells shrink below reading size, the text below
+     says what it is. */
+  li :global(.thumb .grid) {
+    font-size: calc((100cqw - 26px) / var(--cols) / 0.6);
+  }
+
+  li :global(.thumb) {
+    margin-bottom: 8px;
+  }
+
+  h3 {
+    font-size: var(--step-1);
+  }
+
+  .line {
+    color: var(--mist);
+    font-size: 0.95rem;
+  }
+
+  .run code {
+    padding: 0;
+    background: none;
+    color: var(--paper);
+    font-size: 0.8rem;
+    overflow-wrap: anywhere;
+  }
+
+  .run span {
+    color: var(--dim);
+  }
+
+  .links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 20px;
+    font: 400 0.85rem / 1.6 var(--mono);
+  }
+
+  .links a:first-child::after,
+  .all a::after {
+    content: " →" / "";
+  }
+
+  .all {
+    margin-top: 32px;
+    font: 500 0.9rem / 1.6 var(--mono);
+  }
+
+  @media (max-width: 900px) {
+    .uses {
+      grid-template-columns: 1fr;
+    }
+
+    /* One a row: wide enough for cells that can be read. */
+    li :global(.thumb .grid) {
+      font-size: max(6px, calc((100cqw - 26px) / var(--cols) / 0.6));
+    }
+  }
+</style>

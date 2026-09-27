@@ -134,9 +134,10 @@ kbd {
   padding-inline: var(--gutter);
 }
 
-/* Sections are numbered in the order they come: their label carries the rule. */
+/* Sections are numbered in the order they come, the hero being the first: their label
+   carries the rule. */
 main {
-  counter-reset: section;
+  counter-reset: section 1;
 }
 
 .section {

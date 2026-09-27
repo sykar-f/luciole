@@ -2,31 +2,22 @@
 import Base from "../layouts/Base.astro";
 import Header from "../components/Header.astro";
 import Hero from "../components/Hero.astro";
-import HowItWorks from "../components/HowItWorks.astro";
-import Wire from "../components/Wire.astro";
-import Apps from "../components/Apps.astro";
-import Ship from "../components/Ship.astro";
-import Trust from "../components/Trust.astro";
-import Toolbox from "../components/Toolbox.astro";
-import Limits from "../components/Limits.astro";
+import ServerSide from "../components/ServerSide.astro";
+import Uses from "../components/Uses.astro";
 import Start from "../components/Start.astro";
 import Footer from "../components/Footer.astro";
 ---
 
 <Base
-  title="airtty: terminal apps, built like web apps"
-  description="An open-source React Server Components framework for the terminal: Server-rendered pages, a native terminal Client, one binary, open over SSH or by URL."
+  title="airtty: build terminal apps with React"
+  description="An experimental framework for terminal apps in React. React Server Components render on a server; a native terminal client keeps typing and scrolling local. Coding-agent interfaces, code review, document readers."
+  image="/og.png"
 >
   <Header />
   <main>
     <Hero />
-    <HowItWorks />
-    <Wire />
-    <Apps />
-    <Ship />
-    <Trust />
-    <Toolbox />
-    <Limits />
+    <ServerSide />
+    <Uses />
     <Start />
   </main>
   <Footer />

@@ -1,79 +1,54 @@
 ---
+// The hero's app, Notes, on the reader's machine: three commands, checked in a PTY, then
+// a file to edit whose change shows on the screen (airtty dev rebuilds and reopens it).
 import CopyCommand from "./CopyCommand.astro";
-import { doc, repo } from "../lib/links";
+import { repo, source } from "../lib/links";
 
-const steps = [
-  {
-    title: "Install Bun 1.4.2",
-    body: "airtty runs on Bun, on macOS and Linux. The version is pinned in .bun-version.",
-    lines: ["curl -fsSL https://bun.sh/install | bash -s bun-v1.4.2"],
-  },
-  {
-    title: "Clone and install",
-    body: "One lockfile for the framework and every example.",
-    lines: [`git clone ${repo}`, "cd airtty && bun install --frozen-lockfile"],
-  },
-  {
-    title: "Run an example, then slow it down",
-    body: "Notes starts with bun run dev. Add half a second to every request and keep typing.",
-    lines: ["bun run forge", "AIRTTY_LATENCY_MS=500 bun run forge"],
-  },
-  {
-    title: "Start your own app",
-    body: "One app/ folder with pages, components, actions and server code. No manifest, no RPC.",
-    lines: ["bun packages/airtty/src/cli.ts init ../my-app", "cd ../my-app && bun install && bun run dev"],
-  },
-];
-
-const docs = [
-  ["ARCHITECTURE.md", "Architecture"],
-  ["API.md", "API"],
-  ["ROUTER.md", "Routing"],
-  ["DISTRIBUTION.md", "Distribution"],
-  ["EMBEDDING.md", "Embedding and sandbox"],
-  ["DEVTOOLS.md", "DevTools"],
-];
+const EDIT = "examples/notes/components/NoteList.tsx";
 ---
 
 <section class="section" id="start" aria-labelledby="start-title">
   <div class="wrap">
     <div class="section-head">
-      <p class="label">get started</p>
-      <h2 id="start-title">Get started in four steps.</h2>
-      <p class="lede">The documentation lives next to the code, in French for now.</p>
+      <p class="label">start</p>
+      <h2 id="start-title">Start locally. Both sides run on your machine.</h2>
+      <p class="lede">
+        The same Notes as above, with every request half a second late. You need Bun 1.4.2, on macOS
+        or Linux.
+      </p>
     </div>
+
     <div class="transcript">
       <p class="bar" aria-hidden="true"><span><b>┤</b> ~ <b>├</b></span></p>
-      <ol class="steps">
-        {
-          steps.map((step, i) => (
-            <li>
-              <h3>
-                <span aria-hidden="true"># {i + 1} · </span>
-                {step.title}
-              </h3>
-              <p>
-                <span aria-hidden="true"># </span>
-                {step.body}
-              </p>
-              <CopyCommand lines={step.lines} plain />
-            </li>
-          ))
-        }
-      </ol>
+      <CopyCommand
+        lines={[
+          `git clone ${repo} && cd airtty`,
+          "bun install --frozen-lockfile",
+          "AIRTTY_LATENCY_MS=500 bun run dev",
+        ]}
+        plain
+      />
+      <p class="then">
+        <span aria-hidden="true"># </span>Now edit <a href={source(EDIT)}><code>{EDIT}</code></a>: change{" "}
+        <code>YOUR NOTES</code>, save, and the terminal rebuilds and reopens the same screen.
+      </p>
     </div>
-    <nav class="docs" aria-label="Documentation">
-      <span aria-hidden="true">docs/</span>
-      {docs.map(([file, label]) => <a href={doc(file!)}>{label}</a>)}
-    </nav>
+
+    <div class="next">
+      <a class="button primary" href="/docs/getting-started/">Build your first app</a>
+      <a class="button" href={repo}>Star on GitHub</a>
+    </div>
   </div>
 </section>
 
 <style>
-  /* One shell session, top to bottom: comments say what each command is for. */
+  /* One shell session: the commands, then what to do with them. */
   .transcript {
     position: relative;
-    padding: 22px clamp(14px, 3vw, 28px) 10px;
+    display: grid;
+    gap: 14px;
+    max-width: 900px;
+    padding: 24px clamp(14px, 3vw, 28px) 18px;
     border: 1px solid var(--rule-strong);
     border-radius: 4px;
     background: var(--panel);
@@ -97,49 +72,27 @@ const docs = [
     font-weight: 400;
   }
 
-  .steps {
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-
-  li {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    gap: 2px;
-    padding: 12px 0 14px;
-  }
-
-  li + li {
+  .then {
+    padding-top: 12px;
     border-top: 1px dashed var(--rule);
-  }
-
-  h3,
-  li > p {
     color: var(--mist);
-    font: 400 0.9rem / 1.6 var(--mono);
+    font: 400 0.88rem / 1.7 var(--mono);
   }
 
-  h3 {
-    color: var(--paper);
-    font-weight: 600;
-  }
-
-  h3 span,
-  li > p span {
+  .then > span {
     color: var(--dim);
   }
 
-  .docs {
+  .then code {
+    padding: 0;
+    background: none;
+    color: var(--paper);
+  }
+
+  .next {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px 20px;
-    margin-top: 28px;
-    color: var(--dim);
-    font: 400 0.9rem / 1.6 var(--mono);
-  }
-
-  .docs a {
-    color: var(--paper);
+    gap: 12px;
+    margin-top: 32px;
   }
 </style>

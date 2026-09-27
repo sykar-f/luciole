@@ -1,0 +1,428 @@
+---
+import { Code } from "astro:components";
+import type { ShikiTransformer } from "shiki";
+import { night } from "../lib/codeTheme";
+import { doc, source } from "../lib/links";
+// The real files of examples/notes, read at build time: the page cannot drift from them.
+import notePage from "../../../examples/notes/app/notes/[id]/page.tsx?raw";
+import actions from "../../../examples/notes/actions/notes.ts?raw";
+import editor from "../../../examples/notes/components/NoteEditor.tsx?raw";
+
+type Side = "client" | "server";
+/** From the line `from` matches, `count` lines, or through the line `to` matches. */
+type Cut = { from: RegExp; count?: number; to?: RegExp };
+type Excerpt = { path: string; side: Side; cuts: Cut[]; code: string };
+
+/**
+ * The lines of `code` the cuts pick, in order, with their line numbers in the file. A
+ * cut that no longer matches fails the build: the excerpt would silently say something
+ * else than the file.
+ */
+function excerpt({ path, cuts, code }: Excerpt) {
+  const lines = code.split("\n");
+  return cuts.map(({ from, count = 1, to }) => {
+    const start = lines.findIndex((line) => from.test(line));
+    if (start < 0) throw new Error(`${path}: no line matches ${from}`);
+    const end = to ? lines.findIndex((line, i) => i > start && to.test(line)) : start + count - 1;
+    if (end < start) throw new Error(`${path}: no line after ${start + 1} matches ${to}`);
+    return { line: start + 1, code: lines.slice(start, end + 1).join("\n") };
+  });
+}
+
+// The editor, in the terminal, calls the Server Function the page handed it; the page,
+// on the Server, reads the note and hands it over; the function saves it there.
+const client: Excerpt[] = [
+  {
+    path: "components/NoteEditor.tsx",
+    side: "client",
+    code: editor,
+    cuts: [
+      { from: /^"use client"/ },
+      { from: /^export function NoteEditor/ },
+      { from: /fields = useRestoredFields/, to: /saveAction\(snapshot\)/ },
+      { from: /onSubmit=\{send\}/ },
+    ],
+  },
+];
+const server: Excerpt[] = [
+  {
+    path: "app/notes/[id]/page.tsx",
+    side: "server",
+    code: notePage,
+    cuts: [{ from: /^export default async function Page/, to: /^\}/ }],
+  },
+  {
+    path: "actions/notes.ts",
+    side: "server",
+    code: actions,
+    cuts: [{ from: /^"use server"/ }, { from: /^export async function saveNote/, to: /^\}/ }],
+  },
+];
+
+// Colour the "use client" and "use server" lines with the side they put a file on.
+const directives: ShikiTransformer[] = [
+  {
+    name: "mark-directives",
+    line(node, line) {
+      const text = this.source.split("\n")[line - 1] ?? "";
+      if (text.startsWith('"use client"')) this.addClassToHast(node, "directive-client");
+      if (text.startsWith('"use server"')) this.addClassToHast(node, "directive-server");
+    },
+  },
+];
+
+// Where the same build opens, each command as docs/ gives it (README, DISTRIBUTION.md,
+// WEB.md). `airtty` is the CLI of a checkout: nothing is installed from a registry yet.
+const ways = [
+  ["airtty ./my-app", "both sides here, over a private Unix socket"],
+  ["airtty build --compile", "one executable per OS and architecture: notes, below"],
+  ["notes --on build-box", "its server on a host you reach over SSH, the client here"],
+  ["airtty https://notes.example.com", "the generic client, from the server's signed bundle"],
+  ["airtty build --web-local", "a static site, its server in a Web Worker: this page's demo"],
+];
+---
+
+<section class="section" id="code" aria-labelledby="code-title">
+  <div class="wrap">
+    <div class="section-head">
+      <p class="label">code</p>
+      <h2 id="code-title">React components. A server side.</h2>
+      <p class="lede">
+        Pages, layouts and Server Functions live in one <code>app/</code> folder; the file names will
+        look familiar if you know the Next.js App Router. <code>airtty build</code> splits it in two:
+        what reads your data stays on the <span class="server">server</span>, what reads your keyboard
+        ships to the terminal <span class="client">client</span>.
+      </p>
+    </div>
+
+    <figure class="parting" aria-label="Code of the Notes example, split between the client and the server">
+      {
+        [
+          { side: "client", title: "runs in your terminal", files: client },
+          { side: "server", title: "runs where your data lives", files: server },
+        ].map((half) => (
+          <div class:list={["half", `${half.side}-half`]}>
+            <p class="where">
+              <span class={half.side}>{half.side}</span> · {half.title}
+            </p>
+            {half.files.map((file) => (
+              <div class="file">
+                <a class="path" href={source(`examples/notes/${file.path}`)}>
+                  {file.path}
+                </a>
+                {excerpt(file).map((cut, i) => (
+                  <div class="cut">
+                    {i > 0 && (
+                      <p class="gap" aria-label={`from line ${cut.line}`}>
+                        ⋮
+                      </p>
+                    )}
+                    <Code code={cut.code} lang="tsx" theme={night} transformers={directives} />
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        ))
+      }
+      <p class="between" aria-hidden="true"><span>saveNote()</span><span>⇄ React tree</span></p>
+    </figure>
+
+    <div class="reach">
+      <h3>Local or remote. Terminal or browser.</h3>
+      <ul>
+        {
+          ways.map(([command, what]) => (
+            <li>
+              <code>
+                <span aria-hidden="true">$ </span>
+                {command}
+              </code>
+              <span class="what">
+                <span aria-hidden="true"># </span>
+                {what}
+              </span>
+            </li>
+          ))
+        }
+      </ul>
+      <p class="note">
+        In a checkout, <code>airtty</code> is <code>bun packages/airtty/src/cli.ts</code>: nothing is
+        published yet. How apps are shipped, and when an app you did not write runs confined: <a
+          href={doc("DISTRIBUTION.md")}>DISTRIBUTION.md</a
+        >, <a href={doc("EMBEDDING.md")}>EMBEDDING.md</a> (in French).
+      </p>
+    </div>
+  </div>
+</section>
+
+<style>
+  /* Two halves of one program that come apart as they scroll into view: the Client's code
+     to the left, the Server's to the right, and what travels between them in the middle.
+     The resting state is the parted one: without scroll-driven animations or with reduced
+     motion, it is shown. */
+  .parting {
+    --gap: 150px;
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: var(--gap);
+    margin: 0;
+    view-timeline: --parting block;
+  }
+
+  .half {
+    display: grid;
+    align-content: start;
+    gap: 14px;
+    min-width: 0;
+    padding: 16px 0 10px;
+    border-top: 2px solid;
+  }
+
+  .client-half {
+    border-top-color: var(--client);
+  }
+
+  .server-half {
+    border-top-color: var(--server);
+    border-top-style: var(--server-line);
+  }
+
+  .where {
+    color: var(--mist);
+    font: 400 var(--step--1) / 1.5 var(--mono);
+  }
+
+  .file {
+    border: 1px solid var(--rule);
+    background: var(--panel);
+  }
+
+  .path {
+    display: block;
+    padding: 8px 14px;
+    border-bottom: 1px solid var(--rule);
+    color: var(--paper);
+    font: 500 0.78rem / 1.5 var(--mono);
+    text-decoration: none;
+  }
+
+  .path:hover {
+    text-decoration: underline;
+  }
+
+  .gap {
+    padding: 0 14px;
+    color: var(--dim);
+    font: 400 0.75rem / 1.2 var(--mono);
+  }
+
+  .cut :global(pre) {
+    margin: 0;
+    padding: 8px 0;
+    background: transparent !important;
+    overflow-x: auto;
+    font: 400 0.78rem / 1.6 var(--mono);
+    font-variant-ligatures: none;
+    scrollbar-width: thin;
+    scrollbar-color: var(--rule-strong) transparent;
+  }
+
+  .cut :global(pre code) {
+    display: block;
+    width: max-content;
+    min-width: 100%;
+  }
+
+  .cut :global(.line) {
+    display: inline-block;
+    width: 100%;
+    padding: 0 14px;
+  }
+
+  .cut :global(.directive-client) {
+    background: var(--client-soft);
+    box-shadow: inset 2px 0 var(--client);
+  }
+
+  .cut :global(.directive-server) {
+    background: var(--server-soft);
+    box-shadow: inset 2px 0 var(--server);
+  }
+
+  /* What crosses between them: a call one way, a React tree the other. */
+  .between {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    display: grid;
+    gap: 6px;
+    width: calc(var(--gap) - 20px);
+    color: var(--mist);
+    font: 400 0.75rem / 1.4 var(--mono);
+    text-align: center;
+    transform: translate(-50%, -50%);
+  }
+
+  .between span:first-child {
+    color: var(--paper);
+  }
+
+  .between::before {
+    content: "";
+    position: absolute;
+    top: 50%;
+    right: 0;
+    left: 0;
+    z-index: -1;
+    border-top: 1px dashed var(--rule-strong);
+  }
+
+  .between span {
+    justify-self: center;
+    padding: 0 0.5ch;
+    background: var(--night);
+  }
+
+  @supports (animation-timeline: view()) {
+    .half,
+    .where,
+    .between {
+      animation-timing-function: linear;
+      animation-fill-mode: both;
+      animation-timeline: --parting;
+      animation-range: entry 70% cover 45%;
+    }
+
+    .client-half {
+      animation-name: from-right;
+    }
+
+    .server-half {
+      animation-name: from-left;
+    }
+
+    /* Each half names itself, and what travels shows, only once they stand apart. */
+    .where,
+    .between {
+      animation-name: appear;
+    }
+  }
+
+  @keyframes from-right {
+    from {
+      border-top-color: var(--rule-strong);
+      transform: translateX(calc(var(--gap) / 2));
+    }
+  }
+
+  @keyframes from-left {
+    from {
+      border-top-color: var(--rule-strong);
+      transform: translateX(calc(var(--gap) / -2));
+    }
+  }
+
+  @keyframes appear {
+    from,
+    60% {
+      opacity: 0;
+    }
+  }
+
+  /* Where it opens: a few lines of a shell, not a section of its own. */
+  .reach {
+    display: grid;
+    gap: 14px;
+    margin-top: clamp(40px, 5vw, 64px);
+    padding-top: 22px;
+    border-top: 1px solid var(--rule);
+  }
+
+  .reach h3 {
+    font-size: var(--step-2);
+  }
+
+  .reach ul {
+    display: grid;
+    gap: 4px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font: 400 0.85rem / 1.6 var(--mono);
+  }
+
+  .reach li {
+    display: grid;
+    grid-template-columns: minmax(0, 34ch) minmax(0, 1fr);
+    gap: 0 24px;
+  }
+
+  .reach li code {
+    padding: 0;
+    background: none;
+    color: var(--paper);
+    overflow-wrap: anywhere;
+  }
+
+  .reach li code span,
+  .what span {
+    color: var(--dim);
+  }
+
+  .what {
+    color: var(--mist);
+  }
+
+  .note {
+    color: var(--mist);
+    font-size: 0.88rem;
+  }
+
+  @media (max-width: 760px) {
+    .reach li {
+      grid-template-columns: 1fr;
+      padding-bottom: 6px;
+    }
+  }
+
+  @media (max-width: 860px) {
+    /* Too narrow to part: one half above the other, and what travels between them. */
+    .parting {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 56px;
+    }
+
+    .half,
+    .where,
+    .between {
+      animation: none;
+    }
+
+    .between {
+      position: static;
+      grid-row: 2;
+      justify-self: center;
+      width: auto;
+      margin: -40px 0;
+      transform: none;
+    }
+
+    .between::before {
+      display: none;
+    }
+
+    .server-half {
+      grid-row: 3;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .half,
+    .where,
+    .between {
+      animation: none;
+    }
+  }
+</style>

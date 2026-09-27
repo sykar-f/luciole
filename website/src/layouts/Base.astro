@@ -16,11 +16,18 @@ interface Props {
   title: string;
   description: string;
   lang?: string;
+  /** The picture a link to the page shows when shared: public/og.png, 1200 by 630. */
+  image?: string;
+  /** Kept out of search results (the og card's own page). */
+  hidden?: boolean;
 }
 
-const { title, description, lang = "en" } = Astro.props;
+const { title, description, lang = "en", image = "/og.png", hidden = false } = Astro.props;
 // Trying palettes is for the dev server, or for a build opened with ?palettes.
 const dev = import.meta.env.DEV;
+// Social cards want an absolute URL; `site` is still the repository (no domain decided
+// yet), so until it is one, the picture's path.
+const card = Astro.site && !Astro.site.hostname.endsWith("github.com") ? new URL(image, Astro.site).href : image;
 ---
 
 <!doctype html>
@@ -31,6 +38,12 @@ const dev = import.meta.env.DEV;
     <meta name="description" content={description} />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content={card} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    {hidden && <meta name="robots" content="noindex" />}
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <meta name="theme-color" />
     <title>{title}</title>
