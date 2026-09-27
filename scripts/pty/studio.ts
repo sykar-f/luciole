@@ -30,7 +30,11 @@ const BOOT_TIMEOUT_MS = 90_000;
 const TIMEOUT_MS = 60_000;
 const EXIT_TIMEOUT_MS = 10_000;
 const PROCESS_EXIT_TIMEOUT_MS = 8000;
-const WRITE_MS = 3000;
+// Room for each draft to build and draw before the next write: a Client in `process` mode
+// takes 1.4–1.6 s to draw its first screen, one in the sandbox a few hundred ms.
+const WRITE_MS = { sandbox: 3000, process: 6000 } as const;
+// A Client that just drew its first screen, given a moment before it is sent keys.
+const FIRST_KEYS_MS = 500;
 // A restored scroll position waits for the list's rows: a moment after the page shows.
 const KEPT_MS = 5000;
 // Side by side at 160 columns, the preview's frame starts here: the transcript (which
@@ -38,7 +42,7 @@ const KEPT_MS = 5000;
 const PREVIEW_COLUMN = 80;
 
 /** studio on its scripted generator, in a project of its own. */
-async function launch(name: string, args: readonly string[] = []) {
+async function launch(mode: keyof typeof WRITE_MS) {
   const directory = temporaryDirectory("airtty-studio-");
   const project = join(directory.path, "demo");
   const t = await drive({
@@ -53,7 +57,8 @@ async function launch(name: string, args: readonly string[] = []) {
       "fake",
       "--dir",
       project,
-      ...args,
+      "--preview",
+      mode,
     ],
     cols: 160,
     rows: 44,
@@ -62,8 +67,7 @@ async function launch(name: string, args: readonly string[] = []) {
       XDG_STATE_HOME: join(directory.path, "state"),
       XDG_DATA_HOME: join(directory.path, "data"),
       STUDIO_FAKE_DELAY_MS: "5",
-      // Room for each draft to build and show before the next write.
-      STUDIO_FAKE_WRITE_MS: String(WRITE_MS),
+      STUDIO_FAKE_WRITE_MS: String(WRITE_MS[mode]),
     },
     settle: 300,
   });
@@ -72,7 +76,7 @@ async function launch(name: string, args: readonly string[] = []) {
   const frame = async (step: string) => {
     if (!FRAMES) return;
     mkdirSync(FRAMES, { recursive: true });
-    await Bun.write(join(FRAMES, `${name}-${step}.txt`), await t.snapshot());
+    await Bun.write(join(FRAMES, `${mode}-${step}.txt`), await t.snapshot());
   };
   const wait = (needle: string | RegExp) => t.waitFor(needle, { timeout: TIMEOUT_MS });
   const waitShown = (needle: string | RegExp) =>
@@ -152,6 +156,7 @@ async function guestbook(studio: Studio, base: number) {
   await wait(`Revision ${added} built and running.`);
   await wait(new RegExp(` ${added} · (sandbox|process) `));
   await waitShown("g: the guestbook");
+  await t.pause(FIRST_KEYS_MS);
 
   // In the app: the guestbook page, a name, then a message, the list scrolled by a page.
   await keys();
@@ -239,7 +244,7 @@ const sandboxDrafts = await guestbook(studio, 3);
 await studio.quit();
 
 // The same with the Clients unconfined: each one reopens the project's session by its id.
-await using unconfined = await launch("process", ["--preview", "process"]);
+await using unconfined = await launch("process");
 await unconfined.t.waitFor("describe the app you want", { timeout: BOOT_TIMEOUT_MS });
 await unconfined.wait(/ r0 · process /);
 const processDrafts = await guestbook(unconfined, 0);
