@@ -15,14 +15,42 @@ const links = [
     <a class="mark" href="#top" aria-label="airtty, back to top">
       air<span class="tty">tty</span>
     </a>
-    <nav aria-label="Sections">
-      <ul>
+    <nav aria-label="Sections" data-menu>
+      <button type="button" class="toggle" aria-expanded="false" aria-controls="sections" data-menu-toggle>
+        menu
+      </button>
+      <ul id="sections">
         {links.map(([href, label]) => <li><a href={href}>{label}</a></li>)}
       </ul>
     </nav>
     <a class="repo" href={repo}>GitHub</a>
   </div>
 </header>
+
+<script>
+  // Below 860 px the sections fold behind one button: open on click, closed by Escape,
+  // by a click elsewhere or by following a link.
+  const nav = document.querySelector<HTMLElement>("[data-menu]");
+  const toggle = nav?.querySelector<HTMLButtonElement>("[data-menu-toggle]");
+  if (nav && toggle) {
+    const set = (open: boolean) => {
+      toggle.setAttribute("aria-expanded", String(open));
+      nav.classList.toggle("open", open);
+    };
+    const isOpen = () => toggle.getAttribute("aria-expanded") === "true";
+    toggle.addEventListener("click", () => set(!isOpen()));
+    nav.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape" || !isOpen()) return;
+      set(false);
+      toggle.focus();
+    });
+    for (const link of nav.querySelectorAll("a")) link.addEventListener("click", () => set(false));
+    document.addEventListener("pointerdown", (event) => {
+      if (event.target instanceof Node && !nav.contains(event.target)) set(false);
+    });
+    matchMedia("(min-width: 861px)").addEventListener("change", () => set(false));
+  }
+</script>
 
 <style>
   .header {
@@ -81,9 +109,76 @@ const links = [
     border-color: var(--mist);
   }
 
+  .toggle {
+    display: none;
+  }
+
   @media (max-width: 860px) {
     nav {
+      position: relative;
+    }
+
+    .toggle {
+      display: inline-flex;
+      gap: 1ch;
+      padding: 6px 10px;
+      border: 1px solid var(--rule-strong);
+      background: none;
+      color: var(--paper);
+      font: 400 0.85rem / 1.4 var(--mono);
+      cursor: pointer;
+    }
+
+    .toggle::before {
+      content: "[" / "";
+      color: var(--dim);
+    }
+
+    .toggle::after {
+      content: "]" / "";
+      color: var(--dim);
+    }
+
+    .open .toggle {
+      border-color: var(--mist);
+    }
+
+    /* The list drops under the header as a terminal menu: ruled, one entry a line. */
+    ul {
+      position: absolute;
+      top: calc(100% + 13px);
+      left: 0;
       display: none;
+      flex-direction: column;
+      gap: 0;
+      min-width: 22ch;
+      padding: 6px 0;
+      border: 1px solid var(--rule-strong);
+      background: var(--night);
+    }
+
+    .open ul {
+      display: flex;
+    }
+
+    ul a {
+      display: block;
+      padding: 10px 16px;
+      font-size: 0.95rem;
+    }
+
+    ul a::before {
+      content: "› " / "";
+      color: var(--dim);
+    }
+
+    ul a:hover,
+    ul a:focus-visible {
+      background: var(--night-raised);
+    }
+
+    ul a:focus-visible {
+      outline-offset: -2px;
     }
   }
 </style>
