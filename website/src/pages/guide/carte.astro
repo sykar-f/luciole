@@ -245,13 +245,13 @@ const areas: { name: string; tone: string; chapter: string; files: [string, stri
     border: 1px solid var(--rule);
     border-top: 2px solid var(--tone);
     border-radius: 4px;
-    background: rgb(255 255 255 / 0.015);
+    background: color-mix(in srgb, var(--paper) 1.5%, transparent);
     text-decoration: none;
     transition: background 0.2s;
   }
 
   .area:hover {
-    background: rgb(255 255 255 / 0.04);
+    background: color-mix(in srgb, var(--paper) 4%, transparent);
   }
 
   .area-name {
@@ -279,7 +279,7 @@ const areas: { name: string; tone: string; chapter: string; files: [string, stri
 
   .tone-client { --tone: var(--client); --tone-text: var(--client); }
   .tone-server { --tone: var(--server); --tone-text: var(--server); }
-  .tone-wire { --tone: #a9b8ff; --tone-text: #a9b8ff; }
-  .tone-build { --tone: #c9a8ff; --tone-text: #c9a8ff; }
+  .tone-wire { --tone: var(--wire); --tone-text: var(--wire); }
+  .tone-build { --tone: var(--build); --tone-text: var(--build); }
   .tone-neutral { --tone: var(--rule-strong); }
 </style>

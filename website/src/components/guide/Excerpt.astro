@@ -59,7 +59,7 @@ const transformers: ShikiTransformer[] = [
     border: 1px solid var(--rule);
     border-bottom: 0;
     border-radius: 4px 4px 0 0;
-    background: rgb(255 255 255 / 0.03);
+    background: color-mix(in srgb, var(--paper) 3%, transparent);
     font: 400 0.75rem / 1.5 var(--mono);
     box-shadow: inset 3px 0 0 var(--tone);
   }
@@ -79,8 +79,8 @@ const transformers: ShikiTransformer[] = [
 
   .tone-client { --tone: var(--client); }
   .tone-server { --tone: var(--server); }
-  .tone-wire { --tone: #a9b8ff; }
-  .tone-build { --tone: #c9a8ff; }
+  .tone-wire { --tone: var(--wire); }
+  .tone-build { --tone: var(--build); }
   .tone-neutral { --tone: var(--rule-strong); }
 
   .excerpt :global(pre) {
@@ -88,7 +88,7 @@ const transformers: ShikiTransformer[] = [
     padding: 12px 0;
     border: 1px solid var(--rule);
     border-radius: 0 0 4px 4px;
-    background: #070604 !important;
+    background: var(--code-bg) !important;
     overflow-x: auto;
     font: 400 0.8rem / 1.65 var(--term);
     font-variant-ligatures: none;
@@ -113,7 +113,7 @@ const transformers: ShikiTransformer[] = [
   }
 
   .excerpt :global(.marked) {
-    background: linear-gradient(90deg, rgb(255 255 255 / 0.07), transparent 80%);
+    background: linear-gradient(90deg, color-mix(in srgb, var(--paper) 7%, transparent), transparent 80%);
     box-shadow: inset 2px 0 var(--tone);
   }
 </style>

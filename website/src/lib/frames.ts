@@ -62,9 +62,16 @@ export function escape(text: string) {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-/** The terminal's default colours, as the live demos set them (LiveTerminal.astro). */
-export const SCREEN_BACKGROUND = "#070604";
-export const SCREEN_FOREGROUND = "#e8e1cf";
+/**
+ * Stand-ins, in the bytes built here, for colours the palette decides in the page: the
+ * screen's own background and text (a reversed cell takes them), and the afterglow of a
+ * freshly written cell, hot then warm. LiveTerminal.astro puts the palette's in with
+ * `recolor` before writing. No application sends these values.
+ */
+export const SCREEN_BACKGROUND = "#010203";
+export const SCREEN_FOREGROUND = "#010204";
+export const GLOW_HOT = "#010205";
+export const GLOW_WARM = "#010206";
 
 const HEX = 16;
 /** Where red, green and blue start in `#rrggbb`. */

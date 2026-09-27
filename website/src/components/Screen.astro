@@ -134,8 +134,8 @@ const html = frame.cells
     inset: 0;
     z-index: 1;
     background:
-      radial-gradient(130% 120% at 50% 50%, transparent 62%, rgb(0 0 0 / 0.45)),
-      repeating-linear-gradient(to bottom, rgb(0 0 0 / 0.16) 0 1px, transparent 1px 3px);
+      radial-gradient(130% 120% at 50% 50%, transparent 62%, var(--vignette)),
+      repeating-linear-gradient(to bottom, var(--scanline) 0 1px, transparent 1px 3px);
     pointer-events: none;
   }
 
@@ -193,17 +193,17 @@ const html = frame.cells
   }
 
   .region.client {
-    background: var(--client-soft);
+    background: var(--screen-client-soft);
     box-shadow:
-      inset 0 0 0 1px var(--client),
-      0 0 18px rgb(51 255 153 / 0.3);
+      inset 0 0 0 1px var(--screen-client),
+      0 0 calc(var(--glow-blur) * 3) color-mix(in srgb, var(--screen-client) 30%, transparent);
   }
 
   .region.server {
-    background: var(--server-soft);
+    background: var(--screen-server-soft);
     box-shadow:
-      inset 0 0 0 1px var(--server),
-      0 0 18px rgb(255 176 0 / 0.3);
+      inset 0 0 0 1px var(--screen-server),
+      0 0 calc(var(--glow-blur) * 3) color-mix(in srgb, var(--screen-server) 30%, transparent);
   }
 
   .region.lit {

@@ -33,7 +33,7 @@ const { items } = Astro.props;
     margin-top: 10px;
     border: 1px solid var(--rule);
     border-radius: 4px;
-    background: rgb(255 255 255 / 0.015);
+    background: color-mix(in srgb, var(--paper) 1.5%, transparent);
   }
 
   details[open] {
@@ -61,7 +61,7 @@ const { items } = Astro.props;
 
   .answer {
     padding: 0 16px 14px 52px;
-    color: #cbc4b1;
+    color: var(--prose);
     font-size: 0.94rem;
   }
 

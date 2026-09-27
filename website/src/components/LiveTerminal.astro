@@ -9,8 +9,7 @@
 // it as over a picture. The capture's HTML drawing stays for narrow screens, where
 // nothing starts, and for readers without scripts.
 import Screen from "./Screen.astro";
-import { ansi, lines, patch, SCREEN_BACKGROUND, SCREEN_FOREGROUND, type Frame } from "../lib/frames";
-import { dim, strength } from "../lib/afterglow";
+import { ansi, GLOW_HOT, GLOW_WARM, lines, patch, type Frame } from "../lib/frames";
 
 /**
  * Wait until the screen shows `wait`, then type `type` into it as a keyboard would, then
@@ -56,29 +55,23 @@ const {
   afterglow = false,
 } = Astro.props;
 
-// The capture's own colours (--screen, --screen-fg): both terminals take them.
+// The screen's colours (--screen, --screen-fg) are the palette's: added when it starts.
 const look = new URLSearchParams({
   columns: String(frame.cols),
   rows: String(frame.rows),
-  background: SCREEN_BACKGROUND.slice(1),
-  foreground: SCREEN_FOREGROUND.slice(1),
   ...(restore ? {} : { restore: "off" }),
 });
 // index.html by name: Astro's dev server serves no directory index from public/.
 const src = `/demo/${demo}/index.html?${look}`;
 
-// The afterglow of a written cell, hot then fading: the green of what the terminal draws.
-const HOT = "#145c39";
-const WARM = "#0a2a1b";
+// Each written cell glows, hot then warm: the palette's --afterglow, put in by `recolor`
+// and dimmed there by the share of cells the screen rewrites (lib/afterglow.ts).
 const sequence = [...intro, frame];
 const total = frame.cols * frame.rows;
-// Each screen's glow dims with the share of cells it rewrites (lib/afterglow.ts).
 const frames = sequence.map((next, i) => {
   const before = sequence[i - 1] ?? null;
   const { ansi, cells } = patch(before, next);
-  const glow = [HOT, WARM].map(
-    (tint) => patch(before, next, dim(tint, SCREEN_BACKGROUND, strength(cells, total))).ansi,
-  );
+  const glow = [GLOW_HOT, GLOW_WARM].map((tint) => patch(before, next, tint).ansi);
   return { glow, ansi, cells };
 });
 const count = (cells: number) =>
@@ -93,8 +86,6 @@ const stand = JSON.stringify({
   lines: lines(frame),
   columns: frame.cols,
   rows: frame.rows,
-  background: SCREEN_BACKGROUND,
-  foreground: SCREEN_FOREGROUND,
   intro: intro.length ? frames : [],
   total,
 }).replaceAll("<", "\\u003c");
@@ -142,6 +133,7 @@ const stand = JSON.stringify({
 <script>
   import * as z from "zod/mini";
   import { strength } from "../lib/afterglow";
+  import { recolor, screenColours } from "../lib/recolor";
   import { Terminal } from "@xterm/xterm";
   import { FitAddon } from "@xterm/addon-fit";
   import "@xterm/xterm/css/xterm.css";
@@ -156,8 +148,6 @@ const stand = JSON.stringify({
     lines: z.array(z.string()),
     columns: z.number(),
     rows: z.number(),
-    background: z.string(),
-    foreground: z.string(),
     intro: z.array(z.object({ glow: z.array(z.string()), ansi: z.string(), cells: z.number() })),
     total: z.number(),
   });
@@ -230,11 +220,11 @@ const stand = JSON.stringify({
     await Promise.all(screen?.getAnimations().map((animation) => animation.finished) ?? []);
     for (const [i, step] of steps.entries()) {
       hud(root, `frame ${i + 1}/${steps.length}`, count(step.cells, total));
-      await write(step.glow[0] ?? "");
+      await write(recolor(step.glow[0] ?? "", step.cells, total));
       await sleep(HOT_MS);
-      await write(step.glow[1] ?? "");
+      await write(recolor(step.glow[1] ?? "", step.cells, total));
       await sleep(WARM_MS);
-      await write(step.ansi);
+      await write(recolor(step.ansi));
       if (i < steps.length - 1) await sleep(HOLD_MS);
     }
   }
@@ -255,14 +245,18 @@ const stand = JSON.stringify({
     const layer = root.querySelector<HTMLElement>(".layer");
     const parsed = standOf(root);
     if (!layer || !parsed.success) return;
-    const { ansi, columns, rows, background, foreground, intro, total } = parsed.data;
+    const { ansi, columns, rows, intro, total } = parsed.data;
+    const theme = () => {
+      const { background, foreground } = screenColours();
+      return { background, foreground };
+    };
     const holder = document.createElement("div");
     holder.className = "stand";
     holder.setAttribute("aria-hidden", "true");
     layer.prepend(holder);
     const terminal = new Terminal({
       fontFamily: FONTS,
-      theme: { background, foreground },
+      theme: theme(),
       disableStdin: true,
       cursorInactiveStyle: "none",
     });
@@ -299,10 +293,17 @@ const stand = JSON.stringify({
         return;
       }
       // Written, then painted: the next frame shows it.
-      terminal.write(ansi, () => requestAnimationFrame(() => drawn()));
+      terminal.write(recolor(ansi), () => requestAnimationFrame(() => drawn()));
     };
     layout();
     new ResizeObserver(layout).observe(holder);
+    // Another palette: the stand-in takes its screen colours and draws the capture again.
+    // A running application keeps the ones it started with.
+    document.addEventListener("palette", async () => {
+      await introduced.get(root);
+      terminal.options.theme = theme();
+      if (written) terminal.write(recolor(ansi));
+    });
   }
 
   /** The rows xterm.js draws into the frame's DOM (same origin), as the capture's `lines`. */
@@ -466,7 +467,12 @@ const stand = JSON.stringify({
 
     const frame = document.createElement("iframe");
     frame.title = "An airtty application running in this page";
-    frame.src = root.dataset.src ?? "";
+    // The screen's colours of the palette in use, as the stand-in took them.
+    const src = new URL(root.dataset.src ?? "", location.href);
+    const { background, foreground } = screenColours();
+    src.searchParams.set("background", background.slice(1));
+    src.searchParams.set("foreground", foreground.slice(1));
+    frame.src = src.href;
     frame.allow = "clipboard-write";
     frame.tabIndex = -1;
     void ready.then(() => signal.aborted || layer.insertBefore(frame, take));
@@ -645,8 +651,8 @@ const stand = JSON.stringify({
 
   .glows :global(i) {
     position: absolute;
-    background: rgb(51 255 153 / 0.4);
-    box-shadow: 0 0 10px rgb(51 255 153 / 0.5);
+    background: color-mix(in srgb, var(--afterglow) 40%, transparent);
+    box-shadow: 0 0 calc(var(--glow-blur) * 1.6) color-mix(in srgb, var(--afterglow) 50%, transparent);
     mix-blend-mode: screen;
     opacity: var(--glow, 1);
     animation: afterglow var(--glow-ms, 0.45s) ease-out forwards;
@@ -664,9 +670,9 @@ const stand = JSON.stringify({
     right: 14px;
     z-index: 2;
     padding: 4px 10px;
-    border: 1px solid var(--client);
+    border: 1px solid var(--screen-client);
     background: var(--screen);
-    color: var(--client);
+    color: var(--screen-client);
     font: 500 0.75rem / 1.2 var(--mono);
   }
 

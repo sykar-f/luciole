@@ -179,11 +179,11 @@ const rows = messages.map((message, i) => {
 
 <style>
   svg {
-    --t-client: #33ff99;
-    --t-server: #ffb000;
-    --t-wire: #a9b8ff;
-    --t-build: #c9a8ff;
-    --t-neutral: #a39c88;
+    --t-client: var(--client);
+    --t-server: var(--server);
+    --t-wire: var(--wire);
+    --t-build: var(--build);
+    --t-neutral: var(--mist);
   }
 
   .head {
@@ -191,13 +191,13 @@ const rows = messages.map((message, i) => {
   }
 
   .head-label {
-    fill: #e8e1cf;
+    fill: var(--paper);
     font-size: 12.5px;
     font-weight: 600;
   }
 
   .head-sub {
-    fill: #968f7b;
+    fill: var(--dim);
     font-size: 10.5px;
   }
 
@@ -216,7 +216,7 @@ const rows = messages.map((message, i) => {
   }
 
   .label {
-    fill: #d8d1be;
+    fill: var(--prose);
     font-size: 11.5px;
   }
 
@@ -226,24 +226,24 @@ const rows = messages.map((message, i) => {
 
   .badge {
     stroke-width: 1.2;
-    fill: #14120c !important;
+    fill: var(--night-raised) !important;
   }
 
   .badge-n {
-    fill: #e8e1cf;
+    fill: var(--paper);
     font-size: 10px;
     font-weight: 600;
   }
 
   .phase {
-    fill: #8a8472;
+    fill: var(--dim);
     font-size: 10px;
     letter-spacing: 0.08em;
     text-transform: uppercase;
   }
 
   .phase-rule {
-    stroke: rgb(255 255 255 / 0.06);
+    stroke: color-mix(in srgb, var(--paper) 6%, transparent);
   }
 
   .stroke-client { stroke: var(--t-client); }
@@ -256,9 +256,9 @@ const rows = messages.map((message, i) => {
   .fill-wire { fill: var(--t-wire); }
   .fill-build { fill: var(--t-build); }
   .fill-neutral { fill: var(--t-neutral); }
-  .tone-client { stroke: var(--t-client); fill: rgb(51 255 153 / 0.09); }
-  .tone-server { stroke: var(--t-server); fill: rgb(255 176 0 / 0.09); }
-  .tone-wire { stroke: var(--t-wire); fill: rgb(169 184 255 / 0.09); }
-  .tone-build { stroke: var(--t-build); fill: rgb(201 168 255 / 0.09); }
-  .tone-neutral { stroke: var(--t-neutral); fill: rgb(163 156 136 / 0.07); }
+  .tone-client { stroke: var(--t-client); fill: color-mix(in srgb, var(--client) 9%, transparent); }
+  .tone-server { stroke: var(--t-server); fill: color-mix(in srgb, var(--server) 9%, transparent); }
+  .tone-wire { stroke: var(--t-wire); fill: color-mix(in srgb, var(--wire) 9%, transparent); }
+  .tone-build { stroke: var(--t-build); fill: color-mix(in srgb, var(--build) 9%, transparent); }
+  .tone-neutral { stroke: var(--t-neutral); fill: color-mix(in srgb, var(--mist) 7%, transparent); }
 </style>

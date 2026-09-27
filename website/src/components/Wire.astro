@@ -118,12 +118,19 @@ const faults = [
    */
   function scope(canvas: HTMLCanvasElement) {
     const context = canvas.getContext("2d");
-    const style = getComputedStyle(document.documentElement);
-    const color = (name: string) => style.getPropertyValue(name).trim();
-    const client = color("--client");
-    const server = color("--server");
-    const fault = color("--fault");
-    const grid = color("--rule");
+    // The screen's colours of the palette, read again when it changes (the "palette" event).
+    const read = () => {
+      const style = getComputedStyle(document.documentElement);
+      const token = (name: string) => style.getPropertyValue(name).trim();
+      return {
+        client: token("--screen-client"),
+        server: token("--screen-server"),
+        fault: token("--screen-fault"),
+        grid: token("--screen-rule"),
+        blur: Number.parseFloat(token("--glow-blur")) || 0,
+      };
+    };
+    let { client, server, fault, grid, blur } = read();
     const keys: number[] = [];
     const requests = new Map<number, { from: number; to?: number; failed?: boolean }>();
     const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -159,7 +166,7 @@ const faults = [
       const trace = (stroke: string, path: () => void) => {
         context.strokeStyle = stroke;
         context.shadowColor = stroke;
-        context.shadowBlur = 6;
+        context.shadowBlur = blur;
         context.lineWidth = 1.5;
         context.beginPath();
         path();
@@ -223,6 +230,10 @@ const faults = [
       requestAnimationFrame(frame);
     };
     new ResizeObserver(() => draw(performance.now())).observe(canvas);
+    document.addEventListener("palette", () => {
+      ({ client, server, fault, grid, blur } = read());
+      draw(performance.now());
+    });
     return {
       key: () => {
         keys.push(performance.now());
@@ -442,8 +453,8 @@ const faults = [
     position: absolute;
     inset: 0;
     background:
-      radial-gradient(130% 140% at 50% 50%, transparent 60%, rgb(0 0 0 / 0.45)),
-      repeating-linear-gradient(to bottom, rgb(0 0 0 / 0.16) 0 1px, transparent 1px 3px);
+      radial-gradient(130% 140% at 50% 50%, transparent 60%, var(--vignette)),
+      repeating-linear-gradient(to bottom, var(--scanline) 0 1px, transparent 1px 3px);
     pointer-events: none;
   }
 

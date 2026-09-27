@@ -1,26 +1,13 @@
-/* Phosphor on warm black, and two accents with one meaning each, everywhere on the page:
-   green is what runs in the user's terminal (the Client), amber what runs on the Server.
-   Neither is ever decoration. Glow, scanlines and afterglow belong to the screens
-   (Screen.astro), never to the page around them. */
+/* Colours come from the palette (styles/palettes.css): phosphor by default. Two accents,
+   one meaning each, everywhere on the page: --client is what runs in the user's terminal,
+   --server what runs on the Server; neither is ever decoration. Glow, scanlines and
+   afterglow belong to the screens (Screen.astro), never to the page around them. */
 :root {
-  color-scheme: dark;
-
-  --night: #0b0a07;
-  --night-raised: #14120c;
-  --night-deep: #070604;
-  --rule: #2a2618;
-  --rule-strong: #3d3726;
-  --paper: #e8e1cf;
-  --mist: #a39c88;
-  /* The quietest text still reads at 5:1 on --night. */
-  --dim: #8a8472;
-  --client: #33ff99;
-  --client-soft: rgb(51 255 153 / 0.1);
-  --server: #ffb000;
-  --server-soft: rgb(255 176 0 / 0.1);
-  --fault: #ff4d3d;
-  --screen: #070604;
-  --screen-fg: #e8e1cf;
+  /* Derived from the palette, so a preset sets only its base colours. */
+  --client-soft: color-mix(in srgb, var(--client) 10%, transparent);
+  --server-soft: color-mix(in srgb, var(--server) 10%, transparent);
+  --screen-client-soft: color-mix(in srgb, var(--screen-client) 12%, transparent);
+  --screen-server-soft: color-mix(in srgb, var(--screen-server) 12%, transparent);
 
   /* Plex Mono speaks for the machine (titles, labels, code), Plex Sans for the reader.
      Captured cells keep JetBrains Mono: it draws every box and block glyph the apps send,
@@ -67,7 +54,7 @@ html {
 body {
   position: relative;
   margin: 0;
-  background: var(--night);
+  background: var(--night) var(--page-texture);
   color: var(--paper);
   font: 400 var(--step-0) / 1.6 var(--sans);
   overflow-x: clip;
@@ -136,7 +123,7 @@ kbd {
 }
 
 ::selection {
-  background: rgb(232 225 207 / 0.25);
+  background: color-mix(in srgb, var(--paper) 25%, transparent);
 }
 
 .wrap {
@@ -244,7 +231,7 @@ main {
 }
 
 .button.primary:hover {
-  background: #fff;
+  background: color-mix(in srgb, var(--paper) 85%, var(--night));
 }
 
 /* A panel: a ruled box, nothing raised. */

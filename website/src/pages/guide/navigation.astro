@@ -230,7 +230,7 @@ x-airtty-instance: <clé>             seulement pour une app dans un pane (chapi
     padding: 6px 0;
     border: 1px solid var(--rule);
     border-radius: 4px;
-    background: #070604;
+    background: var(--code-bg);
     list-style: none;
   }
 
@@ -248,14 +248,14 @@ x-airtty-instance: <clé>             seulement pour une app dans un pane (chapi
   .flight li.inner {
     margin-left: 22px;
     padding-left: 14px;
-    border-left: 2px solid rgb(255 176 0 / 0.45);
+    border-left: 2px solid color-mix(in srgb, var(--server) 45%, transparent);
   }
 
   .flight code {
     padding: 0;
     border: 0;
     background: none;
-    color: #e0d9c6;
+    color: var(--prose);
     font: 400 0.76rem / 1.6 var(--term);
     overflow-wrap: anywhere;
   }
