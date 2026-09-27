@@ -10,10 +10,11 @@
 import { test, expect } from "bun:test";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
-import { homedir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { connect as connectTcp } from "node:net";
 import { createTestRenderer } from "@opentui/core/testing";
+import { z } from "zod";
 import { build } from "../packages/airtty/src/build";
 import { Capabilities } from "../packages/airtty/src/capabilities";
 import { messageOf } from "../packages/airtty/src/guards";
@@ -40,6 +41,8 @@ import {
   sandboxRuntime,
 } from "../packages/airtty/src/sandbox/runtime";
 import { openSandbox } from "../packages/airtty/src/sandbox/spawn";
+import { confineServer } from "../packages/airtty/src/sandbox/server";
+import { startAppServer } from "../packages/airtty/src/dev/supervisor";
 import { spawnPty } from "../packages/airtty/src/vt/pty";
 import { VtTerminalRenderable } from "../packages/airtty/src/vt/gaps";
 import { launch, until } from "./helpers";
@@ -805,3 +808,84 @@ confined(
   },
   120_000,
 );
+
+/** A stand-in Server: listens on PORT, tries to leave its box, says how it went. */
+const ESCAPING_SERVER = (canary: string, outside: string, data: string, service: number) => `
+import { readFileSync, writeFileSync } from "node:fs";
+import { connect } from "node:net";
+const attempt = async (run) => { try { await run(); return "allowed"; } catch (e) { return e?.code ?? String(e); } };
+const dial = (port) => new Promise((done, fail) => { const s = connect(port, "127.0.0.1", () => { s.end(); done(); }); s.on("error", fail); });
+const server = Bun.serve({ hostname: "127.0.0.1", port: Number(process.env.PORT), fetch: async () => Response.json({
+  readOutside: await attempt(() => readFileSync(${JSON.stringify(canary)}, "utf8")),
+  writeOutside: await attempt(() => writeFileSync(${JSON.stringify(join(outside, "written"))}, "x")),
+  writeData: await attempt(() => writeFileSync(${JSON.stringify(join(data, "db"))}, "x")),
+  localService: await attempt(() => dial(${service})),
+  spawn: await attempt(() => Bun.spawnSync(["/bin/echo", "x"]).stdout.toString()),
+}) });
+console.log(JSON.stringify({ ready: true, port: server.port }));
+`;
+
+onMacOS("a confined Server listens on its port and nothing leaves its box", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "airtty-server-sandbox-"));
+  const outside = mkdtempSync(join(tmpdir(), "airtty-outside-"));
+  const data = join(dir, "data");
+  mkdirSync(join(dir, ".airtty/server"), { recursive: true });
+  mkdirSync(data);
+  const canary = join(outside, "canary");
+  writeFileSync(canary, "secret");
+  const service = createServer((socket) => socket.end("reached")).listen(0, "127.0.0.1");
+  await new Promise((done) => service.once("listening", done));
+  const address = service.address();
+  const servicePort = typeof address === "object" && address ? address.port : 0;
+  writeFileSync(
+    join(dir, ".airtty/server/index.js"),
+    ESCAPING_SERVER(canary, outside, data, servicePort),
+  );
+  const box = await confineServer({
+    mechanism: { kind: "seatbelt" },
+    runtime: sandboxRuntime(),
+    granted: NONE,
+    readable: [join(dir, ".airtty")],
+    writable: [data],
+  });
+  try {
+    const server = await startAppServer({
+      directory: dir,
+      env: box.env,
+      command: box.command,
+      stderr: () => {},
+    });
+    expect(server.port).toBe(box.port);
+    const Attempts = z.record(z.string(), z.string());
+    const { localService, ...attempts } = Attempts.parse(
+      await (await fetch(`http://127.0.0.1:${server.port}/`)).json(),
+    );
+    expect(attempts).toEqual({
+      readOutside: "EPERM",
+      writeOutside: "EPERM",
+      writeData: "allowed",
+      spawn: "EPERM",
+    });
+    expect(localService).toMatch(REFUSED);
+    await server.stop();
+  } finally {
+    await box.close();
+    service.close();
+    rmSync(dir, { recursive: true, force: true });
+    rmSync(outside, { recursive: true, force: true });
+  }
+});
+
+test("a Server is not confined where no mechanism can let it listen yet", async () => {
+  const refusal = await confineServer({
+    mechanism: { kind: "userns", landlockAbi: 8, launcher: "/nonexistent" },
+    runtime: sandboxRuntime(),
+    granted: NONE,
+    readable: [],
+    writable: [],
+  }).then(
+    () => "",
+    (error: unknown) => messageOf(error),
+  );
+  expect(refusal).toContain("needs Seatbelt");
+});
