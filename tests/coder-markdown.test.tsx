@@ -138,3 +138,19 @@ test("while it streams, the reply only grows and never shows a marker it will hi
   });
   expect(await settled(setup)).toBe(streamed);
 });
+
+test("a mouse drag selects the reply's text, markers hidden, for the OSC 52 copy", async () => {
+  const setup = await render(
+    <Markdown
+      content={"Some **bold** words.\n\n- a `code` item"}
+      streaming={false}
+      syntaxStyle={syntax}
+    />,
+  );
+  await settled(setup);
+  await act(async () => {
+    await setup.mockMouse.drag(0, 0, 20, 2);
+    await setup.renderOnce();
+  });
+  expect(setup.renderer.getSelection()?.getSelectedText()).toBe("Some bold words.\n- a code item");
+});
