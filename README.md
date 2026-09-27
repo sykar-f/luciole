@@ -85,15 +85,16 @@ AIRTTY_LATENCY_MS=500 bun run forge
 
 Other examples, run from the repository root:
 
-| Command                    | Example                                                      |
-| -------------------------- | ------------------------------------------------------------ |
-| `bun run dev`              | Notes: list, editor, SQLite on the Server                    |
-| `CHAT_DEMO=1 bun run chat` | AI chat with a scripted offline model (no API key)           |
-| `bun run files`            | File explorer of the current directory                       |
-| `bun run mdreader`         | Markdown reader for the `.md` files of the current directory |
-| `bun run mux`              | Local programs side by side, each on its own PTY             |
+| Command                     | Example                                                      |
+| --------------------------- | ------------------------------------------------------------ |
+| `bun run dev`               | Notes: list, editor, SQLite on the Server                    |
+| `CHAT_DEMO=1 bun run chat`  | AI chat with a scripted offline model (no API key)           |
+| `bun run files`             | File explorer of the current directory                       |
+| `bun run mdreader`          | Markdown reader for the `.md` files of the current directory |
+| `bun run mux`               | Local programs side by side, each on its own PTY             |
+| `bun run studio -- -H fake` | Describe an app, watch it written and running (scripted)     |
 
-The `chat`, `agent` and `coder` examples talk to real models or coding agents once
+The `chat`, `agent`, `coder` and `studio` examples talk to real models or coding agents once
 configured; see their READMEs in [`examples/`](examples/).
 
 ## Documentation
@@ -117,5 +118,5 @@ bun run verify    # types, lint, format, tests and build
 
 ## License
 
-[MIT](LICENSE). The `coder` example depends on `@anthropic-ai/claude-agent-sdk`, whose
+[MIT](LICENSE). The `coder` and `studio` examples depend on `@anthropic-ai/claude-agent-sdk`, whose
 license is not OSI-approved; see [docs/DEPENDENCIES.md](docs/DEPENDENCIES.md).

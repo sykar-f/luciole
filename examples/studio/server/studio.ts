@@ -10,6 +10,7 @@ import { join } from "node:path";
 import { z } from "zod";
 import { serialize } from "airtty/dev";
 import { Capabilities } from "airtty/sandbox";
+import type { Result } from "@airtty/harness/model";
 import { HarnessSession } from "@airtty/harness/session";
 import type {
   Diagnostic,
@@ -154,8 +155,10 @@ class Studio {
   }
 
   /** The user's message: a new request, so corrections start again from zero. */
-  async send(text: string) {
+  async send(text: string): Promise<Result> {
     await this.open();
+    // No isolation, no generation: nothing a model writes runs unconfined unless asked.
+    if (isolation) return { ok: false, error: this.previewError ?? isolation };
     this.validation = { ...this.validation, fixes: 0 };
     this.lastCorrection = "";
     const notes = this.pendingNotes.splice(0);

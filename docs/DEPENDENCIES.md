@@ -58,7 +58,7 @@ valeur facultative (`--resume [ID]`), clipanion est à l'abandon. Repli « achet
 cleye 2.7.0 (Standard Schema natif) ; évolution si des complétions shell sont voulues :
 @optique/core. Comparatif : `docs/coder/research/cli-args-report.md`.
 
-`@anthropic-ai/claude-agent-sdk` (paquet `packages/harness`, utilisé par coder) : sa licence n'est **pas** OSI
+`@anthropic-ai/claude-agent-sdk` (paquet `packages/harness`, utilisé par coder et studio) : sa licence n'est **pas** OSI
 (conditions commerciales d'Anthropic) ; l'exemple est personnel et non commercial. Le
 SDK embarque Claude Code par paquets de plateforme (`optionalDependencies`, ~225 Mo) :
 coder exécute toujours le `claude` de l'utilisateur (`pathToClaudeCodeExecutable`), donc
