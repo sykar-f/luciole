@@ -179,3 +179,8 @@ test("the policy refuses commands and writes outside the app, and leaves questio
   });
   expect(policy({ id: "q", openedAt: 0, kind: "question", questions: [] })).toBeUndefined();
 });
+
+test("the template passes studio's own guard: a harness editing it is never refused for it", () => {
+  const changes = new Map(Object.entries(TEMPLATE).filter(([file]) => /\.(ts|tsx)$/.test(file)));
+  expect(guard(changes)).toEqual([]);
+});
