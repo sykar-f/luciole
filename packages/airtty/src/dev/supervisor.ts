@@ -61,6 +61,8 @@ export async function linkFrameworkModules(directory: string, from: string) {
 export type AppServerOptions = {
   /** The application directory, built: its `.airtty/server/index.js` is started. */
   directory: string;
+  /** Where it was built instead (`build(directory, output)`): its `server/index.js`. */
+  output?: string;
   /** The Server's whole environment (`PORT` included). */
   env: NodeJS.ProcessEnv;
   /** Wraps the command, to start it confined (src/sandbox/server.ts). */
@@ -84,7 +86,7 @@ export async function startAppServer(options: AppServerOptions): Promise<AppServ
   const argv = [
     process.execPath,
     "--conditions=react-server",
-    join(options.directory, ".airtty/server/index.js"),
+    join(options.output ?? join(options.directory, ".airtty"), "server/index.js"),
   ];
   const [command, ...rest] = options.command?.(argv) ?? argv;
   if (!command) throw new Error("A Server needs a command");
