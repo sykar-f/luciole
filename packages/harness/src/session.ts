@@ -2,6 +2,7 @@ import {
   HARNESS_NAMES,
   type Capabilities,
   type Fields,
+  type FilePatch,
   type HarnessId,
   type Info,
   type Item,
@@ -89,6 +90,8 @@ export type HarnessSessionOptions = {
   policy?: (request: Request) => Response | undefined;
   /** A turn ended: studio validates what the harness wrote. */
   onTurnCompleted?: (status: "interrupted" | "failed" | "completed") => void;
+  /** The harness finished writing files, in the middle of a turn: studio previews them. */
+  onFilesWritten?: (files: readonly FilePatch[]) => void;
 };
 
 /**
@@ -310,6 +313,12 @@ export class HarnessSession {
             ? { ...event.item, output: clip(event.item.output) }
             : event.item,
         );
+        if (
+          event.type === "item.completed" &&
+          event.item.kind === "file_change" &&
+          event.item.status === "done"
+        )
+          this.options.onFilesWritten?.(event.item.files);
         return;
       case "item.delta": {
         const item = this.byId.get(event.id);
