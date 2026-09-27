@@ -59,7 +59,11 @@ Mesures (générateur scripté, macOS 26.6.2, machine chargée par d'autres sess
 parcours de bout en bout (`tests/studio.test.tsx`, trois prompts, une erreur de build et
 une page en échec corrigées, une annulation) prend ≈ 25 s ; la mesure de
 `scripts/studio/measure.ts --harness fake` donne 5/13 scénarios bons au premier essai et
-13/13 après au plus deux corrections (ce sont des fautes écrites exprès, pas un taux réel).
+13/13 après au plus deux corrections (ce sont des fautes écrites exprès, pas un taux réel). Rechargement après
+un tour (critère de l'étape 3 : moins de 3 s) : garde-fou, build, révision et Server
+confiné prêt en **1,5 s** de médiane sur 5 modifications, 3,6 s pour le premier build à
+froid (load ≈ 11) ; l'ouverture du Client confiné s'y ajoute (280–330 ms mesurés pour
+mdreader, EMBEDDING.md, étape 7).
 
 ## 1. Vision et périmètre
 
