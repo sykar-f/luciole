@@ -101,6 +101,20 @@ const { lines, label, plain = false } = Astro.props;
     padding: 2px 0;
   }
 
+  /* On a phone the button takes its own line: the commands keep the width. */
+  @media (max-width: 560px) {
+    .plain .head.bare {
+      position: static;
+      justify-content: flex-end;
+      margin-top: 4px;
+      transform: none;
+    }
+
+    .plain .head.bare + pre {
+      padding-right: 0;
+    }
+  }
+
   .line {
     display: block;
   }
