@@ -77,6 +77,14 @@ export const DEMOS: Record<string, { app: string; seed?: () => Promise<Seed> }> 
   },
   // No key can live in a static site: a scripted model answers, in the Server.
   chat: { app: "examples/chat", seed: async () => ({ env: { CHAT_DEMO: "1" } }) },
+  // coder's scripted harness: no binary to start and no model to ask, in the Server. The
+  // project path is the capture's (scripts/capture.py, CODER_CWD): the same header.
+  coder: {
+    app: "examples/coder",
+    seed: async () => ({
+      env: { CODER_HARNESS: "fake", CODER_CWD: "/home/ada/src/timers" },
+    }),
+  },
   // `airtty devtools --demo` with no bus: a page has no socket to listen on.
   devtools: {
     app: "packages/airtty/src/devtools/airtty-devtools",

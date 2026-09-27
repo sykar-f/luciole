@@ -41,7 +41,7 @@ pas du jour de la capture. Après un changement visible d'un exemple, relancer l
 
 Le hero fait tourner Forge dans la page : `airtty build --web-local` de `examples/forge`,
 Client et Server dans l'onglet (voir `docs/WEB.md`). `scripts/demo.ts` refait ce build
-pour chaque démo (`forge`, `notes`, `mdreader`, `chat`, `devtools`) et copie `.airtty/web/`
+pour chaque démo (`forge`, `notes`, `mdreader`, `chat`, `coder`, `devtools`) et copie `.airtty/web/`
 sans les source maps dans
 `public/demo/<app>/`, que Git ignore. Le runtime web, commun à toutes les applications, est
 publié une fois dans `public/demo/runtime/` : la première démo lancée met en cache les plus
@@ -62,8 +62,14 @@ l'aller-retour et la panne de la prochaine requête, et liste les vraies requêt
 galerie Examples (Forge, Chat, mdreader, DevTools, une seule vivante à la fois : l'onglet
 choisi). Chaque démo trouve autour d'elle ce que `scripts/demo.ts` écrit dans
 `server-seed.json` : un environnement (`CHAT_DEMO=1`, `MD_PATH=/docs`…) et, pour mdreader,
-les documents du dépôt en lecture seule. Files et mux restent au terminal : une
-bibliothèque d'images native pour l'un, des PTY pour l'autre.
+les documents du dépôt en lecture seule. coder (« Coding-agent interface ») reçoit
+`CODER_HARNESS=fake` : aucun appel de modèle, et sa ligne d'état le dit elle-même
+(« Scripted demo · no model calls »). Son script de page : attendre `Message…`, taper le
+prompt de `DEMO_PROMPT` (examples/coder/server/adapters/fake.ts) puis `\r`, attendre
+`allow once`, taper `y`, attendre `Your turn: ask for the next change.`, l'écran de
+`src/frames/coder.json` (scène `coder` de `scripts/capture.py`, même prompt).
+Files et mux restent au terminal : une bibliothèque d'images native pour l'un, des PTY
+pour l'autre.
 
 La page lit aussi les sources de `examples/notes` à la compilation (`?raw`) : le code
 montré dans « One codebase. Two programs. » est celui du dépôt.

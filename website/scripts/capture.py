@@ -291,6 +291,26 @@ def chat(directory):
         term.stop()
 
 
+# The live demo's scripted session (scripts/demo.ts, examples/coder/server/adapters/fake.ts):
+# the same project path on both screens, the same prompt, the same approval.
+CODER_CWD = "/home/ada/src/timers"
+CODER_PROMPT = 'parseDuration("abc") returns NaN: make it throw a clear error, then run its tests'
+
+
+def coder(directory):
+    term = dev("coder", {"CODER_HARNESS": "fake", "CODER_CWD": CODER_CWD}, directory, 140, 40)
+    try:
+        term.wait_for("Scripted demo · no model calls", 120)
+        term.send(CODER_PROMPT.encode() + b"\r")
+        term.wait_for("allow once", 60)
+        term.send(b"y")
+        term.wait_for("Your turn: ask for the next change.", 60)
+        term.idle(1)
+        save(term, "coder", "coder: a coding agent's session, scripted")
+    finally:
+        term.stop()
+
+
 def devtools(directory):
     # The DevTools application as the live demo runs it (scripts/demo.ts): the demo session
     # with no bus, so no socket for an application to join and no instructions to join it,
@@ -364,7 +384,7 @@ def flight(directory):
         server.terminate()
 
 
-SCENES = {"forge": forge, "notes": notes, "chat": chat, "files": files, "mdreader": mdreader, "devtools": devtools, "mux": mux, "flight": flight}
+SCENES = {"forge": forge, "notes": notes, "chat": chat, "coder": coder, "files": files, "mdreader": mdreader, "devtools": devtools, "mux": mux, "flight": flight}
 
 
 def main():
