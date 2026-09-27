@@ -8,7 +8,7 @@
  * Every capability the profile opens has a line in `enforcement` (src/sandbox/grants.ts)
  * naming who applies it: the profile is the "OS" of those lines.
  */
-import { realpathSync } from "node:fs";
+import { lstatSync, realpathSync } from "node:fs";
 import { basename, dirname } from "node:path";
 import type { Capabilities } from "../capabilities";
 
@@ -59,6 +59,16 @@ function real(path: string): string {
     return parent === path ? path : `${real(parent)}/${basename(path)}`;
   }
 }
+/** Those of `paths` that are symbolic links, by their own path (parent resolved). */
+function linked(paths: readonly string[]) {
+  return paths.flatMap((p) => {
+    try {
+      return lstatSync(p).isSymbolicLink() ? [`${real(dirname(p))}/${basename(p)}`] : [];
+    } catch {
+      return [];
+    }
+  });
+}
 const subpaths = (paths: readonly string[]) =>
   paths.map((p) => `(subpath ${str(real(p))})`).join(" ");
 // Module resolution stats every ancestor (package.json, tsconfig.json lookups): the
@@ -105,6 +115,18 @@ export function seatbeltProfile(plan: ChildPlan): string {
     ...runtime.code
       .filter((p) => basename(p) === "node_modules")
       .map((p) => `(allow file-read-data (literal ${str(dirname(real(p)))}))`),
+    // A readable path that is a link (a project's node_modules pointing at the framework's
+    // packages): the link itself, its ancestors' metadata, and the listing of the
+    // directory holding a node_modules link, for the resolver to follow it. What it points
+    // to is covered by its real path.
+    ...linked(readable).flatMap((link) => [
+      `(allow file-read* (literal ${str(link)}))`,
+      `(allow file-read-metadata (literal ${str(dirname(link))}))`,
+      ...allow("file-read-metadata", ancestors([dirname(link)])),
+      ...(basename(link) === "node_modules"
+        ? [`(allow file-read-data (literal ${str(dirname(link))}))`]
+        : []),
+    ]),
     ...allow("file-read*", subpaths(readable)),
     ...allow("file-read* file-write*", subpaths(writable)),
   ];
