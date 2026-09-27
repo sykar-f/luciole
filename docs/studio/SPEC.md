@@ -1,7 +1,7 @@
 # studio : décrire une application airtty, la voir se construire
 
-Statut : **C5b livré** sur `studio/local` (étapes 0 à 4 et 7 du plan, section 8 ; l'étape 5,
-Linux, et la mesure de l'étape 6 restent à faire), voir
+Statut : **C5b livré** sur `studio/local` (étapes 0 à 4, 6 sur Claude Code et 7 du plan,
+section 8 ; l'étape 5, Linux, reste à faire ; Codex reporté), voir
 [État de l'implémentation](#état-de-limplémentation-c5b). La conception (C5a) s'appuie sur
 trois probes exécutés le 27 septembre 2026 (macOS 26.6.2 arm64, Bun 1.4.2) :
 [studio-preview](../../probes/studio-preview/README.md),
@@ -15,7 +15,7 @@ commande `npx airttyx studio` (C7, le nom `airtty` n'est pas définitif).
 ## Résumé
 
 Un nouvel exemple, `examples/studio` : à gauche une conversation avec un harness local
-(Claude Code ou Codex, par les adaptateurs d'`examples/coder`), à droite l'application
+(Claude Code, par les adaptateurs partagés avec `examples/coder`), à droite l'application
 airtty que ce harness écrit, **en fonctionnement**, embarquée par le widget VT
 (`<Terminal>`, [EMBEDDING.md](../EMBEDDING.md) section 4) et rechargée après chaque tour.
 
@@ -34,17 +34,17 @@ L'exemple est `examples/studio` ([README](../../examples/studio/README.md)) ; to
 hors ligne sur le **générateur scripté** (`-H fake`), qui écrit vraiment le projet d'après
 les scénarios du probe studio-generate. Ce qui s'écarte de la conception ci-dessous :
 
-| Sujet                 | Conçu                                                    | Fait, et pourquoi                                                                                                                                                                                                                                   |
-| --------------------- | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Étape « rendu »       | rendu headless dans le Server studio, puis G6 plus tard  | **G6 d'emblée** : le Client de l'aperçu signale ses pages en échec (`onFailure` d'`openSandbox`, IPC en mode `process`), le Client studio le transmet (`previewFailed`) ; pas de second rendu                                                       |
-| Ordre                 | garde-fou → build → rendu → aperçu                       | garde-fou → build → **Server** (un Server qui ne démarre pas est un échec avec son stderr) → révision → aperçu ; `tsc` et le rapport de rendu ensuite. Une révision est donc « construite et démarrée », son éventuel problème y est noté           |
-| Build                 | dans `.airtty/`                                          | un dossier par tentative sous `.airtty-studio/builds/` (`build(dir, output)`, `startAppServer({ output })`) : valider la suivante ne touche jamais celle que l'aperçu montre                                                                        |
-| Bascule de panneau    | `Ctrl+O Tab`                                             | `Ctrl+O` puis `o`, comme le « pane suivant » de mux ; les séquences sont listées dans la ligne d'aide                                                                                                                                               |
-| Options               | `--dir`, `--project`, `--resume`, `--preview`, `--model` | plus `--fixes N` (décision 3 : réglable) ; sans `--dir` ni `--project`, un nouveau projet `app-<date>`                                                                                                                                              |
-| Capacités             | demande du harness, accord de l'utilisateur              | `/allow HOST` et `/deny HOST` : studio écrit `airtty.capabilities.net` et committe lui-même, le garde-fou ne s'applique qu'au harness ; les autres capacités ne sont pas encore proposées                                                           |
-| Sans sandbox          | refus au lancement                                       | l'écran s'ouvre et dit pourquoi ; aucun message n'est envoyé au harness tant que studio ne tourne pas avec `--preview process`                                                                                                                      |
-| Codex sans commandes  | « mode sans exécution si le protocole le permet »        | non trouvé dans le protocole : Codex tourne en `workspace-write` + `on-request`, qui ne demande une approbation que pour sortir du workspace ou le réseau (docs/coder/research/codex-report.md) ; les commandes dans le projet ne sont pas bloquées |
-| Réels Claude et Codex | fixtures enregistrées, mesure (étape 6)                  | **non exécuté** (quota) : `scripts/studio/measure.ts` est prêt et refuse sans `--accept-quota` ; les options passées aux adaptateurs sont vérifiées par types et tests, pas contre les binaires                                                     |
+| Sujet                   | Conçu                                                    | Fait, et pourquoi                                                                                                                                                                                                                                                                                                                            |
+| ----------------------- | -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Étape « rendu »         | rendu headless dans le Server studio, puis G6 plus tard  | **G6 d'emblée** : le Client de l'aperçu signale ses pages en échec (`onFailure` d'`openSandbox`, IPC en mode `process`), le Client studio le transmet (`previewFailed`) ; pas de second rendu                                                                                                                                                |
+| Ordre                   | garde-fou → build → rendu → aperçu                       | garde-fou → build → **Server** (un Server qui ne démarre pas est un échec avec son stderr) → révision → aperçu ; `tsc` et le rapport de rendu ensuite. Une révision est donc « construite et démarrée », son éventuel problème y est noté                                                                                                    |
+| Build                   | dans `.airtty/`                                          | un dossier par tentative sous `.airtty-studio/builds/` (`build(dir, output)`, `startAppServer({ output })`) : valider la suivante ne touche jamais celle que l'aperçu montre                                                                                                                                                                 |
+| Bascule de panneau      | `Ctrl+O Tab`                                             | `Ctrl+O` puis `o`, comme le « pane suivant » de mux ; les séquences sont listées dans la ligne d'aide                                                                                                                                                                                                                                        |
+| Options                 | `--dir`, `--project`, `--resume`, `--preview`, `--model` | plus `--fixes N` (décision 3 : réglable) ; sans `--dir` ni `--project`, un nouveau projet `app-<date>`                                                                                                                                                                                                                                       |
+| Capacités               | demande du harness, accord de l'utilisateur              | `/allow HOST` et `/deny HOST` : studio écrit `airtty.capabilities.net` et committe lui-même, le garde-fou ne s'applique qu'au harness ; les autres capacités ne sont pas encore proposées                                                                                                                                                    |
+| Sans sandbox            | refus au lancement                                       | l'écran s'ouvre et dit pourquoi ; aucun message n'est envoyé au harness tant que studio ne tourne pas avec `--preview process`                                                                                                                                                                                                               |
+| Codex                   | « mode sans exécution si le protocole le permet »        | **reporté** : son protocole n'a pas de mode sans commandes (`workspace-write` + `on-request` ne demande que pour sortir du projet ou le réseau, docs/coder/research/codex-report.md) ; studio n'accepte que `claude` et `fake`, demander `codex`, `pi` ou `opencode` échoue avec cette raison (décision de l'utilisateur, 27 septembre 2026) |
+| Mesure réelle (étape 6) | fixtures enregistrées, taux de build                     | **faite sur Claude Code** (ci-dessous) ; Codex non mesuré (reporté) ; transcripts enregistrés hors du dépôt, résumé dans `docs/studio/measures/`                                                                                                                                                                                             |
 
 Lacunes du framework comblées (section 7), chacune dans un commit à part, avec son test :
 G1 (`confineServer`, macOS), G2, G3, G4, G5, G6, G7 (`airtty/dev`). L'implémentation en a
@@ -54,6 +54,34 @@ cherchaient les sources d'airtty par `import.meta` même une fois bundlés dans 
 application (`src/sources.ts`) ; `TerminalView` est exporté par `airtty/client` (pas par
 `airtty/sandbox`, que les Servers importent) ; `startAppServer` démarre une sortie de
 build hors de `.airtty/`.
+
+**Mesure sur Claude Code** (27 septembre 2026, accord de l'utilisateur ; Claude Code
+2.1.283, Agent SDK 0.3.283, modèle par défaut du compte `claude-opus-5-5` ;
+`scripts/studio/measure.ts --harness claude --accept-quota`, résumé :
+[measures/claude-2026-09-27.json](measures/claude-2026-09-27.json)). Les 13 prompts des
+scénarios, chacun dans un projet neuf, avec les instructions, les outils, la politique et
+la validation de studio (sans rendu : le script n'ouvre pas de Client) :
+
+| Mesure                           | Résultat                                             |
+| -------------------------------- | ---------------------------------------------------- |
+| bons au premier essai            | 8/13                                                 |
+| bons après au plus 2 corrections | 13/13                                                |
+| tours                            | 21 (5,6 min, médiane 14 s par tour et sa validation) |
+| coût rapporté par le SDK         | 1,41 $, médiane 0,06 $ par prompt (0,04 à 0,31 $)    |
+
+Les 5 échecs au premier essai venaient **tous de studio** : le template importait
+`node:fs`, refusé par le garde-fou, dans `server/store.ts`, que tout changement de données
+touche (5 refus) ; le tour n'était annulé qu'en partie, d'où un build cassé juste après
+(3 fois). Corrigés ensuite (template sans `node:fs`, tour refusé annulé entier,
+diagnostics qui nomment le fichier), **non remesurés**. Aucune des fautes que prévoyaient
+les scénarios (syntaxe, import inventé, hook côté Server, type ou propriété faux, paquet,
+commande) n'a été commise ; Claude Code a refusé de lui-même de lancer des tests, a répondu
+une fois au lieu de coder (la branche git, qu'il lisait dans son contexte), et a mentionné
+un connecteur claude.ai du compte, désormais écarté par `isolated` (vérifié par les types
+du SDK et un test de l'adaptateur, pas par un nouveau run). Conséquence pour le kit de
+composants (décision 8) : ces 13 prompts ne montrent pas de faute de composant à
+prévenir ; il faudrait des prompts plus ambitieux (plusieurs pages, formulaires, listes
+longues) pour trancher.
 
 Mesures (générateur scripté, macOS 26.6.2, machine chargée par d'autres sessions) : le
 parcours de bout en bout (`tests/studio.test.tsx`, trois prompts, une erreur de build et
@@ -187,7 +215,7 @@ terminaux ou des panes différents ; deux studios sur le même dossier sont refu
 (verrou de projet : deux harness qui écrivent les mêmes fichiers se contredisent).
 
 ```sh
-studio [--harness claude|codex|fake] [--dir DIR | --project NAME] [--resume [ID]] \
+studio [--harness claude|fake] [--dir DIR | --project NAME] [--resume [ID]] \
        [--preview sandbox|process] [--model M]
 ```
 
