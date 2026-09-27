@@ -89,3 +89,63 @@ export function guard(changes: ReadonlyMap<string, string | null>): Refusal[] {
   }
   return refusals;
 }
+
+/** Advice on a change that is not refused: studio passes it on, it costs no correction. */
+export type Advice = { file: string; line: number; message: string };
+
+/** A field of the app the user types into: `Input` and `Textarea` of airtty/client, or OpenTUI's. */
+const FIELD = /<(Input|Textarea|input|textarea)\b/g;
+const NAMED = /(^|\s)name\s*=/;
+
+/**
+ * The attributes of the tag that starts at `from`, outside braces (what is inside an
+ * expression is not an attribute), and whether it spreads props, which may name it.
+ */
+function attributes(content: string, from: number) {
+  let depth = 0;
+  let quote = "";
+  let outside = "";
+  let spread = false;
+  for (let i = from; i < content.length; i++) {
+    const char = content[i] ?? "";
+    if (quote) {
+      if (char === quote && content[i - 1] !== "\\") quote = "";
+      if (!depth) outside += char;
+      continue;
+    }
+    if (char === '"' || char === "'" || (depth && char === "`")) quote = char;
+    else if (char === "{") {
+      if (!depth && content.startsWith("...", i + 1)) spread = true;
+      depth++;
+    } else if (char === "}") depth--;
+    else if (char === ">" && !depth) break;
+    if (!depth && char !== "}") outside += char;
+  }
+  return { outside, spread };
+}
+
+/**
+ * Fields without a name in the changed files: what the user types there is lost each
+ * time studio reloads the app (a draft, a revision), since only named fields come back.
+ */
+export function advise(changes: ReadonlyMap<string, string | null>): Advice[] {
+  const advice: Advice[] = [];
+  for (const [file, content] of changes) {
+    if (content === null || !file.endsWith(".tsx")) continue;
+    for (const match of content.matchAll(FIELD)) {
+      const tag = match[1] ?? "";
+      const { outside, spread } = attributes(content, match.index + match[0].length);
+      if (spread || NAMED.test(outside)) continue;
+      const line = content.slice(0, match.index).split("\n").length;
+      const lower = tag === "input" || tag === "textarea";
+      advice.push({
+        file,
+        line,
+        message: lower
+          ? `<${tag}> keeps nothing when the app reloads: use ${tag === "input" ? "Input" : "Textarea"} from airtty/client with a name (name="form/field")`
+          : `<${tag}> without a name loses what the user typed when the app reloads: name it (name="form/field") and send the form with useRestoredFields("form").submit`,
+      });
+    }
+  }
+  return advice;
+}

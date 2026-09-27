@@ -15,7 +15,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, relative as relativePath, resolve } from "node:path";
-import { guard } from "../examples/studio/server/guard";
+import { advise, guard } from "../examples/studio/server/guard";
 import { policy } from "../examples/studio/server/policy";
 import { diagnosticsOf } from "../examples/studio/server/preview";
 import { Project } from "../examples/studio/server/project";
@@ -151,6 +151,46 @@ test("the guard keeps the harness in the app's folders and packages", () => {
   expect(refused.find((r) => r.file === "components/Chart.tsx")?.reason).toBe(
     "imports numeral, not in the allowed packages",
   );
+});
+
+test("a field without a name is advised, not refused: named, spread or elsewhere, it is not", () => {
+  const form = `"use client";
+import { Input, Textarea } from "airtty/client";
+export function Form(props: { name: string }) {
+  return (
+    <box>
+      <Input value="" onInput={(v) => (v.length > 2 ? v : v)} placeholder="a > b" />
+      <Input name="form/title" value="" onInput={() => {}} />
+      <Input
+        focused
+        name="form/body"
+        value={props.name}
+      />
+      <Textarea value="" onChange={() => {}} placeholder={\`name=\${props.name}\`} />
+      <Input {...props} value="" />
+      <input value="" />
+    </box>
+  );
+}
+`;
+  const changes = new Map<string, string | null>([
+    ["components/Form.tsx", form],
+    ["components/Gone.tsx", null],
+    ["server/text.ts", `export const tag = "<Input value />";\n`],
+  ]);
+  expect(guard(changes)).toEqual([]);
+  const advice = advise(changes);
+  expect(advice.map((a) => [a.file, a.line])).toEqual([
+    ["components/Form.tsx", 6],
+    ["components/Form.tsx", 13],
+    ["components/Form.tsx", 15],
+  ]);
+  expect(advice[0]?.message).toContain('name it (name="form/field")');
+  expect(advice[2]?.message).toContain("use Input from airtty/client");
+});
+
+test("the template names its fields: nothing to advise", () => {
+  expect(advise(new Map(Object.entries(TEMPLATE)))).toEqual([]);
 });
 
 test("the policy refuses commands and writes outside the app, and leaves questions to the user", () => {

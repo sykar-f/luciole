@@ -26,7 +26,7 @@ import type {
 import { config } from "./config";
 import { DraftScheduler, type Draft } from "./drafts";
 import { STUDIO_PREFIX } from "./generator";
-import { guard } from "./guard";
+import { advise, guard } from "./guard";
 import { create, pick, START } from "./harness";
 import { policy } from "./policy";
 import {
@@ -72,6 +72,8 @@ class Studio {
   private hosts: string[] = [];
   /** What the harness should hear with the user's next message (a restore, a grant). */
   private pendingNotes: string[] = [];
+  /** Advice on the last turn: sent with the next message to the harness, costing nothing. */
+  private advice = "";
   /** Diagnostics already sent back, so the same failure is never corrected twice. */
   private lastCorrection = "";
   private readonly listeners = new Set<Listener>();
@@ -189,6 +191,8 @@ class Studio {
     this.validation = { ...this.validation, fixes: 0 };
     this.lastCorrection = "";
     const notes = this.pendingNotes.splice(0);
+    if (this.advice) notes.push(this.advice);
+    this.advice = "";
     this.changed();
     return this.session.send(notes.length ? `${text}\n\n${notes.join("\n")}` : text);
   }
@@ -231,6 +235,7 @@ class Studio {
     const prepared = await prepare(project, servers, changes, (stage, ok, ms) =>
       this.stage(stage, ok, ms),
     );
+    if (prepared.ok || prepared.stage !== "guard") this.adviseOn(changes);
     if (!prepared.ok)
       return this.fail(
         prepared.stage,
@@ -308,6 +313,21 @@ class Studio {
     this.changed();
   }
 
+  /** Advice on the changes of a turn: said now, told the harness with its next message. */
+  private adviseOn(changes: ReadonlyMap<string, string | null>) {
+    const advice = advise(changes);
+    if (!advice.length) return;
+    const lines = advice.map((a) => `- ${a.file}:${a.line}: ${a.message}`);
+    this.session.note(
+      "warn",
+      ["Advice, not a failure:", ...lines.slice(0, NOTE_DIAGNOSTICS)].join("\n"),
+    );
+    this.advice = [
+      `${STUDIO_PREFIX} Advice, not a failure (no correction needed for it alone):`,
+      ...lines,
+    ].join("\n");
+  }
+
   /** What the revision's commit says: the user's last prompt, or why it was made. */
   private summary(cause: Cause) {
     if (cause === "restore") return "restored";
@@ -357,8 +377,11 @@ class Studio {
     this.lastCorrection = fingerprint;
     this.validation = { ...this.validation, fixes: fixes + 1 };
     this.changed();
+    // The advice of the turn goes with it: the harness is at those files anyway.
+    const advice = this.advice ? `\n\n${this.advice}` : "";
+    this.advice = "";
     void this.session.send(
-      `${STUDIO_PREFIX} ${stageSentence(stage)}. Fix it, changing only what is needed:\n${lines.join("\n")}`,
+      `${STUDIO_PREFIX} ${stageSentence(stage)}. Fix it, changing only what is needed:\n${lines.join("\n")}${advice}`,
     );
   }
 

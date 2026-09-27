@@ -25,8 +25,13 @@ airtty dev --app .
   `events`, `buffer`. Anything else needs a capability the user grants.
 - A page is a Server Component: no `useState`, no `useEffect`; move them to a component
   with `"use client"`.
-- OpenTUI elements: `box`, `text`, `input`, `textarea`, `scrollbox`, `select`; colors are
-  `fg` and `bg` (there is no `color` prop). Keys: `useBindings` from `airtty/client`; a
+- OpenTUI elements: `box`, `text`, `select`; colors are `fg` and `bg` (there is no `color`
+  prop).
+- Fields are `Input` and `Textarea` from `airtty/client`, each with a `name`
+  (`name="signup/email"`): studio reloads the app after every change, and only named fields
+  get their text back (studio warns about the others). A form is sent with
+  `useRestoredFields("signup").submit(…)`; the focused field is kept by
+  `useRestoredFocus([…])`, a scroll position by `<ScrollBox name>`. Keys: `useBindings` from `airtty/client`; a
   single letter is only bound while no text field has the focus.
 - The preview runs sandboxed: the Server reads its build and writes `data/`, nothing
   else, and reaches no network unless the user allows a host.
