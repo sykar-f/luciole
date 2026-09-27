@@ -28,24 +28,55 @@ export type MarkdownProps = {
  */
 export function Markdown({ content, streaming, syntaxStyle }: MarkdownProps) {
   const hyperlinks = useHyperlinks();
+  const background = useTerminalBackground();
   const stream = useMemo(
     () => new MarkdownStream(new Palette(syntaxStyle, { hyperlinks })),
     [syntaxStyle, hyperlinks],
+  );
+  const look = useMemo(
+    () => ({ palette: stream.palette, syntaxStyle, background }),
+    [stream, syntaxStyle, background],
   );
   const blocks = stream.update(content, streaming);
   return (
     <box flexDirection="column" flexShrink={0}>
       {blocks.map((block) => (
-        <BlockView
-          key={block.key}
-          nodes={block.nodes}
-          marginTop={block.marginTop}
-          palette={stream.palette}
-          syntaxStyle={syntaxStyle}
-        />
+        <BlockView key={block.key} nodes={block.nodes} marginTop={block.marginTop} look={look} />
       ))}
     </box>
   );
+}
+
+// How long the terminal has to report its colors (OSC 11) before bands fade in alpha.
+const PALETTE_TIMEOUT_MS = 1000;
+
+/**
+ * The terminal's default background, asked once (OpenTUI caches it) and again when the
+ * terminal switches theme; undefined until it answers, or if it never does.
+ */
+function useTerminalBackground() {
+  const renderer = useRenderer();
+  const [background, setBackground] = useState<RGBA | undefined>(undefined);
+  useEffect(() => {
+    let live = true;
+    const ask = () => {
+      renderer
+        .getPalette({ timeout: PALETTE_TIMEOUT_MS })
+        .then((colors) => {
+          // A terminal that does not report its background (null) keeps the alpha fade.
+          if (live && colors.defaultBackground)
+            setBackground(RGBA.fromHex(colors.defaultBackground));
+        })
+        .catch(() => undefined);
+    };
+    ask();
+    renderer.on("theme_mode", ask);
+    return () => {
+      live = false;
+      renderer.off("theme_mode", ask);
+    };
+  }, [renderer]);
+  return background;
 }
 
 /** Whether the terminal draws OSC 8 hyperlinks: links then show their label alone. */
@@ -63,33 +94,28 @@ function useHyperlinks() {
   return hyperlinks;
 }
 
-type BlockProps = {
-  nodes: readonly Node[];
-  marginTop: number;
+/** How blocks are drawn: the same for every block of a reply. */
+type Look = {
   palette: Palette;
   syntaxStyle: SyntaxStyle;
+  /** The terminal's default background, when it reported it. */
+  background: RGBA | undefined;
 };
+type BlockProps = { nodes: readonly Node[]; marginTop: number; look: Look };
 
 /** One block: redrawn only when its nodes change, which finished blocks never do. */
-const BlockView = memo(function BlockView({ nodes, marginTop, palette, syntaxStyle }: BlockProps) {
+const BlockView = memo(function BlockView({ nodes, marginTop, look }: BlockProps) {
   return (
     <box flexDirection="column" flexShrink={0} marginTop={marginTop}>
       {nodes.map((node, i) => (
-        <NodeView key={i} node={node} palette={palette} syntaxStyle={syntaxStyle} />
+        <NodeView key={i} node={node} look={look} />
       ))}
     </box>
   );
 });
 
-function NodeView({
-  node,
-  palette,
-  syntaxStyle,
-}: {
-  node: Node;
-  palette: Palette;
-  syntaxStyle: SyntaxStyle;
-}) {
+function NodeView({ node, look }: { node: Node; look: Look }) {
+  const { palette, syntaxStyle } = look;
   const layout = { marginTop: node.marginTop, marginLeft: node.indent, flexShrink: 0 };
   switch (node.kind) {
     case "text":
@@ -120,12 +146,12 @@ function NodeView({
           paddingLeft={1}
         >
           {node.children.map((child, i) => (
-            <NodeView key={i} node={child} palette={palette} syntaxStyle={syntaxStyle} />
+            <NodeView key={i} node={child} look={look} />
           ))}
         </box>
       );
     case "heading":
-      return <HeadingView node={node} />;
+      return <HeadingView node={node} background={look.background} />;
     case "rule":
       return <box {...layout} height={1} border={["top"]} borderColor={palette.line()} />;
     case "table":
@@ -140,40 +166,42 @@ function NodeView({
   }
 }
 
-// Where each level's band starts fading, and over how many columns: fixed, so a title that
-// streams in never moves its band.
-const FADE: Readonly<Record<number, { from: number; span: number }>> = {
-  1: { from: 28, span: 52 },
-  2: { from: 18, span: 62 },
-  3: { from: 12, span: 40 },
-};
+// The column where each level's band starts fading out: fixed, so that a title that streams
+// in never moves its band. The fade then runs to the right edge, whatever the width.
+const FADE_FROM: Readonly<Record<number, number>> = { 1: 28, 2: 18, 3: 12 };
 const TITLE_INDENT = 2;
+// Past this much of the fade, a column is left unpainted: the terminal's own background,
+// transparency included, shows at the edge.
+const UNPAINTED = 0.95;
 
 /**
- * A heading on its band: full under the first columns, then fading out (alpha, so it
- * blends into whatever is behind). The band is painted, not text: a selection copies the
- * title alone. Level 1 is three rows tall, its title in the middle.
+ * A heading on its band: full under the first columns, then fading out up to the right
+ * edge, into the terminal's background (`background`, from OSC 11) when it is known, else
+ * in alpha. Painted, not text: a selection copies the title alone. Level 1 is three rows
+ * tall, its title in the middle.
  */
-function HeadingView({ node }: { node: Extract<Node, { kind: "heading" }> }) {
+function HeadingView({
+  node,
+  background,
+}: {
+  node: Extract<Node, { kind: "heading" }>;
+  background: RGBA | undefined;
+}) {
   const content = useMemo(() => new StyledText([...node.chunks]), [node.chunks]);
   const { band, level } = node;
   const paint = useMemo(() => {
     if (!band) return undefined;
-    const fade = FADE[level] ?? { from: 0, span: 1 };
+    const from = FADE_FROM[level] ?? 0;
     return function (this: BoxRenderable, buffer: OptimizedBuffer) {
-      const columns = Math.min(this.width, fade.from + fade.span);
-      for (let x = 0; x < columns; x++) {
-        const alpha = band.a * (1 - Math.max(0, x - fade.from) / fade.span);
-        buffer.fillRect(
-          this.x + x,
-          this.y,
-          1,
-          this.height,
-          RGBA.fromValues(band.r, band.g, band.b, alpha),
-        );
+      // Read at every frame: a resized terminal moves the edge.
+      const span = Math.max(1, this.width - from);
+      for (let x = 0; x < this.width; x++) {
+        const faded = Math.max(0, x + 1 - from) / span;
+        if (faded >= UNPAINTED) break;
+        buffer.fillRect(this.x + x, this.y, 1, this.height, fade(band, background, faded));
       }
     };
-  }, [band, level]);
+  }, [band, level, background]);
   return (
     <box
       marginTop={node.marginTop}
@@ -184,6 +212,18 @@ function HeadingView({ node }: { node: Extract<Node, { kind: "heading" }> }) {
     >
       <text content={content} />
     </box>
+  );
+}
+
+/** `band` faded by `amount` (0 to 1) into `background`, or into transparency without it. */
+function fade(band: RGBA, background: RGBA | undefined, amount: number) {
+  if (!background) return RGBA.fromValues(band.r, band.g, band.b, band.a * (1 - amount));
+  const mix = (a: number, b: number) => a + (b - a) * amount;
+  return RGBA.fromValues(
+    mix(band.r, background.r),
+    mix(band.g, background.g),
+    mix(band.b, background.b),
+    1,
   );
 }
 

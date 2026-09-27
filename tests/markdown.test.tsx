@@ -1,7 +1,7 @@
 /** @jsxImportSource @opentui/react */
-import { afterEach, expect, test } from "bun:test";
+import { afterEach, expect, spyOn, test } from "bun:test";
 import { act, type ReactNode, useEffect, useState } from "react";
-import { RGBA } from "@opentui/core";
+import { CliRenderer, RGBA } from "@opentui/core";
 import { testRender } from "@opentui/react/test-utils";
 import { Markdown } from "../packages/airtty/src/markdown/Markdown";
 import { Palette } from "../packages/airtty/src/markdown/render";
@@ -23,7 +23,7 @@ afterEach(() => {
 });
 async function render(node: ReactNode, width = 80, height = 120) {
   const setup = await testRender(
-    <box width={width} flexDirection="column">
+    <box width="100%" flexDirection="column">
       {node}
     </box>,
     { width, height },
@@ -114,20 +114,26 @@ test("apart from headings, a finished reply looks as OpenTUI's <markdown conceal
   expect(ours).toContain("  - unit tests;");
 });
 
-test("headings sit on bands that fade out at fixed columns, spaced by level", async () => {
-  const content = "# Plan\n\nText.\n\n## Step\n\n### Detail\nMore.\n\n## Next\n\nEnd.";
+/** The background of the cell at `row`, `column` of the last frame. */
+const backgroundAt = (setup: Setup, row: number, column: number) => {
+  let start = 0;
+  for (const span of setup.captureSpans().lines[row]?.spans ?? []) {
+    if (column < start + span.width) return span.bg;
+    start += span.width;
+  }
+  return undefined;
+};
+const HEADINGS = "# Plan\n\nText.\n\n## Step\n\n### Detail\nMore.\n\n## Next\n\nEnd.";
+
+test("headings sit on bands, spaced by level", async () => {
   const setup = await render(
-    <Markdown content={content} streaming={false} syntaxStyle={syntax} />,
+    <Markdown content={HEADINGS} streaming={false} syntaxStyle={syntax} />,
     100,
     20,
   );
-  await settled(setup);
-  const rows = setup
-    .captureCharFrame()
-    .split("\n")
-    .map((row) => row.trimEnd());
+  const rows = (await settled(setup)).split("\n");
   // H1: three rows, title in the middle; H3: no blank line below; H2 after an H3: two above.
-  expect(rows.slice(0, 16)).toEqual([
+  expect(rows.slice(0, 15)).toEqual([
     "",
     "  Plan",
     "",
@@ -143,33 +149,87 @@ test("headings sit on bands that fade out at fixed columns, spaced by level", as
     "  Next",
     "",
     "End.",
-    "",
   ]);
-  const spans = setup.captureSpans().lines;
-  const bgAt = (row: number, column: number) => {
-    let start = 0;
-    for (const span of spans[row]?.spans ?? []) {
-      if (column < start + span.width) return span.bg;
-      start += span.width;
-    }
-    return undefined;
-  };
   const band = RGBA.fromHex(color.accentDim);
-  const opaque = (row: number, column: number) => {
-    const bg = bgAt(row, column);
+  const full = (row: number, column: number) => {
+    const bg = backgroundAt(setup, row, column);
     return bg !== undefined && bg.a === 1 && bg.equals(band);
   };
-  // Full under the title and up to where the fade starts, all three rows of the H1.
+  // Full under the title and up to where the fade starts, on all three rows of the H1; the
+  // title keeps no background of its own.
   for (const row of [0, 1, 2]) {
-    expect(opaque(row, 0)).toBe(true);
-    expect(opaque(row, 27)).toBe(true);
-    expect(opaque(row, 40)).toBe(false);
-    expect(bgAt(row, 85)?.a ?? 0).toBe(0);
+    expect(full(row, 0)).toBe(true);
+    expect(full(row, 3)).toBe(true);
+    expect(full(row, 27)).toBe(true);
+    expect(full(row, 40)).toBe(false);
   }
-  expect(opaque(6, 17)).toBe(true);
-  expect(opaque(6, 30)).toBe(false);
-  // The title keeps no background of its own: the band shows through.
-  expect(opaque(1, 3)).toBe(true);
+  expect(full(6, 17)).toBe(true);
+  expect(full(6, 30)).toBe(false);
+});
+
+test("a band fades out up to the right edge, which follows a resize", async () => {
+  // A terminal that never reports its background: the fade is in alpha, which OpenTUI
+  // blends into an empty cell, so it darkens (the terminal's own background is unknown).
+  const palette = spyOn(CliRenderer.prototype, "getPalette").mockRejectedValue(
+    new Error("no OSC 11 answer"),
+  );
+  try {
+    const setup = await render(
+      <Markdown content={HEADINGS} streaming={false} syntaxStyle={syntax} />,
+      100,
+      20,
+    );
+    await settled(setup);
+    const painted = (column: number) => (backgroundAt(setup, 1, column)?.a ?? 0) > 0;
+    const light = (column: number) => {
+      const bg = backgroundAt(setup, 1, column);
+      return bg ? bg.r + bg.g + bg.b : 0;
+    };
+    expect(light(60)).toBeGreaterThan(light(80));
+    expect(painted(90)).toBe(true);
+    expect(painted(99)).toBe(false);
+    await act(async () => {
+      setup.resize(60, 20);
+    });
+    await settled(setup);
+    expect(painted(50)).toBe(true);
+    expect(painted(59)).toBe(false);
+  } finally {
+    palette.mockRestore();
+  }
+});
+
+test("with the terminal's background known, a band fades into it, not into black", async () => {
+  const background = "#20242c";
+  const palette = spyOn(CliRenderer.prototype, "getPalette").mockResolvedValue({
+    palette: [],
+    defaultForeground: "#e6edf3",
+    defaultBackground: background,
+    cursorColor: null,
+    mouseForeground: null,
+    mouseBackground: null,
+    tekForeground: null,
+    tekBackground: null,
+    highlightBackground: null,
+    highlightForeground: null,
+  });
+  try {
+    const setup = await render(
+      <Markdown content="# Plan" streaming={false} syntaxStyle={syntax} />,
+      100,
+      5,
+    );
+    await settled(setup);
+    const end = RGBA.fromHex(background);
+    const cell = backgroundAt(setup, 1, 93);
+    // Opaque, nearly the terminal's background, and never darker than it.
+    expect(cell?.a).toBe(1);
+    for (const channel of ["r", "g", "b"] as const)
+      expect(cell?.[channel] ?? 0).toBeGreaterThanOrEqual(end[channel] - 0.01);
+    expect(backgroundAt(setup, 1, 99)?.a ?? 0).toBe(0);
+  } finally {
+    palette.mockRestore();
+  }
 });
 
 test("while it streams, the reply only grows and never shows a marker it will hide", async () => {

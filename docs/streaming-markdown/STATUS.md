@@ -171,8 +171,15 @@ et construction des nœuds compris.
   une sous-partie H3), H3 1 / 0. Le style vient du `SyntaxStyle` de l'application
   (`markup.heading.N`, son `bg` dessine le bandeau) ; sans `bg`, pas de bandeau. Écart
   voulu avec `<markdown conceal>`, qui dessinait les titres en texte ordinaire ; le
-  soulignement d'un titre setext n'est plus affiché. Le fondu est un alpha fondu vers le
-  noir : parfait sur un terminal sombre, un liseré plus sombre sur un terminal clair.
+  soulignement d'un titre setext n'est plus affiché.
+- **Bord du bandeau** (retour après essai) : le fondu court jusqu'au bord droit du
+  document, recalculé à chaque image (redimensionnement compris), et s'éteint vers le fond
+  réel du terminal (`renderer.getPalette()`, OSC 11, redemandé quand le terminal change de
+  thème) plutôt que vers le noir ; les dernières colonnes (5 % du fondu) ne sont pas
+  peintes, le fond du terminal s'y montre tel quel. Limites : un terminal qui ne répond pas
+  à OSC 11 garde le fondu en alpha, qu'OpenTUI mélange vers le noir ; un terminal
+  translucide peint les couleurs explicites opaques, le bandeau reste donc opaque jusqu'à
+  ses dernières colonnes.
 
 ## Reproduire
 

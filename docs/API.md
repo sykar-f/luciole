@@ -214,8 +214,9 @@ import { Markdown } from "airtty/client";
   `raw`, `link`, `list`, `quote`…) stylent le texte, les autres groupes le code.
 - Titres : `markup.heading.1` à `markup.heading.3` (repli sur `markup.heading`, les niveaux
   4 à 6 comme le 3). Un `bg` dessine un bandeau derrière le titre, plein sur les premières
-  colonnes puis en fondu (à partir des colonnes 28, 18 et 12, fixes) ; le H1 fait 3 lignes
-  de haut, titre au milieu. Espacement imposé : H1 précédé de 2 lignes vides et suivi
+  colonnes puis en fondu (à partir des colonnes 28, 18 et 12, fixes) jusqu'au bord droit,
+  qui suit la largeur ; le fondu va vers le fond du terminal (demandé par OSC 11), et les
+  dernières colonnes restent sans fond. Le H1 fait 3 lignes de haut, titre au milieu. Espacement imposé : H1 précédé de 2 lignes vides et suivi
   d'une, H2 d'une et d'une (2 au-dessus quand il clôt une sous-partie H3), H3 d'une et
   collé à son contenu. Le bandeau est peint, pas écrit : une sélection copie le titre seul.
 - Une réponse finie ressemble à `<markdown conceal>` ; les écarts et les mesures sont
