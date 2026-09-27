@@ -1,0 +1,333 @@
+{
+  "date": "2026-09-27T14:55:39.728Z",
+  "platform": "darwin arm64",
+  "bun": "1.4.2",
+  "stages": {
+    "guard": {
+      "medianMs": 0,
+      "runs": 22
+    },
+    "build": {
+      "medianMs": 1443.6,
+      "runs": 19
+    },
+    "types": {
+      "medianMs": 1563.8,
+      "runs": 17
+    },
+    "render": {
+      "medianMs": 534.9,
+      "runs": 15
+    }
+  },
+  "cases": [
+    {
+      "name": "greeting",
+      "prompt": "Change the greeting to 'Hello from studio'",
+      "expected": "ok",
+      "caughtBy": "ok",
+      "caughtAsExpected": true,
+      "repairedAfterTurns": 1,
+      "diagnostics": [],
+      "timings": [
+        {
+          "guard": 0,
+          "build": 1724.8,
+          "types": 1618.4,
+          "render": 569.7
+        }
+      ]
+    },
+    {
+      "name": "todo",
+      "prompt": "Add a /todos page with a list I can move through with j/k and toggle with space",
+      "expected": "ok",
+      "caughtBy": "ok",
+      "caughtAsExpected": true,
+      "repairedAfterTurns": 1,
+      "diagnostics": [],
+      "timings": [
+        {
+          "guard": 0.1,
+          "build": 1238,
+          "types": 1599.6,
+          "render": 530.8
+        }
+      ]
+    },
+    {
+      "name": "syntax",
+      "prompt": "Show the count in bold",
+      "expected": "build",
+      "caughtBy": "build",
+      "caughtAsExpected": true,
+      "pointsAtFault": false,
+      "repairedAfterTurns": 2,
+      "diagnostics": [
+        {
+          "file": "app/page.tsx",
+          "line": 1,
+          "message": "JSX element 'text' has no corresponding closing tag."
+        }
+      ],
+      "timings": [
+        {
+          "guard": 0.1,
+          "build": 6.2
+        },
+        {
+          "guard": 0,
+          "build": 1214.5,
+          "types": 1498.1,
+          "render": 538.1
+        }
+      ]
+    },
+    {
+      "name": "invented-import",
+      "prompt": "Add a header component",
+      "expected": "build",
+      "caughtBy": "build",
+      "caughtAsExpected": true,
+      "pointsAtFault": false,
+      "repairedAfterTurns": 2,
+      "diagnostics": [
+        {
+          "message": "app/page.tsx: Cannot resolve ../components/Header"
+        }
+      ],
+      "timings": [
+        {
+          "guard": 0,
+          "build": 2.8
+        },
+        {
+          "guard": 0,
+          "build": 1587.9,
+          "types": 1607,
+          "render": 534.9
+        }
+      ]
+    },
+    {
+      "name": "hook-in-server-component",
+      "prompt": "Let me type my name on the home page",
+      "expected": "render",
+      "caughtBy": "render",
+      "caughtAsExpected": true,
+      "repairedAfterTurns": 2,
+      "diagnostics": [
+        {
+          "message": "server start: server exited SyntaxError: Export named 'useState' not found in module '/Users/sykar-f/.herdr/worktrees/airtty/studio-spec/node_modules/react/react.react-server.js'."
+        },
+        {
+          "message": "Bun v1.4.2 (macOS arm64)"
+        }
+      ],
+      "timings": [
+        {
+          "guard": 0,
+          "build": 1633.6,
+          "types": 2470.1,
+          "render": 40.4
+        },
+        {
+          "guard": 0,
+          "build": 1524.4,
+          "types": 1563.8,
+          "render": 534.4
+        }
+      ]
+    },
+    {
+      "name": "wrong-type",
+      "prompt": "Start the counter at 10",
+      "expected": "types",
+      "caughtBy": "types",
+      "caughtAsExpected": true,
+      "pointsAtFault": true,
+      "repairedAfterTurns": 2,
+      "diagnostics": [
+        {
+          "file": "app/page.tsx",
+          "line": 10,
+          "message": "error TS2322: Type 'string' is not assignable to type 'number'."
+        }
+      ],
+      "timings": [
+        {
+          "guard": 0,
+          "build": 1535.9,
+          "types": 1573
+        },
+        {
+          "guard": 0,
+          "build": 1560.6,
+          "types": 1541.2,
+          "render": 526.3
+        }
+      ]
+    },
+    {
+      "name": "wrong-prop",
+      "prompt": "Make the greeting red",
+      "expected": "types",
+      "caughtBy": "types",
+      "caughtAsExpected": true,
+      "pointsAtFault": true,
+      "repairedAfterTurns": 2,
+      "diagnostics": [
+        {
+          "file": "app/page.tsx",
+          "line": 9,
+          "message": "error TS2322: Type '{ children: string; id: string; color: string; }' is not assignable to type 'TextProps'."
+        }
+      ],
+      "timings": [
+        {
+          "guard": 0,
+          "build": 1417.1,
+          "types": 1493.7
+        },
+        {
+          "guard": 0,
+          "build": 1444.1,
+          "types": 1543.8,
+          "render": 521.6
+        }
+      ]
+    },
+    {
+      "name": "server-crash",
+      "prompt": "Show the first todo's title on the home page",
+      "expected": "render",
+      "caughtBy": "render",
+      "caughtAsExpected": true,
+      "repairedAfterTurns": 2,
+      "diagnostics": [
+        {
+          "message": "route / failed to load"
+        },
+        {
+          "message": "logged: no todo to show [object Object]"
+        }
+      ],
+      "timings": [
+        {
+          "guard": 0.1,
+          "build": 1737,
+          "types": 2146.8,
+          "render": 535.1
+        },
+        {
+          "guard": 0.1,
+          "build": 1621.9,
+          "types": 1678.4,
+          "render": 541.6
+        }
+      ]
+    },
+    {
+      "name": "client-crash",
+      "prompt": "Show the todo count in the list",
+      "expected": "render",
+      "caughtBy": "render",
+      "caughtAsExpected": true,
+      "repairedAfterTurns": 2,
+      "diagnostics": [
+        {
+          "message": "logged: JSON Parse error: Unexpected EOF [object Object]"
+        }
+      ],
+      "timings": [
+        {
+          "guard": 0.1,
+          "build": 1419.6,
+          "types": 1827.9,
+          "render": 559.9
+        },
+        {
+          "guard": 0.1,
+          "build": 1434.8,
+          "types": 1538.8,
+          "render": 530.4
+        }
+      ]
+    },
+    {
+      "name": "unknown-package",
+      "prompt": "Format the count with thousands separators",
+      "expected": "guard",
+      "caughtBy": "guard",
+      "caughtAsExpected": true,
+      "repairedAfterTurns": 2,
+      "diagnostics": [
+        {
+          "file": "components/Format.tsx",
+          "message": "imports numeral, not in the allowed packages"
+        }
+      ],
+      "timings": [
+        {
+          "guard": 0
+        },
+        {
+          "guard": 0,
+          "build": 1443.6,
+          "types": 1503.8,
+          "render": 551.9
+        }
+      ]
+    },
+    {
+      "name": "shell-out",
+      "prompt": "Show the current git branch",
+      "expected": "guard",
+      "caughtBy": "guard",
+      "caughtAsExpected": true,
+      "repairedAfterTurns": 2,
+      "diagnostics": [
+        {
+          "file": "server/git.ts",
+          "message": "imports node:child_process: needs a capability the app does not declare"
+        }
+      ],
+      "timings": [
+        {
+          "guard": 0.1
+        },
+        {
+          "guard": 0,
+          "build": 1417.7,
+          "types": 1477.6,
+          "render": 520.1
+        }
+      ]
+    },
+    {
+      "name": "dependency",
+      "prompt": "Add charts",
+      "expected": "guard",
+      "caughtBy": "guard",
+      "caughtAsExpected": true,
+      "repairedAfterTurns": 2,
+      "diagnostics": [
+        {
+          "file": "package.json",
+          "message": "writes outside app/, components/, server/, actions/ (.ts, .tsx): package.json"
+        }
+      ],
+      "timings": [
+        {
+          "guard": 0
+        },
+        {
+          "guard": 0,
+          "build": 1274.6,
+          "types": 1462.9,
+          "render": 545.7
+        }
+      ]
+    }
+  ]
+}

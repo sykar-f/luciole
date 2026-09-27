@@ -10,6 +10,10 @@ Objectif : un Client airtty capable d'ouvrir plusieurs applications à la fois, 
 navigateur à onglets ou un multiplexeur local (tmux, herdr) : applications airtty
 téléchargées depuis leur Server, applications installées, shells, vim.
 
+Un utilisateur de cette conception : l'aperçu en direct de studio, qui embarque en
+`sandbox` une application générée par un harness et confine aussi son Server
+([studio/SPEC.md](studio/SPEC.md)).
+
 Les décisions prises sur la conception sont regroupées en [section 8](#8-décisions) ;
 le reste du document en tient compte.
 
