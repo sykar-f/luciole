@@ -41,7 +41,17 @@ const ask: Step[] = [
   { wait: "Done.", type: "" },
 ];
 
-export const examples: Record<string, Example> = {
+export type ExampleKey =
+  | "forge"
+  | "notes"
+  | "chat"
+  | "mdreader"
+  | "devtools"
+  | "coder"
+  | "files"
+  | "mux";
+
+export const examples: Record<ExampleKey, Example> = {
   forge: {
     name: "Forge",
     source: "examples/forge",
@@ -59,7 +69,7 @@ export const examples: Record<string, Example> = {
     demo: "notes",
     run: "bun run dev",
     about:
-      "The reference app: a Server page reads SQLite, the editor keeps what you type while a save travels, and a save whose answer was lost is looked up, never replayed.",
+      "The reference app: a server page reads SQLite, the editor keeps what you type while a save travels, and a save whose answer was lost is looked up, never replayed.",
   },
   chat: {
     name: "Chat",
@@ -69,7 +79,7 @@ export const examples: Record<string, Example> = {
     script: ask,
     run: "OPENROUTER_API_KEY=… bun run chat",
     about:
-      "Answers stream token by token from a Server Function; the key never leaves the Server. Here a scripted model answers, since no key can live in a page.",
+      "Answers stream token by token from a Server Function; the key never leaves the server. Here a scripted model answers, since no key can live in a page.",
   },
   mdreader: {
     name: "mdreader",
@@ -95,8 +105,9 @@ export const examples: Record<string, Example> = {
     frame: "coder",
     run: "bun run coder -- --harness fake",
     about:
-      "One coding-agent session on Claude Code, Codex, pi or opencode, driving the binaries you installed. The session lives on the Server: the Client can crash, the agent carries on.",
-    terminal: "Its Server drives agent binaries. Captured here on its scripted harness, which needs no model.",
+      "One coding-agent session on Claude Code, Codex, pi or opencode, driving the binaries you installed. The session lives on the server: the client can crash, the agent carries on.",
+    terminal:
+      "Its server drives agent binaries. Captured here on its scripted harness, which needs no model.",
   },
   files: {
     name: "Files",

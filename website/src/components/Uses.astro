@@ -2,15 +2,15 @@
 // What people build with it, one example each, as captured screens (scripts/capture.py):
 // the landing runs one demo only, the hero's; these play on /examples, on a click.
 import Screen from "./Screen.astro";
-import { examples } from "../lib/examples";
+import { examples, type ExampleKey } from "../lib/examples";
 import { frame } from "../lib/frames";
 import { source } from "../lib/links";
 
-const uses = [
+const uses: { use: string; key: ExampleKey; line: string }[] = [
   { use: "Coding-agent interface", key: "coder", line: "A session on Claude Code, Codex, pi or opencode, with its diffs and approvals in your terminal." },
   { use: "Code review", key: "forge", line: "Pull requests, coloured diffs, line comments and live CI logs." },
   { use: "Document reader", key: "mdreader", line: "A folder of Markdown in two panes, reloaded when a file changes." },
-].map((entry) => ({ ...entry, example: examples[entry.key]! }));
+];
 ---
 
 <section class="section" id="build" aria-labelledby="build-title">
@@ -21,7 +21,7 @@ const uses = [
     </div>
     <ul class="uses">
       {
-        uses.map(({ use, key, line, example }) => (
+        uses.map(({ use, key, line }) => ({ use, key, line, example: examples[key] })).map(({ use, key, line, example }) => (
           <li>
             <Screen frame={frame(example.frame)} class="thumb" />
             <h3>{use}</h3>

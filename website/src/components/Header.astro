@@ -1,10 +1,10 @@
 ---
 import { repo } from "../lib/links";
 
-export const links = [
-  ["/examples/", "Examples"],
-  ["/docs/", "Docs"],
-  ["/status/", "Status"],
+const links = [
+  { href: "/examples/", label: "Examples" },
+  { href: "/docs/", label: "Docs" },
+  { href: "/status/", label: "Status" },
 ];
 // The page being read, marked in the navigation.
 const here = Astro.url.pathname;
@@ -21,9 +21,9 @@ const here = Astro.url.pathname;
       </button>
       <ul id="sections">
         {
-          links.map(([href, label]) => (
+          links.map(({ href, label }) => (
             <li>
-              <a href={href} aria-current={here.startsWith(href!) ? "page" : undefined}>
+              <a href={href} aria-current={here.startsWith(href) ? "page" : undefined}>
                 {label}
               </a>
             </li>
