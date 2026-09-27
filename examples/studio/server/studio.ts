@@ -266,7 +266,6 @@ class Studio {
   /** What the revision's commit says: the user's last prompt, or why it was made. */
   private summary(cause: Cause) {
     if (cause === "restore") return "restored";
-    if (cause === "capability") return `network: ${this.hosts.join(", ") || "none"}`;
     const last = this.session
       .snapshot()
       .items.findLast((item) => item.kind === "user" && !item.text.startsWith(STUDIO_PREFIX));
@@ -370,6 +369,8 @@ class Studio {
       capabilities: { ...manifest.airtty?.capabilities, net: hosts },
     };
     writeFileSync(file, `${JSON.stringify(manifest, null, 2)}\n`);
+    // studio's own change, committed as it is: the guard is for the harness's.
+    project.commit(`network: ${hosts.join(", ") || "none"}`);
     this.hosts = hosts;
     servers.granted = Capabilities.parse({ net: hosts });
     this.pendingNotes.push(

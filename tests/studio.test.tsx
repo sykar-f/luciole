@@ -29,7 +29,7 @@ beforeAll(async () => {
   await build(STUDIO);
 }, STEP_TIMEOUT_MS);
 
-async function startStudio() {
+async function startStudio(mode: string = MODE) {
   const temp = realpathSync(await mkdtemp(join(tmpdir(), "studio-e2e-")));
   // The preview's Client keeps its sessions under the Client's state: this test's.
   const state = process.env.XDG_STATE_HOME;
@@ -38,7 +38,7 @@ async function startStudio() {
   const server = await launch(join(STUDIO, ".airtty/server/index.js"), {
     AIRTTY_ARGS: JSON.stringify({
       v: 1,
-      argv: ["--harness", "fake", "--dir", project, "--preview", MODE],
+      argv: ["--harness", "fake", "--dir", project, "--preview", mode],
       cwd: temp,
     }),
     XDG_STATE_HOME: join(temp, "state"),
@@ -130,3 +130,22 @@ test(`studio (${MODE}): a prompt runs as a revision, failures are corrected, Ctr
   }
   expect(leftovers(studio.project)).toEqual([]);
 }, 300_000);
+
+test("studio --preview process: the app runs with the user's rights, and says so; /allow is a revision", async () => {
+  const studio = await startStudio("process");
+  try {
+    await studio.waitFor("describe the app you want");
+    await studio.waitFor("Preview not isolated: the generated app runs with your rights");
+    await studio.waitFor(/ r0 · process /);
+    await studio.prompt("/allow api.example.com");
+    await studio.waitFor(/ r1 · process /);
+    const manifest: unknown = await Bun.file(join(studio.project, "package.json")).json();
+    expect(manifest).toMatchObject({ airtty: { capabilities: { net: ["api.example.com"] } } });
+    await studio.press("o", { ctrl: true });
+    await studio.press("h");
+    await studio.waitFor("r1 · network: api.example.com");
+  } finally {
+    await studio.stop();
+  }
+  expect(leftovers(studio.project)).toEqual([]);
+}, 120_000);
