@@ -1,0 +1,100 @@
+---
+title: Anatomy of an app
+description: The files of Notes, the starter every new app copies, one by one, with the side each runs on and what a save goes through.
+sources:
+  - examples/notes
+  - docs/ARCHITECTURE.md
+---
+
+import Excerpt from "../../../components/guide/Excerpt.astro";
+import Note from "../../../components/docs/Note.astro";
+
+`airtty init` copies Notes, so this is what a new app starts from: a list of notes, an
+editor, SQLite on the Server. Each file sits on one side; the directory it is in and its
+first line say which.
+
+## The files
+
+| File                         | Side   | What it does                                                                     |
+| ---------------------------- | ------ | -------------------------------------------------------------------------------- |
+| `app/layout.tsx`             | Client | The persistent chrome: connection status, global keys, the key help.             |
+| `app/page.tsx`               | Server | The list, read from the database through a cached query.                         |
+| `app/notes/layout.tsx`       | Client | Stays mounted between notes: the trail of notes opened this visit.               |
+| `app/notes/[id]/page.tsx`    | Server | Loads a note and hands the save action to the editor as a prop.                  |
+| `app/notes/[id]/loading.tsx` | Client | Shown the moment <kbd>Enter</kbd> is pressed, while the page travels.            |
+| `app/error.tsx`              | Client | A page that failed to load, with its outcome.                                    |
+| `app/routeTree.gen.ts`       | —      | The typed route tree, written by the build. Committed, never edited.             |
+| `components/NoteList.tsx`    | Client | Selection and navigation, handled in the terminal.                               |
+| `components/NoteEditor.tsx`  | Client | Every keystroke, the save key, the restorable field.                             |
+| `components/NoteFrame.tsx`   | both   | Presentation shared by the Server page and the loading screen; no Server access. |
+| `components/draft.ts`        | Client | Notes' own policy: Drafts in memory, saves whose outcome is unknown.             |
+| `actions/notes.ts`           | Server | Server Functions, `"use server"`: `saveNote`, `getOperation`.                    |
+| `server/repository.ts`       | Server | SQLite, ownership checks and transactions.                                       |
+| `server/schemas.ts`          | Server | Zod schemas for the arguments the Server receives.                               |
+| `server/queries.ts`          | Server | Reads cached with `"use cache"`, tagged.                                         |
+| `server/tags.ts`             | Server | The cache tags of those reads.                                                   |
+
+Two optional files are absent from Notes: `server/auth.ts`, an identity adapter
+([authentication](/docs/concepts/authentication/)), and `server/cache.ts`, the cache handler
+([caching](/docs/concepts/cache/#where-entries-live)). `app/args.ts` declares command-line
+options ([app arguments](/docs/reference/app-arguments/)).
+
+You write no RPC protocol, module registry, Flight manifest or OpenTUI bootstrap.
+
+## A save, from the key to SQLite
+
+1. The page of a note, on the Server, reads the note and passes `saveNote` to the editor:
+
+<Excerpt
+  path="examples/notes/app/notes/[id]/page.tsx"
+  find="<NoteEditor"
+  until="/>"
+  mark={["saveAction={saveNote}"]}
+  tone="server"
+/>
+
+2. The editor handles each key locally. <kbd>Ctrl+S</kbd> or <kbd>Enter</kbd> calls `send`,
+   which calls the reference through Notes' Draft store and the restored-field group:
+
+<Excerpt
+  path="examples/notes/components/NoteEditor.tsx"
+  find="send = () =>"
+  count={2}
+  mark={["saveAction(snapshot)"]}
+  tone="client"
+/>
+
+3. The framework encodes the call with Flight and sends `POST /action`. On the Server,
+   `saveNote` validates its argument, saves, and declares what changed:
+
+<Excerpt
+  path="examples/notes/actions/notes.ts"
+  find="export async function saveNote"
+  until="^}"
+  mark={["SnapshotInput.parse", "await changed"]}
+  tone="server"
+/>
+
+4. The repository writes the note and the operation's result in one SQLite transaction:
+   that is what lets <kbd>Ctrl+O</kbd> look up a save whose response was lost.
+
+5. The response carries the result and the invalidated tags. The Client revalidates the
+   routes that read them; the editor confirms its Draft.
+
+<Note>
+  The atomic save and the lookup of a lost result are Notes' own code, not a framework guarantee of
+  exactly-once delivery. If no result is found, the operation stays unknown and is not replayed.
+</Note>
+
+## Run it
+
+<Excerpt
+  path="package.json"
+  find='"dev": "bun packages/airtty/src/cli.ts dev"'
+  count={1}
+  tone="neutral"
+  caption="From the repository's root, bun run dev builds and starts Notes."
+/>
+
+The guided tour follows this same save in detail, in French:
+[Une Server Function](/guide/server-functions/).

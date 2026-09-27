@@ -1,0 +1,121 @@
+---
+title: DevTools
+description: Inspect a running app from another terminal pane. Requests of both processes with the cache that answered, components and why they rendered, logs, router, cache, keys and live network conditions.
+sources:
+  - docs/DEVTOOLS.md
+  - packages/airtty/src/commands/devtools.ts
+  - packages/airtty/src/devtools
+---
+
+import CopyCommand from "../../../components/CopyCommand.astro";
+import Note from "../../../components/docs/Note.astro";
+import { commands } from "../../../lib/product";
+
+The DevTools are the equivalent of Chrome DevTools and React DevTools for an airtty app, in
+a terminal. They are an airtty app themselves: their Server holds the event bus, their
+Client reads it through a live Server Function, and each panel is a route.
+
+## Start
+
+Two terminal panes, from the repository's root:
+
+<CopyCommand label="pane 1: the DevTools" lines={[`${commands.fromClone} devtools`]} />
+
+<CopyCommand
+  label="pane 2: the app you inspect"
+  lines={[`eval "$(${commands.fromClone} devtools --env)"`, "bun run dev"]}
+/>
+
+`--env` prints the two variables to export:
+
+| Variable          | Role                                                                                                                                                  |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AIRTTY_DEVTOOLS` | Where the DevTools listen: `1` (the default per-user Unix socket), a path (`/…` or `unix:/…`) or `ws://host:port`. Read by the Client and the Server. |
+| `BUN_OPTIONS`     | `--preload=…/src/devtools/hook.ts`, the fiber hook the Components panel needs. Without it everything else works, and the panel says how to enable it. |
+
+`airtty devtools` listens on `--listen`, else on the shell's `AIRTTY_DEVTOOLS`, else on the
+default socket. `--demo` replays a simulated session; `--replay file.json` opens a
+recording.
+
+**Nothing without the variable.** The Server leaves its instrumentation as configured and
+the Client never imports the agent. Under `NODE_ENV=production` (`airtty start`), the variable
+is ignored with a warning.
+
+## Panels
+
+Common keys: <kbd>1</kbd>–<kbd>7</kbd> or <kbd>Tab</kbd> switch panels, <kbd>j</kbd> /
+
+<kbd>k</kbd> or the arrows select, <kbd>G</kbd> follows the newest in live lists,
+<kbd>p</kbd> pauses (events are kept and applied on resume), <kbd>C</kbd> clears,
+<kbd>E</kbd> exports.
+
+| Panel        | What it shows                                                                                                                                                                                                                             |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1 Network    | One line per request, Client and Server joined by `callId`: queueing, waiting, Server work, stream and chunks; the cause (`nav`, `pre`, `ref`, `inv`, `act`, `live`) and the cache that answered (`mem`, `hit`, `miss`, `stale`, `part`). |
+| 2 Components | The Client's component tree and, above what they produced, the Server Components Flight describes in development (`◇`); render counts and the reason of the last one.                                                                     |
+| 3 Console    | `console.*` of both processes, the Server's with the `callId` of the request they were written under.                                                                                                                                     |
+| 4 Router     | Location, rendered and cached matches, status, age, params and search.                                                                                                                                                                    |
+| 5 Cache      | The Server cache as its events describe it: entries, function, tags, age, hits and misses, invalidations.                                                                                                                                 |
+| 6 Input      | The keys the app received, with modifiers and sequences.                                                                                                                                                                                  |
+| 7 Conditions | The Client's network conditions, **live**: latency, jitter, chunk delay, refuse/drop/cut probabilities, presets.                                                                                                                          |
+
+### What Network flags
+
+- `↳` **sequential waterfall**: a request left less than 25 ms after another's response; it
+  was probably waiting for it.
+- `⟳` **double invalidation**: one cause rendered the same page twice, for instance the
+  Server's `invalidate()` and a component's, after the same action.
+
+<kbd>f</kbd> filters, <kbd>z</kbd> zooms on the last 60 s, 10 s or 2 s, <kbd>o</kbd> opens the
+console filtered on the request.
+
+### What Components flags
+
+- `⚠` **useless render**: props, state and context equal (as `memo()` compares them), rendered
+  only because the parent did. <kbd>u</kbd> shows only those.
+- <kbd>h</kbd> flashes the components that render **in the app's own terminal**, as a coloured
+  outline drawn after layout: the app's layout never moves. <kbd>o</kbd> opens the selected
+  component's source in `$VISUAL` or `$EDITOR`.
+
+Names, source locations and hook names come from the build: it annotates each component and
+custom hook of the app and the framework (not packages) with its original name, file and
+the variables its hooks feed. Hooks from packages are not annotated; a count that does not
+add up names nothing rather than something wrong.
+
+### Cache and Conditions
+
+In Cache, <kbd>t</kbd> picks a tag of the selected entry and <kbd>x</kbd> invalidates it.
+Outside a request that purges **the Server cache only**: no Client is told, and each sees
+fresh data at its next render of the route. In Conditions, jitter, chunk delay and faults
+change the transport's conditions in place; latency is added before sending, so it appears
+as loader waiting.
+
+## Record and replay
+
+<kbd>E</kbd> writes `airtty-devtools-<date>.json` (the raw journal, which `--replay` opens)
+and a `.har` (HAR 1.2, readable by Chrome's tools; what HTTP cannot say travels in `_airtty`
+fields) in the directory the DevTools run in.
+
+## Security
+
+The default socket is in `$XDG_RUNTIME_DIR` (or macOS's private `tmpdir()`), named by uid,
+mode `0600`. With `ws://`, the listener refuses any request carrying an `Origin` header (a
+web page cannot drive the app) and listens on the host given: keep it local. The commands are
+development ones: invalidate, refresh, network conditions, flash, and purge a Server cache
+tag, the only one that changes the Server's state.
+
+## React DevTools, side by side
+
+```sh
+npx react-devtools        # the standalone interface
+DEV=true bun run dev      # OpenTUI loads react-devtools-core and connects
+```
+
+The fiber hook chains React DevTools' own hook instead of replacing it: both receive every
+commit.
+
+<Note>
+  The DevTools are for development. Several Clients connected at once mix their trees and routers in
+  the panels; the Cache panel does not invalidate Clients yet. The guided tour's chapter [Les
+  DevTools](/guide/devtools/) (in French) walks through a session.
+</Note>

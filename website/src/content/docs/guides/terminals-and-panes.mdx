@@ -1,0 +1,84 @@
+---
+title: Terminals and panes
+description: Run a shell or vim on a PTY inside your app with <Terminal>, or another airtty app in a pane with <Embed>, each with its own keys and focus.
+sources:
+  - docs/API.md
+  - docs/EMBEDDING.md
+  - packages/airtty/src/vt
+  - packages/airtty/src/embed.tsx
+  - examples/mux
+---
+
+import CopyCommand from "../../../components/CopyCommand.astro";
+import Note from "../../../components/docs/Note.astro";
+
+Two components put something else on part of your app's screen. `examples/mux` uses both:
+local programs side by side, each on its own PTY, and airtty apps in panes.
+
+<CopyCommand lines={["bun run mux"]} />
+
+## `<Terminal>`: a local program
+
+`<Terminal>` starts a local program on a pseudo-terminal (`Bun.Terminal`, POSIX only) and
+draws it in the app's tree, with OpenTUI's embedded terminal emulator (libghostty-vt).
+Keyboard, mouse, paste, focus reports and resizing follow the modes the program asks for.
+
+```tsx
+<Terminal command={["vim", file]} active={pane === "editor"} prefix="ctrl+o" flexGrow={1} />
+```
+
+- `command` starts at the first layout, at the pane's size; changing it restarts the
+  program. `onExit(code)` reports its end (`null`: killed by a signal, or not found, and the
+  message shows in the pane). Unmounting hangs the program up (`SIGHUP`), and so does
+  quitting the Client.
+- `active` gives it the keys. While active it receives **all** of them, <kbd>Ctrl+C</kbd>
+  included, before the app's bindings: only `prefix` and the sequence it opens stay with
+  the app. The keymap writes a sequence by juxtaposition: `"ctrl+oo"` is <kbd>Ctrl+O</kbd>
+  then <kbd>O</kbd>.
+- `scrollback` sets the lines kept above the screen; `cwd` and `env` start the program
+  where and how you want; `id`, `flexGrow`, `width` and `height` place the pane.
+- The host decides how to switch panes (a prefix key, a click).
+
+<Note kind="warning">
+  No isolation: the program has the user's rights, as in tmux. This is the `process` mode of [apps
+  you did not write](/docs/guides/untrusted-apps/).
+</Note>
+
+## `<Embed>`: another airtty app
+
+`<Embed>` shows another airtty app in a pane, in the same process and the same React tree:
+the `inline` mode, full trust.
+
+```tsx
+const app = await openApplication({ bundle: "…/mdreader/.airtty/app", url });
+<Embed app={app} name="docs" active={pane === "docs"} prefix="ctrl+o" flexGrow={1} />;
+```
+
+- `openApplication` reads the **app bundle** (`.airtty/app/`, written by `airtty build`):
+  its Client Components, route tree and Server Function stubs, without a runtime. It checks
+  its ABI key and hash, then evaluates it **once per pane** against the host's runtime. It
+  gives the pane an instance key and opens its connection (`http`, `unix:`, `ssh://`, like
+  `--url`). A signed manifest is checked; `publisher: { required?, trust? }` requires a
+  signature and receives the key's fingerprint before any evaluation.
+- `active`: only the active pane hears the keys. An inactive pane keeps nothing focused;
+  what had the focus gets it back when the pane becomes active again.
+- `prefix`: as for `<Terminal>`, the host's key and its sequence stay with the host, even if
+  the app binds the same key. One key switches between terminals and apps.
+- A render error in the pane shows in the pane and never reaches the root.
+- `app.dispose()` frees a closed pane: requests and live streams stop, modules are
+  unregistered, the connection closes. `app.quit` is the host's: `examples/mux` closes the
+  pane with it.
+
+`<Terminal>` is for local programs; an airtty app in the same process goes through `<Embed>`.
+
+## Keys in a multiplexer
+
+Global shortcuts pass before a focused terminal: an app's keymap would steal the embedded
+program's keys. That is why only the host's prefix key is reserved, and never sent to the
+PTY.
+
+<Note>
+  Known gaps of the embedded emulator: OSC 8 hyperlinks are not drawn; the mode was not verified on
+  Linux when it shipped; there is no PTY on Windows. In the browser runtime, `<Terminal>`
+  shows an "unavailable here" screen.
+</Note>

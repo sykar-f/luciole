@@ -1,0 +1,133 @@
+---
+title: Apps you did not write
+description: Opening an app by URL or from a package you do not control. The inline, process and sandbox modes, declared capabilities, and who enforces each one on macOS and Linux.
+sources:
+  - docs/EMBEDDING.md
+  - docs/DISTRIBUTION.md
+  - packages/airtty/src/generic
+  - packages/airtty/src/sandbox
+  - packages/airtty/src/capabilities.ts
+  - packages/airtty/src/publisher.ts
+  - packages/airtty/native/airtty-sandbox
+---
+
+import Note from "../../../components/docs/Note.astro";
+
+An airtty Client runs code: the app's Client Components, with the rights of the process that
+runs them. When the app comes from someone else, a URL or an unsigned package, the question
+is what that code may touch on your machine. The generic Client answers per **origin**: the
+Server's URL as you typed it (scheme, host, port, never a tunnel's local address), an
+installed package, or a local command.
+
+## Three modes
+
+| Mode      | Where the app runs                                  | Isolation                                       | For                                           |
+| --------- | --------------------------------------------------- | ----------------------------------------------- | --------------------------------------------- |
+| `inline`  | inside the Client's process, in the same React tree | none                                            | code you trust: yours, installed, signed      |
+| `process` | a child process on its own PTY, no sandbox          | crashes only                                    | a local multiplexer: shells, vim, airtty apps |
+| `sandbox` | a child process under the OS sandbox                | crashes, and the granted capabilities, enforced | a remote URL, an unsigned package             |
+
+`process` adds **no** security layer: it is tmux, not a browser. `inline` is an explicit
+choice for a trusted origin, and the launcher says so before opening it: full trust, the
+declared capabilities are not enforced. The user chooses the mode, remembered per origin,
+or by flag; the app never does.
+
+## Opening a URL
+
+```sh
+airtty https://notes.example.com
+```
+
+1. The launcher fetches `GET /manifest`, which binds the build ID, the bundle's SHA-256 and
+   size, the runtime ABI key, the Node built-ins the bundle needs, and the publisher's
+   Ed25519 public key. The signature covers a canonical encoding of these fields, never the
+   JSON as received.
+2. It checks the signature, and **pins the key on first use** for that origin, like SSH's
+   `known_hosts`: the fingerprint is shown and you are asked. A different key later is
+   refused; `airtty trust <url> <SHA256:…>` pins a new one out of band, when its publisher
+   confirms it.
+3. It compares the ABI key, then reads the bundle from its cache by hash, or downloads
+   `GET /bundle/<sha256>` and checks the hash.
+4. Before anything runs, the **capabilities screen** lists the Server's route and each
+   capability granted with who enforces it, plus a "refused" line for what cannot be.
+
+A publisher signs with `airtty keys generate` once, then `airtty build --sign-bundle`. This
+key has nothing to do with Apple's Developer ID.
+
+**Default mode for a URL**: `sandbox` on macOS, and on Linux where the sandbox also confines
+the network (user namespaces or bubblewrap). Elsewhere nothing opens without an explicit
+`--sandbox` or `--inline`, remembered per origin.
+
+## Capabilities
+
+An app declares what it may do in the `airtty.capabilities` field of its `package.json`,
+readable before anything runs; the build copies it into the signed manifest and warns about
+Node built-ins the Client bundle uses without declaring them.
+
+| Capability                          | Grants                                                                    |
+| ----------------------------------- | ------------------------------------------------------------------------- |
+| `fs.read`, `fs.write`               | files, by path                                                            |
+| `net`                               | outgoing connections, by host, or `*`                                     |
+| `exec`                              | running programs, by binary                                               |
+| `pty`                               | pseudo-terminals                                                          |
+| `clipboard.read`, `clipboard.write` | the clipboard                                                             |
+| `notify`, `open-url`, `secrets`     | notifications, opening an http(s) URL, the keychain entries of the origin |
+| `input.global`, `tabs.message`      | keys typed in other tabs, messages between tabs                           |
+
+The capabilities an app declares are accepted once per origin; flags add to them:
+`--allow-read=…`, `--allow-write=…`, `--allow-net=…`, `--allow-exec[=…]`,
+`--allow-secrets=…`, `--allow-clipboard-read`, `--allow-clipboard-write`, `--allow-notify`,
+`--allow-open-url`, `--allow-input-global`, `--allow-tabs-message`. Everything is remembered
+in the origin's `origin.json`.
+
+**Declaring is not enforcing.** Only the `sandbox` mode enforces capabilities. A capability
+is shown as enforced only if something enforces it.
+
+## Who enforces what
+
+| Capability                                     | macOS                                                         | Linux                                                                  |
+| ---------------------------------------------- | ------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `fs.read`, `fs.write`                          | the OS (Seatbelt, by path)                                    | Landlock (plus bubblewrap's mounts under bubblewrap)                   |
+| `net` by host                                  | a proxy held by the host; the OS limits the child to its port | the proxy; a network namespace; refused with Landlock alone            |
+| `net: *`                                       | the OS                                                        | the OS                                                                 |
+| `exec`                                         | the OS                                                        | Landlock; refused under bubblewrap without Landlock                    |
+| `pty`                                          | **refused**: the rule would open the user's other terminals   | a private devpts (namespaces, bubblewrap); refused with Landlock alone |
+| `clipboard.*`, `notify`, `open-url`, `secrets` | the host: the direct way is blocked by the OS                 | the host: seccomp refuses Unix sockets (D-Bus, Wayland, X11)           |
+| `input.global`, `tabs.message`                 | the host (IPC)                                                | the host (IPC)                                                         |
+
+The capabilities the host mediates reach it through `host` from `airtty/client`
+(`host.clipboard.write(text)`, `host.notify(…)`, `host.openUrl(url)`, `host.secret(name)`…),
+over an inherited IPC channel whose messages are validated with Zod. The host checks the
+capability, asks the user if it is undecided, then acts. An OSC 52 sequence written by a
+sandboxed app never reaches the clipboard: only the `host` path is checked.
+
+### The mechanisms
+
+- **macOS**: Seatbelt through `sandbox-exec`, with a profile generated from the capabilities
+  on `deny default`. Without `/usr/bin/sandbox-exec` the mode is refused, never simulated.
+- **Linux**: `airtty-sandbox`, a native launcher in Rust shipped compiled with airtty,
+  applies namespaces, Landlock and seccomp just before running the child. It picks the
+  strongest mechanism available: its own **user namespaces**, else **bubblewrap** (where
+  AppArmor refuses namespaces to the launcher, Ubuntu 23.10 and later), else **Landlock
+  alone**, which does not confine the network by host and is never the default. With none,
+  the mode is refused with the reason.
+
+<Note kind="warning">
+  Landlock alone confines files, execution and signals, but not the network by host: a URL opens
+  with it only with an explicit `--sandbox`, a `net` by host is refused, and the capabilities screen
+  says the network is **not** confined.
+</Note>
+
+## Apps inside your app
+
+The same modes exist inside an app: `<Embed>` runs another airtty app `inline`, in a pane;
+`<Terminal>` runs a local program in `process` mode. See
+[terminals and panes](/docs/guides/terminals-and-panes/).
+
+## Limits
+
+- The pinning is per origin: a Server that changes host or port is a new origin, a new
+  question and a new pinned key.
+- Key rotation is not designed yet.
+- A compiled binary does not embed the app bundle: its Server answers `404` to `/manifest`
+  and cannot be opened by URL.

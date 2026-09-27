@@ -1,0 +1,96 @@
+---
+title: Testing an app
+description: What checks an app today, from the build's own boundary checks to a real terminal. The patterns the repository uses, and which of them are public API.
+sources:
+  - tests/restore-notes.test.tsx
+  - tests/latency.test.tsx
+  - scripts/pty/driver.ts
+  - scripts/pty/restore.ts
+  - docs/API.md
+  - docs/VALIDATION.md
+---
+
+import CopyCommand from "../../../components/CopyCommand.astro";
+import Excerpt from "../../../components/guide/Excerpt.astro";
+import Note from "../../../components/docs/Note.astro";
+
+The framework does not ship a testing library yet. What exists is what the repository uses
+to test itself and its examples: the build's checks, `bun test` with OpenTUI's test renderer,
+and scripted journeys on a real PTY. This page says which of them an app can rely on.
+
+## The build is a test
+
+`airtty build` refuses, with the file and line, what would be wrong at run time: a module
+that crosses the Client–Server boundary, a Server Function that is not a named async
+declaration, two routes with the same URL, a `"use cache"` closure. A starter's
+`bun run verify` runs the type check, lint, format check and build together:
+
+<CopyCommand lines={["bun run verify"]} />
+
+The type check covers navigation too: `app/routeTree.gen.ts` makes a link to a route that
+does not exist, or a missing param, a TypeScript error.
+
+## In-process, with `bun test`
+
+The Client is an ordinary object you can drive without a terminal. `createApplication`
+takes a `transport` or a `fetch` to stand between the Client and the Server,
+`app.restoration.snapshot()` returns the session a restart would restore, and
+`createApplication({ session })` restores one. OpenTUI's `testRender` draws the `Shell` in
+memory and types into it. The repository restarts Notes this way, refusing saves on the
+second run to check that unsent text is kept:
+
+<Excerpt
+  path="tests/restore-notes.test.tsx"
+  find="const open = async"
+  until="return { app, ui };"
+  mark={["createApp({", "fetch: async"]}
+  tone="neutral"
+/>
+
+On the Server, `createHandler(config, options)` from `airtty/server` is the Server as a
+function of a `Request`, without listening. `airtty/build` builds an app from a test.
+
+<Note kind="warning">
+  These entries are public (`airtty/client`, `airtty/server`, `airtty/build`), but the helpers the
+  repository's tests build on them (`tests/helpers.ts`: importing a built Client, launching a
+  Server) are not exported. An app outside the repository writes its own.
+</Note>
+
+## Under a bad network
+
+Every test that drives a real Client can set the transport's conditions:
+`AIRTTY_LATENCY_MS`, `AIRTTY_JITTER_MS`, `AIRTTY_CHUNK_DELAY_MS` and `AIRTTY_FAULT`
+([latency and faults](/docs/guides/latency-and-faults/)). `tests/latency.test.tsx` checks
+that typing, scrolling and hover send no request under 500 ms of simulated latency.
+
+## In a real terminal
+
+The repository's journeys run a production Client on a real pseudo-terminal
+(`Bun.Terminal`), rebuild the screen with OpenTUI's terminal emulator, answer the terminal
+queries a Client sends at startup, and only read complete synchronized frames. One journey
+per example:
+
+<CopyCommand lines={["bun run test:pty", "bun run test:pty:restore", "bun run test:pty:forge"]} />
+
+A journey reads like what a user does: wait for a text, press keys, send a signal.
+
+<Excerpt
+  path="scripts/pty/restore.ts"
+  find="await using t = await start();"
+  until="await t.exited();"
+  tone="neutral"
+  caption="Type, check that the session file is written with mode 0600, then crash with SIGKILL."
+/>
+
+<Note>
+  The driver (`scripts/pty/driver.ts`) belongs to the repository's scripts, not to the package: an
+  app in this repository can add a journey next to the others; an app outside it cannot import the
+  driver.
+</Note>
+
+## What the repository proves, and what it does not
+
+`bun run verify` at the root runs types, lint, format, tests and the build. CI runs on macOS
+and Linux at every push, plus the Linux sandbox in containers. `docs/VALIDATION.md` (in
+French) lists what each test proves and the known limits; the [status page](/status/)
+summarises them.
