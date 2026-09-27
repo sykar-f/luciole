@@ -3,7 +3,7 @@
 // builds under public/demo/; without one, the app needs a real terminal and the page
 // shows its capture (scripts/capture.py).
 import type { Step } from "../components/LiveTerminal.astro";
-import fakeHarness from "../../../examples/coder/server/adapters/fake.ts?raw";
+import fakeHarness from "../../../packages/harness/src/adapters/fake.ts?raw";
 
 export interface Example {
   name: string;
@@ -49,7 +49,7 @@ const ask: Step[] = [
 // move, the build fails rather than the demo waiting for a screen that never comes.
 function harnessString(name: string): string {
   const value = new RegExp(`export const ${name} =\\s*(["'])(.+?)\\1`).exec(fakeHarness)?.[2];
-  if (!value) throw new Error(`examples/coder/server/adapters/fake.ts: ${name} not found`);
+  if (!value) throw new Error(`packages/harness/src/adapters/fake.ts: ${name} not found`);
   return value;
 }
 // The harness streams its answer: about 12 s from the click to its last words on a fast

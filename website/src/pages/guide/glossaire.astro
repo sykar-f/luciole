@@ -12,6 +12,7 @@ const modules: Record<string, [string, string]> = {
   commands: ["une sous-commande par fichier : dev, build, start, devtools, keys, trust…", "demarrage"],
   dev: ["airtty/dev : supervision d'une app en développement (Server jusqu'à sa ligne ready, bearer, rebuilds un à la fois, échecs de page), partagée par airtty dev et studio", "demarrage"],
   "build.ts": ["AST, graphes Client et Server, frontières, références, bundles, build ID", "build"],
+  "sources.ts": ["où sont les sources d'airtty, même quand build et sandbox sont bundlés dans une app (studio)", "build"],
   "args-server.ts": ["premier import de l'entrée Server générée : marque le processus avant tout module de l'app", "build"],
   "build-names.ts": ["noms des composants et hooks pour les DevTools et les messages de React", "devtools"],
   "bundle-errors.ts": ["messages lisibles des échecs de Bun.build", "build"],
