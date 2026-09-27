@@ -1,0 +1,118 @@
+---
+// A page of prose (status, documentation): the site's header and footer around one column
+// of text, headings in Plex Mono, body in Plex Sans.
+import Base from "./Base.astro";
+import Header from "../components/Header.astro";
+import Footer from "../components/Footer.astro";
+
+interface Props {
+  title: string;
+  description: string;
+}
+
+const { title, description } = Astro.props;
+---
+
+<Base title={`${title} · airtty`} description={description}>
+  <Header />
+  <main class="wrap page">
+    <article class="prose">
+      <slot />
+    </article>
+  </main>
+  <Footer />
+</Base>
+
+<style>
+  .page {
+    padding-block: clamp(40px, 6vw, 72px) clamp(64px, 8vw, 112px);
+  }
+
+  .prose {
+    display: grid;
+    gap: 16px;
+    max-width: 78ch;
+  }
+
+  .prose :global(h1) {
+    margin-bottom: 4px;
+    font-size: var(--step-4);
+  }
+
+  .prose :global(h2) {
+    margin-top: 32px;
+    padding-top: 20px;
+    border-top: 1px solid var(--rule);
+    font-size: var(--step-2);
+  }
+
+  .prose :global(h3) {
+    margin-top: 12px;
+  }
+
+  .prose :global(.meta) {
+    color: var(--mist);
+    font: 400 var(--step--1) / 1.6 var(--mono);
+  }
+
+  .prose :global(p),
+  .prose :global(li) {
+    color: var(--paper);
+  }
+
+  .prose :global(ul),
+  .prose :global(ol) {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+    padding-left: 1.4em;
+  }
+
+  .prose :global(li::marker) {
+    color: var(--dim);
+  }
+
+  .prose :global(strong) {
+    font-weight: 600;
+  }
+
+  .prose :global(dl) {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: 6px 24px;
+    margin: 0;
+    font-size: 0.95rem;
+  }
+
+  .prose :global(dt) {
+    color: var(--mist);
+    font-family: var(--mono);
+  }
+
+  .prose :global(dd) {
+    margin: 0;
+  }
+
+  .prose :global(pre) {
+    margin: 0;
+    padding: 14px 16px;
+    border: 1px solid var(--rule-strong);
+    background: var(--panel);
+    overflow-x: auto;
+    font: 400 0.86rem / 1.7 var(--mono);
+  }
+
+  .prose :global(pre .comment) {
+    color: var(--dim);
+  }
+
+  @media (max-width: 560px) {
+    .prose :global(dl) {
+      grid-template-columns: 1fr;
+    }
+
+    .prose :global(dd) {
+      margin-bottom: 8px;
+    }
+  }
+</style>

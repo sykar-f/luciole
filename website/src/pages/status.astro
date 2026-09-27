@@ -1,0 +1,117 @@
+---
+// What can be relied on today, each line from the README and docs/ as they read at the
+// revision below. Checked by hand: when either changes, check this page again and move
+// the date and the revision.
+import Page from "../layouts/Page.astro";
+import { doc, repo } from "../lib/links";
+
+const CHECKED = { date: "27 September 2026", revision: "e157896" };
+---
+
+<Page
+  title="Project status"
+  description="airtty is experimental: installed from its repository, tested on macOS and Linux. What is tested, what is not, the pinned versions and what is not published yet."
+>
+  <h1>Project status</h1>
+  <p class="meta">
+    Checked on {CHECKED.date} against the README and docs/ at revision <a
+      href={`${repo}/tree/${CHECKED.revision}`}><code>{CHECKED.revision}</code></a
+    >.
+  </p>
+
+  <h2>Before you try it</h2>
+  <ul>
+    <li><strong>Experimental.</strong> An experiment run in the open; its API may still change.</li>
+    <li>
+      <strong>Installed from the repository.</strong> No package is published on a registry yet. You
+      clone the repository; an app made with <code>init</code> depends on that checkout, which has to
+      stay in place.
+    </li>
+    <li>
+      <strong>Bun 1.4.2</strong>, pinned in <code>.bun-version</code>. CI runs on{" "}
+      <strong>macOS and Linux</strong>; no other system is tested.
+    </li>
+  </ul>
+
+  <h2>What is tested</h2>
+  <ul>
+    <li>
+      On every push and pull request, GitHub Actions on macOS and Linux: types, lint, format,
+      integration tests and build, a production journey in a real PTY, the dev server's rebuild
+      journey, and a clean install that creates a starter and drives its client in a PTY.
+    </li>
+    <li>
+      On Linux in CI, the compiled client in Debian (glibc) and Alpine (musl) containers without
+      Bun, and the sandbox mode in containers, one per mechanism (namespaces, bubblewrap, Landlock).
+    </li>
+    <li>
+      More PTY journeys, one per example and launch path, and browser journeys for the web builds,
+      run from the repository: <code>bun run test:pty:&lt;name&gt;</code>,
+      <code>bun run test:web</code>.
+    </li>
+    <li>
+      The remote path was tested by hand, a macOS client and a Linux server over an SSH tunnel.
+    </li>
+  </ul>
+
+  <h2>What is not</h2>
+  <ul>
+    <li>
+      No WAN measurement campaign, no keystroke-to-screen latency measured on a physical display,
+      no multi-user load, no public TLS proxy. The latency in the site's demo is simulated, per
+      request.
+    </li>
+    <li>
+      <strong>One user per server</strong> by default: the built-in session is a single token.
+      Multi-user sign-in is the app's to write, in <code>server/auth.ts</code>.
+    </li>
+    <li>
+      <strong>No Fast Refresh.</strong> A rebuild restarts both processes: the route, history and
+      named fields come back, state held only in memory does not.
+    </li>
+    <li>
+      <strong>No silent retries.</strong> An operation whose outcome is unknown is never replayed;
+      the app decides what to do. <code>useLive</code> streams do not reconnect by themselves, nor
+      does a client joined by an <code>ssh://</code> URL; a server started with <code>--on</code>
+      has its tunnel relaunched.
+    </li>
+  </ul>
+
+  <h2>Pinned versions</h2>
+  <dl>
+    <dt>React, React Flight</dt>
+    <dd>19.3.0, exactly</dd>
+    <dt>OpenTUI</dt>
+    <dd>0.5.12, exactly, with react-reconciler 0.33.0 (OpenTUI's range)</dd>
+    <dt>TanStack Router</dt>
+    <dd>1.170.38</dd>
+    <dt>Bun</dt>
+    <dd>1.4.2</dd>
+  </dl>
+  <p>
+    The React Flight adapter is isolated in <code>packages/airtty/src/flight/</code>; any upgrade of
+    React means retesting it.
+  </p>
+
+  <h2>Distribution and signing</h2>
+  <ul>
+    <li>
+      Nothing is published: no package, no app on a registry. The launcher and the registry code
+      exist and are tested from the repository.
+    </li>
+    <li>
+      A compiled macOS binary carries an ad hoc signature: it runs where it was built or copied
+      with <code>scp</code>, and Gatekeeper blocks one downloaded by a browser.
+    </li>
+    <li>
+      Signing and notarization for macOS are implemented (<code>--sign</code>,
+      <code>--notarize</code>) but notarization has never run: no Developer ID was available.
+    </li>
+  </ul>
+
+  <p class="meta">
+    Evidence, in French: <a href={doc("VALIDATION.md")}>VALIDATION.md</a> · <a
+      href={`${repo}#contrat-et-limites`}>the contract and limits in the README</a
+    > · <a href={doc("DISTRIBUTION.md")}>DISTRIBUTION.md</a>
+  </p>
+</Page>
