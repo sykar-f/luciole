@@ -87,7 +87,12 @@ export type ApplicationEvent =
       tags?: readonly string[];
     }
   | (Loader & { phase: "start" })
-  | (Loader & { phase: "end"; ms: number; result: "ok" | "error" | "aborted" });
+  | (Loader & { phase: "end"; ms: number; result: "ok" | "error" | "aborted" })
+  /**
+   * A page failed: its load, or its render (the page's error screen shows it). A
+   * supervisor hears it through `run()` (src/dev/supervisor.ts, `onClientFailure`).
+   */
+  | { type: "failure"; at: number; path: string; message: string };
 export type { ErrorProps, LayoutProps, LoadingProps, NotFoundProps } from "./route-tree";
 export { Input, Textarea, useRestoredFields } from "./fields";
 export type { FieldInputProps, FieldTextareaProps, RestoredFields } from "./fields";
@@ -516,6 +521,9 @@ export class Application {
       this.eventListeners.delete(listener);
     };
   };
+  /** Reports a failed page (its error screen does, src/route-tree.tsx) to `onEvent`. */
+  reportFailure = (path: string, error: unknown) =>
+    this.emit({ type: "failure", at: now(), path, message: messageOf(error) });
   private emit(event: ApplicationEvent) {
     for (const listener of this.eventListeners) listener(event);
   }
@@ -789,8 +797,9 @@ export function DebugOverlay({ limit = 6 }: { limit?: number }) {
   useEffect(
     () =>
       app.onEvent((event) => {
-        // Loaders and invalidations are for richer tools; the overlay stays as it was.
-        if (event.type === "loader" || event.type === "invalidate") return;
+        // Loaders, invalidations and failures are for richer tools; the overlay stays as it was.
+        if (event.type === "loader" || event.type === "invalidate" || event.type === "failure")
+          return;
         if (event.type === "chunk") {
           setState((s) => ({ ...s, bytes: s.bytes + event.bytes }));
           return;

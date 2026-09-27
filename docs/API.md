@@ -413,11 +413,17 @@ argument de `render`/`call` (`{ cause }`). S'y ajoutent :
 | `navigation` | `path`                                                                                                       |
 | `invalidate` | `paths`, `origin` (`server` : `invalidate()` d'une Server Function ; `client` : `invalidate()`, `refresh()`) |
 | `loader`     | `phase` (`start`, `end`), `routeId`, `href`, `cause` ; à la fin `ms` et `result` (`ok`, `error`, `aborted`)  |
+| `failure`    | `path`, `message` : une page a échoué (chargement ou rendu) ; son écran d'erreur l'émet (`reportFailure`)    |
 
 `invalidate` porte aussi `tags`, et `loader` sa `source` (`network`, `router-cache`) :
 voir [CACHE.md](CACHE.md).
 
-`<DebugOverlay />` ignore `invalidate` et `loader` ; `instrumentTracing` aussi.
+`<DebugOverlay />` ignore `invalidate`, `loader` et `failure` ; `instrumentTracing` aussi.
+
+Un Client lancé avec un canal IPC (`airtty dev`, un hôte `sandbox`, studio) envoie chaque
+`failure` à son parent : `{ type: "failure", path, message }` (message coupé à
+2000 caractères). `onClientFailure(child, listener)` d'`airtty/dev` le lit, `openSandbox`
+le passe à `onFailure`. Une page introuvable (`notFound()`) n'est pas un échec.
 
 En développement, `AIRTTY_DEVTOOLS=<adresse>` envoie ces événements, ceux du Server, les
 logs des deux processus et l'arbre des composants à `airtty devtools`, lancé dans un autre
@@ -620,6 +626,7 @@ Pour le CLI, les hôtes, le code généré et les tests ; une application n'en a
 | `airtty/server`     | `createHandler(config, options)` : le Server comme fonction d'une `Request`, sans écoute ; `serve(config)` l'installe sur `Bun.serve`. `ServerConfig` : `buildId`, `manifest`, `actions`, `routes` (`ServerRoute`), `auth?`, `instrument?` (`ServerInstrument`, `{ onEvent }`), `cache?`, `appBundle?`, `web?`. `HandlerOptions` : `auth`, `devtools?`, `testing?`, `web?`, `keepAlive?`, `dropAfterCommit?`. Types `RouteAuth` (`"public" \| "required"`), `Session`, `ServerFunction`, `ServerEvent`.                                      |
 | `airtty/route-tree` | Ce qu'appelle `app/routeTree.gen.ts` : `rootRoute(Layout, NotFound?)`, `layoutRoute(Layout, params)`, `pageRoute(params, { loading?, error?, notFound?, splat? }?)`, `loadPage(ctx, routeId, params, splat?)`, `validateSearch(raw)` ; types `TerminalRouterContext`, `TerminalRouter` et les props des fichiers de routes.                                                                                                                                                                                                                  |
 | `airtty/build`      | `build(directory, output?, { appBundle?, signBundle?, webServer? }?)` → `{ buildId, output }` (`output` vaut `<directory>/.airtty` par défaut) ; `BuildOptions`.                                                                                                                                                                                                                                                                                                                                                                             |
+| `airtty/dev`        | Superviser une app en développement, quel que soit le déclencheur du rebuild (`airtty dev`, studio) : `startAppServer({ directory, env, command?, onOutput?, stderr?, timeoutMs? })` → `{ port, child, stop }` (rejette avec le stderr quand il est capté) ; `bearerRelay()` ; `serialize(task)` → `{ run, busy }` (jamais deux rebuilds à la fois, un de plus s'il en est demandé pendant) ; `linkFrameworkModules(directory, from)` ; `stopChild(child)`.                                                                                  |
 | `airtty/pty`        | `spawnPty({ command, cols, rows, env?, environment?, cwd?, ipc?, onData, onExit })` → `Pty` (`write`, `resize`, `kill`, `send`, `pid`) : `Bun.Terminal`, POSIX seulement. `<Terminal>`, le sandbox et l'hôte desktop s'en servent.                                                                                                                                                                                                                                                                                                           |
 | `airtty/metadata`   | `AppMetadata` (schéma de `.airtty/metadata.json`), `readAppDeclaration(root)`, `writeAppMetadata(output, declaration)`, `APP_METADATA`, `APP_ICON`.                                                                                                                                                                                                                                                                                                                                                                                          |
 | `airtty/tsconfig`   | La configuration TypeScript que chaque application étend ([TOOLING.md](TOOLING.md)).                                                                                                                                                                                                                                                                                                                                                                                                                                                         |

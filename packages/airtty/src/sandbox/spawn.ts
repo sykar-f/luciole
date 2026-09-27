@@ -10,6 +10,7 @@ import { mkdirSync, readdirSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { Capabilities } from "../capabilities";
+import { ClientFailure } from "../dev/supervisor";
 import { connect } from "../connect";
 import type { CapabilityState, HostEvent, HostRequest, MediatedCapability } from "../host";
 import { sessionDirectory } from "../session";
@@ -61,6 +62,8 @@ export type SandboxOptions = {
   resolve?: (host: string) => string;
   /** Tests: sees the profile generated for the child. */
   onProfile?: (profile: string) => void;
+  /** A page of the child failed (src/run.tsx): studio reads it to correct the app. */
+  onFailure?: (failure: ClientFailure) => void;
 };
 export type Sandbox = {
   /** Starts the child; the VT widget calls it once it knows its size. */
@@ -161,12 +164,15 @@ export async function openSandbox(
               "--capabilities",
               JSON.stringify(permissions.states()),
             ]),
-          ipc: (message) =>
+          ipc: (message) => {
+            const failure = ClientFailure.safeParse(message);
+            if (failure.success) return options.onFailure?.(failure.data);
             void answer(message, (request) => permissions.allow(request), options.perform).then(
               (reply) => {
                 if (reply) child?.send(reply);
               },
-            ),
+            );
+          },
         });
         return child;
       },

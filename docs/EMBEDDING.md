@@ -347,6 +347,14 @@ file descriptor hérité (socketpair) porteur de messages validés par Zod, pas 
 séquences OSC du flux VT (un OSC 52 écrit par une application sandboxée ne doit jamais
 atteindre le presse-papiers sans passer par la vérification de capacité).
 
+**Server confiné** (`src/sandbox/server.ts`, `confineServer`) : pour un hôte qui lance un
+Server dont il ne se fie pas au code (l'aperçu de studio). Même profil généré, sans
+terminal, plus l'écoute d'un seul port loopback choisi par l'hôte ; `net` par hôte via le
+proxy de l'hôte. Lecture : son build ; écriture : son répertoire de données (mesuré par
+`probes/studio-server-sandbox`, testé dans `tests/sandbox.test.ts`). macOS seulement : sous
+`airtty-sandbox`, le Server écouterait dans son espace de noms réseau et l'hôte le
+joindrait par un relais inverse, à construire ; ailleurs le mode est refusé.
+
 ## 6. Risques
 
 | Risque                                                                              | Mitigation                                                                                                               |

@@ -464,3 +464,48 @@ test("subpath imports (#name) join the graph: every target of every condition", 
     },
   );
 }, 60000);
+test("a syntax error and an unresolved import are reported where they are", async () => {
+  // Line 3, column 11: the unclosed <text>'s tag; a reader (or a harness) fixes that line.
+  await fixture(
+    {
+      "app/page.tsx": `export default function Page() {\n  return (\n    <box><text>unclosed</box>\n  );\n}\n`,
+    },
+    async (dir) => {
+      expect(messageOf(await rejectionOf(build(dir)))).toMatch(/^app\/page\.tsx:3:\d+: /);
+    },
+  );
+  await fixture(
+    {
+      "app/page.tsx": `import { title } from "../lib/title";\nimport { Header } from "../components/Header";\nexport default function Page() {\n  return <Header title={title} />;\n}\n`,
+      "lib/title.ts": `export const title = "t";\n`,
+    },
+    async (dir) => {
+      expect(messageOf(await rejectionOf(build(dir)))).toBe(
+        "app/page.tsx:2:1: Cannot resolve ../components/Header",
+      );
+    },
+  );
+});
+test("a Client-only React hook in a Server Component fails the build where it is imported", async () => {
+  // Without the check the build succeeds and the Server dies at start on a missing export.
+  await fixture(
+    {
+      "app/page.tsx": `import { useMemo, useState } from "react";\nexport default function Page() {\n  const [name] = useState(useMemo(() => "", []));\n  return <text>{name}</text>;\n}\n`,
+    },
+    async (dir) => {
+      const message = messageOf(await rejectionOf(build(dir)));
+      expect(message).toMatch(/^app\/page\.tsx:1:19: useState is Client-only React/);
+      expect(message).toContain('Add "use client"');
+    },
+  );
+  // Behind "use client", the same hook is the Client's.
+  await fixture(
+    {
+      "app/page.tsx": `import { Name } from "../components/Name";\nexport default function Page() {\n  return <Name />;\n}\n`,
+      "components/Name.tsx": `"use client";\nimport { useState } from "react";\nexport function Name() {\n  const [name] = useState("");\n  return <text>{name}</text>;\n}\n`,
+    },
+    async (dir) => {
+      await build(dir);
+    },
+  );
+});

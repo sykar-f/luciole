@@ -1,7 +1,8 @@
 import ts from "@typescript/typescript6";
 import { basename, resolve, relative, dirname, join } from "node:path";
 import { mkdir, readFile, readdir, rename, rm, realpath } from "node:fs/promises";
-import { realpathSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
+import { createRequire } from "node:module";
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { bundleMessages, logMessages } from "./bundle-errors";
@@ -249,6 +250,43 @@ export async function build(
     waiting: () => console.error(`airtty build: waiting for another build of ${output}`),
   });
 }
+const ReactExports = z.object({
+  exports: z.object({ ".": z.object({ "react-server": z.string(), default: z.string() }) }),
+});
+/**
+ * What React exports to Client code and not to the Server (`useState`, `useEffect`,
+ * `createContext`…), read from the React the application resolves: a Server Component
+ * importing one builds, then its Server dies at start on a missing export. Empty when
+ * React's layout is not the one expected: the check is then skipped, not guessed.
+ */
+function clientOnlyReactExports(root: string): ReadonlySet<string> {
+  try {
+    // The application's React, or the framework's when it has none of its own (a
+    // starter elsewhere builds against the framework's installation).
+    let manifest: string;
+    try {
+      manifest = Bun.resolveSync("react/package.json", root);
+    } catch {
+      manifest = Bun.resolveSync("react/package.json", import.meta.dir);
+    }
+    const entries = ReactExports.parse(JSON.parse(readFileSync(manifest, "utf8"))).exports["."];
+    const load = createRequire(manifest);
+    const keys = (entry: string): string[] => {
+      const loaded: unknown = load(join(dirname(manifest), entry));
+      return typeof loaded === "object" && loaded !== null ? Object.keys(loaded) : [];
+    };
+    const server = new Set(keys(entries["react-server"]));
+    return new Set(keys(entries.default).filter((name) => !server.has(name)));
+  } catch {
+    return new Set();
+  }
+}
+/** An application import that names no file: reported at the import (`fail`). */
+class Unresolved extends Error {
+  constructor(from: string, name: string) {
+    super(`${from}: Cannot resolve ${name}`);
+  }
+}
 /** What a build was asked for beyond its sources: an output built otherwise is rebuilt. */
 const BuiltWith = z.object({
   buildId: z.string(),
@@ -287,6 +325,7 @@ async function buildUnlocked(
   const root = await realpath(directory),
     modules = new Map<string, Module>();
   const { serverPackages } = await readConfig(root);
+  const clientOnlyReact = clientOnlyReactExports(root);
   // Checked before the long part: a wrong icon or capability fails at once.
   const declaration = await readAppDeclaration(root);
   // How each module was first reached, per graph: boundary errors show the whole chain.
@@ -309,7 +348,10 @@ async function buildUnlocked(
   const via = (chain: readonly string[]) => `\n  via ${chain.map(display).join(" → ")}`;
   // A declaration, not an arrow: TypeScript narrows only after calls to declared `never`s.
   function fail(m: Module, n: ts.Node, message: string): never {
-    const p = m.ast.getLineAndCharacterOfPosition(n.getStart(m.ast));
+    failAt(m, n.getStart(m.ast), message);
+  }
+  function failAt(m: Module, position: number, message: string): never {
+    const p = m.ast.getLineAndCharacterOfPosition(position);
     throw new Error(`${relative(root, m.path)}:${p.line + 1}:${p.character + 1}: ${message}`);
   }
   const moduleAt = (path: string) => {
@@ -324,7 +366,7 @@ async function buildUnlocked(
     ]) {
       if (await Bun.file(candidate).exists()) return await realpath(candidate);
     }
-    throw new Error(`${from}: Cannot resolve ${name}`);
+    throw new Unresolved(from, name);
   }
   /**
    * The application's files an import names: none for a package, one for a relative path,
@@ -336,7 +378,7 @@ async function buildUnlocked(
     if (!name.startsWith("#")) return [];
     const scope = await packageScope(from);
     const targets = scope ? subpathTargets(scope.imports, name) : undefined;
-    if (!scope || !targets) throw new Error(`${from}: Cannot resolve ${name}`);
+    if (!scope || !targets) throw new Unresolved(from, name);
     const files: string[] = [];
     for (const target of targets)
       if (target.startsWith("./")) files.push(await file(from, resolve(scope.dir, target), name));
@@ -371,7 +413,8 @@ async function buildUnlocked(
     // The public way to the parser's diagnostics: `ast` keeps them in an internal field.
     const [error] =
       ts.transpileModule(text, { fileName: path, reportDiagnostics: true }).diagnostics ?? [];
-    if (error) fail(m, ast, ts.flattenDiagnosticMessageText(error.messageText, " "));
+    // At the diagnostic's own position: the file's start would send a reader to line 1.
+    if (error) failAt(m, error.start ?? 0, ts.flattenDiagnosticMessageText(error.messageText, " "));
     for (const s of ast.statements) {
       if (ts.isExpressionStatement(s) && ts.isStringLiteral(s.expression)) {
         if (["use client", "use server", "use cache"].includes(s.expression.text)) {
@@ -414,7 +457,14 @@ async function buildUnlocked(
     m.cached = cachedFunctions(ast, m.directive, (n, message) => fail(m, n, message));
     const resolved: Module["imports"] = [];
     for (const i of m.imports) {
-      const paths = await local(path, i.name);
+      let paths: string[];
+      try {
+        paths = await local(path, i.name);
+      } catch (error: unknown) {
+        // At the import that names it, so the reader sees which line to fix.
+        if (error instanceof Unresolved) fail(m, i.node, `Cannot resolve ${i.name}`);
+        throw error;
+      }
       resolved.push(...(paths.length ? paths.map((p) => ({ ...i, path: p })) : [i]));
     }
     m.imports = resolved;
@@ -560,6 +610,18 @@ async function buildUnlocked(
         fail(m, i.node, `OpenTUI native runtime is Client-only${chain}`);
       if (i.name === "client-only")
         fail(m, i.node, `Client-only module in Server graph: it never runs on the Server${chain}`);
+      if (i.name === "react" && ts.isImportDeclaration(i.node)) {
+        const bindings = i.node.importClause?.namedBindings;
+        for (const element of bindings && ts.isNamedImports(bindings) ? bindings.elements : []) {
+          const name = (element.propertyName ?? element.name).text;
+          if (!element.isTypeOnly && clientOnlyReact.has(name))
+            fail(
+              m,
+              element,
+              `${name} is Client-only React: a Server Component cannot use it. Add "use client" at the top of this file, or move the part that needs it into a Client Component${chain}`,
+            );
+        }
+      }
       if (i.path) serverVisit(i.path, p);
     }
   }

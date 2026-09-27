@@ -181,6 +181,11 @@ export function pageRoute(
       const pageParams = usePageParams();
       const path = useRouterState({ select: (s) => s.location.pathname });
       const missing = readNotFound(error);
+      const app = useApplication();
+      // A missing page is an answer, not a failure.
+      useEffect(() => {
+        if (!missing) app.reportFailure(path, error);
+      }, [app, path, error, missing]);
       if (missing)
         return NotFound ? (
           <NotFound path={path} params={pageParams} what={missing.what} />

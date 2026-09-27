@@ -14,6 +14,7 @@
     "./route-tree": "./src/route-tree.tsx",
     "./args": "./src/args.ts",
     "./build": "./src/build.ts",
+    "./dev": "./src/dev/supervisor.ts",
     "./pty": "./src/vt/pty.ts",
     "./metadata": "./src/app-metadata.ts",
     "./tsconfig": "./tsconfig.base.json",

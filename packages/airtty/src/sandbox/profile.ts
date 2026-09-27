@@ -23,6 +23,8 @@ export type SandboxRuntime = {
 };
 /** How the child reaches its application's Server, which is always allowed. */
 export type ServerRoute =
+  /** A confined Server (src/sandbox/server.ts) dials no Server. */
+  | { kind: "none" }
   | { kind: "loopback"; port: number }
   | { kind: "socket"; path: string }
   | { kind: "proxy" };
@@ -37,8 +39,10 @@ export type ChildPlan = {
   /** The origin's sessions directory. */
   writable: readonly string[];
   /** The PTY slave the host allocated for this child, by its exact path. */
-  tty: string;
+  tty?: string;
   server: ServerRoute;
+  /** The loopback port a confined Server listens on, and no other. */
+  listen?: number;
   /** Loopback port of the host's egress proxy, when `net` lists hosts or the Server is remote. */
   proxyPort?: number;
 };
@@ -94,7 +98,7 @@ export function seatbeltProfile(plan: ChildPlan): string {
     `(allow file-read* (literal "/etc") (literal "/var") (literal "/private/etc/localtime") (subpath "/private/var/db/timezone") (subpath "/usr/share/zoneinfo"))`,
     // Its own terminal, by exact path: raw mode and the window size are ioctls on the
     // slave it inherited. Never /dev/ttys*, which would reach the user's other terminals.
-    `(allow file-ioctl (literal ${str(real(plan.tty))}))`,
+    ...(plan.tty ? [`(allow file-ioctl (literal ${str(real(plan.tty))}))`] : []),
     ...allow("file-read-metadata", ancestors([...readable, ...writable])),
     // Bun's resolver lists the directory holding `node_modules`; without it Bun aborts
     // with a misleading "bun is unable to write files: EPERM". Its listing only.
@@ -109,6 +113,12 @@ export function seatbeltProfile(plan: ChildPlan): string {
     rules.push(
       "(allow process-fork)",
       `(allow process-exec file-read* ${caps.exec.map((p) => `(literal ${str(real(p))})`).join(" ")})`,
+    );
+  // A Server: its own port, bound and accepting, nothing else inbound (probes/studio-server-sandbox).
+  if (plan.listen !== undefined)
+    rules.push(
+      `(allow network-bind (local ip ${str(`localhost:${plan.listen}`)}))`,
+      `(allow network-inbound (local ip ${str(`localhost:${plan.listen}`)}))`,
     );
   // The Server of the application, whatever else is granted.
   if (plan.server.kind === "loopback")
