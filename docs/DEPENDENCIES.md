@@ -26,15 +26,29 @@ des deux sondes d'origine (`probes/rsc`, `probes/rpc`) étaient à jour ; `bun o
 
 Ajoutées au catalogue après ce contrôle, sans comparaison aux tags `latest` :
 
-| Dépendance                      | Version        | Utilisée par                            |
-| ------------------------------- | -------------- | --------------------------------------- |
-| @sqlite.org/sqlite-wasm         | 3.53.4-build1  | framework, runtime navigateur           |
-| @xterm/xterm / @xterm/addon-fit | 6.0.0 / 0.11.0 | framework, runtime navigateur ; desktop |
-| @xterm/addon-webgl              | 0.19.0         | desktop                                 |
-| electrobun                      | 2.0.1          | desktop                                 |
-| marked                          | 17.0.1         | framework (`<Markdown>`), mdreader      |
-| sharp                           | 0.35.4         | files                                   |
-| @anthropic-ai/claude-agent-sdk  | 0.3.283        | coder (couplé à Claude Code 2.1.283)    |
+| Dépendance                                     | Version                  | Utilisée par                            |
+| ---------------------------------------------- | ------------------------ | --------------------------------------- |
+| @sqlite.org/sqlite-wasm                        | 3.53.4-build1            | framework, runtime navigateur           |
+| @xterm/xterm / @xterm/addon-fit                | 6.0.0 / 0.11.0           | framework, runtime navigateur ; desktop |
+| @xterm/addon-webgl                             | 0.19.0                   | desktop                                 |
+| electrobun                                     | 2.0.1                    | desktop                                 |
+| marked                                         | 17.0.1                   | framework (`<Markdown>`), mdreader      |
+| sharp                                          | 0.35.4                   | files                                   |
+| tree-sitter-bash / -c / -cpp                   | 0.25.1 / 0.24.1 / 0.23.4 | framework (`airtty/grammars`)           |
+| tree-sitter-css / -go / -html                  | 0.25.0 / 0.25.0 / 0.23.2 | framework (`airtty/grammars`)           |
+| tree-sitter-java / -json / -php                | 0.23.5 / 0.24.8 / 0.24.2 | framework (`airtty/grammars`)           |
+| tree-sitter-python / -ruby                     | 0.25.0 / 0.23.1          | framework (`airtty/grammars`)           |
+| tree-sitter-rust                               | 0.24.0                   | framework (`airtty/grammars`)           |
+| @tree-sitter-grammars/tree-sitter-toml / -yaml | 0.7.0 / 0.7.1            | framework (`airtty/grammars`)           |
+| @anthropic-ai/claude-agent-sdk                 | 0.3.283                  | coder (couplé à Claude Code 2.1.283)    |
+
+Les grammaires Tree-sitter (`airtty/grammars`, licence MIT) sont les paquets officiels :
+chacun livre son WebAssembly et ses requêtes de coloration à la même version. Seul le
+WebAssembly sert ; leurs liaisons natives ne sont jamais construites (Bun bloque leurs
+scripts `install`, `bun pm untrusted` les liste) et leurs dépendances `node-addon-api` et
+`node-gyp-build` restent inutilisées. `bun audit --json` rend `{}`. Il n'existe pas de
+paquet npm avec le WebAssembly de diff ni de SQL : les blocs diff sont colorés sans
+grammaire, SQL reste en texte brut.
 
 Les arguments de ligne de commande des applications (`airtty/args`, `src/args.ts`)
 n'ajoutent aucune dépendance : le parseur est maison (~300 lignes), piloté par le Standard
