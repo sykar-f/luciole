@@ -2,6 +2,7 @@
   "name": "airtty",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "bin": {
     "airtty": "./src/cli.ts",
