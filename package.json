@@ -78,6 +78,7 @@
     "test:pty:chat": "bun scripts/pty/chat.ts",
     "test:pty:agent": "bun scripts/pty/agent.ts",
     "test:pty:coder": "bun scripts/pty/coder.ts",
+    "test:pty:studio": "bun scripts/pty/studio.ts",
     "test:pty:markdown": "bun scripts/pty/markdown-stability.ts",
     "test:pty:devtools": "bun scripts/pty/devtools.ts",
     "test:pty:launcher": "bun scripts/pty/launcher.ts",

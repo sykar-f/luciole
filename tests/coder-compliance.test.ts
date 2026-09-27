@@ -6,7 +6,7 @@ import { join, resolve } from "node:path";
 // example that drives them: whatever a future change adds, these strings would say a
 // rule is broken. Paths are relative to the harness package's src/.
 const ROOT = resolve("packages/harness/src");
-const EXAMPLES = ["examples/coder"].map((dir) => resolve(dir));
+const EXAMPLES = ["examples/coder", "examples/studio"].map((dir) => resolve(dir));
 const sources = [
   ...[...new Bun.Glob("**/*.{ts,tsx}").scanSync({ cwd: ROOT })].map((file) => ({
     file,
@@ -76,4 +76,17 @@ test("opencode: its own server, locked to coder, never sharing a session publicl
   expect(offending(/\/share\b/)).toEqual([]);
   // The user signs in with opencode's own command.
   expect(readFileSync(join(ROOT, "detect.ts"), "utf8")).toContain("run `opencode auth login`");
+});
+
+test("studio drives the harnesses under its own name, with file tools only and no user settings", () => {
+  const studio = readFileSync(resolve("examples/studio/server/studio.ts"), "utf8");
+  expect(studio).toContain('client: "airtty-studio"');
+  expect(studio).toContain("isolated: true");
+  expect(studio).toContain('const TOOLS = ["Read", "Write", "Edit", "Glob", "Grep"] as const;');
+  // The user signs in with the harness's own command, never through studio.
+  expect(
+    offending(/oauth|credentials|auth\.json/i).filter((at) =>
+      at.startsWith(resolve("examples/studio")),
+    ),
+  ).toEqual([]);
 });
