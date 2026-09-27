@@ -1,11 +1,13 @@
 # studio : décrire une application airtty, la voir se construire
 
-Statut : **conception (C5a)**, aucune implémentation. Nom de travail : `studio`. La
-conception s'appuie sur trois probes exécutés le 27 septembre 2026 (macOS 26.6.2 arm64,
-Bun 1.4.2) : [studio-preview](../../probes/studio-preview/README.md),
+Statut : **C5b livré** sur `studio/local` (étapes 0 à 4 et 7 du plan, section 8 ; l'étape 5,
+Linux, et la mesure de l'étape 6 restent à faire), voir
+[État de l'implémentation](#état-de-limplémentation-c5b). La conception (C5a) s'appuie sur
+trois probes exécutés le 27 septembre 2026 (macOS 26.6.2 arm64, Bun 1.4.2) :
+[studio-preview](../../probes/studio-preview/README.md),
 [studio-server-sandbox](../../probes/studio-server-sandbox/README.md),
-[studio-generate](../../probes/studio-generate/README.md). Les points qui appartiennent à
-l'utilisateur sont regroupés en [section 11](#11-points-à-trancher).
+[studio-generate](../../probes/studio-generate/README.md). Les décisions sont en
+[section 11](#11-décisions).
 
 Hors de ce document : la version hébergée « Try it » (étude C6a), la publication npm et la
 commande `npx airttyx studio` (C7, le nom `airtty` n'est pas définitif).
@@ -25,6 +27,39 @@ airtty que ce harness écrit, **en fonctionnement**, embarquée par le widget VT
 | Isolation par défaut             | **Server de l'app confiné** (Seatbelt / `airtty-sandbox`) et **Client en `sandbox`**, bundle signé par une clé éphémère du projet | probe studio-server-sandbox |
 | Réutilisation de coder           | extraire un paquet privé `packages/harness` (adaptateurs, modèle d'événements, session) après la fusion de C4                     | section 4                   |
 | Web                              | C5c : page qui compose deux `iframe` (studio rejoué, révision précompilée de l'app) ; pas de widget VT dans le navigateur         | section 7                   |
+
+## État de l'implémentation (C5b)
+
+L'exemple est `examples/studio` ([README](../../examples/studio/README.md)) ; tout tourne
+hors ligne sur le **générateur scripté** (`-H fake`), qui écrit vraiment le projet d'après
+les scénarios du probe studio-generate. Ce qui s'écarte de la conception ci-dessous :
+
+| Sujet                 | Conçu                                                    | Fait, et pourquoi                                                                                                                                                                                                                                   |
+| --------------------- | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Étape « rendu »       | rendu headless dans le Server studio, puis G6 plus tard  | **G6 d'emblée** : le Client de l'aperçu signale ses pages en échec (`onFailure` d'`openSandbox`, IPC en mode `process`), le Client studio le transmet (`previewFailed`) ; pas de second rendu                                                       |
+| Ordre                 | garde-fou → build → rendu → aperçu                       | garde-fou → build → **Server** (un Server qui ne démarre pas est un échec avec son stderr) → révision → aperçu ; `tsc` et le rapport de rendu ensuite. Une révision est donc « construite et démarrée », son éventuel problème y est noté           |
+| Build                 | dans `.airtty/`                                          | un dossier par tentative sous `.airtty-studio/builds/` (`build(dir, output)`, `startAppServer({ output })`) : valider la suivante ne touche jamais celle que l'aperçu montre                                                                        |
+| Bascule de panneau    | `Ctrl+O Tab`                                             | `Ctrl+O` puis `o`, comme le « pane suivant » de mux ; les séquences sont listées dans la ligne d'aide                                                                                                                                               |
+| Options               | `--dir`, `--project`, `--resume`, `--preview`, `--model` | plus `--fixes N` (décision 3 : réglable) ; sans `--dir` ni `--project`, un nouveau projet `app-<date>`                                                                                                                                              |
+| Capacités             | demande du harness, accord de l'utilisateur              | `/allow HOST` et `/deny HOST` : studio écrit `airtty.capabilities.net` et committe lui-même, le garde-fou ne s'applique qu'au harness ; les autres capacités ne sont pas encore proposées                                                           |
+| Sans sandbox          | refus au lancement                                       | l'écran s'ouvre et dit pourquoi ; aucun message n'est envoyé au harness tant que studio ne tourne pas avec `--preview process`                                                                                                                      |
+| Codex sans commandes  | « mode sans exécution si le protocole le permet »        | non trouvé dans le protocole : Codex tourne en `workspace-write` + `on-request`, qui ne demande une approbation que pour sortir du workspace ou le réseau (docs/coder/research/codex-report.md) ; les commandes dans le projet ne sont pas bloquées |
+| Réels Claude et Codex | fixtures enregistrées, mesure (étape 6)                  | **non exécuté** (quota) : `scripts/studio/measure.ts` est prêt et refuse sans `--accept-quota` ; les options passées aux adaptateurs sont vérifiées par types et tests, pas contre les binaires                                                     |
+
+Lacunes du framework comblées (section 7), chacune dans un commit à part, avec son test :
+G1 (`confineServer`, macOS), G2, G3, G4, G5, G6, G7 (`airtty/dev`). L'implémentation en a
+trouvé quatre autres, corrigées de même : le profil Seatbelt ne suivait pas un lien
+`node_modules` lisible (le projet est hors du dépôt) ; `airtty/build` et `airtty/sandbox`
+cherchaient les sources d'airtty par `import.meta` même une fois bundlés dans une
+application (`src/sources.ts`) ; `TerminalView` est exporté par `airtty/client` (pas par
+`airtty/sandbox`, que les Servers importent) ; `startAppServer` démarre une sortie de
+build hors de `.airtty/`.
+
+Mesures (générateur scripté, macOS 26.6.2, machine chargée par d'autres sessions) : le
+parcours de bout en bout (`tests/studio.test.tsx`, trois prompts, une erreur de build et
+une page en échec corrigées, une annulation) prend ≈ 25 s ; la mesure de
+`scripts/studio/measure.ts --harness fake` donne 5/13 scénarios bons au premier essai et
+13/13 après au plus deux corrections (ce sont des fautes écrites exprès, pas un taux réel).
 
 ## 1. Vision et périmètre
 
@@ -48,7 +83,7 @@ Non-objectifs v1 : dépendances npm arbitraires dans l'app générée, apps mult
 ### 2.1 Disposition
 
 Plein écran (comme coder) ; au-dessus de 120 colonnes, deux panneaux côte à côte, en
-dessous, un seul panneau visible à la fois (`Ctrl+O Tab` bascule).
+dessous, un seul panneau visible à la fois (`Ctrl+O o` bascule).
 
 ```text
 ┌ studio · todo-app · Claude Code (sonnet) ─────────────────────────── r4 · ✓ 1,6 s ┐
@@ -65,7 +100,7 @@ dessous, un seul panneau visible à la fois (`Ctrl+O Tab` bascule).
 │ ╭──────────────────────────────────────────╮ │ r4 ✓ · données : data/ · Ctrl+O p     │
 │ │ décrivez une modification…               │ │                                       │
 │ ╰──────────────────────────────────────────╯ │                                       │
-└ Ctrl+O : Tab panneau · p aperçu · u annuler · d diff · r relancer · ? aide ─────────┘
+└ Ctrl+O : o panneau · p aperçu · u annuler · d diff · r relancer · ? aide ─────────┘
 ```
 
 - **Barre haute** : projet, harness et modèle (texte « powered by … », pas de marque
@@ -128,7 +163,7 @@ reste va au panneau actif ; dans l'aperçu, toutes les touches vont à l'app gé
 
 | Touches              | Action                                                                       |
 | -------------------- | ---------------------------------------------------------------------------- |
-| `Ctrl+O Tab`         | conversation ↔ aperçu (clic : même effet)                                    |
+| `Ctrl+O o`           | conversation ↔ aperçu (clic : même effet)                                    |
 | `Ctrl+O p`           | aperçu plein écran / retour                                                  |
 | `Ctrl+O r`           | relancer l'aperçu (même révision, Server neuf)                               |
 | `Ctrl+O u`           | revenir à la révision précédente (le harness en est informé au tour suivant) |
@@ -512,20 +547,18 @@ adaptateurs de coder ; version hébergée étudiée à part (C6a) ; commande `np
 studio` plus tard (C7). La version hébergée ne pourra pas utiliser d'abonnement (clés
 d'API seulement), ce qui ne concerne pas la version locale.
 
-## 11. Points à trancher
+## 11. Décisions
 
-1. **Isolation par défaut** : `sandbox` pour le Server et le Client de l'aperçu, refus
-   sans mécanisme disponible (proposé), ou `process` par défaut avec avertissement ?
-2. **Outils du harness** : interdire toute commande (proposé : studio construit et
-   vérifie lui-même), ou autoriser `bun`/`tsc` en lecture seule ?
-3. **Correction automatique** : combien de tentatives par défaut (proposé : 2), et
-   réglable ?
-4. **Réglages Claude de l'utilisateur** (`settingSources`) : ignorer hooks, MCP et
-   réglages utilisateur pendant une génération (proposé), ou les charger comme coder ?
-5. **Révisions par git** : dépôt git créé par studio dans le projet (proposé), ou
-   instantanés hors du projet ?
-6. **Linux en v1** : bloquer C5b sur l'étape 5, ou livrer macOS d'abord ?
-7. **Paquet `packages/harness`** : accord pour extraire une partie de coder dans un
-   paquet privé du workspace après C4 ?
-8. **Kit de composants** du template (v2) : à inclure dès C5b, ou après la mesure des
-   fautes réelles ?
+Tranchées le 27 septembre 2026 (déléguées à l'orchestrateur, qui a repris les
+propositions) :
+
+1. **Isolation** : `sandbox` pour le Server et le Client de l'aperçu ; sans mécanisme,
+   pas de génération ; `process` seulement sur demande (`--preview process`), avec un
+   avertissement permanent.
+2. **Outils du harness** : aucune commande ; studio construit et vérifie lui-même.
+3. **Correction automatique** : 2 tentatives par défaut, réglable (`--fixes`).
+4. **Réglages Claude de l'utilisateur** ignorés pendant une génération (`isolated`).
+5. **Révisions** : dépôt git créé par studio dans le projet.
+6. **macOS d'abord** : l'étape 5 (Linux) vient après la v1 macOS.
+7. **`packages/harness`** extrait, sans changement de comportement de coder.
+8. **Kit de composants** du template : après la mesure des fautes réelles, pas dans C5b.
