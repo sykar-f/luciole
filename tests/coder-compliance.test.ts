@@ -82,7 +82,9 @@ test("studio drives the harnesses under its own name, with file tools only and n
   const studio = readFileSync(resolve("examples/studio/server/harness.ts"), "utf8");
   expect(studio).toContain('client: "airtty-studio"');
   expect(studio).toContain("isolated: true");
-  expect(studio).toContain('export const TOOLS = ["Read", "Write", "Edit", "Glob", "Grep"] as const;');
+  expect(studio).toContain(
+    'export const TOOLS = ["Read", "Write", "Edit", "Glob", "Grep"] as const;',
+  );
   // The user signs in with the harness's own command, never through studio.
   expect(
     offending(/oauth|credentials|auth\.json/i).filter((at) =>
