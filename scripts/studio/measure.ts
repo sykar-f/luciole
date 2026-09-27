@@ -36,7 +36,7 @@ const DEFAULT_FIXES = 2;
 const MINUTE_MS = 60_000;
 const TURN_MINUTES = 10;
 const Options = z.object({
-  harness: z.enum(["claude", "codex", "fake"]),
+  harness: z.enum(["claude", "fake"]),
   "accept-quota": z.boolean().default(false),
   only: z.string().optional(),
   fixes: z.coerce.number().int().min(0).max(MAX_FIXES).default(DEFAULT_FIXES),
@@ -183,7 +183,7 @@ const summary = {
   minutes: Math.round(
     runs.reduce((n, r) => n + r.attempts.reduce((m, a) => m + a.ms, 0), 0) / MINUTE_MS,
   ),
-  // Only what the harness reports: Claude gives a cost, Codex may not.
+  // Only what the harness reports (Claude Code gives a cost).
   costUsd: runs.reduce((n, r) => n + (r.usage.costUsd ?? 0), 0),
   fixesAllowed: options.fixes,
   note: "render failures need a preview Client and are not measured here",

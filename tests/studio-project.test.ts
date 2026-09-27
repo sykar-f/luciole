@@ -201,3 +201,20 @@ test("build diagnostics name the app's file, whatever directory studio runs from
     diagnosticsOf(`${project}/app/page.tsx:3:5: JSX element 'text' has no closing tag.`, project),
   ).toEqual([{ file: "app/page.tsx", line: 3, message: "JSX element 'text' has no closing tag." }]);
 });
+
+test("studio drives Claude Code or its generator; another harness is refused with the reason", async () => {
+  const { default: cli } = await import("../examples/studio/app/args");
+  expect(await cli.parse(["--harness", "claude"], { cwd: "/" })).toMatchObject({
+    harness: "claude",
+  });
+  expect(await cli.parse(["-H", "fake"], { cwd: "/" })).toMatchObject({ harness: "fake" });
+  for (const other of ["codex", "pi", "opencode"]) {
+    let refusal = "";
+    try {
+      await cli.parse(["--harness", other], { cwd: "/" });
+    } catch (error: unknown) {
+      refusal = messageOf(error);
+    }
+    expect(refusal).toContain("Codex, pi and opencode run in coder for now");
+  }
+});

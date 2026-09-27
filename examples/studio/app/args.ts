@@ -1,8 +1,14 @@
 import { defineArgs } from "airtty/args";
 import { z } from "zod";
 
-/** The harnesses studio drives: Claude Code, Codex, and its scripted generator. */
-export const STUDIO_HARNESSES = ["claude", "codex", "fake"] as const;
+/**
+ * The harnesses studio drives: Claude Code and its scripted generator. Codex, pi and
+ * opencode are coder's only: studio cannot keep them from running commands (Codex has no
+ * mode without them, docs/studio/SPEC.md).
+ */
+export const STUDIO_HARNESSES = ["claude", "fake"] as const;
+const ONLY_THESE =
+  "studio drives claude (Claude Code) or fake (its scripted generator); Codex, pi and opencode run in coder for now, since studio cannot keep them from running commands";
 // Automatic corrections after a failed validation, by default and at most.
 const DEFAULT_FIXES = 2;
 const MAX_FIXES = 5;
@@ -11,12 +17,17 @@ export default defineArgs({
   summary: "Describe an airtty app to a coding agent and use it while it is written",
   options: z
     .object({
-      harness: z.enum(STUDIO_HARNESSES).optional().meta({
-        short: "H",
-        env: "STUDIO_HARNESS",
-        description:
-          "Agent harness (default: the first ready of claude, codex; fake is a scripted generator)",
-      }),
+      // A string checked by zod, not an enum the parser checks first: its refusal of
+      // codex would not say why.
+      harness: z
+        .string()
+        .pipe(z.enum(STUDIO_HARNESSES, { error: ONLY_THESE }))
+        .optional()
+        .meta({
+          short: "H",
+          env: "STUDIO_HARNESS",
+          description: "Agent harness: claude (default) or fake, a scripted generator",
+        }),
       dir: z.string().optional().meta({
         short: "d",
         kind: "path",
