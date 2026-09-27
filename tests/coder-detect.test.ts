@@ -2,7 +2,7 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import { chmod, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { detect } from "../examples/coder/server/detect";
+import { detect } from "../packages/harness/src/detect";
 
 // A stand-in `claude` on a PATH of its own: what it prints is what 2.1.283 prints.
 let bin: string;

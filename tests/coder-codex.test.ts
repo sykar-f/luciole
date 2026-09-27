@@ -2,14 +2,14 @@ import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { z } from "zod";
-import type { Request, Response } from "../examples/coder/components/model";
+import type { Request, Response } from "../packages/harness/src/model";
 import {
   CodexHarness,
   type CodexDeps,
   type CodexTransport,
-} from "../examples/coder/server/adapters/codex";
-import type { HarnessEvent } from "../examples/coder/server/adapters/types";
-import type { RpcHandlers } from "../examples/coder/server/jsonl";
+} from "../packages/harness/src/adapters/codex";
+import type { HarnessEvent } from "../packages/harness/src/adapters/types";
+import type { RpcHandlers } from "../packages/harness/src/jsonl";
 
 // Exchanges recorded on the real codex app-server by scripts/coder/record-codex.ts,
 // replayed in step with the adapter: its requests answered as recorded, Codex's

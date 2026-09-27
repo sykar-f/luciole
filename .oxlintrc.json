@@ -88,6 +88,6 @@
     "probes/devtools-tanstack/**",
     "website/dist/**",
     "website/.astro/**",
-    "examples/coder/server/adapters/codex-protocol/**"
+    "packages/harness/src/adapters/codex-protocol/**"
   ]
 }

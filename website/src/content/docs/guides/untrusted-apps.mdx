@@ -129,8 +129,8 @@ writes to its data directory, and `net` by host through the host's egress proxy.
 
 It is macOS only for now. Under `airtty-sandbox` the Server would listen inside its own network
 namespace, and the host would need a reverse relay to reach it, which is not built: other
-mechanisms are refused with the reason, never simulated. `confineServer` is not a package entry
-yet; a host passes its `command` to `startAppServer` from
+mechanisms are refused with the reason, never simulated. A host imports `confineServer` from
+`airtty/sandbox` and passes its `command` and `env` to `startAppServer` from
 [`airtty/dev`](/docs/reference/api/#supervising-an-app-airttydev).
 
 ## Apps inside your app

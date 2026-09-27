@@ -51,8 +51,8 @@ export type TerminalProps = {
 export type TerminalIo = Pick<PtyOptions, "cols" | "rows" | "onData" | "onExit">;
 /**
  * `<Terminal>` with its own way of starting the program (the sandbox starts it under
- * Seatbelt, src/sandbox/spawn.ts): not exported by airtty/client. `program` identifies
- * the program: a new one replaces the running one.
+ * Seatbelt, src/sandbox/spawn.ts; a host may end it otherwise than by SIGHUP).
+ * `program` identifies the program: a new one replaces the running one.
  */
 export type TerminalViewProps = Omit<TerminalProps, "command" | "cwd" | "env"> & {
   program: string;

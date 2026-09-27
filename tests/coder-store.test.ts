@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import type { Item, Snapshot } from "../examples/coder/components/model";
-import { FeedStore } from "../examples/coder/components/store";
+import type { Item, Snapshot } from "../packages/harness/src/model";
+import { FeedStore } from "../packages/harness/src/ui/store";
 
 const snapshot = (items: readonly Item[]): Snapshot => ({
   state: "idle",

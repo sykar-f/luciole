@@ -1,5 +1,11 @@
 # État d'avancement — `examples/coder`
 
+> **Depuis l'extraction de `packages/harness`** (C5b, studio) : les adaptateurs, la
+> session, la détection, `jsonl`, `pi-gate`, `anthropic-guard`, le modèle neutre
+> (`components/model.ts`) et les composants partagés (`Transcript`, `Dialogs`, `Picker`,
+> `StatusLine`, `store`, `theme`, `syntax`…) vivent sous `packages/harness/src/` ; les
+> chemins `server/…` et `components/…` ci-dessous désignent leur emplacement d'origine.
+
 Branche `feat/coder`. Référence : [CODER-HANDOFF.md](../CODER-HANDOFF.md) (prime),
 [SPEC.md](SPEC.md).
 

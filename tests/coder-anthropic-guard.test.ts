@@ -7,7 +7,7 @@ import {
   opencodeAnthropicOAuth,
   piAnthropicOAuth,
   withoutOAuth,
-} from "../examples/coder/server/anthropic-guard";
+} from "../packages/harness/src/anthropic-guard";
 
 // docs/CODER-HANDOFF.md §3.5: every way pi or opencode could use a Claude subscription is caught,
 // and none of them reads a secret into coder.

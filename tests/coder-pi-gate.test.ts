@@ -6,7 +6,7 @@ import {
   DENY,
   GATE_TITLE,
   gateFile,
-} from "../examples/coder/server/pi-gate";
+} from "../packages/harness/src/pi-gate";
 
 // The gate is the only thing between pi and the user's files: it is loaded here as pi
 // loads it, into a stand-in `pi`, and every mode is tried on every kind of tool.

@@ -291,7 +291,7 @@ def chat(directory):
         term.stop()
 
 
-# The live demo's scripted session (scripts/demo.ts, examples/coder/server/adapters/fake.ts):
+# The live demo's scripted session (scripts/demo.ts, packages/harness/src/adapters/fake.ts):
 # the same project path on both screens, the same prompt, the same approval.
 CODER_CWD = "/home/ada/src/timers"
 CODER_PROMPT = 'parseDuration("abc") returns NaN: make it throw a clear error, then run its tests'

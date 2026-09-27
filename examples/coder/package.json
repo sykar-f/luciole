@@ -3,12 +3,6 @@
   "private": true,
   "type": "module",
   "description": "One coding-agent session in a terminal, on Claude Code, Codex, pi or opencode.",
-  "imports": {
-    "#adapters": {
-      "browser": "./server/adapters/browser.ts",
-      "default": "./server/adapters/index.ts"
-    }
-  },
   "airtty": {
     "displayName": "coder",
     "server": "per-launch",
@@ -16,7 +10,7 @@
   },
   "dependencies": {
     "airtty": "workspace:*",
-    "@anthropic-ai/claude-agent-sdk": "catalog:",
+    "@airtty/harness": "workspace:*",
     "@opentui/core": "catalog:",
     "@opentui/keymap": "catalog:",
     "@opentui/react": "catalog:",

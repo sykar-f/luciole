@@ -7,6 +7,7 @@ import { createHash } from "node:crypto";
 import { z } from "zod";
 import { bundleMessages, logMessages } from "./bundle-errors";
 import { nativePackage } from "./native";
+import { airttySources } from "./sources";
 import { governingLock } from "./lockfile";
 import { withLock } from "./launcher/lock";
 import { readJsonFile } from "./package-json";
@@ -25,7 +26,8 @@ import {
   WEB_SERVER_SETUP,
   webServerPlugins,
 } from "./web/server-build";
-const framework = dirname(import.meta.path);
+// airtty's src/, even when this module runs bundled into an application (src/sources.ts).
+const framework = airttySources(dirname(import.meta.path));
 const quote = JSON.stringify;
 // Resolved from the framework so starters using a file: dependency find their copy.
 const tanstackClientBuild = join(
@@ -267,7 +269,7 @@ function clientOnlyReactExports(root: string): ReadonlySet<string> {
     try {
       manifest = Bun.resolveSync("react/package.json", root);
     } catch {
-      manifest = Bun.resolveSync("react/package.json", import.meta.dir);
+      manifest = Bun.resolveSync("react/package.json", framework);
     }
     const entries = ReactExports.parse(JSON.parse(readFileSync(manifest, "utf8"))).exports["."];
     const load = createRequire(manifest);
@@ -287,6 +289,14 @@ class Unresolved extends Error {
     super(`${from}: Cannot resolve ${name}`);
   }
 }
+// A signed bundle needs a publisher key: hosts that sign their own builds (studio) make one.
+export {
+  fingerprintOf,
+  generatePublisherKey,
+  readPublisherKey,
+  type PublisherKey,
+} from "./publisher";
+
 /** What a build was asked for beyond its sources: an output built otherwise is rebuilt. */
 const BuiltWith = z.object({
   buildId: z.string(),

@@ -13,8 +13,8 @@ import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { homedir, hostname, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { z } from "zod";
-import { MODE_RULES } from "../../examples/coder/server/adapters/opencode";
-import { parseLine } from "../../examples/coder/server/jsonl";
+import { MODE_RULES } from "../../packages/harness/src/adapters/opencode";
+import { parseLine } from "../../packages/harness/src/jsonl";
 
 const MODEL = process.env.CODER_RECORD_MODEL ?? "opencode/mimo-v2.6-flash-free";
 type Scenario = {

@@ -46,7 +46,7 @@
     "examples/coder": {
       "name": "@airtty-examples/coder",
       "dependencies": {
-        "@anthropic-ai/claude-agent-sdk": "catalog:",
+        "@airtty/harness": "workspace:*",
         "@opentui/core": "catalog:",
         "@opentui/keymap": "catalog:",
         "@opentui/react": "catalog:",
@@ -121,6 +121,19 @@
         "zod": "catalog:",
       },
     },
+    "examples/studio": {
+      "name": "@airtty-examples/studio",
+      "dependencies": {
+        "@airtty/harness": "workspace:*",
+        "@opentui/core": "catalog:",
+        "@opentui/keymap": "catalog:",
+        "@opentui/react": "catalog:",
+        "@tanstack/react-router": "catalog:",
+        "airtty": "workspace:*",
+        "react": "catalog:",
+        "zod": "catalog:",
+      },
+    },
     "packages/airtty": {
       "name": "airtty",
       "version": "0.1.0",
@@ -180,16 +193,27 @@
         "electrobun": "catalog:",
       },
     },
+    "packages/harness": {
+      "name": "@airtty/harness",
+      "dependencies": {
+        "@anthropic-ai/claude-agent-sdk": "catalog:",
+        "@opentui/core": "catalog:",
+        "@opentui/react": "catalog:",
+        "airtty": "workspace:*",
+        "react": "catalog:",
+        "zod": "catalog:",
+      },
+    },
   },
   "overrides": {
-    "@anthropic-ai/claude-agent-sdk-darwin-arm64": "file:./examples/coder/vendor/no-bundled-claude",
-    "@anthropic-ai/claude-agent-sdk-darwin-x64": "file:./examples/coder/vendor/no-bundled-claude",
-    "@anthropic-ai/claude-agent-sdk-linux-arm64": "file:./examples/coder/vendor/no-bundled-claude",
-    "@anthropic-ai/claude-agent-sdk-linux-arm64-musl": "file:./examples/coder/vendor/no-bundled-claude",
-    "@anthropic-ai/claude-agent-sdk-linux-x64": "file:./examples/coder/vendor/no-bundled-claude",
-    "@anthropic-ai/claude-agent-sdk-linux-x64-musl": "file:./examples/coder/vendor/no-bundled-claude",
-    "@anthropic-ai/claude-agent-sdk-win32-arm64": "file:./examples/coder/vendor/no-bundled-claude",
-    "@anthropic-ai/claude-agent-sdk-win32-x64": "file:./examples/coder/vendor/no-bundled-claude",
+    "@anthropic-ai/claude-agent-sdk-darwin-arm64": "file:./packages/harness/vendor/no-bundled-claude",
+    "@anthropic-ai/claude-agent-sdk-darwin-x64": "file:./packages/harness/vendor/no-bundled-claude",
+    "@anthropic-ai/claude-agent-sdk-linux-arm64": "file:./packages/harness/vendor/no-bundled-claude",
+    "@anthropic-ai/claude-agent-sdk-linux-arm64-musl": "file:./packages/harness/vendor/no-bundled-claude",
+    "@anthropic-ai/claude-agent-sdk-linux-x64": "file:./packages/harness/vendor/no-bundled-claude",
+    "@anthropic-ai/claude-agent-sdk-linux-x64-musl": "file:./packages/harness/vendor/no-bundled-claude",
+    "@anthropic-ai/claude-agent-sdk-win32-arm64": "file:./packages/harness/vendor/no-bundled-claude",
+    "@anthropic-ai/claude-agent-sdk-win32-x64": "file:./packages/harness/vendor/no-bundled-claude",
   },
   "catalog": {
     "@anthropic-ai/claude-agent-sdk": "0.3.283",
@@ -251,6 +275,10 @@
     "@airtty-examples/mux": ["@airtty-examples/mux@workspace:examples/mux"],
 
     "@airtty-examples/notes": ["@airtty-examples/notes@workspace:examples/notes"],
+
+    "@airtty-examples/studio": ["@airtty-examples/studio@workspace:examples/studio"],
+
+    "@airtty/harness": ["@airtty/harness@workspace:packages/harness"],
 
     "@anthropic-ai/claude-agent-sdk": ["@anthropic-ai/claude-agent-sdk@0.3.283", "", { "optionalDependencies": { "@anthropic-ai/claude-agent-sdk-darwin-arm64": "0.3.283", "@anthropic-ai/claude-agent-sdk-darwin-x64": "0.3.283", "@anthropic-ai/claude-agent-sdk-linux-arm64": "0.3.283", "@anthropic-ai/claude-agent-sdk-linux-arm64-musl": "0.3.283", "@anthropic-ai/claude-agent-sdk-linux-x64": "0.3.283", "@anthropic-ai/claude-agent-sdk-linux-x64-musl": "0.3.283", "@anthropic-ai/claude-agent-sdk-win32-arm64": "0.3.283", "@anthropic-ai/claude-agent-sdk-win32-x64": "0.3.283" }, "peerDependencies": { "@anthropic-ai/sdk": ">=0.93.0", "@modelcontextprotocol/sdk": "^1.29.0", "zod": "^4.0.0" } }, "sha512-KB+mqU5JLbH2sztlSQeCOu71bK6padYAha3uacBzxFSOVfuRTywYzvsC9P+qV6gXmPXcu98FaPqQv6vBF9j8hA=="],
 
@@ -912,21 +940,21 @@
 
     "zod-to-json-schema": ["zod-to-json-schema@3.25.2", "", { "peerDependencies": { "zod": "^3.25.28 || ^4" } }, "sha512-O/PgfnpT1xKSDeQYSCfRI5Gy3hPf91mKVDuYLUHZJMiDFptvP41MSnWofm8dnCm0256ZNfZIM7DSzuSMAFnjHA=="],
 
-    "@anthropic-ai/claude-agent-sdk/@anthropic-ai/claude-agent-sdk-darwin-arm64": ["@anthropic-ai/claude-agent-sdk-darwin-arm64@file:./examples/coder/vendor/no-bundled-claude", {}],
+    "@anthropic-ai/claude-agent-sdk/@anthropic-ai/claude-agent-sdk-darwin-arm64": ["@anthropic-ai/claude-agent-sdk-darwin-arm64@file:./packages/harness/vendor/no-bundled-claude", {}],
 
-    "@anthropic-ai/claude-agent-sdk/@anthropic-ai/claude-agent-sdk-darwin-x64": ["@anthropic-ai/claude-agent-sdk-darwin-x64@file:./examples/coder/vendor/no-bundled-claude", {}],
+    "@anthropic-ai/claude-agent-sdk/@anthropic-ai/claude-agent-sdk-darwin-x64": ["@anthropic-ai/claude-agent-sdk-darwin-x64@file:./packages/harness/vendor/no-bundled-claude", {}],
 
-    "@anthropic-ai/claude-agent-sdk/@anthropic-ai/claude-agent-sdk-linux-arm64": ["@anthropic-ai/claude-agent-sdk-linux-arm64@file:./examples/coder/vendor/no-bundled-claude", {}],
+    "@anthropic-ai/claude-agent-sdk/@anthropic-ai/claude-agent-sdk-linux-arm64": ["@anthropic-ai/claude-agent-sdk-linux-arm64@file:./packages/harness/vendor/no-bundled-claude", {}],
 
-    "@anthropic-ai/claude-agent-sdk/@anthropic-ai/claude-agent-sdk-linux-arm64-musl": ["@anthropic-ai/claude-agent-sdk-linux-arm64-musl@file:./examples/coder/vendor/no-bundled-claude", {}],
+    "@anthropic-ai/claude-agent-sdk/@anthropic-ai/claude-agent-sdk-linux-arm64-musl": ["@anthropic-ai/claude-agent-sdk-linux-arm64-musl@file:./packages/harness/vendor/no-bundled-claude", {}],
 
-    "@anthropic-ai/claude-agent-sdk/@anthropic-ai/claude-agent-sdk-linux-x64": ["@anthropic-ai/claude-agent-sdk-linux-x64@file:./examples/coder/vendor/no-bundled-claude", {}],
+    "@anthropic-ai/claude-agent-sdk/@anthropic-ai/claude-agent-sdk-linux-x64": ["@anthropic-ai/claude-agent-sdk-linux-x64@file:./packages/harness/vendor/no-bundled-claude", {}],
 
-    "@anthropic-ai/claude-agent-sdk/@anthropic-ai/claude-agent-sdk-linux-x64-musl": ["@anthropic-ai/claude-agent-sdk-linux-x64-musl@file:./examples/coder/vendor/no-bundled-claude", {}],
+    "@anthropic-ai/claude-agent-sdk/@anthropic-ai/claude-agent-sdk-linux-x64-musl": ["@anthropic-ai/claude-agent-sdk-linux-x64-musl@file:./packages/harness/vendor/no-bundled-claude", {}],
 
-    "@anthropic-ai/claude-agent-sdk/@anthropic-ai/claude-agent-sdk-win32-arm64": ["@anthropic-ai/claude-agent-sdk-win32-arm64@file:./examples/coder/vendor/no-bundled-claude", {}],
+    "@anthropic-ai/claude-agent-sdk/@anthropic-ai/claude-agent-sdk-win32-arm64": ["@anthropic-ai/claude-agent-sdk-win32-arm64@file:./packages/harness/vendor/no-bundled-claude", {}],
 
-    "@anthropic-ai/claude-agent-sdk/@anthropic-ai/claude-agent-sdk-win32-x64": ["@anthropic-ai/claude-agent-sdk-win32-x64@file:./examples/coder/vendor/no-bundled-claude", {}],
+    "@anthropic-ai/claude-agent-sdk/@anthropic-ai/claude-agent-sdk-win32-x64": ["@anthropic-ai/claude-agent-sdk-win32-x64@file:./packages/harness/vendor/no-bundled-claude", {}],
 
     "body-parser/content-type": ["content-type@2.1.0", "", {}, "sha512-mj7UPXE0jaqaOsukNZRUEfEi2AcL7C/vwmwcHV0O97eO1E1pxBZuyjlZrx5seTaNBg1U6+o35wpa35Qfcc+7ag=="],
 

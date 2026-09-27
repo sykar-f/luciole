@@ -1,6 +1,6 @@
 import { defineArgs } from "airtty/args";
 import { z } from "zod";
-import { HARNESSES, MODES } from "../components/model";
+import { HARNESSES, MODES } from "@airtty/harness/model";
 
 export default defineArgs({
   summary: "One coding-agent session in a terminal, on Claude Code, Codex, pi or opencode",

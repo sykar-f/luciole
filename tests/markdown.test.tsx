@@ -6,9 +6,9 @@ import { testRender } from "@opentui/react/test-utils";
 import { Markdown } from "../packages/airtty/src/markdown/Markdown";
 import { Palette } from "../packages/airtty/src/markdown/render";
 import { type Block, MarkdownStream } from "../packages/airtty/src/markdown/stream";
-import { syntax } from "../examples/coder/components/syntax";
-import { color } from "../examples/coder/components/theme";
-import { MARKDOWN_REPLY } from "../examples/coder/server/adapters/fake";
+import { syntax } from "../packages/harness/src/ui/syntax";
+import { color } from "../packages/harness/src/ui/theme";
+import { MARKDOWN_REPLY } from "../packages/harness/src/adapters/fake";
 
 const fixture = (name: string) =>
   Bun.file(new URL(`./fixtures/markdown/${name}.md`, import.meta.url)).text();

@@ -1,0 +1,9 @@
+{
+  "name": "studio-app",
+  "private": true,
+  "type": "module",
+  "airtty": {
+    "displayName": "studio app",
+    "capabilities": {}
+  }
+}

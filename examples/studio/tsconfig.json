@@ -1,0 +1,5 @@
+{
+  "extends": "airtty/tsconfig",
+  "include": ["app", "components", "actions", "server", "scripts"],
+  "exclude": ["**/node_modules", "**/.airtty"]
+}

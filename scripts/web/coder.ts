@@ -2,12 +2,12 @@
  * coder as a static site (docs/WEB.md, `--web-local`): the website's live demo. The
  * scripted harness answers in the Server's Worker, with the seed website/scripts/demo.ts
  * writes, and plays the demo's session: read, reply, diff to approve, tests, prompt back.
- * The Agent SDK must stay out of the Worker (examples/coder/package.json, `imports`).
+ * The Agent SDK must stay out of the Worker (packages/harness/package.json, `exports`).
  *   bun run test:web:coder
  */
 import { join } from "node:path";
-import { DEMO_END, DEMO_PROMPT } from "../../examples/coder/server/adapters/fake";
-import { SCRIPTED } from "../../examples/coder/components/StatusLine";
+import { DEMO_END, DEMO_PROMPT } from "../../packages/harness/src/adapters/fake";
+import { SCRIPTED } from "../../packages/harness/src/ui/StatusLine";
 import { build, example } from "../pty/harness";
 import { Browser } from "./cdp";
 import { rowWith, SCREEN, serveSite, shows } from "./site";

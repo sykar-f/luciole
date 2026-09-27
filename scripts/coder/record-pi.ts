@@ -12,8 +12,8 @@ import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { homedir, hostname, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { z } from "zod";
-import { LineProcess, parseLine } from "../../examples/coder/server/jsonl";
-import { ALLOW_ONCE, DENY, GATE_TITLE, gateFile } from "../../examples/coder/server/pi-gate";
+import { LineProcess, parseLine } from "../../packages/harness/src/jsonl";
+import { ALLOW_ONCE, DENY, GATE_TITLE, gateFile } from "../../packages/harness/src/pi-gate";
 
 const MODEL = process.env.CODER_RECORD_MODEL ?? "openai-codex/gpt-5.6-luna";
 type Scenario = { prompt: string; answer?: string; setup?: (cwd: string) => void; before?: string };

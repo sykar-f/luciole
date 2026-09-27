@@ -8,7 +8,16 @@
  * Linux containers.
  */
 import { test, expect } from "bun:test";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+  realpathSync,
+  symlinkSync,
+} from "node:fs";
 import { createServer } from "node:net";
 import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -888,4 +897,43 @@ test("a Server is not confined where no mechanism can let it listen yet", async 
     (error: unknown) => messageOf(error),
   );
   expect(refusal).toContain("needs Seatbelt");
+});
+
+onMacOS("a confined Server resolves packages through a readable node_modules link", async () => {
+  // A project outside the repository links node_modules to the framework's packages
+  // (studio): the resolver must follow the link, whose target is readable too.
+  const root = realpathSync(mkdtempSync(join(tmpdir(), "airtty-linked-")));
+  const packages = join(root, "packages/node_modules");
+  const app = join(root, "app");
+  mkdirSync(join(packages, "greeting"), { recursive: true });
+  writeFileSync(join(packages, "greeting/package.json"), `{"name":"greeting","main":"index.js"}`);
+  writeFileSync(join(packages, "greeting/index.js"), `module.exports = { word: "linked" };`);
+  mkdirSync(join(app, ".airtty/server"), { recursive: true });
+  symlinkSync(packages, join(app, "node_modules"), "dir");
+  writeFileSync(
+    join(app, ".airtty/server/index.js"),
+    `import { word } from "greeting";
+const server = Bun.serve({ hostname: "127.0.0.1", port: Number(process.env.PORT), fetch: () => new Response(word) });
+console.log(JSON.stringify({ ready: true, port: server.port }));`,
+  );
+  const box = await confineServer({
+    mechanism: { kind: "seatbelt" },
+    runtime: sandboxRuntime(),
+    granted: NONE,
+    readable: [join(app, ".airtty"), join(app, "node_modules")],
+    writable: [],
+  });
+  try {
+    const server = await startAppServer({
+      directory: app,
+      env: box.env,
+      command: box.command,
+      stderr: () => {},
+    });
+    expect(await (await fetch(`http://127.0.0.1:${server.port}/`)).text()).toBe("linked");
+    await server.stop();
+  } finally {
+    await box.close();
+    rmSync(root, { recursive: true, force: true });
+  }
 });

@@ -2,7 +2,7 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
-import { HARNESSES, type HarnessId } from "../components/model";
+import { HARNESSES, type HarnessId } from "@airtty/harness/model";
 
 // Which harness session each launch drives, so that a restarted Server (a rebuild in
 // development) continues it: `$XDG_STATE_HOME/airtty/coder/launches/<launch id>.json`.

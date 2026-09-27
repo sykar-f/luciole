@@ -141,6 +141,14 @@ test("startAppServer: resolves with the port, or rejects with what the Server sa
     expect(output).toEqual(["starting"]);
     await server.stop();
     expect(server.child.exitCode !== null || server.child.signalCode !== null).toBe(true);
+    // Built elsewhere (`build(directory, output)`): the same Server from its output.
+    const elsewhere = await startAppServer({
+      directory: "/nonexistent",
+      output: join(dir, ".airtty"),
+      env: process.env,
+    });
+    expect(elsewhere.port).toBe(4331);
+    await elsewhere.stop();
 
     await Bun.write(
       entry,
