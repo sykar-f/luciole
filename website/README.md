@@ -1,11 +1,23 @@
-# website : la page de présentation d'airtty
+# website : le site d'airtty
 
-Page unique en Astro 7 et TypeScript, statique, en anglais (public open source).
+Site statique en Astro 7 et TypeScript, en anglais (public open source) :
+
+| Page                               | Rôle                                                                               |
+| ---------------------------------- | ---------------------------------------------------------------------------------- |
+| `/`                                | la landing : quatre blocs, une seule démo live (Notes, dans le hero)               |
+| `/examples/`                       | chaque exemple par usage ; démos live au clic, une seule à la fois                 |
+| `/status/`                         | statut du projet, vérifié à la main contre le README et `docs/` (date et révision) |
+| `/docs/`, `/docs/getting-started/` | entrée de la documentation ; premiers pas en anglais                               |
+| `/guide/`                          | le guide, en français                                                              |
+| `/og/`                             | l'image de partage, photographiée par `scripts/og.ts` dans `public/og.png`         |
+
+Ce que la landing v2 a retiré, et où le retrouver : [DOCS-BACKLOG.md](DOCS-BACKLOG.md).
 
 ```sh
 cd website
 bun install --frozen-lockfile
 bun run dev        # http://localhost:4321
+bun scripts/og.ts http://localhost:4321   # public/og.png, après un changement de palette ou de capture
 bun run demo       # public/demo/notes/ : la démo live, à lancer avant build
 bun run build      # dist/, publiable sur n'importe quel hébergement statique
 bun run check      # astro check : types des composants et scripts
@@ -39,7 +51,7 @@ pas du jour de la capture. Après un changement visible d'un exemple, relancer l
 
 ## Les démos live sont reconstruites, pas copiées à la main
 
-Le hero fait tourner Forge dans la page : `airtty build --web-local` de `examples/forge`,
+Le hero fait tourner Notes dans la page : `airtty build --web-local` de `examples/notes`,
 Client et Server dans l'onglet (voir `docs/WEB.md`). `scripts/demo.ts` refait ce build
 pour chaque démo (`forge`, `notes`, `mdreader`, `chat`, `devtools`) et copie `.airtty/web/`
 sans les source maps dans
@@ -52,18 +64,20 @@ quand même, mais le hero reste sur sa capture.
 
 `LiveTerminal.astro` dessine d'abord la capture de l'écran (aucune attente, aucun décalage),
 démarre l'application derrière elle dans un `iframe` à la même grille, affiche les étapes
-du démarrage, déroule un script (Forge : connexion en alice, pull request payments#1), puis
+du démarrage, déroule un script (sur `/examples/`, Forge : connexion en alice, un diff), puis
 remplace la capture. Un clic sur l'écran donne le clavier à l'application, un clic ailleurs
 le rend à la page. Sous 760 px de large ou avec l'économie de données, rien ne démarre : un
 lien ouvre la démo dans sa propre page.
 
-Trois sections en font tourner : le hero (Forge), Latency (Notes, dont la page règle
-l'aller-retour et la panne de la prochaine requête, et liste les vraies requêtes) et la
-galerie Examples (Forge, Chat, mdreader, DevTools, une seule vivante à la fois : l'onglet
-choisi). Chaque démo trouve autour d'elle ce que `scripts/demo.ts` écrit dans
-`server-seed.json` : un environnement (`CHAT_DEMO=1`, `MD_PATH=/docs`…) et, pour mdreader,
-les documents du dépôt en lecture seule. Files et mux restent au terminal : une
-bibliothèque d'images native pour l'un, des PTY pour l'autre.
+La landing n'en fait tourner qu'une : Notes, dans le hero, dont la page règle l'aller-retour
+et la perte de la prochaine réponse ; elle démarre près du viewport et s'arrête loin de lui.
+Les autres (Forge, Chat, mdreader, DevTools) tournent sur `/examples/`, au clic, une seule
+à la fois, arrêtée quand on la quitte. Chaque démo trouve autour d'elle ce que
+`scripts/demo.ts` écrit dans `server-seed.json` : un environnement (`CHAT_DEMO=1`,
+`MD_PATH=/docs`…) et, pour mdreader, les documents du dépôt en lecture seule. coder, Files
+et mux restent au terminal (binaires d'agents, bibliothèque d'images native, PTY) : leurs
+captures les montrent ; coder est capturé sur son harness scripté (`--harness fake`).
 
 La page lit aussi les sources de `examples/notes` à la compilation (`?raw`) : le code
-montré dans « One codebase. Two programs. » est celui du dépôt.
+montré dans « React components. A server side. » est celui du dépôt, découpé par motifs ;
+un motif qui ne correspond plus fait échouer le build.

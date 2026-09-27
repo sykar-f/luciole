@@ -35,13 +35,13 @@ const ROW = 50;
     <div class="diagram">
       <svg viewBox={`0 0 764 ${forms.length * ROW + 36}`} role="img" aria-label="Les cinq formes de cible de airtty, dans l'ordre de résolution">
         <defs>
-          <marker id="d-down" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 1 L9 5 L0 9 z" fill="#5d6b80" /></marker>
+          <marker id="d-down" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 1 L9 5 L0 9 z" style="fill: var(--dim)" /></marker>
         </defs>
         <text x="30" y="18" class="d-head">ordre</text>
         <text x="64" y="18" class="d-head">cible</text>
         <text x="268" y="18" class="d-head">ce qui tourne</text>
         <text x="540" y="18" class="d-head">confiance</text>
-        <line x1="36" y1="34" x2="36" y2={forms.length * ROW + 26} stroke="#5d6b80" stroke-width="1.2" marker-end="url(#d-down)" />
+        <line x1="36" y1="34" x2="36" y2={forms.length * ROW + 26} style="stroke: var(--dim)" stroke-width="1.2" marker-end="url(#d-down)" />
         {
           forms.map((f, i) => {
             const y = 32 + i * ROW;
@@ -202,45 +202,45 @@ const ROW = 50;
 
 <style>
   .d-head {
-    fill: #5d6b80;
+    fill: var(--dim);
     font-size: 10px;
     letter-spacing: 0.08em;
     text-transform: uppercase;
   }
 
   .d-row {
-    fill: rgb(152 166 186 / 0.04);
-    stroke: rgb(152 166 186 / 0.3);
+    fill: color-mix(in srgb, var(--mist) 4%, transparent);
+    stroke: color-mix(in srgb, var(--mist) 30%, transparent);
   }
 
   .d-row.url {
-    fill: rgb(103 217 188 / 0.06);
-    stroke: rgb(103 217 188 / 0.5);
+    fill: color-mix(in srgb, var(--client) 6%, transparent);
+    stroke: color-mix(in srgb, var(--client) 50%, transparent);
   }
 
   .d-form {
-    fill: #edf1f7;
+    fill: var(--paper);
     font-size: 12px;
     font-weight: 600;
   }
 
   .d-kind {
-    fill: #7d8aa0;
+    fill: var(--dim);
     font-size: 10.5px;
   }
 
   .d-runs {
-    fill: #c4ccd8;
+    fill: var(--prose);
     font-size: 11.5px;
   }
 
   .d-trust {
-    fill: #ffbc66;
+    fill: var(--server);
     font-size: 11.5px;
   }
 
   .d-trust.url {
-    fill: #67d9bc;
+    fill: var(--client);
   }
 
 </style>

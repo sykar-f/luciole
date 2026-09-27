@@ -62,9 +62,16 @@ export function escape(text: string) {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-/** The terminal's default colours, as the live demos set them (LiveTerminal.astro). */
-export const SCREEN_BACKGROUND = "#0a0f16";
-export const SCREEN_FOREGROUND = "#e6edf3";
+/**
+ * Stand-ins, in the bytes built here, for colours the palette decides in the page: the
+ * screen's own background and text (a reversed cell takes them), and the afterglow of a
+ * freshly written cell, hot then warm. LiveTerminal.astro puts the palette's in with
+ * `recolor` before writing. No application sends these values.
+ */
+export const SCREEN_BACKGROUND = "#010203";
+export const SCREEN_FOREGROUND = "#010204";
+export const GLOW_HOT = "#010205";
+export const GLOW_WARM = "#010206";
 
 const HEX = 16;
 /** Where red, green and blue start in `#rrggbb`. */
@@ -107,4 +114,57 @@ export function ansi(frame: Frame) {
   );
   // Cursor hidden, as OpenTUI hides it; rows placed absolutely, so none scrolls.
   return `${ESC}?25l${rows.map((row, i) => `${ESC}${i + 1};1H${row}${ESC}0m`).join("")}`;
+}
+
+/** One cell: its character and the style it was drawn with. */
+type Cell = [text: string, fg: string | null, bg: string | null, flags: string];
+
+/** A frame as a grid of cells, blanks included: rows are captured without their trailing ones. */
+function grid(frame: Frame): Cell[][] {
+  return frame.cells.map((runs) => {
+    // A cell per code point, as pyte stored them (scripts/capture.py): not graphemes.
+    const cells: Cell[] = runs.flatMap(([text, fg, bg, flags]) =>
+      Array.from(text, (char): Cell => [char, fg, bg, flags]),
+    );
+    while (cells.length < frame.cols) cells.push([" ", null, null, ""]);
+    return cells;
+  });
+}
+
+const same = (a: Cell, b: Cell) => a[0] === b[0] && a[1] === b[1] && a[2] === b[2] && a[3] === b[3];
+const blank = ([char, , bg]: Cell) => char === " " && bg === null;
+
+/**
+ * What a terminal renderer writes to go from `before` to `after` (from an empty screen
+ * without one): the cells that changed, and only those, as the bytes that draw them.
+ * With `tint`, each is drawn on that background instead of its own: the afterglow of a
+ * freshly written cell. Returns the bytes and how many cells they write.
+ */
+export function patch(before: Frame | null, after: Frame, tint?: string) {
+  const ESC = "\x1b[";
+  const old = before ? grid(before) : [];
+  let cells = 0;
+  const writes = grid(after).map((row, y) => {
+    let out = "";
+    let at = -1;
+    row.forEach((cell, x) => {
+      const previous = old[y]?.[x];
+      if (previous ? same(previous, cell) : blank(cell)) return;
+      cells++;
+      const [text, fg, bg, flags] = cell;
+      const codes = ["0"];
+      const color = hexOf(fg);
+      const background = tint ?? hexOf(bg);
+      if (color) codes.push(`38;2;${rgb(color)}`);
+      if (background) codes.push(`48;2;${rgb(background)}`);
+      if (flags.includes("b")) codes.push("1");
+      if (flags.includes("i")) codes.push("3");
+      if (flags.includes("u")) codes.push("4");
+      if (at !== x) out += `${ESC}${y + 1};${x + 1}H`;
+      out += `${ESC}${codes.join(";")}m${text}`;
+      at = x + 1;
+    });
+    return out;
+  });
+  return { ansi: `${ESC}?25l${writes.join("")}${ESC}0m`, cells };
 }

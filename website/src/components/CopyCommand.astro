@@ -2,12 +2,14 @@
 interface Props {
   lines: string[];
   label?: string;
+  /** Without its own box: a few lines of a longer transcript. */
+  plain?: boolean;
 }
 
-const { lines, label } = Astro.props;
+const { lines, label, plain = false } = Astro.props;
 ---
 
-<div class="command" data-copy={lines.join("\n")}>
+<div class:list={["command", { plain }]} data-copy={lines.join("\n")}>
   <div class:list={["head", { bare: !label }]}>
     {label && <span>{label}</span>}
     <button type="button" data-copy-button>Copy</button>
@@ -35,9 +37,20 @@ const { lines, label } = Astro.props;
   .command {
     position: relative;
     border: 1px solid var(--rule-strong);
-    border-radius: 8px;
-    background: var(--night-deep);
+    background: var(--panel);
     overflow: hidden;
+  }
+
+  .command.plain {
+    border: 0;
+    background: none;
+    overflow: visible;
+  }
+
+  .plain .head.bare {
+    top: 50%;
+    right: 0;
+    transform: translateY(-50%);
   }
 
   .head {
@@ -48,7 +61,7 @@ const { lines, label } = Astro.props;
     padding: 8px 8px 8px 14px;
     border-bottom: 1px solid var(--rule);
     color: var(--mist);
-    font-size: 0.85rem;
+    font: 400 0.85rem / 1.5 var(--mono);
   }
 
   .head.bare {
@@ -60,21 +73,21 @@ const { lines, label } = Astro.props;
   }
 
   .head.bare + pre {
-    padding-right: 80px;
+    padding-right: 90px;
   }
 
   button {
-    padding: 4px 10px;
+    padding: 4px 8px;
     border: 1px solid var(--rule-strong);
-    border-radius: 5px;
-    background: var(--night-raised);
-    color: var(--paper);
-    font: 500 0.8rem / 1.4 var(--mono);
+    background: var(--night);
+    color: var(--mist);
+    font: 500 0.78rem / 1.4 var(--mono);
     cursor: pointer;
   }
 
   button:hover {
-    border-color: var(--client);
+    border-color: var(--mist);
+    color: var(--paper);
   }
 
   pre {
@@ -84,12 +97,30 @@ const { lines, label } = Astro.props;
     font: 400 0.86rem / 1.7 var(--mono);
   }
 
+  .plain pre {
+    padding: 2px 0;
+  }
+
+  /* On a phone the button takes its own line: the commands keep the width. */
+  @media (max-width: 560px) {
+    .plain .head.bare {
+      position: static;
+      justify-content: flex-end;
+      margin-top: 4px;
+      transform: none;
+    }
+
+    .plain .head.bare + pre {
+      padding-right: 0;
+    }
+  }
+
   .line {
     display: block;
   }
 
   .prompt {
-    color: var(--client);
+    color: var(--dim);
     user-select: none;
   }
 </style>

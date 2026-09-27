@@ -1,0 +1,586 @@
+---
+// Notes, running in this page (LiveTerminal.astro), behind a network the reader controls:
+// the round trip and the next reply's loss are the runtime's own (docs/WEB.md, "Page
+// embarquée"), the scope draws what its transport reported, request by request. Keys
+// never reach it: they are counted here, in the terminal, where they were handled. The
+// page's one live demo: it runs while it is near the viewport, and stops away from it.
+// Every other fault, and what each outcome means, belongs to the documentation.
+import LiveTerminal from "./LiveTerminal.astro";
+import { frame } from "../lib/frames";
+
+const DEFAULT_RTT_MS = 500;
+---
+
+<div class="demo" id="demo" data-wire>
+  <div class="side">
+    <LiveTerminal demo="notes" frame={frame("notes")} boot="manual" afterglow />
+    <p class="narrow">
+      On a narrow screen the demo shows its capture: scroll it sideways, open it on a wider screen
+      to play, or <a href="#start">run it locally</a>.
+    </p>
+    <figure class="scope">
+      <div class="scope-screen">
+        <canvas data-scope aria-hidden="true"></canvas>
+      </div>
+      <figcaption>
+        <span class="client">CH1</span> keys, handled in the terminal · <span class="server">CH2</span
+        > requests, open until the server answers
+      </figcaption>
+    </figure>
+  </div>
+
+  <div class="panel controls">
+    <p class="mission">Save a note, then keep typing while the reply arrives.</p>
+    <ol class="steps">
+      <li>Click the screen, then <kbd>Enter</kbd> to open a note.</li>
+      <li>Type, and press <kbd>Enter</kbd> to save.</li>
+      <li>Keep typing: the save is still on its way.</li>
+    </ol>
+    <p class="tally" aria-live="polite">
+      <span class="client" data-local>0</span> keys handled in the terminal ·{" "}
+      <span class="server" data-remote>0</span> requests
+    </p>
+    <p class="honest">
+      Simulated request latency: <output data-rtt-shown>{DEFAULT_RTT_MS} ms</output> per request.
+      This demo runs entirely in your browser.
+    </p>
+    <details class="network">
+      <summary>Network controls</summary>
+      <label class="rtt">
+        <span>Round trip <output data-rtt-value>{DEFAULT_RTT_MS} ms</output></span>
+        <input data-rtt type="range" min="0" max="1500" step="50" value={DEFAULT_RTT_MS} />
+      </label>
+      <button type="button" class="drop" aria-pressed="false" data-drop>Drop the next reply</button>
+      <p class="fall">Drop it, then save: the answer never comes, and what you typed stays in the field.</p>
+    </details>
+  </div>
+</div>
+
+<script>
+  import * as z from "zod/mini";
+  import { hex } from "../lib/colour";
+
+  /** How much time the scope shows, and how long a key's tick and a torn frame last. */
+  const SCOPE_MS = 8000;
+  const TICK_MS = 60;
+  const TEAR_MS = 160;
+  const MS_PER_SECOND = 1000;
+
+  /** Where each channel's baseline lies, and how high a pulse rises, in shares of the height. */
+  const CH1_AT = 0.3;
+  const CH2_AT = 0.8;
+  const RISE = 0.2;
+  /** The grid's dotted line, and the half pixel that keeps a 1 px line sharp. */
+  const GRID_DOT = 2;
+  const GRID_GAP = 4;
+  const HALF_PIXEL = 0.5;
+  /** How far past the left edge a trace is still drawn, in pixels, before it is dropped. */
+  const MARGIN = 4;
+  /** A torn answer's jag: points back from the pulse's end (px), at shares of its rise. */
+  const TEAR_FROM = 10;
+  const TEAR_DIP_AT = 6;
+  const TEAR_DIP = 0.4;
+  const TEAR_PEAK_AT = 3;
+  const TEAR_PEAK = 0.9;
+
+  /**
+   * Two channels, as on an oscilloscope: a tick on CH1 for each key, handled at once in the
+   * terminal; on CH2, a pulse from each request to its answer, as long as the round trip.
+   * Time runs right to left. It moves only while something is on it; with reduced motion,
+   * it is drawn again only when something happens.
+   */
+  function scope(canvas: HTMLCanvasElement) {
+    const context = canvas.getContext("2d");
+    // The screen's colours of the palette, read again when it changes (the "palette" event).
+    const read = () => {
+      const token = (name: string) =>
+        getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+      // The Server's trace dashed where Client and Server share a hue (--server-dash).
+      const dash = token("--server-dash").split(/\s+/).map(Number).filter((n) => n > 0);
+      return {
+        client: hex("--screen-client"),
+        server: hex("--screen-server"),
+        fault: hex("--screen-fault"),
+        grid: hex("--screen-rule"),
+        blur: Number.parseFloat(token("--glow-blur")) || 0,
+        dash,
+      };
+    };
+    let { client, server, fault, grid, blur, dash } = read();
+    const keys: number[] = [];
+    const requests = new Map<number, { from: number; to?: number; failed?: boolean }>();
+    const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    let running = false;
+
+    const draw = (now: number) => {
+      if (!context) return;
+      const ratio = devicePixelRatio || 1;
+      const width = canvas.clientWidth;
+      const height = canvas.clientHeight;
+      if (canvas.width !== Math.round(width * ratio)) canvas.width = Math.round(width * ratio);
+      if (canvas.height !== Math.round(height * ratio)) canvas.height = Math.round(height * ratio);
+      context.setTransform(ratio, 0, 0, ratio, 0, 0);
+      context.clearRect(0, 0, width, height);
+      const x = (t: number) => width - ((now - t) / SCOPE_MS) * width;
+      const one = height * CH1_AT;
+      const two = height * CH2_AT;
+      const rise = height * RISE;
+
+      // A division a second, and each channel's baseline.
+      context.strokeStyle = grid;
+      context.lineWidth = 1;
+      context.setLineDash([GRID_DOT, GRID_GAP]);
+      context.beginPath();
+      const seconds = SCOPE_MS / MS_PER_SECOND;
+      for (let second = 1; second < seconds; second++) {
+        const at = Math.round((second / seconds) * width) + HALF_PIXEL;
+        context.moveTo(at, 0);
+        context.lineTo(at, height);
+      }
+      context.stroke();
+      context.setLineDash([]);
+
+      const trace = (stroke: string, path: () => void, pattern: number[] = []) => {
+        context.setLineDash(pattern);
+        context.strokeStyle = stroke;
+        context.shadowColor = stroke;
+        context.shadowBlur = blur;
+        context.lineWidth = 1.5;
+        context.beginPath();
+        path();
+        context.stroke();
+        context.shadowBlur = 0;
+        context.setLineDash([]);
+      };
+
+      trace(client, () => {
+        context.moveTo(0, one);
+        for (const t of keys) {
+          const at = x(t);
+          if (at < -MARGIN) continue;
+          context.lineTo(at, one);
+          context.lineTo(at + 1, one - rise);
+          context.lineTo(at + Math.max(2, (TICK_MS / SCOPE_MS) * width), one);
+        }
+        context.lineTo(width, one);
+      });
+
+      const pulses = [...requests.values()].sort((a, b) => a.from - b.from);
+      trace(server, () => {
+        context.moveTo(0, two);
+        for (const pulse of pulses) {
+          const start = Math.max(0, x(pulse.from));
+          const end = x(pulse.to ?? now);
+          if (end < 0) continue;
+          context.lineTo(start, two);
+          context.lineTo(start, two - rise);
+          context.lineTo(end, two - rise);
+          context.lineTo(end, two);
+        }
+        context.lineTo(width, two);
+      }, dash);
+      // A lost or cut answer: its pulse ends torn, in the fault's colour.
+      for (const pulse of pulses) {
+        if (!pulse.failed || pulse.to === undefined) continue;
+        const end = x(pulse.to);
+        if (end < 0) continue;
+        trace(fault, () => {
+          context.moveTo(end - TEAR_FROM, two - rise);
+          context.lineTo(end - TEAR_DIP_AT, two - rise * TEAR_DIP);
+          context.lineTo(end - TEAR_PEAK_AT, two - rise * TEAR_PEAK);
+          context.lineTo(end, two);
+        });
+      }
+
+      // Drop what has left the screen.
+      for (let first = keys[0]; first !== undefined && x(first) < -MARGIN; first = keys[0]) keys.shift();
+      for (const [id, pulse] of requests) if (pulse.to !== undefined && x(pulse.to) < 0) requests.delete(id);
+      return keys.length > 0 || requests.size > 0;
+    };
+
+    const frame = (now: number) => {
+      running = draw(now) ?? false;
+      if (running) requestAnimationFrame(frame);
+    };
+    const wake = () => {
+      if (still) return void draw(performance.now());
+      if (running) return;
+      running = true;
+      requestAnimationFrame(frame);
+    };
+    new ResizeObserver(() => draw(performance.now())).observe(canvas);
+    document.addEventListener("palette", () => {
+      ({ client, server, fault, grid, blur, dash } = read());
+      draw(performance.now());
+    });
+    return {
+      key: () => {
+        keys.push(performance.now());
+        wake();
+      },
+      request: (id: number) => {
+        requests.set(id, { from: performance.now() });
+        wake();
+      },
+      answer: (id: number, failed: boolean) => {
+        const pulse = requests.get(id);
+        if (pulse) Object.assign(pulse, { to: performance.now(), failed });
+        wake();
+      },
+    };
+  }
+
+  const Reporting = z.object({
+    source: z.literal("airtty"),
+    type: z.literal("event"),
+    event: z.object({
+      type: z.string(),
+      id: z.optional(z.number()),
+    }),
+  });
+  type Reported = z.infer<typeof Reporting>["event"];
+  const Drawn = z.object({ source: z.literal("airtty"), type: z.literal("stage"), stage: z.literal("drawn") });
+
+  const section = document.querySelector<HTMLElement>("[data-wire]");
+  const drop = document.querySelector<HTMLButtonElement>("[data-drop]");
+  const rtt = document.querySelector<HTMLInputElement>("[data-rtt]");
+  const rttValue = document.querySelector<HTMLOutputElement>("[data-rtt-value]");
+  const local = document.querySelector<HTMLElement>("[data-local]");
+  const remote = document.querySelector<HTMLElement>("[data-remote]");
+  const canvas = document.querySelector<HTMLCanvasElement>("[data-scope]");
+
+  if (section && drop && rtt && rttValue && local && remote) {
+    const channels = canvas ? scope(canvas) : undefined;
+    // An injected fault, and only that, tears the terminal's picture for a moment.
+    const tear = () => {
+      const live = section.querySelector<HTMLElement>("[data-live]");
+      if (!live) return;
+      live.classList.remove("torn");
+      void live.offsetWidth;
+      live.classList.add("torn");
+      setTimeout(() => live.classList.remove("torn"), TEAR_MS);
+    };
+    const frame = () => section.querySelector("iframe");
+    let keys = 0;
+    let requests = 0;
+
+    const armed = () => drop.getAttribute("aria-pressed") === "true";
+    const arm = (on: boolean) => drop.setAttribute("aria-pressed", String(on));
+    const send = () =>
+      frame()?.contentWindow?.postMessage(
+        {
+          source: "airtty",
+          type: "network",
+          latencyMs: Number(rtt.value),
+          fault: armed() ? "drop" : undefined,
+        },
+        location.origin,
+      );
+    const shown = document.querySelector<HTMLOutputElement>("[data-rtt-shown]");
+    rtt.addEventListener("input", () => {
+      rttValue.value = `${rtt.value} ms`;
+      if (shown) shown.value = `${rtt.value} ms`;
+      send();
+    });
+    drop.addEventListener("click", () => {
+      arm(!armed());
+      send();
+    });
+
+    const report = (event: Reported) => {
+      if (event.id === undefined) return;
+      if (event.type === "request") {
+        remote.textContent = String(++requests);
+        channels?.request(event.id);
+        // The reply the page dropped went with this request: back to delivering.
+        if (armed()) arm(false);
+        return;
+      }
+      if (event.type === "end") channels?.answer(event.id, false);
+      else if (event.type === "error") {
+        channels?.answer(event.id, true);
+        tear();
+      }
+    };
+
+    // The page's one live demo: started near the viewport, stopped away from it (its
+    // capture back), started again from its first screen when the reader returns.
+    const live = section.querySelector<HTMLElement>("[data-live]");
+    if (live) {
+      new IntersectionObserver(
+        (entries) => {
+          const near = entries.some((entry) => entry.isIntersecting);
+          live.dispatchEvent(new Event(near ? "live:start" : "live:stop"));
+        },
+        { rootMargin: "200px 0px" },
+      ).observe(live);
+      for (const play of document.querySelectorAll("[data-play]"))
+        play.addEventListener("click", () => {
+          section.scrollIntoView({ behavior: "smooth", block: "center" });
+          live.dispatchEvent(new Event("live:take"));
+        });
+    }
+
+    addEventListener("message", (event) => {
+      const source = frame();
+      if (!source || event.source !== source.contentWindow || event.origin !== location.origin)
+        return;
+      const reported = Reporting.safeParse(event.data);
+      if (reported.success) return report(reported.data.event);
+      // Once drawn, the Server moves half a second away, and keys start being counted.
+      if (Drawn.safeParse(event.data).success) {
+        send();
+        // Capture: xterm.js stops the keys it handles from bubbling.
+        source.contentDocument?.addEventListener("keydown", () => {
+          local.textContent = String(++keys);
+          channels?.key();
+        }, { capture: true });
+      }
+    });
+  }
+</script>
+
+<style>
+  kbd {
+    white-space: nowrap;
+  }
+
+  .demo {
+    display: grid;
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+    gap: 24px;
+    align-items: start;
+  }
+
+  .side {
+    display: grid;
+    gap: 14px;
+    min-width: 0;
+  }
+
+  /* A picture torn for a moment, only when a fault was really injected. */
+  .side :global(.torn .screen) {
+    animation: tear 160ms steps(3) both;
+  }
+
+  @keyframes tear {
+    0% {
+      clip-path: inset(0 0 55% 0);
+      transform: translateX(6px);
+    }
+    50% {
+      clip-path: inset(40% 0 0 0);
+      transform: translateX(-4px);
+    }
+    100% {
+      clip-path: none;
+      transform: none;
+    }
+  }
+
+  .scope {
+    margin: 0;
+  }
+
+  .scope-screen {
+    position: relative;
+    border: 1px solid var(--rule-strong);
+    border-radius: 4px;
+    background: var(--screen);
+    overflow: hidden;
+  }
+
+  .scope-screen::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(130% 140% at 50% 50%, transparent 60%, var(--vignette)),
+      repeating-linear-gradient(to bottom, var(--scanline) 0 1px, transparent 1px 3px);
+    pointer-events: none;
+  }
+
+  canvas {
+    display: block;
+    width: 100%;
+    height: 72px;
+  }
+
+  .scope figcaption {
+    margin-top: 8px;
+    color: var(--mist);
+    font: 400 0.75rem / 1.5 var(--mono);
+  }
+
+  /* The instrument's controls: the mission first, the settings folded away. */
+  .controls {
+    display: grid;
+    align-content: start;
+    gap: 18px;
+    padding: 22px 24px;
+    font: 400 0.9rem / 1.6 var(--mono);
+  }
+
+  .mission {
+    color: var(--paper);
+    font: 600 var(--step-1) / 1.4 var(--mono);
+  }
+
+  .steps {
+    display: grid;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    color: var(--mist);
+    font-family: var(--sans);
+    list-style: none;
+    counter-reset: step;
+  }
+
+  .steps li {
+    counter-increment: step;
+  }
+
+  .steps li::before {
+    content: counter(step) ". " / "";
+    color: var(--dim);
+    font-family: var(--mono);
+  }
+
+  .tally {
+    padding-block: 14px;
+    border-block: 1px solid var(--rule);
+    color: var(--mist);
+  }
+
+  .tally span {
+    font-size: 1.4rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .honest {
+    color: var(--mist);
+    font: 400 0.82rem / 1.6 var(--sans);
+  }
+
+  .honest output {
+    color: var(--server);
+    font-family: var(--mono);
+  }
+
+  .network {
+    color: var(--mist);
+  }
+
+  .network summary {
+    cursor: pointer;
+    font-size: 0.85rem;
+  }
+
+  .network summary::marker {
+    color: var(--dim);
+  }
+
+  .network[open] {
+    display: grid;
+  }
+
+  .network[open] > :not(summary) {
+    margin-top: 14px;
+  }
+
+  .rtt {
+    display: grid;
+    gap: 8px;
+  }
+
+  .rtt output {
+    color: var(--server);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .rtt input {
+    width: 100%;
+    accent-color: var(--server);
+  }
+
+  /* A switch drawn as a terminal draws a checkbox; armed, it takes the fault's colour. */
+  .drop {
+    justify-self: start;
+    padding: 6px 12px;
+    border: 1px solid var(--rule-strong);
+    background: none;
+    color: var(--paper);
+    font: 500 0.85rem / 1.4 var(--mono);
+    cursor: pointer;
+  }
+
+  .drop::before {
+    content: "[ ] " / "";
+    color: var(--dim);
+    white-space: pre;
+  }
+
+  .drop:hover {
+    border-color: var(--mist);
+  }
+
+  .drop[aria-pressed="true"] {
+    border-color: var(--fault);
+    color: var(--fault);
+  }
+
+  .drop[aria-pressed="true"]::before {
+    content: "[x] " / "";
+    color: var(--fault);
+  }
+
+  .fall {
+    font: 400 0.85rem / 1.6 var(--sans);
+  }
+
+  .narrow {
+    display: none;
+    color: var(--mist);
+    font-size: 0.9rem;
+  }
+
+  /* Where nothing starts (LiveTerminal: below 760 px), the capture keeps readable cells
+     and scrolls sideways inside its screen, never the page. */
+  @media (max-width: 760px) {
+    .narrow {
+      display: block;
+    }
+
+    .side :global(.grid) {
+      font-size: max(9px, calc((100cqw - 26px) / var(--cols) / 0.6));
+    }
+
+    .side :global(.fallback) {
+      display: none;
+    }
+
+    .scope {
+      display: none;
+    }
+
+    .network,
+    .steps,
+    .tally {
+      display: none;
+    }
+  }
+
+  @media (max-width: 960px) {
+    .demo {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .side :global(.torn .screen) {
+      animation: none;
+    }
+  }
+</style>

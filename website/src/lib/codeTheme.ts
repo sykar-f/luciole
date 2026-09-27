@@ -1,31 +1,39 @@
 import type { ThemeRegistration } from "shiki";
 
-// Quiet syntax colours: teal and amber stay reserved for Client and Server.
+// Syntax colours from the palette (styles/palettes.css): quiet, clear of the Client and
+// Server accents. Shiki writes each token's colour as it is given, so a var() follows the
+// preset in use without building the page again.
 export const night: ThemeRegistration = {
-  name: "airtty-night",
+  name: "airtty-palette",
   type: "dark",
-  colors: { "editor.background": "#07101f", "editor.foreground": "#dfe6f2" },
+  colors: { "editor.background": "var(--code-bg)", "editor.foreground": "var(--paper)" },
   tokenColors: [
     {
       scope: ["comment", "punctuation.definition.comment"],
-      settings: { foreground: "#6a7fa3", fontStyle: "italic" },
+      settings: { foreground: "var(--code-comment)", fontStyle: "italic" },
     },
     {
       scope: ["keyword", "storage", "storage.type", "keyword.control"],
-      settings: { foreground: "#a9b8ff" },
+      settings: { foreground: "var(--code-keyword)" },
     },
-    { scope: ["string", "string.quoted", "string.template"], settings: { foreground: "#c9d7a5" } },
-    { scope: ["constant.numeric", "constant.language"], settings: { foreground: "#f2a8c8" } },
+    {
+      scope: ["string", "string.quoted", "string.template"],
+      settings: { foreground: "var(--code-string)" },
+    },
+    {
+      scope: ["constant.numeric", "constant.language"],
+      settings: { foreground: "var(--code-number)" },
+    },
     {
       scope: ["entity.name.function", "support.function", "meta.function-call"],
-      settings: { foreground: "#f0f4fb" },
+      settings: { foreground: "var(--code-function)" },
     },
     {
       scope: ["entity.name.type", "support.type", "entity.name.tag", "support.class.component"],
-      settings: { foreground: "#9fd0ff" },
+      settings: { foreground: "var(--code-type)" },
     },
-    { scope: ["entity.other.attribute-name"], settings: { foreground: "#b7c4dc" } },
-    { scope: ["variable", "variable.other"], settings: { foreground: "#dfe6f2" } },
-    { scope: ["punctuation", "meta.brace"], settings: { foreground: "#8a9bbb" } },
+    { scope: ["entity.other.attribute-name"], settings: { foreground: "var(--code-attr)" } },
+    { scope: ["variable", "variable.other"], settings: { foreground: "var(--paper)" } },
+    { scope: ["punctuation", "meta.brace"], settings: { foreground: "var(--code-punct)" } },
   ],
 };

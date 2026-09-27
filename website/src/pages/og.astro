@@ -1,0 +1,64 @@
+---
+// The picture a shared link shows (public/og.png, 1200 by 630): the name, the promise and
+// a screen large enough to read in a feed. scripts/og.ts photographs this page; it is kept
+// out of search results.
+import Base from "../layouts/Base.astro";
+import Screen from "../components/Screen.astro";
+import { frame } from "../lib/frames";
+---
+
+<Base title="airtty" description="Build terminal apps with React." hidden>
+  <div class="card">
+    <div class="words">
+      <p class="mark">air<span>tty</span></p>
+      <p class="title">Build terminal apps with React.</p>
+      <p class="line">Keep typing while your server works.</p>
+    </div>
+    <div class="screen"><Screen frame={frame("notes")} /></div>
+  </div>
+</Base>
+
+<style>
+  :global([data-palette-switch]) {
+    display: none !important;
+  }
+
+  .card {
+    display: grid;
+    grid-template-columns: 430px 1fr;
+    align-items: center;
+    gap: 40px;
+    width: 1200px;
+    height: 630px;
+    padding: 56px;
+    overflow: hidden;
+  }
+
+  .words {
+    display: grid;
+    gap: 22px;
+  }
+
+  .mark {
+    font: 700 36px / 1 var(--mono);
+  }
+
+  .mark span {
+    color: var(--mist);
+  }
+
+  .title {
+    font: 600 52px / 1.12 var(--mono);
+  }
+
+  .line {
+    color: var(--mist);
+    font: 400 24px / 1.4 var(--sans);
+  }
+
+  /* The left part of the Notes screen, at a size a feed keeps readable. */
+  .screen {
+    width: 820px;
+    margin-right: -200px;
+  }
+</style>

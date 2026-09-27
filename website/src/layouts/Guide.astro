@@ -18,7 +18,7 @@ const number = (i: number) => String(i + 1).padStart(2, "0");
   <div class="guide">
     <header class="top">
       <div class="top-inner">
-        <a class="mark" href="/guide/">air<span class="c">tty</span> <span class="slash">/</span> guide</a>
+        <a class="mark" href="/guide/">air<span class="tty">tty</span> <span class="slash">/</span> guide</a>
         <p class="where"><span>{number(index)}</span> / {String(chapters.length).padStart(2, "0")}</p>
         <a class="site" href="/">Le site</a>
       </div>
@@ -94,8 +94,7 @@ const number = (i: number) => String(i + 1).padStart(2, "0");
     top: 0;
     z-index: 10;
     border-bottom: 1px solid var(--rule);
-    background: rgb(7 11 18 / 0.8);
-    backdrop-filter: blur(14px) saturate(1.4);
+    background: var(--night);
   }
 
   .top-inner {
@@ -106,13 +105,16 @@ const number = (i: number) => String(i + 1).padStart(2, "0");
     height: 54px;
     margin-inline: auto;
     padding-inline: var(--gutter);
-    font-size: 0.82rem;
+    font: 400 0.82rem / 1.5 var(--mono);
   }
 
   .mark {
     font-weight: 700;
-    letter-spacing: -0.03em;
     text-decoration: none;
+  }
+
+  .tty {
+    color: var(--mist);
   }
 
   .slash {
@@ -136,7 +138,7 @@ const number = (i: number) => String(i + 1).padStart(2, "0");
 
   .progress {
     height: 2px;
-    background: linear-gradient(90deg, var(--client), var(--server)) 0 0 / calc(var(--done) * 100%) 100% no-repeat;
+    background: linear-gradient(var(--paper), var(--paper)) 0 0 / calc(var(--done) * 100%) 100% no-repeat;
   }
 
   .toc {
@@ -146,7 +148,7 @@ const number = (i: number) => String(i + 1).padStart(2, "0");
     max-height: calc(100vh - 54px);
     padding: 40px 0 24px;
     overflow-y: auto;
-    font-size: 0.8rem;
+    font: 400 0.8rem / 1.5 var(--mono);
     scrollbar-width: thin;
   }
 
@@ -198,14 +200,14 @@ const number = (i: number) => String(i + 1).padStart(2, "0");
   }
 
   .part a.read .n {
-    color: var(--client);
+    color: var(--mist);
   }
 
   .part a[aria-current="page"] {
-    border-left: 2px solid var(--client);
+    border-left: 2px solid var(--paper);
     padding-left: 9px;
     color: var(--paper);
-    background: linear-gradient(90deg, var(--client-soft), transparent);
+    background: var(--night-raised);
   }
 
   .head {
@@ -213,7 +215,7 @@ const number = (i: number) => String(i + 1).padStart(2, "0");
   }
 
   .kicker {
-    color: var(--client);
+    color: var(--mist);
     font: 400 0.78rem / 1.5 var(--mono);
   }
 
@@ -233,8 +235,8 @@ const number = (i: number) => String(i + 1).padStart(2, "0");
     margin-top: 28px;
     padding: 16px 20px;
     border: 1px solid var(--rule);
-    border-radius: 10px;
-    background: rgb(255 255 255 / 0.02);
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--paper) 2%, transparent);
     font-size: 0.92rem;
   }
 
@@ -264,7 +266,7 @@ const number = (i: number) => String(i + 1).padStart(2, "0");
     gap: 4px;
     padding: 16px 18px;
     border: 1px solid var(--rule-strong);
-    border-radius: 10px;
+    border-radius: 4px;
     color: var(--paper);
     font: 500 0.95rem / 1.4 var(--mono);
     text-decoration: none;
@@ -272,8 +274,8 @@ const number = (i: number) => String(i + 1).padStart(2, "0");
   }
 
   .pager a:hover {
-    border-color: var(--client);
-    background: var(--client-soft);
+    border-color: var(--mist);
+    background: var(--night-raised);
   }
 
   .pager span {
@@ -298,7 +300,7 @@ const number = (i: number) => String(i + 1).padStart(2, "0");
       display: block;
       padding: 10px 14px;
       border: 1px solid var(--rule-strong);
-      border-radius: 8px;
+      border-radius: 4px;
       color: var(--mist);
       cursor: pointer;
     }

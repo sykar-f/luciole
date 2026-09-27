@@ -12,10 +12,8 @@ interface Props {
   regions?: Region[];
   /** Print the rows one after the other, once, like a teletype. */
   printed?: boolean;
-  /** Light the page behind the window in the two sides' colours. */
-  glow?: boolean;
-  /** Start tilted back and straighten as the window scrolls into view. */
-  tilt?: boolean;
+  /** Start dark and switch on like a tube: a line that opens to the whole screen. */
+  poweron?: boolean;
   class?: string;
 }
 
@@ -23,8 +21,7 @@ const {
   frame,
   regions = [],
   printed = false,
-  glow = false,
-  tilt = false,
+  poweron = false,
   class: className,
 } = Astro.props;
 
@@ -41,12 +38,11 @@ const html = frame.cells
   .join("");
 ---
 
-<div class:list={["stage", className, { glow, tilt }]}>
-  <figure class:list={["term", { printed }]} style={`--cols:${frame.cols}`}>
-    <div class="bar">
-      <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
-      <span class="title">{frame.title}</span>
-      <span class="size">{frame.cols}×{frame.rows}</span>
+<div class:list={["stage", className]}>
+  <figure class:list={["term", { printed, poweron }]} style={`--cols:${frame.cols}`}>
+    <div class="bar" aria-hidden="true">
+      <span class="title"><b>┤</b> {frame.title} <b>├</b></span>
+      <span class="size"><b>┤</b> {frame.cols}×{frame.rows} <b>├</b></span>
     </div>
     <div
       class="screen"
@@ -77,102 +73,46 @@ const html = frame.cells
     position: relative;
   }
 
-  .stage.glow::before {
-    content: "";
-    position: absolute;
-    inset: -6% -4% -10%;
-    z-index: 0;
-    background:
-      radial-gradient(45% 55% at 15% 35%, rgb(103 217 188 / 0.35), transparent 70%),
-      radial-gradient(45% 55% at 88% 70%, rgb(255 188 102 / 0.28), transparent 70%);
-    filter: blur(70px);
-    pointer-events: none;
-  }
-
-  .stage.tilt {
-    perspective: 1800px;
-  }
-
+  /* A terminal, not a window: a ruled box with its title set into the top edge. */
   .term {
     position: relative;
-    z-index: 1;
     margin: 0;
-    border: 1px solid transparent;
-    border-radius: 14px;
-    background:
-      linear-gradient(180deg, #0e141d, var(--screen)) padding-box,
-      linear-gradient(
-          135deg,
-          rgb(103 217 188 / 0.55),
-          rgb(255 255 255 / 0.08) 35%,
-          rgb(255 255 255 / 0.05) 65%,
-          rgb(255 188 102 / 0.45)
-        )
-        border-box;
-    overflow: hidden;
-    box-shadow:
-      inset 0 1px 0 rgb(255 255 255 / 0.06),
-      0 50px 120px -50px rgb(0 0 0 / 0.95);
-  }
-
-  /* Scroll-driven where supported: the window lies back, then faces the reader. */
-  @supports (animation-timeline: view()) {
-    .tilt .term {
-      transform-origin: 50% 100%;
-      animation: straighten linear both;
-      animation-timeline: view();
-      animation-range: entry 0% cover 45%;
-    }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .tilt .term {
-      animation: none;
-    }
-  }
-
-  @keyframes straighten {
-    from {
-      transform: rotateX(18deg) scale(0.94);
-    }
-    to {
-      transform: none;
-    }
+    padding-top: 2px;
+    border: 1px solid var(--rule-strong);
+    border-radius: 4px;
+    background: var(--screen);
   }
 
   .bar {
-    display: grid;
-    grid-template-columns: 1fr auto 1fr;
-    align-items: center;
-    gap: 16px;
-    padding: 10px 14px;
-    border-bottom: 1px solid rgb(255 255 255 / 0.06);
-    background: rgb(255 255 255 / 0.02);
-    color: var(--dim);
-    font: 500 0.72rem / 1.4 var(--mono);
-  }
-
-  .lights {
+    position: absolute;
+    top: -0.75em;
+    right: 14px;
+    left: 14px;
+    z-index: 2;
     display: flex;
-    gap: 7px;
-  }
-
-  .lights i {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background: rgb(255 255 255 / 0.1);
-  }
-
-  .title {
+    justify-content: space-between;
+    gap: 16px;
     color: var(--mist);
+    font: 400 0.75rem / 1.5 var(--mono);
+    pointer-events: none;
+  }
+
+  .bar > span {
+    padding: 0 0.5ch;
+    background: var(--night);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
+  .bar b {
+    color: var(--rule-strong);
+    font-weight: 400;
+  }
+
   .size {
-    justify-self: end;
+    flex-shrink: 0;
+    color: var(--dim);
   }
 
   /* A live terminal (LiveTerminal.astro) lies over the capture, in the same box. */
@@ -180,9 +120,43 @@ const html = frame.cells
     position: relative;
     container-type: inline-size;
     overflow: auto hidden;
-    padding: 12px 0 14px;
+    padding: 14px 0;
+    border-radius: 3px;
     scrollbar-width: thin;
     scrollbar-color: var(--rule-strong) transparent;
+  }
+
+  /* The glass, over whatever draws the cells: faint scanlines and a darker rim. Only
+     screens get it; the page around them stays flat. */
+  .screen::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background:
+      radial-gradient(130% 120% at 50% 50%, transparent 62%, var(--vignette)),
+      repeating-linear-gradient(to bottom, var(--scanline) 0 1px, transparent 1px 3px);
+    pointer-events: none;
+  }
+
+  /* Switched on: a bright line opens to the whole screen, then settles. */
+  .poweron .screen {
+    animation: power 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) var(--power-at, 0s) both;
+  }
+
+  @keyframes power {
+    0% {
+      transform: scaleY(0.006);
+      filter: brightness(5);
+    }
+    35% {
+      transform: scaleY(1);
+      filter: brightness(2);
+    }
+    100% {
+      transform: none;
+      filter: none;
+    }
   }
 
   .grid {
@@ -213,24 +187,24 @@ const html = frame.cells
     top: calc(var(--row) * 1.25em);
     width: calc(var(--w) * 0.6em);
     height: calc(var(--h) * 1.25em);
-    border-radius: 3px;
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.25s;
   }
 
   .region.client {
-    background: var(--client-soft);
+    background: var(--screen-client-soft);
     box-shadow:
-      inset 0 0 0 1px var(--client),
-      0 0 24px rgb(103 217 188 / 0.25);
+      inset 0 0 0 1px var(--screen-client),
+      0 0 calc(var(--glow-blur) * 3) color-mix(in srgb, var(--screen-client) 30%, transparent);
   }
 
+  /* Outlined, not inset: the Server's edge can be dashed (the encoding's --server-line). */
   .region.server {
-    background: var(--server-soft);
-    box-shadow:
-      inset 0 0 0 1px var(--server),
-      0 0 24px rgb(255 188 102 / 0.25);
+    background: var(--screen-server-soft);
+    outline: 1px var(--server-line) var(--screen-server);
+    outline-offset: -1px;
+    box-shadow: 0 0 calc(var(--glow-blur) * 3) color-mix(in srgb, var(--screen-server) 30%, transparent);
   }
 
   .region.lit {
@@ -248,6 +222,17 @@ const html = frame.cells
     }
     to {
       clip-path: inset(0 0 0 0);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .poweron .screen,
+    .printed pre :global(.row) {
+      animation: none;
+    }
+
+    .region {
+      transition: none;
     }
   }
 </style>

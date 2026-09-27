@@ -1,0 +1,58 @@
+{
+  "tints": [
+    "warm",
+    "blue",
+    "green",
+    "violet"
+  ],
+  "dominants": [
+    "neutral",
+    "glacier",
+    "cobalt",
+    "cyan",
+    "mint",
+    "green",
+    "violet",
+    "lilac",
+    "indigo"
+  ],
+  "encodings": [
+    "classic",
+    "tones",
+    "analogous",
+    "dominant-neutral",
+    "neutral-dominant"
+  ],
+  "suggestions": {
+    "ice": {
+      "tint": "blue",
+      "dominant": "glacier",
+      "encoding": "tones"
+    },
+    "aurora": {
+      "tint": "green",
+      "dominant": "mint",
+      "encoding": "analogous"
+    },
+    "ultraviolet": {
+      "tint": "violet",
+      "dominant": "violet",
+      "encoding": "tones"
+    },
+    "midnight": {
+      "tint": "blue",
+      "dominant": "indigo",
+      "encoding": "dominant-neutral"
+    },
+    "moss": {
+      "tint": "green",
+      "dominant": "green",
+      "encoding": "dominant-neutral"
+    },
+    "phosphor": {
+      "tint": "warm",
+      "dominant": "neutral",
+      "encoding": "classic"
+    }
+  }
+}

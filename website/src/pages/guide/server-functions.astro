@@ -134,9 +134,9 @@ x-airtty-action: e01495558432a2514ca7203e/actions/notes.ts#saveNote
     <div class="diagram">
       <svg viewBox="0 0 764 290" role="img" aria-label="Les trois issues d'un échec selon le moment où il survient">
         <defs>
-          <marker id="o-time" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 1 L9 5 L0 9 z" fill="#5d6b80" /></marker>
+          <marker id="o-time" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 1 L9 5 L0 9 z" style="fill: var(--dim)" /></marker>
         </defs>
-        <line x1="20" y1="22" x2="744" y2="22" stroke="#5d6b80" stroke-width="1.2" marker-end="url(#o-time)" />
+        <line x1="20" y1="22" x2="744" y2="22" style="stroke: var(--dim)" stroke-width="1.2" marker-end="url(#o-time)" />
         <text x="20" y="14" class="o-small">le temps d'une requête →</text>
         {
           zones.map((zone) => (
@@ -230,7 +230,7 @@ x-airtty-action: e01495558432a2514ca7203e/actions/notes.ts#saveNote
 
 <style>
   .o-small {
-    fill: #5d6b80;
+    fill: var(--dim);
     font-size: 10.5px;
   }
 
@@ -238,36 +238,36 @@ x-airtty-action: e01495558432a2514ca7203e/actions/notes.ts#saveNote
     stroke-width: 1;
   }
 
-  .o-zone.client { fill: rgb(103 217 188 / 0.05); stroke: rgb(103 217 188 / 0.4); }
-  .o-zone.server { fill: rgb(255 188 102 / 0.05); stroke: rgb(255 188 102 / 0.4); }
-  .o-zone.fault { fill: rgb(255 123 114 / 0.05); stroke: rgb(255 123 114 / 0.4); }
+  .o-zone.client { fill: color-mix(in srgb, var(--client) 5%, transparent); stroke: color-mix(in srgb, var(--client) 40%, transparent); }
+  .o-zone.server { fill: color-mix(in srgb, var(--server) 5%, transparent); stroke: color-mix(in srgb, var(--server) 40%, transparent); }
+  .o-zone.fault { fill: color-mix(in srgb, var(--fault) 5%, transparent); stroke: color-mix(in srgb, var(--fault) 40%, transparent); }
 
   .o-title {
-    fill: #edf1f7;
+    fill: var(--paper);
     font-size: 13px;
     font-weight: 600;
   }
 
   .o-case {
-    fill: #b7c2d3;
+    fill: var(--prose);
     font-size: 11.5px;
   }
 
-  .o-pill.client { fill: rgb(103 217 188 / 0.14); }
-  .o-pill.server { fill: rgb(255 188 102 / 0.14); }
-  .o-pill.fault { fill: rgb(255 123 114 / 0.14); }
+  .o-pill.client { fill: color-mix(in srgb, var(--client) 14%, transparent); }
+  .o-pill.server { fill: color-mix(in srgb, var(--server) 14%, transparent); }
+  .o-pill.fault { fill: color-mix(in srgb, var(--fault) 14%, transparent); }
 
   .o-outcome {
     font-size: 13px;
     font-weight: 600;
   }
 
-  .o-outcome.client { fill: #67d9bc; }
-  .o-outcome.server { fill: #ffbc66; }
-  .o-outcome.fault { fill: #ff7b72; }
+  .o-outcome.client { fill: var(--client); }
+  .o-outcome.server { fill: var(--server); }
+  .o-outcome.fault { fill: var(--fault); }
 
   .o-ran {
-    fill: #98a6ba;
+    fill: var(--mist);
     font-size: 11px;
   }
 </style>

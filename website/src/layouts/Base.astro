@@ -1,15 +1,33 @@
 ---
-import "@fontsource-variable/geist-mono/wght.css";
+import "@fontsource/ibm-plex-mono/400.css";
+import "@fontsource/ibm-plex-mono/500.css";
+import "@fontsource/ibm-plex-mono/600.css";
+import "@fontsource/ibm-plex-mono/700.css";
+import "@fontsource/ibm-plex-sans/400.css";
+import "@fontsource/ibm-plex-sans/400-italic.css";
+import "@fontsource/ibm-plex-sans/600.css";
 import "@fontsource-variable/jetbrains-mono/wght.css";
+import "../styles/palettes.css";
 import "../styles/global.css";
+import PaletteSwitch from "../components/PaletteSwitch.astro";
+import palettes from "../lib/palettes.json";
 
 interface Props {
   title: string;
   description: string;
   lang?: string;
+  /** The picture a link to the page shows when shared: public/og.png, 1200 by 630. */
+  image?: string;
+  /** Kept out of search results (the og card's own page). */
+  hidden?: boolean;
 }
 
-const { title, description, lang = "en" } = Astro.props;
+const { title, description, lang = "en", image = "/og.png", hidden = false } = Astro.props;
+// Trying palettes is for the dev server, or for a build opened with ?palettes.
+const dev = import.meta.env.DEV;
+// Social cards want an absolute URL; `site` is still the repository (no domain decided
+// yet), so until it is one, the picture's path.
+const card = Astro.site && !Astro.site.hostname.endsWith("github.com") ? new URL(image, Astro.site).href : image;
 ---
 
 <!doctype html>
@@ -18,13 +36,48 @@ const { title, description, lang = "en" } = Astro.props;
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content={description} />
-    <meta name="theme-color" content="#070b12" />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content={card} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    {hidden && <meta name="robots" content="noindex" />}
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <meta name="theme-color" />
     <title>{title}</title>
+    <script is:inline define:vars={{ dev, palettes }}>
+      // Before the first paint: the colours asked for in the address (?tint=, ?dominant=,
+      // ?encoding=), or, where palettes can be tried, the ones picked last; without either,
+      // no attribute, which is phosphor. Then the browser's bar takes the page's colour.
+      {
+        const root = document.documentElement;
+        const params = new URLSearchParams(location.search);
+        const axes = { tint: palettes.tints, dominant: palettes.dominants, encoding: palettes.encodings };
+        const asked = Object.keys(axes).some((axis) => params.has(axis));
+        const trying = dev || params.has("palettes") || asked;
+        let stored = {};
+        try {
+          stored = (trying && JSON.parse(localStorage.getItem("airtty:palette") ?? "{}")) || {};
+        } catch {
+          // Storage refused or unreadable: the default palette.
+        }
+        if (trying) root.dataset.palettes = "";
+        for (const [axis, values] of Object.entries(axes)) {
+          const value = params.get(axis) ?? stored[axis];
+          if (values.includes(value)) root.dataset[axis] = value;
+        }
+        // Once the stylesheets have applied.
+        addEventListener("DOMContentLoaded", () => {
+          const night = getComputedStyle(root).getPropertyValue("--night").trim();
+          document.querySelector('meta[name="theme-color"]')?.setAttribute("content", night);
+        });
+      }
+    </script>
   </head>
   <body>
     <slot />
+    <PaletteSwitch />
   </body>
 </html>

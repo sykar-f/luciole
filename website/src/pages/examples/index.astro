@@ -1,0 +1,272 @@
+---
+// Every example, by what it is for. Those scripts/demo.ts builds run in the page on a
+// click, one at a time, stopped once the reader scrolls away; the others show their
+// capture and say why they need a real terminal.
+import Base from "../../layouts/Base.astro";
+import Header from "../../components/Header.astro";
+import Footer from "../../components/Footer.astro";
+import LiveTerminal from "../../components/LiveTerminal.astro";
+import Screen from "../../components/Screen.astro";
+import { examples, type ExampleKey } from "../../lib/examples";
+import { frame } from "../../lib/frames";
+import { source } from "../../lib/links";
+
+const byUse: { use: string; key: ExampleKey }[] = [
+  { use: "Coding-agent interface", key: "coder" },
+  { use: "Code review", key: "forge" },
+  { use: "Document reader", key: "mdreader" },
+  { use: "Chat with a model", key: "chat" },
+  { use: "A notebook on a database", key: "notes" },
+  { use: "Developer tools", key: "devtools" },
+];
+const uses = byUse.map((entry) => ({ ...entry, example: examples[entry.key] }));
+
+const terminal: ExampleKey[] = ["files", "mux"];
+const terminalOnly = terminal.map((key) => ({ key, example: examples[key] }));
+---
+
+<Base
+  title="Examples · airtty"
+  description="Terminal apps built with airtty: a coding-agent interface, code review, a document reader, a chat, a notebook and DevTools. Most run in the page."
+>
+  <Header />
+  <main class="wrap page">
+    <header class="page-head">
+      <h1>Examples</h1>
+      <p class="lede">
+        Apps from the repository, by what they are for. Those marked live run in this page on a
+        click, client and server both in your browser, one at a time. Each is one command away on
+        your machine.
+      </p>
+    </header>
+
+    <div class="examples" data-examples>
+      {
+        uses.map(({ use, key, example }) => (
+          <section class="example" id={key} aria-labelledby={`${key}-title`}>
+            <div class="text">
+              <p class="use">{use}</p>
+              <h2 id={`${key}-title`}>{example.name}</h2>
+              {example.demo ? (
+                <p class="badge client">live in this page</p>
+              ) : (
+                <p class="badge">Scripted demo · no model calls · captured</p>
+              )}
+              <p class="about">{example.about}</p>
+              {example.terminal && <p class="why">{example.terminal}</p>}
+              <p class="run">
+                <code>
+                  <span aria-hidden="true">$ </span>
+                  {example.run}
+                </code>
+              </p>
+              <p class="links">
+                {example.demo && (
+                  <button type="button" class="button" data-run={key}>
+                    Run it here
+                  </button>
+                )}
+                <a href={source(example.source)}>Source</a>
+              </p>
+            </div>
+            <div class="screen-side">
+              {example.demo ? (
+                <LiveTerminal demo={example.demo} frame={frame(example.frame)} script={example.script} boot="manual" />
+              ) : (
+                <Screen frame={frame(example.frame)} />
+              )}
+            </div>
+          </section>
+        ))
+      }
+    </div>
+
+    <section class="elsewhere" aria-labelledby="elsewhere-title">
+      <h2 id="elsewhere-title">Only in a real terminal</h2>
+      {
+        terminalOnly.map(({ key, example }) => (
+          <section class="example" id={key} aria-labelledby={`${key}-title`}>
+            <div class="text">
+              <h3 id={`${key}-title`}>{example.name}</h3>
+              <p class="about">{example.about}</p>
+              <p class="why">{example.terminal}</p>
+              <p class="run">
+                <code>
+                  <span aria-hidden="true">$ </span>
+                  {example.run}
+                </code>
+              </p>
+              <p class="links">
+                <a href={source(example.source)}>Source</a>
+              </p>
+            </div>
+            <div class="screen-side">
+              <Screen frame={frame(example.frame)} />
+            </div>
+          </section>
+        ))
+      }
+    </section>
+  </main>
+  <Footer />
+</Base>
+
+<script>
+  // One demo at a time: running one stops the one before; scrolled out of view, it stops
+  // and its capture comes back. A demo run again starts from its first screen.
+  const page = document.querySelector<HTMLElement>("[data-examples]");
+  if (page) {
+    let running: HTMLElement | undefined;
+    const liveOf = (key: string) => document.getElementById(key)?.querySelector<HTMLElement>("[data-live]");
+    const stop = () => {
+      running?.dispatchEvent(new Event("live:stop"));
+      running?.closest(".example")?.classList.remove("running");
+      running = undefined;
+    };
+    const away = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.target === running && !entry.isIntersecting)) stop();
+    });
+    for (const button of page.querySelectorAll<HTMLButtonElement>("[data-run]")) {
+      const live = liveOf(button.dataset.run ?? "");
+      if (!live) continue;
+      away.observe(live);
+      button.addEventListener("click", () => {
+        if (running === live) return;
+        stop();
+        running = live;
+        live.closest(".example")?.classList.add("running");
+        live.dispatchEvent(new Event("live:take"));
+      });
+    }
+  }
+</script>
+
+<style>
+  .page {
+    padding-block: clamp(40px, 6vw, 72px) clamp(64px, 8vw, 112px);
+  }
+
+  .page-head {
+    display: grid;
+    gap: 16px;
+    max-width: 860px;
+    margin-bottom: clamp(40px, 5vw, 64px);
+  }
+
+  h1 {
+    font-size: var(--step-4);
+  }
+
+  .examples {
+    display: grid;
+  }
+
+  .example {
+    display: grid;
+    grid-template-columns: minmax(0, 4fr) minmax(0, 8fr);
+    gap: 24px clamp(28px, 4vw, 56px);
+    align-items: start;
+    padding-block: 40px;
+    border-top: 1px solid var(--rule);
+  }
+
+  .text {
+    display: grid;
+    gap: 10px;
+    min-width: 0;
+  }
+
+  .use {
+    color: var(--mist);
+    font: 400 var(--step--1) / 1.4 var(--mono);
+  }
+
+  h2 {
+    font-size: var(--step-3);
+  }
+
+  h3 {
+    font-size: var(--step-2);
+  }
+
+  .badge {
+    justify-self: start;
+    padding: 2px 8px;
+    border: 1px solid var(--rule-strong);
+    color: var(--mist);
+    font: 400 0.75rem / 1.5 var(--mono);
+  }
+
+  .badge.client {
+    border-color: var(--client);
+  }
+
+  .about {
+    color: var(--paper);
+  }
+
+  .why {
+    color: var(--mist);
+    font-size: 0.92rem;
+  }
+
+  .run code {
+    padding: 0;
+    background: none;
+    color: var(--paper);
+    font-size: 0.82rem;
+    overflow-wrap: anywhere;
+  }
+
+  .run span {
+    color: var(--dim);
+  }
+
+  .links {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px 24px;
+    margin-top: 6px;
+    font: 400 0.88rem / 1.5 var(--mono);
+  }
+
+  button.button {
+    cursor: pointer;
+  }
+
+  .running button.button {
+    border-color: var(--client);
+  }
+
+  .screen-side {
+    min-width: 0;
+  }
+
+  .elsewhere {
+    margin-top: 56px;
+  }
+
+  .elsewhere > h2 {
+    margin-bottom: 16px;
+    font-size: var(--step-2);
+  }
+
+  /* Where demos do not start (LiveTerminal: below 760 px), the capture and its link. */
+  @media (max-width: 760px) {
+    [data-run] {
+      display: none;
+    }
+  }
+
+  @media (max-width: 900px) {
+    .example {
+      grid-template-columns: 1fr;
+    }
+
+    /* The capture keeps readable cells and scrolls sideways inside its screen. */
+    .screen-side :global(.grid) {
+      font-size: max(8px, calc((100cqw - 26px) / var(--cols) / 0.6));
+    }
+  }
+</style>

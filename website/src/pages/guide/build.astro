@@ -155,8 +155,8 @@ const edges: Edge[] = [
     <div class="diagram">
       <svg viewBox="0 0 760 450" role="img" aria-label="Graphe Server et graphe Client de Notes">
         <defs>
-          <marker id="g-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 1 L9 5 L0 9 z" fill="#98a6ba" /></marker>
-          <marker id="g-ref" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 1 L9 5 L0 9 z" fill="#c9a8ff" /></marker>
+          <marker id="g-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 1 L9 5 L0 9 z" style="fill: var(--mist)" /></marker>
+          <marker id="g-ref" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 1 L9 5 L0 9 z" style="fill: var(--build)" /></marker>
         </defs>
         <text x="30" y="30" class="col s">Graphe Server</text>
         <text x="730" y="30" class="col c" text-anchor="end">Graphe Client</text>
@@ -278,24 +278,24 @@ app/page.tsx:1:1: OpenTUI native runtime is Client-only
     text-transform: uppercase;
   }
 
-  .col.s { fill: #ffbc66; }
-  .col.c { fill: #67d9bc; }
+  .col.s { fill: var(--server); }
+  .col.c { fill: var(--client); }
 
   .boundary {
-    stroke: #c9a8ff;
+    stroke: var(--build);
     stroke-dasharray: 3 5;
     opacity: 0.6;
   }
 
   .boundary-label,
   .ref-label {
-    fill: #c9a8ff;
+    fill: var(--build);
     font-size: 10.5px;
   }
 
   .ref-label {
     paint-order: stroke;
-    stroke: #0a0f18;
+    stroke: var(--night);
     stroke-width: 4px;
   }
 
@@ -305,12 +305,12 @@ app/page.tsx:1:1: OpenTUI native runtime is Client-only
   }
 
   .edge.import {
-    stroke: #98a6ba;
+    stroke: var(--mist);
     opacity: 0.7;
   }
 
   .edge.reference {
-    stroke: #c9a8ff;
+    stroke: var(--build);
     stroke-dasharray: 5 4;
   }
 
@@ -318,17 +318,17 @@ app/page.tsx:1:1: OpenTUI native runtime is Client-only
     stroke-width: 1;
   }
 
-  .node.server { fill: rgb(255 188 102 / 0.09); stroke: rgb(255 188 102 / 0.6); }
-  .node.client { fill: rgb(103 217 188 / 0.09); stroke: rgb(103 217 188 / 0.6); }
-  .node.shared { fill: rgb(152 166 186 / 0.08); stroke: rgb(152 166 186 / 0.6); stroke-dasharray: 4 3; }
+  .node.server { fill: color-mix(in srgb, var(--server) 9%, transparent); stroke: color-mix(in srgb, var(--server) 60%, transparent); }
+  .node.client { fill: color-mix(in srgb, var(--client) 9%, transparent); stroke: color-mix(in srgb, var(--client) 60%, transparent); }
+  .node.shared { fill: color-mix(in srgb, var(--mist) 8%, transparent); stroke: color-mix(in srgb, var(--mist) 60%, transparent); stroke-dasharray: 4 3; }
 
   .node-label {
-    fill: #edf1f7;
+    fill: var(--paper);
     font-size: 11.5px;
   }
 
   .tag {
-    fill: #7d8aa0;
+    fill: var(--dim);
     font-size: 10px;
   }
 </style>

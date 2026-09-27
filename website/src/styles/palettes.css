@@ -1,0 +1,297 @@
+/* The colours of the site, on three axes set on the root element (written by
+   scripts/palettes.py, which checks every combination: edit it there, not here):
+   - data-tint: the background and the neutrals tuned to it;
+   - data-dominant: links, the main button, the cursor, the Live badge, the afterglow;
+   - data-encoding: Client and Server, derived below from the dominant (sRGB mixes with
+     white or black, HSL hue turns: always inside sRGB), or the classic green and amber.
+     Encodings from one hue add a cue that is not colour: Server lines dashed, Server
+     marks hollow, and a glyph before the words.
+   Without attributes: warm, neutral, classic, the D1 phosphor. */
+
+/* Warm neutral: phosphor's black. */
+:root,
+:root[data-tint="warm"] {
+  color-scheme: dark;
+  --night: #0b0a07;
+  --night-raised: #14120c;
+  --night-deep: #070604;
+  --rule: #2a2618;
+  --rule-strong: #3d3726;
+  --paper: #e8e1cf;
+  --prose: #d8d1be;
+  --mist: #a39c88;
+  --dim: #8a8472;
+  --screen: #070604;
+  --screen-fg: #e8e1cf;
+  --screen-rule: #2a2618;
+  --panel: #070604;
+  --code-bg: #070604;
+  --code-comment: #8a8472;
+  --fault: #ff4d3d;
+  --wire: #a9b8ff;
+  --build: #c9a8ff;
+  --code-function: #f4eedf;
+  --code-keyword: #c7b8e8;
+  --code-type: #a9c4d6;
+  --code-string: #cfc39a;
+  --code-number: #e6a6a0;
+  --code-attr: #c2b9a3;
+  --code-punct: #9b9480;
+}
+
+/* Blue black. */
+:root[data-tint="blue"] {
+  color-scheme: dark;
+  --night: #080a10;
+  --night-raised: #101218;
+  --night-deep: #050608;
+  --rule: #212633;
+  --rule-strong: #313747;
+  --paper: #dae1f3;
+  --prose: #cad1e4;
+  --mist: #959caf;
+  --dim: #7d8495;
+  --screen: #050608;
+  --screen-fg: #dae1f3;
+  --screen-rule: #212633;
+  --panel: #050608;
+  --code-bg: #050608;
+  --code-comment: #7d8495;
+  --fault: #ff4d3d;
+  --wire: #a9b8ff;
+  --build: #c9a8ff;
+  --code-function: #f4eedf;
+  --code-keyword: #c7b8e8;
+  --code-type: #a9c4d6;
+  --code-string: #cfc39a;
+  --code-number: #e6a6a0;
+  --code-attr: #c2b9a3;
+  --code-punct: #9b9480;
+}
+
+/* Green black. */
+:root[data-tint="green"] {
+  color-scheme: dark;
+  --night: #070b0a;
+  --night-raised: #0c1412;
+  --night-deep: #040706;
+  --rule: #182a26;
+  --rule-strong: #263c38;
+  --paper: #d0e7e2;
+  --prose: #c0d7d2;
+  --mist: #89a39d;
+  --dim: #738a85;
+  --screen: #040706;
+  --screen-fg: #d0e7e2;
+  --screen-rule: #182a26;
+  --panel: #040706;
+  --code-bg: #040706;
+  --code-comment: #738a85;
+  --fault: #ff4d3d;
+  --wire: #a9b8ff;
+  --build: #c9a8ff;
+  --code-function: #f4eedf;
+  --code-keyword: #c7b8e8;
+  --code-type: #a9c4d6;
+  --code-string: #cfc39a;
+  --code-number: #e6a6a0;
+  --code-attr: #c2b9a3;
+  --code-punct: #9b9480;
+}
+
+/* Violet black. */
+:root[data-tint="violet"] {
+  color-scheme: dark;
+  --night: #0b0914;
+  --night-raised: #121117;
+  --night-deep: #060608;
+  --rule: #262431;
+  --rule-strong: #373546;
+  --paper: #e1dff1;
+  --prose: #d1cfe2;
+  --mist: #9c99ae;
+  --dim: #848294;
+  --screen: #060608;
+  --screen-fg: #e1dff1;
+  --screen-rule: #262431;
+  --panel: #060608;
+  --code-bg: #060608;
+  --code-comment: #848294;
+  --fault: #ff4d3d;
+  --wire: #a9b8ff;
+  --build: #c9a8ff;
+  --code-function: #f4eedf;
+  --code-keyword: #c7b8e8;
+  --code-type: #a9c4d6;
+  --code-string: #cfc39a;
+  --code-number: #e6a6a0;
+  --code-attr: #c2b9a3;
+  --code-punct: #9b9480;
+}
+
+/* The screens' glass and afterglow, and what derives from the axes. */
+:root {
+  --screen-client: var(--client);
+  --screen-server: var(--server);
+  --screen-fault: var(--fault);
+  --afterglow: var(--dominant);
+  --live: var(--dominant);
+  --link: var(--dominant);
+  --afterglow-hot: 30%;
+  --afterglow-warm: 14%;
+  --glow-blur: 6px;
+  --scanline: rgb(0 0 0 / 0.16);
+  --vignette: rgb(0 0 0 / 0.45);
+  --page-texture: none;
+}
+
+/* No dominant: the text colour, as phosphor has it. Links keep their text's colour; the afterglow and the Live badge keep the Client's. */
+:root:not([data-dominant]),
+:root[data-dominant="neutral"] {
+  --dominant: var(--paper);
+  --lift: 60%;
+  --deep: 78%;
+  --lift-turned: 60%;
+  --deep-turned: 78%;
+  --afterglow: var(--screen-client);
+  --live: var(--screen-client);
+  --link: initial;
+}
+
+/* Glacier blue. */
+:root[data-dominant="glacier"] {
+  --dominant: #7cb8ff;
+  --lift: 60%;
+  --deep: 78%;
+  --lift-turned: 60%;
+  --deep-turned: 85%;
+}
+
+/* Cobalt. */
+:root[data-dominant="cobalt"] {
+  --dominant: #5b8cff;
+  --lift: 60%;
+  --deep: 85%;
+  --lift-turned: 60%;
+  --deep-turned: 97%;
+}
+
+/* Cyan. */
+:root[data-dominant="cyan"] {
+  --dominant: #5cd0f0;
+  --lift: 60%;
+  --deep: 78%;
+  --lift-turned: 60%;
+  --deep-turned: 100%;
+}
+
+/* Mint. */
+:root[data-dominant="mint"] {
+  --dominant: #5eead4;
+  --lift: 60%;
+  --deep: 78%;
+  --lift-turned: 60%;
+  --deep-turned: 78%;
+}
+
+/* Green. */
+:root[data-dominant="green"] {
+  --dominant: #7ee0a0;
+  --lift: 60%;
+  --deep: 78%;
+  --lift-turned: 60%;
+  --deep-turned: 78%;
+}
+
+/* Violet. */
+:root[data-dominant="violet"] {
+  --dominant: #a78bfa;
+  --lift: 60%;
+  --deep: 79%;
+  --lift-turned: 60%;
+  --deep-turned: 78%;
+}
+
+/* Lilac. */
+:root[data-dominant="lilac"] {
+  --dominant: #c9a8ff;
+  --lift: 60%;
+  --deep: 78%;
+  --lift-turned: 60%;
+  --deep-turned: 78%;
+}
+
+/* Indigo. */
+:root[data-dominant="indigo"] {
+  --dominant: #8b93ff;
+  --lift: 60%;
+  --deep: 78%;
+  --lift-turned: 60%;
+  --deep-turned: 78%;
+}
+
+/* Green Client, amber Server: the D1 reference. */
+:root,
+:root[data-encoding="classic"] {
+  --client: #33ff99;
+  --server: #ffa000;
+  --client-glyph: "";
+  --server-glyph: "";
+  --server-line: solid;
+  --server-dash: none;
+  --server-fill: var(--server);
+  --hue-word: inline;
+  --hue-cue: none;
+}
+
+/* Two tones of the dominant: a light, soft Client and a deep, saturated Server. */
+:root[data-encoding="tones"] {
+  --client: color-mix(in srgb, var(--dominant) var(--lift), #fff);
+  --server: color-mix(in srgb, var(--dominant) var(--deep), #000);
+  --client-glyph: "◆\00a0";
+  --server-glyph: "◇\00a0";
+  --server-line: dashed;
+  --server-dash: 4 3;
+  --server-fill: transparent;
+  --hue-word: none;
+  --hue-cue: inline;
+}
+
+/* Two hues beside the dominant, 40 degrees each way: a light Client, a deeper Server. */
+:root[data-encoding="analogous"] {
+  --client: color-mix(in srgb, hsl(from var(--dominant) calc(h - 40) s max(l, 62)) var(--lift-turned), #fff);
+  --server: color-mix(in srgb, hsl(from var(--dominant) calc(h + 40) s max(l, 62)) var(--deep-turned), #000);
+  --client-glyph: "◆\00a0";
+  --server-glyph: "◇\00a0";
+  --server-line: dashed;
+  --server-dash: 4 3;
+  --server-fill: transparent;
+  --hue-word: none;
+  --hue-cue: inline;
+}
+
+/* The dominant for the Client, a warm grey for the Server. */
+:root[data-encoding="dominant-neutral"] {
+  --client: color-mix(in srgb, var(--dominant) var(--lift), #fff);
+  --server: #999185;
+  --client-glyph: "◆\00a0";
+  --server-glyph: "◇\00a0";
+  --server-line: dashed;
+  --server-dash: 4 3;
+  --server-fill: transparent;
+  --hue-word: none;
+  --hue-cue: inline;
+}
+
+/* An ivory Client, the dominant, deeper, for the Server. */
+:root[data-encoding="neutral-dominant"] {
+  --client: #efe9dc;
+  --server: color-mix(in srgb, var(--dominant) var(--deep), #000);
+  --client-glyph: "◆\00a0";
+  --server-glyph: "◇\00a0";
+  --server-line: dashed;
+  --server-dash: 4 3;
+  --server-fill: transparent;
+  --hue-word: none;
+  --hue-cue: inline;
+}

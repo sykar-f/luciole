@@ -189,9 +189,9 @@ def save(term, name, title, replace=()):
         print(term.text())
 
 
-def dev(app, env, directory, cols, rows, cwd=ROOT):
+def dev(app, env, directory, cols, rows, cwd=ROOT, args=()):
     return Terminal(
-        [BUN, CLI, "dev", "--app", str(ROOT / "examples" / app)],
+        [BUN, CLI, "dev", "--app", str(ROOT / "examples" / app), *(["--", *args] if args else [])],
         # AIRTTY_DESKTOP: Ctrl+C belongs to the application, as in a page, so the key help
         # the capture shows is the one the live demo it stands in for draws.
         {**os.environ, "TERM": "xterm-256color", "COLORTERM": "truecolor", "XDG_STATE_HOME": directory + "/state", "AIRTTY_DESKTOP": "1", **env},
@@ -291,6 +291,21 @@ def chat(directory):
         term.stop()
 
 
+def coder(directory):
+    # The scripted harness: no agent binary, no model, no quota. An edit asks for approval
+    # first ("ask" mode), which shows a diff and the dialog.
+    term = dev("coder", {"CODER_FAKE_DELAY_MS": "5"}, directory, 140, 40, args=["--harness", "fake"])
+    try:
+        term.wait_for("Scripted demo", 120)
+        term.idle(1)
+        term.send(b"edit greet\r")
+        term.wait_for("Edit src/greet.ts", 60)
+        term.idle(1.5)
+        save(term, "coder", "coder: a coding-agent session", [(str(ROOT), "~/my-project")])
+    finally:
+        term.stop()
+
+
 def devtools(directory):
     # The DevTools application as the live demo runs it (scripts/demo.ts): the demo session
     # with no bus, so no socket for an application to join and no instructions to join it,
@@ -364,7 +379,7 @@ def flight(directory):
         server.terminate()
 
 
-SCENES = {"forge": forge, "notes": notes, "chat": chat, "files": files, "mdreader": mdreader, "devtools": devtools, "mux": mux, "flight": flight}
+SCENES = {"forge": forge, "notes": notes, "chat": chat, "coder": coder, "files": files, "mdreader": mdreader, "devtools": devtools, "mux": mux, "flight": flight}
 
 
 def main():
