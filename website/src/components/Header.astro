@@ -13,7 +13,7 @@ const links = [
 <header class="header">
   <div class="wrap inner">
     <a class="mark" href="#top" aria-label="airtty, back to top">
-      air<span class="tty">tty</span><span class="cursor" aria-hidden="true"></span>
+      air<span class="tty">tty</span>
     </a>
     <nav aria-label="Sections">
       <ul>
@@ -30,8 +30,7 @@ const links = [
     top: 0;
     z-index: 10;
     border-bottom: 1px solid var(--rule);
-    background: rgb(7 11 18 / 0.72);
-    backdrop-filter: blur(14px) saturate(1.4);
+    background: var(--night);
   }
 
   .inner {
@@ -39,32 +38,16 @@ const links = [
     align-items: center;
     gap: 32px;
     height: 60px;
+    font-family: var(--mono);
   }
 
   .mark {
-    display: inline-flex;
-    align-items: center;
-    font: 700 1.2rem / 1 var(--mono);
-    letter-spacing: -0.04em;
+    font: 700 1.15rem / 1 var(--mono);
     text-decoration: none;
   }
 
   .tty {
-    color: var(--client);
-  }
-
-  .cursor {
-    width: 0.55em;
-    height: 1.05em;
-    margin-left: 3px;
-    background: var(--server);
-    animation: blink 1.1s steps(1) infinite;
-  }
-
-  @keyframes blink {
-    50% {
-      opacity: 0;
-    }
+    color: var(--mist);
   }
 
   ul {
@@ -78,7 +61,7 @@ const links = [
   nav a,
   .repo {
     color: var(--mist);
-    font-size: 0.93rem;
+    font-size: 0.85rem;
     text-decoration: none;
   }
 
@@ -91,8 +74,11 @@ const links = [
     margin-left: auto;
     padding: 6px 12px;
     border: 1px solid var(--rule-strong);
-    border-radius: 6px;
     color: var(--paper);
+  }
+
+  .repo:hover {
+    border-color: var(--mist);
   }
 
   @media (max-width: 860px) {

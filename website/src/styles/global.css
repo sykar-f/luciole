@@ -1,38 +1,45 @@
-/* Two accents, two meanings, everywhere on the page:
-   teal is what runs in the user's terminal (the Client), amber what runs on the Server. */
+/* Phosphor on warm black, and two accents with one meaning each, everywhere on the page:
+   green is what runs in the user's terminal (the Client), amber what runs on the Server.
+   Neither is ever decoration. Glow, scanlines and afterglow belong to the screens
+   (Screen.astro), never to the page around them. */
 :root {
   color-scheme: dark;
 
-  --night: #070b12;
-  --night-raised: #0c121c;
-  --night-deep: #05080d;
-  --rule: rgb(255 255 255 / 0.07);
-  --rule-strong: rgb(255 255 255 / 0.13);
-  --paper: #edf1f7;
-  --mist: #98a6ba;
-  --dim: #5d6b80;
-  --client: #67d9bc;
-  --client-soft: rgb(103 217 188 / 0.12);
-  --server: #ffbc66;
-  --server-soft: rgb(255 188 102 / 0.12);
-  --fault: #ff7b72;
-  --screen: #0a0f16;
-  --screen-fg: #e6edf3;
+  --night: #0b0a07;
+  --night-raised: #14120c;
+  --night-deep: #070604;
+  --rule: #2a2618;
+  --rule-strong: #3d3726;
+  --paper: #e8e1cf;
+  --mist: #a39c88;
+  /* The quietest text still reads at 5:1 on --night. */
+  --dim: #8a8472;
+  --client: #33ff99;
+  --client-soft: rgb(51 255 153 / 0.1);
+  --server: #ffb000;
+  --server-soft: rgb(255 176 0 / 0.1);
+  --fault: #ff4d3d;
+  --screen: #070604;
+  --screen-fg: #e8e1cf;
 
-  /* One mono for the page, one for terminal cells: JetBrains Mono draws every box glyph. */
-  --mono: "Geist Mono Variable", ui-monospace, monospace;
+  /* Plex Mono speaks for the machine (titles, labels, code), Plex Sans for the reader.
+     Captured cells keep JetBrains Mono: it draws every box and block glyph the apps send,
+     which the Plex subsets leave out; it also backs Plex Mono for those glyphs. */
+  --mono: "IBM Plex Mono", "JetBrains Mono Variable", ui-monospace, monospace;
+  --sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
   --term: "JetBrains Mono Variable", ui-monospace, monospace;
 
-  --step--1: 0.8rem;
-  --step-0: 0.95rem;
-  --step-1: 1.1rem;
-  --step-3: clamp(1.8rem, 1.2rem + 2vw, 2.9rem);
-  --step-4: clamp(2.5rem, 1.4rem + 4.2vw, 5.2rem);
+  --step--1: 0.82rem;
+  --step-0: 1rem;
+  --step-1: 1.15rem;
+  --step-2: clamp(1.35rem, 1.1rem + 0.9vw, 1.7rem);
+  --step-3: clamp(1.7rem, 1.2rem + 1.7vw, 2.5rem);
+  --step-4: clamp(2.2rem, 1.2rem + 3.8vw, 4.6rem);
 
   --gutter: clamp(16px, 4vw, 48px);
   --measure: 64ch;
   --page: 1200px;
-  --radius: 12px;
+  --radius: 2px;
 }
 
 *,
@@ -62,19 +69,8 @@ body {
   margin: 0;
   background: var(--night);
   color: var(--paper);
-  font: 400 var(--step-0) / 1.7 var(--mono);
+  font: 400 var(--step-0) / 1.6 var(--sans);
   overflow-x: clip;
-}
-
-/* A dotted grid over the whole page, fading towards the edges. */
-body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  background: radial-gradient(rgb(255 255 255 / 0.07) 1px, transparent 1px) 0 0 / 22px 22px;
-  mask-image: radial-gradient(ellipse 80% 70% at 50% 30%, #000 30%, transparent 100%);
-  pointer-events: none;
 }
 
 h1,
@@ -83,8 +79,8 @@ h3 {
   margin: 0;
   font-family: var(--mono);
   font-weight: 600;
-  letter-spacing: -0.045em;
-  line-height: 1.05;
+  letter-spacing: -0.01em;
+  line-height: 1.12;
   text-wrap: balance;
 }
 
@@ -94,7 +90,7 @@ h2 {
 
 h3 {
   font-size: var(--step-1);
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
   line-height: 1.35;
 }
 
@@ -117,15 +113,13 @@ a:hover {
 code,
 kbd {
   font-family: var(--mono);
-  font-size: 0.92em;
+  font-size: 0.9em;
   font-variant-ligatures: none;
 }
 
 :where(p, li, dd) > code {
-  padding: 0.1em 0.35em;
-  border: 1px solid var(--rule);
-  border-radius: 5px;
-  background: rgb(255 255 255 / 0.04);
+  padding: 0.05em 0.3em;
+  background: var(--night-raised);
   color: var(--paper);
 }
 
@@ -133,18 +127,16 @@ kbd {
   padding: 0.05em 0.4em;
   border: 1px solid var(--rule-strong);
   border-bottom-width: 2px;
-  border-radius: 5px;
   font-size: 0.8em;
 }
 
 :focus-visible {
-  outline: 2px solid var(--client);
+  outline: 2px solid var(--paper);
   outline-offset: 3px;
-  border-radius: 4px;
 }
 
 ::selection {
-  background: rgb(103 217 188 / 0.3);
+  background: rgb(232 225 207 / 0.25);
 }
 
 .wrap {
@@ -154,52 +146,50 @@ kbd {
   padding-inline: var(--gutter);
 }
 
-.section {
-  position: relative;
-  padding-block: clamp(80px, 11vw, 150px);
+/* Sections are numbered in the order they come: their label carries the rule. */
+main {
+  counter-reset: section;
 }
 
-/* Sections are separated by a line that fades out at both ends. */
-.section::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 50%;
-  width: min(var(--page), 100% - 2 * var(--gutter));
-  height: 1px;
-  background: linear-gradient(90deg, transparent, var(--rule-strong), transparent);
-  transform: translateX(-50%);
+.section {
+  position: relative;
+  padding-block: clamp(64px, 8vw, 112px);
 }
 
 .label {
-  color: var(--client);
-  font-size: var(--step--1);
-  letter-spacing: 0.01em;
+  display: flex;
+  align-items: center;
+  gap: 1ch;
+  color: var(--mist);
+  font: 400 var(--step--1) / 1.4 var(--mono);
+  counter-increment: section;
 }
 
 .label::before {
-  content: "// ";
+  content: "── " counter(section, decimal-leading-zero) " /";
   color: var(--dim);
+  white-space: pre;
+}
+
+.label::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--rule);
 }
 
 .lede {
   max-width: var(--measure);
   color: var(--mist);
   font-size: var(--step-1);
-  line-height: 1.7;
+  line-height: 1.6;
 }
 
 .section-head {
   display: grid;
   gap: 18px;
   max-width: 860px;
-  margin-bottom: clamp(44px, 6vw, 76px);
-}
-
-.section-head.center {
-  justify-items: center;
-  margin-inline: auto;
-  text-align: center;
+  margin-bottom: clamp(40px, 5vw, 64px);
 }
 
 .client {
@@ -210,50 +200,57 @@ kbd {
   color: var(--server);
 }
 
+/* A command more than a button: square, flat, bracketed. */
 .button {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  height: 42px;
-  padding: 0 18px;
+  gap: 1ch;
+  height: 44px;
+  padding: 0 16px;
   border: 1px solid var(--rule-strong);
-  border-radius: 9px;
-  background: rgb(255 255 255 / 0.03);
+  background: none;
   color: var(--paper);
-  font: 500 0.88rem / 1 var(--mono);
+  font: 500 0.9rem / 1 var(--mono);
   text-decoration: none;
   transition:
-    border-color 0.2s,
-    background 0.2s,
-    box-shadow 0.2s;
+    border-color 0.15s,
+    background 0.15s;
+}
+
+.button::before {
+  content: "[" / "";
+  color: var(--dim);
+}
+
+.button::after {
+  content: "]" / "";
+  color: var(--dim);
 }
 
 .button:hover {
-  border-color: rgb(255 255 255 / 0.28);
-  background: rgb(255 255 255 / 0.06);
+  border-color: var(--mist);
 }
 
 .button.primary {
-  border-color: transparent;
-  background: linear-gradient(180deg, #8ae8d0, var(--client));
-  color: #04120d;
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.5),
-    0 8px 30px -8px rgb(103 217 188 / 0.6);
+  border-color: var(--paper);
+  background: var(--paper);
+  color: var(--night);
+  font-weight: 600;
+}
+
+.button.primary::before,
+.button.primary::after {
+  color: inherit;
 }
 
 .button.primary:hover {
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.5),
-    0 10px 40px -8px rgb(103 217 188 / 0.8);
+  background: #fff;
 }
 
-/* A panel: raised, with a light edge on top. */
+/* A panel: a ruled box, nothing raised. */
 .panel {
   border: 1px solid var(--rule);
-  border-radius: var(--radius);
-  background: linear-gradient(180deg, rgb(255 255 255 / 0.035), rgb(255 255 255 / 0.01));
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.05);
+  background: var(--night);
 }
 
 .visually-hidden {
