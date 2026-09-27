@@ -1,6 +1,7 @@
 // How brightly written cells glow. A renderer that rewrites a few cells shows them hot; one
 // that rewrites half the screen (a diff streaming in, a page change) would bury it under a
 // block of green, so the glow dims, and shortens, as the share of rewritten cells grows.
+import { bytesOf, hexOf } from "./colour";
 
 /** Up to this share of the screen, written cells glow at full strength. */
 const CALM_SHARE = 0.04;
@@ -16,9 +17,8 @@ export function strength(cells: number, total: number) {
 
 /** `color` at `amount` of its strength over `ground`, both `#rrggbb`. */
 export function dim(color: string, ground: string, amount: number) {
-  const channel = (hex: string, at: number) => Number.parseInt(hex.slice(at, at + 2), 16);
-  return `#${[1, 3, 5]
-    .map((at) => Math.round(channel(ground, at) + (channel(color, at) - channel(ground, at)) * amount))
-    .map((value) => value.toString(16).padStart(2, "0"))
-    .join("")}`;
+  const under = bytesOf(ground);
+  return hexOf(
+    bytesOf(color).map((byte, i) => (under[i] ?? 0) + (byte - (under[i] ?? 0)) * amount),
+  );
 }
