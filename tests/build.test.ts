@@ -486,3 +486,26 @@ test("a syntax error and an unresolved import are reported where they are", asyn
     },
   );
 });
+test("a Client-only React hook in a Server Component fails the build where it is imported", async () => {
+  // Without the check the build succeeds and the Server dies at start on a missing export.
+  await fixture(
+    {
+      "app/page.tsx": `import { useMemo, useState } from "react";\nexport default function Page() {\n  const [name] = useState(useMemo(() => "", []));\n  return <text>{name}</text>;\n}\n`,
+    },
+    async (dir) => {
+      const message = messageOf(await rejectionOf(build(dir)));
+      expect(message).toMatch(/^app\/page\.tsx:1:19: useState is Client-only React/);
+      expect(message).toContain('Add "use client"');
+    },
+  );
+  // Behind "use client", the same hook is the Client's.
+  await fixture(
+    {
+      "app/page.tsx": `import { Name } from "../components/Name";\nexport default function Page() {\n  return <Name />;\n}\n`,
+      "components/Name.tsx": `"use client";\nimport { useState } from "react";\nexport function Name() {\n  const [name] = useState("");\n  return <text>{name}</text>;\n}\n`,
+    },
+    async (dir) => {
+      await build(dir);
+    },
+  );
+});

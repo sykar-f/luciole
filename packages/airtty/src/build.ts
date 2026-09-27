@@ -1,7 +1,8 @@
 import ts from "@typescript/typescript6";
 import { basename, resolve, relative, dirname, join } from "node:path";
 import { mkdir, readFile, readdir, rename, rm, realpath } from "node:fs/promises";
-import { realpathSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
+import { createRequire } from "node:module";
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { bundleMessages, logMessages } from "./bundle-errors";
@@ -249,6 +250,37 @@ export async function build(
     waiting: () => console.error(`airtty build: waiting for another build of ${output}`),
   });
 }
+const ReactExports = z.object({
+  exports: z.object({ ".": z.object({ "react-server": z.string(), default: z.string() }) }),
+});
+/**
+ * What React exports to Client code and not to the Server (`useState`, `useEffect`,
+ * `createContext`…), read from the React the application resolves: a Server Component
+ * importing one builds, then its Server dies at start on a missing export. Empty when
+ * React's layout is not the one expected: the check is then skipped, not guessed.
+ */
+function clientOnlyReactExports(root: string): ReadonlySet<string> {
+  try {
+    // The application's React, or the framework's when it has none of its own (a
+    // starter elsewhere builds against the framework's installation).
+    let manifest: string;
+    try {
+      manifest = Bun.resolveSync("react/package.json", root);
+    } catch {
+      manifest = Bun.resolveSync("react/package.json", import.meta.dir);
+    }
+    const entries = ReactExports.parse(JSON.parse(readFileSync(manifest, "utf8"))).exports["."];
+    const load = createRequire(manifest);
+    const keys = (entry: string): string[] => {
+      const loaded: unknown = load(join(dirname(manifest), entry));
+      return typeof loaded === "object" && loaded !== null ? Object.keys(loaded) : [];
+    };
+    const server = new Set(keys(entries["react-server"]));
+    return new Set(keys(entries.default).filter((name) => !server.has(name)));
+  } catch {
+    return new Set();
+  }
+}
 /** An application import that names no file: reported at the import (`fail`). */
 class Unresolved extends Error {
   constructor(from: string, name: string) {
@@ -293,6 +325,7 @@ async function buildUnlocked(
   const root = await realpath(directory),
     modules = new Map<string, Module>();
   const { serverPackages } = await readConfig(root);
+  const clientOnlyReact = clientOnlyReactExports(root);
   // Checked before the long part: a wrong icon or capability fails at once.
   const declaration = await readAppDeclaration(root);
   // How each module was first reached, per graph: boundary errors show the whole chain.
@@ -577,6 +610,18 @@ async function buildUnlocked(
         fail(m, i.node, `OpenTUI native runtime is Client-only${chain}`);
       if (i.name === "client-only")
         fail(m, i.node, `Client-only module in Server graph: it never runs on the Server${chain}`);
+      if (i.name === "react" && ts.isImportDeclaration(i.node)) {
+        const bindings = i.node.importClause?.namedBindings;
+        for (const element of bindings && ts.isNamedImports(bindings) ? bindings.elements : []) {
+          const name = (element.propertyName ?? element.name).text;
+          if (!element.isTypeOnly && clientOnlyReact.has(name))
+            fail(
+              m,
+              element,
+              `${name} is Client-only React: a Server Component cannot use it. Add "use client" at the top of this file, or move the part that needs it into a Client Component${chain}`,
+            );
+        }
+      }
       if (i.path) serverVisit(i.path, p);
     }
   }
