@@ -122,8 +122,9 @@ type Cell = [text: string, fg: string | null, bg: string | null, flags: string];
 /** A frame as a grid of cells, blanks included: rows are captured without their trailing ones. */
 function grid(frame: Frame): Cell[][] {
   return frame.cells.map((runs) => {
+    // A cell per code point, as pyte stored them (scripts/capture.py): not graphemes.
     const cells: Cell[] = runs.flatMap(([text, fg, bg, flags]) =>
-      [...text].map((char): Cell => [char, fg, bg, flags]),
+      Array.from(text, (char): Cell => [char, fg, bg, flags]),
     );
     while (cells.length < frame.cols) cells.push([" ", null, null, ""]);
     return cells;

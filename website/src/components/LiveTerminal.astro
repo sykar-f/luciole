@@ -176,6 +176,8 @@ const stand = JSON.stringify({
   const HOLD_MS = 700;
   /** How long a written cell of the live application glows at full strength. */
   const GLOW_MS = 450;
+  /** However strongly the screen changes, a cell glows at least this share of GLOW_MS. */
+  const SHORTEST_GLOW = 0.4;
   /** Beyond this many runs at once, a row glows once, from its first change to its last. */
   const MOST_GLOWS = 400;
 
@@ -418,7 +420,7 @@ const stand = JSON.stringify({
       hud(root, "live", count(written, total));
       // Dimmer and shorter as more of the screen changes at once.
       const glow = strength(written, total);
-      const lasting = Math.round(GLOW_MS * Math.max(0.4, glow));
+      const lasting = Math.round(GLOW_MS * Math.max(SHORTEST_GLOW, glow));
       const shown = runs.length > MOST_GLOWS ? byRow(runs) : runs;
       for (const [y, x, length] of shown) {
         const cell = document.createElement("i");

@@ -64,6 +64,24 @@ const DEFAULT_RTT_MS = 500;
   const SCOPE_MS = 8000;
   const TICK_MS = 60;
   const TEAR_MS = 160;
+  const MS_PER_SECOND = 1000;
+
+  /** Where each channel's baseline lies, and how high a pulse rises, in shares of the height. */
+  const CH1_AT = 0.3;
+  const CH2_AT = 0.8;
+  const RISE = 0.2;
+  /** The grid's dotted line, and the half pixel that keeps a 1 px line sharp. */
+  const GRID_DOT = 2;
+  const GRID_GAP = 4;
+  const HALF_PIXEL = 0.5;
+  /** How far past the left edge a trace is still drawn, in pixels, before it is dropped. */
+  const MARGIN = 4;
+  /** A torn answer's jag: points back from the pulse's end (px), at shares of its rise. */
+  const TEAR_FROM = 10;
+  const TEAR_DIP_AT = 6;
+  const TEAR_DIP = 0.4;
+  const TEAR_PEAK_AT = 3;
+  const TEAR_PEAK = 0.9;
 
   /**
    * Two channels, as on an oscilloscope: a tick on CH1 for each key, handled at once in the
@@ -104,17 +122,18 @@ const DEFAULT_RTT_MS = 500;
       context.setTransform(ratio, 0, 0, ratio, 0, 0);
       context.clearRect(0, 0, width, height);
       const x = (t: number) => width - ((now - t) / SCOPE_MS) * width;
-      const one = height * 0.3;
-      const two = height * 0.8;
-      const rise = height * 0.2;
+      const one = height * CH1_AT;
+      const two = height * CH2_AT;
+      const rise = height * RISE;
 
       // A division a second, and each channel's baseline.
       context.strokeStyle = grid;
       context.lineWidth = 1;
-      context.setLineDash([2, 4]);
+      context.setLineDash([GRID_DOT, GRID_GAP]);
       context.beginPath();
-      for (let second = 1; second < SCOPE_MS / 1000; second++) {
-        const at = Math.round((second / (SCOPE_MS / 1000)) * width) + 0.5;
+      const seconds = SCOPE_MS / MS_PER_SECOND;
+      for (let second = 1; second < seconds; second++) {
+        const at = Math.round((second / seconds) * width) + HALF_PIXEL;
         context.moveTo(at, 0);
         context.lineTo(at, height);
       }
@@ -138,7 +157,7 @@ const DEFAULT_RTT_MS = 500;
         context.moveTo(0, one);
         for (const t of keys) {
           const at = x(t);
-          if (at < -4) continue;
+          if (at < -MARGIN) continue;
           context.lineTo(at, one);
           context.lineTo(at + 1, one - rise);
           context.lineTo(at + Math.max(2, (TICK_MS / SCOPE_MS) * width), one);
@@ -166,15 +185,15 @@ const DEFAULT_RTT_MS = 500;
         const end = x(pulse.to);
         if (end < 0) continue;
         trace(fault, () => {
-          context.moveTo(end - 10, two - rise);
-          context.lineTo(end - 6, two - rise * 0.4);
-          context.lineTo(end - 3, two - rise * 0.9);
+          context.moveTo(end - TEAR_FROM, two - rise);
+          context.lineTo(end - TEAR_DIP_AT, two - rise * TEAR_DIP);
+          context.lineTo(end - TEAR_PEAK_AT, two - rise * TEAR_PEAK);
           context.lineTo(end, two);
         });
       }
 
       // Drop what has left the screen.
-      while (keys.length && x(keys[0]!) < -4) keys.shift();
+      for (let first = keys[0]; first !== undefined && x(first) < -MARGIN; first = keys[0]) keys.shift();
       for (const [id, pulse] of requests) if (pulse.to !== undefined && x(pulse.to) < 0) requests.delete(id);
       return keys.length > 0 || requests.size > 0;
     };
