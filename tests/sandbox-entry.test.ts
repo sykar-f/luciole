@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import * as build from "airtty/build";
 import * as sandbox from "airtty/sandbox";
+import { TerminalView } from "airtty/client";
 
 test("airtty/sandbox exports what a host needs to confine a Client and a Server", () => {
   for (const name of [
@@ -16,10 +17,11 @@ test("airtty/sandbox exports what a host needs to confine a Client and a Server"
     "sandboxRuntime",
     "enforcement",
     "mechanismName",
-    "TerminalView",
   ] as const)
     expect(typeof sandbox[name]).toBe("function");
   expect(sandbox.Capabilities.parse({}).net).toEqual([]);
+  // The widget that shows it is a component, with the others.
+  expect(typeof TerminalView).toBe("function");
 });
 
 test("airtty/build makes and reads a publisher key where AIRTTY_PUBLISHER_KEY says", () => {

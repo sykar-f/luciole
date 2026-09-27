@@ -106,8 +106,8 @@ export type { OpenApplicationOptions, PublisherCheck } from "./app-bundle";
 export { Markdown } from "./markdown/Markdown";
 export type { MarkdownProps } from "./markdown/Markdown";
 // Local programs on a PTY, for multiplexers (the `process` mode of docs/EMBEDDING.md).
-export { Terminal } from "./vt/terminal";
-export type { TerminalProps } from "./vt/terminal";
+export { Terminal, TerminalView } from "./vt/terminal";
+export type { TerminalProps, TerminalViewProps } from "./vt/terminal";
 // Capabilities the host mediates (clipboard, notifications…). The build gives each bundle
 // its own `host`, bound to its Application (airtty:actions); this one is bound to none.
 export { CapabilityDenied } from "./host";
