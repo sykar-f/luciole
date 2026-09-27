@@ -62,15 +62,15 @@ Le navigateur ouvre `https://notes.example.com/` et arrive sur `/_airtty/web/`. 
 est dans `$XDG_CACHE_HOME/airtty/web/<clé d'ABI>-<hash du framework>/` : la page est
 aussi du code du framework. `airtty build --web` le prépare s'il manque. En local : `AIRTTY_WEB_ORIGIN=http://127.0.0.1:3000`.
 
-| Fichier                             | Rôle                                                                               |
-| ----------------------------------- | ---------------------------------------------------------------------------------- |
-| `src/web-runtime.ts`                | Préparation par clé d'ABI : OpenTUI au tag de l'ABI, patch, Zig, bundle ; copie    |
-| `src/web-routes.ts`                 | `/_airtty/web/*` et l'origine déclarée (`Origin` et `Host`)                        |
-| `src/web/build.ts`                  | Bundle de la page : variantes, OpenTUI depuis ses sources, shims Node, clé d'ABI   |
-| `src/web/platform/`                 | Variantes : `run`, `app-bundle`, `host-direct`, `vt/terminal`, `flight/server`     |
-| `src/web/opentui/`, `src/web/node/` | Backend FFI WASM d'OpenTUI, Worker tree-sitter ; built-ins Node d'une page         |
-| `web/opentui-v0.5.12.patch`         | Le patch natif d'OpenTUI (cible wasm32-wasi)                                       |
-| `scripts/web/`                      | Driver CDP et parcours navigateur (`test:web`, `test:web:local`, `test:web:forge`) |
+| Fichier                             | Rôle                                                                                                 |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `src/web-runtime.ts`                | Préparation par clé d'ABI : OpenTUI au tag de l'ABI, patch, Zig, bundle ; copie                      |
+| `src/web-routes.ts`                 | `/_airtty/web/*` et l'origine déclarée (`Origin` et `Host`)                                          |
+| `src/web/build.ts`                  | Bundle de la page : variantes, OpenTUI depuis ses sources, shims Node, clé d'ABI                     |
+| `src/web/platform/`                 | Variantes : `run`, `app-bundle`, `host-direct`, `vt/terminal`, `flight/server`                       |
+| `src/web/opentui/`, `src/web/node/` | Backend FFI WASM d'OpenTUI, Worker tree-sitter ; built-ins Node d'une page                           |
+| `web/opentui-v0.5.12.patch`         | Le patch natif d'OpenTUI (cible wasm32-wasi)                                                         |
+| `scripts/web/`                      | Driver CDP et parcours navigateur (`test:web`, `test:web:local`, `test:web:forge`, `test:web:coder`) |
 
 ## Mode d'emploi (tout dans le navigateur)
 
@@ -227,7 +227,8 @@ rien ne change.
 (Forge sans l'import d'un dépôt git, `FORGE_GIT_REPO`, ni la touche `e` ; Chat sans clé
 avec `CHAT_DEMO=1`) ; `mdreader` et les DevTools aussi, avec une graine (des fichiers
 Markdown et `MD_PATH` ; `AIRTTY_DEVTOOLS_LISTEN=none` et `AIRTTY_DEVTOOLS_DEMO=1`) ;
-`files` (bibliothèque d'images native, `sharp`) et `agent` (processus) seulement le Client
+`coder` avec son harness scripté (`CODER_HARNESS=fake`), le seul que son Server web
+contienne (import `#adapters` à condition `browser`) ; `files` (bibliothèque d'images native, `sharp`) et `agent` (processus) seulement le Client
 web ; `mux` et tout `<Terminal>` (PTY) aucune, le runtime web y rend un écran
 « indisponible ici ».
 
