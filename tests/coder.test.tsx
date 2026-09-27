@@ -1,8 +1,8 @@
 /** @jsxImportSource @opentui/react */
 import { beforeAll, expect, test } from "bun:test";
 import { build } from "../packages/airtty/src/build";
-import { SCRIPTED } from "../examples/coder/components/StatusLine";
-import { DEMO_END, DEMO_PROMPT } from "../examples/coder/server/adapters/fake";
+import { SCRIPTED } from "../packages/harness/src/ui/StatusLine";
+import { DEMO_END, DEMO_PROMPT } from "../packages/harness/src/adapters/fake";
 import { coderDirectory, startCoder } from "./coder-helpers";
 
 beforeAll(async () => {

@@ -1,5 +1,5 @@
 "use client";
-import { MODE_LABELS, type Mode, type PlanStep, type Snapshot } from "./model";
+import { MODE_LABELS, type Mode, type PlanStep, type Snapshot } from "../model";
 import { color } from "./theme";
 
 const PERCENT = 100;

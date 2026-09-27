@@ -11,7 +11,7 @@ import type {
   Request,
   Response,
   SessionSummary,
-} from "../../components/model";
+} from "../model";
 import { isAnthropic, piAnthropicOAuth, USE_CLAUDE, withoutOAuth } from "../anthropic-guard";
 import { filePatch, stats } from "../diff";
 import { LineProcess, parseLine } from "../jsonl";

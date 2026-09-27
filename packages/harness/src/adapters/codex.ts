@@ -10,7 +10,7 @@ import type {
   Request,
   Response,
   SessionSummary,
-} from "../../components/model";
+} from "../model";
 import { stats } from "../diff";
 import { RpcPeer, type RpcHandlers } from "../jsonl";
 import { displayPath } from "./claude";
@@ -318,7 +318,11 @@ export class CodexHarness implements Harness {
     const initialized = InitializeResponse.safeParse(
       await rpc.request("initialize", {
         // An honest name: Codex records it in compliance logs.
-        clientInfo: { name: "airtty-coder", title: "coder (airtty)", version: "0.1.0" },
+        clientInfo: {
+          name: this.options.client ?? "airtty-coder",
+          title: `${this.options.client ?? "airtty-coder"} (airtty)`,
+          version: "0.1.0",
+        },
         capabilities: { experimentalApi: true, requestAttestation: false },
       } satisfies InitializeParams),
     );
@@ -370,6 +374,7 @@ export class CodexHarness implements Harness {
     const policy = POLICIES[this.options.mode];
     const response = await this.open("thread/start", {
       cwd: this.options.cwd,
+      ...(this.options.instructions ? { developerInstructions: this.options.instructions } : {}),
       approvalPolicy: policy.approval,
       sandbox: policy.sandbox,
       ...(this.options.model ? { model: this.options.model } : {}),
@@ -389,6 +394,7 @@ export class CodexHarness implements Harness {
     const policy = POLICIES[this.options.mode];
     const response = await this.open("thread/resume", {
       threadId: id,
+      ...(this.options.instructions ? { developerInstructions: this.options.instructions } : {}),
       approvalPolicy: policy.approval,
       sandbox: policy.sandbox,
       ...(this.options.model ? { model: this.options.model } : {}),

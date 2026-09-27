@@ -18,6 +18,6 @@
     "website/src/styles/palettes.css",
     "website/dist/**",
     "website/.astro/**",
-    "examples/coder/server/adapters/codex-protocol/**"
+    "packages/harness/src/adapters/codex-protocol/**"
   ]
 }

@@ -31,15 +31,15 @@ Le site fait tourner coder dans la page (`airtty build --web-local`, docs/WEB.md
 Server vit dans un Worker, sans processus ni réseau, donc sur le harness `fake` seul.
 `website/scripts/demo.ts` lui donne `CODER_HARNESS=fake` et un projet fictif
 (`CODER_CWD=/home/ada/src/timers`). Dans le Worker, `server/session.ts` importe
-`#adapters`, que `package.json` résout en `server/adapters/browser.ts` sous la condition
-`browser` : l'Agent SDK de Claude (`readline`, `net`) et les autres adaptateurs n'y
-entrent pas.
+`@airtty/harness/adapters`, que le `package.json` de `packages/harness` résout en
+`src/adapters/browser.ts` sous la condition `browser` : l'Agent SDK de Claude
+(`readline`, `net`) et les autres adaptateurs n'y entrent pas.
 
 Avec le harness `fake`, la ligne d'état affiche **« Scripted demo · no model calls »** à
-la place de « powered by … » (`SCRIPTED` dans `components/StatusLine.tsx`), au terminal
+la place de « powered by … » (`SCRIPTED` dans `packages/harness/src/ui/StatusLine.tsx`), au terminal
 comme dans la page : aucun drapeau à ajouter côté site.
 
-Le scénario du site se joue avec le prompt `DEMO_PROMPT` (`server/adapters/fake.ts`) :
+Le scénario du site se joue avec le prompt `DEMO_PROMPT` (`packages/harness/src/adapters/fake.ts`) :
 raisonnement, lecture de `src/duration.ts` (appel d'outil), réponse en streaming, diff à
 approuver (`y` en mode `ask`), `bun test` puis la main rendue sur `DEMO_END`. Mêmes
 textes et mêmes durées affichées à chaque fois ; environ 12 s une fois le prompt envoyé.
@@ -80,12 +80,22 @@ les expose. Une commande que le harness ne sait pas faire n'apparaît pas.
 ```
 app/args.ts           options (zod) : lues par le lanceur et par le Server
 app/page.tsx          Server : démarre la session, rend le premier snapshot
-components/           Client : SessionScreen, Transcript, Dialogs, Picker, StatusLine…
+components/           Client : SessionScreen, Completion, éditeur externe
 actions/session.ts    "use server" : send, interrupt, respond, setModel, setMode, feed…
-server/session.ts     la session : état, items, requêtes, journal de révisions → patchs
-server/adapters/      un adaptateur par harness, vers un vocabulaire neutre (types.ts)
-server/detect.ts      harness installé, version, connecté ? — sans requête au modèle
-server/jsonl.ts       lecteur JSON-lines (LF seulement) et client JSON-RPC
+server/session.ts     la session de ce lancement, sur la HarnessSession du paquet harness
+server/config.ts      arguments et lancement ; launches.ts : session reprise après un rebuild
+```
+
+Le reste est partagé avec studio dans `packages/harness` (`@airtty/harness`, paquet privé
+du workspace) :
+
+```
+src/session.ts        HarnessSession : état, items, requêtes, journal de révisions → patchs
+src/adapters/         un adaptateur par harness, vers un vocabulaire neutre (types.ts)
+src/detect.ts         harness installé, version, connecté ? — sans requête au modèle
+src/jsonl.ts          lecteur JSON-lines (LF seulement) et client JSON-RPC
+src/model.ts          le vocabulaire neutre, commun au Server et au Client
+src/ui/               Client : Transcript, Dialogs, Picker, StatusLine, store du flux…
 ```
 
 Les réponses et les blocs « thinking » passent par `<Markdown>` (`airtty/client`), pas par le

@@ -13,7 +13,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { homedir, hostname, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { z } from "zod";
-import { LineProcess, parseLine } from "../../examples/coder/server/jsonl";
+import { LineProcess, parseLine } from "../../packages/harness/src/jsonl";
 
 const MODEL = process.env.CODER_RECORD_MODEL ?? "gpt-5.6-luna";
 type Scenario = {

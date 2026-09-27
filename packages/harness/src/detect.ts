@@ -1,4 +1,4 @@
-import { HARNESS_NAMES, type HarnessId } from "../components/model";
+import { HARNESS_NAMES, type HarnessId } from "./model";
 import { AuthStatus } from "./adapters/claude-protocol";
 import type { HarnessStatus } from "./adapters/types";
 import { parseLine } from "./jsonl";

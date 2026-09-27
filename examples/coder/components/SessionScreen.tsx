@@ -33,10 +33,10 @@ import {
   setModel,
 } from "../actions/session";
 import { Completion, COMPLETION_ROWS, type Suggestion } from "./Completion";
-import { Overlay, RequestDialog } from "./Dialogs";
+import { Overlay, RequestDialog } from "@airtty/harness/ui/Dialogs";
 import { editText } from "./editor";
-import { Frame } from "./Frame";
-import { Line } from "./Line";
+import { Frame } from "@airtty/harness/ui/Frame";
+import { Line } from "@airtty/harness/ui/Line";
 import {
   HARNESS_NAMES,
   MODE_LABELS,
@@ -47,12 +47,12 @@ import {
   type Result,
   type SessionSummary,
   type Snapshot,
-} from "./model";
-import { Picker, type PickerItem } from "./Picker";
-import { PlanBar, StatusLine } from "./StatusLine";
-import { FeedStore } from "./store";
-import { color } from "./theme";
-import { foldable, itemId, openByDefault, Transcript } from "./Transcript";
+} from "@airtty/harness/model";
+import { Picker, type PickerItem } from "@airtty/harness/ui/Picker";
+import { PlanBar, StatusLine } from "@airtty/harness/ui/StatusLine";
+import { FeedStore } from "@airtty/harness/ui/store";
+import { color } from "@airtty/harness/ui/theme";
+import { foldable, itemId, openByDefault, Transcript } from "@airtty/harness/ui/Transcript";
 
 const SPINNER = "◐◓◑◒";
 // Slow on purpose: every frame walks the whole tree (OpenTUI #1339).

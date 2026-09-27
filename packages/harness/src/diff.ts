@@ -1,4 +1,4 @@
-import type { FilePatch } from "../components/model";
+import type { FilePatch } from "./model";
 
 // Adapted from examples/forge/server/diff.ts: harnesses give edits as before/after
 // strings (Claude's Edit tool, pi's edit) or as patches (Codex, opencode); the transcript

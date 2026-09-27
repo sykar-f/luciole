@@ -1,5 +1,5 @@
 "use client";
-import { color } from "./theme";
+import { color } from "@airtty/harness/ui/theme";
 
 export type Suggestion = { value: string; label: string; detail?: string };
 // Rows of the popup; more matches are reached by typing.

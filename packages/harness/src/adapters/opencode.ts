@@ -10,7 +10,7 @@ import type {
   Request,
   Response,
   SessionSummary,
-} from "../../components/model";
+} from "../model";
 import {
   isAnthropic,
   opencodeAnthropicOAuth,

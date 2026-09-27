@@ -21,7 +21,7 @@
 import assert from "node:assert/strict";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { MARKDOWN_END } from "../../examples/coder/server/adapters/fake";
+import { MARKDOWN_END } from "../../packages/harness/src/adapters/fake";
 import { drive, Keys } from "./driver";
 import { BUN, CLI, example, numberFromEnv, report, temporaryDirectory } from "./harness";
 

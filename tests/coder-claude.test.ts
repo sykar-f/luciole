@@ -7,14 +7,14 @@ import type {
   PermissionUpdate,
   SDKUserMessage,
 } from "@anthropic-ai/claude-agent-sdk";
-import type { Request, Response } from "../examples/coder/components/model";
+import type { Request, Response } from "../packages/harness/src/model";
 import {
   ClaudeHarness,
   type ClaudeDeps,
   type QueryLike,
   type QueryOptions,
-} from "../examples/coder/server/adapters/claude";
-import type { HarnessEvent } from "../examples/coder/server/adapters/types";
+} from "../packages/harness/src/adapters/claude";
+import type { HarnessEvent } from "../packages/harness/src/adapters/types";
 import { messageOf } from "../packages/airtty/src/guards";
 import { rejectionOf } from "./helpers";
 

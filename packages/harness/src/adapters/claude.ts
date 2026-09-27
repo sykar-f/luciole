@@ -21,7 +21,7 @@ import type {
   Request,
   Response,
   SessionSummary,
-} from "../../components/model";
+} from "../model";
 import { filePatch } from "../diff";
 import {
   AgentInput,
@@ -678,11 +678,16 @@ export class ClaudeHarness implements Harness {
         env: {
           ...this.context.env,
           CLAUDE_CODE_ENABLE_TODO_TOOLS: "1",
-          CLAUDE_AGENT_SDK_CLIENT_APP: "airtty-coder",
+          CLAUDE_AGENT_SDK_CLIENT_APP: this.options.client ?? "airtty-coder",
         },
         // Without the preset, the SDK runs a minimal prompt, not Claude Code's.
-        systemPrompt: { type: "preset", preset: "claude_code" },
-        settingSources: ["user", "project", "local"],
+        systemPrompt: {
+          type: "preset",
+          preset: "claude_code",
+          ...(this.options.instructions ? { append: this.options.instructions } : {}),
+        },
+        settingSources: this.options.isolated ? [] : ["user", "project", "local"],
+        ...(this.options.tools ? { tools: [...this.options.tools] } : {}),
         permissionMode: MODE_TO_CLAUDE[this.options.mode],
         includePartialMessages: true,
         // Opus 4.7 and later omit thinking text unless asked for a summary.

@@ -11,7 +11,7 @@ import type {
   Response,
   SessionSummary,
   Usage,
-} from "../../components/model";
+} from "../model";
 
 /**
  * What a harness tells the session, whatever its protocol (spec §4.2). Items are sent
@@ -45,6 +45,20 @@ export type StartOptions = {
   effort?: string;
   /** A harness session to resume: its id, or `true` for the latest of `cwd`. */
   resume?: string | true;
+  /** Who drives the harness, as it is told (Codex `clientInfo`, the Agent SDK's client app). */
+  client?: string;
+  /**
+   * Added to the harness's own system instructions (Claude: `systemPrompt.append`;
+   * Codex: `developerInstructions`); pi and opencode ignore it.
+   */
+  instructions?: string;
+  /** The only built-in tools the harness may use (Claude: `tools`); others ignore it. */
+  tools?: readonly string[];
+  /**
+   * The user's own harness settings stay out of this session (Claude: no user, project or
+   * local settings: no hooks, MCP servers or CLAUDE.md of theirs).
+   */
+  isolated?: boolean;
 };
 
 /** What a harness adapter is given: where to report, and the process environment. */

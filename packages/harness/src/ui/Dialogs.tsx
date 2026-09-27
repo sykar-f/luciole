@@ -3,7 +3,7 @@ import { useState, type ReactNode } from "react";
 import { useTerminalDimensions } from "@opentui/react";
 import { Input, useBindings } from "airtty/client";
 import { Line } from "./Line";
-import type { Decision, Request, Response } from "./model";
+import type { Decision, Request, Response } from "../model";
 import { syntax } from "./syntax";
 import { color } from "./theme";
 import { Patch } from "./Transcript";

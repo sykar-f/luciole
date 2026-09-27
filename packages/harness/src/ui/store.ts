@@ -1,4 +1,4 @@
-import type { Item, Snapshot, Update } from "./model";
+import type { Item, Snapshot, Update } from "../model";
 
 /**
  * The Client's copy of the session, rebuilt from the feed: the snapshot, then patches

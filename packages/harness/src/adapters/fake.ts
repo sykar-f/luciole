@@ -8,7 +8,7 @@ import type {
   Request,
   Response,
   SessionSummary,
-} from "../../components/model";
+} from "../model";
 import { filePatch } from "../diff";
 import type { Harness, HarnessContext, StartOptions, UserInput } from "./types";
 

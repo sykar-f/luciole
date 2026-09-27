@@ -1,4 +1,4 @@
-import type { HarnessId } from "../../components/model";
+import type { HarnessId } from "../model";
 import { ClaudeHarness } from "./claude";
 import { CodexHarness } from "./codex";
 import { FakeHarness } from "./fake";

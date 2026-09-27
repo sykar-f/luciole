@@ -3,10 +3,10 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { z } from "zod";
-import type { Request, Response } from "../examples/coder/components/model";
-import { USE_CLAUDE } from "../examples/coder/server/anthropic-guard";
-import { PiHarness, type PiDeps } from "../examples/coder/server/adapters/pi";
-import type { HarnessEvent } from "../examples/coder/server/adapters/types";
+import type { Request, Response } from "../packages/harness/src/model";
+import { USE_CLAUDE } from "../packages/harness/src/anthropic-guard";
+import { PiHarness, type PiDeps } from "../packages/harness/src/adapters/pi";
+import type { HarnessEvent } from "../packages/harness/src/adapters/types";
 import { messageOf } from "../packages/airtty/src/guards";
 import { rejectionOf } from "./helpers";
 

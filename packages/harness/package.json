@@ -1,0 +1,39 @@
+{
+  "name": "@airtty/harness",
+  "private": true,
+  "type": "module",
+  "description": "Coding-agent harnesses (Claude Code, Codex, pi, opencode, a scripted one) behind one neutral model, for airtty examples.",
+  "exports": {
+    "./model": "./src/model.ts",
+    "./session": "./src/session.ts",
+    "./adapters": {
+      "browser": "./src/adapters/browser.ts",
+      "default": "./src/adapters/index.ts"
+    },
+    "./adapters/*": "./src/adapters/*.ts",
+    "./anthropic-guard": "./src/anthropic-guard.ts",
+    "./detect": "./src/detect.ts",
+    "./diff": "./src/diff.ts",
+    "./jsonl": "./src/jsonl.ts",
+    "./pi-gate": "./src/pi-gate.ts",
+    "./probe": "./src/probe.ts",
+    "./ui/Dialogs": "./src/ui/Dialogs.tsx",
+    "./ui/Frame": "./src/ui/Frame.tsx",
+    "./ui/Line": "./src/ui/Line.tsx",
+    "./ui/Picker": "./src/ui/Picker.tsx",
+    "./ui/Pulse": "./src/ui/Pulse.tsx",
+    "./ui/StatusLine": "./src/ui/StatusLine.tsx",
+    "./ui/Transcript": "./src/ui/Transcript.tsx",
+    "./ui/store": "./src/ui/store.ts",
+    "./ui/syntax": "./src/ui/syntax.ts",
+    "./ui/theme": "./src/ui/theme.ts"
+  },
+  "dependencies": {
+    "airtty": "workspace:*",
+    "@anthropic-ai/claude-agent-sdk": "catalog:",
+    "@opentui/core": "catalog:",
+    "@opentui/react": "catalog:",
+    "react": "catalog:",
+    "zod": "catalog:"
+  }
+}

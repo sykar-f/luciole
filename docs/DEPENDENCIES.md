@@ -40,7 +40,7 @@ Ajoutées au catalogue après ce contrôle, sans comparaison aux tags `latest` :
 | tree-sitter-python / -ruby                     | 0.25.0 / 0.23.1          | framework (`airtty/grammars`)           |
 | tree-sitter-rust                               | 0.24.0                   | framework (`airtty/grammars`)           |
 | @tree-sitter-grammars/tree-sitter-toml / -yaml | 0.7.0 / 0.7.1            | framework (`airtty/grammars`)           |
-| @anthropic-ai/claude-agent-sdk                 | 0.3.283                  | coder (couplé à Claude Code 2.1.283)    |
+| @anthropic-ai/claude-agent-sdk                 | 0.3.283                  | harness (couplé à Claude Code 2.1.283)  |
 
 Les grammaires Tree-sitter (`airtty/grammars`, licence MIT) sont les paquets officiels :
 chacun livre son WebAssembly et ses requêtes de coloration à la même version. Seul le
@@ -58,12 +58,12 @@ valeur facultative (`--resume [ID]`), clipanion est à l'abandon. Repli « achet
 cleye 2.7.0 (Standard Schema natif) ; évolution si des complétions shell sont voulues :
 @optique/core. Comparatif : `docs/coder/research/cli-args-report.md`.
 
-`@anthropic-ai/claude-agent-sdk` (exemple coder) : sa licence n'est **pas** OSI
+`@anthropic-ai/claude-agent-sdk` (paquet `packages/harness`, utilisé par coder) : sa licence n'est **pas** OSI
 (conditions commerciales d'Anthropic) ; l'exemple est personnel et non commercial. Le
 SDK embarque Claude Code par paquets de plateforme (`optionalDependencies`, ~225 Mo) :
 coder exécute toujours le `claude` de l'utilisateur (`pathToClaudeCodeExecutable`), donc
 les `overrides` du `package.json` racine remplacent ces paquets par un paquet vide
-(`examples/coder/vendor/no-bundled-claude`) : ils ne sont jamais installés, et un test
+(`packages/harness/vendor/no-bundled-claude`) : ils ne sont jamais installés, et un test
 vérifie qu'ils ne se résolvent pas. Ses pairs `@anthropic-ai/sdk` et
 `@modelcontextprotocol/sdk` sont installés par Bun comme dépendances transitives ;
 `bun audit --json` rend `{}`.

@@ -5,14 +5,14 @@
  *   bun scripts/coder/codex-types.ts
  *
  * runs `codex app-server generate-ts --experimental` and copies only the types the adapter
- * names, with everything they import, to examples/coder/server/adapters/codex-protocol/,
+ * names, with everything they import, to packages/harness/src/adapters/codex-protocol/,
  * next to the version they come from (version.ts). The adapter checks it at start.
  */
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 
-const OUT = resolve(import.meta.dir, "../../examples/coder/server/adapters/codex-protocol");
+const OUT = resolve(import.meta.dir, "../../packages/harness/src/adapters/codex-protocol");
 // Requests coder sends, notifications and requests it reads.
 const ROOTS = [
   "InitializeParams",

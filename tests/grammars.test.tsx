@@ -3,7 +3,7 @@ import { afterEach, expect, test } from "bun:test";
 import { act } from "react";
 import { testRender } from "@opentui/react/test-utils";
 import { GRAMMARS } from "../packages/airtty/src/grammars";
-import { syntax } from "../examples/coder/components/syntax";
+import { syntax } from "../packages/harness/src/ui/syntax";
 
 // A line of each language: enough tokens for several highlight groups.
 const SNIPPETS: Record<string, string> = {

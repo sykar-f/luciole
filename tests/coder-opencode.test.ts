@@ -2,15 +2,15 @@ import { expect, test } from "bun:test";
 import { readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { z } from "zod";
-import type { Request, Response } from "../examples/coder/components/model";
-import { opencodeAnthropicOAuth, USE_CLAUDE } from "../examples/coder/server/anthropic-guard";
+import type { Request, Response } from "../packages/harness/src/model";
+import { opencodeAnthropicOAuth, USE_CLAUDE } from "../packages/harness/src/anthropic-guard";
 import {
   MODE_RULES,
   OpencodeHarness,
   type OpencodeDeps,
   type OpencodeServer,
-} from "../examples/coder/server/adapters/opencode";
-import type { HarnessEvent } from "../examples/coder/server/adapters/types";
+} from "../packages/harness/src/adapters/opencode";
+import type { HarnessEvent } from "../packages/harness/src/adapters/types";
 import { messageOf } from "../packages/airtty/src/guards";
 import { rejectionOf } from "./helpers";
 

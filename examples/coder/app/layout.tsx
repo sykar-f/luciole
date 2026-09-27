@@ -1,6 +1,6 @@
 "use client";
 import { KeyHelp, useConnection, type LayoutProps } from "airtty/client";
-import { color } from "../components/theme";
+import { color } from "@airtty/harness/ui/theme";
 
 export default function RootLayout({ children }: LayoutProps) {
   const { error, buildError } = useConnection();
