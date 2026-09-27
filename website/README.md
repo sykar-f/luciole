@@ -65,7 +65,10 @@ quand même, mais le hero reste sur sa capture.
 `LiveTerminal.astro` dessine d'abord la capture de l'écran (aucune attente, aucun décalage),
 démarre l'application derrière elle dans un `iframe` à la même grille, affiche les étapes
 du démarrage, déroule un script (sur `/examples/`, Forge : connexion en alice, un diff), puis
-remplace la capture. Un clic sur l'écran donne le clavier à l'application, un clic ailleurs
+remplace la capture. Chaque étape attend son texte 8 s, ou le `timeout` qu'elle donne
+(coder : 45 s, son agent scripté répond en flux) ; si une étape expire quand même,
+l'application s'affiche telle quelle et une ligne sous l'écran dit quel texte n'est pas
+venu. Un clic sur l'écran donne le clavier à l'application, un clic ailleurs
 le rend à la page. Sous 760 px de large ou avec l'économie de données, rien ne démarre : un
 lien ouvre la démo dans sa propre page.
 
@@ -79,10 +82,11 @@ Les autres (coder, Forge, Chat, mdreader, DevTools) tournent sur `/examples/`, a
 Sur `/examples/`, coder (« Coding-agent interface ») tourne sans agent : `scripts/demo.ts`
 le construit avec `CODER_HARNESS=fake`, aucun appel de modèle, et sa ligne d'état le dit
 elle-même (« Scripted demo · no model calls »), comme le badge à côté de l'écran. Son
-script de page (`src/lib/examples.ts`) : attendre `Message…`, taper `DEMO_PROMPT` puis
-Entrée, attendre `allow once`, taper `y`, attendre `DEMO_END`. Les deux textes sont lus
-dans `examples/coder/server/adapters/fake.ts` (`?raw`) : s'ils changent de forme, le build
-échoue. L'écran d'arrivée est celui de `src/frames/coder.json` (scène `coder` de
+script de page (`src/lib/examples.ts`) : attendre « … is ready in … » (la session a
+démarré ; `Message…` s'affiche avant, et les touches tapées alors se perdent), taper
+`DEMO_PROMPT` puis Entrée, attendre `allow once`, taper `y`, attendre `DEMO_END`. `DEMO_PROMPT`
+et `DEMO_END` sont lus dans `examples/coder/server/adapters/fake.ts` (`?raw`) : s'ils
+changent de forme, le build échoue. L'écran d'arrivée est celui de `src/frames/coder.json` (scène `coder` de
 `scripts/capture.py`, même prompt). La landing le montre en capture, avec « Play it » vers
 `/examples/#coder`. Files et mux restent au
 terminal : une bibliothèque d'images native pour l'un, des PTY pour l'autre.
