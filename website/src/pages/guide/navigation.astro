@@ -183,6 +183,7 @@ x-airtty-instance: <clé>             seulement pour une app dans un pane (chapi
   <Callout kind="piege">
     <ul>
       <li>Une erreur de rendu arrive en HTTP 200 : le Server a répondu, mais le statut affiche « Disconnected ».</li>
+      <li>L'écran d'erreur d'une page émet aussi un événement <code>failure</code> (<code>path</code>, <code>message</code>) : un Client lancé avec un canal IPC (<code>airtty dev</code>, un hôte <code>sandbox</code>) l'envoie à son parent, qui sait ainsi quelle page a échoué et pourquoi. <code>notFound()</code> n'en émet pas : une page introuvable est une réponse, pas un échec.</li>
       <li>Notes n'utilise pas <code>notFound()</code> : une note absente lève <code>Error("Note unavailable")</code> et passe par <code>error.tsx</code>. En production, son message n'arrive pas au Client.</li>
       <li>Échap a deux sens. Pendant le chargement, il annule (un <code>replace</code> vers la page d'avant). Dans une note ouverte, c'est le raccourci de <code>NoteEditor</code> qui navigue vers la liste.</li>
       <li>La liste déclare <code>staleTime = 30</code> : pendant 30 s, y revenir ne fait aucune requête.</li>

@@ -156,6 +156,7 @@ const ROW = 50;
     </table>
   </div>
   <p>En sandbox, l'enfant ne lit que le runtime et son bundle, n'écrit que dans ses sessions et un dossier temporaire, et ne joint que le Server de l'app et le proxy de l'hôte, qui filtre par nom d'hôte. Le presse-papier, les notifications et l'ouverture d'URL passent par l'IPC, et c'est l'hôte qui décide, en demandant à l'utilisateur si besoin. Voir <Src path="packages/airtty/src/sandbox/spawn.ts" />.</p>
+  <p>Le même profil peut confiner un <strong>Server</strong> dont l'hôte ne se fie pas au code, comme l'aperçu de studio pour une app écrite par un modèle : <Src path="packages/airtty/src/sandbox/server.ts" find="export async function confineServer" /> retire le terminal et n'ajoute que l'écoute d'un port loopback choisi par l'hôte. Il lit son build, écrit dans son répertoire de données, et <code>net</code> passe par le proxy de l'hôte. C'est macOS seulement : sous <code>airtty-sandbox</code>, le Server écouterait dans son propre espace de noms réseau, et le relais inverse qui permettrait à l'hôte de le joindre n'existe pas encore.</p>
 
   <h2>Une app dans une autre : Embed</h2>
   <p><Src path="packages/airtty/src/embed.tsx" /> monte l'Application d'un autre bundle dans un pane, dans le même arbre React. Chaque pane a son propre Transport, avec l'en-tête <code>x-airtty-instance</code> qui préfixe ses Client References. Le pane a aussi un keymap filtré, un focus mis de côté quand il est inactif, et une frontière d'erreur qui confine un crash au seul pane. <code>examples/mux</code> s'en sert.</p>

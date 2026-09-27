@@ -104,6 +104,8 @@ const edges: Edge[] = [
     <p>Le graphe Server part de chaque page. Il s'arrête sur un fichier <code>"use client"</code>, qu'il note comme <em>frontière</em>. Le graphe Client part de chaque frontière, des layouts et des écrans de chargement. S'il rencontre un <code>"use server"</code>, il repasse côté Server au lieu d'embarquer le fichier.</p>
     <Excerpt path={B} find="function clientVisit(p: string, from?: string)" until="Server-only source in Client graph" tone="build" mark={['"use cache" module in Client graph', "Server-only source in Client graph"]} />
     <p>Une règle y est purement textuelle : tout fichier dont un dossier du chemin s'appelle <code>server</code> est interdit au Client, avec ou sans directive.</p>
+    <p>Le graphe Server refuse aussi ce que React réserve au Client. Un Server Component qui importe <code>useState</code>, <code>useEffect</code> ou <code>createContext</code> se construirait, puis son Server mourrait au démarrage sur un export manquant de <code>react.react-server.js</code>, sans nommer ni la page ni le remède. Le build lit donc, dans le React que l'app résout, les exports de son entrée par défaut absents de son entrée <code>react-server</code>, et échoue sur le nom importé. Si React n'a pas la forme attendue, le contrôle est sauté plutôt que deviné.</p>
+    <Excerpt path={B} find='if (i.name === "react" && ts.isImportDeclaration(i.node))' count={12} tone="build" mark={["clientOnlyReact.has(name)"]} />
     <p>Si l'app déclare ses arguments dans <code>app/args.ts</code>, un troisième graphe part de ce fichier. Il tourne dans le lanceur <em>et</em> sur le Server : il refuse toute directive, tout fichier sous un dossier <code>server</code>, <code>airtty/server</code>, <code>airtty/client</code> et OpenTUI.</p>
   </Step>
 
@@ -226,6 +228,14 @@ app/page.tsx:1:1: OpenTUI native runtime is Client-only
   via app/page.tsx`}
   />
   <p>Lis la chaîne <code>via</code> de droite à gauche : elle part du fichier fautif et remonte jusqu'au point d'entrée qui l'a fait entrer dans le mauvais graphe.</p>
+  <p>Deux erreurs de plus sont positionnées là où elles sont. Une erreur de syntaxe porte la ligne et la colonne du diagnostic de TypeScript, plus la ligne 1 du fichier. Un import introuvable est signalé sur la ligne de l'import, le chemin relatif à l'app. Et un hook de React dans une page échoue sur le nom importé. Les messages ci-dessous sont ceux que vérifie <Src path="tests/build.test.ts" /> :</p>
+  <Sample
+    label="airtty build, un import introuvable, un hook dans une page"
+    code={`app/page.tsx:2:1: Cannot resolve ../components/Header
+
+app/page.tsx:1:19: useState is Client-only React: a Server Component cannot use it. Add "use client" at the top of this file, or move the part that needs it into a Client Component
+  via app/page.tsx`}
+  />
 
   <Callout kind="piege">
     <ul>
