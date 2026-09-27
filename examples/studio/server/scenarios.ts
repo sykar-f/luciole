@@ -15,6 +15,13 @@ export type Scenario = {
   reply: string;
   /** The first attempt, then corrections, one per studio correction message. */
   turns: Turn[];
+  /**
+   * Writes the first attempt makes before its own files, one after the other, as an agent
+   * writes a file per tool call: studio shows each one as a draft. Each builds.
+   */
+  drafts?: Turn[];
+  /** The scenario whose files this one starts from (its first turn, written before). */
+  after?: string;
   /** The stage its first attempt fails at (`ok`: it passes): tests check it. */
   expected: "ok" | "guard" | "build" | "types" | "render";
   /** A command the generator asks to run first (studio's policy refuses it). */
@@ -98,6 +105,146 @@ import { list } from "../../server/todos";
 
 export default function TodosPage() {
   return <TodoList initial={list()} toggle={toggleTodo} />;
+}
+`;
+
+const guestbookStore = `import { join } from "node:path";
+import { Database } from "bun:sqlite";
+
+// The signatures live in data/, beside the counter: they survive every change of the code.
+const db = new Database(join(process.env.STUDIO_DATA ?? ".", "guestbook.sqlite"));
+db.run(
+  "CREATE TABLE IF NOT EXISTS entries (id INTEGER PRIMARY KEY, name TEXT NOT NULL, message TEXT NOT NULL)",
+);
+const GUESTS = 30;
+if (!db.query("SELECT 1 FROM entries LIMIT 1").get())
+  for (let i = 1; i <= GUESTS; i++)
+    db.run("INSERT INTO entries (name, message) VALUES (?, ?)", [
+      \`Guest \${String(i).padStart(2, "0")}\`,
+      "Hello from the first visitors",
+    ]);
+
+export type Entry = { id: number; name: string; message: string };
+export const entries = (): Entry[] =>
+  db.query<Entry, []>("SELECT id, name, message FROM entries ORDER BY id").all();
+export function sign(name: string, message: string): Entry[] {
+  db.run("INSERT INTO entries (name, message) VALUES (?, ?)", [name, message]);
+  return entries();
+}
+`;
+const guestbookAction = `"use server";
+import { z } from "zod";
+import { sign } from "../server/guestbook";
+
+const Name = z.string().trim().min(1).max(40);
+const Message = z.string().trim().min(1).max(200);
+export async function signGuestbook(name: string, message: string) {
+  return sign(Name.parse(name), Message.parse(message));
+}
+`;
+/** The guestbook: its entries in a named scroll box, a form of two named fields. */
+const guestbook = (title: string) => `"use client";
+import { useRef, useState } from "react";
+import type { ScrollBoxRenderable } from "@opentui/core";
+import { Input, ScrollBox, useBindings, useRestoredFields, useRestoredFocus } from "airtty/client";
+import type { Entry } from "../server/guestbook";
+
+const FIELDS = ["guestbook/name", "guestbook/message"] as const;
+const PAGE = 5;
+
+export function Guestbook({
+  initial,
+  sign,
+}: {
+  initial: Entry[];
+  sign: (name: string, message: string) => Promise<Entry[]>;
+}) {
+  const [entries, setEntries] = useState(initial);
+  const [name, setName] = useState("");
+  const [message, setMessage] = useState("");
+  // Named fields, their focus and the list's position come back after every change.
+  const [focus, setFocus] = useRestoredFocus(FIELDS);
+  const fields = useRestoredFields("guestbook");
+  const list = useRef<ScrollBoxRenderable>(null);
+  const submit = () => {
+    if (!name.trim() || !message.trim()) return;
+    void fields.submit(() => sign(name, message)).then((next) => {
+      setEntries(next);
+      setMessage("");
+    });
+  };
+  useBindings(
+    () => ({
+      bindings: [
+        {
+          key: "tab",
+          cmd: () => setFocus((f) => (f === FIELDS[0] ? FIELDS[1] : FIELDS[0])),
+          desc: "next field",
+        },
+        { key: "pagedown", cmd: () => list.current?.scrollBy(PAGE), desc: "scroll" },
+        { key: "pageup", cmd: () => list.current?.scrollBy(-PAGE) },
+      ],
+    }),
+    [setFocus],
+  );
+  return (
+    <box flexDirection="column" gap={1}>
+      <text id="guestbook-title" fg="#67d9bc">
+        ${title}
+      </text>
+      <ScrollBox id="guestbook-entries" name="guestbook/entries" ref={list} height={6} scrollY>
+        {entries.map((entry) => (
+          <text key={entry.id}>{\`\${entry.name}: \${entry.message}\`}</text>
+        ))}
+      </ScrollBox>
+      <box flexDirection="row" gap={1} height={1}>
+        <text width={8}>Name</text>
+        <Input
+          name="guestbook/name"
+          focused={focus === "guestbook/name"}
+          value={name}
+          onInput={setName}
+          onSubmit={submit}
+          placeholder="Your name"
+          flexGrow={1}
+        />
+      </box>
+      <box flexDirection="row" gap={1} height={1}>
+        <text width={8}>Message</text>
+        <Input
+          name="guestbook/message"
+          focused={focus === "guestbook/message"}
+          value={message}
+          onInput={setMessage}
+          onSubmit={submit}
+          placeholder="Enter signs"
+          flexGrow={1}
+        />
+      </box>
+    </box>
+  );
+}
+`;
+const guestbookPage = `import { Guestbook } from "../../components/Guestbook";
+import { signGuestbook } from "../../actions/guestbook";
+import { entries } from "../../server/guestbook";
+
+export default function GuestbookPage() {
+  return <Guestbook initial={entries()} sign={signGuestbook} />;
+}
+`;
+const links = `"use client";
+import { useBindings, useNavigate } from "airtty/client";
+
+export function Links() {
+  const navigate = useNavigate();
+  useBindings(
+    () => ({
+      bindings: [{ key: "g", cmd: () => void navigate({ to: "/guestbook" }), desc: "guestbook" }],
+    }),
+    [navigate],
+  );
+  return <text id="studio-links">g: the guestbook</text>;
 }
 `;
 
@@ -306,5 +453,39 @@ export const SCENARIOS: Scenario[] = [
     turns: [
       { "server/greeting.ts": `export const greeting = "Tests? studio checks the app itself.";\n` },
     ],
+  },
+  {
+    name: "guestbook",
+    match: /\bguestbook page\b/i,
+    reply: "A guestbook: a store in server/, an action, a form, its page, then a link home.",
+    prompt: "Add a guestbook page with a form to sign it",
+    expected: "ok",
+    // Four writes, as an agent makes them: the preview follows each one.
+    drafts: [
+      {
+        "app/page.tsx": counterPage('\n      <text id="studio-soon">A guestbook is coming…</text>'),
+      },
+      { "server/guestbook.ts": guestbookStore, "actions/guestbook.ts": guestbookAction },
+      {
+        "components/Guestbook.tsx": guestbook("Guestbook"),
+        "app/guestbook/page.tsx": guestbookPage,
+      },
+    ],
+    turns: [
+      {
+        "components/Links.tsx": links,
+        "app/page.tsx": `import { Links } from "../components/Links";\n${counterPage("\n      <Links />")}`,
+      },
+    ],
+  },
+  {
+    name: "signatures",
+    match: /\bsigned the guestbook\b/i,
+    reply: "Counting the signatures in the guestbook's title.",
+    prompt: "Show how many people signed the guestbook",
+    expected: "ok",
+    after: "guestbook",
+    drafts: [{ "components/Guestbook.tsx": guestbook("Guestbook · counting signatures…") }],
+    turns: [{ "components/Guestbook.tsx": guestbook("Guestbook · {entries.length} signatures") }],
   },
 ];

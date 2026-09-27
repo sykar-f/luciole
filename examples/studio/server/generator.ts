@@ -21,9 +21,13 @@ import { SCENARIOS, type Scenario } from "./scenarios";
 /** How studio's own messages to the harness begin (server/studio.ts). */
 export const STUDIO_PREFIX = "[studio]";
 const DEFAULT_DELAY_MS = 40;
+// Between two writes of a turn that makes several: an agent's tool calls come this far apart.
+const DEFAULT_WRITE_MS = 1500;
 const Environment = z.object({
   // Pause between the steps of a turn; tests set it to 1.
   STUDIO_FAKE_DELAY_MS: z.coerce.number().int().min(0).default(DEFAULT_DELAY_MS),
+  // Pause after each write of a scenario's drafts, for studio to show them.
+  STUDIO_FAKE_WRITE_MS: z.coerce.number().int().min(0).default(DEFAULT_WRITE_MS),
 });
 const CAPABILITIES: Capabilities = {
   steer: false,
@@ -45,6 +49,7 @@ export class Generator implements Harness {
   readonly capabilities = CAPABILITIES;
   private readonly context: HarnessContext;
   private readonly delay: number;
+  private readonly writeDelay: number;
   private cwd = "";
   private scenario: Scenario | undefined;
   private turn = 0;
@@ -54,7 +59,9 @@ export class Generator implements Harness {
 
   constructor(context: HarnessContext) {
     this.context = context;
-    this.delay = Environment.parse(context.env).STUDIO_FAKE_DELAY_MS;
+    const env = Environment.parse(context.env);
+    this.delay = env.STUDIO_FAKE_DELAY_MS;
+    this.writeDelay = env.STUDIO_FAKE_WRITE_MS;
   }
   private id_(prefix: string) {
     return `${prefix}-${++this.next}`;
@@ -105,6 +112,19 @@ export class Generator implements Harness {
     }
     if (this.interrupted) return "interrupted";
     await this.pause();
+    const written: string[] = [];
+    for (const draft of correction ? [] : (scenario.drafts ?? [])) {
+      written.push(...this.write(draft));
+      await Bun.sleep(this.writeDelay);
+      if (this.interrupted) return "interrupted";
+    }
+    written.push(...this.write(files));
+    await this.say(`Wrote ${[...new Set(written)].join(", ")}.`);
+    return "completed";
+  }
+
+  /** Writes `files` in the project, as one tool call of an agent; their paths. */
+  private write(files: Readonly<Record<string, string>>) {
     const patches = Object.entries(files).map(([path, after]) => {
       const file = join(this.cwd, path);
       const before = existsSync(file) ? readFileSync(file, "utf8") : "";
@@ -121,8 +141,7 @@ export class Generator implements Harness {
       endedAt: Date.now(),
     };
     this.context.emit({ type: "item.completed", item });
-    await this.say(`Wrote ${patches.map((p) => p.path).join(", ")}.`);
-    return "completed";
+    return patches.map((p) => p.path);
   }
 
   private async say(text: string) {
