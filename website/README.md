@@ -2,16 +2,31 @@
 
 Site statique en Astro 7 et TypeScript, en anglais (public open source) :
 
-| Page                               | Rôle                                                                               |
-| ---------------------------------- | ---------------------------------------------------------------------------------- |
-| `/`                                | la landing : quatre blocs, une seule démo live (Notes, dans le hero)               |
-| `/examples/`                       | chaque exemple par usage ; démos live au clic, une seule à la fois                 |
-| `/status/`                         | statut du projet, vérifié à la main contre le README et `docs/` (date et révision) |
-| `/docs/`, `/docs/getting-started/` | entrée de la documentation ; premiers pas en anglais                               |
-| `/guide/`                          | le guide, en français                                                              |
-| `/og/`                             | l'image de partage, photographiée par `scripts/og.ts` dans `public/og.png`         |
+| Page         | Rôle                                                                               |
+| ------------ | ---------------------------------------------------------------------------------- |
+| `/`          | la landing : quatre blocs, une seule démo live (Notes, dans le hero)               |
+| `/examples/` | chaque exemple par usage ; démos live au clic, une seule à la fois                 |
+| `/status/`   | statut du projet, vérifié à la main contre le README et `docs/` (date et révision) |
+| `/docs/…`    | la documentation, en anglais : `src/content/docs/`, voir plus bas                  |
+| `/guide/`    | le guide, en français                                                              |
+| `/og/`       | l'image de partage, photographiée par `scripts/og.ts` dans `public/og.png`         |
 
 Ce que la landing v2 a retiré, et où le retrouver : [DOCS-BACKLOG.md](DOCS-BACKLOG.md).
+
+## La documentation
+
+Une page par fichier MDX de `src/content/docs/` (collection `docs`, `src/content.config.ts`) ;
+l'ordre de la barre latérale, du sommaire et des liens précédent/suivant est
+`src/lib/docs/nav.ts`, et une page absente de cette liste fait échouer le build. Chaque page
+cite ses sources dans son front matter (`sources`), vérifiées au build, et montre le code du
+dépôt par `Excerpt` (`src/components/guide/`), trouvé par repères comme dans le guide.
+
+Le nom du produit et les commandes viennent de `src/lib/product.ts` : les pages s'écrivent
+avec le nom actuel, et un plugin de `src/lib/docs/markdown.ts` le réécrit partout si ce
+fichier change (les props des composants, du JavaScript, lisent `product.ts` elles-mêmes).
+La recherche est Pagefind : `bun run build` indexe `dist/` après Astro (le seul
+`data-pagefind-body` est celui des pages de documentation) ; `bun run dev` n'a pas d'index et
+le dit.
 
 ```sh
 cd website
