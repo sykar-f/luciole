@@ -30,6 +30,15 @@ export type Node =
   | { kind: "quote"; children: readonly Node[]; marginTop: number; indent: number }
   | { kind: "rule"; marginTop: number; indent: number }
   | {
+      kind: "image";
+      /** As written: a URL, or a path the view resolves. */
+      src: string;
+      /** Its alternative text, a link to it, shown until it loads or if it can't. */
+      alt: readonly TextChunk[];
+      marginTop: number;
+      indent: number;
+    }
+  | {
       kind: "heading";
       /** 1 to 3: deeper headings are drawn as level 3. */
       level: number;
@@ -122,10 +131,10 @@ export class Palette {
   }
   private lookup(group: string) {
     if (this.cache.has(group)) return this.cache.get(group);
-    let style = this.syntax.getStyle(group);
-    // `markup.heading.2` falls back to `markup.heading` before `markup`.
-    if (!style && group.startsWith(`${HEADING}.`)) style = this.syntax.getStyle(HEADING);
-    if (!style && group.includes(".")) style = this.syntax.getStyle(group.split(".")[0] ?? "");
+    // A group, then its parents: `markup.link.label`, `markup.link`, `markup`.
+    let style: StyleDefinition | undefined;
+    for (let name = group; name && !style; name = name.slice(0, Math.max(0, name.lastIndexOf("."))))
+      style = this.syntax.getStyle(name);
     this.cache.set(group, style);
     return style;
   }
@@ -161,6 +170,14 @@ export class Palette {
     return this.lookup(`${HEADING}.${level}`)?.bg;
   }
   /** The color of rules and quote bars. */
+  /** The background of a code block (`markup.raw.block`), if the style gives one. */
+  codeBlock(): RGBA | undefined {
+    return this.lookup("markup.raw.block")?.bg;
+  }
+  /** The color of labels that stand for something else: a code block's language. */
+  label(): RGBA | undefined {
+    return this.lookup("comment")?.fg ?? this.lookup("default")?.fg;
+  }
   line(): RGBA | string {
     return this.lookup("conceal")?.fg ?? FALLBACK_RULE;
   }
@@ -249,9 +266,27 @@ export function renderBlock(token: MarkedToken, palette: Palette, base: readonly
 
 function block(token: MarkedToken, out: Builder, palette: Palette, base: readonly string[]) {
   switch (token.type) {
-    case "paragraph":
-      inline(tokensOf(token.tokens), out, [], palette);
+    case "paragraph": {
+      const children = tokensOf(token.tokens);
+      const images = children.filter((child) => child.type === "image");
+      // A paragraph of images alone is those images; around text, they follow it.
+      const alone = children.every(
+        (child) => child.type === "image" || (child.type === "text" && !child.text.trim()),
+      );
+      if (!images.length || !alone) inline(children, out, [], palette);
+      for (const image of images) {
+        const alt = new Builder(palette, base);
+        inline([image], alt, [], palette);
+        alt.flush();
+        const first = alt.nodes[0];
+        out.block({
+          kind: "image",
+          src: image.href,
+          alt: first?.kind === "text" ? first.chunks : [],
+        });
+      }
       return;
+    }
     case "text":
       if (token.tokens) inline(tokensOf(token.tokens), out, [], palette);
       else out.text(token.text);

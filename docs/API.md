@@ -14,7 +14,7 @@ Entrée `airtty/client` (Client Components uniquement) :
 | `useBindings()`, `useActiveKeys()`, `useKeymap()`, `usePendingSequence()`                                                              | Keymap OpenTUI réexportée : couches de raccourcis liées au cycle de vie des composants.                                                          |
 | `<KeyHelp groups? inline? />`                                                                                                          | Aide générée depuis les raccourcis actifs qui déclarent un `desc` (filtrés par `group`).                                                         |
 | `<Embed app name active prefix? />`, `openApplication({ bundle, url, instance? })`                                                     | Une autre application airtty dans un pane de celle-ci ; voir « Applications embarquées ».                                                        |
-| `<Markdown content streaming syntaxStyle />`                                                                                           | Markdown rendu par blocs : pendant que `content` s'écrit (`streaming`), le texte affiché ne bouge plus ; voir « Markdown en streaming ».         |
+| `<Markdown content streaming syntaxStyle onLink? imageBase? />`                                                                        | Markdown rendu par blocs : pendant que `content` s'écrit (`streaming`), le texte affiché ne bouge plus ; voir « Markdown en streaming ».         |
 | `<Terminal command active prefix? cwd? env? onExit? />`                                                                                | Un programme local (shell, vim, un Client airtty) sur un PTY, rendu dans l'arbre ; voir « Terminaux embarqués ».                                 |
 | `host`, `CapabilityDenied`                                                                                                             | Ce que l'application demande à son hôte (presse-papiers, notification, URL, secret, onglets) ; voir « Capacités médiées ».                       |
 | `useHostMessage(fn)`, `useGlobalKey(key, fn)`, `useCapability(name)`                                                                   | Messages des autres onglets et touches globales tant que le composant est monté ; état `granted`, `denied` ou `prompt` d'une capacité.           |
@@ -200,7 +200,13 @@ la réponse bascule entre texte brut et mis en forme.
 ```tsx
 import { Markdown } from "airtty/client";
 
-<Markdown content={reply.text} streaming={!reply.done} syntaxStyle={syntax} />;
+<Markdown
+  content={reply.text}
+  streaming={!reply.done}
+  syntaxStyle={syntax}
+  onLink={(url) => host.openUrl(url)}
+  imageBase={projectDirectory}
+/>;
 ```
 
 - `content` ne fait que croître pendant `streaming` ; les blocs terminés sont rendus une
@@ -219,6 +225,17 @@ import { Markdown } from "airtty/client";
   dernières colonnes restent sans fond. Le H1 fait 3 lignes de haut, titre au milieu. Espacement imposé : H1 précédé de 2 lignes vides et suivi
   d'une, H2 d'une et d'une (2 au-dessus quand il clôt une sous-partie H3), H3 d'une et
   collé à son contenu. Le bandeau est peint, pas écrit : une sélection copie le titre seul.
+- Blocs de code : sur le fond de `markup.raw.block` (`bg`), avec une marge intérieure et le
+  langage discret en haut à droite ; sans ce `bg`, le code reste sans fond.
+- Liens : stylés par `markup.link` (le libellé comme l'URL). Un clic (appui et relâche sur
+  la même cellule, un glisser sélectionne) appelle `onLink(url)`, et le pointeur devient
+  une main au survol ; sans `onLink`, seul un terminal qui dessine les liens OSC 8 peut
+  les ouvrir, par son propre raccourci. `host.openUrl` n'ouvre que des URL http(s).
+- Images : dessinées par `<image>` d'OpenTUI (kitty, sixel, sinon demi-blocs en couleurs),
+  à la largeur disponible et sur 16 lignes au plus ; leur texte alternatif s'affiche
+  pendant le chargement et reste si l'image ne se charge pas. URL http(s) et `file:`,
+  chemins absolus, chemins relatifs depuis `imageBase` (un dossier ou une URL). Une image
+  distante est téléchargée par le Client : l'auteur du Markdown voit la requête.
 - Une réponse finie ressemble à `<markdown conceal>` ; les écarts et les mesures sont
   dans `docs/streaming-markdown/STATUS.md`.
 

@@ -16,6 +16,8 @@ export const syntax = SyntaxStyle.fromStyles({
   "markup.strong": { bold: true },
   "markup.italic": { italic: true },
   "markup.raw": { fg: hex("#a5d6ff") },
+  // Code blocks sit on a plain panel.
+  "markup.raw.block": { bg: hex(color.panel) },
   "markup.link": { fg: hex(color.info), underline: true },
   "markup.list": { fg: hex(color.user) },
   "markup.quote": { fg: hex(color.muted), italic: true },

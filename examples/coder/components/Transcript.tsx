@@ -56,6 +56,10 @@ type Props = {
   wide: boolean;
   sticky: boolean;
   onToggle: (id: string) => void;
+  /** A link clicked in a reply or a thought. */
+  onLink: (url: string) => void;
+  /** The project's directory: where relative image paths in replies start from. */
+  cwd: string;
   scroll: Ref<ScrollBoxRenderable>;
   empty: ReactNode;
 };
@@ -73,6 +77,8 @@ export function Transcript({
   wide,
   sticky,
   onToggle,
+  onLink,
+  cwd,
   scroll,
   empty,
 }: Props) {
@@ -97,6 +103,8 @@ export function Transcript({
             now={running(item) ? now : 0}
             wide={wide}
             onToggle={onToggle}
+            onLink={onLink}
+            cwd={cwd}
           />
         </box>
       ))}
@@ -111,10 +119,21 @@ type ItemProps = {
   now: number;
   wide: boolean;
   onToggle: (id: string) => void;
+  onLink: (url: string) => void;
+  cwd: string;
 };
 
 /** One item; finished items keep their identity across updates and are not redrawn. */
-const ItemView = memo(function ItemView({ item, open, selected, now, wide, onToggle }: ItemProps) {
+const ItemView = memo(function ItemView({
+  item,
+  open,
+  selected,
+  now,
+  wide,
+  onToggle,
+  onLink,
+  cwd,
+}: ItemProps) {
   const toggle = () => onToggle(item.id);
   switch (item.kind) {
     case "user":
@@ -131,7 +150,13 @@ const ItemView = memo(function ItemView({ item, open, selected, now, wide, onTog
     case "message":
       return (
         <box marginTop={1}>
-          <Markdown content={item.text} streaming={item.streaming} syntaxStyle={syntax} />
+          <Markdown
+            content={item.text}
+            streaming={item.streaming}
+            syntaxStyle={syntax}
+            onLink={onLink}
+            imageBase={cwd}
+          />
         </box>
       );
     case "reasoning": {
@@ -148,7 +173,13 @@ const ItemView = memo(function ItemView({ item, open, selected, now, wide, onTog
           </Header>
           {open ? (
             <box paddingLeft={2}>
-              <Markdown content={item.text.trim()} streaming={item.streaming} syntaxStyle={muted} />
+              <Markdown
+                content={item.text.trim()}
+                streaming={item.streaming}
+                syntaxStyle={muted}
+                onLink={onLink}
+                imageBase={cwd}
+              />
             </box>
           ) : null}
         </box>

@@ -172,6 +172,16 @@ et construction des nœuds compris.
   (`markup.heading.N`, son `bg` dessine le bandeau) ; sans `bg`, pas de bandeau. Écart
   voulu avec `<markdown conceal>`, qui dessinait les titres en texte ordinaire ; le
   soulignement d'un titre setext n'est plus affiché.
+- **Code, liens, images** (retour après essai) : blocs de code sur un fond uni
+  (`markup.raw.block`, fond panneau dans coder) avec le langage en coin ; liens stylés comme
+  des liens et cliquables (`onLink`, `renderer.getLinkAt` sous le clic, pointeur au
+  survol ; coder les ouvre avec `host.openUrl`) : coder capte la souris, le terminal ne voit
+  donc pas les clics ; images dessinées par `<image>` d'OpenTUI (seule une image entière
+  est dessinée : pendant le streaming, `![alt](url` incomplet reste son texte), leur texte
+  alternatif en attendant, chemins relatifs depuis le dossier du projet. Chaque groupe de
+  style se replie désormais sur ses parents (`markup.link.label`, puis `markup.link`, puis
+  `markup`) : les libellés de liens prennent le style des liens. Une image fait grandir sa
+  réponse une fois, à son chargement (jamais de rétrécissement).
 - **Bord du bandeau** (retour après essai) : le fondu court jusqu'au bord droit du
   document, recalculé à chaque image (redimensionnement compris), et s'éteint vers le fond
   réel du terminal (`renderer.getPalette()`, OSC 11, redemandé quand le terminal change de

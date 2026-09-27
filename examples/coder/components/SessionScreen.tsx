@@ -415,6 +415,14 @@ export function SessionScreen({ initial }: { initial: Snapshot }) {
 
   const isOpen = (item: Item) => folds.get(item.id) ?? openByDefault(item);
   const foldIds = snap.items.filter(foldable).map((i) => i.id);
+  // A link clicked in a reply opens in the browser; the host only opens http(s) URLs.
+  function openLink(url: string) {
+    host.openUrl(url).then(
+      () => say(`Opened ${url}`),
+      () => say(`Could not open ${url}`, color.warn),
+    );
+  }
+
   function toggle(id: string) {
     setSelected(id);
     // Unfolding or folding should not drag a reader who scrolled up to the bottom (#1514).
@@ -703,6 +711,8 @@ export function SessionScreen({ initial }: { initial: Snapshot }) {
         wide={wide}
         sticky={sticky}
         onToggle={toggle}
+        onLink={openLink}
+        cwd={snap.info.cwd}
         scroll={scroll}
         empty={<Empty snap={snap} />}
       />

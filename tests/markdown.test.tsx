@@ -97,9 +97,10 @@ test("a reference link resolves once its definition is complete, not at each cha
   expect([...seen]).toEqual(["See [the docs][d].", "See the docs (https://example.com/docs)."]);
 });
 
-test("apart from headings, a finished reply looks as OpenTUI's <markdown conceal> draws it", async () => {
-  // Headings are drawn on bands, with their own spacing (next test): left out here.
+test("apart from headings and code blocks, a finished reply looks as OpenTUI's <markdown conceal> draws it", async () => {
+  // Headings (bands) and code blocks (a panel) have their own look: left out here.
   const content = (await fixture("rich"))
+    .replace(/^```[^\n]*\n[\s\S]*?\n```\n\n/gm, "")
     .replace(/^#{1,6} .*\n\n/gm, "")
     .replace(/^.+\n-+\n\n/m, "");
   const theirs = await settled(
@@ -230,6 +231,70 @@ test("with the terminal's background known, a band fades into it, not into black
   } finally {
     palette.mockRestore();
   }
+});
+
+test("a code block sits on the style's panel, its language in a corner", async () => {
+  const setup = await render(
+    <Markdown content={"```ts\nconst x = 1;\n```"} streaming={false} syntaxStyle={syntax} />,
+    60,
+    6,
+  );
+  const rows = (await settled(setup)).split("\n");
+  expect(rows.slice(0, 2)).toEqual([`${" ".repeat(57)}ts`, "  const x = 1;"]);
+  const panel = RGBA.fromHex(color.panel);
+  for (const [row, column] of [
+    [0, 0],
+    [1, 0],
+    [1, 50],
+    [2, 59],
+  ] as const)
+    expect(backgroundAt(setup, row, column)?.equals(panel)).toBe(true);
+});
+
+test("a click on a link opens it; a drag across it selects instead", async () => {
+  const opened: string[] = [];
+  const setup = await render(
+    <Markdown
+      content="See [the docs](https://example.com/docs) now."
+      streaming={false}
+      syntaxStyle={syntax}
+      onLink={(url) => opened.push(url)}
+    />,
+  );
+  const shown = await settled(setup);
+  expect(shown).toBe("See the docs (https://example.com/docs) now.");
+  const label = shown.indexOf("the docs");
+  // Styled as a link (markup.link), not as plain text.
+  const cell = setup.captureSpans().lines[0]?.spans.find((span) => span.text.includes("the docs"));
+  expect(cell?.fg.equals(RGBA.fromHex(color.info))).toBe(true);
+  await act(async () => {
+    await setup.mockMouse.click(label + 2, 0);
+  });
+  expect(opened).toEqual(["https://example.com/docs"]);
+  await act(async () => {
+    await setup.mockMouse.drag(label, 0, label + 6, 0);
+  });
+  expect(opened).toHaveLength(1);
+});
+
+test("an image is drawn in place of its text; one that can't load keeps its text", async () => {
+  const icon = new URL("../examples/notes/assets/icon.png", import.meta.url).pathname;
+  const setup = await render(
+    <Markdown
+      content={`![notes icon](${icon})\n\n![missing](nowhere/missing.png)\n\nAfter.`}
+      streaming={false}
+      syntaxStyle={syntax}
+      imageBase="/definitely/not/here"
+    />,
+    60,
+    40,
+  );
+  const shown = await settled(setup, "After.");
+  const rows = shown.split("\n");
+  // The image took rows of its own, its text is gone; the missing one kept its text.
+  expect(shown).not.toContain("notes icon");
+  expect(rows.findIndex((row) => row.includes("missing"))).toBeGreaterThan(2);
+  expect(shown).toContain("missing");
 });
 
 test("while it streams, the reply only grows and never shows a marker it will hide", async () => {

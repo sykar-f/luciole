@@ -1,8 +1,11 @@
 /** @jsxImportSource @opentui/react */
-import { memo, useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import {
   type BoxRenderable,
+  type ImageRenderable,
+  type ImageSource,
   infoStringToFiletype,
+  type MouseEvent,
   type OptimizedBuffer,
   RGBA,
   StyledText,
@@ -17,6 +20,13 @@ export type MarkdownProps = {
   /** Whether `content` is still being written: its last block is then closed optimistically. */
   streaming: boolean;
   syntaxStyle: SyntaxStyle;
+  /**
+   * Called with a link's URL when it is clicked. Without it, a click on a link does nothing
+   * (a terminal that draws OSC 8 hyperlinks may still open it on its own modifier-click).
+   */
+  onLink?: (url: string) => void;
+  /** Where relative image paths start from: a directory or a URL. Without it, they show as text. */
+  imageBase?: string;
 };
 
 /**
@@ -26,20 +36,39 @@ export type MarkdownProps = {
  * preview at each change, then again once Tree-sitter answers: the two differ, and the
  * reply flashes between raw and formatted text at every delta.
  */
-export function Markdown({ content, streaming, syntaxStyle }: MarkdownProps) {
+export function Markdown({ content, streaming, syntaxStyle, onLink, imageBase }: MarkdownProps) {
+  const renderer = useRenderer();
   const hyperlinks = useHyperlinks();
   const background = useTerminalBackground();
+  // A click is a press and a release on the same cell: a drag selects text instead.
+  const pressed = useRef<{ x: number; y: number } | null>(null);
   const stream = useMemo(
     () => new MarkdownStream(new Palette(syntaxStyle, { hyperlinks })),
     [syntaxStyle, hyperlinks],
   );
   const look = useMemo(
-    () => ({ palette: stream.palette, syntaxStyle, background }),
-    [stream, syntaxStyle, background],
+    () => ({ palette: stream.palette, syntaxStyle, background, imageBase }),
+    [stream, syntaxStyle, background, imageBase],
   );
   const blocks = stream.update(content, streaming);
+  const linkAt = (event: MouseEvent) => (onLink ? renderer.getLinkAt(event.x, event.y) : null);
   return (
-    <box flexDirection="column" flexShrink={0}>
+    <box
+      flexDirection="column"
+      flexShrink={0}
+      onMouseDown={(event) => {
+        pressed.current = { x: event.x, y: event.y };
+      }}
+      onMouseUp={(event) => {
+        const start = pressed.current;
+        pressed.current = null;
+        if (!onLink || !start || start.x !== event.x || start.y !== event.y) return;
+        const url = linkAt(event);
+        if (url) onLink(url);
+      }}
+      onMouseMove={(event) => renderer.setMousePointer(linkAt(event) ? "pointer" : "default")}
+      onMouseOut={() => renderer.setMousePointer("default")}
+    >
       {blocks.map((block) => (
         <BlockView key={block.key} nodes={block.nodes} marginTop={block.marginTop} look={look} />
       ))}
@@ -100,6 +129,7 @@ type Look = {
   syntaxStyle: SyntaxStyle;
   /** The terminal's default background, when it reported it. */
   background: RGBA | undefined;
+  imageBase: string | undefined;
 };
 type BlockProps = { nodes: readonly Node[]; marginTop: number; look: Look };
 
@@ -120,9 +150,19 @@ function NodeView({ node, look }: { node: Node; look: Look }) {
   switch (node.kind) {
     case "text":
       return <TextView chunks={node.chunks} marginTop={node.marginTop} />;
-    case "code":
+    case "code": {
+      const fill = palette.codeBlock();
+      const language = node.lang.trim().split(/\s+/)[0] ?? "";
       return (
-        <box {...layout}>
+        <box
+          {...layout}
+          backgroundColor={fill}
+          paddingX={fill ? CODE_PADDING_X : 0}
+          paddingY={fill ? 1 : 0}
+        >
+          {fill && language ? (
+            <text position="absolute" top={0} right={1} fg={palette.label()} content={language} />
+          ) : null}
           {node.closed ? (
             <code
               content={node.text}
@@ -136,6 +176,9 @@ function NodeView({ node, look }: { node: Node; look: Look }) {
           )}
         </box>
       );
+    }
+    case "image":
+      return <ImageView node={node} base={look.imageBase} />;
     case "quote":
       return (
         <box
@@ -225,6 +268,63 @@ function fade(band: RGBA, background: RGBA | undefined, amount: number) {
     mix(band.b, background.b),
     1,
   );
+}
+
+const CODE_PADDING_X = 2;
+// An image is fitted to the width, at most this many rows tall.
+const IMAGE_ROWS = 16;
+
+/**
+ * An image, drawn by OpenTUI (kitty or sixel graphics, else colored half blocks). Its
+ * alternative text stands in while it loads, and for good if it can't.
+ */
+function ImageView({
+  node,
+  base,
+}: {
+  node: Extract<Node, { kind: "image" }>;
+  base: string | undefined;
+}) {
+  const source = useMemo(() => imageSource(node.src, base), [node.src, base]);
+  const alt = useMemo(() => new StyledText([...node.alt]), [node.alt]);
+  const [rows, setRows] = useState(0);
+  const [failed, setFailed] = useState(false);
+  const fit = (image: ImageRenderable) => {
+    if (!image.image) return;
+    setRows(image.getFittedSize(image.width, IMAGE_ROWS).height);
+  };
+  const layout = { marginTop: node.marginTop, marginLeft: node.indent, flexShrink: 0 };
+  if (!source || failed) return <text {...layout} content={alt} />;
+  return (
+    <box {...layout} flexDirection="column">
+      {rows ? null : <text content={alt} />}
+      <image
+        source={source}
+        fit="fit"
+        width="100%"
+        height={rows}
+        onLoad={function (this: ImageRenderable) {
+          fit(this);
+        }}
+        onSizeChange={function (this: ImageRenderable) {
+          fit(this);
+        }}
+        onError={() => setFailed(true)}
+      />
+    </box>
+  );
+}
+
+const URL_SCHEME = /^[a-z][a-z0-9+.-]*:/i;
+/** What `<image>` loads for `src`: a URL or a file path, relative ones from `base`. */
+function imageSource(src: string, base: string | undefined): ImageSource | undefined {
+  if (/^(https?|file):/i.test(src)) return src;
+  // data:, and any other scheme OpenTUI does not load.
+  if (URL_SCHEME.test(src)) return undefined;
+  if (src.startsWith("/")) return src;
+  if (!base) return undefined;
+  if (URL_SCHEME.test(base)) return URL.canParse(src, base) ? new URL(src, base).href : undefined;
+  return `${base.replace(/\/+$/, "")}/${src.replace(/^\.\//, "")}`;
 }
 
 function TextView({ chunks, marginTop }: { chunks: Chunks; marginTop: number }) {
