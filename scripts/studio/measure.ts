@@ -20,7 +20,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
 import { z } from "zod";
-import type { HarnessId, Item } from "../../packages/harness/src/model";
+import type { HarnessId, Item, Usage } from "../../packages/harness/src/model";
 import { HarnessSession } from "../../packages/harness/src/session";
 import type { Diagnostic, Stage } from "../../examples/studio/components/model";
 import { STUDIO_PREFIX } from "../../examples/studio/server/generator";
@@ -69,7 +69,15 @@ if (harness !== "fake" && !options["accept-quota"]) {
 const TURN_TIMEOUT_MS = TURN_MINUTES * MINUTE_MS;
 
 type Attempt = { stage: Stage | "ok"; diagnostics: Diagnostic[]; ms: number };
-type Run = { scenario: string; prompt: string; attempts: Attempt[]; items?: readonly Item[] };
+type Run = {
+  scenario: string;
+  prompt: string;
+  attempts: Attempt[];
+  /** What the harness reported: model, cost and tokens of the whole run. */
+  model?: string;
+  usage: Usage;
+  items?: readonly Item[];
+};
 
 /** One prompt in a fresh project, then studio's corrections, as studio would send them. */
 async function measure(prompt: string): Promise<Omit<Run, "scenario">> {
@@ -137,7 +145,8 @@ async function measure(prompt: string): Promise<Omit<Run, "scenario">> {
         .map((d) => `- ${d.file ? `${d.file}${d.line ? `:${d.line}` : ""}: ` : ""}${d.message}`)
         .join("\n")}`;
     }
-    return { prompt, attempts, items: session.snapshot().items };
+    const { items, usage, info } = session.snapshot();
+    return { prompt, attempts, model: info.model, usage, items };
   } finally {
     session.close();
     await servers.stop();
@@ -170,6 +179,12 @@ const summary = {
   scenarios: runs.length,
   passedAtFirstAttempt: firstOk,
   passedAfterCorrections: finalOk,
+  turns: runs.reduce((n, r) => n + r.attempts.length, 0),
+  minutes: Math.round(
+    runs.reduce((n, r) => n + r.attempts.reduce((m, a) => m + a.ms, 0), 0) / MINUTE_MS,
+  ),
+  // Only what the harness reports: Claude gives a cost, Codex may not.
+  costUsd: runs.reduce((n, r) => n + (r.usage.costUsd ?? 0), 0),
   fixesAllowed: options.fixes,
   note: "render failures need a preview Client and are not measured here",
   runs: runs.map(({ items: _items, ...run }) => run),
