@@ -104,7 +104,7 @@ la saisie, le changement visible au survol et le déplacement réel du scroll
 pendant l’attente. Les compteurs du Server confirment une seule action et son
 refresh, sans trafic supplémentaire pour les interactions locales. Le test
 vérifie aussi la configuration invalide et le timeout pendant le délai simulé.
-Les limites de cette simulation sont décrites dans le [README](../README.md#tester-une-connexion-à-500-ms-de-ping).
+Les limites de cette simulation sont décrites dans le [README](README.fr.md#tester-une-connexion-à-500-ms-de-ping).
 
 ## Chargement local des routes
 
