@@ -210,12 +210,20 @@ function ProcessPreview(props: PreviewProps) {
           },
         });
         pid.current = pty.pid;
+        const end = () => {
+          try {
+            process.kill(pty.pid, "SIGTERM");
+          } catch {}
+        };
+        // studio's Client may leave through process.exit, which unmounts nothing, and
+        // the hangup of its closed PTY does not reach this Client: ended here, as
+        // openSandbox ends a sandboxed one.
+        process.on("exit", end);
         return {
           ...pty,
           kill: () => {
-            try {
-              process.kill(pty.pid, "SIGTERM");
-            } catch {}
+            process.off("exit", end);
+            end();
           },
         };
       }}
