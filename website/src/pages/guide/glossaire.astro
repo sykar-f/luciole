@@ -77,7 +77,7 @@ const rows = present
 
 const terms: [string, string, string][] = [
   ["ABI", "liste fermée des paquets (et versions) qu'un bundle d'app laisse à son hôte ; sa clé doit être identique des deux côtés", "distribution"],
-  ["Build ID", "24 caractères hexadécimaux d'une empreinte de l'app, du framework et du bun.lock ; porté par x-airtty-build", "build"],
+  ["Build ID", "24 caractères hexadécimaux d'une empreinte de l'app, du framework, du bun.lock, de package.json, d'airtty.json et de l'icône ; porté par x-airtty-build", "build"],
   ["Arguments d'application", "options déclarées par app/args.ts, vérifiées par le lanceur puis analysées à nouveau par le Server, qui fait foi", "demarrage"],
   ["Bundle d'application", ".airtty/app : le Client sans runtime, plus un manifeste, évalué par un hôte", "distribution"],
   ["callId", "UUID d'une requête (x-airtty-call), qui relie événements Client, Server et logs", "devtools"],

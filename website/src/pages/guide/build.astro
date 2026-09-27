@@ -104,12 +104,15 @@ const edges: Edge[] = [
     <p>Le graphe Server part de chaque page. Il s'arrête sur un fichier <code>"use client"</code>, qu'il note comme <em>frontière</em>. Le graphe Client part de chaque frontière, des layouts et des écrans de chargement. S'il rencontre un <code>"use server"</code>, il repasse côté Server au lieu d'embarquer le fichier.</p>
     <Excerpt path={B} find="function clientVisit(p: string, from?: string)" until="Server-only source in Client graph" tone="build" mark={['"use cache" module in Client graph', "Server-only source in Client graph"]} />
     <p>Une règle y est purement textuelle : tout fichier dont un dossier du chemin s'appelle <code>server</code> est interdit au Client, avec ou sans directive.</p>
+    <p>Si l'app déclare ses arguments dans <code>app/args.ts</code>, un troisième graphe part de ce fichier. Il tourne dans le lanceur <em>et</em> sur le Server : il refuse toute directive, tout fichier sous un dossier <code>server</code>, <code>airtty/server</code>, <code>airtty/client</code> et OpenTUI.</p>
   </Step>
 
   <Step n="5" tone="build" title="Le build ID : une empreinte de tout ce qui compte">
-    <p>Le build ID est une empreinte sha256, tronquée à 24 caractères hexadécimaux, de trois choses : les sources de l'app, <strong>tous</strong> les fichiers du framework et le <code>bun.lock</code> qui gouverne l'installation.</p>
-    <Excerpt path={B} find='const hash = createHash("sha256");' until="for (const lock of new Set" tone="build" />
+    <p>Le build ID est une empreinte sha256, tronquée à 24 caractères hexadécimaux, de quatre choses : les sources de l'app, <strong>tous</strong> les fichiers du framework, le <code>bun.lock</code> qui gouverne l'installation, et ce que le build lit à côté des modules : <code>package.json</code>, <code>airtty.json</code> et l'icône.</p>
+    <Excerpt path={B} find='const hash = createHash("sha256");' until="hash.update(relative(root, file)).update(await readFile(file)" tone="build" />
     <p>Conséquence : mettre à jour le framework change le build ID, même si l'app n'a pas bougé. Un Client et un Server issus de deux builds ne se parleront pas (chapitre 3).</p>
+    <p>À l'inverse, un build ID inchangé arrête le build ici : si <code>.airtty/manifest.json</code> porte déjà ce build ID, construit avec les mêmes options (bundle d'app, Server pour le navigateur, signature), <code>.airtty/</code> reste tel quel. Un build signé est toujours refait. Deux builds du même dossier ne se croisent pas : le second attend le verrou du premier.</p>
+    <Excerpt path={B} find="const builtWith = { appBundle, webServer, signed: !!signBundle };" count={3} tone="build" mark={["await upToDate(output, buildId, builtWith)"]} />
   </Step>
 
   <Step n="6" tone="build" title="Le route tree typé est écrit dans app/">
@@ -123,6 +126,7 @@ const edges: Edge[] = [
       <li><strong>client</strong> : crée l'application avec une table <code>resolveModule</code> des composants Client ;</li>
       <li><strong>app</strong> : le Client sans runtime, pour qu'un hôte l'ouvre (chapitre 8).</li>
     </ul>
+    <p>Deux autres s'ajoutent selon l'app et les options : <strong>web-server</strong>, le Server bundlé pour le navigateur, avec <code>--web-local</code> (chapitre 9), et <strong>args</strong>, la seule définition de <code>app/args.ts</code>, que le lanceur importe pour vérifier les arguments avant de démarrer quoi que ce soit. Dans ce cas, l'entrée <strong>server</strong> commence par <Src path="packages/airtty/src/args-server.ts" /> et analyse les arguments avant de servir : un module de l'app peut lire <code>cli.get()</code> dès son chargement.</p>
   </Step>
 
   <Step n="8" tone="build" title="Le plugin remplace le code de l'autre côté par des références">
@@ -235,7 +239,7 @@ app/page.tsx:1:1: OpenTUI native runtime is Client-only
     <ul>
       <li>Deux graphes, calculés depuis les pages (Server) et depuis les frontières <code>"use client"</code> (Client).</li>
       <li>Ce qui appartient à l'autre côté est remplacé par une <strong>référence</strong> dont l'id commence par le build ID.</li>
-      <li>Le build ID couvre l'app, tout le framework et le lockfile.</li>
+      <li>Le build ID couvre l'app, tout le framework, le lockfile, <code>package.json</code>, <code>airtty.json</code> et l'icône ; inchangé, il évite de refaire le build.</li>
       <li>Tout est construit à part puis publié par un seul <code>rename</code>.</li>
     </ul>
   </Callout>
