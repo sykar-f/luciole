@@ -64,6 +64,7 @@ const ROW = 50;
 
   <h2>Un Server géré, sur un socket privé</h2>
   <p>Pour les quatre formes de code complet, le Server tourne <strong>détaché</strong>, sur un socket Unix, et survit un moment au Client. Il est rangé sous une clé stable (<code>local:&lt;app&gt;</code>…), la même que celle des sessions (chapitre 7).</p>
+  <p>Combien de lancements partagent ce Server ? C'est l'app qui le déclare dans son <code>package.json</code>, champ <code>airtty.server</code>, et <Src path="packages/airtty/src/launcher/launch-key.ts" /> en tire la clé : <code>shared</code> (par défaut, Notes) donne un Server pour tous les lancements, <code>per-directory</code> un par dossier où la commande est tapée, <code>per-launch</code> un par lancement. Quand l'app déclare des arguments (<code>app/args.ts</code>), leur empreinte entre aussi dans la clé : un lancement n'hérite jamais du Server d'un autre jeu d'arguments.</p>
   <Sequence
     title="Server géré"
     lanes={[
@@ -73,7 +74,7 @@ const ROW = 50;
     ]}
     messages={[
       { from: "launcher", to: "server", label: "GET /lifetime/status", n: 1 },
-      { from: "server", to: "launcher", label: "même build : on se rattache", n: 2, back: true },
+      { from: "server", to: "launcher", label: "même build, mêmes arguments : on se rattache", n: 2, back: true },
       { from: "launcher", to: "server", label: "sinon : stop, puis démarrage", n: 3 },
       { from: "launcher", to: "client", label: "--url unix:<socket>", n: 4 },
       { from: "client", to: "server", label: "ping toutes les 10 s", n: 5, tone: "wire" },
@@ -82,7 +83,8 @@ const ROW = 50;
     ]}
     caption="Relancer l'app pendant la grâce retrouve le même Server (même socket, même build) et la session orpheline."
   />
-  <Excerpt path="packages/airtty/src/launcher/managed.ts" find="export async function ensureServer(" count={16} mark={["if (found?.buildId === options.buildId) return done(found.pid, true);", "if (found) await stopServer(socket);"]} />
+  <Excerpt path="packages/airtty/src/launcher/managed.ts" find="export async function ensureServer(" until="rmSync(socket, { force: true });" mark={["status?.buildId === options.buildId && status.args === options.fingerprint;", "if (found) await stopServer(socket);"]} />
+  <p>Un Server qui répond sur le socket mais d'un autre build, ou avec une autre empreinte d'arguments, est arrêté par <code>POST /lifetime/stop</code> puis remplacé. Si personne ne répond, le fichier restant est celui d'un Server mort : il est supprimé avant le démarrage.</p>
 
   <h2>Un binaire, deux rôles</h2>
   <p><code>airtty build --compile</code> produit un exécutable unique contenant le runtime Bun, le Client, le Server et un lanceur, sous une identité lisible sans l'exécuter : <code>airtty-binary:1:&lt;app&gt;:&lt;buildId&gt;:&lt;cible&gt;;</code>. Le même fichier se comporte selon ses options :</p>
