@@ -1,6 +1,8 @@
 /** @jsxImportSource @opentui/react */
 import { beforeAll, expect, test } from "bun:test";
 import { build } from "../packages/airtty/src/build";
+import { SCRIPTED } from "../examples/coder/components/StatusLine";
+import { DEMO_END, DEMO_PROMPT } from "../examples/coder/server/adapters/fake";
 import { coderDirectory, startCoder } from "./coder-helpers";
 
 beforeAll(async () => {
@@ -14,7 +16,9 @@ test("a prompt streams a Markdown reply; the status line tells model, mode and h
     const ready = await coder.frame();
     expect(ready).toContain("fake-large · medium");
     expect(ready).toContain("✋ ask");
-    expect(ready).toContain("powered by scripted demo");
+    // The scripted harness says so, where another names what powers it.
+    expect(ready).toContain(SCRIPTED);
+    expect(ready).not.toContain("powered by");
     await coder.prompt("hello there");
     const shown = await coder.waitFor("Ask me to run the tests");
     expect(shown).toContain("› hello there");
@@ -23,6 +27,32 @@ test("a prompt streams a Markdown reply; the status line tells model, mode and h
     expect(shown).toContain("export function greet");
     expect(shown).toContain("▸ thinking");
     await coder.waitFor("ctx ");
+  } finally {
+    await coder.stop();
+  }
+}, 30000);
+
+test("the website's demo: harness and project from the environment, one scripted session", async () => {
+  // As the in-browser Server gets them (website/scripts/demo.ts): no command line.
+  const coder = await startCoder({
+    argv: [],
+    env: { CODER_HARNESS: "fake", CODER_CWD: "/home/ada/src/timers" },
+  });
+  try {
+    const ready = await coder.waitFor(SCRIPTED);
+    expect(ready).toContain("/home/ada/src/timers");
+    await coder.prompt(DEMO_PROMPT);
+    const asked = await coder.waitFor("allow once");
+    expect(asked).toContain("⚙ read src/duration.ts");
+    expect(asked).toContain("✓ 0.2 s");
+    expect(asked).toContain("Edit src/duration.ts");
+    await coder.type("y");
+    const done = await coder.waitFor(DEMO_END);
+    expect(done).toContain("✎ src/duration.ts");
+    expect(done).toContain("throw new RangeError");
+    // Scripted durations: the capture and the page compare the same screen.
+    expect(done).toContain("✓ exit 0 · 1.8 s");
+    expect(done).not.toContain("The fake model is overloaded");
   } finally {
     await coder.stop();
   }

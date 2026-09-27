@@ -27,6 +27,7 @@ import type { Harness, HarnessContext, StartOptions, UserInput } from "./types";
  *   fail            a failed turn
  *   compact         a compaction
  *   markdown        a long, rich Markdown reply in small pieces ("chars": 3 at a time)
+ *   parseDuration   the website's demo (DEMO_PROMPT): a read, a fix, its diff, its tests
  *   anything else   reasoning, then a Markdown reply
  */
 const DEFAULT_DELAY_MS = 25;
@@ -138,6 +139,49 @@ const THREE_CHARS = /[\s\S]{1,3}/g;
 
 const BEFORE = `export function greet(name: string) {\n  return "Hello " + name;\n}\n`;
 const AFTER = `export function greet(name: string) {\n  return \`Hello, \${name}!\`;\n}\n`;
+
+/** What the website's live demo types (website/scripts/capture.py, the `coder` scene). */
+export const DEMO_PROMPT =
+  'parseDuration("abc") returns NaN: make it throw a clear error, then run its tests';
+/** The demo's last words: the capture and the page wait for them. */
+export const DEMO_END = "Your turn: ask for the next change.";
+// Short lines: the approval dialog shows both sides of the diff in a 140-column terminal.
+const DEMO_BEFORE = `const MS = { ms: 1, s: 1e3, m: 6e4, h: 36e5 };
+const FORMAT = /^(\\d+)(ms|s|m|h)$/;
+
+export function parseDuration(text: string) {
+  const [, n, unit] = FORMAT.exec(text) ?? [];
+  return Number(n) * MS[unit as keyof typeof MS];
+}
+`;
+const DEMO_AFTER = `const MS = { ms: 1, s: 1e3, m: 6e4, h: 36e5 };
+const FORMAT = /^(\\d+)(ms|s|m|h)$/;
+
+export function parseDuration(text: string) {
+  const match = FORMAT.exec(text);
+  if (!match)
+    throw new RangeError(\`Not a duration: \${text}\`);
+  const [, n, unit] = match;
+  return Number(n) * MS[unit as keyof typeof MS];
+}
+`;
+const DEMO_TESTS = [
+  "bun test v1.4.2",
+  "",
+  "tests/duration.test.ts:",
+  "✓ parses 90s [0.08ms]",
+  "✓ parses 5m and 2h [0.03ms]",
+  "✓ rejects abc with a RangeError [0.05ms]",
+  "",
+  " 3 pass",
+  " 0 fail",
+];
+// The demo reads at a model's pace: its pauses are this many script delays (25 ms each by
+// default, 1 in tests), so a reader follows it in about twenty seconds.
+const DEMO_PACE = 4;
+const DEMO_READ_PACE = 16;
+// Durations the demo shows, the same on every run: the capture and the page compare screens.
+const DEMO_SECONDS = { reasoning: 1.4, read: 0.2, reply: 2.1, edit: 0.3, tests: 1.8, end: 1.6 };
 
 class Interrupted extends Error {}
 
@@ -264,6 +308,8 @@ export class FakeHarness implements Harness {
   private async play(text: string, signal: AbortSignal) {
     this.emit({ type: "turn.started" });
     const words = text.toLowerCase();
+    // First: the demo's prompt says "error" and "tests", which other scenarios answer.
+    if (/\bparseduration\b/.test(words)) return this.demo(signal);
     if (/\bfail|\berror/.test(words)) {
       await this.pause(signal);
       throw new Error("The fake model is overloaded (529): try again");
@@ -289,18 +335,19 @@ export class FakeHarness implements Harness {
     item: Item & { kind: "message" | "reasoning" },
     text: string,
     pieces: RegExp = WORDS,
+    { pace = 1, seconds }: Timing = {},
   ) {
     this.emit({ type: "item.started", item: { ...item, text: "", streaming: true } });
     for (const chunk of text.match(pieces) ?? []) {
-      await this.pause(signal);
+      await this.pause(signal, pace);
       this.emit({ type: "item.delta", id: item.id, field: "text", delta: chunk });
     }
     this.emit({
       type: "item.completed",
-      item: { ...item, text, streaming: false, endedAt: Date.now() },
+      item: { ...item, text, streaming: false, endedAt: ended(item.startedAt, seconds) },
     });
   }
-  private reasoning(signal: AbortSignal, text: string) {
+  private reasoning(signal: AbortSignal, text: string, timing?: Timing) {
     return this.stream(
       signal,
       {
@@ -311,9 +358,11 @@ export class FakeHarness implements Harness {
         startedAt: Date.now(),
       },
       text,
+      WORDS,
+      timing,
     );
   }
-  private message(signal: AbortSignal, text: string, pieces?: RegExp) {
+  private message(signal: AbortSignal, text: string, pieces?: RegExp, timing?: Timing) {
     return this.stream(
       signal,
       {
@@ -325,6 +374,7 @@ export class FakeHarness implements Harness {
       },
       text,
       pieces,
+      timing,
     );
   }
 
@@ -333,12 +383,14 @@ export class FakeHarness implements Harness {
     command: string,
     output: readonly string[],
     exitCode = 0,
+    { pace = 1, seconds }: Timing = {},
+    reply = exitCode ? "The command failed." : "All **3** tests pass.",
   ) {
     const id = this.nextId("command");
     const base = { id, kind: "command" as const, command, cwd: ".", startedAt: Date.now() };
     this.emit({ type: "item.started", item: { ...base, output: "", status: "running" } });
     for (const line of output) {
-      await this.pause(signal);
+      await this.pause(signal, pace);
       this.emit({ type: "item.delta", id, field: "output", delta: `${line}\n` });
     }
     this.emit({
@@ -348,10 +400,10 @@ export class FakeHarness implements Harness {
         output: output.map((l) => `${l}\n`).join(""),
         exitCode,
         status: exitCode ? "error" : "done",
-        endedAt: Date.now(),
+        endedAt: ended(base.startedAt, seconds),
       },
     });
-    await this.message(signal, exitCode ? "The command failed." : "All **3** tests pass.");
+    if (reply) await this.message(signal, reply);
   }
 
   private async slow(signal: AbortSignal) {
@@ -443,6 +495,99 @@ export class FakeHarness implements Harness {
       item: { id, kind: "file_change", files, status: "done", endedAt: Date.now() },
     });
     await this.message(signal, "Done: `greet` now uses a template literal.");
+  }
+
+  /**
+   * The website's demo: a realistic request answered as an agent would, read, reason,
+   * edit, test, then the prompt back. Deterministic: same items, texts and durations on
+   * every run. In "ask" mode the edit waits for approval, as any edit does.
+   */
+  private async demo(signal: AbortSignal) {
+    const path = "src/duration.ts";
+    const timing = (seconds: number) => ({ pace: DEMO_PACE, seconds });
+    await this.reasoning(
+      signal,
+      "A bare word matches nothing and the destructuring hides it: Number(undefined) is " +
+        "NaN. Read the function, then fail loudly.",
+      timing(DEMO_SECONDS.reasoning),
+    );
+    const read = {
+      id: this.nextId("tool"),
+      kind: "tool" as const,
+      name: "read",
+      title: path,
+      input: `path: "${path}"`,
+      startedAt: Date.now(),
+    };
+    this.emit({ type: "item.started", item: { ...read, output: "", status: "running" } });
+    await this.pause(signal, DEMO_READ_PACE);
+    this.emit({
+      type: "item.completed",
+      item: {
+        ...read,
+        output: DEMO_BEFORE,
+        status: "done",
+        endedAt: ended(read.startedAt, DEMO_SECONDS.read),
+      },
+    });
+    await this.message(
+      signal,
+      '`parseDuration` destructures a failed match into `undefined`, so `"abc"` becomes ' +
+        "`NaN` and travels on silently. I will check the match first and throw a " +
+        "`RangeError` that names the input.",
+      WORDS,
+      timing(DEMO_SECONDS.reply),
+    );
+    const files = [filePatch(path, DEMO_BEFORE, DEMO_AFTER)];
+    if (this.mode === "read") {
+      await this.message(
+        signal,
+        `I am in **read-only** mode: switch to *ask* to let me edit \`${path}\`.`,
+      );
+      return;
+    }
+    if (this.mode === "ask") {
+      const answer = await this.ask(signal, {
+        id: this.nextId("approval"),
+        openedAt: Date.now(),
+        kind: "approval",
+        title: `Edit ${path}`,
+        files,
+        decisions: ["once", "session", "always", "deny"],
+      });
+      if (answer.kind !== "approval" || answer.decision === "deny") {
+        this.emit({
+          type: "item.completed",
+          item: { id: this.nextId("edit"), kind: "file_change", files, status: "declined" },
+        });
+        await this.message(signal, `Understood, I left \`${path}\` as it was.`);
+        return;
+      }
+      if (answer.decision === "session" || answer.decision === "always") this.mode = "edits";
+    }
+    const edit = { id: this.nextId("edit"), kind: "file_change" as const, files };
+    const startedAt = Date.now();
+    this.emit({ type: "item.started", item: { ...edit, status: "running", startedAt } });
+    await this.pause(signal, DEMO_PACE);
+    this.emit({
+      type: "item.completed",
+      item: { ...edit, status: "done", startedAt, endedAt: ended(startedAt, DEMO_SECONDS.edit) },
+    });
+    await this.command(
+      signal,
+      "bun test tests/duration.test.ts",
+      DEMO_TESTS,
+      0,
+      { pace: DEMO_READ_PACE, seconds: DEMO_SECONDS.tests },
+      "",
+    );
+    await this.message(
+      signal,
+      `Done: \`parseDuration("abc")\` now throws \`RangeError: Not a duration: abc\`, and ` +
+        `the **3** tests pass, the new rejection included.\n\n${DEMO_END}`,
+      WORDS,
+      timing(DEMO_SECONDS.end),
+    );
   }
 
   private async question(signal: AbortSignal) {
@@ -629,6 +774,12 @@ export class FakeHarness implements Harness {
     this.turn?.abort();
   }
 }
+
+/** How long a scripted item took: its own figure when it has one, else the clock's. */
+type Timing = { pace?: number; seconds?: number };
+const SECOND_MS = 1000;
+const ended = (startedAt: number | undefined, seconds?: number) =>
+  seconds !== undefined && startedAt !== undefined ? startedAt + seconds * SECOND_MS : Date.now();
 
 const TEST_OUTPUT = [
   "bun test v1.4.2",
