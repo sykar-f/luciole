@@ -86,3 +86,29 @@ for (const scenario of SCENARIOS)
     },
     SCENARIO_TIMEOUT_MS,
   );
+
+test(
+  "a refused turn is undone whole: no file is left importing what was refused",
+  async () => {
+    const root = realpathSync(mkdtempSync(join(tmpdir(), "studio-refused-")));
+    const project = Project.open(join(root, "app"));
+    const servers = new PreviewServers(project, MODE);
+    try {
+      write(project, {
+        "server/git.ts": `import { execSync } from "node:child_process";\nexport const branch = () => execSync("git branch").toString();\n`,
+        "app/page.tsx": `import { branch } from "../server/git";\nexport default function Page() {\n  return <text>{branch()}</text>;\n}\n`,
+      });
+      const prepared = await prepare(project, servers, project.changes());
+      expect(prepared.ok).toBe(false);
+      expect(project.changes().size).toBe(0);
+      // What remains builds: the last revision, untouched.
+      const again = await prepare(project, servers, project.changes());
+      expect(again.ok).toBe(true);
+    } finally {
+      await servers.stop();
+      project.release();
+      rmSync(root, { recursive: true, force: true });
+    }
+  },
+  SCENARIO_TIMEOUT_MS,
+);

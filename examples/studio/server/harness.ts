@@ -13,14 +13,14 @@ import { INSTRUCTIONS } from "./instructions";
 
 // The only tools Claude Code gets: read and write files, search. No shell, no web.
 export const TOOLS = ["Read", "Write", "Edit", "Glob", "Grep"] as const;
-// Without --harness: the first ready of these (pi and opencode are coder's only).
-const AUTO_ORDER: readonly HarnessId[] = ["claude", "codex"];
+// Without --harness: Claude Code (Codex, pi and opencode are coder's only).
+const AUTO_ORDER: readonly HarnessId[] = ["claude"];
 
 /** The adapter: studio's scripted generator for `fake`, the shared ones otherwise. */
 export const create = (id: HarnessId, context: HarnessContext): Harness =>
   id === "fake" ? new Generator(context) : createHarness(id, context);
 
-/** Which harness runs: the one asked for, or the first ready of claude and codex. */
+/** Which harness runs: the one asked for, or Claude Code when it is ready. */
 export async function pick(wanted: HarnessId | undefined): Promise<HarnessStatus> {
   if (wanted) return detect(wanted);
   const found = await Promise.all(AUTO_ORDER.map((id) => detect(id)));

@@ -208,7 +208,7 @@ class Studio {
       return this.fail(
         prepared.stage,
         prepared.diagnostics,
-        prepared.undone ? "Refused changes were undone" : undefined,
+        prepared.undone ? "the whole turn was undone" : undefined,
       );
     // A new revision only when something changed; the first build shows the last one.
     const number = changes.size

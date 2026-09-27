@@ -687,6 +687,11 @@ export class ClaudeHarness implements Harness {
           ...(this.options.instructions ? { append: this.options.instructions } : {}),
         },
         settingSources: this.options.isolated ? [] : ["user", "project", "local"],
+        // Isolated, the user's MCP servers stay out too: none from any configuration, and
+        // none of the claude.ai connectors their account would bring (SDK 0.3.283 types).
+        ...(this.options.isolated
+          ? { strictMcpConfig: true, mcpServers: {}, settings: { disableClaudeAiConnectors: true } }
+          : {}),
         ...(this.options.tools ? { tools: [...this.options.tools] } : {}),
         permissionMode: MODE_TO_CLAUDE[this.options.mode],
         includePartialMessages: true,

@@ -14,9 +14,10 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join, relative as relativePath, resolve } from "node:path";
 import { guard } from "../examples/studio/server/guard";
 import { policy } from "../examples/studio/server/policy";
+import { diagnosticsOf } from "../examples/studio/server/preview";
 import { Project } from "../examples/studio/server/project";
 import { TEMPLATE } from "../examples/studio/server/template.gen";
 import { messageOf } from "../packages/airtty/src/guards";
@@ -178,4 +179,42 @@ test("the policy refuses commands and writes outside the app, and leaves questio
     decision: "deny",
   });
   expect(policy({ id: "q", openedAt: 0, kind: "question", questions: [] })).toBeUndefined();
+});
+
+test("the template passes studio's own guard: a harness editing it is never refused for it", () => {
+  const changes = new Map(Object.entries(TEMPLATE).filter(([file]) => /\.(ts|tsx)$/.test(file)));
+  expect(guard(changes)).toEqual([]);
+});
+
+test("build diagnostics name the app's file, whatever directory studio runs from", () => {
+  const project = "/tmp/studio-diagnostics/app";
+  const relative = relativePath(process.cwd(), `${project}/server/store.ts`);
+  expect(
+    diagnosticsOf(`No matching export in "${relative}" for import "missing"`, project),
+  ).toEqual([
+    {
+      file: "server/store.ts",
+      message: 'No matching export in "server/store.ts" for import "missing"',
+    },
+  ]);
+  expect(
+    diagnosticsOf(`${project}/app/page.tsx:3:5: JSX element 'text' has no closing tag.`, project),
+  ).toEqual([{ file: "app/page.tsx", line: 3, message: "JSX element 'text' has no closing tag." }]);
+});
+
+test("studio drives Claude Code or its generator; another harness is refused with the reason", async () => {
+  const { default: cli } = await import("../examples/studio/app/args");
+  expect(await cli.parse(["--harness", "claude"], { cwd: "/" })).toMatchObject({
+    harness: "claude",
+  });
+  expect(await cli.parse(["-H", "fake"], { cwd: "/" })).toMatchObject({ harness: "fake" });
+  for (const other of ["codex", "pi", "opencode"]) {
+    let refusal = "";
+    try {
+      await cli.parse(["--harness", other], { cwd: "/" });
+    } catch (error: unknown) {
+      refusal = messageOf(error);
+    }
+    expect(refusal).toContain("Codex, pi and opencode run in coder for now");
+  }
 });

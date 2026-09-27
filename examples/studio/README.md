@@ -1,7 +1,7 @@
 # studio
 
 Décrire une application airtty à un agent de code et **s'en servir pendant qu'il l'écrit**.
-À gauche la conversation avec le harness (Claude Code, Codex, ou un générateur scripté),
+À gauche la conversation avec le harness (Claude Code, ou un générateur scripté),
 à droite l'application générée, en marche, embarquée par le widget VT et rechargée après
 chaque tour. Conception : [docs/studio/SPEC.md](../../docs/studio/SPEC.md).
 
@@ -11,15 +11,19 @@ bun run studio -- -H claude --project todos  # un projet nommé, sous $XDG_DATA_
 bun run studio -- --dir ~/apps/notes -r      # un dossier ; -r reprend la dernière session
 ```
 
-| Option                        | Effet                                                                                          |
-| ----------------------------- | ---------------------------------------------------------------------------------------------- |
-| `-H, --harness`               | `claude`, `codex`, ou `fake` (générateur scripté) ; sans lui, le premier prêt de claude, codex |
-| `-d, --dir DIR`               | dossier du projet : vide (ou absent), il reçoit le template ; un projet studio est rouvert     |
-| `-p, --project NAME`          | projet sous `$XDG_DATA_HOME/airtty/studio/NAME` (défaut : un nouveau `app-<date>`)             |
-| `-r, --resume [ID]`           | reprend la session du harness                                                                  |
-| `--preview sandbox\|process`  | aperçu confiné (défaut), ou avec vos droits                                                    |
-| `--fixes N`                   | corrections automatiques après un échec (défaut 2, au plus 5)                                  |
-| `-m, --model`, `-e, --effort` | modèle et effort, tels que le harness les nomme                                                |
+| Option                        | Effet                                                                                      |
+| ----------------------------- | ------------------------------------------------------------------------------------------ |
+| `-H, --harness`               | `claude` (défaut) ou `fake` (générateur scripté)                                           |
+| `-d, --dir DIR`               | dossier du projet : vide (ou absent), il reçoit le template ; un projet studio est rouvert |
+| `-p, --project NAME`          | projet sous `$XDG_DATA_HOME/airtty/studio/NAME` (défaut : un nouveau `app-<date>`)         |
+| `-r, --resume [ID]`           | reprend la session du harness                                                              |
+| `--preview sandbox\|process`  | aperçu confiné (défaut), ou avec vos droits                                                |
+| `--fixes N`                   | corrections automatiques après un échec (défaut 2, au plus 5)                              |
+| `-m, --model`, `-e, --effort` | modèle et effort, tels que le harness les nomme                                            |
+
+Codex, pi et opencode restent réservés à coder pour l'instant : studio ne sait pas empêcher
+Codex de lancer des commandes (son protocole n'a pas de mode sans commandes), et les
+demander à studio échoue avec cette raison.
 
 Chaque génération consomme le quota de **votre** abonnement ou de votre clé : studio ne
 parle jamais à un modèle lui-même, il pilote le binaire officiel déjà installé et connecté
@@ -100,5 +104,32 @@ bun run test:pty:studio
 bun scripts/studio/measure.ts --harness fake      # la mesure de l'étape 6, sur le générateur
 ```
 
-La mesure avec un vrai harness (`--harness claude|codex --accept-quota`) n'a pas encore
-été faite : elle consomme votre quota.
+## Mesure sur Claude Code
+
+Le 27 septembre 2026, avec votre accord, sur Claude Code 2.1.283 (Agent SDK 0.3.283, modèle
+par défaut du compte : `claude-opus-5-5`) : les 13 prompts des scénarios, chacun dans un
+projet neuf, avec les instructions, les outils et la politique de studio
+(`scripts/studio/measure.ts --harness claude --accept-quota` ; résultats bruts :
+[docs/studio/measures/claude-2026-09-27.json](../../docs/studio/measures/claude-2026-09-27.json)).
+
+| Mesure                              | Résultat                                                  |
+| ----------------------------------- | --------------------------------------------------------- |
+| bons au premier essai               | **8/13**                                                  |
+| bons après corrections (2 au plus)  | **13/13**                                                 |
+| tours du harness                    | 21                                                        |
+| durée d'un tour et de sa validation | médiane 14 s (8 à 45 s), 5,6 min en tout                  |
+| coût rapporté par le SDK            | 1,41 $ en tout, médiane 0,06 $ par prompt (0,04 à 0,31 $) |
+
+Le coût est celui que Claude Code rapporte ; sur un abonnement, il se compte en quota.
+Le rendu dans l'aperçu n'est pas mesuré (le script n'ouvre pas de Client).
+
+**Les 5 échecs venaient de studio, pas du modèle** : le template importait `node:fs`
+(que le garde-fou refuse) dans le fichier que toute donnée touche, et un tour refusé
+n'était annulé qu'en partie, d'où un build cassé juste après. Corrigés depuis (template
+sans `node:fs`, tour refusé annulé en entier, diagnostics de build qui nomment le fichier),
+**sans nouvelle mesure**. Aucune faute prévue par les scénarios (syntaxe, import inventé,
+hook côté Server, mauvais type ou propriété, paquet ou commande interdits) n'a été commise
+par Claude Code ; il a refusé de lui-même de lancer des tests, et une fois répondu à une
+question (la branche git) au lieu de l'afficher dans l'app. Il a aussi mentionné un
+connecteur claude.ai de votre compte : `isolated` les écarte désormais (types du SDK,
+non revérifié sur un run).

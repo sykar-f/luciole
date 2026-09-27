@@ -1,0 +1,457 @@
+{
+  "date": "2026-09-27T17:41:31.147Z",
+  "harness": "claude",
+  "scenarios": 13,
+  "passedAtFirstAttempt": 8,
+  "passedAfterCorrections": 13,
+  "turns": 21,
+  "minutes": 6,
+  "costUsd": 1.4129236,
+  "fixesAllowed": 2,
+  "note": "render failures need a preview Client and are not measured here",
+  "runs": [
+    {
+      "scenario": "greeting",
+      "prompt": "Change the greeting to 'Hello from studio'",
+      "attempts": [
+        {
+          "stage": "ok",
+          "diagnostics": [],
+          "ms": 14314
+        }
+      ],
+      "model": "claude-opus-5-5",
+      "usage": {
+        "limits": {
+          "fiveHour": 0,
+          "weekly": 38,
+          "resetsAt": 1790547600000
+        },
+        "costUsd": 0.054842600000000005,
+        "context": {
+          "used": 40103,
+          "window": 200000
+        },
+        "tokens": {
+          "input": 8,
+          "output": 544
+        }
+      }
+    },
+    {
+      "scenario": "todo",
+      "prompt": "Add a /todos page with a list I can move through with j/k and toggle with space",
+      "attempts": [
+        {
+          "stage": "guard",
+          "diagnostics": [
+            {
+              "file": "server/store.ts",
+              "message": "imports node:fs: needs a capability the app does not declare"
+            }
+          ],
+          "ms": 26479
+        },
+        {
+          "stage": "ok",
+          "diagnostics": [],
+          "ms": 13722
+        }
+      ],
+      "model": "claude-opus-5-5",
+      "usage": {
+        "limits": {
+          "fiveHour": 0,
+          "weekly": 38,
+          "resetsAt": 1790547600000
+        },
+        "costUsd": 0.17934459999999997,
+        "context": {
+          "used": 47341,
+          "window": 200000
+        },
+        "tokens": {
+          "input": 6,
+          "output": 965
+        }
+      }
+    },
+    {
+      "scenario": "syntax",
+      "prompt": "Show the count in bold",
+      "attempts": [
+        {
+          "stage": "ok",
+          "diagnostics": [],
+          "ms": 16682
+        }
+      ],
+      "model": "claude-opus-5-5",
+      "usage": {
+        "limits": {
+          "fiveHour": 0,
+          "weekly": 38,
+          "resetsAt": 1790547600000
+        },
+        "costUsd": 0.0582526,
+        "context": {
+          "used": 40906,
+          "window": 200000
+        },
+        "tokens": {
+          "input": 8,
+          "output": 561
+        }
+      }
+    },
+    {
+      "scenario": "invented-import",
+      "prompt": "Add a header component",
+      "attempts": [
+        {
+          "stage": "ok",
+          "diagnostics": [],
+          "ms": 17256
+        }
+      ],
+      "model": "claude-opus-5-5",
+      "usage": {
+        "limits": {
+          "fiveHour": 1,
+          "weekly": 38,
+          "resetsAt": 1790547600000
+        },
+        "costUsd": 0.0815112,
+        "context": {
+          "used": 42345,
+          "window": 200000
+        },
+        "tokens": {
+          "input": 8,
+          "output": 1259
+        }
+      }
+    },
+    {
+      "scenario": "hook-in-server-component",
+      "prompt": "Let me type my name on the home page",
+      "attempts": [
+        {
+          "stage": "guard",
+          "diagnostics": [
+            {
+              "file": "server/store.ts",
+              "message": "imports node:fs: needs a capability the app does not declare"
+            }
+          ],
+          "ms": 21686
+        },
+        {
+          "stage": "build",
+          "diagnostics": [
+            {
+              "message": "No matching export in \"../../../../../..server/store.ts\" for import \"setName\""
+            }
+          ],
+          "ms": 11675
+        },
+        {
+          "stage": "ok",
+          "diagnostics": [],
+          "ms": 12030
+        }
+      ],
+      "model": "claude-opus-5-5",
+      "usage": {
+        "limits": {
+          "fiveHour": 1,
+          "weekly": 38,
+          "resetsAt": 1790547600000
+        },
+        "costUsd": 0.1873066,
+        "context": {
+          "used": 46907,
+          "window": 200000
+        },
+        "tokens": {
+          "input": 6,
+          "output": 824
+        }
+      }
+    },
+    {
+      "scenario": "wrong-type",
+      "prompt": "Start the counter at 10",
+      "attempts": [
+        {
+          "stage": "guard",
+          "diagnostics": [
+            {
+              "file": "server/store.ts",
+              "message": "imports node:fs: needs a capability the app does not declare"
+            }
+          ],
+          "ms": 13620
+        },
+        {
+          "stage": "ok",
+          "diagnostics": [],
+          "ms": 15778
+        }
+      ],
+      "model": "claude-opus-5-5",
+      "usage": {
+        "limits": {
+          "fiveHour": 1,
+          "weekly": 38,
+          "resetsAt": 1790547600000
+        },
+        "costUsd": 0.1306378,
+        "context": {
+          "used": 39200,
+          "window": 200000
+        },
+        "tokens": {
+          "input": 6,
+          "output": 929
+        }
+      }
+    },
+    {
+      "scenario": "wrong-prop",
+      "prompt": "Make the greeting red",
+      "attempts": [
+        {
+          "stage": "ok",
+          "diagnostics": [],
+          "ms": 11089
+        }
+      ],
+      "model": "claude-opus-5-5",
+      "usage": {
+        "limits": {
+          "fiveHour": 1,
+          "weekly": 38,
+          "resetsAt": 1790547600000
+        },
+        "costUsd": 0.053556599999999996,
+        "context": {
+          "used": 40239,
+          "window": 200000
+        },
+        "tokens": {
+          "input": 8,
+          "output": 439
+        }
+      }
+    },
+    {
+      "scenario": "server-crash",
+      "prompt": "Show the first todo's title on the home page",
+      "attempts": [
+        {
+          "stage": "guard",
+          "diagnostics": [
+            {
+              "file": "server/store.ts",
+              "message": "imports node:fs: needs a capability the app does not declare"
+            }
+          ],
+          "ms": 16238
+        },
+        {
+          "stage": "build",
+          "diagnostics": [
+            {
+              "message": "No matching export in \"../../../../../..server/store.ts\" for import \"firstTodo\""
+            }
+          ],
+          "ms": 18812
+        },
+        {
+          "stage": "ok",
+          "diagnostics": [],
+          "ms": 10466
+        }
+      ],
+      "model": "claude-opus-5-5",
+      "usage": {
+        "limits": {
+          "fiveHour": 1,
+          "weekly": 38,
+          "resetsAt": 1790547600000
+        },
+        "costUsd": 0.16167220000000002,
+        "context": {
+          "used": 29376,
+          "window": 200000
+        },
+        "tokens": {
+          "input": 4,
+          "output": 635
+        }
+      }
+    },
+    {
+      "scenario": "client-crash",
+      "prompt": "Show the todo count in the list",
+      "attempts": [
+        {
+          "stage": "ok",
+          "diagnostics": [],
+          "ms": 13557
+        }
+      ],
+      "model": "claude-opus-5-5",
+      "usage": {
+        "limits": {
+          "fiveHour": 1,
+          "weekly": 38,
+          "resetsAt": 1790547600000
+        },
+        "costUsd": 0.0610424,
+        "context": {
+          "used": 30615,
+          "window": 200000
+        },
+        "tokens": {
+          "input": 6,
+          "output": 672
+        }
+      }
+    },
+    {
+      "scenario": "unknown-package",
+      "prompt": "Format the count with thousands separators",
+      "attempts": [
+        {
+          "stage": "ok",
+          "diagnostics": [],
+          "ms": 12085
+        }
+      ],
+      "model": "claude-opus-5-5",
+      "usage": {
+        "limits": {
+          "fiveHour": 1,
+          "weekly": 38,
+          "resetsAt": 1790547600000
+        },
+        "costUsd": 0.0601902,
+        "context": {
+          "used": 41558,
+          "window": 200000
+        },
+        "tokens": {
+          "input": 8,
+          "output": 569
+        }
+      }
+    },
+    {
+      "scenario": "shell-out",
+      "prompt": "Show the current git branch",
+      "attempts": [
+        {
+          "stage": "ok",
+          "diagnostics": [],
+          "ms": 8574
+        }
+      ],
+      "model": "claude-opus-5-5",
+      "usage": {
+        "limits": {
+          "fiveHour": 1,
+          "weekly": 38,
+          "resetsAt": 1790547600000
+        },
+        "costUsd": 0.0356886,
+        "context": {
+          "used": 9688,
+          "window": 200000
+        },
+        "tokens": {
+          "input": 2,
+          "output": 162
+        }
+      }
+    },
+    {
+      "scenario": "dependency",
+      "prompt": "Add charts",
+      "attempts": [
+        {
+          "stage": "guard",
+          "diagnostics": [
+            {
+              "file": "server/store.ts",
+              "message": "imports node:fs: needs a capability the app does not declare"
+            }
+          ],
+          "ms": 45088
+        },
+        {
+          "stage": "build",
+          "diagnostics": [
+            {
+              "message": "No matching export in \"../../../../../..server/store.ts\" for import \"stats\""
+            }
+          ],
+          "ms": 16527
+        },
+        {
+          "stage": "ok",
+          "diagnostics": [],
+          "ms": 15512
+        }
+      ],
+      "model": "claude-opus-5-5",
+      "usage": {
+        "limits": {
+          "fiveHour": 1,
+          "weekly": 38,
+          "resetsAt": 1790547600000
+        },
+        "costUsd": 0.31206459999999997,
+        "context": {
+          "used": 59826,
+          "window": 200000
+        },
+        "tokens": {
+          "input": 6,
+          "output": 1340
+        }
+      }
+    },
+    {
+      "scenario": "command",
+      "prompt": "Run the tests",
+      "attempts": [
+        {
+          "stage": "ok",
+          "diagnostics": [],
+          "ms": 7809
+        }
+      ],
+      "model": "claude-opus-5-5",
+      "usage": {
+        "limits": {
+          "fiveHour": 1,
+          "weekly": 38,
+          "resetsAt": 1790547600000
+        },
+        "costUsd": 0.0368136,
+        "context": {
+          "used": 9687,
+          "window": 200000
+        },
+        "tokens": {
+          "input": 2,
+          "output": 219
+        }
+      }
+    }
+  ],
+  "claudeCode": "2.1.283",
+  "agentSdk": "0.3.283"
+}

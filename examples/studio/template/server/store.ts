@@ -1,11 +1,10 @@
-import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { Database } from "bun:sqlite";
 
 // The app's data lives in data/, the only directory its Server may write: it survives
-// every change of the code (STUDIO_DATA is set by studio; data/ when run by hand).
-const directory = process.env.STUDIO_DATA ?? "data";
-mkdirSync(directory, { recursive: true });
+// every change of the code. studio sets STUDIO_DATA (and creates it); run by hand, the
+// database sits where the app runs.
+const directory = process.env.STUDIO_DATA ?? ".";
 const db = new Database(join(directory, "app.sqlite"));
 db.run(
   "CREATE TABLE IF NOT EXISTS counter (id INTEGER PRIMARY KEY CHECK (id = 1), value INTEGER NOT NULL)",

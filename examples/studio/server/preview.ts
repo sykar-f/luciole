@@ -7,7 +7,7 @@
  */
 import { spawn } from "node:child_process";
 import { existsSync, readdirSync, rmSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import {
   build,
   fingerprintOf,
@@ -47,6 +47,10 @@ const RETIRE_MS = 5000;
 const TYPES_TIMEOUT_MS = 60_000;
 const MS_PER_SECOND = 1000;
 const MAX_DIAGNOSTICS = 5;
+/** A path relative to this process's directory, as Bun writes some of them. */
+const RELATIVE_PATH = /(?:\.\.\/)+[^\s"'`:()]+/g;
+/** A file of the app a message names. */
+const NAMED_FILE = /\b((?:app|components|server|actions)\/[\w\-./[\]()]+\.tsx?)\b/;
 /** `path:line:column: message` (the build) or `path(line,column): error …` (tsc). */
 const POSITION =
   /^(?:.*?\/)?((?:app|components|server|actions)\/[^:(\s]+)[:(](\d+)[:,](\d+)\)?:?\s*(.*)$/;
@@ -54,6 +58,9 @@ const POSITION =
 /** Diagnostics a harness can act on: file and line when the text has them, 5 at most. */
 export function diagnosticsOf(text: string, project?: string): Diagnostic[] {
   const lines = text
+    // Bun names some files relative to where this process runs: made absolute first, so
+    // that they read relative to the project below.
+    .replace(RELATIVE_PATH, (path) => resolve(path))
     .replaceAll(project ? `${project}/` : "\0", "")
     .split("\n")
     .map((line) => line.trim())
@@ -62,7 +69,12 @@ export function diagnosticsOf(text: string, project?: string): Diagnostic[] {
     const match = POSITION.exec(line);
     return match ? [{ file: match[1], line: Number(match[2]), message: match[4] || line }] : [];
   });
-  return (found.length ? found : lines.map((message) => ({ message }))).slice(0, MAX_DIAGNOSTICS);
+  // Without a position, still the file the message names: the harness knows where to look.
+  const named = (message: string) => {
+    const file = NAMED_FILE.exec(message)?.[1];
+    return file ? { file, message } : { message };
+  };
+  return (found.length ? found : lines.map(named)).slice(0, MAX_DIAGNOSTICS);
 }
 
 /** Why the preview cannot be isolated here, or nothing when it can. */

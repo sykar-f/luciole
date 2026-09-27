@@ -1,6 +1,6 @@
 /**
  * The first stages of a validation (docs/studio/SPEC.md, 5.4), shared by the studio and
- * its tests: the guard on the changes of a turn (refused changes are undone), then a
+ * its tests: the guard on the changes of a turn (a refused turn is undone whole), then a
  * build of the working tree apart from the one the preview runs.
  */
 import type { Diagnostic, Stage } from "../components/model";
@@ -22,7 +22,9 @@ export async function prepare(
   const refused = guard(changes);
   onStage("guard", !refused.length, performance.now() - started);
   if (refused.length) {
-    project.discard([...new Set(refused.map((r) => r.file))]);
+    // The whole turn goes: undoing only the refused files would leave the others
+    // importing what is gone (measured on Claude Code: a build failure right after).
+    project.discard([...changes.keys()]);
     return {
       ok: false,
       stage: "guard",

@@ -175,6 +175,28 @@ test("the SDK runs the user's own claude, with Claude Code's prompt and settings
   await harness.close();
 });
 
+test("isolated (studio): no user settings, no MCP server, no claude.ai connector, only the tools given", async () => {
+  const { harness, queries } = replay("say-ok");
+  await harness.start({
+    cwd: "/project",
+    mode: "ask",
+    isolated: true,
+    tools: ["Read", "Write"],
+    instructions: "Write airtty apps.",
+    client: "airtty-studio",
+  });
+  expect(queries[0]?.options).toMatchObject({
+    settingSources: [],
+    strictMcpConfig: true,
+    mcpServers: {},
+    settings: { disableClaudeAiConnectors: true },
+    tools: ["Read", "Write"],
+    systemPrompt: { type: "preset", preset: "claude_code", append: "Write airtty apps." },
+  });
+  expect(queries[0]?.options.env).toMatchObject({ CLAUDE_AGENT_SDK_CLIENT_APP: "airtty-studio" });
+  await harness.close();
+});
+
 test("the SDK's own binary is not installed: only the user's claude can run", () => {
   expect(() =>
     Bun.resolveSync(

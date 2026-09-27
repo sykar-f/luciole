@@ -1,6 +1,6 @@
 /**
- * What studio adds to the harness's own instructions (Claude: `systemPrompt.append`;
- * Codex: `developerInstructions`), injected by the adapter rather than written in the
+ * What studio adds to the harness's own instructions (Claude Code: `systemPrompt.append`),
+ * injected by the adapter rather than written in the
  * project, where the model could rewrite it (docs/studio/SPEC.md, 5.3). STUDIO.md in the
  * project says the same to the user.
  */
