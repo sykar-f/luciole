@@ -53,7 +53,7 @@ pas du jour de la capture. Après un changement visible d'un exemple, relancer l
 
 Le hero fait tourner Notes dans la page : `airtty build --web-local` de `examples/notes`,
 Client et Server dans l'onglet (voir `docs/WEB.md`). `scripts/demo.ts` refait ce build
-pour chaque démo (`forge`, `notes`, `mdreader`, `chat`, `devtools`) et copie `.airtty/web/`
+pour chaque démo (`forge`, `notes`, `mdreader`, `chat`, `coder`, `devtools`) et copie `.airtty/web/`
 sans les source maps dans
 `public/demo/<app>/`, que Git ignore. Le runtime web, commun à toutes les applications, est
 publié une fois dans `public/demo/runtime/` : la première démo lancée met en cache les plus
@@ -74,9 +74,16 @@ et la perte de la prochaine réponse ; elle démarre près du viewport et s'arr�
 Les autres (Forge, Chat, mdreader, DevTools) tournent sur `/examples/`, au clic, une seule
 à la fois, arrêtée quand on la quitte. Chaque démo trouve autour d'elle ce que
 `scripts/demo.ts` écrit dans `server-seed.json` : un environnement (`CHAT_DEMO=1`,
-`MD_PATH=/docs`…) et, pour mdreader, les documents du dépôt en lecture seule. coder, Files
-et mux restent au terminal (binaires d'agents, bibliothèque d'images native, PTY) : leurs
-captures les montrent ; coder est capturé sur son harness scripté (`--harness fake`).
+`MD_PATH=/docs`…) et, pour mdreader, les documents du dépôt en lecture seule.
+
+coder (« Coding-agent interface ») peut aussi tourner dans la page : `scripts/demo.ts` le
+construit avec `CODER_HARNESS=fake`, aucun appel de modèle, et sa ligne d'état le dit
+elle-même (« Scripted demo · no model calls »). Son script de page : attendre `Message…`,
+taper le prompt de `DEMO_PROMPT` (examples/coder/server/adapters/fake.ts) puis ``,
+attendre `allow once`, taper `y`, attendre `Your turn: ask for the next change.`, l'écran de
+`src/frames/coder.json` (scène `coder` de `scripts/capture.py`, même prompt). La landing le
+montre en capture ; `/examples/` ne le fait pas encore tourner. Files et mux restent au
+terminal : une bibliothèque d'images native pour l'un, des PTY pour l'autre.
 
 La page lit aussi les sources de `examples/notes` à la compilation (`?raw`) : le code
 montré dans « React components. A server side. » est celui du dépôt, découpé par motifs ;

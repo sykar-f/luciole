@@ -22,7 +22,27 @@ coder --help                             # binaire compilé : aide générée de
 | `--new`                         | nouvelle session au lieu de rattacher un lancement interrompu (runtime) |
 
 Sans `--harness`, coder prend le premier harness prêt dans l'ordre claude, codex,
-opencode, pi, sinon il dit ce qui manque.
+opencode, pi, sinon il dit ce qui manque. `CODER_HARNESS` et `CODER_CWD` tiennent lieu de
+`--harness` et `--cwd` quand la ligne de commande ne les donne pas.
+
+## Démo web
+
+Le site fait tourner coder dans la page (`airtty build --web-local`, docs/WEB.md) : le
+Server vit dans un Worker, sans processus ni réseau, donc sur le harness `fake` seul.
+`website/scripts/demo.ts` lui donne `CODER_HARNESS=fake` et un projet fictif
+(`CODER_CWD=/home/ada/src/timers`). Dans le Worker, `server/session.ts` importe
+`#adapters`, que `package.json` résout en `server/adapters/browser.ts` sous la condition
+`browser` : l'Agent SDK de Claude (`readline`, `net`) et les autres adaptateurs n'y
+entrent pas.
+
+Avec le harness `fake`, la ligne d'état affiche **« Scripted demo · no model calls »** à
+la place de « powered by … » (`SCRIPTED` dans `components/StatusLine.tsx`), au terminal
+comme dans la page : aucun drapeau à ajouter côté site.
+
+Le scénario du site se joue avec le prompt `DEMO_PROMPT` (`server/adapters/fake.ts`) :
+raisonnement, lecture de `src/duration.ts` (appel d'outil), réponse en streaming, diff à
+approuver (`y` en mode `ask`), `bun test` puis la main rendue sur `DEMO_END`. Mêmes
+textes et mêmes durées affichées à chaque fois ; environ 12 s une fois le prompt envoyé.
 
 ## Ce que montre l'exemple
 
@@ -105,6 +125,7 @@ suite (délai de 10 s des actions airtty) ; la progression passe par le flux.
 ```sh
 bun test tests/coder.test.tsx tests/coder-store.test.ts   # vrai Server + Client rendu, harness factice
 bun run test:pty:coder                                    # parcours PTY complet, harness factice
+bun run test:web:coder                                    # la démo web dans Chrome headless
 bun test tests/markdown*.test.ts*                         # <Markdown> : blocs figés, fermeture, parité
 bun run test:pty:markdown                                 # 0 oscillation en streaming (mot-clé `markdown`)
 ```

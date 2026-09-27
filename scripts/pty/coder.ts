@@ -62,7 +62,7 @@ await t.waitFor("scripted demo is ready", { timeout: BOOT_TIMEOUT_MS });
 // The Server is found by its directory: the check at the end is not vacuous.
 assert.equal(servers().length, 1, "one coder Server runs in the project");
 assert.ok((await t.text()).includes(project), "the project directory is shown");
-assert.ok((await t.text()).includes("powered by scripted demo"));
+assert.ok((await t.text()).includes("Scripted demo · no model calls"));
 await frame("1-ready");
 
 await prompt("hello");

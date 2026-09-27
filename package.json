@@ -87,6 +87,7 @@
     "test:web": "bun scripts/web/notes.ts",
     "test:web:local": "bun scripts/web/local.ts",
     "test:web:forge": "bun scripts/web/forge.ts",
+    "test:web:coder": "bun scripts/web/coder.ts",
     "test:web:embed": "bun scripts/web/embed.ts",
     "test:web:landing": "bun scripts/web/landing.ts",
     "test:linux": "bun scripts/linux-client.ts",

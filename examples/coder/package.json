@@ -3,6 +3,12 @@
   "private": true,
   "type": "module",
   "description": "One coding-agent session in a terminal, on Claude Code, Codex, pi or opencode.",
+  "imports": {
+    "#adapters": {
+      "browser": "./server/adapters/browser.ts",
+      "default": "./server/adapters/index.ts"
+    }
+  },
   "airtty": {
     "displayName": "coder",
     "server": "per-launch",

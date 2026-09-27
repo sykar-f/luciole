@@ -8,13 +8,17 @@ export default defineArgs({
     .object({
       harness: z.enum(HARNESSES).optional().meta({
         short: "H",
+        env: "CODER_HARNESS",
         description:
           "Agent harness (default: the first ready of claude, codex, opencode, pi; fake is a scripted demo)",
       }),
-      cwd: z
-        .string()
-        .optional()
-        .meta({ short: "C", kind: "path", placeholder: "DIR", description: "Project directory" }),
+      cwd: z.string().optional().meta({
+        short: "C",
+        env: "CODER_CWD",
+        kind: "path",
+        placeholder: "DIR",
+        description: "Project directory",
+      }),
       model: z
         .string()
         .min(1)

@@ -9,6 +9,9 @@ const CENTS = 2;
 // Past this share of the context window, the meter warns.
 const CONTEXT_WARNING = 0.8;
 
+/** Shown instead of « powered by … » with the fake harness (the website reads it too). */
+export const SCRIPTED = "Scripted demo · no model calls";
+
 const MODE_GLYPH: Record<Mode, string> = { read: "◎", ask: "✋", edits: "✎", full: "⚡" };
 const MODE_COLOR: Record<Mode, string> = {
   read: color.info,
@@ -83,9 +86,10 @@ export function StatusLine({
       <text flexGrow={1} flexShrink={1} wrapMode="none" truncate fg={message?.fg ?? color.faint}>
         {message ? ` │ ${message.text}` : ""}
       </text>
-      <text flexShrink={0} fg={color.faint}>
+      {/* The scripted harness says what it is: a demo, which no model answers. */}
+      <text flexShrink={0} fg={info.harness === "fake" ? color.warn : color.faint}>
         {" "}
-        powered by {info.poweredBy}
+        {info.harness === "fake" ? SCRIPTED : `powered by ${info.poweredBy}`}
       </text>
     </>
   );

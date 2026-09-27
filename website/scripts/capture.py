@@ -189,9 +189,9 @@ def save(term, name, title, replace=()):
         print(term.text())
 
 
-def dev(app, env, directory, cols, rows, cwd=ROOT, args=()):
+def dev(app, env, directory, cols, rows, cwd=ROOT):
     return Terminal(
-        [BUN, CLI, "dev", "--app", str(ROOT / "examples" / app), *(["--", *args] if args else [])],
+        [BUN, CLI, "dev", "--app", str(ROOT / "examples" / app)],
         # AIRTTY_DESKTOP: Ctrl+C belongs to the application, as in a page, so the key help
         # the capture shows is the one the live demo it stands in for draws.
         {**os.environ, "TERM": "xterm-256color", "COLORTERM": "truecolor", "XDG_STATE_HOME": directory + "/state", "AIRTTY_DESKTOP": "1", **env},
@@ -291,17 +291,22 @@ def chat(directory):
         term.stop()
 
 
+# The live demo's scripted session (scripts/demo.ts, examples/coder/server/adapters/fake.ts):
+# the same project path on both screens, the same prompt, the same approval.
+CODER_CWD = "/home/ada/src/timers"
+CODER_PROMPT = 'parseDuration("abc") returns NaN: make it throw a clear error, then run its tests'
+
+
 def coder(directory):
-    # The scripted harness: no agent binary, no model, no quota. An edit asks for approval
-    # first ("ask" mode), which shows a diff and the dialog.
-    term = dev("coder", {"CODER_FAKE_DELAY_MS": "5"}, directory, 140, 40, args=["--harness", "fake"])
+    term = dev("coder", {"CODER_HARNESS": "fake", "CODER_CWD": CODER_CWD}, directory, 140, 40)
     try:
-        term.wait_for("Scripted demo", 120)
+        term.wait_for("Scripted demo · no model calls", 120)
+        term.send(CODER_PROMPT.encode() + b"\r")
+        term.wait_for("allow once", 60)
+        term.send(b"y")
+        term.wait_for("Your turn: ask for the next change.", 60)
         term.idle(1)
-        term.send(b"edit greet\r")
-        term.wait_for("Edit src/greet.ts", 60)
-        term.idle(1.5)
-        save(term, "coder", "coder: a coding-agent session", [(str(ROOT), "~/my-project")])
+        save(term, "coder", "coder: a coding agent's session, scripted")
     finally:
         term.stop()
 

@@ -17,7 +17,7 @@ import {
   type Update,
   type Usage,
 } from "../components/model";
-import { createHarness } from "./adapters";
+import { createHarness } from "#adapters";
 import type { Harness, HarnessEvent } from "./adapters/types";
 import { config } from "./config";
 import { pickHarness } from "./detect";
