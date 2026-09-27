@@ -2,15 +2,16 @@
 
 Le dépôt est un espace de travail Bun (`workspaces` du `package.json` racine) :
 
-| Répertoire          | Contenu                                                                                                                                                                                |
-| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `packages/airtty/`  | Le framework, package `airtty` : `src/`, `tsconfig.base.json` (exporté `airtty/tsconfig`), `types.d.ts`, `native/airtty-sandbox` (Rust), `web/` (patch OpenTUI du runtime navigateur). |
-| `packages/desktop/` | Prototype d'app desktop (Electrobun, xterm.js) : le binaire d'une app sur un PTY, dans une fenêtre ([DESKTOP](DESKTOP.md)).                                                            |
-| `examples/<app>/`   | Une application par dossier, chacune un package qui déclare `airtty` (`workspace:*`) et les paquets qu'elle importe (`catalog:`).                                                      |
-| `tests/`            | Tests d'intégration du framework, qui construisent et lancent les exemples.                                                                                                            |
-| `scripts/`          | Parcours PTY, installation neuve, conteneurs Linux, build du sandbox, parcours navigateur (`scripts/web/`).                                                                            |
-| `probes/`           | Sondes historiques, hors espace de travail ; celles qui ont des dépendances gardent leur propre lockfile.                                                                              |
-| `website/`          | Page de présentation (Astro), hors espace de travail, avec son propre lockfile ; écrans capturés des exemples.                                                                         |
+| Répertoire          | Contenu                                                                                                                                                                                               |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/airtty/`  | Le framework, package `airtty` : `src/`, `tsconfig.base.json` (exporté `airtty/tsconfig`), `types.d.ts`, `native/airtty-sandbox` (Rust), `web/` (patch OpenTUI du runtime navigateur).                |
+| `packages/desktop/` | Prototype d'app desktop (Electrobun, xterm.js) : le binaire d'une app sur un PTY, dans une fenêtre ([DESKTOP](DESKTOP.md)).                                                                           |
+| `packages/harness/` | Paquet privé `@airtty/harness` : adaptateurs des agents de code (Claude Code, Codex, pi, opencode, scripté), modèle neutre, `HarnessSession`, composants du transcript ; partagé par coder et studio. |
+| `examples/<app>/`   | Une application par dossier, chacune un package qui déclare `airtty` (`workspace:*`) et les paquets qu'elle importe (`catalog:`).                                                                     |
+| `tests/`            | Tests d'intégration du framework, qui construisent et lancent les exemples.                                                                                                                           |
+| `scripts/`          | Parcours PTY, installation neuve, conteneurs Linux, build du sandbox, parcours navigateur (`scripts/web/`).                                                                                           |
+| `probes/`           | Sondes historiques, hors espace de travail ; celles qui ont des dépendances gardent leur propre lockfile.                                                                                             |
+| `website/`          | Page de présentation (Astro), hors espace de travail, avec son propre lockfile ; écrans capturés des exemples.                                                                                        |
 
 Le catalogue (`workspaces.catalog`) fixe une version par paquet pour la racine et les
 exemples. `airtty` garde des versions exactes plutôt que `catalog:` : un starter hors de
