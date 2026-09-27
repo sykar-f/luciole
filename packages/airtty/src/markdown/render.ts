@@ -12,7 +12,7 @@ import type { MarkedToken, Token, Tokens } from "marked";
  * a block shows while it streams is what it shows once done. The look is the one OpenTUI's
  * `<markdown conceal>` gives a finished reply (0.5.12, coalesced blocks): the source's lines
  * with their markers hidden, list bullets kept and colored, one blank line around code,
- * quotes, rules and tables.
+ * quotes, rules and tables. Headings differ: each level has its own band and spacing.
  */
 
 /** What one block draws: runs of styled text and the blocks text can't hold. */
@@ -29,6 +29,16 @@ export type Node =
     }
   | { kind: "quote"; children: readonly Node[]; marginTop: number; indent: number }
   | { kind: "rule"; marginTop: number; indent: number }
+  | {
+      kind: "heading";
+      /** 1 to 3: deeper headings are drawn as level 3. */
+      level: number;
+      chunks: readonly TextChunk[];
+      /** The band behind the title (the level's `bg`), fading out to the right. */
+      band: RGBA | undefined;
+      marginTop: number;
+      indent: number;
+    }
   | { kind: "table"; raw: string; marginTop: number; indent: number };
 
 const KINDS: ReadonlySet<string> = new Set<MarkedToken["type"]>([
@@ -66,11 +76,36 @@ export const separate = (token: Token) =>
   token.type === "hr";
 
 const TRAILING_NEWLINES = /\n+$/;
+const HEADING_LEVELS = 3;
+/** A heading's level as drawn (1 to 3), or 0 for any other block. */
+export const headingLevel = (token: Token) =>
+  known(token) && token.type === "heading" ? Math.min(token.depth, HEADING_LEVELS) : 0;
+// Blank lines above a heading of each level, and below it: an H3 sticks to its content.
+const ABOVE: Readonly<Record<number, number>> = { 1: 2, 2: 1, 3: 1 };
+const BELOW: Readonly<Record<number, number>> = { 1: 1, 2: 1, 3: 0 };
+
+/**
+ * Blank lines between two blocks. Headings set their own: above them by level (two above
+ * an H2 that ends an H3's subsection), below them by the heading's level. Elsewhere one line
+ * around blocks drawn apart, else the blank lines of the source.
+ */
+export function spacing(previous: Token, token: Token, gap: string, lastHeading: number) {
+  const above = headingLevel(token);
+  const below = headingLevel(previous);
+  if (above) {
+    const lines = above === 2 && lastHeading === HEADING_LEVELS ? 2 : (ABOVE[above] ?? 1);
+    return below ? Math.max(lines, BELOW[below] ?? 1) : lines;
+  }
+  if (below) return BELOW[below] ?? 1;
+  if (separate(previous) || separate(token)) return 1;
+  return blankLines((TRAILING_NEWLINES.exec(previous.raw)?.[0] ?? "") + gap);
+}
 const newlines = (text: string) => text.split("\n").length - 1;
 /** Blank lines a gap of source text holds (`"\n\n"` holds one). */
 export const blankLines = (gap: string) => Math.max(0, newlines(gap) - 1);
 
 const FALLBACK_RULE = "#888888";
+const HEADING = "markup.heading";
 
 /**
  * Styles as OpenTUI's Markdown resolves them: a group, else its first segment, else the
@@ -88,6 +123,8 @@ export class Palette {
   private lookup(group: string) {
     if (this.cache.has(group)) return this.cache.get(group);
     let style = this.syntax.getStyle(group);
+    // `markup.heading.2` falls back to `markup.heading` before `markup`.
+    if (!style && group.startsWith(`${HEADING}.`)) style = this.syntax.getStyle(HEADING);
     if (!style && group.includes(".")) style = this.syntax.getStyle(group.split(".")[0] ?? "");
     this.cache.set(group, style);
     return style;
@@ -118,6 +155,10 @@ export class Palette {
       attributes: createTextAttributes(flags),
       ...(link === undefined ? {} : { link: { url: link } }),
     };
+  }
+  /** The band behind a heading of `level`: its style's background, if it has one. */
+  band(level: number): RGBA | undefined {
+    return this.lookup(`${HEADING}.${level}`)?.bg;
   }
   /** The color of rules and quote bars. */
   line(): RGBA | string {
@@ -216,10 +257,20 @@ function block(token: MarkedToken, out: Builder, palette: Palette, base: readonl
       else out.text(token.text);
       return;
     case "heading": {
-      inline(tokensOf(token.tokens), out, [], palette);
-      // Setext: the underline stays, as in the source.
-      const underline = /\n( {0,3}(?:=+|-+)[ \t]*)\n*$/.exec(token.raw);
-      if (underline?.[1] && !token.raw.trimStart().startsWith("#")) out.text(`\n${underline[1]}`);
+      const level = headingLevel(token);
+      // Inside a list or a quote, a heading is text in its level's style.
+      if (base.length) {
+        inline(tokensOf(token.tokens), out, [`${HEADING}.${level}`], palette);
+        return;
+      }
+      const title = new Builder(palette, [`${HEADING}.${level}`]);
+      inline(tokensOf(token.tokens), title, [], palette);
+      title.flush();
+      const first = title.nodes[0];
+      // The band is drawn behind the whole row, the text keeps no background of its own.
+      const chunks =
+        first?.kind === "text" ? first.chunks.map((c) => ({ ...c, bg: undefined })) : [];
+      out.block({ kind: "heading", level, chunks, band: palette.band(level) });
       return;
     }
     case "html":

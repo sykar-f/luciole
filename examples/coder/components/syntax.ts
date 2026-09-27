@@ -9,6 +9,10 @@ const hex = (value: string) => RGBA.fromHex(value);
 export const syntax = SyntaxStyle.fromStyles({
   default: { fg: hex(color.text) },
   "markup.heading": { fg: hex(color.accent), bold: true },
+  // Headings on a band that fades out: accent for the top levels, a neutral panel below.
+  "markup.heading.1": { fg: hex(color.white), bg: hex(color.accentDim), bold: true },
+  "markup.heading.2": { fg: hex(color.white), bg: hex(color.accentDim), bold: true },
+  "markup.heading.3": { fg: hex(color.accent), bg: hex(color.band), bold: true },
   "markup.strong": { bold: true },
   "markup.italic": { italic: true },
   "markup.raw": { fg: hex("#a5d6ff") },

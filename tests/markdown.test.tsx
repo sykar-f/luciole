@@ -1,11 +1,13 @@
 /** @jsxImportSource @opentui/react */
 import { afterEach, expect, test } from "bun:test";
 import { act, type ReactNode, useEffect, useState } from "react";
+import { RGBA } from "@opentui/core";
 import { testRender } from "@opentui/react/test-utils";
 import { Markdown } from "../packages/airtty/src/markdown/Markdown";
 import { Palette } from "../packages/airtty/src/markdown/render";
 import { type Block, MarkdownStream } from "../packages/airtty/src/markdown/stream";
 import { syntax } from "../examples/coder/components/syntax";
+import { color } from "../examples/coder/components/theme";
 import { MARKDOWN_REPLY } from "../examples/coder/server/adapters/fake";
 
 const fixture = (name: string) =>
@@ -95,8 +97,11 @@ test("a reference link resolves once its definition is complete, not at each cha
   expect([...seen]).toEqual(["See [the docs][d].", "See the docs (https://example.com/docs)."]);
 });
 
-test("a finished reply looks as OpenTUI's <markdown conceal> draws it", async () => {
-  const content = await fixture("rich");
+test("apart from headings, a finished reply looks as OpenTUI's <markdown conceal> draws it", async () => {
+  // Headings are drawn on bands, with their own spacing (next test): left out here.
+  const content = (await fixture("rich"))
+    .replace(/^#{1,6} .*\n\n/gm, "")
+    .replace(/^.+\n-+\n\n/m, "");
   const theirs = await settled(
     await render(<markdown content={content} conceal syntaxStyle={syntax} />),
     "Final paragraph",
@@ -107,6 +112,64 @@ test("a finished reply looks as OpenTUI's <markdown conceal> draws it", async ()
   expect(ours).toBe(theirs);
   expect(ours).toContain("Here is what I found in this project, with emphasis, inline code");
   expect(ours).toContain("  - unit tests;");
+});
+
+test("headings sit on bands that fade out at fixed columns, spaced by level", async () => {
+  const content = "# Plan\n\nText.\n\n## Step\n\n### Detail\nMore.\n\n## Next\n\nEnd.";
+  const setup = await render(
+    <Markdown content={content} streaming={false} syntaxStyle={syntax} />,
+    100,
+    20,
+  );
+  await settled(setup);
+  const rows = setup
+    .captureCharFrame()
+    .split("\n")
+    .map((row) => row.trimEnd());
+  // H1: three rows, title in the middle; H3: no blank line below; H2 after an H3: two above.
+  expect(rows.slice(0, 16)).toEqual([
+    "",
+    "  Plan",
+    "",
+    "",
+    "Text.",
+    "",
+    "  Step",
+    "",
+    "  Detail",
+    "More.",
+    "",
+    "",
+    "  Next",
+    "",
+    "End.",
+    "",
+  ]);
+  const spans = setup.captureSpans().lines;
+  const bgAt = (row: number, column: number) => {
+    let start = 0;
+    for (const span of spans[row]?.spans ?? []) {
+      if (column < start + span.width) return span.bg;
+      start += span.width;
+    }
+    return undefined;
+  };
+  const band = RGBA.fromHex(color.accentDim);
+  const opaque = (row: number, column: number) => {
+    const bg = bgAt(row, column);
+    return bg !== undefined && bg.a === 1 && bg.equals(band);
+  };
+  // Full under the title and up to where the fade starts, all three rows of the H1.
+  for (const row of [0, 1, 2]) {
+    expect(opaque(row, 0)).toBe(true);
+    expect(opaque(row, 27)).toBe(true);
+    expect(opaque(row, 40)).toBe(false);
+    expect(bgAt(row, 85)?.a ?? 0).toBe(0);
+  }
+  expect(opaque(6, 17)).toBe(true);
+  expect(opaque(6, 30)).toBe(false);
+  // The title keeps no background of its own: the band shows through.
+  expect(opaque(1, 3)).toBe(true);
 });
 
 test("while it streams, the reply only grows and never shows a marker it will hide", async () => {

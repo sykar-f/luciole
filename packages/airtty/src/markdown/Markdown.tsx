@@ -1,6 +1,13 @@
 /** @jsxImportSource @opentui/react */
 import { memo, useEffect, useMemo, useState } from "react";
-import { infoStringToFiletype, StyledText, type SyntaxStyle } from "@opentui/core";
+import {
+  type BoxRenderable,
+  infoStringToFiletype,
+  type OptimizedBuffer,
+  RGBA,
+  StyledText,
+  type SyntaxStyle,
+} from "@opentui/core";
 import { useRenderer } from "@opentui/react";
 import { type Node, Palette } from "./render";
 import { MarkdownStream } from "./stream";
@@ -117,6 +124,8 @@ function NodeView({
           ))}
         </box>
       );
+    case "heading":
+      return <HeadingView node={node} />;
     case "rule":
       return <box {...layout} height={1} border={["top"]} borderColor={palette.line()} />;
     case "table":
@@ -129,6 +138,53 @@ function NodeView({
         </box>
       );
   }
+}
+
+// Where each level's band starts fading, and over how many columns: fixed, so a title that
+// streams in never moves its band.
+const FADE: Readonly<Record<number, { from: number; span: number }>> = {
+  1: { from: 28, span: 52 },
+  2: { from: 18, span: 62 },
+  3: { from: 12, span: 40 },
+};
+const TITLE_INDENT = 2;
+
+/**
+ * A heading on its band: full under the first columns, then fading out (alpha, so it
+ * blends into whatever is behind). The band is painted, not text: a selection copies the
+ * title alone. Level 1 is three rows tall, its title in the middle.
+ */
+function HeadingView({ node }: { node: Extract<Node, { kind: "heading" }> }) {
+  const content = useMemo(() => new StyledText([...node.chunks]), [node.chunks]);
+  const { band, level } = node;
+  const paint = useMemo(() => {
+    if (!band) return undefined;
+    const fade = FADE[level] ?? { from: 0, span: 1 };
+    return function (this: BoxRenderable, buffer: OptimizedBuffer) {
+      const columns = Math.min(this.width, fade.from + fade.span);
+      for (let x = 0; x < columns; x++) {
+        const alpha = band.a * (1 - Math.max(0, x - fade.from) / fade.span);
+        buffer.fillRect(
+          this.x + x,
+          this.y,
+          1,
+          this.height,
+          RGBA.fromValues(band.r, band.g, band.b, alpha),
+        );
+      }
+    };
+  }, [band, level]);
+  return (
+    <box
+      marginTop={node.marginTop}
+      flexShrink={0}
+      paddingLeft={band ? TITLE_INDENT : 0}
+      paddingY={band && level === 1 ? 1 : 0}
+      renderBefore={paint}
+    >
+      <text content={content} />
+    </box>
+  );
 }
 
 function TextView({ chunks, marginTop }: { chunks: Chunks; marginTop: number }) {

@@ -13,6 +13,9 @@ export const color = {
   thinking: "#d2a8ff",
   user: "#ffa657",
   panel: "#161b22",
+  // Behind level-3 headings.
+  band: "#22303a",
+  white: "#ffffff",
   overlay: "#0d1117",
   selected: "#1f3b4d",
   border: "#30363d",

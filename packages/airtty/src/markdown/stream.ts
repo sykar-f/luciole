@@ -1,6 +1,6 @@
 import { Lexer, type Links, type Token } from "marked";
 import { closeTail } from "./close";
-import { blankLines, known, type Node, type Palette, renderBlock, separate } from "./render";
+import { headingLevel, known, type Node, type Palette, renderBlock, spacing } from "./render";
 
 /**
  * A streamed reply cut into its top-level blocks (after Streamdown). Every block but the
@@ -21,7 +21,6 @@ const DEFINITION = /^ {0,3}\[[^\]]+\]:/m;
 // Tokens re-lexed at each update even when their source did not change: the last ones can
 // still merge with what follows (a paragraph's setext underline, a list's next item).
 const UNSTABLE = 2;
-const TRAILING_NEWLINES = /\n+$/;
 
 type Rendered = { raw: string; tail: boolean; nodes: readonly Node[] };
 
@@ -53,6 +52,7 @@ export class MarkdownStream {
     let previous: Token | undefined;
     let gap = "";
     let index = 0;
+    let lastHeading = 0;
     for (const token of this.tokens) {
       if (token.type === "space") {
         gap += token.raw;
@@ -65,11 +65,8 @@ export class MarkdownStream {
           ? cached.nodes
           : this.render(token, tail);
       rendered.push({ raw: token.raw, tail, nodes });
-      const marginTop = !previous
-        ? 0
-        : separate(previous) || separate(token)
-          ? 1
-          : blankLines((TRAILING_NEWLINES.exec(previous.raw)?.[0] ?? "") + gap);
+      const marginTop = previous ? spacing(previous, token, gap, lastHeading) : 0;
+      lastHeading = headingLevel(token) || lastHeading;
       const reused = this.blocks[index];
       if (nodes.length) {
         blocks.push(
@@ -100,6 +97,7 @@ export class MarkdownStream {
     const nodes: Node[] = [];
     let previous: Token | undefined;
     let gap = "";
+    let lastHeading = 0;
     for (const child of tokens) {
       if (child.type === "space") {
         gap += child.raw;
@@ -108,12 +106,8 @@ export class MarkdownStream {
       if (!known(child) || (child.type === "paragraph" && TABLE_ROWS.test(child.raw))) continue;
       const own = renderBlock(child, this.palette);
       const first = own[0];
-      if (first && previous) {
-        first.marginTop =
-          separate(previous) || separate(child)
-            ? 1
-            : blankLines((TRAILING_NEWLINES.exec(previous.raw)?.[0] ?? "") + gap);
-      }
+      if (first && previous) first.marginTop = spacing(previous, child, gap, lastHeading);
+      lastHeading = headingLevel(child) || lastHeading;
       nodes.push(...own);
       previous = child;
       gap = "";

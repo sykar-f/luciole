@@ -86,9 +86,12 @@ repli des lignes longues à la colonne 0 (pas d'indentation suspendue), une lign
 du code, des citations, des filets et des tableaux, lignes vides de la source conservées
 ailleurs. Les couleurs et attributs sont repris chunk par chunk (gras sans couleur propre,
 lien : libellé, ` (`, URL, `)`). Le test de parité compare l'écran des deux composants,
-caractère par caractère, sur `tests/fixtures/markdown/rich.md`.
+caractère par caractère, sur `tests/fixtures/markdown/rich.md` privé de ses titres.
 
-Écarts voulus : ce sont des défauts du rendu Tree-sitter, sur des constructions rares, pas
+Les titres sont l'exception voulue : bandeaux en fondu et espacement par niveau, choisis
+par l'utilisateur (voir « Décisions de l'utilisateur »).
+
+Autres écarts voulus : ce sont des défauts du rendu Tree-sitter, sur des constructions rares, pas
 des choix de présentation. Aucun point visible d'une réponse ordinaire ne change.
 
 | Construction                        | `<markdown conceal>`                        | Ici                                     |
@@ -161,12 +164,15 @@ et construction des nœuds compris.
 
 - **Promotion** dans `packages/airtty` : acceptée (27 septembre 2026), voir plus haut.
 - **Tableaux** : l'affichage progressif est gardé.
-
-## À décider (utilisateur)
-
-- **Titres** : OpenTUI 0.5.12 ne leur applique pas `markup.heading` (ils sortent en
-  couleur de texte, sans gras) ; la parité garde ce rendu. Les colorer serait un
-  changement visible.
+- **Titres** : bandeaux en fondu, choisis sur maquettes xterm.js (quatre séries, puis une
+  réponse réelle de 102 lignes). Fondu à colonnes fixes (28, 18, 12 : un titre qui s'écrit
+  ne fait pas bouger son bandeau), couleurs : H1 et H2 sur accent sombre, texte clair, H3
+  sur fond neutre, texte accent ; H1 de 3 lignes. Espacement : H1 2 / 1, H2 1 / 1 (2 après
+  une sous-partie H3), H3 1 / 0. Le style vient du `SyntaxStyle` de l'application
+  (`markup.heading.N`, son `bg` dessine le bandeau) ; sans `bg`, pas de bandeau. Écart
+  voulu avec `<markdown conceal>`, qui dessinait les titres en texte ordinaire ; le
+  soulignement d'un titre setext n'est plus affiché. Le fondu est un alpha fondu vers le
+  noir : parfait sur un terminal sombre, un liseré plus sombre sur un terminal clair.
 
 ## Reproduire
 
