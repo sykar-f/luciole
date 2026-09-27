@@ -80,6 +80,8 @@ type Running = { target: PreviewTarget; server: AppServer; box?: ServerSandbox }
 
 export class PreviewServers {
   private current: Running | undefined;
+  /** Every Server started and not yet stopped: the current one and those retiring. */
+  private readonly alive = new Set<Running>();
   private key: PublisherKey | undefined;
   private readonly project: Project;
   private readonly mode: PreviewMode;
@@ -117,7 +119,9 @@ export class PreviewServers {
   types(): Promise<Diagnostic[]> {
     const tsc = join(this.project.directory, "node_modules/.bin/tsc");
     return new Promise((done) => {
-      const child = spawn(tsc, ["--noEmit", "-p", this.project.directory], {
+      // From the project: tsc names files relative to where it runs.
+      const child = spawn(tsc, ["--noEmit", "-p", "."], {
+        cwd: this.project.directory,
         stdio: ["ignore", "pipe", "pipe"],
       });
       let output = "";
@@ -186,6 +190,7 @@ export class PreviewServers {
       };
       const previous = this.current;
       this.current = { target, server, box };
+      this.alive.add(this.current);
       if (previous) setTimeout(() => void this.retire(previous), RETIRE_MS);
       this.prune();
       return target;
@@ -198,6 +203,16 @@ export class PreviewServers {
   private async retire(running: Running) {
     await running.server.stop();
     await running.box?.close();
+    this.alive.delete(running);
+  }
+
+  /**
+   * Ends every preview Server at once, synchronously: for `process.on("exit")`, when the
+   * studio's own Server stops (SIGTERM, a rebuild) and may not wait.
+   */
+  killAll() {
+    for (const running of this.alive) running.server.child.kill("SIGTERM");
+    this.alive.clear();
   }
 
   /** Removes old builds, never the one shown. */

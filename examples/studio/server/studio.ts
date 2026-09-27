@@ -25,11 +25,11 @@ import type {
 } from "../components/model";
 import { config } from "./config";
 import { Generator, STUDIO_PREFIX } from "./generator";
-import { guard } from "./guard";
 import { INSTRUCTIONS } from "./instructions";
 import { policy } from "./policy";
 import { diagnosticsOf, isolationProblem, PreviewServers, type PreviewTarget } from "./preview";
 import { Project } from "./project";
+import { prepare } from "./validate";
 
 // Built by the build itself: whatever the harness does to it, the build writes it again.
 const GENERATED = "app/routeTree.gen.ts";
@@ -128,7 +128,12 @@ class Studio {
     this.hosts = this.declaredHosts();
     this.servers = new PreviewServers(project, config.preview);
     this.servers.granted = Capabilities.parse({ net: this.hosts });
-    process.on("exit", () => project.release());
+    // The preview's Servers never outlive this one, however it stops.
+    const servers = this.servers;
+    process.on("exit", () => {
+      servers.killAll();
+      project.release();
+    });
     this.changed();
     void this.session.start();
     await this.validate("start");
@@ -218,29 +223,23 @@ class Studio {
       failed: undefined,
     };
     this.changed();
-    let started = performance.now();
-    const refused = guard(changes);
-    this.stage("guard", !refused.length, performance.now() - started);
-    if (refused.length) {
-      project.discard([...new Set(refused.map((r) => r.file))]);
+    const prepared = await prepare(project, servers, changes, (stage, ok, ms) =>
+      this.stage(stage, ok, ms),
+    );
+    if (!prepared.ok)
       return this.fail(
-        "guard",
-        refused.map(({ file, reason }) => ({ file, message: reason })),
-        "Refused changes were undone",
+        prepared.stage,
+        prepared.diagnostics,
+        prepared.undone ? "Refused changes were undone" : undefined,
       );
-    }
-    started = performance.now();
-    const built = await servers.build(`b${Date.now()}`);
-    this.stage("build", "output" in built, performance.now() - started);
-    if (!("output" in built)) return this.fail("build", built.diagnostics);
     // A new revision only when something changed; the first build shows the last one.
     const number = changes.size
       ? project.commit(this.summary(cause))
       : (project.revisions()[0]?.number ?? 0);
-    started = performance.now();
+    let started = performance.now();
     let target: PreviewTarget;
     try {
-      target = await servers.start(number, built.output);
+      target = await servers.start(number, prepared.output);
     } catch (error: unknown) {
       this.stage("server", false, performance.now() - started);
       const message = error instanceof Error ? error.message : String(error);
@@ -424,12 +423,6 @@ class Studio {
       throw: async () => close(),
     };
     return iterator;
-  }
-
-  /** Stops the preview's Server and the harness with this Server. */
-  close() {
-    this.session.close();
-    void this.servers?.stop();
   }
 }
 
