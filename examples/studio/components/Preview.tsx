@@ -12,6 +12,7 @@ import {
   sandboxRuntime,
   type Sandbox,
 } from "airtty/sandbox";
+import { z } from "zod";
 import { color } from "@airtty/harness/ui/theme";
 import type { PreviewInfo } from "./model";
 
@@ -27,6 +28,14 @@ export type PreviewProps = {
   /** The app's Client ended (Ctrl+C in it, a crash). */
   onExit: (code: number | null) => void;
 };
+
+/** What a Client started with a session tells its host (src/run.tsx, as to `airtty dev`). */
+const SupervisedMessage = z.union([
+  z.object({ type: z.literal("hello") }),
+  z.object({ type: z.literal("bearer"), token: z.string().optional() }),
+]);
+/** The bearer the last Client in `process` mode held: in memory, never on disk. */
+let bearer: string | undefined;
 
 // The previous Client is waited for this long at most, then the next one starts anyway.
 const EXIT_WAIT_MS = 3000;
@@ -181,12 +190,23 @@ function ProcessPreview(props: PreviewProps) {
             "--url",
             preview.url,
           ],
-          // The route and named fields pass from one revision's Client to the next.
-          env: { AIRTTY_SESSION_KEY: `studio:${preview.project}` },
+          // The route, fields, focus and scroll pass from one Client to the next: each one
+          // reopens the project's session, which the previous one wrote as it ended.
+          env: { AIRTTY_SESSION: preview.session, AIRTTY_SESSION_KEY: `studio:${preview.project}` },
           ipc: (message) => {
             const failure = ClientFailure.safeParse(message);
             if (failure.success)
-              latest.current.onFailure(preview.revision, failure.data.path, failure.data.message);
+              return latest.current.onFailure(
+                preview.revision,
+                failure.data.path,
+                failure.data.message,
+              );
+            // A Client given a session asks for the bearer its predecessor held, as under
+            // `airtty dev`: answered at once, never waited for.
+            const said = SupervisedMessage.safeParse(message);
+            if (!said.success) return;
+            if (said.data.type === "hello") pty.send({ type: "bearer", token: bearer });
+            else bearer = said.data.token;
           },
         });
         pid.current = pty.pid;

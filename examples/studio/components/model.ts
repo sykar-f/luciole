@@ -51,6 +51,7 @@ export type PreviewInfo = {
   /** Network hosts the user allowed the app. */
   hosts: readonly string[];
   sessions: string;
+  session: string;
   project: string;
 };
 

@@ -42,6 +42,11 @@ export type PreviewTarget = {
   granted: Capabilities;
   /** Where the preview's sessions (route, named fields) are kept, by name. */
   sessions: string;
+  /**
+   * The session every Client of the preview reopens in `process` mode (`AIRTTY_SESSION`),
+   * one per project; a sandboxed Client takes over the one the previous Client left.
+   */
+  session: string;
 };
 export type Diagnostic = { file?: string; line?: number; message: string };
 
@@ -56,6 +61,8 @@ export const buildName = ({ draft }: { draft: boolean }) =>
 const RETIRE_MS = 5000;
 const TYPES_TIMEOUT_MS = 60_000;
 const MS_PER_SECOND = 1000;
+// A project's preview session id: its directory's hash, in few characters.
+const SESSION_RADIX = 36;
 const MAX_DIAGNOSTICS = 5;
 /** A path relative to this process's directory, as Bun writes some of them. */
 const RELATIVE_PATH = /(?:\.\.\/)+[^\s"'`:()]+/g;
@@ -240,6 +247,7 @@ export class PreviewServers {
         mode: this.mode,
         granted: this.granted,
         sessions: `studio-${this.project.name}`,
+        session: `preview-${Bun.hash(this.project.directory).toString(SESSION_RADIX)}`,
       };
       const running = { target, server, box };
       this.alive.add(running);

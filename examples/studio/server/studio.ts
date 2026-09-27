@@ -161,6 +161,7 @@ class Studio {
             mode: preview.mode,
             hosts: this.hosts,
             sessions: preview.sessions,
+            session: preview.session,
             project: project?.name ?? "",
           }
         : null,
