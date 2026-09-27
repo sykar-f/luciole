@@ -287,6 +287,14 @@ class Unresolved extends Error {
     super(`${from}: Cannot resolve ${name}`);
   }
 }
+// A signed bundle needs a publisher key: hosts that sign their own builds (studio) make one.
+export {
+  fingerprintOf,
+  generatePublisherKey,
+  readPublisherKey,
+  type PublisherKey,
+} from "./publisher";
+
 /** What a build was asked for beyond its sources: an output built otherwise is rebuilt. */
 const BuiltWith = z.object({
   buildId: z.string(),
