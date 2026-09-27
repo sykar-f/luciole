@@ -41,6 +41,17 @@ const drew: Record<string, Region["rects"]> = {
   "app/page.tsx": [{ row: 5, rows: 10, ...FULL }],
   "server/repository.ts": [{ row: 7, rows: 4, col: 3, cols: 13 }],
 };
+// The same screen cut in two: the rows the Client draws itself, the rows the Server sends.
+const rowsIn = (rects: Region["rects"]) =>
+  new Set(rects.flatMap(({ row, rows }) => Array.from({ length: rows }, (_, i) => row + i)));
+const keep = (rows: Set<number>, title: string) => ({
+  ...list,
+  title,
+  cells: list.cells.map((runs, i) => (rows.has(i) ? runs : [])),
+});
+const clientPart = keep(rowsIn(drew["app/layout.tsx"] ?? []), ".airtty/client draws");
+const serverPart = keep(rowsIn(drew["app/page.tsx"] ?? []), ".airtty/server sends");
+
 const regions: Region[] = files.flatMap((file, i) => {
   const rects = drew[file.path];
   return rects ? [{ id: String(i), side: file.side, rects }] : [];
@@ -186,6 +197,12 @@ const directives: ShikiTransformer[] = [
         <p class="drawn-now" aria-live="polite" data-drawn-now></p>
       </div>
     </div>
+
+    <figure class="parting" aria-label="The Notes screen, split between what the Client draws and what the Server sends">
+      <div class="part client-part"><Screen frame={clientPart} /></div>
+      <div class="part server-part"><Screen frame={serverPart} /></div>
+      <p class="between" aria-hidden="true">⇄ React Flight</p>
+    </figure>
 
     <div class="split" aria-label="What airtty build produces">
       <div class="half client-half">
@@ -539,11 +556,115 @@ const directives: ShikiTransformer[] = [
     font: 400 0.82rem / 1.5 var(--mono);
   }
 
+  /* One screen that comes apart as it scrolls into view: the Client's rows slide left,
+     over the Client's card, the Server's right, over the Server's. The resting state is
+     the split one: without scroll-driven animations or with reduced motion, it is shown. */
+  .parting {
+    --gap: 100px;
+    position: relative;
+    display: grid;
+    margin: clamp(48px, 6vw, 80px) 0 0;
+    view-timeline: --parting block;
+  }
+
+  .part {
+    grid-area: 1 / 1;
+    justify-self: center;
+    width: calc(50% - var(--gap));
+  }
+
+  .part :global(.term) {
+    background: transparent;
+  }
+
+  .client-part {
+    transform: translateX(calc(-50% - var(--gap)));
+  }
+
+  .server-part {
+    transform: translateX(calc(50% + var(--gap)));
+  }
+
+  .client-part :global(.term) {
+    border-color: var(--client);
+  }
+
+  .server-part :global(.term) {
+    border-color: var(--server);
+  }
+
+  .between {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    padding: 2px 1ch;
+    background: var(--night);
+    color: var(--mist);
+    font: 400 0.75rem / 1.5 var(--mono);
+    white-space: nowrap;
+    transform: translate(-50%, -50%);
+  }
+
+  @supports (animation-timeline: view()) {
+    .part,
+    .part :global(.term),
+    .part :global(.bar),
+    .between {
+      animation-timing-function: linear;
+      animation-fill-mode: both;
+      animation-timeline: --parting;
+      animation-range: entry 80% cover 55%;
+    }
+
+    .client-part,
+    .server-part {
+      animation-name: together;
+    }
+
+    .part :global(.term) {
+      animation-name: neutral;
+    }
+
+    /* Each half names itself only once it stands apart. */
+    .part :global(.bar),
+    .between {
+      animation-name: appear;
+    }
+  }
+
+  @keyframes together {
+    from {
+      transform: none;
+    }
+  }
+
+  @keyframes neutral {
+    from {
+      border-color: var(--rule-strong);
+    }
+  }
+
+  @keyframes appear {
+    from,
+    60% {
+      opacity: 0;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .part,
+    .part :global(.term),
+    .part :global(.bar),
+    .between {
+      animation: none;
+    }
+  }
+
   .split {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(140px, 200px) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) 200px minmax(0, 1fr);
     align-items: stretch;
-    margin-top: clamp(40px, 5vw, 64px);
+    margin-top: 28px;
   }
 
   .half {
@@ -648,6 +769,37 @@ const directives: ShikiTransformer[] = [
 
     .split {
       grid-template-columns: 1fr;
+    }
+
+    /* Too narrow to slide: the two halves, one above the other. */
+    .parting {
+      gap: 36px;
+    }
+
+    .part,
+    .client-part,
+    .server-part {
+      grid-area: auto;
+      width: 100%;
+      transform: none;
+      animation: none;
+    }
+
+    .part :global(.term),
+    .part :global(.bar) {
+      animation: none;
+    }
+
+    .between {
+      position: static;
+      justify-self: center;
+      order: 1;
+      transform: none;
+      animation: none;
+    }
+
+    .server-part {
+      order: 2;
     }
 
     .bridge {
