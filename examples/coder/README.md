@@ -39,7 +39,8 @@ coder est aussi la vitrine d'airtty ; chaque capacité du framework y sert :
 | `useBindings` + `<KeyHelp>`            | modes clavier (prompt, parcours, dialogue, sélecteur) et barre d'aide générée                   |
 | `host.notify`                          | notification quand une requête attend et que le terminal n'a pas le focus                       |
 | `renderer.suspend()`                   | Ctrl+G : écrire le prompt dans `$EDITOR`                                                        |
-| OpenTUI                                | `<markdown streaming>`, `<diff>` par fichier, `<code>`, textarea, overlays, sélection + OSC 52  |
+| `<Markdown>`                           | réponses et « thinking » stables pendant le streaming                                           |
+| OpenTUI                                | `<diff>` par fichier, `<code>`, textarea, overlays, sélection + OSC 52                          |
 
 ## Clavier
 
@@ -66,6 +67,14 @@ server/adapters/      un adaptateur par harness, vers un vocabulaire neutre (typ
 server/detect.ts      harness installé, version, connecté ? — sans requête au modèle
 server/jsonl.ts       lecteur JSON-lines (LF seulement) et client JSON-RPC
 ```
+
+Les réponses et les blocs « thinking » passent par `<Markdown>` (`airtty/client`), pas par le
+`<markdown>` d'OpenTUI : pendant le streaming, celui-ci redessine le dernier bloc depuis un
+aperçu puis depuis Tree-sitter, et la réponse clignote. Le composant découpe la réponse en
+blocs (`marked`), fige tous les blocs sauf le dernier, met le texte en forme sans
+Tree-sitter et ferme d'avance les marqueurs ouverts du dernier bloc ; le rendu d'une
+réponse finie est celui de `<markdown conceal>`. Décisions et mesures :
+`docs/streaming-markdown/STATUS.md`.
 
 Les adaptateurs traduisent chaque protocole en événements neutres (`turn.*`, `item.*`,
 `request.*`, `plan.updated`, `usage.updated`…). Les actions rendent la main tout de
@@ -96,12 +105,15 @@ suite (délai de 10 s des actions airtty) ; la progression passe par le flux.
 ```sh
 bun test tests/coder.test.tsx tests/coder-store.test.ts   # vrai Server + Client rendu, harness factice
 bun run test:pty:coder                                    # parcours PTY complet, harness factice
+bun test tests/markdown*.test.ts*                         # <Markdown> : blocs figés, fermeture, parité
+bun run test:pty:markdown                                 # 0 oscillation en streaming (mot-clé `markdown`)
 ```
 
 Les parcours sur les vrais harnesses sont manuels : ils consomment un peu de quota.
 
 ```sh
 bun scripts/pty/coder-real.ts claude|codex|pi|opencode [modèle]
+bun scripts/pty/markdown-stability.ts claude|codex|pi|opencode   # une réponse Markdown réelle
 ```
 
 Les adaptateurs sont testés sur des échanges enregistrés une fois sur les vrais binaires

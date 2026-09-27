@@ -14,6 +14,7 @@ Entrée `airtty/client` (Client Components uniquement) :
 | `useBindings()`, `useActiveKeys()`, `useKeymap()`, `usePendingSequence()`                                                              | Keymap OpenTUI réexportée : couches de raccourcis liées au cycle de vie des composants.                                                          |
 | `<KeyHelp groups? inline? />`                                                                                                          | Aide générée depuis les raccourcis actifs qui déclarent un `desc` (filtrés par `group`).                                                         |
 | `<Embed app name active prefix? />`, `openApplication({ bundle, url, instance? })`                                                     | Une autre application airtty dans un pane de celle-ci ; voir « Applications embarquées ».                                                        |
+| `<Markdown content streaming syntaxStyle onLink? imageBase? />`                                                                        | Markdown rendu par blocs : pendant que `content` s'écrit (`streaming`), le texte affiché ne bouge plus ; voir « Markdown en streaming ».         |
 | `<Terminal command active prefix? cwd? env? onExit? />`                                                                                | Un programme local (shell, vim, un Client airtty) sur un PTY, rendu dans l'arbre ; voir « Terminaux embarqués ».                                 |
 | `host`, `CapabilityDenied`                                                                                                             | Ce que l'application demande à son hôte (presse-papiers, notification, URL, secret, onglets) ; voir « Capacités médiées ».                       |
 | `useHostMessage(fn)`, `useGlobalKey(key, fn)`, `useCapability(name)`                                                                   | Messages des autres onglets et touches globales tant que le composant est monté ; état `granted`, `denied` ou `prompt` d'une capacité.           |
@@ -188,6 +189,65 @@ les modes demandés par le programme.
 
 `<Terminal>` sert aux programmes locaux ; une application airtty dans le même processus
 passe par `<Embed>`.
+
+## Markdown en streaming
+
+`<Markdown>` affiche du Markdown qui arrive par morceaux, typiquement la réponse d'un
+modèle, sans que le texte déjà affiché clignote ou saute. Le `<markdown>` d'OpenTUI 0.5.12
+redessine son dernier bloc depuis un aperçu puis depuis Tree-sitter à chaque changement :
+la réponse bascule entre texte brut et mis en forme.
+
+```tsx
+import { Markdown } from "airtty/client";
+
+<Markdown
+  content={reply.text}
+  streaming={!reply.done}
+  syntaxStyle={syntax}
+  onLink={(url) => host.openUrl(url)}
+  imageBase={projectDirectory}
+/>;
+```
+
+- `content` ne fait que croître pendant `streaming` ; les blocs terminés sont rendus une
+  fois et ne sont plus redessinés, seul le dernier l'est à chaque changement.
+- Le dernier bloc est fermé d'avance (`**gras` s'affiche en gras, un lien incomplet par son
+  libellé, une ligne de syntaxe seule attend son saut de ligne).
+- Le texte est mis en forme sans Tree-sitter : le rendu en cours et le rendu final sont le
+  même. Le code n'est coloré (Tree-sitter) qu'une fois sa clôture arrivée ; les tableaux
+  s'affichent ligne par ligne.
+- `syntaxStyle` : un `SyntaxStyle` d'OpenTUI ; les groupes `markup.*` (`strong`, `italic`,
+  `raw`, `link`, `list`, `quote`…) stylent le texte, les autres groupes le code.
+- Titres : `markup.heading.1` à `markup.heading.3` (repli sur `markup.heading`, les niveaux
+  4 à 6 comme le 3). Un `bg` dessine un bandeau derrière le titre, plein sur les premières
+  colonnes puis en fondu (à partir des colonnes 28, 18 et 12, fixes) jusqu'au bord droit,
+  qui suit la largeur ; le fondu va vers le fond du terminal (demandé par OSC 11), et les
+  dernières colonnes restent sans fond. Le H1 fait 3 lignes de haut, titre au milieu. Espacement imposé : H1 précédé de 2 lignes vides et suivi
+  d'une, H2 d'une et d'une (2 au-dessus quand il clôt une sous-partie H3), H3 d'une et
+  collé à son contenu. Le bandeau est peint, pas écrit : une sélection copie le titre seul.
+- Blocs de code : sur le fond de `markup.raw.block` (`bg`), avec une marge intérieure et le
+  langage discret en haut à droite ; sans ce `bg`, le code reste sans fond. Colorés par
+  Tree-sitter une fois la clôture arrivée : OpenTUI 0.5.12 connaît JavaScript, TypeScript,
+  Markdown et Zig ; `import "airtty/grammars"` (une fois, côté Client) ajoute Bash, C, C++,
+  CSS, Go, HTML, Java, JSON, PHP, Python, Ruby, Rust, TOML et YAML, pour `<code>` et
+  `<diff>` aussi. L'import est facultatif : le build copie chaque grammaire à côté du
+  bundle (environ 11 Mo en tout). Les groupes de style sont ceux des requêtes Tree-sitter
+  (`keyword`, `string`, `function`, `type`, `constant`, `property`, `tag`…, les noms
+  pointés se repliant sur leur base). La cible web garde ces langages en texte brut.
+- Blocs `diff` / `patch` : colorés ligne par ligne sans grammaire, donc dès le streaming :
+  `diff.plus` (lignes `+`), `diff.minus` (`-`), `diff.delta` (`@@`), `diff.header`
+  (`diff`, `index`, `---`, `+++`).
+- Liens : stylés par `markup.link` (le libellé comme l'URL). Un clic (appui et relâche sur
+  la même cellule, un glisser sélectionne) appelle `onLink(url)`, et le pointeur devient
+  une main au survol ; sans `onLink`, seul un terminal qui dessine les liens OSC 8 peut
+  les ouvrir, par son propre raccourci. `host.openUrl` n'ouvre que des URL http(s).
+- Images : dessinées par `<image>` d'OpenTUI (kitty, sixel, sinon demi-blocs en couleurs),
+  à la largeur disponible et sur 16 lignes au plus ; leur texte alternatif s'affiche
+  pendant le chargement et reste si l'image ne se charge pas. URL http(s) et `file:`,
+  chemins absolus, chemins relatifs depuis `imageBase` (un dossier ou une URL). Une image
+  distante est téléchargée par le Client : l'auteur du Markdown voit la requête.
+- Une réponse finie ressemble à `<markdown conceal>` ; les écarts et les mesures sont
+  dans `docs/streaming-markdown/STATUS.md`.
 
 ## Capacités médiées
 

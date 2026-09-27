@@ -26,6 +26,7 @@ import type { Harness, HarnessContext, StartOptions, UserInput } from "./types";
  *   slow            a long command, for interrupting
  *   fail            a failed turn
  *   compact         a compaction
+ *   markdown        a long, rich Markdown reply in small pieces ("chars": 3 at a time)
  *   anything else   reasoning, then a Markdown reply
  */
 const DEFAULT_DELAY_MS = 25;
@@ -88,6 +89,52 @@ export function greet(name: string) {
 \`\`\`
 
 Ask me to *run the tests*, *edit* a file, or to *plan* a change.`;
+
+// The rich reply: sections cycling through what a streamed Markdown renderer must hold still.
+const SECTIONS = 12;
+const CODE_EVERY = 3;
+const TABLE_EVERY = 4;
+const QUOTE_EVERY = 5;
+/** The last line of the rich reply: tests wait for it. */
+export const MARKDOWN_END = "That is all for the Markdown tour.";
+// The same step in the languages a reply shows most, then as a diff.
+const CODE_BLOCKS: readonly ((n: number) => string)[] = [
+  (n) =>
+    `\`\`\`ts\nexport function step${n}(input: number) {\n  const doubled = input * 2;\n` +
+    `  return doubled + ${n};\n}\n\`\`\``,
+  (n) =>
+    `\`\`\`python\ndef step${n}(value: int) -> int:\n    return value * 2 + ${n}  # doubled\n\`\`\``,
+  (n) => `\`\`\`rust\nfn step${n}(value: u32) -> u32 {\n    value * 2 + ${n}\n}\n\`\`\``,
+  (n) =>
+    `\`\`\`diff\n--- a/step.ts\n+++ b/step.ts\n@@ -1,3 +1,3 @@\n export function step(input: number) {\n` +
+    `-  return input + ${n};\n+  return input * 2 + ${n};\n }\n\`\`\``,
+];
+const codeBlock = (n: number) => CODE_BLOCKS[(n / CODE_EVERY - 1) % CODE_BLOCKS.length]?.(n) ?? "";
+const section = (n: number) =>
+  [
+    `## Section ${n}`,
+    `Paragraph ${n} has **strong words**, *emphasis*, \`inline code\` and a ` +
+      `[link](https://example.com/section/${n}); it runs long enough to wrap in a narrow ` +
+      `terminal, which is where a changing length would move every line below it.`,
+    `- first point of section ${n}\n- second point, with **bold** inside\n` +
+      `  - nested detail\n  - another *nested* detail\n- third point`,
+    n % CODE_EVERY === 0 ? codeBlock(n) : "",
+    n % TABLE_EVERY === 0
+      ? `| Name | Kind | Notes |\n| --- | --- | --- |\n| alpha | first | the **leader** |\n` +
+        `| beta | second | a longer note in a cell |\n| gamma | third | \`code\` too |`
+      : "",
+    n % QUOTE_EVERY === 0 ? `> A quoted remark with **weight**,\n> on two lines.` : "",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+export const MARKDOWN_REPLY = [
+  "# A tour of Markdown",
+  ...Array.from({ length: SECTIONS }, (_, i) => section(i + 1)),
+  "---",
+  MARKDOWN_END,
+].join("\n\n");
+const WORDS = /\S+\s*/g;
+const THREE_CHARS = /[\s\S]{1,3}/g;
 
 const BEFORE = `export function greet(name: string) {\n  return "Hello " + name;\n}\n`;
 const AFTER = `export function greet(name: string) {\n  return \`Hello, \${name}!\`;\n}\n`;
@@ -221,6 +268,8 @@ export class FakeHarness implements Harness {
       await this.pause(signal);
       throw new Error("The fake model is overloaded (529): try again");
     }
+    if (/\bmarkdown\b/.test(words))
+      return this.message(signal, MARKDOWN_REPLY, /\bchars?\b/.test(words) ? THREE_CHARS : WORDS);
     if (/\bslow|\bsleep|\blong/.test(words)) return this.slow(signal);
     if (/\bplan/.test(words)) return this.planned(signal);
     if (/\bquestion|\bchoose/.test(words)) return this.question(signal);
@@ -239,9 +288,10 @@ export class FakeHarness implements Harness {
     signal: AbortSignal,
     item: Item & { kind: "message" | "reasoning" },
     text: string,
+    pieces: RegExp = WORDS,
   ) {
     this.emit({ type: "item.started", item: { ...item, text: "", streaming: true } });
-    for (const chunk of text.match(/\S+\s*/g) ?? []) {
+    for (const chunk of text.match(pieces) ?? []) {
       await this.pause(signal);
       this.emit({ type: "item.delta", id: item.id, field: "text", delta: chunk });
     }
@@ -263,7 +313,7 @@ export class FakeHarness implements Harness {
       text,
     );
   }
-  private message(signal: AbortSignal, text: string) {
+  private message(signal: AbortSignal, text: string, pieces?: RegExp) {
     return this.stream(
       signal,
       {
@@ -274,6 +324,7 @@ export class FakeHarness implements Harness {
         startedAt: Date.now(),
       },
       text,
+      pieces,
     );
   }
 

@@ -142,6 +142,7 @@ const FRAMEWORK_ENTRIES = new Map([
   ["server", "server.ts"],
   ["route-tree", "route-tree.tsx"],
   ["args", "args.ts"],
+  ["grammars", "grammars.ts"],
 ]);
 /** Where an application declares its command-line arguments. */
 export const ARGS_FILE = "app/args.ts";
@@ -804,7 +805,7 @@ async function buildUnlocked(
                 b.onResolve({ filter: /^[@a-z]/ }, (a) =>
                   isAbiSpecifier(a.path) ? { path: a.path, external: true } : undefined,
                 );
-              b.onResolve({ filter: /^airtty\/(client|server|route-tree|args)$/ }, (a) => {
+              b.onResolve({ filter: /^airtty\/(client|server|route-tree|args|grammars)$/ }, (a) => {
                 const entry = FRAMEWORK_ENTRIES.get(a.path.slice("airtty/".length));
                 if (!entry) throw new Error(`Unknown framework entry ${a.path}`);
                 return { path: join(framework, entry) };

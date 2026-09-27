@@ -97,6 +97,9 @@ export { Embed } from "./embed";
 export type { EmbedProps } from "./embed";
 export { openApplication } from "./app-bundle";
 export type { OpenApplicationOptions, PublisherCheck } from "./app-bundle";
+// Markdown that holds still while it streams (a model's reply, a log being written).
+export { Markdown } from "./markdown/Markdown";
+export type { MarkdownProps } from "./markdown/Markdown";
 // Local programs on a PTY, for multiplexers (the `process` mode of docs/EMBEDDING.md).
 export { Terminal } from "./vt/terminal";
 export type { TerminalProps } from "./vt/terminal";
