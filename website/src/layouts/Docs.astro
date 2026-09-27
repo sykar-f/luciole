@@ -1,0 +1,179 @@
+---
+// A page of the documentation: the site's header, then the sections on the left, the page
+// in the middle and its headings on the right. Below 1180 px the headings go; below 900 px
+// the sections fold behind one button above the page.
+import type { MarkdownHeading } from "astro";
+import { getCollection } from "astro:content";
+import Base from "./Base.astro";
+import Header from "../components/Header.astro";
+import Footer from "../components/Footer.astro";
+import Search from "../components/docs/Search.astro";
+import { checkNav, href, neighbours, sectionOf, sections } from "../lib/docs/nav";
+import { sourceLink } from "../lib/docs/sources";
+import { name } from "../lib/product";
+import "../styles/docs.css";
+
+interface Props {
+  /** The page's id in the collection; none for the overview. */
+  id?: string;
+  title: string;
+  description: string;
+  headings?: MarkdownHeading[];
+  sources?: string[];
+}
+
+const { id, title, description, headings = [], sources = [] } = Astro.props;
+const entries = await getCollection("docs");
+checkNav(entries);
+const titles = new Map(entries.map((entry) => [entry.id, entry.data.title]));
+const titleOf = (page: string) => titles.get(page) ?? page;
+const section = id ? sectionOf(id) : undefined;
+const { previous, next } = id ? neighbours(id) : { previous: undefined, next: sections[0]?.pages[0] };
+// The table of contents lists sections and their subsections, h2 and h3.
+const SECTION = 2;
+const SUBSECTION = 3;
+const TOC_DEPTHS = new Set([SECTION, SUBSECTION]);
+const toc = headings.filter((heading) => TOC_DEPTHS.has(heading.depth));
+const cited = sources.map((path) => ({ path, href: sourceLink(path) }));
+---
+
+<Base title={`${title} · ${name} docs`} description={description}>
+  <Header />
+  <div class="docs wrap">
+    <nav class="sidebar" aria-label="Documentation">
+      <details class="sections" open data-sections>
+        <summary>Docs menu</summary>
+        <Search />
+        <a class="overview" href="/docs/" aria-current={id ? undefined : "page"}>Overview</a>
+        {
+          sections.map((item) => (
+            <div class="group">
+              <p>{item.title}</p>
+              <ul>
+                {item.pages.map((page) => (
+                  <li>
+                    <a href={href(page)} aria-current={page === id ? "page" : undefined}>
+                      {titleOf(page)}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))
+        }
+        <div class="group">
+          <p>Elsewhere</p>
+          <ul>
+            <li><a href="/guide/" hreflang="fr">The guided tour <span class="lang">in French</span></a></li>
+            <li><a href="/examples/">Examples</a></li>
+            <li><a href="/status/">Status and limits</a></li>
+          </ul>
+        </div>
+      </details>
+    </nav>
+
+    <main class="page" data-pagefind-body={id ? "" : undefined}>
+      <nav class="crumbs" aria-label="Breadcrumb" data-pagefind-ignore>
+        <ol>
+          <li><a href="/docs/">Docs</a></li>
+          {section && <li>{section.title}</li>}
+          {id && <li aria-current="page">{title}</li>}
+        </ol>
+      </nav>
+      <header class="head">
+        <h1>{title}</h1>
+        <p class="lede">{description}</p>
+      </header>
+      <article class="prose">
+        <slot />
+      </article>
+      {
+        cited.length > 0 && (
+          <aside class="sources" data-pagefind-ignore>
+            <p>Sources in the repository</p>
+            <ul>
+              {cited.map(({ path, href: link }) => (
+                <li>
+                  <a href={link}>
+                    <code>{path}</code>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </aside>
+        )
+      }
+      <nav class="pager" aria-label="Previous and next pages" data-pagefind-ignore>
+        {
+          previous && (
+            <a class="previous" href={href(previous)}>
+              <span>Previous</span>
+              {titleOf(previous)}
+            </a>
+          )
+        }
+        {
+          next && (
+            <a class="next" href={href(next)}>
+              <span>Next</span>
+              {titleOf(next)}
+            </a>
+          )
+        }
+      </nav>
+    </main>
+
+    {
+      toc.length > 1 && (
+        <nav class="toc" aria-label="On this page">
+          <p>On this page</p>
+          <ul>
+            {toc.map((heading) => (
+              <li class={`depth-${heading.depth}`}>
+                <a href={`#${heading.slug}`}>{heading.text}</a>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      )
+    }
+  </div>
+  <Footer />
+</Base>
+
+<script>
+  // The sections stay open beside the page; on a phone they fold above it, closed until
+  // asked for, so the page comes first.
+  const sections = document.querySelector<HTMLDetailsElement>("[data-sections]");
+  const narrow = matchMedia("(max-width: 900px)");
+  const fold = () => {
+    if (sections) sections.open = !narrow.matches;
+  };
+  fold();
+  narrow.addEventListener("change", fold);
+
+  // The heading being read, marked in "On this page".
+  const links = new Map(
+    [...document.querySelectorAll<HTMLAnchorElement>(".toc a")].map((link) => [
+      decodeURIComponent(link.hash.slice(1)),
+      link,
+    ]),
+  );
+  const headings = [...document.querySelectorAll<HTMLElement>(".prose :is(h2, h3)[id]")].filter(
+    (heading) => links.has(heading.id),
+  );
+  // A heading counts as read once it is this close to the top: under the sticky header.
+  const READ_LINE_PX = 120;
+  if (headings.length) {
+    const mark = () => {
+      const passed = headings.filter((heading) => heading.getBoundingClientRect().top < READ_LINE_PX);
+      const current = passed.at(-1) ?? headings[0];
+      for (const [id, link] of links) {
+        if (id === current?.id) link.setAttribute("aria-current", "location");
+        else link.removeAttribute("aria-current");
+      }
+    };
+    addEventListener("scroll", mark, { passive: true });
+    mark();
+  }
+</script>

@@ -1,0 +1,159 @@
+---
+title: CLI
+description: Every airtty subcommand and its options, as src/cli.ts and src/commands/ define them.
+sources:
+  - packages/airtty/src/cli.ts
+  - packages/airtty/src/commands
+  - packages/airtty/src/airttyx.ts
+---
+
+import Excerpt from "../../../components/guide/Excerpt.astro";
+import Note from "../../../components/docs/Note.astro";
+import { commands } from "../../../lib/product";
+
+The package declares two commands: `airtty` and `airttyx`. In a clone of the repository,
+
+<code>{commands.fromClone}</code> runs the same CLI without installing anything; a starter calls the
+installed `airtty` from its scripts.
+
+```text
+airtty <subcommand> [options] [-- app arguments]
+airtty <target> [options]      launch an app (path, installed app, npm spec, git source, URL)
+airtty                         open the launcher
+```
+
+A first argument that is no subcommand and does not start with `-` is a target to launch.
+The CLI's own flags come before `--`; what follows `--` belongs to the app
+([app arguments](/docs/reference/app-arguments/)). A flag that needs a value and gets none is
+refused. A usage error exits with code 2, any other error with 1.
+
+<Excerpt
+  path="packages/airtty/src/commands/index.ts"
+  find="export const commands"
+  until="]);"
+  tone="neutral"
+  caption="The subcommands, in the order of the usage line."
+/>
+
+## Develop
+
+### `airtty init <dir>`
+
+Creates a starter in `<dir>` (default `my-airtty-app`), which must be empty: a copy of Notes,
+a `package.json` whose `airtty` dependency points at this checkout (`file:`), a
+`tsconfig.json` extending `airtty/tsconfig`, Oxlint, Oxfmt and VS Code settings. Then
+`bun install` and `bun run dev` in it.
+
+### `airtty dev [--app dir] [-- app arguments]`
+
+Builds the app, starts its Server and Client, and rebuilds on every change to a `.ts`,
+`.tsx`, `.js` or `.jsx` file (not `.airtty/`, `node_modules/` or `routeTree.gen.ts`). A
+build error shows in the running Client and leaves it usable; a good rebuild restarts both
+processes, and the Client reopens the same page with its history, named fields and bearer.
+`--app` defaults to `examples/notes`. The app's arguments are checked after every build;
+`-- --help` prints them.
+
+The run ends with the Client: quitting it stops the Server too, and `airtty dev` exits with the
+Client's own exit code (1 if a signal killed it), so a host that runs it can tell a crash from a
+quit. A Client that exits during a rebuild ends nothing. SIGINT, SIGTERM and SIGHUP (a closed
+terminal, an unmounted `<Terminal>`) stop both processes and exit with 0. The pieces of this
+supervision are public as [`airtty/dev`](/docs/reference/api/#supervising-an-app-airttydev).
+
+### `airtty devtools [--listen 1|<socket>|ws://host:port] [--demo] [--replay file.json] [--env]`
+
+Starts the [DevTools](/docs/guides/devtools/). `--env` prints the variables the inspected
+app's shell needs instead.
+
+## Build
+
+### `airtty build [options]`
+
+| Option                                  | Effect                                                                                                    |
+| --------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `--app dir`                             | The app to build (default `examples/notes`).                                                              |
+| `--app-bundle`                          | Fail if the app bundle (`.airtty/app/`) cannot be produced, instead of warning.                           |
+| `--sign-bundle`                         | Sign the app bundle's manifest with the publisher key (`airtty keys`); implies `--app-bundle`.            |
+| `--web`                                 | Add `.airtty/web/`, the browser runtime served by the Server.                                             |
+| `--web-local`                           | Add a static site where the Server runs in the browser too.                                               |
+| `--compile`                             | Compile a single executable: Client and Server (see below).                                               |
+| `--name n`                              | The binary's name (default: the app's directory name).                                                    |
+| `--client-only`                         | Compile the Client alone.                                                                                 |
+| `--target t`                            | Another platform, such as `bun-linux-x64` or `bun-linux-x64-musl`.                                        |
+| `--runtime official\|host\|<bun>`       | The Bun runtime to embed: the official one of the target (default), the one running the build, or a path. |
+| `--portable`                            | Make the host-runtime warning an error, for a binary meant for other machines.                            |
+| `--native-dir dir`                      | Native packages installed for the target, for a cross-compiled Server.                                    |
+| `--outfile f`                           | Where to write the binary.                                                                                |
+| `--sign identity`, `--notarize profile` | Sign the macOS binary with a Developer ID, then notarize it.                                              |
+
+Details: [build and distribution](/docs/reference/build-and-distribution/).
+
+### `airtty runtime [--target t]`
+
+Downloads the official Bun runtime of a target into the cache `--compile` uses, ahead of
+time.
+
+### `airtty web-runtime`
+
+Prepares this framework version's web runtime ahead of `airtty build --web` (it needs git,
+the network and Zig 0.16.0).
+
+### `airtty keys [generate]`
+
+Prints the publisher key that signs app bundles (its file, `SHA256:` fingerprint and public
+key), or generates one. Not Apple's Developer ID.
+
+### `airtty pack --package <npm name> --version <v> [--description d] [--outdir dir] <binary>…`
+
+Makes npm packages from compiled binaries of one build: one per platform, and the main
+package that points to them. It prints the order to publish them in, platforms first.
+
+## Run
+
+### `airtty <target>`
+
+```text
+airtty [<path | app | npm spec | git source> [--yes] [--url url]
+       | <server url…> [--inline | --sandbox] [--allow-…] [--yes]]
+```
+
+Resolves the target and launches it ([opening an app](/docs/guides/opening-an-app/)). A built
+directory (a path or a git source) also takes `--grace <duration>`, and the app's own
+options. `--yes` accepts installs and new repositories without asking. URLs take the
+sandbox flags of [apps you did not write](/docs/guides/untrusted-apps/#capabilities).
+
+### `airttyx <target>`
+
+Like `airtty <target>`, but the target is never read as a subcommand, like `npx`:
+`airttyx build` launches the app named `build`.
+
+### `airtty start --role server|client [--app dir] [--url URL] [--artifact dir] [-- app arguments]`
+
+Runs a built role in production (`NODE_ENV=production`): the Server (the default role), or
+the Client joining `--url`. Without `--url`, the Client looks for its Server as
+[usual](/docs/guides/opening-an-app/#joining-a-server-that-already-runs). The app's
+arguments go to the Server only.
+
+### `airtty connect <url | ssh://[user@]host[/port]> [--app dir]`
+
+Runs the built Client against a URL, `ssh://` included.
+
+### `airtty trust <server url> <SHA256:fingerprint>`
+
+Pins a publisher key for an origin opened by URL, out of band, replacing the pinned one.
+
+## Installed apps
+
+Apps installed from the npm registry live in `$XDG_DATA_HOME/airtty/apps/`.
+
+| Command                          | Effect                                        |
+| -------------------------------- | --------------------------------------------- |
+| `airtty search [text]`           | Apps (keyword `airtty-app`) matching the text |
+| `airtty install <spec>… [--yes]` | Installs, or switches to the version given    |
+| `airtty update [app…]`           | Each app to the latest version of its range   |
+| `airtty list`                    | Installed apps                                |
+| `airtty remove <app>…`           | Removes the app and its binaries              |
+
+<Note>
+  A compiled app binary has its own commands (`serve`, `--url`, `--on`, `--new`, `--version`): see
+  [opening an app](/docs/guides/opening-an-app/#as-a-single-binary).
+</Note>

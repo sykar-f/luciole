@@ -18,14 +18,14 @@ import Quiz from "../../components/guide/Quiz.astro";
   ]}
 >
   <h2>En une phrase</h2>
-  <p><code>airtty dev</code> est un <strong>superviseur</strong> : il construit, lance le Server, attend qu'il annonce son port, lance le Client pointé dessus, puis recommence tout à chaque fichier modifié. <code>start</code> et <code>connect</code> lancent un seul programme déjà construit, sans rien surveiller.</p>
+  <p><code>airtty dev</code> est un <strong>superviseur</strong> : il construit, lance le Server, attend qu'il annonce son port, lance le Client pointé dessus, puis recommence tout à chaque fichier modifié. Ses pièces génériques (démarrer le Server, relayer le bearer, ne jamais lancer deux rebuilds à la fois) vivent dans <Src path="packages/airtty/src/dev/supervisor.ts" />, exporté en <code>airtty/dev</code> pour les hôtes qui décident eux-mêmes du rebuild. <code>start</code> et <code>connect</code> lancent un seul programme déjà construit, sans rien surveiller.</p>
 
   <h2>Le parcours de airtty dev</h2>
   <Sequence
     title="airtty dev"
     lanes={[
       { id: "you", label: "Toi", sub: "l'éditeur", tone: "neutral" },
-      { id: "dev", label: "Superviseur", sub: "commands/dev.ts", tone: "neutral" },
+      { id: "dev", label: "Superviseur", sub: "commands/dev.ts + airtty/dev", tone: "neutral" },
       { id: "server", label: "Server", sub: "processus Bun", tone: "server" },
       { id: "client", label: "Client", sub: "processus Bun, TTY", tone: "client" },
     ]}
@@ -49,14 +49,15 @@ import Quiz from "../../components/guide/Quiz.astro";
 
   <Step n="1–2" tone="neutral" where="Superviseur" title="Construire, puis lancer le Server sur un port libre">
     <p>Le superviseur construit (chapitre 2), puis vérifie les arguments de l'application, ceux qui suivent <code>--</code>, avec l'<code>app/args.ts</code> que ce build vient de produire : le schéma a pu changer. Au premier build, <code>--help</code> affiche l'aide générée et s'arrête, et un refus termine <code>airtty dev</code> (code 2 pour une erreur d'usage). Aux builds suivants, un refus devient une erreur de build comme une autre.</p>
-    <Excerpt path="packages/airtty/src/commands/dev.ts" find="await build(directory);" until="first = false;" mark={["await build(directory);", "args = await checkArgs(definition, rest, { cwd, name });"]} />
+    <Excerpt path="packages/airtty/src/commands/dev.ts" find="const { buildId } = await build(directory);" until="first = false;" mark={["await build(directory);", "args = await checkArgs(definition, rest, { cwd, name });"]} />
     <p>Il lie ensuite <code>.airtty/node_modules</code> aux dépendances du framework, et seulement alors arrête les anciens processus. Le Server est lancé avec la condition <code>react-server</code> et <code>PORT=0</code> : le système choisit le port. Son environnement porte aussi les arguments vérifiés (<code>AIRTTY_ARGS</code>, que le Server relit et analyse à nouveau) et <code>AIRTTY_LAUNCH</code>, qui lui dit qu'il sert ce seul lancement, avec l'identifiant de session comme id.</p>
-    <Excerpt path="packages/airtty/src/commands/dev.ts" find="if (closing) break;" until='PORT: process.env.PORT ?? "0"' mark={["await Promise.all([stop(client), stop(server)]);", 'PORT: process.env.PORT ?? "0"']} />
+    <Excerpt path="packages/airtty/src/commands/dev.ts" find="await linkFrameworkModules(directory, frameworkRoot);" until='PORT: process.env.PORT ?? "0"' mark={["await Promise.all([stop(client), server?.stop()]);", "server = await startAppServer({", 'PORT: process.env.PORT ?? "0"']} />
     <p>L'ordre compte : <code>stop()</code> vient <em>après</em> <code>build()</code>. Si le build échoue, l'exception saute l'arrêt et l'ancien couple Server et Client continue de tourner.</p>
   </Step>
 
   <Step n="3" tone="server" title="Le Server annonce qu'il écoute">
-    <p><Src path="packages/airtty/src/serve.ts" /> valide l'environnement, refuse une écoute exposée au réseau sans authentification, puis imprime une ligne JSON sur stdout. Le superviseur attend cette ligne, au plus 10 secondes.</p>
+    <p><Src path="packages/airtty/src/serve.ts" /> valide l'environnement, refuse une écoute exposée au réseau sans authentification, puis imprime une ligne JSON sur stdout. <code>startAppServer</code> attend cette ligne, au plus 10 secondes ; les autres lignes de stdout vont à <code>onOutput</code>, que <code>airtty dev</code> affiche. Un Server qui meurt ou tarde est arrêté, et la promesse est rejetée avec la fin de son stderr quand l'hôte le capte.</p>
+    <Excerpt path="packages/airtty/src/dev/supervisor.ts" find="const ready = await new Promise" until="return { port: ready.port, child, stop: () => stopChild(child) };" tone="neutral" mark={["const parsed = ServerReady.safeParse(message);"]} />
     <Excerpt path="packages/airtty/src/serve.ts" find="// A socket is reachable by whoever may open its file" until="} satisfies AuthConfig);" tone="server" mark={["Remote binding requires AIRTTY_TOKEN"]} />
     <p>Sans <code>server/auth.ts</code>, l'authentification par défaut compare le bearer à <code>AIRTTY_TOKEN</code>. Si ce token n'est pas défini, toute requête reçoit l'utilisateur <code>AIRTTY_USER</code>, <code>"local"</code> par défaut. C'est le cas de Notes.</p>
   </Step>
@@ -67,8 +68,9 @@ import Quiz from "../../components/guide/Quiz.astro";
 
   <Step n="5–6" tone="client" title="Le bearer passe par le superviseur, jamais par le disque">
     <p>Au démarrage, le Client dit <code>hello</code> et attend au plus une seconde le token du Client précédent. Le superviseur le garde en mémoire : après un rebuild, l'utilisateur n'a pas à se reconnecter.</p>
-    <Excerpt path="packages/airtty/src/commands/dev.ts" find="const activeClient = client;" until="else console.error(message);" mark={['activeClient.send({ type: "bearer", token: bearer })', 'client.send({ type: "build-error", message })']} />
-    <p>Le bloc <code>catch</code> gère le build raté : le message part au Client vivant, qui l'affiche en bandeau orange au-dessus de son layout.</p>
+    <Excerpt path="packages/airtty/src/dev/supervisor.ts" find="export function bearerRelay()" until="^}" tone="neutral" mark={['client.send({ type: "bearer", token: bearer })']} />
+    <p>Le build raté est géré par le <code>catch</code> de <Src path="packages/airtty/src/commands/dev.ts" /> : le message part au Client vivant, qui l'affiche en bandeau orange au-dessus de son layout. Il est positionné : une erreur de syntaxe donne sa ligne et sa colonne, un import introuvable la ligne de l'import (chapitre 2).</p>
+    <Excerpt path="packages/airtty/src/commands/dev.ts" find="} catch (error) {" after="bearer.attach(activeClient);" until="else console.error(message);" mark={['client.send({ type: "build-error", message })']} />
   </Step>
 
   <Step n="7" tone="wire" title="Chaque requête porte le build ID">
@@ -78,7 +80,14 @@ import Quiz from "../../components/guide/Quiz.astro";
   </Step>
 
   <Step n="8–11" tone="neutral" where="Superviseur" title="Un fichier change : tout recommence">
-    <p>Le watcher ignore <code>.airtty</code>, <code>node_modules</code> et <code>routeTree.gen.ts</code> (que le build réécrit lui-même), ainsi que tout ce qui n'est pas <code>.ts</code>, <code>.tsx</code>, <code>.js</code> ou <code>.jsx</code>. Les événements sont regroupés sur 150 ms, et un seul rebuild tourne à la fois. Si des fichiers changent pendant un rebuild, un autre suit.</p>
+    <p>Le watcher ignore <code>.airtty</code>, <code>node_modules</code> et <code>routeTree.gen.ts</code> (que le build réécrit lui-même), ainsi que tout ce qui n'est pas <code>.ts</code>, <code>.tsx</code>, <code>.js</code> ou <code>.jsx</code>. Les événements sont regroupés sur 150 ms, puis confiés à <code>serialize</code> d'<code>airtty/dev</code> : un seul rebuild tourne à la fois, et si des fichiers changent pendant un rebuild, un seul autre suit.</p>
+  </Step>
+
+  <Step n="12" tone="neutral" where="Superviseur" title="La fin : quitter, raccrocher, planter">
+    <p>Le Client qui se termine termine <code>airtty dev</code>, avec <strong>son</strong> code de sortie : 0 quand l'utilisateur quitte, le code du Client s'il plante, 1 s'il est tué par un signal. Un hôte qui lance <code>airtty dev</code> distingue ainsi un plantage d'une sortie voulue. Un Client qui meurt pendant un rebuild ne termine rien.</p>
+    <Excerpt path="packages/airtty/src/commands/dev.ts" find='activeClient.once("exit"' count={4} mark={["shutdown(code ?? (signal ? SIGNALLED_EXIT_CODE : 0))"]} />
+    <p>SIGINT, SIGTERM et <strong>SIGHUP</strong> arrêtent proprement le Server et le Client, puis sortent avec 0. SIGHUP est ce qu'envoie un terminal fermé, ou un <code>&lt;Terminal&gt;</code> qu'on démonte : sans lui, le Server et le Client survivraient à leur parent.</p>
+    <Excerpt path="packages/airtty/src/commands/dev.ts" find="// SIGHUP too" count={4} mark={['["SIGINT", "SIGTERM", "SIGHUP"]']} />
   </Step>
 
   <h2>Qui supervise qui</h2>
@@ -132,6 +141,8 @@ import Quiz from "../../components/guide/Quiz.astro";
       <tbody>
         <tr><td>erreur de build en dev</td><td>bandeau orange « Build failed » dans le Client vivant ; l'ancien code tourne toujours</td></tr>
         <tr><td>Server sans ligne ready en 10 s</td><td><code>Server startup timeout</code> sur stderr ; l'ancien Client est déjà arrêté</td></tr>
+        <tr><td>une page échoue au chargement ou au rendu</td><td>son <code>error.tsx</code> ; le Client l'envoie aussi à son parent par IPC (<code>failure</code>, chapitre 4)</td></tr>
+        <tr><td>le Client plante</td><td><code>airtty dev</code> s'arrête avec le code de sortie du Client</td></tr>
         <tr><td>écoute non locale sans token</td><td>le Server refuse de démarrer : <code>Remote binding requires AIRTTY_TOKEN…</code></td></tr>
         <tr><td>Server injoignable</td><td>statut « Disconnected », issue <code>not-sent</code></td></tr>
         <tr><td>build ID différent</td><td>409, statut « Incompatible build », le Client reste ouvert</td></tr>
@@ -143,7 +154,7 @@ import Quiz from "../../components/guide/Quiz.astro";
   <Callout kind="piege">
     <ul>
       <li>Modifier <code>package.json</code>, <code>airtty.json</code> ou l'icône ne déclenche pas de rebuild.</li>
-      <li>Quitter le Client arrête tout <code>airtty dev</code>, Server compris. Mais un Client qui meurt <em>pendant</em> un rebuild ne l'arrête pas.</li>
+      <li>Quitter le Client arrête tout <code>airtty dev</code>, Server compris, avec le code de sortie du Client. Mais un Client qui meurt <em>pendant</em> un rebuild ne l'arrête pas.</li>
       <li><Src path="packages/airtty/src/host.ts" /> n'a rien à voir avec la connexion : ce sont les capacités que l'app demande à son hôte, comme le presse-papier ou les notifications.</li>
     </ul>
   </Callout>

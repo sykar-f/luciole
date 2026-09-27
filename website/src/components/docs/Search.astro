@@ -1,0 +1,93 @@
+---
+// Full-text search over the documentation, from the index Pagefind writes into dist/ after
+// `astro build`: nothing is loaded until the field is used, and the index is fetched in
+// small pieces as words are typed. The dev server has no index and says so.
+---
+
+<div class="search" data-search>
+  <label for="docs-search">Search the docs</label>
+  <input id="docs-search" type="search" placeholder="search  /" autocomplete="off" spellcheck="false" />
+  <p class="status" role="status" data-search-status></p>
+  <ol class="results" data-search-results></ol>
+</div>
+
+<script>
+  import * as z from "zod/mini";
+
+  const MAX_RESULTS = 8;
+  // What Pagefind returns, checked before it reaches the page.
+  const Callable = z.custom<(...args: unknown[]) => unknown>((value) => typeof value === "function");
+  const Result = z.object({ data: Callable });
+  const Found = z.object({ results: z.array(Result) });
+  const Page = z.object({
+    url: z.string(),
+    excerpt: z.string(),
+    meta: z.object({ title: z.optional(z.string()) }),
+  });
+  const Api = z.object({ debouncedSearch: Callable });
+
+  const box = document.querySelector<HTMLElement>("[data-search]");
+  const input = box?.querySelector<HTMLInputElement>("input");
+  const status = box?.querySelector<HTMLElement>("[data-search-status]");
+  const list = box?.querySelector<HTMLOListElement>("[data-search-results]");
+  let api: Promise<z.infer<typeof Api> | undefined> | undefined;
+
+  // The index lives next to the built pages; a path Vite must leave alone.
+  const load = () =>
+    (api ??= import(/* @vite-ignore */ `${location.origin}/pagefind/pagefind.js`)
+      .then((module: unknown) => Api.parse(module))
+      .catch(() => undefined));
+
+  async function search(query: string) {
+    if (!status || !list) return;
+    if (!query.trim()) {
+      list.replaceChildren();
+      status.textContent = "";
+      return;
+    }
+    const pagefind = await load();
+    if (!pagefind) {
+      status.textContent = "Search works on the built site (bun run build).";
+      return;
+    }
+    const found = Found.safeParse(await pagefind.debouncedSearch(query));
+    // A newer query took over: its own call writes the results.
+    if (!found.success) return;
+    const pages = await Promise.all(
+      found.data.results.slice(0, MAX_RESULTS).map(async (result) => Page.safeParse(await result.data())),
+    );
+    const items = pages.flatMap((page) => {
+      if (!page.success) return [];
+      const item = document.createElement("li");
+      const link = document.createElement("a");
+      link.href = page.data.url;
+      const title = document.createElement("strong");
+      title.textContent = page.data.meta.title ?? page.data.url;
+      const excerpt = document.createElement("span");
+      // Pagefind escapes the page's text and marks the matched words with <mark>.
+      excerpt.innerHTML = page.data.excerpt;
+      link.append(title, excerpt);
+      item.append(link);
+      return [item];
+    });
+    list.replaceChildren(...items);
+    status.textContent = items.length ? "" : "No page matches.";
+  }
+
+  input?.addEventListener("focus", () => void load(), { once: true });
+  input?.addEventListener("input", () => void search(input.value));
+  input?.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    input.value = "";
+    void search("");
+  });
+  // "/" goes to the field from anywhere but another field.
+  document.addEventListener("keydown", (event) => {
+    const target = event.target;
+    if (event.key !== "/" || !input) return;
+    if (target instanceof HTMLElement && target.closest("input, textarea, [contenteditable]")) return;
+    event.preventDefault();
+    input.closest("details")?.setAttribute("open", "");
+    input.focus();
+  });
+</script>

@@ -1,0 +1,132 @@
+---
+title: Caching Server reads
+description: '"use cache" keeps the result of a Server read, tagged; invalidate({ tag }) purges it and revalidates only the routes that read it.'
+sources:
+  - docs/CACHE.md
+  - packages/airtty/src/cache
+  - examples/notes/server/queries.ts
+  - examples/notes/server/tags.ts
+  - examples/notes/actions/notes.ts
+---
+
+import Excerpt from "../../../components/guide/Excerpt.astro";
+import Note from "../../../components/docs/Note.astro";
+
+Inspired by the Cache Components of Next.js 16 and reduced to what a terminal Client uses:
+**data reads** cached on the Server, tagged, and an invalidation that purges them, then
+revalidates only the Client routes that read those tags.
+
+<Excerpt path="examples/notes/server/queries.ts" tone="server" />
+
+<Excerpt
+  path="examples/notes/actions/notes.ts"
+  find="async function changed"
+  until="^}"
+  mark={["invalidate({ tag"]}
+  tone="server"
+/>
+
+## Declaring
+
+- **A module**: `"use cache"` at the top caches every exported function. The module exports
+  only `export async function` declarations (and types).
+- **A function**: `"use cache"` as the first statement of an `export async function`
+  declared at the module's top level.
+
+The build refuses, with the file and line: closures, methods, arrow functions, functions
+that are not exported or not async, a default export (a page component), exported values or
+re-exports in a `"use cache"` module, `"use cache"` in a `"use server"` or `"use client"`
+module, and a `"use cache"` module reached by the Client's graph. Cache the functions a
+Server Function calls, not the Server Function: it receives arguments from the Client.
+
+## Keys and values
+
+The key is a SHA-256 of the build ID, the function's ID (`path#name`) and its arguments
+encoded like Server Function arguments: `Date`, `Map`, `Set`, `BigInt` and `undefined`
+survive. **A new build never reads another build's entries.** Each caller receives its own
+decoded copy. Concurrent calls with the same key share one computation. An exception is
+never cached.
+
+Refused, arguments or results: async iterables, `ReadableStream`, React elements, Client
+functions, `Blob`. The cache stores data, not trees.
+
+## `cacheTag` and `cacheLife`
+
+Both work only while a `"use cache"` function runs.
+
+- `cacheTag(...tags)` labels the result: 1 to 256 visible ASCII characters without commas,
+  at most 64 per result. Encode free identifiers, as `server/tags.ts` does with
+  `encodeURIComponent`.
+- `cacheLife(profile | { revalidate?, expire? })`, in **seconds**. Profiles
+  (`revalidate` / `expire`): `default` (900 / never), `seconds` (1 / 60), `minutes`
+  (60 / 3600), `hours` (3600 / 86,400), and `days`, `weeks`, `max`. Several calls: the
+  shortest of each field wins.
+
+| Age of the entry              | Result                                                                                             |
+| ----------------------------- | -------------------------------------------------------------------------------------------------- |
+| below `revalidate`            | `hit`                                                                                              |
+| from `revalidate` to `expire` | `stale`: the old value now, a new one computed behind (a failure keeps the old one until `expire`) |
+| `expire` or more              | `miss`: the caller waits for the computation                                                       |
+
+A cached function that calls another inherits its tags and its shortest lifetime.
+
+<Note kind="warning">
+  `getSession()` and `getOptionalSession()` **throw** inside a cached function and anything it
+  calls: its result is shared by every caller with the same arguments. Pass the identity as an
+  argument, as Notes' pages do with `notesOf(getSession().userId)`.
+</Note>
+
+## Where entries live
+
+| Handler                                     | Scope                                                                                                        |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `memoryCache({ maxEntries = 1000 })`        | The default. This process only, least recently used out first, emptied on every restart (every dev rebuild). |
+| `sqliteCache({ path, maxEntries = 10000 })` | Survives restarts and is shared by the Server processes of a machine.                                        |
+
+The app picks one with an optional `server/cache.ts`, whose default export the build passes
+to the Server:
+
+```ts
+// server/cache.ts
+import { sqliteCache } from "airtty/server";
+export default sqliteCache({ path: process.env.CACHE_DB ?? "cache.sqlite" });
+```
+
+A custom handler implements `get`, `set` and `invalidateTags`; `invalidateTags` must have
+removed the entries before it resolves, since the Client reads again right after.
+
+## What a render read
+
+During `GET /render`, every cached read (hit or miss) adds its tags to the render's, those of
+async Server Components under `Suspense` included. The tags travel in the Flight stream,
+after the page. The Client remembers the tags of each loaded tree; on a tag invalidation it
+revalidates the routes whose tree read one of them, plus those whose tags it does not know
+yet. A route that may have read a tag is never forgotten.
+
+With `staleTime` 0 (the default), TanStack reloads every **mounted** route on any
+invalidation: the precision matters for routes in the router's cache and pages that declare a
+`staleTime`.
+
+## A page's `staleTime`
+
+```ts
+export const staleTime = 30; // seconds; a literal or a product (5 * 60)
+```
+
+For that long, coming back to the page shows its cached tree **without a request**. Without
+it, the cached tree shows and then revalidates. An invalidation (path, tag, `refresh()`)
+overrides it. Notes' list declares 30 seconds.
+
+## Outside a Server Function
+
+`invalidate({ tag })` also works outside any Server Function: a background task, a webhook,
+during a render, the DevTools. It then purges **the Server cache only**: no response goes to
+a Client, so none is told. Each reads fresh data at its next render of the route.
+`invalidate(path)` outside a Server Function is an error: no Client could hear it.
+
+## Limits
+
+- No caching of React trees (components, pages).
+- No tag invalidation from the Client: `useApplication().invalidate` takes paths.
+- Deduplication and in-flight invalidation are per process; SQLite shares entries, not
+  computations.

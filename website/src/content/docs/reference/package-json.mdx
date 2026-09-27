@@ -1,0 +1,115 @@
+---
+title: package.json fields
+description: The airtty field of an app's package.json, what the build checks in it and writes to .airtty/metadata.json, and the airtty.json file.
+sources:
+  - packages/airtty/src/app-metadata.ts
+  - packages/airtty/src/capabilities.ts
+  - packages/airtty/src/launch.ts
+  - docs/API.md
+  - docs/DISTRIBUTION.md
+  - docs/BOUNDARIES.md
+  - examples/notes/package.json
+---
+
+import Excerpt from "../../../components/guide/Excerpt.astro";
+import Note from "../../../components/docs/Note.astro";
+
+What an app says about itself, for the places that show it or launch it without running it,
+lives in the `airtty` field of its `package.json`. Every field is optional.
+
+<Excerpt path="examples/notes/package.json" find='"version"' until='"icon"' tone="neutral" />
+
+The build reads the field **before** building, so a wrong value stops it at once, and writes
+`.airtty/metadata.json` with defaults applied, plus `.airtty/icon.png`. A host reads that
+output, never the app's sources; `AppMetadata` in `airtty/metadata` is its schema.
+
+## What hosts show
+
+| Field                | Value                                                                                                        |
+| -------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `airtty.displayName` | The name people read: a window's title, a menu, the Dock. 1 to 64 characters. Default: the directory's name. |
+| `airtty.identifier`  | Reverse DNS (`com.example.notes`): the macOS bundle identifier.                                              |
+| `airtty.icon`        | A square PNG of 512 pixels or more (1024 for Retina), relative to the app's directory.                       |
+| `version`            | The package's own field: the version of a desktop bundle.                                                    |
+| `description`        | The package's own field.                                                                                     |
+
+The app's **name** is not declared: it is its directory's name, which names binaries,
+sessions and sockets. Only `displayName` is meant to be read.
+
+## Server and grace
+
+```jsonc
+{ "airtty": { "server": "per-launch", "grace": "10m" } }
+```
+
+| `airtty.server`    | Launches that share a Server     | For                                      |
+| ------------------ | -------------------------------- | ---------------------------------------- |
+| `shared` (default) | every launch of the target       | Notes, mdreader: one Server for everyone |
+| `per-directory`    | launches from the same directory | an app that writes where it is launched  |
+| `per-launch`       | none: each launch has its own    | coder: one agent session per launch      |
+
+With `per-launch`, a Client that died leaves its Server in its grace period, and the next
+launch from the same directory with the same arguments reclaims it (and the session the
+Client left); `--new` always starts afresh. In every case, launches with different
+[arguments](/docs/reference/app-arguments/) never share a Server.
+
+`airtty.grace` is how long a Server waits for a lost Client before stopping: a duration such
+as `15m`, `30s`, `1h`, or `0` to stop at once. The default is 15 minutes; `--grace` on the
+command line wins.
+
+## Capabilities
+
+`airtty.capabilities` declares what the app may do, for the generic Client's `sandbox` mode
+([apps you did not write](/docs/guides/untrusted-apps/)). Every field defaults to nothing.
+
+```jsonc
+{
+  "airtty": {
+    "capabilities": {
+      "fs": { "read": ["/absolute/path"], "write": [] },
+      "net": ["api.example.com", "*.example.org", "localhost:8080"], // or ["*"]
+      "exec": ["/usr/bin/git"], // false (default), true, or absolute paths
+      "pty": false,
+      "clipboard": { "read": false, "write": true },
+      "notify": true,
+      "openUrl": true,
+      "secrets": ["api-token"],
+      "inputGlobal": false,
+      "tabsMessage": false,
+    },
+  },
+}
+```
+
+The build copies the field into the app bundle's manifest, and compares it with the Node
+built-ins the Client bundle requires (`fs` implies `fs.read`/`fs.write`, `child_process`
+implies `exec`, `net`, `http`, `tls`… imply `net`): it warns about what is used without being
+declared. **Declaring is not enforcing**: only the `sandbox` mode applies capabilities.
+
+## Published apps
+
+An app published to npm adds, to its main package, what the launcher installs from:
+
+| Field             | Value                                                             |
+| ----------------- | ----------------------------------------------------------------- |
+| `airtty.name`     | The command and installation directory                            |
+| `airtty.buildId`  | The build every platform binary comes from                        |
+| `airtty.binaries` | The package of each target (`bun-darwin-arm64`, `bun-linux-x64`…) |
+
+`airtty pack` writes these packages from compiled binaries
+([build and distribution](/docs/reference/build-and-distribution/#publishing-to-npm)).
+
+## `airtty.json`
+
+An optional file next to `package.json`, for one setting: third-party packages that must stay
+on the Server although they do not say so themselves.
+
+```json
+{ "serverPackages": ["@prisma/client", "bcrypt"] }
+```
+
+<Note>
+  `app/args.ts` is not a `package.json` field, but the build writes its JSON Schema into
+  `.airtty/metadata.json` as `args`, next to these fields: a host can list an app's options without
+  running it.
+</Note>

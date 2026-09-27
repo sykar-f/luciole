@@ -1,0 +1,111 @@
+---
+title: Latency and faults
+description: Slow the network down, lose requests and responses, cut streams, and check that the app says what it knows. AIRTTY_LATENCY_MS, AIRTTY_JITTER_MS, AIRTTY_CHUNK_DELAY_MS, AIRTTY_FAULT.
+sources:
+  - packages/airtty/src/transport.ts
+  - packages/airtty/src/run.tsx
+  - tests/latency.test.tsx
+  - examples/latency
+  - docs/README.fr.md
+---
+
+import CopyCommand from "../../../components/CopyCommand.astro";
+import Excerpt from "../../../components/guide/Excerpt.astro";
+import Note from "../../../components/docs/Note.astro";
+import { commands, envPrefix } from "../../../lib/product";
+
+On your machine the Server answers in a millisecond, and an app that mishandles a slow or
+lost request looks fine. The Client's transport can simulate what a real network does, so
+you see the loading screens, the pending states and the error handling before your users do.
+
+## Add a round trip
+
+<CopyCommand lines={[`${envPrefix}_LATENCY_MS=500 bun run dev`]} />
+
+`AIRTTY_LATENCY_MS` adds a round trip to **every app request** (page render, navigation,
+Server Function, refresh, lookup): for 500, 250 ms before sending and 250 ms before
+delivering the response. The waits are asynchronous, count against the timeout, and are
+independent between requests. Real latency adds to it. By default nothing is added.
+
+Keys, scrolling and hover do not go through the transport, so they do not slow down. A
+dedicated bench shows it:
+
+<CopyCommand
+  lines={[`${envPrefix}_LATENCY_MS=500 ${commands.fromClone} dev --app examples/latency`]}
+/>
+
+<kbd>Enter</kbd> calls the Server. While it waits, keep typing, scroll the 100 lines with the wheel
+and hover the coloured area; the result shows the observed round trip.
+<kbd>Ctrl+R</kbd> tests a slow refresh with the interface kept mounted. The terminal must send mouse
+events for scrolling and hover. `tests/latency.test.tsx` checks the delays, typing, scrolling,
+hover, that these interactions send no request, and that the component survives a refresh.
+
+## Make it worse
+
+| Variable                | Effect                                                                                          |
+| ----------------------- | ----------------------------------------------------------------------------------------------- |
+| `AIRTTY_JITTER_MS`      | A random extra delay, from 0 to this value, on each direction of each request.                  |
+| `AIRTTY_CHUNK_DELAY_MS` | A delay before each chunk of a response reaches the decoder: slow streams, `Suspense` included. |
+| `AIRTTY_FAULT`          | Faults, each with a probability: `refuse:0.1,drop:0.05,cut:0.05`.                               |
+
+The three faults, and the outcome the app receives for each:
+
+| Fault    | What happens                                                  | Outcome    |
+| -------- | ------------------------------------------------------------- | ---------- |
+| `refuse` | The request is never sent.                                    | `not-sent` |
+| `drop`   | The Server answers, and the response is lost: the Server ran. | `unknown`  |
+| `cut`    | The body fails before its first byte.                         | `unknown`  |
+
+<Excerpt
+  path="packages/airtty/src/transport.ts"
+  find="export function networkFromEnv"
+  until="^}"
+  tone="wire"
+  caption="The faults are checked in the order given; a fault without a probability always happens."
+/>
+
+<CopyCommand lines={[`${envPrefix}_LATENCY_MS=300 ${envPrefix}_FAULT=drop:0.3 bun run dev`]} />
+
+With a lost response, a save in Notes shows "Unknown outcome": the Server may have written
+the note. <kbd>Ctrl+O</kbd> asks the Server what happened to that operation, instead of
+sending it again ([Server Functions](/docs/concepts/server-functions/#when-a-call-fails)).
+
+## What the app should do with each outcome
+
+- `not-sent` and `rejected`: nothing ran on the Server. It is safe to say "not saved" and
+  let the user try again.
+- `unknown`: the action may have run. Replaying it may do it twice. Look it up, or let the
+  user decide; an idempotent operation ID, stored with the result, makes the lookup possible.
+
+The framework never retries: it reports what it knows, the app decides.
+
+## See the requests
+
+- Notes binds <kbd>Ctrl+T</kbd> to `<DebugOverlay />`: requests, open requests, bytes, last
+  round trip and the latest events.
+- The [DevTools](/docs/guides/devtools/) draw a waterfall of the Client's and the Server's
+  requests, and change latency, jitter, chunk delay and fault probabilities **while the app
+  runs** (panel 7, Conditions); the variables only set them at startup.
+- `useApplication().onEvent(listener)` receives each transport event (`request`,
+  `response`, `chunk`, `end`, `error` with its outcome) for your own logs.
+
+<Note kind="warning">
+  This is a simulation per request, not a TCP emulation: no bandwidth, no packet loss. It assumes
+  the Client runs locally; running the Client itself through SSH adds the terminal's latency to
+  every interaction, which this does not model.
+</Note>
+
+## In a web page
+
+A page that embeds the web runtime in an `iframe` of its own origin can set the round trip
+and the next request's fault by message; the landing page's Notes demo does:
+
+```ts
+iframe.contentWindow.postMessage(
+  { source: "airtty", type: "network", latencyMs: 500, fault: "drop" },
+  origin,
+);
+```
+
+The runtime answers with the transport's events (`{ source: "airtty", type: "event", event }`),
+which is how a page draws a request timeline. See [opening an app](/docs/guides/opening-an-app/#in-a-browser).

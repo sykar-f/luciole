@@ -2,7 +2,7 @@
 import { Code } from "astro:components";
 import type { ShikiTransformer } from "shiki";
 import { night } from "../lib/codeTheme";
-import { doc, source } from "../lib/links";
+import { source } from "../lib/links";
 // The real files of examples/notes, read at build time: the page cannot drift from them.
 import notePage from "../../../examples/notes/app/notes/[id]/page.tsx?raw";
 import actions from "../../../examples/notes/actions/notes.ts?raw";
@@ -149,8 +149,8 @@ const ways = [
       <p class="note">
         In a checkout, <code>airtty</code> is <code>bun packages/airtty/src/cli.ts</code>: nothing is
         published yet. How apps are shipped, and when an app you did not write runs confined: <a
-          href={doc("DISTRIBUTION.md")}>DISTRIBUTION.md</a
-        >, <a href={doc("EMBEDDING.md")}>EMBEDDING.md</a> (in French).
+          href="/docs/guides/opening-an-app/">opening an app</a
+        >, <a href="/docs/guides/untrusted-apps/">apps you did not write</a>.
       </p>
     </div>
   </div>

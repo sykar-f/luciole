@@ -1,0 +1,135 @@
+---
+title: Routing
+description: The app/ directory is the route tree. Pages, layouts, params, groups and catch-alls, and how TanStack Router drives navigation from them.
+sources:
+  - docs/ROUTER.md
+  - docs/API.md
+  - packages/airtty/src/route-graph.ts
+  - packages/airtty/src/route-tree.tsx
+  - examples/notes/app
+---
+
+import Excerpt from "../../../components/guide/Excerpt.astro";
+import Note from "../../../components/docs/Note.astro";
+
+Routes are files under `app/`. The build compiles them into a route tree for
+[TanStack Router](https://tanstack.com/router), which is the Client's only authority on
+navigation: matching, params, layouts, pending state, cancellation and its cache. Pages
+render on the Server and reach their route's loader as a Flight value.
+
+```text
+RouterProvider + memory history
+  └── app/layout.tsx (Client, persistent)
+      └── nested layout.tsx (Client, persistent)
+          └── page: loader → Transport.render(routeId, params, signal) → Flight tree
+```
+
+## Files
+
+| File            | Side   | Role                                                                                                  |
+| --------------- | ------ | ----------------------------------------------------------------------------------------------------- |
+| `page.tsx`      | Server | The page of this directory's URL. Never enters the Client bundle.                                     |
+| `layout.tsx`    | Client | Wraps every page below it and stays mounted between them. `app/layout.tsx` is required.               |
+| `loading.tsx`   | Client | Shown in place of the page while it loads ([loading and errors](/docs/concepts/loading-and-errors/)). |
+| `error.tsx`     | Client | Shown in place of a page that failed to load or render.                                               |
+| `not-found.tsx` | Client | Shown when a page calls `notFound()`, and for a URL no page matches (`app/not-found.tsx`).            |
+
+A layout, loading, error or not-found file must declare `"use client"` and a default
+export, or the build fails with the file and line. A layout receives `{ children, params }`;
+`children` is where the routes below it render.
+
+## Segments
+
+| Directory name | Meaning                                                                                                    |
+| -------------- | ---------------------------------------------------------------------------------------------------------- |
+| `notes`        | A static segment. Static routes win over dynamic ones at the same level.                                   |
+| `[id]`         | A param: `params.id` in the page, `useParams()` in the Client.                                             |
+| `[...name]`    | A catch-all of one or more segments (`params.name` is `guide/install/linux`). Last in the path, no layout. |
+| `(group)`      | Not in the URL. With a `layout.tsx`, a layout without a path segment.                                      |
+
+The build fails, naming the files, on two pages with the same URL once groups are removed,
+two equivalent dynamic patterns (`/users/[id]` and `/users/[slug]`), a repeated param or a
+malformed segment. Optional params (`[[...name]]`) and persistent Server layouts are not
+supported.
+
+## Layouts that stay
+
+A layout stays mounted as long as the destination is under its segment: its local state,
+focus and scroll survive navigations between its pages. Notes keeps a trail of the notes
+opened during the visit in its nested layout:
+
+<Excerpt
+  path="examples/notes/app/notes/layout.tsx"
+  find="export default function NotesLayout"
+  until="^}"
+  mark={["useState", "setTrail"]}
+  tone="client"
+/>
+
+## Navigating
+
+The build writes `app/routeTree.gen.ts`. Commit it and do not edit it: it registers the
+app's routes with TanStack, so `to`, `params` and `useParams` are type-checked against this
+app's files. A route that does not exist, or a missing param, is a TypeScript error.
+
+Navigate from a Client Component with the hooks `airtty/client` re-exports. There is no
+`<Link>`: it renders a DOM anchor.
+
+<Excerpt
+  path="examples/notes/components/NoteList.tsx"
+  find="onSelect={"
+  count={3}
+  mark={["navigate("]}
+  tone="client"
+/>
+
+- The last navigation wins: one that replaces another aborts the other's loader, and a late
+  response never changes the screen.
+- The loading screen shows at once. <kbd>Esc</kbd> (`useApplication().cancel()`) goes back
+  to the last resolved route without reloading it.
+- `refresh()` reloads the current route; the tree stays mounted while it does, so a field
+  keeps its focus and its text.
+
+## Search params
+
+Every page accepts search params, as **strings**, like a URL's (`"42"` stays `"42"`). Each
+search is a separate page, rendered by the Server and cached apart; back and forward
+restore it.
+
+```tsx
+void navigate({ to: "/repos/$repo", params: { repo }, search: { state: "merged" } });
+
+// The page, on the Server
+export default function Page({
+  params,
+  searchParams,
+}: {
+  params: { repo: string };
+  searchParams: Record<string, string>;
+}) {}
+```
+
+The Server validates search params like params: at most 32 keys matching `[\w.-]{1,64}`,
+values up to 1,000 characters, otherwise `400`. `useSearch()` reads them in the Client. A
+filter that must answer every keystroke stays local state.
+
+## Preloading
+
+`useRouter().preloadRoute({ to, params })` renders a page in the background. The next
+navigation to it shows it without waiting for the network, as long as the preloaded tree is
+fresh (TanStack's `preloadStaleTime`, 30 s). Preloading goes through the same loader:
+authentication and cache purges apply.
+
+## Streaming beyond the first answer
+
+A page can pass a Client Component a `Promise` (read with `use()` under `Suspense`) or an
+async iterable: Flight delivers them in the same response as they resolve. The transport's
+timeout only bounds the wait for the root of the answer. For a stream tied to what the
+screen shows, prefer [`useLive`](/docs/concepts/server-functions/#live-server-functions):
+an async iterable is read once, and a cached tree can be mounted again.
+
+<Note>
+  The Server does no path matching: it receives a route ID and params, and checks both on every
+  render. An unknown route answers `404`, missing, extra or non-text params `400`, and a protected
+  page without a session `401`.
+</Note>

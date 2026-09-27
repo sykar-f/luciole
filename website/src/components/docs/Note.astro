@@ -1,0 +1,59 @@
+---
+// An aside, titled the same way each time so the reader learns to spot it: a note to
+// keep in mind, or a warning about what goes wrong.
+interface Props {
+  kind?: "note" | "warning";
+  title?: string;
+}
+
+const { kind = "note", title } = Astro.props;
+const heading = { note: "Note", warning: "Warning" }[kind];
+---
+
+<aside class={`note ${kind}`}>
+  <p class="title">{heading}{title && <span> · {title}</span>}</p>
+  <div class="content"><slot /></div>
+</aside>
+
+<style>
+  .note {
+    margin: 1.6em 0 !important;
+    padding: 12px 18px 14px;
+    border: 1px solid var(--rule-strong);
+    border-left: 2px solid var(--mist);
+    background: var(--night-raised);
+    font-size: 0.94rem;
+  }
+
+  .title {
+    margin-bottom: 4px;
+    color: var(--paper);
+    font: 600 0.74rem / 1.4 var(--mono);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .title span {
+    font-weight: 500;
+    letter-spacing: 0;
+    text-transform: none;
+  }
+
+  .content > :global(* + *) {
+    margin-top: 0.6em;
+  }
+
+  .content :global(ul) {
+    margin: 0;
+  }
+
+  .warning {
+    border-color: color-mix(in srgb, var(--fault) 30%, transparent);
+    border-left-color: var(--fault);
+    background: color-mix(in srgb, var(--fault) 5%, transparent);
+  }
+
+  .warning .title {
+    color: var(--fault);
+  }
+</style>

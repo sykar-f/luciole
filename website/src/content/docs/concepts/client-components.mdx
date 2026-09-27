@@ -1,0 +1,118 @@
+---
+title: Client Components
+description: '"use client" marks what runs in the terminal: keys, focus, local state. How the build draws the boundary, keeps modules on one side and checks packages.'
+sources:
+  - docs/BOUNDARIES.md
+  - docs/API.md
+  - examples/notes/components/NoteEditor.tsx
+  - examples/forge/components/editor.ts
+  - packages/airtty/src/build.ts
+---
+
+import Excerpt from "../../../components/guide/Excerpt.astro";
+import Note from "../../../components/docs/Note.astro";
+
+A module that starts with `"use client"` runs in the user's terminal. It holds what a
+network round trip must never slow down: every key, the focus, scrolling, local state and
+loading animations. Everything it imports, directly or not, joins the Client's bundle.
+
+<Excerpt
+  path="examples/notes/components/NoteEditor.tsx"
+  find='"use client"'
+  count={1}
+  tone="client"
+/>
+
+Client Components are ordinary React components rendering OpenTUI elements (`box`,
+`text`, `input`, `select`, `scrollbox`…). Layouts, loading, error and not-found files are
+always Client Components.
+
+## The boundary
+
+`"use client"` cuts the Server's graph. A page that imports a Client Component receives a
+**reference** to it: the build generates a Client Reference per runtime export, and the
+Client's bundle registers the modules they point to. Types alone create no edge.
+
+The directive is recognised only in the module's prologue, through the TypeScript AST; no
+regular expression rewrites it.
+
+## Keys
+
+The framework declares only <kbd>Ctrl+C</kbd> (quit) and, during a navigation,
+
+<kbd>Esc</kbd> (cancel), in the `airtty` group. Every other key belongs to the app, through
+OpenTUI's keymap re-exported by `airtty/client`:
+
+<Excerpt
+  path="examples/notes/components/NoteEditor.tsx"
+  find="useBindings("
+  until="[save, recover"
+  mark={['key: "ctrl+s"']}
+  tone="client"
+/>
+
+A layer of bindings lives with its component: leaving a page removes its keys and their
+help. `<KeyHelp inline groups={["note"]} />` draws the help from the active bindings that
+declare a `desc`. OpenTUI's `useKeyboard` still works beside it.
+
+## Staying on one side
+
+| Intention                              | How                                                           |
+| -------------------------------------- | ------------------------------------------------------------- |
+| A component the Server renders         | `"use client"`: the boundary, the Server receives a reference |
+| Code that must never reach the Client  | `import "server-only"`, or a file under `server/`             |
+| Code that must never run on the Server | `import "client-only"`                                        |
+
+`"use client"` and `client-only` are not the same thing. A page may import a
+`"use client"` module and receives references from it. A module importing `client-only`
+must not be reached from the Server's graph outside a `"use client"` boundary, or the build
+fails. Both sides run on Bun: code meant for the user's terminal (`$EDITOR`, `~/.config`,
+the clipboard) would not crash on the Server, it would act on the wrong machine.
+Forge's editor launcher is the example in the repository:
+
+<Excerpt
+  path="examples/forge/components/editor.ts"
+  find='import "client-only"'
+  until="build refuses this module"
+  mark={['import "client-only"']}
+  tone="client"
+/>
+
+The markers need no package: the build resolves them to empty modules, and
+`airtty/tsconfig` declares them so `tsc` accepts the import. There is no `*.server.*` or
+`*.client.*` suffix.
+
+The Client's graph refuses modules under `server/`, anything that imports `server-only`,
+`airtty/server`, and `require()` or dynamic `import()` in the app's sources.
+
+## Packages
+
+A Client Component imports any installed package without declaring it; the bundler takes it
+with its dependencies. The markers work for packages too: a package that imports
+`server-only` or `airtty/server` and reaches the Client, or `client-only` and reaches the
+Server, fails the build. A third-party package that declares nothing can be put on the
+Server's side in an optional `airtty.json`:
+
+```json
+{ "serverPackages": ["@prisma/client", "bcrypt"] }
+```
+
+Every boundary error prints the whole chain, from the page:
+
+```text
+Client package db-client imports server-only: it is Server-only
+  via app/page.tsx → components/widget.tsx → lib/format.ts → db-client/index.js → server-only
+```
+
+<Note kind="warning">
+  These checks protect the boundary between Client and Server; they are not a sandbox. A package's
+  code runs with the rights of its process. Built-ins such as `node:fs` do not decide a side either:
+  a module that opens the Server's database must say `server-only`, or it would be bundled into the
+  Client and open a database on the user's machine.
+</Note>
+
+## Imports
+
+App imports are relative paths, with or without extensions, or subpath imports (`#name`,
+from the nearest `package.json`'s `imports`); a subpath import counts for all its targets.
+Path aliases from `tsconfig` are not supported by this compiler.

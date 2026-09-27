@@ -1,0 +1,102 @@
+---
+title: Getting started
+description: Run the Notes example, make a first visible change, slow the network down and create an app of your own.
+sources:
+  - examples/notes
+  - packages/airtty/src/commands/init.ts
+  - packages/airtty/src/commands/dev.ts
+---
+
+import CopyCommand from "../../components/CopyCommand.astro";
+import Note from "../../components/docs/Note.astro";
+import Src from "../../components/guide/Src.astro";
+import { repo } from "../../lib/links";
+import { commands, envPrefix } from "../../lib/product";
+
+export const clone = repo.split("/").at(-1);
+
+You will run Notes, the example app of the home page, change what it draws, and create an
+app of your own. Both sides, client and server, run on your machine. Every command on this
+page was run as written.
+
+## What you need
+
+- macOS or Linux, and git.
+- **Bun 1.4.2**, the version the repository pins:
+
+<CopyCommand lines={["curl -fsSL https://bun.sh/install | bash -s bun-v1.4.2"]} />
+
+Nothing is published on a registry yet: you work from a clone of the repository.
+
+## 1. Run Notes
+
+<CopyCommand
+  lines={[`git clone ${repo} && cd ${clone}`, "bun install --frozen-lockfile", "bun run dev"]}
+/>
+
+One command builds both programs and starts them: the server, with a SQLite database
+created as `notes.sqlite` in the current directory, and the terminal client. In the list,
+move with the arrows and open a note with <kbd>Enter</kbd>. In a note, <kbd>Enter</kbd> or
+
+<kbd>Ctrl+S</kbd> saves, <kbd>Esc</kbd> goes back to the list. <kbd>Ctrl+C</kbd> quits and restores
+the terminal.
+
+## 2. Make a first change
+
+Leave it running and open <Src path="examples/notes/components/NoteList.tsx" />, a client
+component. Change the heading:
+
+```diff
+-      <text>YOUR NOTES</text>
++      <text>MY NOTES</text>
+```
+
+Save the file. The dev server rebuilds and restarts both processes, and the client reopens
+the same screen, with the new heading, in a couple of seconds. The route, the history and
+the text of named fields come back; state held only in memory does not: there is no Fast
+Refresh ([session restore](/docs/concepts/session-restore/)).
+
+## 3. Slow the network down
+
+Quit with <kbd>Ctrl+C</kbd>, then start again with half a second added to every request:
+
+<CopyCommand lines={[`${envPrefix}_LATENCY_MS=500 bun run dev`]} />
+
+Open a note: a loading screen shows at once, drawn by the client, while the page travels.
+Type, save with <kbd>Enter</kbd>, and keep typing: the keys are handled in the terminal
+while the save waits for the server. The delay is simulated per request, not a network
+emulation ([latency and faults](/docs/guides/latency-and-faults/)).
+
+## 4. Create your own app
+
+From the root of the clone:
+
+<CopyCommand
+  lines={[`${commands.fromClone} init ../my-app`, "cd ../my-app", "bun install", "bun run dev"]}
+/>
+
+The starter is a copy of Notes to reshape, in one codebase. Its `airtty` dependency points
+at your clone (`file:`), which has to stay where it is.
+
+| Directory     | What goes there                                                                                               |
+| ------------- | ------------------------------------------------------------------------------------------------------------- |
+| `app/`        | Routes as files: `page.tsx` pages render on the server; `layout.tsx` and `loading.tsx` are client components. |
+| `components/` | Client components, marked `"use client"`: they handle the keyboard.                                           |
+| `actions/`    | Server Functions, marked `"use server"`: the client calls them like functions.                                |
+| `server/`     | Code that only the server runs: the database, queries, checks.                                                |
+
+The starter's scripts call the installed CLI: `bun run dev` is `airtty dev --app .`,
+`bun run build` is `airtty build --app .`, `bun run check` type-checks and `bun run verify`
+runs the checks, lint, format and build together.
+
+<Note>
+  In the clone, <code>{commands.fromClone}</code> runs the same commands as `airtty` without
+  installing anything. The [CLI reference](/docs/reference/cli/) lists them all.
+</Note>
+
+## Next
+
+- [Client and server](/docs/concepts/client-and-server/): what each program contains, and
+  what travels between them.
+- [Anatomy of an app](/docs/guides/anatomy-of-an-app/): the files of Notes, one by one.
+- [The examples](/examples/), each one command away.
