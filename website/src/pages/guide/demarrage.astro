@@ -48,8 +48,10 @@ import Quiz from "../../components/guide/Quiz.astro";
   />
 
   <Step n="1–2" tone="neutral" where="Superviseur" title="Construire, puis lancer le Server sur un port libre">
-    <p>Le superviseur construit (chapitre 2), lie <code>.airtty/node_modules</code> aux dépendances du framework, et seulement ensuite arrête les anciens processus. Le Server est lancé avec la condition <code>react-server</code> et <code>PORT=0</code> : le système choisit le port.</p>
-    <Excerpt path="packages/airtty/src/commands/dev.ts" find="await build(directory);" count={13} mark={["await build(directory);", "await Promise.all([stop(client), stop(server)]);", 'PORT: process.env.PORT ?? "0"'] } />
+    <p>Le superviseur construit (chapitre 2), puis vérifie les arguments de l'application, ceux qui suivent <code>--</code>, avec l'<code>app/args.ts</code> que ce build vient de produire : le schéma a pu changer. Au premier build, <code>--help</code> affiche l'aide générée et s'arrête, et un refus termine <code>airtty dev</code> (code 2 pour une erreur d'usage). Aux builds suivants, un refus devient une erreur de build comme une autre.</p>
+    <Excerpt path="packages/airtty/src/commands/dev.ts" find="await build(directory);" until="first = false;" mark={["await build(directory);", "args = await checkArgs(definition, rest, { cwd, name });"]} />
+    <p>Il lie ensuite <code>.airtty/node_modules</code> aux dépendances du framework, et seulement alors arrête les anciens processus. Le Server est lancé avec la condition <code>react-server</code> et <code>PORT=0</code> : le système choisit le port. Son environnement porte aussi les arguments vérifiés (<code>AIRTTY_ARGS</code>, que le Server relit et analyse à nouveau) et <code>AIRTTY_LAUNCH</code>, qui lui dit qu'il sert ce seul lancement, avec l'identifiant de session comme id.</p>
+    <Excerpt path="packages/airtty/src/commands/dev.ts" find="if (closing) break;" until='PORT: process.env.PORT ?? "0"' mark={["await Promise.all([stop(client), stop(server)]);", 'PORT: process.env.PORT ?? "0"']} />
     <p>L'ordre compte : <code>stop()</code> vient <em>après</em> <code>build()</code>. Si le build échoue, l'exception saute l'arrêt et l'ancien couple Server et Client continue de tourner.</p>
   </Step>
 

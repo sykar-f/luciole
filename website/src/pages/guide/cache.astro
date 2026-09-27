@@ -69,6 +69,7 @@ const H = 88;
   <Step n="2" tone="server" title="La clé : build ID, fonction, arguments">
     <Excerpt path="packages/airtty/src/cache/codec.ts" find="export async function keyOf(" until="^}" tone="server" />
     <p>Les arguments sont encodés avec le même format que ceux d'une Server Function. Pour <code>noteOf("local", "1")</code> sur le build <code>e0149…</code>, la clé vaut <code>6130e19d…987fed</code>. Un nouveau build change la clé : il ne lit jamais les entrées d'un autre.</p>
+    <p>Quand l'app déclare des arguments (<code>app/args.ts</code>), le Server ajoute leur empreinte au build ID qu'il donne au cache : deux Servers lancés avec des arguments différents gardent leurs résultats à part, même dans un <code>sqliteCache</code> partagé.</p>
   </Step>
 
   <Step n="3–9" tone="server" title="hit, stale ou miss">
