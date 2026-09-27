@@ -17,7 +17,7 @@
  */
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { parseArgs } from "node:util";
 import { z } from "zod";
 import type { HarnessId, Item, Usage } from "../../packages/harness/src/model";
@@ -28,7 +28,7 @@ import { create, pick, START } from "../../examples/studio/server/harness";
 import { policy } from "../../examples/studio/server/policy";
 import { isolationProblem, PreviewServers } from "../../examples/studio/server/preview";
 import { Project } from "../../examples/studio/server/project";
-import { SCENARIOS } from "../../examples/studio/server/scenarios";
+import { SCENARIOS, startingPoint, type Scenario } from "../../examples/studio/server/scenarios";
 import { prepare } from "../../examples/studio/server/validate";
 
 const MAX_FIXES = 5;
@@ -79,10 +79,21 @@ type Run = {
   items?: readonly Item[];
 };
 
-/** One prompt in a fresh project, then studio's corrections, as studio would send them. */
-async function measure(prompt: string): Promise<Omit<Run, "scenario">> {
+/**
+ * One prompt in a fresh project (with the files of the scenario it continues), then
+ * studio's corrections, as studio would send them.
+ */
+async function measure(scenario: Scenario): Promise<Omit<Run, "scenario">> {
+  const { prompt } = scenario;
   const root = realpathSync(mkdtempSync(join(tmpdir(), "studio-measure-")));
   const project = Project.open(join(root, "app"));
+  const start = Object.entries(startingPoint(scenario));
+  for (const [path, content] of start) {
+    const file = join(project.directory, path);
+    mkdirSync(dirname(file), { recursive: true });
+    writeFileSync(file, content);
+  }
+  if (start.length) project.commit(scenario.after ?? "start");
   const servers = new PreviewServers(project, isolationProblem("sandbox") ? "process" : "sandbox");
   let ended: (() => void) | undefined;
   const session = new HarnessSession({
@@ -157,7 +168,7 @@ async function measure(prompt: string): Promise<Omit<Run, "scenario">> {
 
 const runs: Run[] = [];
 for (const scenario of scenarios) {
-  const run = { scenario: scenario.name, ...(await measure(scenario.prompt)) };
+  const run = { scenario: scenario.name, ...(await measure(scenario)) };
   runs.push(run);
   const last = run.attempts.at(-1);
   console.log(

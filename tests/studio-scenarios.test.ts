@@ -17,7 +17,12 @@ import {
   type PreviewMode,
 } from "../examples/studio/server/preview";
 import { Project } from "../examples/studio/server/project";
-import { SCENARIOS, type Scenario, type Turn } from "../examples/studio/server/scenarios";
+import {
+  SCENARIOS,
+  startingPoint,
+  type Scenario,
+  type Turn,
+} from "../examples/studio/server/scenarios";
 import { prepare } from "../examples/studio/server/validate";
 
 const MODE: PreviewMode = isolationProblem("sandbox") ? "process" : "sandbox";
@@ -33,12 +38,9 @@ function write(project: Project, turn: Turn) {
 
 /** The files of the scenario `scenario` continues, committed: where it starts from. */
 function startFrom(project: Project, scenario: Scenario) {
-  const before = SCENARIOS.find((s) => s.name === scenario.after);
   if (!scenario.after) return;
-  if (!before?.turns[0]) throw new Error(`${scenario.name} continues an unknown scenario`);
-  for (const draft of before.drafts ?? []) write(project, draft);
-  write(project, before.turns[0]);
-  project.commit(before.name);
+  write(project, startingPoint(scenario));
+  project.commit(scenario.after);
 }
 
 /** The first stage a turn fails at, or `ok`, as studio would find it. */

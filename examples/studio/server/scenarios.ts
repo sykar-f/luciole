@@ -489,3 +489,13 @@ export const SCENARIOS: Scenario[] = [
     turns: [{ "components/Guestbook.tsx": guestbook("Guestbook · {entries.length} signatures") }],
   },
 ];
+
+/** The files `scenario` starts from: those of the scenario it continues, as written. */
+export function startingPoint(scenario: Scenario): Turn {
+  if (!scenario.after) return {};
+  const before = SCENARIOS.find((s) => s.name === scenario.after);
+  if (!before?.turns[0]) throw new Error(`${scenario.name} continues an unknown scenario`);
+  const files: Turn = {};
+  for (const turn of [...(before.drafts ?? []), before.turns[0]]) Object.assign(files, turn);
+  return files;
+}
