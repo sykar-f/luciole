@@ -1,6 +1,7 @@
 // The palette's colours, put into bytes built with stand-ins (lib/frames.ts): read from
 // the page's tokens when they are written, so a terminal follows the preset in use.
 import { dim, strength } from "./afterglow";
+import { hex } from "./colour";
 
 /** `r;g;b` of each stand-in, as it appears after `38;2;` or `48;2;`. */
 const STAND_INS = { "1;2;3": "background", "1;2;4": "foreground", "1;2;5": "hot", "1;2;6": "warm" } as const;
@@ -12,12 +13,11 @@ const channels = (hex: string) =>
 /** The screen's colours in the current palette, as `#rrggbb`. */
 export function screenColours() {
   const style = getComputedStyle(document.documentElement);
-  const token = (name: string) => style.getPropertyValue(name).trim();
-  const share = (name: string) => Number.parseFloat(token(name)) / 100 || 0;
+  const share = (name: string) => Number.parseFloat(style.getPropertyValue(name)) / 100 || 0;
   return {
-    background: token("--screen"),
-    foreground: token("--screen-fg"),
-    afterglow: token("--afterglow"),
+    background: hex("--screen"),
+    foreground: hex("--screen-fg"),
+    afterglow: hex("--afterglow"),
     hot: share("--afterglow-hot"),
     warm: share("--afterglow-warm"),
   };

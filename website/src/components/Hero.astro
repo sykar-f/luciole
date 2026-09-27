@@ -139,14 +139,14 @@ const { version } = JSON.parse(manifest) as { version: string };
   @keyframes caret {
     from,
     to {
-      border-right-color: var(--paper);
+      border-right-color: var(--dominant);
     }
   }
 
   @keyframes blink {
     0%,
     50% {
-      border-right-color: var(--paper);
+      border-right-color: var(--dominant);
     }
     50.01%,
     100% {
@@ -194,7 +194,7 @@ const { version } = JSON.parse(manifest) as { version: string };
     }
 
     .typed.last {
-      border-right-color: var(--paper);
+      border-right-color: var(--dominant);
     }
   }
 </style>

@@ -241,6 +241,15 @@ const dropped = [
     color: var(--server);
   }
 
+  /* The side's glyph where Client and Server share a hue (the encoding's). */
+  .where::before {
+    content: var(--client-glyph);
+  }
+
+  .where.remote::before {
+    content: var(--server-glyph);
+  }
+
   .what {
     margin-top: 6px;
     color: var(--mist);

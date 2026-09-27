@@ -101,6 +101,7 @@ const faults = [
 
 <script>
   import * as z from "zod/mini";
+  import { hex } from "../lib/colour";
 
   const TIMELINE_ROWS = 12;
   const KB = 1024;
@@ -120,17 +121,20 @@ const faults = [
     const context = canvas.getContext("2d");
     // The screen's colours of the palette, read again when it changes (the "palette" event).
     const read = () => {
-      const style = getComputedStyle(document.documentElement);
-      const token = (name: string) => style.getPropertyValue(name).trim();
+      const token = (name: string) =>
+        getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+      // The Server's trace dashed where Client and Server share a hue (--server-dash).
+      const dash = token("--server-dash").split(/\s+/).map(Number).filter((n) => n > 0);
       return {
-        client: token("--screen-client"),
-        server: token("--screen-server"),
-        fault: token("--screen-fault"),
-        grid: token("--screen-rule"),
+        client: hex("--screen-client"),
+        server: hex("--screen-server"),
+        fault: hex("--screen-fault"),
+        grid: hex("--screen-rule"),
         blur: Number.parseFloat(token("--glow-blur")) || 0,
+        dash,
       };
     };
-    let { client, server, fault, grid, blur } = read();
+    let { client, server, fault, grid, blur, dash } = read();
     const keys: number[] = [];
     const requests = new Map<number, { from: number; to?: number; failed?: boolean }>();
     const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -163,7 +167,8 @@ const faults = [
       context.stroke();
       context.setLineDash([]);
 
-      const trace = (stroke: string, path: () => void) => {
+      const trace = (stroke: string, path: () => void, pattern: number[] = []) => {
+        context.setLineDash(pattern);
         context.strokeStyle = stroke;
         context.shadowColor = stroke;
         context.shadowBlur = blur;
@@ -172,6 +177,7 @@ const faults = [
         path();
         context.stroke();
         context.shadowBlur = 0;
+        context.setLineDash([]);
       };
 
       trace(client, () => {
@@ -199,7 +205,7 @@ const faults = [
           context.lineTo(end, two);
         }
         context.lineTo(width, two);
-      });
+      }, dash);
       // A lost or cut answer: its pulse ends torn, in the fault's colour.
       for (const pulse of pulses) {
         if (!pulse.failed || pulse.to === undefined) continue;
@@ -231,7 +237,7 @@ const faults = [
     };
     new ResizeObserver(() => draw(performance.now())).observe(canvas);
     document.addEventListener("palette", () => {
-      ({ client, server, fault, grid, blur } = read());
+      ({ client, server, fault, grid, blur, dash } = read());
       draw(performance.now());
     });
     return {
@@ -511,12 +517,14 @@ const faults = [
 
   .timeline :global(.pending) {
     border-left-color: var(--server);
+    border-left-style: var(--server-line);
     color: var(--paper);
   }
 
   .timeline :global(.done),
   .timeline :global(.server) {
     border-left-color: var(--server);
+    border-left-style: var(--server-line);
     color: var(--server);
   }
 

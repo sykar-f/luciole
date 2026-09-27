@@ -1,14 +1,17 @@
-/* The palettes: every colour of the site, and nothing else. Written by
-   scripts/palettes.py, which checks them: edit the presets there, not here.
-   A preset sets these tokens on the root; styles/global.css derives the soft tints.
-   Phosphor is the default. The screens (--screen*) keep their own colours: in the light
-   preset they stay dark, as terminals do. */
+/* The colours of the site, on three axes set on the root element (written by
+   scripts/palettes.py, which checks every combination: edit it there, not here):
+   - data-tint: the background and the neutrals tuned to it;
+   - data-dominant: links, the main button, the cursor, the Live badge, the afterglow;
+   - data-encoding: Client and Server, derived below from the dominant (sRGB mixes with
+     white or black, HSL hue turns: always inside sRGB), or the classic green and amber.
+     Encodings from one hue add a cue that is not colour: Server lines dashed, Server
+     marks hollow, and a glyph before the words.
+   Without attributes: warm, neutral, classic, the D1 phosphor. */
 
-/* Phosphor: P1 green and P3 amber on warm black, the D1 direction. */
+/* Warm neutral: phosphor's black. */
 :root,
-:root[data-palette="phosphor"] {
+:root[data-tint="warm"] {
   color-scheme: dark;
-
   --night: #0b0a07;
   --night-raised: #14120c;
   --night-deep: #070604;
@@ -18,30 +21,122 @@
   --prose: #d8d1be;
   --mist: #a39c88;
   --dim: #8a8472;
-  --client: #33ff99;
-  --server: #ffa000;
+  --screen: #070604;
+  --screen-fg: #e8e1cf;
+  --screen-rule: #2a2618;
+  --panel: #070604;
+  --code-bg: #070604;
+  --code-comment: #8a8472;
   --fault: #ff4d3d;
   --wire: #a9b8ff;
   --build: #c9a8ff;
-  --panel: #070604;
-  --code-bg: #070604;
   --code-function: #f4eedf;
-  --code-comment: #8a8472;
   --code-keyword: #c7b8e8;
   --code-type: #a9c4d6;
   --code-string: #cfc39a;
   --code-number: #e6a6a0;
   --code-attr: #c2b9a3;
   --code-punct: #9b9480;
-  --screen: #070604;
-  --screen-fg: #e8e1cf;
-  --screen-rule: #2a2618;
-  --screen-client: #33ff99;
-  --screen-server: #ffa000;
-  --screen-fault: #ff4d3d;
+}
 
-  /* The screens' glass and afterglow: a written cell starts hot, cools warm, then goes. */
-  --afterglow: var(--screen-client);
+/* Blue black. */
+:root[data-tint="blue"] {
+  color-scheme: dark;
+  --night: #080a10;
+  --night-raised: #101218;
+  --night-deep: #050608;
+  --rule: #212633;
+  --rule-strong: #313747;
+  --paper: #dae1f3;
+  --prose: #cad1e4;
+  --mist: #959caf;
+  --dim: #7d8495;
+  --screen: #050608;
+  --screen-fg: #dae1f3;
+  --screen-rule: #212633;
+  --panel: #050608;
+  --code-bg: #050608;
+  --code-comment: #7d8495;
+  --fault: #ff4d3d;
+  --wire: #a9b8ff;
+  --build: #c9a8ff;
+  --code-function: #f4eedf;
+  --code-keyword: #c7b8e8;
+  --code-type: #a9c4d6;
+  --code-string: #cfc39a;
+  --code-number: #e6a6a0;
+  --code-attr: #c2b9a3;
+  --code-punct: #9b9480;
+}
+
+/* Green black. */
+:root[data-tint="green"] {
+  color-scheme: dark;
+  --night: #070b0a;
+  --night-raised: #0c1412;
+  --night-deep: #040706;
+  --rule: #182a26;
+  --rule-strong: #263c38;
+  --paper: #d0e7e2;
+  --prose: #c0d7d2;
+  --mist: #89a39d;
+  --dim: #738a85;
+  --screen: #040706;
+  --screen-fg: #d0e7e2;
+  --screen-rule: #182a26;
+  --panel: #040706;
+  --code-bg: #040706;
+  --code-comment: #738a85;
+  --fault: #ff4d3d;
+  --wire: #a9b8ff;
+  --build: #c9a8ff;
+  --code-function: #f4eedf;
+  --code-keyword: #c7b8e8;
+  --code-type: #a9c4d6;
+  --code-string: #cfc39a;
+  --code-number: #e6a6a0;
+  --code-attr: #c2b9a3;
+  --code-punct: #9b9480;
+}
+
+/* Violet black. */
+:root[data-tint="violet"] {
+  color-scheme: dark;
+  --night: #0b0914;
+  --night-raised: #121117;
+  --night-deep: #060608;
+  --rule: #262431;
+  --rule-strong: #373546;
+  --paper: #e1dff1;
+  --prose: #d1cfe2;
+  --mist: #9c99ae;
+  --dim: #848294;
+  --screen: #060608;
+  --screen-fg: #e1dff1;
+  --screen-rule: #262431;
+  --panel: #060608;
+  --code-bg: #060608;
+  --code-comment: #848294;
+  --fault: #ff4d3d;
+  --wire: #a9b8ff;
+  --build: #c9a8ff;
+  --code-function: #f4eedf;
+  --code-keyword: #c7b8e8;
+  --code-type: #a9c4d6;
+  --code-string: #cfc39a;
+  --code-number: #e6a6a0;
+  --code-attr: #c2b9a3;
+  --code-punct: #9b9480;
+}
+
+/* The screens' glass and afterglow, and what derives from the axes. */
+:root {
+  --screen-client: var(--client);
+  --screen-server: var(--server);
+  --screen-fault: var(--fault);
+  --afterglow: var(--dominant);
+  --live: var(--dominant);
+  --link: var(--dominant);
   --afterglow-hot: 30%;
   --afterglow-warm: 14%;
   --glow-blur: 6px;
@@ -50,318 +145,153 @@
   --page-texture: none;
 }
 
-/* Amber mono: an IBM 3278 or Wyse tube, all amber, the Client the brightest. */
-:root[data-palette="amber-mono"] {
-  color-scheme: dark;
-
-  --night: #0d0800;
-  --night-raised: #191206;
-  --night-deep: #080500;
-  --rule: #2c2111;
-  --rule-strong: #42331c;
-  --paper: #ffcc80;
-  --prose: #e9ba74;
-  --mist: #b9935b;
-  --dim: #a1804e;
-  --client: #ffe7b8;
-  --server: #ff9d00;
-  --fault: #ff5f3a;
-  --wire: #e8b7ff;
-  --build: #ffb3c7;
-  --panel: #080500;
-  --code-bg: #080500;
-  --code-function: #ffcc80;
-  --code-comment: #a1804e;
-  --code-keyword: #ffbdab;
-  --code-type: #f1bfcc;
-  --code-string: #e0b26f;
-  --code-number: #ffa064;
-  --code-attr: #e9ba74;
-  --code-punct: #b9935b;
-  --screen: #080500;
-  --screen-fg: #ffcc80;
-  --screen-rule: #2b2112;
-  --screen-client: #ffe7b8;
-  --screen-server: #ff9d00;
-  --screen-fault: #ff5f3a;
-
-  /* The screens' glass and afterglow: a written cell starts hot, cools warm, then goes. */
+/* No dominant: the text colour, as phosphor has it. Links keep their text's colour; the afterglow and the Live badge keep the Client's. */
+:root:not([data-dominant]),
+:root[data-dominant="neutral"] {
+  --dominant: var(--paper);
+  --lift: 60%;
+  --deep: 78%;
+  --lift-turned: 60%;
+  --deep-turned: 78%;
   --afterglow: var(--screen-client);
-  --afterglow-hot: 30%;
-  --afterglow-warm: 14%;
-  --glow-blur: 6px;
-  --scanline: rgb(0 0 0 / 0.2);
-  --vignette: rgb(0 0 0 / 0.45);
-  --page-texture: none;
+  --live: var(--screen-client);
+  --link: initial;
 }
 
-/* Green mono: a VT100 P1 tube, green on green, the Client the brightest. */
-:root[data-palette="green-mono"] {
-  color-scheme: dark;
-
-  --night: #040a05;
-  --night-raised: #0c160e;
-  --night-deep: #030603;
-  --rule: #19281c;
-  --rule-strong: #283d2c;
-  --paper: #a8f0b8;
-  --prose: #91d09f;
-  --mist: #74a67f;
-  --dim: #638f6d;
-  --client: #d8ffe2;
-  --server: #22d860;
-  --fault: #ff6b5a;
-  --wire: #9fd4ff;
-  --build: #d9b8ff;
-  --panel: #030603;
-  --code-bg: #030603;
-  --code-function: #a8f0b8;
-  --code-comment: #638f6d;
-  --code-keyword: #c5cee3;
-  --code-type: #a3dfe3;
-  --code-string: #91cf9e;
-  --code-number: #cbbb92;
-  --code-attr: #91d09f;
-  --code-punct: #74a67f;
-  --screen: #020603;
-  --screen-fg: #a8f0b8;
-  --screen-rule: #19271c;
-  --screen-client: #d8ffe2;
-  --screen-server: #22d860;
-  --screen-fault: #ff6b5a;
-
-  /* The screens' glass and afterglow: a written cell starts hot, cools warm, then goes. */
-  --afterglow: var(--screen-client);
-  --afterglow-hot: 30%;
-  --afterglow-warm: 14%;
-  --glow-blur: 6px;
-  --scanline: rgb(0 0 0 / 0.16);
-  --vignette: rgb(0 0 0 / 0.45);
-  --page-texture: none;
+/* Glacier blue. */
+:root[data-dominant="glacier"] {
+  --dominant: #7cb8ff;
+  --lift: 60%;
+  --deep: 78%;
+  --lift-turned: 60%;
+  --deep-turned: 85%;
 }
 
-/* Paper white: a VT220 P4 white tube, ice-blue Client, orange Server. */
-:root[data-palette="paper-white"] {
-  color-scheme: dark;
-
-  --night: #0a0c0f;
-  --night-raised: #15171a;
-  --night-deep: #06080a;
-  --rule: #27292d;
-  --rule-strong: #3a3e42;
-  --paper: #e6edf5;
-  --prose: #bec4cc;
-  --mist: #979ca2;
-  --dim: #81868b;
-  --client: #a6e4ff;
-  --server: #f08a2c;
-  --fault: #ff5c5c;
-  --wire: #b4b8ff;
-  --build: #e0a8ff;
-  --panel: #06080a;
-  --code-bg: #06080a;
-  --code-function: #e6edf5;
-  --code-comment: #81868b;
-  --code-keyword: #e2c4fb;
-  --code-type: #c8cdfb;
-  --code-string: #c2c9d0;
-  --code-number: #f0b3b8;
-  --code-attr: #bec4cc;
-  --code-punct: #979ca2;
-  --screen: #060709;
-  --screen-fg: #e6edf5;
-  --screen-rule: #25272a;
-  --screen-client: #a6e4ff;
-  --screen-server: #f08a2c;
-  --screen-fault: #ff5c5c;
-
-  /* The screens' glass and afterglow: a written cell starts hot, cools warm, then goes. */
-  --afterglow: var(--screen-client);
-  --afterglow-hot: 30%;
-  --afterglow-warm: 14%;
-  --glow-blur: 6px;
-  --scanline: rgb(0 0 0 / 0.16);
-  --vignette: rgb(0 0 0 / 0.45);
-  --page-texture: none;
+/* Cobalt. */
+:root[data-dominant="cobalt"] {
+  --dominant: #5b8cff;
+  --lift: 60%;
+  --deep: 85%;
+  --lift-turned: 60%;
+  --deep-turned: 97%;
 }
 
-/* Tektronix: a storage tube, mint Client, a brighter yellow-green Server. */
-:root[data-palette="tektronix"] {
-  color-scheme: dark;
-
-  --night: #06100c;
-  --night-raised: #101b16;
-  --night-deep: #040a08;
-  --rule: #1f2d27;
-  --rule-strong: #30413a;
-  --paper: #c6f0dc;
-  --prose: #a7ccbb;
-  --mist: #85a495;
-  --dim: #728d80;
-  --client: #2fd49a;
-  --server: #f4ff7a;
-  --fault: #ff6a5a;
-  --wire: #9fc8ff;
-  --build: #d8b4ff;
-  --panel: #040a08;
-  --code-bg: #040a08;
-  --code-function: #c6f0dc;
-  --code-comment: #728d80;
-  --code-keyword: #d1ccf1;
-  --code-type: #afd8f1;
-  --code-string: #a9cebc;
-  --code-number: #ddbaa8;
-  --code-attr: #a7ccbb;
-  --code-punct: #85a495;
-  --screen: #040a07;
-  --screen-fg: #c6f0dc;
-  --screen-rule: #1f2a25;
-  --screen-client: #2fd49a;
-  --screen-server: #f4ff7a;
-  --screen-fault: #ff6a5a;
-
-  /* The screens' glass and afterglow: a written cell starts hot, cools warm, then goes. */
-  --afterglow: var(--screen-client);
-  --afterglow-hot: 30%;
-  --afterglow-warm: 14%;
-  --glow-blur: 6px;
-  --scanline: rgb(0 0 0 / 0.16);
-  --vignette: rgb(0 0 0 / 0.45);
-  --page-texture: none;
+/* Cyan. */
+:root[data-dominant="cyan"] {
+  --dominant: #5cd0f0;
+  --lift: 60%;
+  --deep: 78%;
+  --lift-turned: 60%;
+  --deep-turned: 100%;
 }
 
-/* Nostromo: Alien's MU-TH-UR consoles, pale green Client, red Server, yellow faults. */
-:root[data-palette="nostromo"] {
-  color-scheme: dark;
-
-  --night: #0a0605;
-  --night-raised: #15110f;
-  --night-deep: #060403;
-  --rule: #27221f;
-  --rule-strong: #3b3532;
-  --paper: #e9ddd0;
-  --prose: #cabfb4;
-  --mist: #a2988f;
-  --dim: #8b837b;
-  --client: #9cf2c8;
-  --server: #ff5a36;
-  --fault: #ffd23f;
-  --wire: #a8c0ff;
-  --build: #d2a8ff;
-  --panel: #060403;
-  --code-bg: #060403;
-  --code-function: #e9ddd0;
-  --code-comment: #8b837b;
-  --code-keyword: #dbbdec;
-  --code-type: #c2ccec;
-  --code-string: #c9beb3;
-  --code-number: #f2d996;
-  --code-attr: #cabfb4;
-  --code-punct: #a2988f;
-  --screen: #060403;
-  --screen-fg: #e9ddd0;
-  --screen-rule: #262220;
-  --screen-client: #9cf2c8;
-  --screen-server: #ff5a36;
-  --screen-fault: #ffd23f;
-
-  /* The screens' glass and afterglow: a written cell starts hot, cools warm, then goes. */
-  --afterglow: var(--screen-client);
-  --afterglow-hot: 30%;
-  --afterglow-warm: 14%;
-  --glow-blur: 6px;
-  --scanline: rgb(0 0 0 / 0.16);
-  --vignette: rgb(0 0 0 / 0.45);
-  --page-texture: none;
+/* Mint. */
+:root[data-dominant="mint"] {
+  --dominant: #5eead4;
+  --lift: 60%;
+  --deep: 78%;
+  --lift-turned: 60%;
+  --deep-turned: 78%;
 }
 
-/* Plasma: an orange gas-plasma panel (GRiD Compass), pale Client, deep orange Server. */
-:root[data-palette="plasma"] {
-  color-scheme: dark;
-
-  --night: #120500;
-  --night-raised: #1e0c04;
-  --night-deep: #0c0300;
-  --rule: #31180a;
-  --rule-strong: #462611;
-  --paper: #ff9a4d;
-  --prose: #ff9a4d;
-  --mist: #db8441;
-  --dim: #bf7238;
-  --client: #ffd0a1;
-  --server: #ff5a1f;
-  --fault: #ffe14d;
-  --wire: #c9b0ff;
-  --build: #ff9ecf;
-  --panel: #0c0300;
-  --code-bg: #0c0300;
-  --code-function: #ff9a4d;
-  --code-comment: #bf7238;
-  --code-keyword: #ff9c9b;
-  --code-type: #dfa7b8;
-  --code-string: #ef9048;
-  --code-number: #ffb64d;
-  --code-attr: #ff9a4d;
-  --code-punct: #db8441;
-  --screen: #0b0300;
-  --screen-fg: #ff9a4d;
-  --screen-rule: #2d180b;
-  --screen-client: #ffd0a1;
-  --screen-server: #ff5a1f;
-  --screen-fault: #ffe14d;
-
-  /* The screens' glass and afterglow: a written cell starts hot, cools warm, then goes. */
-  --afterglow: var(--screen-client);
-  --afterglow-hot: 30%;
-  --afterglow-warm: 14%;
-  --glow-blur: 6px;
-  --scanline: rgb(0 0 0 / 0.2);
-  --vignette: rgb(0 0 0 / 0.45);
-  --page-texture: none;
+/* Green. */
+:root[data-dominant="green"] {
+  --dominant: #7ee0a0;
+  --lift: 60%;
+  --deep: 78%;
+  --lift-turned: 60%;
+  --deep-turned: 78%;
 }
 
-/* Greenbar: listing paper, light, faint green bands; the terminal screens stay dark. */
-:root[data-palette="greenbar"] {
-  color-scheme: light;
+/* Violet. */
+:root[data-dominant="violet"] {
+  --dominant: #a78bfa;
+  --lift: 60%;
+  --deep: 79%;
+  --lift-turned: 60%;
+  --deep-turned: 78%;
+}
 
-  --night: #f1efe6;
-  --night-raised: #e6e4dc;
-  --night-deep: #f6f5ef;
-  --rule: #cfcdc5;
-  --rule-strong: #b0afa8;
-  --paper: #1a1a17;
-  --prose: #32312e;
-  --mist: #504f4b;
-  --dim: #63625d;
-  --client: #054a2d;
-  --server: #9a5400;
-  --fault: #b3261e;
-  --wire: #3342b8;
-  --build: #7a2fb5;
-  --panel: #f9f8f4;
-  --code-bg: #f9f8f4;
-  --code-function: #1a1a17;
-  --code-comment: #63625d;
-  --code-keyword: #542776;
-  --code-type: #293278;
-  --code-string: #32322e;
-  --code-number: #571f1a;
-  --code-attr: #32312e;
-  --code-punct: #504f4b;
-  --screen: #0b0c0a;
-  --screen-fg: #e8e6dc;
-  --screen-rule: #2a2b27;
-  --screen-client: #5cf5a5;
-  --screen-server: #f09a2a;
-  --screen-fault: #ff6b5a;
+/* Lilac. */
+:root[data-dominant="lilac"] {
+  --dominant: #c9a8ff;
+  --lift: 60%;
+  --deep: 78%;
+  --lift-turned: 60%;
+  --deep-turned: 78%;
+}
 
-  /* The screens' glass and afterglow: a written cell starts hot, cools warm, then goes. */
-  --afterglow: var(--screen-client);
-  --afterglow-hot: 30%;
-  --afterglow-warm: 14%;
-  --glow-blur: 6px;
-  --scanline: rgb(0 0 0 / 0.16);
-  --vignette: rgb(0 0 0 / 0.45);
-  /* Listing paper: pale green bands, two lines of print each. */
-  --page-texture: repeating-linear-gradient(to bottom, transparent 0 3.2em, color-mix(in srgb, var(--client) 5%, transparent) 3.2em 6.4em);
+/* Indigo. */
+:root[data-dominant="indigo"] {
+  --dominant: #8b93ff;
+  --lift: 60%;
+  --deep: 78%;
+  --lift-turned: 60%;
+  --deep-turned: 78%;
+}
+
+/* Green Client, amber Server: the D1 reference. */
+:root,
+:root[data-encoding="classic"] {
+  --client: #33ff99;
+  --server: #ffa000;
+  --client-glyph: "";
+  --server-glyph: "";
+  --server-line: solid;
+  --server-dash: none;
+  --server-fill: var(--server);
+  --hue-word: inline;
+  --hue-cue: none;
+}
+
+/* Two tones of the dominant: a light, soft Client and a deep, saturated Server. */
+:root[data-encoding="tones"] {
+  --client: color-mix(in srgb, var(--dominant) var(--lift), #fff);
+  --server: color-mix(in srgb, var(--dominant) var(--deep), #000);
+  --client-glyph: "◆\00a0";
+  --server-glyph: "◇\00a0";
+  --server-line: dashed;
+  --server-dash: 4 3;
+  --server-fill: transparent;
+  --hue-word: none;
+  --hue-cue: inline;
+}
+
+/* Two hues beside the dominant, 40 degrees each way: a light Client, a deeper Server. */
+:root[data-encoding="analogous"] {
+  --client: color-mix(in srgb, hsl(from var(--dominant) calc(h - 40) s max(l, 62)) var(--lift-turned), #fff);
+  --server: color-mix(in srgb, hsl(from var(--dominant) calc(h + 40) s max(l, 62)) var(--deep-turned), #000);
+  --client-glyph: "◆\00a0";
+  --server-glyph: "◇\00a0";
+  --server-line: dashed;
+  --server-dash: 4 3;
+  --server-fill: transparent;
+  --hue-word: none;
+  --hue-cue: inline;
+}
+
+/* The dominant for the Client, a warm grey for the Server. */
+:root[data-encoding="dominant-neutral"] {
+  --client: color-mix(in srgb, var(--dominant) var(--lift), #fff);
+  --server: #999185;
+  --client-glyph: "◆\00a0";
+  --server-glyph: "◇\00a0";
+  --server-line: dashed;
+  --server-dash: 4 3;
+  --server-fill: transparent;
+  --hue-word: none;
+  --hue-cue: inline;
+}
+
+/* An ivory Client, the dominant, deeper, for the Server. */
+:root[data-encoding="neutral-dominant"] {
+  --client: #efe9dc;
+  --server: color-mix(in srgb, var(--dominant) var(--deep), #000);
+  --client-glyph: "◆\00a0";
+  --server-glyph: "◇\00a0";
+  --server-line: dashed;
+  --server-dash: 4 3;
+  --server-fill: transparent;
+  --hue-word: none;
+  --hue-cue: inline;
 }

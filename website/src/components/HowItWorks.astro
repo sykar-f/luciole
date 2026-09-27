@@ -191,8 +191,12 @@ const directives: ShikiTransformer[] = [
       <div class="drawn-text">
         <p>
           The list screen of Notes, as captured. Pick a file above: the cells it put on this screen
-          light up, <span class="client">green</span> for the Client, <span class="server">amber</span> for
-          the Server.
+          light up, <span class="client"><span class="hue-word">green</span><span class="hue-cue"
+              >solid</span
+            ></span
+          > for the Client, <span class="server"
+            ><span class="hue-word">amber</span><span class="hue-cue">dashed</span></span
+          > for the Server.
         </p>
         <p class="drawn-now" aria-live="polite" data-drawn-now></p>
       </div>
@@ -373,8 +377,10 @@ const directives: ShikiTransformer[] = [
     background: var(--client);
   }
 
+  /* Filled for the Client; for the Server, hollow where both share a hue. */
   .file.server::before {
-    background: var(--server);
+    border: 1px solid var(--server);
+    background: var(--server-fill);
   }
 
   /* Between the two: neither side's colour. */
@@ -431,7 +437,8 @@ const directives: ShikiTransformer[] = [
   }
 
   .server-swatch {
-    background: var(--server);
+    border: 1px solid var(--server);
+    background: var(--server-fill);
   }
 
   .panels {
@@ -591,6 +598,7 @@ const directives: ShikiTransformer[] = [
 
   .server-part :global(.term) {
     border-color: var(--server);
+    border-style: var(--server-line);
   }
 
   .between {
@@ -687,6 +695,7 @@ const directives: ShikiTransformer[] = [
 
   .server-half {
     border-top-color: var(--server);
+    border-top-style: var(--server-line);
   }
 
   .client-half .out code {

@@ -171,3 +171,21 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Where Client and Server share a hue (the palette's encoding), a cue that is not colour:
+   a glyph before the words, and the Server's shapes drawn dashed in the diagrams. */
+.guide :is(p, li, td, dd, figcaption) > .c::before {
+  content: var(--client-glyph);
+  font-size: 0.75em;
+  vertical-align: 0.1em;
+}
+
+.guide :is(p, li, td, dd, figcaption) > .s::before {
+  content: var(--server-glyph);
+  font-size: 0.75em;
+  vertical-align: 0.1em;
+}
+
+.guide :is(.tone-server, .stroke-server, .o-zone.server, .node.server, .l-box.server, .box.server, .link.server) {
+  stroke-dasharray: var(--server-dash);
+}

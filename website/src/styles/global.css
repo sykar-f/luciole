@@ -86,8 +86,9 @@ p {
   text-wrap: pretty;
 }
 
+/* Links take the dominant; without one (phosphor), their text's colour. */
 a {
-  color: inherit;
+  color: var(--link, inherit);
   text-decoration-color: var(--rule-strong);
   text-underline-offset: 0.25em;
   transition: text-decoration-color 0.15s;
@@ -118,7 +119,7 @@ kbd {
 }
 
 :focus-visible {
-  outline: 2px solid var(--paper);
+  outline: 2px solid var(--dominant);
   outline-offset: 3px;
 }
 
@@ -187,6 +188,31 @@ main {
   color: var(--server);
 }
 
+/* Text that names the sides' colours says it only where they are the classic green and
+   amber (.hue-word); elsewhere it names the cue that is not colour (.hue-cue). */
+.hue-word {
+  display: var(--hue-word);
+}
+
+.hue-cue {
+  display: var(--hue-cue);
+}
+
+/* Where Client and Server come from one hue, a cue that is not colour: a glyph before
+   the words that name them (◆ Client, ◇ Server), set by the encoding. */
+:is(p, li, figcaption, dd, dt, h3, span) > :is(.client, .server)::before {
+  font-size: 0.75em;
+  vertical-align: 0.1em;
+}
+
+:is(p, li, figcaption, dd, dt, h3, span) > .client::before {
+  content: var(--client-glyph);
+}
+
+:is(p, li, figcaption, dd, dt, h3, span) > .server::before {
+  content: var(--server-glyph);
+}
+
 /* A command more than a button: square, flat, bracketed. */
 .button {
   display: inline-flex;
@@ -219,8 +245,8 @@ main {
 }
 
 .button.primary {
-  border-color: var(--paper);
-  background: var(--paper);
+  border-color: var(--dominant);
+  background: var(--dominant);
   color: var(--night);
   font-weight: 600;
 }
@@ -231,7 +257,7 @@ main {
 }
 
 .button.primary:hover {
-  background: color-mix(in srgb, var(--paper) 85%, var(--night));
+  background: color-mix(in srgb, var(--dominant) 85%, var(--night));
 }
 
 /* A panel: a ruled box, nothing raised. */
