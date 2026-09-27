@@ -39,7 +39,8 @@ coder est aussi la vitrine d'airtty ; chaque capacité du framework y sert :
 | `useBindings` + `<KeyHelp>`            | modes clavier (prompt, parcours, dialogue, sélecteur) et barre d'aide générée                   |
 | `host.notify`                          | notification quand une requête attend et que le terminal n'a pas le focus                       |
 | `renderer.suspend()`                   | Ctrl+G : écrire le prompt dans `$EDITOR`                                                        |
-| OpenTUI                                | Markdown stable en streaming, `<diff>` par fichier, `<code>`, textarea, overlays, OSC 52        |
+| `<Markdown>`                           | réponses et « thinking » stables pendant le streaming                                           |
+| OpenTUI                                | `<diff>` par fichier, `<code>`, textarea, overlays, sélection + OSC 52                          |
 
 ## Clavier
 
@@ -60,7 +61,6 @@ les expose. Une commande que le harness ne sait pas faire n'apparaît pas.
 app/args.ts           options (zod) : lues par le lanceur et par le Server
 app/page.tsx          Server : démarre la session, rend le premier snapshot
 components/           Client : SessionScreen, Transcript, Dialogs, Picker, StatusLine…
-components/markdown/  Markdown qui ne bouge pas pendant le streaming (voir plus bas)
 actions/session.ts    "use server" : send, interrupt, respond, setModel, setMode, feed…
 server/session.ts     la session : état, items, requêtes, journal de révisions → patchs
 server/adapters/      un adaptateur par harness, vers un vocabulaire neutre (types.ts)
@@ -68,7 +68,7 @@ server/detect.ts      harness installé, version, connecté ? — sans requête 
 server/jsonl.ts       lecteur JSON-lines (LF seulement) et client JSON-RPC
 ```
 
-Les réponses et les blocs « thinking » passent par `components/markdown/`, pas par le
+Les réponses et les blocs « thinking » passent par `<Markdown>` (`airtty/client`), pas par le
 `<markdown>` d'OpenTUI : pendant le streaming, celui-ci redessine le dernier bloc depuis un
 aperçu puis depuis Tree-sitter, et la réponse clignote. Le composant découpe la réponse en
 blocs (`marked`), fige tous les blocs sauf le dernier, met le texte en forme sans
@@ -105,7 +105,7 @@ suite (délai de 10 s des actions airtty) ; la progression passe par le flux.
 ```sh
 bun test tests/coder.test.tsx tests/coder-store.test.ts   # vrai Server + Client rendu, harness factice
 bun run test:pty:coder                                    # parcours PTY complet, harness factice
-bun test tests/coder-markdown*.test.ts*                   # Markdown : blocs figés, fermeture, parité
+bun test tests/markdown*.test.ts*                         # <Markdown> : blocs figés, fermeture, parité
 bun run test:pty:markdown                                 # 0 oscillation en streaming (mot-clé `markdown`)
 ```
 

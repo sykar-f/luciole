@@ -7,28 +7,31 @@ Branche `feat/streaming-markdown` (partie de `main` à `79410fc`), mission décr
 
 Tous les critères du §7 du handoff sont remplis :
 
-| Critère                                                             | État                                                                            |
-| ------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| 1. Composant utilisé par le transcript (messages, « thinking »)     | `examples/coder/components/markdown/`, branché dans `Transcript.tsx`            |
-| 2. Banc PTY : 0 oscillation, marqueurs bruts ≤ `top-level`          | 0 oscillation et 0 trame brute, par mots et par 3 caractères (tableau plus bas) |
-| 3. Tests : blocs figés, fermeture optimiste, fini = streamé, parité | `tests/coder-markdown.test.tsx`, `tests/coder-markdown-close.test.ts`           |
-| 4. `verify`, `test:pty:coder`, essai réel `--harness claude`        | verts ; essai réel : 0 oscillation (Claude Code 2.1.283, une réponse)           |
-| 5. `STATUS.md` : décisions, écarts avec Streamdown, mesures         | ce document                                                                     |
+| Critère                                                             | État                                                                                    |
+| ------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| 1. Composant utilisé par le transcript (messages, « thinking »)     | `<Markdown>` d'`airtty/client` (`packages/airtty/src/markdown/`), dans `Transcript.tsx` |
+| 2. Banc PTY : 0 oscillation, marqueurs bruts ≤ `top-level`          | 0 oscillation et 0 trame brute, par mots et par 3 caractères (tableau plus bas)         |
+| 3. Tests : blocs figés, fermeture optimiste, fini = streamé, parité | `tests/markdown.test.tsx`, `tests/markdown-close.test.ts`                               |
+| 4. `verify`, `test:pty:coder`, essai réel `--harness claude`        | verts ; essai réel : 0 oscillation (Claude Code 2.1.283, une réponse)                   |
+| 5. `STATUS.md` : décisions, écarts avec Streamdown, mesures         | ce document                                                                             |
 
-Le composant reste dans l'exemple : le promouvoir dans `packages/airtty` est une décision
-de l'utilisateur (§8), voir « À décider » plus bas.
+Sur décision de l'utilisateur (§8), le composant est promu dans le framework :
+`<Markdown>` est exporté par `airtty/client` (documenté dans `docs/API.md`, « Markdown en
+streaming ») et `airtty` dépend de `marked` 17.0.1. Il n'utilise que `box`, `text`, `code`
+et `markdown` (tableaux) : il reste portable vers la cible web. L'export est un ajout :
+`ABI_VERSION` ne change pas (il ne bouge que pour un changement incompatible).
 
 ## Architecture
 
 ```
-components/markdown/close.ts    fermeture optimiste du bloc en cours (façon remend)
-components/markdown/render.ts   tokens marked → nœuds (texte stylé, code, citation, filet, tableau)
-components/markdown/stream.ts   découpage incrémental en blocs, blocs figés, bloc de queue
-components/markdown/Markdown.tsx  le composant React (box, text, code, markdown pour les tableaux)
+packages/airtty/src/markdown/close.ts    fermeture optimiste du bloc en cours (façon remend)
+packages/airtty/src/markdown/render.ts   tokens marked → nœuds (texte stylé, code, citation, filet, tableau)
+packages/airtty/src/markdown/stream.ts   découpage incrémental en blocs, blocs figés, bloc de queue
+packages/airtty/src/markdown/Markdown.tsx  le composant React (box, text, code, markdown pour les tableaux)
 ```
 
-1. **Découpage** : la réponse est lexée par `marked` 17.0.1 (déjà au catalogue, ajouté aux
-   dépendances de coder) en blocs de premier niveau. Le lexage est incrémental : les jetons
+1. **Découpage** : la réponse est lexée par `marked` 17.0.1 (déjà au catalogue, épinglé dans
+   les dépendances d'`airtty`) en blocs de premier niveau. Le lexage est incrémental : les jetons
    dont la source n'a pas changé sont repris, sauf les deux derniers (qui peuvent encore
    fusionner avec la suite : soulignement setext, élément de liste suivant), et seule la
    fin est relexée. `parseMarkdownIncremental` d'OpenTUI fait la même chose ; il n'est pas
@@ -123,7 +126,7 @@ réponse demandée en Markdown : titre, liste imbriquée, code TS, tableau) : 92
 **0 oscillation**. Les 398 trames « brutes » sont toutes du contenu légitime (un littéral de
 gabarit TS, un tableau qui cite la syntaxe Markdown dans du code inline).
 
-Tests unitaires (`tests/coder-markdown.test.tsx`) :
+Tests unitaires (`tests/markdown.test.tsx`) :
 
 - pour **chaque préfixe** de la réponse riche et de `rich.md`, tout bloc sauf le dernier a
   des nœuds identiques (même objet) d'un préfixe à l'autre, et égaux à ceux de la réponse
@@ -154,21 +157,21 @@ et construction des nœuds compris.
 - Repli des lignes longues d'un élément de liste à la colonne 0, comme `<markdown conceal>`
   (parité) : `top-level` fait une indentation suspendue.
 
+## Décisions de l'utilisateur
+
+- **Promotion** dans `packages/airtty` : acceptée (27 septembre 2026), voir plus haut.
+- **Tableaux** : l'affichage progressif est gardé.
+
 ## À décider (utilisateur)
 
-- **Promotion** dans `packages/airtty` (API publique) : le composant n'utilise que `box`,
-  `text`, `code` et `markdown` (tableaux), donc reste portable vers la cible web ; il
-  dépendrait alors de `marked`.
 - **Titres** : OpenTUI 0.5.12 ne leur applique pas `markup.heading` (ils sortent en
   couleur de texte, sans gras) ; la parité garde ce rendu. Les colorer serait un
   changement visible.
-- **Tableaux** : garder l'affichage progressif ou n'afficher qu'une fois complet (voir
-  limites).
 
 ## Reproduire
 
 ```sh
-bun test tests/coder-markdown.test.tsx tests/coder-markdown-close.test.ts
+bun test tests/markdown.test.tsx tests/markdown-close.test.ts
 bun run test:pty:markdown                              # banc, harness factice
 bun scripts/pty/markdown-stability.ts claude            # une réponse réelle (quota)
 MARKDOWN_FRAMES=/tmp/frames bun run test:pty:markdown   # garde les échantillons

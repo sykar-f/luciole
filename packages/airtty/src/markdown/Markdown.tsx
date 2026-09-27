@@ -1,11 +1,11 @@
-"use client";
+/** @jsxImportSource @opentui/react */
 import { memo, useEffect, useMemo, useState } from "react";
 import { infoStringToFiletype, StyledText, type SyntaxStyle } from "@opentui/core";
 import { useRenderer } from "@opentui/react";
 import { type Node, Palette } from "./render";
 import { MarkdownStream } from "./stream";
 
-type Props = {
+export type MarkdownProps = {
   content: string;
   /** Whether `content` is still being written: its last block is then closed optimistically. */
   streaming: boolean;
@@ -19,7 +19,7 @@ type Props = {
  * preview at each change, then again once Tree-sitter answers: the two differ, and the
  * reply flashes between raw and formatted text at every delta.
  */
-export function Markdown({ content, streaming, syntaxStyle }: Props) {
+export function Markdown({ content, streaming, syntaxStyle }: MarkdownProps) {
   const hyperlinks = useHyperlinks();
   const stream = useMemo(
     () => new MarkdownStream(new Palette(syntaxStyle, { hyperlinks })),

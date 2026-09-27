@@ -14,6 +14,7 @@ Entrée `airtty/client` (Client Components uniquement) :
 | `useBindings()`, `useActiveKeys()`, `useKeymap()`, `usePendingSequence()`                                                              | Keymap OpenTUI réexportée : couches de raccourcis liées au cycle de vie des composants.                                                          |
 | `<KeyHelp groups? inline? />`                                                                                                          | Aide générée depuis les raccourcis actifs qui déclarent un `desc` (filtrés par `group`).                                                         |
 | `<Embed app name active prefix? />`, `openApplication({ bundle, url, instance? })`                                                     | Une autre application airtty dans un pane de celle-ci ; voir « Applications embarquées ».                                                        |
+| `<Markdown content streaming syntaxStyle />`                                                                                           | Markdown rendu par blocs : pendant que `content` s'écrit (`streaming`), le texte affiché ne bouge plus ; voir « Markdown en streaming ».         |
 | `<Terminal command active prefix? cwd? env? onExit? />`                                                                                | Un programme local (shell, vim, un Client airtty) sur un PTY, rendu dans l'arbre ; voir « Terminaux embarqués ».                                 |
 | `host`, `CapabilityDenied`                                                                                                             | Ce que l'application demande à son hôte (presse-papiers, notification, URL, secret, onglets) ; voir « Capacités médiées ».                       |
 | `useHostMessage(fn)`, `useGlobalKey(key, fn)`, `useCapability(name)`                                                                   | Messages des autres onglets et touches globales tant que le composant est monté ; état `granted`, `denied` ou `prompt` d'une capacité.           |
@@ -188,6 +189,31 @@ les modes demandés par le programme.
 
 `<Terminal>` sert aux programmes locaux ; une application airtty dans le même processus
 passe par `<Embed>`.
+
+## Markdown en streaming
+
+`<Markdown>` affiche du Markdown qui arrive par morceaux, typiquement la réponse d'un
+modèle, sans que le texte déjà affiché clignote ou saute. Le `<markdown>` d'OpenTUI 0.5.12
+redessine son dernier bloc depuis un aperçu puis depuis Tree-sitter à chaque changement :
+la réponse bascule entre texte brut et mis en forme.
+
+```tsx
+import { Markdown } from "airtty/client";
+
+<Markdown content={reply.text} streaming={!reply.done} syntaxStyle={syntax} />;
+```
+
+- `content` ne fait que croître pendant `streaming` ; les blocs terminés sont rendus une
+  fois et ne sont plus redessinés, seul le dernier l'est à chaque changement.
+- Le dernier bloc est fermé d'avance (`**gras` s'affiche en gras, un lien incomplet par son
+  libellé, une ligne de syntaxe seule attend son saut de ligne).
+- Le texte est mis en forme sans Tree-sitter : le rendu en cours et le rendu final sont le
+  même. Le code n'est coloré (Tree-sitter) qu'une fois sa clôture arrivée ; les tableaux
+  s'affichent ligne par ligne.
+- `syntaxStyle` : un `SyntaxStyle` d'OpenTUI ; les groupes `markup.*` (`strong`, `italic`,
+  `raw`, `link`, `list`, `quote`…) stylent le texte, les autres groupes le code.
+- Une réponse finie ressemble à `<markdown conceal>` ; les écarts et les mesures sont
+  dans `docs/streaming-markdown/STATUS.md`.
 
 ## Capacités médiées
 

@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { closeTail } from "../examples/coder/components/markdown/close";
+import { closeTail } from "../packages/airtty/src/markdown/close";
 
 // [streamed so far, what is rendered]: after Streamdown's `remend` cases, for a terminal.
 const CASES: readonly (readonly [string, string])[] = [

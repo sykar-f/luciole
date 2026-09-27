@@ -1,8 +1,8 @@
 "use client";
 import { memo, type ReactNode, type Ref } from "react";
 import type { ScrollBoxRenderable } from "@opentui/core";
+import { Markdown } from "airtty/client";
 import { Line } from "./Line";
-import { Markdown } from "./markdown/Markdown";
 import type { FilePatch, Item, ItemStatus } from "./model";
 import { languageOf, muted, syntax } from "./syntax";
 import { color } from "./theme";

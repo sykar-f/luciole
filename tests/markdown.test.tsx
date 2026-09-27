@@ -2,9 +2,9 @@
 import { afterEach, expect, test } from "bun:test";
 import { act, type ReactNode, useEffect, useState } from "react";
 import { testRender } from "@opentui/react/test-utils";
-import { Markdown } from "../examples/coder/components/markdown/Markdown";
-import { Palette } from "../examples/coder/components/markdown/render";
-import { type Block, MarkdownStream } from "../examples/coder/components/markdown/stream";
+import { Markdown } from "../packages/airtty/src/markdown/Markdown";
+import { Palette } from "../packages/airtty/src/markdown/render";
+import { type Block, MarkdownStream } from "../packages/airtty/src/markdown/stream";
 import { syntax } from "../examples/coder/components/syntax";
 import { MARKDOWN_REPLY } from "../examples/coder/server/adapters/fake";
 
