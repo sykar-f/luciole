@@ -190,7 +190,9 @@ export const dev: Command = {
       clearTimeout(debounce);
       debounce = setTimeout(() => void rebuild(), REBUILD_DEBOUNCE_MS);
     });
-    for (const signal of ["SIGINT", "SIGTERM"] as const) process.on(signal, shutdown);
+    // SIGHUP too: a closed terminal, or a host that ends its embedded terminal
+    // (<Terminal>), must not leave the Server and the Client running without it.
+    for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"] as const) process.on(signal, shutdown);
     await rebuild();
   },
 };
