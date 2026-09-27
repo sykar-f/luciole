@@ -50,6 +50,8 @@ it was the last Client. How launches share a Server is the app's choice
 
 During development, `airtty dev --app <dir>` builds, starts both processes, and rebuilds on
 every change; the Client reopens the same page ([session restore](/docs/concepts/session-restore/)).
+It ends when the Client does, with the Client's exit code, and stops both processes on SIGINT,
+SIGTERM or SIGHUP ([CLI](/docs/reference/cli/#airtty-dev---app-dir----app-arguments)).
 
 ## Joining a Server that already runs
 

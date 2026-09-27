@@ -2,6 +2,7 @@
 title: Apps you did not write
 description: Opening an app by URL or from a package you do not control. The inline, process and sandbox modes, declared capabilities, and who enforces each one on macOS and Linux.
 sources:
+  - packages/airtty/src/sandbox/server.ts
   - docs/EMBEDDING.md
   - docs/DISTRIBUTION.md
   - packages/airtty/src/generic
@@ -117,6 +118,20 @@ sandboxed app never reaches the clipboard: only the `host` path is checked.
   with it only with an explicit `--sandbox`, a `net` by host is refused, and the capabilities screen
   says the network is **not** confined.
 </Note>
+
+## A confined Server
+
+The modes above confine a Client. A host that also runs the **Server** of an app it does not
+trust, as studio's preview does for pages and Server Functions a model wrote, can start it
+under the same generated Seatbelt profile with `confineServer` (`src/sandbox/server.ts`): no
+terminal, one loopback port the host picks to bind and accept on, reads limited to the build,
+writes to its data directory, and `net` by host through the host's egress proxy.
+
+It is macOS only for now. Under `airtty-sandbox` the Server would listen inside its own network
+namespace, and the host would need a reverse relay to reach it, which is not built: other
+mechanisms are refused with the reason, never simulated. `confineServer` is not a package entry
+yet; a host passes its `command` to `startAppServer` from
+[`airtty/dev`](/docs/reference/api/#supervising-an-app-airttydev).
 
 ## Apps inside your app
 

@@ -22,7 +22,10 @@ and scripted journeys on a real PTY. This page says which of them an app can rel
 
 `airtty build` refuses, with the file and line, what would be wrong at run time: a module
 that crosses the Client–Server boundary, a Server Function that is not a named async
-declaration, two routes with the same URL, a `"use cache"` closure. A starter's
+declaration, two routes with the same URL, a `"use cache"` closure, a React Client hook in a
+page. Errors are positioned where they are: a syntax error at the parser's line and column, an
+import that names no file at that import, relative to the app
+(`app/page.tsx:2:1: Cannot resolve ../components/Header`). A starter's
 `bun run verify` runs the type check, lint, format check and build together:
 
 <CopyCommand lines={["bun run verify"]} />

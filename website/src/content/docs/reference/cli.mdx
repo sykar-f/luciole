@@ -53,6 +53,12 @@ processes, and the Client reopens the same page with its history, named fields a
 `--app` defaults to `examples/notes`. The app's arguments are checked after every build;
 `-- --help` prints them.
 
+The run ends with the Client: quitting it stops the Server too, and `airtty dev` exits with the
+Client's own exit code (1 if a signal killed it), so a host that runs it can tell a crash from a
+quit. A Client that exits during a rebuild ends nothing. SIGINT, SIGTERM and SIGHUP (a closed
+terminal, an unmounted `<Terminal>`) stop both processes and exit with 0. The pieces of this
+supervision are public as [`airtty/dev`](/docs/reference/api/#supervising-an-app-airttydev).
+
 ### `airtty devtools [--listen 1|<socket>|ws://host:port] [--demo] [--replay file.json] [--env]`
 
 Starts the [DevTools](/docs/guides/devtools/). `--env` prints the variables the inspected

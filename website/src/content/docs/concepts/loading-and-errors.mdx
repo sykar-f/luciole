@@ -46,6 +46,12 @@ Without one, the message is shown.
 
 <Excerpt path="examples/notes/app/error.tsx" tone="client" />
 
+The page's error screen, yours or the default one, also emits a `failure` event (`path`,
+`message`) through `useApplication().onEvent`. A Client started with an IPC channel, by
+`airtty dev` or a sandbox host, forwards it to its parent, which learns which page failed and
+why ([`airtty/dev`](/docs/reference/api/#supervising-an-app-airttydev)). A page that calls
+`notFound()` emits none: a missing page is an answer, not a failure.
+
 A failed navigation shows `error.tsx` in the page's place with the layouts still mounted.
 A failed **refresh** keeps the current tree mounted instead, and exposes the error in
 `useConnection().error`.

@@ -2,6 +2,8 @@
 title: Server Components
 description: Pages render on the Server, next to the data. What a page may do, what it passes to the Client, and what it can never send.
 sources:
+  - packages/airtty/src/build.ts
+  - tests/build.test.ts
   - docs/BOUNDARIES.md
   - docs/API.md
   - examples/notes/app/page.tsx
@@ -53,6 +55,16 @@ which runs `saveNote` there ([Server Functions](/docs/concepts/server-functions/
 ## What a page cannot do
 
 - Handle a key: pages are rendered, not mounted. Keys belong to Client Components.
+- Use React's Client hooks and APIs: `useState`, `useEffect`, `createContext` and the other
+  exports React withholds from its `react-server` build. The build refuses them at the
+  imported name, with the fix, rather than letting the Server die at start on a missing
+  export:
+
+```text
+app/page.tsx:1:19: useState is Client-only React: a Server Component cannot use it. Add "use client" at the top of this file, or move the part that needs it into a Client Component
+  via app/page.tsx
+```
+
 - Be cached as a tree. `"use cache"` caches data, not components.
 - Put a secret in a prop. Everything a page passes to a Client Component is sent to the
   terminal.

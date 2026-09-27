@@ -9,6 +9,8 @@ sources:
   - packages/airtty/src/transport.ts
   - packages/airtty/src/host.ts
   - packages/airtty/src/markdown
+  - packages/airtty/src/dev/supervisor.ts
+  - packages/airtty/src/run.tsx
 ---
 
 import Excerpt from "../../../components/guide/Excerpt.astro";
@@ -101,7 +103,8 @@ Client or an `inline` pane acts itself, with the user's rights (`pbcopy`, `osasc
 
 `useApplication().onEvent(listener)` receives each transport event (`request`, `response`,
 `chunk`, `end`, `error` with its `outcome`) and each resolved navigation, plus `invalidate`
-(`paths`, `tags`, `origin`) and `loader` (`phase`, `routeId`, `source`…). Every event carries
+(`paths`, `tags`, `origin`), `loader` (`phase`, `routeId`, `source`…) and `failure` (`path`,
+`message`: a page failed to load or render; not emitted for `notFound()`). Every event carries
 `at`, in epoch milliseconds; transport events carry the `callId` sent to the Server and a
 `cause` (`navigation`, `preload`, `refresh`, `invalidation`, `action`, `live`, else
 `unknown`). Listeners run on the hot path: keep them light.
@@ -140,10 +143,36 @@ wrapped. `/action` answers with `Server-Timing: total;dur=…`.
 | `airtty/args`       | `defineArgs`, for `app/args.ts`.                                                                                                       |
 | `airtty/route-tree` | What `app/routeTree.gen.ts` calls: `rootRoute`, `layoutRoute`, `pageRoute`, `loadPage`, `validateSearch`.                              |
 | `airtty/build`      | `build(directory, output?, { appBundle?, signBundle?, webServer? }?)` → `{ buildId, output }`.                                         |
+| `airtty/dev`        | Supervising an app under development (below).                                                                                          |
 | `airtty/pty`        | `spawnPty({ command, cols, rows, env?, cwd?, onData, onExit, … })` → `{ write, resize, kill, send, pid }`: `Bun.Terminal`, POSIX only. |
 | `airtty/metadata`   | `AppMetadata`, the schema of `.airtty/metadata.json`, and the functions that read and write it.                                        |
 | `airtty/grammars`   | Side effect only: registers the extra Tree-sitter grammars.                                                                            |
 | `airtty/tsconfig`   | The TypeScript configuration every app extends.                                                                                        |
+
+## Supervising an app: `airtty/dev`
+
+What `airtty dev` is made of, for a host that supervises an app but decides itself when to
+rebuild (studio, at the end of a model's turn):
+
+| Export                                                                         | Contract                                                                                                                                                                                                                                                              |
+| ------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `startAppServer({ directory, env, command?, onOutput?, stderr?, timeoutMs? })` | Starts a built app's Server and resolves `{ port, child, stop }` once it prints its ready line (10 s by default). If it exits or times out first, it rejects, with the end of its stderr when `stderr` is a function. `command` wraps the argv, to start it confined. |
+| `bearerRelay()`                                                                | `{ attach(client) }`: hands the bearer from one Client to the next in memory, so a rebuild does not ask to sign in again.                                                                                                                                             |
+| `serialize(task)`                                                              | `{ run, busy }`: never two runs at once; calls during a run ask for one more after it.                                                                                                                                                                                |
+| `onClientFailure(client, listener)`, `ClientFailure`                           | The `{ type: "failure", path, message }` messages a Client sends its parent.                                                                                                                                                                                          |
+| `linkFrameworkModules(directory, from)`, `stopChild(child)`                    | Links `.airtty/node_modules` to the framework's packages; stops a child with SIGTERM, then SIGKILL.                                                                                                                                                                   |
+
+A Client started with an IPC channel (by `airtty dev`, a `sandbox` host, studio) sends its
+parent every page failure: `{ type: "failure", path, message }`, the message cut to 2,000
+characters. The error screen alone only tells a person; this tells the program that started
+the Client which page failed and why.
+
+<Excerpt
+  path="packages/airtty/src/run.tsx"
+  find="// Whoever started this Client over IPC"
+  count={12}
+  tone="client"
+/>
 
 ## The transport
 
