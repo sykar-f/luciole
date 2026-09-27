@@ -39,6 +39,8 @@ const DevMessage = z.union([
 // The supervisor answers at once; a Client started by hand with AIRTTY_SESSION only
 // waits this long.
 const SUPERVISOR_REPLY_MS = 1000;
+// A failure reported to the supervisor: its message, cut to this many characters.
+const FAILURE_MESSAGE_MAX = 2000;
 /**
  * Development only: the bearer the previous Client of this `airtty dev` held. It lives
  * in the supervisor's memory, never on disk, so a rebuild does not ask to sign in again.
@@ -121,6 +123,18 @@ export async function run(
   session.flush(app.restoration.snapshot());
   app.restoration.subscribe(() => session.schedule(app.restoration.snapshot()));
   if (supervised) app.onTokenChange((token) => supervised({ type: "bearer", token }));
+  // Whoever started this Client over IPC (`airtty dev`, a sandbox host, studio) hears
+  // which page failed and why: the error screen alone tells only a person.
+  const parent = process.send?.bind(process);
+  if (parent)
+    app.onEvent((event) => {
+      if (event.type !== "failure") return;
+      void parent({
+        type: "failure",
+        path: event.path,
+        message: event.message.slice(0, FAILURE_MESSAGE_MAX),
+      });
+    });
   // Nothing reconnects by itself, but a managed Server's tunnel does (src/launcher): the
   // status follows it, Disconnected then Connected, the Client's state kept.
   connection.managed?.watch(() => void app.refresh());

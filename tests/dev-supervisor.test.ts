@@ -8,7 +8,13 @@ import { mkdtemp, mkdir, rm } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { serialize, startAppServer } from "../packages/airtty/src/dev/supervisor";
+import { build } from "../packages/airtty/src/build";
+import {
+  ClientFailure,
+  linkFrameworkModules,
+  serialize,
+  startAppServer,
+} from "../packages/airtty/src/dev/supervisor";
 import { messageOf } from "../packages/airtty/src/guards";
 import { spawnPty, type Pty } from "../packages/airtty/src/vt/pty";
 import { rejectionOf, until } from "./helpers";
@@ -145,6 +151,45 @@ test("startAppServer: resolves with the port, or rejects with what the Server sa
     );
     expect(messageOf(failure)).toContain("Server exited before ready");
     expect(messageOf(failure)).toContain("Export named 'useState' not found");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("a Client started with an IPC channel reports the page that failed, and why", async () => {
+  const dir = await app(
+    `export default function Page() {\n  if (Date.now() > 0) throw new Error("generated page failed");\n  return <text>never</text>;\n}\n`,
+  );
+  let client: Pty | undefined;
+  try {
+    await build(dir);
+    await linkFrameworkModules(dir, resolve("packages/airtty"));
+    const server = await startAppServer({ directory: dir, env: { ...process.env, PORT: "0" } });
+    try {
+      const failures: ClientFailure[] = [];
+      client = spawnPty({
+        command: [
+          process.execPath,
+          join(dir, ".airtty/client/index.js"),
+          "--url",
+          `http://127.0.0.1:${server.port}`,
+        ],
+        cols: COLUMNS,
+        rows: ROWS,
+        onData: () => {},
+        onExit: () => {},
+        ipc: (message) => {
+          const failure = ClientFailure.safeParse(message);
+          if (failure.success) failures.push(failure.data);
+        },
+      });
+      await until(() => failures.length > 0, STARTUP_MS);
+      expect(failures[0]?.path).toBe("/");
+      expect(failures[0]?.message).toContain("generated page failed");
+    } finally {
+      client?.kill();
+      await server.stop();
+    }
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

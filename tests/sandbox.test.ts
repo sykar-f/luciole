@@ -742,3 +742,66 @@ confined(
   },
   120_000,
 );
+
+confined(
+  "a sandboxed Client reports its failed page to the host over IPC",
+  async () => {
+    const home = scratch();
+    const app = mkdtempSync(resolve(".airtty-sandbox-failure-"));
+    const env: NodeJS.ProcessEnv = {
+      ...process.env,
+      HOME: home,
+      XDG_CONFIG_HOME: join(home, "config"),
+      XDG_STATE_HOME: join(home, "state"),
+      XDG_CACHE_HOME: join(home, "cache"),
+    };
+    for (const [name, text] of Object.entries({
+      "app/layout.tsx": `"use client";export default function Layout({children}){return children}`,
+      "app/page.tsx": `export default function Page(){if(Date.now()>0)throw new Error("sandboxed page failed");return <text>never</text>}`,
+    })) {
+      mkdirSync(join(app, name, ".."), { recursive: true });
+      writeFileSync(join(app, name), text);
+    }
+    generatePublisherKey(env);
+    await build(app, undefined, { signBundle: readPublisherKey(env) });
+    const server = await launch(join(app, ".airtty/server/index.js"));
+    try {
+      const prepared = await prepareOrigin(server.url, {
+        allow: NONE,
+        mode: "sandbox",
+        directories: directories(env),
+        env,
+        confirm: () => Promise.resolve(true),
+        log: () => {},
+      });
+      const failures: { path: string; message: string }[] = [];
+      const sandbox = await openSandbox(
+        {
+          ...prepared,
+          mechanism: prepared.mechanism ?? { kind: "seatbelt" },
+          runtime: sandboxRuntime(),
+          child: await buildChild(),
+        },
+        { env, perform: () => Promise.resolve(undefined), onFailure: (f) => void failures.push(f) },
+      );
+      let exited = false;
+      const pty = sandbox.spawn({
+        cols: 60,
+        rows: 10,
+        onData: () => {},
+        onExit: () => (exited = true),
+      });
+      await until(() => failures.length > 0, 20_000);
+      expect(failures[0]?.path).toBe("/");
+      expect(failures[0]?.message).toContain("sandboxed page failed");
+      pty.write("\x03");
+      await until(() => exited, 5000);
+      await sandbox.close();
+    } finally {
+      await server.stop();
+      rmSync(home, { recursive: true, force: true });
+      rmSync(app, { recursive: true, force: true });
+    }
+  },
+  120_000,
+);

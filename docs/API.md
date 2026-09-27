@@ -413,11 +413,17 @@ argument de `render`/`call` (`{ cause }`). S'y ajoutent :
 | `navigation` | `path`                                                                                                       |
 | `invalidate` | `paths`, `origin` (`server` : `invalidate()` d'une Server Function ; `client` : `invalidate()`, `refresh()`) |
 | `loader`     | `phase` (`start`, `end`), `routeId`, `href`, `cause` ; à la fin `ms` et `result` (`ok`, `error`, `aborted`)  |
+| `failure`    | `path`, `message` : une page a échoué (chargement ou rendu) ; son écran d'erreur l'émet (`reportFailure`)    |
 
 `invalidate` porte aussi `tags`, et `loader` sa `source` (`network`, `router-cache`) :
 voir [CACHE.md](CACHE.md).
 
-`<DebugOverlay />` ignore `invalidate` et `loader` ; `instrumentTracing` aussi.
+`<DebugOverlay />` ignore `invalidate`, `loader` et `failure` ; `instrumentTracing` aussi.
+
+Un Client lancé avec un canal IPC (`airtty dev`, un hôte `sandbox`, studio) envoie chaque
+`failure` à son parent : `{ type: "failure", path, message }` (message coupé à
+2000 caractères). `onClientFailure(child, listener)` d'`airtty/dev` le lit, `openSandbox`
+le passe à `onFailure`. Une page introuvable (`notFound()`) n'est pas un échec.
 
 En développement, `AIRTTY_DEVTOOLS=<adresse>` envoie ces événements, ceux du Server, les
 logs des deux processus et l'arbre des composants à `airtty devtools`, lancé dans un autre

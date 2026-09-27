@@ -159,6 +159,24 @@ export function bearerRelay() {
   };
 }
 
+/** A page of a supervised Client failed (src/run.tsx): its path and why. */
+export const ClientFailure = z.object({
+  type: z.literal("failure"),
+  path: z.string(),
+  message: z.string(),
+});
+export type ClientFailure = z.infer<typeof ClientFailure>;
+/** Calls `listener` for each failure a Client started with an IPC channel reports. */
+export function onClientFailure(
+  client: Pick<ChildProcess, "on">,
+  listener: (failure: ClientFailure) => void,
+) {
+  client.on("message", (received: unknown) => {
+    const failure = ClientFailure.safeParse(received);
+    if (failure.success) listener(failure.data);
+  });
+}
+
 /**
  * `task` run one at a time: a call while it runs asks for one more run after it, however
  * many calls came in between (a burst of file changes, turns ending close together).
