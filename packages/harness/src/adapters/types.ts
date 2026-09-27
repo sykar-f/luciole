@@ -56,7 +56,8 @@ export type StartOptions = {
   tools?: readonly string[];
   /**
    * The user's own harness settings stay out of this session (Claude: no user, project or
-   * local settings: no hooks, MCP servers or CLAUDE.md of theirs).
+   * local settings, so no hooks or CLAUDE.md of theirs; no MCP server from any
+   * configuration and no claude.ai connector of their account).
    */
   isolated?: boolean;
 };
