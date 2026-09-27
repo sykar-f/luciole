@@ -14,6 +14,8 @@
     "probes/**/results.json",
     "tests/fixtures/markdown/**",
     "website/src/frames/*.json",
+    "website/src/lib/palettes.json",
+    "website/src/styles/palettes.css",
     "website/dist/**",
     "website/.astro/**",
     "examples/coder/server/adapters/codex-protocol/**"

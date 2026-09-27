@@ -148,7 +148,11 @@
   padding: 18px 14px;
   border: 1px solid var(--rule);
   border-radius: 4px;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--paper) 2.5%, transparent), color-mix(in srgb, var(--paper) 0.5%, transparent));
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--paper) 2.5%, transparent),
+    color-mix(in srgb, var(--paper) 0.5%, transparent)
+  );
   scrollbar-width: thin;
 }
 
@@ -186,6 +190,15 @@
   vertical-align: 0.1em;
 }
 
-.guide :is(.tone-server, .stroke-server, .o-zone.server, .node.server, .l-box.server, .box.server, .link.server) {
+.guide
+  :is(
+    .tone-server,
+    .stroke-server,
+    .o-zone.server,
+    .node.server,
+    .l-box.server,
+    .box.server,
+    .link.server
+  ) {
   stroke-dasharray: var(--server-dash);
 }

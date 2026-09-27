@@ -16,8 +16,14 @@ export const night: ThemeRegistration = {
       scope: ["keyword", "storage", "storage.type", "keyword.control"],
       settings: { foreground: "var(--code-keyword)" },
     },
-    { scope: ["string", "string.quoted", "string.template"], settings: { foreground: "var(--code-string)" } },
-    { scope: ["constant.numeric", "constant.language"], settings: { foreground: "var(--code-number)" } },
+    {
+      scope: ["string", "string.quoted", "string.template"],
+      settings: { foreground: "var(--code-string)" },
+    },
+    {
+      scope: ["constant.numeric", "constant.language"],
+      settings: { foreground: "var(--code-number)" },
+    },
     {
       scope: ["entity.name.function", "support.function", "meta.function-call"],
       settings: { foreground: "var(--code-function)" },
