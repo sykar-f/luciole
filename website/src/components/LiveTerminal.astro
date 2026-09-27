@@ -26,6 +26,7 @@ interface Props {
   /**
    * `eager` starts with the page; `visible`, when the window comes near the viewport;
    * `manual`, when its container sends it `live:start` (and `live:stop` puts it back).
+   * Any of them starts on `live:take`, which also hands it the keyboard.
    */
   boot?: "eager" | "visible" | "manual";
   /**
@@ -490,6 +491,11 @@ const stand = JSON.stringify({
       layer.setAttribute("role", "button");
       layer.setAttribute("aria-label", "Use the live application with the keyboard");
       layer.tabIndex = 0;
+      // Asked for the keyboard before it was ready (live:take): it gets it now.
+      if (root.dataset.want !== undefined) {
+        delete root.dataset.want;
+        hold(true);
+      }
     };
     const stop = () => {
       alive.abort();
@@ -539,6 +545,12 @@ const stand = JSON.stringify({
     layer.addEventListener("focus", () => root.classList.contains("held") && keyboard(), {
       signal,
     });
+    // A button of the page gives it the keyboard (live:take): at once once it is live.
+    root.addEventListener(
+      "live:take",
+      () => root.classList.contains("on") && !root.classList.contains("held") && hold(true),
+      { signal },
+    );
     // The whole screen takes the keyboard: a hint in a corner is easy to miss on 40 rows.
     const takeIfLive = () =>
       root.classList.contains("on") && !root.classList.contains("held") && hold(true);
@@ -571,6 +583,11 @@ const stand = JSON.stringify({
     // `manual`: a gallery starts and stops its demos as the reader picks one.
     root.addEventListener("live:start", () => start(root));
     root.addEventListener("live:stop", () => stops.get(root)?.());
+    // `live:take`: started if it is not, and handed the keyboard once live.
+    root.addEventListener("live:take", () => {
+      if (!root.classList.contains("on")) root.dataset.want = "";
+      start(root);
+    });
     if (root.dataset.boot === "manual") continue;
     if (root.dataset.boot === "eager") {
       start(root);
