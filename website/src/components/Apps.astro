@@ -80,7 +80,7 @@ const terminalOnly = [
 
 <section class="section" id="apps" aria-labelledby="apps-title">
   <div class="wrap">
-    <div class="section-head center">
+    <div class="section-head">
       <p class="label">examples</p>
       <h2 id="apps-title">Real apps, in the repository today.</h2>
       <p class="lede">
@@ -191,31 +191,26 @@ const terminalOnly = [
 <style>
   .gallery {
     display: grid;
-    gap: 32px;
+    gap: 36px;
   }
 
+  /* Tabs as a terminal's: names in a row, the picked one inverted. */
   .tabs {
     display: flex;
     flex-wrap: wrap;
-    justify-self: center;
-    gap: 4px;
-    padding: 4px;
-    border: 1px solid var(--rule);
-    border-radius: 12px;
-    background: rgb(255 255 255 / 0.02);
+    gap: 4px 2ch;
+    border-bottom: 1px solid var(--rule);
   }
 
   button {
-    padding: 8px 16px;
-    border: 1px solid transparent;
-    border-radius: 9px;
+    padding: 8px 1ch;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
     background: none;
     color: var(--mist);
-    font: 500 0.85rem / 1 var(--mono);
+    font: 500 0.9rem / 1 var(--mono);
     cursor: pointer;
-    transition:
-      color 0.15s,
-      background 0.15s;
   }
 
   button:hover {
@@ -223,10 +218,8 @@ const terminalOnly = [
   }
 
   button[aria-selected="true"] {
-    border-color: var(--rule-strong);
-    background: rgb(255 255 255 / 0.07);
+    border-bottom-color: var(--paper);
     color: var(--paper);
-    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.08);
   }
 
   .view {
@@ -240,18 +233,17 @@ const terminalOnly = [
     justify-content: space-between;
     align-items: baseline;
     gap: 12px 40px;
-    padding: 0 4px;
   }
 
   .about p {
     max-width: 70ch;
     color: var(--mist);
-    font-size: 0.85rem;
+    font-size: 0.95rem;
   }
 
   code {
-    color: var(--client);
-    font-size: 0.8rem;
+    color: var(--paper);
+    font-size: 0.85rem;
     overflow-wrap: anywhere;
   }
 
@@ -267,8 +259,8 @@ const terminalOnly = [
 
   .elsewhere-head {
     margin-bottom: 14px;
-    color: var(--dim);
-    font-size: var(--step--1);
+    color: var(--mist);
+    font: 400 var(--step--1) / 1.5 var(--mono);
   }
 
   .elsewhere ul {
@@ -287,12 +279,12 @@ const terminalOnly = [
 
   .name {
     color: var(--paper);
-    font-weight: 600;
+    font: 600 0.95rem / 1.5 var(--mono);
   }
 
   .why {
     color: var(--mist);
-    font-size: 0.85rem;
+    font-size: 0.92rem;
   }
 
   @media (max-width: 760px) {

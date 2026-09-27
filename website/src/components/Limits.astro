@@ -70,7 +70,7 @@ const limits = [
   .more {
     justify-self: start;
     color: var(--mist);
-    font-size: 0.92rem;
+    font: 400 0.88rem / 1.5 var(--mono);
   }
 
   .limits {
@@ -83,30 +83,29 @@ const limits = [
   }
 
   li {
-    padding: 20px 0 24px;
+    padding: 18px 0 22px;
     border-top: 1px solid var(--rule);
+  }
+
+  /* Short and dense: the page tightens here. */
+  .section {
+    padding-block: clamp(56px, 7vw, 96px);
   }
 
   .what {
     margin-bottom: 8px;
     color: var(--paper);
-    font-weight: 600;
+    font: 600 0.95rem / 1.5 var(--mono);
   }
 
   .what::before {
-    content: "";
-    display: inline-block;
-    width: 8px;
-    height: 8px;
-    margin-right: 12px;
-    border: 1.5px solid var(--server);
-    border-radius: 50%;
-    vertical-align: 1px;
+    content: "✕ " / "";
+    color: var(--dim);
   }
 
   .why {
     color: var(--mist);
-    font-size: 0.93rem;
+    font-size: 0.95rem;
   }
 
   @media (max-width: 900px) {
