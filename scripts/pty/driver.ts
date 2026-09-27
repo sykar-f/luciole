@@ -52,6 +52,7 @@ export const Keys = {
   up: `${ESC}[A`,
   down: `${ESC}[B`,
   ctrlDown: `${ESC}[1;5B`,
+  pageDown: `${ESC}[6~`,
 } as const;
 const C0_MASK = 0x1f;
 /** Ctrl+letter: the letter's code masked to the C0 range (Ctrl+C is 0x03). */

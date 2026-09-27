@@ -8,6 +8,8 @@ Entrée `airtty/client` (Client Components uniquement) :
 | `useApplication()`                                                                                                                     | `{ setToken(token?), refresh(), invalidate(paths?), cancel(), withSignal(signal, call), onEvent(listener), status, error }` du runtime terminal. |
 | `<Input name? value onInput />`, `<Textarea name? value onChange />`                                                                   | `input` et `textarea` d'OpenTUI, contrôlés ; un `name` rend leur texte restaurable (voir « Champs restaurables »).                               |
 | `useRestoredFields(group)`                                                                                                             | `{ submit(action, { failed? }?), clear() }` des champs `group/…` de l'entrée d'historique courante.                                              |
+| `useRestoredFocus(names)`                                                                                                              | `[focus, setFocus]` : lequel de `names` a le focus, gardé par entrée d'historique.                                                               |
+| `<ScrollBox name? …>`                                                                                                                  | `scrollbox` d'OpenTUI ; un `name` garde sa position de défilement par entrée.                                                                    |
 | `useConnection()`                                                                                                                      | `{ status, error, buildError, activity, refresh }` pour le chrome de l'application ; `activity` vaut `connect`, `navigate`, `refresh` ou `idle`. |
 | `useInvalidation(listener)`                                                                                                            | Appelé à chaque invalidation (Server ou Client) avec les chemins et les tags : pour les données lues hors des loaders de routes.                 |
 | `useLive(source, args, { limit }?)`                                                                                                    | `{ items, done, error }` d'une Server Function génératrice, abonnée tant que le composant est monté.                                             |
@@ -457,6 +459,13 @@ passe).
   sa bibliothèque de formulaires le reçoit par le même chemin que la frappe, donc comme
   un travail non enregistré. Un texte n'est gardé que s'il a été tapé ; une valeur posée
   par l'application (une remise à zéro) ne fait que suivre un texte déjà gardé.
+- **Focus et défilement**, par entrée aussi, sur demande : `useRestoredFocus(noms)` est
+  l'état de focus de l'application (`[focus, setFocus]`, le premier nom tant que
+  l'utilisateur ne l'a pas déplacé ; un nom gardé qui n'est plus dans la liste donne le
+  premier), et `<ScrollBox name>` une `scrollbox` dont la position revient. Cette position
+  attend, un moment après le montage, que le contenu soit assez haut (une liste chargée
+  ensuite) ; un défilement de l'utilisateur entre-temps l'emporte. Changer de bearer
+  n'oublie que le texte tapé.
 - **Un groupe** réunit les champs `groupe/champ`. `useRestoredFields("groupe").submit(action)`
   oublie leur texte _avant_ la requête, pour qu'un crash pendant l'envoi ne le propose
   pas de nouveau (pas de double envoi). Si l'issue prouve que rien n'a tourné

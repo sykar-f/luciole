@@ -92,7 +92,7 @@ export function StudioScreen({ initial, studio }: { initial: Snapshot; studio: S
   const [message, setMessage] = useState<Message | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const [answering, setAnswering] = useState<ReadonlySet<string>>(new Set());
-  const [exited, setExited] = useState<{ revision: number; code: number | null } | null>(null);
+  const [exited, setExited] = useState<{ id: string; code: number | null } | null>(null);
 
   const busy = snap.state === "running" || snap.state === "interrupting";
   const validating = s.validation.state === "validating";
@@ -112,8 +112,8 @@ export function StudioScreen({ initial, studio }: { initial: Snapshot; studio: S
     return () => clearTimeout(timer);
   }, [message]);
   const revision = s.preview?.revision;
-  // A new revision is a new program in the preview: an end, if any, is its own.
-  const ended = exited && exited.revision === revision ? exited : null;
+  // A new revision or draft is a new program in the preview: an end, if any, is its own.
+  const ended = exited && exited.id === s.preview?.id ? exited : null;
 
   async function run(label: string, call: () => Promise<Result>) {
     try {
@@ -277,6 +277,14 @@ export function StudioScreen({ initial, studio }: { initial: Snapshot; studio: S
           ? { text: "✓", fg: color.ok }
           : { text: "", fg: color.muted };
   const shown = s.preview;
+  // What the preview shows: a revision, or a draft of the turn under way.
+  const label = shown ? (shown.draft ? "draft" : `r${shown.revision}`) : "app";
+  const drafting =
+    s.draft === "building"
+      ? ` · ${spinner} draft`
+      : s.draft === "waiting"
+        ? " · draft · waiting for a build that works"
+        : "";
   const frameColor = ended
     ? color.danger
     : v.state === "failed"
@@ -353,7 +361,7 @@ export function StudioScreen({ initial, studio }: { initial: Snapshot; studio: S
       border
       borderStyle="rounded"
       borderColor={frameColor}
-      title={` ${shown ? `r${shown.revision}` : "app"} · ${shown?.mode ?? "no preview"}${
+      title={` ${label} · ${shown?.mode ?? "no preview"}${drafting}${
         ended ? ` · ended (${ended.code ?? "signal"})` : ""
       } `}
       onMouseDown={() => setPane("preview")}
@@ -365,12 +373,15 @@ export function StudioScreen({ initial, studio }: { initial: Snapshot; studio: S
       ) : null}
       {shown && !ended ? (
         <Preview
-          key={shown.revision}
+          key={shown.id}
           preview={shown}
+          label={label}
           active={pane === "preview" && !panel && !request}
           prefix={PREFIX}
-          onFailure={(r, path, why) => void previewFailed(r, path, why).catch(() => {})}
-          onExit={(code) => setExited({ revision: shown.revision, code })}
+          onFailure={(r, path, why) =>
+            shown.draft ? undefined : void previewFailed(r, path, why).catch(() => {})
+          }
+          onExit={(code) => setExited({ id: shown.id, code })}
         />
       ) : (
         <box flexDirection="column" padding={1}>
@@ -395,7 +406,7 @@ export function StudioScreen({ initial, studio }: { initial: Snapshot; studio: S
         </text>
         <text flexGrow={1} flexShrink={1} wrapMode="none" truncate fg={color.muted}>
           {` · ${s.project.name} · powered by ${snap.info.poweredBy}${
-            shown ? ` · r${shown.revision}` : ""
+            shown ? ` · ${shown.draft ? `draft over r${shown.revision}` : label}` : ""
           }${v.fixes ? ` · correction ${v.fixes}/${v.maxFixes}` : ""}`}
         </text>
         <text id="studio-validation" flexShrink={0} fg={badge.fg}>

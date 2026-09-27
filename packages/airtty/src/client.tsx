@@ -94,8 +94,13 @@ export type ApplicationEvent =
    */
   | { type: "failure"; at: number; path: string; message: string };
 export type { ErrorProps, LayoutProps, LoadingProps, NotFoundProps } from "./route-tree";
-export { Input, Textarea, useRestoredFields } from "./fields";
-export type { FieldInputProps, FieldTextareaProps, RestoredFields } from "./fields";
+export { Input, ScrollBox, Textarea, useRestoredFields, useRestoredFocus } from "./fields";
+export type {
+  FieldInputProps,
+  FieldScrollBoxProps,
+  FieldTextareaProps,
+  RestoredFields,
+} from "./fields";
 export type { Session, SessionEntry } from "./restore";
 // Other airtty applications in this tree, one pane each (the `inline` mode).
 export { Embed } from "./embed";

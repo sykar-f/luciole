@@ -2,8 +2,9 @@
 
 Décrire une application airtty à un agent de code et **s'en servir pendant qu'il l'écrit**.
 À gauche la conversation avec le harness (Claude Code, ou un générateur scripté),
-à droite l'application générée, en marche, embarquée par le widget VT et rechargée après
-chaque tour. Conception : [docs/studio/SPEC.md](../../docs/studio/SPEC.md).
+à droite l'application générée, en marche, embarquée par le widget VT : un **brouillon**
+après chaque fichier écrit, une **révision** après chaque tour, sans perdre ce que vous
+faisiez dans l'app. Conception : [docs/studio/SPEC.md](../../docs/studio/SPEC.md).
 
 ```sh
 bun run studio -- -H fake                    # générateur scripté : hors ligne, sans quota
@@ -30,6 +31,31 @@ parle jamais à un modèle lui-même, il pilote le binaire officiel déjà insta
 (mêmes règles que coder, [CODER-HANDOFF.md](../../docs/CODER-HANDOFF.md) §3 ; la licence
 de l'Agent SDK d'Anthropic n'est pas OSI : usage personnel et non commercial). Une
 correction automatique est un tour de plus.
+
+## Pendant le tour : les brouillons
+
+Chaque écriture du harness (celles de 300 ms regroupées) donne un brouillon : le même
+garde-fou (un fichier refusé ne tourne jamais, même en brouillon), un build à part, un
+Server confiné, et l'aperçu bascule dessus. Le cadre dit ce qu'il montre : `draft` ou
+`r12`, et `◐ draft` pendant qu'un brouillon se construit. Rien n'est commité, corrigé ni
+renvoyé au harness : en plein tour un fichier importe souvent un fichier pas encore écrit,
+donc un brouillon en échec garde l'écran qui marchait et l'écrit en haut du cadre
+(« draft · waiting for a build that works »). Un seul brouillon à la fois ; une écriture
+plus récente l'emporte sur celui qui tourne. La fin du tour reste celle d'avant.
+
+**Ce qui survit** à un brouillon comme à une révision, en `sandbox` comme en `process` : la
+page et l'historique, le texte des champs nommés, le champ qui a le focus
+(`useRestoredFocus`) et la position des listes (`<ScrollBox name>`), ainsi que les données
+dans `data/`. Le reste de la mémoire de l'app est perdu. Les instructions de studio
+demandent donc de nommer chaque champ ; un `<Input>` ou `<Textarea>` sans `name` donne un
+**conseil** (dans la conversation, puis avec votre message suivant au harness), jamais un
+refus ni une correction.
+
+Avec `-H fake`, le prompt « Add a guestbook page with a form to sign it » écrit en quatre
+fois (une pause de `STUDIO_FAKE_WRITE_MS`, 1,5 s par défaut, entre deux écritures), puis
+« Show how many people signed the guestbook » le modifie : tapez un nom dans le livre d'or
+(`g` depuis l'accueil, `Tab` entre les champs, `PageDown` dans la liste) et regardez-le
+survivre aux brouillons.
 
 ## Ce qui se passe après chaque tour
 
@@ -83,12 +109,13 @@ app/args.ts            options (zod)
 app/page.tsx           Server : ouvre le projet, rend le premier état
 components/            Client : StudioScreen (conversation, aperçu, révisions), Preview
 actions/studio.ts      "use server" : feed, state, send, respond, restore, allowHost…
-server/studio.ts       la boucle : session du harness, validation, révisions, corrections
+server/studio.ts       la boucle : session du harness, brouillons, validation, révisions, corrections
+server/drafts.ts       quand faire un brouillon : écritures regroupées, un à la fois
 server/harness.ts      adaptateur, choix du harness, options de démarrage
 server/project.ts      dossier, template, dépôt git, verrou
 server/preview.ts      build signé, Server confiné, tsc
 server/validate.ts     garde-fou puis build
-server/guard.ts        chemins et imports permis ; policy.ts : réponses aux demandes
+server/guard.ts        chemins et imports permis, conseils (champs sans nom) ; policy.ts : réponses aux demandes
 server/generator.ts    le harness scripté : il écrit vraiment, d'après scenarios.ts
 template/              le projet de départ ; server/template.gen.ts l'embarque
 ```
@@ -99,16 +126,17 @@ modification du template (un test vérifie qu'il est à jour).
 ## Tests
 
 ```sh
-bun test tests/studio-project.test.ts tests/studio-scenarios.test.ts tests/studio.test.tsx
-bun run test:pty:studio
+bun test tests/studio-project.test.ts tests/studio-scenarios.test.ts tests/studio-drafts.test.ts tests/studio.test.tsx
+bun run test:pty:studio                            # brouillons et continuité, en sandbox puis en process
 bun scripts/studio/measure.ts --harness fake      # la mesure de l'étape 6, sur le générateur
 ```
 
 ## Mesure sur Claude Code
 
-Le 27 septembre 2026, avec votre accord, sur Claude Code 2.1.283 (Agent SDK 0.3.283, modèle
+Le 27 septembre 2026, avant les brouillons, avec votre accord, sur Claude Code 2.1.283 (Agent SDK 0.3.283, modèle
 par défaut du compte : `claude-opus-5-5`) : les 13 prompts des scénarios, chacun dans un
-projet neuf, avec les instructions, les outils et la politique de studio
+projet neuf (les scénarios `guestbook` et `signatures` sont venus après), avec les
+instructions, les outils et la politique de studio
 (`scripts/studio/measure.ts --harness claude --accept-quota` ; résultats bruts :
 [docs/studio/measures/claude-2026-09-27.json](../../docs/studio/measures/claude-2026-09-27.json)).
 

@@ -1,7 +1,7 @@
 "use client";
 import { useRef, useState } from "react";
 import type { ScrollBoxRenderable } from "@opentui/core";
-import { useBindings } from "airtty/client";
+import { ScrollBox, useBindings } from "airtty/client";
 import { useDraft, type Note } from "./draft";
 import {
   merge,
@@ -190,7 +190,7 @@ export function Conversation({
   return (
     <box flexDirection="column" flexGrow={1} gap={1}>
       <box flexDirection="row" flexGrow={1} gap={2}>
-        <scrollbox id="timeline" ref={timeline} flexGrow={1} scrollY>
+        <ScrollBox id="timeline" name="pull/timeline" ref={timeline} flexGrow={1} scrollY>
           <box flexDirection="column" gap={1} paddingRight={1}>
             <box
               flexDirection="column"
@@ -249,7 +249,7 @@ export function Conversation({
               ),
             )}
           </box>
-        </scrollbox>
+        </ScrollBox>
         <box
           id="merge-box"
           width={34}

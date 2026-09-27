@@ -106,3 +106,37 @@ test("a snapshot restores the same session, capped to the latest entries", () =>
   restored.subscribe(() => again.sync(restored));
   expect(again.get(again.place(restored), "note/text")).toBe("last");
 });
+
+test("the focus and the scroll boxes belong to their history entry, like the text", () => {
+  const { history, restoration, here } = session(["/"]);
+  history.push("/form");
+  const form = here();
+  restoration.focus(form, "post/body");
+  restoration.scroll(form, "post/preview", 12);
+  history.push("/other");
+  expect(restoration.focused(here())).toBeUndefined();
+  expect(restoration.scrolled(here(), "post/preview")).toBeUndefined();
+  history.back();
+  expect(restoration.focused(here())).toBe("post/body");
+  expect(restoration.scrolled(here(), "post/preview")).toBe(12);
+  // Back at the top: nothing to keep.
+  restoration.scroll(form, "post/preview", 0);
+  expect(restoration.snapshot().entries[1]).toEqual({
+    href: "/form",
+    fields: {},
+    focus: "post/body",
+  });
+});
+
+test("clear forgets the typed text only: the focus and the scroll positions stay", () => {
+  const { restoration, here } = session(["/form"]);
+  restoration.save(here(), "post/title", "abc", typed);
+  restoration.focus(here(), "post/title");
+  restoration.scroll(here(), "post/list", 3);
+  restoration.clear();
+  const again = new Restoration(restoration.snapshot());
+  const restored = createMemoryHistory({ initialEntries: ["/form"] });
+  expect(again.get(again.place(restored), "post/title")).toBeUndefined();
+  expect(again.focused(again.place(restored))).toBe("post/title");
+  expect(again.scrolled(again.place(restored), "post/list")).toBe(3);
+});

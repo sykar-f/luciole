@@ -1,7 +1,8 @@
 /**
  * `HarnessSession` (packages/harness) beyond coder's use: what a host such as studio
  * passes it. Start options reach the harness, a policy answers requests without the
- * user, the end of each turn is told, and the host adds its own lines to the transcript.
+ * user, the end of each turn and each finished write are told, and the host adds its own
+ * lines to the transcript.
  */
 import { test, expect } from "bun:test";
 import type { Harness, HarnessContext, StartOptions } from "../packages/harness/src/adapters/types";
@@ -51,6 +52,16 @@ class Asking implements Harness {
   async respond(request: Request, response: Response) {
     this.answers.push({ request, response });
     this.context.emit({ type: "request.resolved", id: request.id });
+    // A write that is still running, one that was declined, one that is done.
+    const write = (status: "running" | "declined" | "done", path: string) => ({
+      id: `edit-${path}`,
+      kind: "file_change" as const,
+      files: [{ path, patch: "", additions: 1, deletions: 0 }],
+      status,
+    });
+    this.context.emit({ type: "item.started", item: write("running", "app/page.tsx") });
+    this.context.emit({ type: "item.completed", item: write("declined", "package.json") });
+    this.context.emit({ type: "item.completed", item: write("done", "app/page.tsx") });
     this.context.emit({ type: "turn.completed", status: "completed" });
   }
   async steer() {}
@@ -75,6 +86,7 @@ class Asking implements Harness {
 test("a host's start options, policy and turn hook reach the harness and the session", async () => {
   let harness: Asking | undefined;
   const turns: string[] = [];
+  const written: string[] = [];
   const session = new HarnessSession({
     harness: "fake",
     cwd: "/project",
@@ -93,6 +105,7 @@ test("a host's start options, policy and turn hook reach the harness and the ses
         ? { kind: "approval", decision: "deny" }
         : undefined,
     onTurnCompleted: (status) => void turns.push(status),
+    onFilesWritten: (files) => void written.push(...files.map((f) => f.path)),
   });
   await session.start();
   expect(harness?.started).toEqual({
@@ -116,6 +129,8 @@ test("a host's start options, policy and turn hook reach the harness and the ses
     response: { kind: "approval", decision: "deny" },
   });
   expect(turns).toEqual(["completed"]);
+  // Only a finished write is told: studio previews files the harness has written.
+  expect(written).toEqual(["app/page.tsx"]);
   session.note("info", "Build ✓ · revision r1");
   expect(session.snapshot().items.at(-1)).toMatchObject({
     kind: "notice",

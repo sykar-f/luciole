@@ -7,7 +7,7 @@
  */
 import { spawn } from "node:child_process";
 import { existsSync, readdirSync, rmSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 import {
   build,
   fingerprintOf,
@@ -26,9 +26,14 @@ import {
 import type { Project } from "./project";
 
 export type PreviewMode = "sandbox" | "process";
-/** What the Client needs to show a revision (components/Preview.tsx). */
+/** What the Client needs to show a revision or a draft (components/Preview.tsx). */
 export type PreviewTarget = {
+  /** Its build's name: a new one is a new program in the preview. */
+  id: string;
+  /** The revision shown, or for a draft the one it was written over. */
   revision: number;
+  /** Built from the working tree during a turn: not a revision, never corrected. */
+  draft: boolean;
   url: string;
   /** The build: `app/` (signed bundle) and `client/index.js`. */
   output: string;
@@ -37,15 +42,27 @@ export type PreviewTarget = {
   granted: Capabilities;
   /** Where the preview's sessions (route, named fields) are kept, by name. */
   sessions: string;
+  /**
+   * The session every Client of the preview reopens in `process` mode (`AIRTTY_SESSION`),
+   * one per project; a sandboxed Client takes over the one the previous Client left.
+   */
+  session: string;
 };
 export type Diagnostic = { file?: string; line?: number; message: string };
 
 // Builds kept besides the one shown: a quick restore does not rebuild.
 const BUILDS_KEPT = 3;
+/** A build's directory: `b<ms>` for a revision, `b<ms>-draft` for a draft (buildName). */
+const BUILD_NAME = /^b\d+(-draft)?$/;
+/** The directory of a new build, in the order they were made. */
+export const buildName = ({ draft }: { draft: boolean }) =>
+  `b${Date.now()}${draft ? "-draft" : ""}`;
 // The previous Server outlives the switch this long, for the new Client to take over.
 const RETIRE_MS = 5000;
 const TYPES_TIMEOUT_MS = 60_000;
 const MS_PER_SECOND = 1000;
+// A project's preview session id: its directory's hash, in few characters.
+const SESSION_RADIX = 36;
 const MAX_DIAGNOSTICS = 5;
 /** A path relative to this process's directory, as Bun writes some of them. */
 const RELATIVE_PATH = /(?:\.\.\/)+[^\s"'`:()]+/g;
@@ -159,10 +176,39 @@ export class PreviewServers {
   }
 
   /**
-   * Starts the Server of `output` for `revision`, confined unless the preview runs in
-   * `process` mode. Rejects with what the Server said when it does not start.
+   * Starts the Server of `output` for `revision` and switches the preview to it. Rejects
+   * with what the Server said when it does not start.
    */
   async start(revision: number, output: string): Promise<PreviewTarget> {
+    const running = await this.launch(revision, output, { draft: false });
+    this.show(running);
+    return running.target;
+  }
+
+  /**
+   * The same for a draft, unless it is no longer `wanted` once its Server is ready (a
+   * newer write, the end of the turn): that Server stops, the preview stays as it was.
+   */
+  async startDraft(
+    revision: number,
+    output: string,
+    wanted: () => boolean,
+  ): Promise<PreviewTarget | undefined> {
+    const running = await this.launch(revision, output, { draft: true });
+    if (!wanted()) {
+      await this.retire(running);
+      return undefined;
+    }
+    this.show(running);
+    return running.target;
+  }
+
+  /** Starts the Server of `output`, confined unless the preview runs in `process` mode. */
+  private async launch(
+    revision: number,
+    output: string,
+    { draft }: { draft: boolean },
+  ): Promise<Running> {
     const data = this.project.data();
     const box =
       this.mode === "sandbox"
@@ -192,24 +238,32 @@ export class PreviewServers {
         stderr: (text) => (errors += text),
       });
       const target: PreviewTarget = {
+        id: basename(output),
         revision,
+        draft,
         url: `http://127.0.0.1:${server.port}`,
         output,
         fingerprint: fingerprintOf(this.publisher().publicKey),
         mode: this.mode,
         granted: this.granted,
         sessions: `studio-${this.project.name}`,
+        session: `preview-${Bun.hash(this.project.directory).toString(SESSION_RADIX)}`,
       };
-      const previous = this.current;
-      this.current = { target, server, box };
-      this.alive.add(this.current);
-      if (previous) setTimeout(() => void this.retire(previous), RETIRE_MS);
-      this.prune();
-      return target;
+      const running = { target, server, box };
+      this.alive.add(running);
+      return running;
     } catch (error: unknown) {
       await box?.close();
       throw error;
     }
+  }
+
+  /** The preview shows `running`; the previous Server stops once its Client left. */
+  private show(running: Running) {
+    const previous = this.current;
+    this.current = running;
+    if (previous) setTimeout(() => void this.retire(previous), RETIRE_MS);
+    this.prune();
   }
 
   private async retire(running: Running) {
@@ -227,13 +281,15 @@ export class PreviewServers {
     this.alive.clear();
   }
 
-  /** Removes old builds, never the one shown. */
+  /** Removes old builds, never one a Server still runs (the one shown, those retiring). */
   private prune() {
     const builds = this.project.privateDirectory("builds");
-    const shown = this.current?.target.output;
+    const served = new Set([...this.alive].map((running) => running.target.output));
+    // Finished builds only: another one may be building beside (its lock, its temporary).
     const all = readdirSync(builds)
+      .filter((name) => BUILD_NAME.test(name))
       .map((name) => join(builds, name))
-      .filter((path) => path !== shown)
+      .filter((path) => !served.has(path))
       .sort();
     for (const path of all.slice(0, Math.max(0, all.length - BUILDS_KEPT)))
       rmSync(path, { recursive: true, force: true });

@@ -54,6 +54,8 @@ For Client Components only.
 | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `<Input name? value onInput />`, `<Textarea name? value onChange />`      | OpenTUI's `input` and `textarea`, controlled; a `name` makes their text restorable.                                                                     |
 | `useRestoredFields(group)`                                                | `{ submit(action, { failed? }?), clear() }` for the `group/…` fields of the current history entry ([session restore](/docs/concepts/session-restore/)). |
+| `useRestoredFocus(names)`                                                 | `[focus, setFocus]`: which of `names` has the focus, kept per history entry.                                                                            |
+| `<ScrollBox name? …>`                                                     | OpenTUI's `scrollbox`; a `name` keeps its scroll position per history entry.                                                                            |
 | `useBindings()`, `useActiveKeys()`, `useKeymap()`, `usePendingSequence()` | OpenTUI's keymap, re-exported: layers of bindings tied to components' lifetimes.                                                                        |
 | `<KeyHelp groups? inline? />`                                             | Help drawn from the active bindings that declare a `desc`, filtered by `group`.                                                                         |
 

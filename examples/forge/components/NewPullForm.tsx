@@ -1,7 +1,13 @@
 "use client";
-import { useState } from "react";
 import { useField, useForm } from "@tanstack/react-form";
-import { Input, Textarea, useBindings, useNavigate, useRestoredFields } from "airtty/client";
+import {
+  Input,
+  Textarea,
+  useBindings,
+  useNavigate,
+  useRestoredFields,
+  useRestoredFocus,
+} from "airtty/client";
 import { openPullRequest, resolveSave } from "../actions/pulls";
 import type { Note } from "./draft";
 import { useEditingWhile } from "./editing";
@@ -10,8 +16,7 @@ import type { OperationResult, PublishResult } from "./model";
 import { describe, useOperation } from "./operations";
 import { color } from "./theme";
 
-type Field = "branch" | "title" | "description";
-const FIELDS: Field[] = ["branch", "title", "description"];
+const FIELDS = ["branch", "title", "description"] as const;
 // The Server checks the same limits (server/forge.ts): checking first saves a request.
 const MIN_TITLE = 3,
   MAX_BODY = 4000,
@@ -38,7 +43,8 @@ export function NewPullForm({
   const navigate = useNavigate();
   const fields = useRestoredFields("new-pull");
   const opening = useOperation(`new-pull:${repo}`);
-  const [field, setField] = useState<Field>("branch");
+  // Which field has the focus comes back with their text: the user resumes where they typed.
+  const [field, setField] = useRestoredFocus(FIELDS);
   useEditingWhile(field !== "branch");
   /** A committed pull request opens its page; the result becomes an operation's. */
   const opened = (result: PublishResult) => {

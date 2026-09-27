@@ -17,7 +17,12 @@ import {
   type PreviewMode,
 } from "../examples/studio/server/preview";
 import { Project } from "../examples/studio/server/project";
-import { SCENARIOS, type Turn } from "../examples/studio/server/scenarios";
+import {
+  SCENARIOS,
+  startingPoint,
+  type Scenario,
+  type Turn,
+} from "../examples/studio/server/scenarios";
 import { prepare } from "../examples/studio/server/validate";
 
 const MODE: PreviewMode = isolationProblem("sandbox") ? "process" : "sandbox";
@@ -29,6 +34,13 @@ function write(project: Project, turn: Turn) {
     mkdirSync(dirname(file), { recursive: true });
     writeFileSync(file, content);
   }
+}
+
+/** The files of the scenario `scenario` continues, committed: where it starts from. */
+function startFrom(project: Project, scenario: Scenario) {
+  if (!scenario.after) return;
+  write(project, startingPoint(scenario));
+  project.commit(scenario.after);
 }
 
 /** The first stage a turn fails at, or `ok`, as studio would find it. */
@@ -64,6 +76,8 @@ for (const scenario of SCENARIOS)
       try {
         const [first, ...corrections] = scenario.turns;
         if (!first) throw new Error(`${scenario.name} has no turn`);
+        startFrom(project, scenario);
+        for (const draft of scenario.drafts ?? []) write(project, draft);
         write(project, first);
         const found = await validate(project, servers, 1);
         // Render failures show only when a Client draws the page.
@@ -78,6 +92,30 @@ for (const scenario of SCENARIOS)
         if (!corrections.length) return;
         for (const turn of corrections) write(project, turn);
         expect(await validate(project, servers, 2)).toEqual({ stage: "ok", diagnostics: [] });
+      } finally {
+        await servers.stop();
+        project.release();
+        rmSync(root, { recursive: true, force: true });
+      }
+    },
+    SCENARIO_TIMEOUT_MS,
+  );
+
+for (const scenario of SCENARIOS.filter((s) => s.drafts?.length))
+  test(
+    `scenario ${scenario.name}: each of its writes builds, as the drafts studio shows`,
+    async () => {
+      const root = realpathSync(mkdtempSync(join(tmpdir(), "studio-drafts-")));
+      const project = Project.open(join(root, "app"));
+      const servers = new PreviewServers(project, MODE);
+      try {
+        startFrom(project, scenario);
+        for (const draft of scenario.drafts ?? []) {
+          write(project, draft);
+          const changes = project.changes();
+          changes.delete("app/routeTree.gen.ts");
+          expect(await prepare(project, servers, changes)).toMatchObject({ ok: true });
+        }
       } finally {
         await servers.stop();
         project.release();

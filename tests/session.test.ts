@@ -24,7 +24,12 @@ const typed: Session = {
   index: 1,
   entries: [
     { href: "/", fields: {} },
-    { href: "/notes/1", fields: { "note/text": "abc" } },
+    {
+      href: "/notes/1",
+      fields: { "note/text": "abc" },
+      focus: "note/text",
+      scroll: { "note/preview": 4 },
+    },
   ],
 };
 /** The pid of a process that has exited: what a crashed Client leaves in its file. */

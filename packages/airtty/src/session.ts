@@ -28,7 +28,14 @@ const SessionFile = z.object({
   pid: z.number().check(z.int()),
   updatedAt: z.number(),
   index: z.number().check(z.int(), z.gte(0)),
-  entries: z.array(z.object({ href: z.string(), fields: z.record(z.string(), z.string()) })),
+  entries: z.array(
+    z.object({
+      href: z.string(),
+      fields: z.record(z.string(), z.string()),
+      focus: z.optional(z.string()),
+      scroll: z.optional(z.record(z.string(), z.number().check(z.int(), z.gte(0)))),
+    }),
+  ),
 });
 type SessionFile = z.infer<typeof SessionFile>;
 /** Supervisor-given session ids name a file: nothing that could leave the directory. */

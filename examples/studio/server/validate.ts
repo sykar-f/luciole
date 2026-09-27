@@ -5,7 +5,7 @@
  */
 import type { Diagnostic, Stage } from "../components/model";
 import { guard } from "./guard";
-import type { PreviewServers } from "./preview";
+import { buildName, type PreviewServers } from "./preview";
 import type { Project } from "./project";
 
 export type Prepared =
@@ -33,7 +33,7 @@ export async function prepare(
     };
   }
   started = performance.now();
-  const built = await servers.build(`b${Date.now()}`);
+  const built = await servers.build(buildName({ draft: false }));
   onStage("build", "output" in built, performance.now() - started);
   if (!("output" in built))
     return { ok: false, stage: "build", diagnostics: built.diagnostics, undone: false };
