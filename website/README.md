@@ -79,7 +79,8 @@ Les autres (Forge, Chat, mdreader, DevTools) tournent sur `/examples/`, au clic,
 coder (« Coding-agent interface ») peut aussi tourner dans la page : `scripts/demo.ts` le
 construit avec `CODER_HARNESS=fake`, aucun appel de modèle, et sa ligne d'état le dit
 elle-même (« Scripted demo · no model calls »). Son script de page : attendre `Message…`,
-taper le prompt de `DEMO_PROMPT` (examples/coder/server/adapters/fake.ts) puis ``,
+taper le prompt de `DEMO_PROMPT` (examples/coder/server/adapters/fake.ts) puis `
+`,
 attendre `allow once`, taper `y`, attendre `Your turn: ask for the next change.`, l'écran de
 `src/frames/coder.json` (scène `coder` de `scripts/capture.py`, même prompt). La landing le
 montre en capture ; `/examples/` ne le fait pas encore tourner. Files et mux restent au
