@@ -1,0 +1,65 @@
+---
+// The entry of the documentation: a start in English, the guided tour in French, and,
+// until an English reference exists, the repository's own documents (French too).
+import Page from "../../layouts/Page.astro";
+import { chapters } from "../../lib/guide/chapters";
+import { doc } from "../../lib/links";
+
+const reference = [
+  { file: "ARCHITECTURE.md", name: "Architecture", what: "the programs, the build and what each side contains" },
+  { file: "API.md", name: "API", what: "pages, layouts, Server Functions, fields, arguments, authentication" },
+  { file: "ROUTER.md", name: "Routing", what: "file conventions and navigation" },
+  { file: "CACHE.md", name: "Cache", what: '"use cache", tags and invalidation' },
+  { file: "DISTRIBUTION.md", name: "Distribution", what: "binaries, --on, launching by path, git source or URL" },
+  { file: "EMBEDDING.md", name: "Embedding and sandbox", what: "the generic client, modes and capabilities" },
+  { file: "WEB.md", name: "Web", what: "the browser targets, --web and --web-local" },
+  { file: "DEVTOOLS.md", name: "DevTools", what: "inspecting both processes" },
+  { file: "VALIDATION.md", name: "Validation", what: "evidence and limits" },
+];
+---
+
+<Page
+  title="Docs"
+  description="airtty documentation: getting started in English, a guided tour and a reference in French for now."
+>
+  <h1>Docs</h1>
+  <p>
+    Start with the first steps, in English. The guided tour and the reference are in French for
+    now; an English reference is planned.
+  </p>
+
+  <h2><a href="/docs/getting-started/">Getting started</a></h2>
+  <p>
+    Run the Notes example, make a first visible change, slow the network down and create your own
+    app. Every command on it was run as written.
+  </p>
+
+  <h2><a href="/guide/">The guided tour</a> <span class="meta">in French</span></h2>
+  <p>
+    {chapters.length} chapters, from the map of the two programs to distribution, each answering
+    one question.
+  </p>
+  <ol lang="fr">
+    {
+      chapters.map((chapter) => (
+        <li>
+          <a href={`/guide/${chapter.slug}/`}>{chapter.title}</a> — {chapter.question}
+        </li>
+      ))
+    }
+  </ol>
+
+  <h2>Reference <span class="meta">in French, in the repository</span></h2>
+  <dl>
+    {
+      reference.map(({ file, name, what }) => (
+        <>
+          <dt>
+            <a href={doc(file)}>{name}</a>
+          </dt>
+          <dd>{what}</dd>
+        </>
+      ))
+    }
+  </dl>
+</Page>

@@ -1,0 +1,108 @@
+---
+// The first steps, in English. Each command was run as written, in a PTY, on the date the
+// status page gives: Notes starts, with and without the simulated latency; an edit of
+// NoteList.tsx shows on the screen after the dev server's rebuild; `init` makes an app
+// that installs, type-checks and starts.
+import Page from "../../layouts/Page.astro";
+import CopyCommand from "../../components/CopyCommand.astro";
+import { doc, repo, source } from "../../lib/links";
+
+const EDIT = "examples/notes/components/NoteList.tsx";
+---
+
+<Page
+  title="Getting started"
+  description="Run the Notes example of airtty, make a first visible change, slow the network down and create your own terminal app with React Server Components."
+>
+  <h1>Getting started</h1>
+  <p>
+    You will run Notes, the example app of the home page, change what it draws, and create an app
+    of your own. Both sides, client and server, run on your machine.
+  </p>
+
+  <h2>What you need</h2>
+  <ul>
+    <li>macOS or Linux, and git.</li>
+    <li>
+      <strong>Bun 1.4.2</strong>, the version the repository pins:
+    </li>
+  </ul>
+  <CopyCommand lines={["curl -fsSL https://bun.sh/install | bash -s bun-v1.4.2"]} />
+  <p>
+    Nothing is published on a registry yet: you work from a clone of the repository.
+  </p>
+
+  <h2>1. Run Notes</h2>
+  <CopyCommand lines={[`git clone ${repo} && cd airtty`, "bun install --frozen-lockfile", "bun run dev"]} />
+  <p>
+    One command builds both programs and starts them: the server, with a SQLite database created as
+    <code>notes.sqlite</code> in the current directory, and the terminal client. In the list, move
+    with the arrows and open a note with <kbd>Enter</kbd>. In a note, <kbd>Enter</kbd> or
+    <kbd>Ctrl+S</kbd> saves, <kbd>Esc</kbd> goes back to the list. <kbd>Ctrl+C</kbd> quits and
+    restores the terminal.
+  </p>
+
+  <h2>2. Make a first change</h2>
+  <p>
+    Leave it running and open <a href={source(EDIT)}><code>{EDIT}</code></a>, a client component.
+    Change the heading:
+  </p>
+  <pre><code><span class="comment">-</span>      &lt;text&gt;YOUR NOTES&lt;/text&gt;
+<span class="comment">+</span>      &lt;text&gt;MY NOTES&lt;/text&gt;</code></pre>
+  <p>
+    Save the file. The dev server rebuilds and restarts both processes, and the client reopens the
+    same screen, with the new heading, in a couple of seconds. The route, the history and the text
+    of named fields come back; state held only in memory does not: there is no Fast Refresh.
+  </p>
+
+  <h2>3. Slow the network down</h2>
+  <p>Quit with <kbd>Ctrl+C</kbd>, then start again with half a second added to every request:</p>
+  <CopyCommand lines={["AIRTTY_LATENCY_MS=500 bun run dev"]} />
+  <p>
+    Open a note: a loading screen shows at once, drawn by the client, while the page travels. Type,
+    save with <kbd>Enter</kbd>, and keep typing: the keys are handled in the terminal while the save
+    waits for the server. The delay is simulated per request, not a network emulation.
+  </p>
+
+  <h2>4. Create your own app</h2>
+  <p>From the root of the clone:</p>
+  <CopyCommand
+    lines={["bun packages/airtty/src/cli.ts init ../my-app", "cd ../my-app", "bun install", "bun run dev"]}
+  />
+  <p>
+    The starter is a small notes app to reshape, in one codebase. Its <code>airtty</code> dependency
+    points at your clone, which has to stay where it is.
+  </p>
+  <dl>
+    <dt>app/</dt>
+    <dd>
+      Routes as files: <code>page.tsx</code> pages render on the server, <code>layout.tsx</code> and
+      <code>loading.tsx</code> are client components.
+    </dd>
+    <dt>components/</dt>
+    <dd>Client components, marked <code>"use client"</code>: they handle the keyboard.</dd>
+    <dt>actions/</dt>
+    <dd>
+      Server Functions, marked <code>"use server"</code>: the client calls them like functions.
+    </dd>
+    <dt>server/</dt>
+    <dd>Code that only the server runs: the database, queries, checks.</dd>
+  </dl>
+  <p>
+    <code>bun run check</code> type-checks it; <code>bun run build</code> builds both programs for
+    production.
+  </p>
+
+  <h2>Next</h2>
+  <ul>
+    <li>
+      <a href="/guide/">The guided tour</a>, in French: what happens between a key and the database.
+    </li>
+    <li>
+      The reference, in French, in the repository: <a href={doc("API.md")}>API</a>,
+      <a href={doc("ROUTER.md")}>routing</a>, <a href={doc("CACHE.md")}>cache</a>,
+      <a href={doc("DISTRIBUTION.md")}>distribution</a>.
+    </li>
+    <li><a href="/examples/">The examples</a>, each one command away.</li>
+  </ul>
+</Page>
