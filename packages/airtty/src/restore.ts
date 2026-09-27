@@ -1,10 +1,18 @@
 import type { RouterHistory } from "@tanstack/react-router";
 
 /**
- * What a browser keeps of a session: the history, and the text typed into the named
- * fields of each of its entries. Nothing else: page data comes back from the Server.
+ * What a browser keeps of a session: the history and, for each of its entries, the text
+ * typed into its named fields, which of them had the focus and where its named scroll
+ * boxes were scrolled. Nothing else: page data comes back from the Server.
  */
-export type SessionEntry = { href: string; fields: Record<string, string> };
+export type SessionEntry = {
+  href: string;
+  fields: Record<string, string>;
+  /** The named field that had the focus (`useRestoredFocus`). */
+  focus?: string;
+  /** Rows scrolled, by named scroll box (`<ScrollBox name>`); none when at the top. */
+  scroll?: Record<string, number>;
+};
 export type Session = { index: number; entries: SessionEntry[] };
 /** Where a field lives: an entry of the history, checked by its address. */
 export type Place = { index: number; href: string };
@@ -15,6 +23,12 @@ export const MAX_ENTRIES = 50;
 export const MAX_FIELD_LENGTH = 100_000;
 
 const inGroup = (name: string, group: string) => name === group || name.startsWith(`${group}/`);
+const copy = (e: SessionEntry): SessionEntry => ({
+  href: e.href,
+  fields: { ...e.fields },
+  ...(e.focus === undefined ? {} : { focus: e.focus }),
+  ...(e.scroll && Object.keys(e.scroll).length ? { scroll: { ...e.scroll } } : {}),
+});
 
 /**
  * The restorable part of a Client session, owned by the Application. It follows the
@@ -29,7 +43,7 @@ export class Restoration {
   // so a value set by the application (the one sent) is never saved back.
   private sent = new Set<string>();
   constructor(session?: Session) {
-    this.entries = session?.entries.map((e) => ({ href: e.href, fields: { ...e.fields } })) ?? [];
+    this.entries = session?.entries.map(copy) ?? [];
     this.index = session?.index ?? 0;
   }
   /**
@@ -112,7 +126,35 @@ export class Restoration {
     }
     this.changed();
   }
-  /** Forgets every field of every entry; the history itself stays. */
+  /** The named field that had the focus at `place`. */
+  focused(place: Place): string | undefined {
+    return this.at(place)?.focus;
+  }
+  /** Keeps which named field has the focus at `place`. */
+  focus(place: Place, name: string) {
+    const entry = this.at(place);
+    if (!entry || entry.focus === name) return;
+    entry.focus = name;
+    this.changed();
+  }
+  /** How far the scroll box `name` was scrolled at `place`, in rows. */
+  scrolled(place: Place, name: string): number | undefined {
+    return this.at(place)?.scroll?.[name];
+  }
+  /** Keeps how far the scroll box `name` is scrolled at `place`; the top is not kept. */
+  scroll(place: Place, name: string, top: number) {
+    const entry = this.at(place);
+    if (!entry || (entry.scroll?.[name] ?? 0) === top) return;
+    const scroll = { ...entry.scroll };
+    if (top > 0) scroll[name] = top;
+    else delete scroll[name];
+    entry.scroll = scroll;
+    this.changed();
+  }
+  /**
+   * Forgets every field of every entry, typed text being what another identity must not
+   * see; the history, and where the focus and scroll boxes stood, stay.
+   */
   clear() {
     for (const entry of this.entries) if (entry) entry.fields = {};
     this.sent.clear();
@@ -123,10 +165,9 @@ export class Restoration {
     return {
       index: Math.max(0, this.index - start),
       // Every navigation syncs, so no entry is missing; "/" only guards a hole.
-      entries: Array.from(this.entries.slice(start), (e) => ({
-        href: e?.href ?? "/",
-        fields: { ...e?.fields },
-      })),
+      entries: Array.from(this.entries.slice(start), (e) =>
+        e ? copy(e) : { href: "/", fields: {} },
+      ),
     };
   }
   subscribe = (listener: () => void) => {

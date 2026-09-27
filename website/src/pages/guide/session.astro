@@ -18,7 +18,7 @@ import Quiz from "../../components/guide/Quiz.astro";
   ]}
 >
   <h2>En une phrase</h2>
-  <p>Le Client joue le rôle d'un navigateur : il garde, dans un fichier par Client, l'<strong>historique</strong> et le <strong>texte des champs nommés</strong> de chaque entrée. Ce fichier survit à un rebuild, à un crash et à un terminal fermé, et disparaît quand l'utilisateur quitte. Il ne sait rien du métier : ce qu'est un brouillon et comment régler un conflit, c'est l'app qui le décide.</p>
+  <p>Le Client joue le rôle d'un navigateur : il garde, dans un fichier par Client, l'<strong>historique</strong> et, pour chaque entrée, le <strong>texte des champs nommés</strong>, le champ qui avait le <strong>focus</strong> et la <strong>position des boîtes de défilement nommées</strong>. Ce fichier survit à un rebuild, à un crash et à un terminal fermé, et disparaît quand l'utilisateur quitte. Il ne sait rien du métier : ce qu'est un brouillon et comment régler un conflit, c'est l'app qui le décide.</p>
 
   <h2>Le parcours</h2>
   <Sequence
@@ -82,7 +82,7 @@ import Quiz from "../../components/guide/Quiz.astro";
 
   <h2>Oublier à l'envoi</h2>
   <p>Un piège guette tout brouillon restauré. L'utilisateur envoie, le Client crashe pendant la requête, puis revient : faut-il reproposer le texte ? Si l'envoi a abouti, le reproposer inviterait à l'envoyer deux fois. <code>useRestoredFields(group).submit</code> tranche :</p>
-  <Excerpt path="packages/airtty/src/fields.tsx" find="async submit<T>(action: () => Promise<T>" count={12} tone="client" mark={["app.restoration.take(place, group)", 'e.outcome !== "unknown"']} />
+  <Excerpt path="packages/airtty/src/fields.tsx" find="async submit<T>(action: () => Promise<T>" count={12} tone="client" mark={["restoration.take(place, group)", 'e.outcome !== "unknown"']} />
   <ol>
     <li>Le texte du groupe est <strong>retiré</strong> de la session avant l'envoi.</li>
     <li>Il est <strong>remis</strong> si l'action répond un échec métier (<code>failed(result)</code>), ou si la requête n'a certainement pas eu lieu (<code>not-sent</code>, <code>rejected</code>).</li>
@@ -90,6 +90,12 @@ import Quiz from "../../components/guide/Quiz.astro";
   </ol>
   <p>Notes l'utilise pour son éditeur, et Forge pour son formulaire de pull request :</p>
   <Excerpt path="examples/notes/components/NoteEditor.tsx" find="fields = useRestoredFields" count={3} tone="client" />
+
+  <h2>Le focus et le défilement</h2>
+  <p>Un navigateur rend le focus au champ quitté et fait défiler la page là où elle était. Une app de terminal décide elle-même de son focus (<code>focused=&#123;…&#125;</code>) et fait défiler des boîtes, pas une page : les deux se demandent donc, par un nom. <code>useRestoredFocus(noms)</code> est l'état de focus de l'app, gardé par entrée ; Forge l'emploie pour son formulaire, où Tab passe d'un champ à l'autre :</p>
+  <Excerpt path="examples/forge/components/NewPullForm.tsx" find="const [field, setField] = useRestoredFocus" count={1} tone="client" />
+  <p><code>&lt;ScrollBox name&gt;</code> garde la position d'une <code>scrollbox</code>. Au montage, le contenu n'est souvent pas encore là (une liste chargée ensuite) : la position est réappliquée pendant un moment, jusqu'à être atteinte, et un défilement de l'utilisateur entre-temps l'emporte.</p>
+  <Excerpt path="packages/airtty/src/fields.tsx" find="// Every change of position" count={5} tone="client" mark={["if (applying) return;", "restoring = false;"]} />
 
   <h2>Le fichier</h2>
   <Sample
@@ -101,7 +107,7 @@ import Quiz from "../../components/guide/Quiz.astro";
  "entries":[{"href":"/","fields":{}},
             {"href":"/notes/42","fields":{"note/text":"brouillon pas encore envoyé"}}]}`}
   />
-  <p>Pas de données de page, qui reviennent du Server, et <strong>jamais de bearer</strong>. Sous <code>airtty dev</code>, le token passe d'un Client au suivant par la mémoire du superviseur (chapitre 3). Au changement de compte, les champs de toutes les entrées sont oubliés.</p>
+  <p>Une entrée où l'app garde un focus ou une position ajoute <code>"focus":"title"</code> (Forge) ou <code>"scroll":&#123;"pull/timeline":12&#125;</code>. Pas de données de page, qui reviennent du Server, et <strong>jamais de bearer</strong>. Sous <code>airtty dev</code>, le token passe d'un Client au suivant par la mémoire du superviseur (chapitre 3). Au changement de compte, les champs de toutes les entrées sont oubliés.</p>
 
   <Callout kind="piege">
     <ul>

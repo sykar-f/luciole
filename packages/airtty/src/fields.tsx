@@ -1,10 +1,32 @@
 /** @jsxImportSource @opentui/react */
-import { useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type Ref } from "react";
-import type { TextareaRenderable } from "@opentui/core";
-import type { InputProps, TextareaProps } from "@opentui/react";
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type Ref,
+} from "react";
+import type { ScrollBoxRenderable, TextareaRenderable } from "@opentui/core";
+import type { InputProps, ScrollBoxProps, TextareaProps } from "@opentui/react";
 import type { Place } from "./restore";
 import { Runtime } from "./runtime-context";
 import { TransportError } from "./transport";
+
+// A scroll box's content arrives after it mounts (a list the page loads, a live feed):
+// its kept position is applied again this often, for this long, until it can be reached.
+const SCROLL_RETRY_MS = 50;
+const SCROLL_RESTORE_MS = 1500;
+
+/** The Application's restoration and the entry shown when the caller mounted. */
+function usePlace(outside: string) {
+  const app = useContext(Runtime);
+  if (!app) throw new Error(outside);
+  const [place] = useState(() => app.restoration.place(app.history));
+  return { restoration: app.restoration, place };
+}
 
 /**
  * The entry a named field belongs to: the one shown when it mounted. A field of a
@@ -149,25 +171,114 @@ export type RestoredFields = {
  * submission stay with the application or its form library (TanStack Form, …).
  */
 export function useRestoredFields(group: string): RestoredFields {
-  const app = useContext(Runtime);
-  if (!app) throw new Error(`Fields "${group}" are outside the terminal shell`);
-  const [place] = useState(() => app.restoration.place(app.history));
+  const { restoration, place } = usePlace(`Fields "${group}" are outside the terminal shell`);
   return useMemo(
     () => ({
       async submit<T>(action: () => Promise<T>, options: { failed?: (result: T) => boolean } = {}) {
-        const taken = app.restoration.take(place, group);
+        const taken = restoration.take(place, group);
         try {
           const result = await action();
-          if (options.failed?.(result)) app.restoration.restore(place, taken);
+          if (options.failed?.(result)) restoration.restore(place, taken);
           return result;
         } catch (e) {
           if (e instanceof TransportError && e.outcome !== "unknown")
-            app.restoration.restore(place, taken);
+            restoration.restore(place, taken);
           throw e;
         }
       },
-      clear: () => void app.restoration.take(place, group),
+      clear: () => void restoration.take(place, group),
     }),
-    [app, place, group],
+    [restoration, place, group],
   );
+}
+
+/**
+ * Which of `names` has the focus, kept per history entry like the fields' text: the
+ * first one until the user moves it, the one they left it on after going back, a crash
+ * or a rebuild. The application still decides the focus (`focused={focus === name}`);
+ * this is its state, restored. A kept name no longer among `names` gives the first one.
+ */
+export function useRestoredFocus<const N extends string>(
+  names: readonly [N, ...N[]],
+): [focus: N, setFocus: (next: N | ((current: N) => N)) => void] {
+  const { restoration, place } = usePlace(
+    `The focus of "${names[0]}" is outside the terminal shell`,
+  );
+  const [focus, set] = useState<N>(() => {
+    const kept = restoration.focused(place);
+    return names.find((name) => name === kept) ?? names[0];
+  });
+  const current = useRef(focus);
+  const setFocus = useCallback(
+    (next: N | ((current: N) => N)) => {
+      const name = typeof next === "function" ? next(current.current) : next;
+      current.current = name;
+      set(name);
+      restoration.focus(place, name);
+    },
+    [restoration, place],
+  );
+  return [focus, setFocus];
+}
+
+export type FieldScrollBoxProps = ScrollBoxProps & {
+  /**
+   * Keeps how far the box is scrolled for this history entry: it comes back after
+   * going back to the entry, a crash or a development rebuild. Unnamed, the box is
+   * OpenTUI's `<scrollbox>` as is.
+   */
+  name?: string;
+};
+/**
+ * OpenTUI's `<scrollbox>`, with an optional restorable `name`. The kept position is
+ * applied as soon as the content is tall enough, for a moment after mounting (content
+ * that loads later); scrolling by the user in the meantime wins.
+ */
+export function ScrollBox({ name, ref, ...props }: FieldScrollBoxProps) {
+  const app = useContext(Runtime);
+  if (name !== undefined && !app)
+    throw new Error(`Scroll box "${name}" is outside the terminal shell`);
+  const [place] = useState(() =>
+    app && name !== undefined ? app.restoration.place(app.history) : undefined,
+  );
+  const box = useRef<ScrollBoxRenderable | null>(null);
+  useLayoutEffect(() => {
+    const node = box.current;
+    if (!app || !place || name === undefined || !node) return;
+    const { restoration } = app;
+    const target = restoration.scrolled(place, name) ?? 0;
+    let restoring = target > 0;
+    let applying = false;
+    const apply = () => {
+      applying = true;
+      node.scrollTop = target;
+      applying = false;
+      if (node.scrollTop === target) restoring = false;
+    };
+    // Every change of position, the user's or a shorter content's; not the restore's own.
+    const changed = () => {
+      if (applying) return;
+      restoring = false;
+      restoration.scroll(place, name, node.scrollTop);
+    };
+    node.verticalScrollBar.on("change", changed);
+    if (restoring) apply();
+    const started = Date.now();
+    const timer = restoring
+      ? setInterval(() => {
+          if (restoring && Date.now() - started < SCROLL_RESTORE_MS) apply();
+          else clearInterval(timer);
+        }, SCROLL_RETRY_MS)
+      : undefined;
+    return () => {
+      clearInterval(timer);
+      node.verticalScrollBar.off("change", changed);
+    };
+  }, [app, place, name]);
+  const attach = (node: ScrollBoxRenderable | null) => {
+    box.current = node;
+    if (typeof ref === "function") ref(node);
+    else if (ref) ref.current = node;
+  };
+  return <scrollbox {...props} ref={attach} />;
 }
