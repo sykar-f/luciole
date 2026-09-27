@@ -2,7 +2,7 @@
  * `airtty dev` as a program on a PTY, the way a host embeds it (a multiplexer's
  * `<Terminal>`, studio's preview): what it leaves behind when the terminal goes away.
  */
-import { test } from "bun:test";
+import { test, expect } from "bun:test";
 import { mkdtemp, mkdir, rm } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
@@ -67,6 +67,25 @@ test("a hangup of its terminal stops airtty dev's Server and Client too", async 
     run.pty.kill();
     await until(() => run.ended.length > 0, EXIT_MS);
     await until(() => !children.some(alive), EXIT_MS);
+  } finally {
+    run.pty.kill();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("airtty dev ends with its Client's exit code: a crash is not a quit", async () => {
+  const CRASH_CODE = 3;
+  const dir = await app(
+    `import { Crash } from "../components/Crash";\nexport default function Page() {\n  return <Crash />;\n}\n`,
+  );
+  await Bun.write(
+    join(dir, "components/Crash.tsx"),
+    `"use client";\nimport { useEffect } from "react";\nexport function Crash() {\n  useEffect(() => process.exit(${CRASH_CODE}), []);\n  return <text>crashing</text>;\n}\n`,
+  );
+  const run = dev(dir);
+  try {
+    await until(() => run.ended.length > 0, STARTUP_MS);
+    expect(run.ended).toEqual([CRASH_CODE]);
   } finally {
     run.pty.kill();
     await rm(dir, { recursive: true, force: true });

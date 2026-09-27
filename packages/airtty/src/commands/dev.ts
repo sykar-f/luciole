@@ -14,6 +14,8 @@ import { frameworkRoot, stop, type Command } from "./command";
 const SERVER_STARTUP_MS = 10_000;
 // Editors write a file in several events: one rebuild per burst.
 const REBUILD_DEBOUNCE_MS = 150;
+// A Client killed by a signal has no exit code: the run still says it did not quit.
+const SIGNALLED_EXIT_CODE = 1;
 /** What a supervised Client asks, or tells, `airtty dev` (src/client.tsx). */
 const ClientMessage = z.union([
   z.object({ type: z.literal("hello") }),
@@ -50,13 +52,14 @@ export const dev: Command = {
       closing = false,
       building = false,
       again = false;
-    const shutdown = async () => {
+    // `code`: the Client's, when it ended the run; a supervisor tells a crash from a quit.
+    const shutdown = async (code = 0) => {
       if (closing) return;
       closing = true;
       watcher.close();
       clearTimeout(debounce);
       await Promise.all([stop(client), stop(server)]);
-      process.exit(0);
+      process.exit(code);
     };
     async function rebuild() {
       if (closing) return;
@@ -165,8 +168,9 @@ export const dev: Command = {
             if (message.data.type === "hello") activeClient.send({ type: "bearer", token: bearer });
             else bearer = message.data.token;
           });
-          activeClient.once("exit", () => {
-            if (client === activeClient && !building) void shutdown();
+          activeClient.once("exit", (code, signal) => {
+            if (client === activeClient && !building)
+              void shutdown(code ?? (signal ? SIGNALLED_EXIT_CODE : 0));
           });
         } catch (error) {
           const message = `Build failed: ${messageOf(error)}`;
@@ -192,7 +196,8 @@ export const dev: Command = {
     });
     // SIGHUP too: a closed terminal, or a host that ends its embedded terminal
     // (<Terminal>), must not leave the Server and the Client running without it.
-    for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"] as const) process.on(signal, shutdown);
+    for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"] as const)
+      process.on(signal, () => void shutdown());
     await rebuild();
   },
 };
