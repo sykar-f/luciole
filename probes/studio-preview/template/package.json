@@ -1,0 +1,17 @@
+{
+  "name": "studio-app",
+  "private": true,
+  "type": "module",
+  "airtty": {
+    "displayName": "studio app",
+    "capabilities": {}
+  },
+  "dependencies": {
+    "airtty": "workspace:*",
+    "@opentui/core": "catalog:",
+    "@opentui/react": "catalog:",
+    "@tanstack/react-router": "catalog:",
+    "react": "catalog:",
+    "zod": "catalog:"
+  }
+}
