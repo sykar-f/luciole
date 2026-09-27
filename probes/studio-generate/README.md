@@ -15,7 +15,7 @@ ici : chaque prompt réel consomme le quota de l'utilisateur
 pour chaque demande, une première tentative (juste, ou avec une faute typique d'un modèle
 de code dans une base qu'il ne connaît pas) puis la correction qu'un harness ferait après
 avoir lu les diagnostics. Mesurer un vrai taux de réussite est prévu en C5b, avec accord
-explicite de l'utilisateur (spec, section 9).
+explicite de l'utilisateur (spec, section 8, étape C5b.6).
 
 ```sh
 bun probes/studio-generate/probe.ts      # depuis la racine ; écrit results.json, code 1 si échec
