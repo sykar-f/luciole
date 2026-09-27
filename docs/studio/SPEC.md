@@ -1,7 +1,8 @@
 # studio : décrire une application airtty, la voir se construire
 
 Statut : **C5b livré** sur `studio/local` (étapes 0 à 4, 6 sur Claude Code et 7 du plan,
-section 8 ; l'étape 5, Linux, reste à faire ; Codex reporté), voir
+section 8 ; l'étape 5, Linux, reste à faire ; Codex reporté), puis les **aperçus
+brouillons** pendant le tour et la continuité de l'état de l'app (`studio/live-preview`), voir
 [État de l'implémentation](#état-de-limplémentation-c5b). La conception (C5a) s'appuie sur
 trois probes exécutés le 27 septembre 2026 (macOS 26.6.2 arm64, Bun 1.4.2) :
 [studio-preview](../../probes/studio-preview/README.md),
@@ -17,11 +18,12 @@ commande `npx airttyx studio` (C7, le nom `airtty` n'est pas définitif).
 Un nouvel exemple, `examples/studio` : à gauche une conversation avec un harness local
 (Claude Code, par les adaptateurs partagés avec `examples/coder`), à droite l'application
 airtty que ce harness écrit, **en fonctionnement**, embarquée par le widget VT
-(`<Terminal>`, [EMBEDDING.md](../EMBEDDING.md) section 4) et rechargée après chaque tour.
+(`<Terminal>`, [EMBEDDING.md](../EMBEDDING.md) section 4), montrée en brouillon après
+chaque écriture et rechargée comme révision après chaque tour.
 
 | Question                         | Proposition                                                                                                                       | Appui                       |
 | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
-| Qui construit et relance l'app ? | le Server de studio, en **fin de tour** (pas `airtty dev`, qui reconstruit à chaque écriture)                                     | probe studio-preview        |
+| Qui construit et relance l'app ? | le Server de studio, en **fin de tour** (pas `airtty dev`, qui reconstruit à chaque écriture) ; depuis, un brouillon par écriture | probe studio-preview        |
 | Comment vérifier une génération  | quatre étapes : garde-fou statique → build → rendu headless (aperçu mis à jour) ; `tsc` en parallèle                              | probe studio-generate       |
 | Correction automatique           | diagnostics renvoyés au harness comme message de studio, 2 tentatives par défaut                                                  | probe studio-generate       |
 | Isolation par défaut             | **Server de l'app confiné** (Seatbelt / `airtty-sandbox`) et **Client en `sandbox`**, bundle signé par une clé éphémère du projet | probe studio-server-sandbox |
@@ -34,17 +36,19 @@ L'exemple est `examples/studio` ([README](../../examples/studio/README.md)) ; to
 hors ligne sur le **générateur scripté** (`-H fake`), qui écrit vraiment le projet d'après
 les scénarios du probe studio-generate. Ce qui s'écarte de la conception ci-dessous :
 
-| Sujet                   | Conçu                                                    | Fait, et pourquoi                                                                                                                                                                                                                                                                                                                            |
-| ----------------------- | -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Étape « rendu »         | rendu headless dans le Server studio, puis G6 plus tard  | **G6 d'emblée** : le Client de l'aperçu signale ses pages en échec (`onFailure` d'`openSandbox`, IPC en mode `process`), le Client studio le transmet (`previewFailed`) ; pas de second rendu                                                                                                                                                |
-| Ordre                   | garde-fou → build → rendu → aperçu                       | garde-fou → build → **Server** (un Server qui ne démarre pas est un échec avec son stderr) → révision → aperçu ; `tsc` et le rapport de rendu ensuite. Une révision est donc « construite et démarrée », son éventuel problème y est noté                                                                                                    |
-| Build                   | dans `.airtty/`                                          | un dossier par tentative sous `.airtty-studio/builds/` (`build(dir, output)`, `startAppServer({ output })`) : valider la suivante ne touche jamais celle que l'aperçu montre                                                                                                                                                                 |
-| Bascule de panneau      | `Ctrl+O Tab`                                             | `Ctrl+O` puis `o`, comme le « pane suivant » de mux ; les séquences sont listées dans la ligne d'aide                                                                                                                                                                                                                                        |
-| Options                 | `--dir`, `--project`, `--resume`, `--preview`, `--model` | plus `--fixes N` (décision 3 : réglable) ; sans `--dir` ni `--project`, un nouveau projet `app-<date>`                                                                                                                                                                                                                                       |
-| Capacités               | demande du harness, accord de l'utilisateur              | `/allow HOST` et `/deny HOST` : studio écrit `airtty.capabilities.net` et committe lui-même, le garde-fou ne s'applique qu'au harness ; les autres capacités ne sont pas encore proposées                                                                                                                                                    |
-| Sans sandbox            | refus au lancement                                       | l'écran s'ouvre et dit pourquoi ; aucun message n'est envoyé au harness tant que studio ne tourne pas avec `--preview process`                                                                                                                                                                                                               |
-| Codex                   | « mode sans exécution si le protocole le permet »        | **reporté** : son protocole n'a pas de mode sans commandes (`workspace-write` + `on-request` ne demande que pour sortir du projet ou le réseau, docs/coder/research/codex-report.md) ; studio n'accepte que `claude` et `fake`, demander `codex`, `pi` ou `opencode` échoue avec cette raison (décision de l'utilisateur, 27 septembre 2026) |
-| Mesure réelle (étape 6) | fixtures enregistrées, taux de build                     | **faite sur Claude Code** (ci-dessous) ; Codex non mesuré (reporté) ; transcripts enregistrés hors du dépôt, résumé dans `docs/studio/measures/`                                                                                                                                                                                             |
+| Sujet                   | Conçu                                                    | Fait, et pourquoi                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ----------------------- | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Étape « rendu »         | rendu headless dans le Server studio, puis G6 plus tard  | **G6 d'emblée** : le Client de l'aperçu signale ses pages en échec (`onFailure` d'`openSandbox`, IPC en mode `process`), le Client studio le transmet (`previewFailed`) ; pas de second rendu                                                                                                                                                                                                                                     |
+| Ordre                   | garde-fou → build → rendu → aperçu                       | garde-fou → build → **Server** (un Server qui ne démarre pas est un échec avec son stderr) → révision → aperçu ; `tsc` et le rapport de rendu ensuite. Une révision est donc « construite et démarrée », son éventuel problème y est noté                                                                                                                                                                                         |
+| Build                   | dans `.airtty/`                                          | un dossier par tentative sous `.airtty-studio/builds/` (`build(dir, output)`, `startAppServer({ output })`) : valider la suivante ne touche jamais celle que l'aperçu montre                                                                                                                                                                                                                                                      |
+| Bascule de panneau      | `Ctrl+O Tab`                                             | `Ctrl+O` puis `o`, comme le « pane suivant » de mux ; les séquences sont listées dans la ligne d'aide                                                                                                                                                                                                                                                                                                                             |
+| Options                 | `--dir`, `--project`, `--resume`, `--preview`, `--model` | plus `--fixes N` (décision 3 : réglable) ; sans `--dir` ni `--project`, un nouveau projet `app-<date>`                                                                                                                                                                                                                                                                                                                            |
+| Capacités               | demande du harness, accord de l'utilisateur              | `/allow HOST` et `/deny HOST` : studio écrit `airtty.capabilities.net` et committe lui-même, le garde-fou ne s'applique qu'au harness ; les autres capacités ne sont pas encore proposées                                                                                                                                                                                                                                         |
+| Sans sandbox            | refus au lancement                                       | l'écran s'ouvre et dit pourquoi ; aucun message n'est envoyé au harness tant que studio ne tourne pas avec `--preview process`                                                                                                                                                                                                                                                                                                    |
+| Codex                   | « mode sans exécution si le protocole le permet »        | **reporté** : son protocole n'a pas de mode sans commandes (`workspace-write` + `on-request` ne demande que pour sortir du projet ou le réseau, docs/coder/research/codex-report.md) ; studio n'accepte que `claude` et `fake`, demander `codex`, `pi` ou `opencode` échoue avec cette raison (décision de l'utilisateur, 27 septembre 2026)                                                                                      |
+| Pendant le tour         | l'aperçu ne bouge pas (2.2, point 2)                     | **un brouillon par écriture** (décision 9) : les écritures de 300 ms regroupées, garde-fou, build à part, Server confiné, bascule ; ni révision, ni correction, ni message au harness. Un brouillon en échec garde le dernier écran valide (« draft · waiting for a build that works ») ; un seul à la fois, le plus récent l'emporte ; ce qui est construit doit être ce qui a été vérifié. La fin du tour annule les brouillons |
+| Champs de l'app         | —                                                        | les instructions demandent des champs nommés (`Input`/`Textarea` d'`airtty/client`), `useRestoredFields`, `useRestoredFocus`, `<ScrollBox name>` ; un champ sans `name` est un **conseil** du garde-fou (transcript, puis avec le message suivant au harness), jamais un refus ni une correction                                                                                                                                  |
+| Mesure réelle (étape 6) | fixtures enregistrées, taux de build                     | **faite sur Claude Code** (ci-dessous) ; Codex non mesuré (reporté) ; transcripts enregistrés hors du dépôt, résumé dans `docs/studio/measures/`                                                                                                                                                                                                                                                                                  |
 
 Lacunes du framework comblées (section 7), chacune dans un commit à part, avec son test :
 G1 (`confineServer`, macOS), G2, G3, G4, G5, G6, G7 (`airtty/dev`). L'implémentation en a
@@ -82,6 +86,40 @@ du SDK et un test de l'adaptateur, pas par un nouveau run). Conséquence pour le
 composants (décision 8) : ces 13 prompts ne montrent pas de faute de composant à
 prévenir ; il faudrait des prompts plus ambitieux (plusieurs pages, formulaires, listes
 longues) pour trancher.
+
+**Brouillons et continuité** (27 septembre 2026, générateur scripté, macOS 26.6.2, load
+8–9 ; `bun run test:pty:studio`). Deux scénarios l'exercent : `guestbook` (quatre écritures :
+une annonce sur l'accueil, un store et une action, la page, le lien) et `signatures`, qui le
+prolonge (`after`) ; le générateur espace les écritures d'un scénario (`STUDIO_FAKE_WRITE_MS`,
+1,5 s par défaut). Le test vérifie que la première écriture s'affiche pendant le tour, puis
+qu'un nom, un message tapés et la liste défilée d'une page survivent à un brouillon puis à une
+révision, focus compris, en `sandbox` puis en `process`, sans processus restant (écritures
+espacées de 3 s en `sandbox`, 6 s en `process`, où un Client neuf dessine plus lentement). Sur
+cinq passages avec ce rythme, un a échoué, dans la partie d'origine du parcours (avant les
+brouillons), sans se reproduire ensuite.
+
+| Mesure                                               | `sandbox`                                          | `process`               |
+| ---------------------------------------------------- | -------------------------------------------------- | ----------------------- |
+| écriture → brouillon affiché (écran, prompt compris) | 2,2–3,0 s                                          | 4,8–6,2 s               |
+| dont regroupement, build et Server prêt              | ≈ 1,65 s, déduit (300 ms + 1,35 s ci-dessous)      | idem                    |
+| premier écran d'un Client neuf                       | 280–330 ms (EMBEDDING.md, mdreader ; non remesuré) | 1,4–1,6 s (mesuré seul) |
+| rechargement de fin de tour (médiane, 5 modifs)      | 1,35–1,43 s ; 1,32–1,35 s juste après un brouillon | non mesuré              |
+
+Le rechargement de fin de tour (garde-fou, build, révision, Server confiné prêt) a été mesuré
+par un script jetable qui reprend ce chemin (`prepare`, `commit`, `start`), seul puis précédé
+à chaque fois d'un brouillon construit et démarré : les brouillons ne le ralentissent pas.
+Un brouillon encore en cours au moment où le tour finit tourne en parallèle du build de la
+révision (il est abandonné à son étape suivante) : ce cas n'est pas mesuré.
+
+En `process`, le Client généré (`client/index.js`, tout le framework) met plus d'une seconde
+à dessiner, et chaque brouillon le relance, même quand l'écran ne change pas : son cadre reste
+vide ce temps-là. Constats faits en route : sans l'attente de sortie, la `sandbox` gardait déjà
+la session, par le seul temps que prend son ouverture ; en `process`, le Client héritait par
+accident de l'`AIRTTY_SESSION` du Client studio (sous `airtty dev`) et attendait 1 s un bearer
+(corrigé : id de session par projet, hello répondu) ; il survivait aussi à la sortie de studio
+(corrigé : tué à la sortie, comme en `sandbox`). Enfin, onze messages Markdown dans la
+conversation faisaient écrire à Node un `MaxListenersExceededWarning` par-dessus l'interface
+(corrigé dans `airtty/markdown`).
 
 Mesures (générateur scripté, macOS 26.6.2, machine chargée par d'autres sessions) : le
 parcours de bout en bout (`tests/studio.test.tsx`, trois prompts, une erreur de build et
@@ -158,7 +196,10 @@ prompt ─▶ tour du harness ─▶ fin de tour ─▶ garde-fou ─▶ build �
 2. Pendant le tour, l'aperçu **ne bouge pas** : il montre la dernière révision valide.
    Reconstruire à chaque écriture montrerait des états intermédiaires incohérents (un
    harness écrit plusieurs fichiers en plusieurs secondes ; `airtty dev` reconstruit
-   150 ms après chaque écriture, constat 4 de studio-preview).
+   150 ms après chaque écriture, constat 4 de studio-preview). **Remplacé depuis** par les
+   brouillons (décision 9, [État de l'implémentation](#état-de-limplémentation-c5b)) :
+   l'app apparaissait d'un coup en fin de tour ; un état intermédiaire cassé garde
+   simplement le dernier écran qui marchait.
 3. En fin de tour : validation (section 5.4). Si elle passe, studio crée la révision
    (commit dans le dépôt git du projet) et recharge l'aperçu.
 4. Si une étape échoue : l'aperçu garde la révision précédente, la conversation montre
@@ -177,7 +218,7 @@ EMBEDDING.md, étape 7). Budget : **≈ 2–3 s**, du même ordre qu'`airtty dev
 | État                     | Conversation                                                                      | Aperçu                                                                         |
 | ------------------------ | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
 | projet neuf              | invite « décrivez votre app » et 3 exemples                                       | le template (compteur) déjà en marche                                          |
-| génération en cours      | streaming du harness, fichiers écrits                                             | dernière révision, bandeau discret « génération… »                             |
+| génération en cours      | streaming du harness, fichiers écrits                                             | brouillon de ce qui est écrit (`draft`), ou « draft · waiting for a build… »   |
 | en attente d'une réponse | question ou approbation du harness (dialogue de coder)                            | inchangé                                                                       |
 | validation               | étapes cochées au fil de l'eau                                                    | inchangé                                                                       |
 | garde-fou déclenché      | fichiers refusés et raison ; modifications annulées                               | inchangé                                                                       |
@@ -306,8 +347,11 @@ dont `airtty dev` devient un client (watcher → `rebuild()`), et studio un autr
 5. Le Server N−1 est arrêté quand le Client N a rendu (ou après un délai), pour ne jamais
    montrer un cadre vide.
 
-État conservé : la **route et les champs nommés** (session `AIRTTY_SESSION` partagée,
-comme `airtty dev`) ; perdus : l'état en mémoire du Server et du Client (mesuré). Le
+État conservé : la **route, l'historique, les champs nommés, le focus
+(`useRestoredFocus`) et le défilement (`<ScrollBox name>`)**, par entrée d'historique ;
+chaque Client attend que le précédent soit sorti pour reprendre la session qu'il a écrite
+(en `sandbox`, la plus récente laissée par un Client mort pour l'origine ; en `process`,
+celle du projet, par son id). Perdus : l'état en mémoire du Server et du Client (mesuré). Le
 template range les données dans `data/` (`bun:sqlite`), seul répertoire inscriptible du
 Server confiné : elles survivent aux révisions. `Ctrl+O r` relance la même révision.
 
@@ -594,3 +638,6 @@ propositions) :
 6. **macOS d'abord** : l'étape 5 (Linux) vient après la v1 macOS.
 7. **`packages/harness`** extrait, sans changement de comportement de coder.
 8. **Kit de composants** du template : après la mesure des fautes réelles, pas dans C5b.
+9. **Aperçus brouillons** (demande de l'utilisateur, 27 septembre 2026) : l'aperçu suit
+   chaque écriture du harness sans rien perdre de ce que fait l'utilisateur dans l'app ;
+   la fin de tour (révision, corrections) ne change pas. Remplace le point 2 de 2.2.
