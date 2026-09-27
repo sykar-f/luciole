@@ -14,8 +14,10 @@ import { ansi, GLOW_HOT, GLOW_WARM, lines, patch, type Frame } from "../lib/fram
 /**
  * Wait until the screen shows `wait`, then type `type` into it as a keyboard would, then
  * let `pause` milliseconds pass: what a key changed (a focused field) is not always text.
+ * `timeout`: how long `wait` may take, 8 s unless the application needs longer (a
+ * scripted agent streams its answer).
  */
-export type Step = { wait: string; type: string; pause?: number };
+export type Step = { wait: string; type: string; pause?: number; timeout?: number };
 
 interface Props {
   /** The demo's directory under public/demo/. */
@@ -106,6 +108,7 @@ const stand = JSON.stringify({
       <span class="take" data-take hidden>Live · click to use the keyboard</span>
     </div>
   </Screen>
+  <p class="missed" data-missed role="status" hidden></p>
   {
     intro.length > 0 && (
       <p class="hud" aria-hidden="true">
@@ -141,7 +144,12 @@ const stand = JSON.stringify({
 
   const Stage = z.object({ source: z.literal("airtty"), type: z.literal("stage"), stage: z.string() });
   const Script = z.array(
-    z.object({ wait: z.string(), type: z.string(), pause: z.optional(z.number()) }),
+    z.object({
+      wait: z.string(),
+      type: z.string(),
+      pause: z.optional(z.number()),
+      timeout: z.optional(z.number()),
+    }),
   );
   const Connection = z.object({ saveData: z.optional(z.boolean()) });
   const Stand = z.object({
@@ -343,15 +351,17 @@ const stand = JSON.stringify({
   /**
    * Plays `steps` in order. When the screen shows a later step's text and not the current
    * one's, the steps between are skipped: a restored session may start past the sign-in.
-   * Gives up quietly when nothing it waits for shows in time, or when the demo stops.
+   * Stops when the demo stops, or when nothing it waits for shows in time: then returns
+   * the step it waited on, whose keys were never typed.
    */
   async function play(frame: HTMLIFrameElement, steps: Step[], signal: AbortSignal) {
     let next = 0;
     while (next < steps.length) {
-      const deadline = performance.now() + STEP_TIMEOUT_MS;
+      const deadline = performance.now() + (steps[next]?.timeout ?? STEP_TIMEOUT_MS);
       let found = -1;
       while (found < 0) {
-        if (signal.aborted || performance.now() > deadline) return;
+        if (signal.aborted) return;
+        if (performance.now() > deadline) return steps[next];
         const screen = screenOf(frame);
         // The current step first: two in a row may wait for the same screen.
         found = screen.includes(steps[next]?.wait ?? "")
@@ -460,7 +470,8 @@ const stand = JSON.stringify({
   function start(root: HTMLElement) {
     const layer = root.querySelector<HTMLElement>(".layer");
     const take = root.querySelector<HTMLElement>("[data-take]");
-    if (!layer || !take || stops.has(root)) return;
+    const missed = root.querySelector<HTMLElement>("[data-missed]");
+    if (!layer || !take || !missed || stops.has(root)) return;
     const alive = new AbortController();
     const { signal } = alive;
     // A same-origin frame shares this thread: its start would hold the stand-in's paint.
@@ -505,6 +516,7 @@ const stand = JSON.stringify({
       frame.remove();
       root.classList.remove("on", "held");
       take.hidden = true;
+      missed.hidden = true;
       layer.removeAttribute("role");
       layer.removeAttribute("aria-label");
       layer.removeAttribute("tabindex");
@@ -520,7 +532,16 @@ const stand = JSON.stringify({
         if (!message.success) return;
         if (message.data.stage !== "drawn") return;
         drawn = true;
-        await play(frame, script.success ? script.data : [], signal);
+        const stuck = await play(frame, script.success ? script.data : [], signal);
+        // The script stopped half way: the application is shown as it is, and the reader
+        // told what the page did not do, rather than left before a capture it never reaches.
+        if (stuck) {
+          if (signal.aborted) return;
+          missed.textContent = `The scripted walk-through stopped: “${stuck.wait}” did not show in time. The app is live as it is: click it to go on.`;
+          missed.hidden = false;
+          await reveal();
+          return;
+        }
         const differing = await settle(frame, capture, signal);
         // Shown anyway, the application being the point; the capture is then out of date
         // (scripts/capture.py) or the script no longer reaches its screen.
@@ -707,6 +728,12 @@ const stand = JSON.stringify({
     color: var(--dim);
     font: 400 0.75rem / 1.5 var(--mono);
     font-variant-numeric: tabular-nums;
+  }
+
+  .missed {
+    margin-top: 10px;
+    color: var(--mist);
+    font: 400 0.75rem / 1.5 var(--mono);
   }
 
   .fallback {
