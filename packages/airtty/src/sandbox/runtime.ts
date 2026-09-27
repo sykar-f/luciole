@@ -7,17 +7,22 @@ import { spawnSync } from "node:child_process";
 import { existsSync, realpathSync } from "node:fs";
 import { basename, dirname, join, sep } from "node:path";
 import { ABI_PACKAGES } from "../abi";
+import { airttySources } from "../sources";
 import { detectMechanism, type Availability } from "./mechanism";
 import type { SandboxRuntime } from "./profile";
 
-/** airtty's `src/` and the directory holding its package.json. */
-const SOURCES = dirname(import.meta.dir);
+/**
+ * airtty's `src/` and the directory holding its package.json, even when this module runs
+ * bundled into an application (src/sources.ts).
+ */
+const SOURCES = airttySources(dirname(import.meta.dir));
 const ROOT = dirname(SOURCES);
+const HERE = join(SOURCES, "sandbox");
 /**
  * The sandboxed side, built (`buildChild`) from src/sandbox/child.ts inside airtty's tree,
  * where its external packages resolve from node_modules.
  */
-export const CHILD_ENTRY = join(import.meta.dir, ".airtty", "child.js");
+export const CHILD_ENTRY = join(HERE, ".airtty", "child.js");
 // Files Bun reads next to the sources it runs: module type, path aliases, its settings.
 const MANIFESTS = ["package.json", "tsconfig.json", "tsconfig.base.json", "bunfig.toml"];
 
@@ -68,7 +73,7 @@ const EXTERNAL = [
 /** Builds CHILD_ENTRY: run as a Client, from sources Bun would resolve as a server. */
 export async function buildChild() {
   const result = await Bun.build({
-    entrypoints: [join(import.meta.dir, "child.ts")],
+    entrypoints: [join(HERE, "child.ts")],
     outdir: dirname(CHILD_ENTRY),
     naming: basename(CHILD_ENTRY),
     target: "bun",
