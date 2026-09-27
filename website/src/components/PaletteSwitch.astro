@@ -1,114 +1,187 @@
 ---
-// A preset picker for trying the site's palettes (styles/palettes.css), not a feature of
-// the site: shown by the dev server, or in any build with ?palettes in the address. The
-// palette itself is set before the first paint by Base.astro, which also reads
-// ?palette=<name>; this switches it at once, without a reload, and remembers the choice.
-import names from "../lib/palettes.json";
+// A panel for trying the site's colours (styles/palettes.css), not a feature of the site:
+// shown by the dev server, or in any build with ?palettes in the address. Three choices,
+// each independent: the background's tint, the dominant colour, how Client and Server are
+// told apart; and a row of suggested combinations. Base.astro applies the choice before
+// the first paint; this switches it at once, remembers it, and keeps it in the address
+// (?tint=&dominant=&encoding=) so a combination can be shared.
+import palettes from "../lib/palettes.json";
+
+const axes = [
+  { axis: "tint", label: "Fond", values: palettes.tints },
+  { axis: "dominant", label: "Dominante", values: palettes.dominants },
+  { axis: "encoding", label: "Client/Server", values: palettes.encodings },
+];
 ---
 
-<div class="switch" data-palette-switch hidden>
-  <label>
-    <span class="name">palette:</span>
-    <select data-palette-select>
-      {names.map((name) => <option value={name}>{name}</option>)}
-    </select>
-    <span class="arrow" aria-hidden="true">▾</span>
-  </label>
+<div class="palettes" data-palette-switch hidden>
+  <div class="panel" id="palette-panel" role="group" aria-label="Palette" hidden>
+    {
+      axes.map(({ axis, label, values }) => (
+        <label>
+          <span class="name">{label}</span>
+          <select data-axis={axis}>
+            {values.map((value) => (
+              <option value={value}>{value}</option>
+            ))}
+          </select>
+        </label>
+      ))
+    }
+    <p class="suggestions">
+      <span class="name">suggestions</span>
+      {
+        Object.keys(palettes.suggestions).map((name) => (
+          <button type="button" data-suggestion={name}>
+            {name}
+          </button>
+        ))
+      }
+    </p>
+  </div>
+  <button type="button" class="toggle" aria-expanded="false" aria-controls="palette-panel" data-palette-toggle>
+    palette: <span data-palette-name>phosphor</span> ▾
+  </button>
 </div>
 
 <script>
-  import names from "../lib/palettes.json";
+  import palettes from "../lib/palettes.json";
+  import { AXES, type Axis, type Choice } from "../lib/palette";
 
   const KEY = "airtty:palette";
   const root = document.documentElement;
   const box = document.querySelector<HTMLElement>("[data-palette-switch]");
-  const select = box?.querySelector<HTMLSelectElement>("[data-palette-select]");
-  if (box && select && root.dataset.palettes !== undefined) {
-    select.value = root.dataset.palette ?? names[0] ?? "";
+  const panel = box?.querySelector<HTMLElement>(".panel");
+  const toggle = box?.querySelector<HTMLButtonElement>("[data-palette-toggle]");
+  const nameOf = box?.querySelector<HTMLElement>("[data-palette-name]");
+  const selects = [...(box?.querySelectorAll<HTMLSelectElement>("select[data-axis]") ?? [])];
+  const suggestions: Record<string, Choice> = palettes.suggestions;
+
+  const current = (): Choice => ({
+    tint: root.dataset.tint ?? "warm",
+    dominant: root.dataset.dominant ?? "neutral",
+    encoding: root.dataset.encoding ?? "classic",
+  });
+  const same = (a: Choice, b: Choice) => AXES.every((axis) => a[axis] === b[axis]);
+
+  const show = (choice: Choice) => {
+    for (const select of selects) select.value = choice[select.dataset.axis as Axis];
+    const named = Object.entries(suggestions).find(([, s]) => same(s, choice))?.[0];
+    if (nameOf) nameOf.textContent = named ?? "custom";
+    for (const button of box?.querySelectorAll<HTMLButtonElement>("[data-suggestion]") ?? [])
+      button.setAttribute("aria-pressed", String(button.dataset.suggestion === named));
+  };
+
+  const apply = (choice: Choice) => {
+    for (const axis of AXES) root.dataset[axis] = choice[axis];
+    try {
+      localStorage.setItem(KEY, JSON.stringify(choice));
+    } catch {
+      // Storage refused (private window, blocked site data): the choice lasts the visit.
+    }
+    // In the address too: a reload, or a link sent to someone, shows the same colours.
+    const url = new URL(location.href);
+    for (const axis of AXES) url.searchParams.set(axis, choice[axis]);
+    history.replaceState(history.state, "", url);
+    document.querySelector('meta[name="theme-color"]')?.setAttribute(
+      "content",
+      getComputedStyle(root).getPropertyValue("--night").trim(),
+    );
+    show(choice);
+    // Canvases and terminals paint their colours from scripts: told to read them again.
+    document.dispatchEvent(new Event("palette"));
+  };
+
+  if (box && panel && toggle && root.dataset.palettes !== undefined) {
     box.hidden = false;
-    select.addEventListener("change", () => {
-      const name = select.value;
-      root.dataset.palette = name;
-      try {
-        localStorage.setItem(KEY, name);
-      } catch {
-        // Storage refused (private window, blocked site data): the choice lasts the visit.
-      }
-      // In the address too, so a reload or a shared link shows the same preset.
-      const url = new URL(location.href);
-      url.searchParams.set("palette", name);
-      history.replaceState(history.state, "", url);
-      document.querySelector('meta[name="theme-color"]')?.setAttribute(
-        "content",
-        getComputedStyle(root).getPropertyValue("--night").trim(),
-      );
-      // Canvases and terminals read their colours in scripts: told to read them again.
-      document.dispatchEvent(new Event("palette"));
+    show(current());
+    const open = (opened: boolean) => {
+      panel.hidden = !opened;
+      toggle.setAttribute("aria-expanded", String(opened));
+    };
+    toggle.addEventListener("click", () => open(toggle.getAttribute("aria-expanded") !== "true"));
+    box.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape" || panel.hidden) return;
+      open(false);
+      toggle.focus();
     });
+    for (const select of selects)
+      select.addEventListener("change", () =>
+        apply({ ...current(), [select.dataset.axis as Axis]: select.value }),
+      );
+    for (const button of box.querySelectorAll<HTMLButtonElement>("[data-suggestion]"))
+      button.addEventListener("click", () => {
+        const suggestion = suggestions[button.dataset.suggestion ?? ""];
+        if (suggestion) apply(suggestion);
+      });
   }
 </script>
 
 <style>
-  /* In the spirit of the page: a bracketed command in a corner, out of the way. */
-  .switch {
+  /* In the spirit of the page: a bracketed command in a corner, a ruled panel above it. */
+  .palettes {
     position: fixed;
     right: 16px;
     bottom: 16px;
     z-index: 30;
+    display: grid;
+    justify-items: end;
+    gap: 6px;
+    color: var(--mist);
+    font: 400 0.78rem / 1.4 var(--mono);
+  }
+
+  .toggle,
+  .panel {
     border: 1px solid var(--rule-strong);
     background: var(--night);
-    color: var(--mist);
-    font: 400 0.8rem / 1 var(--mono);
   }
 
-  .switch::before {
-    content: "[ " / "";
-  }
-
-  .switch::after {
-    content: " ]" / "";
-  }
-
-  .switch::before,
-  .switch::after {
-    position: absolute;
-    top: 50%;
-    color: var(--dim);
-    transform: translateY(-50%);
-    pointer-events: none;
-  }
-
-  .switch::before {
-    left: 8px;
-  }
-
-  .switch::after {
-    right: 8px;
-  }
-
-  label {
-    display: flex;
-    align-items: center;
-    gap: 1ch;
-    padding: 0 calc(8px + 2ch) 0 calc(8px + 2ch);
-  }
-
-  select {
-    appearance: none;
-    padding: 9px calc(1.5ch) 9px 0;
-    border: 0;
-    background: none;
+  .toggle {
+    padding: 8px 10px;
     color: var(--paper);
     font: inherit;
     cursor: pointer;
   }
 
-  select:focus-visible {
-    outline: none;
+  .toggle::before {
+    content: "[ " / "";
+    color: var(--dim);
   }
 
-  .switch:focus-within {
-    border-color: var(--paper);
+  .toggle::after {
+    content: " ]" / "";
+    color: var(--dim);
+  }
+
+  .toggle[aria-expanded="true"] {
+    border-color: var(--dominant);
+  }
+
+  .panel {
+    display: grid;
+    gap: 8px;
+    width: min(340px, calc(100vw - 32px));
+    padding: 12px 14px;
+  }
+
+  label {
+    display: grid;
+    grid-template-columns: 13ch 1fr;
+    align-items: center;
+    gap: 1ch;
+  }
+
+  .name {
+    color: var(--dim);
+  }
+
+  select {
+    padding: 4px 6px;
+    border: 1px solid var(--rule-strong);
+    background: var(--night-raised);
+    color: var(--paper);
+    font: inherit;
   }
 
   option {
@@ -116,9 +189,34 @@ import names from "../lib/palettes.json";
     color: var(--paper);
   }
 
-  .arrow {
-    margin-left: -1.5ch;
+  .suggestions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--rule);
+  }
+
+  .suggestions .name {
+    width: 100%;
+  }
+
+  .suggestions button {
+    padding: 2px 6px;
+    border: 1px solid var(--rule-strong);
+    background: none;
     color: var(--mist);
-    pointer-events: none;
+    font: inherit;
+    cursor: pointer;
+  }
+
+  .suggestions button:hover {
+    color: var(--paper);
+  }
+
+  .suggestions button[aria-pressed="true"] {
+    border-color: var(--dominant);
+    color: var(--paper);
   }
 </style>
