@@ -52,10 +52,13 @@ function harnessString(name: string): string {
   if (!value) throw new Error(`examples/coder/server/adapters/fake.ts: ${name} not found`);
   return value;
 }
+// The harness streams its answer: about 12 s from the click to its last words on a fast
+// machine. Each wait gets far more than the default 8 s, so a slow one still types `y`.
+const AGENT_TIMEOUT_MS = 45_000;
 const session: Step[] = [
   { wait: "Message…", type: `${harnessString("DEMO_PROMPT")}\r`, pause: 250 },
-  { wait: "allow once", type: "y" },
-  { wait: harnessString("DEMO_END"), type: "" },
+  { wait: "allow once", type: "y", timeout: AGENT_TIMEOUT_MS },
+  { wait: harnessString("DEMO_END"), type: "", timeout: AGENT_TIMEOUT_MS },
 ];
 
 export type ExampleKey =
