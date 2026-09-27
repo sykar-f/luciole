@@ -12,6 +12,7 @@
     "docs/HANDOFF.md",
     "docs/pty-frame.txt",
     "probes/**/results.json",
+    "tests/fixtures/markdown/**",
     "website/src/frames/*.json",
     "website/dist/**",
     "website/.astro/**",

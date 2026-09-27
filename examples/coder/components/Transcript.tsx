@@ -2,6 +2,7 @@
 import { memo, type ReactNode, type Ref } from "react";
 import type { ScrollBoxRenderable } from "@opentui/core";
 import { Line } from "./Line";
+import { Markdown } from "./markdown/Markdown";
 import type { FilePatch, Item, ItemStatus } from "./model";
 import { languageOf, muted, syntax } from "./syntax";
 import { color } from "./theme";
@@ -112,14 +113,6 @@ type ItemProps = {
   onToggle: (id: string) => void;
 };
 
-/**
- * Whether markdown markers (`**`, `##`, backticks) are hidden: once the text is complete.
- * While it streams, OpenTUI 0.5.12 redraws the last block from a preview at every change,
- * markers visible, then hides them when its highlighting comes back: concealed text would
- * flash between the two at every delta, and its height with it, shaking the transcript.
- */
-const concealed = (item: { streaming: boolean }) => !item.streaming;
-
 /** One item; finished items keep their identity across updates and are not redrawn. */
 const ItemView = memo(function ItemView({ item, open, selected, now, wide, onToggle }: ItemProps) {
   const toggle = () => onToggle(item.id);
@@ -138,12 +131,7 @@ const ItemView = memo(function ItemView({ item, open, selected, now, wide, onTog
     case "message":
       return (
         <box marginTop={1}>
-          <markdown
-            content={item.text}
-            streaming={item.streaming}
-            conceal={concealed(item)}
-            syntaxStyle={syntax}
-          />
+          <Markdown content={item.text} streaming={item.streaming} syntaxStyle={syntax} />
         </box>
       );
     case "reasoning": {
@@ -160,12 +148,7 @@ const ItemView = memo(function ItemView({ item, open, selected, now, wide, onTog
           </Header>
           {open ? (
             <box paddingLeft={2}>
-              <markdown
-                content={item.text.trim()}
-                streaming={item.streaming}
-                conceal={concealed(item)}
-                syntaxStyle={muted}
-              />
+              <Markdown content={item.text.trim()} streaming={item.streaming} syntaxStyle={muted} />
             </box>
           ) : null}
         </box>

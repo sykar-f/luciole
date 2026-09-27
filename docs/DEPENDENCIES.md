@@ -32,7 +32,7 @@ Ajoutées au catalogue après ce contrôle, sans comparaison aux tags `latest` :
 | @xterm/xterm / @xterm/addon-fit | 6.0.0 / 0.11.0 | framework, runtime navigateur ; desktop |
 | @xterm/addon-webgl              | 0.19.0         | desktop                                 |
 | electrobun                      | 2.0.1          | desktop                                 |
-| marked                          | 17.0.1         | mdreader                                |
+| marked                          | 17.0.1         | mdreader, coder                         |
 | sharp                           | 0.35.4         | files                                   |
 | @anthropic-ai/claude-agent-sdk  | 0.3.283        | coder (couplé à Claude Code 2.1.283)    |
 

@@ -15,6 +15,7 @@
     "@opentui/keymap": "catalog:",
     "@opentui/react": "catalog:",
     "@tanstack/react-router": "catalog:",
+    "marked": "catalog:",
     "react": "catalog:",
     "zod": "catalog:"
   }
