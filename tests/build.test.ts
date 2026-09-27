@@ -464,3 +464,25 @@ test("subpath imports (#name) join the graph: every target of every condition", 
     },
   );
 }, 60000);
+test("a syntax error and an unresolved import are reported where they are", async () => {
+  // Line 3, column 11: the unclosed <text>'s tag; a reader (or a harness) fixes that line.
+  await fixture(
+    {
+      "app/page.tsx": `export default function Page() {\n  return (\n    <box><text>unclosed</box>\n  );\n}\n`,
+    },
+    async (dir) => {
+      expect(messageOf(await rejectionOf(build(dir)))).toMatch(/^app\/page\.tsx:3:\d+: /);
+    },
+  );
+  await fixture(
+    {
+      "app/page.tsx": `import { title } from "../lib/title";\nimport { Header } from "../components/Header";\nexport default function Page() {\n  return <Header title={title} />;\n}\n`,
+      "lib/title.ts": `export const title = "t";\n`,
+    },
+    async (dir) => {
+      expect(messageOf(await rejectionOf(build(dir)))).toBe(
+        "app/page.tsx:2:1: Cannot resolve ../components/Header",
+      );
+    },
+  );
+});
