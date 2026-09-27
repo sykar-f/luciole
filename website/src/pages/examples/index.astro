@@ -48,9 +48,12 @@ const terminalOnly = terminal.map((key) => ({ key, example: examples[key] }));
               <p class="use">{use}</p>
               <h2 id={`${key}-title`}>{example.name}</h2>
               {example.demo ? (
-                <p class="badge client">live in this page</p>
+                <p class="badges">
+                  <span class="badge client">live in this page</span>
+                  {example.scripted && <span class="badge">{example.scripted}</span>}
+                </p>
               ) : (
-                <p class="badge">Scripted demo · no model calls · captured</p>
+                <p class="badge">captured</p>
               )}
               <p class="about">{example.about}</p>
               {example.terminal && <p class="why">{example.terminal}</p>}
@@ -195,6 +198,12 @@ const terminalOnly = terminal.map((key) => ({ key, example: examples[key] }));
     border: 1px solid var(--rule-strong);
     color: var(--mist);
     font: 400 0.75rem / 1.5 var(--mono);
+  }
+
+  .badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
   }
 
   .badge.client {

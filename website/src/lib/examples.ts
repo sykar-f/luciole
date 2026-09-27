@@ -3,6 +3,7 @@
 // builds under public/demo/; without one, the app needs a real terminal and the page
 // shows its capture (scripts/capture.py).
 import type { Step } from "../components/LiveTerminal.astro";
+import fakeHarness from "../../../examples/coder/server/adapters/fake.ts?raw";
 
 export interface Example {
   name: string;
@@ -18,6 +19,8 @@ export interface Example {
   about: string;
   /** Why it does not run in a page. */
   terminal?: string;
+  /** Said next to its live badge: what runs in the page instead of the real thing. */
+  scripted?: string;
 }
 
 // Forge signs in as alice and opens a diff: the capture's screen.
@@ -39,6 +42,20 @@ const ask: Step[] = [
     type: "How does airtty keep typing local when the Server is 500 ms away?\r",
   },
   { wait: "Done.", type: "" },
+];
+
+// coder is given the prompt its scripted harness answers, approves the edit, and replaces
+// the capture on the harness's last words. Both are read from the harness itself: if they
+// move, the build fails rather than the demo waiting for a screen that never comes.
+function harnessString(name: string): string {
+  const value = new RegExp(`export const ${name} =\\s*(["'])(.+?)\\1`).exec(fakeHarness)?.[2];
+  if (!value) throw new Error(`examples/coder/server/adapters/fake.ts: ${name} not found`);
+  return value;
+}
+const session: Step[] = [
+  { wait: "Message…", type: `${harnessString("DEMO_PROMPT")}\r`, pause: 250 },
+  { wait: "allow once", type: "y" },
+  { wait: harnessString("DEMO_END"), type: "" },
 ];
 
 export type ExampleKey =
@@ -103,11 +120,12 @@ export const examples: Record<ExampleKey, Example> = {
     name: "coder",
     source: "examples/coder",
     frame: "coder",
+    demo: "coder",
+    script: session,
+    scripted: "Scripted demo · no model calls",
     run: "bun run coder -- --harness fake",
     about:
       "One coding-agent session on Claude Code, Codex, pi or opencode, driving the binaries you installed. The session lives on the server: the client can crash, the agent carries on.",
-    terminal:
-      "Its server drives agent binaries. Captured here on its scripted harness, which needs no model.",
   },
   files: {
     name: "Files",

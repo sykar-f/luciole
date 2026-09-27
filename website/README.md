@@ -71,19 +71,20 @@ lien ouvre la démo dans sa propre page.
 
 La landing n'en fait tourner qu'une : Notes, dans le hero, dont la page règle l'aller-retour
 et la perte de la prochaine réponse ; elle démarre près du viewport et s'arrête loin de lui.
-Les autres (Forge, Chat, mdreader, DevTools) tournent sur `/examples/`, au clic, une seule
+Les autres (coder, Forge, Chat, mdreader, DevTools) tournent sur `/examples/`, au clic, une seule
 à la fois, arrêtée quand on la quitte. Chaque démo trouve autour d'elle ce que
 `scripts/demo.ts` écrit dans `server-seed.json` : un environnement (`CHAT_DEMO=1`,
 `MD_PATH=/docs`…) et, pour mdreader, les documents du dépôt en lecture seule.
 
-coder (« Coding-agent interface ») peut aussi tourner dans la page : `scripts/demo.ts` le
-construit avec `CODER_HARNESS=fake`, aucun appel de modèle, et sa ligne d'état le dit
-elle-même (« Scripted demo · no model calls »). Son script de page : attendre `Message…`,
-taper le prompt de `DEMO_PROMPT` (examples/coder/server/adapters/fake.ts) puis `
-`,
-attendre `allow once`, taper `y`, attendre `Your turn: ask for the next change.`, l'écran de
-`src/frames/coder.json` (scène `coder` de `scripts/capture.py`, même prompt). La landing le
-montre en capture ; `/examples/` ne le fait pas encore tourner. Files et mux restent au
+Sur `/examples/`, coder (« Coding-agent interface ») tourne sans agent : `scripts/demo.ts`
+le construit avec `CODER_HARNESS=fake`, aucun appel de modèle, et sa ligne d'état le dit
+elle-même (« Scripted demo · no model calls »), comme le badge à côté de l'écran. Son
+script de page (`src/lib/examples.ts`) : attendre `Message…`, taper `DEMO_PROMPT` puis
+Entrée, attendre `allow once`, taper `y`, attendre `DEMO_END`. Les deux textes sont lus
+dans `examples/coder/server/adapters/fake.ts` (`?raw`) : s'ils changent de forme, le build
+échoue. L'écran d'arrivée est celui de `src/frames/coder.json` (scène `coder` de
+`scripts/capture.py`, même prompt). La landing le montre en capture, avec « Play it » vers
+`/examples/#coder`. Files et mux restent au
 terminal : une bibliothèque d'images native pour l'un, des PTY pour l'autre.
 
 La page lit aussi les sources de `examples/notes` à la compilation (`?raw`) : le code
