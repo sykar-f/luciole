@@ -4,8 +4,10 @@
  * are guarded, built, started in the preview's (confined) Server and committed as a
  * revision; the types are checked beside it, the render reported by the preview itself.
  * A failure goes back to the harness as a `[studio]` message, a bounded number of times.
+ * During the turn, what the harness wrote so far is shown as drafts: guarded, built and
+ * started the same way, never committed, never corrected.
  */
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
 import { serialize } from "airtty/dev";
@@ -14,6 +16,7 @@ import type { Result } from "@airtty/harness/model";
 import { HarnessSession } from "@airtty/harness/session";
 import type {
   Diagnostic,
+  DraftState,
   RevisionInfo,
   Stage,
   StageResult,
@@ -21,10 +24,18 @@ import type {
   Validation,
 } from "../components/model";
 import { config } from "./config";
+import { DraftScheduler, type Draft } from "./drafts";
 import { STUDIO_PREFIX } from "./generator";
+import { guard } from "./guard";
 import { create, pick, START } from "./harness";
 import { policy } from "./policy";
-import { diagnosticsOf, isolationProblem, PreviewServers, type PreviewTarget } from "./preview";
+import {
+  buildName,
+  diagnosticsOf,
+  isolationProblem,
+  PreviewServers,
+  type PreviewTarget,
+} from "./preview";
 import { Project } from "./project";
 import { prepare } from "./validate";
 
@@ -35,6 +46,8 @@ const REVISIONS_SHOWN = 50;
 const UPDATE_INTERVAL_MS = 50;
 // What the transcript says of a diagnostic list, at most.
 const NOTE_DIAGNOSTICS = 3;
+// The writes of this moment make one draft (an agent writes a file per tool call).
+const DRAFT_DELAY_MS = 300;
 
 type Cause = "start" | "turn" | "restore" | "capability" | "restart";
 type Listener = () => void;
@@ -67,6 +80,11 @@ class Studio {
   readonly session: HarnessSession;
   private readonly checks = serialize(() => this.check());
   private cause: Cause = "start";
+  private readonly drafts = new DraftScheduler({
+    delayMs: DRAFT_DELAY_MS,
+    run: (draft) => this.draft(draft),
+  });
+  private draftState: DraftState = null;
 
   constructor() {
     this.session = new HarnessSession({
@@ -81,7 +99,12 @@ class Studio {
       pick,
       start: START,
       policy,
+      onFilesWritten: () => this.drafts.written(),
       onTurnCompleted: (status) => {
+        // The revision takes over from the drafts, even when there is none to make.
+        this.drafts.cancel();
+        this.draftState = null;
+        this.changed();
         if (status !== "interrupted") void this.validate("turn");
       },
     });
@@ -129,7 +152,9 @@ class Studio {
       },
       preview: preview
         ? {
+            id: preview.id,
             revision: preview.revision,
+            draft: preview.draft,
             url: preview.url,
             output: preview.output,
             fingerprint: preview.fingerprint,
@@ -141,6 +166,7 @@ class Studio {
         : null,
       previewError: this.previewError,
       validation: this.validation,
+      draft: this.draftState,
       revisions: (project?.revisions() ?? []).slice(0, REVISIONS_SHOWN).map((r): RevisionInfo => ({
         number: r.number,
         summary: r.summary,
@@ -241,6 +267,46 @@ class Studio {
     }
   }
 
+  /**
+   * A draft of what the harness wrote so far: the guard, a build, a Server, and the
+   * preview switches to it. A failure only says so beside the preview, which keeps the
+   * last screen that worked: mid-turn, a file often imports one not written yet.
+   */
+  private async draft(draft: Draft) {
+    const project = this.project;
+    const servers = this.servers;
+    if (!project || !servers || this.validation.state === "validating") return;
+    const tree = () => {
+      const changes = project.changes();
+      changes.delete(GENERATED);
+      return changes;
+    };
+    const changes = tree();
+    if (!changes.size) return;
+    // A file studio refuses never runs, not even as a draft: the turn's end undoes it.
+    if (guard(changes).length) return this.drafting("waiting");
+    this.drafting("building");
+    const built = await servers.build(buildName({ draft: true }));
+    if (!("output" in built)) return draft.superseded ? undefined : this.drafting("waiting");
+    const output = built.output;
+    // What was built is what was guarded: a write during the build supersedes it.
+    if (draft.superseded || !sameTree(changes, tree())) return removeBuild(output);
+    let target: PreviewTarget | undefined;
+    try {
+      target = await servers.startDraft(this.revision, output, () => !draft.superseded);
+    } catch {
+      return draft.superseded ? undefined : this.drafting("waiting");
+    }
+    if (!target) return;
+    this.preview = target;
+    this.drafting(null);
+  }
+
+  private drafting(state: DraftState) {
+    this.draftState = state;
+    this.changed();
+  }
+
   /** What the revision's commit says: the user's last prompt, or why it was made. */
   private summary(cause: Cause) {
     if (cause === "restore") return "restored";
@@ -297,6 +363,8 @@ class Studio {
 
   /** The preview's Client reported a failed page (G6, airtty/sandbox `onFailure`). */
   reportFailure(revision: number, path: string, message: string) {
+    // A draft is half a turn: the revision at its end is checked, and corrected.
+    if (this.preview?.draft) return;
     if (revision !== this.revision || this.validation.state === "validating") return;
     this.problems.set(revision, "render");
     this.stage("render", false);
@@ -411,6 +479,15 @@ const PackageCapabilities = z.object({
 const PackageJson = z.looseObject({
   airtty: z.looseObject({ capabilities: z.looseObject({}).optional() }).optional(),
 });
+
+/** Whether two states of the working tree are the same files with the same contents. */
+function sameTree(a: ReadonlyMap<string, string | null>, b: ReadonlyMap<string, string | null>) {
+  return a.size === b.size && [...a].every(([path, content]) => b.get(path) === content);
+}
+
+function removeBuild(output: string) {
+  rmSync(output, { recursive: true, force: true });
+}
 
 function stageSentence(stage: Stage) {
   switch (stage) {

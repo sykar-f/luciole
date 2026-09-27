@@ -36,9 +36,14 @@ export type RevisionInfo = {
   problem?: "types" | "render";
 };
 
-/** What the Client needs to show a revision (server/preview.ts, PreviewTarget). */
+/** What the Client needs to show a revision or a draft (server/preview.ts, PreviewTarget). */
 export type PreviewInfo = {
+  /** Its build: a new one is a new program in the preview. */
+  id: string;
+  /** The revision shown, or for a draft the one it was written over. */
   revision: number;
+  /** Built during a turn from what the harness wrote so far. */
+  draft: boolean;
   url: string;
   output: string;
   fingerprint: string;
@@ -49,12 +54,19 @@ export type PreviewInfo = {
   project: string;
 };
 
+/**
+ * Where the drafts of the current turn stand: one `building`, or the last one did not
+ * make it (refused, or its build or Server failed) and the preview shows the one before.
+ */
+export type DraftState = "building" | "waiting" | null;
+
 export type StudioSnapshot = {
   project: { name: string; directory: string };
   preview: PreviewInfo | null;
   /** Why there is no preview (no sandbox here, a Server that did not start). */
   previewError: string | null;
   validation: Validation;
+  draft: DraftState;
   /** Newest first. */
   revisions: readonly RevisionInfo[];
   /** A warning shown as long as it holds: the preview runs with the user's rights. */
