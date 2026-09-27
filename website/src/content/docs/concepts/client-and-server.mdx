@@ -1,0 +1,111 @@
+---
+title: Client and server
+description: One codebase, two programs. What the build puts on each side, how they talk, and why they must come from the same build.
+sources:
+  - docs/ARCHITECTURE.md
+  - docs/BOUNDARIES.md
+  - packages/airtty/src/build.ts
+  - packages/airtty/src/transport.ts
+  - packages/airtty/src/server.ts
+  - website/src/frames/flight.txt
+---
+
+import Note from "../../../components/docs/Note.astro";
+import { Code } from "astro:components";
+import Src from "../../../components/guide/Src.astro";
+import { night } from "../../../lib/codeTheme";
+// What the Server really sent for /notes/1, captured by website/scripts/capture.py.
+import flight from "../../../frames/flight.txt?raw";
+
+airtty is a React Server Components framework for the terminal. You write one app; its
+build produces two programs:
+
+- the **Server** renders pages, runs Server Functions and keeps the data;
+- the **Client** runs in the user's terminal, draws with [OpenTUI](https://github.com/anomalyco/opentui)
+  and handles every key, scroll and hover itself.
+
+Typing and scrolling never wait for the network: the Client only calls the Server to load a
+page or to run a Server Function. `tests/latency.test.tsx` checks this under 500 ms of
+simulated latency.
+
+## What each side contains
+
+| Program | Contains                                                                                | Never contains                           |
+| ------- | --------------------------------------------------------------------------------------- | ---------------------------------------- |
+| Client  | the terminal runtime, TanStack Router, the keymap, and **this app's** Client Components | pages, Server Functions' code, `server/` |
+| Server  | the HTTP runtime, the routes, the Server Functions and the business code                | OpenTUI                                  |
+
+The rule that decides where a module goes is short: pages are Server by default,
+`"use client"` starts the Client's graph, and `server-only` or `client-only` pin a module to
+one side ([Client Components](/docs/concepts/client-components/)).
+
+## What the build writes
+
+`airtty build` writes into the app's `.airtty/` directory:
+
+```text
+.airtty/
+  manifest.json   build ID, graphs, route graph and Client References
+  metadata.json   display name, identifier, icon (from package.json)
+  client/         index.js: the terminal Client
+  server/         index.js: the Server
+  app/            the app bundle for a host (index.cjs, manifest.json)
+```
+
+`--web` adds `web/`, the browser runtime; `--web-local` adds `web-server/` too
+([opening an app](/docs/guides/opening-an-app/)). `client/` and `server/` run from the app's
+installation: React, React Server DOM and OpenTUI stay external and resolve in its
+`node_modules`. To run a side on another machine, compile a binary for it
+([build and distribution](/docs/reference/build-and-distribution/)).
+
+## The same build on both sides
+
+Both programs must come from **the same build**. The build ID is a hash of the reachable
+sources, the runtime's files and the `bun.lock` that governs the installation. The Client
+sends it with every request (`x-airtty-build`); a Server of another build refuses the
+request before decoding it (`409`), without resetting the state already mounted in the
+Client.
+
+The lockfile is in the hash because it lists the packages of every platform: a Linux Server
+and a macOS Client compiled from the same sources share one build ID, which is what
+[`--on`](/docs/guides/opening-an-app/#on-another-machine-over-ssh) needs.
+
+## What travels between them
+
+The Client asks for a page with `GET /render` and calls Server Functions with
+`POST /action`; the Server answers in [React Flight](https://react.dev/reference/rsc/server-components),
+React's serialization of a rendered tree. This is the complete answer the Server sent for
+the page of note 1 in Notes, captured by `website/scripts/capture.py`:
+
+<Code code={flight.trim()} lang="text" theme={night} />
+
+Read it line by line:
+
+- `0:{"tree":…,"tags":…}` is the envelope: the page's tree in its own Flight stream, and the
+  cache tags the render read ([caching](/docs/concepts/cache/#what-a-render-read)).
+- `I[…,"NoteEditor"]` is a **Client Component**. Its code is already in the terminal; only
+  its module ID, prefixed with the build ID, travels.
+- `{"id":"…#saveNote"}` is a **Server Function**: a reference the Client can call, never
+  its code.
+- `["$","box",…]` is the page itself: OpenTUI elements (`box`, `text`), rendered next to
+  the database.
+- `["note:local:1"]` are the cache tags: what a save of this note refreshes.
+
+<Note>
+  The Client and the Server both run on Bun. A module that reads a file or starts a process works on
+  either side, on the wrong machine if it lands on the wrong one: that is what the `server-only` and
+  `client-only` markers are for.
+</Note>
+
+## Where the pieces live
+
+| Concern                               | File                                            |
+| ------------------------------------- | ----------------------------------------------- |
+| Graphs, boundaries, manifests         | <Src path="packages/airtty/src/build.ts" />     |
+| Transport: build ID, bearer, outcomes | <Src path="packages/airtty/src/transport.ts" /> |
+| HTTP handler, sessions, actions       | <Src path="packages/airtty/src/server.ts" />    |
+| The Client in a terminal              | <Src path="packages/airtty/src/run.tsx" />      |
+| The Server as a process               | <Src path="packages/airtty/src/serve.ts" />     |
+
+The guided tour's first chapters, [La carte](/guide/carte/) and [Le build](/guide/build/)
+(in French), follow the same split in more depth.

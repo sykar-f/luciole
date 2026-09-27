@@ -15,6 +15,21 @@ export const sections: readonly Section[] = [
     summary: "Run an example, change it, create your own app.",
     pages: ["getting-started"],
   },
+  {
+    title: "Concepts",
+    summary: "What an app is made of, and which side runs each part.",
+    pages: [
+      "concepts/client-and-server",
+      "concepts/routing",
+      "concepts/server-components",
+      "concepts/client-components",
+      "concepts/server-functions",
+      "concepts/loading-and-errors",
+      "concepts/session-restore",
+      "concepts/cache",
+      "concepts/authentication",
+    ],
+  },
 ];
 
 export const order: readonly string[] = sections.flatMap((section) => section.pages);

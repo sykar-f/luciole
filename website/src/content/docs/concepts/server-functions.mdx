@@ -1,0 +1,116 @@
+---
+title: Server Functions
+description: '"use server" functions are called from the terminal like any function. What the framework guarantees about a call, what it reports when one fails, and live generators.'
+sources:
+  - docs/API.md
+  - docs/BOUNDARIES.md
+  - packages/airtty/src/transport.ts
+  - packages/airtty/src/server.ts
+  - examples/notes/actions/notes.ts
+  - examples/notes/components/draft.ts
+---
+
+import Excerpt from "../../../components/guide/Excerpt.astro";
+import Note from "../../../components/docs/Note.astro";
+
+A module that starts with `"use server"` exports functions the Client can call. The build
+registers them on the Server and replaces them, in the Client, with references: calling one
+encodes the arguments with Flight, sends `POST /action`, and resolves with what the function
+returned. There is no RPC layer, schema or manifest to write.
+
+<Excerpt
+  path="examples/notes/actions/notes.ts"
+  find='"use server"'
+  until="^}"
+  mark={["export async function saveNote", "SnapshotInput.parse"]}
+  tone="server"
+/>
+
+## Rules of a `"use server"` module
+
+- Exports are **named, async function declarations**. Inline functions, closures, exports
+  by variable, default exports and re-exports are refused with the file and line.
+- The one other runtime export allowed is `export const auth = "public" | "required"`,
+  which applies to every function of the module ([authentication](/docs/concepts/authentication/)).
+- `.bind` and passing a Server Function as an argument to another are not part of the
+  validated API.
+- A Client Component may import the module directly, or receive a function as a prop from a
+  page: both go through the same call.
+
+## Arguments are not checked for you
+
+Arguments arrive decoded by Flight but **not verified**: a TypeScript type describes what
+the Client is supposed to send, not what arrives. The framework only guarantees a list of
+arguments. Validate them before any effect, as Notes does with Zod (`SnapshotInput.parse`
+above).
+
+A function that rejects its arguments throws: the answer is a generic `500`, and the caller
+sees the outcome `unknown`, because the framework cannot know that nothing happened before
+the refusal. No message, stack or path leaves the Server.
+
+## When a call fails
+
+Every failed request throws a `TransportError` whose `outcome` says what the Server may have
+done:
+
+| `outcome`  | Cases                                                                                                             | Did app code run on the Server? |
+| ---------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| `not-sent` | Connection refused, host unreachable, aborted before sending                                                      | No                              |
+| `rejected` | A `4xx`: no bearer (`AuthenticationRequired`), another build (`BuildMismatch`), unknown action, bad argument list | No                              |
+| `unknown`  | Timeout or cut after sending, response lost or truncated, a `5xx`                                                 | Maybe                           |
+
+The transport never claims a certainty it lacks: any case it does not recognise is
+`unknown`. And it **never retries**. Retrying, looking the operation up, marking it unknown
+or only showing a message is the app's decision. Notes' rule is that an unknown save is
+never replayed, it is looked up:
+
+<Excerpt
+  path="examples/notes/components/draft.ts"
+  find="try {"
+  after="save: async (action"
+  count={8}
+  mark={['e.outcome !== "unknown"', "draft.markUnknown()"]}
+  tone="client"
+/>
+
+The [latency and faults guide](/docs/guides/latency-and-faults/) shows how to cause each
+outcome on purpose.
+
+## Declaring what changed
+
+The framework refreshes nothing by itself after a Server Function: a read costs no page
+render. A function that changes data says so with `invalidate()` from `airtty/server`; the
+paths and tags travel back in the response's envelope, and the Client revalidates the
+routes concerned without waiting for them.
+
+| Call                       | Effect                                                                                                 |
+| -------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `invalidate()`             | Revalidates every route (`"/"`).                                                                       |
+| `invalidate("/repos/web")` | That path and its descendants, never a mere prefix (`/repos/website` is not included).                 |
+| `invalidate({ tag })`      | Purges the Server cache for that tag, then the routes that read it ([caching](/docs/concepts/cache/)). |
+
+A lost response invalidates nothing in the Client. Data read outside route loaders (a
+counter in the chrome) subscribes with `useInvalidation(listener)`, and Client code can call
+`useApplication().invalidate(paths?)` after a change it observed itself.
+
+## Live Server Functions
+
+An `export async function*` in a `"use server"` module streams its values. `useLive` opens
+the request when the component mounts, or when its arguments change, and cancels it on
+unmount; the Server then stops the generator, and its `finally` runs.
+
+```tsx
+const { items, done, error } = useLive(checkLog, [check.id], { limit: 500 });
+```
+
+Nothing reconnects by itself: a cut ends the stream with a `TransportError` (`unknown`). A
+live response is exempt from the Server's idle timeout.
+`useApplication().withSignal(signal, () => action(...))` ties an abort signal to any Server
+Function call.
+
+<Note>
+  Each call carries a `callId` (`x-airtty-call`), which the Server reads with `getCallId()`: it
+  links the Client's and the Server's events of one request, in the
+  [DevTools](/docs/guides/devtools/) as in your logs. It identifies the request, not the business
+  operation.
+</Note>

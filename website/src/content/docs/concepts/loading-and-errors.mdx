@@ -1,0 +1,90 @@
+---
+title: Loading and errors
+description: What the terminal shows while a page travels, when it fails, and when it does not exist. loading.tsx, error.tsx, not-found.tsx and the connection status.
+sources:
+  - docs/API.md
+  - docs/ROUTER.md
+  - examples/notes/app/notes/[id]/loading.tsx
+  - examples/notes/app/error.tsx
+  - examples/notes/app/layout.tsx
+  - packages/airtty/src/route-tree.tsx
+---
+
+import Excerpt from "../../../components/guide/Excerpt.astro";
+import Note from "../../../components/docs/Note.astro";
+
+A navigation shows a screen at once, drawn by the Client, while the page travels: the
+loading screen replaces **only** the page, and the layouts around it stay mounted.
+
+## `loading.tsx`
+
+A `loading.tsx` becomes the pending screen of every page below its directory; a page takes
+the nearest one among its parents. It receives the destination's `params`. Without one,
+the framework shows "Connecting…" before the first answer, then "Loading…".
+
+<Excerpt
+  path="examples/notes/app/notes/[id]/loading.tsx"
+  find="export default function Loading"
+  until="^}"
+  mark={["NotePageFrame", "Waiting for Server…"]}
+  tone="client"
+/>
+
+The loading screen and the page it stands for should share their layout rules, or the page
+jumps when it arrives. Notes draws both with `components/NoteFrame.tsx`: same frame, a title
+on one line, a field box of fixed height, fixed places for status and help. The framework
+cannot know the size of a Server page it has not received yet: that stability is the app's
+contract. An animation should change colours or constant-width glyphs only; Notes pulses
+the skeleton's opacity with OpenTUI's `useTimeline` and stops it on unmount.
+
+## `error.tsx`
+
+An `error.tsx`, inherited the same way, replaces the page when its loading or rendering
+fails. It receives `{ error, path, params, retry }`: `error` is a `TransportError` with its
+`outcome`, or a Server render error (opaque in production); `retry()` loads the page again.
+Without one, the message is shown.
+
+<Excerpt path="examples/notes/app/error.tsx" tone="client" />
+
+A failed navigation shows `error.tsx` in the page's place with the layouts still mounted.
+A failed **refresh** keeps the current tree mounted instead, and exposes the error in
+`useConnection().error`.
+
+## `not-found.tsx`
+
+A page calls `notFound(what?)` from `airtty/server` to end its render with the nearest
+`not-found.tsx`, which receives `{ path, params, what }`. `app/not-found.tsx` also answers a
+URL that no page matches. The status stays "Connected": a missing page is an answer, not an
+outage.
+
+## The connection, in the app's chrome
+
+The framework draws no header or footer. `useConnection()` gives the chrome what it needs:
+`status`, `error`, `buildError` (a failed rebuild under `airtty dev`), `refresh`, and
+`activity`, one of `connect`, `navigate`, `refresh` or `idle`. Notes shows it in its root
+layout:
+
+<Excerpt
+  path="examples/notes/app/layout.tsx"
+  find="const { status, error, activity, refresh }"
+  count={1}
+  tone="client"
+/>
+
+<Excerpt path="examples/notes/app/layout.tsx" find="TERMINAL / NOTES" count={3} tone="client" />
+
+## Cancelling and refreshing
+
+- <kbd>Esc</kbd> during a navigation (`useApplication().cancel()`) goes back to the last resolved
+  route locally, without reloading it.
+- `refresh()` reloads the destination in progress or the mounted route. During a refresh
+  the tree stays mounted (`activity === "refresh"`): fields keep their focus and text. The
+  examples bind it to <kbd>Ctrl+R</kbd>; the key is the app's choice.
+- A `401` redirects to the app's `unauthorizedPath`, if it declares one, without rendering
+  protected content ([authentication](/docs/concepts/authentication/)).
+- A `409` (another build) is refused before decoding and purges the router's cache.
+
+<Note>
+  Loading screens are Client Components on purpose: they must show without the network. A loading
+  screen that needs data from the Server is a page, and would wait for it.
+</Note>

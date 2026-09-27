@@ -1,0 +1,70 @@
+---
+title: Server Components
+description: Pages render on the Server, next to the data. What a page may do, what it passes to the Client, and what it can never send.
+sources:
+  - docs/BOUNDARIES.md
+  - docs/API.md
+  - examples/notes/app/page.tsx
+  - examples/notes/app/notes/[id]/page.tsx
+---
+
+import Excerpt from "../../../components/guide/Excerpt.astro";
+import Note from "../../../components/docs/Note.astro";
+
+Every `page.tsx` is a Server Component. It runs in the Server process, reads data directly
+(no API layer between the page and the database) and returns OpenTUI elements. The Client
+receives the rendered tree, never the page's code.
+
+<Excerpt
+  path="examples/notes/app/page.tsx"
+  tone="server"
+  caption="The list of Notes: an async component that reads a cached query with the session's user."
+/>
+
+## What a page can do
+
+- Be `async` and `await` anything: a query, a file, a model call.
+- Read the session with `getSession()` (or `getOptionalSession()` on a public page) and the
+  app's command-line arguments with [`cli.get()`](/docs/reference/app-arguments/).
+- Import Server Functions and Client Components, and pass them down as props.
+- End with `notFound(what?)`, which shows the nearest `not-found.tsx`.
+- Declare `export const staleTime = 30` (seconds) to let the router show its cached tree
+  without asking again ([caching](/docs/concepts/cache/#a-pages-staletime)), and
+  `export const auth = "public"` to be reachable without a session
+  ([authentication](/docs/concepts/authentication/)).
+
+## What a page passes to the Client
+
+A page composes Client Components and gives them props. Props travel in Flight, React's
+serialization: data, promises, async iterables, and references to Server Functions. The page of a note hands
+its editor the note and two Server Functions:
+
+<Excerpt
+  path="examples/notes/app/notes/[id]/page.tsx"
+  find="export default async function Page"
+  until="^}"
+  mark={["saveAction={saveNote}", "resolveAction={getOperation}"]}
+  tone="server"
+/>
+
+`saveAction` reaches the Client as a reference: calling it sends a request to the Server,
+which runs `saveNote` there ([Server Functions](/docs/concepts/server-functions/)).
+
+## What a page cannot do
+
+- Handle a key: pages are rendered, not mounted. Keys belong to Client Components.
+- Be cached as a tree. `"use cache"` caches data, not components.
+- Put a secret in a prop. Everything a page passes to a Client Component is sent to the
+  terminal.
+
+<Note kind="warning">
+  An exception thrown while rendering reaches the nearest `error.tsx` as a render error, opaque in
+  production. A page cannot rely on its message reaching the terminal.
+</Note>
+
+## Why pages and not Server layouts
+
+Layouts are Client Components that stay mounted; only the page is rendered by the Server on
+each navigation. Persistent Server layouts (one Flight payload per segment) are out of the
+contract until a concrete need calls for them. Data a layout needs from the Server, such as
+a display name for the chrome, comes from a page or from a Client context the app provides.

@@ -1,0 +1,97 @@
+---
+title: Authentication
+description: Pages and Server Functions require a session by default. The local single-user mode, server/auth.ts, public routes and setToken.
+sources:
+  - docs/API.md
+  - packages/airtty/src/serve.ts
+  - packages/airtty/src/server.ts
+  - examples/forge/server/auth.ts
+---
+
+import Note from "../../../components/docs/Note.astro";
+
+Every page and every `"use server"` module requires a session unless it says otherwise. The
+framework carries the session; signing in, storing the token, renewing it and business
+permissions stay with the app.
+
+## Without `server/auth.ts`: one local user
+
+An app without `server/auth.ts` has a **single-user** session: every request is the user
+`AIRTTY_USER` (`local` by default). `AIRTTY_TOKEN`, set on both sides, protects it: the
+Client sends it as `Authorization: Bearer …` and the Server refuses a request without it.
+
+The Server listens on loopback by default. It refuses to listen elsewhere (`AIRTTY_HOST`)
+unless `AIRTTY_TOKEN` or `server/auth.ts` is set. Before any public exposure, put it behind a
+TLS reverse proxy and restrict network access to it; use an HTTPS URL so the token never
+travels in clear. For a private connection, keep the loopback listener and connect over
+[SSH](/docs/guides/opening-an-app/#over-ssh).
+
+## With `server/auth.ts`
+
+An app that replaces the local identity provides `server/auth.ts`. The build includes it in
+the Server's graph only.
+
+```ts
+import type { AuthConfig } from "airtty/server";
+
+export default {
+  unauthorizedPath: "/login",
+  async authenticate(request) {
+    const token = request.headers.get("authorization")?.replace(/^Bearer /, "");
+    return token ? await sessions.fromToken(token) : null;
+  },
+} satisfies AuthConfig;
+```
+
+`authenticate` returns the session or `null`. Pages, actions and repositories read it with
+`getSession()` (`{ userId }`), or `getOptionalSession()`, which returns `null` on a public
+page or action. Forge is the example in the repository that provides one.
+
+## Public pages and actions
+
+```tsx
+export const auth = "public" as const;
+
+export default function LoginPage() {
+  return <text>Sign in</text>;
+}
+```
+
+An action is protected independently of the page that hands out its reference. To allow a
+Server Function without a session, put public actions in their own module; every function of
+a module shares its policy:
+
+```ts
+"use server";
+export const auth = "public" as const;
+
+export async function beginLogin() {
+  // Validate the arguments even without a session.
+}
+```
+
+## What happens without a session
+
+- A navigation to a protected route gets a `401`, then goes locally to `unauthorizedPath`,
+  which must name an existing public route. Without `unauthorizedPath`, the Client stays on
+  the last confirmed route and exposes `AuthenticationRequired`.
+- A refused Server Function never navigates: the error reaches its caller, and
+  `AuthenticationRequired.loginPath` says where to sign in.
+
+## Signing in and out
+
+`useApplication().setToken(token?)` replaces the bearer of the following requests. It purges
+TanStack's route cache (again at the end of a navigation in progress), so a private tree
+cached under one bearer is never shown under another, and it reloads the current routes
+under the new bearer. After signing in or out, the app navigates where it wants. Replacing a
+bearer also forgets the text of restorable fields ([session restore](/docs/concepts/session-restore/));
+it touches no app state: an app that changes identity clears its own Drafts.
+
+<Note kind="warning">
+  Layouts are Client Components: they cannot call `getSession()`. Public session data the chrome
+  needs (a display name, a role) comes from a page, or from a Client context the app provides; it
+  never replaces the check on the Server. A Flight reference grants no right by itself, and a
+  protected route never replaces the permission checks in the action or the repository.
+</Note>
+
+Never put a secret in the Client's sources or in a prop: both reach the terminal.
