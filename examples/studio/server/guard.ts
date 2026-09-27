@@ -66,6 +66,11 @@ export function guard(changes: ReadonlyMap<string, string | null>): Refusal[] {
     }
     for (const { path } of imports) {
       if (path.startsWith(".")) continue;
+      // Before the built-ins: Bun lists its own modules (bun:sqlite) among them.
+      if (path.startsWith("bun:")) {
+        if (!BUN_MODULES.has(path)) refusals.push({ file, reason: `imports ${path}` });
+        continue;
+      }
       const bare = path.replace(/^node:/, "");
       if (BUILTINS.has(bare) || path.startsWith("node:")) {
         if (!HARMLESS.has(bare.split("/")[0] ?? ""))
@@ -73,10 +78,6 @@ export function guard(changes: ReadonlyMap<string, string | null>): Refusal[] {
             file,
             reason: `imports ${path}: needs a capability the app does not declare`,
           });
-        continue;
-      }
-      if (path.startsWith("bun:")) {
-        if (!BUN_MODULES.has(path)) refusals.push({ file, reason: `imports ${path}` });
         continue;
       }
       const name = packageOf(path);
