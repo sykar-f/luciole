@@ -1,0 +1,169 @@
+---
+title: API
+description: What the package exports, entry by entry. airtty/client for Client Components, airtty/server for the Server, and the entries hosts, tools and tests use.
+sources:
+  - docs/API.md
+  - packages/airtty/package.json
+  - packages/airtty/src/client.tsx
+  - packages/airtty/src/server.ts
+  - packages/airtty/src/transport.ts
+  - packages/airtty/src/host.ts
+  - packages/airtty/src/markdown
+---
+
+import Excerpt from "../../../components/guide/Excerpt.astro";
+import Note from "../../../components/docs/Note.astro";
+
+<Excerpt
+  path="packages/airtty/package.json"
+  find='"exports"'
+  until="},"
+  tone="neutral"
+  caption="The package's entries."
+/>
+
+The framework holds no business state: no Draft, no pending operation, no retry policy. It
+reports what happened to each request; the app decides.
+
+## `airtty/client`
+
+For Client Components only.
+
+### Navigation
+
+| Export                                                                                                                                 | Contract                                                                             |
+| -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `useNavigate()`, `useRouter()`, `useRouterState()`, `useParams()`, `useSearch()`, `useLocation()`, `useMatchRoute()`, `useCanGoBack()` | TanStack Router's own, re-exported as they are ([routing](/docs/concepts/routing/)). |
+| `LayoutProps`, `LoadingProps`, `ErrorProps`, `NotFoundProps`                                                                           | Props of `layout.tsx`, `loading.tsx`, `error.tsx` and `not-found.tsx`.               |
+
+### The app and its connection
+
+| Export                                                      | Contract                                                                                                                                   |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `useApplication()`                                          | `{ setToken(token?), refresh(), invalidate(paths?), cancel(), withSignal(signal, call), onEvent(listener), status, error }`.               |
+| `useConnection()`                                           | `{ status, error, buildError, activity, refresh }` for the chrome; `activity` is `connect`, `navigate`, `refresh` or `idle`.               |
+| `useInvalidation(listener)`                                 | Called at every invalidation, from the Server or the Client, with the paths and tags: for data read outside route loaders.                 |
+| `useLive(source, args, { limit }?)`                         | `{ items, done, error }` of a generator Server Function, subscribed while the component is mounted.                                        |
+| `TransportError`, `BuildMismatch`, `AuthenticationRequired` | Typed failures; `outcome` is `not-sent`, `rejected` or `unknown` ([Server Functions](/docs/concepts/server-functions/#when-a-call-fails)). |
+
+### Fields and keys
+
+| Export                                                                    | Contract                                                                                                                                                |
+| ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `<Input name? value onInput />`, `<Textarea name? value onChange />`      | OpenTUI's `input` and `textarea`, controlled; a `name` makes their text restorable.                                                                     |
+| `useRestoredFields(group)`                                                | `{ submit(action, { failed? }?), clear() }` for the `group/…` fields of the current history entry ([session restore](/docs/concepts/session-restore/)). |
+| `useBindings()`, `useActiveKeys()`, `useKeymap()`, `usePendingSequence()` | OpenTUI's keymap, re-exported: layers of bindings tied to components' lifetimes.                                                                        |
+| `<KeyHelp groups? inline? />`                                             | Help drawn from the active bindings that declare a `desc`, filtered by `group`.                                                                         |
+
+### Panes, terminals, Markdown
+
+| Export                                                                             | Contract                                                                                  |
+| ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `<Embed app name active prefix? />`, `openApplication({ bundle, url, instance? })` | Another airtty app in a pane ([terminals and panes](/docs/guides/terminals-and-panes/)).  |
+| `<Terminal command active prefix? cwd? env? onExit? />`                            | A local program on a PTY, drawn in the tree.                                              |
+| `<Markdown content streaming syntaxStyle onLink? imageBase? />`                    | Markdown rendered by blocks: while `content` streams, the text already shown never moves. |
+
+`<Markdown>` shows text that arrives in pieces, typically a model's answer, without flicker:
+finished blocks render once, the last block is closed ahead of time (`**bold` shows bold), and
+text is styled without Tree-sitter so the streaming and final renders match. Code is coloured
+once its fence closes; `diff` blocks are coloured line by line from the start. OpenTUI knows
+JavaScript, TypeScript, Markdown and Zig; `import "airtty/grammars"` (once, in the Client)
+adds Bash, C, C++, CSS, Go, HTML, Java, JSON, PHP, Python, Ruby, Rust, TOML and YAML. A click
+on a link calls `onLink(url)`; images are drawn with kitty, sixel or half blocks.
+
+### Asking the host
+
+| Export                                                               | Contract                                                                                                |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `host`, `CapabilityDenied`                                           | What the app asks its host for: clipboard, notification, URL, secret, tabs.                             |
+| `useHostMessage(fn)`, `useGlobalKey(key, fn)`, `useCapability(name)` | Messages from other tabs and global keys while mounted; a capability's `granted`, `denied` or `prompt`. |
+
+```tsx
+import { CapabilityDenied, host, useCapability } from "airtty/client";
+
+await host.clipboard.write(path); // rejects with CapabilityDenied if the host refuses
+const state = useCapability("clipboard.write"); // "granted" | "denied" | "prompt"
+```
+
+`host.clipboard.read()` / `.write(text)`, `host.notify({ title, body? })`, `host.openUrl(url)`
+(http(s) only), `host.secret(name)` (the origin's keychain entry, `undefined` if absent),
+`host.tabs.post(message)` / `.onMessage(fn)`, `host.input.onGlobalKey(fn)`. A standalone
+Client or an `inline` pane acts itself, with the user's rights (`pbcopy`, `osascript`,
+`open`, `security`), and everything is `granted`; a `sandbox` Client asks its host
+([apps you did not write](/docs/guides/untrusted-apps/#who-enforces-what)).
+
+### Observing
+
+| Export                           | Contract                                                                                            |
+| -------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `<DebugOverlay limit? />`        | Requests, open requests, bytes, last round trip and the latest events since it mounted.             |
+| `instrumentTracing(app, tracer)` | One span per request to an OpenTelemetry `Tracer` (or a compatible one); returns the stop function. |
+
+`useApplication().onEvent(listener)` receives each transport event (`request`, `response`,
+`chunk`, `end`, `error` with its `outcome`) and each resolved navigation, plus `invalidate`
+(`paths`, `tags`, `origin`) and `loader` (`phase`, `routeId`, `source`…). Every event carries
+`at`, in epoch milliseconds; transport events carry the `callId` sent to the Server and a
+`cause` (`navigation`, `preload`, `refresh`, `invalidation`, `action`, `live`, else
+`unknown`). Listeners run on the hot path: keep them light.
+
+### For hosts and generated code
+
+`Application` (from `createApplication(options)`), `ApplicationOptions`, `ApplicationEvent`,
+`Shell({ app })`, `run(create, { name?, sessionKey? })` and `RunOptions`, `createActions()`,
+and the types `LiveState`, `TracerLike`, `Session`, `SessionEntry`,
+`OpenApplicationOptions`, `PublisherCheck`. An app does not need them.
+
+## `airtty/server`
+
+| Export                                                                | Contract                                                                                                                               |
+| --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `getSession()`                                                        | `{ userId }` in the async context of a render or an action.                                                                            |
+| `getOptionalSession()`                                                | The same, or `null` on a public page or action.                                                                                        |
+| `getCallId()`                                                         | The transport request's ID, distinct from the business operation.                                                                      |
+| `getArgs()`, `getLaunch()`                                            | The app's arguments, untyped; the launch `{ scope, id?, cwd }` ([app arguments](/docs/reference/app-arguments/)).                      |
+| `notFound(what?)`                                                     | Ends a page's render with the nearest `not-found.tsx`.                                                                                 |
+| `invalidate(path?)`, `invalidate({ tag })`                            | Declares what changed ([Server Functions](/docs/concepts/server-functions/#declaring-what-changed), [caching](/docs/concepts/cache/)). |
+| `cacheLife()`, `cacheTag()`, `memoryCache()`, `sqliteCache({ path })` | The `"use cache"` cache, and the types `CacheHandler`, `CacheEntry`, `CacheEvent`.                                                     |
+| `AuthConfig`                                                          | The type of `server/auth.ts`'s default export ([authentication](/docs/concepts/authentication/)).                                      |
+| `createHandler(config, options)`                                      | The Server as a function of a `Request`, without listening.                                                                            |
+| `serve(config)`                                                       | `createHandler` on `Bun.serve`, with the environment, the socket and the lifetime.                                                     |
+
+`serve({ instrument })` hands `instrument.onEvent(event)` a `ServerEvent` for every
+`/render` and `/action` (`request`, `response`, `end`, `error`, with `callId`, `kind`,
+`target` and `at`) and the cache's `CacheEvent`s. Without `instrument`, no response is
+wrapped. `/action` answers with `Server-Timing: total;dur=…`.
+
+## Other entries
+
+| Entry               | For                                                                                                                                    |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `airtty/args`       | `defineArgs`, for `app/args.ts`.                                                                                                       |
+| `airtty/route-tree` | What `app/routeTree.gen.ts` calls: `rootRoute`, `layoutRoute`, `pageRoute`, `loadPage`, `validateSearch`.                              |
+| `airtty/build`      | `build(directory, output?, { appBundle?, signBundle?, webServer? }?)` → `{ buildId, output }`.                                         |
+| `airtty/pty`        | `spawnPty({ command, cols, rows, env?, cwd?, onData, onExit, … })` → `{ write, resize, kill, send, pid }`: `Bun.Terminal`, POSIX only. |
+| `airtty/metadata`   | `AppMetadata`, the schema of `.airtty/metadata.json`, and the functions that read and write it.                                        |
+| `airtty/grammars`   | Side effect only: registers the extra Tree-sitter grammars.                                                                            |
+| `airtty/tsconfig`   | The TypeScript configuration every app extends.                                                                                        |
+
+## The transport
+
+The transport is a replaceable interface, injected with `createApplication({ transport })`,
+or decorated with `wrapTransport(inner)` (a cache, a recorder, a replay) without touching the
+runtime:
+
+<Excerpt
+  path="packages/airtty/src/transport.ts"
+  find="export interface Transport"
+  until="^}"
+  tone="wire"
+/>
+
+The default adapter, `createHttpTransport`, carries the build header, the bearer, the timeout
+(10 s by default, bounding the wait for the root of an answer), the simulated latency, typed errors, events, invalidation
+and progressive Flight decoding. A decorator sees every `render` and `call`; what it throws
+reaches the app as it is, so it must let `TransportError`s and their `outcome` through.
+
+<Note>
+  The package is not published yet, and the API changes without notice while the project is
+  experimental. The [status page](/status/) says what is stable enough to rely on.
+</Note>

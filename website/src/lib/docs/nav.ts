@@ -43,6 +43,18 @@ export const sections: readonly Section[] = [
       "guides/testing",
     ],
   },
+  {
+    title: "Reference",
+    summary: "Every command, field, variable and export, as the code defines them.",
+    pages: [
+      "reference/cli",
+      "reference/app-arguments",
+      "reference/package-json",
+      "reference/environment",
+      "reference/api",
+      "reference/build-and-distribution",
+    ],
+  },
 ];
 
 export const order: readonly string[] = sections.flatMap((section) => section.pages);

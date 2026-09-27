@@ -1,0 +1,185 @@
+---
+title: Build and distribution
+description: What airtty build writes and how its build ID is made; compiled binaries, runtimes, targets and native modules; signing for macOS; the Server's lifetime; publishing to npm.
+sources:
+  - docs/ARCHITECTURE.md
+  - docs/DISTRIBUTION.md
+  - docs/README.fr.md
+  - packages/airtty/src/build.ts
+  - packages/airtty/src/compile.ts
+  - packages/airtty/src/sign.ts
+  - packages/airtty/src/native.ts
+  - packages/airtty/src/launcher/lifetime.ts
+  - packages/airtty/src/registry
+---
+
+import Note from "../../../components/docs/Note.astro";
+
+## `airtty build`
+
+```text
+.airtty/
+  manifest.json   build ID, graphs, route graph and Client References
+  metadata.json   display name, identifier, icon, arguments (from package.json and app/args.ts)
+  client/         index.js (+ index.js.map)
+  server/         index.js (+ index.js.map)
+  app/            index.cjs and manifest.json: the app bundle for a host
+  args/           app/args.ts, bundled for the launcher and the binary
+  web/            with --web or --web-local
+  web-server/     with --web-local
+```
+
+- The Client bundle holds the terminal runtime and this app's Client Components; the Server
+  bundle the HTTP runtime, routes, Server Functions and business code. The Server bundle does
+  not import OpenTUI, and the Client bundle holds no business code.
+- Each bundle has a linked source map: Bun applies it to stack traces at run time, in
+  development as in production.
+- Artifacts are built in a temporary directory and published only once every part succeeded:
+  a failed build leaves the last good one in place.
+- `airtty build` without `--compile` or `--web` does not touch the network.
+- `.airtty/app/` needs Client code without top-level `await` (CommonJS cannot express it):
+  without it the build succeeds without the app bundle and says where; `--app-bundle` makes
+  that a failure.
+
+### The build ID
+
+A hash of the reachable sources (every layout, loading and error screen included), every
+runtime file, and the `bun.lock` that governs the installation: the nearest above the
+framework, then above the app, without leaving the git checkout. The lockfile lists the
+packages of every platform, unlike `node_modules`, so binaries of each target of one version
+keep the same ID. The Client sends it with each request; a Server of another build refuses
+before decoding. Both roles must come from the same build.
+
+`.airtty/client` and `.airtty/server` are not a delivery format: they carry no manifest or
+lockfile to install elsewhere. A machine of known platform gets a compiled binary; an unknown
+one starts from the source (`airtty git+…`), installed from its `bun.lock` and built there.
+
+## Compiled binaries
+
+```sh
+airtty build --compile [--name notes] [--target t] [--client-only]
+# → .airtty/bin/<os>-<arch>/notes  (+ native/)
+```
+
+One executable with the Bun runtime, OpenTUI's native library and the build ID inside. By
+default it holds the Client **and** the Server, business code included, and the build warns
+about it every time; `--client-only` produces the Client alone. Its identity is written as a
+literal the launcher reads without running it; `notes --version` prints it.
+
+### Runtimes
+
+By default the binary embeds the official Bun runtime of the target, from npm
+(`@oven/bun-<os>-<arch>`, the build's Bun version): downloaded **once**, checked against the
+registry's published `integrity` (SHA-512), then reused from `$XDG_CACHE_HOME/airtty/runtime/`
+without the network. `airtty runtime [--target …]` fills that cache ahead of time; offline
+and without a cache, the build fails and says so. The checksum protects against a truncated
+or altered download, not against a compromised registry: npm signatures are not checked.
+
+`--runtime host` embeds the Bun running the build (the build warns if it depends on
+libraries outside the system, as with Nix or Homebrew: the binary would not start
+elsewhere); `--portable` turns that warning into an error. `--runtime <path>` embeds a chosen
+Bun executable.
+
+### Targets
+
+`--target bun-linux-x64` (and `bun-darwin-arm64`, `bun-linux-x64-musl`…) builds for another
+platform. On Linux, the glibc binary starts on a minimal Debian; the musl binary needs
+`libstdc++` and `libgcc`, which Bun's musl runtime links (`apk add libstdc++` on Alpine). At
+launch Bun extracts OpenTUI's library into `$TMPDIR` (`/tmp` by default): if it is mounted
+`noexec`, set `TMPDIR` to an executable directory. `bun run test:linux` (Docker needed) runs
+these variants in containers without Bun.
+
+### Native Server packages
+
+A package with native code (a `.node` addon and the libraries it links, such as sharp) does
+not fit in a single file. The build keeps it external on the Server, and `--compile` puts it
+next to the binary in `native/node_modules/`, with only the target's platform packages. For
+another platform, install the app's packages for that target **from its lockfile**, then pass
+that directory with `--native-dir`:
+
+```sh
+bun install --frozen-lockfile --os=linux --cpu=x64
+```
+
+`native/` travels with the binary: in the `--on` archive, in the npm platform package, and in
+the installation directory.
+
+## Signing and notarization for macOS
+
+Without options, the macOS binary carries the linker's ad hoc signature: it runs on the
+machine that built it, or when copied with `scp` or `curl`, but Gatekeeper blocks a file a
+browser downloaded.
+
+```sh
+# once: App Store Connect credentials in the keychain
+xcrun notarytool store-credentials airtty-notary --apple-id … --team-id … --password …
+airtty build --compile \
+  --sign "Developer ID Application: Example Ltd (TEAMID1234)" --notarize airtty-notary
+```
+
+`--sign` signs with the hardened runtime, a secure timestamp and two entitlements
+(`allow-jit`, without which Bun stops and `bun:ffi`, which loads OpenTUI, refuses to start;
+`disable-library-validation`, because OpenTUI's library is extracted at launch and not signed
+by your team), then verifies the signature. `--sign -` makes the same signature ad hoc, to
+test locally. `--notarize <profile>` requires a Developer ID: it sends the zipped binary to
+`notarytool`, waits for the verdict and prints Apple's log on refusal. A bare executable
+cannot have a ticket stapled: Gatekeeper checks it online at first launch; for an offline
+first launch, ship the binary in a signed, notarized and stapled `.dmg` or `.pkg`. These
+options apply to macOS targets, from macOS.
+
+<Note kind="warning">
+  Notarization has not been run end to end in this repository, for lack of a Developer ID.
+</Note>
+
+## The Server's lifetime
+
+A Server the launcher starts, locally or with `--on`, is detached (its own session, its
+output in its log) and lives as long as its Clients need it:
+
+| Event                                               | Effect                                                             |
+| --------------------------------------------------- | ------------------------------------------------------------------ |
+| A Client runs                                       | it pings `POST /lifetime/ping` every 10 s (any request counts too) |
+| <kbd>Ctrl+C</kbd>, `app.quit` (quitting on purpose) | `POST /lifetime/leave`; the last Client gone, the Server stops     |
+| No request or ping for 30 s                         | that Client is lost                                                |
+| The Server's standard input ends without a leave    | the launcher's Client is lost (crash, closed terminal)             |
+| The last Client lost                                | grace: 15 min by default, `--grace <duration>`, `0` stops at once  |
+| A Client comes back during the grace period         | it is attached again, the grace stops                              |
+| The grace period ends                               | the Server stops                                                   |
+
+A new launch of the same target finds the Server at its socket and checks it
+(`GET /lifetime/status`): same build and same arguments, it attaches; otherwise it stops that
+Server (`POST /lifetime/stop`) and starts a new one.
+
+**The framework guarantees** a Server that survives the loss of its Client during the grace
+period, with its in-memory data; the tunnel re-established; the route and the named fields
+restored. **The app keeps** every other in-memory state of the Client, and the business
+meaning of an operation whose outcome is `unknown`.
+
+## Publishing to npm
+
+An app is published the way esbuild is: one package per platform with the binary, and a main
+package that lists them in `optionalDependencies` and in `airtty.binaries`.
+
+```sh
+airtty build --compile --name notes --target bun-darwin-arm64
+airtty build --compile --name notes --target bun-linux-x64 --native-dir …
+airtty pack --package @ada/notes --version 1.2.0 .airtty/bin/*/notes
+```
+
+`airtty pack` prints the order to publish in, platforms first. The registry is only read: the
+launcher uses its public read API (package documents, tarballs, search), compares each tarball
+with its published `integrity`, and records what it installed locally, in
+`$XDG_DATA_HOME/airtty/apps/<app>/`. An update writes the new binary next to the old one,
+switches `installed.json`, then removes the old one; a binary whose identity does not match
+its `package.json` is refused.
+
+## Known limits
+
+- `--on` does not clean up old builds on the remote host.
+- The relaunched tunnel never prompts: a password-only login does not come back by itself.
+- A private npm registry (with a token) is not supported; `update` does not apply to git
+  sources.
+- `install` does not detect musl: on Alpine it would pick the glibc binary.
+- A compiled binary does not embed `.airtty/app/`: it cannot be opened by URL.
+- A compiled Client is rebuilt from `index.js` without its source map: its stack traces stay
+  in the bundle's coordinates.
