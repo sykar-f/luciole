@@ -1,14 +1,17 @@
 /**
  * `airtty dev` as a program on a PTY, the way a host embeds it (a multiplexer's
- * `<Terminal>`, studio's preview): what it leaves behind when the terminal goes away.
+ * `<Terminal>`, studio's preview): what it leaves behind when the terminal goes away, and
+ * the pieces of supervision it shares with other hosts (src/dev/supervisor.ts).
  */
 import { test, expect } from "bun:test";
 import { mkdtemp, mkdir, rm } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { serialize, startAppServer } from "../packages/airtty/src/dev/supervisor";
+import { messageOf } from "../packages/airtty/src/guards";
 import { spawnPty, type Pty } from "../packages/airtty/src/vt/pty";
-import { until } from "./helpers";
+import { rejectionOf, until } from "./helpers";
 
 const CLI = resolve("packages/airtty/src/cli.ts");
 const STARTUP_MS = 15_000;
@@ -88,6 +91,61 @@ test("airtty dev ends with its Client's exit code: a crash is not a quit", async
     expect(run.ended).toEqual([CRASH_CODE]);
   } finally {
     run.pty.kill();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("serialize: one run at a time, one more for any calls made during it", async () => {
+  let runs = 0;
+  let release = () => {};
+  const rebuilds = serialize(async () => {
+    runs++;
+    await new Promise<void>((done) => (release = done));
+  });
+  const first = rebuilds.run();
+  expect(rebuilds.busy).toBe(true);
+  // Three calls while the first runs: one more run, not three.
+  void rebuilds.run();
+  void rebuilds.run();
+  const last = rebuilds.run();
+  release();
+  await until(() => runs === 2);
+  release();
+  await Promise.all([first, last]);
+  expect(runs).toBe(2);
+  expect(rebuilds.busy).toBe(false);
+});
+
+test("startAppServer: resolves with the port, or rejects with what the Server said", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "airtty-app-server-"));
+  const entry = join(dir, ".airtty/server/index.js");
+  await mkdir(join(entry, ".."), { recursive: true });
+  try {
+    await Bun.write(
+      entry,
+      `console.log("starting"); console.log(JSON.stringify({ ready: true, port: 4331 })); setInterval(() => {}, 1000);`,
+    );
+    const output: string[] = [];
+    const server = await startAppServer({
+      directory: dir,
+      env: process.env,
+      onOutput: (line) => output.push(line),
+    });
+    expect(server.port).toBe(4331);
+    expect(output).toEqual(["starting"]);
+    await server.stop();
+    expect(server.child.exitCode !== null || server.child.signalCode !== null).toBe(true);
+
+    await Bun.write(
+      entry,
+      `console.error("SyntaxError: Export named 'useState' not found"); process.exit(1);`,
+    );
+    const failure = await rejectionOf(
+      startAppServer({ directory: dir, env: process.env, stderr: () => {} }),
+    );
+    expect(messageOf(failure)).toContain("Server exited before ready");
+    expect(messageOf(failure)).toContain("Export named 'useState' not found");
+  } finally {
     await rm(dir, { recursive: true, force: true });
   }
 });

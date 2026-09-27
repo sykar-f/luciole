@@ -1,5 +1,5 @@
 import { resolve } from "node:path";
-import type { ChildProcess } from "node:child_process";
+import { stopChild } from "../dev/supervisor";
 
 /** What `airtty` (src/cli.ts) hands every subcommand. */
 export type CommandContext = {
@@ -22,16 +22,5 @@ export const frameworkRoot = resolve(import.meta.dir, "../..");
 /** The workspace holding it: starters copy its Notes example and tooling configuration. */
 export const workspaceRoot = resolve(frameworkRoot, "../..");
 
-// A child that ignores SIGTERM this long is killed.
-const STOP_GRACE_MS = 1500;
-export async function stop(child?: ChildProcess) {
-  if (!child || child.exitCode !== null || child.signalCode !== null) return;
-  await new Promise<void>((done) => {
-    const timer = setTimeout(() => child.kill("SIGKILL"), STOP_GRACE_MS);
-    child.once("exit", () => {
-      clearTimeout(timer);
-      done();
-    });
-    child.kill("SIGTERM");
-  });
-}
+/** Stops a child: SIGTERM, then SIGKILL after a grace period (src/dev/supervisor.ts). */
+export const stop = stopChild;
