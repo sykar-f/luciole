@@ -146,7 +146,8 @@ export class PreviewServers {
 
   /** `tsc --noEmit` on the project: diagnostics, none when the types hold. */
   types(): Promise<Diagnostic[]> {
-    const tsc = join(this.project.directory, "node_modules/.bin/tsc");
+    // Not `.bin/tsc`: that link is TypeScript 6's, from `@typescript/old` (docs/TOOLING.md).
+    const tsc = join(this.project.directory, "node_modules/typescript/bin/tsc");
     return new Promise((done) => {
       // From the project: tsc names files relative to where it runs.
       const child = spawn(tsc, ["--noEmit", "-p", "."], {
