@@ -69,7 +69,15 @@ internes gardent de simples types TypeScript.
   tout le dépôt sauf quatre fichiers de `packages/desktop` qui ont besoin des types
   d'Electrobun : le `check` de ce paquet les lint après `electrobun prepare`.
 - `bun run format` / `format:check` : Oxfmt.
-- `bun run verify` : types, lint, format, tests et build.
+- `bun run verify` : types, lint, format, tests et build. Le contrôle complet, une fois,
+  avant d'intégrer une branche.
+- `bun run verify:fast [base]` : pendant qu'une modification se fait. Types, lint et
+  format sur tout le dépôt (quelques secondes), puis seulement les tests que la
+  modification peut atteindre depuis `base` (`main` par défaut) : ceux que
+  `bun test --changed` trouve par les imports, plus ceux qui nomment
+  `examples/<app>` quand l'application change et ceux qui lancent `cli.ts` quand la CLI
+  change. Un changement de manifeste, de lockfile, de configuration TypeScript ou Bun,
+  ou des helpers et fixtures des tests, relance toute la suite.
 
 La CI (`.github/workflows/ci.yml`, GitHub Actions) tourne à chaque push et pull request.
 Le job `verify`, sous macOS et Linux, enchaîne `bun install --frozen-lockfile`, la même
