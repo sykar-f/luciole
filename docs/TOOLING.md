@@ -62,13 +62,22 @@ internes gardent de simples types TypeScript.
 
 - `bun run check` : TypeScript sur le framework, ses applications internes (DevTools,
   lanceur, Client générique, runtime web), les exemples, les tests, les scripts et les
-  sondes. `packages/desktop` et `website/` ont chacun leur propre `check` (Electrobun,
-  `astro check`), absent de celui de la racine.
+  sondes. `scripts/check.ts` lance les 18 projets en parallèle (ils sont indépendants),
+  en quelques secondes. `packages/desktop` et `website/` ont chacun leur propre `check`
+  (Electrobun, `astro check`), absent de celui de la racine.
 - `bun run lint` / `lint:fix` : Oxlint, avec TypeScript et règles React pertinentes, sur
   tout le dépôt sauf quatre fichiers de `packages/desktop` qui ont besoin des types
   d'Electrobun : le `check` de ce paquet les lint après `electrobun prepare`.
 - `bun run format` / `format:check` : Oxfmt.
-- `bun run verify` : types, lint, format, tests et build.
+- `bun run verify` : types, lint, format, tests et build. Le contrôle complet, une fois,
+  avant d'intégrer une branche.
+- `bun run verify:fast [base]` : pendant qu'une modification se fait. Types, lint et
+  format sur tout le dépôt (quelques secondes), puis seulement les tests que la
+  modification peut atteindre depuis `base` (`main` par défaut) : ceux que
+  `bun test --changed` trouve par les imports, plus ceux qui nomment
+  `examples/<app>` quand l'application change et ceux qui lancent `cli.ts` quand la CLI
+  change. Un changement de manifeste, de lockfile, de configuration TypeScript ou Bun,
+  ou des helpers et fixtures des tests, relance toute la suite.
 
 La CI (`.github/workflows/ci.yml`, GitHub Actions) tourne à chaque push et pull request.
 Le job `verify`, sous macOS et Linux, enchaîne `bun install --frozen-lockfile`, la même
@@ -124,8 +133,11 @@ chaîne est effectivement refusée. Le contrôle ne masque donc pas les erreurs.
 ## Versions et compatibilité
 
 Le build importe explicitement `@typescript/typescript6`, car TypeScript 7 n’expose
-plus l’ancienne API `createProgram`/`transpileModule`. Les commandes `tsc` utilisent
-bien 7.0.2 ; le paquet de compatibilité n’est pas un maintien du type-checker en 5.x.
+plus l’ancienne API `createProgram`/`transpileModule`. Ce paquet dépend de
+`@typescript/old`, qui déclare lui aussi un binaire `tsc` et gagne le lien
+`node_modules/.bin/tsc` : un `tsc` nu lance donc le type-checker de TypeScript 6,
+5 à 10 fois plus lent. `scripts/check.ts` appelle explicitement `typescript/bin/tsc`
+(7.0.2) ; le paquet de compatibilité ne sert qu’à l’API AST du build.
 Voir [la transition officielle](https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/)
 et [la configuration VS Code](https://marketplace.visualstudio.com/items?itemName=TypeScriptTeam.native-preview).
 

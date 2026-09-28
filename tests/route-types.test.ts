@@ -45,7 +45,8 @@ export function Bad() {
       await Bun.write(join(dir, name), text);
     }
     await build(dir);
-    const tsc = Bun.spawn([resolve("node_modules/.bin/tsc"), "--noEmit", "-p", dir], {
+    // TypeScript 7: `.bin/tsc` is TypeScript 6's, from `@typescript/old` (docs/TOOLING.md).
+    const tsc = Bun.spawn([resolve("node_modules/typescript/bin/tsc"), "--noEmit", "-p", dir], {
       stdout: "pipe",
       stderr: "pipe",
     });

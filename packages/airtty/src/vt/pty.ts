@@ -39,11 +39,14 @@ export type Pty = {
 
 /** The open file descriptors of this process. */
 const openDescriptors = () => new Set(readdirSync("/dev/fd").map(Number));
+/** Scans of /dev for a new slave, and the pause between two. */
+const SCAN_ATTEMPTS = 20;
+const SCAN_PAUSE_MS = 5;
 /**
- * The path of the terminal device a descriptor opened since `before` refers to: a PTY
- * slave `Bun.Terminal` just allocated. Bun does not say it; the device number does.
+ * The PTY slaves by device number. Other processes open and close PTYs meanwhile: one
+ * listed but gone by the time it is examined is skipped.
  */
-function newSlave(before: ReadonlySet<number>) {
+function slaves() {
   // macOS names slaves /dev/ttysNNN, Linux /dev/pts/N.
   const candidates = [
     ...readdirSync("/dev")
@@ -51,14 +54,34 @@ function newSlave(before: ReadonlySet<number>) {
       .map((name) => `/dev/${name}`),
     ...(existsSync("/dev/pts") ? readdirSync("/dev/pts").map((name) => `/dev/pts/${name}`) : []),
   ];
-  const devices = new Map(candidates.map((path) => [statSync(path).rdev, path]));
+  const devices = new Map<number, string>();
+  for (const path of candidates) {
+    const stat = statSync(path, { throwIfNoEntry: false });
+    if (stat) devices.set(stat.rdev, path);
+  }
+  return devices;
+}
+/**
+ * The path of the terminal device a descriptor opened since `before` refers to: a PTY
+ * slave `Bun.Terminal` just allocated. Bun does not say it; the device number does.
+ */
+function newSlave(before: ReadonlySet<number>) {
+  const opened = new Set<number>();
   for (const fd of openDescriptors()) {
     if (before.has(fd)) continue;
     try {
       const stat = fstatSync(fd);
-      const path = stat.isCharacterDevice() ? devices.get(stat.rdev) : undefined;
-      if (path) return path;
+      if (stat.isCharacterDevice()) opened.add(stat.rdev);
     } catch {}
+  }
+  // A slave just allocated may not be listed in /dev yet while PTYs come and go.
+  for (let attempt = 0; attempt < SCAN_ATTEMPTS; attempt++) {
+    const devices = slaves();
+    for (const rdev of opened) {
+      const path = devices.get(rdev);
+      if (path) return path;
+    }
+    Bun.sleepSync(SCAN_PAUSE_MS);
   }
   throw new Error("The new PTY's device path could not be found");
 }

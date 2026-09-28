@@ -22,6 +22,7 @@ try {
     "packages",
     "examples",
     "package.json",
+    "scripts/check.ts",
     "bun.lock",
     "bunfig.toml",
     "tsconfig.json",

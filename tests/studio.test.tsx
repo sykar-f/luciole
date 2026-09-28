@@ -21,9 +21,12 @@ import { importClient, launch } from "./helpers";
 const STUDIO = resolve("examples/studio");
 const MODE = isolationProblem("sandbox") ? "process" : "sandbox";
 const WIDTH = 160;
-const HEIGHT = 44;
+// Tall enough for a failure and its correction to stay on screen together: on a loaded
+// machine both can happen between two frames, so the test reads the failure afterwards.
+const HEIGHT = 120;
 const STEP_TIMEOUT_MS = 60_000;
-const STOP_MS = 3000;
+const STOP_TIMEOUT_MS = 20_000;
+const POLL_MS = 100;
 
 beforeAll(async () => {
   await build(STUDIO);
@@ -83,7 +86,10 @@ async function startStudio(mode: string = MODE) {
       await act(async () => ui.renderer.destroy());
       app.dispose();
       await server.stop();
-      await Bun.sleep(STOP_MS);
+      // The preview's processes leave with the studio; on a loaded machine, not at once.
+      const deadline = performance.now() + STOP_TIMEOUT_MS;
+      while (leftovers(project).length > 0 && performance.now() < deadline)
+        await Bun.sleep(POLL_MS);
       if (state === undefined) delete process.env.XDG_STATE_HOME;
       else process.env.XDG_STATE_HOME = state;
       await rm(temp, { recursive: true, force: true });
@@ -108,14 +114,13 @@ test(`studio (${MODE}): a prompt runs as a revision, failures are corrected, Ctr
 
     // A syntax error: the build fails, studio says where, the generator corrects it.
     await studio.prompt("Show the count in bold");
-    const failed = await studio.waitFor("The build failed");
-    expect(failed).toMatch(/app\/page\.tsx:\d+/);
-    await studio.waitFor("Revision r2 built and running.");
+    const corrected = await studio.waitFor("Revision r2 built and running.");
+    expect(corrected).toMatch(/The build failed[^]*app\/page\.tsx:\d+[^]*Revision r2 built/);
 
     // A page that throws in the preview: its Client reports it, studio corrects it.
     await studio.prompt("Show the todo count in the list");
-    await studio.waitFor("A page failed in the preview");
-    await studio.waitFor("Revision r4 built and running.");
+    const recovered = await studio.waitFor("Revision r4 built and running.");
+    expect(recovered).toMatch(/A page failed in the preview[^]*Revision r4 built/);
     await studio.waitFor("2 todos");
 
     // Ctrl+O u: back to r3's files, as a new revision.

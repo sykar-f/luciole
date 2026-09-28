@@ -52,7 +52,7 @@
     }
   },
   "scripts": {
-    "test": "bun test --timeout 20000",
+    "test": "bun test --timeout 20000 --parallel=4",
     "probes": "cd probes/rsc && bun install --frozen-lockfile && bun probe.tsx && cd ../rpc && bun install --frozen-lockfile && bun probe.tsx",
     "build": "bun packages/airtty/src/cli.ts build",
     "dev": "bun packages/airtty/src/cli.ts dev",
@@ -65,7 +65,7 @@
     "agent": "bun packages/airtty/src/cli.ts dev --app examples/agent",
     "coder": "bun packages/airtty/src/cli.ts dev --app examples/coder --",
     "studio": "bun packages/airtty/src/cli.ts dev --app examples/studio --",
-    "check": "tsc --noEmit && tsc --noEmit -p packages/airtty && tsc --noEmit -p examples/notes && tsc --noEmit -p examples/latency && tsc --noEmit -p examples/forge && tsc --noEmit -p examples/files && tsc --noEmit -p examples/mdreader && tsc --noEmit -p examples/chat && tsc --noEmit -p examples/agent && tsc --noEmit -p examples/mux && tsc --noEmit -p examples/coder && tsc --noEmit -p packages/harness && tsc --noEmit -p examples/studio && tsc --noEmit -p examples/studio/template && tsc --noEmit -p packages/airtty/src/devtools/airtty-devtools && tsc --noEmit -p packages/airtty/src/launcher/airtty && tsc --noEmit -p packages/airtty/src/generic/browser && tsc --noEmit -p packages/airtty/src/web",
+    "check": "bun scripts/check.ts",
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
     "test:pty": "bun scripts/pty/smoke.ts",
@@ -95,7 +95,8 @@
     "test:linux": "bun scripts/linux-client.ts",
     "test:linux:sandbox": "bun scripts/linux-sandbox.ts",
     "build:sandbox": "bun scripts/build-sandbox.ts",
-    "verify": "bun run check && bun run lint && bun run format:check && bun test --timeout 20000 && bun run build",
+    "verify": "bun run check && bun run lint && bun run format:check && bun test --timeout 20000 --parallel=4 && bun run build",
+    "verify:fast": "bun scripts/verify-fast.ts",
     "lint": "oxlint --deny-warnings --ignore-pattern 'packages/desktop/src/{host/index,view/index,protocol}.ts' --ignore-pattern packages/desktop/electrobun.config.ts .",
     "lint:fix": "oxlint --fix ."
   },

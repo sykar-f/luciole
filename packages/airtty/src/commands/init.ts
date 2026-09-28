@@ -54,7 +54,8 @@ export const init: Command = {
           scripts: {
             dev: "airtty dev --app .",
             build: "airtty build --app .",
-            check: "tsc --noEmit",
+            // Not a bare `tsc`: `.bin/tsc` is TypeScript 6's, from `@typescript/old`.
+            check: "bun node_modules/typescript/bin/tsc --noEmit",
             lint: "oxlint --deny-warnings .",
             "lint:fix": "oxlint --fix .",
             format: "oxfmt --write .",
