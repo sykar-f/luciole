@@ -93,8 +93,10 @@ test("generated Notes: Flight action, preserved Draft, navigation, validation an
     await act(async () => {
       await app.refresh();
       await ui.mockInput.typeText("f");
+      // refresh() resolves once the router starts reloading, not once the request
+      // fails: on a loaded machine, the refused connection reports a little later.
+      await until(() => app.status === "Disconnected");
     });
-    expect(app.status).toBe("Disconnected");
     expect(input("note-1").value).toBe("abcdef");
   } finally {
     await destroy(rendered);
