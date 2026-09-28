@@ -77,6 +77,18 @@ test("<Embed>: two applications, keys to the active pane, focus set aside, crash
     ]);
     for (const [app, list] of events) app.onEvent((e) => list.push(e));
     const count = (app: Application) => events.get(app)?.length ?? 0;
+    // What `app` started since event `from`: a request, a page load, an invalidation. The
+    // events that finish a call already under way (its response, chunks, end, the
+    // navigation it resolves) can land later on a loaded machine and say nothing of keys.
+    const startedSince = (app: Application, from: number) =>
+      (events.get(app) ?? [])
+        .slice(from)
+        .filter(
+          (e) =>
+            e.type === "request" ||
+            e.type === "invalidate" ||
+            (e.type === "loader" && e.phase === "start"),
+        );
     // Which pane has the keys: the host's state, switched by its prefix sequence.
     let active: "md" | "fx" = "md";
     const activePane = (): "md" | "fx" => active;
@@ -129,7 +141,7 @@ test("<Embed>: two applications, keys to the active pane, focus set aside, crash
       await until(() => frame().includes("The second document."), 10_000);
     });
     // …and files, which is not active, heard nothing.
-    expect(count(fxApp)).toBe(fxBefore);
+    expect(startedSince(fxApp, fxBefore)).toEqual([]);
 
     // mdreader's find field takes the focus.
     await act(async () => ui?.mockInput.pressKey("/"));
@@ -153,7 +165,7 @@ test("<Embed>: two applications, keys to the active pane, focus set aside, crash
       await Bun.sleep(300);
     });
     expect(typed?.value).toBe("gu");
-    expect(count(mdApp)).toBe(mdBefore);
+    expect(startedSince(mdApp, mdBefore)).toEqual([]);
 
     // Back to mdreader: its input has the focus again, and the typing.
     await act(async () => {
