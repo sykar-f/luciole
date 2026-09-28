@@ -52,7 +52,7 @@
     }
   },
   "scripts": {
-    "test": "bun test --timeout 20000",
+    "test": "bun test --timeout 20000 --parallel=4",
     "probes": "cd probes/rsc && bun install --frozen-lockfile && bun probe.tsx && cd ../rpc && bun install --frozen-lockfile && bun probe.tsx",
     "build": "bun packages/airtty/src/cli.ts build",
     "dev": "bun packages/airtty/src/cli.ts dev",
@@ -95,7 +95,7 @@
     "test:linux": "bun scripts/linux-client.ts",
     "test:linux:sandbox": "bun scripts/linux-sandbox.ts",
     "build:sandbox": "bun scripts/build-sandbox.ts",
-    "verify": "bun run check && bun run lint && bun run format:check && bun test --timeout 20000 && bun run build",
+    "verify": "bun run check && bun run lint && bun run format:check && bun test --timeout 20000 --parallel=4 && bun run build",
     "lint": "oxlint --deny-warnings --ignore-pattern 'packages/desktop/src/{host/index,view/index,protocol}.ts' --ignore-pattern packages/desktop/electrobun.config.ts .",
     "lint:fix": "oxlint --fix ."
   },
