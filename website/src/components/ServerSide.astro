@@ -1,126 +1,232 @@
 ---
 // The code section, drawn rather than shown: the tree of examples/notes as the App Router
-// lays one out, each file with the convention it follows and the side it runs on, then
-// what `airtty build` makes of it. The sides are those of the real files: a layout,
-// loading.tsx and error.tsx are Client Components in airtty, a page a Server Component.
+// lays one out, then what `airtty build` makes of it, each file on the side it runs on.
+// The sides are those of the real files: a layout, loading.tsx and error.tsx are Client
+// Components in airtty, a page a Server Component. The tree stays neutral; the build sorts.
 import { source } from "../lib/links";
 
 type Side = "client" | "server";
-type Row = { depth: number; name: string; role?: string; side?: Side };
+type Node = { name: string; role?: string; side?: Side; children?: Node[] };
+// A rail is one column of the tree's drawing: a line going on, nothing, or a branch.
+type Rail = "pipe" | "blank" | "tee" | "elbow";
+type Row = { rails: Rail[]; name: string; role?: string; side?: Side; path: string };
 
-const tree: Row[] = [
-  { depth: 0, name: "app/", role: "the route tree" },
-  { depth: 1, name: "layout.tsx", role: "around every page", side: "client" },
-  { depth: 1, name: "page.tsx", role: "the route /", side: "server" },
-  { depth: 1, name: "error.tsx", role: "when a page fails", side: "client" },
-  { depth: 1, name: "notes/" },
-  { depth: 2, name: "[id]/", role: "a segment: /notes/42" },
-  { depth: 3, name: "page.tsx", role: "reads the note", side: "server" },
-  { depth: 3, name: "loading.tsx", role: "while it travels", side: "client" },
-  { depth: 0, name: "actions/" },
-  { depth: 1, name: "notes.ts", role: '"use server"', side: "server" },
-  { depth: 0, name: "components/" },
-  { depth: 1, name: "NoteEditor.tsx", role: '"use client"', side: "client" },
+const tree: Node[] = [
+  {
+    name: "app/",
+    role: "the route tree",
+    children: [
+      { name: "layout.tsx", role: "stays around every page", side: "client" },
+      { name: "page.tsx", role: "lists the notes at /", side: "server" },
+      { name: "error.tsx", role: "shows when a page fails", side: "client" },
+      {
+        name: "notes/",
+        children: [
+          {
+            name: "[id]/",
+            role: "one segment: /notes/42",
+            children: [
+              { name: "page.tsx", role: "reads the note", side: "server" },
+              { name: "loading.tsx", role: "shows until it arrives", side: "client" },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  { name: "actions/", children: [{ name: "notes.ts", role: "saves a note", side: "server" }] },
+  {
+    name: "components/",
+    children: [{ name: "NoteEditor.tsx", role: "edits it as you type", side: "client" }],
+  },
 ];
 
-const sides: { side: Side; title: string; does: string; files: string[] }[] = [
-  {
-    side: "client",
-    title: "your terminal",
-    does: "draws every screen, handles every key",
-    files: ["layout.tsx", "error.tsx", "loading.tsx", "NoteEditor.tsx"],
-  },
-  {
-    side: "server",
-    title: "the server",
-    does: "reads and writes your data, renders the pages",
-    files: ["page.tsx", "notes/[id]/page.tsx", "actions/notes.ts"],
-  },
+// Flattened as `tree` prints it, each row knowing its rails and its path from the root.
+const flatten = (nodes: Node[], dir = "", above: boolean[] = []): Row[] =>
+  nodes.flatMap((node, i) => {
+    const last = i === nodes.length - 1;
+    const rails: Rail[] = [...above.map((on): Rail => (on ? "pipe" : "blank")), last ? "elbow" : "tee"];
+    const path = dir + node.name;
+    const row: Row = { rails, name: node.name, role: node.role, side: node.side, path };
+    return [row, ...flatten(node.children ?? [], path, [...above, !last])];
+  });
+
+const rows = flatten(tree);
+
+const sides: { side: Side; title: string; does: string }[] = [
+  { side: "client", title: "your terminal", does: "draws every screen, answers every key" },
+  { side: "server", title: "the server", does: "runs your pages and actions, next to your data" },
 ];
+
+// A chip names the file by its path from the root, the directories dimmed.
+const split = (path: string) => {
+  const cut = path.lastIndexOf("/") + 1;
+  return { dir: path.slice(0, cut), base: path.slice(cut) };
+};
 ---
 
 <section class="section" id="code" aria-labelledby="code-title">
   <div class="wrap">
     <div class="section-head">
       <p class="label">code</p>
-      <h2 id="code-title">The App Router's layout. Already proven.</h2>
+      <h2 id="code-title">
+        <span class="phrase">The folder you know.</span> <span class="phrase">Split in two.</span>
+      </h2>
       <p class="lede">
-        <code>app/</code> is the route tree, as in Next.js: a <code>page.tsx</code> per route, a
-        <code>layout.tsx</code> around it, <code>loading.tsx</code> and <code>error.tsx</code> beside it,
-        <code>[id]</code> for a segment, <code>"use client"</code> and <code>"use server"</code> where code
-        runs. Conventions you already know; <code>airtty build</code> sends each file to its side.
+        Lay out <code>app/</code> as you would for Next.js: pages, layouts, loading and error states,
+        <code>"use client"</code>, <code>"use server"</code>. <code>airtty build</code> sends each file to its
+        side: pages and actions run on the server, next to your data; what draws and answers keys runs in
+        your terminal. One change from Next.js: layouts and loading states run on your side, so
+        switching pages answers at once, before the server does.
       </p>
     </div>
 
-    <figure class="split" aria-label="The files of the Notes example and the side each one runs on">
-      <div class="tree">
-        <a class="tree-title" href={source("examples/notes")}>examples/notes</a>
+    <figure class="split" data-split aria-label="The files of the Notes example and the side each one runs on">
+      <div class="tree" data-from>
+        <a class="tree-title" href={source("examples/notes")}>
+          examples/notes<span class="out" aria-hidden="true"> ↗</span>
+        </a>
         <ul>
           {
-            tree.map((row) => (
-              <li class:list={[row.side, { dir: row.name.endsWith("/") }]} style={`--depth:${row.depth}`}>
-                <span class="name">{row.name}</span>
+            rows.map((row) => (
+              <li
+                class:list={{ dir: row.name.endsWith("/") }}
+                data-file={row.side && row.path}
+                data-side={row.side}
+              >
+                <span class="name">
+                  {row.rails.map((rail) => <span class:list={["rail", rail]} aria-hidden="true" />)}{row.name}
+                </span>
                 {row.role && <span class="role">{row.role}</span>}
-                {row.side && <span class="dot" aria-label={row.side} />}
               </li>
             ))
           }
         </ul>
       </div>
 
-      <div class="prism" aria-hidden="true">
-        <span class="build">airtty build</span>
-        <svg viewBox="0 0 120 240" preserveAspectRatio="none">
-          <path class="in" d="M0 120 H52" />
-          <path class="to-client" d="M52 120 C80 120, 80 40, 120 40" />
-          <path class="to-server" d="M52 120 C80 120, 80 200, 120 200" />
-          <polygon class="gem" points="52,104 68,120 52,136 36,120" />
-        </svg>
+      <div class="prism">
+        <span class="build" data-build>airtty build</span>
       </div>
 
       <div class="sides">
         {
           sides.map((side) => (
-            <div class:list={["side", side.side]}>
+            <div class:list={["side", side.side]} data-to={side.side}>
               <div class="head">
                 {side.side === "client" ? (
-                  <svg class="icon" viewBox="0 0 48 36" aria-hidden="true">
-                    <rect x="1" y="1" width="46" height="34" rx="3" />
-                    <path d="M1 9 H47" />
-                    <path d="M8 17 l6 5 -6 5" />
-                    <path d="M18 27 H28" />
+                  <svg class="icon" viewBox="0 0 32 32" aria-hidden="true" data-anchor>
+                    <rect x="3" y="5" width="26" height="22" rx="2" />
+                    <path d="M9 13 l4 3 -4 3" />
+                    <path d="M16 20 h6" />
                   </svg>
                 ) : (
-                  <svg class="icon" viewBox="0 0 48 36" aria-hidden="true">
-                    <rect x="6" y="1" width="36" height="10" rx="2" />
-                    <rect x="6" y="13" width="36" height="10" rx="2" />
-                    <rect x="6" y="25" width="36" height="10" rx="2" />
-                    <path d="M12 6 h2 M12 18 h2 M12 30 h2" />
+                  <svg class="icon" viewBox="0 0 32 32" aria-hidden="true" data-anchor>
+                    <ellipse cx="16" cy="8.5" rx="11" ry="3.5" />
+                    <path d="M5 8.5 v15 c0 1.9 4.9 3.5 11 3.5 s11 -1.6 11 -3.5 v-15" />
+                    <path d="M5 16 c0 1.9 4.9 3.5 11 3.5 s11 -1.6 11 -3.5" />
                   </svg>
                 )}
                 <div>
-                  <p class="title">{side.title}</p>
+                  <p class="title">
+                    <span class={side.side}>{side.title}</span>
+                  </p>
                   <p class="does">{side.does}</p>
                 </div>
               </div>
               <ul class="chips">
-                {side.files.map((file) => (
-                  <li>{file}</li>
-                ))}
+                {rows
+                  .filter((row) => row.side === side.side)
+                  .map((row) => (
+                    <li data-file={row.path} data-side={row.side}>
+                      <span class="chip-dir">{split(row.path).dir}</span>{split(row.path).base}
+                    </li>
+                  ))}
               </ul>
             </div>
           ))
         }
       </div>
+
+      <svg class="wires" aria-hidden="true" data-wires>
+        <path class="in" />
+        <path class="to-client" data-wire="client" />
+        <path class="to-server" data-wire="server" />
+        <circle class="knot" r="3" />
+      </svg>
     </figure>
   </div>
 </section>
 
+<script>
+  // The wires are drawn from where the boxes are, not from a stretched drawing: the trunk
+  // leaves the tree at its middle, forks past the label, and each branch lands level with
+  // its side's icon. Pointing at a file lights it, its chip and the branch it takes.
+  const figure = document.querySelector<HTMLElement>("[data-split]");
+  const wires = figure?.querySelector<SVGSVGElement>("[data-wires]");
+  const from = figure?.querySelector<HTMLElement>("[data-from]");
+  const label = figure?.querySelector<HTMLElement>("[data-build]");
+  if (figure && wires && from && label) {
+    const draw = () => {
+      if (getComputedStyle(wires).display === "none") return;
+      const box = figure.getBoundingClientRect();
+      const tree = from.getBoundingClientRect();
+      const x0 = tree.right - box.left;
+      const y0 = tree.top + tree.height / 2 - box.top;
+      const ends = ["client", "server"].map((side) => {
+        const card = figure.querySelector<HTMLElement>(`[data-to="${side}"]`)!;
+        const icon = card.querySelector("[data-anchor]")!.getBoundingClientRect();
+        return { side, x: card.getBoundingClientRect().left - box.left, y: icon.top + icon.height / 2 - box.top };
+      });
+      const gap = Math.min(...ends.map((end) => end.x)) - x0;
+      // The fork sits past the label, so no branch ever crosses it.
+      const fx = x0 + Math.min(Math.max(gap * 0.4, label.offsetWidth + 24), gap - 32);
+      wires.setAttribute("viewBox", `0 0 ${box.width} ${box.height}`);
+      wires.querySelector(".in")!.setAttribute("d", `M${x0} ${y0} H${fx}`);
+      for (const end of ends) {
+        const mid = fx + (end.x - fx) / 2;
+        wires
+          .querySelector(`[data-wire="${end.side}"]`)!
+          .setAttribute("d", `M${fx} ${y0} C${mid} ${y0}, ${mid} ${end.y}, ${end.x} ${end.y}`);
+      }
+      const knot = wires.querySelector(".knot")!;
+      knot.setAttribute("cx", String(fx));
+      knot.setAttribute("cy", String(y0));
+      figure.style.setProperty("--build-x", `${(x0 + fx) / 2}px`);
+      figure.style.setProperty("--build-y", `${y0}px`);
+      figure.dataset.drawn = "";
+    };
+    new ResizeObserver(draw).observe(figure);
+    document.fonts.ready.then(draw);
+
+    const files = [...figure.querySelectorAll<HTMLElement>("[data-file]")];
+    const light = (file?: string, side?: string) => {
+      for (const each of files) each.classList.toggle("lit", !!file && each.dataset.file === file);
+      if (side) figure.dataset.side = side;
+      else delete figure.dataset.side;
+    };
+    figure.addEventListener("pointerover", (event) => {
+      const at = (event.target as Element).closest<HTMLElement>("[data-file]");
+      light(at?.dataset.file, at?.dataset.side);
+    });
+    figure.addEventListener("pointerleave", () => light());
+  }
+</script>
+
 <style>
-  /* Three columns, read left to right: the tree, the build, the two sides. */
+  .phrase {
+    display: inline-block;
+  }
+
+  .lede code {
+    white-space: nowrap;
+  }
+
+  /* Three columns, read left to right: the tree, the build, the two sides. The wires are
+     laid over the whole figure. */
   .split {
+    position: relative;
     display: grid;
-    grid-template-columns: minmax(0, 6fr) minmax(80px, 2fr) minmax(0, 5fr);
+    grid-template-columns: minmax(0, 5fr) minmax(150px, 3fr) minmax(0, 5fr);
     align-items: center;
     margin: 0;
   }
@@ -134,39 +240,91 @@ const sides: { side: Side; title: string; does: string; files: string[] }[] = [
   }
 
   .tree-title {
-    display: block;
-    margin-bottom: 10px;
+    display: inline-block;
+    margin-bottom: 6px;
     color: var(--paper);
     font-weight: 600;
-    text-decoration: none;
+    text-decoration: underline dotted var(--dim);
+    text-underline-offset: 4px;
   }
 
+  .tree-title:hover {
+    text-decoration-color: var(--paper);
+  }
+
+  .out {
+    color: var(--dim);
+    font-weight: 400;
+  }
+
+  /* One grid for every row, so the roles start in one column. */
   .tree ul {
-    margin: 0;
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    column-gap: 3ch;
+    margin: 0 -8px;
     padding: 0;
     list-style: none;
   }
 
-  /* A row: the file at its depth, the convention it follows, the side it runs on. */
   .tree li {
     display: grid;
-    grid-template-columns: minmax(0, auto) minmax(0, 1fr) 10px;
-    align-items: center;
-    gap: 12px;
-    padding: 3px 0 3px calc(var(--depth) * 2.2ch);
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
+    align-items: stretch;
+    padding-inline: 8px;
+    border-radius: var(--radius);
     color: var(--paper);
+    transition: background-color 120ms;
   }
 
   .tree li.dir {
     color: var(--mist);
   }
 
-  .tree li:not(.dir) .name::before {
-    content: "· " / "";
-    color: var(--dim);
+  .name {
+    display: flex;
+    align-items: center;
+    padding-block: 3px;
+    white-space: nowrap;
+  }
+
+  /* Rows touch, so the rails run unbroken from one row to the next, as lines, not glyphs. */
+  .rail {
+    position: relative;
+    flex: none;
+    align-self: stretch;
+    width: 3ch;
+    margin-block: -3px;
+  }
+
+  .rail.pipe::before,
+  .rail.tee::before,
+  .rail.elbow::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0.6ch;
+    border-left: 1px solid var(--rule-strong);
+  }
+
+  .rail.elbow::before {
+    bottom: 50%;
+  }
+
+  .rail.tee::after,
+  .rail.elbow::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 0.6ch;
+    width: 1.8ch;
+    border-top: 1px solid var(--rule-strong);
   }
 
   .role {
+    align-self: center;
     color: var(--dim);
     font-size: 0.78rem;
     white-space: nowrap;
@@ -174,39 +332,22 @@ const sides: { side: Side; title: string; does: string; files: string[] }[] = [
     text-overflow: ellipsis;
   }
 
-  .dot {
-    grid-column: 3;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-  }
-
-  .client .dot {
-    background: var(--client);
-  }
-
-  .server .dot {
-    border: 1.5px var(--server-line) var(--server);
-  }
-
-  /* The build: one line in, two out, a facet where it splits. */
-  .prism {
-    position: relative;
-    align-self: stretch;
-    display: grid;
-    align-items: center;
-  }
-
-  .prism svg {
+  /* The build: one line in, a knot where it forks, one line out to each side. */
+  .wires {
+    position: absolute;
+    inset: 0;
     width: 100%;
-    height: min(100%, 320px);
+    height: 100%;
     overflow: visible;
+    pointer-events: none;
   }
 
-  .prism path {
+  .wires path {
     fill: none;
     stroke-width: 1.5;
-    vector-effect: non-scaling-stroke;
+    transition:
+      opacity 120ms,
+      stroke-width 120ms;
   }
 
   .in {
@@ -222,22 +363,29 @@ const sides: { side: Side; title: string; does: string; files: string[] }[] = [
     stroke-dasharray: var(--server-dash, none);
   }
 
-  .gem {
-    fill: var(--night);
-    stroke: var(--paper);
-    stroke-width: 1.5;
-    vector-effect: non-scaling-stroke;
+  .knot {
+    fill: var(--paper);
   }
 
-  /* Above the facet, where neither side's line passes (the facet sits at 52/120). */
   .build {
-    position: absolute;
-    top: calc(50% - 40px);
-    left: calc(52 / 120 * 100%);
     color: var(--paper);
     font: 600 0.75rem / 1 var(--mono);
     white-space: nowrap;
-    transform: translateX(-50%);
+  }
+
+  /* Wide: over the trunk, centred between the tree and the knot, once the wires are drawn. */
+  @media (min-width: 901px) {
+    .build {
+      position: absolute;
+      top: calc(var(--build-y, 50%) - 1.4em);
+      left: var(--build-x, 50%);
+      transform: translateX(-50%);
+      opacity: 0;
+    }
+
+    .split[data-drawn] .build {
+      opacity: 1;
+    }
   }
 
   .sides {
@@ -246,21 +394,18 @@ const sides: { side: Side; title: string; does: string; files: string[] }[] = [
   }
 
   .side {
+    --tone: var(--client);
     display: grid;
     gap: 14px;
     padding: 18px 20px;
-    border: 1px solid;
+    border: 1px solid color-mix(in srgb, var(--tone) 55%, transparent);
     border-radius: 4px;
     background: var(--panel);
-  }
-
-  .side.client {
-    border-color: color-mix(in srgb, var(--client) 55%, transparent);
+    transition: opacity 120ms;
   }
 
   .side.server {
-    border-color: color-mix(in srgb, var(--server) 55%, transparent);
-    border-style: var(--server-line);
+    --tone: var(--server);
   }
 
   .head {
@@ -271,25 +416,25 @@ const sides: { side: Side; title: string; does: string; files: string[] }[] = [
 
   .icon {
     flex: none;
-    width: 48px;
-    height: 36px;
+    width: 32px;
+    height: 32px;
     fill: none;
+    stroke: var(--tone);
     stroke-width: 1.5;
     stroke-linecap: round;
     stroke-linejoin: round;
   }
 
-  .client .icon {
-    stroke: var(--client);
-  }
-
-  .server .icon {
-    stroke: var(--server);
-  }
-
   .title {
-    color: var(--paper);
     font: 600 var(--step-1) / 1.3 var(--mono);
+  }
+
+  .title > span {
+    color: var(--paper);
+  }
+
+  .title > span::before {
+    color: var(--tone);
   }
 
   .does {
@@ -311,6 +456,51 @@ const sides: { side: Side; title: string; does: string; files: string[] }[] = [
     padding: 3px 8px;
     border: 1px solid var(--rule-strong);
     color: var(--paper);
+    transition:
+      border-color 120ms,
+      background-color 120ms;
+  }
+
+  .chip-dir {
+    color: var(--dim);
+  }
+
+  /* Pointing at a file: it, its chip and its branch light; the other side steps back. */
+  .tree li.lit {
+    background: color-mix(in srgb, var(--client) 12%, transparent);
+  }
+
+  .tree li.lit[data-side="server"] {
+    background: color-mix(in srgb, var(--server) 12%, transparent);
+  }
+
+  .chips li.lit {
+    border-color: var(--tone);
+    background: color-mix(in srgb, var(--tone) 12%, transparent);
+  }
+
+  .split[data-side] :is(.to-client, .to-server) {
+    opacity: 0.25;
+  }
+
+  .split[data-side="client"] .to-client,
+  .split[data-side="server"] .to-server {
+    opacity: 1;
+    stroke-width: 2;
+  }
+
+  .split[data-side="client"] .side.server,
+  .split[data-side="server"] .side.client {
+    opacity: 0.5;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .tree li,
+    .wires path,
+    .side,
+    .chips li {
+      transition: none;
+    }
   }
 
   /* Narrow: one above the other, the build between, pointing down. */
@@ -320,17 +510,13 @@ const sides: { side: Side; title: string; does: string; files: string[] }[] = [
     }
 
     .prism {
+      display: grid;
+      place-items: center;
       height: 80px;
     }
 
-    .prism svg {
+    .wires {
       display: none;
-    }
-
-    .build {
-      position: static;
-      text-align: center;
-      transform: none;
     }
 
     .build::before {
@@ -339,6 +525,18 @@ const sides: { side: Side; title: string; does: string; files: string[] }[] = [
 
     .build::after {
       content: " ↓" / "";
+    }
+  }
+
+  /* Phone: the roles wrap rather than lose their end; the rails stretch with the row. */
+  @media (max-width: 560px) {
+    .tree ul {
+      column-gap: 2ch;
+    }
+
+    .role {
+      padding-block: 3px;
+      white-space: normal;
     }
   }
 </style>
