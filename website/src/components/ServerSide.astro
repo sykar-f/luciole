@@ -73,11 +73,11 @@ const split = (path: string) => {
         <span class="phrase">The folder you know.</span> <span class="phrase">Split in two.</span>
       </h2>
       <p class="lede">
-        Lay out <code>app/</code> as you would for Next.js: pages, layouts, loading and error states,
-        <code>"use client"</code>, <code>"use server"</code>. <code>airtty build</code> sends each file to its
-        side: pages and actions run on the server, next to your data; what draws and answers keys runs in
-        your terminal. One change from Next.js: layouts and loading states run on your side, so
-        switching pages answers at once, before the server does.
+        Lay out <code>app/</code> as you would for Next.js; <code>airtty build</code> sends each file to its side.
+      </p>
+      <p class="lede aside">
+        One difference: layouts and loading states run in your terminal, so the next page's loading
+        screen shows the moment you press Enter.
       </p>
     </div>
 
@@ -151,7 +151,8 @@ const split = (path: string) => {
         <path class="in" />
         <path class="to-client" data-wire="client" />
         <path class="to-server" data-wire="server" />
-        <circle class="knot" r="3" />
+        <circle class="knot" data-knot="from" r="3" />
+        <circle class="knot" data-knot="fork" r="3" />
       </svg>
     </figure>
   </div>
@@ -188,9 +189,12 @@ const split = (path: string) => {
           .querySelector(`[data-wire="${end.side}"]`)!
           .setAttribute("d", `M${fx} ${y0} C${mid} ${y0}, ${mid} ${end.y}, ${end.x} ${end.y}`);
       }
-      const knot = wires.querySelector(".knot")!;
-      knot.setAttribute("cx", String(fx));
-      knot.setAttribute("cy", String(y0));
+      // A knot where the folder leaves the tree, as one, and where it forks.
+      for (const [name, x] of [["from", x0], ["fork", fx]] as const) {
+        const knot = wires.querySelector(`[data-knot="${name}"]`)!;
+        knot.setAttribute("cx", String(x));
+        knot.setAttribute("cy", String(y0));
+      }
       figure.style.setProperty("--build-x", `${(x0 + fx) / 2}px`);
       figure.style.setProperty("--build-y", `${y0}px`);
       figure.dataset.drawn = "";
@@ -219,6 +223,12 @@ const split = (path: string) => {
 
   .lede code {
     white-space: nowrap;
+  }
+
+  /* The one thing the drawing cannot say, a step below the claim. */
+  .aside {
+    margin-top: -6px;
+    font-size: var(--step-0);
   }
 
   /* Three columns, read left to right: the tree, the build, the two sides. The wires are
@@ -261,7 +271,7 @@ const split = (path: string) => {
   .tree ul {
     display: grid;
     grid-template-columns: max-content minmax(0, 1fr);
-    column-gap: 3ch;
+    column-gap: 1ch;
     margin: 0 -8px;
     padding: 0;
     list-style: none;
@@ -290,6 +300,17 @@ const split = (path: string) => {
   }
 
   /* Rows touch, so the rails run unbroken from one row to the next, as lines, not glyphs. */
+  /* A dotted leader from the name to its role, faint enough to guide without drawing. */
+  .tree li:has(.role) .name::after {
+    content: "";
+    flex: 1;
+    min-width: 2ch;
+    margin-left: 1ch;
+    border-bottom: 1px dotted var(--rule-strong);
+    transform: translateY(0.35em);
+    opacity: 0.6;
+  }
+
   .rail {
     position: relative;
     flex: none;
@@ -530,10 +551,6 @@ const split = (path: string) => {
 
   /* Phone: the roles wrap rather than lose their end; the rails stretch with the row. */
   @media (max-width: 560px) {
-    .tree ul {
-      column-gap: 2ch;
-    }
-
     .role {
       padding-block: 3px;
       white-space: normal;
