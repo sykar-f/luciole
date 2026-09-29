@@ -8,8 +8,9 @@
  *   bun run demo          # from website/
  */
 import { spawnSync } from "node:child_process";
-import { cp, mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
-import { join, relative, resolve } from "node:path";
+import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { join, resolve } from "node:path";
+import { documentation } from "./docs-md";
 
 type SnapshotEntry = {
   path: string;
@@ -30,33 +31,34 @@ const target = resolve(import.meta.dirname, "../public/demo");
  */
 const DOCS_CLOCK = Date.parse("2026-09-23T09:00:00Z");
 
-/** `directory` of the checkout under `mount`, only the files `keep` accepts, all modified at `clock`. */
-async function snapshot(
-  directory: string,
-  mount: string,
-  keep: (path: string) => boolean,
-  clock: number,
-) {
-  const entries: SnapshotEntry[] = [];
-  const base = join(root, directory);
-  for (const name of await readdir(base, { recursive: true })) {
-    const path = join(base, name);
-    const info = await stat(path);
-    if (info.isFile() && !keep(name)) continue;
-    const at = `${mount}/${relative(base, path)}`;
-    entries.push(
-      info.isDirectory()
-        ? { path: at, kind: "directory", size: 0, mtimeMs: clock }
-        : {
-            path: at,
-            kind: "file",
-            size: info.size,
-            mtimeMs: clock,
-            content: (await readFile(path)).toString("base64"),
-          },
-    );
-  }
-  return entries;
+/** Generated pages under `mount`, their directories first, all modified at `clock`. */
+function pages(mount: string, list: { path: string; text: string }[], clock: number) {
+  const directories = new Set(
+    list.flatMap(({ path }) =>
+      path
+        .split("/")
+        .slice(0, -1)
+        .map((_, i, parts) => parts.slice(0, i + 1).join("/")),
+    ),
+  );
+  return [
+    ...[...directories].map((path): SnapshotEntry => ({
+      path: `${mount}/${path}`,
+      kind: "directory",
+      size: 0,
+      mtimeMs: clock,
+    })),
+    ...list.map(({ path, text }): SnapshotEntry => {
+      const content = Buffer.from(text);
+      return {
+        path: `${mount}/${path}`,
+        kind: "file",
+        size: content.byteLength,
+        mtimeMs: clock,
+        content: content.toString("base64"),
+      };
+    }),
+  ];
 }
 
 /** The applications whose Server can run in a page: where each is, what it finds around it. */
@@ -67,12 +69,12 @@ export const DEMOS: Record<string, { app: string; seed?: () => Promise<Seed> }> 
     seed: async () => ({ env: { FORGE_CLOCK_START: "2026-09-23T09:00:00Z" } }),
   },
   notes: { app: "examples/notes" },
-  // The repository's own documentation, as `MD_PATH=docs bun run mdreader` reads it.
+  // The site's documentation, in English as the page is, in Markdown (scripts/docs-md.ts).
   mdreader: {
     app: "examples/mdreader",
     seed: async () => ({
       env: { MD_PATH: "/docs" },
-      files: await snapshot("docs", "/docs", (path) => path.endsWith(".md"), DOCS_CLOCK),
+      files: pages("/docs", await documentation(), DOCS_CLOCK),
     }),
   },
   // No key can live in a static site: a scripted model answers, in the Server.

@@ -92,7 +92,8 @@ et la perte de la prochaine réponse ; elle démarre près du viewport et s'arr�
 Les autres (coder, Forge, Chat, mdreader, DevTools) tournent sur `/examples/`, au clic, une seule
 à la fois, arrêtée quand on la quitte. Chaque démo trouve autour d'elle ce que
 `scripts/demo.ts` écrit dans `server-seed.json` : un environnement (`CHAT_DEMO=1`,
-`MD_PATH=/docs`…) et, pour mdreader, les documents du dépôt en lecture seule.
+`MD_PATH=/docs`…) et, pour mdreader, la documentation anglaise du site en Markdown
+(`scripts/docs-md.ts`, que `scripts/capture.py` lit aussi), en lecture seule.
 
 Sur `/examples/`, coder (« Coding-agent interface ») tourne sans agent : `scripts/demo.ts`
 le construit avec `CODER_HARNESS=fake`, aucun appel de modèle, et sa ligne d'état le dit
