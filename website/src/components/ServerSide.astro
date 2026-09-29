@@ -229,15 +229,15 @@ const sides: { side: Side; title: string; does: string; files: string[] }[] = [
     vector-effect: non-scaling-stroke;
   }
 
+  /* Above the facet, where neither side's line passes (the facet sits at 52/120). */
   .build {
     position: absolute;
-    top: calc(50% + 26px);
-    left: 0;
-    right: 0;
+    top: calc(50% - 40px);
+    left: calc(52 / 120 * 100%);
     color: var(--paper);
     font: 600 0.75rem / 1 var(--mono);
-    text-align: center;
     white-space: nowrap;
+    transform: translateX(-50%);
   }
 
   .sides {
@@ -330,6 +330,7 @@ const sides: { side: Side; title: string; does: string; files: string[] }[] = [
     .build {
       position: static;
       text-align: center;
+      transform: none;
     }
 
     .build::before {
