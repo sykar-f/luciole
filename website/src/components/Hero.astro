@@ -16,12 +16,20 @@ const sides = [
   { id: "airtty", name: "airtty", tag: "500 ms ping · keys local" },
 ];
 const notes = frame("notes");
+/** What airtty keeps in the terminal, turn by turn in the title: the first is the one
+ *  without motion, and the one the duel measures. */
+const LOCAL = ["Typing", "Scrolling", "Hovering", "Selecting", "Pasting", "Resizing"];
 ---
 
 <section class="hero" id="top" data-duel data-columns={COLUMNS} data-rows={ROWS}>
   <div class="wrap">
     <div class="top">
-      <h1><span>Keys stay local.</span> <span>Data stays on the server.</span></h1>
+      <h1 aria-label={`${LOCAL.join(", ")}: none of it waits for the network.`}>
+        <span class="rotor" data-rotor aria-hidden="true" style={`width: ${LOCAL[0].length}ch`}>
+          {LOCAL.map((word, index) => <span class:list={{ now: index === 0 }}>{word}</span>)}
+        </span>{" "}
+        <span aria-hidden="true">never waits for the network.</span>
+      </h1>
       <p class="sub">
         airtty splits your React app in two: Server Components render next to your data, the client
         runs in your terminal.
@@ -78,6 +86,24 @@ const notes = frame("notes");
   const mouse = (data: string) => data.startsWith(`${ESC}[<`) || data.startsWith(`${ESC}[M`);
   /** A focus report: the frame's own focus, which the other frame never had. */
   const focus = (data: string) => data === `${ESC}[I` || data === `${ESC}[O`;
+
+  // The title's first word turns through what stays in the terminal, its box following the
+  // word's width (the title is monospaced); held still when the reader asks for less motion.
+  const TURN_MS = 2200;
+  const rotor = document.querySelector<HTMLElement>("[data-rotor]");
+  if (rotor && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    const words = [...rotor.children];
+    let at = 0;
+    setInterval(() => {
+      if (document.hidden) return;
+      words[at].classList.replace("now", "gone");
+      const was = words[at];
+      setTimeout(() => was.classList.remove("gone"), 400);
+      at = (at + 1) % words.length;
+      words[at].classList.add("now");
+      rotor.style.width = `${words[at].textContent?.length ?? 0}ch`;
+    }, TURN_MS);
+  }
 
   const root = document.querySelector<HTMLElement>("[data-duel]");
   const saving = Connection.safeParse(Reflect.get(navigator, "connection")).data?.saveData === true;
@@ -178,31 +204,66 @@ const notes = frame("notes");
 </script>
 
 <style>
+  /* The first view is the hero whole: the title, the screens and their measures share the
+     window's height instead of crowding its top. */
   .hero {
-    padding: clamp(28px, 4vw, 48px) 0 clamp(64px, 8vw, 112px);
+    display: flex;
+    min-height: calc(100svh - 61px);
+    padding: clamp(40px, 6vh, 72px) 0 clamp(112px, 16vh, 150px);
   }
 
-  /* The product said once, plainly: what it does, how, and what to do about it. The page's
-     largest type belongs to the measures below the screens. */
+  .hero > .wrap {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    width: 100%;
+  }
+
+  /* The product said once, plainly: the title across both screens, then how on the left
+     and what to do about it on the right, over the screen each side belongs to. */
   .top {
     display: grid;
-    justify-items: start;
-    gap: 14px;
-    margin-bottom: clamp(36px, 4.5vw, 56px);
+    grid-template-columns: 1fr 1fr;
+    align-items: end;
+    gap: 20px clamp(20px, 2.5vw, 36px);
+    margin-bottom: clamp(40px, 7vh, 72px);
   }
 
   h1 {
-    font-size: clamp(1.4rem, 1rem + 1.2vw, 2.1rem);
+    grid-column: 1 / -1;
+    font-size: clamp(1.6rem, 1rem + 1.8vw, 2.8rem);
     letter-spacing: -0.01em;
   }
 
-  /* Wrapped, the break falls between the two sentences, never inside one. */
-  h1 span {
-    display: inline-block;
+  /* The turning word: each one slides up into place in a box as wide as it is. */
+  .rotor {
+    display: inline-grid;
+    overflow: clip;
+    overflow-clip-margin: 0.15em;
+    color: var(--client);
+    transition: width 0.4s ease;
+  }
+
+  .rotor > span {
+    grid-area: 1 / 1;
+    transform: translateY(100%);
+    opacity: 0;
+    transition:
+      transform 0.4s ease,
+      opacity 0.4s ease;
+  }
+
+  .rotor > .now {
+    transform: none;
+    opacity: 1;
+  }
+
+  .rotor > .gone {
+    transform: translateY(-100%);
   }
 
   .sub {
-    max-width: 64ch;
+    max-width: 52ch;
     color: var(--mist);
   }
 
@@ -210,7 +271,6 @@ const notes = frame("notes");
     display: flex;
     flex-wrap: wrap;
     gap: 12px;
-    margin-top: 10px;
   }
 
   .pair {
@@ -248,13 +308,16 @@ const notes = frame("notes");
   }
 
   /* Under each screen, its measure, as large as the page gets: nothing until a key has
-     been timed, so the number and what it counts appear together. Its room is kept, so the
-     screens never move under the reader's hands. */
+     been timed, so the number and what it counts appear together. It lands in the hero's
+     bottom padding, out of the flow: the screens never move under the reader's hands, and
+     nothing invisible weighs on the layout before. */
   .reading {
+    position: absolute;
+    top: 100%;
     display: flex;
     align-items: baseline;
     gap: 0.5ch;
-    margin-top: 14px;
+    margin: 14px 0 0;
     color: var(--paper);
     visibility: hidden;
   }
@@ -368,6 +431,15 @@ const notes = frame("notes");
 
   /* Narrow: the two captures, one above the other, and no measure to take. */
   @media (max-width: 760px) {
+    .hero {
+      min-height: 0;
+      padding-bottom: 64px;
+    }
+
+    .top {
+      grid-template-columns: 1fr;
+    }
+
     .pair {
       grid-template-columns: 1fr;
       gap: 32px;
