@@ -18,17 +18,20 @@ const sides = [
 const notes = frame("notes");
 /** What airtty keeps in the terminal, turn by turn in the title: the first is the one
  *  without motion, and the one the duel measures. */
-const LOCAL = ["Typing", "Scrolling", "Hovering", "Selecting", "Pasting", "Resizing"];
+const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resizing"];
 ---
 
 <section class="hero" id="top" data-duel data-columns={COLUMNS} data-rows={ROWS}>
   <div class="wrap">
     <div class="top">
-      <h1 aria-label={`${LOCAL.join(", ")}: none of it waits for the network.`}>
-        <span class="rotor" data-rotor aria-hidden="true">
-          {LOCAL.map((word, index) => <span class:list={{ now: index === 0 }}>{word}</span>)}
+      <h1 aria-label={`With airtty, ${LOCAL.join(", ")}: none of it waits for the network.`}>
+        <span class="line" aria-hidden="true">
+          With airtty,{" "}
+          <span class="rotor" data-rotor>
+            {LOCAL.map((word, index) => <span class:list={{ now: index === 0 }}>{word}</span>)}
+          </span>
         </span>
-        <span aria-hidden="true">never waits for the network.</span>
+        <span class="line" aria-hidden="true">never waits for the network.</span>
       </h1>
       <p class="sub">
         airtty splits your React app in two: Server Components render next to your data, the client
@@ -87,8 +90,8 @@ const LOCAL = ["Typing", "Scrolling", "Hovering", "Selecting", "Pasting", "Resiz
   /** A focus report: the frame's own focus, which the other frame never had. */
   const focus = (data: string) => data === `${ESC}[I` || data === `${ESC}[O`;
 
-  // The title's first line turns through what stays in the terminal; held still when the
-  // reader asks for less motion.
+  // The word ending the title's first line turns through what stays in the terminal; held
+  // still when the reader asks for less motion.
   const TURN_MS = 2200;
   const rotor = document.querySelector<HTMLElement>("[data-rotor]");
   if (rotor && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
@@ -234,10 +237,14 @@ const LOCAL = ["Typing", "Scrolling", "Hovering", "Selecting", "Pasting", "Resiz
     letter-spacing: -0.01em;
   }
 
-  /* The turning word, alone on its line so the sentence under it never moves: each one
-     slides up into place. */
+  /* Two lines, the turning word last on the first, so nothing after it ever moves. */
+  h1 .line {
+    display: block;
+  }
+
+  /* The turning word: each one slides up into place. */
   .rotor {
-    display: grid;
+    display: inline-grid;
     overflow: clip;
     overflow-clip-margin: 0.15em;
     color: var(--client);
