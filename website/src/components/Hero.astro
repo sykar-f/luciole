@@ -1,7 +1,8 @@
 ---
-// The hero: the same Notes twice, the same 500 ms round trip, placed differently. Left, as
-// over SSH, the whole app far away: every key and click waits. Right, as airtty splits it:
-// the keyboard's part in the terminal, only requests wait. Whatever the reader does in one
+// The hero: the same Notes twice, both over SSH, the same round trip (500 ms, the reader's
+// slider sets it), placed differently. Left, a classic TUI, the whole app on the host: every
+// key and click waits. Right, the airtty app (`notes --on host`): its client in the terminal,
+// only requests wait. Whatever the reader does in one
 // is replayed in the other (docs/WEB.md, "Page embarquée", `typed`), and the page's largest
 // type is not a claim but a measure: how long each screen took, from the key to its cells.
 import Screen from "./Screen.astro";
@@ -12,9 +13,11 @@ const ROWS = 24;
 const look = new URLSearchParams({ columns: String(COLUMNS), rows: String(ROWS), restore: "off" });
 const src = `/demo/notes/index.html?${look}`;
 const sides = [
-  { id: "ssh", name: "ssh", tag: "500 ms ping" },
-  { id: "airtty", name: "airtty", tag: "500 ms ping · keys local" },
+  { id: "ssh", name: "Classic TUI", tag: "over SSH" },
+  { id: "airtty", name: "airtty app", tag: "over SSH" },
 ];
+/** The round trip both screens start with, and how far the reader's slider takes it. */
+const PING = { value: 500, min: 20, max: 1000, step: 10 };
 const notes = frame("notes");
 /** What airtty keeps in the terminal, turn by turn in the title: the first is the one
  *  without motion, and the one the duel measures. */
@@ -42,6 +45,12 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
         <a class="button" href="#code">See the code</a>
       </div>
     </div>
+
+    <label class="ping" data-ping-control>
+      Same ping for both
+      <input type="range" data-ping min={PING.min} max={PING.max} step={PING.step} value={PING.value} />
+      <output data-ping-value>{PING.value} ms</output>
+    </label>
 
     <div class="pair">
       {
@@ -73,13 +82,15 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
 <script>
   import * as z from "zod/mini";
   import { glowWrites } from "../lib/glow";
+  import { overscroll } from "../lib/overscroll";
   import { screenColours } from "../lib/recolor";
 
   const Drawn = z.object({ source: z.literal("airtty"), type: z.literal("stage"), stage: z.literal("drawn") });
   const Typed = z.object({ source: z.literal("airtty"), type: z.literal("typed"), data: z.string() });
   const Connection = z.object({ saveData: z.optional(z.boolean()) });
 
-  const RTT_MS = 500;
+  /** The round trip, as the slider sets it. */
+  let rtt = 500;
   /** A key its screen has not answered this long after it reached it changed nothing. */
   const ANSWER_MS = 250;
   /** Below this width, two 84-column screens are too small to use: their captures stay. */
@@ -131,6 +142,17 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
     const post = (frame: HTMLIFrameElement, message: Record<string, unknown>) =>
       frame.contentWindow?.postMessage({ source: "airtty", ...message }, location.origin);
     const ssh = (frame: HTMLIFrameElement) => frame.dataset.side === "ssh";
+    const network = (frame: HTMLIFrameElement) =>
+      post(frame, { type: "network", latencyMs: rtt, delays: ssh(frame) ? "keys" : "requests" });
+
+    // The reader's ping: both screens get it at once, keys already on their way keep theirs.
+    const slider = root.querySelector<HTMLInputElement>("[data-ping]");
+    const shown = root.querySelector<HTMLOutputElement>("[data-ping-value]");
+    slider?.addEventListener("input", () => {
+      rtt = Number(slider.value);
+      if (shown) shown.value = `${rtt} ms`;
+      for (const frame of frames) network(frame);
+    });
     const paneOf = (frame: HTMLIFrameElement) => frame.closest<HTMLElement>("[data-pane]");
 
     // The measure: from the moment a key left the reader's hand to the first cells its
@@ -156,6 +178,10 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
       // round trip sits before each key (SSH) or each request (airtty).
       if (Drawn.safeParse(event.data).success) {
         frame.parentElement?.classList.add("on");
+        const signal = new AbortController().signal;
+        // A turn of the wheel the app has nothing to scroll for goes on to the page, once
+        // the app has had the time to answer it: a round trip later over SSH.
+        const answered = overscroll({ frame, delayMs: () => (ssh(frame) ? rtt : 0), signal });
         const layer = frame.parentElement?.querySelector<HTMLElement>("[data-glows]");
         if (layer)
           glowWrites({
@@ -163,14 +189,13 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
             layer: still ? document.createElement("div") : layer,
             columns,
             rows,
-            signal: new AbortController().signal,
-            onWritten: () => measured(frame),
+            signal,
+            onWritten: () => {
+              answered();
+              measured(frame);
+            },
           });
-        return void post(frame, {
-          type: "network",
-          latencyMs: RTT_MS,
-          delays: ssh(frame) ? "keys" : "requests",
-        });
+        return void network(frame);
       }
       // What one terminal sent, the other gets: at once for airtty's, whose keys never
       // travel; a round trip later for SSH's, as if typed there. The frame typed in holds
@@ -184,13 +209,13 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
         for (const each of frames) {
           const waiting = pending.get(each);
           if (!waiting || now > waiting.reached + ANSWER_MS)
-            pending.set(each, { typed: now, reached: now + (ssh(each) ? RTT_MS : 0) });
+            pending.set(each, { typed: now, reached: now + (ssh(each) ? rtt : 0) });
         }
       }
       for (const other of frames) {
         if (other === frame) continue;
         const send = () => post(other, { type: "input", data });
-        if (ssh(other)) setTimeout(send, RTT_MS);
+        if (ssh(other)) setTimeout(send, rtt);
         else send();
       }
     });
@@ -228,7 +253,7 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
     grid-template-columns: 1fr 1fr;
     align-items: end;
     gap: 20px clamp(20px, 2.5vw, 36px);
-    margin-bottom: clamp(40px, 7vh, 72px);
+    margin-bottom: clamp(28px, 5vh, 48px);
   }
 
   h1 {
@@ -277,6 +302,66 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
     display: flex;
     flex-wrap: wrap;
     gap: 12px;
+  }
+
+  /* One ping for both screens, set between them and the title: the only thing the reader
+     changes about the network. */
+  .ping {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1.5ch;
+    margin-bottom: 28px;
+    font: 400 0.8rem / 1.4 var(--mono);
+    color: var(--mist);
+  }
+
+  .ping input {
+    width: min(240px, 30vw);
+    height: 16px;
+    margin: 0;
+    background: transparent;
+    appearance: none;
+    cursor: pointer;
+  }
+
+  .ping input::-webkit-slider-runnable-track {
+    height: 1px;
+    background: var(--rule-strong);
+  }
+
+  .ping input::-moz-range-track {
+    height: 1px;
+    background: var(--rule-strong);
+  }
+
+  .ping input::-webkit-slider-thumb {
+    width: 10px;
+    height: 16px;
+    margin-top: -8px;
+    border: 0;
+    border-radius: 0;
+    background: var(--paper);
+    appearance: none;
+  }
+
+  .ping input::-moz-range-thumb {
+    width: 10px;
+    height: 16px;
+    border: 0;
+    border-radius: 0;
+    background: var(--paper);
+  }
+
+  .ping input:focus-visible {
+    outline: 2px solid var(--dominant);
+    outline-offset: 4px;
+  }
+
+  .ping output {
+    min-width: 7ch;
+    color: var(--paper);
+    font-variant-numeric: tabular-nums;
   }
 
   .pair {
@@ -451,7 +536,8 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
       gap: 32px;
     }
 
-    .reading {
+    .reading,
+    .ping {
       display: none;
     }
 
