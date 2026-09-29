@@ -174,11 +174,16 @@ main {
   line-height: 1.6;
 }
 
+/* The label's rule runs the width of the page, as the figures below it do; the words keep
+   their measure. */
 .section-head {
   display: grid;
   gap: 18px;
-  max-width: 860px;
   margin-bottom: clamp(40px, 5vw, 64px);
+}
+
+.section-head > :not(.label) {
+  max-width: 860px;
 }
 
 .client {
