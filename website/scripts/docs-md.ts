@@ -129,7 +129,7 @@ export async function documentation() {
   const readme = [
     "# The airtty documentation",
     "",
-    "Build terminal apps with React: a server keeps the data, a native terminal client keeps typing and scrolling local.",
+    "React Server Components for the terminal: a server keeps the data, a native terminal client keeps typing and scrolling local.",
     "",
     ...contents,
     "",
