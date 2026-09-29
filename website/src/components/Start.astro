@@ -1,36 +1,39 @@
 ---
-// The hero's app, Notes, on the reader's machine: three commands, checked in a PTY, then
-// a file to edit whose change shows on the screen (airtty dev rebuilds and reopens it).
+// Your own app in a minute, written as it will read once the package is published: `init`
+// copies the hero's Notes as a project of yours, `dev` runs both sides and rebuilds on a
+// save. Names come from lib/product.ts: a rename is that file.
 import CopyCommand from "./CopyCommand.astro";
-import { repo, source } from "../lib/links";
+import { repo } from "../lib/links";
+import { commands } from "../lib/product";
 
-const EDIT = "examples/notes/components/NoteList.tsx";
+const EDIT = "components/NoteList.tsx";
 ---
 
 <section class="section" id="start" aria-labelledby="start-title">
   <div class="wrap">
     <div class="section-head">
       <p class="label">start</p>
-      <h2 id="start-title">Start locally. Both sides run on your machine.</h2>
+      <h2 id="start-title">Your app, running in a minute.</h2>
       <p class="lede">
-        The same Notes as above, with every request half a second late. You need Bun 1.4.2, on macOS
-        or Linux.
+        <code>{commands.cli} init</code> gives you the Notes above as a project of your own. Three
+        commands, then edit a file. You need Bun 1.4.2, on macOS or Linux.
       </p>
     </div>
 
     <div class="transcript">
       <p class="bar" aria-hidden="true"><span><b>┤</b> ~ <b>├</b></span></p>
-      <CopyCommand
-        lines={[
-          `git clone ${repo} && cd airtty`,
-          "bun install --frozen-lockfile",
-          "AIRTTY_LATENCY_MS=500 bun run dev",
-        ]}
-        plain
-      />
+      <ol class="steps">
+        {
+          [`bunx ${commands.cli} init my-app`, "cd my-app && bun install", "bun run dev"].map((line) => (
+            <li>
+              <CopyCommand lines={[line]} plain />
+            </li>
+          ))
+        }
+      </ol>
       <p class="then">
-        <span aria-hidden="true"># </span>Now edit <a href={source(EDIT)}><code>{EDIT}</code></a>: change{" "}
-        <code>YOUR NOTES</code>, save, and the terminal rebuilds and reopens the same screen.
+        <span aria-hidden="true"># </span>Now edit <code>{EDIT}</code>: change <code>YOUR NOTES</code>,
+        save, and the terminal rebuilds and reopens the same screen.
       </p>
     </div>
 
@@ -70,6 +73,19 @@ const EDIT = "examples/notes/components/NoteList.tsx";
   .bar b {
     color: var(--rule-strong);
     font-weight: 400;
+  }
+
+  .steps {
+    display: grid;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .steps li + li {
+    padding-top: 10px;
+    margin-top: 10px;
+    border-top: 1px dashed var(--rule);
   }
 
   .then {
