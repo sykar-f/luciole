@@ -650,10 +650,16 @@ const stand = JSON.stringify({
     opacity: 1;
   }
 
-  /* Live and not held: the screen is one button; the wheel still scrolls the page. */
+  /* Live and not held: the screen is one button; the wheel still scrolls the page. The
+     frame inherits pointer-events: it must not take the click, or the page never hears
+     that the reader took the keyboard. */
   .on .layer {
     pointer-events: auto;
     cursor: pointer;
+  }
+
+  .on:not(.held) .layer :global(iframe) {
+    pointer-events: none;
   }
 
   .held .layer {
