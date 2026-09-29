@@ -136,7 +136,7 @@ const stand = JSON.stringify({
 
 <script>
   import * as z from "zod/mini";
-  import { strength } from "../lib/afterglow";
+  import { glowWrites } from "../lib/glow";
   import { recolor, screenColours } from "../lib/recolor";
   import { Terminal } from "@xterm/xterm";
   import { FitAddon } from "@xterm/addon-fit";
@@ -182,12 +182,6 @@ const stand = JSON.stringify({
   const HOT_MS = 70;
   const WARM_MS = 120;
   const HOLD_MS = 700;
-  /** How long a written cell of the live application glows at full strength. */
-  const GLOW_MS = 450;
-  /** However strongly the screen changes, a cell glows at least this share of GLOW_MS. */
-  const SHORTEST_GLOW = 0.4;
-  /** Beyond this many runs at once, a row glows once, from its first change to its last. */
-  const MOST_GLOWS = 400;
 
   const sleep = (ms: number) => new Promise((done) => setTimeout(done, ms));
 
@@ -377,88 +371,22 @@ const stand = JSON.stringify({
   }
 
   /**
-   * Each cell the live application rewrites glows a moment, as in the intro. Read from the
-   * rows xterm.js draws in the frame's DOM: a cell is its character and the style of the
-   * element that holds it; the cursor's own classes do not count.
+   * Each cell the live application rewrites glows a moment, as in the intro (lib/glow.ts);
+   * the counter under the screen says how many cells each change wrote.
    */
   function glow(root: HTMLElement, frame: HTMLIFrameElement, signal: AbortSignal) {
     const layer = root.querySelector<HTMLElement>("[data-glows]");
     const stand = standOf(root).data;
-    const inner = frame.contentDocument;
-    const rowsElement = inner?.querySelector<HTMLElement>(".xterm-rows");
-    const screen = inner?.querySelector<HTMLElement>(".xterm-screen");
-    if (!layer || !stand || !rowsElement || !screen) return;
+    if (!layer || !stand) return;
     const { columns, rows, total } = stand;
-    const cellsOf = (row: Element) => {
-      const cells: string[] = [];
-      for (const node of row.childNodes) {
-        const look =
-          node instanceof HTMLElement
-            ? `${[...node.classList].filter((name) => !name.startsWith("xterm-cursor")).join(" ")}|${node.style.cssText}`
-            : "";
-        for (const char of node.textContent ?? "") cells.push(`${char}${look}`);
-      }
-      return cells;
-    };
-    const snapshot = () => [...rowsElement.children].map(cellsOf);
-    let before = snapshot();
-    let queued = false;
-    const compare = () => {
-      queued = false;
-      if (signal.aborted) return;
-      const after = snapshot();
-      const box = screen.getBoundingClientRect();
-      const width = box.width / columns;
-      const height = box.height / rows;
-      const runs: [number, number, number][] = [];
-      let written = 0;
-      after.forEach((cells, y) => {
-        const old = before[y] ?? [];
-        let start = -1;
-        for (let x = 0; x <= columns; x++) {
-          const changed = x < columns && (cells[x] ?? "") !== (old[x] ?? "");
-          if (changed) written++;
-          if (changed && start < 0) start = x;
-          if (!changed && start >= 0) {
-            runs.push([y, start, x - start]);
-            start = -1;
-          }
-        }
-      });
-      before = after;
-      if (!written) return;
-      hud(root, "live", count(written, total));
-      // Dimmer and shorter as more of the screen changes at once.
-      const glow = strength(written, total);
-      const lasting = Math.round(GLOW_MS * Math.max(SHORTEST_GLOW, glow));
-      const shown = runs.length > MOST_GLOWS ? byRow(runs) : runs;
-      for (const [y, x, length] of shown) {
-        const cell = document.createElement("i");
-        cell.style.cssText = `left:${box.left + x * width}px;top:${box.top + y * height}px;width:${length * width}px;height:${height}px;--glow:${glow};--glow-ms:${lasting}ms`;
-        cell.addEventListener("animationend", () => cell.remove());
-        layer.append(cell);
-      }
-    };
-    const watch = new MutationObserver(() => {
-      if (queued) return;
-      queued = true;
-      requestAnimationFrame(compare);
+    glowWrites({
+      frame,
+      layer,
+      columns,
+      rows,
+      signal,
+      onWritten: (cells) => hud(root, "live", count(cells, total)),
     });
-    watch.observe(rowsElement, { childList: true, subtree: true, characterData: true, attributes: true });
-    signal.addEventListener("abort", () => {
-      watch.disconnect();
-      layer.replaceChildren();
-    });
-  }
-
-  /** Runs merged per row: from the row's first change to its last. */
-  function byRow(runs: [number, number, number][]) {
-    const rows = new Map<number, [number, number]>();
-    for (const [y, x, length] of runs) {
-      const [from, to] = rows.get(y) ?? [x, x + length];
-      rows.set(y, [Math.min(from, x), Math.max(to, x + length)]);
-    }
-    return [...rows].map(([y, [from, to]]): [number, number, number] => [y, from, to - from]);
   }
 
   const type = (frame: HTMLIFrameElement, data: string) =>
