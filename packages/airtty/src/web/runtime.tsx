@@ -26,7 +26,9 @@ try {
   stage("bundle");
   const name = bundle.manifest.name;
   document.title = name;
-  const fetch = inPage ? await connectServer(new URL("server-worker.js", here), name) : undefined;
+  const fetch = inPage
+    ? await connectServer(new URL("server-worker.js", here), name, bundle.manifest.buildId)
+    : undefined;
   stage("server");
   await runInPage((options) => applicationOf(bundle, options), {
     element,

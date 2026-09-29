@@ -23,10 +23,16 @@ async function exclusive(name: string) {
   if (!granted) throw new Error(`${name} is already open in another tab of this browser`);
 }
 
-export async function connectServer(script: URL, name: string) {
+/**
+ * A SharedWorker is found again by its script and its name. The build is in the name: after
+ * a new build (a deploy, a `bun run demo`), a tab still open elsewhere keeps the old
+ * Server alive, and a page of the new build must not join it (its requests would be
+ * refused as an incompatible build). Tabs of one build still share one Server.
+ */
+export async function connectServer(script: URL, name: string, build: string) {
   let port: Port;
   if (typeof SharedWorker === "function") {
-    port = new SharedWorker(script, { type: "module", name }).port;
+    port = new SharedWorker(script, { type: "module", name: `${name}@${build}` }).port;
   } else {
     await exclusive(name);
     port = new Worker(script, { type: "module", name });

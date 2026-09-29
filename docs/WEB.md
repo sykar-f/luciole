@@ -307,6 +307,9 @@ Le Server est un **SharedWorker** (décision 2) : une instance par origine, part
 tous les onglets de l'app, comme un vrai Server partagé par ses Clients. Chaque onglet s'y
 connecte par un `MessagePort` ; une Server Function d'un onglet invalide aussi les
 autres, par le même mécanisme que le live. Le SharedWorker vit tant qu'un onglet vit.
+Il est nommé par l'app **et son build** (`notes@<buildId>`) : après un nouveau build (un
+déploiement), un onglet resté ouvert garde l'ancien Server en vie, et une page du nouveau
+build ne doit pas s'y joindre (ses requêtes seraient refusées : « Incompatible build »).
 Un navigateur sans SharedWorker (Chrome Android avant mai 2026) retombe sur un Worker
 dédié, protégé par un verrou Web Locks : un second onglet affiche « app déjà ouverte
 ailleurs » au lieu d'ouvrir une seconde base.
