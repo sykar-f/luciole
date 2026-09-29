@@ -137,6 +137,7 @@ const stand = JSON.stringify({
 <script>
   import * as z from "zod/mini";
   import { glowWrites } from "../lib/glow";
+  import { overscroll } from "../lib/overscroll";
   import { recolor, screenColours } from "../lib/recolor";
   import { Terminal } from "@xterm/xterm";
   import { FitAddon } from "@xterm/addon-fit";
@@ -382,21 +383,29 @@ const stand = JSON.stringify({
   }
 
   /**
-   * Each cell the live application rewrites glows a moment, as in the intro (lib/glow.ts);
-   * the counter under the screen says how many cells each change wrote.
+   * What the live application rewrites: it tells the wheel whether the app scrolled
+   * (lib/overscroll.ts: held, the wheel goes to the app first, and on to the page when it
+   * scrolls nothing); with the afterglow, each cell glows a moment, as in the intro
+   * (lib/glow.ts), and the counter under the screen says how many cells each change wrote.
    */
-  function glow(root: HTMLElement, frame: HTMLIFrameElement, signal: AbortSignal) {
+  function watch(root: HTMLElement, frame: HTMLIFrameElement, signal: AbortSignal) {
     const layer = root.querySelector<HTMLElement>("[data-glows]");
     const stand = standOf(root).data;
     if (!layer || !stand) return;
     const { columns, rows, total } = stand;
+    const glowing = root.dataset.afterglow !== undefined && !still();
+    if (glowing) hud(root, "live", count(0, total));
+    const answered = overscroll({ frame, delayMs: () => 0, signal });
     glowWrites({
       frame,
-      layer,
+      layer: glowing ? layer : document.createElement("div"),
       columns,
       rows,
       signal,
-      onWritten: (cells) => hud(root, "live", count(cells, total)),
+      onWritten: (cells) => {
+        answered();
+        if (glowing) hud(root, "live", count(cells, total));
+      },
     });
   }
 
@@ -435,10 +444,7 @@ const stand = JSON.stringify({
       await introduced.get(root);
       if (signal.aborted) return;
       root.classList.add("on");
-      if (root.dataset.afterglow !== undefined && !still()) {
-        hud(root, "live", count(0, standOf(root).data?.total ?? 0));
-        glow(root, frame, signal);
-      }
+      watch(root, frame, signal);
       take.hidden = false;
       layer.setAttribute("role", "button");
       layer.setAttribute("aria-label", "Use the live application with the keyboard");
