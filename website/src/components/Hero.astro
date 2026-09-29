@@ -12,8 +12,8 @@ const ROWS = 24;
 const look = new URLSearchParams({ columns: String(COLUMNS), rows: String(ROWS), restore: "off" });
 const src = `/demo/notes/index.html?${look}`;
 const sides = [
-  { id: "ssh", name: "Over SSH", line: "every key waits 500 ms" },
-  { id: "airtty", name: "airtty", line: "only requests wait 500 ms" },
+  { id: "ssh", name: "ssh", tag: "500 ms ping" },
+  { id: "airtty", name: "airtty", tag: "500 ms ping · keys local" },
 ];
 const notes = frame("notes");
 ---
@@ -22,6 +22,10 @@ const notes = frame("notes");
   <div class="wrap">
     <div class="top">
       <h1><span>Keys stay local.</span> <span>Data stays on the server.</span></h1>
+      <p class="sub">
+        airtty splits your React app in two: Server Components render next to your data, the client
+        runs in your terminal.
+      </p>
       <div class="actions">
         <a class="button primary" href="#start">Start a project</a>
         <a class="button" href="#code">See the code</a>
@@ -32,20 +36,8 @@ const notes = frame("notes");
       {
         sides.map((side) => (
           <figure class:list={["pane", side.id]} data-pane={side.id}>
-            <figcaption class="gauge">
-              <span class="who">
-                <b>{side.name}</b> {side.line}
-              </span>
-              <span class="reading" aria-live="polite">
-                <output data-ms>—</output>
-                <span class="unit">ms</span>
-              </span>
-              <span class="what">
-                <span data-idle>key to screen</span>
-                <span class="hands" aria-hidden="true">
-                  your hands
-                </span>
-              </span>
+            <figcaption class="tag">
+              <b>{side.name}</b> · {side.tag}
             </figcaption>
             <div class="glass">
               <div class="frame" data-frame={side.id} data-src={src} data-title={`Notes, ${side.name}`}>
@@ -53,22 +45,17 @@ const notes = frame("notes");
                 <div class="glows" data-glows aria-hidden="true" />
               </div>
             </div>
+            <p class="reading" aria-live="polite">
+              <output data-ms />
+              <span class="unit">ms</span>
+              <span class="what">key to screen</span>
+            </p>
           </figure>
         ))
       }
     </div>
 
-    <div class="after">
-      <p class="lede">
-        React Server Components for the terminal: airtty runs the part of your app that reads the
-        keyboard in your terminal, and the rest next to your data.
-      </p>
-      <p class="hint" data-hint>
-        Type in either screen; the other follows. <kbd>Enter</kbd> opens a note, <kbd>Enter</kbd> saves,
-        <kbd>Esc</kbd> goes back.
-      </p>
-      <p class="hint narrow">On a wider screen, both run live.</p>
-    </div>
+    <p class="narrow">On a wider screen, both run live.</p>
   </div>
 </section>
 
@@ -131,7 +118,7 @@ const notes = frame("notes");
       const pane = paneOf(frame);
       const output = pane?.querySelector<HTMLOutputElement>("[data-ms]");
       if (output) output.value = String(Math.round(now - key.typed));
-      pane?.querySelector("[data-idle]")?.replaceChildren("last key to screen");
+      pane?.classList.add("measured");
     };
 
     addEventListener("message", (event) => {
@@ -195,15 +182,13 @@ const notes = frame("notes");
     padding: clamp(28px, 4vw, 48px) 0 clamp(64px, 8vw, 112px);
   }
 
-  /* The product said once, plainly, with what to do about it on the same line: the
-     page's largest type belongs to the measures below. */
+  /* The product said once, plainly: what it does, how, and what to do about it. The page's
+     largest type belongs to the measures below the screens. */
   .top {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px 32px;
-    margin-bottom: clamp(28px, 3.5vw, 44px);
+    display: grid;
+    justify-items: start;
+    gap: 14px;
+    margin-bottom: clamp(36px, 4.5vw, 56px);
   }
 
   h1 {
@@ -216,10 +201,16 @@ const notes = frame("notes");
     display: inline-block;
   }
 
+  .sub {
+    max-width: 64ch;
+    color: var(--mist);
+  }
+
   .actions {
     display: flex;
     flex-wrap: wrap;
     gap: 12px;
+    margin-top: 10px;
   }
 
   .pair {
@@ -229,33 +220,47 @@ const notes = frame("notes");
   }
 
   .pane {
+    position: relative;
     display: grid;
-    gap: 14px;
     margin: 0;
   }
 
-  /* Each screen's gauge: who it is, then the measure, as large as the page gets. */
-  .gauge {
-    display: grid;
-    gap: 2px;
-    font: 400 0.85rem / 1.4 var(--mono);
+  /* Each screen's name and link, set in its top edge like a window title. */
+  .tag {
+    position: absolute;
+    z-index: 3;
+    top: 0;
+    left: 16px;
+    padding: 0 8px;
+    transform: translateY(-50%);
+    background: var(--night);
+    font: 400 0.8rem / 1.4 var(--mono);
     color: var(--mist);
   }
 
-  .who b {
+  .tag b {
     color: var(--paper);
     font-weight: 600;
   }
 
-  .airtty .who b {
+  .airtty .tag b {
     color: var(--client);
   }
 
+  /* Under each screen, its measure, as large as the page gets: nothing until a key has
+     been timed, so the number and what it counts appear together. Its room is kept, so the
+     screens never move under the reader's hands. */
   .reading {
     display: flex;
     align-items: baseline;
-    gap: 0.4ch;
+    gap: 0.5ch;
+    margin-top: 14px;
     color: var(--paper);
+    visibility: hidden;
+  }
+
+  .measured .reading {
+    visibility: visible;
   }
 
   .reading output {
@@ -274,21 +279,9 @@ const notes = frame("notes");
   }
 
   .what {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 1ch;
-  }
-
-  .hands {
-    padding: 1px 8px;
-    border: 1px solid var(--paper);
-    color: var(--paper);
-    visibility: hidden;
-  }
-
-  .held .hands {
-    visibility: visible;
+    margin-left: 1ch;
+    font: 400 0.85rem / 1 var(--mono);
+    color: var(--mist);
   }
 
   .glass {
@@ -366,47 +359,31 @@ const notes = frame("notes");
     }
   }
 
-  /* After the screens, what they showed, in a sentence; then how to play. */
-  .after {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 16px clamp(20px, 2.5vw, 36px);
-    margin-top: 24px;
-  }
-
-  .after .lede {
-    color: var(--paper);
-  }
-
-  .hint {
-    color: var(--mist);
-    font: 400 0.88rem / 1.6 var(--sans);
-  }
-
   .narrow {
     display: none;
-  }
-
-  @media (max-width: 960px) {
-    .after {
-      grid-template-columns: 1fr;
-    }
+    margin-top: 16px;
+    color: var(--mist);
+    font: 400 0.88rem / 1.6 var(--sans);
   }
 
   /* Narrow: the two captures, one above the other, and no measure to take. */
   @media (max-width: 760px) {
     .pair {
       grid-template-columns: 1fr;
+      gap: 32px;
     }
 
-    .reading,
-    .what,
-    [data-hint] {
+    .reading {
       display: none;
     }
 
     .narrow {
       display: block;
+    }
+
+    .actions .button {
+      flex: 1 1 100%;
+      text-align: center;
     }
   }
 </style>
