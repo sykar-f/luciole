@@ -312,10 +312,21 @@ const stand = JSON.stringify({
   }
 
   /** The rows xterm.js draws into the frame's DOM (same origin), as the capture's `lines`. */
-  const rowsOf = (frame: HTMLIFrameElement) =>
-    [...(frame.contentDocument?.querySelectorAll(".xterm-rows > div") ?? [])].map((row) =>
+  const Lines = z.array(z.string());
+  /**
+   * The live screen's rows as text: from the runtime's buffer (docs/WEB.md, "Page
+   * embarquée", `airttyScreen`), which a frame out of view keeps up to date; else from the
+   * rows xterm.js draws.
+   */
+  const rowsOf = (frame: HTMLIFrameElement) => {
+    const read: unknown = frame.contentWindow ? Reflect.get(frame.contentWindow, "airttyScreen") : undefined;
+    const value: unknown = typeof read === "function" ? Reflect.apply(read, frame.contentWindow, []) : undefined;
+    const lines = value === undefined ? undefined : Lines.safeParse(value);
+    if (lines?.success) return lines.data.map((line) => line.trimEnd());
+    return [...(frame.contentDocument?.querySelectorAll(".xterm-rows > div") ?? [])].map((row) =>
       (row.textContent ?? "").replaceAll("\u00a0", " ").trimEnd(),
     );
+  };
   const screenOf = (frame: HTMLIFrameElement) => rowsOf(frame).join("\n");
 
   /**
