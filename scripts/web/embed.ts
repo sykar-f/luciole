@@ -1,7 +1,8 @@
 /**
  * The web runtime framed by a page of its origin (docs/WEB.md, "Page embarquée"), as the
  * landing page frames its live demos: the page hears the start stage by stage, fixes the
- * grid, and types into the terminal; a frame of another origin types nothing. Builds
+ * grid, types into the terminal, and puts the round trip before the keys; a frame of
+ * another origin types nothing. Builds
  * examples/notes with `--web-local`.
  *   bun run test:web:embed
  */
@@ -15,6 +16,8 @@ const ROWS = 30;
 const FRAME_SCREEN = `[...document.querySelector("iframe").contentDocument.querySelectorAll(".xterm-rows > div")]`;
 const OTHER_ORIGIN_WAIT_MS = 1500;
 const LATENCY_MS = 300;
+const KEYS_LATENCY_MS = 1200;
+const KEY = "Q";
 const DRAW_TIMEOUT_MS = 6000;
 const POLL_MS = 150;
 const frameShows = (text: string) =>
@@ -83,6 +86,23 @@ try {
     "a save refused before it left",
   );
 
+  // The round trip before the keys, as over SSH: a key typed in the terminal shows only
+  // once it has crossed; before, nothing.
+  await browser.evaluate(
+    `send({ type: "network", latencyMs: ${KEYS_LATENCY_MS}, delays: "keys" })`,
+  );
+  await browser.evaluate(
+    `document.querySelector("iframe").contentDocument.querySelector(".xterm-helper-textarea").focus()`,
+  );
+  await browser.insertText(KEY);
+  await Bun.sleep(KEYS_LATENCY_MS / 2);
+  report.keyHeldBack = !(await browser.evaluate(frameShows(`x${KEY}`)));
+  report.keyDelivered = !!(await browser.waitFor(frameShows(`x${KEY}`), "the delayed key"));
+  // What the terminal sent its app, the page hears, as typed: it may replay it elsewhere.
+  report.typedHeard = await browser.evaluate(
+    `window.heard.some((m) => m.type === "typed" && m.data === ${JSON.stringify(KEY)})`,
+  );
+
   // Framed again, Notes reopens the note left open; with `restore=off`, its list.
   const reopen = async (src: string) => {
     await browser.open(new URL(`/host.html?src=/${encodeURIComponent(src)}`, hostSite.url).href);
@@ -123,6 +143,9 @@ const expected = {
   typedByTheHost: true,
   slowedRender: true,
   refusedSave: true,
+  keyHeldBack: true,
+  keyDelivered: true,
+  typedHeard: true,
   restored: true,
   notRestored: true,
   otherOriginDrawn: true,

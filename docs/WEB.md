@@ -307,6 +307,9 @@ Le Server est un **SharedWorker** (décision 2) : une instance par origine, part
 tous les onglets de l'app, comme un vrai Server partagé par ses Clients. Chaque onglet s'y
 connecte par un `MessagePort` ; une Server Function d'un onglet invalide aussi les
 autres, par le même mécanisme que le live. Le SharedWorker vit tant qu'un onglet vit.
+Il est nommé par l'app **et son build** (`notes@<buildId>`) : après un nouveau build (un
+déploiement), un onglet resté ouvert garde l'ancien Server en vie, et une page du nouveau
+build ne doit pas s'y joindre (ses requêtes seraient refusées : « Incompatible build »).
 Un navigateur sans SharedWorker (Chrome Android avant mai 2026) retombe sur un Worker
 dédié, protégé par un verrou Web Locks : un second onglet affiche « app déjà ouverte
 ailleurs » au lieu d'ouvrir une seconde base.
@@ -332,18 +335,24 @@ OPFS est partagé par toute l'origine : le Server web range ses données sous le
 Une page **de la même origine** qui place le runtime dans un `iframe` le pilote ainsi
 (`src/web/embed.ts`, vérifié par `bun run test:web:embed`) :
 
-| Sens              | Forme                                                                                                                                   | Pour                                                                                                                      |
-| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| URL de l'`iframe` | `?columns=140&rows=40`                                                                                                                  | une grille fixe, la police ajustée pour la contenir                                                                       |
-| URL de l'`iframe` | `&background=0a0f16&foreground=e6edf3`                                                                                                  | les couleurs par défaut du terminal et de la page                                                                         |
-| URL de l'`iframe` | `&restore=off`                                                                                                                          | démarrer sur la première route, sans restaurer ni garder la session (la landing revient à l'écran de sa capture)          |
-| runtime → page    | `{ source: "airtty", type: "stage", stage }`, dans l'ordre `runtime`, `bundle`, `server`, `terminal`, `drawn`                           | afficher le démarrage pendant l'attente                                                                                   |
-| page → runtime    | `{ source: "airtty", type: "input", data }`                                                                                             | taper dans le terminal comme un clavier                                                                                   |
-| runtime → page    | `{ source: "airtty", type: "event", event }` : les événements du transport (`request`, `response`, `end`, `error`) et les invalidations | montrer ce qui traverse le réseau                                                                                         |
-| page → runtime    | `{ source: "airtty", type: "network", latencyMs, fault? }`                                                                              | un aller-retour simulé (moitié à l'aller, moitié au retour) et la panne de la prochaine requête (`refuse`, `drop`, `cut`) |
+| Sens              | Forme                                                                                                                                                                   | Pour                                                                                                                      |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| URL de l'`iframe` | `?columns=140&rows=40`                                                                                                                                                  | une grille fixe, la police ajustée pour la contenir                                                                       |
+| URL de l'`iframe` | `&background=0a0f16&foreground=e6edf3`                                                                                                                                  | les couleurs par défaut du terminal et de la page                                                                         |
+| URL de l'`iframe` | `&restore=off`                                                                                                                                                          | démarrer sur la première route, sans restaurer ni garder la session (la landing revient à l'écran de sa capture)          |
+| runtime → page    | `{ source: "airtty", type: "stage", stage }`, dans l'ordre `runtime`, `bundle`, `server`, `terminal`, `drawn`                                                           | afficher le démarrage pendant l'attente                                                                                   |
+| page → runtime    | `{ source: "airtty", type: "input", data }`                                                                                                                             | taper dans le terminal comme un clavier                                                                                   |
+| runtime → page    | `{ source: "airtty", type: "typed", data }` : ce que la main envoie à l'app (touches, collages, clics et molette encodés ; pas les réponses du terminal à ses requêtes) | la rejouer dans un autre `iframe` de même grille (`input`)                                                                |
+| page → runtime    | `iframe.contentWindow.airttyScreen()` : les lignes visibles, lues dans le buffer                                                                                        | lire l'écran même quand l'`iframe` est hors de vue (xterm.js cesse alors de dessiner ses lignes)                          |
+| runtime → page    | `{ source: "airtty", type: "event", event }` : les événements du transport (`request`, `response`, `end`, `error`) et les invalidations                                 | montrer ce qui traverse le réseau                                                                                         |
+| page → runtime    | `{ source: "airtty", type: "network", latencyMs, fault?, delays? }`                                                                                                     | un aller-retour simulé (moitié à l'aller, moitié au retour) et la panne de la prochaine requête (`refuse`, `drop`, `cut`) |
 
 La latence passe par le `fetch` de l'Application : le transport la mesure comme celle d'un
-Server lointain, et ses propres pannes (`AIRTTY_FAULT`) s'appliquent. Embarqué, le terminal ne prend pas le focus au démarrage : il ferait défiler la page vers
+Server lointain, et ses propres pannes (`AIRTTY_FAULT`) s'appliquent. Avec
+`delays: "keys"`, l'aller-retour se place avant les touches, comme en SSH où toute
+l'application tourne à côté de ses données : chaque touche tapée dans le terminal attend
+l'aller-retour (dans l'ordre de frappe), les requêtes n'attendent plus ; `input`, la page
+qui tape, n'attend jamais. La landing s'en sert pour comparer les deux découpages. Embarqué, le terminal ne prend pas le focus au démarrage : il ferait défiler la page vers
 lui. Une page d'une autre origine n'entend aucune étape (`postMessage` vise l'origine du
 runtime) et ce qu'elle envoie est ignoré : elle ne doit pas piloter une application qu'elle
 encadre. La landing (`LiveTerminal.astro`) montre la capture de l'écran pendant le

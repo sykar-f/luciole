@@ -110,7 +110,7 @@ export const examples: Record<ExampleKey, Example> = {
     demo: "mdreader",
     run: "MD_PATH=docs bun run mdreader",
     about:
-      "A folder of Markdown in two panes, with tables, code and outlines: here, this repository's docs. On disk, it reloads when a file changes and keeps your place.",
+      "A folder of Markdown in two panes, with tables, code and outlines: here, the documentation of this site. On disk, it reloads when a file changes and keeps your place.",
   },
   devtools: {
     name: "DevTools",

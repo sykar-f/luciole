@@ -18,6 +18,8 @@ import {
   controlledNetwork,
   embedded,
   onInput,
+  tellTyped,
+  exposeScreen,
   stage,
   tellEvent,
   type Grid,
@@ -118,6 +120,15 @@ function pageSession(key: string) {
 /** A session neither read nor written: the application starts at its first route each time. */
 const forgotten = { restored: undefined, schedule() {}, flush() {}, remove() {} };
 
+/** The visible rows as text, read from the active buffer. */
+function screenLines(terminal: XTerm) {
+  const buffer = terminal.buffer.active;
+  return Array.from(
+    { length: terminal.rows },
+    (_, y) => buffer.getLine(buffer.viewportY + y)?.translateToString(true) ?? "",
+  );
+}
+
 export async function runInPage(
   create: (options: RunOptions) => Application,
   {
@@ -141,6 +152,9 @@ export async function runInPage(
   const fit = new FitAddon();
   terminal.loadAddon(fit);
   terminal.open(element);
+  // Framed, the embedding page reads the screen from the buffer, not from the rows
+  // xterm.js draws: those stop being drawn while the frame is out of view.
+  if (embedded) exposeScreen(() => screenLines(terminal));
   const layout = () => (grid ? fitGrid(terminal, fit, grid, element) : fit.fit());
   layout();
   // In a page of its own, the terminal is what the reader came for. Framed, a focus
@@ -148,16 +162,22 @@ export async function runInPage(
   if (!embedded) terminal.focus();
   const stdin = new PassThrough();
   if (!isInputStream(stdin)) throw new Error("unreachable: a PassThrough is readable");
-  terminal.onData((data) => stdin.write(data));
-  onInput((data) => stdin.write(data));
+  // Framed, the embedding page may slow the network down and hears what crosses it; it
+  // may also put the round trip before the keys, as SSH would.
+  const control = embedded
+    ? controlledNetwork(fetch ?? ((input, init) => globalThis.fetch(input, init)))
+    : undefined;
+  const write = (data: string) => stdin.write(data);
+  const typed = control ? control.keys(write) : write;
+  terminal.onData((data) => {
+    tellTyped(data);
+    typed(data);
+  });
+  onInput(write);
 
   const session = restore
     ? pageSession(`airtty:session:${name}:${sessionKey ?? server.href}`)
     : forgotten;
-  // Framed, the embedding page may slow the network down and hears what crosses it.
-  const control = embedded
-    ? controlledNetwork(fetch ?? ((input, init) => globalThis.fetch(input, init)))
-    : undefined;
   const app = create({
     url: server.href,
     fetch: control?.fetch ?? fetch,

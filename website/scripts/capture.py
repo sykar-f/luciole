@@ -259,18 +259,17 @@ def files(directory):
 
 
 def mdreader(directory):
-    # The live demo's files (website/scripts/demo.ts): the documents only, all modified at
-    # DOCS_CLOCK, shown in UTC and in English, as a reader in the page may see them.
+    # The live demo's files (website/scripts/demo.ts): the site's documentation in Markdown
+    # (website/scripts/docs-md.ts), all modified at DOCS_CLOCK, shown in UTC and in
+    # English, as a reader in the page may see them.
     docs = pathlib.Path(directory) / "docs"
     clock = datetime.datetime.fromisoformat(DOCS_CLOCK).timestamp()
-    for source in (ROOT / "docs").rglob("*.md"):
-        copy = docs / source.relative_to(ROOT / "docs")
-        copy.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(source, copy)
-        os.utime(copy, (clock, clock))
+    subprocess.run([BUN, str(ROOT / "website/scripts/docs-md.ts"), str(docs)], check=True, stdout=subprocess.DEVNULL)
+    for page in docs.rglob("*.md"):
+        os.utime(page, (clock, clock))
     term = dev("mdreader", {"MD_PATH": str(docs), "TZ": "UTC", "LANG": "en_US.UTF-8"}, directory, 140, 40)
     try:
-        term.wait_for("ARCHITECTURE", 120)
+        term.wait_for("getting-started", 120)
         term.idle(1.5)
         # The live demo reads the same files from /docs.
         save(term, "mdreader", "mdreader: Markdown in two panes", [(str(docs), "/docs")])

@@ -2,13 +2,15 @@
  * The web runtime inside an `iframe` of a page on the same origin (docs/WEB.md, "Page
  * embarquée"): the landing page's live demos. The embedding page is told how far the
  * start has gone and what the application sends over the wire, may type into the
- * terminal as a keyboard would, set the network's latency and the next request's fault,
+ * terminal as a keyboard would, set the network's latency, where it sits (before the
+ * requests or before the keys) and the next request's fault,
  * and fix the grid so the live screen matches a capture of it cell for cell. Another
  * origin gets none of it: a page elsewhere must not drive an application it frames.
  */
 import * as z from "zod/mini";
 import type { ApplicationEvent } from "../client";
 import type { Fetch, Fault, NetworkConditions } from "../transport";
+import { isReply } from "./replies";
 
 /** How far the page has gone, in order; the embedding page shows it while it waits. */
 export const STAGES = ["runtime", "bundle", "server", "terminal", "drawn"] as const;
@@ -24,6 +26,13 @@ const Command = z.discriminatedUnion("type", [
     latencyMs: z.number().check(z.gte(0), z.lte(MAX_LATENCY_MS)),
     /** For the next request only (src/transport.ts, `Fault`). */
     fault: z.optional(z.enum(["refuse", "drop", "cut"])),
+    /**
+     * Where the round trip sits. `requests` (the default): between the application and its
+     * Server, as airtty splits it. `keys`: between the keyboard and the application, as
+     * over SSH, where the whole application runs next to its data: each key waits the
+     * round trip, and requests none.
+     */
+    delays: z.optional(z.enum(["requests", "keys"])),
   }),
 ]);
 type Command = z.infer<typeof Command>;
@@ -48,6 +57,25 @@ export function tellEvent(event: ApplicationEvent) {
   if (!embedded) return;
   if (event.type === "loader" || event.type === "chunk") return;
   tell({ type: "event", event });
+}
+
+/**
+ * What the terminal sends the application, as the emulator encodes it: keys, pastes, and
+ * the mouse's clicks and wheel once the application tracks it. The embedding page may
+ * replay it in another frame with `input`: two frames of the same grid then follow the
+ * same hands.
+ */
+export function tellTyped(data: string) {
+  if (embedded && !isReply(data)) tell({ type: "typed", data });
+}
+
+/**
+ * The screen as text, for the embedding page to read synchronously: it shares this
+ * document's origin, and `airttyScreen()` on the frame's window answers even while the frame is
+ * out of view and the emulator has stopped drawing.
+ */
+export function exposeScreen(read: () => string[]) {
+  Reflect.set(window, "airttyScreen", read);
 }
 
 const handlers: { [T in Command["type"]]?: (command: Extract<Command, { type: T }>) => void } = {};
@@ -80,16 +108,30 @@ const halfway = (ms: number, signal: AbortSignal | null | undefined) =>
  * each way, so the transport measures it as it would a distant Server, and faults the
  * transport applies to the next request. Untouched until the page says otherwise.
  */
-export function controlledNetwork(inner: Fetch): { fetch: Fetch; network: NetworkConditions } {
+export function controlledNetwork(inner: Fetch): {
+  fetch: Fetch;
+  network: NetworkConditions;
+  keys: (deliver: (data: string) => void) => (data: string) => void;
+} {
   let latencyMs = 0;
+  let delays: "requests" | "keys" = "requests";
   let next: Fault | undefined;
   handlers.network = (command) => {
     latencyMs = command.latencyMs;
+    delays = command.delays ?? "requests";
     next = command.fault;
   };
+  // Keys arrive in the order they were typed, even when the round trip shrinks meanwhile.
+  let lastDelivery = 0;
   return {
+    keys: (deliver) => (data) => {
+      if (delays !== "keys" || !latencyMs) return deliver(data);
+      const at = Math.max(performance.now() + latencyMs, lastDelivery);
+      lastDelivery = at;
+      setTimeout(() => deliver(data), at - performance.now());
+    },
     async fetch(input, init) {
-      const ms = latencyMs;
+      const ms = delays === "requests" ? latencyMs : 0;
       await halfway(ms, init.signal);
       const response = await inner(input, init);
       await halfway(ms, init.signal);

@@ -1,70 +1,214 @@
 ---
-import LatencyDemo from "./LatencyDemo.astro";
+// The hero: the same Notes twice, the same 500 ms round trip, placed differently. Left, as
+// over SSH, the whole app far away: every key and click waits. Right, as airtty splits it:
+// the keyboard's part in the terminal, only requests wait. Whatever the reader does in one
+// is replayed in the other (docs/WEB.md, "Page embarquée", `typed`), and the page's largest
+// type is not a claim but a measure: how long each screen took, from the key to its cells.
+import Screen from "./Screen.astro";
+import { frame } from "../lib/frames";
 
-// The title is typed, one line after the other, a character at a time: short, so the demo
-// under it is there to play at once.
-const title = ["Build terminal apps", "with React."];
+const COLUMNS = 84;
+const ROWS = 24;
+const look = new URLSearchParams({ columns: String(COLUMNS), rows: String(ROWS), restore: "off" });
+const src = `/demo/notes/index.html?${look}`;
+const sides = [
+  { id: "ssh", name: "Over SSH", line: "the whole app runs 500 ms away" },
+  { id: "airtty", name: "airtty", line: "keys stay here, only requests travel" },
+];
+const notes = frame("notes");
 ---
 
-<section class="hero" id="top">
+<section class="hero" id="top" data-duel data-columns={COLUMNS} data-rows={ROWS}>
   <div class="wrap">
-    <div class="intro">
-      <h1 style={`--longest:${Math.max(...title.map((line) => line.length))}`}>
-        {
-          title.map((line, i) => (
-            <>
-              <span class:list={["typed", { last: i === title.length - 1 }]} style={`--n:${line.length};--line:${i}`}>
-                {line}
-              </span>
-              {i < title.length - 1 && " "}
-            </>
-          ))
-        }
-      </h1>
-      <div class="pitch">
-        <p class="lede">
-          Keep typing while your server works. airtty brings React Server Components to a native
-          terminal client.
-        </p>
-        <div class="actions">
-          <button type="button" class="button primary" data-play>Play with the demo</button>
-          <a class="button" href="#start">Run it locally</a>
-        </div>
-        <p class="proof">
-          <a href="/status/">
-            Experimental · installed from the repository · Bun 1.4.2 · macOS &amp; Linux · every screen
-            on this site is a live app or a real capture
-          </a>
-        </p>
+    <div class="top">
+      <h1>React Server Components for the terminal.</h1>
+      <div class="actions">
+        <a class="button primary" href="#start">Start a project</a>
+        <a class="button" href="#code">See the code</a>
       </div>
     </div>
 
-    <LatencyDemo />
+    <div class="pair">
+      {
+        sides.map((side) => (
+          <figure class:list={["pane", side.id]} data-pane={side.id}>
+            <figcaption class="gauge">
+              <span class="who">
+                <b>{side.name}</b> {side.line}
+              </span>
+              <span class="reading" aria-live="polite">
+                <output data-ms>—</output>
+                <span class="unit">ms</span>
+              </span>
+              <span class="what">
+                <span data-idle>from key to screen: type to measure</span>
+                <span class="hands" aria-hidden="true">
+                  your hands
+                </span>
+              </span>
+            </figcaption>
+            <div class="glass">
+              <div class="frame" data-frame={side.id} data-src={src} data-title={`Notes, ${side.name}`}>
+                <Screen frame={notes} class="poster" />
+                <div class="glows" data-glows aria-hidden="true" />
+              </div>
+            </div>
+          </figure>
+        ))
+      }
+    </div>
+
+    <div class="after">
+      <p class="lede">
+        Same Notes app, same 500&nbsp;ms network. Over SSH, every key crosses it before it shows.
+        airtty runs the part that reads your keyboard in your terminal: only data requests travel.
+      </p>
+      <p class="hint" data-hint>
+        Click either screen: the other follows your every key and click. <kbd>Enter</kbd> opens a note,
+        type, <kbd>Enter</kbd> saves, <kbd>Esc</kbd> goes back.
+      </p>
+      <p class="hint narrow">On a wide screen, both run live here. Here, their capture.</p>
+    </div>
   </div>
 </section>
 
+<script>
+  import * as z from "zod/mini";
+  import { glowWrites } from "../lib/glow";
+  import { screenColours } from "../lib/recolor";
+
+  const Drawn = z.object({ source: z.literal("airtty"), type: z.literal("stage"), stage: z.literal("drawn") });
+  const Typed = z.object({ source: z.literal("airtty"), type: z.literal("typed"), data: z.string() });
+  const Connection = z.object({ saveData: z.optional(z.boolean()) });
+
+  const RTT_MS = 500;
+  /** A key its screen has not answered this long after it reached it changed nothing. */
+  const ANSWER_MS = 250;
+  /** Below this width, two 84-column screens are too small to use: their captures stay. */
+  const NARROW = "(max-width: 760px)";
+  const ESC = "\u001b";
+  /** A mouse report (SGR or X10): measured keys are keys, not the pointer's moves. */
+  const mouse = (data: string) => data.startsWith(`${ESC}[<`) || data.startsWith(`${ESC}[M`);
+  /** A focus report: the frame's own focus, which the other frame never had. */
+  const focus = (data: string) => data === `${ESC}[I` || data === `${ESC}[O`;
+
+  const root = document.querySelector<HTMLElement>("[data-duel]");
+  const saving = Connection.safeParse(Reflect.get(navigator, "connection")).data?.saveData === true;
+  if (root && !matchMedia(NARROW).matches && !saving) duel(root);
+
+  function duel(root: HTMLElement) {
+    const columns = Number(root.dataset.columns);
+    const rows = Number(root.dataset.rows);
+    const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const { background, foreground } = screenColours();
+    const frames: HTMLIFrameElement[] = [];
+    for (const holder of root.querySelectorAll<HTMLElement>("[data-frame]")) {
+      const url = new URL(holder.dataset.src ?? "", location.href);
+      url.searchParams.set("background", background.slice(1));
+      url.searchParams.set("foreground", foreground.slice(1));
+      const frame = document.createElement("iframe");
+      frame.title = holder.dataset.title ?? "";
+      frame.dataset.side = holder.dataset.frame;
+      frame.src = url.href;
+      holder.prepend(frame);
+      frames.push(frame);
+    }
+    const post = (frame: HTMLIFrameElement, message: Record<string, unknown>) =>
+      frame.contentWindow?.postMessage({ source: "airtty", ...message }, location.origin);
+    const ssh = (frame: HTMLIFrameElement) => frame.dataset.side === "ssh";
+    const paneOf = (frame: HTMLIFrameElement) => frame.closest<HTMLElement>("[data-pane]");
+
+    // The measure: from the moment a key left the reader's hand to the first cells its
+    // screen rewrote once the key had reached it (at once for airtty, a round trip later
+    // over SSH): what the screen drew before comes from something else. One key at a time.
+    const pending = new Map<HTMLIFrameElement, { typed: number; reached: number }>();
+    const measured = (frame: HTMLIFrameElement) => {
+      const key = pending.get(frame);
+      const now = performance.now();
+      if (!key || now < key.reached) return;
+      pending.delete(frame);
+      if (now > key.reached + ANSWER_MS) return;
+      const pane = paneOf(frame);
+      const output = pane?.querySelector<HTMLOutputElement>("[data-ms]");
+      if (output) output.value = String(Math.round(now - key.typed));
+      pane?.querySelector("[data-idle]")?.replaceChildren("from key to screen, last key");
+    };
+
+    addEventListener("message", (event) => {
+      const frame = frames.find((f) => f.contentWindow === event.source);
+      if (!frame) return;
+      // Once drawn: the poster goes, the cells the app rewrites glow and are timed, and the
+      // round trip sits before each key (SSH) or each request (airtty).
+      if (Drawn.safeParse(event.data).success) {
+        frame.parentElement?.classList.add("on");
+        const layer = frame.parentElement?.querySelector<HTMLElement>("[data-glows]");
+        if (layer)
+          glowWrites({
+            frame,
+            layer: still ? document.createElement("div") : layer,
+            columns,
+            rows,
+            signal: new AbortController().signal,
+            onWritten: () => measured(frame),
+          });
+        return void post(frame, {
+          type: "network",
+          latencyMs: RTT_MS,
+          delays: ssh(frame) ? "keys" : "requests",
+        });
+      }
+      // What one terminal sent, the other gets: at once for airtty's, whose keys never
+      // travel; a round trip later for SSH's, as if typed there. The frame typed in holds
+      // its own keys back itself (`delays`).
+      const typed = Typed.safeParse(event.data);
+      if (!typed.success) return;
+      const { data } = typed.data;
+      if (focus(data)) return;
+      if (!mouse(data)) {
+        const now = performance.now();
+        for (const each of frames) {
+          const waiting = pending.get(each);
+          if (!waiting || now > waiting.reached + ANSWER_MS)
+            pending.set(each, { typed: now, reached: now + (ssh(each) ? RTT_MS : 0) });
+        }
+      }
+      for (const other of frames) {
+        if (other === frame) continue;
+        const send = () => post(other, { type: "input", data });
+        if (ssh(other)) setTimeout(send, RTT_MS);
+        else send();
+      }
+    });
+
+    // Which screen has the reader's hands: the frame the focus went into.
+    const mark = () => {
+      for (const pane of root.querySelectorAll<HTMLElement>("[data-pane]"))
+        pane.classList.toggle("held", pane.contains(document.activeElement));
+    };
+    addEventListener("blur", () => setTimeout(mark));
+    addEventListener("focus", mark);
+  }
+</script>
+
 <style>
   .hero {
-    position: relative;
-    padding: clamp(32px, 4.5vw, 56px) 0 clamp(56px, 7vw, 96px);
+    padding: clamp(28px, 4vw, 48px) 0 clamp(64px, 8vw, 112px);
   }
 
-  /* The title on the left; the pitch and what to do about it on the right. */
-  .intro {
-    display: grid;
-    grid-template-columns: minmax(0, 6fr) minmax(0, 5fr);
-    align-items: end;
-    gap: 20px clamp(32px, 4vw, 64px);
+  /* The product said once, plainly, with what to do about it on the same line: the
+     page's largest type belongs to the measures below. */
+  .top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px 32px;
     margin-bottom: clamp(28px, 3.5vw, 44px);
   }
 
-  .pitch {
-    display: grid;
-    gap: 18px;
-  }
-
-  .lede {
-    color: var(--paper);
+  h1 {
+    font-size: clamp(1.4rem, 1rem + 1.2vw, 2.1rem);
+    letter-spacing: -0.01em;
   }
 
   .actions {
@@ -73,106 +217,191 @@ const title = ["Build terminal apps", "with React."];
     gap: 12px;
   }
 
-  button.button {
-    cursor: pointer;
+  .pair {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: clamp(20px, 2.5vw, 36px);
   }
 
-  .proof {
+  .pane {
+    display: grid;
+    gap: 14px;
+    margin: 0;
+  }
+
+  /* Each screen's gauge: who it is, then the measure, as large as the page gets. */
+  .gauge {
+    display: grid;
+    gap: 2px;
+    font: 400 0.85rem / 1.4 var(--mono);
     color: var(--mist);
-    font: 400 0.78rem / 1.6 var(--mono);
   }
 
-  .proof a {
-    color: inherit;
-    text-decoration-color: var(--rule-strong);
+  .who b {
+    color: var(--paper);
+    font-weight: 600;
   }
 
-  .proof a::after {
-    content: " ›" / "";
+  .airtty .who b {
+    color: var(--client);
   }
 
-  /* As large as its column allows: each line is one line, the width of its letters. */
-  h1 {
-    font-size: min(
-      var(--step-4),
-      calc((min(100vw, var(--page)) - 2 * var(--gutter)) * 0.54 / (var(--longest) + 1) / 0.6)
-    );
-    letter-spacing: 0;
-    line-height: 1.15;
+  .reading {
+    display: flex;
+    align-items: baseline;
+    gap: 0.4ch;
+    color: var(--paper);
   }
 
-  /* Typed at the cursor: a block, the width of a character, that moves as the line grows,
-     then blinks at the end of the last one. */
-  .typed {
-    --at: calc(0.2s + var(--line) * 0.9s);
-    display: inline-block;
-    box-sizing: content-box;
-    width: calc(var(--n) * 1ch);
-    border-right: 1ch solid transparent;
+  .reading output {
+    font: 600 clamp(3rem, 1.5rem + 4vw, 5.5rem) / 1 var(--mono);
+    letter-spacing: -0.03em;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .ssh .reading output {
+    color: var(--mist);
+  }
+
+  .unit {
+    font: 500 1.1rem / 1 var(--mono);
+    color: var(--mist);
+  }
+
+  .what {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1ch;
+  }
+
+  .hands {
+    padding: 1px 8px;
+    border: 1px solid var(--paper);
+    color: var(--paper);
+    visibility: hidden;
+  }
+
+  .held .hands {
+    visibility: visible;
+  }
+
+  .glass {
+    padding: 8px;
+    border: 1px solid var(--rule-strong);
+    border-radius: 4px;
+    background: var(--screen);
+    cursor: text;
+  }
+
+  .airtty .glass {
+    border-color: color-mix(in srgb, var(--client) 55%, transparent);
+  }
+
+  .held .glass {
+    outline: 2px solid var(--dominant);
+    outline-offset: 3px;
+  }
+
+  /* The capture holds the place and the size until the app has drawn over it. */
+  .frame {
+    position: relative;
+  }
+
+  .frame :global(.bar) {
+    display: none;
+  }
+
+  .frame :global(.term) {
+    margin: 0;
+  }
+
+  .frame :global(iframe) {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    background: var(--screen);
+    opacity: 0;
+    transition: opacity 0.15s ease;
+  }
+
+  .frame.on :global(iframe) {
+    z-index: 1;
+    opacity: 1;
+  }
+
+  /* Drawn over, the poster only keeps the size: clicks go to the app. */
+  .frame.on :global(.stage) {
+    visibility: hidden;
+  }
+
+  /* Over the frame, the cells its app just rewrote, glowing out (lib/glow.ts). */
+  .glows {
+    position: absolute;
+    z-index: 2;
+    inset: 0;
     overflow: hidden;
-    white-space: nowrap;
-    vertical-align: bottom;
-    animation:
-      type calc(var(--n) * 40ms) steps(var(--n)) var(--at) both,
-      caret calc(var(--n) * 40ms) steps(1) var(--at);
+    pointer-events: none;
   }
 
-  .typed.last {
-    animation:
-      type calc(var(--n) * 40ms) steps(var(--n)) var(--at) both,
-      blink 1.1s steps(1) var(--at) infinite;
+  .glows :global(i) {
+    position: absolute;
+    background: color-mix(in srgb, var(--afterglow) 40%, transparent);
+    box-shadow: 0 0 calc(var(--glow-blur) * 1.6) color-mix(in srgb, var(--afterglow) 50%, transparent);
+    mix-blend-mode: screen;
+    opacity: var(--glow, 1);
+    animation: afterglow var(--glow-ms, 0.45s) ease-out forwards;
   }
 
-  @keyframes type {
-    from {
-      width: 0;
-    }
-  }
-
-  @keyframes caret {
-    from,
+  @keyframes afterglow {
     to {
-      border-right-color: var(--dominant);
+      opacity: 0;
     }
   }
 
-  @keyframes blink {
-    0%,
-    50% {
-      border-right-color: var(--dominant);
-    }
-    50.01%,
-    100% {
-      border-right-color: transparent;
-    }
+  /* After the screens, what they showed, in a sentence; then how to play. */
+  .after {
+    display: grid;
+    grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+    gap: 16px 48px;
+    margin-top: 24px;
   }
 
-  /* Where the demo does not start (LiveTerminal: below 760 px), nothing to play with. */
-  @media (max-width: 760px) {
-    [data-play] {
-      display: none;
-    }
+  .after .lede {
+    color: var(--paper);
+  }
+
+  .hint {
+    color: var(--mist);
+    font: 400 0.88rem / 1.6 var(--sans);
+  }
+
+  .narrow {
+    display: none;
   }
 
   @media (max-width: 960px) {
-    .intro {
+    .after {
       grid-template-columns: 1fr;
-    }
-
-    h1 {
-      font-size: min(var(--step-4), calc((100vw - 2 * var(--gutter)) / (var(--longest) + 1) / 0.6));
     }
   }
 
-  /* Still: the title is written, the cursor lit. */
-  @media (prefers-reduced-motion: reduce) {
-    .typed,
-    .typed.last {
-      animation: none;
+  /* Narrow: the two captures, one above the other, and no measure to take. */
+  @media (max-width: 760px) {
+    .pair {
+      grid-template-columns: 1fr;
     }
 
-    .typed.last {
-      border-right-color: var(--dominant);
+    .reading,
+    .what,
+    [data-hint] {
+      display: none;
+    }
+
+    .narrow {
+      display: block;
     }
   }
 </style>

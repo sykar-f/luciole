@@ -2,14 +2,14 @@
 
 Site statique en Astro 7 et TypeScript, en anglais (public open source) :
 
-| Page         | Rôle                                                                               |
-| ------------ | ---------------------------------------------------------------------------------- |
-| `/`          | la landing : quatre blocs, une seule démo live (Notes, dans le hero)               |
-| `/examples/` | chaque exemple par usage ; démos live au clic, une seule à la fois                 |
-| `/status/`   | statut du projet, vérifié à la main contre le README et `docs/` (date et révision) |
-| `/docs/…`    | la documentation, en anglais : `src/content/docs/`, voir plus bas                  |
-| `/guide/`    | le guide, en français                                                              |
-| `/og/`       | l'image de partage, photographiée par `scripts/og.ts` dans `public/og.png`         |
+| Page         | Rôle                                                                                |
+| ------------ | ----------------------------------------------------------------------------------- |
+| `/`          | la landing : cinq blocs ; Notes deux fois dans le hero, trois exemples live dessous |
+| `/examples/` | chaque exemple par usage ; démos live au clic, une seule à la fois                  |
+| `/status/`   | statut du projet, vérifié à la main contre le README et `docs/` (date et révision)  |
+| `/docs/…`    | la documentation, en anglais : `src/content/docs/`, voir plus bas                   |
+| `/guide/`    | le guide, en français                                                               |
+| `/og/`       | l'image de partage, photographiée par `scripts/og.ts` dans `public/og.png`          |
 
 Ce que la landing v2 a retiré, et où le retrouver : [DOCS-BACKLOG.md](DOCS-BACKLOG.md).
 
@@ -87,12 +87,22 @@ venu. Un clic sur l'écran donne le clavier à l'application, un clic ailleurs
 le rend à la page. Sous 760 px de large ou avec l'économie de données, rien ne démarre : un
 lien ouvre la démo dans sa propre page.
 
-La landing n'en fait tourner qu'une : Notes, dans le hero, dont la page règle l'aller-retour
-et la perte de la prochaine réponse ; elle démarre près du viewport et s'arrête loin de lui.
-Les autres (coder, Forge, Chat, mdreader, DevTools) tournent sur `/examples/`, au clic, une seule
+La landing en fait tourner plusieurs. Dans le hero, Notes deux fois, sur le même aller-retour
+de 500 ms placé autrement : avant chaque touche à gauche (comme SSH, `delays: "keys"`), avant
+chaque requête à droite (comme airtty) ; ce que le lecteur fait dans l'un est rejoué dans
+l'autre (`typed`, puis `input`), et chaque écran mesure le temps de la touche à ses cellules.
+Sous 760 px ou avec l'économie de données, les deux captures seules. Dans « What you can
+build », les trois exemples démarrent l'un après l'autre après le chargement de la page et
+ne s'arrêtent plus : choisir un onglet ne fait que changer celui qu'on voit. Leurs fichiers
+sont préchargés (`<link rel="prefetch">`, écrits dans un `<template>` que le script n'active
+que là où les démos tournent). Tant qu'un exemple n'est pas prêt, son écran est flou et le
+dit (« Loading the live demo »). Les scripts lisent l'écran d'une démo par
+`airttyScreen()` (docs/WEB.md), à jour même hors de vue, où xterm.js cesse de dessiner.
+Sur `/examples/`, chacune (coder, Forge, Chat, mdreader, DevTools) tourne au clic, une seule
 à la fois, arrêtée quand on la quitte. Chaque démo trouve autour d'elle ce que
 `scripts/demo.ts` écrit dans `server-seed.json` : un environnement (`CHAT_DEMO=1`,
-`MD_PATH=/docs`…) et, pour mdreader, les documents du dépôt en lecture seule.
+`MD_PATH=/docs`…) et, pour mdreader, la documentation anglaise du site en Markdown
+(`scripts/docs-md.ts`, que `scripts/capture.py` lit aussi), en lecture seule.
 
 Sur `/examples/`, coder (« Coding-agent interface ») tourne sans agent : `scripts/demo.ts`
 le construit avec `CODER_HARNESS=fake`, aucun appel de modèle, et sa ligne d'état le dit
