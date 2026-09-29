@@ -61,10 +61,10 @@ const hosts = [
   />
 
   <Step n="1–3" tone="client" title="Une page, deux façons de joindre le Server">
-    <Excerpt path="packages/airtty/src/web/runtime.tsx" find='const inPage = element.dataset.server === "worker";' count={8} tone="client" mark={["connectServer(", ": undefined;"]} />
+    <Excerpt path="packages/airtty/src/web/runtime.tsx" find='const inPage = element.dataset.server === "worker";' count={10} tone="client" mark={["connectServer(", ": undefined;"]} />
     <ul>
       <li><strong><code>--web</code></strong> : <code>fetch</code> est celui du navigateur, vers le vrai Server Bun, qui sert aussi la page. Il faut déclarer l'origine avec <code>AIRTTY_WEB_ORIGIN</code> ; le Server vérifie alors <code>Origin</code> et <code>Host</code>, et refuse de démarrer si le runtime web manque.</li>
-      <li><strong><code>--web-local</code></strong> : un site statique. Le Server de l'app, bundlé pour le navigateur, tourne dans un <strong>SharedWorker</strong>, et <code>fetch</code> passe par un <code>MessagePort</code>. C'est ainsi que tournent les démos live de la page d'accueil, Forge dans le hero.</li>
+      <li><strong><code>--web-local</code></strong> : un site statique. Le Server de l'app, bundlé pour le navigateur, tourne dans un <strong>SharedWorker</strong>, et <code>fetch</code> passe par un <code>MessagePort</code>. C'est ainsi que tournent les démos live de la page d'accueil, Notes deux fois dans le hero.</li>
     </ul>
   </Step>
 
