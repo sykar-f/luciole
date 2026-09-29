@@ -12,8 +12,8 @@ const ROWS = 24;
 const look = new URLSearchParams({ columns: String(COLUMNS), rows: String(ROWS), restore: "off" });
 const src = `/demo/notes/index.html?${look}`;
 const sides = [
-  { id: "ssh", name: "Over SSH", line: "the whole app runs 500 ms away" },
-  { id: "airtty", name: "airtty", line: "keys stay here, only requests travel" },
+  { id: "ssh", name: "Over SSH", line: "every key waits 500 ms" },
+  { id: "airtty", name: "airtty", line: "only requests wait 500 ms" },
 ];
 const notes = frame("notes");
 ---
@@ -21,7 +21,7 @@ const notes = frame("notes");
 <section class="hero" id="top" data-duel data-columns={COLUMNS} data-rows={ROWS}>
   <div class="wrap">
     <div class="top">
-      <h1>React Server Components for the terminal.</h1>
+      <h1><span>Keys stay local.</span> <span>Data stays on the server.</span></h1>
       <div class="actions">
         <a class="button primary" href="#start">Start a project</a>
         <a class="button" href="#code">See the code</a>
@@ -41,7 +41,7 @@ const notes = frame("notes");
                 <span class="unit">ms</span>
               </span>
               <span class="what">
-                <span data-idle>from key to screen: type to measure</span>
+                <span data-idle>key to screen</span>
                 <span class="hands" aria-hidden="true">
                   your hands
                 </span>
@@ -60,14 +60,14 @@ const notes = frame("notes");
 
     <div class="after">
       <p class="lede">
-        Same Notes app, same 500&nbsp;ms network. Over SSH, every key crosses it before it shows.
-        airtty runs the part that reads your keyboard in your terminal: only data requests travel.
+        React Server Components for the terminal: airtty runs the part of your app that reads the
+        keyboard in your terminal, and the rest next to your data.
       </p>
       <p class="hint" data-hint>
-        Click either screen: the other follows your every key and click. <kbd>Enter</kbd> opens a note,
-        type, <kbd>Enter</kbd> saves, <kbd>Esc</kbd> goes back.
+        Type in either screen; the other follows. <kbd>Enter</kbd> opens a note, <kbd>Enter</kbd> saves,
+        <kbd>Esc</kbd> goes back.
       </p>
-      <p class="hint narrow">On a wide screen, both run live here. Here, their capture.</p>
+      <p class="hint narrow">On a wider screen, both run live.</p>
     </div>
   </div>
 </section>
@@ -131,7 +131,7 @@ const notes = frame("notes");
       const pane = paneOf(frame);
       const output = pane?.querySelector<HTMLOutputElement>("[data-ms]");
       if (output) output.value = String(Math.round(now - key.typed));
-      pane?.querySelector("[data-idle]")?.replaceChildren("from key to screen, last key");
+      pane?.querySelector("[data-idle]")?.replaceChildren("last key to screen");
     };
 
     addEventListener("message", (event) => {
@@ -209,6 +209,11 @@ const notes = frame("notes");
   h1 {
     font-size: clamp(1.4rem, 1rem + 1.2vw, 2.1rem);
     letter-spacing: -0.01em;
+  }
+
+  /* Wrapped, the break falls between the two sentences, never inside one. */
+  h1 span {
+    display: inline-block;
   }
 
   .actions {
@@ -364,8 +369,8 @@ const notes = frame("notes");
   /* After the screens, what they showed, in a sentence; then how to play. */
   .after {
     display: grid;
-    grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
-    gap: 16px 48px;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px clamp(20px, 2.5vw, 36px);
     margin-top: 24px;
   }
 
