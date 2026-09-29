@@ -1,0 +1,509 @@
+---
+// One source, the targets `airtty build` makes of it: a list on the left, and on the right
+// a square that shows each one where it runs, the same Notes screen (a real capture,
+// scripts/capture.py) in every one. It moves on by itself, the list following, and stops
+// while the reader points at it or picks one. The commands are those docs/ gives (README,
+// DISTRIBUTION.md, WEB.md).
+
+
+type Target = {
+  id: "local" | "binary" | "ssh" | "url" | "web";
+  name: string;
+  command: string;
+  what: string;
+};
+const targets: Target[] = [
+  { id: "local", name: "Local", command: "airtty ./notes", what: "both sides on your machine, over a private socket" },
+  { id: "binary", name: "One executable", command: "airtty build --compile", what: "per OS and architecture, nothing to install" },
+  { id: "ssh", name: "Over SSH", command: "notes --on build-box", what: "server next to the data, keys stay here" },
+  { id: "url", name: "From a URL", command: "airtty https://notes.example.com", what: "the generic client runs the signed bundle" },
+  { id: "web", name: "In a web page", command: "airtty build --web-local", what: "a static site, the server in a Web Worker" },
+];
+---
+
+<section class="section" id="anywhere" aria-labelledby="anywhere-title">
+  <div class="wrap">
+    <div class="section-head">
+      <p class="label">run</p>
+      <h2 id="anywhere-title">One source. Five places to run it.</h2>
+      <p class="lede">
+        The same <code>app/</code> folder builds into a local app, a single executable, a client for a
+        server you reach over SSH or HTTPS, and a static web page. Your code does not change: only
+        where each side runs.
+      </p>
+    </div>
+
+    <div class="show away" data-show>
+      <div class="side">
+        <p class="source">
+          <span class="dim">examples/notes</span> <span aria-hidden="true">→</span> <code
+            ><span class="dim">$ </span>airtty build</code
+          >
+        </p>
+        <ol class="ways" role="tablist" aria-label="Where it runs">
+          {
+            targets.map((target, i) => (
+              <li>
+                <button
+                  type="button"
+                  role="tab"
+                  id={`way-${target.id}`}
+                  aria-controls={`scene-${target.id}`}
+                  aria-selected={i === 0 ? "true" : "false"}
+                  tabindex={i === 0 ? 0 : -1}
+                  data-way={target.id}
+                >
+                  <span class="name">{target.name}</span>
+                  <code class="command">
+                    <span aria-hidden="true">$ </span>
+                    {target.command}
+                  </code>
+                  <span class="what">{target.what}</span>
+                  <span class="progress" aria-hidden="true" />
+                </button>
+              </li>
+            ))
+          }
+        </ol>
+      </div>
+
+      <div class="square">
+        {
+          targets.map((target, i) => (
+            <div
+              class="scene"
+              role="tabpanel"
+              id={`scene-${target.id}`}
+              aria-labelledby={`way-${target.id}`}
+              data-scene={target.id}
+              hidden={i !== 0}
+            >
+              {target.id === "local" && (
+                <svg viewBox="0 0 400 400" role="img" aria-label="Both sides on one machine, over a private socket">
+                  <text class="t" x="60" y="56">your machine</text>
+                  <rect class="n" x="60" y="68" width="280" height="190" rx="10" />
+                  <path class="n" d="M28 270 H372 L352 296 H48 Z" />
+                  <rect class="c" x="82" y="92" width="136" height="110" rx="5" />
+                  <path class="c" d="M82 108 H218" />
+                  <path class="c" d="M96 124 l8 6 -8 6 M110 136 h14" />
+                  <path class="c faint" d="M96 152 h74 M96 164 h54 M96 176 h81" />
+                  <rect class="s" x="236" y="104" width="90" height="26" rx="3" />
+                  <rect class="s" x="236" y="136" width="90" height="26" rx="3" />
+                  <rect class="s" x="236" y="168" width="90" height="26" rx="3" />
+                  <path class="s" d="M248 117 h6 M248 149 h6 M248 181 h6" />
+                  <path class="p" d="M218 150 H236" />
+                  <path class="p" d="M222 146 l-4 4 4 4 M232 146 l4 4 -4 4" />
+                  <text class="t" x="200" y="236" text-anchor="middle">unix socket</text>
+                  <text class="tp" x="200" y="340" text-anchor="middle">one machine, both sides</text>
+                </svg>
+              )}
+              {target.id === "binary" && (
+                <svg viewBox="0 0 400 400" role="img" aria-label="One executable per OS and architecture">
+                  <path class="p" d="M135 40 H245 L285 80 V240 H135 Z M245 40 V80 H285" />
+                  <text class="tp" x="155" y="72">notes</text>
+                  <rect class="c" x="155" y="104" width="110" height="46" rx="3" />
+                  <text class="tc" x="210" y="132" text-anchor="middle">client</text>
+                  <rect class="s" x="155" y="162" width="110" height="46" rx="3" />
+                  <text class="ts" x="210" y="190" text-anchor="middle">server</text>
+                  <path class="n thin" d="M210 240 V262 M60 290 V276 Q60 262 74 262 H346 Q360 262 360 276 V290 M160 262 V290 M260 262 V290" />
+                  <rect class="n" x="15" y="290" width="90" height="34" rx="3" /><text class="t small" x="60" y="304" text-anchor="middle">darwin</text><text class="t small" x="60" y="318" text-anchor="middle">arm64</text><rect class="n" x="115" y="290" width="90" height="34" rx="3" /><text class="t small" x="160" y="304" text-anchor="middle">darwin</text><text class="t small" x="160" y="318" text-anchor="middle">x64</text><rect class="n" x="215" y="290" width="90" height="34" rx="3" /><text class="t small" x="260" y="304" text-anchor="middle">linux</text><text class="t small" x="260" y="318" text-anchor="middle">arm64</text><rect class="n" x="315" y="290" width="90" height="34" rx="3" /><text class="t small" x="360" y="304" text-anchor="middle">linux</text><text class="t small" x="360" y="318" text-anchor="middle">x64</text>
+                  <text class="tp" x="200" y="370" text-anchor="middle">one file each, nothing to install</text>
+                </svg>
+              )}
+              {target.id === "ssh" && (
+                <svg viewBox="0 0 400 400" role="img" aria-label="The client on a laptop, the server on a host reached over SSH">
+                  <text class="t" x="24" y="96">laptop</text>
+                  <rect class="n" x="24" y="108" width="140" height="100" rx="8" />
+                  <path class="n" d="M8 218 H180 L170 234 H18 Z" />
+                  <rect class="c" x="36" y="120" width="116" height="76" rx="5" />
+                  <path class="c" d="M36 136 H152" />
+                  <path class="c" d="M50 152 l8 6 -8 6 M64 164 h14" />
+                  <path class="c faint" d="M50 180 h63 M50 192 h46 M50 204 h69" />
+                  <rect class="c" x="30" y="250" width="12" height="11" rx="2" /><rect class="c" x="46" y="250" width="12" height="11" rx="2" /><rect class="c" x="62" y="250" width="12" height="11" rx="2" /><rect class="c" x="78" y="250" width="12" height="11" rx="2" /><rect class="c" x="94" y="250" width="12" height="11" rx="2" /><rect class="c" x="110" y="250" width="12" height="11" rx="2" /><rect class="c" x="126" y="250" width="12" height="11" rx="2" /><rect class="c" x="142" y="250" width="12" height="11" rx="2" /><rect class="c" x="30" y="266" width="12" height="11" rx="2" /><rect class="c" x="46" y="266" width="12" height="11" rx="2" /><rect class="c" x="62" y="266" width="12" height="11" rx="2" /><rect class="c" x="78" y="266" width="12" height="11" rx="2" /><rect class="c" x="94" y="266" width="12" height="11" rx="2" /><rect class="c" x="110" y="266" width="12" height="11" rx="2" /><rect class="c" x="126" y="266" width="12" height="11" rx="2" /><rect class="c" x="142" y="266" width="12" height="11" rx="2" /><rect class="c" x="30" y="282" width="12" height="11" rx="2" /><rect class="c" x="46" y="282" width="12" height="11" rx="2" /><rect class="c" x="62" y="282" width="12" height="11" rx="2" /><rect class="c" x="78" y="282" width="12" height="11" rx="2" /><rect class="c" x="94" y="282" width="12" height="11" rx="2" /><rect class="c" x="110" y="282" width="12" height="11" rx="2" /><rect class="c" x="126" y="282" width="12" height="11" rx="2" /><rect class="c" x="142" y="282" width="12" height="11" rx="2" />
+                  <text class="tc" x="94" y="316" text-anchor="middle">keys stay here</text>
+                  <text class="t" x="264" y="84">build-box</text>
+                  <rect class="s" x="264" y="96" width="90" height="26" rx="3" />
+                  <rect class="s" x="264" y="128" width="90" height="26" rx="3" />
+                  <rect class="s" x="264" y="160" width="90" height="26" rx="3" />
+                  <path class="s" d="M276 109 h6 M276 141 h6 M276 173 h6" />
+                  <ellipse class="s" cx="309" cy="222" rx="22" ry="7" />
+                  <path class="s" d="M287 222 v26 a22 7 0 0 0 44 0 v-26" />
+                  <text class="ts" x="309" y="276" text-anchor="middle">data</text>
+                  <path class="n dash" d="M170 158 H258" />
+                  <rect class="p" x="206" y="138" width="16" height="13" rx="2" />
+                  <path class="p" d="M209 138 v-4 a5 5 0 0 1 10 0 v4" />
+                  <rect class="s fill" x="182" y="154" width="8" height="8" />
+                  <rect class="s fill" x="236" y="154" width="8" height="8" />
+                  <text class="t" x="214" y="184" text-anchor="middle">ssh</text>
+                  <text class="t" x="214" y="200" text-anchor="middle">requests only</text>
+                  <text class="tp" x="200" y="370" text-anchor="middle">the server next to its data</text>
+                </svg>
+              )}
+              {target.id === "url" && (
+                <svg viewBox="0 0 400 400" role="img" aria-label="The generic client runs a server's signed bundle, over HTTPS">
+                  <circle class="s" cx="200" cy="82" r="46" />
+                  <ellipse class="s" cx="200" cy="82" rx="20" ry="46" />
+                  <path class="s" d="M154 82 H246 M160 60 H240 M160 104 H240" />
+                  <text class="tp" x="200" y="150" text-anchor="middle">notes.example.com</text>
+                  <rect class="p" x="262" y="62" width="16" height="13" rx="2" />
+                  <path class="p" d="M265 62 v-4 a5 5 0 0 1 10 0 v4" />
+                  <text class="t" x="286" y="73">https</text>
+                  <path class="n dash" d="M200 160 V196 M200 254 V262" />
+                  <path class="p" d="M178 204 L200 194 L222 204 V232 L200 242 L178 232 Z M178 204 L200 214 L222 204 M200 214 V242" />
+                  <circle class="c" cx="228" cy="236" r="9" />
+                  <path class="c" d="M224 236 l3 3 5 -6" />
+                  <text class="t" x="246" y="222">signed bundle</text>
+                  <text class="t" x="246" y="238">checked, then run</text>
+                  <rect class="c" x="118" y="262" width="164" height="100" rx="5" />
+                  <path class="c" d="M118 278 H282" />
+                  <path class="c" d="M132 294 l8 6 -8 6 M146 306 h14" />
+                  <path class="c faint" d="M132 322 h90 M132 334 h65 M132 346 h98" />
+                  <text class="tc" x="200" y="382" text-anchor="middle">the generic client, any terminal</text>
+                </svg>
+              )}
+              {target.id === "web" && (
+                <svg viewBox="0 0 400 400" role="img" aria-label="A static web page: the client and the server in one browser tab">
+                  <rect class="n" x="30" y="50" width="340" height="290" rx="10" />
+                  <path class="n" d="M30 84 H370" />
+                  <circle class="n" cx="50" cy="67" r="4" /><circle class="n" cx="64" cy="67" r="4" /><circle class="n" cx="78" cy="67" r="4" />
+                  <rect class="n" x="100" y="58" width="220" height="18" rx="9" />
+                  <text class="t" x="210" y="71" text-anchor="middle">notes.example.com</text>
+                  <rect class="c" x="50" y="104" width="190" height="150" rx="5" />
+                  <path class="c" d="M50 120 H240" />
+                  <path class="c" d="M64 136 l8 6 -8 6 M78 148 h14" />
+                  <path class="c faint" d="M64 164 h104 M64 176 h76 M64 188 h114" />
+                  <text class="tc" x="145" y="280" text-anchor="middle">xterm.js, the client</text>
+                  <rect class="s" x="270" y="126" width="70" height="20" rx="3" />
+                  <rect class="s" x="270" y="152" width="70" height="20" rx="3" />
+                  <path class="s" d="M280 136 h6 M280 162 h6" />
+                  <text class="ts" x="305" y="196" text-anchor="middle">Web Worker</text>
+                  <text class="t" x="305" y="212" text-anchor="middle">the server</text>
+                  <ellipse class="s" cx="305" cy="236" rx="22" ry="7" />
+                  <path class="s" d="M283 236 v26 a22 7 0 0 0 44 0 v-26" />
+                  <path class="p" d="M242 150 H266" />
+                  <path class="p" d="M246 146 l-4 4 4 4 M262 146 l4 4 -4 4" />
+                  <text class="tp" x="200" y="372" text-anchor="middle">one tab, a static site, no server to run</text>
+                </svg>
+              )}
+            </div>
+          ))
+        }
+      </div>
+    </div>
+
+    <p class="more">
+      How apps are shipped, and when an app you did not write runs confined:{" "}
+      <a href="/docs/guides/opening-an-app/">opening an app</a>,{" "}
+      <a href="/docs/guides/untrusted-apps/">apps you did not write</a>.
+    </p>
+  </div>
+</section>
+
+<script>
+  // The active way's bar fills (--slide); when it is full, the next way. Pausing the bar
+  // pauses the slides; a pick restarts it there. With reduced motion, nothing moves by
+  // itself.
+  const show = document.querySelector<HTMLElement>("[data-show]");
+  if (show) {
+    const tabs = [...show.querySelectorAll<HTMLButtonElement>("[data-way]")];
+    const pick = (tab: HTMLButtonElement, focus = false) => {
+      for (const each of tabs) {
+        const on = each === tab;
+        each.setAttribute("aria-selected", String(on));
+        each.tabIndex = on ? 0 : -1;
+      }
+      for (const scene of show.querySelectorAll<HTMLElement>("[data-scene]"))
+        scene.hidden = scene.dataset.scene !== tab.dataset.way;
+      if (focus) tab.focus();
+    };
+    tabs.forEach((tab, i) => {
+      tab.addEventListener("click", () => pick(tab));
+      tab.addEventListener("keydown", (event) => {
+        const step = event.key === "ArrowDown" ? 1 : event.key === "ArrowUp" ? -1 : 0;
+        if (!step) return;
+        event.preventDefault();
+        const next = tabs[(i + step + tabs.length) % tabs.length];
+        if (next) pick(next, true);
+      });
+      tab.querySelector(".progress")?.addEventListener("animationend", () => {
+        const next = tabs[(i + 1) % tabs.length];
+        if (next) pick(next);
+      });
+    });
+    // Out of view, nothing moves: the reader arrives at the first way, not mid-way.
+    new IntersectionObserver((entries) => {
+      show.classList.toggle("away", !entries.some((entry) => entry.isIntersecting));
+    }).observe(show);
+    // Paused while the pointer is over it or the keyboard moves in it, as a carousel does;
+    // a click leaves the focus on the way without holding it once the pointer leaves.
+    const update = () =>
+      show.classList.toggle("held", show.matches(":hover") || !!show.querySelector(":focus-visible"));
+    // Read once the pointer or the focus has settled: during the event, :hover may lag.
+    for (const event of ["pointerenter", "pointerleave", "focusin", "focusout"])
+      show.addEventListener(event, () => setTimeout(update));
+  }
+</script>
+
+<style>
+  /* The ways on the left, the square on the right: the list says what, the square where. */
+  .show {
+    display: grid;
+    grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+    gap: clamp(24px, 4vw, 56px);
+    align-items: start;
+  }
+
+  .side {
+    display: grid;
+    gap: 16px;
+  }
+
+  .source {
+    color: var(--paper);
+    font: 400 0.85rem / 1.5 var(--mono);
+  }
+
+  .source code {
+    padding: 0;
+    background: none;
+    color: var(--paper);
+    font-weight: 600;
+  }
+
+  .dim {
+    color: var(--dim);
+  }
+
+  .ways {
+    display: grid;
+    margin: 0;
+    padding: 0;
+    border-top: 1px solid var(--rule);
+    list-style: none;
+  }
+
+  /* A way: its name, the line that builds it, what it gives. The chosen one lit, its bar
+     filling while its slide shows. */
+  .ways button {
+    position: relative;
+    display: grid;
+    gap: 4px;
+    width: 100%;
+    padding: 16px 16px 18px;
+    border: 0;
+    border-bottom: 1px solid var(--rule);
+    background: none;
+    color: var(--mist);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .ways button:hover {
+    color: var(--paper);
+  }
+
+  .ways [aria-selected="true"] {
+    background: var(--panel);
+    color: var(--paper);
+  }
+
+  .name {
+    font: 600 var(--step-1) / 1.35 var(--mono);
+  }
+
+  .name::before {
+    content: "  " / "";
+    white-space: pre;
+  }
+
+  [aria-selected="true"] .name::before {
+    content: "▸ " / "";
+    color: var(--dominant);
+  }
+
+  .command {
+    padding: 0;
+    background: none;
+    color: inherit;
+    font-size: 0.82rem;
+    overflow-wrap: anywhere;
+  }
+
+  .command span {
+    color: var(--dim);
+  }
+
+  .what {
+    font: 400 0.88rem / 1.5 var(--sans);
+  }
+
+  .progress {
+    position: absolute;
+    bottom: -1px;
+    left: 0;
+    height: 2px;
+    width: 0;
+    background: var(--dominant);
+  }
+
+  [aria-selected="true"] .progress {
+    animation: fill var(--slide, 4.5s) linear forwards;
+  }
+
+  .held [aria-selected="true"] .progress,
+  .away [aria-selected="true"] .progress {
+    animation-play-state: paused;
+  }
+
+  @keyframes fill {
+    to {
+      width: 100%;
+    }
+  }
+
+  /* The square: one scene at a time, drawn large. */
+  .square {
+    display: grid;
+    aspect-ratio: 1;
+    border: 1px solid var(--rule-strong);
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--panel) 60%, transparent);
+  }
+
+  .scene {
+    display: grid;
+    align-content: center;
+    grid-area: 1 / 1;
+    padding: clamp(20px, 4vw, 48px);
+    color: var(--mist);
+    font: 400 0.82rem / 1.4 var(--mono);
+    animation: arrive 0.35s ease-out;
+  }
+
+  @keyframes arrive {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+  }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  /* The drawings: the medium in plain strokes, the client's part in its colour, the
+     server's in its own, with the cue that is not colour (dashes where hues are near). */
+  .scene svg {
+    width: 100%;
+    height: auto;
+    overflow: visible;
+    fill: none;
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    font-family: var(--mono);
+  }
+
+  .scene .n {
+    stroke: var(--mist);
+  }
+
+  .scene .p {
+    stroke: var(--paper);
+  }
+
+  .scene .c {
+    stroke: var(--client);
+  }
+
+  .scene .s {
+    stroke: var(--server);
+    stroke-dasharray: var(--server-dash, none);
+  }
+
+  .scene .fill {
+    fill: var(--server);
+    stroke-dasharray: none;
+  }
+
+  .scene .faint {
+    opacity: 0.45;
+  }
+
+  .scene .thin {
+    stroke-width: 1;
+  }
+
+  .scene .dash {
+    stroke-dasharray: 4 5;
+  }
+
+  .scene text {
+    stroke: none;
+    font-size: 12px;
+  }
+
+  .scene .small {
+    font-size: 10.5px;
+  }
+
+  .scene .t {
+    fill: var(--mist);
+  }
+
+  .scene .tp {
+    fill: var(--paper);
+    font-size: 13px;
+  }
+
+  .scene .tc {
+    fill: var(--client);
+  }
+
+  .scene .ts {
+    fill: var(--server);
+  }
+
+  .more {
+    margin-top: 32px;
+    color: var(--mist);
+    font-size: 0.88rem;
+  }
+
+  /* Still: the chosen way stays until the reader picks another. */
+  @media (prefers-reduced-motion: reduce) {
+    [aria-selected="true"] .progress,
+    .scene {
+      animation: none;
+    }
+  }
+
+  /* Narrow: the square first, where the eye is when the list below moves it on. */
+  @media (max-width: 900px) {
+    .show {
+      grid-template-columns: 1fr;
+    }
+
+    .square {
+      order: -1;
+    }
+  }
+</style>
