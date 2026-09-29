@@ -25,9 +25,9 @@ const LOCAL = ["Typing", "Scrolling", "Hovering", "Selecting", "Pasting", "Resiz
   <div class="wrap">
     <div class="top">
       <h1 aria-label={`${LOCAL.join(", ")}: none of it waits for the network.`}>
-        <span class="rotor" data-rotor aria-hidden="true" style={`width: ${LOCAL[0].length}ch`}>
+        <span class="rotor" data-rotor aria-hidden="true">
           {LOCAL.map((word, index) => <span class:list={{ now: index === 0 }}>{word}</span>)}
-        </span>{" "}
+        </span>
         <span aria-hidden="true">never waits for the network.</span>
       </h1>
       <p class="sub">
@@ -87,8 +87,8 @@ const LOCAL = ["Typing", "Scrolling", "Hovering", "Selecting", "Pasting", "Resiz
   /** A focus report: the frame's own focus, which the other frame never had. */
   const focus = (data: string) => data === `${ESC}[I` || data === `${ESC}[O`;
 
-  // The title's first word turns through what stays in the terminal, its box following the
-  // word's width (the title is monospaced); held still when the reader asks for less motion.
+  // The title's first line turns through what stays in the terminal; held still when the
+  // reader asks for less motion.
   const TURN_MS = 2200;
   const rotor = document.querySelector<HTMLElement>("[data-rotor]");
   if (rotor && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
@@ -101,7 +101,6 @@ const LOCAL = ["Typing", "Scrolling", "Hovering", "Selecting", "Pasting", "Resiz
       setTimeout(() => was.classList.remove("gone"), 400);
       at = (at + 1) % words.length;
       words[at].classList.add("now");
-      rotor.style.width = `${words[at].textContent?.length ?? 0}ch`;
     }, TURN_MS);
   }
 
@@ -235,13 +234,13 @@ const LOCAL = ["Typing", "Scrolling", "Hovering", "Selecting", "Pasting", "Resiz
     letter-spacing: -0.01em;
   }
 
-  /* The turning word: each one slides up into place in a box as wide as it is. */
+  /* The turning word, alone on its line so the sentence under it never moves: each one
+     slides up into place. */
   .rotor {
-    display: inline-grid;
+    display: grid;
     overflow: clip;
     overflow-clip-margin: 0.15em;
     color: var(--client);
-    transition: width 0.4s ease;
   }
 
   .rotor > span {
