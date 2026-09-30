@@ -15,7 +15,6 @@ import {
   destroy,
   draftOf,
   markdownEditor,
-  clickOn,
   type TestUI,
 } from "./helpers";
 const root = resolve("examples/notes");
@@ -101,12 +100,9 @@ test("lost commit: durable outcome recovery, no mutation replay, reconnect refre
       await app.refresh();
     });
     expect(draft.unknown).toBe(true);
-    // The toolbar says the outcome is unknown and offers to check again.
+    // The outcome is looked up by itself once the Server is back: no one has to ask.
     await act(async () => {
-      await clickOn(ui, "Check again");
-    });
-    await act(async () => {
-      await until(() => !draft.pending);
+      await until(() => !draft.pending, 10_000);
       await Bun.sleep(30);
     });
     expect(draft.baseline).toBe(`${seed}abc`);

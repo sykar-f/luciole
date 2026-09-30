@@ -55,7 +55,7 @@ const saved = () =>
 {
   await using t = await start();
   await t.waitFor("abc");
-  await t.waitFor("Edited");
+  await t.waitFor("● Unsaved");
   assert.equal(saved().length, 1, saved().join());
   await t.click("✎ Write");
   await t.waitFor("✓ Done");
@@ -68,7 +68,7 @@ const saved = () =>
 {
   await using t = await start();
   await t.waitFor("abcd");
-  await t.waitFor("Edited");
+  await t.waitFor("● Unsaved");
   // Quitting on purpose: nothing is offered next time.
   await t.quit();
   assert.deepEqual(saved(), []);

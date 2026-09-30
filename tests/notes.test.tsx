@@ -2,6 +2,7 @@
 import { test, expect } from "bun:test";
 import { act } from "react";
 import { testRender } from "@opentui/react/test-utils";
+import { TextRenderable } from "@opentui/core";
 import { MouseButtons, type MouseButton } from "@opentui/core/testing";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -16,11 +17,16 @@ import {
   metricsOf,
   markdownEditor,
   clickOn,
+  type ClientOptions,
   type TestUI,
 } from "./helpers";
 const appDir = resolve("examples/notes");
 
-async function start(tag: string, env: Record<string, string> = {}) {
+async function start(
+  tag: string,
+  env: Record<string, string> = {},
+  options: Omit<ClientOptions, "url"> = {},
+) {
   await build(appDir);
   const folder = await mkdtemp(join(tmpdir(), "luciole-notes-"));
   const server = await launch(join(appDir, ".luciole/server/index.js"), {
@@ -30,7 +36,7 @@ async function start(tag: string, env: Record<string, string> = {}) {
     ...env,
   });
   const { createApp, Shell } = await importClient(appDir, tag);
-  const app = createApp({ url: server.url });
+  const app = createApp({ url: server.url, ...options });
   await app.router.load();
   const ui = await testRender(<Shell app={app} />, { width: 110, height: 32 });
   return {
@@ -59,6 +65,33 @@ const untilRendered = async (ui: TestUI, check: () => boolean) => {
     });
   expect(check()).toBe(true);
 };
+/** What the line above the title says; nothing while saves go well. */
+const status = (ui: TestUI) => {
+  const node = ui.renderer.root.findDescendantById("note-status");
+  return node instanceof TextRenderable ? node.plainText : "";
+};
+/** How long a save stays unmentioned (NoteEditor's QUIET_MS). */
+const QUIET_MS = 3000;
+/**
+ * Waits for `check`, one short `act()` at a time: timers' state updates apply when an
+ * `act()` ends, not within one.
+ */
+async function eventually(check: () => boolean, timeout = 5000) {
+  const deadline = performance.now() + timeout;
+  while (!check()) {
+    if (performance.now() > deadline) throw new Error("Condition timed out");
+    await act(async () => {
+      await Bun.sleep(20);
+    });
+  }
+}
+/** Opens the welcome note, ready to type at its end. */
+async function write(app: Parameters<typeof path>[0], ui: TestUI) {
+  await act(async () => until(() => ui.captureCharFrame().includes("Welcome to Notes")));
+  await click(ui, "Welcome to Notes");
+  await act(async () => until(() => path(app) === "/notes/1"));
+  await click(ui, "✎ Write");
+}
 /** The sidebar at 110 columns: 30% of the screen. */
 const SIDEBAR_WIDTH = 33;
 const sidebarSlot = (ui: TestUI) => ui.renderer.root.findDescendantById("sidebar")?.parent;
@@ -89,6 +122,9 @@ test("generated Notes: Flight action, preserved Draft, navigation and offline ed
     await act(async () => {
       await ui.mockInput.typeText("abc");
     });
+    // Without autosave, unsaved text is marked, with its way to save.
+    await eventually(() => status(ui) === "● Unsaved");
+    expect(await frame(ui)).toContain("Save");
     const counts = () => metricsOf(server);
     const before = await counts();
     await act(async () => {
@@ -100,7 +136,9 @@ test("generated Notes: Flight action, preserved Draft, navigation and offline ed
     expect(field.value).toBe(`${seed}abcd`);
     const draft = draftOf(app, "1");
     expect(draft.pending?.value).toBe(`${seed}abc`);
-    expect(await frame(ui)).toContain("Saving…");
+    // Saving says nothing while it is quick.
+    await frame(ui);
+    expect(status(ui)).toBe("");
     await act(async () => {
       await until(() => !draft.pending);
       await Bun.sleep(50);
@@ -110,7 +148,7 @@ test("generated Notes: Flight action, preserved Draft, navigation and offline ed
     expect(draft.dirty).toBe(true);
     expect(draft.version).toBe(2);
     expect(input("note-1").node).toBe(field.node);
-    expect(await frame(ui)).toContain("Edited");
+    await eventually(() => status(ui) === "● Unsaved");
     // The save, then the list read again because the save invalidated it.
     await act(async () => {
       for (let i = 0; i < 50 && (await counts()).actions - before.actions < 2; i++)
@@ -178,8 +216,9 @@ test("every action is a click: new, rename, search, fold, delete and undo", asyn
     });
     await click(ui, "✓ Done");
     await act(async () => until(() => !draftOf(app, id).dirty && !draftOf(app, id).pending));
-    await act(async () => until(() => ui.captureCharFrame().includes("✓ Saved")));
     const shown = await frame(ui);
+    // Saved, and nothing says so: no time, no "Saved".
+    expect(status(ui)).toBe("");
     // Shown as it reads, and listed under its new title at the top.
     expect(shown).toContain("• one");
     expect(draftOf(app, id).value).toBe("- **one**");
@@ -246,6 +285,85 @@ test("every action is a click: new, rename, search, fold, delete and undo", asyn
     await click(ui, "Undo");
     await act(async () => until(() => path(app) === `/notes/${id}`));
     await act(async () => until(() => ui.captureCharFrame().includes(`${count} notes`)));
+  } finally {
+    await stop();
+  }
+});
+
+test("a save that cannot reach the Server is retried quietly, then reported until it saves", async () => {
+  let refuse = true;
+  const { app, ui, stop } = await start(
+    "notes-refused",
+    {},
+    {
+      network: {
+        fault: ({ kind, target }) =>
+          refuse && kind === "action" && target.endsWith("#saveNote") ? "refuse" : undefined,
+      },
+    },
+  );
+  try {
+    await write(app, ui);
+    await act(async () => {
+      await ui.mockInput.typeText("kept");
+    });
+    const draft = draftOf(app, "1");
+    const text = draft.value;
+    const body = () => ui.renderer.root.findDescendantById("note-body")?.y;
+    const top = body();
+    const asked = performance.now();
+    await act(async () => {
+      ui.mockInput.pressKey("s", { ctrl: true });
+    });
+    // Refused at once, retried behind the user's back: nothing alarming yet.
+    await act(async () => until(() => draft.failures >= 2));
+    expect(status(ui)).not.toContain("Could not reach");
+    await eventually(() => status(ui).includes("Could not reach"), QUIET_MS * 2);
+    expect(performance.now() - asked).toBeGreaterThanOrEqual(QUIET_MS - 100);
+    expect(status(ui)).toBe("Could not reach the Server. Your text is kept here.");
+    expect(await frame(ui)).toContain("Retry");
+    // Nothing lost, nothing moved.
+    expect(draft.value).toBe(text);
+    expect(body()).toBe(top);
+    // Back: Ctrl+S retries now, and the message leaves by itself.
+    refuse = false;
+    await act(async () => {
+      ui.mockInput.pressKey("s", { ctrl: true });
+    });
+    await act(async () => until(() => !draft.pending && !draft.dirty));
+    await frame(ui);
+    expect(status(ui)).toBe("");
+    expect(draft.baseline).toBe(text);
+  } finally {
+    await stop();
+  }
+});
+
+test("a slow save is said to be slow, then unconfirmed, and settles once the Server has it", async () => {
+  // The Server takes 4 s to save; the Client waits 3.5 s for an answer.
+  const { app, ui, stop } = await start(
+    "notes-timeout",
+    { NOTES_DELAY_MS: "4000" },
+    { timeoutMs: 3500 },
+  );
+  try {
+    await write(app, ui);
+    await act(async () => {
+      await ui.mockInput.typeText("slow");
+    });
+    const draft = draftOf(app, "1");
+    const text = draft.value;
+    await act(async () => {
+      ui.mockInput.pressKey("s", { ctrl: true });
+    });
+    await eventually(() => status(ui) === "Still saving…", QUIET_MS * 2);
+    await eventually(() => status(ui).startsWith("Save not confirmed"), QUIET_MS);
+    expect(await frame(ui)).toContain("Check again");
+    // The original save lands; the automatic check finds it.
+    await act(async () => until(() => !draft.pending && !draft.dirty, QUIET_MS * 2));
+    await frame(ui);
+    expect(status(ui)).toBe("");
+    expect(draft.baseline).toBe(text);
   } finally {
     await stop();
   }

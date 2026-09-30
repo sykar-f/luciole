@@ -1,27 +1,28 @@
 
-  ◧ Hide list   + New note  │  Copy   Delete   ✓ Done                     ○ Disconnected  Reconnect  │  Quit
+  ◧ Hide list   + New note  │  ✓ Done   Copy  │  Delete                   ○ Disconnected  Reconnect  │  Quit
 
-  Unable to connect. Is the computer able to access the url?
- ╭─────────────────────────────╮
- │ ⌕ Search                    │   15:21  Edited  Save
+ ╭Unable─to─connect.─Is─the─computer able to access the url?
+ │ ⌕ Search                    │     Could not reach the Server. Your text is kept here.  Retry
  ╰─────────────────────────────╯
-                                   Welcome to Notes
- ╭─────────────────────────────╮
- │ Untitled                    │   Notes are written in Markdown and kept in SQLite on the Server.
- │ 15:21  No additional text   │
- ╰─────────────────────────────╯     Getting around
- ╭─────────────────────────────╮
- │ Welcome to Notes         ⋯  │   • Click anywhere in a note and write: Markdown turns into what it means
- │ ● 15:21  Notes are written… │     as you type it (**bold**, # title, - list)
- ╰─────────────────────────────╯   • Click a title to rename its note
- ╭─────────────────────────────╮   • New note starts a blank one; the search box filters them all
- │ Shopping list               │   • Hover a note in the list for its menu, or right-click it
- │ Sep 23  This week           │
- ╰─────────────────────────────╯     // What the list on the left reads, cached until a save invalidates it
-                                     export async function notesOf(owner: string) {
-                                       cacheTag(notesTag(owner));
-                                       return listNotes(owner);
-                                     }
-
-                                   │ Changes are saved on their own, a moment after you stop typing.abcde
-  Server unreachable     Retry
+                                     Welcome to Notes
+ ╭────────────────────────────╮ ▀
+ │ Untitled                   │
+ │ 00:07     No additional t… │    𜶪 Getting around
+ ╰────────────────────────────╯
+ ╭────────────────────────────╮      • Click anywhere in a note and write: Markdown turns into what it
+ │ Welcome to Notes        ⋯  │        means as you type it (**bold**, # title, - list)
+ │ ● 00:07     Notes are wri… │      • Click a title to rename its note
+ ╰────────────────────────────╯      • New note starts a blank one; the search box filters them all
+ ╭────────────────────────────╮      • Hover a note in the list for its menu, or right-click it
+ │ Shopping list              │
+ │ Sep 23    Coffee beans     │                                                                        ts
+ ╰────────────────────────────╯      // What the list on the left reads, cached until a save invalidates i
+ ╭────────────────────────────╮      t
+ │ Markdown, the whole spec   │      export async function notesOf(owner: string) {
+ │ Sep 22    Every construct… │        cacheTag(notesTag(owner));
+ ╰────────────────────────────╯        return listNotes(owner);
+ ╭────────────────────────────╮      }
+ │ Math, as GitHub writes it  │
+ ───────────────────────────────
+  Server unreachable     Retry       ▎ Changes are saved on their own, a moment after you stop
+                                     ▎ typing.abcde

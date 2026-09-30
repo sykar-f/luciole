@@ -17,7 +17,6 @@ import { titleOf, useCommands } from "./commands";
 import { useDraft, type Note, type SaveResult, type Snapshot } from "./draft";
 import { NotePane, READING_WIDTH } from "./NoteFrame";
 import { Separator, ToolbarActions } from "./Toolbar";
-import { when } from "./format";
 import { useTheme, type Palette } from "./theme";
 import { Button } from "./ui";
 import { ui, useUi } from "./ui-state";
@@ -30,10 +29,22 @@ type Props = {
   autosaveMs: number;
 };
 /**
+ * How long a save may go unmentioned. A save answers well within a second, the site's
+ * slowest simulated ping included, and the Client gives up on a request after 10 s:
+ * past 3 s, a save still running is said to be slow, and one that failed is reported,
+ * long before the user could think it done and quit.
+ */
+const QUIET_MS = 3000;
+/** The first automatic retry waits a second, each next one twice as long, up to 15 s. */
+const RETRY_FIRST_MS = 1000;
+const RETRY_LAST_MS = 15_000;
+
+/**
  * One note, the whole right side: Markdown shown as it reads, and written in place, as it
  * reads too (`@luciole/editor`): a click puts the cursor there.
- * Its Draft outlives the page (components/draft.ts); saving is automatic, and every
- * state a save can end in has its own words and, when one helps, its button.
+ * Its Draft outlives the page (components/draft.ts). Saving is automatic and silent: the
+ * line above the title stays empty while saves succeed, and speaks only when one is slow,
+ * failing or refused, or, with autosave off, while a change is not saved yet.
  */
 export function NoteEditor({ initialNote: note, saveAction, resolveAction, autosaveMs }: Props) {
   const { color, syntax } = useTheme();
@@ -51,7 +62,7 @@ export function NoteEditor({ initialNote: note, saveAction, resolveAction, autos
   const body = useRef<MarkdownEditorRenderable>(null);
   // Typed text is kept for this page like a named field's: a crash or a rebuild gives it back.
   const typed = useRestoredField("note/text", draft.value, edit);
-  const { refresh } = useConnection();
+  const { refresh, status } = useConnection();
   // A save refused for a newer version: the page is read again to learn which one. Until
   // it arrives, keeping this Draft would be refused the same way.
   const behind = draft.conflict && note.version <= draft.version;
@@ -64,6 +75,38 @@ export function NoteEditor({ initialNote: note, saveAction, resolveAction, autos
   useLayoutEffect(() => {
     latest.current = send;
   });
+  // A save the Server has not answered: its outcome is looked up, or it is sent again.
+  const retry = () =>
+    draft.unknown ? void recover(resolveAction, saveAction) : canSave ? send() : undefined;
+  const failing = draft.failures > 0 && !draft.conflict;
+  // Retried by itself, waiting longer each time: most failures are a moment's.
+  const waiting = failing && (draft.unknown ? !draft.resolving : canSave);
+  // For timers and effects: the retry due now, if one is.
+  const latestRetry = useRef(retry);
+  useLayoutEffect(() => {
+    latestRetry.current = waiting ? retry : () => undefined;
+  });
+  useEffect(() => {
+    if (!waiting) return;
+    const wait = Math.min(RETRY_FIRST_MS * 2 ** (draft.failures - 1), RETRY_LAST_MS);
+    const timer = setTimeout(() => latestRetry.current(), wait);
+    return () => clearTimeout(timer);
+  }, [waiting, draft.failures]);
+  // And at once when the connection comes back.
+  const online = status === "Connected";
+  useEffect(() => {
+    if (online) latestRetry.current();
+  }, [online]);
+  // Quiet for QUIET_MS after a save starts, a note reopened past that time included.
+  const since = draft.since;
+  const [expired, expire] = useState<number>();
+  const quiet = since === undefined || expired !== since;
+  useEffect(() => {
+    if (since === undefined) return;
+    const timer = setTimeout(() => expire(since), Math.max(0, since + QUIET_MS - Date.now()));
+    return () => clearTimeout(timer);
+  }, [since]);
+
   // Saved a moment after the last keystroke, unless something needs the user first.
   const autosave = autosaveMs > 0 && canSave && !draft.error;
   useEffect(() => {
@@ -102,7 +145,8 @@ export function NoteEditor({ initialNote: note, saveAction, resolveAction, autos
   useBindings(
     () => ({
       bindings: [
-        { key: "ctrl+s", cmd: () => (canSave ? send() : undefined) },
+        // Saves now, or retries now what failed.
+        { key: "ctrl+s", cmd: () => (failing ? retry() : canSave ? send() : undefined) },
         { key: "ctrl+e", cmd: () => (editing ? done() : startEditing()) },
         ...(editing ? [{ key: "escape", cmd: done }] : []),
         ...(focus === null ? [{ key: "return", cmd: startEditing }] : []),
@@ -128,55 +172,16 @@ export function NoteEditor({ initialNote: note, saveAction, resolveAction, autos
 
   return (
     <NotePane
-      toolbar={
-        <box flexDirection="row" flexGrow={1} gap={2}>
-          <text flexShrink={0} wrapMode="none" fg={color.muted}>
-            {when(note.updated)}
-          </text>
-          <SaveStatus
-            color={color}
-            state={
-              draft.unknown
-                ? { text: "Connection lost while saving", fg: color.warn }
-                : draft.pending
-                  ? { text: "Saving…", fg: color.muted }
-                  : draft.error && !draft.conflict
-                    ? { text: draft.error, fg: color.warn }
-                    : draft.dirty
-                      ? { text: "Edited", fg: color.muted }
-                      : { text: "Saved", fg: color.ok }
-            }
-            action={
-              draft.unknown ? (
-                <Button tone="quiet" onPress={() => void recover(resolveAction)}>
-                  Check again
-                </Button>
-              ) : canSave && (draft.error || !autosaveMs) ? (
-                <Button tone="quiet" onPress={send}>
-                  {draft.error ? "Retry" : "Save"}
-                </Button>
-              ) : null
-            }
-          />
-        </box>
-      }
-      title={
-        <Title
-          note={note}
-          color={color}
-          editing={focus === "title"}
-          onEdit={() => ui.focus("title")}
-          onDone={() => startEditing()}
-        />
-      }
-      notice={
+      status={
         draft.conflict ? (
-          <box flexDirection="row" gap={1} height={1} flexShrink={0}>
-            <text flexShrink={1} wrapMode="none" fg={color.warn}>
-              {behind
+          <StatusLine
+            fg={color.warn}
+            text={
+              behind
                 ? "Changed elsewhere. Fetching that version…"
-                : "Changed elsewhere. Your text is kept here."}
-            </text>
+                : "Changed elsewhere. Your text is kept here."
+            }
+          >
             <Button
               tone="primary"
               disabled={behind}
@@ -196,8 +201,59 @@ export function NoteEditor({ initialNote: note, saveAction, resolveAction, autos
             >
               Use theirs
             </Button>
-          </box>
+          </StatusLine>
+        ) : failing && !quiet ? (
+          // Retries go on behind the message; it leaves when one succeeds.
+          <StatusLine
+            fg={color.warn}
+            text={
+              draft.unknown
+                ? "Save not confirmed. Your text is kept here."
+                : "Could not reach the Server. Your text is kept here."
+            }
+          >
+            <Button
+              tone="quiet"
+              disabled={draft.resolving || !!(draft.pending && !draft.unknown)}
+              onPress={retry}
+            >
+              {draft.unknown
+                ? draft.resolving
+                  ? "Checking…"
+                  : "Check again"
+                : draft.pending
+                  ? "Retrying…"
+                  : "Retry"}
+            </Button>
+          </StatusLine>
+        ) : draft.error && !draft.failures && !draft.pending ? (
+          // Refused by the Server: retrying the same text would change nothing.
+          <StatusLine fg={color.warn} text={`Not saved: ${draft.error}`}>
+            {canSave ? (
+              <Button tone="quiet" onPress={send}>
+                Retry
+              </Button>
+            ) : null}
+          </StatusLine>
+        ) : draft.pending && !quiet ? (
+          <StatusLine fg={color.muted} text="Still saving…" />
+        ) : !autosaveMs && canSave ? (
+          // Without autosave, the list's mark for unsaved work, and the way to save it.
+          <StatusLine fg={color.muted} text="● Unsaved">
+            <Button tone="quiet" onPress={send}>
+              Save
+            </Button>
+          </StatusLine>
         ) : null
+      }
+      title={
+        <Title
+          note={note}
+          color={color}
+          editing={focus === "title"}
+          onEdit={() => ui.focus("title")}
+          onDone={() => startEditing()}
+        />
       }
     >
       {/* The text is written where it is shown: "Write" puts the cursor at its end, for
@@ -243,38 +299,14 @@ export function NoteEditor({ initialNote: note, saveAction, resolveAction, autos
   );
 }
 
-/** How long "Saved" stays lit once a save lands, before it steps back. */
-const SAVED_LIT_MS = 2000;
-function SaveStatus({
-  color,
-  state,
-  action,
-}: {
-  color: Palette;
-  state: { text: string; fg: string };
-  action: ReactNode;
-}) {
-  // "Saved" is news the moment it happens, then only the state of things: it is lit
-  // briefly after a save, muted the rest of the time (and when a note opens saved).
-  const saved = state.text === "Saved";
-  const [lit, setLit] = useState(false);
-  const wasSaved = useRef(saved);
-  useEffect(() => {
-    const landed = saved && !wasSaved.current;
-    wasSaved.current = saved;
-    setLit(landed);
-    if (!landed) return;
-    const timer = setTimeout(() => setLit(false), SAVED_LIT_MS);
-    return () => clearTimeout(timer);
-  }, [saved]);
-  const fg = saved && !lit ? color.muted : state.fg;
+/** One line of the save's state: its words, cut short before its buttons are. */
+function StatusLine({ fg, text, children }: { fg: string; text: string; children?: ReactNode }) {
   return (
-    <box flexDirection="row" flexShrink={1} gap={1}>
+    <box flexDirection="row" flexGrow={1} gap={1}>
       <text id="note-status" flexShrink={1} wrapMode="none" truncate fg={fg}>
-        {saved ? <span fg={fg}>✓ </span> : ""}
-        {state.text}
+        {text}
       </text>
-      {action}
+      {children}
     </box>
   );
 }

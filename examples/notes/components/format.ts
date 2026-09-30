@@ -7,28 +7,12 @@ const time = new Intl.DateTimeFormat("en", {
   minute: "2-digit",
   hourCycle: "h23",
 });
-const weekday = new Intl.DateTimeFormat("en", { weekday: "long" });
 const day = new Intl.DateTimeFormat("en", { day: "numeric", month: "short" });
-const dayOfYear = new Intl.DateTimeFormat("en", {
-  day: "numeric",
-  month: "short",
-  year: "numeric",
-});
 const shortWeekday = new Intl.DateTimeFormat("en", { weekday: "short" });
 const monthOfYear = new Intl.DateTimeFormat("en", { month: "short", year: "numeric" });
-/** When a note last changed, as a notebook says it: 14:02 · Yesterday · Monday · Sep 3 · Sep 3, 2025. */
-export function when(updated: number, now = Date.now()) {
-  if (!updated) return "";
-  const midnight = new Date(now).setHours(0, 0, 0, 0);
-  if (updated >= midnight) return time.format(updated);
-  if (updated >= midnight - DAY_MS) return "Yesterday";
-  if (updated >= midnight - (WEEK_DAYS - 1) * DAY_MS) return weekday.format(updated);
-  const sameYear = new Date(updated).getFullYear() === new Date(now).getFullYear();
-  return (sameYear ? day : dayOfYear).format(updated);
-}
 /**
- * The same, in at most 8 cells, for a column of dates: 14:02 · Mon · Sep 3 · Sep 2025.
- * Yesterday is its weekday there: a list reads "Mon" as easily.
+ * When a note last changed, in at most 8 cells, for a column of dates: 14:02 · Mon ·
+ * Sep 3 · Sep 2025. Yesterday is its weekday there: a list reads "Mon" as easily.
  */
 export function whenShort(updated: number, now = Date.now()) {
   if (!updated) return "";

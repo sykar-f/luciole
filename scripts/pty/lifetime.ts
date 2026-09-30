@@ -101,7 +101,7 @@ assert.ok(
   // Launched again: same Server, same page, the text as it was typed.
   await using t = await start();
   await wait(t, "unsaved words");
-  assert.ok((await t.text()).includes("Edited"), await t.text());
+  assert.ok((await t.text()).includes("● Unsaved"), await t.text());
   const again = await status(path);
   assert.ok(again?.pid === first.pid && again.graceUntil === undefined, JSON.stringify(again));
   // The Server stops answering, then answers again: the Client follows, state kept.

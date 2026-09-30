@@ -54,7 +54,7 @@ await browser.insertText(BODY);
 await browser.waitFor(shows(BODY), "the typed text");
 await browser.clickAt(cellOf("✓ Done"));
 report.savedFromThePage = !!(await browser.waitFor(
-  `${rowWith("✓ Saved")} && ${rowWith(marker, "⋯")} && ${shows(BODY)}`,
+  `!${rowWith("●", marker)} && ${rowWith(marker, "⋯")} && ${shows(BODY)}`,
   "the saved note, listed under its title",
 ));
 await browser.clickAt(cellOf("Shopping list"));

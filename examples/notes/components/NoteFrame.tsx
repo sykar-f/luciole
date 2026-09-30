@@ -10,23 +10,21 @@ export const READING_WIDTH = 88;
 const PAGE_MARGIN = 2;
 
 /**
- * The right side: the page, with its date and status, its title, an optional notice, then
- * the note itself.
+ * The right side: the page, with its status line, its title, then the note itself. The
+ * status line is empty most of the time, and always there: what it says moves nothing.
  */
 export function NotePane({
-  toolbar,
+  status,
   title,
-  notice,
   children,
 }: {
-  toolbar: ReactNode;
+  status: ReactNode;
   title: ReactNode;
-  notice?: ReactNode;
   children: ReactNode;
 }) {
   return (
     <box id="note-pane" flexDirection="column" flexGrow={1} paddingX={2} paddingTop={1}>
-      {/* The page: its date, title and text centered together, as wide as the text runs. */}
+      {/* The page: its status, title and text centered together, as wide as the text runs. */}
       <box
         id="note-page"
         flexDirection="column"
@@ -36,14 +34,14 @@ export function NotePane({
         alignSelf="center"
       >
         <box
-          id="note-toolbar"
+          id="note-status-line"
           flexDirection="row"
           height={1}
           flexShrink={0}
           gap={1}
           paddingLeft={PAGE_MARGIN}
         >
-          {toolbar}
+          {status}
         </box>
         <box
           id="note-heading"
@@ -54,7 +52,6 @@ export function NotePane({
           paddingLeft={PAGE_MARGIN}
         >
           {title}
-          {notice}
         </box>
         <box id="note-body" flexDirection="column" flexGrow={1}>
           {children}
