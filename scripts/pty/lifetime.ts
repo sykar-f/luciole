@@ -9,7 +9,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
 import { LifetimeStatus } from "../../packages/luciole/src/launcher/lifetime";
-import { ctrl, drive, type Driver, Keys } from "./driver";
+import { ctrl, drive, type Driver } from "./driver";
 import { BUN, CLI, defer, eventually, example, report, temporaryDirectory } from "./harness";
 
 const TIMEOUT_MS = 30_000;
@@ -63,6 +63,8 @@ const start = () =>
       XDG_STATE_HOME: join(directory.path, "state"),
       XDG_RUNTIME_DIR: runtime.path,
       NOTES_DB: join(directory.path, "notes.sqlite"),
+      // Nothing saves by itself: the words typed are still unsaved when they come back.
+      NOTES_AUTOSAVE_MS: "0",
       LUCIOLE_PING_MS: "500",
     },
   });
@@ -71,10 +73,13 @@ const wait = (t: Driver, text: string) => t.waitFor(text, { timeout: TIMEOUT_MS 
 let first: z.infer<typeof LifetimeStatus> | undefined;
 {
   await using t = await start();
-  await wait(t, "First note");
-  t.write(Keys.enter);
-  await wait(t, "baseline:");
-  t.write("unsaved words");
+  await wait(t, "Welcome to Notes");
+  await t.click("Welcome to Notes");
+  await wait(t, "✎ Edit");
+  await t.click("✎ Edit");
+  await wait(t, "✓ Done");
+  // On a line of their own: the end of the note would wrap them.
+  t.write("\runsaved words");
   await wait(t, "unsaved words");
   await t.pause(SESSION_WRITTEN_MS);
   first = await status(serverSocket());
@@ -96,7 +101,7 @@ assert.ok(
   // Launched again: same Server, same page, the text as it was typed.
   await using t = await start();
   await wait(t, "unsaved words");
-  assert.ok((await t.text()).includes("baseline:"), await t.text());
+  assert.ok((await t.text()).includes("Edited"), await t.text());
   const again = await status(path);
   assert.ok(again?.pid === first.pid && again.graceUntil === undefined, JSON.stringify(again));
   // The Server stops answering, then answers again: the Client follows, state kept.

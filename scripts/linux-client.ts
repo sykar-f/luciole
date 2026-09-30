@@ -130,11 +130,11 @@ try {
     while (
       performance.now() < deadline &&
       container.exitCode === null &&
-      !screen.includes("First note")
+      !screen.includes("Welcome to Notes")
     )
       await Bun.sleep(POLL_MS);
     // The list only exists once the Server answered.
-    const ok = screen.includes("YOUR NOTES") && screen.includes("First note");
+    const ok = screen.includes("No note selected") && screen.includes("Welcome to Notes");
     await run(["docker", "kill", name]).catch(() => {});
     await container.exited;
     await reader;

@@ -5,8 +5,9 @@
 
 Framework expérimental React Server Components pour le terminal : React/Flight
 compose l’interface sur un Server, OpenTUI assure les interactions dans un Client
-séparé. L’application Notes fournit liste, édition, sauvegarde SQLite, navigation,
-Drafts de session et récupération d’une sauvegarde dont la réponse s’est perdue.
+séparé. L’application Notes, un carnet façon Notes de macOS (liste à gauche, note en
+Markdown à droite), fournit édition, sauvegarde SQLite, navigation, Drafts de session
+et récupération d’une sauvegarde dont la réponse s’est perdue.
 Le paquet et son CLI s’appellent `luciole` ; aucun paquet n’est encore publié
 sur un registre.
 
@@ -23,11 +24,14 @@ Une commande compile et lance les deux processus. La base `notes.sqlite` est cr�
 dans le répertoire courant. `NOTES_DB=/chemin/notes.sqlite bun run dev` choisit un
 autre fichier. Les tests utilisent exclusivement des bases temporaires.
 
-Dans la liste : flèches puis Entrée. Dans une note : Entrée ou Ctrl+S sauvegarde,
-Échap revient à la liste, Ctrl+D abandonne le Draft au profit du dernier contenu
-Server reçu. Ctrl+R reconnecte/rafraîchit ; Ctrl+O consulte le résultat d’une
-opération inconnue ; Ctrl+T affiche les requêtes. Ctrl+C restaure le terminal et quitte.
-L’aide en bas de l’écran est générée depuis les raccourcis actifs.
+Tout se fait à la souris, et aucun raccourci n’est affiché : un clic sur une note de
+la liste l’ouvre, un clic dans la note l’édite, « Done » revient à la lecture ; la
+sauvegarde part d’elle-même une seconde après la frappe. Boutons et menus couvrent le
+reste : nouvelle note, renommage (clic sur le titre), suppression avec « Undo »,
+recherche, repli de la liste, « Check again » pour une opération à l’issue inconnue,
+« Keep mine » / « Use theirs » sur un conflit, « Reconnect » hors ligne. Des
+raccourcis existent en bonus (Ctrl+S, Ctrl+N, Échap…). Ctrl+C restaure le terminal et
+quitte.
 
 Le Client reste éditable pendant une sauvegarde et après une perte de connexion.
 Le framework rapporte l’issue de chaque requête (`not-sent`, `rejected`, `unknown`) ;
@@ -78,13 +82,14 @@ La navigation est portée par TanStack Router (memory history) : les layouts
 arrivent par Flight. Les navigations affichent immédiatement un écran local à la
 place de la page, layouts conservés. Notes fournit `app/notes/[id]/loading.tsx` :
 avec `LUCIOLE_LATENCY_MS=500 bun run dev`, ouvrir une note affiche son squelette
-pendant l’attente, et `app/notes/layout.tsx` garde son historique local d’une note à
-l’autre. Échap annule et revient à la dernière page résolue.
+pendant l’attente, et le layout racine garde la liste, sa recherche et son repli
+d’une note à l’autre. « Cancel » (ou Échap) annule et revient à la dernière page
+résolue.
 
 Au tout premier démarrage, le framework affiche aussi un « Connecting… » pulsé
 localement pendant que le premier arbre Flight arrive.
 
-Un refresh conserve l’éditeur monté avec un indicateur « Refreshing… ». Notes anime
+Un refresh conserve l’éditeur monté avec un indicateur « Syncing… ». Notes anime
 localement la luminosité grise de son squelette pendant l’attente ; cette animation
 est arrêtée au démontage et ne fait aucun appel réseau. L’application peut fournir
 ses propres `loading.tsx` Client, hérités depuis les répertoires parents.

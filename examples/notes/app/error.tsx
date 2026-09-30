@@ -1,8 +1,11 @@
 "use client";
 import { TransportError, type ErrorProps } from "luciole/client";
+import { usePalette } from "../components/theme";
+import { Button, Line } from "../components/ui";
 
-// The page could not be loaded. Notes names the outcome; the chrome's Ctrl+R retries.
-export default function PageError({ error }: ErrorProps) {
+// The page could not be loaded: Notes says why, and offers to try again.
+export default function PageError({ error, retry }: ErrorProps) {
+  const color = usePalette();
   const reason =
     error instanceof TransportError && error.outcome === "not-sent"
       ? "Server unreachable"
@@ -10,8 +13,18 @@ export default function PageError({ error }: ErrorProps) {
         ? error.message
         : "Render failed";
   return (
-    <text id="note-error" height={1} wrapMode="none" truncate fg="#ffbc66">
-      {reason} · Ctrl+R to retry
-    </text>
+    <box
+      id="note-error"
+      flexDirection="column"
+      flexGrow={1}
+      alignItems="center"
+      justifyContent="center"
+      gap={1}
+    >
+      <Line fg={color.warn}>{reason}</Line>
+      <Button tone="primary" onPress={() => void retry()}>
+        Try again
+      </Button>
+    </box>
   );
 }

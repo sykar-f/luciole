@@ -2,13 +2,22 @@
 import { expect, test } from "bun:test";
 import { act } from "react";
 import { testRender } from "@opentui/react/test-utils";
-import { InputRenderable } from "@opentui/core";
+import { TextareaRenderable } from "@opentui/core";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import type { Application, Session } from "../packages/luciole/src/client";
 import { build } from "../packages/luciole/src/build";
-import { destroy, draftOf, importClient, launch, renderable, until, type TestUI } from "./helpers";
+import {
+  clickOn,
+  destroy,
+  draftOf,
+  importClient,
+  launch,
+  renderable,
+  until,
+  type TestUI,
+} from "./helpers";
 
 const appDir = resolve("examples/notes");
 const fieldsAt = (app: Application, href: string) =>
@@ -19,6 +28,8 @@ test("a named field comes back after a restart, is forgotten once sent, kept if 
   const folder = await mkdtemp(join(tmpdir(), "luciole-restore-"));
   const server = await launch(join(appDir, ".luciole/server/index.js"), {
     NOTES_DB: join(folder, "notes.sqlite"),
+    // Saves only when asked: what is kept or forgotten follows the test's own saves.
+    NOTES_AUTOSAVE_MS: "0",
   });
   let refuse = false;
   const open = async (tag: string, session?: Session) => {
@@ -44,10 +55,15 @@ test("a named field comes back after a restart, is forgotten once sent, kept if 
     await act(async () => {
       await before.app.router.navigate({ to: "/notes/$id", params: { id: "1" } });
     });
+    // Return, with nothing being typed, edits the note shown.
+    await act(async () => {
+      before.ui.mockInput.pressEnter();
+    });
+    const seed = renderable(before.ui, "note-1", TextareaRenderable).plainText;
     await act(async () => {
       await before.ui.mockInput.typeText("abc");
     });
-    expect(fieldsAt(before.app, "/notes/1")).toEqual({ "note/text": "abc" });
+    expect(fieldsAt(before.app, "/notes/1")).toEqual({ "note/text": `${seed}abc` });
     const saved = before.app.restoration.snapshot();
     // The Client dies: its memory (Drafts included) is gone, the session file is not.
     await destroy(first);
@@ -58,7 +74,7 @@ test("a named field comes back after a restart, is forgotten once sent, kept if 
     const { app, ui } = after;
     expect(app.router.state.resolvedLocation?.pathname).toBe("/notes/1");
     await act(async () => {
-      await until(() => renderable(ui, "note-1", InputRenderable).value === "abc");
+      await until(() => renderable(ui, "note-1", TextareaRenderable).plainText === `${seed}abc`);
     });
     // Restored text is unsaved work: it went through the editor like typing.
     expect(draftOf(app, "1").dirty).toBe(true);
@@ -68,27 +84,31 @@ test("a named field comes back after a restart, is forgotten once sent, kept if 
     // Never sent: the text is kept for the next start.
     refuse = true;
     await act(async () => {
-      ui.mockInput.pressEnter();
+      ui.mockInput.pressKey("s", { ctrl: true });
       await until(() => draftOf(app, "1").error !== "");
     });
     expect(draftOf(app, "1").error).toContain("Not saved");
-    expect(fieldsAt(app, "/notes/1")).toEqual({ "note/text": "abc" });
+    expect(fieldsAt(app, "/notes/1")).toEqual({ "note/text": `${seed}abc` });
 
     // Sent and committed: nothing is offered again after a crash.
     refuse = false;
     await act(async () => {
-      ui.mockInput.pressEnter();
+      ui.mockInput.pressKey("s", { ctrl: true });
       await until(() => !draftOf(app, "1").pending && !draftOf(app, "1").dirty);
     });
     expect(fieldsAt(app, "/notes/1")).toEqual({});
 
     // The first bearer keeps typed text (a sign-in after a crash); replacing it forgets it.
+    // Typing needs the text in hand again: a click on Edit.
+    await act(async () => {
+      await clickOn(ui, "✎ Edit");
+    });
     await act(async () => {
       await ui.mockInput.typeText("d");
     });
-    expect(fieldsAt(app, "/notes/1")).toEqual({ "note/text": "abcd" });
+    expect(fieldsAt(app, "/notes/1")).toEqual({ "note/text": `${seed}abcd` });
     app.setToken("first");
-    expect(fieldsAt(app, "/notes/1")).toEqual({ "note/text": "abcd" });
+    expect(fieldsAt(app, "/notes/1")).toEqual({ "note/text": `${seed}abcd` });
     app.setToken(undefined);
     expect(fieldsAt(app, "/notes/1")).toEqual({});
   } finally {

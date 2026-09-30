@@ -57,7 +57,7 @@ try {
   await browser.open(new URL(`/host.html?src=/${encodeURIComponent(look)}`, hostSite.url).href);
   await browser.waitFor(`window.stages.includes("drawn")`, "the drawn stage");
   report.stages = await browser.evaluate("window.stages.join(',')");
-  await browser.waitFor(frameShows("First note"), "the Notes screen");
+  await browser.waitFor(frameShows("Welcome to Notes"), "the Notes screen");
   report.grid = await browser.evaluate(
     `(() => { const rows = ${FRAME_SCREEN}; return rows.length + "x" + Math.max(...rows.map((r) => r.textContent.length)); })()`,
   );
@@ -67,20 +67,23 @@ try {
   // Framed, the terminal leaves the focus where it was: the embedding page's.
   report.focusStayed = await browser.evaluate(`document.activeElement === document.body`);
 
-  // The page slows the network down, then opens the first note: the render it hears
-  // took at least the round trip.
+  // The page slows the network down, then opens the first note (Return, with nothing
+  // being typed): the render it hears took at least the round trip.
   await browser.evaluate(`send({ type: "network", latencyMs: ${LATENCY_MS} })`);
   await browser.evaluate(`send({ type: "input", data: "\\r" })`);
-  report.typedByTheHost = !!(await browser.waitFor(frameShows("baseline:"), "the note editor"));
+  report.typedByTheHost = !!(await browser.waitFor(frameShows("✎ Edit"), "the note"));
   report.slowedRender = await browser.waitFor(
     `events.some((e) => e.type === "end" && e.kind === "render" && e.ms >= ${LATENCY_MS})`,
     "a render slowed by the page",
   );
   // The next request is refused before it leaves: the save fails as not sent.
   await browser.evaluate(`send({ type: "network", latencyMs: ${LATENCY_MS}, fault: "refuse" })`);
-  await browser.evaluate(`send({ type: "input", data: "x" })`);
-  await browser.waitFor(frameShows("x"), "the edit");
+  // Return edits the note, then Ctrl+S saves it.
   await browser.evaluate(`send({ type: "input", data: "\\r" })`);
+  await browser.waitFor(frameShows("✓ Done"), "the note being edited");
+  await browser.evaluate(`send({ type: "input", data: "x" })`);
+  await browser.waitFor(frameShows("typing.x"), "the edit");
+  await browser.evaluate(`send({ type: "input", data: "\\u0013" })`);
   report.refusedSave = await browser.waitFor(
     `events.some((e) => e.type === "error" && e.kind === "action" && e.outcome === "not-sent")`,
     "a save refused before it left",
@@ -109,9 +112,9 @@ try {
     await browser.waitFor(`window.stages.includes("drawn")`, "the drawn stage");
   };
   await reopen(look);
-  report.restored = !!(await browser.waitFor(frameShows("baseline:"), "the restored note"));
+  report.restored = !!(await browser.waitFor(frameShows("✎ Edit"), "the restored note"));
   await reopen(`${look}&restore=off`);
-  report.notRestored = !!(await browser.waitFor(frameShows("YOUR NOTES"), "the list of notes"));
+  report.notRestored = !!(await browser.waitFor(frameShows("No note selected"), "no note open"));
 
   // Another origin frames Notes: it hears no stage, and what it types is ignored. Its
   // script cannot read the frame; the DevTools protocol reads through it.
@@ -120,15 +123,15 @@ try {
   const everything = async () =>
     JSON.stringify(await browser.send("DOM.getDocument", { depth: -1, pierce: true }));
   const deadline = performance.now() + DRAW_TIMEOUT_MS;
-  while (!(await everything()).includes("First note") && performance.now() < deadline)
+  while (!(await everything()).includes("Welcome to Notes") && performance.now() < deadline)
     await Bun.sleep(POLL_MS);
   await browser.evaluate(
     `document.querySelector("iframe").contentWindow.postMessage({ source: "luciole", type: "input", data: "\\r" }, "*")`,
   );
   await Bun.sleep(OTHER_ORIGIN_WAIT_MS);
   const screen = await everything();
-  report.otherOriginDrawn = screen.includes("First note");
-  report.otherOriginTyped = screen.includes("baseline:");
+  report.otherOriginDrawn = screen.includes("Welcome to Notes");
+  report.otherOriginTyped = screen.includes("✎ Edit");
   report.otherOriginHeard = await browser.evaluate("window.heard.length");
 } finally {
   await notes.stop(true);

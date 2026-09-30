@@ -3,7 +3,7 @@ import { cacheTag } from "luciole/server";
 import { findNote, listNotes } from "./repository";
 import { noteTag, notesTag } from "./tags";
 
-// Shared by every render until a save invalidates their tags (actions/notes.ts). The
+// Shared by every render until a change invalidates their tags (actions/notes.ts). The
 // owner is an argument: a cached result must never depend on who asked first.
 export async function notesOf(owner: string) {
   cacheTag(notesTag(owner));

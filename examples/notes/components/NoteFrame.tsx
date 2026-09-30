@@ -1,69 +1,31 @@
 import type { ReactNode } from "react";
 
-// Pure presentation shared by the Server page and the local loading screen.
-export function NotebookLayout({ children }: { children: ReactNode }) {
-  return (
-    <box flexDirection="column" gap={1} flexGrow={1}>
-      <text id="notebook-heading" height={1} flexShrink={0} wrapMode="none" truncate fg="#8b98a5">
-        Personal notebook · SQLite on Server
-      </text>
-      {children}
-    </box>
-  );
-}
+// Pure presentation shared by the note and its loading screen: both use the same frame,
+// so nothing moves when the Server answers.
 
-export function NotePageFrame({ title, children }: { title: ReactNode; children: ReactNode }) {
-  return (
-    <box flexDirection="column" gap={1} flexShrink={0}>
-      <text id="note-heading" height={1} wrapMode="none" truncate fg="#67d9bc">
-        {title}
-      </text>
-      {children}
-    </box>
-  );
-}
-
-export function NoteEditorFrame({
-  field,
-  status,
-  conflict,
-  error,
-  help,
-  dirty = false,
-  statusColor,
+/** The right side: a toolbar row, the title, an optional notice, then the note itself. */
+export function NotePane({
+  toolbar,
+  title,
+  notice,
+  children,
 }: {
-  field: ReactNode;
-  status: ReactNode;
-  conflict?: ReactNode;
-  error?: ReactNode;
-  help: ReactNode;
-  dirty?: boolean;
-  statusColor?: string;
+  toolbar: ReactNode;
+  title: ReactNode;
+  notice?: ReactNode;
+  children: ReactNode;
 }) {
   return (
-    <box flexDirection="column" gap={1} flexShrink={0}>
-      <box id="note-field-frame" border borderColor="#526d82" padding={1} height={5} flexShrink={0}>
-        {field}
+    <box id="note-pane" flexDirection="column" flexGrow={1} paddingX={2} paddingTop={1}>
+      <box id="note-toolbar" flexDirection="row" height={1} flexShrink={0} gap={1}>
+        {toolbar}
       </box>
-      <text
-        id="note-status"
-        height={1}
-        wrapMode="none"
-        truncate
-        fg={statusColor ?? (dirty ? "#ffbc66" : "#67d9bc")}
-      >
-        {status}
-      </text>
-      <box id="note-feedback" height={2} flexDirection="column" flexShrink={0}>
-        <text height={1} wrapMode="none" truncate fg="#ffbc66">
-          {conflict ?? ""}
-        </text>
-        <text height={1} wrapMode="none" truncate fg="#ffbc66">
-          {error ?? ""}
-        </text>
+      <box id="note-heading" flexDirection="column" flexShrink={0} marginTop={1} marginBottom={1}>
+        {title}
+        {notice}
       </box>
-      <box id="note-help" height={1} flexShrink={0}>
-        {help}
+      <box id="note-body" flexDirection="column" flexGrow={1}>
+        {children}
       </box>
     </box>
   );

@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import { cpSync, existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
-import { drive, Keys } from "./driver";
+import { drive } from "./driver";
 import {
   alive,
   BUN,
@@ -29,9 +29,12 @@ const sessions = join(directory.path, "state/luciole/app-source/sessions");
 await using t = await drive({
   command: [BUN, CLI, "dev", "--app", app],
   cols: 140,
-  rows: 32,
+  // Tall enough for the whole note: the build error's banner pushes the screen down.
+  rows: 40,
   env: {
     NOTES_DB: join(directory.path, "notes.sqlite"),
+    // Nothing saves by itself: the typed text is still unsaved when the rebuild restores it.
+    NOTES_AUTOSAVE_MS: "0",
     XDG_STATE_HOME: join(directory.path, "state"),
   },
 });
@@ -42,10 +45,13 @@ const children = () =>
     .map(Number);
 const wait = (text: string) => t.waitFor(text, { timeout: TIMEOUT_MS });
 
-await wait("First note");
-t.write(Keys.enter);
-await wait("baseline:");
-t.write("keep");
+await wait("Welcome to Notes");
+await t.click("Welcome to Notes");
+await wait("✎ Edit");
+await t.click("✎ Edit");
+await wait("✓ Done");
+// On a line of its own: the end of the note would wrap it.
+t.write("\rkeep");
 await wait("keep");
 const first = children();
 assert.equal(first.length, 2, `dev runs a Server and a Client: ${first.join()}`);
@@ -68,7 +74,7 @@ assert.ok(
 );
 // Only the new Client draws from here on: the note and its typed text come back.
 t.resetScreen();
-await wait("Unsaved Draft");
+await wait("Edited");
 await wait("keep!");
 await t.quit();
 assert.ok(

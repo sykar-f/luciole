@@ -1,27 +1,27 @@
 
- TERMINAL / NOTES · Disconnected
-
- Unable to connect. Is the computer able to access the url?
-
- Personal notebook · SQLite on Server
-
- Opened this visit: 1
-
- First note · version 2
-
- ┌──────────────────────────────────────────────────────────────────────────────────────────────────────────┐
- │                                                                                                          │
- │ abcde                                                                                                    │
- │                                                                                                          │
- └──────────────────────────────────────────────────────────────────────────────────────────────────────────┘
-
- Unsaved Draft · baseline: abc
+  ◧ Hide list   + New note                                                  ○ Disconnected  Reconnect   Quit
+  Unable to connect. Is the computer able to access the url?
 
 
+  ⌕ Search                         11:34  Edited  Save                               Copy   Delete   ✓ Done
 
+  Untitled                         Welcome to Notes
+  11:34  No additional text
+                                   Notes are written in **Markdown** and kept in *SQLite* on the Server.
+  Welcome to Notes           ⋯
+  ● 11:34  Notes are written i…    ## Getting around
 
- ctrl+s save · escape list · ctrl+o resolve · ctrl+d discard
+  Shopping list                    - Click anywhere in a note to edit it, then **Done** to read it again
+  11:33  This week                 - Click a title to rename its note
+                                   - **New note** starts a blank one; the search box filters them all
+                                   - Hover a note in the list for its menu, or right-click it
 
+                                   ```ts
+                                   // What the list on the left reads, cached until a save invalidates it
+                                   export async function notesOf(owner: string) {
+                                     cacheTag(notesTag(owner));
+                                     return listNotes(owner);
+                                   }
+                                   ```
 
-
- ctrl+c quit · ctrl+r reconnect · ctrl+t requests
+  Server unreachable     Retry     > Changes are saved on their own, a moment after you stop typing.abcde

@@ -5,6 +5,7 @@ const note = (id = "1", value = "", version = 1): Note => ({
   title: "Note",
   value,
   version,
+  updated: 0,
 });
 test("confirmation uses submitted baseline and preserves newer edit", () => {
   const d = new Draft("1", note());
@@ -100,4 +101,20 @@ test("a save the Server provably never ran fails without an unknown outcome", ()
   expect(d.error).toBe("Not saved: offline");
   // A new attempt is allowed at once.
   expect(d.begin().value).toBe("abc");
+});
+test("a save refused for a newer version marks the conflict; keeping the Draft saves over it", () => {
+  const d = new Draft("1", note("1", "base", 1));
+  d.edit("mine");
+  const s = d.begin();
+  d.confirm({ ok: false, error: "changed", operationId: s.operationId, conflict: true });
+  expect(d.conflict).toBe(true);
+  // Keep mine: the Draft now starts from the version the Server has, its text unchanged.
+  d.adopt(note("1", "theirs", 3));
+  expect(d.conflict).toBe(false);
+  expect(d.value).toBe("mine");
+  expect(d.baseline).toBe("theirs");
+  expect(d.version).toBe(3);
+  expect(d.dirty).toBe(true);
+  expect(d.begin().version).toBe(3);
+  expect(() => d.adopt(note("1", "theirs", 3))).toThrow("Resolve the current operation");
 });

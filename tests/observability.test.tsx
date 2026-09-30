@@ -17,6 +17,7 @@ test("the overlay shows no request while typing and one timed call per save", as
   const dir = await mkdtemp(join(tmpdir(), "luciole-observe-"));
   const server = await launch(join(root, ".luciole/server/index.js"), {
     NOTES_DB: join(dir, "notes.sqlite"),
+    NOTES_AUTOSAVE_MS: "0",
   });
   const { createApp, Shell } = await importClient(root, "observe");
   const app = createApp({ url: server.url, initialPath: "/notes/1", latencyMs: 40 });
@@ -47,10 +48,16 @@ test("the overlay shows no request while typing and one timed call per save", as
           .find((l) => l.includes("requests ")) ?? ""
       );
     };
+    // The sidebar reads its list once mounted: counted before the overlay opens.
+    await act(async () => until(() => ui.captureCharFrame().includes("Shopping list")));
     await act(async () => {
       ui.mockInput.pressKey("t", { ctrl: true });
     });
     expect(await overlay()).toContain("requests 0 · open 0 · 0B · rtt –");
+    // Return edits the note: a local change, like typing.
+    await act(async () => {
+      ui.mockInput.pressEnter();
+    });
     await act(async () => {
       await ui.mockInput.typeText("hello");
       const field = renderable(ui, "note-1", Renderable);
@@ -65,17 +72,22 @@ test("the overlay shows no request while typing and one timed call per save", as
       await until(() => !draft.pending);
       await Bun.sleep(150);
     });
-    // The save, then the page it invalidated.
+    // The save, then the page and the list it invalidated.
     const line = await overlay();
-    expect(line).toMatch(/requests 2 · open 0 · \d+B · rtt \d+ms/);
+    expect(line).toMatch(/requests 3 · open 0 · \d+B · rtt \d+ms/);
     expect(Number(/rtt (\d+)ms/.exec(line)?.[1])).toBeGreaterThanOrEqual(40);
-    expect(ui.captureCharFrame()).toContain("← action saveNote 200");
-    expect(spans.map((s) => [s.name, s.attributes["luciole.target"], s.ended])).toEqual([
+    // Its last lines: the list read again after the save.
+    expect(ui.captureCharFrame()).toContain("← action listNotes 200");
+    const listing = (s: (typeof spans)[number]) =>
+      String(s.attributes["luciole.target"]).endsWith("#listNotes");
+    expect(spans.filter(listing).map((s) => s.ended)).toEqual([true, true]);
+    const page = spans.filter((s) => !listing(s));
+    expect(page.map((s) => [s.name, s.attributes["luciole.target"], s.ended])).toEqual([
       ["luciole.render", "/notes/[id]", true],
       ["luciole.action", expect.stringContaining("#saveNote"), true],
       ["luciole.render", "/notes/[id]", true],
     ]);
-    expect(spans[1].attributes["http.response.status_code"]).toBe(200);
+    expect(page[1]?.attributes["http.response.status_code"]).toBe(200);
   } finally {
     stop();
     await destroy(rendered);

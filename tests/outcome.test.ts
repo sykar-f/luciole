@@ -17,10 +17,14 @@ import { launch, until } from "./helpers";
 // `rejected` must mean the save never ran, `unknown` that it may have.
 const root = resolve("examples/notes");
 let dir = "",
-  buildId = "";
+  buildId = "",
+  // Note 1 as a new database seeds it: what a save that never ran leaves.
+  seeded = "";
 beforeAll(async () => {
   ({ buildId } = await build(root));
   dir = await mkdtemp(join(tmpdir(), "luciole-outcome-"));
+  await (await server("seeded")).stop();
+  seeded = stored("seeded");
 });
 afterAll(() => rm(dir, { recursive: true, force: true }));
 
@@ -61,7 +65,7 @@ test("a stopped Server: not-sent", async () => {
   const s = await server("stopped");
   await s.stop();
   expect(await outcomeOf(transport(s.url).call(saveNote(), save()))).toBe("not-sent");
-  expect(stored("stopped")).toBe("");
+  expect(stored("stopped")).toBe(seeded);
 });
 
 test("refused before any application code: rejected", async () => {
@@ -77,7 +81,7 @@ test("refused before any application code: rejected", async () => {
     expect(
       await outcomeOf(transport(s.url, { token: "secret" }).call(`${buildId}/x.ts#nope`, [])),
     ).toBe("rejected");
-    expect(stored("rejected")).toBe("");
+    expect(stored("rejected")).toBe(seeded);
     // The same bearer and build succeed: the refusals were not transient.
     const ok = z
       .object({ ok: z.boolean() })
@@ -118,7 +122,7 @@ test("a request cancelled before it is sent: not-sent", async () => {
     expect(await outcomeOf(transport(s.url).call(saveNote(), save(), controller.signal))).toBe(
       "not-sent",
     );
-    expect(stored("cancelled")).toBe("");
+    expect(stored("cancelled")).toBe(seeded);
   } finally {
     await s.stop();
   }
@@ -137,7 +141,7 @@ test("simulated faults: refuse, drop and cut", async () => {
     });
   try {
     expect(await outcomeOf(faulty("refuse").call(saveNote(), save("refused")))).toBe("not-sent");
-    expect(stored("faults")).toBe("");
+    expect(stored("faults")).toBe(seeded);
     expect(await outcomeOf(faulty("drop").call(saveNote(), save("dropped")))).toBe("unknown");
     expect(stored("faults")).toBe("dropped");
     const cut = [

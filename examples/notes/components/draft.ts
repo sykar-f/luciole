@@ -10,6 +10,8 @@ export type Note = {
   title: string;
   value: string;
   version: number;
+  /** Last change, in epoch milliseconds. */
+  updated: number;
 };
 export type Snapshot = {
   id: string;
@@ -20,7 +22,8 @@ export type Snapshot = {
 };
 export type SaveResult =
   | { ok: true; note: Note; operationId: string }
-  | { ok: false; error: string; operationId: string };
+  /** `conflict`: the note changed since the Draft's version; nothing was written. */
+  | { ok: false; error: string; operationId: string; conflict?: boolean };
 export class Draft {
   value: string;
   baseline: string;
@@ -69,7 +72,10 @@ export class Draft {
       this.version = result.note.version;
       this.conflict = false;
       if (this.revision === pending.revision) this.value = result.note.value;
-    } else this.error = result.error;
+    } else {
+      this.error = result.error;
+      if (result.conflict) this.conflict = true;
+    }
     this.pending = undefined;
     this.unknown = false;
   }
@@ -100,6 +106,18 @@ export class Draft {
     this.value = this.baseline = note.value;
     this.version = note.version;
     this.revision++;
+  }
+  /**
+   * Keeps this Draft over a note changed elsewhere: the next save replaces `note`,
+   * the version the Server has now, instead of failing on the one the Draft started from.
+   */
+  adopt(note: Note) {
+    if (this.pending) throw new Error("Resolve the current operation before keeping this Draft");
+    if (note.id !== this.id) throw new Error("Wrong document");
+    this.baseline = note.value;
+    this.version = note.version;
+    this.error = "";
+    this.conflict = false;
   }
   discard(note: Note) {
     if (this.pending) throw new Error("Resolve the current operation before discarding");
@@ -178,6 +196,10 @@ export function useDraft(note: Note) {
     },
     discard: () => {
       draft.discard(note);
+      drafts.changed();
+    },
+    adopt: () => {
+      draft.adopt(note);
       drafts.changed();
     },
     save: async (action: (s: Snapshot) => Promise<SaveResult>) => {

@@ -39,15 +39,16 @@ await using app = await drive({
     NOTES_DB: join(directory.path, "notes.sqlite"),
   },
 });
-await wait(app, "First note", APP_START_TIMEOUT_MS);
+await wait(app, "Welcome to Notes", APP_START_TIMEOUT_MS);
 await wait(devtools, "● client notes");
 await wait(devtools, "● server notes");
 // The first page: its row joins the Client's timings with the Server's.
 await wait(devtools, "▣ /  ");
 await wait(devtools, "Server: request +");
 
+// Return opens the first note: a key never shown, for those who look for it.
 app.write("\r");
-await wait(app, "baseline");
+await wait(app, "✎ Edit");
 await wait(devtools, "▣ /notes/1");
 
 devtools.write("2");
@@ -56,6 +57,9 @@ await wait(devtools, "◇ ");
 // Paint flashing: typing re-renders the editor, outlined in the application's terminal.
 devtools.write("h");
 await wait(devtools, "flashing in app");
+// Return again edits the note; typing re-renders it.
+app.write("\r");
+await wait(app, "✓ Done");
 app.write("x");
 await wait(app, "┌──", FLASH_TIMEOUT_MS);
 devtools.write("h");
