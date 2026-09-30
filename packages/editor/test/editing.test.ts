@@ -4,6 +4,7 @@ import { parseMarkdown } from "../src/markdown/parse.ts";
 import { serializeMarkdown } from "../src/markdown/serialize.ts";
 import { backspace, enter, toMarkdown, typeText } from "../src/editing/rules.ts";
 import { createState, type EditorState } from "../src/editing/state.ts";
+import { textOfBlock } from "../src/model/doc.ts";
 import { editLink, moveTo, selectAll } from "../src/editing/commands.ts";
 
 /** Keys as a script: text is typed, ⏎ is Return, ⌫ is Backspace. */
@@ -33,8 +34,8 @@ test("what is opened closes by itself at the end of the block", () => {
 });
 
 test("delimiters stay characters where they mean nothing", () => {
-  expect(typed("a * b")).toBe("a \\* b");
-  expect(typed("snake_case_name")).toBe("snake\\_case\\_name");
+  expect(typed("a * b")).toBe("a * b");
+  expect(typed("snake_case_name")).toBe("snake_case_name");
   expect(typed("\\*literal")).toBe("\\*literal");
   expect(typed("`*not italic*`")).toBe("`*not italic*`");
 });
@@ -59,7 +60,7 @@ test("links from their Markdown, and from a URL ended by a space", () => {
 
 test("Backspace right after a rule takes it back", () => {
   expect(typed("# ⌫x")).toBe("\\# x");
-  expect(typed("**b⌫")).toBe("\\*\\*b");
+  expect(typed("**b⌫")).toBe("**b");
   expect(typed("- ⌫")).toBe("\\-");
   expect(typed("- item⏎⌫")).toBe("- item");
 });
@@ -123,4 +124,18 @@ test("a link is made from text, and changed, by writing it out the way it is typ
   expect(md(typeText(erased, "z.w)"))).toBe("see [site](https://z.w) now");
   // A link being made is taken back by Backspace right away.
   expect(md(backspace(editLink(selected)))).toBe("see the site now");
+});
+
+test("syntax other tools read survives an edit: footnotes, alerts, wiki links, math", () => {
+  const edited = (markdown: string) => {
+    const state = createState(parseMarkdown(markdown));
+    const last = state.doc.length - 1;
+    const block = state.doc[last];
+    const end = { block: last, offset: block ? textOfBlock(block).length : 0 };
+    return md(typeText(moveTo(state, end), "!"));
+  };
+  expect(edited("see [^1] here")).toBe("see [^1] here!");
+  expect(edited("> [!NOTE]\n> read this")).toBe("> [!NOTE]\n> read this!");
+  expect(edited("go to [[a page]]")).toBe("go to [[a page]]!");
+  expect(edited("where $a_1 * b_2$ holds")).toBe("where $a_1 * b_2$ holds!");
 });

@@ -9,9 +9,15 @@ import type { Block, Doc, Inline, ListMarker, Marks, Span } from "../model/types
 // kept character for character: reading a note never loses a part of it.
 
 export function parseMarkdown(markdown: string): Doc {
-  const blocks = blocksOfAll(new Lexer({ gfm: true }).lex(markdown), TOP);
+  // Front matter (YAML between `---`, TOML between `+++`) is no Markdown: kept as written,
+  // before the rest is read (its `---` would read as a rule, its keys as a heading).
+  const front = FRONT_MATTER.exec(markdown)?.[0];
+  const rest = front ? markdown.slice(front.length) : markdown;
+  const blocks = blocksOfAll(new Lexer({ gfm: true }).lex(rest), TOP);
+  if (front) blocks.unshift({ type: "raw", text: front.replace(/\s+$/, "") });
   return blocks.length ? blocks : EMPTY_DOC;
 }
+export const FRONT_MATTER = /^(---|\+\+\+)[ \t]*\n[\s\S]*?\n\1[ \t]*(?:\n|$)/;
 
 /** Where the tokens being read sit: in how many quotes, inside how many list levels. */
 type Context = { readonly quote: number; readonly depth: number };

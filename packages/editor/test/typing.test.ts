@@ -123,7 +123,7 @@ const cases: Record<string, Case[]> = {
     { keys: "**bold *both* bold** plain", markdown: "**bold *both* bold** plain" },
     // After a word, a star is a character: `2*3=6` stays as typed.
     { keys: "a*b*c", markdown: "a\\*b\\*c", screen: "a*b*c" },
-    { keys: "2*3=6", markdown: "2\\*3=6", screen: "2*3=6" },
+    { keys: "2*3=6", markdown: "2*3=6", screen: "2*3=6" },
     { keys: "x**2 + y**2", markdown: "x\\*\\*2 + y\\*\\*2", screen: "x**2 + y**2" },
   ],
   "what is opened closes by itself": [
@@ -131,16 +131,16 @@ const cases: Record<string, Case[]> = {
     { keys: "a `code", markdown: "a `code`", screen: "a code" },
   ],
   "delimiters stay characters where they mean nothing": [
-    { keys: "2 * 3 * 4", markdown: "2 \\* 3 \\* 4", screen: "2 * 3 * 4" },
-    { keys: "snake_case_name", markdown: "snake\\_case\\_name", screen: "snake_case_name" },
-    { keys: "a ~ b", markdown: "a \\~ b", screen: "a ~ b" },
+    { keys: "2 * 3 * 4", markdown: "2 * 3 * 4", screen: "2 * 3 * 4" },
+    { keys: "snake_case_name", markdown: "snake_case_name", screen: "snake_case_name" },
+    { keys: "a ~ b", markdown: "a ~ b", screen: "a ~ b" },
     { keys: "`*no*`", markdown: "`*no*`", screen: "*no*" },
   ],
   "a backslash makes punctuation itself": [
     { keys: "\\*literal\\*", markdown: "\\*literal\\*", screen: "*literal*" },
     { keys: "\\# not a title", markdown: "\\# not a title", screen: "# not a title" },
     { keys: "\\- not a list", markdown: "\\- not a list", screen: "- not a list" },
-    { keys: "\\[not](a link)", markdown: "\\[not\\](a link)", screen: "[not](a link)" },
+    { keys: "\\[not](a link)", markdown: "\\[not](a link)", screen: "[not](a link)" },
     { keys: "\\\\", markdown: "\\\\", screen: "\\" },
   ],
   headings: [
@@ -236,7 +236,7 @@ const cases: Record<string, Case[]> = {
   ],
   "Backspace right after a rule takes it back": [
     { keys: "# {bs}x", markdown: "\\# x" },
-    { keys: "**b{bs}", markdown: "\\*\\*b" },
+    { keys: "**b{bs}", markdown: "**b" },
     // The closing star comes back as a character, still in italic; the next Backspace
     // removes it and italic is open again.
     { keys: "*it*{bs}", markdown: "*it\\**", screen: "it*" },

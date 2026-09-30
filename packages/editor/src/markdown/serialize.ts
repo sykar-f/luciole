@@ -53,7 +53,10 @@ export function serializeMarkdown(written: Doc): string {
     markers.length = Math.min(markers.length, depth);
     while (markers.length < depth) markers.push(BULLET.length);
     const lead = `${quote}${" ".repeat(sum(markers))}`;
-    out += prefix(bodyOf(block), lead, lead, { exact: isLines(block) });
+    // Markdown kept as read keeps its trailing spaces: two of them are a line break.
+    out += prefix(bodyOf(block), lead, lead, {
+      exact: isLines(block) || block.source !== undefined,
+    });
   });
   return out.replace(/\s+$/, "");
 }
@@ -171,8 +174,18 @@ const STRATEGIES: readonly Strategy[] = [
   { spelling: () => TAGS, flat: true, order: ORDER },
 ];
 
-/** Runs of marked text to Markdown that reads back as the same runs. */
+/**
+ * Runs of marked text to Markdown that reads back as the same runs. Text is first written
+ * as it is, punctuation unescaped, and kept so when it reads back the same: `[^1]`, `> [!NOTE]`,
+ * `$a_1$` or `[[a page]]` stay what other tools read them as. Otherwise every character
+ * Markdown could take is escaped.
+ */
 export function serializeInline(inline: Inline, options: { heading?: boolean } = {}): string {
+  const [first] = STRATEGIES;
+  if (first) {
+    const light = writeInline(inline, { ...options, ...first, light: true });
+    if (readsBack(light, inline, options, { always: true })) return light;
+  }
   let written = "";
   for (const strategy of STRATEGIES) {
     written = writeInline(inline, { ...options, ...strategy });
@@ -181,17 +194,29 @@ export function serializeInline(inline: Inline, options: { heading?: boolean } =
   return written;
 }
 
-/** Whether `markdown`, read as a paragraph (or a heading's text), gives back `inline`. */
-function readsBack(markdown: string, inline: Inline, options: { heading?: boolean }) {
+/**
+ * Whether `markdown`, read as a paragraph (or a heading's text), gives back `inline`.
+ * Escaped text reads back as itself: unless `always`, only formatting is checked.
+ */
+function readsBack(
+  markdown: string,
+  inline: Inline,
+  options: { heading?: boolean },
+  check: { always?: boolean } = {},
+) {
   if (
+    !check.always &&
     !inline.some(
       (span) =>
         span.marks.bold || span.marks.italic || span.marks.strike || span.marks.link !== undefined,
     )
   )
     return true;
-  const block = parseMarkdown(options.heading ? `# ${markdown}` : markdown)[0];
-  const content = block && isText(block) ? block.content : [];
+  const blocks = parseMarkdown(options.heading ? `# ${markdown}` : markdown);
+  const [block] = blocks;
+  if (blocks.length !== 1 || block?.type !== (options.heading ? "heading" : "paragraph"))
+    return false;
+  const content = isText(block) ? block.content : [];
   return drawnKey(content, options) === drawnKey(inline, options);
 }
 
@@ -206,7 +231,10 @@ const wants = (marks: Marks, delimiter: Delimiter, href: string | undefined) =>
  * two closings cross; spaces at the edge of a run move outside its delimiters (`** x**` is
  * not emphasis in CommonMark, ` **x**` is). `flat` closes every delimiter at each run's end.
  */
-function writeInline(inline: Inline, options: { heading?: boolean } & Strategy): string {
+function writeInline(
+  inline: Inline,
+  options: { heading?: boolean; light?: boolean } & Strategy,
+): string {
   const spans = inline
     .map((span) => ({
       text: options.heading ? span.text.replaceAll("\n", " ") : span.text,
@@ -301,6 +329,7 @@ function writeInline(inline: Inline, options: { heading?: boolean } & Strategy):
       out += escapeText(core, {
         lineStart: out === "" || out.endsWith("\n"),
         inLink: marks.link !== undefined,
+        light: options.light === true,
       });
     pendingSpace = trailing;
   });
@@ -367,6 +396,8 @@ function codeSpan(text: string) {
 const ASCII_PUNCTUATION = /[!-/:-@[-`{-~]/g;
 /** Characters that would start Markdown where the text means them literally. */
 const INLINE_SPECIAL = /[\\*_`[\]~<]/g;
+/** What is escaped even when the text reads back as itself: a backslash, and HTML's `<`. */
+const LIGHT_SPECIAL = /\\(?=[!-/:-@[-`{-~])|</g;
 // What GFM would turn into a link on its own: an address, a scheme, `www.`.
 const AUTOLINK_EMAIL = /([\w.+-])@(?=[\w-]+\.)/g;
 const AUTOLINK_SCHEME = /\b(https?|mailto|xmpp|ftp):/gi;
@@ -378,12 +409,17 @@ const ORDERED_START = /^(\d+)([.)])(?=\s|$)/;
  * Plain text made to read as itself. In a link's text nothing turns into a link (GFM does
  * not link inside a link), so addresses and URLs stay as they are there.
  */
-function escapeText(text: string, options: { lineStart: boolean; inLink: boolean }) {
+function escapeText(
+  text: string,
+  options: { lineStart: boolean; inLink: boolean; light: boolean },
+) {
   return text
     .split("\n")
     .map((line, i) => {
-      let escaped = line.replace(INLINE_SPECIAL, "\\$&").replace(REFERENCE_START, "\\&");
-      if (!options.inLink)
+      let escaped = line
+        .replace(options.light ? LIGHT_SPECIAL : INLINE_SPECIAL, "\\$&")
+        .replace(REFERENCE_START, "\\&");
+      if (!options.inLink && !options.light)
         escaped = escaped
           .replace(AUTOLINK_EMAIL, "$1\\@")
           .replace(AUTOLINK_SCHEME, "$1\\:")
