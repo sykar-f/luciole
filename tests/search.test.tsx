@@ -6,7 +6,7 @@ import type { RouterHistory } from "@tanstack/react-router";
 import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { build } from "../packages/airtty/src/build";
+import { build } from "../packages/luciole/src/build";
 import { launch, importClient, destroy, metricsOf, type TestUI } from "./helpers";
 
 // `AnyRouter` types its history as `any`: checked before use.
@@ -17,7 +17,7 @@ const isHistory = (value: unknown): value is RouterHistory =>
   typeof value.back === "function";
 
 test("search parameters reach the Server page as strings and key the route cache", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "airtty-search-"));
+  const directory = await mkdtemp(join(tmpdir(), "luciole-search-"));
   let server: Awaited<ReturnType<typeof launch>> | undefined, rendered: TestUI | undefined;
   try {
     for (const name of ["app/items"]) await mkdir(join(directory, name), { recursive: true });
@@ -35,7 +35,7 @@ test("search parameters reach the Server page as strings and key the route cache
       `export default function Page(){return <text>HOME</text>}`,
     );
     await build(directory);
-    const running = await launch(join(directory, ".airtty/server/index.js"));
+    const running = await launch(join(directory, ".luciole/server/index.js"));
     server = running;
     const { createApp, Shell } = await importClient(directory);
     const app = createApp({ url: running.url });

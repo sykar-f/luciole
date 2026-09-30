@@ -1,7 +1,7 @@
 ---
 // The hero: the same Notes twice, both over SSH, the same round trip (500 ms, the reader's
 // slider sets it), placed differently. Left, a classic TUI, the whole app on the host: every
-// key and click waits. Right, the airtty app (`notes --on host`): its client in the terminal,
+// key and click waits. Right, the luciole app (`notes --on host`): its client in the terminal,
 // only requests wait. Whatever the reader does in one
 // is replayed in the other (docs/WEB.md, "Page embarquée", `typed`), and the page's largest
 // type is not a claim but a measure: how long each screen took, from the key to its cells.
@@ -14,12 +14,12 @@ const look = new URLSearchParams({ columns: String(COLUMNS), rows: String(ROWS),
 const src = `/demo/notes/index.html?${look}`;
 const sides = [
   { id: "ssh", name: "Classic TUI", tag: "over SSH" },
-  { id: "airtty", name: "airtty app", tag: "over SSH" },
+  { id: "luciole", name: "luciole app", tag: "over SSH" },
 ];
 /** The round trip both screens start with, and how far the reader's slider takes it. */
 const PING = { value: 500, min: 20, max: 1000, step: 10 };
 const notes = frame("notes");
-/** What airtty keeps in the terminal, turn by turn in the title: the first is the one
+/** What luciole keeps in the terminal, turn by turn in the title: the first is the one
  *  without motion, and the one the duel measures. */
 const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resizing"];
 ---
@@ -27,9 +27,9 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
 <section class="hero" id="top" data-duel data-columns={COLUMNS} data-rows={ROWS}>
   <div class="wrap">
     <div class="top">
-      <h1 aria-label={`With airtty, ${LOCAL.join(", ")}: none of it waits for the network.`}>
+      <h1 aria-label={`With luciole, ${LOCAL.join(", ")}: none of it waits for the network.`}>
         <span class="line" aria-hidden="true">
-          With airtty,{" "}
+          With luciole,{" "}
           <span class="rotor" data-rotor>
             {LOCAL.map((word, index) => <span class:list={{ now: index === 0 }}>{word}</span>)}
           </span>
@@ -37,7 +37,7 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
         <span class="line" aria-hidden="true">never waits for the network.</span>
       </h1>
       <p class="sub">
-        airtty splits your React app in two: Server Components render next to your data, the client
+        luciole splits your React app in two: Server Components render next to your data, the client
         runs in your terminal.
       </p>
       <div class="actions">
@@ -85,8 +85,8 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
   import { overscroll } from "../lib/overscroll";
   import { screenColours } from "../lib/recolor";
 
-  const Drawn = z.object({ source: z.literal("airtty"), type: z.literal("stage"), stage: z.literal("drawn") });
-  const Typed = z.object({ source: z.literal("airtty"), type: z.literal("typed"), data: z.string() });
+  const Drawn = z.object({ source: z.literal("luciole"), type: z.literal("stage"), stage: z.literal("drawn") });
+  const Typed = z.object({ source: z.literal("luciole"), type: z.literal("typed"), data: z.string() });
   const Connection = z.object({ saveData: z.optional(z.boolean()) });
 
   /** The round trip, as the slider sets it. */
@@ -140,7 +140,7 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
       frames.push(frame);
     }
     const post = (frame: HTMLIFrameElement, message: Record<string, unknown>) =>
-      frame.contentWindow?.postMessage({ source: "airtty", ...message }, location.origin);
+      frame.contentWindow?.postMessage({ source: "luciole", ...message }, location.origin);
     const ssh = (frame: HTMLIFrameElement) => frame.dataset.side === "ssh";
     const network = (frame: HTMLIFrameElement) =>
       post(frame, { type: "network", latencyMs: rtt, delays: ssh(frame) ? "keys" : "requests" });
@@ -156,7 +156,7 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
     const paneOf = (frame: HTMLIFrameElement) => frame.closest<HTMLElement>("[data-pane]");
 
     // The measure: from the moment a key left the reader's hand to the first cells its
-    // screen rewrote once the key had reached it (at once for airtty, a round trip later
+    // screen rewrote once the key had reached it (at once for luciole, a round trip later
     // over SSH): what the screen drew before comes from something else. One key at a time.
     const pending = new Map<HTMLIFrameElement, { typed: number; reached: number }>();
     const measured = (frame: HTMLIFrameElement) => {
@@ -175,7 +175,7 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
       const frame = frames.find((f) => f.contentWindow === event.source);
       if (!frame) return;
       // Once drawn: the poster goes, the cells the app rewrites glow and are timed, and the
-      // round trip sits before each key (SSH) or each request (airtty).
+      // round trip sits before each key (SSH) or each request (luciole).
       if (Drawn.safeParse(event.data).success) {
         frame.parentElement?.classList.add("on");
         const signal = new AbortController().signal;
@@ -197,7 +197,7 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
           });
         return void network(frame);
       }
-      // What one terminal sent, the other gets: at once for airtty's, whose keys never
+      // What one terminal sent, the other gets: at once for luciole's, whose keys never
       // travel; a round trip later for SSH's, as if typed there. The frame typed in holds
       // its own keys back itself (`delays`).
       const typed = Typed.safeParse(event.data);
@@ -394,7 +394,7 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
     font-weight: 600;
   }
 
-  .airtty .tag b {
+  .luciole .tag b {
     color: var(--client);
   }
 
@@ -446,7 +446,7 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
     cursor: text;
   }
 
-  .airtty .glass {
+  .luciole .glass {
     border-color: color-mix(in srgb, var(--client) 55%, transparent);
   }
 

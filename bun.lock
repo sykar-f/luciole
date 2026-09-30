@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "airtty",
+      "name": "luciole",
       "devDependencies": {
         "@opentui/core": "catalog:",
         "@opentui/keymap": "catalog:",
@@ -12,7 +12,7 @@
         "@types/bun": "catalog:",
         "@types/react": "catalog:",
         "@types/react-dom": "catalog:",
-        "airtty": "workspace:*",
+        "luciole": "workspace:*",
         "oxfmt": "catalog:",
         "oxlint": "catalog:",
         "oxlint-tsgolint": "catalog:",
@@ -22,124 +22,124 @@
       },
     },
     "examples/agent": {
-      "name": "@airtty-examples/agent",
+      "name": "@luciole-examples/agent",
       "dependencies": {
         "@opentui/core": "catalog:",
         "@opentui/react": "catalog:",
         "@tanstack/react-router": "catalog:",
-        "airtty": "workspace:*",
+        "luciole": "workspace:*",
         "react": "catalog:",
         "zod": "catalog:",
       },
     },
     "examples/chat": {
-      "name": "@airtty-examples/chat",
+      "name": "@luciole-examples/chat",
       "dependencies": {
         "@opentui/core": "catalog:",
         "@opentui/react": "catalog:",
         "@tanstack/react-router": "catalog:",
-        "airtty": "workspace:*",
+        "luciole": "workspace:*",
         "react": "catalog:",
         "zod": "catalog:",
       },
     },
     "examples/coder": {
-      "name": "@airtty-examples/coder",
+      "name": "@luciole-examples/coder",
       "dependencies": {
-        "@airtty/harness": "workspace:*",
+        "@luciole/harness": "workspace:*",
         "@opentui/core": "catalog:",
         "@opentui/keymap": "catalog:",
         "@opentui/react": "catalog:",
         "@tanstack/react-router": "catalog:",
-        "airtty": "workspace:*",
+        "luciole": "workspace:*",
         "react": "catalog:",
         "zod": "catalog:",
       },
     },
     "examples/files": {
-      "name": "@airtty-examples/files",
+      "name": "@luciole-examples/files",
       "dependencies": {
         "@opentui/core": "catalog:",
         "@opentui/react": "catalog:",
         "@tanstack/react-router": "catalog:",
-        "airtty": "workspace:*",
+        "luciole": "workspace:*",
         "react": "catalog:",
         "sharp": "catalog:",
         "zod": "catalog:",
       },
     },
     "examples/forge": {
-      "name": "@airtty-examples/forge",
+      "name": "@luciole-examples/forge",
       "dependencies": {
         "@opentui/core": "catalog:",
         "@opentui/react": "catalog:",
         "@tanstack/react-form": "catalog:",
         "@tanstack/react-router": "catalog:",
-        "airtty": "workspace:*",
+        "luciole": "workspace:*",
         "react": "catalog:",
         "zod": "catalog:",
       },
     },
     "examples/latency": {
-      "name": "@airtty-examples/latency",
+      "name": "@luciole-examples/latency",
       "dependencies": {
         "@tanstack/react-router": "catalog:",
-        "airtty": "workspace:*",
+        "luciole": "workspace:*",
         "react": "catalog:",
       },
     },
     "examples/mdreader": {
-      "name": "@airtty-examples/mdreader",
+      "name": "@luciole-examples/mdreader",
       "dependencies": {
         "@opentui/core": "catalog:",
         "@opentui/react": "catalog:",
         "@tanstack/react-router": "catalog:",
-        "airtty": "workspace:*",
+        "luciole": "workspace:*",
         "marked": "catalog:",
         "react": "catalog:",
         "zod": "catalog:",
       },
     },
     "examples/mux": {
-      "name": "@airtty-examples/mux",
+      "name": "@luciole-examples/mux",
       "dependencies": {
         "@tanstack/react-router": "catalog:",
-        "airtty": "workspace:*",
+        "luciole": "workspace:*",
         "react": "catalog:",
         "zod": "catalog:",
       },
     },
     "examples/notes": {
-      "name": "@airtty-examples/notes",
+      "name": "@luciole-examples/notes",
       "version": "0.1.0",
       "dependencies": {
         "@opentui/core": "catalog:",
         "@opentui/react": "catalog:",
         "@tanstack/react-router": "catalog:",
-        "airtty": "workspace:*",
+        "luciole": "workspace:*",
         "react": "catalog:",
         "zod": "catalog:",
       },
     },
     "examples/studio": {
-      "name": "@airtty-examples/studio",
+      "name": "@luciole-examples/studio",
       "dependencies": {
-        "@airtty/harness": "workspace:*",
+        "@luciole/harness": "workspace:*",
         "@opentui/core": "catalog:",
         "@opentui/keymap": "catalog:",
         "@opentui/react": "catalog:",
         "@tanstack/react-router": "catalog:",
-        "airtty": "workspace:*",
+        "luciole": "workspace:*",
         "react": "catalog:",
         "zod": "catalog:",
       },
     },
-    "packages/airtty": {
-      "name": "airtty",
+    "packages/luciole": {
+      "name": "luciole",
       "version": "0.1.0",
       "bin": {
-        "airtty": "./src/cli.ts",
-        "airttyx": "./src/airttyx.ts",
+        "luciole": "./src/cli.ts",
+        "luciolex": "./src/luciolex.ts",
       },
       "dependencies": {
         "@opentui/core": "0.5.12",
@@ -182,24 +182,24 @@
       },
     },
     "packages/desktop": {
-      "name": "airtty-desktop",
+      "name": "luciole-desktop",
       "dependencies": {
         "@xterm/addon-fit": "catalog:",
         "@xterm/addon-webgl": "catalog:",
         "@xterm/xterm": "catalog:",
-        "airtty": "workspace:*",
+        "luciole": "workspace:*",
       },
       "devDependencies": {
         "electrobun": "catalog:",
       },
     },
     "packages/harness": {
-      "name": "@airtty/harness",
+      "name": "@luciole/harness",
       "dependencies": {
         "@anthropic-ai/claude-agent-sdk": "catalog:",
         "@opentui/core": "catalog:",
         "@opentui/react": "catalog:",
-        "airtty": "workspace:*",
+        "luciole": "workspace:*",
         "react": "catalog:",
         "zod": "catalog:",
       },
@@ -258,27 +258,27 @@
     "zod": "4.6.5",
   },
   "packages": {
-    "@airtty-examples/agent": ["@airtty-examples/agent@workspace:examples/agent"],
+    "@luciole-examples/agent": ["@luciole-examples/agent@workspace:examples/agent"],
 
-    "@airtty-examples/chat": ["@airtty-examples/chat@workspace:examples/chat"],
+    "@luciole-examples/chat": ["@luciole-examples/chat@workspace:examples/chat"],
 
-    "@airtty-examples/coder": ["@airtty-examples/coder@workspace:examples/coder"],
+    "@luciole-examples/coder": ["@luciole-examples/coder@workspace:examples/coder"],
 
-    "@airtty-examples/files": ["@airtty-examples/files@workspace:examples/files"],
+    "@luciole-examples/files": ["@luciole-examples/files@workspace:examples/files"],
 
-    "@airtty-examples/forge": ["@airtty-examples/forge@workspace:examples/forge"],
+    "@luciole-examples/forge": ["@luciole-examples/forge@workspace:examples/forge"],
 
-    "@airtty-examples/latency": ["@airtty-examples/latency@workspace:examples/latency"],
+    "@luciole-examples/latency": ["@luciole-examples/latency@workspace:examples/latency"],
 
-    "@airtty-examples/mdreader": ["@airtty-examples/mdreader@workspace:examples/mdreader"],
+    "@luciole-examples/mdreader": ["@luciole-examples/mdreader@workspace:examples/mdreader"],
 
-    "@airtty-examples/mux": ["@airtty-examples/mux@workspace:examples/mux"],
+    "@luciole-examples/mux": ["@luciole-examples/mux@workspace:examples/mux"],
 
-    "@airtty-examples/notes": ["@airtty-examples/notes@workspace:examples/notes"],
+    "@luciole-examples/notes": ["@luciole-examples/notes@workspace:examples/notes"],
 
-    "@airtty-examples/studio": ["@airtty-examples/studio@workspace:examples/studio"],
+    "@luciole-examples/studio": ["@luciole-examples/studio@workspace:examples/studio"],
 
-    "@airtty/harness": ["@airtty/harness@workspace:packages/harness"],
+    "@luciole/harness": ["@luciole/harness@workspace:packages/harness"],
 
     "@anthropic-ai/claude-agent-sdk": ["@anthropic-ai/claude-agent-sdk@0.3.283", "", { "optionalDependencies": { "@anthropic-ai/claude-agent-sdk-darwin-arm64": "0.3.283", "@anthropic-ai/claude-agent-sdk-darwin-x64": "0.3.283", "@anthropic-ai/claude-agent-sdk-linux-arm64": "0.3.283", "@anthropic-ai/claude-agent-sdk-linux-arm64-musl": "0.3.283", "@anthropic-ai/claude-agent-sdk-linux-x64": "0.3.283", "@anthropic-ai/claude-agent-sdk-linux-x64-musl": "0.3.283", "@anthropic-ai/claude-agent-sdk-win32-arm64": "0.3.283", "@anthropic-ai/claude-agent-sdk-win32-x64": "0.3.283" }, "peerDependencies": { "@anthropic-ai/sdk": ">=0.93.0", "@modelcontextprotocol/sdk": "^1.29.0", "zod": "^4.0.0" } }, "sha512-KB+mqU5JLbH2sztlSQeCOu71bK6padYAha3uacBzxFSOVfuRTywYzvsC9P+qV6gXmPXcu98FaPqQv6vBF9j8hA=="],
 
@@ -594,9 +594,9 @@
 
     "acorn-loose": ["acorn-loose@8.5.2", "", { "dependencies": { "acorn": "^8.15.0" } }, "sha512-PPvV6g8UGMGgjrMu+n/f9E/tCSkNQ2Y97eFvuVdJfG11+xdIeDcLyNdC8SHcrHbRqkfwLASdplyR6B6sKM1U4A=="],
 
-    "airtty": ["airtty@workspace:packages/airtty"],
+    "luciole": ["luciole@workspace:packages/luciole"],
 
-    "airtty-desktop": ["airtty-desktop@workspace:packages/desktop"],
+    "luciole-desktop": ["luciole-desktop@workspace:packages/desktop"],
 
     "ajv": ["ajv@8.20.0", "", { "dependencies": { "fast-deep-equal": "^3.1.3", "fast-uri": "^3.0.1", "json-schema-traverse": "^1.0.0", "require-from-string": "^2.0.2" } }, "sha512-Thbli+OlOj+iMPYFBVBfJ3OmCAnaSyNn4M1vz9T6Gka5Jt9ba/HIR56joy65tY6kx/FCF5VXNB819Y7/GUrBGA=="],
 

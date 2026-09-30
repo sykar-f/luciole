@@ -678,7 +678,7 @@ export class ClaudeHarness implements Harness {
         env: {
           ...this.context.env,
           CLAUDE_CODE_ENABLE_TODO_TOOLS: "1",
-          CLAUDE_AGENT_SDK_CLIENT_APP: this.options.client ?? "airtty-coder",
+          CLAUDE_AGENT_SDK_CLIENT_APP: this.options.client ?? "luciole-coder",
         },
         // Without the preset, the SDK runs a minimal prompt, not Claude Code's.
         systemPrompt: {

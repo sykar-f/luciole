@@ -2,7 +2,7 @@
  * Forge production smoke: built artefacts, separate Server and Client processes, real PTY.
  *
  * Journey: sign in → repository → pull request → approve → comment → files → $EDITOR
- * → live checks → merge → quit. Runs under simulated latency (AIRTTY_LATENCY_MS, default
+ * → live checks → merge → quit. Runs under simulated latency (LUCIOLE_LATENCY_MS, default
  * 500) and measures that typing stays local. Observes PTY output, not photons. Writes
  * docs/forge-pty-frame.txt.
  */
@@ -22,7 +22,7 @@ import {
 } from "./harness";
 
 const APP = example("forge");
-const LATENCY_MS = numberFromEnv("AIRTTY_LATENCY_MS", 500);
+const LATENCY_MS = numberFromEnv("LUCIOLE_LATENCY_MS", 500);
 // 22 days after the seed's epoch (server/seed.ts, 2026-09-01T09:00Z): the Server's clock
 // starts there, so the ages in docs/forge-pty-frame.txt do not change with the day of the run.
 const CLOCK_START = "2026-09-23T09:00:00Z";
@@ -50,7 +50,7 @@ writeFileSync(
 );
 chmodSync(editor, 0o755);
 await using t = await drive({
-  command: [BUN, join(APP, ".airtty/client/index.js"), "--url", server.url],
+  command: [BUN, join(APP, ".luciole/client/index.js"), "--url", server.url],
   cols: 140,
   rows: 40,
   env: {

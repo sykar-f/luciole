@@ -1,4 +1,4 @@
-// Compiles a built airtty Client bundle into a standalone executable.
+// Compiles a built luciole Client bundle into a standalone executable.
 // bun compile.ts --entry <client/index.js> --out <file> [--target bun-darwin-arm64]
 //   [--runtime host|official]
 import { join, resolve } from "node:path";
@@ -11,7 +11,7 @@ const option = (key: string, fallback: string) => {
 };
 const probe = import.meta.dir;
 const entry = resolve(
-  option("--entry", join(probe, "../../examples/notes/.airtty/client/index.js")),
+  option("--entry", join(probe, "../../examples/notes/.luciole/client/index.js")),
 );
 const targets = [
   "bun-darwin-arm64",

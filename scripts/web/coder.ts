@@ -22,7 +22,7 @@ const FRAMES =
 const KIB = 1024;
 const PROJECT = "/home/ada/src/timers";
 build(example("coder"), ["--web-local"]);
-const site = join(example("coder"), ".airtty/web");
+const site = join(example("coder"), ".luciole/web");
 const worker = await Bun.file(join(site, "server-worker.js")).text();
 await Bun.write(
   join(site, "server-seed.json"),
@@ -69,7 +69,7 @@ try {
     report.tests = !!(await browser.waitFor(shows("✓ exit 0 · 1.8 s"), "the test run"));
     report.promptBack = !!(await browser.waitFor(rowWith(DEMO_END), "the end of the demo"));
     report.scenarioMs = Math.round(performance.now() - played);
-    await browser.screenshot(join(example("coder"), ".airtty/web-local.png"));
+    await browser.screenshot(join(example("coder"), ".luciole/web-local.png"));
   } catch (error: unknown) {
     // What the screen showed instead: the scenario's text changes more than its steps.
     console.error(await browser.evaluate(SCREEN).catch(() => ""));

@@ -1,14 +1,14 @@
 /**
  * What `bun run stage` leaves for the build (scripts/stage.ts), in `.stage/`: the app's
- * two-role binary in `bin/`, its built metadata (`metadata.json`, airtty/metadata) and its
+ * two-role binary in `bin/`, its built metadata (`metadata.json`, luciole/metadata) and its
  * icon, as a PNG and, on macOS, as an iconset. The bundle keeps `bin/` and the metadata
- * under `airtty/`, next to the views.
+ * under `luciole/`, next to the views.
  */
-import { AppMetadata } from "airtty/metadata";
+import { AppMetadata } from "luciole/metadata";
 
 export const STAGE = ".stage";
 /** Where the staged files land in the bundle, relative to `Resources/app`. */
-export const BUNDLED = "airtty";
+export const BUNDLED = "luciole";
 export const METADATA = "metadata.json";
 export const ICON_PNG = "icon.png";
 export const ICONSET = "icon.iconset";

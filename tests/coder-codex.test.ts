@@ -174,7 +174,7 @@ test("start: an honest client name, the account without its tokens, a thread in 
   const { harness, events, transports } = replay("say-ok");
   await harness.start({ cwd: "/project", mode: "ask" });
   expect(sentTo(transports[0], "initialize")).toMatchObject({
-    clientInfo: { name: "airtty-coder" },
+    clientInfo: { name: "luciole-coder" },
     capabilities: { experimentalApi: true },
   });
   expect(sentTo(transports[0], "thread/start")).toEqual({

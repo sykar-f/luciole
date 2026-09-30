@@ -3,7 +3,7 @@ import React from "react";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { memoryCache, type CacheHandler } from "../packages/airtty/src/cache/handler";
+import { memoryCache, type CacheHandler } from "../packages/luciole/src/cache/handler";
 import {
   cacheLife,
   cacheTag,
@@ -11,10 +11,10 @@ import {
   configureCache,
   invalidateTags,
   type CacheEvent,
-} from "../packages/airtty/src/cache/runtime";
-import { sqliteCache } from "../packages/airtty/src/cache/sqlite";
-import { messageOf } from "../packages/airtty/src/guards";
-import { getOptionalSession, getSession, invalidate } from "../packages/airtty/src/server";
+} from "../packages/luciole/src/cache/runtime";
+import { sqliteCache } from "../packages/luciole/src/cache/sqlite";
+import { messageOf } from "../packages/luciole/src/guards";
+import { getOptionalSession, getSession, invalidate } from "../packages/luciole/src/server";
 
 // Run by tests/cache.test.ts under the `react-server` condition, like the Server itself:
 // `bun test` alone resolves React's Client build. tests/helpers.ts imports `act`, which
@@ -239,7 +239,7 @@ test("nested cached calls pass their tags and life to the caller", async () => {
   expect(await outer()).toEqual({ leaf: 2 });
 });
 
-const directory = await mkdtemp(join(tmpdir(), "airtty-cache-sqlite-"));
+const directory = await mkdtemp(join(tmpdir(), "luciole-cache-sqlite-"));
 afterAll(() => rm(directory, { recursive: true, force: true }));
 test("the SQLite handler keeps entries across instances, by tag and within its bound", async () => {
   const path = join(directory, "cache.sqlite");

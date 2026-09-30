@@ -1,5 +1,5 @@
 /**
- * Notes as a static site (docs/WEB.md, step 3): no airtty Server anywhere, only files;
+ * Notes as a static site (docs/WEB.md, step 3): no luciole Server anywhere, only files;
  * the page runs the Client and a SharedWorker runs the Server, SQLite in WebAssembly, its
  * data in the origin's private file system. Builds examples/notes with `--web-local`.
  *   bun run test:web:local
@@ -10,7 +10,7 @@ import { Browser } from "./cdp";
 import { rowWith, serveSite, shows } from "./site";
 
 build(example("notes"), ["--web-local"]);
-const site = join(example("notes"), ".airtty/web");
+const site = join(example("notes"), ".luciole/web");
 const files = serveSite(site);
 const report: Record<string, unknown> = {};
 try {
@@ -55,7 +55,7 @@ try {
     `(() => { const row = [...document.querySelectorAll(".xterm-rows > div")].find((r) => r.textContent.includes("Second note")).getBoundingClientRect(); return { x: row.x + row.width / 4, y: row.y + row.height / 2 }; })()`,
   );
   report.openedByClick = !!(await browser.waitFor(shows("Second note ·"), "the clicked note"));
-  await browser.screenshot(join(example("notes"), ".airtty/web-local.png"));
+  await browser.screenshot(join(example("notes"), ".luciole/web-local.png"));
 } finally {
   await files.stop(true);
 }

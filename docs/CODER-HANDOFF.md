@@ -1,6 +1,6 @@
 # Handoff : `examples/coder`, un client TUI pour Claude Code, Codex, pi et opencode
 
-Branche `feat/coder`, worktree herdr `~/.herdr/worktrees/airtty/feat-coder`, partie de
+Branche `feat/coder`, worktree herdr `~/.herdr/worktrees/luciole/feat-coder`, partie de
 `main` à `01c8558`. Ce document **prime** sur `docs/coder/SPEC.md` en cas d'écart ; la spec
 détaille l'UI, les tables de correspondance et la matrice de capacités ; les rapports de
 `docs/coder/research/` sont la source de vérité protocolaire (lire celui du harness avant
@@ -14,7 +14,7 @@ d'écrire son adaptateur).
 
 ## 1. Mission
 
-Construire **un nouvel exemple airtty, `examples/coder`** : l'équivalent de `claude`,
+Construire **un nouvel exemple luciole, `examples/coder`** : l'équivalent de `claude`,
 `codex`, `pi` ou `opencode` lancés dans un terminal — **une session, un dossier, un agent** —
 mais avec le harness choisi au lancement :
 
@@ -23,7 +23,7 @@ coder --harness claude|codex|pi|opencode [--cwd DIR] [--model M] [--effort E] \
       [--mode read|ask|edits|full] [--resume [ID]] [--new]
 ```
 
-C'est aussi **la vitrine d'airtty** : exploiter au maximum le framework (Server qui possède
+C'est aussi **la vitrine de luciole** : exploiter au maximum le framework (Server qui possède
 la session, `useLive`, issues de requête, drafts, `useBindings`/`KeyHelp`, `host.notify`,
 `renderer.suspend()` pour `$EDITOR`, `ssh://`, DevTools, simulation de latence/fautes,
 cible web avec harness factice) et OpenTUI 0.5.12 (markdown streaming, `<diff>`, `<code>`,
@@ -40,7 +40,7 @@ lancement pour permettre plusieurs sessions dans un même projet.
 | UX               | **Mono-session** comme les CLI claude/codex/pi, pas un multi-threads à la T3 Code                          |
 | Choix du harness | Flag **`--harness claude\|codex\|pi\|opencode`**                                                           |
 | Instances        | **Plusieurs sessions en parallèle dans le même projet** doivent être possibles (pas d'instance unique)     |
-| Forme            | **Exemple airtty** (TUI OpenTUI), pas d'app web/Tauri                                                      |
+| Forme            | **Exemple luciole** (TUI OpenTUI), pas d'app web/Tauri                                                     |
 | Arguments        | **Changement architectural du framework** accepté : l'app déclare de vrais arguments CLI avec une bonne DX |
 | Exemple          | **Nouvel exemple `examples/coder`** ; **ne pas toucher `examples/agent`**                                  |
 | Nom              | `coder`                                                                                                    |
@@ -58,7 +58,7 @@ Décisions prises par le coordinateur (modifiables si tu as une raison forte, à
   cleye et documente pourquoi.
 - **`"server": "per-launch"`** (option de manifeste) plutôt qu'un Server multi-tenant.
 - **Plein écran** avec `<scrollbox>` (pas le mode `split-footer` d'OpenTUI : non exposé par
-  airtty, tours commités non repliables, incompatible web).
+  luciole, tours commités non repliables, incompatible web).
 - Défaut de permission : **`ask`** (T3 met « full access » par défaut, on ne le fait pas).
 
 ## 3. Conformité — garde-fous non négociables
@@ -104,7 +104,7 @@ Règles :
      correspond à `/anthropic|claude/i`. Vérifier au choix du modèle **et** avant chaque
      prompt. Claude via Copilot/Zen/Bedrock/Vertex/OpenRouter/clé API = OK.
 6. Pas d'usurpation de marque : nom propre `coder`, mention texte « powered by … ».
-   Codex : `clientInfo.name = "airtty-coder"`. opencode : partage public (`/share`) désactivé.
+   Codex : `clientInfo.name = "luciole-coder"`. opencode : partage public (`/share`) désactivé.
 7. README : mentionner que la licence de l'Agent SDK Anthropic n'est pas OSI (usage perso
    non commercial) et que chaque harness consomme le quota de l'utilisateur.
 
@@ -121,7 +121,7 @@ ignore les arguments en trop et spawn le Server avec `{...process.env, PORT}`,
 
 ```ts
 // examples/coder/app/args.ts
-import { defineArgs } from "airtty/args";
+import { defineArgs } from "luciole/args";
 import { z } from "zod";
 
 export default defineArgs({
@@ -149,20 +149,20 @@ export default defineArgs({
 - `.meta()` : `short`, `placeholder`, `description`, `kind: "path"` (résolu contre le cwd
   d'invocation), `env` (repli sur une variable). `true | string` = flag à valeur
   optionnelle ; tableaux = répétable ; booléens acceptent `--no-x`.
-- Nouveau point d'entrée `airtty/args` (`src/args.ts`) : `defineArgs`, parseur (grammaire +
+- Nouveau point d'entrée `luciole/args` (`src/args.ts`) : `defineArgs`, parseur (grammaire +
   aide générées depuis le JSON Schema, validation via `~standard.validate`, « did you
   mean », code de sortie 2 sur erreur).
-- Build : découvrir `app/args.ts`, le bundler en `.airtty/args`, y interdire les imports
+- Build : découvrir `app/args.ts`, le bundler en `.luciole/args`, y interdire les imports
   `server-only`, écrire son JSON Schema dans `metadata.json`, **échouer si l'app déclare
   un flag réservé** : `--url --on --target --grace --yes --help -h --version --new`, `serve`.
-- `--help` généré : options de l'app d'abord, puis options runtime airtty.
-- Entrées : `airtty dev --app d -- <args>` (le script racine finit par `--`, donc
-  `bun run coder -H codex` marche) ; `airtty ./app <args>` ; binaire `coder <args>` et
+- `--help` généré : options de l'app d'abord, puis options runtime luciole.
+- Entrées : `luciole dev --app d -- <args>` (le script racine finit par `--`, donc
+  `bun run coder -H codex` marche) ; `luciole ./app <args>` ; binaire `coder <args>` et
   `coder serve … -- <args>` ; `--on host` : arguments transmis par **stdin ssh** ;
   `--url`, Client générique et `--web-local` **refusent** les arguments d'app.
-- Transport vers le Server : env `AIRTTY_ARGS={v, argv, cwd}` (jamais la ligne de commande,
+- Transport vers le Server : env `LUCIOLE_ARGS={v, argv, cwd}` (jamais la ligne de commande,
   visible dans `ps`) ; le Server **re-parse** avec le même code (il fait autorité).
-- Lecture côté Server : `import cli from "../app/args"; cli.get()` typé ; `airtty/server`
+- Lecture côté Server : `import cli from "../app/args"; cli.get()` typé ; `luciole/server`
   gagne `getArgs()` et `getLaunch()`. **Pas d'API Client** : la page passe en props ce
   dont l'UI a besoin.
 - Tests : `args`, `args-types` (inférence), `args-build` (flags réservés, JSON Schema),
@@ -171,14 +171,14 @@ export default defineArgs({
 
 ## 5. Phase 0 + 2 — Sessions parallèles (framework)
 
-**Phase 0, prérequis à faire en premier** : deux lancements / `airtty dev` concurrents de la
-même app **se marchent dessus dans `.airtty/`** (le build échange des dossiers par rename
+**Phase 0, prérequis à faire en premier** : deux lancements / `luciole dev` concurrents de la
+même app **se marchent dessus dans `.luciole/`** (le build échange des dossiers par rename
 sans verrou). Ajouter un **verrou de build** et **sauter le build si le buildId est
 inchangé** (il est calculé avant le bundling). Utile même sans coder.
 
 **Phase 2** — état actuel : clé de session `local:<dir>` / `git:<repo>` / `local:<name>`
 (binaire) / `ssh:<dest>/<name>`, socket
-`<$XDG_RUNTIME_DIR/airtty | /tmp/airtty-uid>/<sha256(key)[:16]>.sock`, `ensureServer`
+`<$XDG_RUNTIME_DIR/luciole | /tmp/luciole-uid>/<sha256(key)[:16]>.sock`, `ensureServer`
 réutilise si même buildId ; **l'env du premier lancement gagne**, la clé n'inclut ni cwd,
 ni env, ni args (un binaire lancé dans le projet A puis B partage un Server qui tourne
 dans A — bug latent). Durée de vie : ping client 10 s, watchdog 30 s, grâce 15 min après
@@ -187,14 +187,14 @@ déjà faire reprendre la session la plus récente d'un Client mort (rename atom
 
 À faire :
 
-- Manifeste `package.json` : `"airtty": { "server": "shared" | "per-directory" |
+- Manifeste `package.json` : `"luciole": { "server": "shared" | "per-directory" |
 "per-launch", "grace": "10m" }`. L'**empreinte des arguments entre toujours dans la
   clé** (un Server = un jeu d'arguments = constante de process).
 - `per-launch` (coder) : clé `<target>@<cwd>#<fp>!<launchId>` → un Server par lancement.
 - **Rattachement après crash** : le launcher cherche un fichier de session d'un Client mort
   dont la clé commence par `base!` et dont le Server est encore en grâce, le réclame
   (`claimOrphan`, rename atomique de `session.ts`), récupère le launchId et
-  `AIRTTY_SESSION` → le Client relancé retrouve son agent vivant, sa route et son draft.
+  `LUCIOLE_SESSION` → le Client relancé retrouve son agent vivant, sa route et son draft.
   Flag réservé **`--new`** pour sauter le rattachement.
 - Impact : `useLive` inchangé (le flux se rouvre, 1er élément = snapshot) ; reconnexion et
   durée de vie inchangées ; ssh : clé + args par stdin ; binaires : scope depuis les
@@ -209,12 +209,12 @@ déjà faire reprendre la session la plus récente d'un Client mort (rename atom
 
 ## 6. Phase 3 — Squelette `examples/coder` + harness factice
 
-Structure (conventions du repo, cf. `research/airtty-report.md` §3) :
+Structure (conventions du repo, cf. `research/luciole-report.md` §3) :
 
 ```
 examples/coder/
-  package.json            airtty: workspace:*, deps en catalog:, "airtty": {"server":"per-launch"}
-  tsconfig.json           extends airtty/tsconfig
+  package.json            luciole: workspace:*, deps en catalog:, "luciole": {"server":"per-launch"}
+  tsconfig.json           extends luciole/tsconfig
   README.md               en français
   app/args.ts             §4
   app/layout.tsx          "use client" — écran de session
@@ -232,7 +232,7 @@ examples/coder/
                           Dialogs, Pickers, StatusLine, PlanBar, theme, syntax
 ```
 
-Racine : script `"coder": "bun packages/airtty/src/cli.ts dev --app examples/coder --"`,
+Racine : script `"coder": "bun packages/luciole/src/cli.ts dev --app examples/coder --"`,
 `"test:pty:coder"`, ajouter `tsc --noEmit -p examples/coder` à `check`.
 
 **Réutiliser d'`examples/agent`** (sans le modifier — copier/adapter) : lecture JSON-lines
@@ -248,7 +248,7 @@ attente (approbation / question / revue de plan) **adressables par id**, et
 `respond(id, decision)` **idempotent** : une réponse dont l'issue est `unknown` n'est
 **jamais rejouée**, on consulte l'état (patron `examples/forge/components/operations.ts`).
 
-Contraintes airtty à respecter : les actions ont un **timeout de 10 s** → elles rendent la
+Contraintes luciole à respecter : les actions ont un **timeout de 10 s** → elles rendent la
 main vite, la progression passe par `useLive` ; `useLive` ne se reconnecte pas seul (Ctrl+R
 / changement d'args) ; `"use server"` n'exporte que des fonctions async nommées, arguments
 **validés par Zod** ; lettres seules liées seulement quand aucun champ texte n'a le focus ;
@@ -335,7 +335,7 @@ updatedInput, updatedPermissions?}` (« toujours » = renvoyer une `suggestion`)
   « experimental » et variable par version → **générer les types** depuis le binaire
   installé (`codex app-server generate-ts --out … --experimental`), commiter ceux de
   0.156.1, vérifier la version au démarrage.
-- `initialize {clientInfo:{name:"airtty-coder",title,version}, capabilities:
+- `initialize {clientInfo:{name:"luciole-coder",title,version}, capabilities:
 {experimentalApi:true}}` puis notification `initialized`.
 - `thread/start {model, cwd, approvalPolicy, sandbox, …}` / `thread/resume` /
   `thread/list {cwd}` ; `turn/start {threadId, input, model, effort, sandboxPolicy,

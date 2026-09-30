@@ -1,15 +1,15 @@
 /**
- * Can TanStack DevTools' event bus carry airtty's DevTools protocol, so a future web front
+ * Can TanStack DevTools' event bus carry luciole's DevTools protocol, so a future web front
  * could reuse their shell? Runs their real `ServerEventBus` (the one their Vite plugin
- * starts) in this process, bridges airtty messages onto it the way their `EventClient`
+ * starts) in this process, bridges luciole messages onto it the way their `EventClient`
  * does, and plays their browser shell with a WebSocket and an SSE reader. See README.md.
  */
 import { ServerEventBus } from "@tanstack/devtools-event-bus/server";
 import { EventClient } from "@tanstack/devtools-event-client";
-import { fixtureSession } from "../../packages/airtty/src/devtools/fixtures";
-import { message, PLUGIN, type Message } from "../../packages/airtty/src/devtools/protocol";
-import { parseCommand, parseEvent } from "../../packages/airtty/src/devtools/schema";
-import { encode } from "../../packages/airtty/src/devtools/wire";
+import { fixtureSession } from "../../packages/luciole/src/devtools/fixtures";
+import { message, PLUGIN, type Message } from "../../packages/luciole/src/devtools/protocol";
+import { parseCommand, parseEvent } from "../../packages/luciole/src/devtools/schema";
+import { encode } from "../../packages/luciole/src/devtools/wire";
 
 const POLL_MS = 10,
   SETTLE_MS = 50;
@@ -34,7 +34,7 @@ const target = globalThis.__TANSTACK_EVENT_TARGET__;
 assert(target, "the bus installs its global event target");
 
 /**
- * The bridge airtty's DevTools Server would run: every stored message is dispatched as
+ * The bridge luciole's DevTools Server would run: every stored message is dispatched as
  * `tanstack-dispatch-event` (what `EventClient.emit` does), commands come back as events on
  * the same target. `source`, the inspected process, rides as an extra top-level field.
  */
@@ -66,19 +66,19 @@ const bridged = (stored: (typeof session)[number]): Message & { source: number }
 });
 const t0 = performance.now();
 for (const stored of session) forward(bridged(stored));
-await until(() => shell.length === session.length, "every airtty event reaches the shell");
+await until(() => shell.length === session.length, "every luciole event reaches the shell");
 const deliveryMs = performance.now() - t0;
 const intact = session.every((stored, i) => {
   const received = shell[i];
   return JSON.stringify(received) === encode(bridged(stored)) && parseEvent(received) !== undefined;
 });
-assert(intact, "events arrive unchanged, in order, and still parse as airtty events");
+assert(intact, "events arrive unchanged, in order, and still parse as luciole events");
 await until(
   () => sse.join("").split("data: ").length - 1 >= session.length,
   "the SSE fallback carries them too",
 );
 
-// Their own EventClient, with an airtty plugin id, emits exactly an airtty message.
+// Their own EventClient, with a luciole plugin id, emits exactly a luciole message.
 const client = new EventClient({ pluginId: PLUGIN.client, reconnectEveryMs: POLL_MS });
 const payload = {
   type: "request",
@@ -96,7 +96,7 @@ const emitted = shell.at(-1);
 // Same fields and values; only their key order differs (`type, payload, pluginId`).
 assert(
   Bun.deepEquals(emitted, message(PLUGIN.client, "request", payload)),
-  "EventClient's message is airtty's message",
+  "EventClient's message is luciole's message",
 );
 
 // Commands, from the shell back to the application: a TanStack plugin can listen too.
@@ -104,9 +104,9 @@ const listened: unknown[] = [];
 new EventClient({ pluginId: PLUGIN.control }).on("invalidate", (event) => listened.push(event));
 socket.send(JSON.stringify(message(PLUGIN.control, "invalidate", { paths: ["/notes"] })));
 await until(() => commands.length === 1 && listened.length === 1, "a command reaches the bridge");
-assert(parseCommand(commands[0])?.suffix === "invalidate", "the command parses as airtty's");
+assert(parseCommand(commands[0])?.suffix === "invalidate", "the command parses as luciole's");
 
-// BigInt: TanStack encodes { __type: "bigint", value }, airtty a string. No payload has one.
+// BigInt: TanStack encodes { __type: "bigint", value }, luciole a string. No payload has one.
 const bigint = encode(message(PLUGIN.client, "x", { n: 1n }));
 
 socket.close();

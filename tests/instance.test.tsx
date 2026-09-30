@@ -8,7 +8,7 @@ import { testRender } from "@opentui/react/test-utils";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { build } from "../packages/airtty/src/build";
+import { build } from "../packages/luciole/src/build";
 import { createRootRoute } from "@tanstack/react-router";
 import {
   Embed,
@@ -18,9 +18,9 @@ import {
   type Application,
   type ApplicationEvent,
   type Transport,
-} from "../packages/airtty/src/client";
-import { registerModules, splitInstance } from "../packages/airtty/src/flight/client";
-import { instanceManifests } from "../packages/airtty/src/instance";
+} from "../packages/luciole/src/client";
+import { registerModules, splitInstance } from "../packages/luciole/src/flight/client";
+import { instanceManifests } from "../packages/luciole/src/instance";
 import { destroy, importClient, launch, readManifest, until, type TestUI } from "./helpers";
 
 test("an instance key is read before the build ID's slash only", () => {
@@ -122,11 +122,11 @@ async function panes(ui: TestUI, texts: string[]) {
 test("two panes of one build, two Servers: own modules, own Server Functions", async () => {
   await build(mdreader);
   const { buildId } = await readManifest(mdreader);
-  const left = await mkdtemp(join(tmpdir(), "airtty-pane-a-"));
-  const right = await mkdtemp(join(tmpdir(), "airtty-pane-b-"));
+  const left = await mkdtemp(join(tmpdir(), "luciole-pane-a-"));
+  const right = await mkdtemp(join(tmpdir(), "luciole-pane-b-"));
   await Bun.write(join(left, "README.md"), "# Left\n\nServed to pane a.\n");
   await Bun.write(join(right, "README.md"), "# Right\n\nServed to pane b.\n");
-  const server = join(mdreader, ".airtty/server/index.js");
+  const server = join(mdreader, ".luciole/server/index.js");
   const a = await launch(server, { MD_PATH: left });
   const b = await launch(server, { MD_PATH: right });
   let ui: TestUI | undefined;
@@ -181,15 +181,15 @@ function HostKeymap({ children }: { children: ReactNode }) {
 test("two panes of one build on one shared runtime: bundles evaluated per pane", async () => {
   await build(mdreader);
   const { buildId } = await readManifest(mdreader);
-  const left = await mkdtemp(join(tmpdir(), "airtty-shared-a-"));
-  const right = await mkdtemp(join(tmpdir(), "airtty-shared-b-"));
+  const left = await mkdtemp(join(tmpdir(), "luciole-shared-a-"));
+  const right = await mkdtemp(join(tmpdir(), "luciole-shared-b-"));
   await Bun.write(join(left, "README.md"), "# Left\n\nShared runtime, pane a.\n");
   await Bun.write(join(right, "README.md"), "# Right\n\nShared runtime, pane b.\n");
-  const server = join(mdreader, ".airtty/server/index.js");
+  const server = join(mdreader, ".luciole/server/index.js");
   const a = await launch(server, { MD_PATH: left });
   const b = await launch(server, { MD_PATH: right });
   let ui: TestUI | undefined;
-  const bundle = join(mdreader, ".airtty/app");
+  const bundle = join(mdreader, ".luciole/app");
   const appA = await openApplication({ bundle, url: a.url, instance: "sa" });
   const appB = await openApplication({ bundle, url: b.url, instance: "sb" });
   try {
@@ -228,11 +228,11 @@ test("two panes of one build on one shared runtime: bundles evaluated per pane",
 test("two builds in one process, each pane with its key", async () => {
   await build(mdreader);
   await build(files);
-  const docs = await mkdtemp(join(tmpdir(), "airtty-two-builds-"));
+  const docs = await mkdtemp(join(tmpdir(), "luciole-two-builds-"));
   await Bun.write(join(docs, "README.md"), "# Docs\n\nRendered next to files.\n");
   await Bun.write(join(docs, "second-build-marker.txt"), "x\n");
-  const md = await launch(join(mdreader, ".airtty/server/index.js"), { MD_PATH: docs });
-  const fx = await launch(join(files, ".airtty/server/index.js"), { FILES_ROOT: docs });
+  const md = await launch(join(mdreader, ".luciole/server/index.js"), { MD_PATH: docs });
+  const fx = await launch(join(files, ".luciole/server/index.js"), { FILES_ROOT: docs });
   let ui: TestUI | undefined;
   try {
     const mdClient = await importClient(mdreader, "two-builds-md");
@@ -262,15 +262,15 @@ test("two builds in one process, each pane with its key", async () => {
 test("the Server refuses a malformed instance key and prefixes a valid one", async () => {
   await build(mdreader);
   const { buildId } = await readManifest(mdreader);
-  const docs = await mkdtemp(join(tmpdir(), "airtty-instance-server-"));
+  const docs = await mkdtemp(join(tmpdir(), "luciole-instance-server-"));
   await Bun.write(join(docs, "README.md"), "# Home\n");
-  const server = await launch(join(mdreader, ".airtty/server/index.js"), { MD_PATH: docs });
+  const server = await launch(join(mdreader, ".luciole/server/index.js"), { MD_PATH: docs });
   try {
     const render = (instance?: string) =>
       fetch(`${server.url}/render?route=/`, {
         headers: {
-          "x-airtty-build": server.buildId,
-          ...(instance === undefined ? {} : { "x-airtty-instance": instance }),
+          "x-luciole-build": server.buildId,
+          ...(instance === undefined ? {} : { "x-luciole-instance": instance }),
         },
       });
     expect((await render("Not A Key")).status).toBe(400);

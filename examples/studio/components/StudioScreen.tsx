@@ -2,15 +2,15 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { ScrollBoxRenderable, TextareaRenderable } from "@opentui/core";
 import { useTerminalDimensions } from "@opentui/react";
-import { Textarea, TransportError, useBindings, useLive, useRestoredFields } from "airtty/client";
-import type { FilePatch, Item, Request, Response, Result, Snapshot } from "@airtty/harness/model";
-import { Overlay, RequestDialog } from "@airtty/harness/ui/Dialogs";
-import { Line } from "@airtty/harness/ui/Line";
-import { Picker } from "@airtty/harness/ui/Picker";
-import { StatusLine } from "@airtty/harness/ui/StatusLine";
-import { FeedStore } from "@airtty/harness/ui/store";
-import { color } from "@airtty/harness/ui/theme";
-import { foldable, openByDefault, Patch, Transcript } from "@airtty/harness/ui/Transcript";
+import { Textarea, TransportError, useBindings, useLive, useRestoredFields } from "luciole/client";
+import type { FilePatch, Item, Request, Response, Result, Snapshot } from "@luciole/harness/model";
+import { Overlay, RequestDialog } from "@luciole/harness/ui/Dialogs";
+import { Line } from "@luciole/harness/ui/Line";
+import { Picker } from "@luciole/harness/ui/Picker";
+import { StatusLine } from "@luciole/harness/ui/StatusLine";
+import { FeedStore } from "@luciole/harness/ui/store";
+import { color } from "@luciole/harness/ui/theme";
+import { foldable, openByDefault, Patch, Transcript } from "@luciole/harness/ui/Transcript";
 import {
   allowHost,
   feed,

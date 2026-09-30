@@ -8,7 +8,7 @@ import * as keymap from "@opentui/keymap";
 import * as keymapReact from "@opentui/keymap/react";
 import * as zod from "zod";
 import * as zodMini from "zod/mini";
-import { logMessages } from "../../packages/airtty/src/bundle-errors";
+import { logMessages } from "../../packages/luciole/src/bundle-errors";
 import type { AbiSpecifier } from "./abi";
 import type * as RuntimeEntry from "./runtime-entry";
 
@@ -21,7 +21,7 @@ const tanstackClientBuild = join(
   "client.js",
 );
 // Left to node_modules so the host (this probe) and the runtime bundle share one copy;
-// only the airtty runtime and TanStack need bundling.
+// only the luciole runtime and TanStack need bundling.
 const EXTERNAL = [
   "react",
   "react-dom",
@@ -35,12 +35,12 @@ export type Runtime = typeof RuntimeEntry;
 const isRuntime = (value: unknown): value is Runtime =>
   typeof value === "object" &&
   value !== null &&
-  ["airttyClient", "airttyRouteTree", "runtimeContext", "flight", "tanstack"].every(
+  ["lucioleClient", "lucioleRouteTree", "runtimeContext", "flight", "tanstack"].every(
     (key) => key in value,
   );
 
 /**
- * Builds the generic Client's runtime (the airtty runtime and TanStack) and imports it.
+ * Builds the generic Client's runtime (the luciole runtime and TanStack) and imports it.
  * A real generic Client ships this bundle compiled in; here it is rebuilt per run.
  */
 export async function loadRuntime() {
@@ -69,11 +69,11 @@ export async function loadRuntime() {
   return { runtime: module, buildMs, bytes: Bun.file(join(OUT, "runtime.js")).size };
 }
 
-/** What each ABI specifier resolves to; `airtty/client` may be replaced per origin. */
+/** What each ABI specifier resolves to; `luciole/client` may be replaced per origin. */
 export function abiModules(runtime: Runtime): Record<AbiSpecifier, unknown> {
   return {
-    "airtty/client": runtime.airttyClient,
-    "airtty/route-tree": runtime.airttyRouteTree,
+    "luciole/client": runtime.lucioleClient,
+    "luciole/route-tree": runtime.lucioleRouteTree,
     "@tanstack/react-router": runtime.tanstack,
     react,
     "react/jsx-runtime": reactJsx,

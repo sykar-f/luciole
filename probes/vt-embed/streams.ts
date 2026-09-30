@@ -83,7 +83,7 @@ function ansiLog() {
   let out = "";
   for (let i = 0; i < LOG_LINES; i++) {
     const time = new Date(LOG_EPOCH + i * MS_PER_LINE).toISOString();
-    const module = `\x1b[38;5;${random(PALETTE_SIZE)}m${"airtty.core".padEnd(MODULE_WIDTH)}\x1b[0m`;
+    const module = `\x1b[38;5;${random(PALETTE_SIZE)}m${"luciole.core".padEnd(MODULE_WIDTH)}\x1b[0m`;
     const words = Array.from({ length: MESSAGE_WORDS }, () => WORDS[random(WORDS.length)]).join(
       " ",
     );

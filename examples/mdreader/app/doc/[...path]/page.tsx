@@ -1,4 +1,4 @@
-import { notFound } from "airtty/server";
+import { notFound } from "luciole/server";
 import { Reader } from "../../../components/Reader";
 import { readDoc } from "../../../server/library";
 

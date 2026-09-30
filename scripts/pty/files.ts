@@ -7,7 +7,7 @@
  * dotfiles → binary hex dump → zoom → quit. Observes PTY output, not photons.
  * FILES_PTY_FRAME=<file> writes the screen after the symlink checks there.
  *
- * Build first: bun packages/airtty/src/cli.ts build --app examples/files
+ * Build first: bun packages/luciole/src/cli.ts build --app examples/files
  */
 import assert from "node:assert/strict";
 import {
@@ -27,7 +27,7 @@ import { ctrl, drive, Keys, Mouse, paste } from "./driver";
 import { BUN, example, numberFromEnv, report, startServer, temporaryDirectory } from "./harness";
 
 const APP = example("files");
-const LATENCY_MS = numberFromEnv("AIRTTY_LATENCY_MS", 500);
+const LATENCY_MS = numberFromEnv("LUCIOLE_LATENCY_MS", 500);
 // Under this simulated RTT loading screens and ghost rows are too brief to be caught.
 const VISIBLE_LOADING_RTT_MS = 400;
 const SETTLE_MS = 400;
@@ -98,23 +98,23 @@ function fixture(base: string) {
   return tree;
 }
 
-using directory = temporaryDirectory("airtty-files-");
+using directory = temporaryDirectory("luciole-files-");
 const base = directory.path;
 const tree = fixture(base);
 await using server = await startServer(APP, {
   FILES_ROOT: tree,
-  AIRTTY_TEST: "1",
+  LUCIOLE_TEST: "1",
   // Thumbnails are cached here, never in the user's ~/.cache.
   XDG_CACHE_HOME: join(base, "cache"),
 });
 await using t = await drive({
-  command: [BUN, join(APP, ".airtty/client/index.js"), "--url", server.url],
+  command: [BUN, join(APP, ".luciole/client/index.js"), "--url", server.url],
   cols: 140,
   rows: 40,
   env: {
     NODE_ENV: "production",
     XDG_STATE_HOME: join(base, "state"),
-    AIRTTY_LATENCY_MS: String(LATENCY_MS),
+    LUCIOLE_LATENCY_MS: String(LATENCY_MS),
     // A fake clipboard tool: copies land in a file, never in the user's clipboard.
     PATH: join(base, "bin"),
   },
@@ -144,7 +144,7 @@ await t.waitFor("drawn with truecolor half blocks (auto)");
 await t.waitFor("48×32 px");
 // The image arrives as a Server thumbnail (never enlarged), not as the file.
 await t.waitFor("PNG 48×32 · thumbnail 48×32");
-const thumbnails = join(base, "cache/airtty-files/thumbnails");
+const thumbnails = join(base, "cache/luciole-files/thumbnails");
 assert.ok(
   existsSync(thumbnails) && readdirSync(thumbnails).some((name) => name.endsWith(".webp")),
   "no cached thumbnail",

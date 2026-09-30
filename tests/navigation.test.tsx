@@ -6,14 +6,14 @@ import { testRender } from "@opentui/react/test-utils";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { build } from "../packages/airtty/src/build";
+import { build } from "../packages/luciole/src/build";
 import { launch, until, importClient, destroy, draftOf, renderable, type TestUI } from "./helpers";
 
 test("local route loading, cancel, refresh identity, failed navigation and superseded loads", async () => {
   const directory = resolve("examples/notes");
   await build(directory);
-  const temp = await mkdtemp(join(tmpdir(), "airtty-navigation-"));
-  const server = await launch(join(directory, ".airtty/server/index.js"), {
+  const temp = await mkdtemp(join(tmpdir(), "luciole-navigation-"));
+  const server = await launch(join(directory, ".luciole/server/index.js"), {
     NOTES_DB: join(temp, "notes.sqlite"),
   });
   const { createApp, Shell } = await importClient(directory, "navigation");

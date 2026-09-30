@@ -1,7 +1,7 @@
-# OpenTUI capability inventory for an agent TUI (airtty)
+# OpenTUI capability inventory for an agent TUI (luciole)
 
 Researched 2026-09-26. Everything below was checked against the **installed typings** in
-`/Users/sykar-f/workdir/drafts/airtty/node_modules/@opentui/*` (abbreviated `NM/` below), then filled in from
+`/Users/sykar-f/workdir/drafts/luciole/node_modules/@opentui/*` (abbreviated `NM/` below), then filled in from
 opentui.com/docs and the GitHub repo.
 
 ## 1. Packages, version, renderer model
@@ -22,7 +22,7 @@ opentui.com/docs and the GitHub repo.
 `createCliRenderer(config)` accepts the following `CliRendererConfig` options:
 
 - **Streams and size:** `stdin`, `stdout`, `width`, `height`, `remote`, `forwardEnvKeys`.
-  - With a non-`process.stdout` stream, output goes through a `NativeSpanFeed`. This is what airtty's web platform does in `packages/airtty/src/web/platform/run.tsx:178`.
+  - With a non-`process.stdout` stream, output goes through a `NativeSpanFeed`. This is what luciole's web platform does in `packages/luciole/src/web/platform/run.tsx:178`.
   - Call `renderer.resize(w,h)` for external resizes. SIGWINCH is only automatic on `process.stdout`.
 - **Screen:** `screenMode: "alternate-screen" | "main-screen" | "split-footer"`, `footerHeight` (default 12), `externalOutputMode: "capture-stdout" | "passthrough"`, `clearOnShutdown`, `backgroundColor`.
 - **Split-footer model (Claude Code-like inline UI):**
@@ -30,7 +30,7 @@ opentui.com/docs and the GitHub repo.
   - APIs: `renderer.writeToScrollback(ctx => ({root, width, height, startOnNewLine, trailingNewline}))`, and `renderer.createScrollbackSurface()` → `{root, renderContext, render(), settle(), commitRows(start,end), destroy()}` for _streaming_ a Markdown or Code renderable into scrollback row by row. Also `resetSplitFooterForReplay()`.
   - Examples: `packages/examples/src/split-footer-streaming-demo.ts`, `split-mode-demo.ts`, `split-footer-image-demo.ts`.
 - **Loop:**
-  - `targetFps`, `maxFps`, `debounceDelay`, `useThread` (render on a native thread; airtty web forces it off), `gatherStats`, `maxStatSamples`, `memorySnapshotInterval`, `clock`.
+  - `targetFps`, `maxFps`, `debounceDelay`, `useThread` (render on a native thread; luciole web forces it off), `gatherStats`, `maxStatSamples`, `memorySnapshotInterval`, `clock`.
   - Rendering is **demand-driven** by default: tree mutations call `requestRender()`. `start()`/`pause()` switch to continuous rendering. `requestLive()`/`dropLive()` are ref-counted live mode (timelines use it). Also `suspend()`/`resume()` (e.g. to shell out to $EDITOR), `idle()`, `getStats()`.
 - **Input:**
   - `useMouse` (default on), `enableMouseMovement`, `autoFocus` (a left click focuses the nearest focusable).
@@ -273,7 +273,7 @@ Multi-line editor on a native rope `EditBuffer` with grapheme-aware editing and 
 - Select has no filter or custom rows.
 - There is no autocomplete widget and no theme system.
 - Extmarks are marked experimental.
-- In the browser, OpenTUI replaces the global `requestAnimationFrame`; airtty already works around this.
+- In the browser, OpenTUI replaces the global `requestAnimationFrame`; luciole already works around this.
 
 For thousands of lines, prefer these patterns:
 
@@ -310,4 +310,4 @@ For thousands of lines, prefer these patterns:
 - Installed typings: `NM/core/{renderer,types,Renderable,console,syntax-style,image,edit-buffer,editor-view}.d.ts`, `NM/core/renderables/*.d.ts`, `NM/core/lib/{KeyHandler,parse.keypress,parse.mouse,paste,clipboard,selection,styled-text,extmarks,terminal-palette,scroll-acceleration,tree-sitter/*}.d.ts`, `NM/core/assets/*`, `NM/core/README.md`, `NM/react/README.md`, `NM/react/src/**/*.d.ts`, `NM/keymap/README.md`.
 - Docs: https://opentui.com/docs, https://opentui.com/docs/core-concepts/renderer, …/interaction, …/keyboard, …/clipboard, https://opentui.com/docs/components/scrollbox, …/markdown, …/diff, …/textarea.
 - Repo: https://github.com/anomalyco/opentui (examples in `packages/examples/src/*`, esp. `split-footer-streaming-demo.ts`, `sticky-scroll-example.ts`, `extmarks-demo.ts`, `clipboard-paste-demo.ts`; React examples in `packages/react/examples/*`). Issues #1339, #1493, #1514, #1526, #1311, #1494, #1369, #1512, #1434, #809, #1289, #1296, #1497.
-- Consumer: `/Users/sykar-f/workdir/drafts/airtty/examples/agent/components/Transcript.tsx`, `packages/airtty/src/web/platform/run.tsx`.
+- Consumer: `/Users/sykar-f/workdir/drafts/luciole/examples/agent/components/Transcript.tsx`, `packages/luciole/src/web/platform/run.tsx`.

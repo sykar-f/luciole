@@ -6,9 +6,9 @@ remplace pas [EMBEDDING.md](EMBEDDING.md), qui reste la référence de conceptio
 
 ## Mission
 
-Faire d'airtty un hôte capable d'ouvrir plusieurs applications à la fois : un navigateur à
+Faire de luciole un hôte capable d'ouvrir plusieurs applications à la fois : un navigateur à
 onglets pour des applications servies par d'autres Servers, et un multiplexeur local à la
-tmux/herdr (shells, vim, applications airtty). L'isolation est un **curseur par origine**,
+tmux/herdr (shells, vim, applications luciole). L'isolation est un **curseur par origine**,
 choisi par l'utilisateur, jamais par l'application :
 
 | Mode      | Exécution                          | Isolation                     | Usage                            |
@@ -31,24 +31,24 @@ Sur `main` (après le merge d'`integration`) :
   `probes/inline` (20/20), `probes/generic-client` (9/9), `probes/sandbox` (38/38 macOS,
   12/12 Linux en conteneur), `probes/vt-embed` (15/15).
 - Le lanceur de feat/distribution est livré : résolution chemin → installé → npm → git →
-  URL (`src/launcher/`), champ `airtty` (`name`, `buildId`, `binaries`) dans le
+  URL (`src/launcher/`), champ `luciole` (`name`, `buildId`, `binaries`) dans le
   `package.json`. L'étape URL répond aujourd'hui « non supporté encore » : c'est là que se
   branche le Client générique (étape 5).
 
 ## Décisions déjà prises (ne pas rouvrir)
 
-1. Pane embarquable : nouvel export `<Embed app name active />` dans `airtty/client` ;
+1. Pane embarquable : nouvel export `<Embed app name active />` dans `luciole/client` ;
    `Shell` ne change pas.
-2. Pas de nouvelle commande : `airtty https://…` passe par le lanceur.
-3. Capacités déclarées statiquement dans `airtty.capabilities` du `package.json`, schéma
+2. Pas de nouvelle commande : `luciole https://…` passe par le lanceur.
+3. Capacités déclarées statiquement dans `luciole.capabilities` du `package.json`, schéma
    Zod de `probes/sandbox/capabilities.ts`, recopiées dans le manifeste signé.
-4. Deux panes du même build : préfixe **par instance** dès l'étape 1 (`x-airtty-instance`,
+4. Deux panes du même build : préfixe **par instance** dès l'étape 1 (`x-luciole-instance`,
    ids `<clé>@<buildId>/<chemin>`).
 5. `inline` autorise tout, y compris `child_process` ; le lanceur l'affiche avant
    l'ouverture. Texte proposé, à caler avec le lanceur : « Confiance totale : cette app
    s'exécute dans le processus du lanceur ; aucune capacité n'est appliquée. »
-6. Sandbox Linux : un **lanceur natif en Rust** (`airtty-sandbox`, livré compilé avec
-   airtty) applique lui-même Landlock (fichiers, exécution par binaire, ports TCP depuis
+6. Sandbox Linux : un **lanceur natif en Rust** (`luciole-sandbox`, livré compilé avec
+   luciole) applique lui-même Landlock (fichiers, exécution par binaire, ports TCP depuis
    l'ABI 4 / noyau 6.7 : sortie réseau forcée vers le proxy de l'hôte sans namespace) et
    seccomp (TIOCSTI, `ptrace`…), puis `exec` l'enfant. Pas de dépendance à bwrap ni à
    `landrun`, pas besoin des user namespaces (restreints par AppArmor sur Ubuntu ≥ 23.10).
@@ -74,7 +74,7 @@ change pas le comportement d'une application existante (un seul pane = aujourd'h
 | ----- | -------------------------------------------------------------------------------- | ---------- |
 | 1     | Préfixe d'instance, `registerModules`, `actionReference` lié au pane (O1, O2)    | 3 j        |
 | 2     | `<Embed>` : keymap par pane, error boundary, focus retiré/rendu (O3, O4)         | 3 j        |
-| 3     | Sortie `.airtty/app/` sans runtime, ABI (`src/abi.ts`), `airtty.capabilities`    | 3,5 j      |
+| 3     | Sortie `.luciole/app/` sans runtime, ABI (`src/abi.ts`), `luciole.capabilities`  | 3,5 j      |
 | 4     | Signature Ed25519, routes `/manifest` et `/bundle`                               | 2 j        |
 | 5     | Client générique sur l'étape URL du lanceur, TOFU, stockage par origine, onglets | 4 j        |
 | 6     | Mode `process` : widget VT (`EmbeddedTerminalRenderable` d'OpenTUI), PTY Bun     | 5–8 j      |
@@ -90,7 +90,7 @@ l'objectif prioritaire est tmux/herdr, l'ordre 1 → 2 → 6 est légitime.
   `clé → resolver`. `installResolver(next)` devient `registerModules(key, resolver): () => void`.
   Le `__webpack_require__` global aiguille sur le préfixe `<clé>@` ; sans préfixe, sur
   l'unique résolveur enregistré (le Client actuel ne change pas).
-- `src/transport.ts` : en-tête `x-airtty-instance` si `HttpTransportOptions.instance` est
+- `src/transport.ts` : en-tête `x-luciole-instance` si `HttpTransportOptions.instance` est
   défini ; `ApplicationOptions.instance` le transmet. Réglé par l'hôte, jamais par l'app.
 - `src/server.ts` : en-tête validé par Zod (`[a-z0-9-]{1,32}`), copie du manifeste préfixée
   par clé passée à `renderToReadableStream`, dans un **cache borné** (la clé vient du

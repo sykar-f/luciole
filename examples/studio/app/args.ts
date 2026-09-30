@@ -1,4 +1,4 @@
-import { defineArgs } from "airtty/args";
+import { defineArgs } from "luciole/args";
 import { z } from "zod";
 
 /**
@@ -14,7 +14,7 @@ const DEFAULT_FIXES = 2;
 const MAX_FIXES = 5;
 
 export default defineArgs({
-  summary: "Describe an airtty app to a coding agent and use it while it is written",
+  summary: "Describe a luciole app to a coding agent and use it while it is written",
   options: z
     .object({
       // A string checked by zod, not an enum the parser checks first: its refusal of
@@ -41,7 +41,7 @@ export default defineArgs({
         .meta({
           short: "p",
           placeholder: "NAME",
-          description: "Project under $XDG_DATA_HOME/airtty/studio (default: a new app-<date>)",
+          description: "Project under $XDG_DATA_HOME/luciole/studio (default: a new app-<date>)",
         }),
       resume: z
         .union([z.literal(true), z.string().min(1)])

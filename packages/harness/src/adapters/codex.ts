@@ -319,8 +319,8 @@ export class CodexHarness implements Harness {
       await rpc.request("initialize", {
         // An honest name: Codex records it in compliance logs.
         clientInfo: {
-          name: this.options.client ?? "airtty-coder",
-          title: `${this.options.client ?? "airtty-coder"} (airtty)`,
+          name: this.options.client ?? "luciole-coder",
+          title: `${this.options.client ?? "luciole-coder"} (luciole)`,
           version: "0.1.0",
         },
         capabilities: { experimentalApi: true, requestAttestation: false },

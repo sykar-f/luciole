@@ -5,8 +5,8 @@ import { testRender } from "@opentui/react/test-utils";
 import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { build } from "../packages/airtty/src/build";
-import type { Application } from "../packages/airtty/src/client";
+import { build } from "../packages/luciole/src/build";
+import type { Application } from "../packages/luciole/src/client";
 import { launch, importClient, readManifest, rejectionOf, destroy, type TestUI } from "./helpers";
 
 async function authFixture(directory: string) {
@@ -16,7 +16,7 @@ async function authFixture(directory: string) {
 }
 
 test("public and protected routes and actions use the application auth adapter", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "airtty-auth-"));
+  const directory = await mkdtemp(join(tmpdir(), "luciole-auth-"));
   let server: Awaited<ReturnType<typeof launch>> | undefined;
   try {
     await authFixture(directory);
@@ -26,7 +26,7 @@ test("public and protected routes and actions use the application auth adapter",
     );
     await Bun.write(
       join(directory, "app/page.tsx"),
-      `import {getSession} from "airtty/server";import {Actions} from "../components/Actions";export default function Page(){return <box flexDirection="column"><text>PRIVATE {getSession().userId}</text><Actions/></box>}`,
+      `import {getSession} from "luciole/server";import {Actions} from "../components/Actions";export default function Page(){return <box flexDirection="column"><text>PRIVATE {getSession().userId}</text><Actions/></box>}`,
     );
     await Bun.write(
       join(directory, "app/login/page.tsx"),
@@ -34,7 +34,7 @@ test("public and protected routes and actions use the application auth adapter",
     );
     await Bun.write(
       join(directory, "app/public/page.tsx"),
-      `import {getOptionalSession} from "airtty/server";export const auth="public" as const;export default function Page(){return <text>PUBLIC {getOptionalSession()?.userId??"guest"}</text>}`,
+      `import {getOptionalSession} from "luciole/server";export const auth="public" as const;export default function Page(){return <text>PUBLIC {getOptionalSession()?.userId??"guest"}</text>}`,
     );
     await Bun.write(
       join(directory, "components/Actions.tsx"),
@@ -42,18 +42,18 @@ test("public and protected routes and actions use the application auth adapter",
     );
     await Bun.write(
       join(directory, "actions/private.ts"),
-      `"use server";import {getSession} from "airtty/server";export async function privateAction(){return getSession().userId}`,
+      `"use server";import {getSession} from "luciole/server";export async function privateAction(){return getSession().userId}`,
     );
     await Bun.write(
       join(directory, "actions/public.ts"),
-      `"use server";import {getOptionalSession} from "airtty/server";export const auth="public" as const;export async function publicAction(){return getOptionalSession()?.userId??"guest"}`,
+      `"use server";import {getOptionalSession} from "luciole/server";export const auth="public" as const;export async function publicAction(){return getOptionalSession()?.userId??"guest"}`,
     );
     await Bun.write(
       join(directory, "server/auth.ts"),
-      `import type {AuthConfig} from "airtty/server";const users={"Bearer valid":"alice","Bearer other":"bob"};export default {unauthorizedPath:"/login",authenticate(request){const userId=users[request.headers.get("authorization")];return userId?{userId,role:"admin"}:null}} satisfies AuthConfig`,
+      `import type {AuthConfig} from "luciole/server";const users={"Bearer valid":"alice","Bearer other":"bob"};export default {unauthorizedPath:"/login",authenticate(request){const userId=users[request.headers.get("authorization")];return userId?{userId,role:"admin"}:null}} satisfies AuthConfig`,
     );
     await build(directory);
-    server = await launch(join(directory, ".airtty/server/index.js"));
+    server = await launch(join(directory, ".luciole/server/index.js"));
     const { createApp } = await importClient(directory);
     const manifest = await readManifest(directory);
     const at = (app: Application) => app.router.state.resolvedLocation?.pathname;
@@ -90,7 +90,7 @@ test("public and protected routes and actions use the application auth adapter",
     const raw = (query: string, token?: string) =>
       fetch(`${url}/render?${query}`, {
         headers: {
-          "x-airtty-build": manifest.buildId,
+          "x-luciole-build": manifest.buildId,
           ...(token ? { authorization: `Bearer ${token}` } : {}),
         },
       });
@@ -114,7 +114,7 @@ test("public and protected routes and actions use the application auth adapter",
 });
 
 test("logout and bearer changes purge cached private trees before any protected render", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "airtty-auth-cache-"));
+  const directory = await mkdtemp(join(tmpdir(), "luciole-auth-cache-"));
   let server: Awaited<ReturnType<typeof launch>> | undefined, rendered: TestUI | undefined;
   try {
     await authFixture(directory);
@@ -124,7 +124,7 @@ test("logout and bearer changes purge cached private trees before any protected 
     );
     await Bun.write(
       join(directory, "app/page.tsx"),
-      `import {getSession} from "airtty/server";export default function Page(){return <text>PRIVATE of {getSession().userId}</text>}`,
+      `import {getSession} from "luciole/server";export default function Page(){return <text>PRIVATE of {getSession().userId}</text>}`,
     );
     await Bun.write(
       join(directory, "app/login/page.tsx"),
@@ -132,10 +132,10 @@ test("logout and bearer changes purge cached private trees before any protected 
     );
     await Bun.write(
       join(directory, "server/auth.ts"),
-      `import type {AuthConfig} from "airtty/server";const users={"Bearer valid":"alice","Bearer other":"bob"};export default {unauthorizedPath:"/login",authenticate(request){const userId=users[request.headers.get("authorization")];return userId?{userId}:null}} satisfies AuthConfig`,
+      `import type {AuthConfig} from "luciole/server";const users={"Bearer valid":"alice","Bearer other":"bob"};export default {unauthorizedPath:"/login",authenticate(request){const userId=users[request.headers.get("authorization")];return userId?{userId}:null}} satisfies AuthConfig`,
     );
     await build(directory);
-    server = await launch(join(directory, ".airtty/server/index.js"));
+    server = await launch(join(directory, ".luciole/server/index.js"));
     const { createApp, Shell } = await importClient(directory);
     let gate: PromiseWithResolvers<void> | undefined;
     const app = createApp({
@@ -194,7 +194,7 @@ test("logout and bearer changes purge cached private trees before any protected 
 });
 
 test("a navigation still in flight when the bearer changes never shows the previous identity", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "airtty-auth-late-"));
+  const directory = await mkdtemp(join(tmpdir(), "luciole-auth-late-"));
   let server: Awaited<ReturnType<typeof launch>> | undefined, rendered: TestUI | undefined;
   try {
     await authFixture(directory);
@@ -205,7 +205,7 @@ test("a navigation still in flight when the bearer changes never shows the previ
     );
     await Bun.write(
       join(directory, "app/private/page.tsx"),
-      `import {getSession} from "airtty/server";export default function Page(){return <text>PRIVATE of {getSession().userId}</text>}`,
+      `import {getSession} from "luciole/server";export default function Page(){return <text>PRIVATE of {getSession().userId}</text>}`,
     );
     await Bun.write(
       join(directory, "app/login/page.tsx"),
@@ -213,10 +213,10 @@ test("a navigation still in flight when the bearer changes never shows the previ
     );
     await Bun.write(
       join(directory, "server/auth.ts"),
-      `import type {AuthConfig} from "airtty/server";const users={"Bearer valid":"alice","Bearer other":"bob"};export default {unauthorizedPath:"/login",authenticate(request){const userId=users[request.headers.get("authorization")];return userId?{userId}:null}} satisfies AuthConfig`,
+      `import type {AuthConfig} from "luciole/server";const users={"Bearer valid":"alice","Bearer other":"bob"};export default {unauthorizedPath:"/login",authenticate(request){const userId=users[request.headers.get("authorization")];return userId?{userId}:null}} satisfies AuthConfig`,
     );
     await build(directory);
-    server = await launch(join(directory, ".airtty/server/index.js"));
+    server = await launch(join(directory, ".luciole/server/index.js"));
     const { createApp, Shell } = await importClient(directory);
     // Holds the next request after its headers (alice's bearer) are set, before it leaves.
     let gate: PromiseWithResolvers<void> | undefined;

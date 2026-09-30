@@ -208,7 +208,7 @@ export async function* complete(history: ChatMessage[]): AsyncGenerator<ChatEven
         headers: {
           authorization: `Bearer ${current.key}`,
           "content-type": "application/json",
-          "x-title": "airtty chat",
+          "x-title": "luciole chat",
         },
         body: JSON.stringify({
           model: current.model,

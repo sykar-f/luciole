@@ -9,7 +9,7 @@ sources:
 import Excerpt from "../../../components/guide/Excerpt.astro";
 import Note from "../../../components/docs/Note.astro";
 
-`airtty init` copies Notes, so this is what a new app starts from: a list of notes, an
+`luciole init` copies Notes, so this is what a new app starts from: a list of notes, an
 editor, SQLite on the Server. Each file sits on one side; the directory it is in and its
 first line say which.
 
@@ -90,7 +90,7 @@ You write no RPC protocol, module registry, Flight manifest or OpenTUI bootstrap
 
 <Excerpt
   path="package.json"
-  find='"dev": "bun packages/airtty/src/cli.ts dev"'
+  find='"dev": "bun packages/luciole/src/cli.ts dev"'
   count={1}
   tone="neutral"
   caption="From the repository's root, bun run dev builds and starts Notes."

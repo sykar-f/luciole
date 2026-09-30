@@ -1,5 +1,5 @@
 // What studio's Server tells its Client beside the harness's session (which follows
-// @airtty/harness/model): the project, its revisions, where the last validation stands
+// @luciole/harness/model): the project, its revisions, where the last validation stands
 // and what the preview shows. Plain data, read by both sides.
 
 /** A validation's stages, in order: `types` runs beside the preview, `render` is reported by it. */

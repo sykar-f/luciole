@@ -1,6 +1,6 @@
 # DevTools
 
-L'équivalent de Chrome DevTools et React DevTools pour une application airtty : un
+L'équivalent de Chrome DevTools et React DevTools pour une application luciole : un
 waterfall des requêtes Client **et** Server avec le cache qui a répondu, l'arbre des
 composants Client et Server avec la raison de chaque rendu, les logs des deux processus,
 l'état du routeur, les touches reçues et les conditions réseau en direct.
@@ -11,35 +11,35 @@ Deux panneaux de terminal :
 
 ```sh
 # panneau 1 : les DevTools
-bun packages/airtty/src/cli.ts devtools            # airtty devtools, une fois le package installé
+bun packages/luciole/src/cli.ts devtools            # luciole devtools, une fois le package installé
 
 # panneau 2 : l'application inspectée
-eval "$(bun packages/airtty/src/cli.ts devtools --env)"
-bun run dev                        # ou n'importe quel `airtty dev --app …`
+eval "$(bun packages/luciole/src/cli.ts devtools --env)"
+bun run dev                        # ou n'importe quel `luciole dev --app …`
 ```
 
 `--env` imprime les deux variables à exporter :
 
-| Variable          | Rôle                                                                                                                                                                               |
-| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `AIRTTY_DEVTOOLS` | Adresse des DevTools : `1` (socket Unix par défaut, par utilisateur), un chemin (`/…` ou `unix:/…`) ou `ws://hôte:port`. Lue par le Client (`run()`) et le Server (`serve()`).     |
-| `BUN_OPTIONS`     | `--preload=<airtty>/src/devtools/hook.ts` : le hook de fibers, requis par le seul panneau Components. Sans lui, tout le reste fonctionne et le panneau explique comment l'activer. |
+| Variable           | Rôle                                                                                                                                                                                |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `LUCIOLE_DEVTOOLS` | Adresse des DevTools : `1` (socket Unix par défaut, par utilisateur), un chemin (`/…` ou `unix:/…`) ou `ws://hôte:port`. Lue par le Client (`run()`) et le Server (`serve()`).      |
+| `BUN_OPTIONS`      | `--preload=<luciole>/src/devtools/hook.ts` : le hook de fibers, requis par le seul panneau Components. Sans lui, tout le reste fonctionne et le panneau explique comment l'activer. |
 
-`airtty devtools` écoute sur `--listen`, à défaut sur `AIRTTY_DEVTOOLS` du shell, à défaut
+`luciole devtools` écoute sur `--listen`, à défaut sur `LUCIOLE_DEVTOOLS` du shell, à défaut
 sur le socket par défaut. `--demo` rejoue une session simulée (voir « Contrat avec
 feat/use-cache »), `--replay fichier.json` rouvre un enregistrement.
-`AIRTTY_DEVTOOLS_LISTEN=none` (côté Server des DevTools) n'ouvre aucun bus : seulement la
+`LUCIOLE_DEVTOOLS_LISTEN=none` (côté Server des DevTools) n'ouvre aucun bus : seulement la
 session de démo ou l'enregistrement, et aucune invite de connexion. C'est ainsi que la
 landing fait tourner les DevTools dans une page, où rien ne peut écouter.
 
 **Coût nul sans la variable.** Le Server rend l'`instrument` configuré tel quel (aucune
 réponse n'est enveloppée) ; le Client n'exécute pas l'import dynamique de l'agent. Sous
-`NODE_ENV=production` (`airtty start`), la variable est ignorée avec un avertissement.
+`NODE_ENV=production` (`luciole start`), la variable est ignorée avec un avertissement.
 
 ## Architecture
 
 ```text
-application inspectée                                   DevTools (une app airtty)
+application inspectée                                   DevTools (une app luciole)
 ┌─────────────────────────┐                           ┌───────────────────────────────┐
 │ Client  client-agent.ts │── socket, NDJSON ────────▶│ Server  server/store.ts       │
 │   onEvent, routeur,     │◀─ commandes ──────────────│   bus + journal d'événements  │
@@ -49,14 +49,14 @@ application inspectée                                   DevTools (une app airtt
 └─────────────────────────┘                           └───────────────────────────────┘
 ```
 
-Les DevTools **sont une application airtty** (`src/devtools/airtty-devtools/`), ce qui
+Les DevTools **sont une application luciole** (`src/devtools/luciole-devtools/`), ce qui
 fait tourner le framework sur lui-même : leur Server tient le bus et le journal, leur
 Client lit ce journal par une Server Function live (`subscribe`, générateur asynchrone),
 chaque panneau est une route ; celles qui pilotent l'application (Components, Router,
 Cache, Conditions) reçoivent de leur page Server la Server Function `command`, le filtre
 de la console voyage en search param (`/console?callId=…`).
-`airtty devtools` (`src/commands/devtools.ts`) construit cette application et lance ses
-deux processus en retirant `AIRTTY_DEVTOOLS` et le preload de leur environnement : les
+`luciole devtools` (`src/commands/devtools.ts`) construit cette application et lance ses
+deux processus en retirant `LUCIOLE_DEVTOOLS` et le preload de leur environnement : les
 DevTools ne s'inspectent jamais elles-mêmes.
 
 Les DevTools écoutent, les processus inspectés se connectent. Chacun envoie d'abord un
@@ -65,7 +65,7 @@ les sources des Server Components, le Client la présence du preload), puis ses 
 Tant qu'aucune DevTools n'écoute, un processus garde ses 2 000 derniers messages et
 réessaie chaque seconde ; ses sockets sont `unref` (ils ne retiennent jamais un processus) et un
 lecteur qui ne lit plus ne peut pas lui faire dépasser 8 Mio en attente (les messages en
-trop sont comptés et signalés, `airtty:dropped`).
+trop sont comptés et signalés, `luciole:dropped`).
 
 **Sécurité.** Le socket par défaut est dans `$XDG_RUNTIME_DIR` (ou le `tmpdir()` privé de
 macOS), nommé par uid, en `0600`. Un socket laissé par des DevTools mortes est réutilisé,
@@ -83,16 +83,16 @@ L'enveloppe est celle de TanStack DevTools (`@tanstack/devtools-event-client`) :
 type Message = { type: `${pluginId}:${suffix}`; pluginId: string; payload: unknown };
 ```
 
-| Plugin              | Suffixes                                                                                                                      | Émis par         |
-| ------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ---------------- |
-| `airtty`            | `hello`, `dropped`                                                                                                            | chaque processus |
-| `airtty-client`     | un par `ApplicationEvent.type` : `request`, `response`, `chunk`, `end`, `error`, `navigation`, `invalidate`, `loader`         | Client           |
-| `airtty-server`     | un par `ServerEvent.type`, et `cache`                                                                                         | Server           |
-| `airtty-console`    | `entry` (`level`, `text`, `stack`, `callId` côté Server)                                                                      | les deux         |
-| `airtty-components` | `commit` (arbre aplati, rendus), `unavailable`                                                                                | Client           |
-| `airtty-router`     | `state` (matches, matches en cache, location)                                                                                 | Client           |
-| `airtty-input`      | `key`                                                                                                                         | Client           |
-| `airtty-devtools`   | commandes : `invalidate`, `refresh`, `network`, `highlight`, `select`, `snapshot` (au Client), `cache-invalidate` (au Server) | DevTools         |
+| Plugin               | Suffixes                                                                                                                      | Émis par         |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+| `luciole`            | `hello`, `dropped`                                                                                                            | chaque processus |
+| `luciole-client`     | un par `ApplicationEvent.type` : `request`, `response`, `chunk`, `end`, `error`, `navigation`, `invalidate`, `loader`         | Client           |
+| `luciole-server`     | un par `ServerEvent.type`, et `cache`                                                                                         | Server           |
+| `luciole-console`    | `entry` (`level`, `text`, `stack`, `callId` côté Server)                                                                      | les deux         |
+| `luciole-components` | `commit` (arbre aplati, rendus), `unavailable`                                                                                | Client           |
+| `luciole-router`     | `state` (matches, matches en cache, location)                                                                                 | Client           |
+| `luciole-input`      | `key`                                                                                                                         | Client           |
+| `luciole-devtools`   | commandes : `invalidate`, `refresh`, `network`, `highlight`, `select`, `snapshot` (au Client), `cache-invalidate` (au Server) | DevTools         |
 
 Les payloads sont validés par Zod à l'arrivée (`src/devtools/schema.ts`), en objets
 « loose » : un champ ajouté par une version plus récente du framework atteint la vue
@@ -170,7 +170,7 @@ prend le panneau des DevTools le temps de l'édition ; un éditeur graphique (`c
 
 ## Noms, sources et source maps
 
-**Source maps.** `airtty build` (donc `airtty dev`) écrit `index.js.map` à côté de chaque
+**Source maps.** `luciole build` (donc `luciole dev`) écrit `index.js.map` à côté de chaque
 bundle, Client et Server, lié par `//# sourceMappingURL` (`sourcemap: "linked"`). Lié plutôt
 qu'externe : Bun applique alors la map aux stack traces à l'exécution (en développement
 comme en production) et un débogueur la trouve ; une map externe ne serait lue par rien.
@@ -187,7 +187,7 @@ livrées lisibles (le bundle n'est pas minifié) ; celle du Server reste sur le 
 **Noms des composants.** Le bundler renomme les identifiants en collision (chaque `Page`
 devient `Page2`, `Page3`…). La transformation de chaque module (`src/build-names.ts`,
 appelée depuis celle de `build.ts`) ajoute en fin de module un `displayName` d'origine et
-un `__airtty = { source, hooks }` à chaque composant (fonction, classe, `memo`/`forwardRef`
+un `__luciole = { source, hooks }` à chaque composant (fonction, classe, `memo`/`forwardRef`
 nommés) et hook custom de premier niveau, des sources de l'application et du framework,
 pas des paquets. L'export par défaut d'un fichier de route prend le nom de sa route quand le
 sien est absent ou générique (`Page`, `Layout`…) : `app/notes/[id]/page.tsx` →
@@ -241,7 +241,7 @@ Le cache Server tel que ses événements le décrivent : entrées, fonction, tag
 l'écriture, succès/échecs/périmés, invalidations par tag, requêtes qui l'ont lu.
 
 `t` choisit un tag de l'entrée sélectionnée, `x` l'invalide : la commande
-`airtty-devtools:cache-invalidate` fait appeler `invalidate({ tag })` par l'agent Server
+`luciole-devtools:cache-invalidate` fait appeler `invalidate({ tag })` par l'agent Server
 (la fonction lui est passée par `createHandler()`, pour ne pas importer `server.ts` dans un
 cycle). Hors de toute requête, cela **purge le cache Server seulement** : aucun Client
 n'est prévenu, chacun verra des données fraîches à son prochain rendu, ce que le panneau
@@ -257,18 +257,18 @@ Les touches reçues par l'application, avec leurs modificateurs et leur séquenc
 
 Les conditions réseau du Client, **en direct** : latence ajoutée, gigue, délai par chunk,
 probabilités de refus/perte/coupure, et des préréglages (`n` aucune, `m` mobile, `s` flux
-lent, `f` instable). Les variables `AIRTTY_JITTER_MS`, `AIRTTY_CHUNK_DELAY_MS`,
-`AIRTTY_FAULT` ne les fixent qu'au démarrage. La gigue, le délai par chunk et les fautes
+lent, `f` instable). Les variables `LUCIOLE_JITTER_MS`, `LUCIOLE_CHUNK_DELAY_MS`,
+`LUCIOLE_FAULT` ne les fixent qu'au démarrage. La gigue, le délai par chunk et les fautes
 modifient en place les `NetworkConditions` que le transport HTTP relit à chaque requête ;
-la latence (`AIRTTY_LATENCY_MS` étant figée à la création du transport) est ajoutée avant
+la latence (`LUCIOLE_LATENCY_MS` étant figée à la création du transport) est ajoutée avant
 l'envoi par le `wrapTransport` de l'agent, et apparaît donc comme attente du loader.
 
 ### Enregistrer, rejouer
 
-`E` écrit, dans le répertoire où tournent les DevTools, `airtty-devtools-<date>.json` (le
+`E` écrit, dans le répertoire où tournent les DevTools, `luciole-devtools-<date>.json` (le
 journal brut, que `--replay` rouvre tel quel) et `.har` (HAR 1.2, lisible par les outils
 de Chrome ; ce que HTTP ne sait pas dire, Server, chunks, cause, cache, signalements,
-voyage dans des champs `_airtty`).
+voyage dans des champs `_luciole`).
 
 ## Contrat avec feat/use-cache
 
@@ -278,7 +278,7 @@ pour `--demo` et les tests :
 - **Server** : `ServerInstrument.onEvent` reçoit `ServerEvent | CacheEvent`, avec
   `CacheEvent = { type: "cache", op: "hit" | "miss" | "stale" | "write" | "invalidate", key, fn, tags, callId, ms, at }`.
   `createHandler()` passe l'instrument combiné (DevTools + configuré) au runtime du cache :
-  l'agent envoie chaque événement aux DevTools (`airtty-server:cache`) puis à
+  l'agent envoie chaque événement aux DevTools (`luciole-server:cache`) puis à
   l'`instrument` configuré, qui reçoit exactement ce qu'il recevrait sans les DevTools.
 - **Client** : chaque `loader` porte `source` (`network` ou `router-cache`) ; un
   `router-cache`, sans requête, a sa propre ligne, un `network` se relie à sa requête.
@@ -310,7 +310,7 @@ vérifie les deux cas, et que React DevTools garde son renderer.
 son import. Le bundle Client l'importe comme module externe, évalué avant tout code du
 bundle : un hook installé depuis le Client arriverait trop tard. Seul un preload Bun
 (`BUN_OPTIONS=--preload=…`) passe avant. `BUN_OPTIONS` est hérité par le superviseur,
-le Server et le Client d'`airtty dev` ; le hook ne fait rien là où React ne s'enregistre
+le Server et le Client d'`luciole dev` ; le hook ne fait rien là où React ne s'enregistre
 pas. Un chemin contenant des espaces n'y est pas pris en charge.
 
 **bippy ou implémentation maison.** Maison. La valeur de bippy tient ici dans
@@ -335,11 +335,11 @@ lit chaque champ interne défensivement et ignore une forme inconnue.
 | `src/devtools/hook.ts`, `fibers.ts`, `overlay.ts` | Hook préchargé et chaîné, suivi des rendus, flash dans le terminal.                          |
 | `src/devtools/model/`                             | Modèles purs : réseau (waterfalls, doubles invalidations), session, HAR.                     |
 | `src/devtools/fixtures.ts`                        | Session simulée, dont le contrat feat/use-cache.                                             |
-| `src/devtools/airtty-devtools/`                   | L'application DevTools.                                                                      |
-| `src/commands/devtools.ts`                        | `airtty devtools`.                                                                           |
+| `src/devtools/luciole-devtools/`                  | L'application DevTools.                                                                      |
+| `src/commands/devtools.ts`                        | `luciole devtools`.                                                                          |
 
 Tests : `tests/devtools-*.test.ts(x)` ; bout en bout dans deux PTY, DevTools contre Notes
-sous `airtty dev` : `bun run test:pty:devtools`.
+sous `luciole dev` : `bun run test:pty:devtools`.
 
 ## Reste à faire
 

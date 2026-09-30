@@ -3,7 +3,7 @@ import { beforeAll, expect, test } from "bun:test";
 import { act } from "react";
 import { InputRenderable, TextareaRenderable } from "@opentui/core";
 import { testRender } from "@opentui/react/test-utils";
-import { build } from "../packages/airtty/src/build";
+import { build } from "../packages/luciole/src/build";
 import { forgeDirectory, startForge, type ForgeHarness } from "./forge-helpers";
 import { destroy, draftsOf, importClient, present, renderable, until } from "./helpers";
 
@@ -46,7 +46,7 @@ test("anonymous start redirects to the public login; a bad PIN stays there", asy
     expect(typed("login-pin")).toBe("1234");
     // Public action, protected everything else: a protected read is refused.
     const raw = await fetch(`${forge.server.url}/render?route=%2F(app)&params=%7B%7D`, {
-      headers: { "x-airtty-build": forge.server.buildId },
+      headers: { "x-luciole-build": forge.server.buildId },
     });
     expect(raw.status).toBe(401);
   } finally {

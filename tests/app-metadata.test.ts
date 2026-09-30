@@ -1,5 +1,5 @@
 /**
- * `airtty` metadata of an application's package.json (src/app-metadata.ts): read and
+ * `luciole` metadata of an application's package.json (src/app-metadata.ts): read and
  * checked before the build, written into its output for hosts.
  */
 import { afterAll, expect, test } from "bun:test";
@@ -12,10 +12,10 @@ import {
   AppMetadata,
   readAppDeclaration,
   writeAppMetadata,
-} from "../packages/airtty/src/app-metadata";
+} from "../packages/luciole/src/app-metadata";
 import { rejectionOf } from "./helpers";
 
-const work = await mkdtemp(join(tmpdir(), "airtty-metadata-"));
+const work = await mkdtemp(join(tmpdir(), "luciole-metadata-"));
 afterAll(() => rm(work, { recursive: true, force: true }));
 
 /** The start of a PNG: what the check reads, its signature and IHDR size. */
@@ -48,7 +48,7 @@ test("display name, identifier, icon, and the package's version and description"
     {
       version: "1.2.0",
       description: "Personal notebook",
-      airtty: {
+      luciole: {
         displayName: "Notes",
         identifier: "com.example.notes",
         icon: "assets/icon.png",
@@ -59,7 +59,7 @@ test("display name, identifier, icon, and the package's version and description"
   );
   const declaration = await readAppDeclaration(root);
   expect(declaration.capabilities?.notify).toBe(true);
-  const output = join(root, ".airtty");
+  const output = join(root, ".luciole");
   await mkdir(output);
   await writeAppMetadata(output, declaration);
   const written = AppMetadata.parse(JSON.parse(await readFile(join(output, APP_METADATA), "utf8")));
@@ -97,7 +97,7 @@ test.each([
   ],
   ["an icon outside the application", { icon: "../icon.png" }, {}, "inside the application"],
   ["an identifier that is not reverse DNS", { identifier: "notes" }, {}, "reverse DNS"],
-])("%s fails the build", async (_, airtty, files, message) => {
-  const error = await rejectionOf(readAppDeclaration(await app({ airtty }, files)));
+])("%s fails the build", async (_, luciole, files, message) => {
+  const error = await rejectionOf(readAppDeclaration(await app({ luciole }, files)));
   expect(String(error)).toContain(message);
 });

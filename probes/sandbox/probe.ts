@@ -31,7 +31,7 @@ const CONTAINER_TIMEOUT_MS = 300_000;
 const here = import.meta.dir;
 const root = dirname(dirname(here));
 const bun = realpathSync(process.execPath);
-const scratch = realpathSync(mkdtempSync(join(tmpdir(), "airtty-sandbox-")));
+const scratch = realpathSync(mkdtempSync(join(tmpdir(), "luciole-sandbox-")));
 for (const d of ["readable", "writable", "outside", "tmp"]) mkdirSync(join(scratch, d));
 writeFileSync(join(scratch, "readable/data.txt"), "granted data");
 writeFileSync(join(scratch, "outside/data.txt"), "not granted");
@@ -55,7 +55,7 @@ const runtime = (proxyPort?: number): Runtime => ({
   code: [
     here,
     join(root, "node_modules"),
-    ...["tsconfig.json", "packages/airtty", "package.json", "bunfig.toml"].map((f) =>
+    ...["tsconfig.json", "packages/luciole", "package.json", "bunfig.toml"].map((f) =>
       join(root, f),
     ),
   ],
@@ -212,7 +212,7 @@ add("pty: /dev/ptmx with capability", true, await inSandbox({ pty: true }, ["pty
 
 // Clipboard, keychain, LaunchServices: even with the binaries allowed, their mach
 // services are denied. The find pasteboard is used, saved and restored.
-const nonce = `airtty-probe-${crypto.randomUUID()}`;
+const nonce = `luciole-probe-${crypto.randomUUID()}`;
 const savedFind = spawnSync("/usr/bin/pbpaste", ["-pboard", "find"], { encoding: "utf8" }).stdout;
 spawnSync("/usr/bin/pbcopy", ["-pboard", "find"], { input: nonce });
 const tools = {

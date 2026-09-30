@@ -1,30 +1,30 @@
 # API applicative minimale
 
-Entrée `airtty/client` (Client Components uniquement) :
+Entrée `luciole/client` (Client Components uniquement) :
 
-| API                                                                                                                                    | Contrat                                                                                                                                          |
-| -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `useNavigate()`, `useRouter()`, `useRouterState()`, `useParams()`, `useSearch()`, `useLocation()`, `useMatchRoute()`, `useCanGoBack()` | Primitives TanStack Router réexportées telles quelles ; TanStack est l'unique état de navigation.                                                |
-| `useApplication()`                                                                                                                     | `{ setToken(token?), refresh(), invalidate(paths?), cancel(), withSignal(signal, call), onEvent(listener), status, error }` du runtime terminal. |
-| `<Input name? value onInput />`, `<Textarea name? value onChange />`                                                                   | `input` et `textarea` d'OpenTUI, contrôlés ; un `name` rend leur texte restaurable (voir « Champs restaurables »).                               |
-| `useRestoredFields(group)`                                                                                                             | `{ submit(action, { failed? }?), clear() }` des champs `group/…` de l'entrée d'historique courante.                                              |
-| `useRestoredFocus(names)`                                                                                                              | `[focus, setFocus]` : lequel de `names` a le focus, gardé par entrée d'historique.                                                               |
-| `<ScrollBox name? …>`                                                                                                                  | `scrollbox` d'OpenTUI ; un `name` garde sa position de défilement par entrée.                                                                    |
-| `useConnection()`                                                                                                                      | `{ status, error, buildError, activity, refresh }` pour le chrome de l'application ; `activity` vaut `connect`, `navigate`, `refresh` ou `idle`. |
-| `useInvalidation(listener)`                                                                                                            | Appelé à chaque invalidation (Server ou Client) avec les chemins et les tags : pour les données lues hors des loaders de routes.                 |
-| `useLive(source, args, { limit }?)`                                                                                                    | `{ items, done, error }` d'une Server Function génératrice, abonnée tant que le composant est monté.                                             |
-| `useBindings()`, `useActiveKeys()`, `useKeymap()`, `usePendingSequence()`                                                              | Keymap OpenTUI réexportée : couches de raccourcis liées au cycle de vie des composants.                                                          |
-| `<KeyHelp groups? inline? />`                                                                                                          | Aide générée depuis les raccourcis actifs qui déclarent un `desc` (filtrés par `group`).                                                         |
-| `<Embed app name active prefix? />`, `openApplication({ bundle, url, instance? })`                                                     | Une autre application airtty dans un pane de celle-ci ; voir « Applications embarquées ».                                                        |
-| `<Markdown content streaming syntaxStyle onLink? imageBase? />`                                                                        | Markdown rendu par blocs : pendant que `content` s'écrit (`streaming`), le texte affiché ne bouge plus ; voir « Markdown en streaming ».         |
-| `<Terminal command active prefix? cwd? env? onExit? />`                                                                                | Un programme local (shell, vim, un Client airtty) sur un PTY, rendu dans l'arbre ; voir « Terminaux embarqués ».                                 |
-| `<TerminalView program label spawn active prefix? onExit? />`                                                                          | Comme `<Terminal>`, mais l'hôte démarre lui-même le programme (`spawn(io)` : un Client confiné par `airtty/sandbox`, un arrêt autre que SIGHUP). |
-| `host`, `CapabilityDenied`                                                                                                             | Ce que l'application demande à son hôte (presse-papiers, notification, URL, secret, onglets) ; voir « Capacités médiées ».                       |
-| `useHostMessage(fn)`, `useGlobalKey(key, fn)`, `useCapability(name)`                                                                   | Messages des autres onglets et touches globales tant que le composant est monté ; état `granted`, `denied` ou `prompt` d'une capacité.           |
-| `<DebugOverlay limit? />`                                                                                                              | Requêtes, requêtes ouvertes, octets, dernier RTT et derniers événements depuis son montage.                                                      |
-| `instrumentTracing(app, tracer)`                                                                                                       | Un span par requête vers un `Tracer` OpenTelemetry (ou compatible) ; renvoie la fonction d'arrêt.                                                |
-| `TransportError`, `BuildMismatch`, `AuthenticationRequired`                                                                            | Échecs de transport typés ; `outcome` vaut `not-sent`, `rejected` ou `unknown`.                                                                  |
-| `LayoutProps`, `LoadingProps`, `ErrorProps`, `NotFoundProps`                                                                           | Props des fichiers `layout.tsx`, `loading.tsx`, `error.tsx` et `not-found.tsx` (voir plus bas).                                                  |
+| API                                                                                                                                    | Contrat                                                                                                                                           |
+| -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `useNavigate()`, `useRouter()`, `useRouterState()`, `useParams()`, `useSearch()`, `useLocation()`, `useMatchRoute()`, `useCanGoBack()` | Primitives TanStack Router réexportées telles quelles ; TanStack est l'unique état de navigation.                                                 |
+| `useApplication()`                                                                                                                     | `{ setToken(token?), refresh(), invalidate(paths?), cancel(), withSignal(signal, call), onEvent(listener), status, error }` du runtime terminal.  |
+| `<Input name? value onInput />`, `<Textarea name? value onChange />`                                                                   | `input` et `textarea` d'OpenTUI, contrôlés ; un `name` rend leur texte restaurable (voir « Champs restaurables »).                                |
+| `useRestoredFields(group)`                                                                                                             | `{ submit(action, { failed? }?), clear() }` des champs `group/…` de l'entrée d'historique courante.                                               |
+| `useRestoredFocus(names)`                                                                                                              | `[focus, setFocus]` : lequel de `names` a le focus, gardé par entrée d'historique.                                                                |
+| `<ScrollBox name? …>`                                                                                                                  | `scrollbox` d'OpenTUI ; un `name` garde sa position de défilement par entrée.                                                                     |
+| `useConnection()`                                                                                                                      | `{ status, error, buildError, activity, refresh }` pour le chrome de l'application ; `activity` vaut `connect`, `navigate`, `refresh` ou `idle`.  |
+| `useInvalidation(listener)`                                                                                                            | Appelé à chaque invalidation (Server ou Client) avec les chemins et les tags : pour les données lues hors des loaders de routes.                  |
+| `useLive(source, args, { limit }?)`                                                                                                    | `{ items, done, error }` d'une Server Function génératrice, abonnée tant que le composant est monté.                                              |
+| `useBindings()`, `useActiveKeys()`, `useKeymap()`, `usePendingSequence()`                                                              | Keymap OpenTUI réexportée : couches de raccourcis liées au cycle de vie des composants.                                                           |
+| `<KeyHelp groups? inline? />`                                                                                                          | Aide générée depuis les raccourcis actifs qui déclarent un `desc` (filtrés par `group`).                                                          |
+| `<Embed app name active prefix? />`, `openApplication({ bundle, url, instance? })`                                                     | Une autre application luciole dans un pane de celle-ci ; voir « Applications embarquées ».                                                        |
+| `<Markdown content streaming syntaxStyle onLink? imageBase? />`                                                                        | Markdown rendu par blocs : pendant que `content` s'écrit (`streaming`), le texte affiché ne bouge plus ; voir « Markdown en streaming ».          |
+| `<Terminal command active prefix? cwd? env? onExit? />`                                                                                | Un programme local (shell, vim, un Client luciole) sur un PTY, rendu dans l'arbre ; voir « Terminaux embarqués ».                                 |
+| `<TerminalView program label spawn active prefix? onExit? />`                                                                          | Comme `<Terminal>`, mais l'hôte démarre lui-même le programme (`spawn(io)` : un Client confiné par `luciole/sandbox`, un arrêt autre que SIGHUP). |
+| `host`, `CapabilityDenied`                                                                                                             | Ce que l'application demande à son hôte (presse-papiers, notification, URL, secret, onglets) ; voir « Capacités médiées ».                        |
+| `useHostMessage(fn)`, `useGlobalKey(key, fn)`, `useCapability(name)`                                                                   | Messages des autres onglets et touches globales tant que le composant est monté ; état `granted`, `denied` ou `prompt` d'une capacité.            |
+| `<DebugOverlay limit? />`                                                                                                              | Requêtes, requêtes ouvertes, octets, dernier RTT et derniers événements depuis son montage.                                                       |
+| `instrumentTracing(app, tracer)`                                                                                                       | Un span par requête vers un `Tracer` OpenTelemetry (ou compatible) ; renvoie la fonction d'arrêt.                                                 |
+| `TransportError`, `BuildMismatch`, `AuthenticationRequired`                                                                            | Échecs de transport typés ; `outcome` vaut `not-sent`, `rejected` ou `unknown`.                                                                   |
+| `LayoutProps`, `LoadingProps`, `ErrorProps`, `NotFoundProps`                                                                           | Props des fichiers `layout.tsx`, `loading.tsx`, `error.tsx` et `not-found.tsx` (voir plus bas).                                                   |
 
 Le framework ne possède aucun état métier : ni Draft, ni opération en attente, ni
 politique de reprise. Il rapporte ce qui est arrivé à chaque requête ; l'application
@@ -78,7 +78,7 @@ sans attendre ni échouer avec ce refresh :
 
 ```ts
 "use server";
-import { invalidate } from "airtty/server";
+import { invalidate } from "luciole/server";
 
 export async function merge(target: Target) {
   const result = forge.merge(actor(), target);
@@ -116,7 +116,7 @@ d'annulation à n'importe quel appel de Server Function.
 
 `Shell` installe la keymap par défaut d'OpenTUI (`@opentui/keymap`). Le framework ne
 déclare que `ctrl+c` (quitter) et, pendant une navigation, `escape` (annuler), dans le
-groupe `airtty`. Dans une fenêtre desktop (`AIRTTY_DESKTOP=1`, option
+groupe `luciole`. Dans une fenêtre desktop (`LUCIOLE_DESKTOP=1`, option
 `quitOnCtrlC: false`), `ctrl+c` n'est plus déclaré : on quitte en fermant la fenêtre
 ([DESKTOP.md](DESKTOP.md)). Tout le reste appartient à l'application :
 
@@ -134,24 +134,24 @@ aide. `useKeyboard` d'OpenTUI reste utilisable à côté.
 
 ## Applications embarquées
 
-`<Embed>` montre une autre application airtty dans un pane de celle-ci, dans le même
+`<Embed>` montre une autre application luciole dans un pane de celle-ci, dans le même
 processus et le même arbre React : le mode `inline` de [EMBEDDING.md](EMBEDDING.md),
 sans isolation (confiance totale).
 
 ```tsx
-const app = await openApplication({ bundle: "…/mdreader/.airtty/app", url });
+const app = await openApplication({ bundle: "…/mdreader/.luciole/app", url });
 <Embed app={app} name="docs" active={pane === "docs"} prefix="ctrl+o" flexGrow={1} />;
 ```
 
-- `openApplication` lit le **bundle d'application** (`.airtty/app/`, produit par
-  `airtty build`) : ses Client Components, son route tree et ses stubs de Server
+- `openApplication` lit le **bundle d'application** (`.luciole/app/`, produit par
+  `luciole build`) : ses Client Components, son route tree et ses stubs de Server
   Functions, sans runtime. Il vérifie sa clé d'ABI et son hash, puis l'évalue **une fois
   par pane** contre le runtime de l'hôte (ses modules et la liaison de ses Server
   Functions lui sont propres, React, OpenTUI, le routeur et le keymap sont ceux de
-  l'hôte). Il lui donne une clé d'instance (`x-airtty-instance`) et ouvre sa connexion
+  l'hôte). Il lui donne une clé d'instance (`x-luciole-instance`) et ouvre sa connexion
   (`http`, `unix:`, `ssh://`, comme `--url`). Un bundle construit pour une autre ABI, un
   fichier modifié ou un `require` hors ABI et hors built-ins déclarés sont refusés. Un
-  manifeste signé (`airtty build --sign-bundle`) est vérifié ; une signature invalide est
+  manifeste signé (`luciole build --sign-bundle`) est vérifié ; une signature invalide est
   refusée. `publisher: { required?, trust? }` exige une signature et reçoit l'empreinte
   de la clé avant toute évaluation (l'épinglage par origine du Client générique).
 - `active` : seul le pane actif entend les touches, et ses raccourcis globaux avec. Un
@@ -190,7 +190,7 @@ les modes demandés par le programme.
   `width` et `height` placent le pane.
 - L'hôte décide de la bascule (touche préfixe, clic) ; `examples/mux` en est un exemple.
 
-`<Terminal>` sert aux programmes locaux ; une application airtty dans le même processus
+`<Terminal>` sert aux programmes locaux ; une application luciole dans le même processus
 passe par `<Embed>`.
 
 ## Markdown en streaming
@@ -201,7 +201,7 @@ redessine son dernier bloc depuis un aperçu puis depuis Tree-sitter à chaque c
 la réponse bascule entre texte brut et mis en forme.
 
 ```tsx
-import { Markdown } from "airtty/client";
+import { Markdown } from "luciole/client";
 
 <Markdown
   content={reply.text}
@@ -231,7 +231,7 @@ import { Markdown } from "airtty/client";
 - Blocs de code : sur le fond de `markup.raw.block` (`bg`), avec une marge intérieure et le
   langage discret en haut à droite ; sans ce `bg`, le code reste sans fond. Colorés par
   Tree-sitter une fois la clôture arrivée : OpenTUI 0.5.12 connaît JavaScript, TypeScript,
-  Markdown et Zig ; `import "airtty/grammars"` (une fois, côté Client) ajoute Bash, C, C++,
+  Markdown et Zig ; `import "luciole/grammars"` (une fois, côté Client) ajoute Bash, C, C++,
   CSS, Go, HTML, Java, JSON, PHP, Python, Ruby, Rust, TOML et YAML, pour `<code>` et
   `<diff>` aussi. L'import est facultatif : le build copie chaque grammaire à côté du
   bundle (environ 11 Mo en tout). Les groupes de style sont ceux des requêtes Tree-sitter
@@ -256,11 +256,11 @@ import { Markdown } from "airtty/client";
 
 Ce que l'OS ne sait pas accorder à la pièce (presse-papiers, notifications, ouvrir une
 URL, secrets, messages entre onglets, touches tapées ailleurs) passe par `host`, importé
-d'`airtty/client`. Le build en donne un **par bundle**, lié à l'Application du pane comme
+d'`luciole/client`. Le build en donne un **par bundle**, lié à l'Application du pane comme
 ses Server Functions : deux panes demandent chacun avec leur origine et leurs capacités.
 
 ```tsx
-import { CapabilityDenied, host, useCapability } from "airtty/client";
+import { CapabilityDenied, host, useCapability } from "luciole/client";
 
 await host.clipboard.write(path); // rejet CapabilityDenied si l'hôte refuse
 const state = useCapability("clipboard.write"); // "granted" | "denied" | "prompt"
@@ -280,19 +280,19 @@ const state = useCapability("clipboard.write"); // "granted" | "denied" | "promp
 - Une séquence OSC 52 écrite par une application sandboxée n'atteint jamais le
   presse-papiers : seule la voie `host` est vérifiée. Sous Linux, seccomp refuse à
   l'application tout socket Unix (D-Bus, Wayland, X11) : la voie `host` est la seule.
-- Mécanisme selon le système (`airtty <url>`) : Seatbelt (macOS) ; `airtty-sandbox` avec
+- Mécanisme selon le système (`luciole <url>`) : Seatbelt (macOS) ; `luciole-sandbox` avec
   espaces de noms, ou sous bubblewrap (Linux), par défaut ; Landlock seul (réseau non
   confiné par hôte) seulement avec `--sandbox`. L'écran des capacités nomme le mécanisme.
 
 ## Arguments de l'application
 
 Une application déclare ses options de ligne de commande dans `app/args.ts` (facultatif),
-avec `defineArgs` de `airtty/args` et un schéma zod 4 — plus généralement tout Standard
+avec `defineArgs` de `luciole/args` et un schéma zod 4 — plus généralement tout Standard
 Schema qui implémente aussi Standard JSON Schema :
 
 ```ts
 // app/args.ts
-import { defineArgs } from "airtty/args";
+import { defineArgs } from "luciole/args";
 import { z } from "zod";
 
 export default defineArgs({
@@ -339,10 +339,10 @@ import cli from "../app/args";
 export const config = cli.get(); // { harness?: "claude" | "codex"; mode: "read" | "ask"; … }
 ```
 
-`getArgs()` (`airtty/server`) rend la même valeur, non typée, et `getLaunch()` le
-lancement : `{ scope, id?, cwd }`, où `scope` est `airtty.server` du `package.json`
+`getArgs()` (`luciole/server`) rend la même valeur, non typée, et `getLaunch()` le
+lancement : `{ scope, id?, cwd }`, où `scope` est `luciole.server` du `package.json`
 (`shared`, `per-directory` ou `per-launch`, voir
-[DISTRIBUTION.md](DISTRIBUTION.md#qui-partage-un-server--airttyserver)). Le Server fait autorité : il
+[DISTRIBUTION.md](DISTRIBUTION.md#qui-partage-un-server--lucioleserver)). Le Server fait autorité : il
 reparse lui-même la ligne reçue avant de servir, et une ligne refusée l'arrête (code 2,
 message dans son log). **Un Server = un jeu d'arguments** : `get()` est une constante du
 process, sûre au niveau module, dans un singleton ou sous `"use cache"`. Il n'y a pas
@@ -352,45 +352,45 @@ d'arguments). `app/args.ts` tourne dans le lanceur, le binaire et le Server : il
 importer ni `server-only`, ni `client-only`, ni `server/`, ni OpenTUI.
 
 Chaque point d'entrée qui démarre un Server accepte les options, les vérifie avant de le
-démarrer et les lui transmet par la variable `AIRTTY_ARGS` (`{v, argv, cwd}`), jamais par
+démarrer et les lui transmet par la variable `LUCIOLE_ARGS` (`{v, argv, cwd}`), jamais par
 sa ligne de commande que `ps` montre aux autres utilisateurs :
 
 | Entrée                                            | Options de l'application                                                                     |
 | ------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `airtty dev --app d -- <options>`                 | après `--` ; revérifiées à chaque rebuild                                                    |
-| `airtty ./app <options>`, source git              | tout ce qui n'est pas `--url`, `--grace`, `--yes`, `-h`                                      |
+| `luciole dev --app d -- <options>`                | après `--` ; revérifiées à chaque rebuild                                                    |
+| `luciole ./app <options>`, source git             | tout ce qui n'est pas `--url`, `--grace`, `--yes`, `-h`                                      |
 | binaire `app <options>`                           | tout ce qui n'est pas une option du runtime                                                  |
 | `app serve [--http … \| --socket …] -- <options>` | après `--`                                                                                   |
 | `app --on host <options>`                         | envoyées sur l'entrée standard du `serve --detach` distant ; les chemins se résolvent là-bas |
-| `airtty start --role server -- <options>`         | après `--`                                                                                   |
-| `--url`, `airtty connect`, Client générique       | refusées : ce Client rejoint un Server qui tourne déjà                                       |
+| `luciole start --role server -- <options>`        | après `--`                                                                                   |
+| `--url`, `luciole connect`, Client générique      | refusées : ce Client rejoint un Server qui tourne déjà                                       |
 
-Le build bundle `app/args.ts` dans `.airtty/args/` (le lanceur et le binaire l'importent)
-et écrit son JSON Schema dans `.airtty/metadata.json` (`args`), qu'un hôte lit sans
+Le build bundle `app/args.ts` dans `.luciole/args/` (le lanceur et le binaire l'importent)
+et écrit son JSON Schema dans `.luciole/metadata.json` (`args`), qu'un hôte lit sans
 exécuter l'application.
 
 ## Métadonnées de l'application
 
 Ce que les hôtes montrent d'une application sans l'exécuter (une fenêtre desktop, son
-bundle, une liste d'apps) se déclare dans le champ `airtty` de son `package.json`, à côté
+bundle, une liste d'apps) se déclare dans le champ `luciole` de son `package.json`, à côté
 de `capabilities` :
 
 ```jsonc
 {
   "version": "0.1.0", // du paquet : version du bundle desktop
   "description": "A personal notebook: notes kept in SQLite on the Server.",
-  "airtty": {
+  "luciole": {
     "displayName": "Notes", // titre de fenêtre, menu, Dock ; le nom du répertoire sinon
-    "identifier": "dev.airtty.examples.notes", // DNS inversé : identifiant du bundle macOS
+    "identifier": "dev.luciole.examples.notes", // DNS inversé : identifiant du bundle macOS
     "icon": "assets/icon.png", // PNG carré, 512 px ou plus (1024 pour le Retina)
   },
 }
 ```
 
 Le build vérifie la déclaration avant de construire (une icône absente, trop petite ou
-hors du répertoire l'arrête aussitôt) et écrit `.airtty/metadata.json`, valeurs par
-défaut appliquées, avec `.airtty/icon.png` à côté. Un hôte lit cette sortie, jamais les
-sources : `AppMetadata` (`airtty/metadata`, `src/app-metadata.ts`) en est le schéma.
+hors du répertoire l'arrête aussitôt) et écrit `.luciole/metadata.json`, valeurs par
+défaut appliquées, avec `.luciole/icon.png` à côté. Un hôte lit cette sortie, jamais les
+sources : `AppMetadata` (`luciole/metadata`, `src/app-metadata.ts`) en est le schéma.
 `name` reste le nom du répertoire, qui nomme binaires, sessions et sockets ; seul
 `displayName` est fait pour être lu.
 
@@ -405,7 +405,7 @@ doivent rester légers.
 
 Chaque événement porte `at` (epoch ms, horloge monotone : `performance.timeOrigin +
 performance.now()`). Ceux du transport portent aussi `callId`, envoyé au Server en
-`x-airtty-call` sur `/render` comme sur `/action` ; le Server le retrouve dans
+`x-luciole-call` sur `/render` comme sur `/action` ; le Server le retrouve dans
 `getCallId()` et dans ses `ServerEvent`. `request` porte sa
 `cause`, déterminée au mieux par le Client : `navigation`, `preload`, `refresh`,
 `invalidation`, `action`, `live`, sinon `unknown`. Un `Transport` la reçoit en dernier
@@ -423,13 +423,13 @@ voir [CACHE.md](CACHE.md).
 
 `<DebugOverlay />` ignore `invalidate`, `loader` et `failure` ; `instrumentTracing` aussi.
 
-Un Client lancé avec un canal IPC (`airtty dev`, un hôte `sandbox`, studio) envoie chaque
+Un Client lancé avec un canal IPC (`luciole dev`, un hôte `sandbox`, studio) envoie chaque
 `failure` à son parent : `{ type: "failure", path, message }` (message coupé à
-2000 caractères). `onClientFailure(child, listener)` d'`airtty/dev` le lit, `openSandbox`
+2000 caractères). `onClientFailure(child, listener)` d'`luciole/dev` le lit, `openSandbox`
 le passe à `onFailure`. Une page introuvable (`notFound()`) n'est pas un échec.
 
-En développement, `AIRTTY_DEVTOOLS=<adresse>` envoie ces événements, ceux du Server, les
-logs des deux processus et l'arbre des composants à `airtty devtools`, lancé dans un autre
+En développement, `LUCIOLE_DEVTOOLS=<adresse>` envoie ces événements, ceux du Server, les
+logs des deux processus et l'arbre des composants à `luciole devtools`, lancé dans un autre
 terminal ; sans la variable, rien n'est chargé. Voir [DEVTOOLS.md](DEVTOOLS.md).
 
 ## Champs restaurables
@@ -443,11 +443,11 @@ passe).
 | Quand                                                   | Ce qui revient                                                     |
 | ------------------------------------------------------- | ------------------------------------------------------------------ |
 | Retour sur une entrée d'historique (`u`, back)          | Le texte des champs nommés de cette entrée                         |
-| Rebuild de `airtty dev`                                 | La page, l'historique, les champs nommés et le bearer (en mémoire) |
+| Rebuild de `luciole dev`                                | La page, l'historique, les champs nommés et le bearer (en mémoire) |
 | Crash, `kill -9`, terminal fermé, SSH coupé (SIGHUP)    | La page, l'historique et les champs nommés, au prochain lancement  |
 | SIGTERM (arrêt de la machine), fenêtre desktop comprise | La page, l'historique et les champs nommés, au prochain lancement  |
 | Ctrl+C ou `app.quit()` : sortie volontaire              | Rien : la session est supprimée, comme un navigateur fermé exprès  |
-| Fenêtre desktop fermée (SIGHUP sous `AIRTTY_DESKTOP`)   | Rien : fermer la fenêtre, c'est quitter l'application              |
+| Fenêtre desktop fermée (SIGHUP sous `LUCIOLE_DESKTOP`)  | Rien : fermer la fenêtre, c'est quitter l'application              |
 
 - **Par entrée d'historique**, comme un navigateur : rouvrir la même page par un lien
   crée une nouvelle entrée, vide. Garder un texte par document, quel que soit le
@@ -473,7 +473,7 @@ passe).
   est gardé de nouveau, sauf si l'utilisateur a tapé plus récent entre-temps. `clear()`
   l'oublie sur demande (abandon).
 - **Stockage** : un fichier par Client (comme un onglet), en `0600`, dans
-  `$XDG_STATE_HOME/airtty/<app>/sessions/` (`~/.local/state/…`), écrit 200 ms après la
+  `$XDG_STATE_HOME/luciole/<app>/sessions/` (`~/.local/state/…`), écrit 200 ms après la
   dernière modification et avant de sortir sur un signal. Après un crash, le Client
   suivant reprend la session la plus récente laissée par un Client mort pour la même
   adresse de Server, jamais celle d'un Client vivant. Au plus 50 entrées ; un champ de
@@ -497,7 +497,7 @@ request de Forge, `components/NewPullForm.tsx`) :
 ```tsx
 "use client";
 import { useField, useForm } from "@tanstack/react-form";
-import { Input, Textarea, useRestoredFields } from "airtty/client";
+import { Input, Textarea, useRestoredFields } from "luciole/client";
 import { publish } from "../actions/posts";
 
 export function NewPost() {
@@ -534,7 +534,7 @@ jamais ses composants `<Form>` et `<Field>`, qui rendent du HTML.
 
 ## Serveur et intégration
 
-Entrée `airtty/server` :
+Entrée `luciole/server` :
 
 - `getSession()` : `{ userId }` dans le contexte async du rendu ou de l'action.
 - `getOptionalSession()` : la même session, ou `null` dans une page/action publique.
@@ -557,9 +557,9 @@ Entrée `airtty/server` :
   au modèle racine). `/render` n'en a pas : la page se rend dans le flux, après les
   en-têtes. Son modèle racine est `{ tree, tags }` ([CACHE.md](CACHE.md)).
 
-`AIRTTY_SOCKET=/chemin` fait écouter `serve()` sur ce socket Unix (0600) plutôt qu'en
+`LUCIOLE_SOCKET=/chemin` fait écouter `serve()` sur ce socket Unix (0600) plutôt qu'en
 TCP ; la ligne `ready` nomme alors `socket`. Côté Client, `--url unix:/chemin` s'y
-connecte. `run(create, { name, sessionKey })` (ou `AIRTTY_SESSION_KEY`) range les sessions
+connecte. `run(create, { name, sessionKey })` (ou `LUCIOLE_SESSION_KEY`) range les sessions
 restaurables sous cette clé plutôt que sous l'URL. C'est ainsi que le lanceur démarre une app locale ([DISTRIBUTION.md](DISTRIBUTION.md)).
 
 Le framework ne rafraîchit rien de lui-même après une Server Function : une lecture
@@ -573,19 +573,19 @@ Forge avec Zod. Une fonction qui refuse ses arguments lève une exception : la r
 est un `500` et l'appelant voit `unknown`, car le framework ne peut pas savoir qu'aucun
 effet n'a eu lieu avant le refus. Le framework valide ce qu'il reçoit lui-même : variables
 d'environnement du Server et du Client au démarrage (une valeur invalide arrête le
-processus en nommant la variable), `airtty.json`, params et search de `/render`,
+processus en nommant la variable), `luciole.json`, params et search de `/render`,
 enveloppe d'une réponse d'action côté Client (sinon `TransportError`, `unknown`).
 
 Les fonctions `createApplication`, `Shell`, `serve` et `build` servent au CLI,
 aux tests et aux intégrateurs du framework. Le résolveur de modules est une fonction
 `(moduleId) => exports`, injectée dans `createApplication`. Le registre de modules du
-codec Flight est indexé par clé d'instance (`instance`, `x-airtty-instance`) : plusieurs
+codec Flight est indexé par clé d'instance (`instance`, `x-luciole-instance`) : plusieurs
 Applications partagent un processus Client, chacune avec ses modules (voir
 « Applications embarquées »). Aucun chargement de chunks distants.
 `createApplication({ session })` restaure un historique et ses champs (ce que `run()`
 relit sur disque) ; `app.restoration.snapshot()` donne la session courante, ce qui permet
 de simuler un redémarrage dans un test. `app.onTokenChange(listener)` sert au
-superviseur de `airtty dev` pour transmettre le bearer au Client relancé.
+superviseur de `luciole dev` pour transmettre le bearer au Client relancé.
 
 Le transport est une interface remplaçable (`src/transport.ts`), injectable via
 `createApplication({ transport })` :
@@ -630,17 +630,17 @@ l'application : il doit laisser passer les `TransportError` et leur `outcome`.
 
 Pour le CLI, les hôtes, le code généré et les tests ; une application n'en a pas besoin.
 
-| Entrée              | API                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `airtty/client`     | `Application` (construite par `createApplication(options)`), `ApplicationOptions`, `ApplicationEvent` (ce que reçoit `onEvent`), `Shell({ app })`, `run(create, { name?, sessionKey? })` et `RunOptions`, `createActions()` (Server Functions et `host` d'une évaluation de bundle, émis par le build). Types `LiveState`, `TracerLike`, `Session` (`{ index, entries }`), `SessionEntry` (`{ href, fields }`), `OpenApplicationOptions`, `PublisherCheck` (`{ required?, trust?(fingerprint, manifest) }`), ceux du transport et de `host`.        |
-| `airtty/server`     | `createHandler(config, options)` : le Server comme fonction d'une `Request`, sans écoute ; `serve(config)` l'installe sur `Bun.serve`. `ServerConfig` : `buildId`, `manifest`, `actions`, `routes` (`ServerRoute`), `auth?`, `instrument?` (`ServerInstrument`, `{ onEvent }`), `cache?`, `appBundle?`, `web?`. `HandlerOptions` : `auth`, `devtools?`, `testing?`, `web?`, `keepAlive?`, `dropAfterCommit?`. Types `RouteAuth` (`"public" \| "required"`), `Session`, `ServerFunction`, `ServerEvent`.                                             |
-| `airtty/route-tree` | Ce qu'appelle `app/routeTree.gen.ts` : `rootRoute(Layout, NotFound?)`, `layoutRoute(Layout, params)`, `pageRoute(params, { loading?, error?, notFound?, splat? }?)`, `loadPage(ctx, routeId, params, splat?)`, `validateSearch(raw)` ; types `TerminalRouterContext`, `TerminalRouter` et les props des fichiers de routes.                                                                                                                                                                                                                         |
-| `airtty/build`      | `build(directory, output?, { appBundle?, signBundle?, webServer? }?)` → `{ buildId, output }` (`output` vaut `<directory>/.airtty` par défaut) ; `BuildOptions`. Clés d'éditeur pour `signBundle` : `generatePublisherKey(env?)`, `readPublisherKey(env?)` (fichier `AIRTTY_PUBLISHER_KEY`), `fingerprintOf(publicKey)`.                                                                                                                                                                                                                            |
-| `airtty/dev`        | Superviser une app en développement, quel que soit le déclencheur du rebuild (`airtty dev`, studio) : `startAppServer({ directory, output?, env, command?, onOutput?, stderr?, timeoutMs? })` → `{ port, child, stop }` (rejette avec le stderr quand il est capté) ; `bearerRelay()` ; `serialize(task)` → `{ run, busy }` (jamais deux rebuilds à la fois, un de plus s'il en est demandé pendant) ; `linkFrameworkModules(directory, from)` ; `stopChild(child)`.                                                                                |
-| `airtty/sandbox`    | Le mode `sandbox` pour un hôte hors du framework ([EMBEDDING.md](EMBEDDING.md)) : `openSandbox(origin, options)` → `Sandbox` (`spawn(io)` pour `TerminalView`, `permissions`, `deliver`, `close`), `onFailure` pour les pages en échec ; `confineServer(options)` → `ServerSandbox` (`port`, `env`, `command`, `close`), macOS seulement ; `sandboxAvailability()`, `sandboxRuntime()`, `buildChild()` ; `enforcement`, `ENFORCERS`, `mechanismName` ; `Capabilities`. Le widget qui montre le Client confiné est `TerminalView` d'`airtty/client`. |
-| `airtty/pty`        | `spawnPty({ command, cols, rows, env?, environment?, cwd?, ipc?, onData, onExit })` → `Pty` (`write`, `resize`, `kill`, `send`, `pid`) : `Bun.Terminal`, POSIX seulement. `<Terminal>`, le sandbox et l'hôte desktop s'en servent.                                                                                                                                                                                                                                                                                                                  |
-| `airtty/metadata`   | `AppMetadata` (schéma de `.airtty/metadata.json`), `readAppDeclaration(root)`, `writeAppMetadata(output, declaration)`, `APP_METADATA`, `APP_ICON`.                                                                                                                                                                                                                                                                                                                                                                                                 |
-| `airtty/tsconfig`   | La configuration TypeScript que chaque application étend ([TOOLING.md](TOOLING.md)).                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| Entrée               | API                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `luciole/client`     | `Application` (construite par `createApplication(options)`), `ApplicationOptions`, `ApplicationEvent` (ce que reçoit `onEvent`), `Shell({ app })`, `run(create, { name?, sessionKey? })` et `RunOptions`, `createActions()` (Server Functions et `host` d'une évaluation de bundle, émis par le build). Types `LiveState`, `TracerLike`, `Session` (`{ index, entries }`), `SessionEntry` (`{ href, fields }`), `OpenApplicationOptions`, `PublisherCheck` (`{ required?, trust?(fingerprint, manifest) }`), ceux du transport et de `host`.         |
+| `luciole/server`     | `createHandler(config, options)` : le Server comme fonction d'une `Request`, sans écoute ; `serve(config)` l'installe sur `Bun.serve`. `ServerConfig` : `buildId`, `manifest`, `actions`, `routes` (`ServerRoute`), `auth?`, `instrument?` (`ServerInstrument`, `{ onEvent }`), `cache?`, `appBundle?`, `web?`. `HandlerOptions` : `auth`, `devtools?`, `testing?`, `web?`, `keepAlive?`, `dropAfterCommit?`. Types `RouteAuth` (`"public" \| "required"`), `Session`, `ServerFunction`, `ServerEvent`.                                              |
+| `luciole/route-tree` | Ce qu'appelle `app/routeTree.gen.ts` : `rootRoute(Layout, NotFound?)`, `layoutRoute(Layout, params)`, `pageRoute(params, { loading?, error?, notFound?, splat? }?)`, `loadPage(ctx, routeId, params, splat?)`, `validateSearch(raw)` ; types `TerminalRouterContext`, `TerminalRouter` et les props des fichiers de routes.                                                                                                                                                                                                                          |
+| `luciole/build`      | `build(directory, output?, { appBundle?, signBundle?, webServer? }?)` → `{ buildId, output }` (`output` vaut `<directory>/.luciole` par défaut) ; `BuildOptions`. Clés d'éditeur pour `signBundle` : `generatePublisherKey(env?)`, `readPublisherKey(env?)` (fichier `LUCIOLE_PUBLISHER_KEY`), `fingerprintOf(publicKey)`.                                                                                                                                                                                                                           |
+| `luciole/dev`        | Superviser une app en développement, quel que soit le déclencheur du rebuild (`luciole dev`, studio) : `startAppServer({ directory, output?, env, command?, onOutput?, stderr?, timeoutMs? })` → `{ port, child, stop }` (rejette avec le stderr quand il est capté) ; `bearerRelay()` ; `serialize(task)` → `{ run, busy }` (jamais deux rebuilds à la fois, un de plus s'il en est demandé pendant) ; `linkFrameworkModules(directory, from)` ; `stopChild(child)`.                                                                                |
+| `luciole/sandbox`    | Le mode `sandbox` pour un hôte hors du framework ([EMBEDDING.md](EMBEDDING.md)) : `openSandbox(origin, options)` → `Sandbox` (`spawn(io)` pour `TerminalView`, `permissions`, `deliver`, `close`), `onFailure` pour les pages en échec ; `confineServer(options)` → `ServerSandbox` (`port`, `env`, `command`, `close`), macOS seulement ; `sandboxAvailability()`, `sandboxRuntime()`, `buildChild()` ; `enforcement`, `ENFORCERS`, `mechanismName` ; `Capabilities`. Le widget qui montre le Client confiné est `TerminalView` d'`luciole/client`. |
+| `luciole/pty`        | `spawnPty({ command, cols, rows, env?, environment?, cwd?, ipc?, onData, onExit })` → `Pty` (`write`, `resize`, `kill`, `send`, `pid`) : `Bun.Terminal`, POSIX seulement. `<Terminal>`, le sandbox et l'hôte desktop s'en servent.                                                                                                                                                                                                                                                                                                                   |
+| `luciole/metadata`   | `AppMetadata` (schéma de `.luciole/metadata.json`), `readAppDeclaration(root)`, `writeAppMetadata(output, declaration)`, `APP_METADATA`, `APP_ICON`.                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `luciole/tsconfig`   | La configuration TypeScript que chaque application étend ([TOOLING.md](TOOLING.md)).                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 
 ## Authentification des routes et actions
 
@@ -658,7 +658,7 @@ export default function LoginPage() {
 Une application qui remplace l'identité locale fournit `server/auth.ts` :
 
 ```ts
-import type { AuthConfig } from "airtty/server";
+import type { AuthConfig } from "luciole/server";
 
 export default {
   unauthorizedPath: "/login",
@@ -711,8 +711,8 @@ Toutes les fonctions exportées d'un même module partagent cette politique. Une
 référence Flight n'accorde aucun droit, et une route protégée ne remplace jamais
 les contrôles d'autorisation métier dans l'action ou le repository.
 
-Sans `server/auth.ts`, l'adapter historique reste actif : identité `AIRTTY_USER`
-(`local` par défaut), éventuellement protégée par `AIRTTY_TOKEN`. Le starter
+Sans `server/auth.ts`, l'adapter historique reste actif : identité `LUCIOLE_USER`
+(`local` par défaut), éventuellement protégée par `LUCIOLE_TOKEN`. Le starter
 reste donc compatible avec son mode local.
 
 ## Navigation, layouts et chargement local
@@ -770,7 +770,7 @@ erreur TypeScript. Navigation depuis un Client Component, sans `<Link>` DOM :
 
 ```tsx
 "use client";
-import { useNavigate } from "airtty/client";
+import { useNavigate } from "luciole/client";
 const navigate = useNavigate();
 void navigate({ to: "/notes/$id", params: { id: "1" } });
 ```

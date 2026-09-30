@@ -1,8 +1,8 @@
 ---
 // The code section, drawn rather than shown: the tree of examples/notes as the App Router
-// lays one out, then what `airtty build` makes of it, each file on the side it runs on.
+// lays one out, then what `luciole build` makes of it, each file on the side it runs on.
 // The sides are those of the real files: a layout, loading.tsx and error.tsx are Client
-// Components in airtty, a page a Server Component. The tree stays neutral; the build sorts.
+// Components in luciole, a page a Server Component. The tree stays neutral; the build sorts.
 import { source } from "../lib/links";
 
 type Side = "client" | "server";
@@ -73,7 +73,7 @@ const split = (path: string) => {
         <span class="phrase">The folder you know.</span> <span class="phrase">Split in two.</span>
       </h2>
       <p class="lede">
-        Lay out <code>app/</code> as you would for Next.js. <code>airtty build</code> sends each file to its
+        Lay out <code>app/</code> as you would for Next.js. <code>luciole build</code> sends each file to its
         side. One difference: layouts and loading screens run in your terminal, so changing pages never
         waits to start.
       </p>
@@ -103,7 +103,7 @@ const split = (path: string) => {
       </div>
 
       <div class="prism">
-        <span class="build" data-build>airtty build</span>
+        <span class="build" data-build>luciole build</span>
       </div>
 
       <div class="sides">

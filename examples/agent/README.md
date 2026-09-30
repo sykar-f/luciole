@@ -5,7 +5,7 @@ texte streamé, appels d'outils (`read`, `bash`, `edit`, `write`) avec arguments
 résultats repliables, état en cours/idle, interruption et nouvelle session.
 
 ```sh
-bun packages/airtty/src/cli.ts dev --app examples/agent
+bun packages/luciole/src/cli.ts dev --app examples/agent
 ```
 
 Prérequis : le CLI `pi` (v0.85) dans le `PATH` et le provider `openai-codex` connecté
@@ -31,13 +31,13 @@ générée depuis les raccourcis actifs.
 
 ## Configuration
 
-| Variable         | Défaut                                     | Rôle                                                             |
-| ---------------- | ------------------------------------------ | ---------------------------------------------------------------- |
-| `AGENT_MODEL`    | `openai-codex/gpt-5.6-terra`               | Modèle pi ; sans `provider/`, `openai-codex/` est ajouté         |
-| `AGENT_THINKING` | `low`                                      | `off` … `max`                                                    |
-| `AGENT_CWD`      | `$TMPDIR/airtty-agent-sandbox`             | Répertoire de travail de l'agent (créé au besoin), pas le dépôt  |
-| `AGENT_PI`       | `pi`                                       | Exécutable pi                                                    |
-| sessions pi      | `$XDG_STATE_HOME/airtty/agent/pi-sessions` | Historique des conversations, repris au démarrage (`--continue`) |
+| Variable         | Défaut                                      | Rôle                                                             |
+| ---------------- | ------------------------------------------- | ---------------------------------------------------------------- |
+| `AGENT_MODEL`    | `openai-codex/gpt-5.6-terra`                | Modèle pi ; sans `provider/`, `openai-codex/` est ajouté         |
+| `AGENT_THINKING` | `low`                                       | `off` … `max`                                                    |
+| `AGENT_CWD`      | `$TMPDIR/luciole-agent-sandbox`             | Répertoire de travail de l'agent (créé au besoin), pas le dépôt  |
+| `AGENT_PI`       | `pi`                                        | Exécutable pi                                                    |
+| sessions pi      | `$XDG_STATE_HOME/luciole/agent/pi-sessions` | Historique des conversations, repris au démarrage (`--continue`) |
 
 **Pourquoi Terra.** Des trois variantes de GPT-5.6, Sol est la plus grande et la plus
 lente, Luna la plus petite (tarifs API indicatifs : Sol 4/20 $, Terra 2/12 $, Luna
@@ -62,7 +62,7 @@ répond en quelques secondes. `AGENT_MODEL=gpt-5.6-sol` pour les tâches diffici
   part, Flight appelle `throw()` pendant que l'abonné attend un changement qui peut ne
   jamais venir, et seul un itérateur peut interrompre cette attente.
 - Au démarrage, pi reprend la dernière session de `AGENT_CWD` et la conversation est
-  reconstruite depuis `get_messages` : un rebuild de `airtty dev` la conserve.
+  reconstruite depuis `get_messages` : un rebuild de `luciole dev` la conserve.
 - Le prompt est un champ nommé (`agent/prompt`) : un texte tapé revient après un crash
   du Client ; il est oublié pendant l'envoi et remis dans le champ si l'envoi échoue.
 
@@ -75,7 +75,7 @@ oxfmt --check examples/agent
 bun run test:pty:agent   # vrai pi, vrai modèle : consomme un peu de quota
 ```
 
-Le parcours PTY lance `airtty dev` avec un sandbox et un état temporaires, envoie un
+Le parcours PTY lance `luciole dev` avec un sandbox et un état temporaires, envoie un
 prompt qui appelle `write` puis `bash`, vérifie le fichier créé, déplie les appels,
 interrompt un `sleep 30` en cours, démarre une nouvelle session, quitte, et contrôle
 que le terminal est restauré et qu'aucun processus pi ne survit.

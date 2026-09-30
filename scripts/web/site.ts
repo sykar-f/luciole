@@ -1,5 +1,5 @@
 /**
- * What the web journeys share: an application's `.airtty/web/` served as a static host
+ * What the web journeys share: an application's `.luciole/web/` served as a static host
  * would (`--web-local`, docs/WEB.md), and the screen xterm.js draws into the DOM, as text.
  */
 import { join } from "node:path";

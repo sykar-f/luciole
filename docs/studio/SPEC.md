@@ -1,4 +1,4 @@
-# studio : décrire une application airtty, la voir se construire
+# studio : décrire une application luciole, la voir se construire
 
 Statut : **C5b livré** sur `studio/local` (étapes 0 à 4, 6 sur Claude Code et 7 du plan,
 section 8 ; l'étape 5, Linux, reste à faire ; Codex reporté), puis les **aperçus
@@ -11,24 +11,24 @@ trois probes exécutés le 27 septembre 2026 (macOS 26.6.2 arm64, Bun 1.4.2) :
 [section 11](#11-décisions).
 
 Hors de ce document : la version hébergée « Try it » (étude C6a), la publication npm et la
-commande `npx airttyx studio` (C7, le nom `airtty` n'est pas définitif).
+commande `npx luciolex studio` (C7, le nom `luciole` n'est pas définitif).
 
 ## Résumé
 
 Un nouvel exemple, `examples/studio` : à gauche une conversation avec un harness local
 (Claude Code, par les adaptateurs partagés avec `examples/coder`), à droite l'application
-airtty que ce harness écrit, **en fonctionnement**, embarquée par le widget VT
+luciole que ce harness écrit, **en fonctionnement**, embarquée par le widget VT
 (`<Terminal>`, [EMBEDDING.md](../EMBEDDING.md) section 4), montrée en brouillon après
 chaque écriture et rechargée comme révision après chaque tour.
 
-| Question                         | Proposition                                                                                                                       | Appui                       |
-| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
-| Qui construit et relance l'app ? | le Server de studio, en **fin de tour** (pas `airtty dev`, qui reconstruit à chaque écriture) ; depuis, un brouillon par écriture | probe studio-preview        |
-| Comment vérifier une génération  | quatre étapes : garde-fou statique → build → rendu headless (aperçu mis à jour) ; `tsc` en parallèle                              | probe studio-generate       |
-| Correction automatique           | diagnostics renvoyés au harness comme message de studio, 2 tentatives par défaut                                                  | probe studio-generate       |
-| Isolation par défaut             | **Server de l'app confiné** (Seatbelt / `airtty-sandbox`) et **Client en `sandbox`**, bundle signé par une clé éphémère du projet | probe studio-server-sandbox |
-| Réutilisation de coder           | extraire un paquet privé `packages/harness` (adaptateurs, modèle d'événements, session) après la fusion de C4                     | section 4                   |
-| Web                              | C5c : page qui compose deux `iframe` (studio rejoué, révision précompilée de l'app) ; pas de widget VT dans le navigateur         | section 7                   |
+| Question                         | Proposition                                                                                                                        | Appui                       |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
+| Qui construit et relance l'app ? | le Server de studio, en **fin de tour** (pas `luciole dev`, qui reconstruit à chaque écriture) ; depuis, un brouillon par écriture | probe studio-preview        |
+| Comment vérifier une génération  | quatre étapes : garde-fou statique → build → rendu headless (aperçu mis à jour) ; `tsc` en parallèle                               | probe studio-generate       |
+| Correction automatique           | diagnostics renvoyés au harness comme message de studio, 2 tentatives par défaut                                                   | probe studio-generate       |
+| Isolation par défaut             | **Server de l'app confiné** (Seatbelt / `luciole-sandbox`) et **Client en `sandbox`**, bundle signé par une clé éphémère du projet | probe studio-server-sandbox |
+| Réutilisation de coder           | extraire un paquet privé `packages/harness` (adaptateurs, modèle d'événements, session) après la fusion de C4                      | section 4                   |
+| Web                              | C5c : page qui compose deux `iframe` (studio rejoué, révision précompilée de l'app) ; pas de widget VT dans le navigateur          | section 7                   |
 
 ## État de l'implémentation (C5b)
 
@@ -40,24 +40,24 @@ les scénarios du probe studio-generate. Ce qui s'écarte de la conception ci-de
 | ----------------------- | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Étape « rendu »         | rendu headless dans le Server studio, puis G6 plus tard  | **G6 d'emblée** : le Client de l'aperçu signale ses pages en échec (`onFailure` d'`openSandbox`, IPC en mode `process`), le Client studio le transmet (`previewFailed`) ; pas de second rendu                                                                                                                                                                                                                                     |
 | Ordre                   | garde-fou → build → rendu → aperçu                       | garde-fou → build → **Server** (un Server qui ne démarre pas est un échec avec son stderr) → révision → aperçu ; `tsc` et le rapport de rendu ensuite. Une révision est donc « construite et démarrée », son éventuel problème y est noté                                                                                                                                                                                         |
-| Build                   | dans `.airtty/`                                          | un dossier par tentative sous `.airtty-studio/builds/` (`build(dir, output)`, `startAppServer({ output })`) : valider la suivante ne touche jamais celle que l'aperçu montre                                                                                                                                                                                                                                                      |
+| Build                   | dans `.luciole/`                                         | un dossier par tentative sous `.luciole-studio/builds/` (`build(dir, output)`, `startAppServer({ output })`) : valider la suivante ne touche jamais celle que l'aperçu montre                                                                                                                                                                                                                                                     |
 | Bascule de panneau      | `Ctrl+O Tab`                                             | `Ctrl+O` puis `o`, comme le « pane suivant » de mux ; les séquences sont listées dans la ligne d'aide                                                                                                                                                                                                                                                                                                                             |
 | Options                 | `--dir`, `--project`, `--resume`, `--preview`, `--model` | plus `--fixes N` (décision 3 : réglable) ; sans `--dir` ni `--project`, un nouveau projet `app-<date>`                                                                                                                                                                                                                                                                                                                            |
-| Capacités               | demande du harness, accord de l'utilisateur              | `/allow HOST` et `/deny HOST` : studio écrit `airtty.capabilities.net` et committe lui-même, le garde-fou ne s'applique qu'au harness ; les autres capacités ne sont pas encore proposées                                                                                                                                                                                                                                         |
+| Capacités               | demande du harness, accord de l'utilisateur              | `/allow HOST` et `/deny HOST` : studio écrit `luciole.capabilities.net` et committe lui-même, le garde-fou ne s'applique qu'au harness ; les autres capacités ne sont pas encore proposées                                                                                                                                                                                                                                        |
 | Sans sandbox            | refus au lancement                                       | l'écran s'ouvre et dit pourquoi ; aucun message n'est envoyé au harness tant que studio ne tourne pas avec `--preview process`                                                                                                                                                                                                                                                                                                    |
 | Codex                   | « mode sans exécution si le protocole le permet »        | **reporté** : son protocole n'a pas de mode sans commandes (`workspace-write` + `on-request` ne demande que pour sortir du projet ou le réseau, docs/coder/research/codex-report.md) ; studio n'accepte que `claude` et `fake`, demander `codex`, `pi` ou `opencode` échoue avec cette raison (décision de l'utilisateur, 27 septembre 2026)                                                                                      |
 | Pendant le tour         | l'aperçu ne bouge pas (2.2, point 2)                     | **un brouillon par écriture** (décision 9) : les écritures de 300 ms regroupées, garde-fou, build à part, Server confiné, bascule ; ni révision, ni correction, ni message au harness. Un brouillon en échec garde le dernier écran valide (« draft · waiting for a build that works ») ; un seul à la fois, le plus récent l'emporte ; ce qui est construit doit être ce qui a été vérifié. La fin du tour annule les brouillons |
-| Champs de l'app         | —                                                        | les instructions demandent des champs nommés (`Input`/`Textarea` d'`airtty/client`), `useRestoredFields`, `useRestoredFocus`, `<ScrollBox name>` ; un champ sans `name` est un **conseil** du garde-fou (transcript, puis avec le message suivant au harness), jamais un refus ni une correction                                                                                                                                  |
+| Champs de l'app         | —                                                        | les instructions demandent des champs nommés (`Input`/`Textarea` d'`luciole/client`), `useRestoredFields`, `useRestoredFocus`, `<ScrollBox name>` ; un champ sans `name` est un **conseil** du garde-fou (transcript, puis avec le message suivant au harness), jamais un refus ni une correction                                                                                                                                 |
 | Mesure réelle (étape 6) | fixtures enregistrées, taux de build                     | **faite sur Claude Code** (ci-dessous) ; Codex non mesuré (reporté) ; transcripts enregistrés hors du dépôt, résumé dans `docs/studio/measures/`                                                                                                                                                                                                                                                                                  |
 
 Lacunes du framework comblées (section 7), chacune dans un commit à part, avec son test :
-G1 (`confineServer`, macOS), G2, G3, G4, G5, G6, G7 (`airtty/dev`). L'implémentation en a
+G1 (`confineServer`, macOS), G2, G3, G4, G5, G6, G7 (`luciole/dev`). L'implémentation en a
 trouvé quatre autres, corrigées de même : le profil Seatbelt ne suivait pas un lien
-`node_modules` lisible (le projet est hors du dépôt) ; `airtty/build` et `airtty/sandbox`
-cherchaient les sources d'airtty par `import.meta` même une fois bundlés dans une
-application (`src/sources.ts`) ; `TerminalView` est exporté par `airtty/client` (pas par
-`airtty/sandbox`, que les Servers importent) ; `startAppServer` démarre une sortie de
-build hors de `.airtty/`.
+`node_modules` lisible (le projet est hors du dépôt) ; `luciole/build` et `luciole/sandbox`
+cherchaient les sources de luciole par `import.meta` même une fois bundlés dans une
+application (`src/sources.ts`) ; `TerminalView` est exporté par `luciole/client` (pas par
+`luciole/sandbox`, que les Servers importent) ; `startAppServer` démarre une sortie de
+build hors de `.luciole/`.
 
 **Mesure sur Claude Code** (27 septembre 2026, accord de l'utilisateur ; Claude Code
 2.1.283, Agent SDK 0.3.283, modèle par défaut du compte `claude-opus-5-5` ;
@@ -115,11 +115,11 @@ En `process`, le Client généré (`client/index.js`, tout le framework) met plu
 à dessiner, et chaque brouillon le relance, même quand l'écran ne change pas : son cadre reste
 vide ce temps-là. Constats faits en route : sans l'attente de sortie, la `sandbox` gardait déjà
 la session, par le seul temps que prend son ouverture ; en `process`, le Client héritait par
-accident de l'`AIRTTY_SESSION` du Client studio (sous `airtty dev`) et attendait 1 s un bearer
+accident de l'`LUCIOLE_SESSION` du Client studio (sous `luciole dev`) et attendait 1 s un bearer
 (corrigé : id de session par projet, hello répondu) ; il survivait aussi à la sortie de studio
 (corrigé : tué à la sortie, comme en `sandbox`). Enfin, onze messages Markdown dans la
 conversation faisaient écrire à Node un `MaxListenersExceededWarning` par-dessus l'interface
-(corrigé dans `airtty/markdown`).
+(corrigé dans `luciole/markdown`).
 
 Mesures (générateur scripté, macOS 26.6.2, machine chargée par d'autres sessions) : le
 parcours de bout en bout (`tests/studio.test.tsx`, trois prompts, une erreur de build et
@@ -137,10 +137,10 @@ L'utilisateur décrit une application (« une liste de tâches avec des priorit�
 pour naviguer, `space` pour cocher ») ; studio la fait écrire par un harness dans un
 dossier de projet partant d'un template, la construit, la montre et la laisse utiliser
 tout de suite, dans le même terminal. Il itère en conversant (« ajoute un filtre »),
-revient à une version précédente, puis garde le dossier : c'est une app airtty ordinaire
-(`airtty dev --app <dossier>`).
+revient à une version précédente, puis garde le dossier : c'est une app luciole ordinaire
+(`luciole dev --app <dossier>`).
 
-C'est une vitrine d'airtty au même titre que coder : elle exerce l'embarquement
+C'est une vitrine de luciole au même titre que coder : elle exerce l'embarquement
 (`process`/`sandbox`), les capacités, le build comme bibliothèque, `useLive` et les
 adaptateurs de harness.
 
@@ -195,7 +195,7 @@ prompt ─▶ tour du harness ─▶ fin de tour ─▶ garde-fou ─▶ build �
    (section 5.3). Le transcript se remplit en direct (`useLive`, comme coder).
 2. Pendant le tour, l'aperçu **ne bouge pas** : il montre la dernière révision valide.
    Reconstruire à chaque écriture montrerait des états intermédiaires incohérents (un
-   harness écrit plusieurs fichiers en plusieurs secondes ; `airtty dev` reconstruit
+   harness écrit plusieurs fichiers en plusieurs secondes ; `luciole dev` reconstruit
    150 ms après chaque écriture, constat 4 de studio-preview). **Remplacé depuis** par les
    brouillons (décision 9, [État de l'implémentation](#état-de-limplémentation-c5b)) :
    l'app apparaissait d'un coup en fin de tour ; un état intermédiaire cassé garde
@@ -210,7 +210,7 @@ prompt ─▶ tour du harness ─▶ fin de tour ─▶ garde-fou ─▶ build �
 Coût mesuré entre la fin d'un tour et l'aperçu rechargé : build 1,2–1,4 s (médianes ;
 1,1–2,8 s), rendu headless ≈ 0,55 s, démarrage du Server confiné ≈ 70–95 ms, premier
 écran du Client (pas mesuré seul en `sandbox` ; 280–330 ms pour mdreader d'après
-EMBEDDING.md, étape 7). Budget : **≈ 2–3 s**, du même ordre qu'`airtty dev`
+EMBEDDING.md, étape 7). Budget : **≈ 2–3 s**, du même ordre qu'`luciole dev`
 (1,4–2,6 s mesurés).
 
 ### 2.3 États
@@ -262,14 +262,14 @@ studio [--harness claude|fake] [--dir DIR | --project NAME] [--resume [ID]] \
 
 `--new` est déjà un flag réservé du runtime (session neuve, sans rattachement) : un projet
 se nomme donc par `--project`. Sans `--dir`, les projets vivent sous
-`$XDG_DATA_HOME/airtty/studio/<nom>/` ; `--resume`
+`$XDG_DATA_HOME/luciole/studio/<nom>/` ; `--resume`
 reprend la session du harness et la dernière révision (le harness sait déjà reprendre,
 les révisions sont dans git).
 
 **Révisions** : le projet est un dépôt git initialisé par studio (identité locale au
 dépôt, jamais celle de l'utilisateur) ; chaque validation réussie est un commit
 `studio: r4 · <prompt tronqué>`. Annuler = restaurer une révision dans l'arbre de
-travail, en créer une nouvelle. airtty utilise déjà git pour ses sources git ; sans git,
+travail, en créer une nouvelle. luciole utilise déjà git pour ses sources git ; sans git,
 studio refuse `u`/`h` et le dit (point 11.5).
 
 ## 3. Architecture
@@ -284,37 +284,37 @@ studio refuse `u`/`h` et le dit (point 11.5).
          │ HTTP (socket Unix, lanceur)           ▼
 ┌────────┴──────────────────────────┐   ┌──────────────────────────────────────┐
 │ Server studio (per-launch)        │   │ Client de l'app générée              │
-│  session harness (paquet harness) │   │  sandbox : Seatbelt / airtty-sandbox  │
-│  workspace + git (révisions)      │   │  bundle .airtty/app signé (clé du     │
+│  session harness (paquet harness) │   │  sandbox : Seatbelt / luciole-sandbox  │
+│  workspace + git (révisions)      │   │  bundle .luciole/app signé (clé du     │
 │  validateur (garde-fou, build,    │   │  projet), IPC des capacités médiées   │
 │   rendu headless, tsc)            │   └──────────────┬───────────────────────┘
 │  superviseur d'aperçu ────────────┼──── démarre ──┐  │ HTTP loopback
 │   (révision, port, état)          │               ▼  ▼
 │        │                          │   ┌──────────────────────────────────────┐
 │        ▼ enfants                  │   │ Server de l'app générée              │
-│  claude (Agent SDK) / codex       │   │  confiné : lit .airtty/, écrit data/, │
+│  claude (Agent SDK) / codex       │   │  confiné : lit .luciole/, écrit data/, │
 │  app-server, cwd = workspace      │   │  écoute un port loopback, rien d'autre│
 └───────────────────────────────────┘   └──────────────────────────────────────┘
 ```
 
 ### 3.1 Où tourne quoi
 
-| Élément                      | Processus                                                  | Pourquoi                                                                                        |
-| ---------------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| harness                      | enfant du **Server studio**, `cwd` = workspace             | comme coder : le Server possède la session, survit à un Client tué (grâce, `claimOrphan`)       |
-| workspace                    | dossier du projet, dépôt git                               | l'app reste une app airtty ordinaire, utilisable sans studio                                    |
-| build, `tsc`, rendu headless | **Server studio** (`airtty/build` est une entrée publique) | diagnostics structurés, build en fin de tour seulement ; lit les sources, hors sandbox          |
-| Server de l'app générée      | enfant du Server studio, **confiné**, port loopback        | il exécute du code écrit par un modèle ; confiné, il ne lit que son build (probe)               |
-| Client de l'app générée      | enfant du **Client studio**, sur un PTY                    | le PTY doit être dans le processus qui dessine ; en `sandbox`, lancé par `openSandbox` existant |
+| Élément                      | Processus                                                   | Pourquoi                                                                                        |
+| ---------------------------- | ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| harness                      | enfant du **Server studio**, `cwd` = workspace              | comme coder : le Server possède la session, survit à un Client tué (grâce, `claimOrphan`)       |
+| workspace                    | dossier du projet, dépôt git                                | l'app reste une app luciole ordinaire, utilisable sans studio                                   |
+| build, `tsc`, rendu headless | **Server studio** (`luciole/build` est une entrée publique) | diagnostics structurés, build en fin de tour seulement ; lit les sources, hors sandbox          |
+| Server de l'app générée      | enfant du Server studio, **confiné**, port loopback         | il exécute du code écrit par un modèle ; confiné, il ne lit que son build (probe)               |
+| Client de l'app générée      | enfant du **Client studio**, sur un PTY                     | le PTY doit être dans le processus qui dessine ; en `sandbox`, lancé par `openSandbox` existant |
 
 Le Server studio publie l'état de l'aperçu par `useLive` : `{ revision, state, url,
 bundle, diagnostics }`. Le Client studio monte la vue du terminal **clé = révision** :
 une révision nouvelle démonte l'ancien Client (fin par SIGTERM, section 3.3) et lance le
 nouveau contre le nouveau Server.
 
-### 3.2 Pourquoi pas `airtty dev` dans le widget
+### 3.2 Pourquoi pas `luciole dev` dans le widget
 
-Le probe studio-preview montre que `airtty dev` dans `<Terminal>` marche tel quel
+Le probe studio-preview montre que `luciole dev` dans `<Terminal>` marche tel quel
 (rechargement 1,4–2,6 s, erreurs de build en bandeau). Il n'est pas retenu comme
 superviseur :
 
@@ -328,18 +328,18 @@ superviseur :
    orphelins (mesuré : 2 processus).
 
 Studio reprend donc la logique de `src/commands/dev.ts` (build, attente de la ligne
-`ready`, session `AIRTTY_SESSION` gardée d'un Client à l'autre, bearer passé en mémoire)
+`ready`, session `LUCIOLE_SESSION` gardée d'un Client à l'autre, bearer passé en mémoire)
 dans un **superviseur d'aperçu**, déclenché par la fin de tour. Proposition : extraire
 cette logique de `dev.ts` dans un module du framework réutilisable (`src/dev/supervisor.ts`),
-dont `airtty dev` devient un client (watcher → `rebuild()`), et studio un autre
+dont `luciole dev` devient un client (watcher → `rebuild()`), et studio un autre
 (fin de tour → `rebuild()`). À décider en C5b selon la taille du diff.
 
 ### 3.3 Rechargement de l'aperçu
 
-1. Validation réussie : build de la révision N dans `.airtty/` (verrou de build existant).
+1. Validation réussie : build de la révision N dans `.luciole/` (verrou de build existant).
 2. Signature du bundle d'app par la clé éphémère du projet
-   (`AIRTTY_PUBLISHER_KEY` dans le dossier d'état du projet, jamais la clé d'éditeur de
-   l'utilisateur), comme le fait `airtty build --sign-bundle`.
+   (`LUCIOLE_PUBLISHER_KEY` dans le dossier d'état du projet, jamais la clé d'éditeur de
+   l'utilisateur), comme le fait `luciole build --sign-bundle`.
 3. Démarrage du Server N confiné sur un port neuf ; attente de `ready` (≈ 70–95 ms).
 4. `useLive` publie `{ revision: N, url, bundle }` ; le Client studio démonte la vue N−1
    (SIGTERM) et ouvre N : `openSandbox({ origin: "studio:<projet>", url, app, … })`, puis
@@ -361,7 +361,7 @@ Server change à chaque révision, le Client est toujours relancé, jamais recon
 ### 3.4 Mode `process` (repli)
 
 Sans sandbox disponible (ou `--preview process` explicite) : Client généré lancé
-directement (`bun .airtty/client/index.js --url …`) dans `TerminalView`, **fin par
+directement (`bun .luciole/client/index.js --url …`) dans `TerminalView`, **fin par
 SIGTERM** (`<Terminal>` envoie SIGHUP ; mesuré sans orphelin en SIGTERM), Server non
 confiné. Avertissement permanent dans le cadre de l'aperçu : « aperçu non isolé : le
 code généré a vos droits ».
@@ -384,12 +384,12 @@ code généré a vos droits ».
 Importer `../coder/server/…` depuis `examples/studio` couplerait deux exemples par des
 chemins relatifs et dupliquerait les tests. Proposition (non faite) :
 
-- `packages/harness` (`@airtty/harness`, `private: true`, workspace) : adaptateurs,
+- `packages/harness` (`@luciole/harness`, `private: true`, workspace) : adaptateurs,
   protocoles générés (Codex), jsonl, détection, garde de conformité, diff, modèle
   d'événements neutre (la partie non-UI de `components/model.ts`), et une `Session`
   paramétrable (hooks `onTurnCompleted`, messages synthétiques).
 - Les composants UI restent dans coder en C5b ; ils ne rejoignent un paquet
-  (`@airtty/harness-ui`) que si studio en réutilise vraiment l'essentiel.
+  (`@luciole/harness-ui`) que si studio en réutilise vraiment l'essentiel.
 - Dépendances : l'Agent SDK passe du `package.json` de coder à celui du paquet ;
   `overrides` racine (`no-bundled-claude`) inchangés ; `docs/DEPENDENCIES.md` mis à jour.
 
@@ -417,7 +417,7 @@ preset: "claude_code", append }` et `disallowedTools` ; Codex 0.156.1
 
 Studio hérite des règles non négociables de CODER-HANDOFF §3 sans exception : binaire
 `claude` de l'utilisateur via l'Agent SDK, jamais le binaire embarqué ni `--bare`, zéro
-secret lu, login délégué, `clientInfo.name = "airtty-studio"` pour Codex, mention
+secret lu, login délégué, `clientInfo.name = "luciole-studio"` pour Codex, mention
 « powered by … », README qui rappelle que chaque génération consomme le quota de
 l'utilisateur. La correction automatique consomme aussi du quota : elle est bornée
 (section 5.4) et visible.
@@ -436,7 +436,7 @@ components/*.tsx     composants Client ("use client")
 actions/*.ts         "use server", arguments validés par Zod
 server/*.ts          état et données (bun:sqlite dans data/)
 data/                seul répertoire inscriptible à l'exécution
-package.json         airtty.capabilities: {} ; dépendances figées par studio
+package.json         luciole.capabilities: {} ; dépendances figées par studio
 STUDIO.md            aide-mémoire pour le harness (section 5.3), lisible par l'utilisateur
 ```
 
@@ -446,7 +446,7 @@ Il démarre et s'affiche tout de suite : l'aperçu n'est jamais vide.
 
 - **Fichiers** : `app/`, `components/`, `server/`, `actions/`, `.ts`/`.tsx` ; pas
   `package.json`, pas `app/routeTree.gen.ts` (écrit par le build), rien hors du projet.
-- **Paquets** : `airtty/client`, `airtty/server`, `react`, `@opentui/core`,
+- **Paquets** : `luciole/client`, `luciole/server`, `react`, `@opentui/core`,
   `@opentui/react`, `@tanstack/react-router`, `zod` ; built-ins sans effet externe
   (`crypto`, `path`, `url`, `util`, `events`, `buffer`) et `bun:sqlite`. Le reste
   demande une capacité (section 5.5).
@@ -460,7 +460,7 @@ Injectées par l'adaptateur (`instructions`, section 4.3) et non par un fichier 
 modèle pourrait réécrire ; `STUDIO.md` en reprend le contenu pour l'utilisateur.
 Contenu (à écrire en anglais, comme le code) :
 
-1. Ce qu'est une app airtty : pages Server rendues par le Server, `"use client"` pour
+1. Ce qu'est une app luciole : pages Server rendues par le Server, `"use client"` pour
    tout état ou hook, `"use server"` pour les mutations, arguments en Zod.
 2. Le périmètre de 5.2, et « n'exécute pas de commandes : studio construit, vérifie et
    te renvoie les erreurs ».
@@ -507,13 +507,13 @@ Quatre couches, de la plus lisible à la plus sûre :
 | --------------------------- | ----------------------------------------- | ---------------------------------------------------------------------------------------------- |
 | 1. politique du harness     | adaptateur (approbations, outils refusés) | écritures hors périmètre refusées **avant** d'avoir lieu ; pas de Bash, pas de web             |
 | 2. garde-fou de fin de tour | Server studio, sur le diff du tour        | chemins, imports, appels dangereux ; refus → fichiers restaurés depuis git, message au harness |
-| 3. audit du build           | `airtty build` (existe)                   | built-ins du bundle Client comparés à `airtty.capabilities`                                    |
-| 4. confinement              | OS (Seatbelt, `airtty-sandbox`)           | Server et Client de l'aperçu : fichiers, réseau, exec (mesuré pour le Server)                  |
+| 3. audit du build           | `luciole build` (existe)                  | built-ins du bundle Client comparés à `luciole.capabilities`                                   |
+| 4. confinement              | OS (Seatbelt, `luciole-sandbox`)          | Server et Client de l'aperçu : fichiers, réseau, exec (mesuré pour le Server)                  |
 
 Les couches 1–3 donnent des refus compréhensibles ; seule la 4 est une barrière (le
 garde-fou statique ne voit ni `require` calculé ni `globalThis["Bun"]`).
 
-**Capacités** : l'app générée n'en a aucune par défaut (`airtty.capabilities: {}`). Si
+**Capacités** : l'app générée n'en a aucune par défaut (`luciole.capabilities: {}`). Si
 le harness en a besoin (« affiche la météo » → `net: api.open-meteo.com`), il le dit ;
 studio affiche la demande et **l'utilisateur** l'accorde ; studio (pas le harness) écrit
 alors `package.json`, et le profil de l'aperçu suit. `pty` reste refusée sur macOS en
@@ -526,7 +526,7 @@ l'influence d'un contenu hostile (prompt injection dans une page lue par le harn
 
 | Menace                                                  | Mitigation                                                                                             |
 | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| le Server généré lit `~/.ssh`, écrit ailleurs, exfiltre | Server confiné : lecture de `.airtty/` seul, écriture de `data/`, aucun réseau sauf son port (mesuré)  |
+| le Server généré lit `~/.ssh`, écrit ailleurs, exfiltre | Server confiné : lecture de `.luciole/` seul, écriture de `data/`, aucun réseau sauf son port (mesuré) |
 | le Client généré fait de même                           | Client en `sandbox` (existant) ; bundle signé par la clé du projet, épinglée par studio                |
 | OSC 52, notification, ouverture d'URL depuis l'aperçu   | capacités médiées par l'hôte (existant) : refusées sauf accord                                         |
 | le harness exécute des commandes dangereuses            | pas de Bash (Claude), politique d'approbation de studio ; sandbox du harness (Codex `workspace-write`) |
@@ -545,13 +545,13 @@ sandboxé démarre en 280–330 ms (mdreader, EMBEDDING.md).
 | #   | Lacune                                                                                                          | Constat                                             | Proposition                                                                                                      | Taille |
 | --- | --------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | ------ |
 | G1  | `confine()` ne sait pas confiner un Server qui écoute                                                           | probe server-sandbox : 2 règles suffisent sur macOS | `ServerRoute` « listen » (port loopback, ou socket Unix) ; Linux : écoute dans l'espace de noms + relais inverse | 2–3 j  |
-| G2  | `airtty dev` ignore SIGHUP : Server et Client orphelins quand le terminal se ferme                              | probe preview : 2 orphelins                         | traiter SIGHUP comme SIGTERM dans `src/commands/dev.ts`                                                          | 0,5 j  |
+| G2  | `luciole dev` ignore SIGHUP : Server et Client orphelins quand le terminal se ferme                             | probe preview : 2 orphelins                         | traiter SIGHUP comme SIGTERM dans `src/commands/dev.ts`                                                          | 0,5 j  |
 | G3  | erreurs de syntaxe du build toujours en `1:1` ; import introuvable sans ligne                                   | les deux probes ; cause : `build.ts:322`            | positionner `fail()` sur `error.start` ; ligne de l'import dans `Cannot resolve`                                 | 0,5 j  |
 | G4  | hook dans un Server Component : build accepté, Server mort au démarrage (« Export named 'useState' not found ») | probe generate                                      | le build détecte les hooks/`useState` importés dans le graphe Server et suggère `"use client"`                   | 1 j    |
-| G5  | mort du Client sous `airtty dev` : code 0, indiscernable d'un départ volontaire                                 | probe preview                                       | propager le code du Client                                                                                       | 0,5 j  |
-| G6  | aucun rapport structuré des erreurs de rendu du Client vers son superviseur                                     | probe preview                                       | message IPC `render-error` (le canal `airtty dev` ↔ Client existe) ; remplace le rendu headless                  | 1–2 j  |
+| G5  | mort du Client sous `luciole dev` : code 0, indiscernable d'un départ volontaire                                | probe preview                                       | propager le code du Client                                                                                       | 0,5 j  |
+| G6  | aucun rapport structuré des erreurs de rendu du Client vers son superviseur                                     | probe preview                                       | message IPC `render-error` (le canal `luciole dev` ↔ Client existe) ; remplace le rendu headless                 | 1–2 j  |
 | G7  | logique de supervision enfermée dans `commands/dev.ts`                                                          | section 3.2                                         | module réutilisable, `rebuild()` déclenché par l'appelant                                                        | 1–2 j  |
-| G8  | `package.json` non surveillé par `airtty dev`                                                                   | probe preview                                       | sans objet pour studio (il reconstruit lui-même) ; à noter pour `dev`                                            | —      |
+| G8  | `package.json` non surveillé par `luciole dev`                                                                  | probe preview                                       | sans objet pour studio (il reconstruit lui-même) ; à noter pour `dev`                                            | —      |
 | G9  | runtime web : pas de widget VT, `<Terminal>` affiche « cannot run here »                                        | `src/web/platform/vt/terminal.tsx`                  | ci-dessous                                                                                                       | —      |
 | G10 | pas de build dans le navigateur (`Bun.build`, `ts`)                                                             | WEB.md                                              | révisions construites à l'avance pour C5c ; hébergé : build côté serveur (C6a)                                   | —      |
 
@@ -562,14 +562,14 @@ le widget VT n'y existe pas (pas de PTY, pas de libghostty en WebAssembly, le ru
 remplace `<Terminal>` par un message). Un studio dans le navigateur ne peut donc pas
 reprendre l'architecture locale telle quelle. Options :
 
-| Option                                                                                                                                                                       | Coût      | Risques                                                                                                                                           |
-| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **A. Deux `iframe` composées par la page** : studio (build `--web-local`, harness rejoué) à gauche, révision de l'app générée (`.airtty/web/` construit à l'avance) à droite | 3–5 j     | la page, pas le runtime, fait la mise en page ; il faut un message app → page « révision N prête » (le protocole d'embed n'a que `stage`/`event`) |
-| B. Embarquement `inline` dans le runtime web : `openApplication` web (fetch + `evaluateAppBundle`) contre un second SharedWorker                                             | 5–8 j     | aucune isolation entre studio et l'app dans la page : acceptable pour un contenu rejoué, pas pour du code d'utilisateurs (Try it)                 |
-| C. Widget VT web : libghostty en WebAssembly ou xterm.js imbriqué, Client généré dans un Worker produisant de l'ANSI                                                         | 10–15 j   | rendu natif absent (W7), ghostty-web écarté pour fuite entre instances (EMBEDDING §4) ; lourd pour un gain de démo                                |
-| D. Exécution côté serveur, ANSI diffusé au navigateur                                                                                                                        | étude C6a | coût d'hébergement, isolation serveur ; hors de ce document                                                                                       |
+| Option                                                                                                                                                                        | Coût      | Risques                                                                                                                                           |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **A. Deux `iframe` composées par la page** : studio (build `--web-local`, harness rejoué) à gauche, révision de l'app générée (`.luciole/web/` construit à l'avance) à droite | 3–5 j     | la page, pas le runtime, fait la mise en page ; il faut un message app → page « révision N prête » (le protocole d'embed n'a que `stage`/`event`) |
+| B. Embarquement `inline` dans le runtime web : `openApplication` web (fetch + `evaluateAppBundle`) contre un second SharedWorker                                              | 5–8 j     | aucune isolation entre studio et l'app dans la page : acceptable pour un contenu rejoué, pas pour du code d'utilisateurs (Try it)                 |
+| C. Widget VT web : libghostty en WebAssembly ou xterm.js imbriqué, Client généré dans un Worker produisant de l'ANSI                                                          | 10–15 j   | rendu natif absent (W7), ghostty-web écarté pour fuite entre instances (EMBEDDING §4) ; lourd pour un gain de démo                                |
+| D. Exécution côté serveur, ANSI diffusé au navigateur                                                                                                                         | étude C6a | coût d'hébergement, isolation serveur ; hors de ce document                                                                                       |
 
-Recommandation : **A pour C5c** (réutilise `.airtty/web/`, `test:web:embed`, la landing),
+Recommandation : **A pour C5c** (réutilise `.luciole/web/`, `test:web:embed`, la landing),
 B plus tard si une démo unifiée dans une seule grille vaut son coût ; pour une version
 hébergée avec du code d'utilisateurs, seule une isolation par origine (A avec une origine
 séparée pour l'app) ou D conviennent.
@@ -585,7 +585,7 @@ séparée pour l'app) ou D conviennent.
 | 2     | Squelette `examples/studio` : args, projet (template, git, verrou), conversation sur le harness factice                                                           | `studio --harness fake --project demo` : conversation, révision r0 = template                                                     | 3 j        |
 | 3     | Superviseur d'aperçu (G7) : build fin de tour, Server confiné, Client `sandbox` (clé du projet), rechargement par révision, `process` en repli                    | aperçu rechargé < 3 s après la fin d'un tour (médiane, macOS) ; aucun processus restant à la sortie (vérifié par le parcours PTY) | 4–5 j      |
 | 4     | Validation 4 étapes + correction automatique + garde-fou + politique d'approbation ; harness factice **générateur** (corpus du probe rejoué comme harness)        | les 12 cas du corpus : faute détectée à la bonne étape, réparée au tour suivant ; tentatives bornées                              | 3–4 j      |
-| 5     | Linux : G1 sous `airtty-sandbox` (écoute + relais inverse) ; CI `linux-sandbox`                                                                                   | tests d'évasion du probe, dans les conteneurs de `scripts/linux-sandbox.ts`                                                       | 3–4 j      |
+| 5     | Linux : G1 sous `luciole-sandbox` (écoute + relais inverse) ; CI `linux-sandbox`                                                                                  | tests d'évasion du probe, dans les conteneurs de `scripts/linux-sandbox.ts`                                                       | 3–4 j      |
 | 6     | Claude et Codex réels : instructions, fixtures enregistrées (prompts minuscules) ; **mesure du taux de build réussi** sur 5 prompts, avec accord de l'utilisateur | taux mesuré et publié dans le README ; aucun appel non conforme (tests de conformité de coder étendus)                            | 2–3 j      |
 | 7     | UX : révisions (`u`, `h`, diff), capacités demandées, états de 2.3, README français, `test:pty:studio`                                                            | parcours PTY sur le harness factice : prompt → aperçu → build cassé → correction → annulation                                     | 3–4 j      |
 
@@ -593,12 +593,12 @@ Total : 23–30 jours.
 
 ### C5c : rejeu scripté dans le navigateur
 
-| Étape | Contenu                                                                                                                                                | Validation                                                                             | Estimation |
-| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------- | ---------- |
-| 1     | Enregistreur : une session studio locale produit un script (événements du harness horodatés, révisions : fichiers + `.airtty/web/` de chaque révision) | un script rejouable sans réseau ni modèle                                              | 2 j        |
-| 2     | Harness `replay` (sur l'interface du paquet harness) ; studio en `--web-local`, sans aperçu interne                                                    | studio web rejoue la conversation à l'identique                                        | 2 j        |
-| 3     | Page composée (option A) : message app → page « révision N » ; `iframe` de l'aperçu remplacée à chaque révision                                        | `test:web:studio` (Chrome headless, CDP) : écran de chaque révision lu dans l'`iframe` | 3 j        |
-| 4     | Intégration `website/` (après C1)                                                                                                                      | capture de la page, poids servi mesuré                                                 | 1–2 j      |
+| Étape | Contenu                                                                                                                                                 | Validation                                                                             | Estimation |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | ---------- |
+| 1     | Enregistreur : une session studio locale produit un script (événements du harness horodatés, révisions : fichiers + `.luciole/web/` de chaque révision) | un script rejouable sans réseau ni modèle                                              | 2 j        |
+| 2     | Harness `replay` (sur l'interface du paquet harness) ; studio en `--web-local`, sans aperçu interne                                                     | studio web rejoue la conversation à l'identique                                        | 2 j        |
+| 3     | Page composée (option A) : message app → page « révision N » ; `iframe` de l'aperçu remplacée à chaque révision                                         | `test:web:studio` (Chrome headless, CDP) : écran de chaque révision lu dans l'`iframe` | 3 j        |
+| 4     | Intégration `website/` (après C1)                                                                                                                       | capture de la page, poids servi mesuré                                                 | 1–2 j      |
 
 Total : 8–9 jours.
 
@@ -618,8 +618,8 @@ Total : 8–9 jours.
 ## 10. Décisions reprises
 
 Déjà tranchées par l'utilisateur (27 septembre 2026) : nom de travail `studio`, jamais
-la marque d'un produit existant ; exemple airtty local avec Claude Code ou Codex par les
-adaptateurs de coder ; version hébergée étudiée à part (C6a) ; commande `npx airttyx
+la marque d'un produit existant ; exemple luciole local avec Claude Code ou Codex par les
+adaptateurs de coder ; version hébergée étudiée à part (C6a) ; commande `npx luciolex
 studio` plus tard (C7). La version hébergée ne pourra pas utiliser d'abonnement (clés
 d'API seulement), ce qui ne concerne pas la version locale.
 

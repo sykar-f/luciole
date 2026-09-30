@@ -1,5 +1,5 @@
 "use client";
-import { useBindings, useConnection, type LayoutProps } from "airtty/client";
+import { useBindings, useConnection, type LayoutProps } from "luciole/client";
 
 export default function Layout({ children }: LayoutProps) {
   const { status, activity, refresh } = useConnection();

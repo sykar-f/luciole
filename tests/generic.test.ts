@@ -3,25 +3,25 @@ import { existsSync, lstatSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { loadAppBundle } from "../packages/airtty/src/app-bundle";
-import { build } from "../packages/airtty/src/build";
-import { messageOf } from "../packages/airtty/src/guards";
-import { urlArgs } from "../packages/airtty/src/generic/launch";
+import { loadAppBundle } from "../packages/luciole/src/app-bundle";
+import { build } from "../packages/luciole/src/build";
+import { messageOf } from "../packages/luciole/src/guards";
+import { urlArgs } from "../packages/luciole/src/generic/launch";
 import {
   originDirectory,
   originOf,
   originSessions,
   pinPublisher,
   readOrigin,
-} from "../packages/airtty/src/generic/origin";
-import { INLINE_WARNING, prepareOrigin } from "../packages/airtty/src/generic/prepare";
-import { Capabilities } from "../packages/airtty/src/capabilities";
-import { directories } from "../packages/airtty/src/launcher/paths";
+} from "../packages/luciole/src/generic/origin";
+import { INLINE_WARNING, prepareOrigin } from "../packages/luciole/src/generic/prepare";
+import { Capabilities } from "../packages/luciole/src/capabilities";
+import { directories } from "../packages/luciole/src/launcher/paths";
 import {
   generatePublisherKey,
   publisherIdentity,
   readPublisherKey,
-} from "../packages/airtty/src/publisher";
+} from "../packages/luciole/src/publisher";
 import { launch, rejectionOf } from "./helpers";
 
 test("an origin is the URL the user gave, normalized", () => {
@@ -66,7 +66,7 @@ async function temporary(prefix: string) {
 }
 
 test("prepareOrigin without a sandbox: signature, first-use pin, explicit inline, cache, changed key", async () => {
-  const home = await temporary("airtty-generic-");
+  const home = await temporary("luciole-generic-");
   const env: NodeJS.ProcessEnv = {
     ...process.env,
     HOME: home,
@@ -92,12 +92,12 @@ test("prepareOrigin without a sandbox: signature, first-use pin, explicit inline
   });
   const buildSigned = async (keysHome: string) => {
     const keyEnv = { ...env, XDG_CONFIG_HOME: keysHome };
-    if (!existsSync(join(keysHome, "airtty/keys/publisher.pem"))) generatePublisherKey(keyEnv);
+    if (!existsSync(join(keysHome, "luciole/keys/publisher.pem"))) generatePublisherKey(keyEnv);
     const key = readPublisherKey(keyEnv);
     await build(latency, undefined, { signBundle: key });
     return publisherIdentity(key).fingerprint;
   };
-  const server = join(latency, ".airtty/server/index.js");
+  const server = join(latency, ".luciole/server/index.js");
   let running = await launch(server);
   try {
     // Restarted on its port: one origin across rebuilds, as a deployed Server keeps its URL.
@@ -113,7 +113,7 @@ test("prepareOrigin without a sandbox: signature, first-use pin, explicit inline
 
     // Nothing opens without the user choosing inline where the sandbox does not exist.
     expect(messageOf(await rejectionOf(prepareOrigin(url, options(false))))).toContain(
-      `airtty ${url} --inline`,
+      `luciole ${url} --inline`,
     );
     // Declined at the first-use question: nothing pinned.
     answer = false;
@@ -161,7 +161,7 @@ test("prepareOrigin without a sandbox: signature, first-use pin, explicit inline
     await restart();
     const refused = messageOf(await rejectionOf(prepareOrigin(url, options(true))));
     expect(refused).toContain("publisher key changed");
-    expect(refused).toContain(`airtty trust ${origin} ${rotated}`);
+    expect(refused).toContain(`luciole trust ${origin} ${rotated}`);
     pinPublisher(origin, rotated, env);
     await prepareOrigin(url, options(false));
     expect(readOrigin(origin, env)?.publisher?.fingerprint).toBe(rotated);

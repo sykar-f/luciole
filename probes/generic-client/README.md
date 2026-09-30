@@ -24,14 +24,14 @@ du pane (décision 4 de docs/EMBEDDING.md).
 
 ## Fichiers
 
-| Fichier            | Rôle                                                                                                                                                                   |
-| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `abi.ts`           | ABI de runtime : 12 spécifiers autorisés, version manuelle + versions exactes des paquets, clé `1-<sha256>`.                                                           |
-| `runtime-entry.ts` | Surface du runtime (airtty client/route-tree, TanStack) ; `runtime.ts` la bundle (redirection `isServer` de TanStack) et fournit la table `require`.                   |
-| `bundle.ts`        | Bundle d'application : Client Components + route tree + stubs d'actions, format `bun-cjs`, ABI en external, audit des built-ins Node via le metafile.                  |
-| `loader.ts`        | Manifeste Zod, signature Ed25519, épinglage TOFU par origine (`known-origins.json`), ABI, cache par sha256, évaluation avec un `require` limité.                       |
-| `publish.ts`       | Clés de l'éditeur, manifeste signé, serveur `/manifest` + `/bundle` qui relaie le reste (render, action, flux live) vers le Server de l'application.                   |
-| `host.tsx`         | `createPanes` : une Application par pane, résolveur aiguilleur par préfixe d'instance, `airtty/client` par pane, keymap scopé, error boundary par embed (voir inline). |
+| Fichier            | Rôle                                                                                                                                                                    |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `abi.ts`           | ABI de runtime : 12 spécifiers autorisés, version manuelle + versions exactes des paquets, clé `1-<sha256>`.                                                            |
+| `runtime-entry.ts` | Surface du runtime (luciole client/route-tree, TanStack) ; `runtime.ts` la bundle (redirection `isServer` de TanStack) et fournit la table `require`.                   |
+| `bundle.ts`        | Bundle d'application : Client Components + route tree + stubs d'actions, format `bun-cjs`, ABI en external, audit des built-ins Node via le metafile.                   |
+| `loader.ts`        | Manifeste Zod, signature Ed25519, épinglage TOFU par origine (`known-origins.json`), ABI, cache par sha256, évaluation avec un `require` limité.                        |
+| `publish.ts`       | Clés de l'éditeur, manifeste signé, serveur `/manifest` + `/bundle` qui relaie le reste (render, action, flux live) vers le Server de l'application.                    |
+| `host.tsx`         | `createPanes` : une Application par pane, résolveur aiguilleur par préfixe d'instance, `luciole/client` par pane, keymap scopé, error boundary par embed (voir inline). |
 
 ## Assertions (toutes vertes)
 
@@ -53,8 +53,8 @@ du pane (décision 4 de docs/EMBEDDING.md).
 | ----------------------------------------- | ------------------------------------------- |
 | Bundle mdreader minifié / gzip / non min. | 20 099 o / 7 472 o / 36 066 o               |
 | Modules Client référencés / sources       | 8 / 15                                      |
-| Runtime (airtty + TanStack, sans React)   | 292 255 o, 67 884 o gzip                    |
-| `airtty build` puis bundle générique      | ≈ 2,7 s puis ≈ 65 ms                        |
+| Runtime (luciole + TanStack, sans React)  | 292 255 o, 67 884 o gzip                    |
+| `luciole build` puis bundle générique     | ≈ 2,7 s puis ≈ 65 ms                        |
 | Froid : manifeste, vérif., download, hash | ≈ 2 ms, 0,3 ms, 0,3 ms, 0,6 ms (loopback)   |
 | Évaluation du bundle                      | ≈ 2–3 ms                                    |
 | Froid jusqu'à la première frame complète  | ≈ 180–220 ms (dont rendu Server et listing) |
@@ -63,9 +63,9 @@ du pane (décision 4 de docs/EMBEDDING.md).
 ## Ce que cela exige du build
 
 1. **Un second bundle Client** par application, sans runtime : `react`, `@opentui/*`,
-   `@tanstack/react-router`, `zod`, `airtty/client`, `airtty/route-tree` restent des
-   `require` résolus par l'hôte. Le bundle actuel (`.airtty/client/index.js`) embarque
-   au contraire le runtime airtty, TanStack et le keymap : deux applications y auraient
+   `@tanstack/react-router`, `zod`, `luciole/client`, `luciole/route-tree` restent des
+   `require` résolus par l'hôte. Le bundle actuel (`.luciole/client/index.js`) embarque
+   au contraire le runtime luciole, TanStack et le keymap : deux applications y auraient
    deux routeurs et deux contextes de keymap.
 2. **Un format évaluable par l'hôte** : `bun-cjs` expose
    `(function (exports, require, module, …) {…})`. L'hôte passe son `require` : la table
@@ -74,8 +74,8 @@ du pane (décision 4 de docs/EMBEDDING.md).
    module applicatif avec `await` au niveau supérieur n'est pas exprimable en CJS.
 3. **Le runtime lui-même bundlé** avec la redirection `@tanstack/router-core/isServer`
    de `src/build.ts` : le Client générique est un artefact de build, pas `src/` importé.
-4. **Les stubs `"use server"`** générés contre `airtty/client` (l'ABI), avec l'id
-   `<buildId>/<chemin>#<export>` ; l'hôte fournit un `airtty/client` par origine.
+4. **Les stubs `"use server"`** générés contre `luciole/client` (l'ABI), avec l'id
+   `<buildId>/<chemin>#<export>` ; l'hôte fournit un `luciole/client` par origine.
 5. **Un audit des built-ins Node** : Bun les externalise avant tout plugin, ils sont lus
    dans le metafile. `files` demande `crypto`, `fs/promises`, `path`, `url` (le dépôt de
    fichiers par glisser-déposer lit le disque côté Client) : c'est une capacité à

@@ -4,9 +4,9 @@ description: One codebase, two programs. What the build puts on each side, how t
 sources:
   - docs/ARCHITECTURE.md
   - docs/BOUNDARIES.md
-  - packages/airtty/src/build.ts
-  - packages/airtty/src/transport.ts
-  - packages/airtty/src/server.ts
+  - packages/luciole/src/build.ts
+  - packages/luciole/src/transport.ts
+  - packages/luciole/src/server.ts
   - website/src/frames/flight.txt
 ---
 
@@ -17,7 +17,7 @@ import { night } from "../../../lib/codeTheme";
 // What the Server really sent for /notes/1, captured by website/scripts/capture.py.
 import flight from "../../../frames/flight.txt?raw";
 
-airtty is a React Server Components framework for the terminal. You write one app; its
+luciole is a React Server Components framework for the terminal. You write one app; its
 build produces two programs:
 
 - the **Server** renders pages, runs Server Functions and keeps the data;
@@ -41,10 +41,10 @@ one side ([Client Components](/docs/concepts/client-components/)).
 
 ## What the build writes
 
-`airtty build` writes into the app's `.airtty/` directory:
+`luciole build` writes into the app's `.luciole/` directory:
 
 ```text
-.airtty/
+.luciole/
   manifest.json   build ID, graphs, route graph and Client References
   metadata.json   display name, identifier, icon (from package.json)
   client/         index.js: the terminal Client
@@ -62,7 +62,7 @@ installation: React, React Server DOM and OpenTUI stay external and resolve in i
 
 Both programs must come from **the same build**. The build ID is a hash of the reachable
 sources, the runtime's files and the `bun.lock` that governs the installation. The Client
-sends it with every request (`x-airtty-build`); a Server of another build refuses the
+sends it with every request (`x-luciole-build`); a Server of another build refuses the
 request before decoding it (`409`), without resetting the state already mounted in the
 Client.
 
@@ -99,13 +99,13 @@ Read it line by line:
 
 ## Where the pieces live
 
-| Concern                               | File                                            |
-| ------------------------------------- | ----------------------------------------------- |
-| Graphs, boundaries, manifests         | <Src path="packages/airtty/src/build.ts" />     |
-| Transport: build ID, bearer, outcomes | <Src path="packages/airtty/src/transport.ts" /> |
-| HTTP handler, sessions, actions       | <Src path="packages/airtty/src/server.ts" />    |
-| The Client in a terminal              | <Src path="packages/airtty/src/run.tsx" />      |
-| The Server as a process               | <Src path="packages/airtty/src/serve.ts" />     |
+| Concern                               | File                                             |
+| ------------------------------------- | ------------------------------------------------ |
+| Graphs, boundaries, manifests         | <Src path="packages/luciole/src/build.ts" />     |
+| Transport: build ID, bearer, outcomes | <Src path="packages/luciole/src/transport.ts" /> |
+| HTTP handler, sessions, actions       | <Src path="packages/luciole/src/server.ts" />    |
+| The Client in a terminal              | <Src path="packages/luciole/src/run.tsx" />      |
+| The Server as a process               | <Src path="packages/luciole/src/serve.ts" />     |
 
 The guided tour's first chapters, [La carte](/guide/carte/) and [Le build](/guide/build/)
 (in French), follow the same split in more depth.

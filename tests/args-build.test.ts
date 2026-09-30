@@ -4,14 +4,14 @@ import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { build } from "../packages/airtty/src/build";
-import { compileApp } from "../packages/airtty/src/compile";
-import { AppMetadata } from "../packages/airtty/src/app-metadata";
-import { messageOf } from "../packages/airtty/src/guards";
+import { build } from "../packages/luciole/src/build";
+import { compileApp } from "../packages/luciole/src/compile";
+import { AppMetadata } from "../packages/luciole/src/app-metadata";
+import { messageOf } from "../packages/luciole/src/guards";
 import { launch, readManifest, rejectionOf, until } from "./helpers";
 
-const cli = resolve("packages/airtty/src/cli.ts");
-const ARGS = `import { defineArgs } from "airtty/args";
+const cli = resolve("packages/luciole/src/cli.ts");
+const ARGS = `import { defineArgs } from "luciole/args";
 import { z } from "zod";
 import { GREETING } from "../shared/greeting";
 export default defineArgs({
@@ -25,7 +25,7 @@ export default defineArgs({
 const files: Record<string, string> = {
   "app/layout.tsx": `"use client";export default function Layout({children}){return children}`,
   // Read at module level: the Server parses its arguments before any page module runs.
-  "app/page.tsx": `import cli from "./args";import {getArgs} from "airtty/server";
+  "app/page.tsx": `import cli from "./args";import {getArgs} from "luciole/server";
 const {name,dir}=cli.get();
 export default function Page(){return <text>{"HELLO "+name+" IN "+(dir ?? "-")+" SAME "+String(getArgs()===cli.get())}</text>}`,
   "app/args.ts": ARGS,
@@ -34,7 +34,7 @@ export default function Page(){return <text>{"HELLO "+name+" IN "+(dir ?? "-")+"
 
 let dir: string;
 beforeAll(async () => {
-  dir = await mkdtemp(join(tmpdir(), "airtty-args-"));
+  dir = await mkdtemp(join(tmpdir(), "luciole-args-"));
   for (const [name, text] of Object.entries(files)) {
     await mkdir(join(dir, name, ".."), { recursive: true });
     await Bun.write(join(dir, name), text);
@@ -44,11 +44,11 @@ beforeAll(async () => {
 afterAll(() => rm(dir, { recursive: true, force: true }));
 
 async function render(env: Record<string, string>) {
-  const server = await launch(join(dir, ".airtty/server/index.js"), env);
+  const server = await launch(join(dir, ".luciole/server/index.js"), env);
   try {
     const manifest = await readManifest(dir);
     const response = await fetch(`${server.url}/render?route=%2F&params=%7B%7D`, {
-      headers: { "x-airtty-build": manifest.buildId },
+      headers: { "x-luciole-build": manifest.buildId },
     });
     return await response.text();
   } finally {
@@ -58,8 +58,8 @@ async function render(env: Record<string, string>) {
 
 test("app/args.ts is bundled for launchers, described in metadata, parsed by the Server", async () => {
   const { buildId } = await build(dir);
-  expect(await Bun.file(join(dir, ".airtty/args/index.js")).exists()).toBe(true);
-  const metadata = AppMetadata.parse(await Bun.file(join(dir, ".airtty/metadata.json")).json());
+  expect(await Bun.file(join(dir, ".luciole/args/index.js")).exists()).toBe(true);
+  const metadata = AppMetadata.parse(await Bun.file(join(dir, ".luciole/metadata.json")).json());
   expect(metadata.args).toMatchObject({
     summary: "Greets someone",
     examples: ["hello -n bob"],
@@ -69,7 +69,7 @@ test("app/args.ts is bundled for launchers, described in metadata, parsed by the
   expect(await render({})).toContain("HELLO world IN - SAME true");
   expect(
     await render({
-      AIRTTY_ARGS: JSON.stringify({ v: 1, argv: ["-n", "bob", "--dir", "x"], cwd: "/w" }),
+      LUCIOLE_ARGS: JSON.stringify({ v: 1, argv: ["-n", "bob", "--dir", "x"], cwd: "/w" }),
     }),
   ).toContain("HELLO bob IN /w/x");
   // The declaration is part of the build's identity.
@@ -82,12 +82,12 @@ test("a Server given arguments it refuses exits with code 2 and says why", async
   await build(dir);
   const child = spawn(
     process.execPath,
-    ["--conditions=react-server", join(dir, ".airtty/server/index.js")],
+    ["--conditions=react-server", join(dir, ".luciole/server/index.js")],
     {
       env: {
         ...process.env,
         PORT: "0",
-        AIRTTY_ARGS: JSON.stringify({ v: 1, argv: ["--nam", "x"] }),
+        LUCIOLE_ARGS: JSON.stringify({ v: 1, argv: ["--nam", "x"] }),
       },
       stdio: ["ignore", "ignore", "pipe"],
     },
@@ -101,7 +101,7 @@ test("a Server given arguments it refuses exits with code 2 and says why", async
 
 test("app/args.ts stays out of Server-only code and away from the runtime's flags", async () => {
   const refused = async (args: string, extra: Record<string, string> = {}) => {
-    const other = await mkdtemp(join(tmpdir(), "airtty-args-bad-"));
+    const other = await mkdtemp(join(tmpdir(), "luciole-args-bad-"));
     try {
       for (const [name, text] of Object.entries({ ...files, ...extra, "app/args.ts": args })) {
         await mkdir(join(other, name, ".."), { recursive: true });
@@ -121,11 +121,11 @@ test("app/args.ts stays out of Server-only code and away from the runtime's flag
       "server/secret.ts": "export const secret = 1;",
     }),
   ).toContain("cannot import ../server/secret");
-  expect(await refused(ARGS.replace("dir:", "url:"))).toContain("--url is reserved by airtty");
+  expect(await refused(ARGS.replace("dir:", "url:"))).toContain("--url is reserved by luciole");
   expect(await refused(`export default 1;`)).toContain("export default defineArgs");
 }, 60000);
 
-const airtty = (args: readonly string[]) =>
+const luciole = (args: readonly string[]) =>
   new Promise<{ code: number | null; stdout: string; stderr: string }>((done) => {
     const child = spawn(process.execPath, [cli, ...args], { stdio: ["ignore", "pipe", "pipe"] });
     let stdout = "",
@@ -135,20 +135,20 @@ const airtty = (args: readonly string[]) =>
     child.once("exit", (code) => done({ code, stdout, stderr }));
   });
 
-test("airtty dev and airtty ./app take the application's arguments and its --help", async () => {
-  const help = await airtty(["dev", "--app", dir, "--", "--help"]);
+test("luciole dev and luciole ./app take the application's arguments and its --help", async () => {
+  const help = await luciole(["dev", "--app", dir, "--", "--help"]);
   expect(help.code).toBe(0);
   expect(help.stdout).toContain("-n, --name <value>");
   expect(help.stdout).toContain("Examples:\n  hello -n bob");
-  const typo = await airtty(["dev", "--app", dir, "--", "--nme", "x"]);
+  const typo = await luciole(["dev", "--app", dir, "--", "--nme", "x"]);
   expect(typo).toMatchObject({ code: 2 });
   expect(typo.stderr).toContain("did you mean --name?");
-  const launched = await airtty([dir, "--help"]);
+  const launched = await luciole([dir, "--help"]);
   expect(launched.code).toBe(0);
-  expect(launched.stdout).toContain("Runtime (airtty):");
+  expect(launched.stdout).toContain("Runtime (luciole):");
   expect(launched.stdout).toContain("--grace <duration>");
-  expect((await airtty([dir, "--nope"])).code).toBe(2);
-  expect((await airtty([dir, "--url", "unix:/nowhere", "-n", "x"])).stderr).toContain(
+  expect((await luciole([dir, "--nope"])).code).toBe(2);
+  expect((await luciole([dir, "--url", "unix:/nowhere", "-n", "x"])).stderr).toContain(
     "application arguments configure a Server",
   );
 }, 60000);
@@ -182,7 +182,7 @@ test("an app binary parses them too: its --help, serve -- options, and none with
     const manifest = await readManifest(dir);
     const body = await fetch("http://localhost/render?route=%2F&params=%7B%7D", {
       unix: socket,
-      headers: { "x-airtty-build": manifest.buildId },
+      headers: { "x-luciole-build": manifest.buildId },
     });
     expect(await body.text()).toContain("HELLO binary");
   } finally {

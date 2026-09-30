@@ -41,7 +41,7 @@ const PANE_CHROME_COLS = 2;
 /** The multiplexer's Client, its panes running `env.MUX_PANES`. */
 const startMux = (url: string, directory: string, env: Record<string, string>) =>
   drive({
-    command: [BUN, join(APP, ".airtty/client/index.js"), "--url", url],
+    command: [BUN, join(APP, ".luciole/client/index.js"), "--url", url],
     cols: COLS,
     rows: ROWS,
     env: {
@@ -132,13 +132,13 @@ const right = VIM ? [VIM, "-u", "NONE", "-N"] : ["/bin/sh"];
   writeFileSync(join(library, "guide.md"), "# Guide\n\nbeta-inline\n");
   await using mux = await startServer(APP);
   await using docs = await startServer(MDREADER, { MD_PATH: library });
-  const apps = [{ name: "docs", bundle: join(MDREADER, ".airtty/app"), url: docs.url }];
+  const apps = [{ name: "docs", bundle: join(MDREADER, ".luciole/app"), url: docs.url }];
   await using t = await startMux(mux.url, directory.path, {
     MUX_PANES: JSON.stringify([["/bin/sh"]]),
     MUX_APPS: JSON.stringify(apps),
   });
   await t.waitFor("MUX · pane 0 of 2");
-  await t.waitFor("docs (airtty)");
+  await t.waitFor("docs (luciole)");
   await t.waitFor("alpha-inline");
   await t.waitFor("$ ");
 
@@ -158,7 +158,7 @@ const right = VIM ? [VIM, "-u", "NONE", "-N"] : ["/bin/sh"];
   // Ctrl+C in the application closes its pane, not the multiplexer.
   await t.type(ctrl("c"));
   await t.waitFor("MUX · pane 0 of 1");
-  await t.waitFor("docs (airtty)", { absent: true });
+  await t.waitFor("docs (luciole)", { absent: true });
   assert.ok(t.running, "Ctrl+C in the embedded application quit the multiplexer");
   await t.type("printf 'b%sk\\n' ack\r");
   await t.waitFor("backk");
@@ -175,7 +175,7 @@ report({
   resizeReachesProgram: true,
   quitRestoresTerminal: true,
   noSurvivingPaneProgram: true,
-  inlineAirttyPane: true,
+  inlineLuciolePane: true,
   keysOnlyToActivePane: true,
   ctrlCClosesAppPaneOnly: true,
 });

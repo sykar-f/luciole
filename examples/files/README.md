@@ -6,9 +6,9 @@ d'un dossier, hex dump d'un binaire). Le système de fichiers est lu par le Serv
 Client ne reçoit que des chemins relatifs à la racine.
 
 ```sh
-bun packages/airtty/src/cli.ts dev --app examples/files                     # racine : répertoire courant
-FILES_ROOT=~/Pictures bun packages/airtty/src/cli.ts dev --app examples/files
-AIRTTY_LATENCY_MS=500 bun packages/airtty/src/cli.ts dev --app examples/files  # même parcours à 500 ms de RTT
+bun packages/luciole/src/cli.ts dev --app examples/files                     # racine : répertoire courant
+FILES_ROOT=~/Pictures bun packages/luciole/src/cli.ts dev --app examples/files
+LUCIOLE_LATENCY_MS=500 bun packages/luciole/src/cli.ts dev --app examples/files  # même parcours à 500 ms de RTT
 ```
 
 ## Clavier
@@ -105,7 +105,7 @@ dessine :
   directement à échelle réduite), le Server continue de servir les autres requêtes ; le
   Client ne décode qu'une petite image (< 1 ms).
 - **Cache** : en mémoire (32 Mio) et sur disque dans
-  `$XDG_CACHE_HOME/airtty-files/thumbnails/` (`~/.cache/…`), clé chemin + taille + date
+  `$XDG_CACHE_HOME/luciole-files/thumbnails/` (`~/.cache/…`), clé chemin + taille + date
   du fichier + taille demandée arrondie à 64 px. Deux demandes identiques en cours se
   partagent le travail. Les images voisines de la sélection sont préchargées : descendre
   dans un dossier de photos les affiche depuis le cache.
@@ -135,7 +135,7 @@ bloquait l'interface 30 à 150 ms par image ; avec les vignettes, l'interface r�
 tsc --noEmit -p examples/files
 oxlint --deny-warnings examples/files
 oxfmt --check examples/files
-bun packages/airtty/src/cli.ts build --app examples/files
+bun packages/luciole/src/cli.ts build --app examples/files
 bun run test:pty:files
 ```
 

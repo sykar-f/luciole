@@ -3,14 +3,14 @@ import { existsSync } from "node:fs";
 import { cp, mkdtemp, readFile, rename, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { build } from "../packages/airtty/src/build";
-import { messageOf } from "../packages/airtty/src/guards";
+import { build } from "../packages/luciole/src/build";
+import { messageOf } from "../packages/luciole/src/guards";
 import {
   prepareGitApp,
   repositoryName,
   type GitOptions,
-} from "../packages/airtty/src/launcher/git";
-import { parseGitSource } from "../packages/airtty/src/launcher/git-source";
+} from "../packages/luciole/src/launcher/git";
+import { parseGitSource } from "../packages/luciole/src/launcher/git-source";
 import { rejectionOf } from "./helpers";
 
 let work: string, remote: string;
@@ -32,13 +32,13 @@ const commit = (message: string) => {
 };
 
 beforeAll(async () => {
-  work = await mkdtemp(join(tmpdir(), "airtty-git-"));
+  work = await mkdtemp(join(tmpdir(), "luciole-git-"));
   remote = join(work, "remote");
   // A repository holding Notes in a subdirectory, as a monorepo would.
   for (const part of ["app", "components", "actions", "server", "tsconfig.json"])
     await cp(resolve("examples/notes", part), join(remote, "apps/notes", part), {
       recursive: true,
-      filter: (p) => !p.includes(".airtty"),
+      filter: (p) => !p.includes(".luciole"),
     });
   git(remote, "init", "-q", "-b", "main");
   commit("Notes");
@@ -140,7 +140,7 @@ test("a repository is accepted once; a new commit is fetched, announced and buil
   // <cache>/<hash of the url>/<sha>/<repository>/<directory>
   expect(first.directory).toStartWith(join(work, "cache/git/"));
   expect(first.directory).toEndWith(join(first.sha, "remote/apps/notes"));
-  expect(existsSync(join(first.directory, ".airtty/server/index.js"))).toBe(true);
+  expect(existsSync(join(first.directory, ".luciole/server/index.js"))).toBe(true);
   // Shallow: one commit only.
   expect(git(join(first.directory, "../.."), "rev-list", "--count", "HEAD")).toBe("1");
   expect(h.builds).toHaveLength(1);
@@ -232,7 +232,7 @@ test("an app is installed from its bun.lock only; a missing ref or app is explai
   ).toContain('has no branch or tag "nope"');
   expect(
     messageOf(await rejectionOf(prepareGitApp({ ...source, directory: "apps" }, h.options))),
-  ).toContain("no airtty app");
+  ).toContain("no luciole app");
   expect(
     messageOf(await rejectionOf(prepareGitApp({ ...source, directory: "../x" }, h.options))),
   ).toContain("outside the repository");

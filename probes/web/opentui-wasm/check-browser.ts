@@ -1,6 +1,6 @@
 /**
  * The form of form-app.tsx in headless Chrome, behind xterm.js: typed into, read from the
- * terminal's buffer, captured as `.airtty/browser/screen.png`.
+ * terminal's buffer, captured as `.luciole/browser/screen.png`.
  *   OPENTUI_SRC=… OPENTUI_WASM_PATH=…/opentui.wasm bun probes/web/opentui-wasm/check-browser.ts
  */
 import { copyFileSync, mkdirSync } from "node:fs";
@@ -10,7 +10,7 @@ import { Browser } from "../../../scripts/web/cdp";
 const wasm = process.env.OPENTUI_WASM_PATH;
 if (!wasm) throw new Error("OPENTUI_WASM_PATH: the opentui.wasm to serve");
 const here = import.meta.dir;
-const out = join(here, ".airtty/browser");
+const out = join(here, ".luciole/browser");
 mkdirSync(out, { recursive: true });
 const build = Bun.spawnSync(
   [process.execPath, join(here, "build.ts"), join(here, "src/browser.tsx"), out, "browser"],
@@ -33,7 +33,7 @@ const server = Bun.serve({
   },
 });
 const SCREEN = `(() => {
-  const t = globalThis.airtty?.terminal;
+  const t = globalThis.luciole?.terminal;
   if (!t) return "";
   const b = t.buffer.active;
   return Array.from({ length: t.rows }, (_, i) => b.getLine(b.viewportY + i)?.translateToString(true) ?? "").join("\\n");
@@ -56,7 +56,7 @@ try {
   console.log(await browser.evaluate(SCREEN));
   await browser.screenshot(join(out, "screen.png"));
   await browser.press("Escape");
-  await browser.waitFor("globalThis.airtty?.quit === true", "the quit");
+  await browser.waitFor("globalThis.luciole?.quit === true", "the quit");
   console.log(`quit; screenshot in ${join(out, "screen.png")}`);
 } finally {
   await server.stop(true);

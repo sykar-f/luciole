@@ -127,7 +127,7 @@ export async function documentation() {
     return `- **${title}** (\`${path}\`): ${lede}`;
   });
   const readme = [
-    "# The airtty documentation",
+    "# The luciole documentation",
     "",
     "React Server Components for the terminal: a server keeps the data, a native terminal client keeps typing and scrolling local.",
     "",

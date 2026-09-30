@@ -1,11 +1,11 @@
-// Builds airtty-sandbox (native/airtty-sandbox), the Linux launcher of the sandbox mode,
+// Builds luciole-sandbox (native/luciole-sandbox), the Linux launcher of the sandbox mode,
 // for each Linux architecture: a static musl binary, one per architecture, which runs on
 // glibc and musl systems alike. Reproducible: a pinned toolchain image (by digest), the
 // locked dependencies, no path of this machine in the binary; `--check` rebuilds and
 // compares with the committed SHA256SUMS instead of replacing them.
 //   bun scripts/build-sandbox.ts [--arch x64|arm64] [--check]
 // Needs a Docker engine (OrbStack, Docker Desktop or Linux); the other architecture runs
-// emulated. The binaries are committed: users of airtty install nothing.
+// emulated. The binaries are committed: users of luciole install nothing.
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -22,7 +22,7 @@ const ARCHS = {
     image: "rust@sha256:7027e56e68dfd2c7bc66383bda559e1e1efb72301f55e4252925f6fa637d979d",
   },
 } as const;
-const crate = resolve("packages/airtty/native/airtty-sandbox");
+const crate = resolve("packages/luciole/native/luciole-sandbox");
 const dist = join(crate, "dist");
 
 const args = process.argv.slice(2);
@@ -38,7 +38,7 @@ async function run(cmd: string[]) {
 const sha256 = async (file: string) =>
   new Bun.CryptoHasher("sha256").update(await Bun.file(file).bytes()).digest("hex");
 
-const out = check ? await mkdtemp(join(tmpdir(), "airtty-sandbox-build-")) : dist;
+const out = check ? await mkdtemp(join(tmpdir(), "luciole-sandbox-build-")) : dist;
 try {
   const sums: string[] = [];
   for (const arch of archs) {
@@ -60,16 +60,16 @@ try {
       "-e",
       "CARGO_TARGET_DIR=/tmp/target",
       "-e",
-      "RUSTFLAGS=--remap-path-prefix=/src=airtty-sandbox --remap-path-prefix=/usr/local/cargo=cargo",
+      "RUSTFLAGS=--remap-path-prefix=/src=luciole-sandbox --remap-path-prefix=/usr/local/cargo=cargo",
       "-w",
       "/src",
       image,
       "sh",
       "-c",
       // Static, or refused: the binary must run on glibc and musl systems alike.
-      "cargo build --locked --release && ! ldd /tmp/target/release/airtty-sandbox 2>/dev/null | grep -q '=>' && cp /tmp/target/release/airtty-sandbox /out/ && chmod 755 /out/airtty-sandbox",
+      "cargo build --locked --release && ! ldd /tmp/target/release/luciole-sandbox 2>/dev/null | grep -q '=>' && cp /tmp/target/release/luciole-sandbox /out/ && chmod 755 /out/luciole-sandbox",
     ]);
-    sums.push(`${await sha256(join(target, "airtty-sandbox"))}  linux-${arch}/airtty-sandbox`);
+    sums.push(`${await sha256(join(target, "luciole-sandbox"))}  linux-${arch}/luciole-sandbox`);
   }
   if (check) {
     const committed = await readFile(join(dist, "SHA256SUMS"), "utf8");
@@ -83,7 +83,7 @@ try {
     const previous = await readFile(join(dist, "SHA256SUMS"), "utf8").catch(() => "");
     const kept = previous
       .split("\n")
-      .filter((line) => line && !archs.some((a) => line.endsWith(`linux-${a}/airtty-sandbox`)));
+      .filter((line) => line && !archs.some((a) => line.endsWith(`linux-${a}/luciole-sandbox`)));
     await writeFile(join(dist, "SHA256SUMS"), [...kept, ...sums].sort().join("\n") + "\n");
     console.log(sums.join("\n"));
   }

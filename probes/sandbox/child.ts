@@ -71,7 +71,7 @@ try {
       report(true, "");
       break;
     case "boot": {
-      // What an airtty Client loads before rendering: React and OpenTUI's native library.
+      // What a luciole Client loads before rendering: React and OpenTUI's native library.
       const { createTestRenderer } = await import("@opentui/core/testing");
       const react = await import("react");
       const { renderer } = await createTestRenderer({ width: 10, height: 2 });

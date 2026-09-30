@@ -1,9 +1,9 @@
 {
-  "name": "@airtty-examples/chat",
+  "name": "@luciole-examples/chat",
   "private": true,
   "type": "module",
   "dependencies": {
-    "airtty": "workspace:*",
+    "luciole": "workspace:*",
     "@opentui/core": "catalog:",
     "@opentui/react": "catalog:",
     "@tanstack/react-router": "catalog:",

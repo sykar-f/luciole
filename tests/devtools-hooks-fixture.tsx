@@ -22,8 +22,8 @@ import {
   useTransition,
 } from "react";
 import { testRender } from "@opentui/react/test-utils";
-import { annotate } from "../packages/airtty/src/devtools/annotate";
-import { createComponentTracker, fiberChannel } from "../packages/airtty/src/devtools/fibers";
+import { annotate } from "../packages/luciole/src/devtools/annotate";
+import { createComponentTracker, fiberChannel } from "../packages/luciole/src/devtools/fibers";
 
 const probes: Record<string, () => unknown> = {
   useState: () => useState(0),

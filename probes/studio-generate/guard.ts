@@ -13,8 +13,8 @@ const WRITABLE = /^(app|components|server|actions)\/[\w\-./[\]()]+\.(ts|tsx)$/;
 const GENERATED = new Set(["app/routeTree.gen.ts"]);
 /** The packages the template installs: nothing else resolves in the workspace. */
 const PACKAGES = new Set([
-  "airtty/client",
-  "airtty/server",
+  "luciole/client",
+  "luciole/server",
   "react",
   "@opentui/core",
   "@opentui/react",

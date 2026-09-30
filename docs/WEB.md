@@ -7,7 +7,7 @@
 ## Décision proposée
 
 Le navigateur devient un **hôte** de plus, au même titre que le Client générique
-([EMBEDDING.md](EMBEDDING.md)) : il évalue le bundle d'application `.airtty/app/index.cjs`
+([EMBEDDING.md](EMBEDDING.md)) : il évalue le bundle d'application `.luciole/app/index.cjs`
 **inchangé** contre un runtime web qui satisfait la même ABI (`src/abi.ts`). Aucun
 nouveau format de build pour le code Client d'une application.
 
@@ -19,7 +19,7 @@ Les deux formes demandées ne diffèrent que par le `fetch` donné à l'`Applica
 | **Client web**              | `window.fetch` vers un vrai Server               | le Server habituel (Bun), qui sert aussi le shell | ouvrir une app hébergée depuis un lien  |
 | **Tout dans le navigateur** | un `fetch` vers un Web Worker, par `postMessage` | le même handler, bundlé pour le navigateur        | démo de la landing, app hors ligne, PWA |
 
-Il n'y a pas de Bun dans le navigateur : le code JS d'airtty tourne sur le moteur de la
+Il n'y a pas de Bun dans le navigateur : le code JS de luciole tourne sur le moteur de la
 page, les API Bun et Node sont remplacées par des modules de plateforme. Seul le cœur Zig
 d'OpenTUI passe en WebAssembly.
 
@@ -29,9 +29,9 @@ d'OpenTUI passe en WebAssembly.
 │ page                                                                      │
 │  ┌─────────────┐  ANSI   ┌────────────────────────────────────────────┐   │
 │  │  xterm.js   │ ◀────── │ runtime web (build du framework, par ABI)  │   │
-│  │             │ ──────▶ │  React, TanStack, keymap, airtty/client    │   │
+│  │             │ ──────▶ │  React, TanStack, keymap, luciole/client    │   │
 │  └─────────────┘ touches │  @opentui/core + FfiBackend WASM           │   │
-│                          │  bundle d'app évalué (.airtty/app)         │   │
+│                          │  bundle d'app évalué (.luciole/app)         │   │
 │                          └──────────────┬─────────────────────────────┘   │
 │                                         │ fetch(Request) → Response        │
 │              ┌──────────────────────────┴───────────┐                      │
@@ -47,25 +47,25 @@ d'OpenTUI passe en WebAssembly.
 ## Mode d'emploi (Client web)
 
 ```sh
-ZIG=/chemin/zig-0.16.0 airtty web-runtime        # une fois par ABI et framework : ~30 s, réseau
-airtty build --web                                # .airtty/web/ à côté de server/, client/, app/
-AIRTTY_WEB_ORIGIN=https://notes.example.com PORT=3000 bun --conditions=react-server .airtty/server/index.js
+ZIG=/chemin/zig-0.16.0 luciole web-runtime        # une fois par ABI et framework : ~30 s, réseau
+luciole build --web                                # .luciole/web/ à côté de server/, client/, app/
+LUCIOLE_WEB_ORIGIN=https://notes.example.com PORT=3000 bun --conditions=react-server .luciole/server/index.js
 ```
 
 Les options de l'application (`app/args.ts`) se donnent au Server, pas au navigateur :
-`AIRTTY_ARGS='{"v":1,"argv":["--mode","read"]}'` devant la commande ci-dessus, ou
+`LUCIOLE_ARGS='{"v":1,"argv":["--mode","read"]}'` devant la commande ci-dessus, ou
 `<app> serve --http :3000 -- --mode read` avec un binaire. Tout dans le navigateur
 (`--web-local`), le Server du SharedWorker n'a pas de ligne de commande : il prend les
 valeurs par défaut du schéma (v1).
 
-Le navigateur ouvre `https://notes.example.com/` et arrive sur `/_airtty/web/`. Le runtime
-est dans `$XDG_CACHE_HOME/airtty/web/<clé d'ABI>-<hash du framework>/` : la page est
-aussi du code du framework. `airtty build --web` le prépare s'il manque. En local : `AIRTTY_WEB_ORIGIN=http://127.0.0.1:3000`.
+Le navigateur ouvre `https://notes.example.com/` et arrive sur `/_luciole/web/`. Le runtime
+est dans `$XDG_CACHE_HOME/luciole/web/<clé d'ABI>-<hash du framework>/` : la page est
+aussi du code du framework. `luciole build --web` le prépare s'il manque. En local : `LUCIOLE_WEB_ORIGIN=http://127.0.0.1:3000`.
 
 | Fichier                             | Rôle                                                                                                 |
 | ----------------------------------- | ---------------------------------------------------------------------------------------------------- |
 | `src/web-runtime.ts`                | Préparation par clé d'ABI : OpenTUI au tag de l'ABI, patch, Zig, bundle ; copie                      |
-| `src/web-routes.ts`                 | `/_airtty/web/*` et l'origine déclarée (`Origin` et `Host`)                                          |
+| `src/web-routes.ts`                 | `/_luciole/web/*` et l'origine déclarée (`Origin` et `Host`)                                         |
 | `src/web/build.ts`                  | Bundle de la page : variantes, OpenTUI depuis ses sources, shims Node, clé d'ABI                     |
 | `src/web/platform/`                 | Variantes : `run`, `app-bundle`, `host-direct`, `vt/terminal`, `flight/server`                       |
 | `src/web/opentui/`, `src/web/node/` | Backend FFI WASM d'OpenTUI, Worker tree-sitter ; built-ins Node d'une page                           |
@@ -75,14 +75,14 @@ aussi du code du framework. `airtty build --web` le prépare s'il manque. En loc
 ## Mode d'emploi (tout dans le navigateur)
 
 ```sh
-airtty build --web-local          # .airtty/web/ : page, runtime, server-worker.js, sqlite3.wasm, app/
+luciole build --web-local          # .luciole/web/ : page, runtime, server-worker.js, sqlite3.wasm, app/
 ```
 
-`.airtty/web/` se sert tel quel par n'importe quel hébergement statique (`application/wasm`
+`.luciole/web/` se sert tel quel par n'importe quel hébergement statique (`application/wasm`
 pour les `.wasm`). La page charge le bundle d'app depuis `app/` et ouvre un SharedWorker
 nommé comme l'app (`server-worker.js`) : l'entrée Server générée, bundlée pour le
 navigateur, dont `serve()` répond aux onglets par `MessagePort`. Les bases SQLite vivent en
-mémoire (SQLite WASM) et sont écrites dans OPFS (`airtty/<app>/`) après chaque Server
+mémoire (SQLite WASM) et sont écrites dans OPFS (`luciole/<app>/`) après chaque Server
 Function, avant sa réponse.
 
 | Fichier                                | Rôle                                                                                      |
@@ -108,18 +108,18 @@ d'OpenTUI, qui échouent à l'usage. Une app dont une fonction réservée au ter
 
 ## 1. Ce que l'architecture offre déjà
 
-| Couture existante                              | Ce qu'elle rend possible                                                      |
-| ---------------------------------------------- | ----------------------------------------------------------------------------- |
-| `.airtty/app/` + ABI (`src/abi.ts`)            | le code Client d'une app, sans runtime, évaluable par n'importe quel hôte     |
-| `ApplicationOptions.fetch` / `transport`       | brancher le Client sur un Worker au lieu du réseau, sans toucher au transport |
-| `GET /manifest`, `GET /bundle/<sha256>`        | un Client web obtient le bundle d'une app depuis son Server                   |
-| `HostChannel` (`src/host.ts`)                  | presse-papiers, ouverture d'URL, notifications par les API du navigateur      |
-| `ApplicationOptions.session`, `quitOnCtrlC`    | session restaurée fournie par l'hôte ; Ctrl+C à l'app, comme en desktop       |
-| `serve()` construit un `fetch(req)` standard   | le même handler dans un Worker, une fois séparé de `Bun.serve`                |
-| `FfiBackend` d'OpenTUI (`platform/ffi`)        | un troisième backend, adossé à une instance WebAssembly                       |
-| `createCliRenderer({ stdin, stdout })`         | sortie ANSI vers un émulateur web, clavier depuis lui                         |
-| `airtty.capabilities` + built-ins du manifeste | refuser avant évaluation une app qui exige `fs`, `exec`, `pty`                |
-| Contrat `AIRTTY_DESKTOP` (DESKTOP.md)          | déjà un hôte « fenêtre » avec xterm.js ; mêmes gestes, même vue               |
+| Couture existante                               | Ce qu'elle rend possible                                                      |
+| ----------------------------------------------- | ----------------------------------------------------------------------------- |
+| `.luciole/app/` + ABI (`src/abi.ts`)            | le code Client d'une app, sans runtime, évaluable par n'importe quel hôte     |
+| `ApplicationOptions.fetch` / `transport`        | brancher le Client sur un Worker au lieu du réseau, sans toucher au transport |
+| `GET /manifest`, `GET /bundle/<sha256>`         | un Client web obtient le bundle d'une app depuis son Server                   |
+| `HostChannel` (`src/host.ts`)                   | presse-papiers, ouverture d'URL, notifications par les API du navigateur      |
+| `ApplicationOptions.session`, `quitOnCtrlC`     | session restaurée fournie par l'hôte ; Ctrl+C à l'app, comme en desktop       |
+| `serve()` construit un `fetch(req)` standard    | le même handler dans un Worker, une fois séparé de `Bun.serve`                |
+| `FfiBackend` d'OpenTUI (`platform/ffi`)         | un troisième backend, adossé à une instance WebAssembly                       |
+| `createCliRenderer({ stdin, stdout })`          | sortie ANSI vers un émulateur web, clavier depuis lui                         |
+| `luciole.capabilities` + built-ins du manifeste | refuser avant évaluation une app qui exige `fs`, `exec`, `pty`                |
+| Contrat `LUCIOLE_DESKTOP` (DESKTOP.md)          | déjà un hôte « fenêtre » avec xterm.js ; mêmes gestes, même vue               |
 
 ## 2. Obstacles dans `src/` et refactors faits
 
@@ -139,9 +139,9 @@ sont neutres.
 `client.tsx` importait `connect`, `session`, lisait `process.env`, écoutait les signaux
 et `process.on("message")`, créait le renderer sur le TTY.
 
-**Fait** : `run()` vit dans `src/run.tsx` (réexporté par `airtty/client`) ; `client.tsx`
+**Fait** : `run()` vit dans `src/run.tsx` (réexporté par `luciole/client`) ; `client.tsx`
 n'importe plus rien de Node. Sa variante `src/web/platform/run.tsx` exporte le même
-`run()`, qui monte xterm.js sur `#airtty`, et `runInPage(create, { element, server,
+`run()`, qui monte xterm.js sur `#luciole`, et `runInPage(create, { element, server,
 fetch, name, sessionKey })` pour une page qui choisit son élément et son `fetch`.
 
 ### W2. `serve()` liait le handler à `Bun.serve`
@@ -199,8 +199,8 @@ Trois ajouts, sans toucher aux rôles `server`, `client`, `app` :
   peut être publié et mis en cache comme un navigateur l'est ;
 - **rôle `web-server`** (optionnel) : le graphe Server de l'app, `conditions:
 ["react-server", "browser"]`, `target: "browser"`, avec les substitutions de W9 ;
-- **`.airtty/web/`** : site statique `index.html` + runtime + `app/` (copie de
-  `.airtty/app/`) + `server-worker.js` s'il existe. Déployable tel quel (Pages, R2, un
+- **`.luciole/web/`** : site statique `index.html` + runtime + `app/` (copie de
+  `.luciole/app/`) + `server-worker.js` s'il existe. Déployable tel quel (Pages, R2, un
   `iframe` de la landing).
 
 ### W9. Le code Server des applications utilise Bun et Node
@@ -226,7 +226,7 @@ rien ne change.
 État des exemples : `notes`, `chat`, `latency` et `forge` peuvent viser les deux formes
 (Forge sans l'import d'un dépôt git, `FORGE_GIT_REPO`, ni la touche `e` ; Chat sans clé
 avec `CHAT_DEMO=1`) ; `mdreader` et les DevTools aussi, avec une graine (des fichiers
-Markdown et `MD_PATH` ; `AIRTTY_DEVTOOLS_LISTEN=none` et `AIRTTY_DEVTOOLS_DEMO=1`) ;
+Markdown et `MD_PATH` ; `LUCIOLE_DEVTOOLS_LISTEN=none` et `LUCIOLE_DEVTOOLS_DEMO=1`) ;
 `coder` avec son harness scripté (`CODER_HARNESS=fake`), le seul que son Server web
 contienne (import `#adapters` à condition `browser`) ; `files` (bibliothèque d'images native, `sharp`) et `agent` (processus) seulement le Client
 web ; `mux` et tout `<Terminal>` (PTY) aucune, le runtime web y rend un écran
@@ -236,8 +236,8 @@ web ; `mux` et tout `<Terminal>` (PTY) aucune, le runtime web y rend un écran
 
 ### Client web → vrai Server
 
-Le Server sert le shell sous un chemin réservé (`GET /_airtty/web/…`, statique, opt-in
-par `airtty build --web` et `AIRTTY_WEB_ORIGIN`) : **même origine**, donc ni CORS
+Le Server sert le shell sous un chemin réservé (`GET /_luciole/web/…`, statique, opt-in
+par `luciole build --web` et `LUCIOLE_WEB_ORIGIN`) : **même origine**, donc ni CORS
 ni clé épinglée à gérer ; TLS authentifie le Server comme pour tout site. Le shell lit
 `/manifest`, télécharge `/bundle/<sha256>` (immuable, cacheable), refuse une clé d'ABI
 autre que la sienne (même message que le terminal) et ouvre l'app.
@@ -245,10 +245,10 @@ autre que la sienne (même message que le terminal) et ouvre l'app.
 ```text
  Utilisateur        Navigateur (onglet)                    Server (Bun, notes.example.com)
      │                     │                                          │
-     │ ouvre https://notes.example.com/_airtty/web                    │
+     │ ouvre https://notes.example.com/_luciole/web                    │
      │────────────────────▶│                                          │
-     │                     │ ① GET /_airtty/web/                      │
-     │                     │─────────────────────────────────────────▶│ routes /_airtty/web/*
+     │                     │ ① GET /_luciole/web/                      │
+     │                     │─────────────────────────────────────────▶│ routes /_luciole/web/*
      │                     │◀──────── index.html, runtime.js,         │ (nouvelles, opt-in)
      │                     │          opentui.wasm, xterm.css         │
      │                     │                                          │
@@ -276,7 +276,7 @@ l'origine. ② et ③ sont les requêtes du Client générique ; ④ est le prot
 terminal. Parce que ② à ④ vont à l'origine de ①, le navigateur les autorise sans CORS,
 TLS couvre à la fois le code et le Server, et le bearer reste sous l'origine de l'app.
 
-Un shell hébergé ailleurs (`airtty.dev/open?url=…`) est une seconde étape : CORS
+Un shell hébergé ailleurs (`luciole.sh/open?url=…`) est une seconde étape : CORS
 explicite côté Server, signature d'éditeur vérifiée et clé épinglée par origine en
 `localStorage`, comme le Client générique.
 
@@ -284,9 +284,9 @@ explicite côté Server, signature d'éditeur vérifiée et clé épinglée par 
 (`handle`, « Browser origins are unsupported ») : une page quelconque ne doit pas piloter
 un Server local. Un navigateur envoie `Origin` à chaque `POST`, même vers son origine. Le
 mode web accepte donc **une seule origine, déclarée** par l'opérateur
-(`AIRTTY_WEB_ORIGIN=https://notes.example.com`) : `Origin` doit lui être égale, et `Host`
+(`LUCIOLE_WEB_ORIGIN=https://notes.example.com`) : `Origin` doit lui être égale, et `Host`
 aussi. Comparer `Origin` à `Host` ne suffirait pas : un DNS rebinding donne à une page
-hostile un `Host` à son nom. Sans origine déclarée, pas de routes `/_airtty/web` et le
+hostile un `Host` à son nom. Sans origine déclarée, pas de routes `/_luciole/web` et le
 refus actuel reste entier.
 
 Authentification : inchangée. `server/auth.ts` et sa route publique de connexion
@@ -299,8 +299,8 @@ grâce. Fermer l'onglet est une interruption (session gardée), pas un quit.
 ### Tout dans le navigateur
 
 ```text
-airtty build --web            → .airtty/web/ (Client web seul, servi par le Server)
-airtty build --web-local      → .airtty/web/ : site statique, Server dans un SharedWorker
+luciole build --web            → .luciole/web/ (Client web seul, servi par le Server)
+luciole build --web-local      → .luciole/web/ : site statique, Server dans un SharedWorker
 ```
 
 Le Server est un **SharedWorker** (décision 2) : une instance par origine, partagée par
@@ -324,7 +324,7 @@ coûte rien. Au démarrage, le SharedWorker recharge le dernier instantané. Le 
 avec la base : adapté à une démo et à une app locale, pas à une grosse base (au-delà,
 une VFS asynchrone demanderait une API `bun:sqlite` asynchrone, donc un autre contrat).
 
-Pour la landing : `website/` embarque `.airtty/web/` de `examples/forge` et
+Pour la landing : `website/` embarque `.luciole/web/` de `examples/forge` et
 `examples/notes` dans des `iframe` (isolation du CSS et du focus clavier), le runtime
 partagé une fois sous `demo/runtime/` (`website/scripts/demo.ts`). La même règle d'origine
 vaut : le site statique fournit shell, bundle et `server-worker.js` sous sa propre origine.
@@ -335,20 +335,20 @@ OPFS est partagé par toute l'origine : le Server web range ses données sous le
 Une page **de la même origine** qui place le runtime dans un `iframe` le pilote ainsi
 (`src/web/embed.ts`, vérifié par `bun run test:web:embed`) :
 
-| Sens              | Forme                                                                                                                                                                   | Pour                                                                                                                      |
-| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| URL de l'`iframe` | `?columns=140&rows=40`                                                                                                                                                  | une grille fixe, la police ajustée pour la contenir                                                                       |
-| URL de l'`iframe` | `&background=0a0f16&foreground=e6edf3`                                                                                                                                  | les couleurs par défaut du terminal et de la page                                                                         |
-| URL de l'`iframe` | `&restore=off`                                                                                                                                                          | démarrer sur la première route, sans restaurer ni garder la session (la landing revient à l'écran de sa capture)          |
-| runtime → page    | `{ source: "airtty", type: "stage", stage }`, dans l'ordre `runtime`, `bundle`, `server`, `terminal`, `drawn`                                                           | afficher le démarrage pendant l'attente                                                                                   |
-| page → runtime    | `{ source: "airtty", type: "input", data }`                                                                                                                             | taper dans le terminal comme un clavier                                                                                   |
-| runtime → page    | `{ source: "airtty", type: "typed", data }` : ce que la main envoie à l'app (touches, collages, clics et molette encodés ; pas les réponses du terminal à ses requêtes) | la rejouer dans un autre `iframe` de même grille (`input`)                                                                |
-| page → runtime    | `iframe.contentWindow.airttyScreen()` : les lignes visibles, lues dans le buffer                                                                                        | lire l'écran même quand l'`iframe` est hors de vue (xterm.js cesse alors de dessiner ses lignes)                          |
-| runtime → page    | `{ source: "airtty", type: "event", event }` : les événements du transport (`request`, `response`, `end`, `error`) et les invalidations                                 | montrer ce qui traverse le réseau                                                                                         |
-| page → runtime    | `{ source: "airtty", type: "network", latencyMs, fault?, delays? }`                                                                                                     | un aller-retour simulé (moitié à l'aller, moitié au retour) et la panne de la prochaine requête (`refuse`, `drop`, `cut`) |
+| Sens              | Forme                                                                                                                                                                    | Pour                                                                                                                      |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| URL de l'`iframe` | `?columns=140&rows=40`                                                                                                                                                   | une grille fixe, la police ajustée pour la contenir                                                                       |
+| URL de l'`iframe` | `&background=0a0f16&foreground=e6edf3`                                                                                                                                   | les couleurs par défaut du terminal et de la page                                                                         |
+| URL de l'`iframe` | `&restore=off`                                                                                                                                                           | démarrer sur la première route, sans restaurer ni garder la session (la landing revient à l'écran de sa capture)          |
+| runtime → page    | `{ source: "luciole", type: "stage", stage }`, dans l'ordre `runtime`, `bundle`, `server`, `terminal`, `drawn`                                                           | afficher le démarrage pendant l'attente                                                                                   |
+| page → runtime    | `{ source: "luciole", type: "input", data }`                                                                                                                             | taper dans le terminal comme un clavier                                                                                   |
+| runtime → page    | `{ source: "luciole", type: "typed", data }` : ce que la main envoie à l'app (touches, collages, clics et molette encodés ; pas les réponses du terminal à ses requêtes) | la rejouer dans un autre `iframe` de même grille (`input`)                                                                |
+| page → runtime    | `iframe.contentWindow.lucioleScreen()` : les lignes visibles, lues dans le buffer                                                                                        | lire l'écran même quand l'`iframe` est hors de vue (xterm.js cesse alors de dessiner ses lignes)                          |
+| runtime → page    | `{ source: "luciole", type: "event", event }` : les événements du transport (`request`, `response`, `end`, `error`) et les invalidations                                 | montrer ce qui traverse le réseau                                                                                         |
+| page → runtime    | `{ source: "luciole", type: "network", latencyMs, fault?, delays? }`                                                                                                     | un aller-retour simulé (moitié à l'aller, moitié au retour) et la panne de la prochaine requête (`refuse`, `drop`, `cut`) |
 
 La latence passe par le `fetch` de l'Application : le transport la mesure comme celle d'un
-Server lointain, et ses propres pannes (`AIRTTY_FAULT`) s'appliquent. Avec
+Server lointain, et ses propres pannes (`LUCIOLE_FAULT`) s'appliquent. Avec
 `delays: "keys"`, l'aller-retour se place avant les touches, comme en SSH où toute
 l'application tourne à côté de ses données : chaque touche tapée dans le terminal attend
 l'aller-retour (dans l'ordre de frappe), les requêtes n'attendent plus ; `input`, la page
@@ -369,19 +369,19 @@ dérouler un script (connexion à Forge).
 - Émulateur : **xterm.js** (décision 3), comme `packages/desktop`.
 - Plus tard, un renderer qui peint directement le buffer de cellules d'OpenTUI sur un
   canvas supprimerait l'aller-retour ANSI ; ce n'est pas nécessaire pour commencer.
-- Clavier : les gestes suivent `AIRTTY_DESKTOP` (Ctrl+C à l'app) ; les raccourcis du
+- Clavier : les gestes suivent `LUCIOLE_DESKTOP` (Ctrl+C à l'app) ; les raccourcis du
   navigateur (Ctrl+W, Ctrl+T) ne sont pas interceptables et ne doivent pas être promis.
 
 ## 5. Plan
 
-| Étape | Contenu                                                          | Vérifié par                                            |
-| ----- | ---------------------------------------------------------------- | ------------------------------------------------------ |
-| 0     | Spikes R1 et R2, hors de `src/`, dans `probes/web/` — **fait**   | une `<box>` rendue ; un `await` qui garde son contexte |
-| 1     | W1 à W5 à comportement constant — **fait**                       | `bun run verify`, parcours PTY                         |
-| 2     | Runtime web + Client web servi par le Server — **fait**          | `examples/notes` ouvert dans Chrome, headless          |
-| 3     | W6, rôle `web-server`, W9, `airtty build --web-local` — **fait** | `bun run test:web:local` : Notes en site statique      |
-| 4     | Landing : `iframe` de notes dans `website/` — **fait**           | capture de la page                                     |
-| 5     | Shell hébergé ailleurs (CORS, signature, clé épinglée)           | —                                                      |
+| Étape | Contenu                                                           | Vérifié par                                            |
+| ----- | ----------------------------------------------------------------- | ------------------------------------------------------ |
+| 0     | Spikes R1 et R2, hors de `src/`, dans `probes/web/` — **fait**    | une `<box>` rendue ; un `await` qui garde son contexte |
+| 1     | W1 à W5 à comportement constant — **fait**                        | `bun run verify`, parcours PTY                         |
+| 2     | Runtime web + Client web servi par le Server — **fait**           | `examples/notes` ouvert dans Chrome, headless          |
+| 3     | W6, rôle `web-server`, W9, `luciole build --web-local` — **fait** | `bun run test:web:local` : Notes en site statique      |
+| 4     | Landing : `iframe` de notes dans `website/` — **fait**            | capture de la page                                     |
+| 5     | Shell hébergé ailleurs (CORS, signature, clé épinglée)            | —                                                      |
 
 Les tests navigateur suivent le modèle des parcours PTY : un script Bun qui pilote
 Chrome headless (CDP), tape, et lit l'écran par le buffer de l'émulateur plutôt que par
@@ -449,10 +449,10 @@ sans la transformation. Limite : du code non transformé qui reprend seul (un fl
 voit le dernier contexte courant ; les stores ne valent que pour le code transformé.
 
 **R3 — poids.** Mesuré au spike : 815 Ko brotli (React, OpenTUI, xterm.js, `.wasm`),
-sans TanStack ni le runtime airtty. La démo Notes complète de `website/` (`--web-local`,
+sans TanStack ni le runtime luciole. La démo Notes complète de `website/` (`--web-local`,
 Server et SQLite compris) pèse ~1,7 Mo compressé, chargée à la demande.
 
-**R4 — dette de maintenance.** Le backend FFI et le build wasm vivent dans airtty
+**R4 — dette de maintenance.** Le backend FFI et le build wasm vivent dans luciole
 (décision 4) : ils touchent l'intérieur d'OpenTUI et peuvent casser à chaque version.
 Contenu par l'ABI, qui fixe la version exacte d'OpenTUI : une mise à jour est un
 changement de clé, vérifié par le test du runtime web.
@@ -472,8 +472,8 @@ faudra une persistance incrémentale.
 3. **xterm.js.** Mature, déjà dans `packages/desktop`. L'émulateur reste derrière une
    petite interface (écrire, recevoir les touches, taille) : ghostty-web, compatible
    avec son API, reste une option si la fidélité le demande.
-4. **Backend FFI WASM dans airtty.** Un plugin de build remplace `platform/ffi` et la
-   résolution de la bibliothèque d'OpenTUI ; airtty compile `opentui.wasm` depuis les
+4. **Backend FFI WASM dans luciole.** Un plugin de build remplace `platform/ffi` et la
+   résolution de la bibliothèque d'OpenTUI ; luciole compile `opentui.wasm` depuis les
    sources de la version fixée par l'ABI. Chaque mise à jour d'OpenTUI change déjà la clé
    d'ABI : c'est là que le backend est revérifié (un test du runtime web par clé). Un point
    d'injection upstream reste souhaitable ; il n'est pas un prérequis.

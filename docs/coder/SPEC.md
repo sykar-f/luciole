@@ -1,4 +1,4 @@
-# Spec v3 — `examples/coder` : un client TUI multi-harness pour airtty
+# Spec v3 — `examples/coder` : un client TUI multi-harness pour luciole
 
 > **Depuis l'extraction de `packages/harness`** (C5b, studio) : les adaptateurs, la
 > session, la détection, `jsonl`, `pi-gate`, `anthropic-guard`, le modèle neutre
@@ -11,26 +11,26 @@
 
 ## 1. Vision
 
-Un exemple airtty qui fait ce que font `claude`, `codex`, `pi` et `opencode` dans un terminal — **une
+Un exemple luciole qui fait ce que font `claude`, `codex`, `pi` et `opencode` dans un terminal — **une
 session, un dossier, un agent** — mais avec **n'importe lequel des quatre en dessous**,
 choisi par `--harness claude|codex|pi|opencode`. L'app ne parle jamais à un LLM, ne lit aucun
 jeton : elle pilote les binaires officiels déjà installés et connectés.
 
-C'est aussi **la vitrine d'airtty** : chaque capacité du framework y a une raison d'être.
+C'est aussi **la vitrine de luciole** : chaque capacité du framework y a une raison d'être.
 
-| Capacité airtty                                | Ce qu'elle apporte ici                                                                                                           |
-| ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| Server / Client séparés                        | Le Server possède la session agent : le Client peut crasher, être rebuild, se déconnecter — l'agent continue, on se rattache     |
-| `ssh://`                                       | **Agent sur une machine distante, UI en local** (le `claude`/`codex`/`pi` de la machine distante, connecté par son propriétaire) |
-| `useLive`                                      | Flux d'événements de l'agent vers le Client                                                                                      |
-| Issues `not-sent / rejected / unknown`         | Une approbation n'est **jamais rejouée** : une issue inconnue est consultée (réponse idempotente par id)                         |
-| Drafts restaurés                               | Le prompt en cours survit à un crash/rebuild                                                                                     |
-| `useBindings` + `<KeyHelp>`                    | Modes clavier (prompt / parcours / dialogue) et aide générée                                                                     |
-| `host.notify`                                  | Notification OS quand une approbation attend                                                                                     |
-| `renderer.suspend()`                           | Ctrl+G : éditer le prompt dans `$EDITOR`                                                                                         |
-| `<Terminal>`                                   | `!commande` ou tiroir shell dans le dossier de session                                                                           |
-| DevTools, `AIRTTY_LATENCY_MS` / `AIRTTY_FAULT` | Observer le flux, éprouver l'app à 500 ms de ping                                                                                |
-| Cible web                                      | Démo du site avec un harness factice                                                                                             |
+| Capacité luciole                                 | Ce qu'elle apporte ici                                                                                                           |
+| ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| Server / Client séparés                          | Le Server possède la session agent : le Client peut crasher, être rebuild, se déconnecter — l'agent continue, on se rattache     |
+| `ssh://`                                         | **Agent sur une machine distante, UI en local** (le `claude`/`codex`/`pi` de la machine distante, connecté par son propriétaire) |
+| `useLive`                                        | Flux d'événements de l'agent vers le Client                                                                                      |
+| Issues `not-sent / rejected / unknown`           | Une approbation n'est **jamais rejouée** : une issue inconnue est consultée (réponse idempotente par id)                         |
+| Drafts restaurés                                 | Le prompt en cours survit à un crash/rebuild                                                                                     |
+| `useBindings` + `<KeyHelp>`                      | Modes clavier (prompt / parcours / dialogue) et aide générée                                                                     |
+| `host.notify`                                    | Notification OS quand une approbation attend                                                                                     |
+| `renderer.suspend()`                             | Ctrl+G : éditer le prompt dans `$EDITOR`                                                                                         |
+| `<Terminal>`                                     | `!commande` ou tiroir shell dans le dossier de session                                                                           |
+| DevTools, `LUCIOLE_LATENCY_MS` / `LUCIOLE_FAULT` | Observer le flux, éprouver l'app à 500 ms de ping                                                                                |
+| Cible web                                        | Démo du site avec un harness factice                                                                                             |
 
 ## 2. Conformité (garde-fous non négociables)
 
@@ -38,7 +38,7 @@ C'est aussi **la vitrine d'airtty** : chaque capacité du framework y a une rais
 | ----------- | ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Claude Code | Binaire officiel non modifié, login de l'utilisateur | Agent SDK `query()` + `pathToClaudeCodeExecutable` = `claude` de l'utilisateur ; jamais `--bare` ; `env: {...process.env}` ; aucun appel `oauth/*`, aucun user-agent usurpé (contrairement à `claudeResetCredits.ts` de T3) |
 | Claude Code | Pas d'usurpation de marque                           | « powered by Claude Code » en texte seulement                                                                                                                                                                               |
-| Codex       | Login géré par Codex                                 | `account/read` ; si déconnecté → message « lancez `codex login` » ; `clientInfo.name = "airtty-harness"`                                                                                                                    |
+| Codex       | Login géré par Codex                                 | `account/read` ; si déconnecté → message « lancez `codex login` » ; `clientInfo.name = "luciole-harness"`                                                                                                                   |
 | pi          | **Pas d'OAuth Anthropic dans pi**                    | Détection (`auth check`, `auth.json` type, préfixe `sk-ant-oat`, env `ANTHROPIC_OAUTH_TOKEN`/`AUTH_TOKEN`) → modèles Anthropic retirés, variables retirées de l'env enfant, message « utilisez `--harness claude` »         |
 | opencode    | **Pas d'OAuth Anthropic dans opencode**              | `auth.json` `.anthropic.type == "oauth"` (lu via jq, type seul), `GET /provider/auth` avec méthode oauth anthropic, plugin `/anthropic                                                                                      | claude/i`dans`GET /config`→ modèles Anthropic bloqués, message « utilisez`--harness claude` » ; partage (`/share`) désactivé |
 | Tous        | Zéro secret                                          | Jamais de lecture de `.credentials.json`, `auth.json` (sauf _type_ pi via clés, sans valeurs), Keychain                                                                                                                     |
@@ -52,7 +52,7 @@ README : licence du SDK Anthropic (non OSI) mentionnée ; usage perso non commer
 ```sh
 coder --harness claude|codex|pi|opencode [--cwd DIR] [--model M] [--effort E]
       [--mode read|ask|edits|full] [--resume [ID]]
-bun run coder -- --harness codex        # dev (airtty dev --app examples/coder -- …)
+bun run coder -- --harness codex        # dev (luciole dev --app examples/coder -- …)
 coder --help                            # généré depuis app/args.ts
 ```
 
@@ -166,11 +166,11 @@ Réponses : `y` une fois · `s` pour la session · `a` toujours (si supporté) �
 
 Plein écran avec `<scrollbox stickyScroll stickyStart="bottom">`, comme `examples/agent`.
 Le mode `split-footer` d'OpenTUI (scrollback natif façon Claude Code) est tentant mais
-(1) airtty ne l'expose pas, (2) un tour commité ne se replie plus, (3) incompatible avec la
+(1) luciole ne l'expose pas, (2) un tour commité ne se replie plus, (3) incompatible avec la
 cible web. → v2 éventuelle, derrière un flag.
 
 ```
-┌ ◐ claude · ~/workdir/airtty · Fix live demo mismatch ─────────────── ssh:devbox ┐
+┌ ◐ claude · ~/workdir/luciole · Fix live demo mismatch ─────────────── ssh:devbox ┐
 │                                                                                  │
 │ › corrige le mismatch des démos live                                             │
 │                                                                                  │
@@ -232,7 +232,7 @@ désactive `stickyScroll` dès que l'utilisateur remonte, réactivé par `End` /
 - **Harness factice** (`server/adapters/fake.ts`, scénarios scriptés : stream, outil,
   approbation, question, plan, erreur) → sert les tests, la cible web et la démo du site.
 - Intégration (`tests/harness.test.tsx`) : build + vrai Server + `testRender`, sur le
-  factice. Cas clés : approbation avec réponse perdue (`AIRTTY_FAULT=drop`) → pas de
+  factice. Cas clés : approbation avec réponse perdue (`LUCIOLE_FAULT=drop`) → pas de
   double réponse ; reconnexion au milieu d'un tour ; prompt restauré après crash.
 - Contrats par adaptateur : rejouer des fixtures JSONL enregistrées sur les vrais binaires
   (`claude` 2.1.283, `codex` 0.156.1, `pi` 0.87.1, `opencode` 1.18.31) → événements neutres attendus.

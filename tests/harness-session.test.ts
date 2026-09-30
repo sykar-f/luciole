@@ -94,8 +94,8 @@ test("a host's start options, policy and turn hook reach the harness and the ses
     create: (_id, context) => (harness = new Asking(context)),
     pick: async (id) => ({ id: id ?? "fake", installed: true, ready: true, warnings: [] }),
     start: {
-      client: "airtty-studio",
-      instructions: "Write airtty apps.",
+      client: "luciole-studio",
+      instructions: "Write luciole apps.",
       tools: ["Read"],
       isolated: true,
     },
@@ -109,8 +109,8 @@ test("a host's start options, policy and turn hook reach the harness and the ses
   });
   await session.start();
   expect(harness?.started).toEqual({
-    client: "airtty-studio",
-    instructions: "Write airtty apps.",
+    client: "luciole-studio",
+    instructions: "Write luciole apps.",
     tools: ["Read"],
     isolated: true,
     cwd: "/project",

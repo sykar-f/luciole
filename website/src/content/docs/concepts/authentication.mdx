@@ -3,8 +3,8 @@ title: Authentication
 description: Pages and Server Functions require a session by default. The local single-user mode, server/auth.ts, public routes and setToken.
 sources:
   - docs/API.md
-  - packages/airtty/src/serve.ts
-  - packages/airtty/src/server.ts
+  - packages/luciole/src/serve.ts
+  - packages/luciole/src/server.ts
   - examples/forge/server/auth.ts
 ---
 
@@ -17,11 +17,11 @@ permissions stay with the app.
 ## Without `server/auth.ts`: one local user
 
 An app without `server/auth.ts` has a **single-user** session: every request is the user
-`AIRTTY_USER` (`local` by default). `AIRTTY_TOKEN`, set on both sides, protects it: the
+`LUCIOLE_USER` (`local` by default). `LUCIOLE_TOKEN`, set on both sides, protects it: the
 Client sends it as `Authorization: Bearer …` and the Server refuses a request without it.
 
-The Server listens on loopback by default. It refuses to listen elsewhere (`AIRTTY_HOST`)
-unless `AIRTTY_TOKEN` or `server/auth.ts` is set. Before any public exposure, put it behind a
+The Server listens on loopback by default. It refuses to listen elsewhere (`LUCIOLE_HOST`)
+unless `LUCIOLE_TOKEN` or `server/auth.ts` is set. Before any public exposure, put it behind a
 TLS reverse proxy and restrict network access to it; use an HTTPS URL so the token never
 travels in clear. For a private connection, keep the loopback listener and connect over
 [SSH](/docs/guides/opening-an-app/#over-ssh).
@@ -32,7 +32,7 @@ An app that replaces the local identity provides `server/auth.ts`. The build inc
 the Server's graph only.
 
 ```ts
-import type { AuthConfig } from "airtty/server";
+import type { AuthConfig } from "luciole/server";
 
 export default {
   unauthorizedPath: "/login",

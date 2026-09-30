@@ -5,8 +5,8 @@ Core/React 0.5.12, React 19.3.0. Les versions des émulateurs évalués sont fix
 dans `package.json` et `bun.lock`. Toutes les mesures citées ici viennent de
 `results.json`, écrit par les scripts eux-mêmes.
 
-Question : les modes `process` et `sandbox` d'airtty peuvent-ils afficher un enfant
-(shell, vim, autre app airtty) comme un composant parmi d'autres, avec clavier,
+Question : les modes `process` et `sandbox` de luciole peuvent-ils afficher un enfant
+(shell, vim, autre app luciole) comme un composant parmi d'autres, avec clavier,
 souris et redimensionnement, sans dépendance lourde ni coût de rendu prohibitif ?
 Réponse : **oui**. OpenTUI 0.5.12 embarque déjà libghostty-vt dans `libopentui`
 (`EmbeddedTerminalRenderable`), et `Bun.Terminal` fournit le PTY. Deux trous
@@ -46,7 +46,7 @@ Les flux mesurés sont enregistrés une fois dans `.out/streams/` (ignoré par g
 | `gaps.ts`           | touches legacy manquantes ; réponses DA1, DA2, OSC 10/11                         |
 | `widget-probe.tsx`  | test headless (`testRender`) du widget                                           |
 | `demo.tsx`          | deux panneaux côte à côte, dans un vrai terminal                                 |
-| `child-opentui.tsx` | app OpenTUI minimale lancée dans le widget (cas airtty `process`)                |
+| `child-opentui.tsx` | app OpenTUI minimale lancée dans le widget (cas luciole `process`)               |
 | `emulators.ts`      | un adaptateur par émulateur headless                                             |
 | `streams.ts`        | flux réels (`seq`, `ls --color`, vim) et log ANSI synthétique                    |
 | `bench.tsx`         | performances ; `fidelity.ts` fidélité ; `v2-estimate.ts` bande passante v2       |
@@ -84,8 +84,8 @@ Le routage clavier fonctionne sans couche de keymap. Les écouteurs globaux
 (`useKeyboard`) passent **avant** le renderable focalisé, et `preventDefault()`
 empêche la touche de l'atteindre (`InternalKeyHandler.emitWithPriority`). Une
 touche préfixe hôte (Ctrl-O dans la démo) est donc possible. En contrepartie,
-**tout raccourci global d'une app airtty hôte est volé au terminal embarqué**.
-Le keymap d'airtty devra être scopé au focus.
+**tout raccourci global d'une app luciole hôte est volé au terminal embarqué**.
+Le keymap de luciole devra être scopé au focus.
 
 Assertions de `widget-probe.tsx`, toutes vertes (valeurs issues de `results.json`) :
 
@@ -218,7 +218,7 @@ qui héberge plusieurs origines, c'est une fuite de contenu entre sessions.
 `vt-view.tsx`, avec les correctifs de `gaps.ts` jusqu'à leur intégration en amont.
 
 - **Aucune dépendance.** libghostty est déjà dans `libopentui`, la même
-  bibliothèque native qu'airtty embarque et signe (`--compile`). Rien de plus à
+  bibliothèque native que luciole embarque et signe (`--compile`). Rien de plus à
   télécharger, compiler ou notariser.
 - **Rendu.** La composition est native : 61 µs en 80×24, 367 µs en 200×60. C'est
   12 à 20 fois moins que le chemin React et 19 à 23 fois moins que `setCell` sur
@@ -242,14 +242,14 @@ Rôle des autres candidats :
 Risques :
 
 - `EmbeddedTerminalRenderable` est récent. Son API et ses trous peuvent changer à
-  chaque version d'OpenTUI, qu'airtty épingle déjà.
+  chaque version d'OpenTUI, que luciole épingle déjà.
 - Sonde exécutée seulement sur macOS arm64. Linux n'a pas été exécuté ici :
   `setsid` au lancement détaché y est probable mais non vérifié.
 - Windows est sans PTY Bun.
 
 ## Esquisse v2 : diffs de buffers de cellules OpenTUI par IPC
 
-Principe : une app airtty enfant en mode `process` pourrait, au lieu d'émuler un
+Principe : une app luciole enfant en mode `process` pourrait, au lieu d'émuler un
 terminal, rendre dans un `OptimizedBuffer` hors écran et envoyer à l'hôte les
 cellules changées à chaque frame. L'hôte les copierait par `drawFrameBuffer`. On
 supprime ainsi l'aller-retour « rendu en VT, puis re-parsing » et on garde les
@@ -278,7 +278,7 @@ jusqu'à 9 fois le flux VT. Il faudrait donc un opcode de défilement, comme le
 
 La v1 (flux VT) reste le bon choix de départ : elle marche pour n'importe quel
 programme, avec un coût mesuré acceptable. La v2 n'est qu'une optimisation entre
-apps airtty ; elle demande un protocole versionné et des tests de fidélité par
+apps luciole ; elle demande un protocole versionné et des tests de fidélité par
 rapport au rendu direct.
 
 ## Limites

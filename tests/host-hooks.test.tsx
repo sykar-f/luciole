@@ -13,8 +13,8 @@ import {
   type HostChannel,
   type HostEvent,
   type MediatedCapability,
-} from "../packages/airtty/src/client";
-import { Runtime } from "../packages/airtty/src/runtime-context";
+} from "../packages/luciole/src/client";
+import { Runtime } from "../packages/luciole/src/runtime-context";
 import { destroy, type TestUI } from "./helpers";
 
 /** A host whose events and capability states the test drives. */

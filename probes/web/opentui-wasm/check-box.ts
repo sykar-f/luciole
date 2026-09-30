@@ -5,7 +5,7 @@
 import { join } from "node:path";
 import { drive } from "../../../scripts/pty/driver";
 
-const out = join(import.meta.dir, ".airtty/box");
+const out = join(import.meta.dir, ".luciole/box");
 const build = Bun.spawnSync(
   [
     process.execPath,

@@ -12,7 +12,7 @@ const ROOT = join(import.meta.dir, "..");
 const SOURCE = join(ROOT, "template");
 const OUTPUT = join(ROOT, "server/template.gen.ts");
 // Written by the build or by studio in a project, never part of the template.
-const SKIPPED = /(^|\/)(\.airtty|\.airtty-studio|node_modules|data)(\/|$)|routeTree\.gen\.ts$/;
+const SKIPPED = /(^|\/)(\.luciole|\.luciole-studio|node_modules|data)(\/|$)|routeTree\.gen\.ts$/;
 
 const files = [...new Bun.Glob("**/*").scanSync({ cwd: SOURCE, dot: true })]
   .filter((file) => !SKIPPED.test(file))

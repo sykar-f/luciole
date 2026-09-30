@@ -3,17 +3,17 @@ import { spawnSync } from "node:child_process";
 import { mkdtemp, readdir, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { Session } from "../packages/airtty/src/restore";
+import type { Session } from "../packages/luciole/src/restore";
 import {
   ORPHAN_RETENTION_MS,
   SAVE_DELAY_MS,
   openSession,
   sessionDirectory,
-} from "../packages/airtty/src/session";
+} from "../packages/luciole/src/session";
 
 let state: string;
 beforeEach(async () => {
-  state = await mkdtemp(join(tmpdir(), "airtty-session-"));
+  state = await mkdtemp(join(tmpdir(), "luciole-session-"));
 });
 afterEach(async () => {
   await rm(state, { recursive: true, force: true });

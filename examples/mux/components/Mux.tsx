@@ -9,9 +9,9 @@ import {
   useBindings,
   usePendingSequence,
   type Application,
-} from "airtty/client";
+} from "luciole/client";
 
-/** A local program on a PTY, or another airtty application inline. */
+/** A local program on a PTY, or another luciole application inline. */
 type Spec =
   | { kind: "terminal"; command: readonly string[] }
   | { kind: "app"; name: string; bundle: string; url: string };
@@ -21,8 +21,8 @@ const shell = process.env.SHELL || "/bin/sh";
 const hasVim = Bun.which("vim") !== null;
 // MUX_PANES='[["sh"],["vim","-u","NONE"]]' replaces the first terminal panes.
 const Commands = z.array(z.array(z.string()).min(1)).min(1);
-// MUX_APPS='[{"name":"docs","bundle":"/…/mdreader/.airtty/app","url":"http://127.0.0.1:3000"}]'
-// adds airtty applications (their built bundle), each with its already running Server.
+// MUX_APPS='[{"name":"docs","bundle":"/…/mdreader/.luciole/app","url":"http://127.0.0.1:3000"}]'
+// adds luciole applications (their built bundle), each with its already running Server.
 const Apps = z.array(z.object({ name: z.string(), bundle: z.string(), url: z.string() }));
 const fromEnv = <T,>(name: string, schema: z.ZodType<T>): T | undefined => {
   const configured = process.env[name];
@@ -39,10 +39,10 @@ function firstPanes(): Spec[] {
   ];
 }
 const titleOf = (pane: Pane) =>
-  pane.kind === "terminal" ? pane.command.join(" ") : `${pane.name} (airtty)`;
+  pane.kind === "terminal" ? pane.command.join(" ") : `${pane.name} (luciole)`;
 
 /**
- * An airtty application in a pane: its bundle evaluated against this Client's runtime,
+ * A luciole application in a pane: its bundle evaluated against this Client's runtime,
  * with its own instance key (`openApplication`), disposed with the pane. Ctrl+C in it closes the pane, as a program
  * ends on Ctrl+C in a terminal pane.
  */
@@ -85,7 +85,7 @@ function AppPane({
 }
 
 /**
- * A small tmux: panes side by side, each a local program on a PTY or an airtty
+ * A small tmux: panes side by side, each a local program on a PTY or a luciole
  * application inline. Ctrl+O is the only key the host keeps, for terminals and
  * applications alike; the sequences it starts (`ctrl+oo`) are ordinary keymap bindings.
  * Everything else, Ctrl+C included, goes to the active pane.

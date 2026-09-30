@@ -1,8 +1,8 @@
 "use client";
-import { Frame, Skeleton } from "@airtty/harness/ui/Frame";
-import { Line } from "@airtty/harness/ui/Line";
-import { Pulse } from "@airtty/harness/ui/Pulse";
-import { color } from "@airtty/harness/ui/theme";
+import { Frame, Skeleton } from "@luciole/harness/ui/Frame";
+import { Line } from "@luciole/harness/ui/Line";
+import { Pulse } from "@luciole/harness/ui/Pulse";
+import { color } from "@luciole/harness/ui/theme";
 
 // The session screen's frame, while the Server renders it: nothing moves when it answers.
 export default function SessionLoading() {

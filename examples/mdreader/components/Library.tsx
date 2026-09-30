@@ -24,7 +24,7 @@ import {
   useNavigate,
   useParams,
   useRouter,
-} from "airtty/client";
+} from "luciole/client";
 import { listDocs, watchLibrary } from "../actions/library";
 import { Line } from "./frames";
 import { Help } from "./Help";
@@ -437,7 +437,7 @@ export function LibraryChrome({ children }: { children: ReactNode }) {
           </box>
         </box>
         <box id="reader-footer" height={1} flexShrink={0}>
-          <Help groups={["list", "library", "global", "airtty"]} />
+          <Help groups={["list", "library", "global", "luciole"]} />
         </box>
         {help ? (
           <box

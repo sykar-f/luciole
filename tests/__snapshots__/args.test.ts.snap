@@ -17,7 +17,7 @@ Options:
   -q, --quiet                               (--no-quiet turns it off)
       --tag <value>…
 
-Runtime (airtty):
+Runtime (luciole):
       --url <url>         Join a running Server (no application options)
       --grace <duration>  Keep the Server this long after its terminal goes (default 15m)
       --yes               Install and run without asking

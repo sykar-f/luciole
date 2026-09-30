@@ -6,7 +6,7 @@ import {
   type Result,
   type SessionSummary,
   type Update,
-} from "@airtty/harness/model";
+} from "@luciole/harness/model";
 import { config } from "../server/config";
 import { findFiles } from "../server/files";
 import { session } from "../server/session";

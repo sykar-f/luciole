@@ -1,5 +1,5 @@
 {
-  "extends": "airtty/tsconfig",
+  "extends": "luciole/tsconfig",
   "include": ["src"],
   "exclude": ["**/node_modules"]
 }

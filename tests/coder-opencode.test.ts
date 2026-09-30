@@ -11,7 +11,7 @@ import {
   type OpencodeServer,
 } from "../packages/harness/src/adapters/opencode";
 import type { HarnessEvent } from "../packages/harness/src/adapters/types";
-import { messageOf } from "../packages/airtty/src/guards";
+import { messageOf } from "../packages/luciole/src/guards";
 import { rejectionOf } from "./helpers";
 
 // Exchanges recorded on the real opencode 1.18.31 by scripts/coder/record-opencode.ts,

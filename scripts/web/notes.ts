@@ -2,7 +2,7 @@
  * Notes in a browser, against its real Server (docs/WEB.md, step 2): the Server serves the
  * web runtime on its declared origin, headless Chrome opens it, and the journey reads the
  * screen xterm.js draws. Builds examples/notes with `--web`: the web runtime must be
- * prepared (`airtty web-runtime`, Zig 0.16.0 in ZIG) or preparable.
+ * prepared (`luciole web-runtime`, Zig 0.16.0 in ZIG) or preparable.
  *   bun run test:web
  */
 import { join } from "node:path";
@@ -26,7 +26,7 @@ const origin = `http://127.0.0.1:${port}`;
 const report: Record<string, unknown> = {};
 await using server = await startServer(example("notes"), {
   PORT: String(port),
-  AIRTTY_WEB_ORIGIN: origin,
+  LUCIOLE_WEB_ORIGIN: origin,
 });
 await using browser = await Browser.start();
 const started = performance.now();
@@ -34,9 +34,9 @@ await browser.open(origin);
 const first = await browser.waitFor(shows("NOTES"), "the Notes screen");
 report.firstScreenMs = Math.round(performance.now() - started);
 report.redirectedToRuntime =
-  String(await browser.evaluate("location.pathname")) === "/_airtty/web/";
+  String(await browser.evaluate("location.pathname")) === "/_luciole/web/";
 console.log(first);
-const screenshot = join(example("notes"), ".airtty/web-journey.png");
+const screenshot = join(example("notes"), ".luciole/web-journey.png");
 await browser.screenshot(screenshot);
 
 // A Server Function from the page: a POST, with the declared Origin, admitted.

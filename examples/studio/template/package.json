@@ -2,7 +2,7 @@
   "name": "studio-app",
   "private": true,
   "type": "module",
-  "airtty": {
+  "luciole": {
     "displayName": "studio app",
     "capabilities": {}
   }

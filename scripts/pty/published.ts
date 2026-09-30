@@ -1,12 +1,12 @@
 /**
- * An application opened by URL (`airtty http://…`), as the generic and sandbox journeys
+ * An application opened by URL (`luciole http://…`), as the generic and sandbox journeys
  * need it: private XDG directories, a small library of documents, mdreader built with a
  * bundle signed by a publisher key, its Server, and the generic Client on a PTY.
  */
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { drive } from "./driver";
-import { BUN, CLI, airtty, build, example, startServer } from "./harness";
+import { BUN, CLI, luciole, build, example, startServer } from "./harness";
 
 export const MDREADER = example("mdreader");
 const OPEN_TIMEOUT_MS = 40_000;
@@ -34,9 +34,9 @@ export function privateEnvironment(base: string, tag: string) {
 /** A new publisher key in `config`, and mdreader built with a bundle it signs: its fingerprint. */
 export function publish(env: Record<string, string>, config: string) {
   const publisher = { ...env, XDG_CONFIG_HOME: config };
-  airtty(["keys", "generate"], { env: publisher, check: true });
-  const fingerprint = /SHA256:\S+/.exec(airtty(["keys"], { env: publisher, check: true }).stdout);
-  if (!fingerprint) throw new Error("`airtty keys` printed no fingerprint");
+  luciole(["keys", "generate"], { env: publisher, check: true });
+  const fingerprint = /SHA256:\S+/.exec(luciole(["keys"], { env: publisher, check: true }).stdout);
+  if (!fingerprint) throw new Error("`luciole keys` printed no fingerprint");
   build(MDREADER, ["--sign-bundle"], publisher);
   return fingerprint[0];
 }
@@ -51,7 +51,7 @@ export const startLibrary = (env: Record<string, string>, docs: string, port = 0
     MD_PATH: docs,
   });
 
-/** `airtty <url> …args` on a PTY, from `cwd`. */
+/** `luciole <url> …args` on a PTY, from `cwd`. */
 export const openByUrl = (
   url: string,
   args: readonly string[],

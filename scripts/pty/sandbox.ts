@@ -1,5 +1,5 @@
 /**
- * `airtty http://…` on a real PTY: the application runs sandboxed.
+ * `luciole http://…` on a real PTY: the application runs sandboxed.
  *
  * Journey, offline and on private XDG directories: a publisher key, mdreader built with a
  * signed bundle, its Server on a local port → without a terminal to confirm on, nothing
@@ -9,7 +9,7 @@
  * by the VT widget, and follows its keys → a second launch needs no question → Ctrl+C in
  * the app ends it, which closes its tab and the Client → --allow-read is granted,
  * remembered and shown as enforced by the OS → --inline switches the origin to inline.
- * On Linux the mechanism is what this system allows, or AIRTTY_SANDBOX_MECHANISM
+ * On Linux the mechanism is what this system allows, or LUCIOLE_SANDBOX_MECHANISM
  * (scripts/linux-sandbox.ts runs each); Landlock alone confines no network by host, so it
  * is never the default: the journey asks for it with --sandbox. Elsewhere: skipped, said so.
  */
@@ -17,10 +17,10 @@ import assert from "node:assert/strict";
 import { mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { dlopen, FFIType } from "bun:ffi";
-import { OriginRecord } from "../../packages/airtty/src/generic/origin";
-import { sandboxAvailability } from "../../packages/airtty/src/sandbox/runtime";
+import { OriginRecord } from "../../packages/luciole/src/generic/origin";
+import { sandboxAvailability } from "../../packages/luciole/src/sandbox/runtime";
 import { ctrl } from "./driver";
-import { airtty, build, commandOutput, defer, report, temporaryDirectory } from "./harness";
+import { luciole, build, commandOutput, defer, report, temporaryDirectory } from "./harness";
 import { MDREADER, openByUrl, privateEnvironment, publish, startLibrary } from "./published";
 
 /** Whether the kernel confines this process: Seatbelt on macOS, seccomp on Linux. */
@@ -47,9 +47,9 @@ if (!availability.mechanism) {
   process.exit(0);
 }
 // Landlock alone is never the default for a URL: the user asks for it.
-const explicit = process.env.AIRTTY_SANDBOX_MECHANISM === "landlock" ? ["--sandbox"] : [];
+const explicit = process.env.LUCIOLE_SANDBOX_MECHANISM === "landlock" ? ["--sandbox"] : [];
 
-using directory = temporaryDirectory("airtty-pty-sandbox-");
+using directory = temporaryDirectory("luciole-pty-sandbox-");
 const { env, docs } = privateEnvironment(directory.path, "sandbox");
 const granted = join(directory.path, "granted");
 mkdirSync(granted);
@@ -69,11 +69,11 @@ const sandboxedChildren = () =>
     .split("\n")
     .filter(
       (line) =>
-        /^\s*\d+ \S*\/bun (--no-install )?\S*\/sandbox\/\.airtty\/child\.js --url /.test(line) &&
+        /^\s*\d+ \S*\/bun (--no-install )?\S*\/sandbox\/\.luciole\/child\.js --url /.test(line) &&
         line.includes(directory.path),
     );
 const origin = () => {
-  const origins = join(directory.path, "state/airtty/origins");
+  const origins = join(directory.path, "state/luciole/origins");
   const [first] = readdirSync(origins);
   return OriginRecord.parse(
     JSON.parse(readFileSync(join(origins, first ?? "", "origin.json"), "utf8")),
@@ -81,7 +81,7 @@ const origin = () => {
 };
 
 // No terminal to confirm on: nothing of the application runs.
-const refused = airtty([url, ...explicit], { env });
+const refused = luciole([url, ...explicit], { env });
 assert.ok(refused.exitCode !== 0 && refused.stderr.includes("not opened"), refused.stderr);
 assert.ok(refused.stderr.includes("Sandbox ("), refused.stderr);
 

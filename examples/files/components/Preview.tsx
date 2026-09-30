@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ImageRenderable, ScrollBoxRenderable } from "@opentui/core";
 import { useRenderer, useTerminalDimensions } from "@opentui/react";
-import { useApplication, useBindings } from "airtty/client";
+import { useApplication, useBindings } from "luciole/client";
 import { thumbnail } from "../actions/files";
 import { Line } from "./frames";
 import type { Entry, ImageTarget, Preview, Thumbnail } from "./model";

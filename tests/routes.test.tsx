@@ -5,8 +5,8 @@ import { testRender } from "@opentui/react/test-utils";
 import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { build } from "../packages/airtty/src/build";
-import type { Transport } from "../packages/airtty/src/transport";
+import { build } from "../packages/luciole/src/build";
+import type { Transport } from "../packages/luciole/src/transport";
 import { importClient, destroy, type TestUI } from "./helpers";
 
 const files: Record<string, string> = {
@@ -23,7 +23,7 @@ const files: Record<string, string> = {
 };
 
 test("generated route tree: inherited loading, static before dynamic, pathless groups", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "airtty-routes-"));
+  const dir = await mkdtemp(join(tmpdir(), "luciole-routes-"));
   let rendered: TestUI | undefined;
   try {
     for (const [name, text] of Object.entries(files)) {

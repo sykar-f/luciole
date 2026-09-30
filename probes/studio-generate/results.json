@@ -118,7 +118,7 @@
       "repairedAfterTurns": 2,
       "diagnostics": [
         {
-          "message": "server start: server exited SyntaxError: Export named 'useState' not found in module '/Users/sykar-f/.herdr/worktrees/airtty/studio-spec/node_modules/react/react.react-server.js'."
+          "message": "server start: server exited SyntaxError: Export named 'useState' not found in module '/Users/sykar-f/.herdr/worktrees/luciole/studio-spec/node_modules/react/react.react-server.js'."
         },
         {
           "message": "Bun v1.4.2 (macOS arm64)"

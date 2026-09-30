@@ -4,21 +4,21 @@ Exécutée le 27 septembre 2026 sur macOS 26.6.2 (arm64), Bun 1.4.2, OpenTUI 0.5
 fois (machine chargée par d'autres sessions la seconde fois : les deux mesures sont
 données). Sert la conception de [docs/studio/SPEC.md](../../docs/studio/SPEC.md).
 
-Question : l'aperçu de studio peut-il être une app airtty lancée par `airtty dev` dans le
+Question : l'aperçu de studio peut-il être une app luciole lancée par `luciole dev` dans le
 widget VT (`<Terminal>`, mode `process` de [EMBEDDING.md](../../docs/EMBEDDING.md)),
 rechargée à chaque modification de ses fichiers par un harness ? Que montre-t-il quand le
 build échoue, quand un rendu jette, quand l'app meurt ?
 
 Réponse : **oui, cela marche sans rien changer à `src/`**, en 1,4 à 2,6 s par
-modification ; mais `airtty dev` n'est pas le bon superviseur pour studio (voir
+modification ; mais `luciole dev` n'est pas le bon superviseur pour studio (voir
 « Conséquences »).
 
 ```sh
 bun probes/studio-preview/preview.tsx    # depuis la racine ; écrit results.json, code 1 si échec
 ```
 
-Aucune dépendance propre. Chaque scénario copie `template/` dans `.airtty-work/<nom>/`
-(ignoré par git et par tsc), le fait tourner par `airtty dev` dans un `<Terminal>` rendu
+Aucune dépendance propre. Chaque scénario copie `template/` dans `.luciole-work/<nom>/`
+(ignoré par git et par tsc), le fait tourner par `luciole dev` dans un `<Terminal>` rendu
 par `testRender` (100×24), modifie ses fichiers comme le ferait un harness et lit l'écran
 composé.
 
@@ -42,9 +42,9 @@ orphelins) ; le run 2 est la version commitée.
 | erreur de syntaxe : bandeau par-dessus le dernier écran valide               | 174 ms          | 191 ms          |
 | réparation : bandeau effacé (nouveau Client)                                 | 0,63 s          | 0,75 s          |
 | page Server qui jette : message affiché, état `Disconnected`                 | oui             | oui             |
-| composant Client qui jette : message affiché, `airtty dev` continue          | oui             | oui             |
-| le Client généré quitte (`process.exit(3)`) : `airtty dev` s'arrête, code 0  | 1,5 s           | 1,6 s           |
-| premier build en échec : texte brut dans le PTY, `airtty dev` attend         | oui             | oui             |
+| composant Client qui jette : message affiché, `luciole dev` continue         | oui             | oui             |
+| le Client généré quitte (`process.exit(3)`) : `luciole dev` s'arrête, code 0 | 1,5 s           | 1,6 s           |
+| premier build en échec : texte brut dans le PTY, `luciole dev` attend        | oui             | oui             |
 | réparation d'un premier build en échec                                       | 2,2 s           | 3,1 s           |
 | modifier `package.json` ne déclenche pas de rebuild                          | oui             | oui             |
 | fermer `<Terminal>` (SIGHUP) laisse le Server et le Client générés orphelins | **2 orphelins** | **2 orphelins** |
@@ -63,20 +63,20 @@ orphelins) ; le run 2 est la version commitée.
 ## Constats
 
 1. **Position des erreurs de syntaxe perdue** : toujours `1:1`. Cause vérifiée :
-   `packages/airtty/src/build.ts:322` passe le nœud racine (`ast`) à `fail()` au lieu de
+   `packages/luciole/src/build.ts:322` passe le nœud racine (`ast`) à `fail()` au lieu de
    la position du diagnostic TypeScript (`error.start`). Même constat dans
    [studio-generate](../studio-generate/README.md).
 2. **SIGHUP orphelin** : `<Terminal>` termine son programme par SIGHUP ;
    `src/commands/dev.ts` n'écoute que SIGINT et SIGTERM, meurt sans arrêter le Server et
    le Client qu'il a lancés (ils ont survécu, sans parent, jusqu'à leur arrêt par la
    sonde).
-3. **Mort du Client indiscernable** : `airtty dev` sort avec 0, que le Client ait quitté
+3. **Mort du Client indiscernable** : `luciole dev` sort avec 0, que le Client ait quitté
    volontairement ou planté.
-4. **Rebuild à chaque écriture** : le watcher de `airtty dev` (debounce 150 ms)
+4. **Rebuild à chaque écriture** : le watcher de `luciole dev` (debounce 150 ms)
    reconstruit dès qu'un fichier change ; un harness qui écrit quatre fichiers en
    plusieurs secondes montrerait des états intermédiaires incohérents.
 5. **Erreurs non structurées** : les erreurs de build arrivent au Client par l'IPC de
-   `airtty dev`, celles de rendu seulement à l'écran ; rien ne revient à un superviseur
+   `luciole dev`, celles de rendu seulement à l'écran ; rien ne revient à un superviseur
    sous une forme exploitable par une boucle de correction.
 
 ## Conséquences pour studio

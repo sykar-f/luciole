@@ -39,7 +39,7 @@ const toDiff: Step[] = [
 const ask: Step[] = [
   {
     wait: "Ask anything",
-    type: "How does airtty keep typing local when the Server is 500 ms away?\r",
+    type: "How does luciole keep typing local when the Server is 500 ms away?\r",
   },
   { wait: "Done.", type: "" },
 ];
@@ -114,12 +114,12 @@ export const examples: Record<ExampleKey, Example> = {
   },
   devtools: {
     name: "DevTools",
-    source: "packages/airtty/src/devtools/airtty-devtools",
+    source: "packages/luciole/src/devtools/luciole-devtools",
     frame: "devtools-network",
     demo: "devtools",
-    run: "bun packages/airtty/src/cli.ts devtools --demo",
+    run: "bun packages/luciole/src/cli.ts devtools --demo",
     about:
-      "Both processes in one waterfall, with the cache that answered, component trees and logs, on a recorded session. The DevTools are an airtty app too.",
+      "Both processes in one waterfall, with the cache that answered, component trees and logs, on a recorded session. The DevTools are a luciole app too.",
   },
   coder: {
     name: "coder",
@@ -145,7 +145,7 @@ export const examples: Record<ExampleKey, Example> = {
     source: "examples/mux",
     frame: "mux",
     run: "bun run mux",
-    about: "A small tmux: your shell and vim side by side, with another airtty app in a pane.",
+    about: "A small tmux: your shell and vim side by side, with another luciole app in a pane.",
     terminal: "Runs your shell and vim on real PTYs.",
   },
 };

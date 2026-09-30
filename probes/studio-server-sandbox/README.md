@@ -19,12 +19,12 @@ bun probes/studio-server-sandbox/probe.tsx    # depuis la racine ; macOS seul ; 
 ```
 
 Aucune dépendance propre, `src/` n'est pas modifié. La sonde copie
-`../studio-preview/template` dans `.airtty-work/app/`, lui ajoute `server/escape.ts`
+`../studio-preview/template` dans `.luciole-work/app/`, lui ajoute `server/escape.ts`
 (appelé par la page, il tente de sortir et rend le résultat), construit l'app, lance son
 Server nu puis confiné et rend la page avec le Client construit (`testRender`).
 
 Profil du Server confiné : `seatbeltProfile()` avec aucune capacité, en lecture
-`.airtty/` et `package.json` de l'app (pas ses sources), en écriture un répertoire
+`.luciole/` et `package.json` de l'app (pas ses sources), en écriture un répertoire
 `data/`, `/dev/null` pour terminal, puis :
 
 ```scheme
@@ -60,13 +60,13 @@ Démarrage du Server jusqu'à sa ligne `ready` (médiane de 7, alternés) :
    JIT ; seule l'écoute manque. `confine()` (`src/sandbox/confine.ts`) ne connaît qu'une
    route vers un Server (`ServerRoute`), pas un Server qui écoute : il faut l'étendre
    (spec, section 7).
-2. Un Server confiné ne lit pas ses sources : seul le build (`.airtty/`) est ouvert. Le
+2. Un Server confiné ne lit pas ses sources : seul le build (`.luciole/`) est ouvert. Le
    build reste fait par studio, hors sandbox, qui lit les sources.
 3. `data/` est le seul endroit persistant : une base `bun:sqlite` y survit aux
    rechargements (l'état en mémoire, non : voir [studio-preview](../studio-preview/README.md)).
-4. Linux (`airtty-sandbox`, espaces de noms réseau) n'est pas mesuré : le Server devrait
+4. Linux (`luciole-sandbox`, espaces de noms réseau) n'est pas mesuré : le Server devrait
    y écouter dans son espace de noms et l'hôte le joindre par un relais inverse ; à
    concevoir en C5b.
 5. Le port est choisi par l'hôte juste avant le lancement (petite course possible) ; un
    socket Unix dans un répertoire privé l'éviterait, comme le fait déjà le lanceur
-   (`AIRTTY_SOCKET`), mais demande une règle Seatbelt sur ce chemin, non mesurée.
+   (`LUCIOLE_SOCKET`), mais demande une règle Seatbelt sur ce chemin, non mesurée.

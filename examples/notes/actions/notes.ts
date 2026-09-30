@@ -1,11 +1,11 @@
 "use server";
-import { getSession, invalidate } from "airtty/server";
+import { getSession, invalidate } from "luciole/server";
 import { z } from "zod";
 import { save, operation } from "../server/repository";
 import { OperationId, SnapshotInput } from "../server/schemas";
 import { noteTag, notesTag } from "../server/tags";
 import type { Snapshot, SaveResult } from "../components/draft";
-// A business-processing probe, not a network simulation: see AIRTTY_LATENCY_MS.
+// A business-processing probe, not a network simulation: see LUCIOLE_LATENCY_MS.
 const delayMs = z.coerce.number().nonnegative().default(0).parse(process.env.NOTES_DELAY_MS);
 export async function saveNote(snapshot: Snapshot): Promise<SaveResult> {
   const input = SnapshotInput.parse(snapshot);

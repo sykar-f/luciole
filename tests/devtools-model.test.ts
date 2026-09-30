@@ -1,11 +1,11 @@
 import { expect, test } from "bun:test";
-import { fixtureSession, FIXTURE_START } from "../packages/airtty/src/devtools/fixtures";
-import { message, PLUGIN } from "../packages/airtty/src/devtools/protocol";
-import { parseEvent } from "../packages/airtty/src/devtools/schema";
-import type { Stored } from "../packages/airtty/src/devtools/model/session";
-import { toHar } from "../packages/airtty/src/devtools/model/har";
-import { cacheBadge, phases, rowStatus } from "../packages/airtty/src/devtools/model/network";
-import { createSession } from "../packages/airtty/src/devtools/model/session";
+import { fixtureSession, FIXTURE_START } from "../packages/luciole/src/devtools/fixtures";
+import { message, PLUGIN } from "../packages/luciole/src/devtools/protocol";
+import { parseEvent } from "../packages/luciole/src/devtools/schema";
+import type { Stored } from "../packages/luciole/src/devtools/model/session";
+import { toHar } from "../packages/luciole/src/devtools/model/har";
+import { cacheBadge, phases, rowStatus } from "../packages/luciole/src/devtools/model/network";
+import { createSession } from "../packages/luciole/src/devtools/model/session";
 
 const loaded = (events = fixtureSession()) => {
   const session = createSession();
@@ -70,8 +70,8 @@ test("events arriving out of order build the same rows", () => {
   const events = fixtureSession();
   // The Server's events of each request before the Client's: two processes, two sockets.
   const reordered = [
-    ...events.filter((e) => e.event.pluginId === "airtty-server"),
-    ...events.filter((e) => e.event.pluginId !== "airtty-server"),
+    ...events.filter((e) => e.event.pluginId === "luciole-server"),
+    ...events.filter((e) => e.event.pluginId !== "luciole-server"),
   ];
   const a = loaded(events)
     .network.rows()
@@ -102,18 +102,18 @@ test("logs, cache entries, router and components", () => {
   expect(session.keys()).toHaveLength(3);
 });
 
-test("a HAR export carries timings and the airtty fields", () => {
+test("a HAR export carries timings and the luciole fields", () => {
   const session = loaded();
   const har = toHar(session.network.rows(), session.network.derive());
   expect(har.log.entries).toHaveLength(10);
   const first = har.log.entries[0];
   expect(first?.request).toMatchObject({
     method: "GET",
-    url: "http://airtty.invalid/render?route=%2F&href=%2F",
+    url: "http://luciole.invalid/render?route=%2F&href=%2F",
   });
   expect(first?.timings).toMatchObject({ blocked: 2, wait: 44 });
-  expect(first?._airtty).toMatchObject({ callId: "c1", cause: "navigation", cache: "miss" });
-  expect(har.log.entries.find((e) => e._airtty.callId === "c6")?._airtty).toMatchObject({
+  expect(first?._luciole).toMatchObject({ callId: "c1", cause: "navigation", cache: "miss" });
+  expect(har.log.entries.find((e) => e._luciole.callId === "c6")?._luciole).toMatchObject({
     doubleInvalidation: "action:c4",
   });
 });

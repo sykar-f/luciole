@@ -57,7 +57,7 @@ export class Browser implements AsyncDisposable {
   }
 
   static async start() {
-    const profile = mkdtempSync(join(tmpdir(), "airtty-cdp-"));
+    const profile = mkdtempSync(join(tmpdir(), "luciole-cdp-"));
     const chrome = Bun.spawn(
       [
         CHROME,

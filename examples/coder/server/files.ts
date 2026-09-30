@@ -8,7 +8,7 @@ const MAX_RESULTS = 30;
 // Scores: a direct match ranks by position then length; letters in order come after.
 const LENGTH_WEIGHT = 100;
 const SCATTERED = 1000;
-const SKIPPED = new Set([".git", "node_modules", ".airtty", "dist", "build", ".venv", "target"]);
+const SKIPPED = new Set([".git", "node_modules", ".luciole", "dist", "build", ".venv", "target"]);
 
 async function gitFiles(cwd: string) {
   const git = Bun.spawn(["git", "ls-files", "--cached", "--others", "--exclude-standard"], {

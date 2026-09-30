@@ -62,7 +62,7 @@ const contents = join(bundle, "Contents");
 const { name } = readMetadata(
   await Bun.file(join(contents, "Resources", "app", BUNDLED, METADATA)).text(),
 );
-const home = await mkdtemp(join(tmpdir(), "airtty-desktop-smoke-"));
+const home = await mkdtemp(join(tmpdir(), "luciole-desktop-smoke-"));
 const launcher = Bun.spawn([join(contents, "MacOS", "launcher")], {
   cwd: join(contents, "MacOS"),
   env: { HOME: home, PATH: "/usr/bin:/bin" },
@@ -89,7 +89,7 @@ try {
       throw new Error(`${String(error)}; still running: ${left.join(", ")}`);
     },
   );
-  const sessions = await readdir(join(home, ".local/state/airtty", name, "sessions")).catch(
+  const sessions = await readdir(join(home, ".local/state/luciole", name, "sessions")).catch(
     () => [],
   );
   if (sessions.length)

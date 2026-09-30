@@ -8,11 +8,11 @@ import { dirname, join } from "node:path";
 // `tsc` runs the TypeScript 6 checker, 5 to 10 times slower.
 const projects = [
   ".",
-  "packages/airtty",
-  "packages/airtty/src/devtools/airtty-devtools",
-  "packages/airtty/src/launcher/airtty",
-  "packages/airtty/src/generic/browser",
-  "packages/airtty/src/web",
+  "packages/luciole",
+  "packages/luciole/src/devtools/luciole-devtools",
+  "packages/luciole/src/launcher/luciole",
+  "packages/luciole/src/generic/browser",
+  "packages/luciole/src/web",
   "packages/harness",
   "examples/notes",
   "examples/latency",

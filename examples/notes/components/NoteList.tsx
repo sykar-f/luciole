@@ -1,7 +1,7 @@
 "use client";
 import { useRef } from "react";
 import type { MouseEvent, SelectRenderable } from "@opentui/core";
-import { useNavigate } from "airtty/client";
+import { useNavigate } from "luciole/client";
 import type { Note } from "./draft";
 
 /** A title, then its first line. */

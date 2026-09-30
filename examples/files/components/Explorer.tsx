@@ -11,7 +11,7 @@ import {
   useCanGoBack,
   useNavigate,
   useRouter,
-} from "airtty/client";
+} from "luciole/client";
 import { receiveDropped, uploadDropped } from "../actions/drop";
 import { preview as fetchPreview } from "../actions/files";
 import { copy } from "./clipboard";
@@ -601,7 +601,7 @@ export function Explorer({ listing }: { listing: Listing }) {
             title={help ? " keys " : ` ${current?.name ?? "preview"} `}
           >
             {help ? (
-              <KeyHelp groups={["files", "preview", "global", "airtty"]} />
+              <KeyHelp groups={["files", "preview", "global", "luciole"]} />
             ) : !current ? (
               <Line fg={color.muted}>Nothing selected</Line>
             ) : current.arriving ? (

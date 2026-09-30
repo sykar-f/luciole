@@ -5,8 +5,8 @@ import { testRender } from "@opentui/react/test-utils";
 import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { build } from "../packages/airtty/src/build";
-import { compileRouteGraph } from "../packages/airtty/src/route-graph";
+import { build } from "../packages/luciole/src/build";
+import { compileRouteGraph } from "../packages/luciole/src/route-graph";
 import { launch, importClient, readManifest, destroy, type TestUI } from "./helpers";
 
 /** The layout's mount stamp: unchanged while the layout stays mounted. */
@@ -17,7 +17,7 @@ const files: Record<string, string> = {
   "app/page.tsx": `export default function Page(){return <text>HOME</text>}`,
   "app/not-found.tsx": `"use client";export default function Missing({path}){return <text>NO ROUTE {path}</text>}`,
   "app/error.tsx": `"use client";import {useKeyboard} from "@opentui/react";export default function Failure({error,retry}){useKeyboard(k=>{if(k.name==="r")void retry()});return <text>FAILED {error.message} [{String(error.outcome)}]</text>}`,
-  "app/items/[id]/page.tsx": `import {notFound} from "airtty/server";export default async function Item({params}){if(params.id==="9")notFound("Item 9");return <text>ITEM {params.id}</text>}`,
+  "app/items/[id]/page.tsx": `import {notFound} from "luciole/server";export default async function Item({params}){if(params.id==="9")notFound("Item 9");return <text>ITEM {params.id}</text>}`,
   "app/items/not-found.tsx": `"use client";export default function Missing({what,params}){return <text>MISSING {what} (id {params.id})</text>}`,
   "app/boom/page.tsx": `let calls=0;export default async function Boom(){calls++;if(calls===1)throw new Error("secret detail");return <text>RECOVERED {calls}</text>}`,
   "app/docs/[...slug]/page.tsx": `export default function Docs({params}){return <text>DOC {params.slug}</text>}`,
@@ -25,7 +25,7 @@ const files: Record<string, string> = {
 };
 
 test("error.tsx, notFound() and catch-all routes render inside the persistent layout", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "airtty-screens-"));
+  const directory = await mkdtemp(join(tmpdir(), "luciole-screens-"));
   let server: Awaited<ReturnType<typeof launch>> | undefined, rendered: TestUI | undefined;
   try {
     for (const [name, text] of Object.entries(files)) {
@@ -40,13 +40,13 @@ test("error.tsx, notFound() and catch-all routes render inside the persistent la
       notFound: "app/items/not-found.tsx",
     });
     // Production Flight sends a Server exception without its message or stack.
-    const production = await launch(join(directory, ".airtty/server/index.js"), {
+    const production = await launch(join(directory, ".luciole/server/index.js"), {
       NODE_ENV: "production",
     });
     try {
       const body = await (
         await fetch(`${production.url}/render?route=%2Fboom&params=%7B%7D`, {
-          headers: { "x-airtty-build": manifest.buildId },
+          headers: { "x-luciole-build": manifest.buildId },
         })
       ).text();
       expect(body).toContain("Server render failed");
@@ -54,7 +54,7 @@ test("error.tsx, notFound() and catch-all routes render inside the persistent la
     } finally {
       await production.stop();
     }
-    const running = await launch(join(directory, ".airtty/server/index.js"));
+    const running = await launch(join(directory, ".luciole/server/index.js"));
     server = running;
     const { createApp, Shell } = await importClient(directory);
     const app = createApp({ url: running.url });

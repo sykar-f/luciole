@@ -1,5 +1,5 @@
 /**
- * Chat journey on a real PTY, through `airtty dev`, against a local fake OpenRouter.
+ * Chat journey on a real PTY, through `luciole dev`, against a local fake OpenRouter.
  *
  * Journey: missing key message → streamed reply (Markdown, usage, cost) → history sent back
  * → Esc stops a reply and aborts the upstream request → Ctrl+G retries → mid-stream error

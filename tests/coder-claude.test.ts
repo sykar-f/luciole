@@ -15,7 +15,7 @@ import {
   type QueryOptions,
 } from "../packages/harness/src/adapters/claude";
 import type { HarnessEvent } from "../packages/harness/src/adapters/types";
-import { messageOf } from "../packages/airtty/src/guards";
+import { messageOf } from "../packages/luciole/src/guards";
 import { rejectionOf } from "./helpers";
 
 // Streams recorded on the real claude 2.1.283 by scripts/coder/record-claude.ts, replayed
@@ -182,8 +182,8 @@ test("isolated (studio): no user settings, no MCP server, no claude.ai connector
     mode: "ask",
     isolated: true,
     tools: ["Read", "Write"],
-    instructions: "Write airtty apps.",
-    client: "airtty-studio",
+    instructions: "Write luciole apps.",
+    client: "luciole-studio",
   });
   expect(queries[0]?.options).toMatchObject({
     settingSources: [],
@@ -191,9 +191,9 @@ test("isolated (studio): no user settings, no MCP server, no claude.ai connector
     mcpServers: {},
     settings: { disableClaudeAiConnectors: true },
     tools: ["Read", "Write"],
-    systemPrompt: { type: "preset", preset: "claude_code", append: "Write airtty apps." },
+    systemPrompt: { type: "preset", preset: "claude_code", append: "Write luciole apps." },
   });
-  expect(queries[0]?.options.env).toMatchObject({ CLAUDE_AGENT_SDK_CLIENT_APP: "airtty-studio" });
+  expect(queries[0]?.options.env).toMatchObject({ CLAUDE_AGENT_SDK_CLIENT_APP: "luciole-studio" });
   await harness.close();
 });
 

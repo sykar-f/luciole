@@ -24,7 +24,7 @@ function open(script: string, env?: Record<string, string>) {
 }
 
 test("the program runs in desktop mode, at the view's size, and receives its input", async () => {
-  const window = open('echo "$AIRTTY_DESKTOP $(stty size)"; read line; echo "got $line"');
+  const window = open('echo "$LUCIOLE_DESKTOP $(stty size)"; read line; echo "got $line"');
   await until(() => window.output().includes("1 10 40"));
   window.session.input("é\r");
   await until(() => window.output().includes("got é"));

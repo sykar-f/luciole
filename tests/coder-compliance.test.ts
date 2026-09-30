@@ -60,7 +60,7 @@ test("Claude Code runs as published: the user's binary, the whole environment, n
 
 test("Codex is told who drives it: an honest client name, its own login flow", () => {
   const codex = readFileSync(join(ROOT, "adapters/codex.ts"), "utf8");
-  expect(codex).toContain('name: this.options.client ?? "airtty-coder"');
+  expect(codex).toContain('name: this.options.client ?? "luciole-coder"');
   // Signed out: the user runs Codex's own login, coder never handles its tokens.
   expect(codex).toContain("run `codex login`");
   expect(offending(/chatgptAuthTokens|account\/login\/start/)).toEqual([]);
@@ -80,7 +80,7 @@ test("opencode: its own server, locked to coder, never sharing a session publicl
 
 test("studio drives the harnesses under its own name, with file tools only and no user settings", () => {
   const studio = readFileSync(resolve("examples/studio/server/harness.ts"), "utf8");
-  expect(studio).toContain('client: "airtty-studio"');
+  expect(studio).toContain('client: "luciole-studio"');
   expect(studio).toContain("isolated: true");
   expect(studio).toContain(
     'export const TOOLS = ["Read", "Write", "Edit", "Glob", "Grep"] as const;',

@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { isReply } from "../packages/airtty/src/web/replies";
+import { isReply } from "../packages/luciole/src/web/replies";
 
 const ESC = "\u001b";
 

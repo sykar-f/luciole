@@ -5,7 +5,7 @@ import { z } from "zod";
 
 // The first line a production Server prints once it listens (src/server.ts).
 const ServerReady = z.object({ ready: z.literal(true), port: z.number().int() });
-const temp = await mkdtemp(join(tmpdir(), "airtty-release-"));
+const temp = await mkdtemp(join(tmpdir(), "luciole-release-"));
 async function run(cmd: string[], cwd: string) {
   const child = Bun.spawn(cmd, {
     cwd,
@@ -35,7 +35,7 @@ try {
     await cp(resolve(name), join(checkout, name), {
       recursive: true,
       filter: (p) =>
-        !p.includes(".airtty") &&
+        !p.includes(".luciole") &&
         !p.endsWith(".sqlite") &&
         !p.endsWith(".sqlite-shm") &&
         !p.endsWith(".sqlite-wal"),
@@ -43,7 +43,7 @@ try {
   await run([process.execPath, "install", "--frozen-lockfile"], checkout);
   await run([process.execPath, "run", "check"], checkout);
   await run(
-    [process.execPath, "packages/airtty/src/cli.ts", "init", join(temp, "starter")],
+    [process.execPath, "packages/luciole/src/cli.ts", "init", join(temp, "starter")],
     checkout,
   );
   const starter = join(temp, "starter");
@@ -78,8 +78,8 @@ try {
   }
   await run([process.execPath, "run", "build"], starter);
   // The built roles run from the starter's own installation: an app ships to another
-  // machine as a compiled binary (airtty build --compile), not as .airtty/ to install.
-  const built = join(starter, ".airtty");
+  // machine as a compiled binary (luciole build --compile), not as .luciole/ to install.
+  const built = join(starter, ".luciole");
   const child = Bun.spawn(
     [process.execPath, "--conditions=react-server", join(built, "server/index.js")],
     {

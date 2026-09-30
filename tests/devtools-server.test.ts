@@ -2,15 +2,15 @@ import { expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { parseEvent, type DevtoolsEvent } from "../packages/airtty/src/devtools/schema";
-import { devtoolsInstrument } from "../packages/airtty/src/devtools/server-agent";
-import { message, PLUGIN } from "../packages/airtty/src/devtools/protocol";
-import { listenBus, type Connection } from "../packages/airtty/src/devtools/wire";
-import { createHttpTransport, type TransportEvent } from "../packages/airtty/src/transport";
+import { parseEvent, type DevtoolsEvent } from "../packages/luciole/src/devtools/schema";
+import { devtoolsInstrument } from "../packages/luciole/src/devtools/server-agent";
+import { message, PLUGIN } from "../packages/luciole/src/devtools/protocol";
+import { listenBus, type Connection } from "../packages/luciole/src/devtools/wire";
+import { createHttpTransport, type TransportEvent } from "../packages/luciole/src/transport";
 import { launch, until } from "./helpers";
 
-test("AIRTTY_DEVTOOLS streams the Server's events and logs under the Client's callId", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "airtty-devtools-"));
+test("LUCIOLE_DEVTOOLS streams the Server's events and logs under the Client's callId", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "luciole-devtools-"));
   const path = join(dir, "bus.sock");
   const received: DevtoolsEvent[] = [];
   const bus = await listenBus({
@@ -20,7 +20,7 @@ test("AIRTTY_DEVTOOLS streams the Server's events and logs under the Client's ca
       if (event) received.push(event);
     },
   });
-  const server = await launch("tests/devtools-server.ts", { AIRTTY_DEVTOOLS: `unix:${path}` });
+  const server = await launch("tests/devtools-server.ts", { LUCIOLE_DEVTOOLS: `unix:${path}` });
   const client: TransportEvent[] = [];
   const transport = createHttpTransport({
     url: server.url,
@@ -31,12 +31,12 @@ test("AIRTTY_DEVTOOLS streams the Server's events and logs under the Client's ca
   try {
     await transport.render("/", {}, new AbortController().signal);
     expect(await transport.call("a.ts#run", [])).toBe(42);
-    await until(() => received.filter((e) => e.type === "airtty-server:end").length === 2);
+    await until(() => received.filter((e) => e.type === "luciole-server:end").length === 2);
     const [render, action] = client.flatMap((e) => (e.type === "request" ? [e.callId] : []));
-    const hello = received.find((e) => e.type === "airtty:hello");
+    const hello = received.find((e) => e.type === "luciole:hello");
     expect(hello?.payload).toMatchObject({ role: "server", buildId: "build-1" });
     const server = received.flatMap((e) =>
-      e.pluginId === "airtty-server" && "callId" in e.payload
+      e.pluginId === "luciole-server" && "callId" in e.payload
         ? [[e.payload.callId, e.payload.type]]
         : [],
     );
@@ -49,7 +49,7 @@ test("AIRTTY_DEVTOOLS streams the Server's events and logs under the Client's ca
       [action, "end"],
     ]);
     const logs = received.flatMap((e) =>
-      e.type === "airtty-console:entry"
+      e.type === "luciole-console:entry"
         ? [[e.payload.level, e.payload.text, e.payload.callId]]
         : [],
     );
@@ -63,7 +63,7 @@ test("AIRTTY_DEVTOOLS streams the Server's events and logs under the Client's ca
 });
 
 test("cache events reach the DevTools and the configured instrument alike", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "airtty-devtools-"));
+  const dir = await mkdtemp(join(tmpdir(), "luciole-devtools-"));
   const path = join(dir, "bus.sock");
   const received: DevtoolsEvent[] = [];
   const bus = await listenBus({
@@ -91,8 +91,8 @@ test("cache events reach the DevTools and the configured instrument alike", asyn
   };
   try {
     instrument?.onEvent(cache);
-    await until(() => received.some((e) => e.type === "airtty-server:cache"));
-    expect(received.find((e) => e.type === "airtty-server:cache")?.payload).toMatchObject(cache);
+    await until(() => received.some((e) => e.type === "luciole-server:cache"));
+    expect(received.find((e) => e.type === "luciole-server:cache")?.payload).toMatchObject(cache);
     expect(configured).toEqual([cache]);
   } finally {
     bus.close();
@@ -101,7 +101,7 @@ test("cache events reach the DevTools and the configured instrument alike", asyn
 });
 
 test("the Cache panel's command purges a tag on the Server, outside any request", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "airtty-devtools-"));
+  const dir = await mkdtemp(join(tmpdir(), "luciole-devtools-"));
   const path = join(dir, "bus.sock");
   const received: DevtoolsEvent[] = [];
   const connections: Connection[] = [];
@@ -113,13 +113,13 @@ test("the Cache panel's command purges a tag on the Server, outside any request"
       if (event) received.push(event);
     },
   });
-  const server = await launch("tests/devtools-server.ts", { AIRTTY_DEVTOOLS: `unix:${path}` });
+  const server = await launch("tests/devtools-server.ts", { LUCIOLE_DEVTOOLS: `unix:${path}` });
   try {
-    await until(() => received.some((e) => e.type === "airtty:hello"));
+    await until(() => received.some((e) => e.type === "luciole:hello"));
     connections[0]?.send(message(PLUGIN.control, "cache-invalidate", { tag: "notes" }));
-    await until(() => received.some((e) => e.type === "airtty-server:cache"));
+    await until(() => received.some((e) => e.type === "luciole-server:cache"));
     // No request: the Server cache only, no Client told (callId "").
-    expect(received.find((e) => e.type === "airtty-server:cache")?.payload).toMatchObject({
+    expect(received.find((e) => e.type === "luciole-server:cache")?.payload).toMatchObject({
       op: "invalidate",
       tags: ["notes"],
       callId: "",

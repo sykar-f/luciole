@@ -1,6 +1,6 @@
 /**
  * The studio example on a real PTY, on its scripted generator (offline, no quota):
- * `airtty dev -- --harness fake --dir <project>` → the template runs in the preview →
+ * `luciole dev -- --harness fake --dir <project>` → the template runs in the preview →
  * Ctrl+O o gives the keys to the app, whose counter goes through its (confined) Server
  * into data/ → a prompt becomes revision r1, the counter kept → a command the generator
  * asks for is refused by studio's policy → a package outside the allowed ones is refused
@@ -43,7 +43,7 @@ const PREVIEW_COLUMN = 80;
 
 /** studio on its scripted generator, in a project of its own. */
 async function launch(mode: keyof typeof WRITE_MS) {
-  const directory = temporaryDirectory("airtty-studio-");
+  const directory = temporaryDirectory("luciole-studio-");
   const project = join(directory.path, "demo");
   const t = await drive({
     command: [
@@ -121,7 +121,7 @@ type Studio = Awaited<ReturnType<typeof launch>>;
 
 /** This journey's studio Servers: found by the example's build. */
 const studioServers = () =>
-  commandOutput(["pgrep", "-f", `${example("studio")}/.airtty/server/index.js`])
+  commandOutput(["pgrep", "-f", `${example("studio")}/.luciole/server/index.js`])
     .split(/\s+/)
     .filter(Boolean);
 /** The preview's half of the screen. */

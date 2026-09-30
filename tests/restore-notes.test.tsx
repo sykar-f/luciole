@@ -6,8 +6,8 @@ import { InputRenderable } from "@opentui/core";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import type { Application, Session } from "../packages/airtty/src/client";
-import { build } from "../packages/airtty/src/build";
+import type { Application, Session } from "../packages/luciole/src/client";
+import { build } from "../packages/luciole/src/build";
 import { destroy, draftOf, importClient, launch, renderable, until, type TestUI } from "./helpers";
 
 const appDir = resolve("examples/notes");
@@ -16,8 +16,8 @@ const fieldsAt = (app: Application, href: string) =>
 
 test("a named field comes back after a restart, is forgotten once sent, kept if never sent", async () => {
   await build(appDir);
-  const folder = await mkdtemp(join(tmpdir(), "airtty-restore-"));
-  const server = await launch(join(appDir, ".airtty/server/index.js"), {
+  const folder = await mkdtemp(join(tmpdir(), "luciole-restore-"));
+  const server = await launch(join(appDir, ".luciole/server/index.js"), {
     NOTES_DB: join(folder, "notes.sqlite"),
   });
   let refuse = false;

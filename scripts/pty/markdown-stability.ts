@@ -56,7 +56,7 @@ const RUNS: readonly (readonly [string, string])[] = real
 
 /** A fresh coder: sends `prompt`, samples the screen until the reply ends and a little after. */
 async function sample(prompt: string) {
-  using directory = temporaryDirectory("airtty-markdown-");
+  using directory = temporaryDirectory("luciole-markdown-");
   const project = join(directory.path, "project");
   mkdirSync(project);
   await using t = await drive({

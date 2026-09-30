@@ -10,18 +10,18 @@ const PERMISSION_BITS = 0o777;
 // The session file is written 200 ms after the last change.
 const SESSION_WRITTEN_MS = 500;
 
-using directory = temporaryDirectory("airtty-restore-");
+using directory = temporaryDirectory("luciole-restore-");
 const state = join(directory.path, "state");
-const sessions = join(state, "airtty/notes/sessions");
+const sessions = join(state, "luciole/notes/sessions");
 const env = { NODE_ENV: "production", XDG_STATE_HOME: state };
 await using server = await startServer(example("notes"), {
   ...env,
   NOTES_DB: join(directory.path, "notes.sqlite"),
-  AIRTTY_TEST: "1",
+  LUCIOLE_TEST: "1",
 });
 const start = () =>
   drive({
-    command: [BUN, join(example("notes"), ".airtty/client/index.js"), "--url", server.url],
+    command: [BUN, join(example("notes"), ".luciole/client/index.js"), "--url", server.url],
     cols: 110,
     rows: 28,
     env,

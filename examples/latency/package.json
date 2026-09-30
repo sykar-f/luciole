@@ -1,9 +1,9 @@
 {
-  "name": "@airtty-examples/latency",
+  "name": "@luciole-examples/latency",
   "private": true,
   "type": "module",
   "dependencies": {
-    "airtty": "workspace:*",
+    "luciole": "workspace:*",
     "@tanstack/react-router": "catalog:",
     "react": "catalog:"
   }

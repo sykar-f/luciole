@@ -1,6 +1,6 @@
 /**
  * The preview's Server side (docs/studio/SPEC.md, 3.3): each attempt is built apart
- * (`.airtty-studio/builds/<id>`, signed with the project's own publisher key), its Server
+ * (`.luciole-studio/builds/<id>`, signed with the project's own publisher key), its Server
  * started confined, and only then does the preview switch to it; the previous Server
  * stops once the switch is done. The Client of the preview runs in studio's Client
  * process (components/Preview.tsx), where its terminal is drawn.
@@ -14,15 +14,15 @@ import {
   generatePublisherKey,
   readPublisherKey,
   type PublisherKey,
-} from "airtty/build";
-import { startAppServer, type AppServer } from "airtty/dev";
+} from "luciole/build";
+import { startAppServer, type AppServer } from "luciole/dev";
 import {
   Capabilities,
   confineServer,
   sandboxAvailability,
   sandboxRuntime,
   type ServerSandbox,
-} from "airtty/sandbox";
+} from "luciole/sandbox";
 import type { Project } from "./project";
 
 export type PreviewMode = "sandbox" | "process";
@@ -43,7 +43,7 @@ export type PreviewTarget = {
   /** Where the preview's sessions (route, named fields) are kept, by name. */
   sessions: string;
   /**
-   * The session every Client of the preview reopens in `process` mode (`AIRTTY_SESSION`),
+   * The session every Client of the preview reopens in `process` mode (`LUCIOLE_SESSION`),
    * one per project; a sandboxed Client takes over the one the previous Client left.
    */
   session: string;
@@ -99,7 +99,7 @@ export function isolationProblem(mode: PreviewMode): string | undefined {
   if (mode === "process") return undefined;
   const availability = sandboxAvailability();
   if (!availability.mechanism) return availability.reason;
-  // The confined Server listens only under Seatbelt for now (airtty/sandbox).
+  // The confined Server listens only under Seatbelt for now (luciole/sandbox).
   if (availability.mechanism.kind !== "seatbelt")
     return "the generated app's Server can be confined on macOS only for now";
   return undefined;
@@ -124,9 +124,9 @@ export class PreviewServers {
   private publisher() {
     if (this.key) return this.key;
     const env = {
-      AIRTTY_PUBLISHER_KEY: join(this.project.privateDirectory("key"), "publisher.pem"),
+      LUCIOLE_PUBLISHER_KEY: join(this.project.privateDirectory("key"), "publisher.pem"),
     };
-    if (!existsSync(env.AIRTTY_PUBLISHER_KEY)) generatePublisherKey(env);
+    if (!existsSync(env.LUCIOLE_PUBLISHER_KEY)) generatePublisherKey(env);
     this.key = readPublisherKey(env);
     return this.key;
   }

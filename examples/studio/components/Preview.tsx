@@ -1,9 +1,9 @@
 "use client";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { join } from "node:path";
-import { TerminalView } from "airtty/client";
-import { ClientFailure } from "airtty/dev";
-import { spawnPty } from "airtty/pty";
+import { TerminalView } from "luciole/client";
+import { ClientFailure } from "luciole/dev";
+import { spawnPty } from "luciole/pty";
 import {
   buildChild,
   Capabilities,
@@ -11,9 +11,9 @@ import {
   sandboxAvailability,
   sandboxRuntime,
   type Sandbox,
-} from "airtty/sandbox";
+} from "luciole/sandbox";
 import { z } from "zod";
-import { color } from "@airtty/harness/ui/theme";
+import { color } from "@luciole/harness/ui/theme";
 import type { PreviewInfo } from "./model";
 
 export type PreviewProps = {
@@ -29,7 +29,7 @@ export type PreviewProps = {
   onExit: (code: number | null) => void;
 };
 
-/** What a Client started with a session tells its host (src/run.tsx, as to `airtty dev`). */
+/** What a Client started with a session tells its host (src/run.tsx, as to `luciole dev`). */
 const SupervisedMessage = z.union([
   z.object({ type: z.literal("hello") }),
   z.object({ type: z.literal("bearer"), token: z.string().optional() }),
@@ -72,7 +72,7 @@ function ending(pid: number | undefined) {
  * The generated app, running: its Client on a PTY drawn by the VT widget, one per
  * revision or draft (a new one replaces it, once the previous Client has ended).
  * `sandbox`: under the OS sandbox, its bundle signed by the project's key and checked
- * against it (airtty/sandbox); `process`: with the user's rights, ended by SIGTERM
+ * against it (luciole/sandbox); `process`: with the user's rights, ended by SIGTERM
  * (<Terminal> would send SIGHUP).
  */
 export function Preview(props: PreviewProps) {
@@ -192,7 +192,10 @@ function ProcessPreview(props: PreviewProps) {
           ],
           // The route, fields, focus and scroll pass from one Client to the next: each one
           // reopens the project's session, which the previous one wrote as it ended.
-          env: { AIRTTY_SESSION: preview.session, AIRTTY_SESSION_KEY: `studio:${preview.project}` },
+          env: {
+            LUCIOLE_SESSION: preview.session,
+            LUCIOLE_SESSION_KEY: `studio:${preview.project}`,
+          },
           ipc: (message) => {
             const failure = ClientFailure.safeParse(message);
             if (failure.success)
@@ -202,7 +205,7 @@ function ProcessPreview(props: PreviewProps) {
                 failure.data.message,
               );
             // A Client given a session asks for the bearer its predecessor held, as under
-            // `airtty dev`: answered at once, never waited for.
+            // `luciole dev`: answered at once, never waited for.
             const said = SupervisedMessage.safeParse(message);
             if (!said.success) return;
             if (said.data.type === "hello") pty.send({ type: "bearer", token: bearer });

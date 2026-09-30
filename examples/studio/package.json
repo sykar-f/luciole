@@ -1,16 +1,16 @@
 {
-  "name": "@airtty-examples/studio",
+  "name": "@luciole-examples/studio",
   "private": true,
   "type": "module",
-  "description": "Describe an airtty app to a coding agent and use it as it is being written.",
-  "airtty": {
+  "description": "Describe a luciole app to a coding agent and use it as it is being written.",
+  "luciole": {
     "displayName": "studio",
     "server": "per-launch",
     "grace": "15m"
   },
   "dependencies": {
-    "airtty": "workspace:*",
-    "@airtty/harness": "workspace:*",
+    "luciole": "workspace:*",
+    "@luciole/harness": "workspace:*",
     "@opentui/core": "catalog:",
     "@opentui/keymap": "catalog:",
     "@opentui/react": "catalog:",

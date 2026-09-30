@@ -24,7 +24,7 @@ mémoire, sans réseau.
 
 Les Servers sont lancés par `instance-server.ts`, qui émule le changement proposé dans
 `src/server.ts` (décision 4 de docs/EMBEDDING.md) : une requête portant
-`x-airtty-instance: <clé>` reçoit des Client References écrites
+`x-luciole-instance: <clé>` reçoit des Client References écrites
 `<clé>@<buildId>/<chemin>` ; sans l'en-tête, les ids sont ceux d'aujourd'hui. Un second
 Server de mdreader, avec d'autres documents, représente deux panes de la même application.
 
@@ -36,7 +36,7 @@ Scénarios, sans rien modifier dans `src/` :
   embed est un `Shell` (un keymap sur le renderer entier).
 - **proposed** : le refactor de docs/EMBEDDING.md, bricolé hors de `src/` dans
   `../generic-client/host.tsx` (`createPanes`) : un résolveur aiguilleur par préfixe
-  d'instance, un `airtty/client` par pane dont `actionReference` vise l'Application de ce
+  d'instance, un `luciole/client` par pane dont `actionReference` vise l'Application de ce
   pane, un keymap par embed sur un hôte « sourd » quand l'embed n'a pas les touches, et
   une error boundary par embed.
 - **panes/build** puis **panes/instance** : deux panes de mdreader (même build), chacun
@@ -81,7 +81,7 @@ Scénarios, sans rien modifier dans `src/` :
    Server) utilisent le `callServer` de la réponse, donc la bonne Application. Seules les
    Server Functions **importées** par un Client Component passent par `current` : dans
    un runtime partagé, elles partent vers la dernière Application construite. Un
-   `airtty/client` par pane, lié à l'évaluation du bundle de ce pane, corrige ; les ids
+   `luciole/client` par pane, lié à l'évaluation du bundle de ce pane, corrige ; les ids
    d'action, eux, restent ceux du build (le Server les connaît ainsi).
 3. **Clavier.** Chaque `Shell` crée un keymap global sur le renderer. Le dernier créé
    passe en premier (`prependListener`) et consomme les touches qu'il lie ; les autres

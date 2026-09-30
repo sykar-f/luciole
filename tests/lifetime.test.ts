@@ -2,22 +2,22 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { connect } from "../packages/airtty/src/connect";
-import { messageOf } from "../packages/airtty/src/guards";
-import { parseDuration } from "../packages/airtty/src/launcher/lifetime";
+import { connect } from "../packages/luciole/src/connect";
+import { messageOf } from "../packages/luciole/src/guards";
+import { parseDuration } from "../packages/luciole/src/launcher/lifetime";
 import {
   ensureServer,
   serverId,
   serverStatus,
   type EnsureOptions,
-} from "../packages/airtty/src/launcher/managed";
+} from "../packages/luciole/src/launcher/managed";
 import { rejectionOf, until } from "./helpers";
 
 let work: string, runtime: string;
 beforeAll(async () => {
-  work = await mkdtemp(join(tmpdir(), "airtty-lifetime-"));
+  work = await mkdtemp(join(tmpdir(), "luciole-lifetime-"));
   // Short: socket paths must fit sun_path.
-  runtime = await mkdtemp("/tmp/airtty-rt-");
+  runtime = await mkdtemp("/tmp/luciole-rt-");
 });
 afterAll(async () => {
   await rm(work, { recursive: true, force: true });
@@ -38,7 +38,7 @@ function options(extra: Partial<EnsureOptions> & { buildId?: string } = {}): Ens
       ...process.env,
       XDG_RUNTIME_DIR: runtime,
       TEST_BUILD_ID: buildId,
-      AIRTTY_WATCHDOG_MS: "600",
+      LUCIOLE_WATCHDOG_MS: "600",
     },
     ...extra,
   };
@@ -63,7 +63,7 @@ async function gone(pid: number, timeout = 5000) {
 }
 /** A Client of that Server, as src/connect.ts keeps one alive. */
 const client = (url: string, id: string) =>
-  connect(url, undefined, { AIRTTY_LIFETIME_CLIENT: id, AIRTTY_PING_MS: "100" });
+  connect(url, undefined, { LUCIOLE_LIFETIME_CLIENT: id, LUCIOLE_PING_MS: "100" });
 
 test("durations read as users write them", () => {
   expect(parseDuration("15m")).toBe(900_000);

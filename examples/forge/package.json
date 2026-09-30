@@ -1,9 +1,9 @@
 {
-  "name": "@airtty-examples/forge",
+  "name": "@luciole-examples/forge",
   "private": true,
   "type": "module",
   "dependencies": {
-    "airtty": "workspace:*",
+    "luciole": "workspace:*",
     "@opentui/core": "catalog:",
     "@opentui/react": "catalog:",
     "@tanstack/react-form": "catalog:",

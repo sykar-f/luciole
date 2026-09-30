@@ -1,17 +1,17 @@
 import { expect, test } from "bun:test";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import { build } from "../packages/airtty/src/build";
-import { annotateNames, routeComponentName } from "../packages/airtty/src/build-names";
-import { sourceLocation } from "../packages/airtty/src/devtools/airtty-devtools/components/editor";
+import { build } from "../packages/luciole/src/build";
+import { annotateNames, routeComponentName } from "../packages/luciole/src/build-names";
+import { sourceLocation } from "../packages/luciole/src/devtools/luciole-devtools/components/editor";
 import { importClient } from "./helpers";
 
 const runtime = "/fw/devtools/annotate.ts";
 const annotated = (text: string, relative = "components/X.tsx") =>
   annotateNames(text, { path: `/app/${relative}`, relative, runtime });
-/** The `__airttyAnnotate(...)` calls appended, as [ref, name, source, hooks] source text. */
+/** The `__lucioleAnnotate(...)` calls appended, as [ref, name, source, hooks] source text. */
 const calls = (out: string) =>
-  [...out.matchAll(/try\{__airttyAnnotate\((.*)\)\}catch\{\}/g)].map((m) => m[1]);
+  [...out.matchAll(/try\{__lucioleAnnotate\((.*)\)\}catch\{\}/g)].map((m) => m[1]);
 
 test("route files get a name from their route when theirs is absent or generic", () => {
   expect(routeComponentName("app/notes/[id]/page.tsx")).toBe("NotesIdPage");
@@ -34,12 +34,14 @@ test("route files get a name from their route when theirs is absent or generic",
 
 test("anonymous default exports are named without moving a line", () => {
   const fn = annotated("\n\nexport default function () {\n  return null;\n}\n", "app/layout.tsx");
-  expect(fn.split("\n")[2]).toBe("export default function __airttyDefault () {");
-  expect(calls(fn)).toEqual(['__airttyDefault,"RootLayout","app/layout.tsx:3",[],null']);
+  expect(fn.split("\n")[2]).toBe("export default function __lucioleDefault () {");
+  expect(calls(fn)).toEqual(['__lucioleDefault,"RootLayout","app/layout.tsx:3",[],null']);
   const arrow = annotated("export default memo(() => null);\n", "components/note-list.tsx");
-  expect(arrow.split("\n")[0]).toBe("const __airttyDefault = memo(() => null);");
-  expect(arrow).toContain("export default __airttyDefault;");
-  expect(calls(arrow)).toEqual(['__airttyDefault,"NoteList","components/note-list.tsx:1",[],null']);
+  expect(arrow.split("\n")[0]).toBe("const __lucioleDefault = memo(() => null);");
+  expect(arrow).toContain("export default __lucioleDefault;");
+  expect(calls(arrow)).toEqual([
+    '__lucioleDefault,"NoteList","components/note-list.tsx:1",[],null',
+  ]);
 });
 
 test("hook calls are recorded in evaluation order with the variable they feed", () => {
@@ -61,17 +63,17 @@ const helper = () => useState(1);
     // to are passed as values, React's own by name; the effect's callback is not the body.
     'Editor,"Editor","components/X.tsx:4",[["useState","useState","draft"],[useLocal,"useLocal",null],[useDraft,"useDraft","save, edit"],["useRef","useRef","input"],["useEffect","useEffect",null]],null',
   ]);
-  expect(out).toContain(`import {annotate as __airttyAnnotate} from "${runtime}";`);
+  expect(out).toContain(`import {annotate as __lucioleAnnotate} from "${runtime}";`);
   // Nothing to annotate, nothing changes.
   expect(annotated("export const x = 1;\n")).toBe("export const x = 1;\n");
 });
 
-// Inside the checkout so `airtty` and its packages resolve like in an example.
+// Inside the checkout so `luciole` and its packages resolve like in an example.
 test("a built Client names its components and records their source and hooks", async () => {
   const dir = await mkdtemp(join(resolve("."), ".build-names-"));
   try {
     const files: Record<string, string> = {
-      "app/layout.tsx": `"use client";\nimport type { LayoutProps } from "airtty/client";\nexport default function Layout({ children }: LayoutProps) {\n  return <box>{children}</box>;\n}\n`,
+      "app/layout.tsx": `"use client";\nimport type { LayoutProps } from "luciole/client";\nexport default function Layout({ children }: LayoutProps) {\n  return <box>{children}</box>;\n}\n`,
       "app/page.tsx": `import { Boom } from "../components/Boom";\nexport default function Page() {\n  return <Boom />;\n}\n`,
       "components/Boom.tsx": `"use client";\nimport { useState } from "react";\n\ntype Props = { label?: string };\n\nexport function Boom(_props: Props) {\n  const [count] = useState(0);\n  return <text>{count}</text>;\n}\nexport function explode(): never {\n  throw new Error("boom");\n}\n`,
     };
@@ -85,7 +87,7 @@ test("a built Client names its components and records their source and hooks", a
     const boom = app.options.resolveModule(`${buildId}/components/Boom.tsx`);
     expect(boom.Boom).toMatchObject({ displayName: "Boom" });
     const { Boom } = boom;
-    expect(Object.getOwnPropertyDescriptor(Boom, "__airtty")?.value).toEqual({
+    expect(Object.getOwnPropertyDescriptor(Boom, "__luciole")?.value).toEqual({
       source: "components/Boom.tsx:6",
       hooks: [["useState", "useState", "count"]],
     });
@@ -94,22 +96,22 @@ test("a built Client names its components and records their source and hooks", a
   }
 }, 60_000);
 
-test("framework components read airtty/<file>, and open at their real path", () => {
-  const framework = resolve("packages/airtty/src");
+test("framework components read luciole/<file>, and open at their real path", () => {
+  const framework = resolve("packages/luciole/src");
   const out = annotateNames("export function Input() { return null }\n", {
     path: join(framework, "fields.tsx"),
     relative: "../../src/fields.tsx",
     runtime,
   });
   expect(calls(out)).toEqual([
-    `Input,"Input","airtty/fields.tsx:1",[],${JSON.stringify(join(framework, "fields.tsx"))}`,
+    `Input,"Input","luciole/fields.tsx:1",[],${JSON.stringify(join(framework, "fields.tsx"))}`,
   ]);
   // An application file keeps its relative source and no absolute path.
   expect(calls(annotated("export function A() { return null }\n"))).toEqual([
     'A,"A","components/X.tsx:1",[],null',
   ]);
-  expect(sourceLocation("/app", "airtty/fields.tsx:76", "/fw/src/fields.tsx")).toEqual({
-    path: "airtty/fields.tsx",
+  expect(sourceLocation("/app", "luciole/fields.tsx:76", "/fw/src/fields.tsx")).toEqual({
+    path: "luciole/fields.tsx",
     file: "/fw/src/fields.tsx",
     line: "76",
   });

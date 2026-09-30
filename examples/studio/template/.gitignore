@@ -1,5 +1,5 @@
 node_modules
-.airtty/
-.airtty-studio/
+.luciole/
+.luciole-studio/
 data/
 app.sqlite*

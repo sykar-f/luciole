@@ -6,8 +6,8 @@ import { testRender } from "@opentui/react/test-utils";
 import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
 import { z } from "zod";
-import { decode, encodeReply, registerModules } from "../packages/airtty/src/flight/client";
-import { isReactNode } from "../packages/airtty/src/transport";
+import { decode, encodeReply, registerModules } from "../packages/luciole/src/flight/client";
+import { isReactNode } from "../packages/luciole/src/transport";
 import { destroy, type TestUI } from "./helpers";
 // The first line tests/action-server.ts prints.
 const Started = z.object({ port: z.number().int(), pid: z.number().int() });

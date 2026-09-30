@@ -95,7 +95,7 @@ async function session(mdPath: string, state: string) {
   const server = await startServer(APP, { MD_PATH: mdPath });
   try {
     const t = await drive({
-      command: [BUN, join(APP, ".airtty/client/index.js"), "--url", server.url],
+      command: [BUN, join(APP, ".luciole/client/index.js"), "--url", server.url],
       cols: 130,
       rows: 36,
       // A private state directory: the session file never reaches $HOME.

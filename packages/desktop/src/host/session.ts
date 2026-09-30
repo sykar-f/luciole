@@ -2,13 +2,13 @@
  * One application binary on a PTY, its screen streamed to a window's terminal view.
  * Nothing here knows Electrobun: the host wires `send` and the view's messages.
  *
- * The program runs under `AIRTTY_DESKTOP=1` (docs/DESKTOP.md): Ctrl+C is the
+ * The program runs under `LUCIOLE_DESKTOP=1` (docs/DESKTOP.md): Ctrl+C is the
  * application's, and `hangUp()`, what closing the window does, is the user's quit.
  *
  * Never under `BUN_BE_BUN`: in a single-runtime bundle (scripts/single-runtime.ts) the
  * host is the app binary acting as Bun, and the app it starts must be itself again.
  */
-import { spawnPty, type Pty } from "airtty/pty";
+import { spawnPty, type Pty } from "luciole/pty";
 
 export type Size = { cols: number; rows: number };
 
@@ -52,7 +52,7 @@ export function createWindowSession(options: WindowSessionOptions): WindowSessio
         cols: size.cols,
         rows: size.rows,
         cwd: options.cwd,
-        env: { ...options.env, AIRTTY_DESKTOP: "1", BUN_BE_BUN: undefined },
+        env: { ...options.env, LUCIOLE_DESKTOP: "1", BUN_BE_BUN: undefined },
         onData: (bytes) => {
           pending += decoder.decode(bytes, { stream: true });
           if (scheduled) return;

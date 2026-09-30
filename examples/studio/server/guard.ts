@@ -13,8 +13,8 @@ const WRITABLE = /^(app|components|server|actions)\/[\w\-./[\]()]+\.(ts|tsx)$/;
 export const writable = (path: string) => !path.includes("..") && WRITABLE.test(path);
 /** The packages the template installs: nothing else resolves in the workspace. */
 const PACKAGES = new Set([
-  "airtty/client",
-  "airtty/server",
+  "luciole/client",
+  "luciole/server",
   "react",
   "@opentui/core",
   "@opentui/react",
@@ -93,7 +93,7 @@ export function guard(changes: ReadonlyMap<string, string | null>): Refusal[] {
 /** Advice on a change that is not refused: studio passes it on, it costs no correction. */
 export type Advice = { file: string; line: number; message: string };
 
-/** A field of the app the user types into: `Input` and `Textarea` of airtty/client, or OpenTUI's. */
+/** A field of the app the user types into: `Input` and `Textarea` of luciole/client, or OpenTUI's. */
 const FIELD = /<(Input|Textarea|input|textarea)\b/g;
 const NAMED = /(^|\s)name\s*=/;
 
@@ -142,7 +142,7 @@ export function advise(changes: ReadonlyMap<string, string | null>): Advice[] {
         file,
         line,
         message: lower
-          ? `<${tag}> keeps nothing when the app reloads: use ${tag === "input" ? "Input" : "Textarea"} from airtty/client with a name (name="form/field")`
+          ? `<${tag}> keeps nothing when the app reloads: use ${tag === "input" ? "Input" : "Textarea"} from luciole/client with a name (name="form/field")`
           : `<${tag}> without a name loses what the user typed when the app reloads: name it (name="form/field") and send the form with useRestoredFields("form").submit`,
       });
     }

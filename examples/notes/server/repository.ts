@@ -1,13 +1,13 @@
 import "server-only";
 import { Database } from "bun:sqlite";
-import { getSession } from "airtty/server";
+import { getSession } from "luciole/server";
 import { z } from "zod";
 import type { Note, SaveResult, Snapshot } from "../components/draft";
 import { StoredResult } from "./schemas";
 const env = z
   .object({
     NOTES_DB: z.string().default("notes.sqlite"),
-    AIRTTY_USER: z.string().default("local"),
+    LUCIOLE_USER: z.string().default("local"),
   })
   .parse(process.env);
 const MAX_VALUE = 2000;
@@ -17,7 +17,7 @@ const db = new Database(env.NOTES_DB, {
 db.exec(
   "PRAGMA journal_mode=WAL; CREATE TABLE IF NOT EXISTS notes(id TEXT PRIMARY KEY, owner TEXT NOT NULL,title TEXT NOT NULL,value TEXT NOT NULL,version INTEGER NOT NULL); CREATE TABLE IF NOT EXISTS operations(owner TEXT NOT NULL,id TEXT NOT NULL,result TEXT NOT NULL,PRIMARY KEY(owner,id));",
 );
-const owner = env.AIRTTY_USER;
+const owner = env.LUCIOLE_USER;
 for (const [id, title] of [
   ["1", "First note"],
   ["2", "Second note"],

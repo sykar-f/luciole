@@ -1,4 +1,4 @@
-import { notFound } from "airtty/server";
+import { notFound } from "luciole/server";
 import { Explorer } from "../components/Explorer";
 import { Screen } from "../components/frames";
 import { Help } from "../components/Help";

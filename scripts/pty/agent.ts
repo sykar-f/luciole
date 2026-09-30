@@ -1,7 +1,7 @@
 /**
  * Agent example on a real PTY, against the real pi and model (spends a little quota).
  *
- * Journey: `airtty dev` → pi boots → prompt with write + bash tool calls streamed → the file
+ * Journey: `luciole dev` → pi boots → prompt with write + bash tool calls streamed → the file
  * exists in the sandbox → browse and unfold the calls → a long bash call interrupted with
  * Ctrl+X → new session → quit, with no pi process left behind. Sandbox and state live in a
  * temporary directory. AGENT_MODEL / AGENT_THINKING pass through; AGENT_PTY_FRAMES=<dir>
@@ -33,7 +33,7 @@ const PI_EXIT_TIMEOUT_MS = 5000;
 const TENTHS = 10;
 const seconds = (ms: number) => Math.round(ms / (1000 / TENTHS)) / TENTHS;
 
-using directory = temporaryDirectory("airtty-agent-");
+using directory = temporaryDirectory("luciole-agent-");
 const sandbox = join(directory.path, "sandbox");
 /** pi renames its process to "pi" (argv is hidden): found by its working directory. */
 const piProcesses = () =>
@@ -67,7 +67,7 @@ await frame("1-idle");
 
 let start = performance.now();
 await t.type(
-  "Create notes.txt containing the word airtty, then run `wc -c notes.txt` " +
+  "Create notes.txt containing the word luciole, then run `wc -c notes.txt` " +
     "with bash. Reply in one short sentence.",
 );
 await t.type(Keys.enter);
@@ -78,7 +78,7 @@ await t.waitFor("● idle", { timeout: MODEL_TIMEOUT_MS });
 timings.firstPromptSeconds = seconds(performance.now() - start);
 assert.equal(
   readFileSync(join(sandbox, "notes.txt"), "utf8").trim(),
-  "airtty",
+  "luciole",
   "the tool ran in the sandbox",
 );
 assert.ok((await t.text()).includes("wc -c notes.txt"));
@@ -91,10 +91,10 @@ await t.type(Keys.enter);
 await t.waitFor("▾ $ bash", { timeout: TIMEOUT_MS });
 assert.match(await t.text(), /│\s+\d+ notes\.txt/, "the bash output is unfolded");
 await t.type("a", 500);
-await t.waitFor("+ airtty", { timeout: TIMEOUT_MS });
+await t.waitFor("+ luciole", { timeout: TIMEOUT_MS });
 await frame("3-unfolded");
 await t.type("a");
-await t.waitFor("+ airtty", { timeout: TIMEOUT_MS, absent: true });
+await t.waitFor("+ luciole", { timeout: TIMEOUT_MS, absent: true });
 await t.type("i");
 await t.waitFor("browse tools", { timeout: TIMEOUT_MS });
 

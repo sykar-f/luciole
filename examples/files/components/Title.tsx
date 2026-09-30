@@ -1,6 +1,6 @@
 import { color } from "./theme";
 
-// `airtty › examples › files`: the root's own name, then the path below it.
+// `luciole › examples › files`: the root's own name, then the path below it.
 export function Title({ root, path }: { root: string; path: string }) {
   const parts = path ? path.split("/") : [];
   const base = root.split("/").at(-1) || "/";

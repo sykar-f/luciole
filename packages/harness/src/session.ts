@@ -72,7 +72,7 @@ export type HarnessSessionOptions = {
   effort?: string;
   /** A harness session to resume: its id, or `true` for the latest of `cwd`. */
   resume?: string | true;
-  /** The adapter of a harness (`@airtty/harness/adapters`, or a host's own). */
+  /** The adapter of a harness (`@luciole/harness/adapters`, or a host's own). */
   create: (id: HarnessId, context: HarnessContext) => Harness;
   /** Whether the harness can run here; `pickHarness` by default. */
   pick?: (wanted: HarnessId | undefined) => Promise<HarnessStatus>;

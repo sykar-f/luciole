@@ -4,9 +4,9 @@ import {
   Database as PageDatabase,
   configureDatabases,
   databaseImages,
-} from "../packages/airtty/src/web/node/bun-sqlite";
+} from "../packages/luciole/src/web/node/bun-sqlite";
 
-/** The part of bun:sqlite airtty's applications use: both databases must offer it. */
+/** The part of bun:sqlite luciole's applications use: both databases must offer it. */
 type Statement = {
   all(...params: SQLQueryBindings[]): unknown[];
   get(...params: SQLQueryBindings[]): unknown;
@@ -20,7 +20,7 @@ type Sqlite = {
   ): ((...args: A) => R) & { immediate: (...args: A) => R };
 };
 
-// What airtty's applications do with bun:sqlite (examples/notes, forge), on both.
+// What luciole's applications do with bun:sqlite (examples/notes, forge), on both.
 function exercise(db: Sqlite) {
   db.exec("CREATE TABLE notes(id TEXT PRIMARY KEY, title TEXT NOT NULL, version INTEGER NOT NULL)");
   for (const [id, title] of [

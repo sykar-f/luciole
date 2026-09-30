@@ -1,6 +1,12 @@
 "use client";
 import { useState } from "react";
-import { DebugOverlay, KeyHelp, useBindings, useConnection, type LayoutProps } from "airtty/client";
+import {
+  DebugOverlay,
+  KeyHelp,
+  useBindings,
+  useConnection,
+  type LayoutProps,
+} from "luciole/client";
 
 export default function RootLayout({ children }: LayoutProps) {
   const { status, error, activity, refresh } = useConnection();
@@ -31,7 +37,7 @@ export default function RootLayout({ children }: LayoutProps) {
       </box>
       {debug ? <DebugOverlay /> : null}
       <box id="chat-footer" height={1} flexShrink={0}>
-        <KeyHelp inline groups={["global", "airtty"]} />
+        <KeyHelp inline groups={["global", "luciole"]} />
       </box>
     </box>
   );

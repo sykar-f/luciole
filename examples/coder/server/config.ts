@@ -1,4 +1,4 @@
-import { getLaunch } from "airtty/server";
+import { getLaunch } from "luciole/server";
 import cli from "../app/args";
 
 /**

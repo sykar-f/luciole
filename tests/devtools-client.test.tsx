@@ -5,13 +5,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createRoute } from "@tanstack/react-router";
 import { createTestRenderer } from "@opentui/core/testing";
-import { createApplication } from "../packages/airtty/src/client";
-import { startClientAgent } from "../packages/airtty/src/devtools/client-agent";
-import { message, PLUGIN } from "../packages/airtty/src/devtools/protocol";
-import { parseEvent, type DevtoolsEvent } from "../packages/airtty/src/devtools/schema";
-import { listenBus, type Connection } from "../packages/airtty/src/devtools/wire";
-import { loadPage, pageRoute, rootRoute } from "../packages/airtty/src/route-tree";
-import type { Fetch } from "../packages/airtty/src/transport";
+import { createApplication } from "../packages/luciole/src/client";
+import { startClientAgent } from "../packages/luciole/src/devtools/client-agent";
+import { message, PLUGIN } from "../packages/luciole/src/devtools/protocol";
+import { parseEvent, type DevtoolsEvent } from "../packages/luciole/src/devtools/schema";
+import { listenBus, type Connection } from "../packages/luciole/src/devtools/wire";
+import { loadPage, pageRoute, rootRoute } from "../packages/luciole/src/route-tree";
+import type { Fetch } from "../packages/luciole/src/transport";
 import { present, renderBody, until } from "./helpers";
 
 // Answers every render with a string, as the page of the Server's `{ tree, tags }` model.
@@ -21,7 +21,7 @@ const fetchPage: Fetch = (url) =>
   );
 
 test("the Client agent streams events and router state, and obeys commands", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "airtty-devtools-"));
+  const dir = await mkdtemp(join(tmpdir(), "luciole-devtools-"));
   const path = join(dir, "bus.sock");
   const received: DevtoolsEvent[] = [];
   const connections: Connection[] = [];
@@ -63,22 +63,22 @@ test("the Client agent streams events and router state, and obeys commands", asy
     await app.router.preloadRoute({ to: "/b" });
     await app.router.navigate({ to: "/b" });
     const cached = () =>
-      of("airtty-client:loader").filter((e) => e.payload.source === "router-cache");
+      of("luciole-client:loader").filter((e) => e.payload.source === "router-cache");
     await until(() => cached().length > 0);
     // TanStack served the preloaded /b: no request, a "(memory cache)" row instead. The
     // Client reports it itself (every loader carries `source`), so the agent adds none.
     expect(cached().map((e) => e.payload)).toMatchObject([
       { routeId: "/b", phase: "end", cause: "navigation" },
     ]);
-    await until(() => of("airtty-router:state").some((e) => e.payload.href === "/b"));
-    expect(of("airtty-client:loader").filter((e) => e.payload.synthetic)).toEqual([]);
-    expect(of("airtty:hello")[0]?.payload).toMatchObject({ role: "client", app: "test" });
-    expect(of("airtty-components:unavailable")).toHaveLength(1);
-    await until(() => of("airtty-router:state").some((e) => e.payload.href === "/b"));
+    await until(() => of("luciole-router:state").some((e) => e.payload.href === "/b"));
+    expect(of("luciole-client:loader").filter((e) => e.payload.synthetic)).toEqual([]);
+    expect(of("luciole:hello")[0]?.payload).toMatchObject({ role: "client", app: "test" });
+    expect(of("luciole-components:unavailable")).toHaveLength(1);
+    await until(() => of("luciole-router:state").some((e) => e.payload.href === "/b"));
 
     console.warn("from the Client", { n: 1 });
-    await until(() => of("airtty-console:entry").length > 0);
-    expect(of("airtty-console:entry").at(-1)?.payload).toMatchObject({
+    await until(() => of("luciole-console:entry").length > 0);
+    expect(of("luciole-console:entry").at(-1)?.payload).toMatchObject({
       level: "warn",
       text: "from the Client { n: 1 }",
     });
@@ -95,11 +95,11 @@ test("the Client agent streams events and router state, and obeys commands", asy
     await until(() => "jitterMs" in network);
     expect(network).toMatchObject({ jitterMs: 5 });
     connection.send(message(PLUGIN.control, "invalidate", { paths: ["/b"] }));
-    await until(() => of("airtty-client:request").some((e) => e.payload.cause === "invalidation"));
-    const start = of("airtty-client:loader").findLast(
+    await until(() => of("luciole-client:request").some((e) => e.payload.cause === "invalidation"));
+    const start = of("luciole-client:loader").findLast(
       (e) => e.payload.phase === "start" && e.payload.cause === "invalidation",
     );
-    const sent = of("airtty-client:request").findLast((e) => e.payload.cause === "invalidation");
+    const sent = of("luciole-client:request").findLast((e) => e.payload.cause === "invalidation");
     expect((sent?.payload.at ?? 0) - (start?.payload.at ?? 0)).toBeGreaterThanOrEqual(55);
   } finally {
     renderer.destroy();

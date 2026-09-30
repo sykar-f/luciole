@@ -1,21 +1,21 @@
 # mux : multiplexeur local
 
-Des programmes locaux côte à côte, chacun sur son PTY, dans une application airtty :
-un petit tmux construit avec `<Terminal>` (`airtty/client`). C'est le mode `process` de
+Des programmes locaux côte à côte, chacun sur son PTY, dans une application luciole :
+un petit tmux construit avec `<Terminal>` (`luciole/client`). C'est le mode `process` de
 [EMBEDDING.md](../../docs/EMBEDDING.md) : aucune isolation, les programmes ont vos droits.
 
 ```sh
-bun packages/airtty/src/cli.ts dev --app examples/mux        # bun run mux
+bun packages/luciole/src/cli.ts dev --app examples/mux        # bun run mux
 MUX_PANES='[["htop"],["vim","README.md"]]' bun run mux
 ```
 
-Un pane peut aussi être une autre application airtty, affichée inline (`<Embed>`) avec
-son Server déjà lancé : son bundle d'application (`.airtty/app`, sans runtime) est évalué
+Un pane peut aussi être une autre application luciole, affichée inline (`<Embed>`) avec
+son Server déjà lancé : son bundle d'application (`.luciole/app`, sans runtime) est évalué
 contre le runtime du multiplexeur.
 
 ```sh
-bun --conditions=react-server examples/mdreader/.airtty/server/index.js &   # PORT=3000
-MUX_APPS='[{"name":"docs","bundle":"examples/mdreader/.airtty/app","url":"http://127.0.0.1:3000"}]' bun run mux
+bun --conditions=react-server examples/mdreader/.luciole/server/index.js &   # PORT=3000
+MUX_APPS='[{"name":"docs","bundle":"examples/mdreader/.luciole/app","url":"http://127.0.0.1:3000"}]' bun run mux
 ```
 
 Mêmes touches, même préfixe : `Ctrl+O` passe d'un terminal à l'application et

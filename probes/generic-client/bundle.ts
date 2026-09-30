@@ -4,13 +4,13 @@ import { readFile, rm } from "node:fs/promises";
 import { isBuiltin } from "node:module";
 import { join, relative } from "node:path";
 import { z } from "zod";
-import { build } from "../../packages/airtty/src/build";
-import { logMessages } from "../../packages/airtty/src/bundle-errors";
-import { readJsonFile } from "../../packages/airtty/src/package-json";
+import { build } from "../../packages/luciole/src/build";
+import { logMessages } from "../../packages/luciole/src/bundle-errors";
+import { readJsonFile } from "../../packages/luciole/src/package-json";
 import { isAbiSpecifier, runtimeAbi } from "./abi";
 
 const quote = JSON.stringify;
-// The part of `.airtty/manifest.json` (src/build.ts) this bundler reads.
+// The part of `.luciole/manifest.json` (src/build.ts) this bundler reads.
 const BuildManifest = z.object({
   buildId: z.string(),
   manifest: z.record(z.string(), z.object({ id: z.string() })),
@@ -34,7 +34,7 @@ export async function bundleApp(appDir: string, { minify = true } = {}) {
   const { buildId, manifest } = await readJsonFile(join(output, "manifest.json"), BuildManifest);
   const ids = [...new Set(Object.values(manifest).map((m) => m.id))].sort();
   const id = (file: string) => `${buildId}/${relative(appDir, file)}`;
-  const entry = join(appDir, `.airtty-bundle-entry-${crypto.randomUUID()}.ts`);
+  const entry = join(appDir, `.luciole-bundle-entry-${crypto.randomUUID()}.ts`);
   await Bun.write(
     entry,
     `export {routeTree} from ${quote(join(appDir, "app/routeTree.gen.ts"))};\n` +
@@ -55,7 +55,7 @@ export async function bundleApp(appDir: string, { minify = true } = {}) {
       metafile: true,
       plugins: [
         {
-          name: "airtty-generic-client",
+          name: "luciole-generic-client",
           setup(b) {
             b.onResolve({ filter: /.*/ }, (a) =>
               isAbiSpecifier(a.path) ? { path: a.path, external: true } : undefined,
@@ -70,7 +70,7 @@ export async function bundleApp(appDir: string, { minify = true } = {}) {
               // "use server" modules become references, as in src/build.ts: the Server
               // code never enters the bundle.
               const text = USE_SERVER.test(source)
-                ? `import {actionReference} from "airtty/client";\n` +
+                ? `import {actionReference} from "luciole/client";\n` +
                   exportsOf(source)
                     .map(
                       (n) => `export const ${n}=actionReference(${quote(`${id(a.path)}#${n}`)});`,

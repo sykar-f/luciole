@@ -21,7 +21,7 @@ pas nécessaire.
 ## Commandes
 
 ```sh
-bun run build                                   # racine : produit .airtty/client/index.js
+bun run build                                   # racine : produit .luciole/client/index.js
 cd probes/compile
 bun install --os='*' --cpu='*'                  # paquets natifs Linux (cross-compilation)
 bun compile.ts                                  # → .out/notes-client-darwin-arm64
@@ -31,7 +31,7 @@ bun compile.ts --runtime host                   # utilise le bun local au lieu d
 bun compile.ts --entry treesitter.ts --out .out/ts   # worker + wasm tree-sitter
 ```
 
-Pour lancer le Server : `cd examples/notes/.airtty/server && NOTES_DB=$(mktemp -d)/n.sqlite PORT=0 bun --conditions=react-server index.js`.
+Pour lancer le Server : `cd examples/notes/.luciole/server && NOTES_DB=$(mktemp -d)/n.sqlite PORT=0 bun --conditions=react-server index.js`.
 `smoke.sh` copie le binaire dans un `mktemp -d` sous `/private/tmp`, sans
 `node_modules` dans les dossiers parents. Il utilise `env -i` avec
 `PATH=/usr/bin:/bin`, donc sans Bun, puis lance `script`. Il envoie `Enter`, puis
@@ -41,7 +41,7 @@ Pour lancer le Server : `cd examples/notes/.airtty/server && NOTES_DB=$(mktemp -
 
 | Essai                                                                         | Résultat                                                                                                                           |
 | ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| CLI `bun build --compile --target=bun-darwin-arm64 .airtty/client/index.js`   | OK en 0,3 s : 40 modules, sans plugin ni option                                                                                    |
+| CLI `bun build --compile --target=bun-darwin-arm64 .luciole/client/index.js`  | OK en 0,3 s : 40 modules, sans plugin ni option                                                                                    |
 | Binaire darwin-arm64, dossier vide, sans Bun                                  | Rendu `NOTES · Connected`, liste, `Enter` → `Opening note 1…`, éditeur `First note · version 1` ; `Ctrl+C` → code 0                |
 | Binaire compilé avant un rebuild du Server                                    | `Incompatible build: install matching Client and Server` (409). Le buildId est figé dans le binaire                                |
 | `treesitter.ts` compilé (worker `parser.worker.js`, wasm)                     | `{"highlights":10,"error":null}`, code 0. Cache écrit dans `$HOME/.local/share/opentui/tree-sitter`                                |
@@ -67,7 +67,7 @@ tree-sitter 3,3 Mio + JS), linux-x64 90,3 Mio, linux-arm64 89,9 Mio.
    `executablePath` : `compile.ts` télécharge
    `@oven/bun-darwin-aarch64@<Bun.version>` depuis npm. Le binaire lie alors
    `/usr/lib/libicucore.A.dylib`. Homebrew pose peut-être le même problème ;
-   ce n'est pas vérifié. `airtty build --compile` embarque désormais ce runtime
+   ce n'est pas vérifié. `luciole build --compile` embarque désormais ce runtime
    par défaut (mis en cache, `--runtime host` pour revenir au Bun local).
 2. **Cross-compilation** : le paquet `@opentui/core-<os>-<arch>` de la cible doit
    être présent. Un plugin `onResolve` le résout depuis un dossier installé avec
@@ -90,7 +90,7 @@ tree-sitter 3,3 Mio + JS), linux-x64 90,3 Mio, linux-arm64 89,9 Mio.
    prend le même temps que sans hardened runtime (19,3 s contre 20,0 s : JIT actif).
    Le runtime d'Oven déclare en plus `allow-unsigned-executable-memory`,
    `disable-executable-page-protection` et `allow-dyld-environment-variables`, dont
-   Notes n'a pas eu besoin. `airtty build --compile --sign` applique ces deux
+   Notes n'a pas eu besoin. `luciole build --compile --sign` applique ces deux
    entitlements ; la signature Developer ID et la notarisation n'ont pas été
    exécutées (aucune identité Developer ID sur la machine).
    `$TMPDIR` doit être accessible en écriture, et exécutable, pour extraire la
@@ -98,9 +98,9 @@ tree-sitter 3,3 Mio + JS), linux-x64 90,3 Mio, linux-arm64 89,9 Mio.
 7. **musl n'est pas autonome** : le runtime Bun musl lie `libstdc++.so.6` et
    `libgcc_s.so.1`, absents d'une Alpine nue.
 
-## Mécanisme recommandé : `airtty build --compile [--target …]`
+## Mécanisme recommandé : `luciole build --compile [--target …]`
 
-Après `build()`, compiler `.airtty/client/index.js` tel quel. Les externals se
+Après `build()`, compiler `.luciole/client/index.js` tel quel. Les externals se
 résolvent alors depuis les `node_modules` de l'application :
 
 ```ts

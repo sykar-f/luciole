@@ -1,4 +1,4 @@
-import type { Request, Response } from "@airtty/harness/model";
+import type { Request, Response } from "@luciole/harness/model";
 import { writable } from "./guard";
 
 /**

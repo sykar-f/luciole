@@ -2,7 +2,7 @@
  * A studio project: the directory the harness writes, created from the template, and the
  * git repository studio keeps in it, one commit per revision (docs/studio/SPEC.md, 2.5).
  * Git runs with an identity and settings of its own: never the user's name, hooks or
- * signing key. `.airtty-studio/` holds what studio keeps beside the code (builds, the
+ * signing key. `.luciole-studio/` holds what studio keeps beside the code (builds, the
  * project's publisher key, the lock); it is ignored by git and closed to the harness.
  */
 import { spawnSync } from "node:child_process";
@@ -18,13 +18,13 @@ import {
 } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve, sep } from "node:path";
-import { frameworkModules } from "airtty/dev";
-import { splitPatch } from "@airtty/harness/diff";
-import type { FilePatch } from "@airtty/harness/model";
+import { frameworkModules } from "luciole/dev";
+import { splitPatch } from "@luciole/harness/diff";
+import type { FilePatch } from "@luciole/harness/model";
 import { TEMPLATE } from "./template.gen";
 
 /** Beside the code, ignored by git, closed to the harness. */
-export const STATE_DIRECTORY = ".airtty-studio";
+export const STATE_DIRECTORY = ".luciole-studio";
 const PRIVATE_DIRECTORY = 0o700;
 const GIT_IDENTITY = [
   "-c",
@@ -47,13 +47,13 @@ const MS_PER_SECOND = 1000;
 
 export type Revision = { number: number; hash: string; summary: string; at: number };
 
-/** Where projects named by `--project` live: `$XDG_DATA_HOME/airtty/studio/<name>`. */
+/** Where projects named by `--project` live: `$XDG_DATA_HOME/luciole/studio/<name>`. */
 export const projectsRoot = (env: NodeJS.ProcessEnv = process.env) =>
-  join(env.XDG_DATA_HOME || join(homedir(), ".local", "share"), "airtty", "studio");
+  join(env.XDG_DATA_HOME || join(homedir(), ".local", "share"), "luciole", "studio");
 
 /** The framework's packages, which a project resolves through its node_modules link. */
 function packages() {
-  return frameworkModules(dirname(Bun.resolveSync("airtty/client", import.meta.dir)));
+  return frameworkModules(dirname(Bun.resolveSync("luciole/client", import.meta.dir)));
 }
 
 function git(directory: string, args: readonly string[], input?: string) {
@@ -144,7 +144,7 @@ export class Project {
     if (!existsSync(link)) symlinkSync(packages(), link, "dir");
   }
 
-  /** A directory of `.airtty-studio/` for studio's own files, private to the user. */
+  /** A directory of `.luciole-studio/` for studio's own files, private to the user. */
   privateDirectory(...path: string[]) {
     const directory = join(this.state, ...path);
     mkdirSync(directory, { recursive: true, mode: PRIVATE_DIRECTORY });

@@ -1,4 +1,4 @@
-# opencode as an embeddable harness for `coder` (airtty example)
+# opencode as an embeddable harness for `coder` (luciole example)
 
 Research date: 2026-09-26. Local binary: `opencode` 1.18.31 (`/etc/profiles/per-user/sykar-f/bin/opencode`).
 Repo: **github.com/sst/opencode now redirects (301) to github.com/anomalyco/opencode** (~210k stars, active).

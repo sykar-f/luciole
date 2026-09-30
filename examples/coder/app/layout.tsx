@@ -1,6 +1,6 @@
 "use client";
-import { KeyHelp, useConnection, type LayoutProps } from "airtty/client";
-import { color } from "@airtty/harness/ui/theme";
+import { KeyHelp, useConnection, type LayoutProps } from "luciole/client";
+import { color } from "@luciole/harness/ui/theme";
 
 export default function RootLayout({ children }: LayoutProps) {
   const { error, buildError } = useConnection();
@@ -17,7 +17,7 @@ export default function RootLayout({ children }: LayoutProps) {
       <box id="coder-help" height={1} flexShrink={0} paddingX={1}>
         <KeyHelp
           inline
-          groups={["dialog", "picker", "coder", "browse", "global", "airtty"]}
+          groups={["dialog", "picker", "coder", "browse", "global", "luciole"]}
           fg={color.muted}
           accent={color.accent}
         />

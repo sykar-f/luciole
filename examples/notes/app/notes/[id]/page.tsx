@@ -1,5 +1,5 @@
 import { NotePageFrame } from "../../../components/NoteFrame";
-import { getSession } from "airtty/server";
+import { getSession } from "luciole/server";
 import { noteOf } from "../../../server/queries";
 import { saveNote, getOperation } from "../../../actions/notes";
 import { NoteEditor } from "../../../components/NoteEditor";

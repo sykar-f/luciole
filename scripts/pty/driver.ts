@@ -2,7 +2,7 @@
  * Drives a program on a real pseudo-terminal and reads its screen, as a user would see it.
  *
  * The PTY is Bun's own (`Bun.Terminal`), the program spawned `detached` as in
- * packages/airtty/src/vt/pty.ts: it leads its own session, which is signaled as a whole
+ * packages/luciole/src/vt/pty.ts: it leads its own session, which is signaled as a whole
  * when the journey ends. The screen is rebuilt by OpenTUI's terminal emulator
  * (libghostty-vt, through `VtTerminalRenderable`) on a headless test renderer: the
  * emulator the VT widget shows programs with.
@@ -12,7 +12,7 @@
  * failed wait reports what the screen showed.
  */
 import { createTestRenderer, type TestRendererSetup } from "@opentui/core/testing";
-import { VtTerminalRenderable } from "../../packages/airtty/src/vt/gaps";
+import { VtTerminalRenderable } from "../../packages/luciole/src/vt/gaps";
 import { environment } from "./harness";
 
 const ESC = "\x1b";

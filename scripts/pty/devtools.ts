@@ -1,5 +1,5 @@
 /**
- * `airtty devtools` inspecting Notes under `airtty dev`, each on its own PTY.
+ * `luciole devtools` inspecting Notes under `luciole dev`, each on its own PTY.
  *
  * Checks what a developer would: both processes connect, requests appear with their Server
  * side, the component tree holds a Server Component, paint flashing reaches the
@@ -15,7 +15,7 @@ const APP_START_TIMEOUT_MS = 60_000;
 const FLASH_TIMEOUT_MS = 3000;
 const SELECT_MS = 300;
 
-using directory = temporaryDirectory("airtty-pty-devtools-");
+using directory = temporaryDirectory("luciole-pty-devtools-");
 const socket = `unix:${directory.path}/bus.sock`;
 const env = { XDG_STATE_HOME: join(directory.path, "state") };
 const size = { cols: 120, rows: 34 };
@@ -27,15 +27,15 @@ await using devtools = await drive({
   cwd: ROOT,
   env,
 });
-await wait(devtools, "AIRTTY_DEVTOOLS=");
+await wait(devtools, "LUCIOLE_DEVTOOLS=");
 await using app = await drive({
   command: [BUN, CLI, "dev", "--app", "examples/notes"],
   ...size,
   cwd: ROOT,
   env: {
     ...env,
-    AIRTTY_DEVTOOLS: socket,
-    BUN_OPTIONS: `--preload=${ROOT}/packages/airtty/src/devtools/hook.ts`,
+    LUCIOLE_DEVTOOLS: socket,
+    BUN_OPTIONS: `--preload=${ROOT}/packages/luciole/src/devtools/hook.ts`,
     NOTES_DB: join(directory.path, "notes.sqlite"),
   },
 });

@@ -109,7 +109,7 @@ try {
     // The reader goes somewhere the capture does not show; a restored session would
     // reopen it on the next visit.
     await browser.evaluate(
-      `${NOTES_FRAME}.contentWindow.postMessage({ source: "airtty", type: "input", data: "\\r" }, location.origin)`,
+      `${NOTES_FRAME}.contentWindow.postMessage({ source: "luciole", type: "input", data: "\\r" }, location.origin)`,
     );
     await browser.waitFor(
       `[...${NOTES_FRAME}.contentDocument.querySelectorAll(".xterm-rows > div")].some((row) => row.textContent.includes(${JSON.stringify(NOTE_EDITOR)}))`,

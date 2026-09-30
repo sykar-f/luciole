@@ -2,7 +2,7 @@
 import { useEffect, useRef } from "react";
 import type { BoxRenderable } from "@opentui/core";
 import { useTimeline } from "@opentui/react";
-import { KeyHelp, type LoadingProps } from "airtty/client";
+import { KeyHelp, type LoadingProps } from "luciole/client";
 import { NotePageFrame, NoteEditorFrame } from "../../../components/NoteFrame";
 
 export default function Loading({ params }: LoadingProps) {
@@ -34,7 +34,7 @@ export default function Loading({ params }: LoadingProps) {
           </box>
         }
         status="Waiting for Server…"
-        help={<KeyHelp inline groups={["airtty"]} />}
+        help={<KeyHelp inline groups={["luciole"]} />}
       />
     </NotePageFrame>
   );

@@ -14,21 +14,21 @@ import { BUN, ROOT, numberFromEnv, report, startServer, temporaryDirectory } fro
 const { values: args } = parseArgs({
   options: {
     url: { type: "string" },
-    client: { type: "string", default: "examples/notes/.airtty/client/index.js" },
+    client: { type: "string", default: "examples/notes/.luciole/client/index.js" },
   },
 });
-const latency = numberFromEnv("AIRTTY_LATENCY_MS", 0);
+const latency = numberFromEnv("LUCIOLE_LATENCY_MS", 0);
 const serverDelay = numberFromEnv("NOTES_DELAY_MS", 700);
 // Under this simulated RTT the loading screen is too brief to be caught.
 const VISIBLE_LOADING_RTT_MS = 400;
 
-using directory = temporaryDirectory("airtty-pty-");
+using directory = temporaryDirectory("luciole-pty-");
 await using server = args.url
   ? undefined
   : await startServer(join(ROOT, "examples/notes"), {
       NOTES_DB: join(directory.path, "notes.sqlite"),
       NOTES_DELAY_MS: String(serverDelay),
-      AIRTTY_TEST: "1",
+      LUCIOLE_TEST: "1",
     });
 const url = args.url ?? server?.url ?? "";
 await using t = await drive({

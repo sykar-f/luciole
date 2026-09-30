@@ -1,6 +1,6 @@
 /** @jsxImportSource @opentui/react */
 import { beforeAll, expect, test } from "bun:test";
-import { build } from "../packages/airtty/src/build";
+import { build } from "../packages/luciole/src/build";
 import { forgeDirectory, startForge } from "./forge-helpers";
 
 beforeAll(async () => {

@@ -1,6 +1,6 @@
 /**
  * The coder example on a real PTY, on the scripted harness (offline, no quota):
- * `airtty dev -- --harness fake` → a streamed reply → a command → an edit approved in
+ * `luciole dev -- --harness fake` → a streamed reply → a command → an edit approved in
  * its dialog → a slow command interrupted with Esc → Shift+Tab changes the mode → the
  * help overlay → browsing unfolds a block → Ctrl+C quits, the Server with it.
  * CODER_PTY_FRAMES=<dir> writes each screen there.
@@ -27,13 +27,13 @@ const EXIT_TIMEOUT_MS = 10_000;
 const SERVER_EXIT_TIMEOUT_MS = 5000;
 const SHIFT_TAB = "\x1b[Z";
 
-using directory = temporaryDirectory("airtty-coder-");
+using directory = temporaryDirectory("luciole-coder-");
 const project = join(directory.path, "project");
 mkdirSync(project);
 /** This journey's coder Servers: a coder the user runs elsewhere is not one of them. */
 const servers = () =>
   workingIn(
-    commandOutput(["pgrep", "-f", `${example("coder")}/.airtty/server/index.js`])
+    commandOutput(["pgrep", "-f", `${example("coder")}/.luciole/server/index.js`])
       .split(/\s+/)
       .filter(Boolean),
     project,

@@ -1,16 +1,16 @@
 {
-  "name": "@airtty-examples/notes",
+  "name": "@luciole-examples/notes",
   "private": true,
   "version": "0.1.0",
   "description": "A personal notebook: notes kept in SQLite on the Server.",
   "type": "module",
-  "airtty": {
+  "luciole": {
     "displayName": "Notes",
-    "identifier": "dev.airtty.examples.notes",
+    "identifier": "dev.luciole.examples.notes",
     "icon": "assets/icon.png"
   },
   "dependencies": {
-    "airtty": "workspace:*",
+    "luciole": "workspace:*",
     "@opentui/core": "catalog:",
     "@opentui/react": "catalog:",
     "@tanstack/react-router": "catalog:",

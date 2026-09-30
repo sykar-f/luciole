@@ -14,7 +14,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { act } from "react";
 import { testRender } from "@opentui/react/test-utils";
-import { build } from "../packages/airtty/src/build";
+import { build } from "../packages/luciole/src/build";
 import { isolationProblem } from "../examples/studio/server/preview";
 import { importClient, launch } from "./helpers";
 
@@ -38,8 +38,8 @@ async function startStudio(mode: string = MODE) {
   const state = process.env.XDG_STATE_HOME;
   process.env.XDG_STATE_HOME = join(temp, "state");
   const project = join(temp, "demo");
-  const server = await launch(join(STUDIO, ".airtty/server/index.js"), {
-    AIRTTY_ARGS: JSON.stringify({
+  const server = await launch(join(STUDIO, ".luciole/server/index.js"), {
+    LUCIOLE_ARGS: JSON.stringify({
       v: 1,
       argv: ["--harness", "fake", "--dir", project, "--preview", mode],
       cwd: temp,
@@ -145,7 +145,7 @@ test("studio --preview process: the app runs with the user's rights, and says so
     await studio.prompt("/allow api.example.com");
     await studio.waitFor(/ r1 · process /);
     const manifest: unknown = await Bun.file(join(studio.project, "package.json")).json();
-    expect(manifest).toMatchObject({ airtty: { capabilities: { net: ["api.example.com"] } } });
+    expect(manifest).toMatchObject({ luciole: { capabilities: { net: ["api.example.com"] } } });
     await studio.press("o", { ctrl: true });
     await studio.press("h");
     await studio.waitFor("r1 · network: api.example.com");

@@ -1,5 +1,5 @@
 "use client";
-import type { LoadingProps } from "airtty/client";
+import type { LoadingProps } from "luciole/client";
 import { Column, DocFrame, SkeletonRows } from "../components/frames";
 import { Help } from "../components/Help";
 import { Pulse } from "../components/Pulse";
@@ -10,7 +10,7 @@ export default function DocLoading({ params }: LoadingProps) {
     <DocFrame
       title={params.path ?? "Opening…"}
       subtitle="Loading…"
-      help={<Help groups={["airtty"]} />}
+      help={<Help groups={["luciole"]} />}
     >
       <Pulse>
         <Column>

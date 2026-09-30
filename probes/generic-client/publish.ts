@@ -30,7 +30,7 @@ export function signBundle(
 }
 
 /**
- * What an airtty Server needs to serve a generic Client: two GET routes. They sit in
+ * What a luciole Server needs to serve a generic Client: two GET routes. They sit in
  * front of the application's real Server here, which forwards everything else to it
  * (render, action and live streams pass through unbuffered).
  */
@@ -55,7 +55,7 @@ export function serveBundle(options: {
         return new Response(current.code, {
           headers: {
             "content-type": "text/javascript",
-            "x-airtty-bundle": current.signed.manifest.sha256,
+            "x-luciole-bundle": current.signed.manifest.sha256,
           },
         });
       }

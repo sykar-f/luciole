@@ -17,17 +17,17 @@ Toutes les phases du handoff (0 à 7) sont faites. Voir « Bilan » en fin de do
 
 - **Préalable** — `docs(coder): format the handoff…` : les notes du handoff n'étaient pas
   passées par oxfmt, `verify` échouait.
-- **Phase 0** — `fix(build): lock concurrent builds…` : verrou `mkdir` `.airtty-lock` ;
-  build sauté si buildId et options identiques ; `package.json`, `airtty.json` et l'icône
+- **Phase 0** — `fix(build): lock concurrent builds…` : verrou `mkdir` `.luciole-lock` ;
+  build sauté si buildId et options identiques ; `package.json`, `luciole.json` et l'icône
   entrent dans le buildId.
-- **Phase 1** — `feat(args): let applications declare…` : `airtty/args` (`defineArgs`,
-  parseur maison sur Standard (JSON) Schema), `app/args.ts` bundlé dans `.airtty/args`,
-  JSON Schema dans `metadata.json`, `AIRTTY_ARGS`, entrées dev / lanceur / binaire /
+- **Phase 1** — `feat(args): let applications declare…` : `luciole/args` (`defineArgs`,
+  parseur maison sur Standard (JSON) Schema), `app/args.ts` bundlé dans `.luciole/args`,
+  JSON Schema dans `metadata.json`, `LUCIOLE_ARGS`, entrées dev / lanceur / binaire /
   `serve --` / `start --` / `--on` (stdin), code de sortie 2, docs FR. Correctifs
   ensuite : `fix(args): let Server modules read arguments at module level`,
   `fix(args): import the arguments module by absolute path`.
 - **Phase 2** — `feat(launcher): give each launch its own Server…` : manifeste
-  `airtty.server` (`shared` / `per-directory` / `per-launch`) et `airtty.grace`, clé
+  `luciole.server` (`shared` / `per-directory` / `per-launch`) et `luciole.grace`, clé
   `<cible>@<cwd>#<empreinte>!<id>`, réclamation d'orphelin (`claimOrphan`), `--new`,
   `getLaunch()`, empreinte dans le cache et dans `/lifetime/status`, `--on` par stdin,
   parcours PTY `test:pty:launches`.
@@ -48,7 +48,7 @@ Toutes les phases du handoff (0 à 7) sont faites. Voir « Bilan » en fin de do
   conformité, parcours réel manuel `scripts/pty/coder-real.ts claude` (passé).
 
 - **Phase 5** — `feat(coder): drive Codex through its app-server` : adaptateur
-  `server/adapters/codex.ts` (JSON-RPC via `RpcPeer`, `clientInfo.name = "airtty-coder"`,
+  `server/adapters/codex.ts` (JSON-RPC via `RpcPeer`, `clientInfo.name = "luciole-coder"`,
   thread par session, approbations commande / fichier / questions comme requêtes de
   Codex répondues une fois, mode `read` = sandbox lecture seule + `collaborationMode`
   plan, revue du plan final par coder, mode `edits` = fichiers acceptés d'office,

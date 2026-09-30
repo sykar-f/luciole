@@ -7,7 +7,7 @@ import {
   useNavigate,
   useRestoredFields,
   useRestoredFocus,
-} from "airtty/client";
+} from "luciole/client";
 import { openPullRequest, resolveSave } from "../actions/pulls";
 import type { Note } from "./draft";
 import { useEditingWhile } from "./editing";

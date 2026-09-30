@@ -9,8 +9,8 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { gzipSync } from "bun";
 import { launch, until } from "../../tests/helpers";
-import type { ApplicationEvent } from "../../packages/airtty/src/client";
-import { messageOf } from "../../packages/airtty/src/guards";
+import type { ApplicationEvent } from "../../packages/luciole/src/client";
+import { messageOf } from "../../packages/luciole/src/guards";
 import { runtimeAbi } from "./abi";
 import { bundleApp } from "./bundle";
 import { EmbedShell, createPanes } from "./host";
@@ -40,8 +40,8 @@ async function refusal(promise: Promise<unknown>) {
 }
 
 const appDir = resolve("examples/mdreader");
-const library = await mkdtemp(join(tmpdir(), "airtty-generic-docs-"));
-const store = await mkdtemp(join(tmpdir(), "airtty-generic-store-"));
+const library = await mkdtemp(join(tmpdir(), "luciole-generic-docs-"));
+const store = await mkdtemp(join(tmpdir(), "luciole-generic-store-"));
 await Bun.write(join(library, "README.md"), "# Handbook\n\nDownloaded, verified, rendered.\n");
 await Bun.write(join(library, "guide.md"), "# Guide\n\nSecond document.\n");
 
@@ -56,13 +56,13 @@ results.bundle = {
   clientModules: bundle.clientModules,
   sources: bundle.sources,
   builtins: bundle.builtins,
-  airttyBuildMs: round(bundle.serverBuildMs),
+  lucioleBuildMs: round(bundle.serverBuildMs),
   bundleMs: round(bundle.bundleMs),
   abi,
 };
 // The Server with the proposed instance prefix (probes/inline/instance-server.ts).
 const server = await launch(join(import.meta.dir, "../inline/instance-server.ts"), {
-  SERVER_ENTRY: join(appDir, ".airtty/server/index.js"),
+  SERVER_ENTRY: join(appDir, ".luciole/server/index.js"),
   MD_PATH: library,
 });
 const keys = publisherKeys();
@@ -83,7 +83,7 @@ try {
   const panes = createPanes(runtime, { routeBy: "instance" });
   const pane = panes.open(cold.manifest.buildId);
   const loaded = evaluateBundle(cold.code, {
-    filename: `airtty-app:${cold.origin}/${cold.manifest.sha256}.js`,
+    filename: `luciole-app:${cold.origin}/${cold.manifest.sha256}.js`,
     abi: panes.abiFor(pane),
     builtins: cold.manifest.builtins,
   });
@@ -108,7 +108,7 @@ try {
   const firstFrameMs = performance.now() - coldStart;
   check("downloaded mdreader renders its home document", frame.includes("Handbook"));
   // `watchLibrary` is imported by a Client Component: its stub went through the
-  // per-origin `airtty/client` and reached this origin's Server.
+  // per-origin `luciole/client` and reached this origin's Server.
   const live = events.find(
     (e) => e.type === "request" && e.kind === "action" && e.cause === "live",
   );
@@ -137,7 +137,7 @@ try {
   results.frame = frame.split("\n").slice(0, FRAME_LINES).join("\n");
 
   // Refusals, all before evaluation.
-  const fresh = () => mkdtemp(join(tmpdir(), "airtty-generic-store-"));
+  const fresh = () => mkdtemp(join(tmpdir(), "luciole-generic-store-"));
   front.replace({ code: `${bundle.code}\n;globalThis.pwned=1;` });
   const tampered = await refusal(fetchBundle(front.url, { store: await fresh(), abiKey: abi.key }));
   check("tampered bundle refused", tampered.includes("does not match the signed hash"), tampered);

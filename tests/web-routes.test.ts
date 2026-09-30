@@ -2,11 +2,11 @@ import { afterAll, expect, test } from "bun:test";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ABI_KEY } from "../packages/airtty/src/abi";
-import { WebOrigin, webAccess, WEB_PATH } from "../packages/airtty/src/web-routes";
+import { ABI_KEY } from "../packages/luciole/src/abi";
+import { WebOrigin, webAccess, WEB_PATH } from "../packages/luciole/src/web-routes";
 
 const ORIGIN = "https://notes.example.com";
-const directory = mkdtempSync(join(tmpdir(), "airtty-web-"));
+const directory = mkdtempSync(join(tmpdir(), "luciole-web-"));
 afterAll(() => rmSync(directory, { recursive: true, force: true }));
 writeFileSync(join(directory, "web-runtime.json"), JSON.stringify({ abi: ABI_KEY }));
 writeFileSync(join(directory, "index.html"), "<!doctype html>");
@@ -51,9 +51,9 @@ test("the page's files are served, nothing else in the directory", async () => {
 });
 
 test("a declared origin needs a runtime built for this ABI", () => {
-  const empty = mkdtempSync(join(tmpdir(), "airtty-web-empty-"));
+  const empty = mkdtempSync(join(tmpdir(), "luciole-web-empty-"));
   try {
-    expect(() => webAccess(empty, ORIGIN)).toThrow("airtty build --web");
+    expect(() => webAccess(empty, ORIGIN)).toThrow("luciole build --web");
     writeFileSync(join(empty, "web-runtime.json"), JSON.stringify({ abi: "0-other" }));
     expect(() => webAccess(empty, ORIGIN)).toThrow("runtime ABI 0-other");
   } finally {
@@ -61,7 +61,7 @@ test("a declared origin needs a runtime built for this ABI", () => {
   }
 });
 
-test("AIRTTY_WEB_ORIGIN is an origin, not a URL", () => {
+test("LUCIOLE_WEB_ORIGIN is an origin, not a URL", () => {
   expect(WebOrigin.safeParse(ORIGIN).success).toBe(true);
   expect(WebOrigin.safeParse("http://127.0.0.1:3000").success).toBe(true);
   expect(WebOrigin.safeParse(`${ORIGIN}/`).success).toBe(false);

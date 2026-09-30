@@ -3,16 +3,16 @@ title: DevTools
 description: Inspect a running app from another terminal pane. Requests of both processes with the cache that answered, components and why they rendered, logs, router, cache, keys and live network conditions.
 sources:
   - docs/DEVTOOLS.md
-  - packages/airtty/src/commands/devtools.ts
-  - packages/airtty/src/devtools
+  - packages/luciole/src/commands/devtools.ts
+  - packages/luciole/src/devtools
 ---
 
 import CopyCommand from "../../../components/CopyCommand.astro";
 import Note from "../../../components/docs/Note.astro";
 import { commands } from "../../../lib/product";
 
-The DevTools are the equivalent of Chrome DevTools and React DevTools for an airtty app, in
-a terminal. They are an airtty app themselves: their Server holds the event bus, their
+The DevTools are the equivalent of Chrome DevTools and React DevTools for a luciole app, in
+a terminal. They are a luciole app themselves: their Server holds the event bus, their
 Client reads it through a live Server Function, and each panel is a route.
 
 ## Start
@@ -28,17 +28,17 @@ Two terminal panes, from the repository's root:
 
 `--env` prints the two variables to export:
 
-| Variable          | Role                                                                                                                                                  |
-| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `AIRTTY_DEVTOOLS` | Where the DevTools listen: `1` (the default per-user Unix socket), a path (`/…` or `unix:/…`) or `ws://host:port`. Read by the Client and the Server. |
-| `BUN_OPTIONS`     | `--preload=…/src/devtools/hook.ts`, the fiber hook the Components panel needs. Without it everything else works, and the panel says how to enable it. |
+| Variable           | Role                                                                                                                                                  |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `LUCIOLE_DEVTOOLS` | Where the DevTools listen: `1` (the default per-user Unix socket), a path (`/…` or `unix:/…`) or `ws://host:port`. Read by the Client and the Server. |
+| `BUN_OPTIONS`      | `--preload=…/src/devtools/hook.ts`, the fiber hook the Components panel needs. Without it everything else works, and the panel says how to enable it. |
 
-`airtty devtools` listens on `--listen`, else on the shell's `AIRTTY_DEVTOOLS`, else on the
+`luciole devtools` listens on `--listen`, else on the shell's `LUCIOLE_DEVTOOLS`, else on the
 default socket. `--demo` replays a simulated session; `--replay file.json` opens a
 recording.
 
 **Nothing without the variable.** The Server leaves its instrumentation as configured and
-the Client never imports the agent. Under `NODE_ENV=production` (`airtty start`), the variable
+the Client never imports the agent. Under `NODE_ENV=production` (`luciole start`), the variable
 is ignored with a warning.
 
 ## Panels
@@ -92,8 +92,8 @@ as loader waiting.
 
 ## Record and replay
 
-<kbd>E</kbd> writes `airtty-devtools-<date>.json` (the raw journal, which `--replay` opens)
-and a `.har` (HAR 1.2, readable by Chrome's tools; what HTTP cannot say travels in `_airtty`
+<kbd>E</kbd> writes `luciole-devtools-<date>.json` (the raw journal, which `--replay` opens)
+and a `.har` (HAR 1.2, readable by Chrome's tools; what HTTP cannot say travels in `_luciole`
 fields) in the directory the DevTools run in.
 
 ## Security

@@ -8,7 +8,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { Database } from "bun:sqlite";
 import { z } from "zod";
-import { build } from "../packages/airtty/src/build";
+import { build } from "../packages/luciole/src/build";
 import {
   launch,
   until,
@@ -38,11 +38,11 @@ const count = (db: Database) =>
   db.query<{ n: number }, []>("SELECT COUNT(*) AS n FROM operations").get()?.n;
 test("lost commit: durable outcome recovery, no mutation replay, reconnect refresh", async () => {
   await build(root);
-  const dir = await mkdtemp(join(tmpdir(), "airtty-loss-"));
+  const dir = await mkdtemp(join(tmpdir(), "luciole-loss-"));
   const dbPath = join(dir, "notes.sqlite");
-  let server = await launch(join(root, ".airtty/server/index.js"), {
+  let server = await launch(join(root, ".luciole/server/index.js"), {
     NOTES_DB: dbPath,
-    AIRTTY_TEST_DROP_ONCE: "1",
+    LUCIOLE_TEST_DROP_ONCE: "1",
   });
   const { createApp, Shell } = await importClient(root, "loss");
   const app = createApp({ url: server.url, initialPath: "/notes/1" });
@@ -64,7 +64,7 @@ test("lost commit: durable outcome recovery, no mutation replay, reconnect refre
     const operationId = draft.pending?.operationId;
     await until(() => server.child.exitCode !== null);
     const previousPid = server.pid;
-    server = await launch(join(root, ".airtty/server/index.js"), {
+    server = await launch(join(root, ".luciole/server/index.js"), {
       NOTES_DB: dbPath,
       PORT: String(server.port),
     });
@@ -114,8 +114,8 @@ test("lost commit: durable outcome recovery, no mutation replay, reconnect refre
 });
 test("out-of-order navigation, incompatible build preserves mounted editor, refresh failure after save", async () => {
   await build(root);
-  const dir = await mkdtemp(join(tmpdir(), "airtty-network-"));
-  const server = await launch(join(root, ".airtty/server/index.js"), {
+  const dir = await mkdtemp(join(tmpdir(), "luciole-network-"));
+  const server = await launch(join(root, ".luciole/server/index.js"), {
     NOTES_DB: join(dir, "notes.sqlite"),
   });
   const { createApp, Shell } = await importClient(root, "network");
@@ -182,7 +182,7 @@ test("out-of-order navigation, incompatible build preserves mounted editor, refr
     });
     expect(field.value).toBe("keep!");
     const bad = await fetch(server.url + "/render?route=%2F&params=%7B%7D", {
-      headers: { "x-airtty-build": "old" },
+      headers: { "x-luciole-build": "old" },
     });
     expect(bad.status).toBe(409);
   } finally {
@@ -205,7 +205,7 @@ test("progressive Flight Suspense renders fallback before delayed content", asyn
       `import {Suspense} from 'react';async function Slow(){await Bun.sleep(700);return <text>STREAM COMPLETE</text>}export default function Page(){return <box flexDirection="column"><text>SHELL READY</text><Suspense fallback={<text>STREAM LOADING</text>}><Slow/></Suspense></box>}`,
     );
     await build(dir);
-    server = await launch(join(dir, ".airtty/server/index.js"));
+    server = await launch(join(dir, ".luciole/server/index.js"));
     const { createApp, Shell } = await importClient(dir);
     const app = createApp({ url: server.url });
     await app.router.load();
@@ -228,10 +228,10 @@ test("progressive Flight Suspense renders fallback before delayed content", asyn
 });
 test("Notes validation, normalization, version conflict, durable deduplication and authentication", async () => {
   await build(root);
-  const dir = await mkdtemp(join(tmpdir(), "airtty-business-"));
-  const server = await launch(join(root, ".airtty/server/index.js"), {
+  const dir = await mkdtemp(join(tmpdir(), "luciole-business-"));
+  const server = await launch(join(root, ".luciole/server/index.js"), {
     NOTES_DB: join(dir, "notes.sqlite"),
-    AIRTTY_TOKEN: "test-session-token",
+    LUCIOLE_TOKEN: "test-session-token",
   });
   const { createApp } = await importClient(root, "business");
   const app = createApp({ url: server.url, token: "test-session-token" });

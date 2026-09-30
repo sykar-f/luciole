@@ -14,11 +14,11 @@ const { index, chapter, previous, next } = neighbours(slug);
 const number = (i: number) => String(i + 1).padStart(2, "0");
 ---
 
-<Base title={`${chapter.title} · Guide airtty`} description={chapter.question} lang="fr">
+<Base title={`${chapter.title} · Guide luciole`} description={chapter.question} lang="fr">
   <div class="guide">
     <header class="top">
       <div class="top-inner">
-        <a class="mark" href="/guide/">air<span class="tty">tty</span> <span class="slash">/</span> guide</a>
+        <a class="mark" href="/guide/">luciole <span class="slash">/</span> guide</a>
         <p class="where"><span>{number(index)}</span> / {String(chapters.length).padStart(2, "0")}</p>
         <a class="site" href="/">Le site</a>
       </div>
@@ -111,10 +111,6 @@ const number = (i: number) => String(i + 1).padStart(2, "0");
   .mark {
     font-weight: 700;
     text-decoration: none;
-  }
-
-  .tty {
-    color: var(--mist);
   }
 
   .slash {

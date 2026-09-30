@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import type { MarkdownRenderable, ScrollBoxRenderable } from "@opentui/core";
-import { useBindings } from "airtty/client";
+import { useBindings } from "luciole/client";
 import { DocFrame, Line, READING_WIDTH } from "./frames";
 import { Help } from "./Help";
 import { useMode } from "./Library";

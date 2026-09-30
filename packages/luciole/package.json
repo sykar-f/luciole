@@ -1,0 +1,63 @@
+{
+  "name": "luciole",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "luciole": "./src/cli.ts",
+    "luciolex": "./src/luciolex.ts"
+  },
+  "exports": {
+    "./client": "./src/client.tsx",
+    "./server": "./src/server.ts",
+    "./route-tree": "./src/route-tree.tsx",
+    "./args": "./src/args.ts",
+    "./build": "./src/build.ts",
+    "./dev": "./src/dev/supervisor.ts",
+    "./pty": "./src/vt/pty.ts",
+    "./sandbox": "./src/sandbox/index.ts",
+    "./metadata": "./src/app-metadata.ts",
+    "./tsconfig": "./tsconfig.base.json",
+    "./grammars": "./src/grammars.ts"
+  },
+  "dependencies": {
+    "@opentui/core": "0.5.12",
+    "@opentui/keymap": "0.5.12",
+    "@opentui/react": "0.5.12",
+    "@sqlite.org/sqlite-wasm": "3.53.4-build1",
+    "@tanstack/react-router": "1.170.38",
+    "@tree-sitter-grammars/tree-sitter-toml": "0.7.0",
+    "@tree-sitter-grammars/tree-sitter-yaml": "0.7.1",
+    "@typescript/typescript6": "6.0.2",
+    "@xterm/addon-fit": "0.11.0",
+    "@xterm/xterm": "6.0.0",
+    "marked": "17.0.1",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-reconciler": "0.33.0",
+    "react-server-dom-webpack": "19.3.0",
+    "tree-sitter-bash": "0.25.1",
+    "tree-sitter-c": "0.24.1",
+    "tree-sitter-cpp": "0.23.4",
+    "tree-sitter-css": "0.25.0",
+    "tree-sitter-go": "0.25.0",
+    "tree-sitter-html": "0.23.2",
+    "tree-sitter-java": "0.23.5",
+    "tree-sitter-json": "0.24.8",
+    "tree-sitter-php": "0.24.2",
+    "tree-sitter-python": "0.25.0",
+    "tree-sitter-ruby": "0.23.1",
+    "tree-sitter-rust": "0.24.0",
+    "typescript": "7.0.2",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@types/bun": "1.4.2",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "oxfmt": "0.70.0",
+    "oxlint": "1.85.0",
+    "oxlint-tsgolint": "7.0.2002"
+  }
+}

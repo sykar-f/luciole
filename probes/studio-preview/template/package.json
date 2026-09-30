@@ -2,12 +2,12 @@
   "name": "studio-app",
   "private": true,
   "type": "module",
-  "airtty": {
+  "luciole": {
     "displayName": "studio app",
     "capabilities": {}
   },
   "dependencies": {
-    "airtty": "workspace:*",
+    "luciole": "workspace:*",
     "@opentui/core": "catalog:",
     "@opentui/react": "catalog:",
     "@tanstack/react-router": "catalog:",

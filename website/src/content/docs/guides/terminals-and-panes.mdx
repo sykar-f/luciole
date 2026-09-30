@@ -1,11 +1,11 @@
 ---
 title: Terminals and panes
-description: Run a shell or vim on a PTY inside your app with <Terminal>, or another airtty app in a pane with <Embed>, each with its own keys and focus.
+description: Run a shell or vim on a PTY inside your app with <Terminal>, or another luciole app in a pane with <Embed>, each with its own keys and focus.
 sources:
   - docs/API.md
   - docs/EMBEDDING.md
-  - packages/airtty/src/vt
-  - packages/airtty/src/embed.tsx
+  - packages/luciole/src/vt
+  - packages/luciole/src/embed.tsx
   - examples/mux
 ---
 
@@ -13,7 +13,7 @@ import CopyCommand from "../../../components/CopyCommand.astro";
 import Note from "../../../components/docs/Note.astro";
 
 Two components put something else on part of your app's screen. `examples/mux` uses both:
-local programs side by side, each on its own PTY, and airtty apps in panes.
+local programs side by side, each on its own PTY, and luciole apps in panes.
 
 <CopyCommand lines={["bun run mux"]} />
 
@@ -44,17 +44,17 @@ Keyboard, mouse, paste, focus reports and resizing follow the modes the program 
   you did not write](/docs/guides/untrusted-apps/).
 </Note>
 
-## `<Embed>`: another airtty app
+## `<Embed>`: another luciole app
 
-`<Embed>` shows another airtty app in a pane, in the same process and the same React tree:
+`<Embed>` shows another luciole app in a pane, in the same process and the same React tree:
 the `inline` mode, full trust.
 
 ```tsx
-const app = await openApplication({ bundle: "…/mdreader/.airtty/app", url });
+const app = await openApplication({ bundle: "…/mdreader/.luciole/app", url });
 <Embed app={app} name="docs" active={pane === "docs"} prefix="ctrl+o" flexGrow={1} />;
 ```
 
-- `openApplication` reads the **app bundle** (`.airtty/app/`, written by `airtty build`):
+- `openApplication` reads the **app bundle** (`.luciole/app/`, written by `luciole build`):
   its Client Components, route tree and Server Function stubs, without a runtime. It checks
   its ABI key and hash, then evaluates it **once per pane** against the host's runtime. It
   gives the pane an instance key and opens its connection (`http`, `unix:`, `ssh://`, like
@@ -69,7 +69,7 @@ const app = await openApplication({ bundle: "…/mdreader/.airtty/app", url });
   unregistered, the connection closes. `app.quit` is the host's: `examples/mux` closes the
   pane with it.
 
-`<Terminal>` is for local programs; an airtty app in the same process goes through `<Embed>`.
+`<Terminal>` is for local programs; a luciole app in the same process goes through `<Embed>`.
 
 ## Keys in a multiplexer
 

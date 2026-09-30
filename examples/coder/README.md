@@ -7,8 +7,8 @@ binaires officiels déjà installés et connectés par l'utilisateur.
 
 ```sh
 bun run coder -- --harness fake          # démo scriptée, hors ligne, sans quota
-bun run coder -- -H codex --mode edits   # développement (airtty dev … --)
-airtty ./examples/coder -H claude --resume
+bun run coder -- -H codex --mode edits   # développement (luciole dev … --)
+luciole ./examples/coder -H claude --resume
 coder --help                             # binaire compilé : aide générée depuis app/args.ts
 ```
 
@@ -27,11 +27,11 @@ opencode, pi, sinon il dit ce qui manque. `CODER_HARNESS` et `CODER_CWD` tiennen
 
 ## Démo web
 
-Le site fait tourner coder dans la page (`airtty build --web-local`, docs/WEB.md) : le
+Le site fait tourner coder dans la page (`luciole build --web-local`, docs/WEB.md) : le
 Server vit dans un Worker, sans processus ni réseau, donc sur le harness `fake` seul.
 `website/scripts/demo.ts` lui donne `CODER_HARNESS=fake` et un projet fictif
 (`CODER_CWD=/home/ada/src/timers`). Dans le Worker, `server/session.ts` importe
-`@airtty/harness/adapters`, que le `package.json` de `packages/harness` résout en
+`@luciole/harness/adapters`, que le `package.json` de `packages/harness` résout en
 `src/adapters/browser.ts` sous la condition `browser` : l'Agent SDK de Claude
 (`readline`, `net`) et les autres adaptateurs n'y entrent pas.
 
@@ -46,12 +46,12 @@ textes et mêmes durées affichées à chaque fois ; environ 12 s une fois le pr
 
 ## Ce que montre l'exemple
 
-coder est aussi la vitrine d'airtty ; chaque capacité du framework y sert :
+coder est aussi la vitrine de luciole ; chaque capacité du framework y sert :
 
 | Capacité                               | Ici                                                                                             |
 | -------------------------------------- | ----------------------------------------------------------------------------------------------- |
 | Server / Client séparés                | le Server possède la session : le Client peut crasher ou être rebuildé, l'agent continue        |
-| `app/args.ts` (`airtty/args`)          | vraie ligne de commande, `--help` et erreurs générés, lue par le Server (`cli.get()`)           |
+| `app/args.ts` (`luciole/args`)         | vraie ligne de commande, `--help` et erreurs générés, lue par le Server (`cli.get()`)           |
 | `"server": "per-launch"`               | deux `coder` dans le même dossier = deux sessions ; un Client tué retrouve la sienne            |
 | `useLive`                              | un snapshot puis des patchs (`{seq, items, removed, fields}`), pas un snapshot toutes les 50 ms |
 | issues `not-sent / rejected / unknown` | une approbation n'est jamais rejouée : une issue inconnue est consultée (`requestState`)        |
@@ -86,7 +86,7 @@ server/session.ts     la session de ce lancement, sur la HarnessSession du paque
 server/config.ts      arguments et lancement ; launches.ts : session reprise après un rebuild
 ```
 
-Le reste est partagé avec studio dans `packages/harness` (`@airtty/harness`, paquet privé
+Le reste est partagé avec studio dans `packages/harness` (`@luciole/harness`, paquet privé
 du workspace) :
 
 ```
@@ -98,7 +98,7 @@ src/model.ts          le vocabulaire neutre, commun au Server et au Client
 src/ui/               Client : Transcript, Dialogs, Picker, StatusLine, store du flux…
 ```
 
-Les réponses et les blocs « thinking » passent par `<Markdown>` (`airtty/client`), pas par le
+Les réponses et les blocs « thinking » passent par `<Markdown>` (`luciole/client`), pas par le
 `<markdown>` d'OpenTUI : pendant le streaming, celui-ci redessine le dernier bloc depuis un
 aperçu puis depuis Tree-sitter, et la réponse clignote. Le composant découpe la réponse en
 blocs (`marked`), fige tous les blocs sauf le dernier, met le texte en forme sans
@@ -108,7 +108,7 @@ réponse finie est celui de `<markdown conceal>`. Décisions et mesures :
 
 Les adaptateurs traduisent chaque protocole en événements neutres (`turn.*`, `item.*`,
 `request.*`, `plan.updated`, `usage.updated`…). Les actions rendent la main tout de
-suite (délai de 10 s des actions airtty) ; la progression passe par le flux.
+suite (délai de 10 s des actions luciole) ; la progression passe par le flux.
 
 ## Conformité
 
@@ -125,7 +125,7 @@ suite (délai de 10 s des actions airtty) ; la progression passe par le flux.
   bloqués quand la connexion est un abonnement Claude ; utilisez `--harness claude`.
 - **opencode** : un `opencode serve` par session, sur 127.0.0.1, derrière un mot de passe
   tiré au hasard à chaque lancement ; le partage public des sessions est désactivé.
-- **Codex** se voit présenter coder sous son nom (`clientInfo.name = "airtty-coder"`).
+- **Codex** se voit présenter coder sous son nom (`clientInfo.name = "luciole-coder"`).
 - Chaque harness consomme **le quota de l'utilisateur**. Le harness `fake` n'en consomme
   aucun : tests, démo web et découverte de l'interface.
 - « powered by … » en texte seulement : aucune marque n'est reprise.

@@ -7,10 +7,10 @@ Toutes ces versions sont fixées dans `package.json` et le lockfile.
 
 `tsconfig.base.json` définit le mode strict, les types Bun (qui exposent aussi les
 API Node), la résolution ESM Bundler et le JSX OpenTUI ; il vit dans
-`packages/airtty/` et s'exporte en `airtty/tsconfig`, que chaque exemple étend comme un
-starter. `packages/airtty/tsconfig.json` couvre le framework, le `tsconfig.json` racine
+`packages/luciole/` et s'exporte en `luciole/tsconfig`, que chaque exemple étend comme un
+starter. `packages/luciole/tsconfig.json` couvre le framework, le `tsconfig.json` racine
 les tests, les scripts et les sondes, et chaque exemple a le sien. Les imports publics
-`airtty/client` et `/server` passent par les exports du package :
+`luciole/client` et `/server` passent par les exports du package :
 aucun alias TypeScript ne masque une dépendance absente.
 
 Le contrôle précédent ne couvrait que `src/` et l’exemple. Les tests/sondes pouvaient
@@ -20,7 +20,7 @@ déclaration manquante du décodeur Flight Node, références Client typées com
 fonctions retournant `void`, appel spread d’une fonction typée et inference trop
 large des fixtures. Elles sont corrigées sans `ts-ignore` ni désactivation du mode strict.
 
-Flight n’expose pas de déclarations pour les entrées utilisées. `packages/airtty/types.d.ts` contient
+Flight n’expose pas de déclarations pour les entrées utilisées. `packages/luciole/types.d.ts` contient
 le contrat d’intégration local ; les adapters l’incluent aussi pour les applications
 consommatrices. Cela ne représente pas une validation statique des données réseau :
 la validation métier reste côté Server. `skipLibCheck` est limité à la vérification
@@ -49,7 +49,7 @@ défaut ; dans les tests, une valeur attendue écrite en clair reste plus lisibl
 constante, et il en va de même des parcours PTY (`scripts/pty/`). Sont aussi exemptés
 des tables de données de démonstration, où nommer chaque valeur n'ajouterait aucun sens :
 `examples/forge/server/ci.ts` et `seed.ts` (horaires du script CI simulé, jeu de données
-généré), `packages/airtty/src/devtools/fixtures.ts` (session DevTools simulée) et les
+généré), `packages/luciole/src/devtools/fixtures.ts` (session DevTools simulée) et les
 pages du guide du site (`.oxlintrc.json`, `overrides`). `readonly` et `ReadonlyArray`
 pour les données immuables ne sont pas vérifiables
 automatiquement sans bruit (`prefer-readonly-parameter-types` signale chaque paramètre
@@ -117,9 +117,9 @@ configurations via les outils CLI/LSP. Sources :
 
 ## Starters
 
-`airtty init` génère une application depuis l'exemple Notes, avec les dépendances que
+`luciole init` génère une application depuis l'exemple Notes, avec les dépendances que
 Notes déclare (versions du catalogue résolues), une dépendance locale `file:` vers
-`packages/airtty`, sa configuration TypeScript héritée de `airtty/tsconfig`,
+`packages/luciole`, sa configuration TypeScript héritée de `luciole/tsconfig`,
 les configurations Oxc, les réglages VS Code et les commandes check/lint/format.
 Après `bun install`, ces commandes fonctionnent depuis le starter. Les deux
 fichiers JSON générés sont formatés par Oxfmt dès la création.

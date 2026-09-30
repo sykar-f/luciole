@@ -1,6 +1,12 @@
 "use client";
 import { useState } from "react";
-import { DebugOverlay, KeyHelp, useBindings, useConnection, type LayoutProps } from "airtty/client";
+import {
+  DebugOverlay,
+  KeyHelp,
+  useBindings,
+  useConnection,
+  type LayoutProps,
+} from "luciole/client";
 import { NotebookLayout } from "../components/NoteFrame";
 
 // The application's chrome: connection state and the refresh key are Notes' choices,
@@ -33,7 +39,7 @@ export default function Layout({ children }: LayoutProps) {
       {debug ? <DebugOverlay /> : null}
       <NotebookLayout>{children}</NotebookLayout>
       <box id="notes-footer" height={1} flexShrink={0}>
-        <KeyHelp inline groups={["global", "airtty"]} />
+        <KeyHelp inline groups={["global", "luciole"]} />
       </box>
     </box>
   );

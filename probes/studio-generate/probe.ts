@@ -15,7 +15,7 @@ import { STAGES, validate, type Outcome, type Stage } from "./validate";
 
 const HERE = import.meta.dir;
 const TEMPLATE = resolve(HERE, "../studio-preview/template");
-const WORK = join(HERE, ".airtty-work");
+const WORK = join(HERE, ".luciole-work");
 // A diagnostic "points at" the fault when it names its file within this many lines.
 const LINE_TOLERANCE = 2;
 

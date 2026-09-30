@@ -10,8 +10,8 @@ import {
   openTunnel,
   serverUrl,
   socketDirectory,
-} from "../packages/airtty/src/connect";
-import { messageOf } from "../packages/airtty/src/guards";
+} from "../packages/luciole/src/connect";
+import { messageOf } from "../packages/luciole/src/guards";
 import { rejectionOf, until } from "./helpers";
 
 let work: string, fakeSsh: string, server: ReturnType<typeof Bun.serve>;
@@ -42,7 +42,7 @@ setInterval(() => {}, 1000);
 `;
 
 beforeAll(async () => {
-  work = await mkdtemp(join(tmpdir(), "airtty-connect-"));
+  work = await mkdtemp(join(tmpdir(), "luciole-connect-"));
   fakeSsh = join(work, "ssh");
   await Bun.write(fakeSsh, `#!${process.execPath}\n${FAKE_SSH}`);
   await chmod(fakeSsh, 0o755);
@@ -70,18 +70,18 @@ const alive = (pid: number) => {
   }
 };
 
-test("--url, then AIRTTY_URL, then the user's config file, then the default", async () => {
+test("--url, then LUCIOLE_URL, then the user's config file, then the default", async () => {
   const env = { XDG_CONFIG_HOME: join(work, "config") };
   const file = configPath("notes", env);
-  expect(file).toBe(join(work, "config/airtty/notes.json"));
+  expect(file).toBe(join(work, "config/luciole/notes.json"));
   const url = (argv: string[], extra: Record<string, string> = {}) =>
     serverUrl({ name: "notes", argv: ["bun", "index.js", ...argv], env: { ...env, ...extra } });
   expect(await url([])).toBe(DEFAULT_URL);
   await mkdir(dirname(file), { recursive: true });
   await Bun.write(file, JSON.stringify({ url: "ssh://me@notes.example" }));
   expect(await url([])).toBe("ssh://me@notes.example");
-  expect(await url([], { AIRTTY_URL: "https://env.example" })).toBe("https://env.example");
-  expect(await url(["--url", "https://flag.example"], { AIRTTY_URL: "https://env.example" })).toBe(
+  expect(await url([], { LUCIOLE_URL: "https://env.example" })).toBe("https://env.example");
+  expect(await url(["--url", "https://flag.example"], { LUCIOLE_URL: "https://env.example" })).toBe(
     "https://flag.example",
   );
   // A broken file is reported, never silently replaced by the default.
@@ -126,7 +126,7 @@ test("ssh:// forwards a private socket to the remote Server and stops with the C
 });
 
 test("ssh:// to a path forwards to a remote Unix socket, with the caller's options", async () => {
-  const remote = join(socketDirectory("airtty-remote-"), "s");
+  const remote = join(socketDirectory("luciole-remote-"), "s");
   const upstream = Bun.serve({ unix: remote, fetch: () => new Response("over the socket") });
   try {
     const tunnel = await openTunnel(`ssh://server.example${remote}`, {
@@ -146,7 +146,7 @@ test("ssh:// to a path forwards to a remote Unix socket, with the caller's optio
 });
 
 test("unix: reaches a local socket; relative paths are refused", async () => {
-  const socket = join(socketDirectory("airtty-local-"), "s");
+  const socket = join(socketDirectory("luciole-local-"), "s");
   const upstream = Bun.serve({ unix: socket, fetch: (r) => new Response(new URL(r.url).pathname) });
   try {
     const connection = await connect(`unix:${socket}`);
@@ -172,7 +172,7 @@ test("a long TMPDIR still yields a socket path that fits", async () => {
     const tunnel = await openTunnel(`ssh://server.example/${server.port}`, { ssh: fakeSsh });
     const call = await lastCall();
     const socket = call.args[call.args.indexOf("-L") + 1].split(":")[0];
-    expect(socket.startsWith("/tmp/airtty-ssh-")).toBe(true);
+    expect(socket.startsWith("/tmp/luciole-ssh-")).toBe(true);
     tunnel.close();
   } finally {
     if (saved === undefined) delete process.env.TMPDIR;
@@ -185,7 +185,7 @@ test("a signal while ssh authenticates stops ssh and removes the socket director
   const script = join(work, "waiting-client.ts");
   await Bun.write(
     script,
-    `import { openTunnel } from ${JSON.stringify(resolve("packages/airtty/src/connect.ts"))};
+    `import { openTunnel } from ${JSON.stringify(resolve("packages/luciole/src/connect.ts"))};
 await openTunnel("ssh://silent.example", { ssh: ${JSON.stringify(fakeSsh)} });`,
   );
   const calls = () => readFileSync(join(work, "calls.jsonl"), "utf8").length;

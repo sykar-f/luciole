@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import { configureFiles } from "../packages/airtty/src/web/node/files";
-import * as fs from "../packages/airtty/src/web/node/fs";
+import { configureFiles } from "../packages/luciole/src/web/node/files";
+import * as fs from "../packages/luciole/src/web/node/fs";
 import { rejectionOf } from "./helpers";
 
 const text = (value: string) => Buffer.from(value).toString("base64");

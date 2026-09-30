@@ -28,17 +28,17 @@ const panels = [
   ]}
 >
   <h2>En une phrase</h2>
-  <p>Les DevTools sont <strong>elles-mêmes une app airtty</strong>. L'app inspectée, lancée avec <code>AIRTTY_DEVTOOLS</code>, ouvre deux <strong>agents</strong>, un dans son Client et un dans son Server, qui envoient leurs événements sur un socket. Le Server des DevTools les stocke et les pousse à son Client par une Server Function <em>live</em>.</p>
+  <p>Les DevTools sont <strong>elles-mêmes une app luciole</strong>. L'app inspectée, lancée avec <code>LUCIOLE_DEVTOOLS</code>, ouvre deux <strong>agents</strong>, un dans son Client et un dans son Server, qui envoient leurs événements sur un socket. Le Server des DevTools les stocke et les pousse à son Client par une Server Function <em>live</em>.</p>
 
   <h2>Lancer</h2>
   <Sample
     lang="sh"
     label="deux panneaux de terminal"
-    code={`bun packages/airtty/src/cli.ts devtools                  # panneau 1 : les DevTools
-eval "$(bun packages/airtty/src/cli.ts devtools --env)"   # panneau 2 : AIRTTY_DEVTOOLS et le preload
+    code={`bun packages/luciole/src/cli.ts devtools                  # panneau 1 : les DevTools
+eval "$(bun packages/luciole/src/cli.ts devtools --env)"   # panneau 2 : LUCIOLE_DEVTOOLS et le preload
 bun run dev                                                #            puis l'app, comme d'habitude`}
   />
-  <p><code>--env</code> imprime deux variables. <code>AIRTTY_DEVTOOLS</code> contient l'adresse du socket, en 0600 et par utilisateur. <code>BUN_OPTIONS</code> précharge <Src path="packages/airtty/src/devtools/hook.ts" />, indispensable au seul panneau Components. Autres modes : <code>--demo</code> (session simulée), <code>--replay fichier.json</code>, <code>--listen ws://…</code>.</p>
+  <p><code>--env</code> imprime deux variables. <code>LUCIOLE_DEVTOOLS</code> contient l'adresse du socket, en 0600 et par utilisateur. <code>BUN_OPTIONS</code> précharge <Src path="packages/luciole/src/devtools/hook.ts" />, indispensable au seul panneau Components. Autres modes : <code>--demo</code> (session simulée), <code>--replay fichier.json</code>, <code>--listen ws://…</code>.</p>
 
   <h2>Le parcours</h2>
   <Sequence
@@ -50,15 +50,15 @@ bun run dev                                                #            puis l'a
       { id: "ui", label: "Client DevTools", sub: "7 panneaux", tone: "neutral" },
     ]}
     messages={[
-      { from: "client", to: "bus", label: "airtty:hello (rôle, pid, app)", n: 1 },
-      { from: "server", to: "bus", label: "airtty:hello", n: 2 },
-      { from: "client", to: "bus", label: "airtty-client:request, …", n: 3 },
-      { from: "server", to: "bus", label: "airtty-server:cache, …", n: 4 },
+      { from: "client", to: "bus", label: "luciole:hello (rôle, pid, app)", n: 1 },
+      { from: "server", to: "bus", label: "luciole:hello", n: 2 },
+      { from: "client", to: "bus", label: "luciole-client:request, …", n: 3 },
+      { from: "server", to: "bus", label: "luciole-server:cache, …", n: 4 },
       { from: "bus", to: "bus", label: "Zod à l'arrivée, journal", n: 5 },
       { from: "ui", to: "bus", label: "for await subscribe(depuis)", n: 6, back: true },
       { from: "bus", to: "ui", label: "lots d'événements", n: 7 },
       { from: "ui", to: "bus", label: "command(role, …)", n: 8, back: true },
-      { from: "bus", to: "client", label: "airtty-devtools:network", n: 9, back: true },
+      { from: "bus", to: "client", label: "luciole-devtools:network", n: 9, back: true },
     ]}
     caption={'Chaque message a la forme TanStack { type: "<plugin>:<suffixe>", pluginId, payload }, une ligne JSON par message.'}
   />
@@ -66,9 +66,9 @@ bun run dev                                                #            puis l'a
   <Step n="1–4" tone="neutral" where="Agents" title="Deux agents, branchés sur les points d'extension">
     <p>Aucun des deux agents ne modifie le cœur du framework. Ils utilisent les points d'extension présentés au chapitre 1.</p>
     <p><strong>Côté Client</strong>, <code>run()</code> importe l'agent seulement si la variable est posée. L'agent s'abonne à <code>app.onEvent</code>, à l'état du routeur, à la console, aux touches et aux commits React. Les conditions réseau passent par <code>wrapTransport</code> :</p>
-    <Excerpt path="packages/airtty/src/devtools/client-agent.ts" find="const wrapTransport = (inner: Transport): Transport => ({" count={11} tone="client" />
+    <Excerpt path="packages/luciole/src/devtools/client-agent.ts" find="const wrapTransport = (inner: Transport): Transport => ({" count={11} tone="client" />
     <p><strong>Côté Server</strong>, <code>createHandler</code> enveloppe l'<code>instrument</code> de l'app. Celui-ci reçoit exactement les mêmes événements, qu'il y ait des DevTools ou non :</p>
-    <Excerpt path="packages/airtty/src/devtools/server-agent.ts" find="onEvent(event: Observed) {" count={4} tone="server" />
+    <Excerpt path="packages/luciole/src/devtools/server-agent.ts" find="onEvent(event: Observed) {" count={4} tone="server" />
   </Step>
 
   <Step n="5–7" tone="neutral" where="Server DevTools" title="Un journal, lu par une Server Function live">
@@ -87,24 +87,24 @@ bun run dev                                                #            puis l'a
     </table>
   </div>
   <p>Le panneau Components explique chaque rendu en comparant la fibre à sa version précédente :</p>
-  <Excerpt path="packages/airtty/src/devtools/fibers.ts" find="function reasonOf(fiber: Fiber) {" until="^}" tone="client" mark={['{ reason: "parent", unnecessary: true }']} />
+  <Excerpt path="packages/luciole/src/devtools/fibers.ts" find="function reasonOf(fiber: Fiber) {" until="^}" tone="client" mark={['{ reason: "parent", unnecessary: true }']} />
   <p>Un rendu sans changement de props, d'état ni de contexte est marqué <strong>inutile</strong> : son parent l'a entraîné. <kbd>E</kbd> exporte le journal brut, plus un fichier HAR 1.2.</p>
 
   <h2>Le fil rouge : callId</h2>
-  <p>Chaque requête reçoit un UUID, <code>x-airtty-call</code> (chapitre 4). Le Client le met dans ses événements, le Server dans les siens, et les <code>console.log</code> du Server exécutés pendant cette requête le portent aussi. Dans Network, une ligne regroupe donc la touche, la requête, ce que le Server a lu dans le cache et ce qu'il a écrit dans ses logs.</p>
+  <p>Chaque requête reçoit un UUID, <code>x-luciole-call</code> (chapitre 4). Le Client le met dans ses événements, le Server dans les siens, et les <code>console.log</code> du Server exécutés pendant cette requête le portent aussi. Dans Network, une ligne regroupe donc la touche, la requête, ce que le Server a lu dans le cache et ce qu'il a écrit dans ses logs.</p>
 
   <Callout kind="piege">
     <ul>
       <li>Components est vide mais Network fonctionne : le Client a démarré sans le preload. <code>@opentui/react</code> se branche sur le hook React DevTools une seule fois, à son import, d'où l'obligation du preload.</li>
       <li>La latence de Conditions est ajoutée avant l'envoi : elle apparaît comme une attente du loader, pas comme du temps réseau.</li>
       <li>Rien ne s'active en <code>NODE_ENV=production</code>, avec un avertissement des deux côtés.</li>
-      <li>Les DevTools ne s'inspectent jamais elles-mêmes : leurs deux processus sont lancés sans <code>AIRTTY_DEVTOOLS</code> ni preload.</li>
+      <li>Les DevTools ne s'inspectent jamais elles-mêmes : leurs deux processus sont lancés sans <code>LUCIOLE_DEVTOOLS</code> ni preload.</li>
     </ul>
   </Callout>
 
   <Callout kind="retenir">
     <ul>
-      <li>Les DevTools sont une app airtty ; l'app inspectée n'y gagne que deux agents.</li>
+      <li>Les DevTools sont une app luciole ; l'app inspectée n'y gagne que deux agents.</li>
       <li>Les agents passent par <code>onEvent</code>, <code>wrapTransport</code> et <code>serve(&#123; instrument &#125;)</code>, sans toucher au cœur.</li>
       <li>Un agent ne bloque jamais son processus : les messages en trop sont comptés comme perdus, puis signalés.</li>
     </ul>

@@ -1,9 +1,9 @@
 ---
 title: Latency and faults
-description: Slow the network down, lose requests and responses, cut streams, and check that the app says what it knows. AIRTTY_LATENCY_MS, AIRTTY_JITTER_MS, AIRTTY_CHUNK_DELAY_MS, AIRTTY_FAULT.
+description: Slow the network down, lose requests and responses, cut streams, and check that the app says what it knows. LUCIOLE_LATENCY_MS, LUCIOLE_JITTER_MS, LUCIOLE_CHUNK_DELAY_MS, LUCIOLE_FAULT.
 sources:
-  - packages/airtty/src/transport.ts
-  - packages/airtty/src/run.tsx
+  - packages/luciole/src/transport.ts
+  - packages/luciole/src/run.tsx
   - tests/latency.test.tsx
   - examples/latency
   - docs/README.fr.md
@@ -22,7 +22,7 @@ you see the loading screens, the pending states and the error handling before yo
 
 <CopyCommand lines={[`${envPrefix}_LATENCY_MS=500 bun run dev`]} />
 
-`AIRTTY_LATENCY_MS` adds a round trip to **every app request** (page render, navigation,
+`LUCIOLE_LATENCY_MS` adds a round trip to **every app request** (page render, navigation,
 Server Function, refresh, lookup): for 500, 250 ms before sending and 250 ms before
 delivering the response. The waits are asynchronous, count against the timeout, and are
 independent between requests. Real latency adds to it. By default nothing is added.
@@ -42,11 +42,11 @@ hover, that these interactions send no request, and that the component survives 
 
 ## Make it worse
 
-| Variable                | Effect                                                                                          |
-| ----------------------- | ----------------------------------------------------------------------------------------------- |
-| `AIRTTY_JITTER_MS`      | A random extra delay, from 0 to this value, on each direction of each request.                  |
-| `AIRTTY_CHUNK_DELAY_MS` | A delay before each chunk of a response reaches the decoder: slow streams, `Suspense` included. |
-| `AIRTTY_FAULT`          | Faults, each with a probability: `refuse:0.1,drop:0.05,cut:0.05`.                               |
+| Variable                 | Effect                                                                                          |
+| ------------------------ | ----------------------------------------------------------------------------------------------- |
+| `LUCIOLE_JITTER_MS`      | A random extra delay, from 0 to this value, on each direction of each request.                  |
+| `LUCIOLE_CHUNK_DELAY_MS` | A delay before each chunk of a response reaches the decoder: slow streams, `Suspense` included. |
+| `LUCIOLE_FAULT`          | Faults, each with a probability: `refuse:0.1,drop:0.05,cut:0.05`.                               |
 
 The three faults, and the outcome the app receives for each:
 
@@ -57,7 +57,7 @@ The three faults, and the outcome the app receives for each:
 | `cut`    | The body fails before its first byte.                         | `unknown`  |
 
 <Excerpt
-  path="packages/airtty/src/transport.ts"
+  path="packages/luciole/src/transport.ts"
   find="export function networkFromEnv"
   until="^}"
   tone="wire"
@@ -102,10 +102,10 @@ and the next request's fault by message; the landing page's Notes demo does:
 
 ```ts
 iframe.contentWindow.postMessage(
-  { source: "airtty", type: "network", latencyMs: 500, fault: "drop" },
+  { source: "luciole", type: "network", latencyMs: 500, fault: "drop" },
   origin,
 );
 ```
 
-The runtime answers with the transport's events (`{ source: "airtty", type: "event", event }`),
+The runtime answers with the transport's events (`{ source: "luciole", type: "event", event }`),
 which is how a page draws a request timeline. See [opening an app](/docs/guides/opening-an-app/#in-a-browser).

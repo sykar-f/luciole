@@ -1,4 +1,4 @@
-# airtty — MVP
+# luciole — MVP
 
 > Version française détaillée du [README](../README.md). Les commandes se lancent depuis
 > la racine du dépôt.
@@ -7,7 +7,7 @@ Framework expérimental React Server Components pour le terminal : React/Flight
 compose l’interface sur un Server, OpenTUI assure les interactions dans un Client
 séparé. L’application Notes fournit liste, édition, sauvegarde SQLite, navigation,
 Drafts de session et récupération d’une sauvegarde dont la réponse s’est perdue.
-Le paquet et son CLI s’appellent `airtty` ; aucun paquet n’est encore publié
+Le paquet et son CLI s’appellent `luciole` ; aucun paquet n’est encore publié
 sur un registre.
 
 ## Installation et démarrage
@@ -38,12 +38,12 @@ refresh ne transforme pas une sauvegarde confirmée en échec.
 ## Tester une connexion à 500 ms de ping
 
 ```sh
-AIRTTY_LATENCY_MS=500 bun run dev
+LUCIOLE_LATENCY_MS=500 bun run dev
 # Banc de test dédié : input, scroll et hover pendant un appel distant
-AIRTTY_LATENCY_MS=500 bun packages/airtty/src/cli.ts dev --app examples/latency
+LUCIOLE_LATENCY_MS=500 bun packages/luciole/src/cli.ts dev --app examples/latency
 ```
 
-`AIRTTY_LATENCY_MS` ajoute un délai aller-retour à **chaque requête applicative**
+`LUCIOLE_LATENCY_MS` ajoute un délai aller-retour à **chaque requête applicative**
 (rendu Flight, navigation, action, refresh, récupération) : 250 ms avant l’envoi et
 250 ms avant de livrer la réponse pour une valeur de 500. Les attentes sont
 asynchrones, inclues dans le timeout, et indépendantes entre requêtes. La latence
@@ -56,9 +56,9 @@ de tester un refresh lent en conservant l’interface montée. La navigation ver
 une page distante attend le réseau ; ces interactions locales n’en dépendent pas.
 Le terminal doit transmettre les événements souris pour le scroll et le hover.
 
-Pour éprouver la gestion d’erreurs d’une application, `AIRTTY_JITTER_MS` ajoute un
-délai aléatoire à chaque trajet, `AIRTTY_CHUNK_DELAY_MS` ralentit chaque chunk d’un
-stream Flight, et `AIRTTY_FAULT=refuse:0.1,drop:0.05,cut:0.05` injecte des fautes :
+Pour éprouver la gestion d’erreurs d’une application, `LUCIOLE_JITTER_MS` ajoute un
+délai aléatoire à chaque trajet, `LUCIOLE_CHUNK_DELAY_MS` ralentit chaque chunk d’un
+stream Flight, et `LUCIOLE_FAULT=refuse:0.1,drop:0.05,cut:0.05` injecte des fautes :
 requête jamais envoyée, réponse perdue après exécution sur le Server, corps coupé.
 
 C’est une simulation au niveau des requêtes, pas une émulation TCP : elle ne simule
@@ -77,7 +77,7 @@ La navigation est portée par TanStack Router (memory history) : les layouts
 `layout.tsx` sont des Client Components persistants, les pages restent Server et
 arrivent par Flight. Les navigations affichent immédiatement un écran local à la
 place de la page, layouts conservés. Notes fournit `app/notes/[id]/loading.tsx` :
-avec `AIRTTY_LATENCY_MS=500 bun run dev`, ouvrir une note affiche son squelette
+avec `LUCIOLE_LATENCY_MS=500 bun run dev`, ouvrir une note affiche son squelette
 pendant l’attente, et `app/notes/layout.tsx` garde son historique local d’une note à
 l’autre. Échap annule et revient à la dernière page résolue.
 
@@ -98,7 +98,7 @@ du framework, d'OpenTUI et de TanStack Router :
 
 ```sh
 bun run forge                           # importe aussi les derniers commits de ce dépôt
-AIRTTY_LATENCY_MS=500 bun run forge   # même parcours sous 500 ms de RTT
+LUCIOLE_LATENCY_MS=500 bun run forge   # même parcours sous 500 ms de RTT
 bun run forge:operator lose merge       # second opérateur : réponse perdue, conflit, push
 ```
 
@@ -110,8 +110,8 @@ cinq minutes, matrice de preuves et limites : [FORGE.md](FORGE.md).
 Depuis le checkout du framework :
 
 ```sh
-bun packages/airtty/src/cli.ts init /tmp/my-airtty-app
-cd /tmp/my-airtty-app
+bun packages/luciole/src/cli.ts init /tmp/my-luciole-app
+cd /tmp/my-luciole-app
 bun install
 bun run check
 bun run dev
@@ -120,20 +120,20 @@ bun run build
 ```
 
 Le starter contient une seule codebase `app/`, `components/`, `actions/`, `server/`.
-Sa dépendance locale `airtty` utilise `file:` vers ce checkout ;
+Sa dépendance locale `luciole` utilise `file:` vers ce checkout ;
 conserver celui-ci pendant le développement. `bun install` installe le CLI et les
 outils du starter. Il n’y a aucun manifest ni RPC à écrire. Le starter possède
 son `tsconfig.json`, les configurations Oxc et les réglages VS Code.
-Le CLI est aussi déclaré sous le nom `airtty` dans `package.json` ; dans ce
-checkout, `bun packages/airtty/src/cli.ts` exécute les mêmes commandes sans installation globale.
+Le CLI est aussi déclaré sous le nom `luciole` dans `package.json` ; dans ce
+checkout, `bun packages/luciole/src/cli.ts` exécute les mêmes commandes sans installation globale.
 
 Une application qui prend des options de ligne de commande les déclare dans
-`app/args.ts` avec un schéma zod (`defineArgs` de `airtty/args`) : le framework les
+`app/args.ts` avec un schéma zod (`defineArgs` de `luciole/args`) : le framework les
 parse partout de la même façon, génère `--help` et les transmet au Server, qui les lit
 typées par `cli.get()`. En développement, elles suivent `--` :
 
 ```sh
-bun packages/airtty/src/cli.ts dev --app examples/coder -- --harness codex --mode read
+bun packages/luciole/src/cli.ts dev --app examples/coder -- --harness codex --mode read
 ```
 
 Voir [API.md](API.md#arguments-de-lapplication).
@@ -144,28 +144,28 @@ Depuis le checkout du framework :
 
 ```sh
 bun run build
-bun packages/airtty/src/cli.ts start --role server
+bun packages/luciole/src/cli.ts start --role server
 # Dans un autre terminal :
-bun packages/airtty/src/cli.ts start --role client --url http://127.0.0.1:3000
+bun packages/luciole/src/cli.ts start --role client --url http://127.0.0.1:3000
 ```
 
 Pour distribuer le Client sans Bun ni `node_modules` sur la machine du terminal :
 
 ```sh
-bun packages/airtty/src/cli.ts build --compile --client-only          # Client seul, pour cette machine
-./examples/notes/.airtty/client/notes-darwin-arm64 --url http://127.0.0.1:3000
+bun packages/luciole/src/cli.ts build --compile --client-only          # Client seul, pour cette machine
+./examples/notes/.luciole/client/notes-darwin-arm64 --url http://127.0.0.1:3000
 ```
 
 Sans `--client-only`, `--compile` produit le binaire complet de l’app, Client et Server
-(code métier compris), dans `.airtty/bin/<os>-<arch>/notes` : le build avertit que
+(code métier compris), dans `.luciole/bin/<os>-<arch>/notes` : le build avertit que
 quiconque le reçoit peut lire ce code. Voir [DISTRIBUTION.md](DISTRIBUTION.md).
 
 Le binaire embarque le runtime Bun, la bibliothèque native d’OpenTUI et l’identifiant
 de build. Le runtime est par défaut celui que Bun publie sur npm pour la cible
 (`@oven/bun-<os>-<arch>`, même version que le Bun du build) : il est téléchargé à la
 première compilation, vérifié contre l’empreinte `integrity` publiée par le registre,
-puis réutilisé depuis `$XDG_CACHE_HOME/airtty` (`~/.cache/airtty`) sans réseau.
-`airtty runtime [--target …]` remplit ce cache à l’avance. Hors ligne et sans cache,
+puis réutilisé depuis `$XDG_CACHE_HOME/luciole` (`~/.cache/luciole`) sans réseau.
+`luciole runtime [--target …]` remplit ce cache à l’avance. Hors ligne et sans cache,
 la compilation échoue en le disant. `--runtime host` embarque le Bun qui exécute le
 build (le build avertit s’il dépend de bibliothèques hors système, Nix ou Homebrew :
 le binaire ne démarrerait pas sur une autre machine) ; `--runtime <chemin>` embarque
@@ -188,9 +188,9 @@ fichier téléchargé par un navigateur (attribut de quarantaine). Pour le distr
 
 ```sh
 # Une fois : identifiants App Store Connect dans le trousseau
-xcrun notarytool store-credentials airtty-notary --apple-id … --team-id … --password …
-bun packages/airtty/src/cli.ts build --compile \
-  --sign "Developer ID Application: Exemple SAS (TEAMID1234)" --notarize airtty-notary
+xcrun notarytool store-credentials luciole-notary --apple-id … --team-id … --password …
+bun packages/luciole/src/cli.ts build --compile \
+  --sign "Developer ID Application: Exemple SAS (TEAMID1234)" --notarize luciole-notary
 ```
 
 `--sign` signe avec le hardened runtime, un horodatage sécurisé et deux entitlements
@@ -209,7 +209,7 @@ depuis macOS.
 `--app /chemin/app` sélectionne un autre projet. Le build produit :
 
 ```text
-app/.airtty/
+app/.luciole/
   manifest.json           # build, graphes, route graph et Client References
   metadata.json           # nom affiché, identifiant, icône (package.json)
   client/                 # index.js
@@ -221,9 +221,9 @@ app/.airtty/
 (voir [WEB.md](WEB.md)).
 
 Ces répertoires s’exécutent depuis l’installation de l’application
-(`airtty ./app`, `airtty dev`) : ils résolvent React et OpenTUI dans ses
+(`luciole ./app`, `luciole dev`) : ils résolvent React et OpenTUI dans ses
 `node_modules`. Pour exécuter un rôle sur une autre machine, compiler un binaire pour sa
-plateforme (`airtty build --compile --target …`, voir
+plateforme (`luciole build --compile --target …`, voir
 [DISTRIBUTION.md](DISTRIBUTION.md)) : ni Bun ni `node_modules` n’y sont
 nécessaires, et un Server Linux peut servir un Client macOS du même build.
 
@@ -236,9 +236,9 @@ ne contient pas le métier.
 
 ## Connexion distante
 
-Le Client cherche son Server dans cet ordre : `--url`, puis `AIRTTY_URL`, puis le
-fichier de l’utilisateur `$XDG_CONFIG_HOME/airtty/<app>.json`
-(`~/.config/airtty/notes.json` pour Notes ; `<app>` est le nom du répertoire de
+Le Client cherche son Server dans cet ordre : `--url`, puis `LUCIOLE_URL`, puis le
+fichier de l’utilisateur `$XDG_CONFIG_HOME/luciole/<app>.json`
+(`~/.config/luciole/notes.json` pour Notes ; `<app>` est le nom du répertoire de
 l’application), puis `http://127.0.0.1:3000`. Le fichier ne contient que l’URL :
 
 ```json
@@ -246,15 +246,15 @@ l’application), puis `http://127.0.0.1:3000`. Le fichier ne contient que l’U
 ```
 
 Un fichier illisible ou sans `url` est signalé et le Client s’arrête ; il n’est jamais
-ignoré en silence. `airtty start --role client` sans `--url` suit le même ordre.
+ignoré en silence. `luciole start --role client` sans `--url` suit le même ordre.
 
 Le Server écoute par défaut sur loopback. Pour une connexion privée, garder cette
 écoute : une URL `ssh://` ouvre le tunnel SSH elle-même.
 
 ```sh
 ./notes-darwin-arm64 --url ssh://alice@notes.example.com   # Server distant sur 127.0.0.1:3000
-bun packages/airtty/src/cli.ts connect ssh://alice@notes.example.com:2222/4000   # ssh sur 2222, Server sur 4000
-bun packages/airtty/src/cli.ts connect ssh://alice@bastion/10.0.0.5:3000         # Server joint depuis la machine ssh
+bun packages/luciole/src/cli.ts connect ssh://alice@notes.example.com:2222/4000   # ssh sur 2222, Server sur 4000
+bun packages/luciole/src/cli.ts connect ssh://alice@bastion/10.0.0.5:3000         # Server joint depuis la machine ssh
 ```
 
 Forme : `ssh://[user@]host[:port-ssh][/[hôte-distant:]port-distant]`. Avant de prendre
@@ -272,15 +272,15 @@ manuel reste possible : `ssh -N -L 3001:127.0.0.1:3000 user@server`, puis
 `--url http://127.0.0.1:3001`.
 
 Avant toute exposition publique, placer le Server derrière un reverse proxy TLS,
-limiter l’accès réseau au backend et configurer `AIRTTY_TOKEN` sur les deux rôles,
-ou fournir l'adapter `server/auth.ts`. Une écoute hors loopback (`AIRTTY_HOST`)
+limiter l’accès réseau au backend et configurer `LUCIOLE_TOKEN` sur les deux rôles,
+ou fournir l'adapter `server/auth.ts`. Une écoute hors loopback (`LUCIOLE_HOST`)
 est refusée sans l'un de ces deux mécanismes. Le Client transmet le token par en-tête
 Authorization ; utiliser une URL HTTPS pour éviter sa transmission en clair. Les
 requêtes portant un Origin de navigateur sont refusées, sauf celles de l’origine
-déclarée par `AIRTTY_WEB_ORIGIN` pour un build `--web` (voir [WEB.md](WEB.md)).
+déclarée par `LUCIOLE_WEB_ORIGIN` pour un build `--web` (voir [WEB.md](WEB.md)).
 
 Le MVP offre une **session mono-utilisateur** : le token est associé côté Server
-à `AIRTTY_USER` (défaut `local`). `getSession()` fournit cette identité aux actions
+à `LUCIOLE_USER` (défaut `local`). `getSession()` fournit cette identité aux actions
 et au repository, qui vérifie la propriété des notes. Une référence Flight ne donne
 aucun droit par elle-même. Une authentification multi-utilisateur doit remplacer
 cette association dans le runtime Server avant un tel déploiement. Ne jamais
@@ -309,7 +309,7 @@ bun run format         # Oxfmt
 bun run format:check   # vérification sans écriture
 ```
 
-`packages/airtty/tsconfig.base.json` (exporté `airtty/tsconfig`) porte les options communes (Bun/Node, JSX OpenTUI, modules ESM).
+`packages/luciole/tsconfig.base.json` (exporté `luciole/tsconfig`) porte les options communes (Bun/Node, JSX OpenTUI, modules ESM).
 Le projet et les starters utilisent cette base ; les fichiers générés et
 `node_modules` sont exclus. Prettier est remplacé par Oxlint 1.85.0 et Oxfmt 0.70.0,
 versions épinglées. Oxc assure le lint/format ; le compilateur du framework utilise
@@ -325,7 +325,7 @@ bun run format:check
 bun audit --json
 
 bun run test:pty              # Notes en production dans un vrai PTY
-bun run test:pty:dev          # airtty dev : erreur de build, rebuild, processus enfants
+bun run test:pty:dev          # luciole dev : erreur de build, rebuild, processus enfants
 bun scripts/clean-install.ts
 bun run test:linux            # Client compilé exécuté sous Linux (Docker), glibc et musl
 ```
@@ -358,14 +358,14 @@ request, sous macOS et Linux, plus le mode sandbox Linux en conteneurs. Voir
   attente ne sont pas évincés. Comme un navigateur, le Client garde l'historique et le
   texte des champs nommés (`<Input name>`, `<Textarea name>`) de chaque entrée : ils
   reviennent après un crash, un terminal fermé ou un rebuild, en clair dans un fichier
-  `0600` de `$XDG_STATE_HOME/airtty/<app>/sessions/`. **Quitter (Ctrl+C) supprime cette
+  `0600` de `$XDG_STATE_HOME/luciole/<app>/sessions/`. **Quitter (Ctrl+C) supprime cette
   session, et un état gardé seulement en mémoire (Drafts) est perdu à toute sortie.**
   Voir [les champs restaurables](API.md#champs-restaurables).
 - Une Server Function déclare ses changements avec `invalidate()` ; `useLive` abonne un
   écran à une Server Function génératrice, fermée quand l’écran se démonte. Rien ne se
   reconnecte automatiquement.
 - Un Client Component importe n’importe quel package, sans le déclarer. `server-only`
-  et `client-only` gardent un module (applicatif ou npm) d’un seul côté ; `airtty.json`
+  et `client-only` gardent un module (applicatif ou npm) d’un seul côté ; `luciole.json`
   peut ranger côté Server un package tiers qui ne se déclare pas. Chaque erreur montre
   la chaîne d’imports. Voir [BOUNDARIES.md](BOUNDARIES.md).
 - Une erreur de build est affichée dans le shell existant et laisse l’édition active.
@@ -378,7 +378,7 @@ request, sous macOS et Linux, plus le mode sandbox Linux en conteneurs. Voir
   exactly-once. Si aucun résultat n’est retrouvé, l’opération reste inconnue et n’est
   pas rejouée.
 - Chaque application distribue son Client ou son binaire. Une URL de Server s’ouvre
-  aussi dans le Client générique (`airtty <url>`) : bundle signé par l’éditeur, clé
+  aussi dans le Client générique (`luciole <url>`) : bundle signé par l’éditeur, clé
   épinglée par origine, mode `sandbox` par défaut là où il confine aussi le réseau ; voir
   [DISTRIBUTION.md](DISTRIBUTION.md). Le Client peut être livré en un seul
   exécutable (`build --compile`), signé et notarisé sur demande (`--sign`,

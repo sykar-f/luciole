@@ -1,5 +1,5 @@
 {
-  "extends": "airtty/tsconfig",
+  "extends": "luciole/tsconfig",
   "compilerOptions": {
     "lib": ["ESNext", "DOM"],
     "types": ["bun"],

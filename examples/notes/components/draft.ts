@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useSyncExternalStore } from "react";
-import { TransportError } from "airtty/client";
+import { TransportError } from "luciole/client";
 
 // Application-owned session Drafts: the framework only reports what happened to a
 // request (`TransportError.outcome`); keeping, resolving and clearing unsaved work is

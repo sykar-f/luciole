@@ -20,7 +20,7 @@ import { policy } from "../examples/studio/server/policy";
 import { diagnosticsOf } from "../examples/studio/server/preview";
 import { Project } from "../examples/studio/server/project";
 import { TEMPLATE } from "../examples/studio/server/template.gen";
-import { messageOf } from "../packages/airtty/src/guards";
+import { messageOf } from "../packages/luciole/src/guards";
 
 function scratch() {
   const root = realpathSync(mkdtempSync(join(tmpdir(), "studio-project-")));
@@ -124,7 +124,7 @@ test("the guard keeps the harness in the app's folders and packages", () => {
     new Map<string, string | null>([
       [
         "components/Ok.tsx",
-        `"use client";\nimport { useState } from "react";\nimport { useBindings } from "airtty/client";\nexport const x = [useState, useBindings];\n`,
+        `"use client";\nimport { useState } from "react";\nimport { useBindings } from "luciole/client";\nexport const x = [useState, useBindings];\n`,
       ],
       [
         "server/db.ts",
@@ -155,7 +155,7 @@ test("the guard keeps the harness in the app's folders and packages", () => {
 
 test("a field without a name is advised, not refused: named, spread or elsewhere, it is not", () => {
   const form = `"use client";
-import { Input, Textarea } from "airtty/client";
+import { Input, Textarea } from "luciole/client";
 export function Form(props: { name: string }) {
   return (
     <box>
@@ -186,7 +186,7 @@ export function Form(props: { name: string }) {
     ["components/Form.tsx", 15],
   ]);
   expect(advice[0]?.message).toContain('name it (name="form/field")');
-  expect(advice[2]?.message).toContain("use Input from airtty/client");
+  expect(advice[2]?.message).toContain("use Input from luciole/client");
 });
 
 test("the template names its fields: nothing to advise", () => {

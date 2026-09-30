@@ -34,7 +34,7 @@ export const headingAnchors: HastPluginEntry = () => {
 
 /**
  * The product's name as `product.ts` gives it, in the text of every page, code included:
- * `airtty`, `AIRTTY_` and `.airtty/` follow a rename. Nothing to do while the name is the
+ * `luciole`, `LUCIOLE_` and `.luciole/` follow a rename. Nothing to do while the name is the
  * one the pages are written with.
  */
 export const renameProduct: HastPluginEntry = () =>

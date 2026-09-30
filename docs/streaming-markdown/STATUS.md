@@ -7,31 +7,31 @@ Branche `feat/streaming-markdown` (partie de `main` à `79410fc`), mission décr
 
 Tous les critères du §7 du handoff sont remplis :
 
-| Critère                                                             | État                                                                                    |
-| ------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| 1. Composant utilisé par le transcript (messages, « thinking »)     | `<Markdown>` d'`airtty/client` (`packages/airtty/src/markdown/`), dans `Transcript.tsx` |
-| 2. Banc PTY : 0 oscillation, marqueurs bruts ≤ `top-level`          | 0 oscillation et 0 trame brute, par mots et par 3 caractères (tableau plus bas)         |
-| 3. Tests : blocs figés, fermeture optimiste, fini = streamé, parité | `tests/markdown.test.tsx`, `tests/markdown-close.test.ts`                               |
-| 4. `verify`, `test:pty:coder`, essai réel `--harness claude`        | verts ; essai réel : 0 oscillation (Claude Code 2.1.283, une réponse)                   |
-| 5. `STATUS.md` : décisions, écarts avec Streamdown, mesures         | ce document                                                                             |
+| Critère                                                             | État                                                                                      |
+| ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| 1. Composant utilisé par le transcript (messages, « thinking »)     | `<Markdown>` d'`luciole/client` (`packages/luciole/src/markdown/`), dans `Transcript.tsx` |
+| 2. Banc PTY : 0 oscillation, marqueurs bruts ≤ `top-level`          | 0 oscillation et 0 trame brute, par mots et par 3 caractères (tableau plus bas)           |
+| 3. Tests : blocs figés, fermeture optimiste, fini = streamé, parité | `tests/markdown.test.tsx`, `tests/markdown-close.test.ts`                                 |
+| 4. `verify`, `test:pty:coder`, essai réel `--harness claude`        | verts ; essai réel : 0 oscillation (Claude Code 2.1.283, une réponse)                     |
+| 5. `STATUS.md` : décisions, écarts avec Streamdown, mesures         | ce document                                                                               |
 
 Sur décision de l'utilisateur (§8), le composant est promu dans le framework :
-`<Markdown>` est exporté par `airtty/client` (documenté dans `docs/API.md`, « Markdown en
-streaming ») et `airtty` dépend de `marked` 17.0.1. Il n'utilise que `box`, `text`, `code`
+`<Markdown>` est exporté par `luciole/client` (documenté dans `docs/API.md`, « Markdown en
+streaming ») et `luciole` dépend de `marked` 17.0.1. Il n'utilise que `box`, `text`, `code`
 et `markdown` (tableaux) : il reste portable vers la cible web. L'export est un ajout :
 `ABI_VERSION` ne change pas (il ne bouge que pour un changement incompatible).
 
 ## Architecture
 
 ```
-packages/airtty/src/markdown/close.ts    fermeture optimiste du bloc en cours (façon remend)
-packages/airtty/src/markdown/render.ts   tokens marked → nœuds (texte stylé, code, citation, filet, tableau)
-packages/airtty/src/markdown/stream.ts   découpage incrémental en blocs, blocs figés, bloc de queue
-packages/airtty/src/markdown/Markdown.tsx  le composant React (box, text, code, markdown pour les tableaux)
+packages/luciole/src/markdown/close.ts    fermeture optimiste du bloc en cours (façon remend)
+packages/luciole/src/markdown/render.ts   tokens marked → nœuds (texte stylé, code, citation, filet, tableau)
+packages/luciole/src/markdown/stream.ts   découpage incrémental en blocs, blocs figés, bloc de queue
+packages/luciole/src/markdown/Markdown.tsx  le composant React (box, text, code, markdown pour les tableaux)
 ```
 
 1. **Découpage** : la réponse est lexée par `marked` 17.0.1 (déjà au catalogue, épinglé dans
-   les dépendances d'`airtty`) en blocs de premier niveau. Le lexage est incrémental : les jetons
+   les dépendances d'`luciole`) en blocs de premier niveau. Le lexage est incrémental : les jetons
    dont la source n'a pas changé sont repris, sauf les deux derniers (qui peuvent encore
    fusionner avec la suite : soulignement setext, élément de liste suivant), et seule la
    fin est relexée. `parseMarkdownIncremental` d'OpenTUI fait la même chose ; il n'est pas
@@ -162,7 +162,7 @@ et construction des nœuds compris.
 
 ## Décisions de l'utilisateur
 
-- **Promotion** dans `packages/airtty` : acceptée (27 septembre 2026), voir plus haut.
+- **Promotion** dans `packages/luciole` : acceptée (27 septembre 2026), voir plus haut.
 - **Tableaux** : l'affichage progressif est gardé.
 - **Titres** : bandeaux en fondu, choisis sur maquettes xterm.js (quatre séries, puis une
   réponse réelle de 102 lignes). Fondu à colonnes fixes (28, 18, 12 : un titre qui s'écrit
@@ -183,9 +183,9 @@ et construction des nœuds compris.
   `markup`) : les libellés de liens prennent le style des liens. Une image fait grandir sa
   réponse une fois, à son chargement (jamais de rétrécissement).
 - **Coloration syntaxique** (retour après essai ; dépendance ajoutée sur décision de
-  l'utilisateur, option « paquet npm épinglé ») : `import "airtty/grammars"` enregistre 14
+  l'utilisateur, option « paquet npm épinglé ») : `import "luciole/grammars"` enregistre 14
   grammaires Tree-sitter officielles (paquets `tree-sitter-*`, WebAssembly et requêtes à la
-  même version), épinglées au catalogue et dans `airtty`. Écartés : `tree-sitter-wasms`
+  même version), épinglées au catalogue et dans `luciole`. Écartés : `tree-sitter-wasms`
   (grammaires 0.20, dépend de lui-même, ~50 Mo) et `@vscode/tree-sitter-wasm` (moins de
   langages, pas de requêtes). Entrée à part pour ne pas alourdir toutes les applications :
   le build copie chaque `.wasm` à côté du bundle (~11 Mo), résolu depuis le module (OpenTUI
