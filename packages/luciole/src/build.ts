@@ -8,7 +8,7 @@ import { z } from "zod";
 import { bundleMessages, logMessages } from "./bundle-errors";
 import { nativePackage } from "./native";
 import { lucioleSources } from "./sources";
-import { governingLock } from "./lockfile";
+import { governingLock, isLinkedSource, LINKED_SOURCES, linkedPackages } from "./lockfile";
 import { withLock } from "./launcher/lock";
 import { readJsonFile } from "./package-json";
 import { ROUTE_TREE_FILE, compileRouteGraph, renderRouteTree } from "./route-graph";
@@ -756,6 +756,14 @@ async function buildUnlocked(
     );
   const appLock = governingLock(root);
   for (const lock of new Set([frameworkLock, appLock])) if (lock) hash.update(await readFile(lock));
+  // A workspace's own packages change without their lock changing: their sources count.
+  for (const linked of linkedPackages(root)) {
+    const files = [...new Bun.Glob(LINKED_SOURCES).scanSync({ cwd: linked })].filter(
+      isLinkedSource,
+    );
+    for (const file of files.sort())
+      hash.update(join(basename(linked), file)).update(await readFile(join(linked, file)));
+  }
   // What the build reads besides modules: the declaration (metadata, icon) and luciole.json.
   for (const file of [
     join(root, "package.json"),

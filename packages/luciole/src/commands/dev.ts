@@ -1,5 +1,6 @@
 import { basename, join } from "node:path";
 import { watch } from "node:fs";
+import { isLinkedSource, linkedPackages } from "../lockfile";
 import { spawn, type ChildProcess } from "node:child_process";
 import { isUsageError, USAGE_EXIT_CODE } from "../args";
 import { build } from "../build";
@@ -39,6 +40,7 @@ export const dev: Command = {
       if (closing) return;
       closing = true;
       watcher.close();
+      for (const each of linked) each.close();
       clearTimeout(debounce);
       await Promise.all([stop(client), server?.stop()]);
       process.exit(code);
@@ -65,6 +67,7 @@ export const dev: Command = {
           console.error(messageOf(error));
           closing = true;
           watcher.close();
+          for (const each of linked) each.close();
           process.exit(isUsageError(error) ? USAGE_EXIT_CODE : 1);
         }
         first = false;
@@ -114,7 +117,7 @@ export const dev: Command = {
     }
     const rebuilds = serialize(once);
     let debounce: ReturnType<typeof setTimeout>;
-    const watcher = watch(directory, { recursive: true }, (_event, file) => {
+    const changed = (file: string | null) => {
       if (
         !file ||
         file.includes(".luciole") ||
@@ -126,7 +129,14 @@ export const dev: Command = {
         return;
       clearTimeout(debounce);
       debounce = setTimeout(() => void rebuilds.run(), REBUILD_DEBOUNCE_MS);
-    });
+    };
+    const watcher = watch(directory, { recursive: true }, (_event, file) => changed(file));
+    // The workspace's own packages the app links are its sources too (an editor, a canvas).
+    const linked = linkedPackages(directory).map((package_) =>
+      watch(package_, { recursive: true }, (_event, file) =>
+        changed(file && isLinkedSource(file) ? file : null),
+      ),
+    );
     // SIGHUP too: a closed terminal, or a host that ends its embedded terminal
     // (<Terminal>), must not leave the Server and the Client running without it.
     for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"] as const)
