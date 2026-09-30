@@ -91,8 +91,6 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
   const Typed = z.object({ source: z.literal("luciole"), type: z.literal("typed"), data: z.string() });
   const Connection = z.object({ saveData: z.optional(z.boolean()) });
 
-  /** The round trip, as the slider sets it. */
-  let rtt = 500;
   /** A key its screen has not answered this long after it reached it changed nothing. */
   const ANSWER_MS = 250;
   /** Below this width, two 84-column screens are too small to use: their captures stay. */
@@ -106,6 +104,8 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
   // The word ending the title's first line turns through what stays in the terminal; held
   // still when the reader asks for less motion.
   const TURN_MS = 2200;
+  /** How long a word takes to leave: the rotor's transition, in the styles below. */
+  const LEAVE_MS = 400;
   const rotor = document.querySelector<HTMLElement>("[data-rotor]");
   if (rotor && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
     const words = [...rotor.children];
@@ -114,7 +114,7 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
       if (document.hidden) return;
       words[at].classList.replace("now", "gone");
       const was = words[at];
-      setTimeout(() => was.classList.remove("gone"), 400);
+      setTimeout(() => was.classList.remove("gone"), LEAVE_MS);
       at = (at + 1) % words.length;
       words[at].classList.add("now");
     }, TURN_MS);
@@ -144,12 +144,13 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
     const post = (frame: HTMLIFrameElement, message: Record<string, unknown>) =>
       frame.contentWindow?.postMessage({ source: "luciole", ...message }, location.origin);
     const ssh = (frame: HTMLIFrameElement) => frame.dataset.side === "ssh";
-    const network = (frame: HTMLIFrameElement) =>
-      post(frame, { type: "network", latencyMs: rtt, delays: ssh(frame) ? "keys" : "requests" });
-
     // The reader's ping: both screens get it at once, keys already on their way keep theirs.
     const slider = root.querySelector<HTMLInputElement>("[data-ping]");
     const shown = root.querySelector<HTMLOutputElement>("[data-ping-value]");
+    /** The round trip, as the slider sets it. */
+    let rtt = slider ? Number(slider.value) : 0;
+    const network = (frame: HTMLIFrameElement) =>
+      post(frame, { type: "network", latencyMs: rtt, delays: ssh(frame) ? "keys" : "requests" });
     slider?.addEventListener("input", () => {
       rtt = Number(slider.value);
       if (shown) shown.value = `${rtt} ms`;

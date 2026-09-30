@@ -27,9 +27,36 @@
   const RISE_MS = 90;
   const HOLD_MS = 70;
   const FADE_MS = 1500;
-  /** A firefly's peak, and its halo's reach in cells. */
+  /** The fade's curve: dimming fast, then lingering, as a firefly's afterglow does. */
+  const AFTERGLOW = 2.2;
+  /** The quick second pulse of a double flash: how late, and how bright against the first. */
+  const TWICE_MS = 260;
+  const TWICE_PEAK = 0.8;
+  /** How often a flash is a double one. */
+  const TWICE_ODDS = 0.3;
+  /** A firefly's peak, its halo's reach in cells and brightness, and the dimmest worth drawing. */
   const PEAK = 0.7;
   const HALO = 2.2;
+  const HALO_PEAK = 0.22;
+  const UNSEEN = 0.01;
+  /** Flashes a firefly gives before leaving: at least FEWEST, up to FEWEST + MORE - 1. */
+  const FEWEST = 2;
+  const MORE = 4;
+  /** The dark wait before a newcomer's first flash, and between two flashes, in ms. */
+  const FIRST_WAIT_MS = { from: 0, to: 2600 };
+  const WAIT_MS = { from: 250, to: 1100 };
+  /** Held still, how lit each firefly is drawn: somewhere mid-fade. */
+  const POSED = { from: 0.15, to: 0.6 };
+  /** Random cells tried for an open one before settling for a covered one. */
+  const TRIES = 40;
+  /** A step between flashes, drawn from these: each one a tenth of the odds. */
+  const LEAP = 2;
+  const STEPS = [-LEAP, -1, -1, -1, 0, 0, 1, 1, 1, LEAP];
+  /** An alpha channel's largest value, and its base in a hex colour. */
+  const BYTE = 255;
+  const HEX = 16;
+
+  type Range = { from: number; to: number };
 
   type Firefly = {
     column: number;
@@ -58,20 +85,20 @@
     let running = false;
     let frame = 0;
 
-    const random = (from: number, to: number) => from + Math.random() * (to - from);
+    const random = ({ from, to }: Range) => from + Math.random() * (to - from);
     const spawn = (now: number): Firefly => {
       let column = 0;
       let row = 0;
-      for (let tries = 0; tries < 40; tries++) {
+      for (let tries = 0; tries < TRIES; tries++) {
         column = Math.floor(Math.random() * columns);
         row = Math.floor(Math.random() * rows);
         if (open(column, row)) break;
       }
-      return { column, row, left: 2 + Math.floor(Math.random() * 4), ...next(now, 0, 2600) };
+      return { column, row, left: FEWEST + Math.floor(Math.random() * MORE), ...next(now, FIRST_WAIT_MS) };
     };
-    const next = (now: number, from: number, to: number) => ({
-      at: now + random(from, to),
-      twice: Math.random() < 0.3,
+    const next = (now: number, wait: Range) => ({
+      at: now + random(wait),
+      twice: Math.random() < TWICE_ODDS,
     });
 
     const size = () => {
@@ -106,19 +133,19 @@
         if (t < RISE_MS) return t / RISE_MS;
         if (t < RISE_MS + HOLD_MS) return 1;
         const fading = (t - RISE_MS - HOLD_MS) / FADE_MS;
-        return fading >= 1 ? 0 : (1 - fading) ** 2.2;
+        return fading >= 1 ? 0 : (1 - fading) ** AFTERGLOW;
       };
-      return twice ? Math.max(one(t), 0.8 * one(t - 260)) : one(t);
+      return twice ? Math.max(one(t), TWICE_PEAK * one(t - TWICE_MS)) : one(t);
     };
-    const flashMs = (twice: boolean) => RISE_MS + HOLD_MS + FADE_MS + (twice ? 260 : 0);
+    const flashMs = (twice: boolean) => RISE_MS + HOLD_MS + FADE_MS + (twice ? TWICE_MS : 0);
 
     const light = (fly: Firefly, amount: number) => {
-      if (amount <= 0.01) return;
+      if (amount <= UNSEEN) return;
       const x = fly.column * CELL.width + CELL.width / 2;
       const y = fly.row * CELL.height + CELL.height / 2;
       const reach = CELL.height * HALO;
       const halo = context.createRadialGradient(x, y, 0, x, y, reach);
-      halo.addColorStop(0, `${colour}${alpha(0.22 * amount)}`);
+      halo.addColorStop(0, `${colour}${alpha(HALO_PEAK * amount)}`);
       halo.addColorStop(1, `${colour}00`);
       context.fillStyle = halo;
       context.fillRect(x - reach, y - reach, reach * 2, reach * 2);
@@ -142,7 +169,7 @@
         const column = clamp(fly.column + step(), columns);
         const row = clamp(fly.row + step(), rows);
         if (open(column, row)) Object.assign(fly, { column, row });
-        Object.assign(fly, next(now, 250, 1100));
+        Object.assign(fly, next(now, WAIT_MS));
       }
       context.globalCompositeOperation = "source-over";
     };
@@ -162,7 +189,7 @@
     // Held still: a few cells caught mid-fade, drawn once.
     const pose = () => {
       context.clearRect(0, 0, canvas.width, canvas.height);
-      for (const fly of flies) light(fly, random(0.15, 0.6));
+      for (const fly of flies) light(fly, random(POSED));
     };
 
     size();
@@ -191,8 +218,7 @@
 
   /** -1, 0 or 1 cell, rarely 2: a firefly drifts, it does not jump. */
   function step() {
-    const r = Math.random();
-    return r < 0.1 ? -2 : r < 0.4 ? -1 : r < 0.6 ? 0 : r < 0.9 ? 1 : 2;
+    return STEPS[Math.floor(Math.random() * STEPS.length)] ?? 0;
   }
 
   function clamp(value: number, count: number) {
@@ -201,8 +227,8 @@
 
   /** `amount` (0 to 1) as the two hex digits of an `#rrggbbaa` colour. */
   function alpha(amount: number) {
-    return Math.round(Math.min(1, Math.max(0, amount)) * 255)
-      .toString(16)
+    return Math.round(Math.min(1, Math.max(0, amount)) * BYTE)
+      .toString(HEX)
       .padStart(2, "0");
   }
 </script>

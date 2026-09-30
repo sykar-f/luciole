@@ -164,6 +164,10 @@ const split = (path: string) => {
   const wires = figure?.querySelector<SVGSVGElement>("[data-wires]");
   const from = figure?.querySelector<HTMLElement>("[data-from]");
   const label = figure?.querySelector<HTMLElement>("[data-build]");
+  /** Where the fork sits along the gap, and what it keeps clear of the label and the cards, in px. */
+  const FORK_AT = 0.4;
+  const PAST_LABEL = 24;
+  const BEFORE_CARDS = 32;
   if (figure && wires && from && label) {
     const draw = () => {
       if (getComputedStyle(wires).display === "none") return;
@@ -171,27 +175,30 @@ const split = (path: string) => {
       const tree = from.getBoundingClientRect();
       const x0 = tree.right - box.left;
       const y0 = tree.top + tree.height / 2 - box.top;
-      const ends = ["client", "server"].map((side) => {
-        const card = figure.querySelector<HTMLElement>(`[data-to="${side}"]`)!;
-        const icon = card.querySelector("[data-anchor]")!.getBoundingClientRect();
-        return { side, x: card.getBoundingClientRect().left - box.left, y: icon.top + icon.height / 2 - box.top };
-      });
+      const ends: { side: string; x: number; y: number }[] = [];
+      for (const side of ["client", "server"]) {
+        const card = figure.querySelector<HTMLElement>(`[data-to="${side}"]`);
+        const icon = card?.querySelector("[data-anchor]");
+        if (!card || !icon) return;
+        const at = icon.getBoundingClientRect();
+        ends.push({ side, x: card.getBoundingClientRect().left - box.left, y: at.top + at.height / 2 - box.top });
+      }
       const gap = Math.min(...ends.map((end) => end.x)) - x0;
       // The fork sits past the label, so no branch ever crosses it.
-      const fx = x0 + Math.min(Math.max(gap * 0.4, label.offsetWidth + 24), gap - 32);
+      const fx = x0 + Math.min(Math.max(gap * FORK_AT, label.offsetWidth + PAST_LABEL), gap - BEFORE_CARDS);
       wires.setAttribute("viewBox", `0 0 ${box.width} ${box.height}`);
-      wires.querySelector(".in")!.setAttribute("d", `M${x0} ${y0} H${fx}`);
+      wires.querySelector(".in")?.setAttribute("d", `M${x0} ${y0} H${fx}`);
       for (const end of ends) {
         const mid = fx + (end.x - fx) / 2;
         wires
-          .querySelector(`[data-wire="${end.side}"]`)!
-          .setAttribute("d", `M${fx} ${y0} C${mid} ${y0}, ${mid} ${end.y}, ${end.x} ${end.y}`);
+          .querySelector(`[data-wire="${end.side}"]`)
+          ?.setAttribute("d", `M${fx} ${y0} C${mid} ${y0}, ${mid} ${end.y}, ${end.x} ${end.y}`);
       }
       // A knot where the folder leaves the tree, as one, and where it forks.
       for (const [name, x] of [["from", x0], ["fork", fx]] as const) {
-        const knot = wires.querySelector(`[data-knot="${name}"]`)!;
-        knot.setAttribute("cx", String(x));
-        knot.setAttribute("cy", String(y0));
+        const knot = wires.querySelector(`[data-knot="${name}"]`);
+        knot?.setAttribute("cx", String(x));
+        knot?.setAttribute("cy", String(y0));
       }
       figure.style.setProperty("--build-x", `${(x0 + fx) / 2}px`);
       figure.style.setProperty("--build-y", `${y0}px`);
@@ -207,7 +214,7 @@ const split = (path: string) => {
       else delete figure.dataset.side;
     };
     figure.addEventListener("pointerover", (event) => {
-      const at = (event.target as Element).closest<HTMLElement>("[data-file]");
+      const at = event.target instanceof Element ? event.target.closest<HTMLElement>("[data-file]") : null;
       light(at?.dataset.file, at?.dataset.side);
     });
     figure.addEventListener("pointerleave", () => light());
