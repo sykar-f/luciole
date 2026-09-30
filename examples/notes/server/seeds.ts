@@ -135,6 +135,20 @@ No language at all.
 | *pears* | \`12\` | 4.80 € |
 | ~~plums~~ | 0 | — |
 
+## Beyond CommonMark
+
+What notes often write, as GitHub and others read it:
+
+> [!NOTE]
+> An alert: a quote whose first line is \`[!NOTE]\`, \`[!TIP]\`, \`[!IMPORTANT]\`, \`[!WARNING]\` or \`[!CAUTION]\`.
+
+> [!WARNING]
+> Each kind has its color.
+
+A ==highlight==, a footnote[^1], an emoji :tada:, keys <kbd>Ctrl</kbd>+<kbd>K</kbd>, H<sub>2</sub>O and x<sup>2</sup>, a line<br>broken by HTML.
+
+[^1]: Footnotes are written anywhere in the note.
+
 ## Rules
 
 Three ways to draw one:
@@ -258,6 +272,31 @@ from collections import Counter
 
 words = open("notes.md").read().split()
 print(Counter(words).most_common(5))
+\`\`\`
+
+## TSX
+
+\`\`\`tsx
+export function Greeting({ name }: { name: string }) {
+  return <p className="greeting">Hello, {name}!</p>;
+}
+\`\`\`
+
+## Lua
+
+\`\`\`lua
+local function greet(name)
+  return "Hello, " .. name
+end
+\`\`\`
+
+## Diff
+
+\`\`\`diff
+@@ -1,2 +1,2 @@
+-const answer = 41;
++const answer = 42;
+ export default answer;
 \`\`\`
 
 ## JSON
