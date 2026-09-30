@@ -62,6 +62,8 @@ export class FlowStore {
   nodes: readonly Node[] = [];
   edges: readonly Edge[] = [];
   readonly measured = new Map<string, Measured>();
+  /** The last size each node had at full detail: the view fits it at any zoom. */
+  readonly full = new Map<string, Measured>();
   readonly handles = new Map<string, Map<string, HandleSpec>>();
   background: BackgroundConfig | null = null;
   connecting: Connecting | null = null;
@@ -125,7 +127,7 @@ export class FlowStore {
       return;
     }
     this.pendingFit = false;
-    this.setViewport(fitViewport(flowBounds(this.nodes, this.measured), this.size));
+    this.setViewport(fitViewport(flowBounds(this.nodes, this.full), this.size));
   }
   /** Centers the view on a flow point, at `zoom` or the current one. */
   setCenter(point: XY, zoom = this.viewport.zoom) {
@@ -156,6 +158,7 @@ export class FlowStore {
     )
       return;
     this.measured.set(id, size);
+    if (size.detail === "full") this.full.set(id, size);
     this.changed();
   }
 

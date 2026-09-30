@@ -34,6 +34,7 @@ const ANIMATION_STEPS = 12;
 const LAYER_Z = 0;
 const NODE_Z = 10;
 const COLOR_CACHE_LIMIT = 256;
+const MIN_COMPACT_WIDTH = 4;
 
 export type FlowProps<N extends Node = Node, E extends Edge = Edge> = {
   nodes: N[];
@@ -342,11 +343,8 @@ function Canvas<N extends Node, E extends Edge>(props: FlowProps<N, E>) {
     () => ({
       bindings: keyboard
         ? [
-            ...(["h", "left"] as const).map((key, i) => ({
-              key,
-              cmd: () => store.panBy(PAN_X, 0),
-              ...(i === 0 ? { desc: "hjkl pan", group: "flow" } : {}),
-            })),
+            { key: "h", cmd: () => store.panBy(PAN_X, 0) },
+            { key: "left", cmd: () => store.panBy(PAN_X, 0) },
             { key: "l", cmd: () => store.panBy(-PAN_X, 0) },
             { key: "right", cmd: () => store.panBy(-PAN_X, 0) },
             { key: "k", cmd: () => store.panBy(0, PAN_Y) },
@@ -358,8 +356,6 @@ function Canvas<N extends Node, E extends Edge>(props: FlowProps<N, E>) {
                   {
                     key: "shift+h",
                     cmd: () => moveSelected(-1, 0),
-                    desc: "HJKL move",
-                    group: "flow",
                   },
                   { key: "shift+left", cmd: () => moveSelected(-1, 0) },
                   { key: "shift+l", cmd: () => moveSelected(1, 0) },
@@ -447,9 +443,9 @@ function Canvas<N extends Node, E extends Edge>(props: FlowProps<N, E>) {
                     ? [{ key: "e", cmd: nextEdge, desc: "edges", group: "flow" }]
                     : []),
                 ]),
-            { key: "=", cmd: () => store.zoom(1), desc: "+/- zoom", group: "flow" },
+            { key: "=", cmd: () => store.zoom(1), desc: "zoom in", group: "flow" },
             { key: "+", cmd: () => store.zoom(1) },
-            { key: "-", cmd: () => store.zoom(-1) },
+            { key: "-", cmd: () => store.zoom(-1), desc: "zoom out", group: "flow" },
             { key: "0", cmd: () => store.fitView(), desc: "fit", group: "flow" },
           ]
         : [],
@@ -469,6 +465,12 @@ function Canvas<N extends Node, E extends Edge>(props: FlowProps<N, E>) {
   );
 
   // ── Render ──────────────────────────────────────────────────────────────
+  // Compact nodes are as wide as they were at full detail, scaled: spaced as they were.
+  const compactWidth = (node: Node) => {
+    const full = store.full.get(node.id);
+    if (detail !== "compact" || node.type === "group" || !full) return undefined;
+    return Math.max(MIN_COMPACT_WIDTH, Math.round(full.width * store.viewport.zoom));
+  };
   const typeOf = (type: string | undefined): NodeComponent<N> | undefined =>
     props.nodeTypes?.[type ?? "default"] ??
     builtinNodeTypes[type ?? "default"] ??
@@ -511,6 +513,7 @@ function Canvas<N extends Node, E extends Edge>(props: FlowProps<N, E>) {
             placed={p}
             zIndex={NODE_Z + index}
             dot={detail === "dot" && node.type !== "group"}
+            maxWidth={compactWidth(node)}
             color={node.color ?? (node.selected ? theme.selected : theme.text)}
           >
             <Component
@@ -539,6 +542,7 @@ function NodeView({
   zIndex,
   dot,
   color,
+  maxWidth,
   children,
 }: {
   store: FlowStore;
@@ -546,6 +550,8 @@ function NodeView({
   zIndex: number;
   dot: boolean;
   color: string;
+  /** Clips what the node draws: a compact label never spills over its neighbours. */
+  maxWidth?: number;
   children: ReactNode;
 }) {
   const ref = useRef<BoxRenderable>(null);
@@ -564,6 +570,8 @@ function NodeView({
       top={rect.y}
       zIndex={zIndex}
       flexDirection="column"
+      width={maxWidth ?? "auto"}
+      overflow={maxWidth === undefined ? "visible" : "hidden"}
       onSizeChange={measure}
     >
       <NodeIdContext.Provider value={node.id}>
@@ -652,10 +660,13 @@ function EdgeLayer({
       zIndex={LAYER_Z}
       renderBefore={function (this: { x: number; y: number }, buffer: OptimizedBuffer) {
         for (const [x, y, cell] of frame.grid.entries()) {
+          // A selected edge shows as selected, whatever its own color.
           const color =
             cell.role === "background" && background?.color
               ? background.color
-              : (cell.color ?? roleColor(theme, cell.role));
+              : cell.role === "selected"
+                ? theme.selected
+                : (cell.color ?? roleColor(theme, cell.role));
           buffer.setCellWithAlphaBlending(
             this.x + x,
             this.y + y,

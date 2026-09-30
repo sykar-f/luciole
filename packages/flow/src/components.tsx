@@ -124,7 +124,7 @@ export function MiniMap({
       height: store.size.height / store.viewport.zoom,
     };
   })();
-  const nodes = flowBounds(store.nodes, store.measured) ?? view;
+  const nodes = flowBounds(store.nodes, store.full) ?? view;
   // The world: every node and the view.
   const x0 = Math.min(nodes.x, view.x);
   const y0 = Math.min(nodes.y, view.y);
@@ -139,7 +139,7 @@ export function MiniMap({
     .filter((n) => !n.hidden && n.type !== "group")
     .map((n) => {
       const position = positions.get(n.id) ?? n.position;
-      const one = flowBounds([{ ...n, parentId: undefined, position }], store.measured);
+      const one = flowBounds([{ ...n, parentId: undefined, position }], store.full);
       const role: Role = n.selected ? "selected" : "edge";
       return {
         rect: one ?? { x: 0, y: 0, width: 0, height: 0 },

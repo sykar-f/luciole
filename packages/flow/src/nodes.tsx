@@ -39,6 +39,7 @@ export function DefaultNode({ data, id, selected, detail, connectTarget, type }:
     return (
       <text
         selectable={false}
+        wrapMode="none"
         fg={selected || connectTarget ? color : theme.text}
         bg={theme.panelBg}
       >

@@ -156,7 +156,9 @@ test("c, a target, then Enter connects two nodes with the keyboard", async () =>
 test("zooming out draws labels only, then dots", async () => {
   const { ui, run, frame } = await open();
   await run(() => ui.mockInput.pressKey("-"));
-  expect(frame()).toContain(" checkout ");
+  // Clipped to its full width, halved: labels do not spill over their neighbours.
+  expect(frame()).toContain(" chec");
+  expect(frame()).not.toContain("checkout");
   expect(frame()).not.toContain("║");
   expect(frame()).toContain("compact");
   await run(() => ui.mockInput.pressKey("-"));
