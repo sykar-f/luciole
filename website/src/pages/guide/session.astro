@@ -86,7 +86,7 @@ import Quiz from "../../components/guide/Quiz.astro";
   <ol>
     <li>Le texte du groupe est <strong>retiré</strong> de la session avant l'envoi.</li>
     <li>Il est <strong>remis</strong> si l'action répond un échec métier (<code>failed(result)</code>), ou si la requête n'a certainement pas eu lieu (<code>not-sent</code>, <code>rejected</code>).</li>
-    <li>Il reste <strong>oublié</strong> après un <code>unknown</code> : le framework ne sait pas, donc il ne repropose pas. L'app tranche ; dans Notes, c'est le bouton « Check again ».</li>
+    <li>Il reste <strong>oublié</strong> après un <code>unknown</code> : le framework ne sait pas, donc il ne repropose pas. L'app tranche ; Notes demande au Server ce qu'est devenue l'opération, d'elle-même puis par le bouton « Check again ».</li>
   </ol>
   <p>Notes l'utilise pour son éditeur, et Forge pour son formulaire de pull request :</p>
   <Excerpt path="examples/notes/components/NoteEditor.tsx" find="fields = useRestoredFields" count={3} tone="client" />

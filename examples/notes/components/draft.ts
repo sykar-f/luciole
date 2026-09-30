@@ -31,8 +31,14 @@ export class Draft {
   version: number;
   pending?: Snapshot;
   unknown = false;
+  /** An unknown outcome is being looked up (`recover`). */
+  resolving = false;
   error = "";
   conflict = false;
+  /** When the first attempt of the save the Server has not answered yet began. */
+  since?: number;
+  /** Attempts in a row that ended without the Server's answer: each retry waits longer. */
+  failures = 0;
   readonly id: string;
   constructor(id: string, note: Note) {
     this.id = id;
@@ -47,7 +53,14 @@ export class Draft {
       this.value = value;
       this.revision++;
       this.error = "";
+      this.settleIfClean();
     }
+  }
+  /** Back to what the Server has, nothing in flight: no failed save is left to retry. */
+  private settleIfClean() {
+    if (this.dirty || this.pending) return;
+    this.since = undefined;
+    this.failures = 0;
   }
   begin(): Snapshot {
     if (this.pending) throw new Error("Resolve the current operation before saving");
@@ -61,6 +74,7 @@ export class Draft {
     this.pending = snapshot;
     this.unknown = false;
     this.error = "";
+    this.since ??= Date.now();
     return snapshot;
   }
   confirm(result: SaveResult) {
@@ -71,6 +85,7 @@ export class Draft {
       this.baseline = result.note.value;
       this.version = result.note.version;
       this.conflict = false;
+      this.error = "";
       if (this.revision === pending.revision) this.value = result.note.value;
     } else {
       this.error = result.error;
@@ -78,6 +93,10 @@ export class Draft {
     }
     this.pending = undefined;
     this.unknown = false;
+    this.resolving = false;
+    // The Server answered, yes or no: nothing is left to retry.
+    this.since = undefined;
+    this.failures = 0;
   }
   /** The Server provably did not run the save: the Draft stays dirty and can be retried. */
   fail(error: string) {
@@ -85,16 +104,21 @@ export class Draft {
     this.pending = undefined;
     this.unknown = false;
     this.error = error;
+    this.failures++;
   }
   markUnknown() {
     if (this.pending) {
       this.unknown = true;
+      this.resolving = false;
       this.error = "Outcome unknown — reconnect and resolve";
+      this.failures++;
     }
   }
-  markUnresolved() {
-    if (this.pending && this.unknown)
-      this.error = "No committed result yet; resolve again later (no automatic replay)";
+  /** The unknown save to look up, marked as being looked up; nothing if there is none. */
+  lookUp(): Snapshot | undefined {
+    if (!this.pending || !this.unknown || this.resolving) return undefined;
+    this.resolving = true;
+    return this.pending;
   }
   receive(note: Note) {
     // Restoring a previous route may replay props older than an in-flight save's confirmation.
@@ -106,6 +130,7 @@ export class Draft {
     this.value = this.baseline = note.value;
     this.version = note.version;
     this.revision++;
+    this.settleIfClean();
   }
   /**
    * Keeps this Draft over a note changed elsewhere: the next save replaces `note`,
@@ -127,6 +152,8 @@ export class Draft {
     this.revision++;
     this.error = "";
     this.conflict = false;
+    this.since = undefined;
+    this.failures = 0;
   }
 }
 export class DraftStore {
@@ -216,13 +243,22 @@ export function useDraft(note: Note) {
       }
       drafts.changed();
     },
-    recover: async (action: (id: string) => Promise<SaveResult | null>) => {
-      if (!draft.pending || !draft.unknown) return;
+    /**
+     * Settles a save whose outcome is unknown: the Server's record of the operation if it
+     * ran, else the same operation sent again. A save is idempotent by operation id, so
+     * a copy arriving after the original is answered with the original's result.
+     */
+    recover: async (
+      resolve: (id: string) => Promise<SaveResult | null>,
+      resend: (s: Snapshot) => Promise<SaveResult>,
+    ) => {
+      const snapshot = draft.lookUp();
+      if (!snapshot) return;
+      drafts.changed();
       try {
-        const result = await action(draft.pending.operationId);
-        if (result) draft.confirm(result);
-        else draft.markUnresolved();
+        draft.confirm((await resolve(snapshot.operationId)) ?? (await resend(snapshot)));
       } catch {
+        // Still unknown, whatever failed: the original may yet be written.
         draft.markUnknown();
       }
       drafts.changed();

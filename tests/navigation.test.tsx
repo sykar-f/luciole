@@ -55,10 +55,12 @@ test("local route loading, cancel, refresh identity, failed navigation and super
   let rendered: TestUI | undefined;
   const geometry = (ui: TestUI) =>
     Object.fromEntries(
-      ["toolbar", "sidebar", "note-pane", "note-toolbar", "note-heading", "note-body"].map((id) => {
-        const node = renderable(ui, id, Renderable);
-        return [id, [node.x, node.y, node.width, node.height]];
-      }),
+      ["toolbar", "sidebar", "note-pane", "note-status-line", "note-heading", "note-body"].map(
+        (id) => {
+          const node = renderable(ui, id, Renderable);
+          return [id, [node.x, node.y, node.width, node.height]];
+        },
+      ),
     );
   const resolved = () => app.router.state.resolvedLocation?.pathname;
   const pending = () => app.router.state.location.pathname;

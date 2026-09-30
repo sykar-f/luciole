@@ -74,7 +74,7 @@ assert.ok(
 );
 // Only the new Client draws from here on: the note and its typed text come back.
 t.resetScreen();
-await wait("Edited");
+await wait("● Unsaved");
 await wait("keep!");
 await t.quit();
 assert.ok(

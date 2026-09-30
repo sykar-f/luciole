@@ -21,6 +21,9 @@ const latency = numberFromEnv("LUCIOLE_LATENCY_MS", 0);
 const serverDelay = numberFromEnv("NOTES_DELAY_MS", 700);
 // Under this simulated RTT the loading screen is too brief to be caught.
 const VISIBLE_LOADING_RTT_MS = 400;
+/** How long a failing save goes unmentioned (NoteEditor's QUIET_MS). */
+const QUIET_MS = 3000;
+let failureShownMs: number | undefined;
 
 using directory = temporaryDirectory("luciole-pty-");
 await using server = args.url
@@ -66,21 +69,23 @@ await t.click("✎ Write");
 await t.waitFor("✓ Done");
 t.write("abc");
 await t.waitFor("abc");
+// Autosave is off: unsaved text is marked until Ctrl+S sends it, then nothing is said.
+await t.waitFor("● Unsaved");
 t.write(ctrl("s"));
-await t.waitFor("Saving");
+await t.waitFor("● Unsaved", { absent: true });
 const start = performance.now();
 t.write("d");
 const localMs = (await t.waitFor("abcd")) - start;
 assert.ok(localMs < 500, `typing reached the PTY after ${localMs} ms`);
 // Saved "abc"; the "d" typed meanwhile is the Draft's, still to save.
-await t.waitFor("Edited");
+await t.waitFor("● Unsaved");
 assert.ok((await t.text()).includes("abcd"));
 // Another note, then back: the Draft outlived its editor.
 await t.click("+ New note");
 await t.waitFor("Untitled");
 await t.click("Welcome to Notes");
 await t.waitFor("abcd");
-await t.waitFor("Edited");
+await t.waitFor("● Unsaved");
 if (server) {
   await server.stop();
   t.write(ctrl("r"));
@@ -90,6 +95,13 @@ if (server) {
   await t.waitFor("✓ Done");
   t.write("e");
   await t.waitFor("abcde");
+  // Saving with the Server gone: retried quietly, then said, with the text still there.
+  t.write(ctrl("s"));
+  const asked = performance.now();
+  failureShownMs = (await t.waitFor("Could not reach the Server")) - asked;
+  assert.ok(failureShownMs >= QUIET_MS - 100, `failure reported after ${failureShownMs} ms`);
+  const shown = await t.text();
+  assert.ok(shown.includes("Your text is kept here") && shown.includes("abcde"), shown);
 }
 await Bun.write(join(ROOT, "docs/pty-frame.txt"), await t.snapshot());
 if (server) {
@@ -113,6 +125,7 @@ report({
   simulatedRTTMs: latency,
   serverDelayMs: server ? serverDelay : "remote configuration",
   offlineEditing: Boolean(server),
+  saveFailureShownAfterMs: failureShownMs === undefined ? null : round(failureShownMs),
   terminalRestored: true,
   transport: args.url ? "external Server (topology supplied by caller)" : "loopback",
   physicalDisplayLatencyMeasured: false,

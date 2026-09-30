@@ -164,8 +164,8 @@ x-luciole-action: e01495558432a2514ca7203e/actions/notes.ts#saveNote
     <table>
       <thead><tr><th>Issue</th><th>Notes affiche</th><th>Et ensuite</th></tr></thead>
       <tbody>
-        <tr><td><code>not-sent</code>, <code>rejected</code></td><td>« Not saved »</td><td>le texte est intact, réessayer est sans risque</td></tr>
-        <tr><td><code>unknown</code></td><td>« Connection lost while saving »</td><td>le bouton « Check again » appelle <code>getOperation(operationId)</code> pour demander au Server ce qu'est devenue l'opération</td></tr>
+        <tr><td><code>not-sent</code>, <code>rejected</code></td><td>rien pendant 3 s, puis « Could not reach the Server. Your text is kept here. »</td><td>le texte est intact, réessayer est sans risque : Notes réessaie seule (1 s, 2 s, 4 s… jusqu'à 15 s entre deux essais), « Retry » ou Ctrl+S le fait tout de suite</td></tr>
+        <tr><td><code>unknown</code></td><td>rien pendant 3 s, puis « Save not confirmed. Your text is kept here. »</td><td>Notes appelle d'elle-même <code>getOperation(operationId)</code> pour demander au Server ce qu'est devenue l'opération, et « Check again » l'avance ; sans trace de l'opération, elle renvoie la même, que le Server n'applique qu'une fois</td></tr>
       </tbody>
     </table>
   </div>
@@ -203,14 +203,14 @@ x-luciole-action: e01495558432a2514ca7203e/actions/notes.ts#saveNote
   </Callout>
 
   <Callout kind="essaie">
-    <p>Lance Notes avec <code>LUCIOLE_FAULT=drop:0.3 bun run dev</code>. La faute touche toutes les requêtes, ouvertures de pages comprises : réessaie jusqu'à ouvrir une note. Modifie-la ensuite plusieurs fois. Quand « Connection lost while saving » apparaît, prédis la version que « Check again » va révéler, puis vérifie. La valeur a bien été écrite : seule la réponse s'est perdue.</p>
+    <p>Lance Notes avec <code>LUCIOLE_FAULT=drop:0.3 bun run dev</code>. La faute touche toutes les requêtes, ouvertures de pages comprises : réessaie jusqu'à ouvrir une note. Ouvre le panneau des requêtes (Ctrl+T), puis modifie-la plusieurs fois. Quand un <code>saveNote</code> perd sa réponse, la note n'en dit rien : prédis ce que le <code>getOperation</code> parti seul une seconde plus tard va révéler, puis vérifie. La valeur a bien été écrite : seule la réponse s'est perdue.</p>
   </Callout>
 
   <Quiz
     items={[
       {
         q: "Le Server crashe juste après avoir enregistré la note. Quelle issue reçoit le Client, et comment Notes s'en sort-il ?",
-        a: "<p><code>unknown</code> : <code>fetch</code> échoue sans code « non connecté », ou reçoit un 5xx. Notes passe le Draft en « Connection lost while saving » ; le bouton « Check again » appelle <code>getOperation(operationId)</code>, qui relit la table <code>operations</code>.</p>",
+        a: "<p><code>unknown</code> : <code>fetch</code> échoue sans code « non connecté », ou reçoit un 5xx. Notes garde le Draft en attente et appelle d'elle-même <code>getOperation(operationId)</code>, qui relit la table <code>operations</code> ; au-delà de 3 s, elle affiche « Save not confirmed » et le bouton « Check again ».</p>",
       },
       {
         q: "Pourquoi un 404 sur <code>/action</code> est-il <code>rejected</code> et pas <code>unknown</code> ?",

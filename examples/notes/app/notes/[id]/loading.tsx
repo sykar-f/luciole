@@ -15,7 +15,7 @@ export default function Loading({ params }: LoadingProps) {
   const known = notes?.find((note) => note.id === params.id);
   return (
     <NotePane
-      toolbar={<Line fg={color.muted}>Opening…</Line>}
+      status={<Line fg={color.muted}>Opening…</Line>}
       title={
         <Line fg={color.accent} bold>
           {known ? titleOf(known) : "Opening note…"}

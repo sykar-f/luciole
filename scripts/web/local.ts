@@ -40,7 +40,7 @@ try {
   await browser.waitFor(shows(BODY), "the typed text");
   await browser.clickAt(cellOf("✓ Done"));
   report.savedInTheBrowser = !!(await browser.waitFor(
-    `${rowWith("✓ Saved")} && ${rowWith(marker, "⋯")}`,
+    `!${rowWith("●", marker)} && ${rowWith(marker, "⋯")}`,
     "the saved note, listed under its title",
   ));
 

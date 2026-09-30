@@ -118,3 +118,35 @@ test("a save refused for a newer version marks the conflict; keeping the Draft s
   expect(d.begin().version).toBe(3);
   expect(() => d.adopt(note("1", "theirs", 3))).toThrow("Resolve the current operation");
 });
+test("failures are counted until the Server answers, and an unknown save is looked up once", () => {
+  const d = new Draft("1", note());
+  d.edit("abc");
+  const s = d.begin();
+  const since = d.since;
+  d.fail("Not saved: refused");
+  expect(d.failures).toBe(1);
+  // A retry keeps the time the first attempt began: the wait is the user's, not the retry's.
+  d.begin();
+  expect(d.since).toBe(since);
+  d.markUnknown();
+  expect(d.failures).toBe(2);
+  const looked = d.lookUp();
+  expect(looked?.operationId).not.toBe(s.operationId);
+  expect(d.lookUp()).toBeUndefined();
+  d.confirm({ ok: true, operationId: looked?.operationId ?? "", note: note("1", "abc", 2) });
+  expect([d.failures, d.since, d.error, d.resolving]).toEqual([0, undefined, "", false]);
+});
+test("a failed save is forgotten once the text is back to what the Server has", () => {
+  const d = new Draft("1", note("1", "base"));
+  d.edit("base!");
+  d.begin();
+  d.fail("Not saved: refused");
+  d.edit("base");
+  expect([d.failures, d.since]).toEqual([0, undefined]);
+  // Not while a save is in flight: it may still be written.
+  d.edit("base?");
+  d.begin();
+  d.markUnknown();
+  d.edit("base");
+  expect(d.failures).toBe(1);
+});
