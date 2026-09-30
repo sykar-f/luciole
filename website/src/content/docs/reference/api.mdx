@@ -54,6 +54,7 @@ For Client Components only.
 | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `<Input name? value onInput />`, `<Textarea name? value onChange />`      | OpenTUI's `input` and `textarea`, controlled; a `name` makes their text restorable.                                                                     |
 | `useRestoredFields(group)`                                                | `{ submit(action, { failed? }?), clear() }` for the `group/…` fields of the current history entry ([session restore](/docs/concepts/session-restore/)). |
+| `useRestoredField(name, value, onChange)`                                 | A field of the app's own made restorable: returns the function to call with every text typed.                                                           |
 | `useRestoredFocus(names)`                                                 | `[focus, setFocus]`: which of `names` has the focus, kept per history entry.                                                                            |
 | `<ScrollBox name? …>`                                                     | OpenTUI's `scrollbox`; a `name` keeps its scroll position per history entry.                                                                            |
 | `useBindings()`, `useActiveKeys()`, `useKeymap()`, `usePendingSequence()` | OpenTUI's keymap, re-exported: layers of bindings tied to components' lifetimes.                                                                        |
@@ -67,6 +68,7 @@ For Client Components only.
 | `<Terminal command active prefix? cwd? env? onExit? />`                            | A local program on a PTY, drawn in the tree.                                              |
 | `<TerminalView program label spawn active prefix? onExit? />`                      | The same widget, the host starting the program itself: a sandboxed Client, a custom stop. |
 | `<Markdown content streaming syntaxStyle onLink? imageBase? />`                    | Markdown rendered by blocks: while `content` streams, the text already shown never moves. |
+| `markdownStyle(palette)`                                                           | A complete `SyntaxStyle` (heading bands, code panel, code tokens) from a dozen colors.    |
 
 `<Markdown>` shows text that arrives in pieces, typically a model's answer, without flicker:
 finished blocks render once, the last block is closed ahead of time (`**bold` shows bold), and
@@ -75,6 +77,12 @@ once its fence closes; `diff` blocks are coloured line by line from the start. O
 JavaScript, TypeScript, Markdown and Zig; `import "luciole/grammars"` (once, in the Client)
 adds Bash, C, C++, CSS, Go, HTML, Java, JSON, PHP, Python, Ruby, Rust, TOML and YAML. A click
 on a link calls `onLink(url)`; images are drawn with kitty, sixel or half blocks.
+
+`markdownStyle({ text, muted, faint, accent, onBand, band, bandQuiet, code, panel, link,
+danger, ok })` derives every group `<Markdown>` reads from those colors: H1 and H2 on
+`band`, H3 on `bandQuiet`, code blocks on `panel`, and the Tree-sitter groups of the
+grammars above. `@luciole/editor` reads the same groups, so a note looks the same read and
+written.
 
 ### Asking the host
 

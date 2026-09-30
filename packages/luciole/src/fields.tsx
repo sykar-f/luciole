@@ -83,6 +83,20 @@ function useRestoredValue(
   };
 }
 
+/**
+ * What `Input` and `Textarea` do with their `name`, for a field of the application's own
+ * (an editor, a canvas): `value` is restored once when the field mounts, through
+ * `onChange`, like typed text; call the returned function with every text the user types.
+ * `group/field` joins a group (`useRestoredFields`).
+ */
+export function useRestoredField(
+  name: string,
+  value: string,
+  onChange: (value: string) => void,
+): (typed: string) => void {
+  return useRestoredValue(name, value, onChange);
+}
+
 export type FieldInputProps = Omit<InputProps, "value" | "onInput"> & {
   /**
    * Keeps the typed text for this history entry: it comes back after going back to
