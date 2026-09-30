@@ -98,9 +98,9 @@ test("a named field comes back after a restart, is forgotten once sent, kept if 
     expect(fieldsAt(app, "/notes/1")).toEqual({});
 
     // The first bearer keeps typed text (a sign-in after a crash); replacing it forgets it.
-    // Typing needs the text in hand again: a click on Edit.
+    // Typing needs the text in hand again: a click on Write.
     await act(async () => {
-      await clickOn(ui, "✎ Edit");
+      await clickOn(ui, "✎ Write");
     });
     await act(async () => {
       await ui.mockInput.typeText("d");

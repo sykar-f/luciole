@@ -14,15 +14,12 @@ import {
 import { renameNote } from "../actions/notes";
 import { titleOf, useCommands } from "./commands";
 import { useDraft, type Note, type SaveResult, type Snapshot } from "./draft";
-import { NotePane } from "./NoteFrame";
-import { ToolbarActions } from "./Toolbar";
+import { NotePane, READING_WIDTH } from "./NoteFrame";
+import { Separator, ToolbarActions } from "./Toolbar";
 import { when } from "./format";
 import { useTheme, type Palette } from "./theme";
 import { Button } from "./ui";
 import { ui, useUi } from "./ui-state";
-
-/** The widest a line of text runs, as on a printed page. */
-const READING_WIDTH = 100;
 
 type Props = {
   initialNote: Note;
@@ -202,22 +199,25 @@ export function NoteEditor({ initialNote: note, saveAction, resolveAction, autos
         ) : null
       }
     >
+      {/* The text is written where it is shown: "Write" puts the cursor at its end, for
+          those who look for a button rather than click the page. Delete stands apart. */}
       <ToolbarActions>
-        <Button tone="quiet" onPress={() => void copy()}>
-          Copy
-        </Button>
-        <Button id="delete-note" tone="quiet" onPress={() => void commands.remove(note)}>
-          Delete
-        </Button>
         {editing ? (
           <Button id="done" tone="primary" onPress={done}>
             ✓ Done
           </Button>
         ) : (
           <Button id="edit" onPress={startEditing}>
-            ✎ Edit
+            ✎ Write
           </Button>
         )}
+        <Button tone="quiet" onPress={() => void copy()}>
+          Copy
+        </Button>
+        <Separator />
+        <Button id="delete-note" tone="danger" onPress={() => void commands.remove(note)}>
+          Delete
+        </Button>
       </ToolbarActions>
       <box flexDirection="column" flexGrow={1}>
         <MarkdownEditor
@@ -241,6 +241,8 @@ export function NoteEditor({ initialNote: note, saveAction, resolveAction, autos
   );
 }
 
+/** How long "Saved" stays lit once a save lands, before it steps back. */
+const SAVED_LIT_MS = 2000;
 function SaveStatus({
   color,
   state,
@@ -250,10 +252,24 @@ function SaveStatus({
   state: { text: string; fg: string };
   action: ReactNode;
 }) {
+  // "Saved" is news the moment it happens, then only the state of things: it is lit
+  // briefly after a save, muted the rest of the time (and when a note opens saved).
+  const saved = state.text === "Saved";
+  const [lit, setLit] = useState(false);
+  const wasSaved = useRef(saved);
+  useEffect(() => {
+    const landed = saved && !wasSaved.current;
+    wasSaved.current = saved;
+    setLit(landed);
+    if (!landed) return;
+    const timer = setTimeout(() => setLit(false), SAVED_LIT_MS);
+    return () => clearTimeout(timer);
+  }, [saved]);
+  const fg = saved && !lit ? color.muted : state.fg;
   return (
     <box flexDirection="row" flexShrink={1} gap={1}>
-      <text id="note-status" flexShrink={1} wrapMode="none" truncate fg={state.fg}>
-        {state.text === "Saved" ? <span fg={color.ok}>✓ </span> : ""}
+      <text id="note-status" flexShrink={1} wrapMode="none" truncate fg={fg}>
+        {saved ? <span fg={fg}>✓ </span> : ""}
         {state.text}
       </text>
       {action}

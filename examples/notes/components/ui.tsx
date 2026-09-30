@@ -49,6 +49,7 @@ export function useHover() {
   };
 }
 
+/** "danger" is quiet until pointed at, then says what it would destroy in red. */
 type Tone = "primary" | "plain" | "quiet" | "danger";
 /** A labelled button, one row high: it lights up under the pointer. */
 export function Button({
@@ -72,7 +73,7 @@ export function Button({
       ? lit
         ? color.text
         : color.accent
-      : tone === "quiet"
+      : tone === "quiet" || tone === "danger"
         ? lit
           ? color.buttonHover
           : undefined
@@ -83,9 +84,9 @@ export function Button({
     ? color.faint
     : tone === "primary"
       ? color.onAccent
-      : tone === "danger"
+      : tone === "danger" && lit
         ? color.danger
-        : tone === "quiet" && !lit
+        : (tone === "quiet" || tone === "danger") && !lit
           ? color.muted
           : color.text;
   return (

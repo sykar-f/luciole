@@ -47,8 +47,8 @@ const wait = (text: string) => t.waitFor(text, { timeout: TIMEOUT_MS });
 
 await wait("Welcome to Notes");
 await t.click("Welcome to Notes");
-await wait("✎ Edit");
-await t.click("✎ Edit");
+await wait("✎ Write");
+await t.click("✎ Write");
 await wait("✓ Done");
 // On a line of its own: the end of the note would wrap it.
 t.write("\rkeep");

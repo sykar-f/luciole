@@ -48,7 +48,7 @@ await wait(devtools, "Server: request +");
 
 // Return opens the first note: a key never shown, for those who look for it.
 app.write("\r");
-await wait(app, "✎ Edit");
+await wait(app, "✎ Write");
 await wait(devtools, "▣ /notes/1");
 
 devtools.write("2");

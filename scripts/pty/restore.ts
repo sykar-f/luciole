@@ -39,8 +39,8 @@ const saved = () =>
   await using t = await start();
   await t.waitFor("Welcome to Notes");
   await t.click("Welcome to Notes");
-  await t.waitFor("✎ Edit");
-  await t.click("✎ Edit");
+  await t.waitFor("✎ Write");
+  await t.click("✎ Write");
   await t.waitFor("✓ Done");
   t.write("abc");
   await t.waitFor("abc");
@@ -57,7 +57,7 @@ const saved = () =>
   await t.waitFor("abc");
   await t.waitFor("Edited");
   assert.equal(saved().length, 1, saved().join());
-  await t.click("✎ Edit");
+  await t.click("✎ Write");
   await t.waitFor("✓ Done");
   t.write("d");
   await t.waitFor("abcd");

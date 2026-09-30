@@ -81,7 +81,7 @@ test("generated Notes: Flight action, preserved Draft, navigation and offline ed
     // Read as Markdown: headings without their markers, and nothing to type into.
     expect(await frame(ui)).toContain("Getting around");
     expect(await frame(ui)).not.toContain("## Getting around");
-    await click(ui, "✎ Edit");
+    await click(ui, "✎ Write");
     const input = (id: string) => markdownEditor(ui, id);
     const field = input("note-1");
     const seed = field.value;
@@ -131,7 +131,7 @@ test("generated Notes: Flight action, preserved Draft, navigation and offline ed
     expect(input("note-1").value).toBe(`${seed}abcd`);
 
     const localBefore = await counts();
-    await click(ui, "✎ Edit");
+    await click(ui, "✎ Write");
     await act(async () => {
       await ui.mockInput.typeText("e");
       ui.mockInput.pressArrow("left");

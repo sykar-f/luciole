@@ -60,9 +60,9 @@ if (latency >= VISIBLE_LOADING_RTT_MS) {
   assert.ok(loadingMs < latency * 0.8, `loading shown after ${loadingMs} ms`);
   loadingRows = await layoutRows();
 }
-await t.waitFor("✎ Edit");
+await t.waitFor("✎ Write");
 if (loadingRows) assert.deepEqual(await layoutRows(), loadingRows, "the loading layout moved");
-await t.click("✎ Edit");
+await t.click("✎ Write");
 await t.waitFor("✓ Done");
 t.write("abc");
 await t.waitFor("abc");
@@ -86,7 +86,7 @@ if (server) {
   t.write(ctrl("r"));
   await t.waitFor("Disconnected");
   await t.waitFor("Reconnect");
-  await t.click("✎ Edit");
+  await t.click("✎ Write");
   await t.waitFor("✓ Done");
   t.write("e");
   await t.waitFor("abcde");

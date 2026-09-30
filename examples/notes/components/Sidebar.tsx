@@ -7,7 +7,7 @@ import { drafts, type Note } from "./draft";
 import { notesList, useNotesList } from "./notes-list";
 import { usePalette, type Palette } from "./theme";
 import { Button, Line, useHover } from "./ui";
-import { excerptOf, fit, when } from "./format";
+import { excerptOf, fit, whenShort } from "./format";
 import { ui, useUi } from "./ui-state";
 
 const matches = (note: Note, query: string) =>
@@ -26,6 +26,8 @@ export function Sidebar({ width }: { width: number }) {
   useSyncExternalStore(drafts.subscribe, drafts.snapshot);
   const unsaved = new Set(drafts.unsaved().map((d) => d.id));
   const shown = notes?.filter((note) => !query || matches(note, query)) ?? [];
+  // Dates padded to the widest shown, so every preview starts in the same column.
+  const dateWidth = Math.max(0, ...shown.map((note) => whenShort(note.updated).length));
   // Arrows walk the list while nothing is being typed; Return opens the first note.
   const step = (delta: number) => {
     const at = shown.findIndex((note) => note.id === selected);
@@ -95,6 +97,7 @@ export function Sidebar({ width }: { width: number }) {
               note={note}
               color={color}
               width={width - ROW_FRAME}
+              dateWidth={dateWidth}
               selected={note.id === selected}
               hovered={note.id === hovered}
               unsaved={unsaved.has(note.id)}
@@ -108,7 +111,17 @@ export function Sidebar({ width }: { width: number }) {
           ))
         )}
       </scrollbox>
-      <box flexDirection="row" height={1} flexShrink={0} paddingX={2} marginBottom={1}>
+      {/* Below the list, never over it: a rule marks where the list is cut. */}
+      <box
+        flexDirection="row"
+        height={2}
+        flexShrink={0}
+        marginX={1}
+        paddingX={1}
+        marginBottom={1}
+        border={["top"]}
+        borderColor={color.border}
+      >
         <text flexGrow={1} wrapMode="none" truncate fg={error ? color.warn : color.muted}>
           {error && notes
             ? error
@@ -192,14 +205,15 @@ function SearchBox({
   );
 }
 
-/** A row's margin, border and padding, both sides. */
-const ROW_FRAME = 6;
+/** A row's margin, border and padding, both sides, and the list's scrollbar. */
+const ROW_FRAME = 7;
 /** The "⋯" button beside a title. */
 const MENU_BUTTON = 3;
 const Row = memo(function Row({
   note,
   color,
   width,
+  dateWidth,
   selected,
   hovered,
   unsaved,
@@ -210,6 +224,7 @@ const Row = memo(function Row({
   note: Note;
   color: Palette;
   width: number;
+  dateWidth: number;
   selected: boolean;
   hovered: boolean;
   unsaved: boolean;
@@ -217,9 +232,9 @@ const Row = memo(function Row({
   onOpen: () => void;
   onMenu: (x: number, y: number) => void;
 }) {
-  const date = when(note.updated);
+  const date = whenShort(note.updated);
   const marker = unsaved ? "● " : "";
-  const dated = `${marker}${date ? `${date}  ` : ""}`;
+  const dated = `${marker}${dateWidth ? `${date.padEnd(dateWidth)}  ` : ""}`;
   return (
     <box
       id={`note-row-${note.id}`}
@@ -241,7 +256,7 @@ const Row = memo(function Row({
     >
       <box flexDirection="row" height={1} flexShrink={0}>
         <text flexGrow={1} wrapMode="none" fg={selected ? color.accent : color.text}>
-          <strong>{fit(titleOf(note), width - MENU_BUTTON)}</strong>
+          <strong>{fit(titleOf(note), hovered || selected ? width - MENU_BUTTON : width)}</strong>
         </text>
         {hovered || selected ? (
           <box

@@ -26,8 +26,10 @@ const dark = {
   buttonHover: "#30363d",
   border: "#30363d",
   menu: "#1c2128",
-  // Markdown: headings on an amber band, code on a panel a step above the page.
+  // Markdown: headings on an amber band (a darker one for H3), code on a panel a step
+  // above the page.
   band: "#3a3020",
+  bandQuiet: "#2b2519",
   onBand: "#fbe7b5",
   panel: "#1c2128",
 };
@@ -51,6 +53,7 @@ const light: Palette = {
   border: "#d0d7de",
   menu: "#fbfaf7",
   band: "#f5e3b8",
+  bandQuiet: "#faefd6",
   onBand: "#5c3b00",
   panel: "#f3f1ec",
 };
@@ -88,7 +91,7 @@ function syntaxOf(color: Palette) {
     accent: color.accent,
     onBand: color.onBand,
     band: color.band,
-    bandQuiet: color.hover,
+    bandQuiet: color.bandQuiet,
     code: color.code,
     panel: color.panel,
     link: color.info,

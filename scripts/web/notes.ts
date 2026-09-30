@@ -39,7 +39,7 @@ console.log(first);
 
 // Everything by pointing: open a note from the list, edit it, finish.
 await browser.clickAt(cellOf("Welcome to Notes"));
-await browser.waitFor(shows("✎ Edit"), "the note");
+await browser.waitFor(shows("✎ Write"), "the note");
 const screenshot = join(example("notes"), ".luciole/web-journey.png");
 await browser.screenshot(screenshot);
 // A Server Function from the page: a POST, with the declared Origin, admitted.

@@ -75,8 +75,8 @@ let first: z.infer<typeof LifetimeStatus> | undefined;
   await using t = await start();
   await wait(t, "Welcome to Notes");
   await t.click("Welcome to Notes");
-  await wait(t, "✎ Edit");
-  await t.click("✎ Edit");
+  await wait(t, "✎ Write");
+  await t.click("✎ Write");
   await wait(t, "✓ Done");
   // On a line of their own: the end of the note would wrap them.
   t.write("\runsaved words");
