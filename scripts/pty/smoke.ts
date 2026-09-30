@@ -44,8 +44,8 @@ await using t = await drive({
 /** The rows of the window's frame: toolbar, search box, the list's count. */
 async function layoutRows() {
   const lines = await t.lines();
-  return ["+ New note", "⌕", "2 notes"].map((marker) =>
-    lines.findIndex((line) => line.includes(marker)),
+  return [/\+ New note/, /⌕/, /^\s*\d+ notes\b/].map((marker) =>
+    lines.findIndex((line) => marker.test(line)),
   );
 }
 

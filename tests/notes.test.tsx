@@ -178,7 +178,7 @@ test("every action is a click: new, rename, search, fold, delete and undo", asyn
     await act(async () => {
       await ui.mockInput.typeText("coffee");
     });
-    expect(await frame(ui)).toContain("1 of 3 notes");
+    expect(await frame(ui)).toMatch(/\b1 of \d+ notes/);
     expect(await frame(ui)).not.toContain("Welcome to Notes");
     await click(ui, "✕");
     expect(await frame(ui)).toContain("Welcome to Notes");
@@ -223,13 +223,15 @@ test("every action is a click: new, rename, search, fold, delete and undo", asyn
     // Deleted at once, with an Undo that brings it back.
     await click(ui, "Plans");
     await act(async () => until(() => path(app) === `/notes/${id}`));
+    // However many notes the notebook is seeded with: one less, then as many again.
+    const count = Number(/(\d+) notes/.exec(await frame(ui))?.[1]);
     await click(ui, "Delete");
     await act(async () => until(() => ui.captureCharFrame().includes("Deleted “Plans”")));
     expect(path(app)).not.toBe(`/notes/${id}`);
-    expect(await frame(ui)).toContain("2 notes");
+    expect(await frame(ui)).toContain(`${count - 1} notes`);
     await click(ui, "Undo");
     await act(async () => until(() => path(app) === `/notes/${id}`));
-    await act(async () => until(() => ui.captureCharFrame().includes("3 notes")));
+    await act(async () => until(() => ui.captureCharFrame().includes(`${count} notes`)));
   } finally {
     await stop();
   }
