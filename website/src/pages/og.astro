@@ -1,60 +1,60 @@
 ---
-// The picture a shared link shows (public/og.png, 1200 by 630): the name, the promise and
-// a screen large enough to read in a feed. scripts/og.ts photographs this page; it is kept
+// The picture a shared link shows (public/og.png, 1200 by 630): the name, the promise and the
+// mascot, large enough to read in a feed. scripts/og.ts photographs this page; it is kept
 // out of search results.
 import Base from "../layouts/Base.astro";
-import Screen from "../components/Screen.astro";
-import { frame } from "../lib/frames";
+import Wordmark from "../components/Wordmark.astro";
 ---
 
-<Base title="luciole" description="Build terminal apps with React." hidden>
+<Base title="luciole" description="React Server Components for the terminal." hidden>
   <div class="card">
     <div class="words">
-      <p class="mark">luciole</p>
-      <p class="title">Build terminal apps with React.</p>
-      <p class="line">Keep typing while your server works.</p>
+      <p class="mark"><Wordmark /></p>
+      <p class="title">React Server<br />Components<br />for the terminal.</p>
+      <p class="line">The server renders next to your data.<br />The terminal never waits for it.</p>
     </div>
-    <div class="screen"><Screen frame={frame("notes")} /></div>
+    <img class="mascot" src="/mascot/still.png" width="344" height="452" alt="" />
   </div>
 </Base>
 
 <style>
-  :global([data-palette-switch]) {
+  /* Out of the photograph: the palette switch and the dev server's toolbar. */
+  :global([data-palette-switch]),
+  :global(astro-dev-toolbar) {
     display: none !important;
   }
 
   .card {
-    display: grid;
-    grid-template-columns: 430px 1fr;
+    display: flex;
     align-items: center;
-    gap: 40px;
+    justify-content: space-between;
     width: 1200px;
     height: 630px;
-    padding: 56px;
+    padding: 56px 88px 56px 72px;
     overflow: hidden;
   }
 
   .words {
     display: grid;
-    gap: 22px;
+    gap: 26px;
   }
 
   .mark {
-    font: 700 36px / 1 var(--mono);
+    font: 700 44px / 1 var(--mono);
   }
 
   .title {
-    font: 600 52px / 1.12 var(--mono);
+    font: 600 58px / 1.1 var(--mono);
   }
 
   .line {
     color: var(--mist);
-    font: 400 24px / 1.4 var(--sans);
+    font: 400 29px / 1.4 var(--sans);
   }
 
-  /* The left part of the Notes screen, at a size a feed keeps readable. */
-  .screen {
-    width: 820px;
-    margin-right: -200px;
+  .mascot {
+    width: 344px;
+    height: 452px;
+    image-rendering: pixelated;
   }
 </style>

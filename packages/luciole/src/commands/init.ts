@@ -2,6 +2,7 @@ import { join, resolve } from "node:path";
 import { cp, mkdir, readdir } from "node:fs/promises";
 import { z } from "zod";
 import { readJsonFile, readPackageJson } from "../package-json";
+import { canGreet, mascotArt } from "../mascot";
 import { frameworkRoot, workspaceRoot, type Command } from "./command";
 /** The formatter options a starter's generated JSON files follow. */
 const FormatterConfig = z.object({
@@ -104,5 +105,7 @@ export const init: Command = {
       await Bun.write(file, result.code);
     }
     console.log(`Starter created: ${target}\nRun bun install in the starter, then bun run dev.`);
+    // The useful lines first; the picture is a greeting, for a person at a colour terminal.
+    if (canGreet(process.stdout, process.env)) console.log(`\n${mascotArt()}`);
   },
 };

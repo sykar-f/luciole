@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="website/public/mascot/readme-light.png" />
+    <img src="website/public/mascot/readme-dark.png" width="172" height="226" alt="The luciole mascot: a pixel-art firefly hugging its glowing lantern" />
+  </picture>
+</p>
+
 # luciole
 
 Build terminal apps with React. Typing and scrolling stay local; the server keeps

@@ -20,6 +20,9 @@
     "website/dist/**",
     "website/.astro/**",
     "packages/harness/src/adapters/codex-protocol/**",
-    "examples/studio/server/template.gen.ts"
+    "examples/studio/server/template.gen.ts",
+    "website/design/mascot/luciole-data.js",
+    "website/design/mascot/luciole-small.js",
+    "packages/luciole/src/mascot-sprite.gen.ts"
   ]
 }
