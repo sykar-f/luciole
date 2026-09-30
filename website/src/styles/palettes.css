@@ -230,6 +230,15 @@
   --deep-turned: 78%;
 }
 
+/* A firefly's yellow-green, the light luciole is named after. */
+:root[data-dominant="firefly"] {
+  --dominant: #c6e85a;
+  --lift: 60%;
+  --deep: 78%;
+  --lift-turned: 60%;
+  --deep-turned: 78%;
+}
+
 /* Green Client, amber Server: the D1 reference. */
 :root,
 :root[data-encoding="classic"] {
