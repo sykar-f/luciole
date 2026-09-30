@@ -1,0 +1,62 @@
+---
+// PROTOTYPE: the share card with the mascot, 1200 by 630, photographed into
+// public/lab-mascot/og.png for the lab page. Kept out of search results.
+import Base from "../../layouts/Base.astro";
+import Wordmark from "../../components/Wordmark.astro";
+---
+
+<Base title="luciole" description="React Server Components for the terminal." hidden>
+  <div class="card">
+    <div class="words">
+      <p class="mark"><Wordmark /></p>
+      <p class="title">React Server<br />Components<br />for the terminal.</p>
+      <p class="line">The server renders next to your data.<br />The terminal never waits for it.</p>
+    </div>
+    <img class="mascot" src="/lab-mascot/still.png" width="344" height="452" alt="" />
+  </div>
+</Base>
+
+<style>
+  /* Out of the photograph: the palette switch and the dev server's toolbar. */
+  :global([data-palette-switch]),
+  :global(astro-dev-toolbar) {
+    display: none !important;
+  }
+
+  .card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 1200px;
+    height: 630px;
+    padding: 56px 88px 56px 72px;
+    overflow: hidden;
+  }
+
+  .words {
+    display: grid;
+    gap: 26px;
+  }
+
+  .mark {
+    margin: 0;
+    font: 700 44px / 1 var(--mono);
+  }
+
+  .title {
+    margin: 0;
+    font: 600 58px / 1.1 var(--mono);
+  }
+
+  .line {
+    margin: 0;
+    color: var(--mist);
+    font: 400 29px / 1.4 var(--sans);
+  }
+
+  .mascot {
+    width: 344px;
+    height: 452px;
+    image-rendering: pixelated;
+  }
+</style>

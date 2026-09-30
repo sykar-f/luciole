@@ -182,6 +182,10 @@ export function stateAt(t, cfg = CYCLE) {
 /**
  * Draw one state into a FRAME_W x FRAME_H ImageData.
  * `ambient` overrides how lit the body is (e.g. a readable face while the lantern is off).
+ *
+ * @param {{ data: Uint8ClampedArray }} img
+ * @param {{ I: number, tipI?: number, dy?: number, antenna?: number, blink?: number,
+ *   halo?: number, ambient?: number, onLight?: boolean }} state
  */
 export function renderState(
   img,

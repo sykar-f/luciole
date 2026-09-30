@@ -87,7 +87,11 @@ export function smallPixels({ background = NIGHT } = {}) {
   );
 }
 
-/** Pair rows into half-block cells: [{ top, bottom }] per line (null = terminal background). */
+/**
+ * Pair rows into half-block cells: [{ top, bottom }] per line (null = terminal background).
+ *
+ * @param {(number[] | null)[][]} rows
+ */
 export function halfBlocks(rows) {
   const lines = [];
   for (let y = 0; y < rows.length; y += 2) {

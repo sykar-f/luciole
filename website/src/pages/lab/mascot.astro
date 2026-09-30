@@ -1,0 +1,322 @@
+---
+// PROTOTYPE, not linked from the site: where the mascot could live. Every block is a
+// mock-up to compare in the real page style; nothing here is wired into the landing.
+// Assets: public/lab-mascot/ (exported from design/mascot/).
+import Base from "../../layouts/Base.astro";
+import Header from "../../components/Header.astro";
+import Wordmark from "../../components/Wordmark.astro";
+import CopyCommand from "../../components/CopyCommand.astro";
+import { commands } from "../../lib/product";
+
+const steps = [`bunx ${commands.cli} init my-app`, "cd my-app && bun install", "bun run dev"];
+const variants = [
+  { id: "side", title: "A · À côté, fixe", note: "Image fixe à droite du terminal, avec sa lueur. Aucun mouvement." },
+  { id: "perch", title: "B · Posée sur le terminal, réagit à la copie", note: "Fixe, en surplomb du coin du terminal ; sa lanterne s'illumine après une copie réussie." },
+  { id: "sit", title: "B2 · Posée sur le bord, à gauche des Copy, réagit à la copie", note: "Fixe, assise sur le bord supérieur (la lanterne à cheval sur le cadre), juste à gauche de la colonne des boutons ; même réaction à la copie que B." },
+  { id: "sit-anim", title: "B3 · Même place, animée — retenue pour Start", note: "La boucle au même endroit, flottement réduit à 1 px pour que la lanterne reste sur le bord. Moitié plus petite sur mobile, à gauche des Copy." },
+  { id: "float", title: "C · À côté, animée", note: "La boucle complète (flottement, respiration, clignement) via <luciole-mascot>." },
+];
+---
+
+<Base title="luciole · mascot lab" description="Mascot integration prototypes." hidden>
+  <Header />
+  <main class="lab">
+    <div class="wrap">
+      <p class="label">lab</p>
+      <h1>Où vivrait la mascotte</h1>
+      <p class="lede">Maquettes à comparer, dans le vrai style du site. Rien n'est branché sur la landing.</p>
+    </div>
+
+    {variants.map(({ id, title, note }) => (
+      <section class="section" aria-label={title}>
+        <div class="wrap">
+          <p class="proto">{title}</p>
+          <p class="proto-note">{note}</p>
+          <div class="section-head">
+            <p class="label">start</p>
+            <h2>Your app, running in a minute.</h2>
+            <p class="lede"><code>{commands.cli} init</code> gives you the Notes above as a project of your own. Three commands, then edit a file.</p>
+          </div>
+          <div class:list={["start", id]}>
+            <div class="transcript">
+              <p class="bar" aria-hidden="true"><span><b>┤</b> ~ <b>├</b></span></p>
+              <ol class="steps">{steps.map((line) => <li><CopyCommand lines={[line]} plain /></li>)}</ol>
+              <p class="then"><span aria-hidden="true"># </span>Now edit <code>components/NoNoteShown.tsx</code>, save, and the terminal rebuilds.</p>
+              {id === "perch" && <canvas class="mascot perched" data-react aria-hidden="true"></canvas>}
+              {id === "sit" && <canvas class="mascot sitting" data-react aria-hidden="true"></canvas>}
+              {id === "sit-anim" && (
+                <luciole-mascot class="sitting hovering" src="/lab-mascot/spritesheet-start.png" meta="/lab-mascot/spritesheet.json" still="/lab-mascot/still.png"></luciole-mascot>
+              )}
+            </div>
+            {id === "side" && <img class="mascot" src="/lab-mascot/still.png" width="172" height="226" alt="" />}
+            {id === "float" && (
+              <luciole-mascot class="beside" src="/lab-mascot/spritesheet.png" meta="/lab-mascot/spritesheet.json" still="/lab-mascot/still.png">
+                <img src="/lab-mascot/still.png" width="172" height="226" alt="" />
+              </luciole-mascot>
+            )}
+          </div>
+          {(id === "perch" || id === "sit") && <button type="button" class="button simulate" data-simulate>Simuler une copie réussie</button>}
+        </div>
+      </section>
+    ))}
+
+    <section class="section" aria-label="404">
+      <div class="wrap">
+        <p class="proto">D · Page 404</p>
+        <p class="proto-note">Pose fixe : lanterne presque éteinte, yeux mi-clos, visage gardé lisible. Pas de grésillement.</p>
+        <div class="notfound">
+          <canvas class="mascot" data-state='{"I":0.08,"blink":1,"ambient":0.72}' aria-hidden="true"></canvas>
+          <div>
+            <p class="label">404</p>
+            <h2>Nothing lit here.</h2>
+            <p class="lede">This page does not exist, or not anymore.</p>
+            <div class="next"><a class="button primary" href="/">Back home</a><a class="button" href="/docs/">Docs</a></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" aria-label="Image de partage">
+      <div class="wrap">
+        <p class="proto">E · Image de partage (vrai PNG 1200 × 630)</p>
+        <p class="proto-note">Photographiée depuis <code>/lab/mascot-og</code> vers <code>public/lab-mascot/og.png</code>. Titre en trois lignes, phrase secondaire à 29 px.</p>
+        <img class="og" src="/lab-mascot/og.png" width="1200" height="630" alt="" />
+      </div>
+    </section>
+
+    <section class="section" aria-label="Avatar">
+      <div class="wrap">
+        <p class="proto">F · Avatar (GitHub, Discord, npm)</p>
+        <p class="proto-note">Cadré sur la tête, le haut de la lanterne qui monte du bas du rond. À 32 et 20 px : la petite version dessinée pour ces tailles (celle du terminal).</p>
+        <div class="avatars">
+          {[200, 96, 48, 32, 20].map((size) => (
+            <figure>
+              <span class="avatar" style={`--size:${size}px`}><img src="/lab-mascot/still.png" alt="" /></span>
+              <figcaption>{size} px</figcaption>
+            </figure>
+          ))}
+          {[32, 20].map((size) => (
+            <figure>
+              <span class="avatar small" style={`--size:${size}px`}><img src="/lab-mascot/small.png" alt="" /></span>
+              <figcaption>{size} px, petite version</figcaption>
+            </figure>
+          ))}
+          <figure class="gh-light">
+            <span class="avatar" style="--size:40px"><img src="/lab-mascot/still.png" alt="" /></span>
+            <figcaption>sur fond clair</figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" aria-label="README">
+      <div class="wrap">
+        <p class="proto">G · En-tête du README (GitHub sombre et clair)</p>
+        <p class="proto-note">Une image fixe centrée au-dessus du nom ; version fond clair pour le thème clair de GitHub.</p>
+        <div class="readmes">
+          <div class="readme dark">
+            <img src="/lab-mascot/still.png" width="86" height="113" alt="" />
+            <p class="readme-name"><Wordmark /></p>
+            <p>React Server Components for the terminal.</p>
+          </div>
+          <div class="readme light">
+            <img src="/lab-mascot/still-light.png" width="86" height="113" alt="" />
+            <p class="readme-name"><Wordmark /></p>
+            <p>React Server Components for the terminal.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" aria-label="Terminal">
+      <div class="wrap">
+        <p class="proto">H · Dans le terminal, après <code>luciole init</code></p>
+        <p class="proto-note">Demi-blocs ▀ en couleurs 24 bits, deux pixels par caractère. À gauche la petite version dessinée pour cette taille, à droite l'ancienne réduction automatique. Le message utile vient d'abord. Dans ton terminal : <code>node design/mascot/terminal.mjs</code></p>
+        <div class="terms">
+          {[["small", "petite version dessinée"], ["2", "ancienne réduction 1/2"]].map(([kind, label]) => (
+            <div class="term">
+              <p class="term-bar">~ · {label}</p>
+              <pre data-term={kind}><span class="dim">$ </span>bunx luciole init my-app{"\n\n"}  <b>my-app</b> is ready.{"\n"}  Next: <b>cd my-app && bun install</b>{"\n"}</pre>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  </main>
+</Base>
+
+<script>
+  import "../../../design/mascot/luciole-mascot.js";
+  import { renderState, FRAME_W, FRAME_H } from "../../../design/mascot/luciole-sprite.js";
+  import { mascotPixels, smallPixels, halfBlocks } from "../../../design/mascot/terminal.mjs";
+
+  const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  function paint(canvas: HTMLCanvasElement, state: Parameters<typeof renderState>[1]) {
+    canvas.width = FRAME_W;
+    canvas.height = FRAME_H;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const img = ctx.createImageData(FRAME_W, FRAME_H);
+    renderState(img, state);
+    ctx.putImageData(img, 0, 0);
+  }
+
+  for (const canvas of document.querySelectorAll<HTMLCanvasElement>("canvas[data-state]")) {
+    paint(canvas, JSON.parse(canvas.dataset.state ?? "{}"));
+  }
+
+  // B: calm by default; after a successful copy the lantern swells and settles (700 ms),
+  // the antennae give a 1 px start. Reduced motion: one brighter frame, then back.
+  const REACTION_MS = 700;
+  /** The rise's share of the reaction, the lantern at rest and its swell over it. */
+  const RISE = 0.25;
+  const CALM = 0.5;
+  const SWELL = 0.35;
+  /** The copy button says "Copied" once the clipboard accepted: read it just after the click. */
+  const COPIED_MS = 50;
+  for (const canvas of document.querySelectorAll<HTMLCanvasElement>("canvas[data-react]")) {
+    const calm = { I: CALM };
+    paint(canvas, calm);
+    let playing = 0;
+    const react = () => {
+      cancelAnimationFrame(playing);
+      if (reduced) {
+        paint(canvas, { I: 0.85 });
+        setTimeout(() => paint(canvas, calm), REACTION_MS);
+        return;
+      }
+      const t0 = performance.now();
+      const step = (now: number) => {
+        const p = Math.min(1, (now - t0) / REACTION_MS);
+        // Quick rise (first quarter), slow afterglow-like fall.
+        const swell = p < RISE ? p / RISE : (1 - (p - RISE) / (1 - RISE)) ** 2;
+        paint(canvas, { I: CALM + SWELL * swell, antenna: p < RISE ? -1 : 0 });
+        if (p < 1) playing = requestAnimationFrame(step);
+      };
+      playing = requestAnimationFrame(step);
+    };
+    const section = canvas.closest("section");
+    for (const button of section?.querySelectorAll<HTMLButtonElement>("[data-copy-button]") ?? []) {
+      // CopyCommand writes "Copied" once the clipboard accepted the text.
+      button.addEventListener("click", () => setTimeout(() => button.textContent === "Copied" && react(), COPIED_MS));
+    }
+    section?.querySelector("[data-simulate]")?.addEventListener("click", react);
+  }
+
+  // H: the half-block rendering, drawn as a terminal would: 8x16 px cells, the upper half
+  // one pixel's colour and the lower half the other's (HTML glyphs leave gaps between rows).
+  const CELL_W = 8, CELL_H = 16;
+  for (const pre of document.querySelectorAll<HTMLElement>("pre[data-term]")) {
+    const kind = pre.dataset.term;
+    const lines = halfBlocks(kind === "small" ? smallPixels() : mascotPixels({ scale: Number(kind) }));
+    const canvas = document.createElement("canvas");
+    canvas.className = "art";
+    canvas.width = lines[0].length * CELL_W;
+    canvas.height = lines.length * CELL_H;
+    const ctx = canvas.getContext("2d");
+    lines.forEach((line, y) => line.forEach(({ top, bottom }, x) => {
+      if (!ctx) return;
+      for (const [c, dy] of [[top, 0], [bottom, CELL_H / 2]] as const) {
+        if (!c) continue;
+        ctx.fillStyle = `rgb(${c.join(",")})`;
+        ctx.fillRect(x * CELL_W, y * CELL_H + dy, CELL_W, CELL_H / 2);
+      }
+    }));
+    pre.append(canvas);
+    pre.insertAdjacentHTML("beforeend", `<span class="dim">(${lines[0].length} columns × ${lines.length} rows)</span>`);
+  }
+</script>
+
+<style>
+  :global([data-palette-switch]) { display: none !important; }
+  .lab h1 { margin: 8px 0 4px; font: 600 2rem / 1.2 var(--mono); }
+  .lab > .wrap { padding-top: 48px; }
+  .proto { color: var(--afterglow); font: 600 0.9rem / 1.5 var(--mono); margin: 0; }
+  .proto-note { color: var(--mist); font: 400 0.85rem / 1.5 var(--mono); margin: 0 0 32px; max-width: 80ch; }
+  .proto-note code, .proto code { background: none; padding: 0; }
+  .section + .section { border-top: 1px dashed var(--rule); }
+
+  .mascot, .start img, luciole-mascot img, .avatar img, .og-mascot, .readme img { image-rendering: pixelated; }
+
+  /* Start variants */
+  .start { display: grid; grid-template-columns: minmax(0, 900px) auto; align-items: center; gap: 24px; }
+  .start.perch, .start.sit, .start.sit-anim { grid-template-columns: minmax(0, 900px); }
+  /* B2/B3: sitting on the top border, left of the Copy column (buttons end 28 px from the
+     right, ~50 px wide). The lantern's centre (frame row 85 of 113, drawn at 2x = 170 px)
+     sits 10 px below the border, so the lantern straddles it like the first version of B. */
+  .start.sit .transcript, .start.sit-anim .transcript { margin-top: 112px; }
+  .sitting { position: absolute; right: 80px; top: -160px; width: 172px; height: 226px; pointer-events: none; --luciole-scale: 2; }
+  .sitting.hovering { top: -162px; } /* it floats ±1 px (x2) around the same seat */
+  .transcript { position: relative; display: grid; gap: 14px; padding: 24px clamp(14px, 3vw, 28px) 18px; border: 1px solid var(--rule-strong); border-radius: 4px; background: var(--panel); }
+  .bar { position: absolute; top: -0.75em; left: 14px; color: var(--mist); font: 400 0.75rem / 1.5 var(--mono); }
+  .bar span { padding: 0 0.5ch; background: var(--night); }
+  .bar b { color: var(--rule-strong); font-weight: 400; }
+  .steps { display: grid; margin: 0; padding: 0; list-style: none; }
+  .steps li + li { padding-top: 10px; margin-top: 10px; border-top: 1px dashed var(--rule); }
+  .then { padding-top: 12px; border-top: 1px dashed var(--rule); color: var(--mist); font: 400 0.88rem / 1.7 var(--mono); }
+  .then code { padding: 0; background: none; color: var(--paper); }
+  .start.perch .transcript { margin-top: 150px; }
+  /* Lantern centre (frame 44,85, drawn at 2x) sits just outside the box's top-right corner. */
+  .perched { position: absolute; right: -112px; top: -186px; width: 172px; height: 226px; pointer-events: none; }
+  .simulate { margin-top: 20px; }
+  @media (max-width: 760px) {
+    .start { grid-template-columns: 1fr; justify-items: center; gap: 20px; }
+    .start.perch .transcript { margin-top: 72px; }
+    .perched { width: 86px; height: 113px; top: -96px; right: -8px; }
+    /* Half size on phones, left of the Copy buttons, lantern centre ~5 px below the border. */
+    .start.sit .transcript, .start.sit-anim .transcript { margin-top: 56px; }
+    .sitting { width: 86px; height: 113px; top: -80px; right: 64px; --luciole-scale: 1; }
+    .sitting.hovering { top: -81px; }
+    .start.side > img { width: 86px; height: 113px; }
+    .beside { --luciole-scale: 1; }
+  }
+
+  /* 404 */
+  .notfound { display: flex; flex-wrap: wrap; align-items: center; gap: 40px; }
+  .notfound canvas { width: 258px; height: 339px; }
+  @media (max-width: 760px) {
+    .notfound { flex-direction: column; align-items: stretch; gap: 24px; }
+    .notfound canvas { align-self: center; width: 172px; height: 226px; }
+  }
+  .notfound h2 { font: 600 2rem / 1.2 var(--mono); margin: 4px 0; }
+  .next { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
+
+  /* OG card: the real PNG, whole at any width */
+  .og { display: block; width: 100%; max-width: 600px; height: auto; border: 1px solid var(--rule-strong); }
+
+  /* Avatars */
+  .avatars { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 24px; }
+  .avatars { padding: 24px; background: var(--panel); border: 1px solid var(--rule); }
+  .avatars figure { margin: 0; display: grid; justify-items: center; gap: 8px; color: var(--mist); font: 400 0.75rem var(--mono); }
+  .avatar { position: relative; display: block; width: var(--size); height: var(--size); border-radius: 50%; overflow: hidden; background: #0b0a07; box-shadow: 0 0 0 1px var(--rule-strong); }
+  /* The circle spans 66 sprite pixels: from above the antennae to the top of the lantern,
+     centred on the head (frame x 43, y 42), so the light rises from the bottom edge. */
+  .avatar img { position: absolute; width: calc(100% * 86 / 66); height: auto; left: calc(-100% * 10 / 66); top: calc(-100% * 12.5 / 66); }
+  /* The small drawing (30x42): circle from row 5 to 32, centred on its head. */
+  .avatar.small img { width: calc(100% * 30 / 27); left: calc(-100% * 1.5 / 27); top: calc(-100% * 5 / 27); }
+  @media (max-width: 760px) {
+    .avatars { gap: 16px; padding: 16px; }
+    .avatars figure:first-child { flex-basis: 100%; }
+  }
+  .gh-light { padding: 12px; border-radius: 6px; background: #ffffff; }
+  .gh-light figcaption { color: #59636e; }
+
+  /* README */
+  .readmes { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+  .readme { display: grid; justify-items: center; gap: 4px; padding: 32px 16px; border-radius: 6px; font: 400 15px / 1.5 -apple-system, "Segoe UI", sans-serif; text-align: center; }
+  .readme p { margin: 0; }
+  .readme img { margin-bottom: 12px; }
+  .readme.dark { background: #0d1117; color: #f0f6fc; border: 1px solid #3d444d; }
+  .readme.light { background: #ffffff; color: #1f2328; border: 1px solid #d1d9e0; }
+  .readme-name { font: 700 30px / 1.3 var(--mono); }
+  .readme.light .readme-name :global(.tld) { color: #59636e; }
+
+  /* Terminal */
+  .terms { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; }
+  .term { max-width: 100%; border: 1px solid var(--rule-strong); border-radius: 4px; background: #0b0a07; }
+  .term-bar { margin: 0; padding: 6px 12px; border-bottom: 1px solid var(--rule); color: var(--mist); font: 400 0.75rem var(--mono); }
+  .term pre { margin: 0; padding: 12px 16px 16px; overflow-x: auto; font: 400 14px / 1.4 var(--term); color: var(--paper); background: none; }
+  .term pre :global(.art) { display: block; margin: 16px 0 8px; }
+  .term .dim { color: var(--mist); }
+</style>
