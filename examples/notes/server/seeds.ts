@@ -145,7 +145,7 @@ What notes often write, as GitHub and others read it:
 > [!WARNING]
 > Each kind has its color.
 
-A ==highlight==, a footnote[^1], an emoji :tada:, keys <kbd>Ctrl</kbd>+<kbd>K</kbd>, H<sub>2</sub>O and x<sup>2</sup>, a line<br>broken by HTML.
+A ==highlight==, a footnote[^1], an emoji :tada:, keys <kbd>Ctrl</kbd>+<kbd>K</kbd>, H<sub>2</sub>O and x<sup>2</sup>, <mark>marked</mark> and <u>underlined</u> text, a line<br>broken by HTML.
 
 [^1]: Footnotes are written anywhere in the note.
 
@@ -302,7 +302,14 @@ end
 ## JSON
 
 \`\`\`json
-{ "name": "notes", "private": true, "scripts": { "dev": "luciole dev" } }
+{
+  "name": "notes",
+  "version": "1.4.0",
+  "private": true,
+  "scripts": { "dev": "luciole dev", "test": "bun test" },
+  "limits": { "notes": 10000, "ratio": 0.75, "owner": null },
+  "tags": ["markdown", "terminal"]
+}
 \`\`\``;
 
 const RECIPE = `*Serves 2 · 25 minutes*
@@ -357,10 +364,62 @@ const JOURNAL = Array.from(
   (_, index) => `## September ${index + 1}\n\n${MOODS[index % MOODS.length]}`,
 ).join("\n\n");
 
+const RELEASE = `---
+title: Release 1.4
+owner: Léa
+due: 2026-10-02
+tags: [release, mobile]
+---
+
+A note can open with front matter: YAML between two \`---\` lines, kept as written.
+
+> [!TIP]
+> Go through the list top to bottom, ticking as you go.
+
+## Before tagging
+
+1. Freeze the \`main\` branch
+2. Update the changelog
+3. Bump the version in \`package.json\`
+4. Run the full test suite
+5. Build every target
+6. Smoke-test on a real phone
+7. Check crash reports from the beta
+8. Write the release notes
+9. Get a second pair of eyes
+10. Tag and push
+
+> [!IMPORTANT]
+> Tag only from \`main\`, never from a feature branch.
+
+- [x] Migration written
+- [ ] Migration dry run on a copy of production
+  - [ ] Time it
+  - [ ] Check the row counts
+
+> [!CAUTION]
+> Never skip the dry run: a failed migration takes the app down.
+
+## Configuration
+
+\`\`\`yaml
+release:
+  version: "1.4.0"
+  channels: [stable, beta]
+  rollout: 0.25 # a quarter of users first
+\`\`\`
+
+\`\`\`toml
+[release]
+version = "1.4.0"
+rollout = 0.25
+\`\`\``;
+
 /** `[id, title, Markdown, last edited]`: all older than the welcome note, which stays on top. */
 export const SEEDS: readonly (readonly [string, string, string, string])[] = [
   ["3", "Markdown, the whole spec", SPEC, "2026-09-22T09:00:00Z"],
   ["4", "Trip to Lisbon", TRIP, "2026-09-21T18:30:00Z"],
+  ["12", "Release 1.4", RELEASE, "2026-09-19T09:00:00Z"],
   ["5", "Weekly sync — decisions and action items", MEETING, "2026-09-20T10:00:00Z"],
   ["6", "Snippets", SNIPPETS, "2026-09-18T14:00:00Z"],
   ["7", "Shakshuka", RECIPE, "2026-09-15T19:00:00Z"],

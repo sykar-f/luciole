@@ -63,13 +63,14 @@ for (const [id, title, value, edited] of [
   ["2", "Shopping list", SHOPPING, SEEDED],
   ...SEEDS.map(([id, title, value, edited]) => [id, title, value, Date.parse(edited)] as const),
 ] as const)
-  db.query("INSERT OR IGNORE INTO notes VALUES(?,?,?,?,1,?,NULL)").run(
-    id,
-    owner,
-    title,
-    value,
-    edited,
-  );
+  // A seed never edited (still at its first version, not deleted) follows the example as
+  // it evolves; one the user changed or deleted is theirs.
+  db.query(
+    `INSERT INTO notes VALUES(?,?,?,?,1,?,NULL) ON CONFLICT(id) DO UPDATE SET
+       title=excluded.title, value=excluded.value
+     WHERE notes.version = 1 AND notes.deleted IS NULL
+       AND (notes.value != excluded.value OR notes.title != excluded.title)`,
+  ).run(id, owner, title, value, edited);
 
 const NOTE = "SELECT id,title,value,version,updated FROM notes";
 // Reads take the owner as an argument: server/queries.ts caches them, and a cached
