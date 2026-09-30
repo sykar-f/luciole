@@ -4,7 +4,10 @@
 // do (the afterglow's curve, lib/glow.ts), then steps to a neighbouring cell and flashes
 // again, a few times, before going out. Not a picture: the name's light, in the medium's
 // grain. Faint, and only in the open: never over the title, its lede and buttons, or under
-// the screens, whose glass is opaque.
+// the screens, whose glass is opaque. A mouse passing by stirs them: the dark ones near it
+// flash again, a little brighter, the nearest first, and now and then a newcomer wakes a few
+// cells off its path, flashes once or twice and goes out. Only a fine pointer does, and
+// only when it moves.
 // Still when the reader asks for less motion; paused out of view.
 ---
 
@@ -52,6 +55,22 @@
   /** A step between flashes, drawn from these: each one a tenth of the odds. */
   const LEAP = 2;
   const STEPS = [-LEAP, -1, -1, -1, 0, 0, 1, 1, 1, LEAP];
+  /** The pointer's reach in pixels: fireflies within it stir, the nearest soonest and most. */
+  const STIR_REACH = 180;
+  /** A stirred flash: brighter by up to this share, led off up to this late with distance. */
+  const STIR_BOOST = 0.3;
+  const STIR_DELAY_MS = 420;
+  /** Only a firefly dark or nearly so stirs, and not again before this long. */
+  const STIR_BELOW = 0.08;
+  const STIR_REST_MS = 2600;
+  /** A newcomer the pointer wakes: one per this many pixels it travels, no sooner than every
+   *  GUEST_REST_MS, never more than GUESTS at once, this many pixels off the pointer. */
+  const GUEST_TRAVEL = 360;
+  const GUEST_REST_MS = 1600;
+  const GUESTS = 3;
+  const GUEST_OFF = { from: 36, to: 110 };
+  /** Places tried around the pointer for a newcomer before giving up. */
+  const GUEST_TRIES = 8;
   /** An alpha channel's largest value, and its base in a hex colour. */
   const BYTE = 255;
   const HEX = 16;
@@ -67,6 +86,12 @@
     left: number;
     /** A second, quick pulse right after the first, as some fireflies signal. */
     twice: boolean;
+    /** How much brighter than a firefly's usual this flash is: 1 unless stirred. */
+    boost: number;
+    /** When the pointer last stirred it. */
+    stirred: number;
+    /** Woken by the pointer: it goes out for good, and no one takes its place. */
+    guest: boolean;
   };
 
   const canvas = document.querySelector<HTMLCanvasElement>("[data-field]");
@@ -94,11 +119,19 @@
         row = Math.floor(Math.random() * rows);
         if (open(column, row)) break;
       }
-      return { column, row, left: FEWEST + Math.floor(Math.random() * MORE), ...next(now, FIRST_WAIT_MS) };
+      return {
+        column,
+        row,
+        left: FEWEST + Math.floor(Math.random() * MORE),
+        stirred: -Infinity,
+        guest: false,
+        ...next(now, FIRST_WAIT_MS),
+      };
     };
     const next = (now: number, wait: Range) => ({
       at: now + random(wait),
       twice: Math.random() < TWICE_ODDS,
+      boost: 1,
     });
 
     const size = () => {
@@ -139,10 +172,13 @@
     };
     const flashMs = (twice: boolean) => RISE_MS + HOLD_MS + FADE_MS + (twice ? TWICE_MS : 0);
 
+    const centre = (fly: Firefly) => ({
+      x: fly.column * CELL.width + CELL.width / 2,
+      y: fly.row * CELL.height + CELL.height / 2,
+    });
     const light = (fly: Firefly, amount: number) => {
       if (amount <= UNSEEN) return;
-      const x = fly.column * CELL.width + CELL.width / 2;
-      const y = fly.row * CELL.height + CELL.height / 2;
+      const { x, y } = centre(fly);
       const reach = CELL.height * HALO;
       const halo = context.createRadialGradient(x, y, 0, x, y, reach);
       halo.addColorStop(0, `${colour}${alpha(HALO_PEAK * amount)}`);
@@ -153,17 +189,80 @@
       context.fillRect(x - DOT / 2, y - DOT / 2, DOT, DOT);
     };
 
+    /** Where the mouse is, in the page's coordinates, while it is over the hero. */
+    let pointer: { x: number; y: number } | undefined;
+    let moved = false;
+    /** Pixels the pointer has travelled since the last newcomer, and when that one came. */
+    let travel = 0;
+    let lastGuest = -Infinity;
+
+    /** An open cell a little off (x, y), or none if the pointer is hemmed in. */
+    const beside = (x: number, y: number) => {
+      for (let tries = 0; tries < GUEST_TRIES; tries++) {
+        const angle = Math.random() * 2 * Math.PI;
+        const off = random(GUEST_OFF);
+        const column = Math.floor((x + Math.cos(angle) * off) / CELL.width);
+        const row = Math.floor((y + Math.sin(angle) * off) / CELL.height);
+        if (column >= 0 && column < columns && row >= 0 && row < rows && open(column, row))
+          return { column, row };
+      }
+      return undefined;
+    };
+
+    /** The pointer moved: the dark fireflies near it flash anew, and maybe a newcomer wakes. */
+    const stir = (now: number) => {
+      if (!pointer) return;
+      const box = canvas.getBoundingClientRect();
+      const x = pointer.x - box.left;
+      const y = pointer.y - box.top;
+      for (const fly of flies) {
+        if (now - fly.stirred < STIR_REST_MS) continue;
+        const at = centre(fly);
+        const distance = Math.hypot(at.x - x, at.y - y);
+        if (distance > STIR_REACH) continue;
+        const t = now - fly.at;
+        if (t >= 0 && brightness(t, fly.twice) * fly.boost > STIR_BELOW) continue;
+        const near = 1 - distance / STIR_REACH;
+        Object.assign(fly, {
+          at: now + (1 - near) * STIR_DELAY_MS,
+          twice: false,
+          boost: 1 + STIR_BOOST * near * near,
+          stirred: now,
+          left: Math.max(fly.left, 2),
+        });
+      }
+      const guests = flies.filter((fly) => fly.guest).length;
+      if (travel < GUEST_TRAVEL || now - lastGuest < GUEST_REST_MS || guests >= GUESTS) return;
+      travel = 0;
+      const cell = beside(x, y);
+      if (!cell) return;
+      lastGuest = now;
+      flies.push({
+        ...cell,
+        at: now + random({ from: 0, to: STIR_DELAY_MS }),
+        left: 1 + Math.floor(Math.random() * 2),
+        twice: false,
+        boost: 1,
+        stirred: now,
+        guest: true,
+      });
+    };
+
     const draw = (now: number) => {
+      if (moved) stir(now);
+      moved = false;
       context.clearRect(0, 0, canvas.width, canvas.height);
       context.globalCompositeOperation = "lighter";
+      let gone = false;
       for (const [index, fly] of flies.entries()) {
         const t = now - fly.at;
-        light(fly, brightness(t, fly.twice));
+        light(fly, brightness(t, fly.twice) * fly.boost);
         if (t < flashMs(fly.twice)) continue;
         // Its flash done: a step to a neighbouring cell and a pause, or out for good.
         fly.left -= 1;
         if (fly.left <= 0) {
-          flies[index] = spawn(now);
+          if (fly.guest) gone = true;
+          else flies[index] = spawn(now);
           continue;
         }
         const column = clamp(fly.column + step(), columns);
@@ -171,6 +270,7 @@
         if (open(column, row)) Object.assign(fly, { column, row });
         Object.assign(fly, next(now, WAIT_MS));
       }
+      if (gone) flies = flies.filter((fly) => !fly.guest || fly.left > 0);
       context.globalCompositeOperation = "source-over";
     };
 
@@ -214,6 +314,19 @@
       play(visible && !document.hidden);
     }).observe(canvas);
     document.addEventListener("visibilitychange", () => play(visible && !document.hidden));
+
+    // The mouse, not a finger: a touch would stir them only where it lands, and a tap is not
+    // a passage. The pointer is only read here; the stirring waits for the next frame.
+    const hero = canvas.parentElement;
+    hero?.addEventListener("pointermove", (event) => {
+      if (event.pointerType !== "mouse" && event.pointerType !== "pen") return;
+      if (pointer) travel += Math.hypot(event.clientX - pointer.x, event.clientY - pointer.y);
+      pointer = { x: event.clientX, y: event.clientY };
+      moved = running;
+    });
+    hero?.addEventListener("pointerleave", () => {
+      pointer = undefined;
+    });
   }
 
   /** -1, 0 or 1 cell, rarely 2: a firefly drifts, it does not jump. */
