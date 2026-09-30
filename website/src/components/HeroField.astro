@@ -4,10 +4,10 @@
 // do (the afterglow's curve, lib/glow.ts), then steps to a neighbouring cell and flashes
 // again, a few times, before going out. Not a picture: the name's light, in the medium's
 // grain. Faint, and only in the open: never over the title, its lede and buttons, or under
-// the screens, whose glass is opaque. A mouse passing by stirs them: the dark ones near it
-// flash again, a little brighter, the nearest first, and now and then a newcomer wakes a few
-// cells off its path, flashes once or twice and goes out. Only a fine pointer does, and
-// only when it moves.
+// the screens, whose glass is opaque. Left alone they are few and slow. A mouse passing by
+// startles them: the ones near it light up, the nearest first and brightest, and slip away
+// from it a cell at a time, slowing as they go; now and then a newcomer wakes by its path and
+// flees the same way. Only a fine pointer does, and only when it moves.
 // Still when the reader asks for less motion; paused out of view.
 ---
 
@@ -21,8 +21,8 @@
   /** The lit part of a cell: a square in its middle, as the wordmark's i has. */
   const DOT = 5;
   /** One firefly per this many square pixels of open field, and never more than MOST. */
-  const AREA = 45_000;
-  const MOST = 16;
+  const AREA = 65_000;
+  const MOST = 10;
   /** What they keep clear of, and by how many pixels. */
   const COVERED = ".hero .top, .hero .ping, .hero .glass";
   const MARGIN = 28;
@@ -46,8 +46,8 @@
   const FEWEST = 2;
   const MORE = 4;
   /** The dark wait before a newcomer's first flash, and between two flashes, in ms. */
-  const FIRST_WAIT_MS = { from: 0, to: 2600 };
-  const WAIT_MS = { from: 250, to: 1100 };
+  const FIRST_WAIT_MS = { from: 0, to: 4000 };
+  const WAIT_MS = { from: 900, to: 2600 };
   /** Held still, how lit each firefly is drawn: somewhere mid-fade. */
   const POSED = { from: 0.15, to: 0.6 };
   /** Random cells tried for an open one before settling for a covered one. */
@@ -55,18 +55,26 @@
   /** A step between flashes, drawn from these: each one a tenth of the odds. */
   const LEAP = 2;
   const STEPS = [-LEAP, -1, -1, -1, 0, 0, 1, 1, 1, LEAP];
-  /** The pointer's reach in pixels: fireflies within it stir, the nearest soonest and most. */
-  const STIR_REACH = 180;
-  /** A stirred flash: brighter by up to this share, led off up to this late with distance. */
-  const STIR_BOOST = 0.3;
-  const STIR_DELAY_MS = 420;
-  /** Only a firefly dark or nearly so stirs, and not again before this long. */
-  const STIR_BELOW = 0.08;
-  const STIR_REST_MS = 2600;
+  /** The pointer's reach in pixels: fireflies within it startle, the nearest soonest and most. */
+  const STIR_REACH = 200;
+  /** A startled flash: brighter by up to this share, led off up to this late with distance. */
+  const STIR_BOOST = 0.4;
+  const STIR_DELAY_MS = 240;
+  /** A startled firefly is left alone this long before it can be startled again. */
+  const STIR_REST_MS = 2200;
+  /** Its flight: this many hops away from the pointer, each this many pixels, the first this
+   *  soon and every next one slower by SLOWING, with a little sway; a hop crossfades the two
+   *  cells over HOP_MS, so it glides without leaving the grain. */
+  const HOPS = { from: 3, to: 6 };
+  const STRIDE = 22;
+  const FIRST_HOP_MS = 110;
+  const SLOWING = 1.35;
+  const SWAY = 0.5;
+  const HOP_MS = 120;
   /** A newcomer the pointer wakes: one per this many pixels it travels, no sooner than every
    *  GUEST_REST_MS, never more than GUESTS at once, this many pixels off the pointer. */
-  const GUEST_TRAVEL = 360;
-  const GUEST_REST_MS = 1600;
+  const GUEST_TRAVEL = 280;
+  const GUEST_REST_MS = 1200;
   const GUESTS = 3;
   const GUEST_OFF = { from: 36, to: 110 };
   /** Places tried around the pointer for a newcomer before giving up. */
@@ -92,6 +100,10 @@
     stirred: number;
     /** Woken by the pointer: it goes out for good, and no one takes its place. */
     guest: boolean;
+    /** Fleeing the pointer: where it is in pixels, which way it goes, its hops to come. */
+    flight?: { x: number; y: number; away: number; hops: number; at: number; gap: number };
+    /** The cell it just left, and when: drawn fading as the new one lights. */
+    trail?: { column: number; row: number; at: number };
   };
 
   const canvas = document.querySelector<HTMLCanvasElement>("[data-field]");
@@ -172,13 +184,13 @@
     };
     const flashMs = (twice: boolean) => RISE_MS + HOLD_MS + FADE_MS + (twice ? TWICE_MS : 0);
 
-    const centre = (fly: Firefly) => ({
-      x: fly.column * CELL.width + CELL.width / 2,
-      y: fly.row * CELL.height + CELL.height / 2,
+    const centre = ({ column, row }: { column: number; row: number }) => ({
+      x: column * CELL.width + CELL.width / 2,
+      y: row * CELL.height + CELL.height / 2,
     });
-    const light = (fly: Firefly, amount: number) => {
+    const light = (cell: { column: number; row: number }, amount: number) => {
       if (amount <= UNSEEN) return;
-      const { x, y } = centre(fly);
+      const { x, y } = centre(cell);
       const reach = CELL.height * HALO;
       const halo = context.createRadialGradient(x, y, 0, x, y, reach);
       halo.addColorStop(0, `${colour}${alpha(HALO_PEAK * amount)}`);
@@ -209,27 +221,57 @@
       return undefined;
     };
 
-    /** The pointer moved: the dark fireflies near it flash anew, and maybe a newcomer wakes. */
+    /** Startles a firefly `near` the pointer (0 at the reach, 1 on it) at (x, y): it lights up,
+     *  from however lit it already is, and sets off away from the pointer. */
+    const startle = (fly: Firefly, now: number, x: number, y: number, near: number) => {
+      const boost = 1 + STIR_BOOST * near;
+      const lit = Math.min(1, (brightness(now - fly.at, fly.twice) * fly.boost) / boost);
+      // A lit one brightens from where it is; a dark one waits a moment, the farther the longer.
+      const at = lit > UNSEEN ? now - lit * RISE_MS : now + (1 - near) * STIR_DELAY_MS;
+      const from = centre(fly);
+      const away = from.x === x && from.y === y ? Math.random() * 2 * Math.PI : Math.atan2(from.y - y, from.x - x);
+      Object.assign(fly, {
+        at,
+        twice: false,
+        boost,
+        stirred: now,
+        left: Math.max(fly.left, 2),
+        flight: { ...from, away, hops: Math.round(random(HOPS)), at: Math.max(now, at), gap: FIRST_HOP_MS },
+      });
+    };
+
+    /** A hop of a fleeing firefly, if one is due: to the next cell on its way, if open. */
+    const flee = (fly: Firefly, now: number) => {
+      const flight = fly.flight;
+      if (!flight || now < flight.at) return;
+      const heading = flight.away + random({ from: -SWAY, to: SWAY });
+      flight.x += Math.cos(heading) * STRIDE;
+      flight.y += Math.sin(heading) * STRIDE;
+      flight.hops -= 1;
+      flight.at = now + flight.gap;
+      flight.gap *= SLOWING;
+      const column = Math.floor(flight.x / CELL.width);
+      const row = Math.floor(flight.y / CELL.height);
+      const inside = column >= 0 && column < columns && row >= 0 && row < rows;
+      if (!inside || !open(column, row)) flight.hops = 0;
+      else if (column !== fly.column || row !== fly.row) {
+        fly.trail = { column: fly.column, row: fly.row, at: now };
+        Object.assign(fly, { column, row });
+      }
+      if (flight.hops <= 0) fly.flight = undefined;
+    };
+
+    /** The pointer moved: the fireflies near it startle, and maybe a newcomer wakes. */
     const stir = (now: number) => {
       if (!pointer) return;
       const box = canvas.getBoundingClientRect();
       const x = pointer.x - box.left;
       const y = pointer.y - box.top;
       for (const fly of flies) {
-        if (now - fly.stirred < STIR_REST_MS) continue;
+        if (fly.flight || now - fly.stirred < STIR_REST_MS) continue;
         const at = centre(fly);
         const distance = Math.hypot(at.x - x, at.y - y);
-        if (distance > STIR_REACH) continue;
-        const t = now - fly.at;
-        if (t >= 0 && brightness(t, fly.twice) * fly.boost > STIR_BELOW) continue;
-        const near = 1 - distance / STIR_REACH;
-        Object.assign(fly, {
-          at: now + (1 - near) * STIR_DELAY_MS,
-          twice: false,
-          boost: 1 + STIR_BOOST * near * near,
-          stirred: now,
-          left: Math.max(fly.left, 2),
-        });
+        if (distance <= STIR_REACH) startle(fly, now, x, y, 1 - distance / STIR_REACH);
       }
       const guests = flies.filter((fly) => fly.guest).length;
       if (travel < GUEST_TRAVEL || now - lastGuest < GUEST_REST_MS || guests >= GUESTS) return;
@@ -237,15 +279,11 @@
       const cell = beside(x, y);
       if (!cell) return;
       lastGuest = now;
-      flies.push({
-        ...cell,
-        at: now + random({ from: 0, to: STIR_DELAY_MS }),
-        left: 1 + Math.floor(Math.random() * 2),
-        twice: false,
-        boost: 1,
-        stirred: now,
-        guest: true,
-      });
+      const guest: Firefly = { ...cell, at: now, left: 1, twice: false, boost: 1, stirred: now, guest: true };
+      const at = centre(cell);
+      startle(guest, now, x, y, 1 - Math.hypot(at.x - x, at.y - y) / STIR_REACH);
+      guest.left = 1 + Math.floor(Math.random() * 2);
+      flies.push(guest);
     };
 
     const draw = (now: number) => {
@@ -256,9 +294,15 @@
       let gone = false;
       for (const [index, fly] of flies.entries()) {
         const t = now - fly.at;
-        light(fly, brightness(t, fly.twice) * fly.boost);
+        const amount = brightness(t, fly.twice) * fly.boost;
+        flee(fly, now);
+        const crossing = fly.trail ? (now - fly.trail.at) / HOP_MS : 1;
+        if (fly.trail && crossing < 1) light(fly.trail, amount * (1 - crossing));
+        light(fly, amount * Math.min(1, crossing));
         if (t < flashMs(fly.twice)) continue;
         // Its flash done: a step to a neighbouring cell and a pause, or out for good.
+        fly.flight = undefined;
+        fly.trail = undefined;
         fly.left -= 1;
         if (fly.left <= 0) {
           if (fly.guest) gone = true;
