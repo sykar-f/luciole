@@ -4,6 +4,7 @@ import { getSession } from "luciole/server";
 import { z } from "zod";
 import type { Note, SaveResult, Snapshot } from "../components/draft";
 import { StoredResult } from "./schemas";
+import { SEEDS } from "./seeds";
 const env = z
   .object({
     NOTES_DB: z.string().default("notes.sqlite"),
@@ -57,16 +58,17 @@ Ask about the **market** on Saturday.`;
 const owner = env.LUCIOLE_USER;
 // The day the examples were written: the same dates on every screen, captures included.
 const SEEDED = Date.parse("2026-09-23T09:00:00Z");
-for (const [id, title, value] of [
-  ["1", "Welcome to Notes", WELCOME],
-  ["2", "Shopping list", SHOPPING],
-])
+for (const [id, title, value, edited] of [
+  ["1", "Welcome to Notes", WELCOME, SEEDED],
+  ["2", "Shopping list", SHOPPING, SEEDED],
+  ...SEEDS.map(([id, title, value, edited]) => [id, title, value, Date.parse(edited)] as const),
+] as const)
   db.query("INSERT OR IGNORE INTO notes VALUES(?,?,?,?,1,?,NULL)").run(
     id,
     owner,
     title,
     value,
-    SEEDED,
+    edited,
   );
 
 const NOTE = "SELECT id,title,value,version,updated FROM notes";
