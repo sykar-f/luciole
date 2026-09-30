@@ -1,0 +1,304 @@
+import {
+  caret,
+  contentOf,
+  deleteRange,
+  docEnd,
+  insertFragment,
+  lengthOfBlock,
+  paragraph,
+  placeOf,
+  rebuild,
+  replaceBlock,
+  splitBlock as split,
+  textOfBlock,
+} from "../model/doc.ts";
+import { hasMark, plain, setMark, splice, textOf, withMark } from "../model/inline.ts";
+import { parseMarkdown } from "../markdown/parse.ts";
+import { nextBoundary, previousBoundary, wordEnd, wordStart } from "../model/text.ts";
+import {
+  isLines,
+  isText,
+  quoteOf,
+  type Block,
+  type Doc,
+  type HeadingLevel,
+  type ListKind,
+  type Marks,
+  type MarkName,
+  type Pos,
+} from "../model/types.ts";
+import {
+  cursor,
+  hasSelection,
+  selectionRange,
+  typingMarks,
+  withEdit,
+  withSelection,
+  type EditorState,
+} from "./state.ts";
+
+// The edits themselves, without the input rules: what a menu, a toolbar or a key binding
+// asks for. Each takes a state and returns the next one.
+
+/** The selection's text removed; the cursor where it started. */
+export function deleteSelection(state: EditorState): EditorState {
+  if (!hasSelection(state)) return state;
+  const { from, to } = selectionRange(state);
+  const edit = deleteRange(state.doc, from, to);
+  return withEdit(state, edit.doc, edit.pos);
+}
+
+/** `text` at the cursor, in `marks` (the typing marks by default), replacing the selection. */
+export function insertText(state: EditorState, text: string, marks?: Marks): EditorState {
+  const typed = marks ?? typingMarks(state);
+  const base = deleteSelection(state);
+  const at = cursor(base);
+  const block = base.doc[at.block];
+  if (!block || !text) return base;
+  if (block.type === "rule") {
+    // Typing on a rule starts a paragraph below it.
+    const doc = [
+      ...base.doc.slice(0, at.block + 1),
+      paragraph(plain(text, typed)),
+      ...base.doc.slice(at.block + 1),
+    ];
+    return withEdit(
+      base,
+      doc,
+      { block: at.block + 1, offset: text.length },
+      { stored: state.stored },
+    );
+  }
+  const added = isLines(block) ? plain(text) : plain(text, typed);
+  const next = rebuild(block, splice(contentOf(block), at.offset, at.offset, added));
+  return withEdit(
+    base,
+    replaceBlock(base.doc, at.block, next),
+    { block: at.block, offset: at.offset + text.length },
+    { stored: state.stored },
+  );
+}
+
+/** Backspace without rules: the selection, the character before, or the join with the block above. */
+export function deleteBackward(state: EditorState): EditorState {
+  if (hasSelection(state)) return deleteSelection(state);
+  const at = cursor(state);
+  const block = state.doc[at.block];
+  if (!block) return state;
+  if (at.offset > 0) {
+    const from = previousBoundary(textOfBlock(block), at.offset);
+    const edit = deleteRange(state.doc, { block: at.block, offset: from }, at);
+    return withEdit(state, edit.doc, edit.pos);
+  }
+  const above = state.doc[at.block - 1];
+  if (!above) return state;
+  if (above.type === "rule") {
+    const doc = state.doc.filter((_, i) => i !== at.block - 1);
+    return withEdit(state, doc, { block: at.block - 1, offset: 0 });
+  }
+  const edit = deleteRange(state.doc, { block: at.block - 1, offset: lengthOfBlock(above) }, at);
+  return withEdit(state, edit.doc, edit.pos);
+}
+
+/** Delete: the selection, the character after, or the join with the block below. */
+export function deleteForward(state: EditorState): EditorState {
+  if (hasSelection(state)) return deleteSelection(state);
+  const at = cursor(state);
+  const block = state.doc[at.block];
+  if (!block) return state;
+  const length = lengthOfBlock(block);
+  if (at.offset < length) {
+    const to = nextBoundary(textOfBlock(block), at.offset);
+    const edit = deleteRange(state.doc, at, { block: at.block, offset: to });
+    return withEdit(state, edit.doc, edit.pos);
+  }
+  const below = state.doc[at.block + 1];
+  if (!below) return state;
+  if (block.type === "rule") {
+    const doc = state.doc.filter((_, i) => i !== at.block);
+    return withEdit(state, doc, { block: at.block, offset: 0 });
+  }
+  const edit = deleteRange(state.doc, at, { block: at.block + 1, offset: 0 });
+  return withEdit(state, edit.doc, edit.pos);
+}
+
+/** The word before the cursor (Alt+Backspace, Ctrl+W). */
+export function deleteWordBackward(state: EditorState): EditorState {
+  if (hasSelection(state)) return deleteSelection(state);
+  const at = cursor(state);
+  const block = state.doc[at.block];
+  if (!block || at.offset === 0) return deleteBackward(state);
+  const from = wordStart(textOfBlock(block), at.offset);
+  const edit = deleteRange(state.doc, { block: at.block, offset: from }, at);
+  return withEdit(state, edit.doc, edit.pos);
+}
+/** The word after the cursor (Alt+Delete). */
+export function deleteWordForward(state: EditorState): EditorState {
+  if (hasSelection(state)) return deleteSelection(state);
+  const at = cursor(state);
+  const block = state.doc[at.block];
+  if (!block || at.offset >= lengthOfBlock(block)) return deleteForward(state);
+  const to = wordEnd(textOfBlock(block), at.offset);
+  const edit = deleteRange(state.doc, at, { block: at.block, offset: to });
+  return withEdit(state, edit.doc, edit.pos);
+}
+
+/** Return without rules: the block cut in two at the cursor. */
+export function splitBlock(state: EditorState): EditorState {
+  const base = deleteSelection(state);
+  const edit = split(base.doc, cursor(base));
+  return withEdit(base, edit.doc, edit.pos);
+}
+
+/** A line break inside the block (Shift+Return); a heading, one line, is cut instead. */
+export function insertLineBreak(state: EditorState): EditorState {
+  const block = state.doc[cursor(state).block];
+  if (!block || block.type === "heading" || block.type === "rule") return splitBlock(state);
+  return insertText(state, "\n");
+}
+
+/** Markdown pasted at the cursor: its blocks and marks, as if typed in this editor. */
+export function insertMarkdown(state: EditorState, markdown: string): EditorState {
+  const base = deleteSelection(state);
+  const at = cursor(base);
+  const block = base.doc[at.block];
+  if (!block) return base;
+  if (isLines(block)) return insertText(base, markdown);
+  const fragment = parseMarkdown(markdown.replace(/\r\n?/g, "\n")).map(withoutSource);
+  const edit = insertFragment(base.doc, at, fragment);
+  return withEdit(base, edit.doc, edit.pos);
+}
+/** Pasted blocks are new to this document: none is written back as read. */
+const withoutSource = (block: Block): Block =>
+  block.type === "item" ? block : rebuild(block, contentOf(block));
+
+export function selectAll(state: EditorState): EditorState {
+  return withSelection(state, { anchor: { block: 0, offset: 0 }, head: docEnd(state.doc) });
+}
+
+/** The blocks the selection touches, `fn` applied to each. */
+function mapSelectedBlocks(
+  state: EditorState,
+  fn: (block: Block, index: number) => Block,
+): EditorState {
+  const { from, to } = selectionRange(state);
+  const doc: Doc = state.doc.map((block, index) =>
+    index >= from.block && index <= to.block ? fn(block, index) : block,
+  );
+  return { ...state, doc, literal: null, pending: null };
+}
+
+/** Bold, italic, strike or code, on the selection, or for the text typed next. */
+export function toggleMark(state: EditorState, mark: MarkName): EditorState {
+  if (!hasSelection(state)) {
+    const marks = typingMarks(state);
+    return {
+      ...state,
+      stored: withMark(marks, mark, marks[mark] !== true),
+      pending: null,
+      literal: null,
+    };
+  }
+  const { from, to } = selectionRange(state);
+  const blocks = state.doc.slice(from.block, to.block + 1);
+  const on = !blocks.every((block, i) => {
+    if (!isText(block)) return true;
+    const start = i === 0 ? from.offset : 0;
+    const end = from.block + i === to.block ? to.offset : lengthOfBlock(block);
+    return start === end || hasMark(block.content, start, end, mark);
+  });
+  return mapSelectedBlocks(state, (block, index) => {
+    if (!isText(block)) return block;
+    const start = index === from.block ? from.offset : 0;
+    const end = index === to.block ? to.offset : lengthOfBlock(block);
+    return rebuild(block, setMark(block.content, start, end, mark, on));
+  });
+}
+
+/** What a block can be turned into from a menu or a key. */
+export type BlockKind =
+  | { type: "paragraph" }
+  | { type: "heading"; level: HeadingLevel }
+  | { type: "quote" }
+  | { type: "item"; list: ListKind }
+  | { type: "code" };
+
+/** Turns the selected blocks into `kind`; turning a block into its own kind makes it a paragraph. */
+export function setBlockKind(state: EditorState, kind: BlockKind): EditorState {
+  const current = state.doc[cursor(state).block];
+  const same = current !== undefined && isKind(current, kind);
+  return mapSelectedBlocks(state, (block): Block => {
+    // A quote is where a block sits, not what it is: it is added or taken away.
+    if (kind.type === "quote")
+      return { ...rebuild(block, contentOf(block)), quote: same ? undefined : 1 };
+    if (block.type === "rule") return block;
+    const content = contentOf(block);
+    const place = placeOf(block);
+    const target: BlockKind = same ? { type: "paragraph" } : kind;
+    switch (target.type) {
+      case "paragraph":
+        return { ...paragraph(isLines(block) ? plain(textOf(content)) : content), ...place };
+      case "heading":
+        return {
+          type: "heading",
+          level: target.level,
+          content: plain(textOf(content).replaceAll("\n", " ")),
+          ...place,
+        };
+      case "item":
+        return {
+          type: "item",
+          list: target.list,
+          indent: block.type === "item" ? block.indent : (block.depth ?? 0),
+          ...(target.list === "task" ? { checked: false } : {}),
+          content,
+          ...place,
+          depth: undefined,
+        };
+      case "code":
+        return { type: "code", lang: "", text: textOf(content), ...place };
+    }
+  });
+}
+function isKind(block: Block, kind: BlockKind) {
+  if (kind.type === "quote") return quoteOf(block) > 0;
+  if (block.type !== kind.type) return false;
+  if (block.type === "heading" && kind.type === "heading") return block.level === kind.level;
+  if (block.type === "item" && kind.type === "item") return block.list === kind.list;
+  return true;
+}
+
+/** Items of the selection one level deeper (`delta` 1) or shallower (-1). */
+export function indentItems(state: EditorState, delta: 1 | -1): EditorState {
+  let changed = false;
+  const next = mapSelectedBlocks(state, (block, index) => {
+    if (block.type !== "item") return block;
+    const above = state.doc[index - 1];
+    const deepest = above?.type === "item" ? above.indent + 1 : 0;
+    const indent = Math.max(0, Math.min(deepest, block.indent + delta));
+    if (indent === block.indent) return block;
+    changed = true;
+    return { ...block, indent };
+  });
+  return changed ? next : state;
+}
+
+/** A task ticked or unticked; a click on its box does it without moving the cursor. */
+export function toggleTask(state: EditorState, index: number): EditorState {
+  const block = state.doc[index];
+  if (block?.type !== "item" || block.list !== "task") return state;
+  return {
+    ...state,
+    doc: replaceBlock(state.doc, index, { ...block, checked: !block.checked }),
+    literal: null,
+    pending: null,
+  };
+}
+
+/** The cursor moved to `head`; with `extend`, the selection stretched to it. */
+export function moveTo(state: EditorState, head: Pos, options: { extend?: boolean } = {}) {
+  return withSelection(
+    state,
+    options.extend ? { anchor: state.selection.anchor, head } : caret(head),
+  );
+}

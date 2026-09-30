@@ -1,0 +1,46 @@
+{
+  "name": "@luciole/editor",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A true WYSIWYG Markdown editor for the terminal: no markers on screen, Markdown in and out.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sykar-f/luciole.git",
+    "directory": "packages/editor"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "bun": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "src",
+    "tsconfig.json",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "bun scripts/build.ts"
+  },
+  "dependencies": {
+    "marked": "catalog:"
+  },
+  "peerDependencies": {
+    "@opentui/core": "^0.5.12",
+    "@opentui/react": "^0.5.12",
+    "react": "^19.2.0"
+  },
+  "devDependencies": {
+    "@opentui/core": "catalog:",
+    "@opentui/react": "catalog:",
+    "react": "catalog:",
+    "@types/react": "catalog:"
+  }
+}

@@ -159,6 +159,24 @@
         "electrobun": "catalog:",
       },
     },
+    "packages/editor": {
+      "name": "@luciole/editor",
+      "version": "0.1.0",
+      "dependencies": {
+        "marked": "catalog:",
+      },
+      "devDependencies": {
+        "@opentui/core": "catalog:",
+        "@opentui/react": "catalog:",
+        "@types/react": "catalog:",
+        "react": "catalog:",
+      },
+      "peerDependencies": {
+        "@opentui/core": "^0.5.12",
+        "@opentui/react": "^0.5.12",
+        "react": "^19.2.0",
+      },
+    },
     "packages/flow": {
       "name": "@luciole/flow",
       "version": "0.1.0",
@@ -383,6 +401,8 @@
     "@luciole-examples/notes": ["@luciole-examples/notes@workspace:examples/notes"],
 
     "@luciole-examples/studio": ["@luciole-examples/studio@workspace:examples/studio"],
+
+    "@luciole/editor": ["@luciole/editor@workspace:packages/editor"],
 
     "@luciole/flow": ["@luciole/flow@workspace:packages/flow"],
 
