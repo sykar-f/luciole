@@ -1,4 +1,5 @@
-import { Lexer, type MarkedToken, type Token, type Tokens } from "marked";
+import type { MarkedToken, Token, Tokens } from "marked";
+import { lex } from "./math.ts";
 import { EMPTY_DOC, headingLevel } from "../model/doc.ts";
 import { cleanMarks, normalize } from "../model/inline.ts";
 import { splitReferences } from "../model/entities.ts";
@@ -13,7 +14,7 @@ export function parseMarkdown(markdown: string): Doc {
   // before the rest is read (its `---` would read as a rule, its keys as a heading).
   const front = FRONT_MATTER.exec(markdown)?.[0];
   const rest = front ? markdown.slice(front.length) : markdown;
-  const blocks = blocksOfAll(new Lexer({ gfm: true }).lex(rest), TOP);
+  const blocks = blocksOfAll(lex(rest), TOP);
   if (front) blocks.unshift({ type: "raw", text: front.replace(/\s+$/, "") });
   return blocks.length ? blocks : EMPTY_DOC;
 }
@@ -301,7 +302,7 @@ export type Table = {
  * written (a raw block): this reads it only to draw it.
  */
 export function tableOf(markdown: string): Table | null {
-  const tokens = new Lexer({ gfm: true }).lex(markdown).filter((t) => t.type !== "space");
+  const tokens = lex(markdown).filter((t) => t.type !== "space");
   const [table] = tokens;
   if (tokens.length !== 1 || !table || !known(table) || table.type !== "table") return null;
   const lines = lineStarts(markdown);

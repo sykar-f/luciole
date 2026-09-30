@@ -7,7 +7,11 @@
  * drawing, keys, the OpenTUI renderable and its React component (`view/`).
  */
 export { MarkdownEditor, type MarkdownEditorProps } from "./view/MarkdownEditor.tsx";
-export { MarkdownEditorRenderable, type MarkdownEditorOptions } from "./view/EditorRenderable.ts";
+export {
+  MarkdownEditorRenderable,
+  type MarkdownEditorOptions,
+  type MathRenderer,
+} from "./view/EditorRenderable.ts";
 export { EditorController, type EditorChange } from "./editing/controller.ts";
 export type { BlockKind } from "./editing/commands.ts";
 export { parseMarkdown } from "./markdown/parse.ts";

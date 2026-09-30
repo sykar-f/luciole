@@ -71,16 +71,21 @@ const waiting = new Set<() => void>();
 
 /**
  * The image at `url`, loaded once (in the background: `onReady` is called when it arrives
- * or fails). Undefined while it loads.
+ * or fails), by `load` when it is not a file or an address (math drawn to a picture).
+ * Undefined while it loads.
  */
-export function imageAt(url: string, onReady: () => void): NativeImage | "missing" | undefined {
+export function imageAt(
+  url: string,
+  onReady: () => void,
+  load: () => Promise<NativeImage> = () => NativeImage.load(url),
+): NativeImage | "missing" | undefined {
   const entry = entries.get(url);
   if (entry?.state === "ready") return entry.image;
   if (entry?.state === "missing") return "missing";
   waiting.add(onReady);
   if (entry) return undefined;
   entries.set(url, { state: "loading" });
-  NativeImage.load(url).then(
+  load().then(
     (image) => settle(url, { state: "ready", image }),
     () => settle(url, { state: "missing" }),
   );

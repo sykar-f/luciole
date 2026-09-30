@@ -1,6 +1,7 @@
 import {
   decodePasteBytes,
   MouseButton,
+  NativeImage,
   parseColor,
   Renderable,
   type ColorInput,
@@ -23,6 +24,7 @@ import { forgetWaiting, imageAt, protocolOf } from "./images.ts";
 import {
   cellOf,
   layoutDocument,
+  MATH_KEY,
   posAt,
   type CellSize,
   type Glyph,
@@ -60,11 +62,27 @@ export type MarkdownEditorOptions = RenderableOptions<MarkdownEditorRenderable> 
    * that all text starts at one column. The editor's width by default.
    */
   readingWidth?: number;
+  /**
+   * Draws TeX to a PNG, for display math (`$$…$$`, a ```math fence) in terminals that draw
+   * pictures. Without it, display math shows its TeX. `luciole/math` has one.
+   */
+  math?: MathRenderer;
 };
+
+/** TeX to a PNG, in `color`, at `scale` pixels for TeX's `ex` (the height of an x). */
+export type MathRenderer = (
+  tex: string,
+  options: { display: boolean; color: string; scale: number },
+) => Promise<Uint8Array>;
+// A formula a little larger than the text around it: an `ex` over most of a cell's height.
+const EX_PER_CELL = 0.7;
 
 const SCROLL_LINES = 3;
 // How far bands and code panels reach into the margin, when there is one.
 const HANG = 2;
+const HEX = 16;
+// A cell's height in pixels when the terminal does not say.
+const DEFAULT_CELL_HEIGHT = 16;
 // Narrower than this, an editor gives its margin back to the text.
 const MIN_MARGINED = 40;
 // Terminals that draw octants themselves (Unicode 16), whatever the font: bands get their
@@ -111,6 +129,7 @@ export class MarkdownEditorRenderable extends Renderable {
   private _onLink: ((url: string) => void) | undefined;
   private _onCopy: ((markdown: string) => void) | undefined;
   private _onFocusRequest: (() => void) | undefined;
+  private mathRenderer: MathRenderer | undefined;
   private readonly highlighter = new Highlighter(() => {
     this.laid = null;
     this.requestRender();
@@ -138,6 +157,7 @@ export class MarkdownEditorRenderable extends Renderable {
     this._onLink = options.onLink;
     this._onCopy = options.onCopy;
     this._onFocusRequest = options.onFocusRequest;
+    this.mathRenderer = options.math;
     this.listen("on");
   }
 
@@ -200,6 +220,29 @@ export class MarkdownEditorRenderable extends Renderable {
   set onFocusRequest(handler: (() => void) | undefined) {
     this._onFocusRequest = handler;
   }
+  set math(renderer: MathRenderer | undefined) {
+    this.mathRenderer = renderer;
+    this.laid = null;
+    this.requestRender();
+  }
+
+  /**
+   * An image by its layout key: a file or an address, or math (`math:` and its TeX) drawn
+   * in the text's color at the cell's scale. Undefined while it loads, or when it cannot be.
+   */
+  private picture(key: string): NativeImage | "missing" | undefined {
+    if (!key.startsWith(MATH_KEY)) return imageAt(key, this.imageReady);
+    const renderer = this.mathRenderer;
+    const theme = this.currentTheme();
+    if (!renderer || !theme) return undefined;
+    const [r, g, b] = theme.look([]).fg.toInts();
+    const color = `#${[r, g, b].map((c) => (c ?? 0).toString(HEX).padStart(2, "0")).join("")}`;
+    const scale = (this.cell()?.height ?? DEFAULT_CELL_HEIGHT) * EX_PER_CELL;
+    const tex = key.slice(MATH_KEY.length);
+    return imageAt(`${key}\u0000${color}\u0000${scale}`, this.imageReady, async () =>
+      NativeImage.decode(await renderer(tex, { display: true, color, scale })),
+    );
+  }
 
   private currentTheme(): Theme | null {
     if (!this.syntax) return null;
@@ -243,7 +286,7 @@ export class MarkdownEditorRenderable extends Renderable {
       ...(cell ? { cell } : {}),
       image: (url) => {
         if (!protocol) return undefined;
-        const image = imageAt(url, this.imageReady);
+        const image = this.picture(url);
         return image === "missing" || image === undefined
           ? image
           : { width: image.width, height: image.height };
@@ -285,7 +328,7 @@ export class MarkdownEditorRenderable extends Renderable {
           ? {
               images: {
                 get: (url: string) => {
-                  const image = imageAt(url, this.imageReady);
+                  const image = this.picture(url);
                   return image === "missing" ? undefined : image;
                 },
                 protocol,

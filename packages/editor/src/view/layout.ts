@@ -1,5 +1,6 @@
 import type { RGBA } from "@opentui/core";
 import { contentOf, joins, listNumber, textOfBlock } from "../model/doc.ts";
+import { texOf } from "../markdown/math.ts";
 import { tableOf } from "../markdown/parse.ts";
 import { cellWidth, graphemes } from "../model/text.ts";
 import { isText, quoteOf, type Block, type Doc, type Inline, type Pos } from "../model/types.ts";
@@ -17,6 +18,7 @@ import {
 } from "./decorations.ts";
 import { definitionsOf, imageOf, IMAGE_MARK, type Definitions, type ImageSize } from "./images.ts";
 import { tableLines } from "./table.ts";
+import { texToUnicode } from "./unicode-math.ts";
 import { HEADING_LEVELS, type Look, type Theme } from "./theme.ts";
 
 // A document laid out for a width: each block's text wrapped into lines of glyphs, and the
@@ -344,6 +346,10 @@ function computeLines(block: Block, context: BlockContext): Line[] {
   if (block.type === "raw") return rawLines(block.text, context);
   const base = theme.blockGroups(block);
   const glyphs = glyphsOf(block, base, context);
+  if (block.type === "code" && block.lang === "math" && !context.revealed) {
+    const math = mathLines(block.text, 0, block.text.length, context);
+    if (math) return math;
+  }
   if (block.type === "code") {
     // The panel reaches into the margin, so that the code starts where the text does.
     const panelX = x - hang;
@@ -482,6 +488,12 @@ function upper(glyph: Draft): Draft {
 function rawLines(text: string, context: BlockContext): Line[] {
   const { x, width, theme, revealed } = context;
   if (FRONT_MATTER.test(text)) return frontMatterLines(text, context);
+  const math = texOf(text);
+  if (math?.display) {
+    const drawn = revealed ? null : mathLines(math.tex, 0, text.length, context);
+    if (drawn) return drawn;
+    return mathSourceLines(text, context);
+  }
   const table = tableOf(text);
   if (table && !revealed)
     return tableLines(table, {
@@ -516,6 +528,59 @@ function rawLines(text: string, context: BlockContext): Line[] {
     pad: true,
   });
   return [border(0), ...lines, border(text.length)];
+}
+
+/** The key math drawn to a picture is looked up by, as an image by its address. */
+export const mathKey = (tex: string) => `${MATH_KEY}${tex}`;
+export const MATH_KEY = "math:";
+
+/**
+ * Display math as a picture, centered on the page as a web page sets it, when math can be
+ * drawn (a renderer, a terminal that draws pictures); null otherwise. Its rows stand over
+ * the Markdown `from`..`to`.
+ */
+function mathLines(tex: string, from: number, to: number, context: BlockContext): Line[] | null {
+  const { x, width, image, cell } = context;
+  const size = image?.(mathKey(tex));
+  if (!size || size === "missing") return null;
+  const cols = Math.max(1, Math.min(width - x, Math.ceil(size.width / cell.width)));
+  const rows = Math.max(
+    1,
+    Math.round((cols * cell.width * size.height) / size.width / cell.height),
+  );
+  const left = x + Math.max(0, Math.floor((width - x - cols) / 2));
+  // A row of room above and below, as a page sets a formula apart.
+  const margin: Line = { block: 0, from, to: from, glyphs: [], textX: x, x, bars: 0, pad: true };
+  const picture = Array.from({ length: rows }, (_, row) => ({
+    block: 0,
+    from,
+    to: row ? from : to,
+    glyphs: [],
+    textX: left,
+    x: left,
+    bars: 0,
+    image: { url: mathKey(tex), row, rows, cols },
+    ...(row > 0 ? { pad: true } : {}),
+  }));
+  return [margin, ...picture, margin];
+}
+
+/** Display math as its TeX on a panel labelled "math": where it is not drawn, or edited. */
+function mathSourceLines(text: string, context: BlockContext): Line[] {
+  const { x, width, theme, hang } = context;
+  const look = theme.look(["markup.math"]);
+  const panelX = x - hang;
+  const fill = theme.panel();
+  const label = { text: "math", look: theme.label() };
+  return wrap(plainGlyphs(text, 0, look), panelX + CODE_PADDING, width, { words: false }).map(
+    (line, i) => ({
+      ...line,
+      x: panelX,
+      bars: 0,
+      ...(fill ? { fill } : {}),
+      ...(i === 0 ? { label } : {}),
+    }),
+  );
 }
 
 /**
@@ -612,6 +677,8 @@ function imageLines(block: Block, context: BlockContext): Line[] | null {
 
 /** Whether `block` holds an image, which lays it out again when images arrive. */
 function holdsImage(block: Block) {
+  if (block.type === "code") return block.lang === "math";
+  if (block.type === "raw") return texOf(block.text)?.display === true;
   if (block.type !== "paragraph" && block.type !== "item" && block.type !== "heading") return false;
   return block.content.some((span) => span.marks.verbatim && span.text.startsWith(IMAGE_MARK));
 }
@@ -668,6 +735,24 @@ function spansGlyphs(
     }
     // Inline HTML the editor draws: tags hidden (a key cap's edges for `<kbd>`), `<br>` a
     // line break, a comment nothing. Shown as written in the block being edited.
+    // Math in a line: in Unicode where that is exact, else its TeX; as written when edited.
+    const math = span.marks.verbatim ? texOf(span.text) : null;
+    if (math && !math.display) {
+      const look = theme.look(["markup.math"]);
+      const shown = revealed ? span.text : (texToUnicode(math.tex) ?? math.tex);
+      const glyphs = graphemes(shown);
+      const length = span.text.length;
+      glyphs.forEach((g, i) =>
+        out.push({
+          text: g.text,
+          offset: offset + Math.min(length - 1, Math.floor((i * length) / glyphs.length)),
+          width: cellWidth(g.text),
+          look,
+        }),
+      );
+      offset += length;
+      continue;
+    }
     if (span.marks.verbatim && !revealed && htmlGlyphs(span.text, offset, open, theme, out)) {
       offset += span.text.length;
       continue;

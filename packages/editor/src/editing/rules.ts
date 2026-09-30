@@ -328,6 +328,8 @@ const IMAGE = /!\[([^\]\n]*)\]\(([^()\s]+)\)$/;
 const AUTOLINK = /<((?:https?|ftp|mailto):[^\s<>]+|[\w.+-]+@[\w-]+(?:\.[\w-]+)+)>$/;
 const REFERENCE = /&(?:#[xX][0-9a-fA-F]{1,6}|#\d{1,7}|[a-zA-Z][a-zA-Z0-9]{1,31});$/;
 const URL_BEFORE = /(https?:\/\/[^\s]+)$/;
+// `$…$` just closed: no space inside the dollars, not after a word (`US$5`).
+const MATH = /(?:^|[^\w$\\])(\$(?![\s$])[^$\n]*?[^\s$\\]\$|\$[^\s$]\$)$/;
 
 /** Whether `from`..`to` is plain text: nothing escaped, no code, nothing kept as written. */
 function plain(content: Inline, from: number, to: number) {
@@ -371,6 +373,11 @@ function inlineRule(typed: EditorState, char: string): EditorState | null {
     const start = at.offset - link[0].length;
     const text = slice(block.content, start + 1, start + 1 + label.length);
     return replace(link[0].length, setLink(text, 0, label.length, href));
+  }
+  if (char === "$") {
+    // Math, kept as written: `$x^2$` on its closing dollar.
+    const math = MATH.exec(before)?.[1];
+    if (math) return replace(math.length, [{ text: math, marks: { verbatim: true } }]);
   }
   if (char === ">") {
     const address = AUTOLINK.exec(before)?.[1];
@@ -416,6 +423,8 @@ const TRAILING_PUNCTUATION = /[.,;:!?'"*_~]+$/;
 const count = (text: string, char: string) => text.split(char).length - 1;
 
 const FENCE = /^(```|~~~)([^`\s]*)$/;
+/** Where the TeX goes in a new block of math: after `$$` and its line break. */
+const MATH_OPEN = 3;
 // A table's delimiter row: `|---|:---:|`, at least one pipe.
 const DELIMITER_ROW = /^\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)+\|?$|^\|\s*:?-+:?\s*\|?$/;
 const RULE = /^(-{3,}|\*{3,}|_{3,})$/;
@@ -443,6 +452,17 @@ export function enter(state: EditorState): EditorState {
     return insertText(settled, "\n");
   }
   if (block.type === "paragraph" && at.offset === text.length) {
+    // `$$` then Return: a block of math, edited as its TeX between the two `$$`.
+    if (text === "$$" && plain(block.content, 0, text.length)) {
+      const math: Block = { type: "raw", text: "$$\n\n$$", ...placeOf(block) };
+      return {
+        ...withEdit(settled, replaceBlock(settled.doc, at.block, math), {
+          block: at.block,
+          offset: MATH_OPEN,
+        }),
+        literal: splitBlock(settled),
+      };
+    }
     const fence = plain(block.content, 0, text.length) ? FENCE.exec(text) : null;
     if (fence) {
       const code: Block = { type: "code", lang: fence[2] ?? "", text: "", ...placeOf(block) };

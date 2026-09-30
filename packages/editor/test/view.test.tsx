@@ -472,3 +472,37 @@ test("what notes write beyond CommonMark reads as it means, and as written where
   expect(frame.slice(9, 11)).toEqual(["one", "two"]);
   expect(frame[12]).toBe("¹ The note itself.");
 });
+
+test("math reads in Unicode in a line where exact, as TeX otherwise, and on a panel as a block", async () => {
+  await show(
+    [
+      "Intro.",
+      "",
+      "With $\\alpha^2 + \\beta_{1} \\leq \\sqrt{x}$ and $\\frac{a}{b}$, not $5 or $10.",
+      "",
+      "$$",
+      "\\sum_{k=1}^n k",
+      "$$",
+    ].join("\n"),
+  );
+  expect(rows()[2]).toBe("With α² + β₁ ≤ √x and \\frac{a}{b}, not $5 or $10.");
+  // Without a renderer, display math is its TeX on a panel labelled "math".
+  expect(rows().slice(4, 7)).toEqual([
+    `  $$${" ".repeat(WIDTH - 9)}math`,
+    "  \\sum_{k=1}^n k",
+    "  $$",
+  ]);
+});
+
+test("display math is a picture centered on the page when it can be drawn", () => {
+  const doc = parseMarkdown("$$\nx^2\n$$\n\n```math\ny\n```");
+  const lines = layoutDocument(doc, WIDTH, new Theme(style), {
+    image: (key) => (key.startsWith("math:") ? { width: 80, height: 32 } : undefined),
+    cell: { width: 8, height: 16 },
+  }).lines;
+  const first = lines.find((line) => line.image);
+  // 80 pixels are 10 cells, centered in 60: from column 25; 32 pixels are 2 rows.
+  expect(first?.image).toEqual({ url: "math:x^2", row: 0, rows: 2, cols: 10 });
+  expect(first?.x).toBe(25);
+  expect(lines.filter((line) => line.image?.url === "math:y")).toHaveLength(2);
+});

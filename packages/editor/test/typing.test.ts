@@ -222,6 +222,11 @@ const cases: Record<string, Case[]> = {
     { keys: "<me@x.y>", markdown: "[me@x.y](mailto:me@x.y)", screen: "me@x.y" },
     { keys: "![alt](pic.png)", markdown: "![alt](pic.png)" },
   ],
+  math: [
+    { keys: "area $\\pi r^2$ ok", markdown: "area $\\pi r^2$ ok", screen: "area πr² ok" },
+    { keys: "costs US$5 and $10", markdown: "costs US$5 and $10" },
+    { keys: "$${enter}x^2", markdown: "$$\nx^2\n$$" },
+  ],
   "line breaks": [{ keys: "a{shift+enter}b", markdown: "a\nb", screen: "a\nb" }],
   "character references": [
     { keys: "&copy; 2026", markdown: "© 2026", screen: "© 2026" },
