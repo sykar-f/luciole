@@ -14,7 +14,8 @@
     "green",
     "violet",
     "lilac",
-    "indigo"
+    "indigo",
+    "firefly"
   ],
   "encodings": [
     "classic",
@@ -53,6 +54,11 @@
       "tint": "warm",
       "dominant": "neutral",
       "encoding": "classic"
+    },
+    "luciole": {
+      "tint": "warm",
+      "dominant": "firefly",
+      "encoding": "dominant-neutral"
     }
   }
 }

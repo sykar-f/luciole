@@ -1,0 +1,222 @@
+---
+// Behind the hero, a dark field of terminal cells where a few fireflies wander: each one a
+// single cell that lights almost at once and fades slowly, as the screens' written cells
+// do (the afterglow's curve, lib/glow.ts), then steps to a neighbouring cell and flashes
+// again, a few times, before going out. Not a picture: the name's light, in the medium's
+// grain. Faint, and only in the open: never over the title, its lede and buttons, or under
+// the screens, whose glass is opaque.
+// Still when the reader asks for less motion; paused out of view.
+---
+
+<canvas class="field" data-field aria-hidden="true"></canvas>
+
+<script>
+  import { screenColours } from "../lib/recolor";
+
+  /** A terminal cell of the field, in CSS pixels: the screens' grain, a little larger. */
+  const CELL = { width: 12, height: 24 };
+  /** The lit part of a cell: a square in its middle, as the wordmark's i has. */
+  const DOT = 5;
+  /** One firefly per this many square pixels of open field, and never more than MOST. */
+  const AREA = 45_000;
+  const MOST = 16;
+  /** What they keep clear of, and by how many pixels. */
+  const COVERED = ".hero .top, .hero .ping, .hero .glass";
+  const MARGIN = 28;
+  /** A flash: up almost at once, a short hold, then a long fade. */
+  const RISE_MS = 90;
+  const HOLD_MS = 70;
+  const FADE_MS = 1500;
+  /** A firefly's peak, and its halo's reach in cells. */
+  const PEAK = 0.7;
+  const HALO = 2.2;
+
+  type Firefly = {
+    column: number;
+    row: number;
+    /** When the current flash starts; before it, the firefly waits dark. */
+    at: number;
+    /** Flashes left, this one included. */
+    left: number;
+    /** A second, quick pulse right after the first, as some fireflies signal. */
+    twice: boolean;
+  };
+
+  const canvas = document.querySelector<HTMLCanvasElement>("[data-field]");
+  const context = canvas?.getContext("2d");
+  if (canvas && context) field(canvas, context);
+
+  function field(canvas: HTMLCanvasElement, context: CanvasRenderingContext2D) {
+    const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    let colour = screenColours().afterglow;
+    let columns = 0;
+    let rows = 0;
+    let flies: Firefly[] = [];
+    /** Cells covered by the title block, the slider or a screen: never lit. */
+    let covered = new Set<number>();
+    const open = (column: number, row: number) => !covered.has(row * columns + column);
+    let running = false;
+    let frame = 0;
+
+    const random = (from: number, to: number) => from + Math.random() * (to - from);
+    const spawn = (now: number): Firefly => {
+      let column = 0;
+      let row = 0;
+      for (let tries = 0; tries < 40; tries++) {
+        column = Math.floor(Math.random() * columns);
+        row = Math.floor(Math.random() * rows);
+        if (open(column, row)) break;
+      }
+      return { column, row, left: 2 + Math.floor(Math.random() * 4), ...next(now, 0, 2600) };
+    };
+    const next = (now: number, from: number, to: number) => ({
+      at: now + random(from, to),
+      twice: Math.random() < 0.3,
+    });
+
+    const size = () => {
+      const ratio = devicePixelRatio || 1;
+      const { width, height } = canvas.getBoundingClientRect();
+      canvas.width = Math.round(width * ratio);
+      canvas.height = Math.round(height * ratio);
+      context.setTransform(ratio, 0, 0, ratio, 0, 0);
+      columns = Math.max(1, Math.floor(width / CELL.width));
+      rows = Math.max(1, Math.floor(height / CELL.height));
+      const box = canvas.getBoundingClientRect();
+      covered = new Set();
+      for (const element of document.querySelectorAll(COVERED)) {
+        const r = element.getBoundingClientRect();
+        const left = Math.max(0, Math.floor((r.left - box.left - MARGIN) / CELL.width));
+        const right = Math.min(columns - 1, Math.floor((r.right - box.left + MARGIN) / CELL.width));
+        const top = Math.max(0, Math.floor((r.top - box.top - MARGIN) / CELL.height));
+        const bottom = Math.min(rows - 1, Math.floor((r.bottom - box.top + MARGIN) / CELL.height));
+        for (let y = top; y <= bottom; y++)
+          for (let x = left; x <= right; x++) covered.add(y * columns + x);
+      }
+      const free = columns * rows - covered.size;
+      const count = Math.min(MOST, Math.round((free * CELL.width * CELL.height) / AREA));
+      const now = performance.now();
+      flies = Array.from({ length: count }, () => spawn(now));
+    };
+
+    /** How lit a flash is, `t` ms after it started: 0 to 1. */
+    const brightness = (t: number, twice: boolean) => {
+      const one = (t: number) => {
+        if (t < 0) return 0;
+        if (t < RISE_MS) return t / RISE_MS;
+        if (t < RISE_MS + HOLD_MS) return 1;
+        const fading = (t - RISE_MS - HOLD_MS) / FADE_MS;
+        return fading >= 1 ? 0 : (1 - fading) ** 2.2;
+      };
+      return twice ? Math.max(one(t), 0.8 * one(t - 260)) : one(t);
+    };
+    const flashMs = (twice: boolean) => RISE_MS + HOLD_MS + FADE_MS + (twice ? 260 : 0);
+
+    const light = (fly: Firefly, amount: number) => {
+      if (amount <= 0.01) return;
+      const x = fly.column * CELL.width + CELL.width / 2;
+      const y = fly.row * CELL.height + CELL.height / 2;
+      const reach = CELL.height * HALO;
+      const halo = context.createRadialGradient(x, y, 0, x, y, reach);
+      halo.addColorStop(0, `${colour}${alpha(0.22 * amount)}`);
+      halo.addColorStop(1, `${colour}00`);
+      context.fillStyle = halo;
+      context.fillRect(x - reach, y - reach, reach * 2, reach * 2);
+      context.fillStyle = `${colour}${alpha(PEAK * amount)}`;
+      context.fillRect(x - DOT / 2, y - DOT / 2, DOT, DOT);
+    };
+
+    const draw = (now: number) => {
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      context.globalCompositeOperation = "lighter";
+      for (const [index, fly] of flies.entries()) {
+        const t = now - fly.at;
+        light(fly, brightness(t, fly.twice));
+        if (t < flashMs(fly.twice)) continue;
+        // Its flash done: a step to a neighbouring cell and a pause, or out for good.
+        fly.left -= 1;
+        if (fly.left <= 0) {
+          flies[index] = spawn(now);
+          continue;
+        }
+        const column = clamp(fly.column + step(), columns);
+        const row = clamp(fly.row + step(), rows);
+        if (open(column, row)) Object.assign(fly, { column, row });
+        Object.assign(fly, next(now, 250, 1100));
+      }
+      context.globalCompositeOperation = "source-over";
+    };
+
+    const tick = (now: number) => {
+      if (!running) return;
+      draw(now);
+      frame = requestAnimationFrame(tick);
+    };
+    const play = (on: boolean) => {
+      if (on === running) return;
+      running = on;
+      cancelAnimationFrame(frame);
+      if (on) frame = requestAnimationFrame(tick);
+    };
+
+    // Held still: a few cells caught mid-fade, drawn once.
+    const pose = () => {
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      for (const fly of flies) light(fly, random(0.15, 0.6));
+    };
+
+    size();
+    // The title's box settles once its fonts are in.
+    void document.fonts.ready.then(() => {
+      size();
+      if (still) pose();
+    });
+    new ResizeObserver(() => {
+      size();
+      if (still) pose();
+    }).observe(canvas);
+    document.addEventListener("palette", () => {
+      colour = screenColours().afterglow;
+      if (still) pose();
+    });
+    if (still) return pose();
+
+    let visible = false;
+    new IntersectionObserver(([entry]) => {
+      visible = entry?.isIntersecting ?? false;
+      play(visible && !document.hidden);
+    }).observe(canvas);
+    document.addEventListener("visibilitychange", () => play(visible && !document.hidden));
+  }
+
+  /** -1, 0 or 1 cell, rarely 2: a firefly drifts, it does not jump. */
+  function step() {
+    const r = Math.random();
+    return r < 0.1 ? -2 : r < 0.4 ? -1 : r < 0.6 ? 0 : r < 0.9 ? 1 : 2;
+  }
+
+  function clamp(value: number, count: number) {
+    return Math.min(count - 1, Math.max(0, value));
+  }
+
+  /** `amount` (0 to 1) as the two hex digits of an `#rrggbbaa` colour. */
+  function alpha(amount: number) {
+    return Math.round(Math.min(1, Math.max(0, amount)) * 255)
+      .toString(16)
+      .padStart(2, "0");
+  }
+</script>
+
+<style>
+  /* The whole hero, behind everything in it; faded out toward the bottom, so the section
+     below starts in the dark. */
+  .field {
+    position: absolute;
+    z-index: 0;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    mask-image: linear-gradient(#000 70%, transparent);
+  }
+</style>

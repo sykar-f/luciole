@@ -121,6 +121,7 @@ DOMINANTS = {
     "violet": {"about": "Violet.", "color": "#a78bfa"},
     "lilac": {"about": "Lilac.", "color": "#c9a8ff"},
     "indigo": {"about": "Indigo.", "color": "#8b93ff"},
+    "firefly": {"about": "A firefly's yellow-green, the light luciole is named after.", "color": "#c6e85a"},
 }
 
 # Client and Server from the dominant. Only mixes in sRGB and HSL hue turns: the result
@@ -193,6 +194,7 @@ SUGGESTIONS = {
     "midnight": {"tint": "blue", "dominant": "indigo", "encoding": "dominant-neutral"},
     "moss": {"tint": "green", "dominant": "green", "encoding": "dominant-neutral"},
     "phosphor": {"tint": "warm", "dominant": "neutral", "encoding": "classic"},
+    "luciole": {"tint": "warm", "dominant": "firefly", "encoding": "dominant-neutral"},
 }
 
 # Syntax and the guide's tones: the same on every tint, checked on each.
