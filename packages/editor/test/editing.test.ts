@@ -4,7 +4,7 @@ import { parseMarkdown } from "../src/markdown/parse.ts";
 import { serializeMarkdown } from "../src/markdown/serialize.ts";
 import { backspace, enter, toMarkdown, typeText } from "../src/editing/rules.ts";
 import { createState, type EditorState } from "../src/editing/state.ts";
-import { moveTo, selectAll } from "../src/editing/commands.ts";
+import { editLink, moveTo, selectAll } from "../src/editing/commands.ts";
 
 /** Keys as a script: text is typed, ⏎ is Return, ⌫ is Backspace. */
 function keys(script: string, state: EditorState = createState(EMPTY_DOC)) {
@@ -101,4 +101,26 @@ test("Backspace between text and a table or code crosses, it never joins them", 
     offset: 0,
   });
   expect(backspace(empty).doc).toHaveLength(1);
+});
+
+test("a link is made from text, and changed, by writing it out the way it is typed", () => {
+  // Selected text: `[text](`, the address typed, then `)`.
+  const selected = moveTo(
+    moveTo(createState(parseMarkdown("see the site now")), { block: 0, offset: 4 }),
+    { block: 0, offset: 12 },
+    { extend: true },
+  );
+  const made = typeText(editLink(selected), "https://x.y)");
+  expect(md(made)).toBe("see [the site](https://x.y) now");
+  // In a link: `[text](address`, the cursor at its end; `)` makes it a link again.
+  const inLink = moveTo(createState(parseMarkdown("see [site](https://x.y) now")), {
+    block: 0,
+    offset: 5,
+  });
+  const opened = editLink(inLink);
+  expect(opened.selection.head).toEqual({ block: 0, offset: 4 + "[site](https://x.y".length });
+  const erased = backspace(backspace(backspace(opened)));
+  expect(md(typeText(erased, "z.w)"))).toBe("see [site](https://z.w) now");
+  // A link being made is taken back by Backspace right away.
+  expect(md(backspace(editLink(selected)))).toBe("see the site now");
 });

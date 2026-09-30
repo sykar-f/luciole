@@ -26,6 +26,7 @@ import {
   deleteSelection,
   deleteWordBackward,
   deleteWordForward,
+  editLink,
   indentItems,
   insertLineBreak,
   insertMarkdown,
@@ -177,6 +178,10 @@ export class EditorController {
   }
   indent(delta: 1 | -1) {
     this.run((state) => indentItems(state, delta));
+  }
+  /** A link made from the selection, or the one at the cursor written out to change it. */
+  editLink() {
+    this.apply(editLink);
   }
   toggleTask(block: number) {
     this.apply((state) => toggleTask(settle(state), block));

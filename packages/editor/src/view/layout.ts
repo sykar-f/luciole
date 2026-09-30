@@ -565,7 +565,7 @@ function spansGlyphs(
   const { theme, revealed, definitions } = context;
   const out: Draft[] = [];
   let offset = 0;
-  for (const span of content) {
+  for (const [index, span] of content.entries()) {
     // An image among text: its alternative text, unless the block is being edited.
     const image = span.marks.verbatim && !revealed ? imageOf(span.text, definitions) : null;
     if (image) {
@@ -586,8 +586,37 @@ function spansGlyphs(
         ...(span.marks.link === undefined ? {} : { link: span.marks.link }),
       });
     offset += span.text.length;
+    // In the block being edited, a link shows where it goes, after its text.
+    const href = span.marks.link;
+    if (revealed && href !== undefined && content[index + 1]?.marks.link !== href)
+      out.push(...addressGlyphs(href, linkText(content, index), offset - 1, theme));
   }
   return out;
+}
+
+/** The text of the link whose last run is `content[last]`. */
+function linkText(content: Inline, last: number) {
+  let text = "";
+  for (let i = last; i >= 0 && content[i]?.marks.link === content[last]?.marks.link; i--)
+    text = (content[i]?.text ?? "") + text;
+  return text;
+}
+
+/**
+ * ` (address)`, faint, after a link: over its last character (`offset`), so a click there
+ * lands in the link, and a cursor after the link is drawn after it. Nothing for a link that
+ * is its own address.
+ */
+function addressGlyphs(href: string, text: string, offset: number, theme: Theme): Draft[] {
+  if (href === text || href === `mailto:${text}`) return [];
+  const look = theme.look(["markup.link.url"]);
+  return graphemes(` (${href})`).map((g) => ({
+    text: g.text,
+    offset,
+    width: cellWidth(g.text),
+    look,
+    link: href,
+  }));
 }
 
 export type Draft = {

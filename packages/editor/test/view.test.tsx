@@ -161,6 +161,9 @@ test("headings keep the reader's rhythm: two lines above an H1, one under an H3"
 test("the document shows as it reads: no Markdown marker on screen", async () => {
   await show(
     [
+      // The cursor's block, where links show their address.
+      "Intro.",
+      "",
       "Some **bold**, *italic*, ~~gone~~, `code` and a [link](https://x.y).",
       "",
       "- [ ] a task",
@@ -408,7 +411,7 @@ test("an image the terminal draws takes its own size in cells, up to the page's 
   // Edited, it is its Markdown again.
   const revealed = layoutDocument(doc, WIDTH, new Theme(style), { ...options, revealed: 0 });
   expect(revealed.lines.some((line) => line.image)).toBe(false);
-  expect(revealed.lines[0]?.glyphs.map((g) => g.text).join("")).toBe("![logo][l]");
+  expect(revealed.lines[0]?.glyphs.map((g) => g.text).join("")).toBe("![logo][l] (https://x.y)");
 });
 
 test("ticking a task far down the page keeps the page where it is", async () => {
@@ -435,4 +438,10 @@ test("Down at the end of code that ends the document leaves it for a new paragra
     await ui?.mockInput.typeText("after");
   });
   expect(log.at(-1)).toBe("text\n\n```\ncode\n```\n\nafter");
+});
+
+test("in the block being edited, a link shows its address; elsewhere only its text", async () => {
+  await show("see [site](https://x.y) now\n\nand [there](https://z.w)");
+  expect(rows()[0]).toBe("see site (https://x.y) now");
+  expect(rows()[2]).toBe("and there");
 });

@@ -43,7 +43,8 @@ function Window({ children }: { children: ReactNode }) {
         { key: "ctrl+r", cmd: () => void refresh() },
         { key: "ctrl+t", cmd: () => setDebug((shown) => !shown) },
         { key: "ctrl+n", cmd: () => void commands.create() },
-        { key: "ctrl+b", cmd: ui.toggleSidebar },
+        // Ctrl+L for the list: Ctrl+B is bold, in the note.
+        { key: "ctrl+l", cmd: ui.toggleSidebar },
         {
           key: "ctrl+f",
           cmd: () => {

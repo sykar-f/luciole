@@ -1,4 +1,6 @@
+import type { BlockKind } from "../editing/commands.ts";
 import type { EditorController } from "../editing/controller.ts";
+import { headingLevel } from "../model/doc.ts";
 import type { MarkName } from "../model/types.ts";
 
 // Keys to what they mean in the editor, as data: the renderable carries intents out, and
@@ -39,7 +41,10 @@ export type Intent =
   | { readonly type: "selectAll" }
   | { readonly type: "copy" }
   | { readonly type: "cut" }
-  | { readonly type: "mark"; readonly mark: MarkName };
+  | { readonly type: "mark"; readonly mark: MarkName }
+  | { readonly type: "link" }
+  | { readonly type: "block"; readonly kind: BlockKind }
+  | { readonly type: "task" };
 
 const ARROWS: Readonly<Record<string, Motion>> = {
   left: "left",
@@ -86,8 +91,9 @@ export function intentOf(key: KeyLike): Intent | null {
   }
   if (key.ctrl || command) return shortcut(key.name, { shift: key.shift, command });
   // Alt (Option) with a symbol is how some keyboards type it (`[`, `~`, `|` on a French
-  // Mac): the symbol is typed. Alt with a letter or a digit is left to shortcuts.
-  if (key.meta && !typedWithAlt(key.sequence)) return null;
+  // Mac): the symbol is typed. Alt with a letter or a digit is a shortcut: the one set of
+  // them every terminal delivers (Cmd rarely reaches the application, Ctrl+I is Tab).
+  if (key.meta && !typedWithAlt(key.sequence)) return altShortcut(key.name);
   if (key.name === "space") return { type: "type", text: " " };
   const code = key.sequence.charCodeAt(0);
   if (!key.sequence || code < SPACE || code === DEL) return null;
@@ -118,12 +124,52 @@ function shortcut(name: string, options: { shift: boolean; command: boolean }): 
       return options.command || options.shift ? { type: "copy" } : null;
     case "x":
       return options.command || options.shift ? { type: "cut" } : null;
+    // Ctrl+I reaches here only where the terminal tells it from Tab (the kitty protocol).
     case "b":
-      return options.command ? { type: "mark", mark: "bold" } : null;
+      return { type: "mark", mark: "bold" };
     case "i":
-      return options.command ? { type: "mark", mark: "italic" } : null;
+      return { type: "mark", mark: "italic" };
+    case "k":
+      return { type: "link" };
     case "j":
       return { type: "lineBreak" };
+    default:
+      return null;
+  }
+}
+
+/** Alt with a letter or a digit. */
+function altShortcut(name: string): Intent | null {
+  if (/^[0-6]$/.test(name)) {
+    const level = Number(name);
+    return {
+      type: "block",
+      kind: level ? { type: "heading", level: headingLevel(level) } : { type: "paragraph" },
+    };
+  }
+  switch (name) {
+    case "b":
+      return { type: "mark", mark: "bold" };
+    case "i":
+      return { type: "mark", mark: "italic" };
+    case "s":
+      return { type: "mark", mark: "strike" };
+    case "e":
+      return { type: "mark", mark: "code" };
+    case "k":
+      return { type: "link" };
+    case "c":
+      return { type: "copy" };
+    case "x":
+      return { type: "cut" };
+    case "t":
+      return { type: "task" };
+    case "l":
+      return { type: "block", kind: { type: "item", list: "bullet" } };
+    case "o":
+      return { type: "block", kind: { type: "item", list: "ordered" } };
+    case "q":
+      return { type: "block", kind: { type: "quote" } };
     default:
       return null;
   }
@@ -187,5 +233,19 @@ export function perform(
     case "mark":
       controller.toggleMark(intent.mark);
       return true;
+    case "link":
+      controller.editLink();
+      return true;
+    case "block":
+      controller.setBlock(intent.kind);
+      return true;
+    case "task": {
+      // A task ticked, or a list item (or text) made a task.
+      const block = controller.block;
+      if (block?.type === "item" && block.list === "task")
+        controller.toggleTask(controller.state.selection.head.block);
+      else controller.setBlock({ type: "item", list: "task" });
+      return true;
+    }
   }
 }

@@ -12,9 +12,20 @@ import {
   splitBlock as split,
   textOfBlock,
 } from "../model/doc.ts";
-import { hasMark, plain, setMark, splice, textOf, withMark } from "../model/inline.ts";
+import {
+  cleanMarks,
+  concat,
+  hasMark,
+  linkAround,
+  plain,
+  setMark,
+  slice,
+  splice,
+  textOf,
+  withMark,
+} from "../model/inline.ts";
 import { parseMarkdown } from "../markdown/parse.ts";
-import { nextBoundary, previousBoundary, wordEnd, wordStart } from "../model/text.ts";
+import { nextBoundary, previousBoundary, wordAround, wordEnd, wordStart } from "../model/text.ts";
 import {
   isLines,
   isText,
@@ -330,4 +341,45 @@ export function moveTo(state: EditorState, head: Pos, options: { extend?: boolea
     state,
     options.extend ? { anchor: state.selection.anchor, head } : caret(head),
   );
+}
+
+/**
+ * A link written out, to be made or changed the way one is typed. Selected text (or the word
+ * at the cursor) gets `[` before it and `](` after, the cursor where the address goes; a
+ * link at the cursor becomes `[text](address`, the cursor at its end, where Backspace edits
+ * the address. Typing `)` makes it a link again.
+ */
+export function editLink(state: EditorState): EditorState {
+  const base = { ...state, pending: null };
+  const { from, to } = selectionRange(base);
+  const block = base.doc[from.block];
+  if (!block || !isText(block) || from.block !== to.block) return state;
+  const { content } = block;
+  const at = cursor(base);
+  const link = hasSelection(base)
+    ? null
+    : (linkAround(content, at.offset) ?? (at.offset ? linkAround(content, at.offset - 1) : null));
+  let start: number;
+  let end: number;
+  let tail: string;
+  if (link) {
+    ({ from: start, to: end } = link);
+    tail = `](${link.href}`;
+  } else {
+    const word = hasSelection(base)
+      ? { from: from.offset, to: to.offset }
+      : wordAround(textOf(content), at.offset);
+    ({ from: start, to: end } = word);
+    tail = "](";
+  }
+  const label = slice(content, start, end).map((span) => ({
+    text: span.text,
+    marks: cleanMarks({ ...span.marks, link: undefined }),
+  }));
+  const written = concat(plain("["), label, plain(tail));
+  const next = rebuild(block, splice(content, start, end, written));
+  const pos = { block: from.block, offset: start + textOf(written).length };
+  const edited = withEdit(base, replaceBlock(base.doc, from.block, next), pos);
+  // A link being made is taken back by Backspace right away; one reopened is edited by it.
+  return link ? edited : { ...edited, literal: state };
 }
