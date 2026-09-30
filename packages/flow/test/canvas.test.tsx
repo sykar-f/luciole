@@ -7,7 +7,7 @@ import { act, useEffect, useState, type ReactNode } from "react";
 import { useRenderer } from "@opentui/react";
 import { testRender } from "@opentui/react/test-utils";
 import { createDefaultOpenTuiKeymap } from "@opentui/keymap/opentui";
-import { KeymapProvider } from "@opentui/keymap/react";
+import { KeymapProvider, useActiveKeys } from "@opentui/keymap/react";
 import {
   addEdge,
   Background,
@@ -20,10 +20,21 @@ import {
   type Node,
 } from "../src/index.ts";
 
+/** The application's own keymap, as luciole's Shell installs one. */
 function Keys({ children }: { children: ReactNode }) {
   const renderer = useRenderer();
   const [keymap] = useState(() => createDefaultOpenTuiKeymap(renderer));
   return <KeymapProvider keymap={keymap}>{children}</KeymapProvider>;
+}
+
+/** What a help line of the application sees: the described keys of group `flow`. */
+const help: { keys: string[] } = { keys: [] };
+function Help() {
+  const keys = useActiveKeys({ includeMetadata: true });
+  useEffect(() => {
+    help.keys = keys.flatMap((k) => (k.bindingAttrs?.group === "flow" ? [k.display] : []));
+  }, [keys]);
+  return null;
 }
 
 const NODES: Node[] = [
@@ -41,36 +52,43 @@ const EDGES: Edge[] = [
 ];
 
 const state: { nodes: Node[]; edges: Edge[] } = { nodes: [], edges: [] };
-function App() {
+function App({ provider }: { provider: boolean }) {
   const [nodes, , onNodesChange] = useNodesState(NODES);
   const [edges, setEdges, onEdgesChange] = useEdgesState(EDGES);
   useEffect(() => {
     state.nodes = nodes;
     state.edges = edges;
   }, [nodes, edges]);
-  return (
+  const flow = (
+    <Flow
+      nodes={nodes}
+      edges={edges}
+      onNodesChange={onNodesChange}
+      onEdgesChange={onEdgesChange}
+      onConnect={(c) => setEdges((current) => addEdge(c, current))}
+      defaultViewport={{ x: 1, y: 1, zoom: 1 }}
+    >
+      <Background />
+      <Controls />
+      <MiniMap width={12} height={3} />
+    </Flow>
+  );
+  return provider ? (
     <Keys>
-      <Flow
-        nodes={nodes}
-        edges={edges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onConnect={(c) => setEdges((current) => addEdge(c, current))}
-        defaultViewport={{ x: 1, y: 1, zoom: 1 }}
-      >
-        <Background />
-        <Controls />
-        <MiniMap width={12} height={3} />
-      </Flow>
+      <Help />
+      {flow}
     </Keys>
+  ) : (
+    flow
   );
 }
 
 let destroy: (() => void) | undefined;
 afterEach(() => act(() => destroy?.()));
 
-async function open() {
-  const ui = await testRender(<App />, { width: 60, height: 14 });
+// Without the application's keymap by default: the canvas brings its own.
+async function open({ provider = false }: { provider?: boolean } = {}) {
+  const ui = await testRender(<App provider={provider} />, { width: 60, height: 14 });
   destroy = () => ui.renderer.destroy();
   const settle = async () => {
     for (let i = 0; i < 3; i++)
@@ -166,4 +184,12 @@ test("zooming out draws labels only, then dots", async () => {
   expect(frame()).not.toContain("checkout");
   await run(() => ui.mockInput.pressKey("0"));
   expect(frame()).toContain("║ checkout ║");
+});
+
+test("inside the application's keymap, the canvas's keys join it and its help", async () => {
+  const { ui, run, selected } = await open({ provider: true });
+  expect(help.keys).toContain("tab");
+  await run(() => ui.mockInput.pressTab());
+  expect(selected()).toEqual(["a"]);
+  expect(help.keys).toContain("]");
 });

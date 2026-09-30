@@ -13,6 +13,7 @@ import { composeFrame, dropTarget, hitTest, type EdgeType, type Frame } from "./
 import { absolutePositions, detailFor, pickAnchor, placeNodes, type Placed } from "./geometry.ts";
 import { NodeIdContext, StoreContext, useStoreVersion } from "./hooks.tsx";
 import { cycle, follow, nearest, readingOrder, sibling } from "./navigation.ts";
+import { FlowKeymap } from "./keymap.tsx";
 import { builtinNodeTypes } from "./nodes.tsx";
 import { FlowStore, type CanvasNodeChange } from "./store.ts";
 import { defaultTheme, roleColor, ThemeContext, useFlowTheme, type FlowTheme } from "./theme.ts";
@@ -81,7 +82,9 @@ export function Flow<N extends Node = Node, E extends Edge = Edge>(props: FlowPr
   return (
     <StoreContext.Provider value={store}>
       <ThemeContext.Provider value={theme}>
-        <Canvas {...props} />
+        <FlowKeymap>
+          <Canvas {...props} />
+        </FlowKeymap>
       </ThemeContext.Provider>
     </StoreContext.Provider>
   );

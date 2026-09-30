@@ -70,6 +70,12 @@ appelée depuis `onNodesChange`, `onConnect`…) atteint le Server.
 
 ## Clavier (groupe `flow`, `keyboard={false}` pour le couper)
 
+Les raccourcis passent toujours par `@opentui/keymap` (`useBindings`). Dans une
+application qui a son `<KeymapProvider>` (le Shell de luciole en installe un), ils
+rejoignent ses couches : `<KeyHelp>` les liste et les couches de l'application peuvent
+les masquer. Sans provider, le canevas installe le sien, une seule keymap par renderer
+(elle n'a pas de `dispose`) : rien à envelopper pour que le clavier marche.
+
 | Touches                        | Action                                                      |
 | ------------------------------ | ----------------------------------------------------------- |
 | `h j k l`, flèches             | Déplacer la vue                                             |
@@ -116,10 +122,10 @@ et l'interaction sont propres au terminal.
 
 ## Paquet, build et tests
 
-| Quoi               | Comment                                                                                                                                                                                                                             |
-| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Pairs              | `react`, `@opentui/core`, `@opentui/react`, `@opentui/keymap` en `peerDependencies` : une seule copie, celle de l'application. Aucune dépendance propre.                                                                            |
-| Build              | `bun run build` (dans `packages/flow`) : `dist/`, ESM seul, un fichier par module, imports en `.js`, déclarations `.d.ts`, TypeScript 7. Pas de CommonJS.                                                                           |
-| `exports`          | `bun` → `src/index.ts` (Bun compile les sources, avec le `tsconfig.json` livré), sinon `types` → `dist/index.d.ts` et `default` → `dist/index.js`.                                                                                  |
-| Dans le dépôt      | Rien à construire : Bun et `luciole build` prennent la condition `bun` ; un consommateur TypeScript la déclare (`"customConditions": ["bun"]`, voir `examples/flow/tsconfig.json`).                                                 |
-| Tests (`bun test`) | `test/raster.test.ts` (frames texte attendues), `test/model.test.ts` (géométrie, store, navigation), `test/canvas.test.tsx` (souris et clavier sur le canevas rendu), `test/package.test.ts` (le build et le manifeste publiables). |
+| Quoi               | Comment                                                                                                                                                                                                                                                                   |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Pairs              | `react`, `@opentui/core`, `@opentui/react`, `@opentui/keymap` en `peerDependencies` : une seule copie, celle de l'application. Aucune dépendance propre.                                                                                                                  |
+| Build              | `bun run build` (dans `packages/flow`) : `dist/`, ESM seul, un fichier par module, imports en `.js`, déclarations `.d.ts`, TypeScript 7. Pas de CommonJS.                                                                                                                 |
+| `exports`          | `bun` → `src/index.ts` (Bun compile les sources, avec le `tsconfig.json` livré), sinon `types` → `dist/index.d.ts` et `default` → `dist/index.js`.                                                                                                                        |
+| Dans le dépôt      | Rien à construire : Bun et `luciole build` prennent la condition `bun` ; un consommateur TypeScript la déclare (`"customConditions": ["bun"]`, voir `examples/flow/tsconfig.json`).                                                                                       |
+| Tests (`bun test`) | `test/raster.test.ts` (frames texte attendues), `test/model.test.ts` (géométrie, store, navigation), `test/canvas.test.tsx` (souris et clavier sur le canevas rendu, avec et sans keymap de l'application), `test/package.test.ts` (le build et le manifeste publiables). |
