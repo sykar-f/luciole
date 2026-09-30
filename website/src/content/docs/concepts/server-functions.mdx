@@ -62,7 +62,8 @@ done:
 The transport never claims a certainty it lacks: any case it does not recognise is
 `unknown`. And it **never retries**. Retrying, looking the operation up, marking it unknown
 or only showing a message is the app's decision. Notes' rule is that an unknown save is
-never replayed, it is looked up:
+looked up first, by its operation ID; only when the Server has no trace of it is the same
+operation sent again, which the Server applies at most once:
 
 <Excerpt
   path="examples/notes/components/draft.ts"

@@ -26,9 +26,9 @@ autre fichier. Les tests utilisent exclusivement des bases temporaires.
 
 Tout se fait à la souris, et aucun raccourci n’est affiché : un clic sur une note de
 la liste l’ouvre, un clic dans la note l’édite, « Done » revient à la lecture ; la
-sauvegarde part d’elle-même une seconde après la frappe. Boutons et menus couvrent le
-reste : nouvelle note, renommage (clic sur le titre), suppression avec « Undo »,
-recherche, repli de la liste, « Check again » pour une opération à l’issue inconnue,
+sauvegarde part d’elle-même une seconde après la frappe, et ne dit rien tant qu’elle
+réussit. Boutons et menus couvrent le reste : nouvelle note, renommage (clic sur le titre), suppression avec « Undo »,
+recherche, repli de la liste, « Retry » / « Check again » quand une sauvegarde échoue,
 « Keep mine » / « Use theirs » sur un conflit, « Reconnect » hors ligne. Des
 raccourcis existent en bonus (Ctrl+S, Ctrl+N, Échap…). Ctrl+C restaure le terminal et
 quitte.
