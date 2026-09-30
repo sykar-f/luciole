@@ -3,6 +3,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "re
 import type { MouseEvent } from "@opentui/core";
 import { useRenderer } from "@opentui/react";
 import { MarkdownEditor, type MarkdownEditorRenderable } from "@luciole/editor";
+import { renderMath } from "luciole/math";
 import {
   CapabilityDenied,
   host,
@@ -234,6 +235,7 @@ export function NoteEditor({ initialNote: note, saveAction, resolveAction, autos
           onFocusRequest={() => ui.focus("body")}
           onLink={(url) => void host.openUrl(url).catch(() => undefined)}
           readingWidth={READING_WIDTH}
+          math={renderMath}
           flexGrow={1}
         />
       </box>

@@ -415,9 +415,28 @@ version = "1.4.0"
 rollout = 0.25
 \`\`\``;
 
+const MATH = `Math as GitHub writes it, in TeX between dollars. In a line, Unicode spells what it can: the circle's area is $\\pi r^2$, and $\\alpha \\leq \\beta_1$; the rest stays TeX, like $\\frac{a}{b}$. The other way to write it in a line: $\`\\sqrt{3}\`$. Money is not math: $5 and $10.
+
+A block, between two \`$$\` lines, is drawn as a picture where the terminal draws pictures:
+
+$$
+\\left( \\sum_{k=1}^n a_k b_k \\right)^2 \\leq \\left( \\sum_{k=1}^n a_k^2 \\right) \\left( \\sum_{k=1}^n b_k^2 \\right)
+$$
+
+A \`math\` code block too:
+
+\`\`\`math
+x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}
+\`\`\`
+
+$$
+\\mathbf{A} = \\begin{pmatrix} 1 & 2 \\\\ 3 & 4 \\end{pmatrix}, \\qquad e^{i\\pi} + 1 = 0
+$$`;
+
 /** `[id, title, Markdown, last edited]`: all older than the welcome note, which stays on top. */
 export const SEEDS: readonly (readonly [string, string, string, string])[] = [
   ["3", "Markdown, the whole spec", SPEC, "2026-09-22T09:00:00Z"],
+  ["13", "Math, as GitHub writes it", MATH, "2026-09-21T20:00:00Z"],
   ["4", "Trip to Lisbon", TRIP, "2026-09-21T18:30:00Z"],
   ["12", "Release 1.4", RELEASE, "2026-09-19T09:00:00Z"],
   ["5", "Weekly sync — decisions and action items", MEETING, "2026-09-20T10:00:00Z"],
