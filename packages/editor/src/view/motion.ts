@@ -42,10 +42,7 @@ export function moveVertical(layout: Layout, pos: Pos, delta: number, goal: numb
   const step = Math.sign(delta);
   while (layout.lines[target]?.block === -1 || layout.lines[target]?.pad) target += step;
   if (target < 0) return { pos: { block: 0, offset: 0 }, goal: column };
-  if (target >= layout.lines.length) {
-    const last = layout.lines.at(-1);
-    return { pos: last ? { block: last.block, offset: last.to } : pos, goal: column };
-  }
+  if (target >= layout.lines.length) return { pos: lastPos(layout) ?? pos, goal: column };
   return { pos: posAt(layout, target, column), goal: column };
 }
 
@@ -63,4 +60,10 @@ export function lineEdge(layout: Layout, pos: Pos, edge: "start" | "end"): Pos {
     block: line.block,
     offset: wrapped && last ? (last.text === " " ? last.offset : line.to) : line.to,
   };
+}
+
+/** The end of the last line with text: not a panel's margin, a border or a band's row. */
+export function lastPos(layout: Layout): Pos | undefined {
+  const last = layout.lines.findLast((line) => line.block >= 0 && !line.pad);
+  return last ? { block: last.block, offset: last.to } : undefined;
 }

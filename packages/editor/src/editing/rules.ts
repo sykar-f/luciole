@@ -206,7 +206,8 @@ function resolve(state: EditorState, next: string | null): EditorState | null {
   const closing = marks.every((mark) => pending.base[mark] === true);
   const boundary = next === null || isSpace(next);
   if (boundary && !closing) return null;
-  if (!closing && pending.char === "_" && wordBefore(state)) return null;
+  // Right after a word, an opening run is a character: `snake_case`, `2*3=6`, `x**2`.
+  if (!closing && wordBefore(state)) return null;
   let stored: Marks = pending.base;
   for (const mark of marks) stored = withMark(stored, mark, stored[mark] !== true);
   const edit = deleteRange(state.doc, pending.from, {
@@ -215,7 +216,7 @@ function resolve(state: EditorState, next: string | null): EditorState | null {
   });
   return withEdit(state, edit.doc, edit.pos, { stored });
 }
-/** Whether a word character is right before the pending run (`snake_case` keeps its `_`). */
+/** Whether a word character is right before the pending run. */
 function wordBefore(state: EditorState) {
   const pending = state.pending;
   const block = pending && state.doc[pending.from.block];
@@ -246,7 +247,8 @@ function blockRule(typed: EditorState, char: string): EditorState | null {
   if (char !== " ") return null;
   const at = cursor(typed);
   const block = typed.doc[at.block];
-  if (!block || (block.type !== "paragraph" && block.type !== "item")) return null;
+  if (!block || (block.type !== "paragraph" && block.type !== "item" && block.type !== "heading"))
+    return null;
   const marker = textOfBlock(block).slice(0, at.offset - 1);
   // A marker typed escaped, or in code, is text.
   if (!marker || !plain(block.content, 0, marker.length)) return null;
@@ -268,9 +270,35 @@ function convert(block: Block, marker: string, content: Inline): Block | null {
   const task = TASK.exec(marker);
   const checked = task?.[1] === "x" || task?.[1] === "X";
   if (block.type === "item") {
-    if (!task || block.list !== "bullet") return null;
-    return { ...block, content, list: "task", checked };
+    if (task && block.list === "bullet") return { ...block, content, list: "task", checked };
+    // Another list's marker at the start of an item makes it that list's.
+    const numbered = ORDERED.exec(marker);
+    if (numbered && block.list !== "ordered") {
+      const { checked: _, start: __, ...rest } = block;
+      const start = Number(numbered[1]);
+      return {
+        ...rest,
+        content,
+        list: "ordered",
+        marker: numbered[2] === ")" ? ")" : ".",
+        ...(start === 1 ? {} : { start }),
+      };
+    }
+    if (BULLET.test(marker) && block.list !== "bullet") {
+      const { checked: _, start: __, ...rest } = block;
+      return {
+        ...rest,
+        content,
+        list: "bullet",
+        marker: marker === "*" ? "*" : marker === "+" ? "+" : "-",
+      };
+    }
+    return null;
   }
+  // `## ` at the start of a heading gives it that level.
+  const level = HEADING.exec(marker);
+  if (block.type === "heading" && level)
+    return { ...block, content, level: headingLevel(level[1]?.length ?? 1) };
   if (block.type !== "paragraph") return null;
   const list = { indent: block.depth ?? 0, ...place, depth: undefined };
   const heading = HEADING.exec(marker);
@@ -357,20 +385,35 @@ function inlineRule(typed: EditorState, char: string): EditorState | null {
     return replace(reference.length, plainText(decoded.text, marks), { keepStored: true });
   }
   if (!isSpace(char)) return null;
-  const url = URL_BEFORE.exec(before.slice(0, -1))?.[1];
-  if (!url) return null;
-  const end = at.offset - 1;
-  const start = end - url.length;
-  if (spanAt(block.content, start)?.span.marks.link !== undefined) return null;
-  if (!plain(block.content, start, end)) return null;
-  const content = setLink(block.content, start, end, url);
+  return autolink(typed, at.offset - 1);
+}
+
+/**
+ * The bare URL ending at `end` in the cursor's block made a link, as GFM reads one: a
+ * trailing `.` or `,` and a `)` it did not open are the sentence's, not the URL's.
+ */
+function autolink(state: EditorState, end: number): EditorState | null {
+  const at = cursor(state);
+  const block = state.doc[at.block];
+  if (!block || !isText(block)) return null;
+  const found = URL_BEFORE.exec(textOfBlock(block).slice(0, end))?.[1];
+  if (!found) return null;
+  let url = found.replace(TRAILING_PUNCTUATION, "");
+  while (url.endsWith(")") && count(url, "(") < count(url, ")")) url = url.slice(0, -1);
+  const start = end - found.length;
+  const stop = start + url.length;
+  if (!url || spanAt(block.content, start)?.span.marks.link !== undefined) return null;
+  if (!plain(block.content, start, stop)) return null;
+  const content = setLink(block.content, start, stop, url);
   return {
-    ...withEdit(typed, replaceBlock(typed.doc, at.block, rebuild(block, content)), at, {
-      stored: typed.stored,
+    ...withEdit(state, replaceBlock(state.doc, at.block, rebuild(block, content)), at, {
+      stored: state.stored,
     }),
-    literal: typed,
+    literal: state,
   };
 }
+const TRAILING_PUNCTUATION = /[.,;:!?'"*_~]+$/;
+const count = (text: string, char: string) => text.split(char).length - 1;
 
 const FENCE = /^(```|~~~)([^`\s]*)$/;
 // A table's delimiter row: `|---|:---:|`, at least one pipe.
@@ -379,7 +422,9 @@ const RULE = /^(-{3,}|\*{3,}|_{3,})$/;
 
 /** Return: a block marker completed, a list or quote left when empty, code ended, or a split. */
 export function enter(state: EditorState): EditorState {
-  const settled = deleteSelection(settle(state));
+  const cleared = deleteSelection(settle(state));
+  // A URL typed last is a link, as when a space follows it.
+  const settled = autolink(cleared, cursor(cleared).offset) ?? cleared;
   const at = cursor(settled);
   const block = settled.doc[at.block];
   if (!block) return settled;

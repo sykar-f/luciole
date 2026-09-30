@@ -54,7 +54,7 @@ test("block markers become blocks", () => {
 
 test("links from their Markdown, and from a URL ended by a space", () => {
   expect(typed("see [site](https://x.y) now")).toBe("see [site](https://x.y) now");
-  expect(typed("see https://x.y now")).toBe("see [https://x.y](https://x.y) now");
+  expect(typed("see https://x.y now")).toBe("see <https://x.y> now");
 });
 
 test("Backspace right after a rule takes it back", () => {
@@ -80,4 +80,25 @@ test("delimiters typed over a selection wrap it", () => {
 test("nested lists keep their levels", () => {
   const doc = parseMarkdown("- a\n  - b\n    - c\n- d");
   expect(serializeMarkdown(doc.map((b) => ({ ...b })))).toBe("- a\n  - b\n    - c\n- d");
+});
+
+test("Backspace between text and a table or code crosses, it never joins them", () => {
+  const table = "| a | b |\n| - | - |\n| 1 | 2 |";
+  // At the start of a paragraph under a table: the cursor goes to the table's end.
+  const under = moveTo(createState(parseMarkdown(`${table}\n\nafter`)), { block: 1, offset: 0 });
+  const crossed = backspace(under);
+  expect(md(crossed)).toBe(`${table}\n\nafter`);
+  expect(crossed.selection.head).toEqual({ block: 0, offset: table.length });
+  // At the start of code under a paragraph: the same, the code stays code.
+  const code = moveTo(createState(parseMarkdown("text\n\n```\ncode\n```")), {
+    block: 1,
+    offset: 0,
+  });
+  expect(md(backspace(code))).toBe("text\n\n```\ncode\n```");
+  // An empty paragraph between them simply goes.
+  const empty = moveTo(createState([...parseMarkdown(table), { type: "paragraph", content: [] }]), {
+    block: 1,
+    offset: 0,
+  });
+  expect(backspace(empty).doc).toHaveLength(1);
 });

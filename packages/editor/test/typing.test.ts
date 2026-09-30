@@ -121,7 +121,10 @@ const cases: Record<string, Case[]> = {
     { keys: "`code` after", markdown: "`code` after", screen: "code after" },
     { keys: "`code`", markdown: "`code`", screen: "code" },
     { keys: "**bold *both* bold** plain", markdown: "**bold *both* bold** plain" },
-    { keys: "a*b*c", markdown: "a*b*c", screen: "abc" },
+    // After a word, a star is a character: `2*3=6` stays as typed.
+    { keys: "a*b*c", markdown: "a\\*b\\*c", screen: "a*b*c" },
+    { keys: "2*3=6", markdown: "2\\*3=6", screen: "2*3=6" },
+    { keys: "x**2 + y**2", markdown: "x\\*\\*2 + y\\*\\*2", screen: "x**2 + y**2" },
   ],
   "what is opened closes by itself": [
     { keys: "**bold{enter}next", markdown: "**bold**\n\nnext", screen: "bold\n\nnext" },
@@ -148,6 +151,8 @@ const cases: Record<string, Case[]> = {
     { keys: "####### seven", markdown: "####### seven", screen: "####### seven" },
     { keys: "#### Four", markdown: "#### Four", screen: "▎ Four" },
     { keys: "#no space", markdown: "#no space", screen: "#no space" },
+    // A marker typed at the start of a heading gives it its level.
+    { keys: "# ## Two", markdown: "## Two" },
     { keys: "# Title{enter}text", markdown: "# Title\n\ntext" },
   ],
   lists: [
@@ -162,6 +167,9 @@ const cases: Record<string, Case[]> = {
     { keys: "- a{enter}{tab}b{enter}{shift+tab}c", markdown: "- a\n  - b\n- c" },
     { keys: "- a{enter}{tab}b{enter}{enter}c", markdown: "- a\n  - b\n- c" },
     { keys: "- ", markdown: "-", screen: "•" },
+    // Another list's marker at the start of an item makes it that list's.
+    { keys: "- 1. one", markdown: "1. one", screen: "1. one" },
+    { keys: "1. - one", markdown: "- one", screen: "• one" },
   ],
   tasks: [
     { keys: "- [ ] todo", markdown: "- [ ] todo", screen: "[ ] todo" },
@@ -204,8 +212,13 @@ const cases: Record<string, Case[]> = {
       screen: "see site now",
     },
     { keys: "[**bold** site](u)", markdown: "[**bold** site](u)", screen: "bold site" },
-    { keys: "see https://x.y now", markdown: "see [https://x.y](https://x.y) now" },
-    { keys: "<https://x.y>", markdown: "[https://x.y](https://x.y)", screen: "https://x.y" },
+    { keys: "see https://x.y now", markdown: "see <https://x.y> now" },
+    // The sentence keeps its punctuation, and a parenthesis the URL did not open.
+    { keys: "see https://x.y. Next", markdown: "see <https://x.y>. Next" },
+    { keys: "(see https://x.y) ok", markdown: "(see <https://x.y>) ok" },
+    { keys: "at https://x.y/a_(b) ok", markdown: "at <https://x.y/a_(b)> ok" },
+    { keys: "go https://x.y{enter}", markdown: "go <https://x.y>" },
+    { keys: "<https://x.y>", markdown: "<https://x.y>", screen: "https://x.y" },
     { keys: "<me@x.y>", markdown: "[me@x.y](mailto:me@x.y)", screen: "me@x.y" },
     { keys: "![alt](pic.png)", markdown: "![alt](pic.png)" },
   ],

@@ -212,6 +212,8 @@ function writeInline(inline: Inline, options: { heading?: boolean } & Strategy):
       text: options.heading ? span.text.replaceAll("\n", " ") : span.text,
       marks: span.marks,
     }))
+    // A link that is its own address is written as one: `<https://x.y>`.
+    .map((span) => (isAutolink(span) ? { text: `<${span.text}>`, marks: VERBATIM } : span))
     // Spaces alone carry no visible mark: they join whatever surrounds them. Code and
     // text kept as written are exact, spaces included.
     .map((span) =>
@@ -307,6 +309,14 @@ function writeInline(inline: Inline, options: { heading?: boolean } & Strategy):
   const trimmed = out.replace(/^[ \t]+|[ \t]+$/gm, "");
   return options.heading ? escapeClosingHashes(trimmed) : trimmed;
 }
+
+const VERBATIM: Marks = { verbatim: true };
+const AUTOLINKABLE = /^(?:https?|ftp):\/\/[^\s<>]+$/i;
+/** A span that is only a link to its own text, an address: an autolink. */
+const isAutolink = (span: { text: string; marks: Marks }) =>
+  span.marks.link === span.text &&
+  AUTOLINKABLE.test(span.text) &&
+  Object.keys(span.marks).every((mark) => mark === "link");
 
 /** A link's destination: bare when it can be, else between `<` and `>`. */
 function destination(href: string) {

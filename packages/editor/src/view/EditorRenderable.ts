@@ -29,7 +29,7 @@ import {
   type Layout,
   type LayoutOptions,
 } from "./layout.ts";
-import { lineEdge, moveHorizontal, moveVertical } from "./motion.ts";
+import { lastPos, lineEdge, moveHorizontal, moveVertical } from "./motion.ts";
 import { Highlighter } from "./highlight.ts";
 import { Theme } from "./theme.ts";
 
@@ -398,6 +398,9 @@ export class MarkdownEditorRenderable extends Renderable {
         const moved = moveVertical(layout, head, delta, this.goal);
         this.goal = moved.goal;
         target = moved.pos;
+        // Down from the end of code or a table that ends the document: out of it.
+        const atEnd = delta > 0 && collapsed && !options.extend && samePos(target, head);
+        if (atEnd && head.block === state.doc.length - 1 && this.controller.leaveLast()) return;
         break;
       }
       case "lineStart":
@@ -407,11 +410,9 @@ export class MarkdownEditorRenderable extends Renderable {
       case "docStart":
         target = { block: 0, offset: 0 };
         break;
-      case "docEnd": {
-        const last = layout.lines.at(-1);
-        target = last ? { block: last.block, offset: last.to } : head;
+      case "docEnd":
+        target = lastPos(layout) ?? head;
         break;
-      }
     }
     const goal = this.goal;
     this.controller.moveTo(target, { extend: options.extend });

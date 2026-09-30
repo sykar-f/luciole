@@ -301,13 +301,16 @@ test("a table is drawn as one: columns sized and aligned, the header over a rule
 });
 
 test("a table is edited as its Markdown: the cursor in it shows the pipes", async () => {
-  await show(`Fruit:\n\n${TABLE}`);
+  await show(`Fruit:\n\n${TABLE}\n\nafter`);
   expect(rows()[2]).toStartWith("╭");
+  const after = rows().indexOf("after");
   await act(async () => {
     ui?.mockInput.pressArrow("down");
   });
   await ui?.renderOnce();
-  expect(rows().slice(2, 4)).toEqual(["| Left | Center | Right |", "| :--- | :----: | ----: |"]);
+  expect(rows().slice(3, 5)).toEqual(["| Left | Center | Right |", "| :--- | :----: | ----: |"]);
+  // The rows of its box are kept: what follows the table does not move.
+  expect(rows().indexOf("after")).toBe(after);
 });
 
 test("a table too wide for the page narrows its widest columns and wraps their text", async () => {
@@ -422,4 +425,14 @@ test("ticking a task far down the page keeps the page where it is", async () => 
   await ui?.renderOnce();
   expect(log.at(-1)).toEndWith("- [x] far task");
   expect(rows()[row]).toContain("far task");
+});
+
+test("Down at the end of code that ends the document leaves it for a new paragraph", async () => {
+  const log: string[] = [];
+  await show("text\n\n```\ncode\n```", log);
+  await act(async () => {
+    for (let i = 0; i < 4; i++) ui?.mockInput.pressArrow("down");
+    await ui?.mockInput.typeText("after");
+  });
+  expect(log.at(-1)).toBe("text\n\n```\ncode\n```\n\nafter");
 });

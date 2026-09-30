@@ -96,8 +96,35 @@ export function deleteBackward(state: EditorState): EditorState {
     const doc = state.doc.filter((_, i) => i !== at.block - 1);
     return withEdit(state, doc, { block: at.block - 1, offset: 0 });
   }
-  const edit = deleteRange(state.doc, { block: at.block - 1, offset: lengthOfBlock(above) }, at);
+  const end = { block: at.block - 1, offset: lengthOfBlock(above) };
+  if (apart(above, block)) return meet(state, at.block - 1, at.block, end);
+  const edit = deleteRange(state.doc, end, at);
   return withEdit(state, edit.doc, edit.pos);
+}
+
+/**
+ * Whether two neighbours must not be joined into one: text and code, text and a table (a
+ * table's Markdown in a paragraph, a paragraph's words in a table's rows break both).
+ */
+const apart = (a: Block, b: Block) =>
+  isLines(a) !== isLines(b) || (isLines(a) && isLines(b) && a.type !== b.type);
+/**
+ * Backspace or Delete between two blocks that stay apart: an empty one goes, otherwise the
+ * cursor only crosses to `crossed`.
+ */
+function meet(state: EditorState, first: number, second: number, crossed: Pos): EditorState {
+  const a = state.doc[first];
+  const b = state.doc[second];
+  if (b && !lengthOfBlock(b) && state.doc.length > 1) {
+    const doc = state.doc.filter((_, i) => i !== second);
+    const end = { block: first, offset: a ? lengthOfBlock(a) : 0 };
+    return withEdit(state, doc, end);
+  }
+  if (a && !lengthOfBlock(a)) {
+    const doc = state.doc.filter((_, i) => i !== first);
+    return withEdit(state, doc, { block: first, offset: 0 });
+  }
+  return withEdit(state, state.doc, crossed);
 }
 
 /** Delete: the selection, the character after, or the join with the block below. */
@@ -118,6 +145,8 @@ export function deleteForward(state: EditorState): EditorState {
     const doc = state.doc.filter((_, i) => i !== at.block);
     return withEdit(state, doc, { block: at.block, offset: 0 });
   }
+  if (apart(block, below))
+    return meet(state, at.block, at.block + 1, { block: at.block + 1, offset: 0 });
   const edit = deleteRange(state.doc, at, { block: at.block + 1, offset: 0 });
   return withEdit(state, edit.doc, edit.pos);
 }

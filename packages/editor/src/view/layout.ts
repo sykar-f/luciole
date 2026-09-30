@@ -435,8 +435,8 @@ function upper(glyph: Draft): Draft {
  */
 function rawLines(text: string, context: BlockContext): Line[] {
   const { x, width, theme, revealed } = context;
-  const table = revealed ? null : tableOf(text);
-  if (table)
+  const table = tableOf(text);
+  if (table && !revealed)
     return tableLines(table, {
       x,
       width,
@@ -455,7 +455,20 @@ function rawLines(text: string, context: BlockContext): Line[] {
     width: g.text === "\n" ? 0 : cellWidth(g.text),
     look,
   }));
-  return wrap(glyphs, x, width, { words: true }).map((line) => ({ ...line, x, bars: 0 }));
+  const lines = wrap(glyphs, x, width, { words: true }).map((line) => ({ ...line, x, bars: 0 }));
+  if (!table) return lines;
+  // A table being edited keeps the rows of its box: the text below it does not move.
+  const border = (offset: number): Line => ({
+    block: 0,
+    from: offset,
+    to: offset,
+    glyphs: [],
+    textX: x,
+    x,
+    bars: 0,
+    pad: true,
+  });
+  return [border(0), ...lines, border(text.length)];
 }
 
 type Found = { url: string; alt: string; from: number; to: number; link?: string };

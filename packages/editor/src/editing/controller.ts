@@ -1,8 +1,18 @@
-import { caret, clampPos, contentOf, docEnd, range } from "../model/doc.ts";
+import {
+  caret,
+  clampPos,
+  contentOf,
+  docEnd,
+  goingOn,
+  paragraph,
+  placeOf,
+  range,
+} from "../model/doc.ts";
 import { slice } from "../model/inline.ts";
 import { parseMarkdown } from "../markdown/parse.ts";
 import { serializeMarkdown } from "../markdown/serialize.ts";
 import {
+  isLines,
   isText,
   type Block,
   type Doc,
@@ -39,6 +49,7 @@ import {
   createState,
   hasSelection,
   typingMarks,
+  withEdit,
   withSelection,
   type EditorState,
 } from "./state.ts";
@@ -186,6 +197,21 @@ export class EditorController {
   }
   selectAll() {
     this.run(selectAll);
+  }
+  /**
+   * A paragraph after the last block when that one is code, a table or a rule, the cursor
+   * in it: the way out of a block that ends the document. Whether there was one to add.
+   */
+  leaveLast(): boolean {
+    const last = this.current.doc.at(-1);
+    if (!last || (!isLines(last) && last.type !== "rule")) return false;
+    this.run((state) =>
+      withEdit(state, [...state.doc, { ...paragraph(), ...goingOn(placeOf(last)) }], {
+        block: state.doc.length,
+        offset: 0,
+      }),
+    );
+    return true;
   }
   /** The cursor at the end of the document. */
   end() {
