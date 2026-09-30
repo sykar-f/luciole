@@ -1,7 +1,8 @@
 "use client";
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { RGBA, SyntaxStyle } from "@opentui/core";
+import type { SyntaxStyle } from "@opentui/core";
 import { useRenderer } from "@opentui/react";
+import { markdownStyle } from "luciole/client";
 // Grammars beyond JavaScript, TypeScript and Markdown, for the code blocks of a note.
 import "luciole/grammars";
 
@@ -25,6 +26,10 @@ const dark = {
   buttonHover: "#30363d",
   border: "#30363d",
   menu: "#1c2128",
+  // Markdown: headings on an amber band, code on a panel a step above the page.
+  band: "#3a3020",
+  onBand: "#fbe7b5",
+  panel: "#1c2128",
 };
 export type Palette = typeof dark;
 const light: Palette = {
@@ -45,6 +50,9 @@ const light: Palette = {
   buttonHover: "#ddd6c8",
   border: "#d0d7de",
   menu: "#fbfaf7",
+  band: "#f5e3b8",
+  onBand: "#5c3b00",
+  panel: "#f3f1ec",
 };
 
 const PaletteContext = createContext<Palette>(dark);
@@ -73,33 +81,19 @@ const styles = new WeakMap<Palette, SyntaxStyle>();
 function syntaxOf(color: Palette) {
   const known = styles.get(color);
   if (known) return known;
-  const hex = (value: string) => RGBA.fromHex(value);
-  const style = SyntaxStyle.fromStyles({
-    default: { fg: hex(color.text) },
-    conceal: { fg: hex(color.faint) },
-    "markup.heading": { fg: hex(color.accent), bold: true },
-    "markup.heading.1": { fg: hex(color.accent), bold: true },
-    "markup.heading.2": { fg: hex(color.accent), bold: true },
-    "markup.heading.3": { fg: hex(color.text), bold: true },
-    "markup.strong": { bold: true },
-    "markup.italic": { italic: true },
-    "markup.strikethrough": { fg: hex(color.muted), dim: true },
-    "markup.quote": { fg: hex(color.muted), italic: true },
-    "markup.raw": { fg: hex(color.code) },
-    "markup.raw.block": { bg: hex(color.sidebar) },
-    "markup.link": { fg: hex(color.info), underline: true },
-    "markup.link.label": { fg: hex(color.info), underline: true },
-    "markup.link.url": { fg: hex(color.muted), underline: true },
-    "markup.list": { fg: hex(color.accent) },
-    keyword: { fg: hex(color.danger), bold: true },
-    string: { fg: hex(color.code) },
-    comment: { fg: hex(color.muted), italic: true },
-    number: { fg: hex(color.info) },
-    boolean: { fg: hex(color.info) },
-    constant: { fg: hex(color.info) },
-    property: { fg: hex(color.info) },
-    function: { fg: hex(color.accent) },
-    type: { fg: hex(color.ok) },
+  const style = markdownStyle({
+    text: color.text,
+    muted: color.muted,
+    faint: color.faint,
+    accent: color.accent,
+    onBand: color.onBand,
+    band: color.band,
+    bandQuiet: color.hover,
+    code: color.code,
+    panel: color.panel,
+    link: color.info,
+    danger: color.danger,
+    ok: color.ok,
   });
   styles.set(color, style);
   return style;

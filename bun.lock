@@ -126,6 +126,7 @@
       "name": "@luciole-examples/notes",
       "version": "0.1.0",
       "dependencies": {
+        "@luciole/editor": "workspace:*",
         "@opentui/core": "catalog:",
         "@opentui/react": "catalog:",
         "@tanstack/react-router": "catalog:",

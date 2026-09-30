@@ -26,17 +26,31 @@ without a `name` is never written (a PIN, a password).
 controlled. A `name` makes their text restorable:
 
 <Excerpt
-  path="examples/notes/components/NoteEditor.tsx"
+  path="examples/chat/components/Chat.tsx"
   find="<Textarea"
-  after="visible={editing}"
   until="/>"
-  mark={['name="note/text"']}
+  mark={['name="chat/prompt"']}
   tone="client"
 />
 
 `Textarea` makes OpenTUI's `textarea` controlled, which it is not by itself: `value` in,
 `onChange` out, like the input. A value set from outside replaces the content and puts the
 cursor at the end.
+
+## A field of your own
+
+A field that is neither (an editor, a canvas) gets the same keeping from
+`useRestoredField(name, value, onChange)`: the kept text comes back once through
+`onChange` when the field mounts, and the function it returns takes every text the user
+types. Notes keeps its WYSIWYG editor's Markdown this way:
+
+<Excerpt
+  path="examples/notes/components/NoteEditor.tsx"
+  find="const typed = useRestoredField"
+  until=";"
+  mark={['"note/text"']}
+  tone="client"
+/>
 
 ## The focus and the scroll boxes
 

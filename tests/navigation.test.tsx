@@ -1,13 +1,22 @@
 /** @jsxImportSource @opentui/react */
 import { test, expect } from "bun:test";
 import { act } from "react";
-import { Renderable, TextareaRenderable } from "@opentui/core";
+import { Renderable } from "@opentui/core";
 import { testRender } from "@opentui/react/test-utils";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { build } from "../packages/luciole/src/build";
-import { launch, until, importClient, destroy, draftOf, renderable, type TestUI } from "./helpers";
+import {
+  launch,
+  until,
+  importClient,
+  destroy,
+  draftOf,
+  markdownEditor,
+  renderable,
+  type TestUI,
+} from "./helpers";
 
 test("local route loading, cancel, refresh identity, failed navigation and superseded loads", async () => {
   const directory = resolve("examples/notes");
@@ -110,13 +119,13 @@ test("local route loading, cancel, refresh identity, failed navigation and super
     await act(async () => {
       ui.mockInput.pressEnter();
     });
-    const seed = renderable(ui, "note-1", TextareaRenderable).plainText;
+    const seed = markdownEditor(ui, "note-1").value;
     await act(async () => {
       await ui.mockInput.typeText("draft");
     });
     await ui.renderOnce();
     expect(geometry(ui)).toEqual(loadingGeometry);
-    const field = renderable(ui, "note-1", TextareaRenderable);
+    const field = markdownEditor(ui, "note-1");
     const refresh = hold();
     let refreshing: Promise<void> = Promise.resolve();
     await act(async () => {
@@ -127,13 +136,13 @@ test("local route loading, cancel, refresh identity, failed navigation and super
     expect(geometry(ui)).toEqual(loadingGeometry);
     expect(ui.captureCharFrame()).toContain("Syncing…");
     expect(ui.captureCharFrame()).not.toContain("Loading the note…");
-    expect(ui.renderer.root.findDescendantById("note-1")).toBe(field);
-    expect(field.plainText).toBe(`${seed}draft!`);
+    expect(ui.renderer.root.findDescendantById("note-1")).toBe(field.node);
+    expect(field.value).toBe(`${seed}draft!`);
     await act(async () => {
       refresh.resolve();
       await refreshing;
     });
-    expect(ui.renderer.root.findDescendantById("note-1")).toBe(field);
+    expect(ui.renderer.root.findDescendantById("note-1")).toBe(field.node);
     // A save confirmed during a navigation: the editor's refresh restarts the destination.
     const saving = hold();
     await act(async () => {
@@ -180,7 +189,7 @@ test("local route loading, cancel, refresh identity, failed navigation and super
       await app.refresh();
       await until(() => !!ui.renderer.root.findDescendantById("note-1"));
     });
-    expect(renderable(ui, "note-1", TextareaRenderable).plainText).toBe(`${seed}draft!`);
+    expect(markdownEditor(ui, "note-1").value).toBe(`${seed}draft!`);
     // The latest navigation wins over a slower refresh that fails later.
     const stale = hold();
     let old: Promise<void> = Promise.resolve();

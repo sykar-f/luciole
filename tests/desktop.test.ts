@@ -43,7 +43,8 @@ async function openWindow(state: string) {
     rows: 28,
     env: { NODE_ENV: "production", XDG_STATE_HOME: state, LUCIOLE_DESKTOP: "1" },
   });
-  await window.waitFor("Connected");
+  // The list comes from the Server: shown, the Client is connected.
+  await window.waitFor("Welcome to Notes");
   return window;
 }
 

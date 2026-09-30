@@ -33,7 +33,7 @@ const WELCOME = `Notes are written in **Markdown** and kept in *SQLite* on the S
 
 ## Getting around
 
-- Click anywhere in a note to edit it, then **Done** to read it again
+- Click anywhere in a note and write: Markdown turns into what it means as you type it (\`**bold**\`, \`# title\`, \`- list\`)
 - Click a title to rename its note
 - **New note** starts a blank one; the search box filters them all
 - Hover a note in the list for its menu, or right-click it

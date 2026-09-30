@@ -32,6 +32,22 @@ export function renderable<T>(
   return found;
 }
 
+/**
+ * A `@luciole/editor` field by id, with its Markdown. The App's bundle carries its own
+ * copy of the editor's class, so the renderable is recognized by its shape.
+ */
+export function markdownEditor(ui: TestUI, id: string) {
+  const found = ui.renderer.root.findDescendantById(id);
+  if (!found || typeof Reflect.get(found, "value") !== "string")
+    throw new Error(`#${id} is not a Markdown editor`);
+  return {
+    node: found,
+    get value(): string {
+      return String(Reflect.get(found, "value"));
+    },
+  };
+}
+
 const STARTUP_TIMEOUT_MS = 10_000;
 /** The line a Server prints once it listens (src/server.ts). */
 const Ready = z.object({

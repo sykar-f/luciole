@@ -1,30 +1,28 @@
 "use client";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import type { MouseEvent, TextareaRenderable } from "@opentui/core";
-import { useRenderer, useTerminalDimensions } from "@opentui/react";
+import type { MouseEvent } from "@opentui/core";
+import { useRenderer } from "@opentui/react";
+import { MarkdownEditor, type MarkdownEditorRenderable } from "@luciole/editor";
 import {
   CapabilityDenied,
   host,
-  Markdown,
-  ScrollBox,
-  Textarea,
   useBindings,
   useConnection,
+  useRestoredField,
   useRestoredFields,
 } from "luciole/client";
 import { renameNote } from "../actions/notes";
 import { titleOf, useCommands } from "./commands";
 import { useDraft, type Note, type SaveResult, type Snapshot } from "./draft";
 import { NotePane } from "./NoteFrame";
-import { sidebarWidth, when } from "./format";
+import { ToolbarActions } from "./Toolbar";
+import { when } from "./format";
 import { useTheme, type Palette } from "./theme";
-import { Button, Line } from "./ui";
+import { Button } from "./ui";
 import { ui, useUi } from "./ui-state";
 
-/** The widest a line of rendered text runs, as on a printed page. */
+/** The widest a line of text runs, as on a printed page. */
 const READING_WIDTH = 100;
-/** From this width of the note, the text being written is rendered beside it. */
-const PREVIEW_MIN_WIDTH = 96;
 
 type Props = {
   initialNote: Note;
@@ -34,15 +32,15 @@ type Props = {
   autosaveMs: number;
 };
 /**
- * One note, the whole right side: rendered Markdown to read, a click to write in it.
+ * One note, the whole right side: Markdown shown as it reads, and written in place, as it
+ * reads too (`@luciole/editor`): a click puts the cursor there.
  * Its Draft outlives the page (components/draft.ts); saving is automatic, and every
  * state a save can end in has its own words and, when one helps, its button.
  */
 export function NoteEditor({ initialNote: note, saveAction, resolveAction, autosaveMs }: Props) {
   const { color, syntax } = useTheme();
   const renderer = useRenderer();
-  const { width } = useTerminalDimensions();
-  const { focus, renaming, sidebar } = useUi();
+  const { focus, renaming } = useUi();
   const commands = useCommands();
   const { draft, edit, save, recover, discard, adopt } = useDraft(note);
   // The typed text survives a crash or a rebuild; it is forgotten once sent, and kept
@@ -52,7 +50,9 @@ export function NoteEditor({ initialNote: note, saveAction, resolveAction, autos
     void save((snapshot) => fields.submit(() => saveAction(snapshot), { failed: (r) => !r.ok }));
   const editing = focus === "title" || focus === "body";
   const canSave = draft.dirty && !draft.pending && !draft.conflict;
-  const body = useRef<TextareaRenderable>(null);
+  const body = useRef<MarkdownEditorRenderable>(null);
+  // Typed text is kept for this page like a named field's: a crash or a rebuild gives it back.
+  const typed = useRestoredField("note/text", draft.value, edit);
   const { refresh } = useConnection();
   // A save refused for a newer version: the page is read again to learn which one. Until
   // it arrives, keeping this Draft would be refused the same way.
@@ -95,8 +95,7 @@ export function NoteEditor({ initialNote: note, saveAction, resolveAction, autos
 
   const startEditing = () => {
     ui.focus("body");
-    const field = body.current;
-    if (field) field.cursorOffset = field.plainText.length;
+    body.current?.controller.end();
   };
   const done = () => {
     ui.focus(null);
@@ -114,8 +113,6 @@ export function NoteEditor({ initialNote: note, saveAction, resolveAction, autos
     [editing, focus, canSave, draft],
   );
 
-  const paneWidth = width - sidebarWidth(width, sidebar);
-  const preview = editing && paneWidth >= PREVIEW_MIN_WIDTH;
   const copy = async () => {
     try {
       await host.clipboard.write(draft.value);
@@ -134,53 +131,36 @@ export function NoteEditor({ initialNote: note, saveAction, resolveAction, autos
   return (
     <NotePane
       toolbar={
-        <>
-          <box flexDirection="row" flexGrow={1} gap={2}>
-            <text flexShrink={0} wrapMode="none" fg={color.muted}>
-              {when(note.updated)}
-            </text>
-            <SaveStatus
-              color={color}
-              state={
-                draft.unknown
-                  ? { text: "Connection lost while saving", fg: color.warn }
-                  : draft.pending
-                    ? { text: "Saving…", fg: color.muted }
-                    : draft.error && !draft.conflict
-                      ? { text: draft.error, fg: color.warn }
-                      : draft.dirty
-                        ? { text: "Edited", fg: color.muted }
-                        : { text: "Saved", fg: color.ok }
-              }
-              action={
-                draft.unknown ? (
-                  <Button tone="quiet" onPress={() => void recover(resolveAction)}>
-                    Check again
-                  </Button>
-                ) : canSave && (draft.error || !autosaveMs) ? (
-                  <Button tone="quiet" onPress={send}>
-                    {draft.error ? "Retry" : "Save"}
-                  </Button>
-                ) : null
-              }
-            />
-          </box>
-          <Button tone="quiet" onPress={() => void copy()}>
-            Copy
-          </Button>
-          <Button id="delete-note" tone="quiet" onPress={() => void commands.remove(note)}>
-            Delete
-          </Button>
-          {editing ? (
-            <Button id="done" tone="primary" onPress={done}>
-              ✓ Done
-            </Button>
-          ) : (
-            <Button id="edit" onPress={startEditing}>
-              ✎ Edit
-            </Button>
-          )}
-        </>
+        <box flexDirection="row" flexGrow={1} gap={2}>
+          <text flexShrink={0} wrapMode="none" fg={color.muted}>
+            {when(note.updated)}
+          </text>
+          <SaveStatus
+            color={color}
+            state={
+              draft.unknown
+                ? { text: "Connection lost while saving", fg: color.warn }
+                : draft.pending
+                  ? { text: "Saving…", fg: color.muted }
+                  : draft.error && !draft.conflict
+                    ? { text: draft.error, fg: color.warn }
+                    : draft.dirty
+                      ? { text: "Edited", fg: color.muted }
+                      : { text: "Saved", fg: color.ok }
+            }
+            action={
+              draft.unknown ? (
+                <Button tone="quiet" onPress={() => void recover(resolveAction)}>
+                  Check again
+                </Button>
+              ) : canSave && (draft.error || !autosaveMs) ? (
+                <Button tone="quiet" onPress={send}>
+                  {draft.error ? "Retry" : "Save"}
+                </Button>
+              ) : null
+            }
+          />
+        </box>
       }
       title={
         <Title
@@ -222,46 +202,40 @@ export function NoteEditor({ initialNote: note, saveAction, resolveAction, autos
         ) : null
       }
     >
-      <box flexDirection="row" flexGrow={1} gap={2}>
-        {/* Mounted while reading too: text restored after a crash comes back through it. */}
-        <box flexGrow={1} flexBasis={0} overflow="hidden" visible={editing}>
-          <Textarea
-            ref={body}
-            id={`note-${note.id}`}
-            name="note/text"
-            focused={focus === "body"}
-            value={draft.value}
-            onChange={edit}
-            placeholder="Start writing… Markdown works: # title, **bold**, - list"
-            textColor={color.text}
-            focusedTextColor={color.text}
-            placeholderColor={color.faint}
-            // As tall as the pane, not as its text: the field scrolls to its cursor.
-            height="100%"
-            onMouseDown={() => ui.focus("body")}
-          />
-        </box>
-        {editing && !preview ? null : (
-          <Reading
-            color={color}
-            label={preview ? "Preview" : undefined}
-            onClick={editing ? undefined : startEditing}
-          >
-            {draft.value.trim() ? (
-              <Markdown
-                content={draft.value}
-                // Written as it is typed: an open **, list or code fence reads as it will.
-                streaming={editing}
-                syntaxStyle={syntax}
-                onLink={(url) => void host.openUrl(url).catch(() => undefined)}
-              />
-            ) : (
-              <Line fg={color.faint}>
-                {editing ? "Nothing to preview yet" : "Empty note — click to write"}
-              </Line>
-            )}
-          </Reading>
+      <ToolbarActions>
+        <Button tone="quiet" onPress={() => void copy()}>
+          Copy
+        </Button>
+        <Button id="delete-note" tone="quiet" onPress={() => void commands.remove(note)}>
+          Delete
+        </Button>
+        {editing ? (
+          <Button id="done" tone="primary" onPress={done}>
+            ✓ Done
+          </Button>
+        ) : (
+          <Button id="edit" onPress={startEditing}>
+            ✎ Edit
+          </Button>
         )}
+      </ToolbarActions>
+      <box flexDirection="column" flexGrow={1}>
+        <MarkdownEditor
+          ref={body}
+          id={`note-${note.id}`}
+          value={draft.value}
+          onChange={(markdown) => {
+            typed(markdown);
+            edit(markdown);
+          }}
+          focused={focus === "body"}
+          syntaxStyle={syntax}
+          placeholder="Start writing… **bold**, # a title, - a list"
+          onFocusRequest={() => ui.focus("body")}
+          onLink={(url) => void host.openUrl(url).catch(() => undefined)}
+          readingWidth={READING_WIDTH}
+          flexGrow={1}
+        />
       </box>
     </NotePane>
   );
@@ -283,53 +257,6 @@ function SaveStatus({
         {state.text}
       </text>
       {action}
-    </box>
-  );
-}
-
-/** The rendered note: scrolls with the wheel, and a click (not a drag, not a link) edits it. */
-function Reading({
-  color,
-  label,
-  onClick,
-  children,
-}: {
-  color: Palette;
-  label?: string;
-  onClick?: () => void;
-  children: ReactNode;
-}) {
-  const renderer = useRenderer();
-  const pressed = useRef<{ x: number; y: number } | null>(null);
-  return (
-    <box flexDirection="column" flexGrow={1} flexBasis={0}>
-      {label ? (
-        <text height={1} flexShrink={0} fg={color.faint}>
-          {label}
-        </text>
-      ) : null}
-      <ScrollBox
-        id="note-view"
-        name="note/scroll"
-        flexGrow={1}
-        scrollY
-        onMouseDown={(event: MouseEvent) => {
-          pressed.current = { x: event.x, y: event.y };
-        }}
-        onMouseUp={(event: MouseEvent) => {
-          const start = pressed.current;
-          pressed.current = null;
-          if (!onClick || !start || start.x !== event.x || start.y !== event.y) return;
-          if (!renderer.getLinkAt(event.x, event.y)) onClick();
-        }}
-        onMouseMove={() => (onClick ? renderer.setMousePointer("text") : undefined)}
-        onMouseOut={() => renderer.setMousePointer("default")}
-      >
-        {/* A reading column: clear of the scrollbar, not wider than a page. */}
-        <box flexDirection="column" flexShrink={0} maxWidth={READING_WIDTH} paddingRight={2}>
-          {children}
-        </box>
-      </ScrollBox>
     </box>
   );
 }

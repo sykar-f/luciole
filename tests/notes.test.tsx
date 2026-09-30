@@ -2,7 +2,6 @@
 import { test, expect } from "bun:test";
 import { act } from "react";
 import { testRender } from "@opentui/react/test-utils";
-import { TextareaRenderable } from "@opentui/core";
 import { MouseButtons, type MouseButton } from "@opentui/core/testing";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -15,7 +14,7 @@ import {
   destroy,
   draftOf,
   metricsOf,
-  renderable,
+  markdownEditor,
   clickOn,
   type TestUI,
 } from "./helpers";
@@ -51,6 +50,19 @@ const frame = async (ui: TestUI) => {
   await ui.renderOnce();
   return ui.captureCharFrame();
 };
+/** Renders frames, which drive the timelines, until `check` holds. */
+const untilRendered = async (ui: TestUI, check: () => boolean) => {
+  for (let i = 0; i < 100 && !check(); i++)
+    await act(async () => {
+      await ui.renderOnce();
+      await Bun.sleep(10);
+    });
+  expect(check()).toBe(true);
+};
+/** The sidebar at 110 columns: 30% of the screen. */
+const SIDEBAR_WIDTH = 33;
+const sidebarSlot = (ui: TestUI) => ui.renderer.root.findDescendantById("sidebar")?.parent;
+
 /** Clicks inside `act()`, then lets the effects and requests it started settle. */
 const click = (ui: TestUI, text: string, button?: MouseButton) =>
   act(async () => {
@@ -70,9 +82,9 @@ test("generated Notes: Flight action, preserved Draft, navigation and offline ed
     expect(await frame(ui)).toContain("Getting around");
     expect(await frame(ui)).not.toContain("## Getting around");
     await click(ui, "✎ Edit");
-    const input = (id: string) => renderable(ui, id, TextareaRenderable);
+    const input = (id: string) => markdownEditor(ui, id);
     const field = input("note-1");
-    const seed = field.plainText;
+    const seed = field.value;
     expect(seed).toContain("## Getting around");
     await act(async () => {
       await ui.mockInput.typeText("abc");
@@ -85,7 +97,7 @@ test("generated Notes: Flight action, preserved Draft, navigation and offline ed
     await act(async () => {
       await ui.mockInput.typeText("d");
     });
-    expect(field.plainText).toBe(`${seed}abcd`);
+    expect(field.value).toBe(`${seed}abcd`);
     const draft = draftOf(app, "1");
     expect(draft.pending?.value).toBe(`${seed}abc`);
     expect(await frame(ui)).toContain("Saving…");
@@ -97,7 +109,7 @@ test("generated Notes: Flight action, preserved Draft, navigation and offline ed
     expect(draft.value).toBe(`${seed}abcd`);
     expect(draft.dirty).toBe(true);
     expect(draft.version).toBe(2);
-    expect(input("note-1")).toBe(field);
+    expect(input("note-1").node).toBe(field.node);
     expect(await frame(ui)).toContain("Edited");
     // The save, then the list read again because the save invalidated it.
     await act(async () => {
@@ -111,12 +123,12 @@ test("generated Notes: Flight action, preserved Draft, navigation and offline ed
     await click(ui, "Shopping list");
     await act(async () => until(() => path(app) === "/notes/2"));
     expect(ui.renderer.root.findDescendantById("sidebar")).toBe(sidebar);
-    expect(input("note-2").plainText).toContain("Coffee beans");
+    expect(input("note-2").value).toContain("Coffee beans");
     // Unsaved work is marked in the list, whatever note is shown.
     expect(await frame(ui)).toContain("●");
     await click(ui, "Welcome to Notes");
     await act(async () => until(() => path(app) === "/notes/1"));
-    expect(input("note-1").plainText).toBe(`${seed}abcd`);
+    expect(input("note-1").value).toBe(`${seed}abcd`);
 
     const localBefore = await counts();
     await click(ui, "✎ Edit");
@@ -125,9 +137,9 @@ test("generated Notes: Flight action, preserved Draft, navigation and offline ed
       ui.mockInput.pressArrow("left");
       ui.mockInput.pressArrow("right");
       const currentField = input("note-1");
-      currentField.blur();
-      currentField.focus();
-      await ui.mockMouse.scroll(currentField.x, currentField.y, "down");
+      currentField.node.blur();
+      currentField.node.focus();
+      await ui.mockMouse.scroll(currentField.node.x, currentField.node.y, "down");
     });
     expect(await counts()).toEqual(localBefore);
     await server.stop();
@@ -138,7 +150,7 @@ test("generated Notes: Flight action, preserved Draft, navigation and offline ed
       // fails: on a loaded machine, the refused connection reports a little later.
       await until(() => app.status === "Disconnected");
     });
-    expect(input("note-1").plainText).toBe(`${seed}abcdef`);
+    expect(input("note-1").value).toBe(`${seed}abcdef`);
     expect(await frame(ui)).toContain("Reconnect");
   } finally {
     await stop();
@@ -168,8 +180,9 @@ test("every action is a click: new, rename, search, fold, delete and undo", asyn
     await act(async () => until(() => !draftOf(app, id).dirty && !draftOf(app, id).pending));
     await act(async () => until(() => ui.captureCharFrame().includes("✓ Saved")));
     const shown = await frame(ui);
-    // Rendered, and listed under its new title at the top.
-    expect(shown).toContain("- one");
+    // Shown as it reads, and listed under its new title at the top.
+    expect(shown).toContain("• one");
+    expect(draftOf(app, id).value).toBe("- **one**");
     expect(shown).not.toContain("**one**");
     expect(shown.indexOf("Plans")).toBeLessThan(shown.indexOf("Welcome to Notes"));
 
@@ -183,11 +196,12 @@ test("every action is a click: new, rename, search, fold, delete and undo", asyn
     await click(ui, "✕");
     expect(await frame(ui)).toContain("Welcome to Notes");
 
-    // The list folds away and comes back.
+    // The list slides away and comes back.
     await click(ui, "◧ Hide list");
-    expect(ui.renderer.root.findDescendantById("sidebar")).toBeUndefined();
+    await untilRendered(ui, () => !ui.renderer.root.findDescendantById("sidebar"));
     await click(ui, "◧ Show list");
     expect(ui.renderer.root.findDescendantById("sidebar")).toBeDefined();
+    await untilRendered(ui, () => sidebarSlot(ui)?.width === SIDEBAR_WIDTH);
 
     // A right click on a note offers its menu; Rename… opens its title.
     await click(ui, "Shopping list", MouseButtons.RIGHT);

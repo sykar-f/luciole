@@ -1,7 +1,7 @@
 import { afterAll, expect, test } from "bun:test";
 import { mkdir, mkdtemp, realpath, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 import { governingLock, isLinkedSource, linkedPackages } from "../packages/luciole/src/lockfile";
 
 const work = await mkdtemp(join(tmpdir(), "luciole-lockfile-"));
@@ -60,4 +60,8 @@ test("the workspace packages an app links are found; installed ones and luciole 
   } finally {
     await rm(root, { recursive: true, force: true });
   }
+});
+
+test("Notes links its editor", () => {
+  expect(linkedPackages(resolve("examples/notes")).map((dir) => basename(dir))).toEqual(["editor"]);
 });

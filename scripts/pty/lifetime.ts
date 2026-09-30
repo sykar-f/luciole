@@ -108,7 +108,8 @@ assert.ok(
   process.kill(first.pid, "SIGSTOP");
   await wait(t, "Disconnected");
   process.kill(first.pid, "SIGCONT");
-  await wait(t, "Connected");
+  // Connected again: the toolbar says nothing when the connection works.
+  await t.waitFor("Disconnected", { timeout: TIMEOUT_MS, absent: true });
   assert.ok((await t.text()).includes("unsaved words"), await t.text());
   // Quitting on purpose stops the Server.
   t.write(ctrl("c"));

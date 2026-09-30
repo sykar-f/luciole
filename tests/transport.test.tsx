@@ -2,7 +2,6 @@
 import { test, expect } from "bun:test";
 import { act } from "react";
 import { testRender } from "@opentui/react/test-utils";
-import { TextareaRenderable } from "@opentui/core";
 import { mkdtemp, rm, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -15,7 +14,7 @@ import {
   importClient,
   destroy,
   draftOf,
-  renderable,
+  markdownEditor,
   clickOn,
   type TestUI,
 } from "./helpers";
@@ -62,7 +61,7 @@ test("lost commit: durable outcome recovery, no mutation replay, reconnect refre
     await act(async () => {
       ui.mockInput.pressEnter();
     });
-    const seed = renderable(ui, "note-1", TextareaRenderable).plainText;
+    const seed = markdownEditor(ui, "note-1").value;
     await act(async () => {
       await ui.mockInput.typeText("abc");
     });
@@ -158,7 +157,7 @@ test("out-of-order navigation, incompatible build preserves mounted editor, refr
     await act(async () => {
       ui.mockInput.pressEnter();
     });
-    const seed = renderable(ui, "note-1", TextareaRenderable).plainText;
+    const seed = markdownEditor(ui, "note-1").value;
     await act(async () => {
       await ui.mockInput.typeText("abc");
     });
@@ -187,8 +186,8 @@ test("out-of-order navigation, incompatible build preserves mounted editor, refr
     });
     // The latest navigation wins; the slower superseded response never replaces it.
     expect(app.router.state.resolvedLocation?.pathname).toBe("/notes/2");
-    const field = renderable(ui, "note-2", TextareaRenderable);
-    const other = field.plainText;
+    const field = markdownEditor(ui, "note-2");
+    const other = field.value;
     await act(async () => {
       ui.mockInput.pressEnter();
     });
@@ -200,12 +199,12 @@ test("out-of-order navigation, incompatible build preserves mounted editor, refr
       await app.refresh();
     });
     expect(app.status).toBe("Incompatible build");
-    expect(ui.renderer.root.findDescendantById("note-2")).toBe(field);
-    expect(field.plainText).toBe(`${other}keep`);
+    expect(ui.renderer.root.findDescendantById("note-2")).toBe(field.node);
+    expect(field.value).toBe(`${other}keep`);
     await act(async () => {
       await ui.mockInput.typeText("!");
     });
-    expect(field.plainText).toBe(`${other}keep!`);
+    expect(field.value).toBe(`${other}keep!`);
     const bad = await fetch(server.url + "/render?route=%2F&params=%7B%7D", {
       headers: { "x-luciole-build": "old" },
     });

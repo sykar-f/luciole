@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
-import { cp, mkdtemp, readFile, rename, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rename, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { build } from "../packages/luciole/src/build";
 import { messageOf } from "../packages/luciole/src/guards";
 import {
@@ -31,15 +31,18 @@ const commit = (message: string) => {
   return git(remote, "rev-parse", "HEAD");
 };
 
+const APP = {
+  "app/layout.tsx": `"use client";\nexport default function Layout({ children }) {\n  return children;\n}\n`,
+  "app/page.tsx": `export default function Page() {\n  return <text>Notes</text>;\n}\n`,
+};
+
 beforeAll(async () => {
   work = await mkdtemp(join(tmpdir(), "luciole-git-"));
   remote = join(work, "remote");
-  // A repository holding Notes in a subdirectory, as a monorepo would.
-  for (const part of ["app", "components", "actions", "server", "tsconfig.json"])
-    await cp(resolve("examples/notes", part), join(remote, "apps/notes", part), {
-      recursive: true,
-      filter: (p) => !p.includes(".luciole"),
-    });
+  // A repository holding an app in a subdirectory, as a monorepo would. The smallest app
+  // there is: what is tested is the launcher, not what an example app depends on.
+  for (const [name, text] of Object.entries(APP))
+    await Bun.write(join(remote, "apps/notes", name), text);
   git(remote, "init", "-q", "-b", "main");
   commit("Notes");
 });

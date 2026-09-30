@@ -2,7 +2,6 @@
 import { expect, test } from "bun:test";
 import { act } from "react";
 import { testRender } from "@opentui/react/test-utils";
-import { TextareaRenderable } from "@opentui/core";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -14,7 +13,7 @@ import {
   draftOf,
   importClient,
   launch,
-  renderable,
+  markdownEditor,
   until,
   type TestUI,
 } from "./helpers";
@@ -59,7 +58,7 @@ test("a named field comes back after a restart, is forgotten once sent, kept if 
     await act(async () => {
       before.ui.mockInput.pressEnter();
     });
-    const seed = renderable(before.ui, "note-1", TextareaRenderable).plainText;
+    const seed = markdownEditor(before.ui, "note-1").value;
     await act(async () => {
       await before.ui.mockInput.typeText("abc");
     });
@@ -74,7 +73,7 @@ test("a named field comes back after a restart, is forgotten once sent, kept if 
     const { app, ui } = after;
     expect(app.router.state.resolvedLocation?.pathname).toBe("/notes/1");
     await act(async () => {
-      await until(() => renderable(ui, "note-1", TextareaRenderable).plainText === `${seed}abc`);
+      await until(() => markdownEditor(ui, "note-1").value === `${seed}abc`);
     });
     // Restored text is unsaved work: it went through the editor like typing.
     expect(draftOf(app, "1").dirty).toBe(true);

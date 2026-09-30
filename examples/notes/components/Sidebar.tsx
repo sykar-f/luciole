@@ -62,7 +62,6 @@ export function Sidebar({ width }: { width: number }) {
       flexShrink={0}
       flexDirection="column"
       backgroundColor={color.sidebar}
-      paddingTop={1}
     >
       <SearchBox
         query={query}
@@ -144,9 +143,13 @@ function SearchBox({
     <box
       id="search"
       flexDirection="row"
-      height={1}
+      height={3}
       flexShrink={0}
       marginX={1}
+      paddingLeft={1}
+      border
+      borderStyle="rounded"
+      borderColor={focused ? color.accent : hovered ? color.muted : color.border}
       backgroundColor={focused || hovered ? color.buttonHover : color.button}
       {...handlers}
       onMouseDown={(event: MouseEvent) => {
@@ -154,8 +157,8 @@ function SearchBox({
         ui.focus("search");
       }}
     >
-      <text width={3} flexShrink={0} fg={focused ? color.accent : color.muted}>
-        {" ⌕"}
+      <text width={2} flexShrink={0} fg={focused ? color.accent : color.muted}>
+        {"⌕"}
       </text>
       <input
         id="search-field"
@@ -189,8 +192,8 @@ function SearchBox({
   );
 }
 
-/** A row's margin and padding, both sides. */
-const ROW_FRAME = 4;
+/** A row's margin, border and padding, both sides. */
+const ROW_FRAME = 6;
 /** The "⋯" button beside a title. */
 const MENU_BUTTON = 3;
 const Row = memo(function Row({
@@ -222,10 +225,12 @@ const Row = memo(function Row({
       id={`note-row-${note.id}`}
       flexDirection="column"
       flexShrink={0}
-      height={2}
+      height={4}
       marginX={1}
-      marginBottom={1}
       paddingX={1}
+      border
+      borderStyle="rounded"
+      borderColor={selected ? color.accent : hovered ? color.muted : color.border}
       backgroundColor={selected ? color.selected : hovered ? color.hover : undefined}
       onMouseOver={() => onHover(true)}
       onMouseOut={() => onHover(false)}
