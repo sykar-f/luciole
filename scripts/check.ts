@@ -14,6 +14,7 @@ const projects = [
   "packages/luciole/src/generic/browser",
   "packages/luciole/src/web",
   "packages/harness",
+  "packages/flow",
   "examples/notes",
   "examples/latency",
   "examples/forge",
