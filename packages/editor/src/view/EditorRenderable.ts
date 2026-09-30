@@ -14,7 +14,7 @@ import {
   type SyntaxStyle,
 } from "@opentui/core";
 import { EditorController } from "../editing/controller.ts";
-import { isCollapsed, range, textOfBlock } from "../model/doc.ts";
+import { isCollapsed, range, samePos, textOfBlock } from "../model/doc.ts";
 import { wordAround } from "../model/text.ts";
 import type { Pos } from "../model/types.ts";
 import { drawLayout } from "./draw.ts";
@@ -98,6 +98,8 @@ export class MarkdownEditorRenderable extends Renderable {
     this.requestRender();
   };
   private scroll = 0;
+  /** Where the cursor was at the last change. */
+  private head: Pos = { block: 0, offset: 0 };
   /** The column vertical moves keep, from the first of them. */
   private goal: number | null = null;
   private clicks = { count: 0, at: 0, x: -1, y: -1 };
@@ -118,7 +120,11 @@ export class MarkdownEditorRenderable extends Renderable {
     super(ctx, { ...options, buffered: false });
     this.focusable = true;
     this.controller.subscribe((change) => {
-      this.keepCursorInView();
+      // Only a cursor that moved is brought into view: a task ticked with the mouse, or
+      // typing settled when the focus leaves, keeps the page where the reader has it.
+      const { head } = this.controller.state.selection;
+      if (!samePos(head, this.head)) this.keepCursorInView();
+      this.head = head;
       this.requestRender();
       if (change.edited) this._onChange?.(change.markdown);
     });
@@ -152,7 +158,10 @@ export class MarkdownEditorRenderable extends Renderable {
   }
 
   set value(markdown: string) {
-    if (markdown !== this.controller.markdown) this.controller.load(markdown);
+    if (markdown === this.controller.markdown) return;
+    this.controller.load(markdown);
+    // Another text: the view goes to its cursor, even one that did not move.
+    this.keepCursorInView();
   }
   get value(): string {
     return this.controller.markdown;

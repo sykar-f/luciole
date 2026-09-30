@@ -407,3 +407,19 @@ test("an image the terminal draws takes its own size in cells, up to the page's 
   expect(revealed.lines.some((line) => line.image)).toBe(false);
   expect(revealed.lines[0]?.glyphs.map((g) => g.text).join("")).toBe("![logo][l]");
 });
+
+test("ticking a task far down the page keeps the page where it is", async () => {
+  const log: string[] = [];
+  const lines = Array.from({ length: 40 }, (_, i) => `line ${i}`).join("\n\n");
+  await show(`${lines}\n\n- [ ] far task`, log);
+  for (let i = 0; i < 30; i++) await ui?.mockMouse.scroll(10, 10, "down");
+  await ui?.renderOnce();
+  const row = rows().findIndex((text) => text.includes("far task"));
+  expect(row).toBeGreaterThan(0);
+  await act(async () => {
+    await ui?.mockMouse.click(1, row);
+  });
+  await ui?.renderOnce();
+  expect(log.at(-1)).toEndWith("- [x] far task");
+  expect(rows()[row]).toContain("far task");
+});
