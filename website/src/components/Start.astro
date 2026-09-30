@@ -1,7 +1,9 @@
 ---
 // Your own app in a minute, written as it will read once the package is published: `init`
 // copies the hero's Notes as a project of yours, `dev` runs both sides and rebuilds on a
-// save. Names come from lib/product.ts: a rename is that file.
+// save. Names come from lib/product.ts: a rename is that file. The mascot sits on the
+// session's top border, left of the Copy column, its lantern straddling the frame
+// (design/mascot/, the spritesheet with a 1 px float).
 import CopyCommand from "./CopyCommand.astro";
 import { repo } from "../lib/links";
 import { commands } from "../lib/product";
@@ -35,6 +37,14 @@ const EDIT = "components/NoNoteShown.tsx";
         <span aria-hidden="true"># </span>Now edit <code>{EDIT}</code>: change <code>No note selected</code>,
         save, and the terminal rebuilds and reopens the same screen.
       </p>
+      <luciole-mascot
+        class="mascot"
+        src="/mascot/spritesheet-start.png"
+        meta="/mascot/spritesheet.json"
+        still="/mascot/still-start.png"
+      >
+        <img src="/mascot/still-start.png" width="172" height="226" alt="" />
+      </luciole-mascot>
     </div>
 
     <div class="next">
@@ -44,6 +54,10 @@ const EDIT = "components/NoNoteShown.tsx";
   </div>
 </section>
 
+<script>
+  import "../lib/mascot";
+</script>
+
 <style>
   /* One shell session: the commands, then what to do with them. */
   .transcript {
@@ -51,6 +65,8 @@ const EDIT = "components/NoNoteShown.tsx";
     display: grid;
     gap: 14px;
     max-width: 900px;
+    /* Room above the frame for the mascot sitting on it. */
+    margin-top: 112px;
     padding: 24px clamp(14px, 3vw, 28px) 18px;
     border: 1px solid var(--rule-strong);
     border-radius: 4px;
@@ -103,6 +119,38 @@ const EDIT = "components/NoNoteShown.tsx";
     padding: 0;
     background: none;
     color: var(--paper);
+  }
+
+  /* The lantern's centre (frame row 85 of 113) sits about 10 px below the top border, left of
+     the Copy buttons (they end 28 px from the right edge). */
+  .mascot {
+    --luciole-scale: 2;
+    position: absolute;
+    top: -162px;
+    right: 80px;
+    pointer-events: none;
+  }
+
+  .mascot img {
+    image-rendering: pixelated;
+  }
+
+  /* Half size on phones, still left of the Copy buttons. */
+  @media (max-width: 760px) {
+    .transcript {
+      margin-top: 56px;
+    }
+
+    .mascot {
+      --luciole-scale: 1;
+      top: -81px;
+      right: 64px;
+    }
+
+    .mascot img {
+      width: 86px;
+      height: 113px;
+    }
   }
 
   .next {
