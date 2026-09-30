@@ -35,20 +35,19 @@ Nothing is published on a registry yet: you work from a clone of the repository.
 />
 
 One command builds both programs and starts them: the server, with a SQLite database
-created as `notes.sqlite` in the current directory, and the terminal client. In the list,
-move with the arrows and open a note with <kbd>Enter</kbd>. In a note, <kbd>Enter</kbd> or
-
-<kbd>Ctrl+S</kbd> saves, <kbd>Esc</kbd> goes back to the list. <kbd>Ctrl+C</kbd> quits and restores
+created as `notes.sqlite` in the current directory, and the terminal client. Everything is
+done with the mouse: click a note in the list on the left to open it, click in it to write,
+**Done** to read it again; changes save on their own. <kbd>Ctrl+C</kbd> quits and restores
 the terminal.
 
 ## 2. Make a first change
 
-Leave it running and open <Src path="examples/notes/components/NoteList.tsx" />, a client
-component. Change the heading:
+Leave it running and open <Src path="examples/notes/components/NoNoteShown.tsx" />, the
+client component shown while no note is open. Change its heading:
 
 ```diff
--      <text>YOUR NOTES</text>
-+      <text>MY NOTES</text>
+-        No note selected
++        Pick a note
 ```
 
 Save the file. The dev server rebuilds and restarts both processes, and the client reopens
@@ -63,8 +62,8 @@ Quit with <kbd>Ctrl+C</kbd>, then start again with half a second added to every 
 <CopyCommand lines={[`${envPrefix}_LATENCY_MS=500 bun run dev`]} />
 
 Open a note: a loading screen shows at once, drawn by the client, while the page travels.
-Type, save with <kbd>Enter</kbd>, and keep typing: the keys are handled in the terminal
-while the save waits for the server. The delay is simulated per request, not a network
+Edit it, pause for a second so that it saves, and keep typing: the keys are handled in the
+terminal while the save waits for the server. The delay is simulated per request, not a network
 emulation ([latency and faults](/docs/guides/latency-and-faults/)).
 
 ## 4. Create your own app
@@ -81,7 +80,7 @@ at your clone (`file:`), which has to stay where it is.
 | Directory     | What goes there                                                                                               |
 | ------------- | ------------------------------------------------------------------------------------------------------------- |
 | `app/`        | Routes as files: `page.tsx` pages render on the server; `layout.tsx` and `loading.tsx` are client components. |
-| `components/` | Client components, marked `"use client"`: they handle the keyboard.                                           |
+| `components/` | Client components, marked `"use client"`: they handle the mouse and the keyboard.                             |
 | `actions/`    | Server Functions, marked `"use server"`: the client calls them like functions.                                |
 | `server/`     | Code that only the server runs: the database, queries, checks.                                                |
 

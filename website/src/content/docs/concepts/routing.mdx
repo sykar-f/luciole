@@ -55,14 +55,14 @@ supported.
 ## Layouts that stay
 
 A layout stays mounted as long as the destination is under its segment: its local state,
-focus and scroll survive navigations between its pages. Notes keeps a trail of the notes
-opened during the visit in its nested layout:
+focus and scroll survive navigations between its pages. Notes' root layout renders the
+sidebar, so the search typed in it stays while one note after another opens:
 
 <Excerpt
-  path="examples/notes/app/notes/layout.tsx"
-  find="export default function NotesLayout"
-  until="^}"
-  mark={["useState", "setTrail"]}
+  path="examples/notes/components/Sidebar.tsx"
+  find="export function Sidebar("
+  until="const [query, setQuery]"
+  mark={["useState"]}
   tone="client"
 />
 
@@ -76,9 +76,9 @@ Navigate from a Client Component with the hooks `luciole/client` re-exports. The
 `<Link>`: it renders a DOM anchor.
 
 <Excerpt
-  path="examples/notes/components/NoteList.tsx"
-  find="onSelect={"
-  count={3}
+  path="examples/notes/components/commands.ts"
+  find="export function useCommands()"
+  until="open: (id: string) => void open(id),"
   mark={["navigate("]}
   tone="client"
 />

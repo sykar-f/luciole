@@ -27,7 +27,8 @@ controlled. A `name` makes their text restorable:
 
 <Excerpt
   path="examples/notes/components/NoteEditor.tsx"
-  find="<Input"
+  find="<Textarea"
+  after="visible={editing}"
   until="/>"
   mark={['name="note/text"']}
   tone="client"

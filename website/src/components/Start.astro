@@ -6,7 +6,7 @@ import CopyCommand from "./CopyCommand.astro";
 import { repo } from "../lib/links";
 import { commands } from "../lib/product";
 
-const EDIT = "components/NoteList.tsx";
+const EDIT = "components/NoNoteShown.tsx";
 ---
 
 <section class="section" id="start" aria-labelledby="start-title">
@@ -32,7 +32,7 @@ const EDIT = "components/NoteList.tsx";
         }
       </ol>
       <p class="then">
-        <span aria-hidden="true"># </span>Now edit <code>{EDIT}</code>: change <code>YOUR NOTES</code>,
+        <span aria-hidden="true"># </span>Now edit <code>{EDIT}</code>: change <code>No note selected</code>,
         save, and the terminal rebuilds and reopens the same screen.
       </p>
     </div>

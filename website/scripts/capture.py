@@ -235,7 +235,7 @@ def forge(directory):
 def notes(directory):
     term = dev("notes", {"NOTES_DB": directory + "/notes.sqlite"}, directory, 84, 24)
     try:
-        term.wait_for("First note", 120)
+        term.wait_for("Welcome to Notes", 120)
         term.idle(1)
         save(term, "notes", "Notes: a Server 500 ms away")
     finally:

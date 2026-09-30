@@ -20,12 +20,12 @@ const nodes: Node[] = [
   { id: "queries", label: "server/queries.ts", x: 30, y: 210, tone: "server", tag: "use cache" },
   { id: "repo", label: "server/repository.ts", x: 30, y: 270, tone: "server" },
   { id: "actions", label: "actions/notes.ts", x: 30, y: 340, tone: "server", tag: "use server" },
-  { id: "list", label: "components/NoteList.tsx", x: 516, y: 70, tone: "client", tag: "use client" },
+  { id: "empty", label: "components/NoNoteShown.tsx", x: 516, y: 70, tone: "client", tag: "use client" },
   { id: "editor", label: "components/NoteEditor.tsx", x: 516, y: 130, tone: "client", tag: "use client" },
   { id: "draft", label: "components/draft.ts", x: 516, y: 190, tone: "client", tag: "use client" },
   { id: "layout", label: "app/layout.tsx", x: 516, y: 260, tone: "client", tag: "layout" },
   { id: "loading", label: "app/notes/[id]/loading.tsx", x: 516, y: 310, tone: "client", tag: "loading" },
-  { id: "frame", label: "components/NoteFrame.tsx", x: 273, y: 400, tone: "shared", tag: "sans directive" },
+  { id: "frame", label: "components/NoteFrame.tsx", x: 516, y: 370, tone: "client", tag: "sans directive" },
 ];
 const at = (id: string) => {
   const node = nodes.find((n) => n.id === id);
@@ -39,14 +39,13 @@ const top = (n: Node, dx = W / 2) => [n.x + dx, n.y] as const;
 type Edge = { d: string; kind: "import" | "reference" };
 const line = (a: readonly [number, number], b: readonly [number, number], kind: Edge["kind"] = "import"): Edge => ({ d: `M${a[0]} ${a[1]} L${b[0]} ${b[1]}`, kind });
 const edges: Edge[] = [
-  line(right(at("home")), left(at("list")), "reference"),
+  line(right(at("home")), left(at("empty")), "reference"),
   line(right(at("note")), left(at("editor")), "reference"),
   line(bottom(at("note"), 60), top(at("queries"), 60)),
   line(bottom(at("queries"), 60), top(at("repo"), 60)),
   { d: `M${at("note").x} ${at("note").y + H / 2} H14 V${at("actions").y + H / 2} H${at("actions").x}`, kind: "import" },
   line(bottom(at("editor"), 40), top(at("draft"), 40)),
-  line(bottom(at("note"), 180), top(at("frame"), 40)),
-  line(bottom(at("loading"), 30), top(at("frame"), 180)),
+  line(bottom(at("loading")), top(at("frame"))),
 ];
 ---
 
@@ -178,7 +177,7 @@ const edges: Edge[] = [
         }
       </svg>
     </div>
-    <figcaption>NoteFrame.tsx n'a pas de directive : il est copié dans les deux programmes. actions/notes.ts n'est jamais dans le graphe Client : la page le passe en prop, et Flight transmet sa référence.</figcaption>
+    <figcaption>NoteFrame.tsx n'a pas de directive : il suit ceux qui l'importent, l'écran de chargement et NoteEditor, et n'entre donc que dans le Client. actions/notes.ts n'est jamais dans le graphe Client : la page passe saveNote en prop, et Flight transmet sa référence ; les composants Client qui importent le fichier n'en reçoivent, eux aussi, que des références.</figcaption>
   </figure>
 
   <h2>Ce que le build produit</h2>
@@ -200,14 +199,15 @@ const edges: Edge[] = [
     code={`{
   "buildId": "e01495558432a2514ca7203e",
   "manifest": {
-    "e01495558432a2514ca7203e/components/NoteList.tsx#NoteList": {
-      "id": "e01495558432a2514ca7203e/components/NoteList.tsx", "chunks": [], "name": "NoteList" }
+    "e01495558432a2514ca7203e/components/NoteEditor.tsx#NoteEditor": {
+      "id": "e01495558432a2514ca7203e/components/NoteEditor.tsx", "chunks": [], "name": "NoteEditor" }
   },
   "routes": [
     { "id": "/notes/[id]", "url": "/notes/$id", "auth": "required",
       "page": "app/notes/[id]/page.tsx",
-      "layouts": ["app/layout.tsx", "app/notes/layout.tsx"],
-      "loading": "app/notes/[id]/loading.tsx", "error": "app/error.tsx" }
+      "layouts": ["app/layout.tsx"],
+      "loading": "app/notes/[id]/loading.tsx", "error": "app/error.tsx",
+      "notFound": "app/notes/[id]/not-found.tsx" }
   ]
 }`}
   />
@@ -219,7 +219,7 @@ const edges: Edge[] = [
     code={`components/NoteEditor.tsx:3:1: Server-only import in Client graph: ../server/repository
   via app/notes/[id]/page.tsx → components/NoteEditor.tsx
 
-app/notes/layout.tsx:1:1: layout.tsx must declare "use client" and a default export
+app/layout.tsx:1:1: layout.tsx must declare "use client" and a default export
 
 app/page.tsx:10:34: Inline Server Functions and closure captures are unsupported;
   export an async function from a "use server" module

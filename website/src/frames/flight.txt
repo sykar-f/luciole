@@ -1,9 +1,9 @@
 1:R
 0:{"tree":"$1","tags":"$@2"}
-1:o246,1:"920d31f47ae6f42d30c60917/components/NoteEditor.tsx"
+1:o3ee,1:"5092b99932870da5145fc0ea/components/NoteEditor.tsx"
 2:I["$1",[],"NoteEditor"]
-3:{"id":"920d31f47ae6f42d30c60917/actions/notes.ts#saveNote","bound":null}
-4:{"id":"920d31f47ae6f42d30c60917/actions/notes.ts#getOperation","bound":null}
-0:["$","box",null,{"flexDirection":"column","gap":1,"flexShrink":0,"children":[["$","text",null,{"id":"note-heading","height":1,"wrapMode":"none","truncate":true,"fg":"#67d9bc","children":"First note · version 1"}],["$","$L2","1",{"initialNote":{"id":"1","title":"First note","value":"","version":1},"saveAction":"$h3","resolveAction":"$h4"}]]}]
+3:{"id":"5092b99932870da5145fc0ea/actions/notes.ts#saveNote","bound":null}
+4:{"id":"5092b99932870da5145fc0ea/actions/notes.ts#getOperation","bound":null}
+0:[["$","$L2","1",{"initialNote":{"id":"1","title":"Welcome to Notes","value":"Notes are written in **Markdown** and kept in *SQLite* on the Server.\n\n## Getting around\n\n- Click anywhere in a note to edit it, then **Done** to read it again\n- Click a title to rename its note\n- **New note** starts a blank one; the search box filters them all\n- Hover a note in the list for its menu, or right-click it\n\n```ts\n// What the list on the left reads, cached until a save invalidates it\nexport async function notesOf(owner: string) {\n  cacheTag(notesTag(owner));\n  return listNotes(owner);\n}\n```\n\n> Changes are saved on their own, a moment after you stop typing.","version":1,"updated":1790154000000},"saveAction":"$h3","resolveAction":"$h4","autosaveMs":1000}]]
 1:C
 2:["note:local:1"]

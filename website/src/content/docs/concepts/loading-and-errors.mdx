@@ -26,15 +26,15 @@ the framework shows "Connecting…" before the first answer, then "Loading…".
   path="examples/notes/app/notes/[id]/loading.tsx"
   find="export default function Loading"
   until="^}"
-  mark={["NotePageFrame", "Waiting for Server…"]}
+  mark={["NotePane", "known ? titleOf(known)"]}
   tone="client"
 />
 
 The loading screen and the page it stands for should share their layout rules, or the page
-jumps when it arrives. Notes draws both with `components/NoteFrame.tsx`: same frame, a title
-on one line, a field box of fixed height, fixed places for status and help. The framework
-cannot know the size of a Server page it has not received yet: that stability is the app's
-contract. An animation should change colours or constant-width glyphs only; Notes pulses
+jumps when it arrives. Notes draws both with `components/NoteFrame.tsx`: same frame, a
+toolbar row, the title on one line, the note below; the title is already known, from the
+list the layout holds. The framework cannot know the size of a Server page it has not
+received yet: that stability is the app's contract. An animation should change colours or constant-width glyphs only; Notes pulses
 the skeleton's opacity with OpenTUI's `useTimeline` and stops it on unmount.
 
 ## `error.tsx`
@@ -72,20 +72,27 @@ layout:
 
 <Excerpt
   path="examples/notes/app/layout.tsx"
-  find="const { status, error, activity, refresh }"
+  find="const { status, error, buildError, activity, refresh }"
   count={1}
   tone="client"
 />
 
-<Excerpt path="examples/notes/app/layout.tsx" find="TERMINAL / NOTES" count={3} tone="client" />
+<Excerpt
+  path="examples/notes/app/layout.tsx"
+  find='{activity === "navigate" ? ('
+  until="Reconnect"
+  mark={["app.cancel", "refresh()"]}
+  tone="client"
+/>
 
 ## Cancelling and refreshing
 
-- <kbd>Esc</kbd> during a navigation (`useApplication().cancel()`) goes back to the last resolved
-  route locally, without reloading it.
+- <kbd>Esc</kbd> during a navigation, or `useApplication().cancel()` (Notes' **Cancel**
+  button), goes back to the last resolved route locally, without reloading it.
 - `refresh()` reloads the destination in progress or the mounted route. During a refresh
   the tree stays mounted (`activity === "refresh"`): fields keep their focus and text. The
-  examples bind it to <kbd>Ctrl+R</kbd>; the key is the app's choice.
+  examples bind it to <kbd>Ctrl+R</kbd>, and Notes to a **Reconnect** button while offline:
+  the key and the control are the app's choice.
 - A `401` redirects to the app's `unauthorizedPath`, if it declares one, without rendering
   protected content ([authentication](/docs/concepts/authentication/)).
 - A `409` (another build) is refused before decoding and purges the router's cache.
