@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Luciole sprite</title>
+    <style>
+      :root {
+        --night: #0b0a07;
+        --raised: #14120c;
+        --paper: #e8e1cf;
+        --mist: #a39c88;
+        --rule: #2a2618;
+      }
+      body {
+        margin: 0;
+        background: var(--night);
+        color: var(--paper);
+        font:
+          14px/1.5 "IBM Plex Mono",
+          ui-monospace,
+          monospace;
+      }
+      main {
+        max-width: 1000px;
+        margin: 0 auto;
+        padding: 32px 16px;
+      }
+      h1 {
+        font-size: 18px;
+        margin: 0 0 4px;
+      }
+      h2 {
+        font-size: 14px;
+        margin: 40px 0 4px;
+      }
+      p {
+        color: var(--mist);
+        margin: 0 0 16px;
+      }
+      canvas {
+        image-rendering: pixelated;
+        display: block;
+      }
+      .row {
+        display: flex;
+        gap: 24px;
+        flex-wrap: wrap;
+        align-items: flex-end;
+      }
+      .tile {
+        padding: 16px;
+        border-radius: 8px;
+        background: var(--raised);
+      }
+      .tile.light {
+        background: var(--paper);
+      }
+      .live {
+        width: 344px;
+        height: 452px;
+      }
+      .controls {
+        display: grid;
+        grid-template-columns: max-content minmax(120px, 260px) 5ch;
+        gap: 6px 12px;
+        align-items: center;
+      }
+      .strip figure {
+        margin: 0;
+        text-align: center;
+        color: var(--mist);
+        font-size: 12px;
+      }
+      .strip canvas {
+        width: 172px;
+        height: 226px;
+      }
+      input[type="range"] {
+        width: 100%;
+      }
+      code {
+        color: var(--paper);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>luciole — sprite animé</h1>
+      <p>
+        Matrice 66×93 (maîtres dans <code>master/</code>), cycle de 6,4 s : deux respirations,
+        flottement au pixel, antennes en retard, un clignement.
+      </p>
+
+      <h2>Réglage en direct (rendu procédural)</h2>
+      <p>
+        Les valeurs par défaut sont celles de <code>CYCLE</code>, utilisées par l'export. Change-les
+        ici, puis reporte-les dans <code>luciole-sprite.js</code>.
+      </p>
+      <div class="row">
+        <div class="tile"><canvas id="live" class="live"></canvas></div>
+        <div class="controls" id="controls"></div>
+      </div>
+
+      <h2>Composant &lt;luciole-mascot&gt; (spritesheet exportée)</h2>
+      <p>
+        Échelle entière en pixels physiques, image fixe si « réduire les animations », pause hors
+        écran.
+      </p>
+      <div class="row">
+        <div class="tile">
+          <luciole-mascot
+            src="out/spritesheet.png"
+            meta="out/spritesheet.json"
+            still="out/still.png"
+            scale="3"
+            label="La luciole, mascotte de luciole"
+            ><img src="out/still.png" alt="La luciole, mascotte de luciole"
+          /></luciole-mascot>
+        </div>
+        <div class="tile">
+          <luciole-mascot
+            src="out/spritesheet.png"
+            meta="out/spritesheet.json"
+            still="out/still.png"
+            scale="1"
+          ></luciole-mascot>
+        </div>
+        <div class="tile light">
+          <luciole-mascot
+            src="out/spritesheet-light.png"
+            meta="out/spritesheet.json"
+            still="out/still-light.png"
+            scale="2"
+          ></luciole-mascot>
+        </div>
+        <div class="tile light">
+          <luciole-mascot
+            src="out/spritesheet-light.png"
+            meta="out/spritesheet.json"
+            still="out/still-light.png"
+            scale="1"
+          ></luciole-mascot>
+        </div>
+      </div>
+
+      <h2>États figés</h2>
+      <p>
+        À comparer avec <code>ref/1-dim.png</code>, <code>2-mid.png</code>,
+        <code>3-bright.png</code>.
+      </p>
+      <div class="row strip" id="strip"></div>
+    </main>
+    <script type="module">
+      import "./luciole-mascot.js";
+      import { animateLuciole, renderState, CYCLE, FRAME_W, FRAME_H } from "./luciole-sprite.js";
+
+      const knobs = [
+        ["period", "Respiration (s)", 1, 6, 0.1],
+        ["floatAmplitude", "Flottement (px)", 0, 5, 1],
+        ["lightLead", "Avance lumière", 0, 0.5, 0.05],
+        ["antennaLag", "Retard antennes (s)", 0, 0.6, 0.05],
+        ["tipGlowLag", "Retard pointes (s)", 0, 0.8, 0.05],
+        ["halo", "Halo", 0, 1, 0.05],
+      ];
+      const cfg = { ...CYCLE };
+      const controls = document.getElementById("controls");
+      let stop = () => {};
+      const restart = () => {
+        stop();
+        stop = animateLuciole(document.getElementById("live"), { ...cfg });
+      };
+      for (const [key, label, min, max, step] of knobs) {
+        const id = `k-${key}`;
+        const input = Object.assign(document.createElement("input"), {
+          id,
+          type: "range",
+          min,
+          max,
+          step,
+          value: cfg[key],
+        });
+        const out = Object.assign(document.createElement("output"), { value: cfg[key] });
+        input.addEventListener("input", () => {
+          cfg[key] = +input.value;
+          out.value = input.value;
+          restart();
+        });
+        controls.append(
+          Object.assign(document.createElement("label"), { htmlFor: id, textContent: label }),
+          input,
+          out,
+        );
+      }
+      restart();
+
+      for (const [label, state] of [
+        ["faible", { I: 0 }],
+        ["moyenne", { I: 0.5 }],
+        ["forte", { I: 1 }],
+        ["clignement", { I: 0.5, blink: 2 }],
+      ]) {
+        const c = Object.assign(document.createElement("canvas"), {
+          width: FRAME_W,
+          height: FRAME_H,
+        });
+        const ctx = c.getContext("2d");
+        const img = ctx.createImageData(FRAME_W, FRAME_H);
+        renderState(img, state);
+        ctx.putImageData(img, 0, 0);
+        const f = document.createElement("figure");
+        f.append(c, Object.assign(document.createElement("figcaption"), { textContent: label }));
+        document.getElementById("strip").append(f);
+      }
+    </script>
+  </body>
+</html>
