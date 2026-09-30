@@ -1,0 +1,33 @@
+---
+// The name, set in the machine's type: the dot of its i is one terminal cell, lit in the
+// colour the screens' written cells glow with (--afterglow), crisp: glow stays on screens.
+// The domain follows, dimmed, as `tty` followed `air` before.
+---
+
+<span class="wordmark" aria-hidden="true">luc<span class="i">ı<span class="cell"></span></span>ole<span class="tld">.sh</span></span>
+
+<style>
+  .wordmark {
+    white-space: nowrap;
+  }
+
+  .i {
+    position: relative;
+  }
+
+  /* Where the i's dot sits: a square cell, a monospace column wide at most. */
+  .cell {
+    position: absolute;
+    left: 50%;
+    top: 0.06em;
+    width: 0.26em;
+    height: 0.26em;
+    translate: -50% 0;
+    background: var(--afterglow);
+  }
+
+  .tld {
+    color: var(--mist);
+    font-weight: 400;
+  }
+</style>

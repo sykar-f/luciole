@@ -1,4 +1,5 @@
 ---
+import Wordmark from "./Wordmark.astro";
 import { repo } from "../lib/links";
 
 const links = [
@@ -13,7 +14,7 @@ const here = Astro.url.pathname;
 <header class="header">
   <div class="wrap inner">
     <a class="mark" href="/" aria-label="luciole, home">
-      luciole
+      <Wordmark />
     </a>
     <nav aria-label="Site" data-menu>
       <button type="button" class="toggle" aria-expanded="false" aria-controls="sections" data-menu-toggle>
@@ -78,6 +79,7 @@ const here = Astro.url.pathname;
   }
 
   .mark {
+    color: var(--paper);
     font: 700 1.15rem / 1 var(--mono);
     text-decoration: none;
   }

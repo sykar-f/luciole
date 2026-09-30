@@ -1,4 +1,5 @@
 ---
+import Wordmark from "./Wordmark.astro";
 import { repo, source } from "../lib/links";
 
 const links = [
@@ -11,10 +12,14 @@ const links = [
 
 <footer class="footer">
   <div class="wrap inner">
-    <a class="mark" href="/">luciole</a>
+    <a class="mark" href="/" aria-label="luciole, home"><Wordmark /></a>
     <nav aria-label="Site">
       {links.map(([href, label]) => <a href={href}>{label}</a>)}
     </nav>
+    <p class="name">
+      Luciole means firefly. Interaction stays in your terminal; Server Components stay next to
+      your data.
+    </p>
     <p class="note">
       Developed in the open, on React, OpenTUI, TanStack Router and Bun. This site is built with
       Astro; its terminal screens come from <a href={source("website/scripts/capture.py")}
@@ -57,6 +62,11 @@ const links = [
   }
 
   nav a:hover {
+    color: var(--paper);
+  }
+
+  .name {
+    flex: 1 1 100%;
     color: var(--paper);
   }
 
