@@ -15,11 +15,14 @@ const SNIPPETS: Record<string, string> = {
   html: '<div class="box"><p>Hi</p></div><!-- c -->',
   java: 'public class A { static int x = 42; String s = "hi"; } // j',
   json: '{"name": "coder", "version": 1, "ok": true, "none": null}',
+  lua: 'local function greet(name) return "Hello " .. name end -- l',
   php: '<?php function hi($name) { return "Hello $name"; } // p',
   python: 'def greet(name: str) -> str:\n    return f"Hello {name}"  # hi',
   ruby: 'def greet(name) = "Hello #{name}" # hi\nputs greet(:x)',
   rust: 'fn main() { let x: u32 = 42; println!("{}", x); } // r',
   toml: '[package]\nname = "coder"\nversion = 1 # t',
+  typescript: "const greet = (name: string): number => { return 42; }; // ts",
+  typescriptreact: 'const App = () => <box id="a">{"hi"}</box>; // tsx',
   yaml: 'name: coder\nversion: 1\nlist:\n  - "a" # y',
 };
 const MIN_COLORS = 3;
