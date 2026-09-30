@@ -37,6 +37,8 @@ const QUOTE_BAR = 0.45;
 // How far operators and punctuation step back from the text toward the muted color.
 const OPERATOR = 0.4;
 const PUNCTUATION = 0.65;
+// A warning's color: between the accent and danger, as orange sits between.
+const WARNING = 0.45;
 /** `from` moved toward `to` by `amount` (0 to 1). */
 function mix(from: string, to: string, amount: number) {
   const a = RGBA.fromHex(from);
@@ -77,6 +79,17 @@ export function markdownStyle(palette: MarkdownPalette): SyntaxStyle {
     "markup.link": fg(palette.link, { underline: true }),
     "markup.link.label": fg(palette.link, { underline: true }),
     "markup.link.url": fg(palette.muted, { underline: true }),
+    // What notes write beyond CommonMark: ==highlights== and <mark>, <kbd> keys, footnotes,
+    // and GitHub's alerts, a color each.
+    "markup.highlight": fg(palette.onBand, { bg: hex(palette.band) }),
+    "markup.kbd": fg(palette.text, { bg: hex(palette.panel), bold: true }),
+    "markup.underline": { underline: true },
+    "markup.footnote": fg(palette.muted),
+    "markup.alert.note": fg(palette.link, { bold: true }),
+    "markup.alert.tip": fg(palette.ok, { bold: true }),
+    "markup.alert.important": fg(palette.accent, { bold: true }),
+    "markup.alert.warning": { fg: mix(palette.accent, palette.danger, WARNING), bold: true },
+    "markup.alert.caution": fg(palette.danger, { bold: true }),
     // An image the terminal cannot draw, or not yet: its alternative text, as a link reads.
     "markup.image": fg(palette.link, { italic: true }),
     "markup.image.missing": fg(palette.muted, { italic: true }),

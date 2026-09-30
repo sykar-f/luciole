@@ -2,8 +2,18 @@ import type { RGBA } from "@opentui/core";
 import { contentOf, joins, listNumber, textOfBlock } from "../model/doc.ts";
 import { tableOf } from "../markdown/parse.ts";
 import { cellWidth, graphemes } from "../model/text.ts";
-import { quoteOf, type Block, type Doc, type Inline, type Pos } from "../model/types.ts";
+import { isText, quoteOf, type Block, type Doc, type Inline, type Pos } from "../model/types.ts";
 import { groupsByOffset, type Highlights } from "./highlight.ts";
+import {
+  alertOf,
+  isComment,
+  isLineBreakTag,
+  piecesOf,
+  shifted,
+  tagGroups,
+  tagOf,
+  type AlertKind,
+} from "./decorations.ts";
 import { definitionsOf, imageOf, IMAGE_MARK, type Definitions, type ImageSize } from "./images.ts";
 import { tableLines } from "./table.ts";
 import { HEADING_LEVELS, type Look, type Theme } from "./theme.ts";
@@ -66,6 +76,8 @@ export type Line = {
     readonly cols: number;
     readonly link?: string;
   };
+  /** The color of the quote bars in the margin, when not the quote's own: an alert's. */
+  readonly barColor?: RGBA;
   /** A label at the right end of the line: a code block's language. */
   readonly label?: { readonly text: string; readonly look: Look };
   readonly rule?: boolean;
@@ -169,6 +181,8 @@ export function layoutDocument(
   const definitions = definitionsOf(doc);
   const hang = Math.max(0, Math.min(MAX_HANG, options.hang ?? 0));
   const numberWidths = new Map<number, number>();
+  // The GitHub alert the quote being laid out is, from its first paragraph on.
+  let alert: { readonly kind: AlertKind; readonly quote: number } | null = null;
   doc.forEach((block, index) => {
     const previous = doc[index - 1];
     const quote = quoteOf(block);
@@ -212,7 +226,13 @@ export function layoutDocument(
       },
       options.images ?? "",
     );
-    for (const line of placed) lines.push({ ...line, block: index, bars: quote });
+    const found = quote && isText(block) ? alertOf(block.content) : null;
+    if (found && (!alert || block.break || quote < alert.quote))
+      alert = { kind: found.kind, quote };
+    else if (alert && (quote < alert.quote || (block.break && quote === alert.quote))) alert = null;
+    const barColor = alert ? theme.look([`markup.alert.${alert.kind}`]).fg : undefined;
+    for (const line of placed)
+      lines.push({ ...line, block: index, bars: quote, ...(barColor ? { barColor } : {}) });
     if (block.type === "item") {
       itemText = [...itemText.slice(0, block.indent), placed[0]?.textX ?? x];
     } else if (level === 0) itemText = [];
@@ -398,7 +418,7 @@ function computeLines(block: Block, context: BlockContext): Line[] {
     case "item": {
       const text =
         block.list === "ordered"
-          ? `${number}.`.padStart(numberWidth + 1)
+          ? `${number}${block.marker === ")" ? ")" : "."}`.padStart(numberWidth + 1)
           : block.list === "task"
             ? block.checked
               ? TASK_DONE
@@ -414,11 +434,24 @@ function computeLines(block: Block, context: BlockContext): Line[] {
         i === 0 ? { ...line, ...at, marker } : { ...line, ...at },
       );
     }
-    case "paragraph":
-      return (
-        imageLines(block, context) ??
-        wrap(glyphs, x, width, { words: true }).map((line) => ({ ...line, ...at }))
-      );
+    case "paragraph": {
+      const images = imageLines(block, context);
+      if (images) return images;
+      // A quote opening with `[!NOTE]`: its title, in its color, over the marker.
+      const found = block.quote && !context.revealed ? alertOf(block.content) : null;
+      const shown = found
+        ? [
+            ...graphemes(found.title).map((g, i) => ({
+              text: g.text,
+              offset: Math.min(found.length - 1, i),
+              width: cellWidth(g.text),
+              look: theme.look([`markup.alert.${found.kind}`]),
+            })),
+            ...glyphs.filter((g) => g.offset >= found.length),
+          ]
+        : glyphs;
+      return wrap(shown, x, width, { words: true }).map((line) => ({ ...line, ...at }));
+    }
   }
 }
 // H5's bar steps back; H4's has the heading's color.
@@ -435,6 +468,7 @@ function upper(glyph: Draft): Draft {
  */
 function rawLines(text: string, context: BlockContext): Line[] {
   const { x, width, theme, revealed } = context;
+  if (FRONT_MATTER.test(text)) return frontMatterLines(text, context);
   const table = tableOf(text);
   if (table && !revealed)
     return tableLines(table, {
@@ -470,6 +504,46 @@ function rawLines(text: string, context: BlockContext): Line[] {
   });
   return [border(0), ...lines, border(text.length)];
 }
+
+/**
+ * Front matter on a panel, as code is, labelled with its language: its keys in the color of
+ * properties, its fences faint.
+ */
+function frontMatterLines(text: string, context: BlockContext): Line[] {
+  const { x, width, theme, hang } = context;
+  const faint = theme.look(["conceal"]);
+  const key = theme.look(["markup.raw", "property"]);
+  const value = theme.look([]);
+  const lines = text.split("\n");
+  const last = lines.length - 1;
+  const glyphs: Draft[] = [];
+  let offset = 0;
+  lines.forEach((line, i) => {
+    const keyEnd = i > 0 && i < last ? (FRONT_KEY.exec(line)?.[0].length ?? 0) : 0;
+    for (const g of graphemes(`${line}${i < last ? "\n" : ""}`)) {
+      const fence = i === 0 || i === last;
+      glyphs.push({
+        text: g.text,
+        offset: offset + g.offset,
+        width: g.text === "\n" ? 0 : cellWidth(g.text),
+        look: fence ? faint : g.offset < keyEnd ? key : value,
+      });
+    }
+    offset += line.length + 1;
+  });
+  const panelX = x - hang;
+  const fill = theme.panel();
+  const label = { text: text.startsWith("+") ? "toml" : "yaml", look: theme.label() };
+  return wrap(glyphs, panelX + CODE_PADDING, width, { words: false }).map((line, i) => ({
+    ...line,
+    x: panelX,
+    bars: 0,
+    ...(fill ? { fill } : {}),
+    ...(i === 0 ? { label } : {}),
+  }));
+}
+const FRONT_MATTER = /^(---|\+\+\+)[ \t]*\n[\s\S]*\n\1[ \t]*$/;
+const FRONT_KEY = /^\s*[\w.-]+\s*[:=]/;
 
 type Found = { url: string; alt: string; from: number; to: number; link?: string };
 
@@ -565,6 +639,8 @@ function spansGlyphs(
   const { theme, revealed, definitions } = context;
   const out: Draft[] = [];
   let offset = 0;
+  // Inline HTML tags open around the text (`<kbd>`, `<mark>`, `<sup>`…).
+  const open: string[] = [];
   for (const [index, span] of content.entries()) {
     // An image among text: its alternative text, unless the block is being edited.
     const image = span.marks.verbatim && !revealed ? imageOf(span.text, definitions) : null;
@@ -575,16 +651,50 @@ function spansGlyphs(
       offset += span.text.length;
       continue;
     }
-    const groups = [...base, ...theme.markGroups(span.marks)];
-    const look = theme.look(groups);
-    for (const g of graphemes(span.text))
-      out.push({
-        text: g.text,
-        offset: offset + g.offset,
-        width: g.text === "\n" ? 0 : cellWidth(g.text),
-        look: code ? theme.look([...groups, ...(code[offset + g.offset] ?? [])]) : look,
-        ...(span.marks.link === undefined ? {} : { link: span.marks.link }),
-      });
+    // Inline HTML the editor draws: tags hidden (a key cap's edges for `<kbd>`), `<br>` a
+    // line break, a comment nothing. Shown as written in the block being edited.
+    if (span.marks.verbatim && !revealed && htmlGlyphs(span.text, offset, open, theme, out)) {
+      offset += span.text.length;
+      continue;
+    }
+    const groups = [...base, ...theme.markGroups(span.marks), ...tagGroups(open)];
+    const script = open.includes("sup") ? "sup" : open.includes("sub") ? "sub" : null;
+    const decorated = !code && !span.marks.code && !span.marks.verbatim;
+    const pieces = decorated ? piecesOf(span.text) : [{ text: span.text, at: 0, groups: [] }];
+    for (const piece of pieces) {
+      const start = offset + piece.at;
+      if (piece.syntax) {
+        // `==`: seen only where the block is edited.
+        if (revealed) out.push(...plainGlyphs(piece.text, start, theme.look(["conceal"])));
+        continue;
+      }
+      const look = theme.look([...groups, ...piece.groups]);
+      const link = span.marks.link === undefined ? {} : { link: span.marks.link };
+      if (piece.shown !== undefined && !revealed) {
+        const shown = graphemes(piece.shown);
+        shown.forEach((g, i) =>
+          out.push({
+            text: g.text,
+            offset: start + Math.min(piece.text.length - 1, i),
+            width: cellWidth(g.text),
+            look,
+            ...link,
+          }),
+        );
+        continue;
+      }
+      for (const g of graphemes(piece.text)) {
+        const at = start + g.offset;
+        const text = (script && !revealed && shifted(g.text, script)) || g.text;
+        out.push({
+          text,
+          offset: at,
+          width: text === "\n" ? 0 : cellWidth(text),
+          look: code ? theme.look([...groups, ...(code[at] ?? [])]) : look,
+          ...link,
+        });
+      }
+    }
     offset += span.text.length;
     // In the block being edited, a link shows where it goes, after its text.
     const href = span.marks.link;
@@ -592,6 +702,37 @@ function spansGlyphs(
       out.push(...addressGlyphs(href, linkText(content, index), offset - 1, theme));
   }
   return out;
+}
+
+/** `text`'s graphemes from `offset`, in `look`. */
+const plainGlyphs = (text: string, offset: number, look: Look): Draft[] =>
+  graphemes(text).map((g) => ({
+    text: g.text,
+    offset: offset + g.offset,
+    width: g.text === "\n" ? 0 : cellWidth(g.text),
+    look,
+  }));
+
+/**
+ * An inline HTML span drawn as what it means, into `out`; whether it was one. Tags update
+ * `open`; `<kbd>` and `</kbd>` become the padding of the key cap between them.
+ */
+function htmlGlyphs(source: string, offset: number, open: string[], theme: Theme, out: Draft[]) {
+  const tag = tagOf(source);
+  if (tag) {
+    if (tag.closing) {
+      const at = open.lastIndexOf(tag.name);
+      if (at >= 0) open.splice(at, 1);
+    }
+    if (tag.name === "kbd") out.push(...plainGlyphs(" ", offset, theme.look(["markup.kbd"])));
+    if (!tag.closing) open.push(tag.name);
+    return true;
+  }
+  if (isLineBreakTag(source)) {
+    out.push({ text: "\n", offset, width: 0, look: theme.look([]) });
+    return true;
+  }
+  return isComment(source);
 }
 
 /** The text of the link whose last run is `content[last]`. */

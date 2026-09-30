@@ -162,7 +162,7 @@ const cases: Record<string, Case[]> = {
     { keys: "- one{enter}{enter}after", markdown: "- one\n\nafter", screen: "• one\n\nafter" },
     { keys: "1. a{enter}b{enter}c", markdown: "1. a\n2. b\n3. c", screen: "1. a\n2. b\n3. c" },
     { keys: "3. x{enter}y", markdown: "3. x\n4. y", screen: "3. x\n4. y" },
-    { keys: "1) x{enter}y", markdown: "1) x\n2) y" },
+    { keys: "1) x{enter}y", markdown: "1) x\n2) y", screen: "1) x\n2) y" },
     { keys: "- a{enter}{tab}b", markdown: "- a\n  - b", screen: "• a\n  ◦ b" },
     { keys: "- a{enter}{tab}b{enter}{shift+tab}c", markdown: "- a\n  - b\n- c" },
     { keys: "- a{enter}{tab}b{enter}{enter}c", markdown: "- a\n  - b\n- c" },

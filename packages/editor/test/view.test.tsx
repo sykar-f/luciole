@@ -445,3 +445,27 @@ test("in the block being edited, a link shows its address; elsewhere only its te
   expect(rows()[0]).toBe("see site (https://x.y) now");
   expect(rows()[2]).toBe("and there");
 });
+
+test("what notes write beyond CommonMark reads as it means, and as written where edited", async () => {
+  await show(
+    [
+      "a ==hi== b[^1] :tada:",
+      "",
+      "a ==hi== b[^1] :tada: :nope:",
+      "",
+      "> [!WARNING]",
+      "> Mind the step.",
+      "",
+      "press <kbd>Ctrl</kbd>+<kbd>C</kbd>, H<sub>2</sub>O, x<sup>2</sup> <!-- hidden -->",
+      "",
+      "one<br>two",
+    ].join("\n"),
+  );
+  const frame = rows();
+  // The cursor's block keeps its syntax, faint; the others read as they mean.
+  expect(frame[0]).toBe("a ==hi== b[^1] :tada:");
+  expect(frame[2]).toBe("a hi b¹ 🎉 :nope:");
+  expect(frame.slice(4, 6)).toEqual(["▎ ⚠ Warning", "▎ Mind the step."]);
+  expect(frame[7]).toBe("press  Ctrl + C , H₂O, x²");
+  expect(frame.slice(9, 11)).toEqual(["one", "two"]);
+});

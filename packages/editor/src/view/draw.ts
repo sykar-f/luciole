@@ -61,7 +61,7 @@ export function drawLayout(
     const y = view.y + row;
     drawBackground(buffer, line, view, y, options.background);
     for (let bar = 0; bar < line.bars; bar++)
-      buffer.drawText(BAR, view.x + bar * QUOTE_STEP, y, quoteBar);
+      buffer.drawText(BAR, view.x + bar * QUOTE_STEP, y, line.barColor ?? quoteBar);
     // An image from its first row on screen: the rows above the top are cut from it.
     if (line.image && (line.image.row === 0 || row === 0) && options.images)
       drawImage(
