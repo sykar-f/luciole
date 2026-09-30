@@ -10,7 +10,7 @@ import {
   useLocation,
   useNavigate,
   useRouter,
-} from "airtty/client";
+} from "luciole/client";
 import { listRepos, logout, whoami } from "../actions/account";
 import { drafts } from "./draft";
 import { EditingProvider } from "./editing";

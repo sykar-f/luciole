@@ -7,7 +7,7 @@ sources:
   - examples/notes/app/notes/[id]/loading.tsx
   - examples/notes/app/error.tsx
   - examples/notes/app/layout.tsx
-  - packages/airtty/src/route-tree.tsx
+  - packages/luciole/src/route-tree.tsx
 ---
 
 import Excerpt from "../../../components/guide/Excerpt.astro";
@@ -48,8 +48,8 @@ Without one, the message is shown.
 
 The page's error screen, yours or the default one, also emits a `failure` event (`path`,
 `message`) through `useApplication().onEvent`. A Client started with an IPC channel, by
-`airtty dev` or a sandbox host, forwards it to its parent, which learns which page failed and
-why ([`airtty/dev`](/docs/reference/api/#supervising-an-app-airttydev)). A page that calls
+`luciole dev` or a sandbox host, forwards it to its parent, which learns which page failed and
+why ([`luciole/dev`](/docs/reference/api/#supervising-an-app-lucioledev)). A page that calls
 `notFound()` emits none: a missing page is an answer, not a failure.
 
 A failed navigation shows `error.tsx` in the page's place with the layouts still mounted.
@@ -58,7 +58,7 @@ A failed **refresh** keeps the current tree mounted instead, and exposes the err
 
 ## `not-found.tsx`
 
-A page calls `notFound(what?)` from `airtty/server` to end its render with the nearest
+A page calls `notFound(what?)` from `luciole/server` to end its render with the nearest
 `not-found.tsx`, which receives `{ path, params, what }`. `app/not-found.tsx` also answers a
 URL that no page matches. The status stays "Connected": a missing page is an answer, not an
 outage.
@@ -66,7 +66,7 @@ outage.
 ## The connection, in the app's chrome
 
 The framework draws no header or footer. `useConnection()` gives the chrome what it needs:
-`status`, `error`, `buildError` (a failed rebuild under `airtty dev`), `refresh`, and
+`status`, `error`, `buildError` (a failed rebuild under `luciole dev`), `refresh`, and
 `activity`, one of `connect`, `navigate`, `refresh` or `idle`. Notes shows it in its root
 layout:
 

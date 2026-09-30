@@ -4,7 +4,7 @@ import { act } from "react";
 import { testRender } from "@opentui/react/test-utils";
 import { BoxRenderable, InputRenderable, ScrollBoxRenderable } from "@opentui/core";
 import { join, resolve } from "node:path";
-import { build } from "../packages/airtty/src/build";
+import { build } from "../packages/luciole/src/build";
 import {
   launch,
   until,
@@ -18,7 +18,7 @@ import {
 test("500 ms RTT delays Flight and actions while input, hover and scroll stay local", async () => {
   const directory = resolve("examples/latency");
   await build(directory);
-  const server = await launch(join(directory, ".airtty/server/index.js"));
+  const server = await launch(join(directory, ".luciole/server/index.js"));
   const { createApp, Shell } = await importClient(directory, "latency");
   const app = createApp({ url: server.url, latencyMs: 500 });
   let rendered: TestUI | undefined;

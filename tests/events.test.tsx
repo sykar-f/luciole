@@ -1,21 +1,21 @@
 /** @jsxImportSource @opentui/react */
 import { expect, test } from "bun:test";
 import { createRoute } from "@tanstack/react-router";
-import { createApplication, type ApplicationEvent } from "../packages/airtty/src/client";
-import { loadPage, pageRoute, rootRoute } from "../packages/airtty/src/route-tree";
+import { createApplication, type ApplicationEvent } from "../packages/luciole/src/client";
+import { loadPage, pageRoute, rootRoute } from "../packages/luciole/src/route-tree";
 import {
   createHttpTransport,
   now,
   type Fetch,
   type TransportEvent,
-} from "../packages/airtty/src/transport";
+} from "../packages/luciole/src/transport";
 import { renderBody, until } from "./helpers";
 
 // One Flight model row: the root value, as JSON (see tests/http-transport.test.ts).
 const row = (value: unknown) => new Response(`0:${JSON.stringify(value)}\n`);
 // A `/render` answer: that row as the page stream of `{ tree, tags }`.
 const page = (value: unknown) => new Response(renderBody(`0:${JSON.stringify(value)}\n`));
-const callIdOf = (init: RequestInit) => new Headers(init.headers).get("x-airtty-call") ?? "";
+const callIdOf = (init: RequestInit) => new Headers(init.headers).get("x-luciole-call") ?? "";
 // Answers every render with a string, and every call with 42; `#run` invalidates "/".
 const server: (sent: string[]) => Fetch = (sent) => (url, init) => {
   sent.push(callIdOf(init));
@@ -26,7 +26,7 @@ const server: (sent: string[]) => Fetch = (sent) => (url, init) => {
           kind: "result",
           callId: callIdOf(init),
           value: 42,
-          invalidate: new Headers(init.headers).get("x-airtty-action")?.endsWith("#run")
+          invalidate: new Headers(init.headers).get("x-luciole-action")?.endsWith("#run")
             ? ["/"]
             : [],
         }),

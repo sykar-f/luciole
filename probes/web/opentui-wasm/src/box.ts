@@ -30,7 +30,7 @@ const box = new BoxRenderable(renderer, {
   ...BOX,
   border: true,
   borderStyle: "rounded",
-  title: "airtty",
+  title: "luciole",
 });
 box.add(new TextRenderable(renderer, { id: "text", content: "Hello from opentui.wasm" }));
 renderer.root.add(box);

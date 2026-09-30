@@ -7,12 +7,12 @@
 // (links.ts). Props of components in MDX are JavaScript, out of the plugin's reach: they
 // take the name from here (`commands`, `envPrefix`).
 
-/** What people type and read: the CLI, the package, directories such as `.airtty/`. */
-export const name = "airtty";
-/** The prefix of the environment variables (`AIRTTY_LATENCY_MS`) and of their docs. */
+/** What people type and read: the CLI, the package, directories such as `.luciole/`. */
+export const name = "luciole";
+/** The prefix of the environment variables (`LUCIOLE_LATENCY_MS`) and of their docs. */
 export const envPrefix = name.toUpperCase();
 /** The name the code has today, which the pages are written with. */
-export const writtenAs = "airtty";
+export const writtenAs = "luciole";
 
 /** Commands as the documentation prints them. */
 export const commands = {

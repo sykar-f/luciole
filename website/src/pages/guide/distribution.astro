@@ -7,7 +7,7 @@ import Src from "../../components/guide/Src.astro";
 import Callout from "../../components/guide/Callout.astro";
 import Quiz from "../../components/guide/Quiz.astro";
 
-// airtty <cible>: the resolution order, and what each form runs.
+// luciole <cible>: the resolution order, and what each form runs.
 const forms = [
   { form: "./examples/notes", kind: "chemin", runs: "build, puis Server + Client locaux", trust: "ton propre code" },
   { form: "notes", kind: "app installée", runs: "son binaire : Server + Client", trust: "vérifiée à l'installation" },
@@ -21,7 +21,7 @@ const ROW = 50;
 <Guide
   slug="distribution"
   outcomes={[
-    "dire ce que lance <code>airtty &lt;cible&gt;</code> pour chacune des cinq formes de cible ;",
+    "dire ce que lance <code>luciole &lt;cible&gt;</code> pour chacune des cinq formes de cible ;",
     "expliquer le cycle de vie d'un Server géré : socket, ping, grâce ;",
     "retracer la chaîne de confiance d'une app ouverte par URL, et dire qui vérifie quoi.",
   ]}
@@ -30,10 +30,10 @@ const ROW = 50;
   <p>Une app arrive sur une machine sous deux formes. Soit du <strong>code complet</strong> (un dossier, un dépôt git, un paquet, un binaire) : il tourne avec tes droits, Server compris, et la confiance porte sur sa provenance. Soit un <strong>bundle Client signé</strong>, téléchargé depuis une URL : il tourne contre le runtime du Client générique, et la confiance porte sur une clé d'éditeur épinglée.</p>
 
   <h2>Cinq formes de cible</h2>
-  <p><Src path="packages/airtty/src/launcher/target.ts" find="export function resolveTarget(" /> essaie les formes dans cet ordre et s'arrête à la première qui correspond. Il ne devine jamais : un chemin relatif sans <code>./</code> est refusé.</p>
+  <p><Src path="packages/luciole/src/launcher/target.ts" find="export function resolveTarget(" /> essaie les formes dans cet ordre et s'arrête à la première qui correspond. Il ne devine jamais : un chemin relatif sans <code>./</code> est refusé.</p>
   <figure>
     <div class="diagram">
-      <svg viewBox={`0 0 764 ${forms.length * ROW + 36}`} role="img" aria-label="Les cinq formes de cible de airtty, dans l'ordre de résolution">
+      <svg viewBox={`0 0 764 ${forms.length * ROW + 36}`} role="img" aria-label="Les cinq formes de cible de luciole, dans l'ordre de résolution">
         <defs>
           <marker id="d-down" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 1 L9 5 L0 9 z" style="fill: var(--dim)" /></marker>
         </defs>
@@ -64,7 +64,7 @@ const ROW = 50;
 
   <h2>Un Server géré, sur un socket privé</h2>
   <p>Pour les quatre formes de code complet, le Server tourne <strong>détaché</strong>, sur un socket Unix, et survit un moment au Client. Il est rangé sous une clé stable (<code>local:&lt;app&gt;</code>…), la même que celle des sessions (chapitre 7).</p>
-  <p>Combien de lancements partagent ce Server ? C'est l'app qui le déclare dans son <code>package.json</code>, champ <code>airtty.server</code>, et <Src path="packages/airtty/src/launcher/launch-key.ts" /> en tire la clé : <code>shared</code> (par défaut, Notes) donne un Server pour tous les lancements, <code>per-directory</code> un par dossier où la commande est tapée, <code>per-launch</code> un par lancement. Quand l'app déclare des arguments (<code>app/args.ts</code>), leur empreinte entre aussi dans la clé : un lancement n'hérite jamais du Server d'un autre jeu d'arguments.</p>
+  <p>Combien de lancements partagent ce Server ? C'est l'app qui le déclare dans son <code>package.json</code>, champ <code>luciole.server</code>, et <Src path="packages/luciole/src/launcher/launch-key.ts" /> en tire la clé : <code>shared</code> (par défaut, Notes) donne un Server pour tous les lancements, <code>per-directory</code> un par dossier où la commande est tapée, <code>per-launch</code> un par lancement. Quand l'app déclare des arguments (<code>app/args.ts</code>), leur empreinte entre aussi dans la clé : un lancement n'hérite jamais du Server d'un autre jeu d'arguments.</p>
   <Sequence
     title="Server géré"
     lanes={[
@@ -83,11 +83,11 @@ const ROW = 50;
     ]}
     caption="Relancer l'app pendant la grâce retrouve le même Server (même socket, même build) et la session orpheline."
   />
-  <Excerpt path="packages/airtty/src/launcher/managed.ts" find="export async function ensureServer(" until="rmSync(socket, { force: true });" mark={["status?.buildId === options.buildId && status.args === options.fingerprint;", "if (found) await stopServer(socket);"]} />
+  <Excerpt path="packages/luciole/src/launcher/managed.ts" find="export async function ensureServer(" until="rmSync(socket, { force: true });" mark={["status?.buildId === options.buildId && status.args === options.fingerprint;", "if (found) await stopServer(socket);"]} />
   <p>Un Server qui répond sur le socket mais d'un autre build, ou avec une autre empreinte d'arguments, est arrêté par <code>POST /lifetime/stop</code> puis remplacé. Si personne ne répond, le fichier restant est celui d'un Server mort : il est supprimé avant le démarrage.</p>
 
   <h2>Un binaire, deux rôles</h2>
-  <p><code>airtty build --compile</code> produit un exécutable unique contenant le runtime Bun, le Client, le Server et un lanceur, sous une identité lisible sans l'exécuter : <code>airtty-binary:1:&lt;app&gt;:&lt;buildId&gt;:&lt;cible&gt;;</code>. Le même fichier se comporte selon ses options :</p>
+  <p><code>luciole build --compile</code> produit un exécutable unique contenant le runtime Bun, le Client, le Server et un lanceur, sous une identité lisible sans l'exécuter : <code>luciole-binary:1:&lt;app&gt;:&lt;buildId&gt;:&lt;cible&gt;;</code>. Le même fichier se comporte selon ses options :</p>
   <div class="table">
     <table>
       <thead><tr><th>Commande</th><th>Rôle</th></tr></thead>
@@ -102,7 +102,7 @@ const ROW = 50;
   <p>Avec <code>--on</code>, le binaire distant est vérifié par son <code>SHA256SUMS</code> <strong>à chaque lancement</strong>, sur l'hôte distant. Une nouvelle version est envoyée, vérifiée à côté, puis substituée en entier. Pour le Client seul, il faut <code>--client-only</code> : sans cette option, le binaire embarque le Server, donc le code métier.</p>
 
   <h2>Par URL : la chaîne de confiance</h2>
-  <p><code>airtty https://notes.example.com</code> n'installe rien. Le Client générique télécharge le <strong>bundle d'application</strong> (<code>.airtty/app/</code>, chapitre 2) et l'exécute contre son propre runtime. Le Server de l'app ne fait que relayer : ce n'est pas lui qu'on croit, c'est la clé de l'éditeur.</p>
+  <p><code>luciole https://notes.example.com</code> n'installe rien. Le Client générique télécharge le <strong>bundle d'application</strong> (<code>.luciole/app/</code>, chapitre 2) et l'exécute contre son propre runtime. Le Server de l'app ne fait que relayer : ce n'est pas lui qu'on croit, c'est la clé de l'éditeur.</p>
   <Sequence
     title="Ouvrir une app par URL"
     lanes={[
@@ -124,25 +124,25 @@ const ROW = 50;
   />
 
   <Step n="1" tone="build" title="L'éditeur signe le manifeste">
-    <p><code>airtty keys generate</code> crée une clé Ed25519 en 0600 et ne remplace jamais une clé existante. <code>airtty build --sign-bundle</code> signe les champs du manifeste, encodés de façon canonique, et non le JSON tel quel :</p>
-    <Excerpt path="packages/airtty/src/publisher.ts" find="export function signedBytes(" until="^}" tone="build" mark={["manifest.sha256", "publicKey,"]} />
+    <p><code>luciole keys generate</code> crée une clé Ed25519 en 0600 et ne remplace jamais une clé existante. <code>luciole build --sign-bundle</code> signe les champs du manifeste, encodés de façon canonique, et non le JSON tel quel :</p>
+    <Excerpt path="packages/luciole/src/publisher.ts" find="export function signedBytes(" until="^}" tone="build" mark={["manifest.sha256", "publicKey,"]} />
     <p>Le sha256 du bundle est signé : changer un seul octet du code invalide la signature.</p>
   </Step>
 
   <Step n="2–3" tone="neutral" where="Lanceur" title="Le lanceur vérifie avant de télécharger le code">
     <p>Avant tout contact, il décide du mode : <code>sandbox</code> si le système sait confiner le réseau, sinon il refuse, sauf <code>--inline</code> explicite. Puis il lit le manifeste :</p>
-    <Excerpt path="packages/airtty/src/generic/prepare.ts" find="const manifest = AppManifest.parse(JSON.parse(text));" count={16} mark={["verifyManifest(manifest)", "manifest.abi !== ABI_KEY", "pinned && pinned !== fingerprint"]} />
-    <p>La clé publique voyage <em>dans</em> le manifeste. La signature prouve donc seulement la cohérence ; c'est l'<strong>épinglage</strong> qui prouve l'identité. Au premier usage, le lanceur affiche l'empreinte et demande (TOFU, <em>trust on first use</em>). Ensuite, une autre clé est refusée, et seul <code>airtty trust &lt;url&gt; SHA256:…</code>, hors bande, la remplace.</p>
+    <Excerpt path="packages/luciole/src/generic/prepare.ts" find="const manifest = AppManifest.parse(JSON.parse(text));" count={16} mark={["verifyManifest(manifest)", "manifest.abi !== ABI_KEY", "pinned && pinned !== fingerprint"]} />
+    <p>La clé publique voyage <em>dans</em> le manifeste. La signature prouve donc seulement la cohérence ; c'est l'<strong>épinglage</strong> qui prouve l'identité. Au premier usage, le lanceur affiche l'empreinte et demande (TOFU, <em>trust on first use</em>). Ensuite, une autre clé est refusée, et seul <code>luciole trust &lt;url&gt; SHA256:…</code>, hors bande, la remplace.</p>
   </Step>
 
   <Step n="4–5" tone="neutral" where="Lanceur" title="Le bundle est adressé par son hash">
-    <p><code>GET /bundle/&lt;sha256&gt;</code> est immuable. Les octets reçus sont comparés au sha256 signé, puis publiés dans <code>$XDG_CACHE_HOME/airtty/bundles/</code> par un <code>rename</code>. <code>/manifest</code> et <code>/bundle</code> ne demandent ni session ni build ID : c'est par eux qu'un hôte apprend le build.</p>
+    <p><code>GET /bundle/&lt;sha256&gt;</code> est immuable. Les octets reçus sont comparés au sha256 signé, puis publiés dans <code>$XDG_CACHE_HOME/luciole/bundles/</code> par un <code>rename</code>. <code>/manifest</code> et <code>/bundle</code> ne demandent ni session ni build ID : c'est par eux qu'un hôte apprend le build.</p>
   </Step>
 
   <Step n="6–8" tone="client" title="Celui qui exécute revérifie">
     <p>L'hôte (onglet <code>inline</code>) ou l'enfant confiné (onglet <code>sandbox</code>) revérifie la signature contre l'empreinte épinglée, l'ABI et le sha256. La vérification a lieu là où le code s'exécute, pas seulement dans le lanceur. Le bundle est ensuite évalué avec un <code>require</code> qui ne connaît que le runtime :</p>
-    <Excerpt path="packages/airtty/src/app-evaluate.ts" find="if (evaluation.sha256 !== manifest.sha256)" count={10} tone="client" mark={["if (specifier in RUNTIME)", "outside the runtime ABI"]} />
-    <p>L'<strong>ABI</strong> est une liste fermée de spécifiers (React, OpenTUI, TanStack Router, <code>airtty/client</code>…) avec leurs versions. Sa clé, par exemple <code>1-e2931d7662791000</code>, doit être identique côté bundle et côté hôte.</p>
+    <Excerpt path="packages/luciole/src/app-evaluate.ts" find="if (evaluation.sha256 !== manifest.sha256)" count={10} tone="client" mark={["if (specifier in RUNTIME)", "outside the runtime ABI"]} />
+    <p>L'<strong>ABI</strong> est une liste fermée de spécifiers (React, OpenTUI, TanStack Router, <code>luciole/client</code>…) avec leurs versions. Sa clé, par exemple <code>1-e2931d7662791000</code>, doit être identique côté bundle et côté hôte.</p>
   </Step>
 
   <h2>Inline ou sandbox</h2>
@@ -151,23 +151,23 @@ const ROW = 50;
       <thead><tr><th>Mode</th><th>Où tourne le bundle</th><th>Isolation</th></tr></thead>
       <tbody>
         <tr><td><code>inline</code></td><td>dans le processus de l'hôte, en <code>&lt;Embed&gt;</code></td><td>aucune : confiance totale, à demander explicitement</td></tr>
-        <tr><td><code>sandbox</code></td><td>un processus enfant, relié par PTY et IPC</td><td>macOS : Seatbelt. Linux : <code>airtty-sandbox</code> (Rust : espaces de noms, Landlock, seccomp)</td></tr>
+        <tr><td><code>sandbox</code></td><td>un processus enfant, relié par PTY et IPC</td><td>macOS : Seatbelt. Linux : <code>luciole-sandbox</code> (Rust : espaces de noms, Landlock, seccomp)</td></tr>
       </tbody>
     </table>
   </div>
-  <p>En sandbox, l'enfant ne lit que le runtime et son bundle, n'écrit que dans ses sessions et un dossier temporaire, et ne joint que le Server de l'app et le proxy de l'hôte, qui filtre par nom d'hôte. Le presse-papier, les notifications et l'ouverture d'URL passent par l'IPC, et c'est l'hôte qui décide, en demandant à l'utilisateur si besoin. Voir <Src path="packages/airtty/src/sandbox/spawn.ts" />.</p>
-  <p>Le même profil peut confiner un <strong>Server</strong> dont l'hôte ne se fie pas au code, comme l'aperçu de studio pour une app écrite par un modèle : <Src path="packages/airtty/src/sandbox/server.ts" find="export async function confineServer" /> retire le terminal et n'ajoute que l'écoute d'un port loopback choisi par l'hôte. Il lit son build, écrit dans son répertoire de données, et <code>net</code> passe par le proxy de l'hôte. C'est macOS seulement : sous <code>airtty-sandbox</code>, le Server écouterait dans son propre espace de noms réseau, et le relais inverse qui permettrait à l'hôte de le joindre n'existe pas encore.</p>
+  <p>En sandbox, l'enfant ne lit que le runtime et son bundle, n'écrit que dans ses sessions et un dossier temporaire, et ne joint que le Server de l'app et le proxy de l'hôte, qui filtre par nom d'hôte. Le presse-papier, les notifications et l'ouverture d'URL passent par l'IPC, et c'est l'hôte qui décide, en demandant à l'utilisateur si besoin. Voir <Src path="packages/luciole/src/sandbox/spawn.ts" />.</p>
+  <p>Le même profil peut confiner un <strong>Server</strong> dont l'hôte ne se fie pas au code, comme l'aperçu de studio pour une app écrite par un modèle : <Src path="packages/luciole/src/sandbox/server.ts" find="export async function confineServer" /> retire le terminal et n'ajoute que l'écoute d'un port loopback choisi par l'hôte. Il lit son build, écrit dans son répertoire de données, et <code>net</code> passe par le proxy de l'hôte. C'est macOS seulement : sous <code>luciole-sandbox</code>, le Server écouterait dans son propre espace de noms réseau, et le relais inverse qui permettrait à l'hôte de le joindre n'existe pas encore.</p>
 
   <h2>Une app dans une autre : Embed</h2>
-  <p><Src path="packages/airtty/src/embed.tsx" /> monte l'Application d'un autre bundle dans un pane, dans le même arbre React. Chaque pane a son propre Transport, avec l'en-tête <code>x-airtty-instance</code> qui préfixe ses Client References. Le pane a aussi un keymap filtré, un focus mis de côté quand il est inactif, et une frontière d'erreur qui confine un crash au seul pane. <code>examples/mux</code> s'en sert.</p>
+  <p><Src path="packages/luciole/src/embed.tsx" /> monte l'Application d'un autre bundle dans un pane, dans le même arbre React. Chaque pane a son propre Transport, avec l'en-tête <code>x-luciole-instance</code> qui préfixe ses Client References. Le pane a aussi un keymap filtré, un focus mis de côté quand il est inactif, et une frontière d'erreur qui confine un crash au seul pane. <code>examples/mux</code> s'en sert.</p>
 
   <Callout kind="piege">
     <ul>
       <li>Une app installée n'est <strong>pas</strong> revérifiée au lancement : son <code>SHA256SUMS</code> ne sert qu'à <code>--on</code>.</li>
       <li>Le champ <code>size</code> du manifeste est signé mais jamais comparé aux octets reçus ; seul le sha256 l'est.</li>
       <li><code>openApplication</code> sans option <code>publisher</code> accepte un bundle non signé : seul le Client générique exige une signature.</li>
-      <li>Un binaire compilé n'embarque pas <code>.airtty/app/</code> : il ne peut pas être ouvert par URL.</li>
-      <li>Avec <code>--on</code>, le Server distant est lancé par <code>serve --detach</code> (<Src path="packages/airtty/src/launcher/remote.ts" />) : il survit à la coupure de ssh pendant sa grâce, et relancer retrouve le même Server.</li>
+      <li>Un binaire compilé n'embarque pas <code>.luciole/app/</code> : il ne peut pas être ouvert par URL.</li>
+      <li>Avec <code>--on</code>, le Server distant est lancé par <code>serve --detach</code> (<Src path="packages/luciole/src/launcher/remote.ts" />) : il survit à la coupure de ssh pendant sa grâce, et relancer retrouve le même Server.</li>
     </ul>
   </Callout>
 

@@ -9,8 +9,8 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { launch, until, type TestUI } from "../../tests/helpers";
-import type { Application, ApplicationEvent } from "../../packages/airtty/src/client";
-import { messageOf } from "../../packages/airtty/src/guards";
+import type { Application, ApplicationEvent } from "../../packages/luciole/src/client";
+import { messageOf } from "../../packages/luciole/src/guards";
 import type { AbiSpecifier } from "../generic-client/abi";
 import { bundleApp, type AppBundle } from "../generic-client/bundle";
 import { EmbedShell, createPanes } from "../generic-client/host";
@@ -81,10 +81,10 @@ async function settle(ui: TestUI) {
 }
 const buildOf = (id: string) => id.split("/")[0] ?? "";
 
-const docs = await mkdtemp(join(tmpdir(), "airtty-inline-docs-"));
-const otherDocs = await mkdtemp(join(tmpdir(), "airtty-inline-docs-"));
+const docs = await mkdtemp(join(tmpdir(), "luciole-inline-docs-"));
+const otherDocs = await mkdtemp(join(tmpdir(), "luciole-inline-docs-"));
 await Bun.write(join(otherDocs, "README.md"), "# Second pane\n\nServed by another mdreader.\n");
-const files = await mkdtemp(join(tmpdir(), "airtty-inline-files-"));
+const files = await mkdtemp(join(tmpdir(), "luciole-inline-files-"));
 await Bun.write(join(docs, "README.md"), "# Handbook\n\nRendered by mdreader, inline.\n");
 await Bun.write(join(docs, "guide.md"), "# Guide\n\nThe next document.\n");
 await Bun.write(join(files, "alpha-inline.txt"), "alpha\n");
@@ -96,10 +96,10 @@ const bundles: Record<string, AppBundle> = {
   files: await bundleApp(fx.dir),
 };
 // Servers with the proposed instance prefix (instance-server.ts); a request without
-// `x-airtty-instance`, as in `today`, gets the ids src/server.ts writes now.
+// `x-luciole-instance`, as in `today`, gets the ids src/server.ts writes now.
 const start = (dir: string, env: Record<string, string>) =>
   launch(join(import.meta.dir, "instance-server.ts"), {
-    SERVER_ENTRY: join(dir, ".airtty/server/index.js"),
+    SERVER_ENTRY: join(dir, ".luciole/server/index.js"),
     ...env,
   });
 const servers = {
@@ -130,7 +130,7 @@ check(
 function evaluate(name: "mdreader" | "files", abi: (s: AbiSpecifier) => unknown): LoadedBundle {
   const b = bundles[name];
   if (!b) throw new Error(name);
-  return evaluateBundle(b.code, { filename: `airtty-app:${name}`, abi, builtins: b.builtins });
+  return evaluateBundle(b.code, { filename: `luciole-app:${name}`, abi, builtins: b.builtins });
 }
 
 /** Today: each Application with its own resolver, imported actions through `current`. */
@@ -139,7 +139,7 @@ async function today(rt: Runtime) {
   const mdBundle = evaluate("mdreader", (s) => base[s]);
   const fxBundle = evaluate("files", (s) => base[s]);
   const create = (b: LoadedBundle, url: string) =>
-    rt.airttyClient.createApplication({
+    rt.lucioleClient.createApplication({
       url,
       routeTree: b.routeTree,
       buildId: b.buildId,
@@ -154,7 +154,7 @@ async function today(rt: Runtime) {
   const fxApp = create(fxBundle, servers.files.url);
   const mdLog = record(mdApp);
   const fxLog = record(fxApp);
-  const { Shell } = rt.airttyClient;
+  const { Shell } = rt.lucioleClient;
   const ui = await testRender(
     <box flexDirection="row" flexGrow={1}>
       <box flexGrow={1} flexBasis={0}>

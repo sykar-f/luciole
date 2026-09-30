@@ -1,24 +1,24 @@
 ---
 title: Build and distribution
-description: What airtty build writes and how its build ID is made; compiled binaries, runtimes, targets and native modules; signing for macOS; the Server's lifetime; publishing to npm.
+description: What luciole build writes and how its build ID is made; compiled binaries, runtimes, targets and native modules; signing for macOS; the Server's lifetime; publishing to npm.
 sources:
   - docs/ARCHITECTURE.md
   - docs/DISTRIBUTION.md
   - docs/README.fr.md
-  - packages/airtty/src/build.ts
-  - packages/airtty/src/compile.ts
-  - packages/airtty/src/sign.ts
-  - packages/airtty/src/native.ts
-  - packages/airtty/src/launcher/lifetime.ts
-  - packages/airtty/src/registry
+  - packages/luciole/src/build.ts
+  - packages/luciole/src/compile.ts
+  - packages/luciole/src/sign.ts
+  - packages/luciole/src/native.ts
+  - packages/luciole/src/launcher/lifetime.ts
+  - packages/luciole/src/registry
 ---
 
 import Note from "../../../components/docs/Note.astro";
 
-## `airtty build`
+## `luciole build`
 
 ```text
-.airtty/
+.luciole/
   manifest.json   build ID, graphs, route graph and Client References
   metadata.json   display name, identifier, icon, arguments (from package.json and app/args.ts)
   client/         index.js (+ index.js.map)
@@ -36,8 +36,8 @@ import Note from "../../../components/docs/Note.astro";
   development as in production.
 - Artifacts are built in a temporary directory and published only once every part succeeded:
   a failed build leaves the last good one in place.
-- `airtty build` without `--compile` or `--web` does not touch the network.
-- `.airtty/app/` needs Client code without top-level `await` (CommonJS cannot express it):
+- `luciole build` without `--compile` or `--web` does not touch the network.
+- `.luciole/app/` needs Client code without top-level `await` (CommonJS cannot express it):
   without it the build succeeds without the app bundle and says where; `--app-bundle` makes
   that a failure.
 
@@ -50,15 +50,15 @@ packages of every platform, unlike `node_modules`, so binaries of each target of
 keep the same ID. The Client sends it with each request; a Server of another build refuses
 before decoding. Both roles must come from the same build.
 
-`.airtty/client` and `.airtty/server` are not a delivery format: they carry no manifest or
+`.luciole/client` and `.luciole/server` are not a delivery format: they carry no manifest or
 lockfile to install elsewhere. A machine of known platform gets a compiled binary; an unknown
-one starts from the source (`airtty git+…`), installed from its `bun.lock` and built there.
+one starts from the source (`luciole git+…`), installed from its `bun.lock` and built there.
 
 ## Compiled binaries
 
 ```sh
-airtty build --compile [--name notes] [--target t] [--client-only]
-# → .airtty/bin/<os>-<arch>/notes  (+ native/)
+luciole build --compile [--name notes] [--target t] [--client-only]
+# → .luciole/bin/<os>-<arch>/notes  (+ native/)
 ```
 
 One executable with the Bun runtime, OpenTUI's native library and the build ID inside. By
@@ -70,8 +70,8 @@ literal the launcher reads without running it; `notes --version` prints it.
 
 By default the binary embeds the official Bun runtime of the target, from npm
 (`@oven/bun-<os>-<arch>`, the build's Bun version): downloaded **once**, checked against the
-registry's published `integrity` (SHA-512), then reused from `$XDG_CACHE_HOME/airtty/runtime/`
-without the network. `airtty runtime [--target …]` fills that cache ahead of time; offline
+registry's published `integrity` (SHA-512), then reused from `$XDG_CACHE_HOME/luciole/runtime/`
+without the network. `luciole runtime [--target …]` fills that cache ahead of time; offline
 and without a cache, the build fails and says so. The checksum protects against a truncated
 or altered download, not against a compromised registry: npm signatures are not checked.
 
@@ -112,9 +112,9 @@ browser downloaded.
 
 ```sh
 # once: App Store Connect credentials in the keychain
-xcrun notarytool store-credentials airtty-notary --apple-id … --team-id … --password …
-airtty build --compile \
-  --sign "Developer ID Application: Example Ltd (TEAMID1234)" --notarize airtty-notary
+xcrun notarytool store-credentials luciole-notary --apple-id … --team-id … --password …
+luciole build --compile \
+  --sign "Developer ID Application: Example Ltd (TEAMID1234)" --notarize luciole-notary
 ```
 
 `--sign` signs with the hardened runtime, a secure timestamp and two entitlements
@@ -158,18 +158,18 @@ meaning of an operation whose outcome is `unknown`.
 ## Publishing to npm
 
 An app is published the way esbuild is: one package per platform with the binary, and a main
-package that lists them in `optionalDependencies` and in `airtty.binaries`.
+package that lists them in `optionalDependencies` and in `luciole.binaries`.
 
 ```sh
-airtty build --compile --name notes --target bun-darwin-arm64
-airtty build --compile --name notes --target bun-linux-x64 --native-dir …
-airtty pack --package @ada/notes --version 1.2.0 .airtty/bin/*/notes
+luciole build --compile --name notes --target bun-darwin-arm64
+luciole build --compile --name notes --target bun-linux-x64 --native-dir …
+luciole pack --package @ada/notes --version 1.2.0 .luciole/bin/*/notes
 ```
 
-`airtty pack` prints the order to publish in, platforms first. The registry is only read: the
+`luciole pack` prints the order to publish in, platforms first. The registry is only read: the
 launcher uses its public read API (package documents, tarballs, search), compares each tarball
 with its published `integrity`, and records what it installed locally, in
-`$XDG_DATA_HOME/airtty/apps/<app>/`. An update writes the new binary next to the old one,
+`$XDG_DATA_HOME/luciole/apps/<app>/`. An update writes the new binary next to the old one,
 switches `installed.json`, then removes the old one; a binary whose identity does not match
 its `package.json` is refused.
 
@@ -180,6 +180,6 @@ its `package.json` is refused.
 - A private npm registry (with a token) is not supported; `update` does not apply to git
   sources.
 - `install` does not detect musl: on Alpine it would pick the glibc binary.
-- A compiled binary does not embed `.airtty/app/`: it cannot be opened by URL.
+- A compiled binary does not embed `.luciole/app/`: it cannot be opened by URL.
 - A compiled Client is rebuilt from `index.js` without its source map: its stack traces stay
   in the bundle's coordinates.

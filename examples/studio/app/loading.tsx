@@ -1,7 +1,7 @@
 "use client";
-import { Line } from "@airtty/harness/ui/Line";
-import { Pulse } from "@airtty/harness/ui/Pulse";
-import { color } from "@airtty/harness/ui/theme";
+import { Line } from "@luciole/harness/ui/Line";
+import { Pulse } from "@luciole/harness/ui/Pulse";
+import { color } from "@luciole/harness/ui/theme";
 
 // The screen's frame while the Server renders it: nothing moves when it answers.
 export default function StudioLoading() {

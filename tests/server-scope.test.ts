@@ -9,35 +9,35 @@ import {
   LAUNCH_VARIABLE,
   planLaunch,
   remoteEnvironment,
-} from "../packages/airtty/src/launcher/launch-key";
+} from "../packages/luciole/src/launcher/launch-key";
 import {
   ensureServer,
   serverId,
   serverSocket,
   serverStatus,
   type EnsureOptions,
-} from "../packages/airtty/src/launcher/managed";
-import { argsFingerprint, encodeLaunchArgs } from "../packages/airtty/src/args";
+} from "../packages/luciole/src/launcher/managed";
+import { argsFingerprint, encodeLaunchArgs } from "../packages/luciole/src/args";
 import { leaveCrashedSession } from "./helpers";
 
 let work: string, runtime: string, env: NodeJS.ProcessEnv;
 beforeAll(async () => {
-  work = await mkdtemp(join(tmpdir(), "airtty-scope-"));
+  work = await mkdtemp(join(tmpdir(), "luciole-scope-"));
   // Short: socket paths must fit sun_path.
-  runtime = await mkdtemp("/tmp/airtty-sc-");
+  runtime = await mkdtemp("/tmp/luciole-sc-");
   env = {
     ...process.env,
     XDG_RUNTIME_DIR: runtime,
     XDG_STATE_HOME: join(work, "state"),
     TEST_BUILD_ID: "build-1",
-    AIRTTY_WATCHDOG_MS: "600",
+    LUCIOLE_WATCHDOG_MS: "600",
   };
 });
 afterAll(async () => {
-  for (const entry of readdirSync(join(runtime, "airtty")).filter((e) => e.endsWith(".sock")))
+  for (const entry of readdirSync(join(runtime, "luciole")).filter((e) => e.endsWith(".sock")))
     await fetch("http://localhost/lifetime/stop", {
       method: "POST",
-      unix: join(runtime, "airtty", entry),
+      unix: join(runtime, "luciole", entry),
     }).catch(() => undefined);
   await rm(work, { recursive: true, force: true });
   await rm(runtime, { recursive: true, force: true });
@@ -111,7 +111,7 @@ test("a relaunch claims the session of a crashed launch whose Server is in grace
   expect(back?.key).toBe(crashed.key);
   expect(back?.launch.id).toBe(crashed.launch.id);
   // Marked with this process until the Client it starts opens it.
-  const file = join(work, "state/airtty/scope/sessions", `${back?.session}.json`);
+  const file = join(work, "state/luciole/scope/sessions", `${back?.session}.json`);
   expect(JSON.parse(readFileSync(file, "utf8"))).toMatchObject({
     pid: process.pid,
     server: crashed.key,
@@ -124,7 +124,7 @@ test("a relaunch claims the session of a crashed launch whose Server is in grace
 test("a Server holding other arguments is never reattached", async () => {
   const key = "local:/apps/fingerprint";
   const withArgs = (name: string) => ({
-    env: { ...env, TEST_ARGS: "1", AIRTTY_ARGS: encodeLaunchArgs(["--name", name]) },
+    env: { ...env, TEST_ARGS: "1", LUCIOLE_ARGS: encodeLaunchArgs(["--name", name]) },
     fingerprint: argsFingerprint({ name }),
   });
   const first = await server(key, withArgs("ada"));
@@ -145,8 +145,8 @@ test("--on sends the arguments and the launch; the remote directory completes th
       "/home/ada",
     ),
   ).toEqual({
-    AIRTTY_ARGS: JSON.stringify({ v: 1, argv: ["-H", "codex"], cwd: "/home/ada" }),
-    AIRTTY_LAUNCH: JSON.stringify({ v: 1, scope: "per-launch", id: "L1", cwd: "/home/ada" }),
+    LUCIOLE_ARGS: JSON.stringify({ v: 1, argv: ["-H", "codex"], cwd: "/home/ada" }),
+    LUCIOLE_LAUNCH: JSON.stringify({ v: 1, scope: "per-launch", id: "L1", cwd: "/home/ada" }),
   });
   expect(remoteEnvironment("{}", "/")).toEqual({});
   expect(() => remoteEnvironment('{"launch":{"scope":"all"}}', "/")).toThrow("env-stdin");

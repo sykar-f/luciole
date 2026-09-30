@@ -1,9 +1,9 @@
 import { expect, test } from "bun:test";
 import { z } from "zod";
-import { PRIMITIVE_NODES } from "../packages/airtty/src/devtools/fibers";
+import { PRIMITIVE_NODES } from "../packages/luciole/src/devtools/fibers";
 
 const Output = z.object({
-  owner: z.enum(["airtty", "react-devtools"]),
+  owner: z.enum(["luciole", "react-devtools"]),
   renderers: z.number(),
   commits: z.array(z.array(z.object({ name: z.string(), unnecessary: z.boolean() }))),
   tree: z.array(
@@ -25,7 +25,7 @@ const Output = z.object({
 // The fixture runs in its own process, with the hook preloaded as docs/DEVTOOLS.md says.
 async function spawnFixture(fixture: string, env: Record<string, string> = {}) {
   const child = Bun.spawn(
-    [process.execPath, "--preload", "./packages/airtty/src/devtools/hook.ts", fixture],
+    [process.execPath, "--preload", "./packages/luciole/src/devtools/hook.ts", fixture],
     {
       env: { ...process.env, ...env },
       stdout: "pipe",
@@ -52,7 +52,7 @@ const byName = (output: z.infer<typeof Output>, name: string) =>
 
 test("the preloaded hook counts renders, their reasons and the unnecessary ones", async () => {
   const output = await run();
-  expect(output.owner).toBe("airtty");
+  expect(output.owner).toBe("luciole");
   // Mount, then a state update in Counter, then a context change from App.
   expect(output.commits.slice(1)).toEqual([
     [

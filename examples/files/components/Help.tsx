@@ -1,5 +1,5 @@
 "use client";
-import { KeyHelp } from "airtty/client";
+import { KeyHelp } from "luciole/client";
 import { color } from "./theme";
 
 // The help line of a screen, generated from the keymap layers mounted right now.

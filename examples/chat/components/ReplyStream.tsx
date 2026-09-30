@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef } from "react";
-import { TransportError, useLive } from "airtty/client";
+import { TransportError, useLive } from "luciole/client";
 import { reply } from "../actions/chat";
 import { chats, type Assistant } from "./conversations";
 

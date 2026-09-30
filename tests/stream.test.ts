@@ -2,8 +2,8 @@ import { expect, test } from "bun:test";
 import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
 import { z } from "zod";
-import { isAsyncIterable } from "../packages/airtty/src/guards";
-import { createHttpTransport } from "../packages/airtty/src/transport";
+import { isAsyncIterable } from "../packages/luciole/src/guards";
+import { createHttpTransport } from "../packages/luciole/src/transport";
 
 const Job = z.tuple([
   z.literal("job"),

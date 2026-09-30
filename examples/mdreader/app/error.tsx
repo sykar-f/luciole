@@ -1,5 +1,5 @@
 "use client";
-import { TransportError, type ErrorProps } from "airtty/client";
+import { TransportError, type ErrorProps } from "luciole/client";
 import { Column, DocFrame, Line } from "../components/frames";
 import { Help } from "../components/Help";
 import { color } from "../components/theme";

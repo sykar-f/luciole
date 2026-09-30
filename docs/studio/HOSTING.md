@@ -1,7 +1,7 @@
 # Étude : studio hébergé, l'onglet « Try it (beta) »
 
 > **Statut : étude, rien n'est implémenté.** Branche `studio/hosting-study`, 2026-09-27.
-> Le studio lui-même (chat + harness qui génère une app airtty + aperçu live) est spécifié
+> Le studio lui-même (chat + harness qui génère une app luciole + aperçu live) est spécifié
 > ailleurs (`docs/studio/SPEC.md`, cluster C5a). Ce document ne traite que de sa version
 > **hébergée** : un visiteur du site génère sa première app TUI en ligne.
 > Les faits externes (prix, API, produits) renvoient à la [section Sources](#sources), toutes
@@ -14,9 +14,9 @@
   et un SharedWorker, [WEB.md](../WEB.md)). Elle est servie depuis une origine jetable, à part
   du site. Cela contourne la lacune « pas de PTY dans le navigateur » : l'aperçu n'est plus un
   `<Terminal>` dans le studio, c'est un second `iframe` à côté du studio.
-- **Ce qui tourne chez nous, dans une microVM par session** : pi (en RPC), le build airtty et
+- **Ce qui tourne chez nous, dans une microVM par session** : pi (en RPC), le build luciole et
   le Server du studio. Construire exécute déjà du code généré (`app/args.ts` est évalué par le
-  build, `packages/airtty/src/build.ts:155`), et pi n'a aucun système de permissions. Il faut
+  build, `packages/luciole/src/build.ts:155`), et pi n'a aucun système de permissions. Il faut
   donc une vraie isolation, quel que soit le réglage des outils.
 - **La clé LLM n'entre jamais dans le bac à sable.** pi appelle OpenRouter avec une clé
   factice. Un proxy de sortie tenu par nous (ou le handler `outbound` de Cloudflare Sandbox)
@@ -37,14 +37,14 @@
 ### Ce qui tourne où
 
 ```text
- navigateur du visiteur (https://airtty.dev/try)
+ navigateur du visiteur (https://luciole.sh/try)
 ┌──────────────────────────────────────────────────────────────────────────────────┐
 │ page hôte (site, origine de confiance) : login GitHub, Turnstile, saisie BYOK,   │
 │ file d'attente, compteur de quota, bouton « télécharger le projet »              │
 │  ┌───────────────────────────────┐                 ┌──────────────────────────┐  │
 │  │ iframe studio (Client web)    │   postMessage   │ iframe aperçu web-local  │  │
 │  │ <sid>.studio.<domaine>        │ ◀─────────────▶ │ <sid>.<domaine-contenu>  │  │
-│  │ runtime web airtty            │  « build prêt » │ Client + Server de l'app │  │
+│  │ runtime web luciole            │  « build prêt » │ Client + Server de l'app │  │
 │  │ + xterm.js                    │                 │ générée : SharedWorker,  │  │
 │  └───────────────┬───────────────┘                 │ SQLite WASM, OPFS        │  │
 │                  │ HTTPS (Flight, live)            └────────────▲─────────────┘  │
@@ -53,30 +53,30 @@
                    ▼                                              │ (R2, TTL 24 h)
 ┌──────────────────────────────────────────┐          ┌───────────┴───────────────┐
 │ Worker « contrôle » + Durable Object par │ copie des│ Worker « contenu » :      │
-│ session : auth, quotas, file, clé BYOK   │ artefacts│ sert .airtty/web/ d'une   │
+│ session : auth, quotas, file, clé BYOK   │ artefacts│ sert .luciole/web/ d'une   │
 │ en mémoire, routage vers la VM           │ ───────▶ │ session, CSP stricte      │
 └──────────────────┬───────────────────────┘          └───────────────────────────┘
                    │ requêtes vers la VM de la session
                    ▼
 ┌──────────────────────────────────────────────────────────────────────────────────┐
 │ microVM de la session (bac à sable, jetable, sans secret)                        │
-│  Server du studio (airtty, --web, AIRTTY_WEB_ORIGIN = origine studio)            │
+│  Server du studio (luciole, --web, LUCIOLE_WEB_ORIGIN = origine studio)            │
 │   └─ pi --mode rpc (utilisateur non privilégié, --no-session)                    │
 │        └─ outils : read/write/edit/ls/grep/find + « build » (extension)          │
-│  projet : starter airtty, node_modules pré-installés dans l'image                │
+│  projet : starter luciole, node_modules pré-installés dans l'image                │
 │  egress : tout refusé sauf openrouter.ai ─▶ handler outbound / proxy             │
 │           qui remplace l'en-tête Authorization (clé factice → vraie clé)         │
 └──────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-| Élément                       | Où                                        | Pourquoi là                                                                                                                                        |
-| ----------------------------- | ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Harness pi                    | microVM de la session                     | il exécute du code choisi par un LLM piloté par un anonyme ; pi « does not include a built-in permission system » (README pi)                      |
-| Build (`airtty build`, `tsc`) | même microVM, via l'outil `build`         | le build évalue `app/args.ts` (`build.ts:155`) : construire, c'est exécuter                                                                        |
-| Server du studio              | même microVM                              | il pilote pi et le build en local ; une VM par session évite un Server multi-tenant (même choix que `"server": "per-launch"` de coder)             |
-| Client du studio              | navigateur, Client web (`--web`)          | forme existante : même origine pour shell et API, bearer en mémoire ([WEB.md § 3](../WEB.md#client-web--vrai-server))                              |
-| **App générée**               | **navigateur du visiteur**, `--web-local` | coût de calcul nul chez nous ; la frontière est le bac à sable du navigateur ; ~185 Ko gzip par app en plus du runtime partagé (mesure ci-dessous) |
-| Clés LLM, quotas, file        | Worker + Durable Object (hors VM)         | tout ce qui doit survivre à une VM compromise reste dehors                                                                                         |
+| Élément                        | Où                                        | Pourquoi là                                                                                                                                        |
+| ------------------------------ | ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Harness pi                     | microVM de la session                     | il exécute du code choisi par un LLM piloté par un anonyme ; pi « does not include a built-in permission system » (README pi)                      |
+| Build (`luciole build`, `tsc`) | même microVM, via l'outil `build`         | le build évalue `app/args.ts` (`build.ts:155`) : construire, c'est exécuter                                                                        |
+| Server du studio               | même microVM                              | il pilote pi et le build en local ; une VM par session évite un Server multi-tenant (même choix que `"server": "per-launch"` de coder)             |
+| Client du studio               | navigateur, Client web (`--web`)          | forme existante : même origine pour shell et API, bearer en mémoire ([WEB.md § 3](../WEB.md#client-web--vrai-server))                              |
+| **App générée**                | **navigateur du visiteur**, `--web-local` | coût de calcul nul chez nous ; la frontière est le bac à sable du navigateur ; ~185 Ko gzip par app en plus du runtime partagé (mesure ci-dessous) |
+| Clés LLM, quotas, file         | Worker + Durable Object (hors VM)         | tout ce qui doit survivre à une VM compromise reste dehors                                                                                         |
 
 ### La lacune « pas de PTY dans le navigateur »
 
@@ -98,16 +98,16 @@ Le protocole `postMessage` de [WEB.md § Page embarquée](../WEB.md#page-embarqu
 `stage`, `input`) ne vaut qu'entre même origine ; ici, la page hôte et l'aperçu ont des
 origines différentes par construction : la page hôte ne fait que changer l'URL de l'`iframe`.
 
-**Constat mesuré (2026-09-27, M1 Pro, starter `airtty init`) :**
+**Constat mesuré (2026-09-27, M1 Pro, starter `luciole init`) :**
 
 | Mesure                                               | Valeur                                                                                                                              |
 | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
 | `bun install` du starter (cache chaud)               | 2,1 s ; `node_modules` 397 Mo                                                                                                       |
-| `airtty build` (1er / 2e)                            | 2,4 s / 1,0 s                                                                                                                       |
+| `luciole build` (1er / 2e)                           | 2,4 s / 1,0 s                                                                                                                       |
 | `tsc --noEmit` (`bun run check`)                     | 2,3 s                                                                                                                               |
-| `airtty build --web` (runtime web en cache)          | 7,0 s                                                                                                                               |
-| `airtty build --web-local` (1er / 2e)                | 2,4 s / 1,1 s                                                                                                                       |
-| `.airtty/web/` total                                 | 20 Mo, dont `runtime.js` 652 Ko gzip, `opentui.wasm` 452 Ko, `sqlite3.wasm` 402 Ko, `tree-sitter/` 3,6 Mo, cartes de sources 9,6 Mo |
+| `luciole build --web` (runtime web en cache)         | 7,0 s                                                                                                                               |
+| `luciole build --web-local` (1er / 2e)               | 2,4 s / 1,1 s                                                                                                                       |
+| `.luciole/web/` total                                | 20 Mo, dont `runtime.js` 652 Ko gzip, `opentui.wasm` 452 Ko, `sqlite3.wasm` 402 Ko, `tree-sitter/` 3,6 Mo, cartes de sources 9,6 Mo |
 | Propre à l'app                                       | `app/` 28 Ko + `server-worker.js` 157 Ko gzip                                                                                       |
 | Import de `node:child_process` dans un module Server | **le build `--web-local` réussit** : l'appel échouerait seulement à l'usage                                                         |
 
@@ -121,9 +121,9 @@ des built-ins importés par le graphe Server, ou un chargement headless de l'ape
 
 ### Le studio dans le navigateur
 
-Le studio est une app airtty. Hébergé, il est servi en **Client web** par son Server dans la
+Le studio est une app luciole. Hébergé, il est servi en **Client web** par son Server dans la
 VM : le Worker de contrôle relaie `https://<sid>.studio.<domaine>/*` vers la VM de la session.
-Chaque VM démarre avec `AIRTTY_WEB_ORIGIN=https://<sid>.studio.<domaine>`. Une origine par
+Chaque VM démarre avec `LUCIOLE_WEB_ORIGIN=https://<sid>.studio.<domaine>`. Une origine par
 session respecte la règle « une seule origine déclarée » du Server (WEB.md § 3) sans la
 modifier. Il faut un DNS wildcard, ce que les preview URLs de Cloudflare Sandbox exigent aussi.
 
@@ -142,13 +142,13 @@ Client web existe déjà. C'est un point à trancher (§ 7).
 2. Le Worker de contrôle vérifie son quota, le place en file ou lui attribue une VM, et lui
    crée (ou réutilise) sa clé OpenRouter plafonnée.
 3. La VM démarre depuis une image qui contient déjà le starter, `node_modules`, pi et le
-   runtime web (`airtty web-runtime`, ~30 s et du réseau selon WEB.md : fait au build de
+   runtime web (`luciole web-runtime`, ~30 s et du réseau selon WEB.md : fait au build de
    l'image, jamais en session). Démarrage annoncé : 1 à 3 s selon la taille de l'image.
 4. Le visiteur décrit son app. pi écrit le code et appelle l'outil `build`. En cas d'échec,
    l'erreur revient à pi. En cas de succès, les artefacts propres à l'app sont copiés vers R2
    et l'aperçu est rechargé.
 5. Fin : 30 min au plus, ou 10 min d'inactivité. La VM est détruite, et le visiteur peut
-   télécharger son projet (zip des sources) pour continuer en local avec `airtty dev`.
+   télécharger son projet (zip des sources) pour continuer en local avec `luciole dev`.
    L'aperçu expire 24 h plus tard.
 
 ## 2. Isolation
@@ -171,7 +171,7 @@ exécute `app/args.ts`, et un Bun macro exécuterait du code au bundling. On sup
 
 **Outils de pi.** Recommandé : `--tools read,write,edit,ls,grep,find`, plus un outil `build`
 enregistré par une extension (`pi.registerTool`, rapport pi) qui lance une commande fixe :
-`airtty build --web-local`, `tsc --noEmit` et la vérification des built-ins. On perd `bash`
+`luciole build --web-local`, `tsc --noEmit` et la vérification des built-ins. On perd `bash`
 (installer un paquet, lancer un script arbitraire), mais on gagne un comportement prévisible
 et des erreurs structurées. Cela réduit la surface sans remplacer la VM. À vérifier
 (sonde P1) : qu'un outil d'extension reste actif sous `--tools`.
@@ -321,7 +321,7 @@ Variante hors Cloudflare (E2B, Fly) : pi pointe vers notre propre proxy LLM via 
 ### Hypothèses
 
 - **Session type** : 20 min, 5 demandes du visiteur, ~40 appels LLM au total (boucle
-  d'outils). Contexte moyen par appel ~30 k tokens (prompt système, guide airtty condensé,
+  d'outils). Contexte moyen par appel ~30 k tokens (prompt système, guide luciole condensé,
   fichiers lus), dont **80 % en cache**, et ~1,5 k tokens de sortie par appel. Soit **1,2 M
   tokens d'entrée** (0,96 M en cache, 0,24 M hors cache) et **60 k tokens de sortie**. Ces
   chiffres sont les plus incertains du document : le banc (§ 6) les mesure.
@@ -373,7 +373,7 @@ dédiée plafonnée à ce montant. Une variante gratuite existe, sur des modèle
 `qwen/qwen3.8-27b:free` (20 requêtes/min, 50 par jour), mais elle n'est pas représentative.
 
 **Montage.** Le même que la production : image de VM, pi 0.87.x en RPC, mêmes outils (dont
-`build`), même prompt système et même guide airtty condensé. Seul le modèle change
+`build`), même prompt système et même guide luciole condensé. Seul le modèle change
 (`--model openrouter/<id>`, routage OpenRouter forcé sur le fournisseur d'origine).
 `--no-session`, température par défaut.
 
@@ -418,17 +418,17 @@ médian départage. Les tokens mesurés remplacent les hypothèses du § 5.
 
 ### Risques
 
-| Risque                                                                                                                            | Effet                                      | Parade                                                                                |
-| --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------- |
-| API Cloudflare Sandbox en mouvement (SDK 1.0, `exposePort` déprécié, Tunnels et egress non vérifiés)                              | prototype à réécrire                       | P3 d'abord ; couche fine autour du fournisseur ; E2B en plan B                        |
-| Modèle bon marché trop faible sur airtty (framework récent, absent des données d'entraînement)                                    | builds ratés, mauvaise première impression | guide airtty condensé dans le prompt, outil `build` aux erreurs structurées, banc § 6 |
-| Tokens par session sous-estimés                                                                                                   | coût × 2 ou × 3                            | plafond par session appliqué par la clé ; mesure au banc                              |
-| Abus malgré GitHub (fermes de comptes)                                                                                            | budget consommé                            | âge du compte, Turnstile, plafond global dur, arrêt d'urgence                         |
-| Contenu généré abusif dans l'aperçu                                                                                               | réputation, signalements                   | domaine séparé, URL signée, TTL, pas de partage en v1                                 |
-| Build `--web-local` qui accepte `fs`/`child_process` (mesuré)                                                                     | aperçu cassé à l'usage                     | vérification des built-ins dans l'outil `build`                                       |
-| Dépendance au prix et à la disponibilité d'un modèle (DeepSeek : `deepseek-v4-pro` routé vers Flash, page de prix contradictoire) | prix ou comportement qui changent          | OpenRouter : changer de modèle = changer un id ; banc rejouable                       |
-| Données des visiteurs chez des fournisseurs tiers                                                                                 | conformité (RGPD)                          | vérifier les politiques de conservation ; choisir les endpoints ; l'annoncer          |
-| Poids de l'aperçu (runtime + wasm ≈ 1,5 Mo gzip au premier chargement, `tree-sitter/` à la demande)                               | attente au premier aperçu                  | cache long sur l'origine de contenu ; chargement pendant que l'agent travaille        |
+| Risque                                                                                                                            | Effet                                      | Parade                                                                                 |
+| --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ | -------------------------------------------------------------------------------------- |
+| API Cloudflare Sandbox en mouvement (SDK 1.0, `exposePort` déprécié, Tunnels et egress non vérifiés)                              | prototype à réécrire                       | P3 d'abord ; couche fine autour du fournisseur ; E2B en plan B                         |
+| Modèle bon marché trop faible sur luciole (framework récent, absent des données d'entraînement)                                   | builds ratés, mauvaise première impression | guide luciole condensé dans le prompt, outil `build` aux erreurs structurées, banc § 6 |
+| Tokens par session sous-estimés                                                                                                   | coût × 2 ou × 3                            | plafond par session appliqué par la clé ; mesure au banc                               |
+| Abus malgré GitHub (fermes de comptes)                                                                                            | budget consommé                            | âge du compte, Turnstile, plafond global dur, arrêt d'urgence                          |
+| Contenu généré abusif dans l'aperçu                                                                                               | réputation, signalements                   | domaine séparé, URL signée, TTL, pas de partage en v1                                  |
+| Build `--web-local` qui accepte `fs`/`child_process` (mesuré)                                                                     | aperçu cassé à l'usage                     | vérification des built-ins dans l'outil `build`                                        |
+| Dépendance au prix et à la disponibilité d'un modèle (DeepSeek : `deepseek-v4-pro` routé vers Flash, page de prix contradictoire) | prix ou comportement qui changent          | OpenRouter : changer de modèle = changer un id ; banc rejouable                        |
+| Données des visiteurs chez des fournisseurs tiers                                                                                 | conformité (RGPD)                          | vérifier les politiques de conservation ; choisir les endpoints ; l'annoncer           |
+| Poids de l'aperçu (runtime + wasm ≈ 1,5 Mo gzip au premier chargement, `tree-sitter/` à la demande)                               | attente au premier aperçu                  | cache long sur l'origine de contenu ; chargement pendant que l'agent travaille         |
 
 ### Points à trancher par l'utilisateur
 
@@ -455,10 +455,10 @@ médian départage. Les tokens mesurés remplacent les hypothèses du § 5.
 
 Toutes consultées le 2026-09-27.
 
-**Dépôt airtty** : [README.md](../../README.md), [WEB.md](../WEB.md),
+**Dépôt luciole** : [README.md](../../README.md), [WEB.md](../WEB.md),
 [EMBEDDING.md](../EMBEDDING.md), [DISTRIBUTION.md](../DISTRIBUTION.md),
 [CODER-HANDOFF.md](../CODER-HANDOFF.md), [pi-report.md](../coder/research/pi-report.md),
-`packages/airtty/src/build.ts:155` (évaluation d'`app/args.ts`), mesures locales ci-dessus.
+`packages/luciole/src/build.ts:155` (évaluation d'`app/args.ts`), mesures locales ci-dessus.
 
 **pi**
 
@@ -493,4 +493,4 @@ Toutes consultées le 2026-09-27.
 d'extension pi actif sous `--tools` ; le paramètre `limit` sur l'URL `/auth` d'OpenRouter ;
 le démarrage à froid officiel d'E2B et de Modal ; le prix du mode VM de Daytona ; le statut
 réel de `deepseek-v4-pro` ; les politiques de conservation des données d'OpenRouter et des
-fournisseurs ; la qualité de chaque modèle sur airtty (banc § 6).
+fournisseurs ; la qualité de chaque modèle sur luciole (banc § 6).

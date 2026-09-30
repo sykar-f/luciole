@@ -1,5 +1,5 @@
 /**
- * `airtty ./app` for an app whose package.json says `"server": "per-launch"`, on PTYs:
+ * `luciole ./app` for an app whose package.json says `"server": "per-launch"`, on PTYs:
  * two launches in one directory get a Server each; a Client killed with SIGKILL leaves
  * its Server in grace and the next launch takes that launch over (same Server, same
  * typed text); `--new` starts another; Ctrl+C stops each. Offline.
@@ -15,7 +15,7 @@ import {
 } from "node:fs";
 import { dirname, join } from "node:path";
 import { z } from "zod";
-import { LifetimeStatus } from "../../packages/airtty/src/launcher/lifetime";
+import { LifetimeStatus } from "../../packages/luciole/src/launcher/lifetime";
 import { ctrl, drive, type Driver } from "./driver";
 import { BUN, CLI, ROOT, defer, eventually, report, temporaryDirectory } from "./harness";
 
@@ -31,14 +31,14 @@ const APP: Record<string, string> = {
     name: "launches",
     private: true,
     type: "module",
-    airtty: { server: "per-launch", grace: "1m" },
+    luciole: { server: "per-launch", grace: "1m" },
   }),
-  "app/args.ts": `import { defineArgs } from "airtty/args";
+  "app/args.ts": `import { defineArgs } from "luciole/args";
 import { z } from "zod";
 export default defineArgs({ options: z.object({ label: z.string().default("plain") }).strict() });`,
   "app/layout.tsx": `"use client";
 import { useState } from "react";
-import { Input } from "airtty/client";
+import { Input } from "luciole/client";
 export default function Layout({ children }) {
   const [text, setText] = useState("");
   return (
@@ -48,7 +48,7 @@ export default function Layout({ children }) {
     </box>
   );
 }`,
-  "app/page.tsx": `import { getLaunch } from "airtty/server";
+  "app/page.tsx": `import { getLaunch } from "luciole/server";
 import cli from "./args";
 export default function Page() {
   const launch = getLaunch();
@@ -70,9 +70,9 @@ async function status(socket: string) {
   }
 }
 
-using directory = temporaryDirectory("airtty-pty-launches-");
+using directory = temporaryDirectory("luciole-pty-launches-");
 // Under /tmp: a Unix socket's path is short (104 bytes on macOS).
-using runtime = temporaryDirectory("airtty-rt-", "/tmp");
+using runtime = temporaryDirectory("luciole-rt-", "/tmp");
 const app = join(directory.path, "launches");
 for (const [name, text] of Object.entries(APP)) {
   mkdirSync(dirname(join(app, name)), { recursive: true });
@@ -81,9 +81,9 @@ for (const [name, text] of Object.entries(APP)) {
 symlinkSync(join(ROOT, "node_modules"), join(app, "node_modules"), "dir");
 const project = join(directory.path, "project");
 mkdirSync(project);
-const sessions = join(directory.path, "state/airtty/launches/sessions");
+const sessions = join(directory.path, "state/luciole/launches/sessions");
 const sockets = () => {
-  const at = join(runtime.path, "airtty");
+  const at = join(runtime.path, "luciole");
   return existsSync(at)
     ? readdirSync(at)
         .filter((name) => name.endsWith(".sock"))
@@ -105,7 +105,7 @@ const start = (...args: string[]) =>
     env: {
       XDG_STATE_HOME: join(directory.path, "state"),
       XDG_RUNTIME_DIR: runtime.path,
-      AIRTTY_PING_MS: "500",
+      LUCIOLE_PING_MS: "500",
     },
   });
 const wait = (t: Driver, text: string | RegExp) => t.waitFor(text, { timeout: TIMEOUT_MS });

@@ -23,13 +23,13 @@ const Results = z.object({
 // The browser build's Buffer is Bun's polyfill, not the runtime's: bundle for the browser,
 // let the bundle compute, and compare with Bun's Buffer.
 test("the browser's Buffer encodes and decodes base64url as Bun's does", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "airtty-buffer-"));
+  const directory = mkdtempSync(join(tmpdir(), "luciole-buffer-"));
   try {
     const entry = join(directory, "entry.ts");
     await Bun.write(
       entry,
       `import { Buffer } from "node:buffer";
-import ${JSON.stringify(join(import.meta.dir, "../packages/airtty/src/web/node/buffer-base64url.ts"))};
+import ${JSON.stringify(join(import.meta.dir, "../packages/luciole/src/web/node/buffer-base64url.ts"))};
 const cases = ${JSON.stringify(LENGTHS.map(bytesOf))}.map((bytes) => {
   const encoded = Buffer.from(bytes).toString("base64url");
   return {

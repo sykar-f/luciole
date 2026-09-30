@@ -2,9 +2,9 @@ import { expect, test } from "bun:test";
 import { copyFile, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { build } from "../packages/airtty/src/build";
-import { compileClient, hostTarget, runtimePortability } from "../packages/airtty/src/compile";
-import { messageOf } from "../packages/airtty/src/guards";
+import { build } from "../packages/luciole/src/build";
+import { compileClient, hostTarget, runtimePortability } from "../packages/luciole/src/compile";
+import { messageOf } from "../packages/luciole/src/guards";
 import { launch, rejectionOf } from "./helpers";
 
 const root = resolve("examples/notes");
@@ -22,8 +22,8 @@ const inPty = (log: string, command: string) => {
 
 test("the compiled Client runs alone: no Bun, no node_modules, same build as its Server", async () => {
   const { output, buildId } = await build(root);
-  const work = await mkdtemp(join(tmpdir(), "airtty-compile-"));
-  const server = await launch(join(root, ".airtty/server/index.js"), {
+  const work = await mkdtemp(join(tmpdir(), "luciole-compile-"));
+  const server = await launch(join(root, ".luciole/server/index.js"), {
     NOTES_DB: join(work, "notes.sqlite"),
   });
   try {
@@ -51,7 +51,7 @@ test("the compiled Client runs alone: no Bun, no node_modules, same build as its
       expect(text).toContain("com.apple.security.cs.disable-library-validation");
     }
     // An empty directory, far from any node_modules, with a minimal environment.
-    const run = await mkdtemp(join(tmpdir(), "airtty-run-"));
+    const run = await mkdtemp(join(tmpdir(), "luciole-run-"));
     await copyFile(outfile, join(run, "client"));
     const log = join(run, "screen.log");
     const client = Bun.spawn(inPty(log, `./client --url ${server.url}`), {
@@ -106,7 +106,7 @@ test.if(runtimePortability(process.execPath) !== undefined)(
   "--portable refuses a runtime other machines could not start, before compiling",
   async () => {
     const { output } = await build(root);
-    const outfile = join(tmpdir(), "airtty-never-portable");
+    const outfile = join(tmpdir(), "luciole-never-portable");
     const refused = await rejectionOf(
       compileClient(output, { name: "notes", outfile, runtime: "host", portable: true }),
     );
@@ -137,7 +137,7 @@ test("signing is only accepted where it can succeed", async () => {
 test("a publishing flag without its value is refused before any build", () => {
   const cli = (...flags: string[]) =>
     Bun.spawnSync(
-      [process.execPath, "packages/airtty/src/cli.ts", "build", "--compile", ...flags],
+      [process.execPath, "packages/luciole/src/cli.ts", "build", "--compile", ...flags],
       {
         stdout: "pipe",
         stderr: "pipe",

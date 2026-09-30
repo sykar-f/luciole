@@ -4,7 +4,7 @@ import type { ThemeRegistration } from "shiki";
 // Server accents. Shiki writes each token's colour as it is given, so a var() follows the
 // preset in use without building the page again.
 export const night: ThemeRegistration = {
-  name: "airtty-palette",
+  name: "luciole-palette",
   type: "dark",
   colors: { "editor.background": "var(--code-bg)", "editor.foreground": "var(--paper)" },
   tokenColors: [

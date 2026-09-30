@@ -1,6 +1,6 @@
 # Handoff : l'écran live ne correspond pas toujours à sa capture
 
-Branche `fix/live-demo-mismatch`, worktree herdr `~/.herdr/worktrees/airtty/fix-live-demo-mismatch`,
+Branche `fix/live-demo-mismatch`, worktree herdr `~/.herdr/worktrees/luciole/fix-live-demo-mismatch`,
 partie de `main` à `bd36eb4`.
 
 ## Le symptôme
@@ -16,16 +16,16 @@ soit).
 
 ## Où est le code
 
-| Fichier                                                    | Rôle                                                                                                                                 |
-| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `website/src/components/LiveTerminal.astro`                | Poster xterm (`stand`), `iframe`, script (`play`), révélation (`reveal`), prise du clavier, `live:start` / `live:stop`               |
-| `website/src/components/Hero.astro`                        | Forge, script `signIn` : alice ⏎ forge ⏎, `j`, ⏎, but « wants to merge feature/refund-idempotency »                                  |
-| `website/src/components/Apps.astro`                        | Galerie : Forge (script `toDiff`), Chat (`ask`, but « Done. »), mdreader, DevTools ; une seule démo vivante                          |
-| `website/src/components/Wire.astro`                        | Notes (Latency), sans script                                                                                                         |
-| `website/src/lib/frames.ts`                                | `ansi(frame)` : la capture en séquences ANSI                                                                                         |
-| `website/scripts/capture.py`                               | Les captures (PTY + pyte), `AIRTTY_DESKTOP=1`, horloge Forge fixe                                                                    |
-| `website/scripts/demo.ts`                                  | Build des démos dans `public/demo/<app>/`, runtime partagé, `server-seed.json` (env, fichiers)                                       |
-| `packages/airtty/src/web/embed.ts`, `web/platform/run.tsx` | Contrat d'embarquement (étapes, `input`, `network`, `event`, `?columns&rows&background&foreground`) ; docs/WEB.md « Page embarquée » |
+| Fichier                                                     | Rôle                                                                                                                                 |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `website/src/components/LiveTerminal.astro`                 | Poster xterm (`stand`), `iframe`, script (`play`), révélation (`reveal`), prise du clavier, `live:start` / `live:stop`               |
+| `website/src/components/Hero.astro`                         | Forge, script `signIn` : alice ⏎ forge ⏎, `j`, ⏎, but « wants to merge feature/refund-idempotency »                                  |
+| `website/src/components/Apps.astro`                         | Galerie : Forge (script `toDiff`), Chat (`ask`, but « Done. »), mdreader, DevTools ; une seule démo vivante                          |
+| `website/src/components/Wire.astro`                         | Notes (Latency), sans script                                                                                                         |
+| `website/src/lib/frames.ts`                                 | `ansi(frame)` : la capture en séquences ANSI                                                                                         |
+| `website/scripts/capture.py`                                | Les captures (PTY + pyte), `LUCIOLE_DESKTOP=1`, horloge Forge fixe                                                                   |
+| `website/scripts/demo.ts`                                   | Build des démos dans `public/demo/<app>/`, runtime partagé, `server-seed.json` (env, fichiers)                                       |
+| `packages/luciole/src/web/embed.ts`, `web/platform/run.tsx` | Contrat d'embarquement (étapes, `input`, `network`, `event`, `?columns&rows&background&foreground`) ; docs/WEB.md « Page embarquée » |
 
 ## Comment la révélation se décide aujourd'hui
 
@@ -39,7 +39,7 @@ soit).
 ## Hypothèses, de la plus probable à la moins probable
 
 1. **Session restaurée.** Le runtime web garde l'historique et les champs dans
-   `localStorage` (`airtty:session:<app>:<server>`, `web/platform/run.tsx`) : une deuxième
+   `localStorage` (`luciole:session:<app>:<server>`, `web/platform/run.tsx`) : une deuxième
    visite rouvre la dernière route du lecteur, pas celle de la capture. Le hero et la
    galerie font tourner **la même app Forge** : même clé de session, même SharedWorker,
    même base OPFS. Naviguer dans l'un change ce que l'autre rouvre. Le script saute en

@@ -3,8 +3,8 @@ import { beforeAll, expect, test } from "bun:test";
 import { chmod, mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { build } from "../packages/airtty/src/build";
-import { messageOf } from "../packages/airtty/src/guards";
+import { build } from "../packages/luciole/src/build";
+import { messageOf } from "../packages/luciole/src/guards";
 import { forgeDirectory, startForge } from "./forge-helpers";
 import { present, rejectionOf } from "./helpers";
 
@@ -36,8 +36,8 @@ test("a Server page importing Forge's editor launcher does not build", async () 
     await rm(dir, { recursive: true, force: true });
   }
   // In Forge it sits behind FilesReview's "use client" boundary: Client bundle only.
-  const client = await Bun.file(join(forgeDirectory, ".airtty/client/index.js")).text();
-  const server = await Bun.file(join(forgeDirectory, ".airtty/server/index.js")).text();
+  const client = await Bun.file(join(forgeDirectory, ".luciole/client/index.js")).text();
+  const server = await Bun.file(join(forgeDirectory, ".luciole/server/index.js")).text();
   expect(client).toContain("emacsclient");
   expect(server).not.toContain("emacsclient");
 }, 30000);

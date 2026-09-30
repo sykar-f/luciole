@@ -1,6 +1,6 @@
 import React from "react";
-import { serve, type ServerFunction } from "../packages/airtty/src/server";
-// A Server built by hand, without `airtty build`, whose instrument prints each event as
+import { serve, type ServerFunction } from "../packages/luciole/src/server";
+// A Server built by hand, without `luciole build`, whose instrument prints each event as
 // one JSON line after the ready line (tests/instrument.test.ts reads them).
 const action = (fn: ServerFunction) => ({ fn, auth: "public" as const });
 serve({

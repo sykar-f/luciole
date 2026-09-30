@@ -19,7 +19,7 @@ const FRAMES =
   "new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(() => done(true))))";
 
 build(example("forge"), ["--web-local"]);
-const files = serveSite(join(example("forge"), ".airtty/web"));
+const files = serveSite(join(example("forge"), ".luciole/web"));
 const report: Record<string, unknown> = {};
 try {
   await using browser = await Browser.start();
@@ -62,7 +62,7 @@ try {
     `${coloursOfRow("7 + `POST /refunds`")} > 2`,
     "highlighted Markdown",
   ));
-  await browser.screenshot(join(example("forge"), ".airtty/web-local.png"));
+  await browser.screenshot(join(example("forge"), ".luciole/web-local.png"));
 } finally {
   await files.stop(true);
 }

@@ -1,6 +1,6 @@
 "use client";
 import { NoteEditorFrame } from "./NoteFrame";
-import { Input, KeyHelp, useBindings, useNavigate, useRestoredFields } from "airtty/client";
+import { Input, KeyHelp, useBindings, useNavigate, useRestoredFields } from "luciole/client";
 import { useDraft, type Note, type Snapshot, type SaveResult } from "./draft";
 type Props = {
   initialNote: Note;

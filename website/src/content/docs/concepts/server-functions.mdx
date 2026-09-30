@@ -4,8 +4,8 @@ description: '"use server" functions are called from the terminal like any funct
 sources:
   - docs/API.md
   - docs/BOUNDARIES.md
-  - packages/airtty/src/transport.ts
-  - packages/airtty/src/server.ts
+  - packages/luciole/src/transport.ts
+  - packages/luciole/src/server.ts
   - examples/notes/actions/notes.ts
   - examples/notes/components/draft.ts
 ---
@@ -79,7 +79,7 @@ outcome on purpose.
 ## Declaring what changed
 
 The framework refreshes nothing by itself after a Server Function: a read costs no page
-render. A function that changes data says so with `invalidate()` from `airtty/server`; the
+render. A function that changes data says so with `invalidate()` from `luciole/server`; the
 paths and tags travel back in the response's envelope, and the Client revalidates the
 routes concerned without waiting for them.
 
@@ -109,7 +109,7 @@ live response is exempt from the Server's idle timeout.
 Function call.
 
 <Note>
-  Each call carries a `callId` (`x-airtty-call`), which the Server reads with `getCallId()`: it
+  Each call carries a `callId` (`x-luciole-call`), which the Server reads with `getCallId()`: it
   links the Client's and the Server's events of one request, in the
   [DevTools](/docs/guides/devtools/) as in your logs. It identifies the request, not the business
   operation.

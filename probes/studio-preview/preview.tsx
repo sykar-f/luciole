@@ -1,6 +1,6 @@
 /** @jsxImportSource @opentui/react */
 /**
- * studio's preview, in `process` mode: a generated app run by `airtty dev` on a PTY,
+ * studio's preview, in `process` mode: a generated app run by `luciole dev` on a PTY,
  * shown by `<Terminal>` inside a host tree, while the files it is built from change
  * under it as a harness would change them. Measures the cold start, the reload after an
  * edit, and what the preview shows when the build fails, when a render throws and when
@@ -15,16 +15,16 @@ import { useRenderer } from "@opentui/react";
 import { testRender } from "@opentui/react/test-utils";
 import { createDefaultOpenTuiKeymap } from "@opentui/keymap/opentui";
 import { KeymapProvider } from "@opentui/keymap/react";
-import { Terminal } from "../../packages/airtty/src/client";
-import { spawnPty } from "../../packages/airtty/src/vt/pty";
-import { TerminalView } from "../../packages/airtty/src/vt/terminal";
+import { Terminal } from "../../packages/luciole/src/client";
+import { spawnPty } from "../../packages/luciole/src/vt/pty";
+import { TerminalView } from "../../packages/luciole/src/vt/terminal";
 import { destroy, until, type TestUI } from "../../tests/helpers";
 
 const HERE = import.meta.dir;
-const CLI = resolve(HERE, "../../packages/airtty/src/cli.ts");
+const CLI = resolve(HERE, "../../packages/luciole/src/cli.ts");
 const TEMPLATE = join(HERE, "template");
-// Ignored by git (`.airtty-*/`) and by tsc (a dot directory under probes/).
-const WORK = join(HERE, ".airtty-work");
+// Ignored by git (`.luciole-*/`) and by tsc (a dot directory under probes/).
+const WORK = join(HERE, ".luciole-work");
 const WIDTH = 100;
 const HEIGHT = 24;
 const COLD_TIMEOUT_MS = 30_000;
@@ -102,7 +102,7 @@ async function preview(
         ) : (
           <TerminalView
             program={JSON.stringify(command)}
-            label="airtty dev"
+            label="luciole dev"
             spawn={(io) => {
               const pty = spawnPty({ ...io, command });
               return { ...pty, kill: () => process.kill(pty.pid, "SIGTERM") };
@@ -255,7 +255,7 @@ const FRAME_LINES = 6;
     await view.shows("Count: 0");
     check("repair after a Client render error", true);
 
-    // The generated Client exits by itself: `airtty dev` stops with it, the PTY program
+    // The generated Client exits by itself: `luciole dev` stops with it, the PTY program
     // ends, the host is told (studio must restart the preview itself).
     start = performance.now();
     edit(directory, "components/Counter.tsx", (text) =>
@@ -272,7 +272,7 @@ const FRAME_LINES = 6;
     await act(async () => {
       await until(() => view.exits.length > 0, EXIT_TIMEOUT_MS);
     });
-    check("a dying generated Client ends airtty dev (host sees onExit)", true, {
+    check("a dying generated Client ends luciole dev (host sees onExit)", true, {
       ms: ms(start),
       code: view.exits[0],
     });
@@ -295,7 +295,7 @@ const FRAME_LINES = 6;
       frame: firstLines(view.frame(), FRAME_LINES),
     });
     await Bun.sleep(QUIET_MS);
-    check("airtty dev keeps waiting after a failed first build", view.exits.length === 0);
+    check("luciole dev keeps waiting after a failed first build", view.exits.length === 0);
     const start = performance.now();
     cpSync(join(TEMPLATE, "app/page.tsx"), join(directory, "app/page.tsx"));
     await view.shows("studio preview v1");
@@ -316,7 +316,7 @@ const leftovers = (name: string) =>
     .stdout.split("\n")
     .filter(Boolean)
     .map(Number);
-// Closing <Terminal> sends SIGHUP to `airtty dev`, which only handles SIGINT and SIGTERM:
+// Closing <Terminal> sends SIGHUP to `luciole dev`, which only handles SIGINT and SIGTERM:
 // it dies without stopping the generated Server and Client it started.
 await Bun.sleep(QUIET_MS);
 const orphans = leftovers("first-failure");
@@ -326,7 +326,7 @@ check("closing <Terminal> (SIGHUP) orphans the generated Server and Client", orp
 for (const pid of orphans) process.kill(pid, "SIGTERM");
 
 // ---------------------------------------------------------------------------------------
-// Scenario 3: the same preview ended with SIGTERM, which `airtty dev` handles.
+// Scenario 3: the same preview ended with SIGTERM, which `luciole dev` handles.
 {
   const directory = workspace("terminate");
   const view = await preview(directory, "terminate");

@@ -4,8 +4,8 @@ description: The app/ directory is the route tree. Pages, layouts, params, group
 sources:
   - docs/ROUTER.md
   - docs/API.md
-  - packages/airtty/src/route-graph.ts
-  - packages/airtty/src/route-tree.tsx
+  - packages/luciole/src/route-graph.ts
+  - packages/luciole/src/route-tree.tsx
   - examples/notes/app
 ---
 
@@ -72,7 +72,7 @@ The build writes `app/routeTree.gen.ts`. Commit it and do not edit it: it regist
 app's routes with TanStack, so `to`, `params` and `useParams` are type-checked against this
 app's files. A route that does not exist, or a missing param, is a TypeScript error.
 
-Navigate from a Client Component with the hooks `airtty/client` re-exports. There is no
+Navigate from a Client Component with the hooks `luciole/client` re-exports. There is no
 `<Link>`: it renders a DOM anchor.
 
 <Excerpt

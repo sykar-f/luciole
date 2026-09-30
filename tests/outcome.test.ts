@@ -3,13 +3,13 @@ import { Database } from "bun:sqlite";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { build } from "../packages/airtty/src/build";
+import { build } from "../packages/luciole/src/build";
 import {
   createHttpTransport,
   networkFromEnv,
   TransportError,
   type Outcome,
-} from "../packages/airtty/src/transport";
+} from "../packages/luciole/src/transport";
 import { z } from "zod";
 import { launch, until } from "./helpers";
 
@@ -20,12 +20,12 @@ let dir = "",
   buildId = "";
 beforeAll(async () => {
   ({ buildId } = await build(root));
-  dir = await mkdtemp(join(tmpdir(), "airtty-outcome-"));
+  dir = await mkdtemp(join(tmpdir(), "luciole-outcome-"));
 });
 afterAll(() => rm(dir, { recursive: true, force: true }));
 
 const server = (name: string, env: Record<string, string> = {}) =>
-  launch(join(root, ".airtty/server/index.js"), { NOTES_DB: join(dir, `${name}.sqlite`), ...env });
+  launch(join(root, ".luciole/server/index.js"), { NOTES_DB: join(dir, `${name}.sqlite`), ...env });
 const transport = (url: string, options: { buildId?: string; token?: string } = {}) =>
   createHttpTransport({
     url,
@@ -65,7 +65,7 @@ test("a stopped Server: not-sent", async () => {
 });
 
 test("refused before any application code: rejected", async () => {
-  const s = await server("rejected", { AIRTTY_TOKEN: "secret" });
+  const s = await server("rejected", { LUCIOLE_TOKEN: "secret" });
   try {
     // Missing bearer, other build, unknown action, malformed arguments.
     expect(await outcomeOf(transport(s.url).call(saveNote(), save()))).toBe("rejected");
@@ -90,7 +90,7 @@ test("refused before any application code: rejected", async () => {
 });
 
 test("the Server commits then the response is lost: unknown", async () => {
-  const s = await server("lost", { AIRTTY_TEST_DROP_ONCE: "1" });
+  const s = await server("lost", { LUCIOLE_TEST_DROP_ONCE: "1" });
   try {
     expect(await outcomeOf(transport(s.url).call(saveNote(), save("committed")))).toBe("unknown");
     await until(() => s.child.exitCode !== null);
@@ -171,15 +171,15 @@ test("slow chunks and jitter delay delivery; conditions are validated", async ()
   }
 });
 
-test("AIRTTY_FAULT and friends parse into network conditions", () => {
-  const always = networkFromEnv({ AIRTTY_FAULT: "drop:1", AIRTTY_JITTER_MS: "5" });
+test("LUCIOLE_FAULT and friends parse into network conditions", () => {
+  const always = networkFromEnv({ LUCIOLE_FAULT: "drop:1", LUCIOLE_JITTER_MS: "5" });
   expect(always.jitterMs).toBe(5);
   expect(always.fault?.({ kind: "action", target: "x" })).toBe("drop");
   expect(networkFromEnv({}).fault).toBeUndefined();
   expect(
-    networkFromEnv({ AIRTTY_FAULT: "refuse:0" }).fault?.({ kind: "render", target: "/" }),
+    networkFromEnv({ LUCIOLE_FAULT: "refuse:0" }).fault?.({ kind: "render", target: "/" }),
   ).toBe(undefined);
   for (const bad of ["explode:1", "drop:2", "drop:x"])
-    expect(() => networkFromEnv({ AIRTTY_FAULT: bad })).toThrow("AIRTTY_FAULT");
-  expect(() => networkFromEnv({ AIRTTY_CHUNK_DELAY_MS: "-3" })).toThrow("AIRTTY_CHUNK_DELAY_MS");
+    expect(() => networkFromEnv({ LUCIOLE_FAULT: bad })).toThrow("LUCIOLE_FAULT");
+  expect(() => networkFromEnv({ LUCIOLE_CHUNK_DELAY_MS: "-3" })).toThrow("LUCIOLE_CHUNK_DELAY_MS");
 });

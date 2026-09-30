@@ -1,13 +1,13 @@
-/** `airtty/sandbox` and the publisher keys of `airtty/build`, as a host outside the framework imports them. */
+/** `luciole/sandbox` and the publisher keys of `luciole/build`, as a host outside the framework imports them. */
 import { test, expect } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import * as build from "airtty/build";
-import * as sandbox from "airtty/sandbox";
-import { TerminalView } from "airtty/client";
+import * as build from "luciole/build";
+import * as sandbox from "luciole/sandbox";
+import { TerminalView } from "luciole/client";
 
-test("airtty/sandbox exports what a host needs to confine a Client and a Server", () => {
+test("luciole/sandbox exports what a host needs to confine a Client and a Server", () => {
   for (const name of [
     "openSandbox",
     "confineServer",
@@ -24,10 +24,10 @@ test("airtty/sandbox exports what a host needs to confine a Client and a Server"
   expect(typeof TerminalView).toBe("function");
 });
 
-test("airtty/build makes and reads a publisher key where AIRTTY_PUBLISHER_KEY says", () => {
-  const dir = mkdtempSync(join(tmpdir(), "airtty-key-"));
+test("luciole/build makes and reads a publisher key where LUCIOLE_PUBLISHER_KEY says", () => {
+  const dir = mkdtempSync(join(tmpdir(), "luciole-key-"));
   try {
-    const env = { AIRTTY_PUBLISHER_KEY: join(dir, "keys/project.pem") };
+    const env = { LUCIOLE_PUBLISHER_KEY: join(dir, "keys/project.pem") };
     const made = build.generatePublisherKey(env);
     const read = build.readPublisherKey(env);
     expect(build.fingerprintOf(read.publicKey)).toBe(made.fingerprint);

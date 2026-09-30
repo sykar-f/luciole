@@ -8,7 +8,7 @@
  *                           launcher starts with the host's main.js
  *   Contents/MacOS/<app>    the app binary, beside Electrobun's libraries: the host loads
  *                           them next to the running executable
- *   Resources/app/airtty/bin/<app>   a link to it, where the host starts the app
+ *   Resources/app/luciole/bin/<app>   a link to it, where the host starts the app
  *
  * The host starts the app without `BUN_BE_BUN` (src/host/session.ts). Runs before
  * Electrobun signs the bundle, so the signature covers this layout. macOS only for now:

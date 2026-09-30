@@ -1,5 +1,5 @@
 // Runs the sandbox mode's tests on Linux, in containers, once per mechanism
-// (src/sandbox/mechanism.ts): airtty-sandbox with its own namespaces, under bubblewrap,
+// (src/sandbox/mechanism.ts): luciole-sandbox with its own namespaces, under bubblewrap,
 // and Landlock alone. Each runs tests/sandbox.test.ts and scripts/pty/sandbox.ts as a
 // user (not root), on a copy of this checkout with its own Linux node_modules; then
 // `cargo test` for the launcher itself.
@@ -21,7 +21,7 @@ const arch = option("--arch") ?? (process.arch === "arm64" ? "arm64" : "x64");
 if (arch !== "arm64" && arch !== "x64") throw new Error("--arch must be arm64 or x64");
 const platform = arch === "arm64" ? "linux/arm64" : "linux/amd64";
 const only = option("--only");
-const IMAGE = `airtty-linux-sandbox:${arch}`;
+const IMAGE = `luciole-linux-sandbox:${arch}`;
 // Bun's image (Debian), bubblewrap, ps for the PTY journey's process checks.
 const DOCKERFILE = `FROM oven/bun:1.4.2
 RUN apt-get update && apt-get install -y --no-install-recommends bubblewrap procps \\
@@ -44,7 +44,9 @@ const CASES = [
 ] as const;
 
 const SKIPPED = 3;
-const launcher = resolve(`packages/airtty/native/airtty-sandbox/dist/linux-${arch}/airtty-sandbox`);
+const launcher = resolve(
+  `packages/luciole/native/luciole-sandbox/dist/linux-${arch}/luciole-sandbox`,
+);
 if (!existsSync(launcher)) throw new Error(`${launcher} is missing: bun scripts/build-sandbox.ts`);
 
 async function run(cmd: string[], stdin?: string) {
@@ -56,7 +58,7 @@ async function run(cmd: string[], stdin?: string) {
   return child.exited;
 }
 
-const work = await mkdtemp(join(tmpdir(), "airtty-linux-sandbox-"));
+const work = await mkdtemp(join(tmpdir(), "luciole-linux-sandbox-"));
 let failed = false;
 let ran = 0;
 try {
@@ -70,19 +72,19 @@ try {
   )
     .split("\n")
     .filter(Boolean);
-  const copy = join(work, "airtty");
+  const copy = join(work, "luciole");
   for (const file of files)
     if (existsSync(file)) await cp(file, join(copy, file), { recursive: true });
   // The script inside: its own install, a ~/.ssh to protect, then the tests.
   const inside = [
     "set -e",
-    "cp -r /src /home/ada/airtty && cd /home/ada/airtty",
+    "cp -r /src /home/ada/luciole && cd /home/ada/luciole",
     "bun install --frozen-lockfile >/dev/null",
     "mkdir -p ~/.ssh && echo 'Host secret' > ~/.ssh/config",
     // A mechanism this kernel does not allow (Landlock ABI < 6 for Landlock alone, say) is
     // skipped, and said so; the run fails if none ran at all.
-    `bun -e "import {sandboxAvailability as a} from './packages/airtty/src/sandbox/runtime';const r=a();if(!r.mechanism){console.log('skipped: '+r.reason);process.exit(${SKIPPED})}"`,
-    `echo "mechanism: $AIRTTY_SANDBOX_MECHANISM, probe: $(${join("/src", "packages/airtty/native/airtty-sandbox/dist", `linux-${arch}`, "airtty-sandbox")} --probe)"`,
+    `bun -e "import {sandboxAvailability as a} from './packages/luciole/src/sandbox/runtime';const r=a();if(!r.mechanism){console.log('skipped: '+r.reason);process.exit(${SKIPPED})}"`,
+    `echo "mechanism: $LUCIOLE_SANDBOX_MECHANISM, probe: $(${join("/src", "packages/luciole/native/luciole-sandbox/dist", `linux-${arch}`, "luciole-sandbox")} --probe)"`,
     "bun test --timeout 60000 tests/sandbox.test.ts",
     "bun scripts/pty/sandbox.ts",
   ].join("\n");
@@ -99,7 +101,7 @@ try {
       "-v",
       `${copy}:/src:ro`,
       "-e",
-      `AIRTTY_SANDBOX_MECHANISM=${mechanism}`,
+      `LUCIOLE_SANDBOX_MECHANISM=${mechanism}`,
       "-u",
       "ada",
       "-w",
@@ -120,7 +122,7 @@ try {
   }
   if (!only) {
     console.log(`\n=== cargo test (${arch})`);
-    const crate = resolve("packages/airtty/native/airtty-sandbox");
+    const crate = resolve("packages/luciole/native/luciole-sandbox");
     const code = await run([
       "docker",
       "run",

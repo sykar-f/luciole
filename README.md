@@ -1,9 +1,9 @@
-# airtty
+# luciole
 
 Build terminal apps with React. Typing and scrolling stay local; the server keeps
 the data and runs model calls.
 
-airtty is a React Server Components framework for the terminal. Pages render on a
+luciole is a React Server Components framework for the terminal. Pages render on a
 Server and reach a separate Client as a React Flight stream; the Client draws them
 with [OpenTUI](https://github.com/anomalyco/opentui). Typing, scrolling and hover are
 handled on the Client, without a round trip to the Server
@@ -65,8 +65,8 @@ a real PTY by [`scripts/pty/forge.ts`](scripts/pty/forge.ts) and saved as
 Requires [Bun](https://bun.sh) 1.4.2 (the version pinned in `package.json`).
 
 ```sh
-git clone https://github.com/sykar-f/airtty.git
-cd airtty
+git clone https://github.com/sykar-f/luciole.git
+cd luciole
 bun install --frozen-lockfile
 bun run forge
 ```
@@ -80,7 +80,7 @@ To see the difference between local and remote work, add a simulated round trip 
 500 ms to every request:
 
 ```sh
-AIRTTY_LATENCY_MS=500 bun run forge
+LUCIOLE_LATENCY_MS=500 bun run forge
 ```
 
 Other examples, run from the repository root:

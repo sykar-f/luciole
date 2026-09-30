@@ -4,8 +4,8 @@ import { testRender } from "@opentui/react/test-utils";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import type { Session } from "../packages/airtty/src/client";
-import type { NetworkConditions } from "../packages/airtty/src/transport";
+import type { Session } from "../packages/luciole/src/client";
+import type { NetworkConditions } from "../packages/luciole/src/transport";
 import { launch, importClient } from "./helpers";
 
 export const coderDirectory = resolve("examples/coder");
@@ -91,8 +91,8 @@ async function openClient(url: string, options: ClientOptions) {
  */
 export async function startCoder(options: Options = {}) {
   const temp = await mkdtemp(join(tmpdir(), "coder-"));
-  const server = await launch(join(coderDirectory, ".airtty/server/index.js"), {
-    AIRTTY_ARGS: JSON.stringify({ v: 1, argv: options.argv ?? ["--harness", "fake"], cwd: temp }),
+  const server = await launch(join(coderDirectory, ".luciole/server/index.js"), {
+    LUCIOLE_ARGS: JSON.stringify({ v: 1, argv: options.argv ?? ["--harness", "fake"], cwd: temp }),
     XDG_STATE_HOME: join(temp, "state"),
     CODER_FAKE_DELAY_MS: "1",
     ...options.env,

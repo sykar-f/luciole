@@ -3,11 +3,11 @@ import { mkdtemp, mkdir, rm } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { z } from "zod";
-import { ABI_KEY, ABI_PACKAGES, ABI_SPECIFIERS, AppManifest } from "../packages/airtty/src/abi";
-import { loadAppBundle, runtimeSpecifiers } from "../packages/airtty/src/app-bundle";
-import { build } from "../packages/airtty/src/build";
-import { messageOf } from "../packages/airtty/src/guards";
-import { readJsonFile } from "../packages/airtty/src/package-json";
+import { ABI_KEY, ABI_PACKAGES, ABI_SPECIFIERS, AppManifest } from "../packages/luciole/src/abi";
+import { loadAppBundle, runtimeSpecifiers } from "../packages/luciole/src/app-bundle";
+import { build } from "../packages/luciole/src/build";
+import { messageOf } from "../packages/luciole/src/guards";
+import { readJsonFile } from "../packages/luciole/src/package-json";
 import { rejectionOf } from "./helpers";
 
 test("the ABI names the installed versions and the runtime provides every specifier", async () => {
@@ -23,7 +23,7 @@ test("the ABI names the installed versions and the runtime provides every specif
 });
 
 async function fixture(files: Record<string, string>, run: (dir: string) => Promise<void>) {
-  const dir = await mkdtemp(join(tmpdir(), "airtty-app-bundle-"));
+  const dir = await mkdtemp(join(tmpdir(), "luciole-app-bundle-"));
   try {
     for (const [name, text] of Object.entries({
       "app/layout.tsx": `"use client";export default function Layout({children}){return children}`,
@@ -38,14 +38,14 @@ async function fixture(files: Record<string, string>, run: (dir: string) => Prom
   }
 }
 const manifestOf = (dir: string) =>
-  readJsonFile(join(dir, ".airtty/app/manifest.json"), z.unknown());
+  readJsonFile(join(dir, ".luciole/app/manifest.json"), z.unknown());
 
 test("the application bundle leaves the runtime to the ABI and audits Node built-ins", async () => {
   await fixture(
     {
       "package.json": JSON.stringify({
         name: "disk",
-        airtty: { capabilities: { net: ["api.example.com"] } },
+        luciole: { capabilities: { net: ["api.example.com"] } },
       }),
       "app/page.tsx": `import {Disk} from '../components/disk'; export default function Page(){return <Disk/>}`,
       "components/disk.tsx": `"use client";import {readFileSync} from 'node:fs';import {useState} from 'react';import {save} from '../actions/save';export function Disk(){const [v]=useState(()=>readFileSync('/dev/null','utf8'));return <text onMouseDown={()=>save(v)}>{v}</text>}`,
@@ -61,12 +61,12 @@ test("the application bundle leaves the runtime to the ABI and audits Node built
         expect(manifest.capabilities?.net).toEqual(["api.example.com"]);
         // Declared net, uses fs: reported, not refused.
         expect(warn.mock.calls.map(([m]) => String(m)).join("\n")).toContain(
-          "requires fs but airtty.capabilities does not declare fs.read/fs.write",
+          "requires fs but luciole.capabilities does not declare fs.read/fs.write",
         );
-        const code = await Bun.file(join(dir, ".airtty/app/index.cjs")).text();
+        const code = await Bun.file(join(dir, ".luciole/app/index.cjs")).text();
         for (const runtime of ["createRouter", "KeymapProvider", "createServerReference"])
           expect(code).not.toContain(runtime);
-        const loaded = await loadAppBundle(join(dir, ".airtty/app"));
+        const loaded = await loadAppBundle(join(dir, ".luciole/app"));
         expect(loaded.buildId).toBe(manifest.buildId);
         expect([...loaded.modules.keys()]).toContain(`${manifest.buildId}/components/disk.tsx`);
       } finally {
@@ -84,7 +84,7 @@ test("a bundle is refused for another ABI, altered bytes or an undeclared built-
     },
     async (dir) => {
       await build(dir);
-      const app = join(dir, ".airtty/app");
+      const app = join(dir, ".luciole/app");
       const file = join(app, "manifest.json");
       const manifest = AppManifest.parse(await manifestOf(dir));
       const write = (next: Partial<AppManifest>) =>
@@ -112,20 +112,20 @@ test("top-level await in Client code: the app builds, is not embeddable, and say
     async (dir) => {
       const warn = spyOn(console, "warn").mockImplementation(() => {});
       try {
-        // Not embedded: the Client and the Server build as before, without .airtty/app.
+        // Not embedded: the Client and the Server build as before, without .luciole/app.
         await build(dir);
-        expect(await Bun.file(join(dir, ".airtty/client/index.js")).exists()).toBe(true);
-        expect(await Bun.file(join(dir, ".airtty/app/manifest.json")).exists()).toBe(false);
+        expect(await Bun.file(join(dir, ".luciole/client/index.js")).exists()).toBe(true);
+        expect(await Bun.file(join(dir, ".luciole/app/manifest.json")).exists()).toBe(false);
         expect(warn.mock.calls.map(([m]) => String(m)).join("\n")).toContain(
           "components/late.tsx:2: top-level await in Client code",
         );
-        expect(messageOf(await rejectionOf(loadAppBundle(join(dir, ".airtty/app"))))).toContain(
+        expect(messageOf(await rejectionOf(loadAppBundle(join(dir, ".luciole/app"))))).toContain(
           "has no application bundle",
         );
       } finally {
         warn.mockRestore();
       }
-      // Embedding asked for explicitly (`airtty build --app-bundle`): the build fails.
+      // Embedding asked for explicitly (`luciole build --app-bundle`): the build fails.
       const error = messageOf(await rejectionOf(build(dir, undefined, { appBundle: "required" })));
       expect(error).toContain("components/late.tsx:2: top-level await in Client code");
     },
@@ -137,5 +137,5 @@ test("the examples build their application bundle", async () => {
   await build(dir);
   const manifest = AppManifest.parse(await manifestOf(dir));
   expect(manifest.name).toBe("latency");
-  expect((await loadAppBundle(join(dir, ".airtty/app"))).buildId).toBe(manifest.buildId);
+  expect((await loadAppBundle(join(dir, ".luciole/app"))).buildId).toBe(manifest.buildId);
 });

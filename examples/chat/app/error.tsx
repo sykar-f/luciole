@@ -1,5 +1,5 @@
 "use client";
-import { TransportError, type ErrorProps } from "airtty/client";
+import { TransportError, type ErrorProps } from "luciole/client";
 import { color } from "../components/theme";
 
 // The page could not be loaded. The chrome's Ctrl+R retries.

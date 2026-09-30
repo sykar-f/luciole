@@ -15,7 +15,7 @@ const COLS = 40;
 const ROWS = 10;
 const WRAP_COLS = 20;
 const LONG_LINE = 30;
-const URL = "https://airtty.dev/docs";
+const URL = "https://luciole.sh/docs";
 // Fixture geometry: rows L1–L5 of the scroll-region test, and the columns of each glyph.
 const REGION_ROWS = 5;
 const WIDE_COLUMNS = [0, 2, 2 * 2, 2 * 2 + 2];
@@ -154,7 +154,7 @@ const CHECKS: Record<string, (term: Emulator) => Promise<Outcome>> = {
 };
 
 // A multiplexer frees and creates sessions all day: a new terminal must never show a
-// previous one's cells (another origin's secrets, in airtty's case).
+// previous one's cells (another origin's secrets, in luciole's case).
 async function isolation(
   create: (cols: number, rows: number) => Promise<Emulator>,
 ): Promise<Outcome> {

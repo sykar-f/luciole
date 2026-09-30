@@ -1,25 +1,25 @@
 ---
 title: CLI
-description: Every airtty subcommand and its options, as src/cli.ts and src/commands/ define them.
+description: Every luciole subcommand and its options, as src/cli.ts and src/commands/ define them.
 sources:
-  - packages/airtty/src/cli.ts
-  - packages/airtty/src/commands
-  - packages/airtty/src/airttyx.ts
+  - packages/luciole/src/cli.ts
+  - packages/luciole/src/commands
+  - packages/luciole/src/luciolex.ts
 ---
 
 import Excerpt from "../../../components/guide/Excerpt.astro";
 import Note from "../../../components/docs/Note.astro";
 import { commands } from "../../../lib/product";
 
-The package declares two commands: `airtty` and `airttyx`. In a clone of the repository,
+The package declares two commands: `luciole` and `luciolex`. In a clone of the repository,
 
 <code>{commands.fromClone}</code> runs the same CLI without installing anything; a starter calls the
-installed `airtty` from its scripts.
+installed `luciole` from its scripts.
 
 ```text
-airtty <subcommand> [options] [-- app arguments]
-airtty <target> [options]      launch an app (path, installed app, npm spec, git source, URL)
-airtty                         open the launcher
+luciole <subcommand> [options] [-- app arguments]
+luciole <target> [options]      launch an app (path, installed app, npm spec, git source, URL)
+luciole                         open the launcher
 ```
 
 A first argument that is no subcommand and does not start with `-` is a target to launch.
@@ -28,7 +28,7 @@ The CLI's own flags come before `--`; what follows `--` belongs to the app
 refused. A usage error exits with code 2, any other error with 1.
 
 <Excerpt
-  path="packages/airtty/src/commands/index.ts"
+  path="packages/luciole/src/commands/index.ts"
   find="export const commands"
   until="]);"
   tone="neutral"
@@ -37,43 +37,43 @@ refused. A usage error exits with code 2, any other error with 1.
 
 ## Develop
 
-### `airtty init <dir>`
+### `luciole init <dir>`
 
-Creates a starter in `<dir>` (default `my-airtty-app`), which must be empty: a copy of Notes,
-a `package.json` whose `airtty` dependency points at this checkout (`file:`), a
-`tsconfig.json` extending `airtty/tsconfig`, Oxlint, Oxfmt and VS Code settings. Then
+Creates a starter in `<dir>` (default `my-luciole-app`), which must be empty: a copy of Notes,
+a `package.json` whose `luciole` dependency points at this checkout (`file:`), a
+`tsconfig.json` extending `luciole/tsconfig`, Oxlint, Oxfmt and VS Code settings. Then
 `bun install` and `bun run dev` in it.
 
-### `airtty dev [--app dir] [-- app arguments]`
+### `luciole dev [--app dir] [-- app arguments]`
 
 Builds the app, starts its Server and Client, and rebuilds on every change to a `.ts`,
-`.tsx`, `.js` or `.jsx` file (not `.airtty/`, `node_modules/` or `routeTree.gen.ts`). A
+`.tsx`, `.js` or `.jsx` file (not `.luciole/`, `node_modules/` or `routeTree.gen.ts`). A
 build error shows in the running Client and leaves it usable; a good rebuild restarts both
 processes, and the Client reopens the same page with its history, named fields and bearer.
 `--app` defaults to `examples/notes`. The app's arguments are checked after every build;
 `-- --help` prints them.
 
-The run ends with the Client: quitting it stops the Server too, and `airtty dev` exits with the
+The run ends with the Client: quitting it stops the Server too, and `luciole dev` exits with the
 Client's own exit code (1 if a signal killed it), so a host that runs it can tell a crash from a
 quit. A Client that exits during a rebuild ends nothing. SIGINT, SIGTERM and SIGHUP (a closed
 terminal, an unmounted `<Terminal>`) stop both processes and exit with 0. The pieces of this
-supervision are public as [`airtty/dev`](/docs/reference/api/#supervising-an-app-airttydev).
+supervision are public as [`luciole/dev`](/docs/reference/api/#supervising-an-app-lucioledev).
 
-### `airtty devtools [--listen 1|<socket>|ws://host:port] [--demo] [--replay file.json] [--env]`
+### `luciole devtools [--listen 1|<socket>|ws://host:port] [--demo] [--replay file.json] [--env]`
 
 Starts the [DevTools](/docs/guides/devtools/). `--env` prints the variables the inspected
 app's shell needs instead.
 
 ## Build
 
-### `airtty build [options]`
+### `luciole build [options]`
 
 | Option                                  | Effect                                                                                                    |
 | --------------------------------------- | --------------------------------------------------------------------------------------------------------- |
 | `--app dir`                             | The app to build (default `examples/notes`).                                                              |
-| `--app-bundle`                          | Fail if the app bundle (`.airtty/app/`) cannot be produced, instead of warning.                           |
-| `--sign-bundle`                         | Sign the app bundle's manifest with the publisher key (`airtty keys`); implies `--app-bundle`.            |
-| `--web`                                 | Add `.airtty/web/`, the browser runtime served by the Server.                                             |
+| `--app-bundle`                          | Fail if the app bundle (`.luciole/app/`) cannot be produced, instead of warning.                          |
+| `--sign-bundle`                         | Sign the app bundle's manifest with the publisher key (`luciole keys`); implies `--app-bundle`.           |
+| `--web`                                 | Add `.luciole/web/`, the browser runtime served by the Server.                                            |
 | `--web-local`                           | Add a static site where the Server runs in the browser too.                                               |
 | `--compile`                             | Compile a single executable: Client and Server (see below).                                               |
 | `--name n`                              | The binary's name (default: the app's directory name).                                                    |
@@ -87,32 +87,32 @@ app's shell needs instead.
 
 Details: [build and distribution](/docs/reference/build-and-distribution/).
 
-### `airtty runtime [--target t]`
+### `luciole runtime [--target t]`
 
 Downloads the official Bun runtime of a target into the cache `--compile` uses, ahead of
 time.
 
-### `airtty web-runtime`
+### `luciole web-runtime`
 
-Prepares this framework version's web runtime ahead of `airtty build --web` (it needs git,
+Prepares this framework version's web runtime ahead of `luciole build --web` (it needs git,
 the network and Zig 0.16.0).
 
-### `airtty keys [generate]`
+### `luciole keys [generate]`
 
 Prints the publisher key that signs app bundles (its file, `SHA256:` fingerprint and public
 key), or generates one. Not Apple's Developer ID.
 
-### `airtty pack --package <npm name> --version <v> [--description d] [--outdir dir] <binary>…`
+### `luciole pack --package <npm name> --version <v> [--description d] [--outdir dir] <binary>…`
 
 Makes npm packages from compiled binaries of one build: one per platform, and the main
 package that points to them. It prints the order to publish them in, platforms first.
 
 ## Run
 
-### `airtty <target>`
+### `luciole <target>`
 
 ```text
-airtty [<path | app | npm spec | git source> [--yes] [--url url]
+luciole [<path | app | npm spec | git source> [--yes] [--url url]
        | <server url…> [--inline | --sandbox] [--allow-…] [--yes]]
 ```
 
@@ -121,37 +121,37 @@ directory (a path or a git source) also takes `--grace <duration>`, and the app'
 options. `--yes` accepts installs and new repositories without asking. URLs take the
 sandbox flags of [apps you did not write](/docs/guides/untrusted-apps/#capabilities).
 
-### `airttyx <target>`
+### `luciolex <target>`
 
-Like `airtty <target>`, but the target is never read as a subcommand, like `npx`:
-`airttyx build` launches the app named `build`.
+Like `luciole <target>`, but the target is never read as a subcommand, like `npx`:
+`luciolex build` launches the app named `build`.
 
-### `airtty start --role server|client [--app dir] [--url URL] [--artifact dir] [-- app arguments]`
+### `luciole start --role server|client [--app dir] [--url URL] [--artifact dir] [-- app arguments]`
 
 Runs a built role in production (`NODE_ENV=production`): the Server (the default role), or
 the Client joining `--url`. Without `--url`, the Client looks for its Server as
 [usual](/docs/guides/opening-an-app/#joining-a-server-that-already-runs). The app's
 arguments go to the Server only.
 
-### `airtty connect <url | ssh://[user@]host[/port]> [--app dir]`
+### `luciole connect <url | ssh://[user@]host[/port]> [--app dir]`
 
 Runs the built Client against a URL, `ssh://` included.
 
-### `airtty trust <server url> <SHA256:fingerprint>`
+### `luciole trust <server url> <SHA256:fingerprint>`
 
 Pins a publisher key for an origin opened by URL, out of band, replacing the pinned one.
 
 ## Installed apps
 
-Apps installed from the npm registry live in `$XDG_DATA_HOME/airtty/apps/`.
+Apps installed from the npm registry live in `$XDG_DATA_HOME/luciole/apps/`.
 
-| Command                          | Effect                                        |
-| -------------------------------- | --------------------------------------------- |
-| `airtty search [text]`           | Apps (keyword `airtty-app`) matching the text |
-| `airtty install <spec>… [--yes]` | Installs, or switches to the version given    |
-| `airtty update [app…]`           | Each app to the latest version of its range   |
-| `airtty list`                    | Installed apps                                |
-| `airtty remove <app>…`           | Removes the app and its binaries              |
+| Command                           | Effect                                         |
+| --------------------------------- | ---------------------------------------------- |
+| `luciole search [text]`           | Apps (keyword `luciole-app`) matching the text |
+| `luciole install <spec>… [--yes]` | Installs, or switches to the version given     |
+| `luciole update [app…]`           | Each app to the latest version of its range    |
+| `luciole list`                    | Installed apps                                 |
+| `luciole remove <app>…`           | Removes the app and its binaries               |
 
 <Note>
   A compiled app binary has its own commands (`serve`, `--url`, `--on`, `--new`, `--version`): see

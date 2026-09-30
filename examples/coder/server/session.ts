@@ -1,5 +1,5 @@
-import { createHarness } from "@airtty/harness/adapters";
-import { HarnessSession } from "@airtty/harness/session";
+import { createHarness } from "@luciole/harness/adapters";
+import { HarnessSession } from "@luciole/harness/session";
 import { config } from "./config";
 import { rememberLaunch, rememberedSession } from "./launches";
 

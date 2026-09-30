@@ -6,16 +6,16 @@ import { testRender } from "@opentui/react/test-utils";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { build } from "../packages/airtty/src/build";
-import { instrumentTracing } from "../packages/airtty/src/client";
+import { build } from "../packages/luciole/src/build";
+import { instrumentTracing } from "../packages/luciole/src/client";
 import { launch, until, importClient, destroy, draftOf, renderable, type TestUI } from "./helpers";
 
 const root = resolve("examples/notes");
 
 test("the overlay shows no request while typing and one timed call per save", async () => {
   await build(root);
-  const dir = await mkdtemp(join(tmpdir(), "airtty-observe-"));
-  const server = await launch(join(root, ".airtty/server/index.js"), {
+  const dir = await mkdtemp(join(tmpdir(), "luciole-observe-"));
+  const server = await launch(join(root, ".luciole/server/index.js"), {
     NOTES_DB: join(dir, "notes.sqlite"),
   });
   const { createApp, Shell } = await importClient(root, "observe");
@@ -70,10 +70,10 @@ test("the overlay shows no request while typing and one timed call per save", as
     expect(line).toMatch(/requests 2 · open 0 · \d+B · rtt \d+ms/);
     expect(Number(/rtt (\d+)ms/.exec(line)?.[1])).toBeGreaterThanOrEqual(40);
     expect(ui.captureCharFrame()).toContain("← action saveNote 200");
-    expect(spans.map((s) => [s.name, s.attributes["airtty.target"], s.ended])).toEqual([
-      ["airtty.render", "/notes/[id]", true],
-      ["airtty.action", expect.stringContaining("#saveNote"), true],
-      ["airtty.render", "/notes/[id]", true],
+    expect(spans.map((s) => [s.name, s.attributes["luciole.target"], s.ended])).toEqual([
+      ["luciole.render", "/notes/[id]", true],
+      ["luciole.action", expect.stringContaining("#saveNote"), true],
+      ["luciole.render", "/notes/[id]", true],
     ]);
     expect(spans[1].attributes["http.response.status_code"]).toBe(200);
   } finally {

@@ -1,5 +1,5 @@
 /**
- * `airtty` without arguments on a PTY: the launcher app lists an installed app, launches it
+ * `luciole` without arguments on a PTY: the launcher app lists an installed app, launches it
  * with the terminal to itself, comes back with its exit status, reports a target that
  * cannot launch and an unreachable registry, then quits cleanly. Offline.
  */
@@ -13,20 +13,20 @@ const TIMEOUT_MS = 30_000;
 const FOCUS_MS = 300;
 const UNREACHABLE = "http://127.0.0.1:1";
 
-using directory = temporaryDirectory("airtty-pty-launcher-");
+using directory = temporaryDirectory("luciole-pty-launcher-");
 const base = directory.path;
-// An installed app, as `airtty install` leaves it: its record and its binary.
-const build = join(base, "data/airtty/apps/demo/ab12");
+// An installed app, as `luciole install` leaves it: its record and its binary.
+const build = join(base, "data/luciole/apps/demo/ab12");
 mkdirSync(build, { recursive: true });
 const ran = join(base, "ran");
 const binary = join(build, "demo");
 writeFileSync(
   binary,
-  `#!/bin/sh\n# airtty-binary:1:demo:ab12:bun-test;\necho "demo ran $*" >> "${ran}"\nexit 3\n`,
+  `#!/bin/sh\n# luciole-binary:1:demo:ab12:bun-test;\necho "demo ran $*" >> "${ran}"\nexit 3\n`,
 );
 chmodSync(binary, 0o755);
 writeFileSync(
-  join(base, "data/airtty/apps/demo/installed.json"),
+  join(base, "data/luciole/apps/demo/installed.json"),
   JSON.stringify({
     app: "demo",
     package: "@ada/demo",
@@ -47,7 +47,7 @@ await using t = await drive({
     XDG_STATE_HOME: join(base, "state"),
     XDG_CONFIG_HOME: join(base, "config"),
     XDG_CACHE_HOME: join(base, "cache"),
-    AIRTTY_REGISTRY: UNREACHABLE,
+    LUCIOLE_REGISTRY: UNREACHABLE,
   },
 });
 const wait = (text: string) => t.waitFor(text, { timeout: TIMEOUT_MS });
@@ -63,7 +63,7 @@ await t.type("\t\t", FOCUS_MS);
 t.write("./nowhere");
 await wait("./nowhere");
 t.write(Keys.enter);
-await wait("not an airtty app");
+await wait("not a luciole app");
 // Words search the registry, here unreachable: the status line says so.
 await t.type("\t\t", FOCUS_MS);
 t.write("notes");
@@ -72,7 +72,7 @@ t.write(Keys.enter);
 await wait("unreachable");
 await t.quit();
 // The launcher's Server wrote its log in the user's state directory, not the screen.
-assert.ok(existsSync(join(base, "state/airtty/airtty/server.log")), "no Server log");
+assert.ok(existsSync(join(base, "state/luciole/luciole/server.log")), "no Server log");
 
 report({
   launcherPTY: true,

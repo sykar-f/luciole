@@ -5,7 +5,7 @@ import { night } from "./src/lib/codeTheme.ts";
 import { headingAnchors, renameProduct } from "./src/lib/docs/markdown.ts";
 
 export default defineConfig({
-  site: "https://github.com/sykar-f/airtty",
+  site: "https://github.com/sykar-f/luciole",
   // `cloudflared tunnel --url http://localhost:4321` shares a local preview: its host.
   server: { allowedHosts: [".trycloudflare.com"] },
   // The page shows the example applications' real sources, read from the checkout.

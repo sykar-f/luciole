@@ -24,7 +24,7 @@ const frameShows = (text: string) =>
   `${FRAME_SCREEN}.map((row) => row.textContent).join("\\n").includes(${JSON.stringify(text)})`;
 
 build(example("notes"), ["--web-local"]);
-const site = join(example("notes"), ".airtty/web");
+const site = join(example("notes"), ".luciole/web");
 const notes = serveSite(site);
 const look = `index.html?columns=${COLUMNS}&rows=${ROWS}&background=0a0f16`;
 // The embedding page: it records every message it hears, from any origin, and frames `?src=`.
@@ -34,13 +34,13 @@ const host = `<!doctype html><body style="margin:0"><iframe style="width:1100px;
   window.stages = [];
   window.events = [];
   addEventListener("message", (event) => {
-    if (event.data?.source !== "airtty") return;
+    if (event.data?.source !== "luciole") return;
     heard.push(event.data);
     if (event.data.type === "stage") stages.push(event.data.stage);
     if (event.data.type === "event") events.push(event.data.event);
   });
   window.send = (message) =>
-    document.querySelector("iframe").contentWindow.postMessage({ source: "airtty", ...message }, "*");
+    document.querySelector("iframe").contentWindow.postMessage({ source: "luciole", ...message }, "*");
   document.querySelector("iframe").src = new URLSearchParams(location.search).get("src");
 </script>`;
 const hostSite = Bun.serve({
@@ -123,7 +123,7 @@ try {
   while (!(await everything()).includes("First note") && performance.now() < deadline)
     await Bun.sleep(POLL_MS);
   await browser.evaluate(
-    `document.querySelector("iframe").contentWindow.postMessage({ source: "airtty", type: "input", data: "\\r" }, "*")`,
+    `document.querySelector("iframe").contentWindow.postMessage({ source: "luciole", type: "input", data: "\\r" }, "*")`,
   );
   await Bun.sleep(OTHER_ORIGIN_WAIT_MS);
   const screen = await everything();

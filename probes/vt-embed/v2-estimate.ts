@@ -1,4 +1,4 @@
-// v2 sketch: instead of a VT stream, a child airtty app would send the diffs of its
+// v2 sketch: instead of a VT stream, a child luciole app would send the diffs of its
 // OpenTUI cell buffer over IPC. How many bytes would that cost compared with the VT bytes
 // for the same screens? Each recorded stream is replayed into OpenTUI's embedded terminal;
 // after every "frame" (a 4 KiB PTY read, worst case; or 64 KiB, what a 60 Hz host

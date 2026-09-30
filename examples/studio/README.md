@@ -1,6 +1,6 @@
 # studio
 
-Décrire une application airtty à un agent de code et **s'en servir pendant qu'il l'écrit**.
+Décrire une application luciole à un agent de code et **s'en servir pendant qu'il l'écrit**.
 À gauche la conversation avec le harness (Claude Code, ou un générateur scripté),
 à droite l'application générée, en marche, embarquée par le widget VT : un **brouillon**
 après chaque fichier écrit, une **révision** après chaque tour, sans perdre ce que vous
@@ -8,7 +8,7 @@ faisiez dans l'app. Conception : [docs/studio/SPEC.md](../../docs/studio/SPEC.md
 
 ```sh
 bun run studio -- -H fake                    # générateur scripté : hors ligne, sans quota
-bun run studio -- -H claude --project todos  # un projet nommé, sous $XDG_DATA_HOME/airtty/studio
+bun run studio -- -H claude --project todos  # un projet nommé, sous $XDG_DATA_HOME/luciole/studio
 bun run studio -- --dir ~/apps/notes -r      # un dossier ; -r reprend la dernière session
 ```
 
@@ -16,7 +16,7 @@ bun run studio -- --dir ~/apps/notes -r      # un dossier ; -r reprend la derni�
 | ----------------------------- | ------------------------------------------------------------------------------------------ |
 | `-H, --harness`               | `claude` (défaut) ou `fake` (générateur scripté)                                           |
 | `-d, --dir DIR`               | dossier du projet : vide (ou absent), il reçoit le template ; un projet studio est rouvert |
-| `-p, --project NAME`          | projet sous `$XDG_DATA_HOME/airtty/studio/NAME` (défaut : un nouveau `app-<date>`)         |
+| `-p, --project NAME`          | projet sous `$XDG_DATA_HOME/luciole/studio/NAME` (défaut : un nouveau `app-<date>`)        |
 | `-r, --resume [ID]`           | reprend la session du harness                                                              |
 | `--preview sandbox\|process`  | aperçu confiné (défaut), ou avec vos droits                                                |
 | `--fixes N`                   | corrections automatiques après un échec (défaut 2, au plus 5)                              |
@@ -62,7 +62,7 @@ survivre aux brouillons.
 1. **Garde-fou** : les fichiers changés doivent être des `.ts`/`.tsx` sous `app/`,
    `components/`, `server/`, `actions/`, et n'importer que les paquets permis (voir
    `STUDIO.md` dans le projet). Un changement refusé est annulé.
-2. **Build** à part (`.airtty-studio/builds/`), signé par la clé propre au projet.
+2. **Build** à part (`.luciole-studio/builds/`), signé par la clé propre au projet.
 3. **Server** de l'application démarré **confiné** : il lit son build, écrit `data/`, ne
    joint aucun réseau sauf les hôtes que vous autorisez, ne lance aucun programme.
 4. **Révision** : un commit du dépôt git que studio tient dans le projet (identité
@@ -99,7 +99,7 @@ son `package.json`), `/restore N`, `/restart`, `/revisions`.
 Par défaut l'aperçu est **confiné** : Server et Client de l'application sous Seatbelt
 (macOS). Sans mécanisme disponible, studio ne démarre pas l'aperçu et dit pourquoi ;
 `--preview process` le lance quand même, **avec vos droits**, et l'écrit en permanence
-au-dessus de l'aperçu. Linux : le Client confiné existe (`airtty-sandbox`), pas encore le
+au-dessus de l'aperçu. Linux : le Client confiné existe (`luciole-sandbox`), pas encore le
 Server confiné ; le mode `sandbox` y est donc refusé pour l'instant.
 
 ## Architecture

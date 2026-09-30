@@ -7,7 +7,7 @@ import type { Request, Response } from "../packages/harness/src/model";
 import { USE_CLAUDE } from "../packages/harness/src/anthropic-guard";
 import { PiHarness, type PiDeps } from "../packages/harness/src/adapters/pi";
 import type { HarnessEvent } from "../packages/harness/src/adapters/types";
-import { messageOf } from "../packages/airtty/src/guards";
+import { messageOf } from "../packages/luciole/src/guards";
 import { rejectionOf } from "./helpers";
 
 // Exchanges recorded on the real pi 0.87.1 with coder's gate by scripts/coder/record-pi.ts,

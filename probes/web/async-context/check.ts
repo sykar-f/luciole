@@ -10,7 +10,7 @@ import { Browser } from "../../../scripts/web/cdp";
 import { asyncContext } from "./plugin";
 
 const here = import.meta.dir;
-const out = join(here, ".airtty");
+const out = join(here, ".luciole");
 const entry = join(here, "src/entry.ts");
 const EXAMPLES = 3;
 const Result = z.object({ requests: z.number(), mismatches: z.array(z.string()) });

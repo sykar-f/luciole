@@ -64,8 +64,8 @@ const areas: { name: string; tone: string; chapter: string; files: [string, stri
     chapter: "distribution",
     files: [
       ["compile.ts · sign.ts", "binaire unique, signature macOS"],
-      ["launcher/ · registry/", "airtty <cible>, apps installées"],
-      ["generic/ · app-bundle.ts · abi.ts", "airtty <url>, bundles vérifiés"],
+      ["launcher/ · registry/", "luciole <cible>, apps installées"],
+      ["generic/ · app-bundle.ts · abi.ts", "luciole <url>, bundles vérifiés"],
       ["sandbox/", "confinement des apps d'une origine"],
     ],
   },
@@ -83,7 +83,7 @@ const areas: { name: string; tone: string; chapter: string; files: [string, stri
     name: "Outillage",
     tone: "neutral",
     chapter: "devtools",
-    files: [["devtools/", "agents, protocole, app airtty devtools"]],
+    files: [["devtools/", "agents, protocole, app luciole devtools"]],
   },
 ];
 ---
@@ -91,13 +91,13 @@ const areas: { name: string; tone: string; chapter: string; files: [string, stri
 <Guide
   slug="carte"
   outcomes={[
-    "nommer les trois programmes d'airtty et dire où chacun tourne ;",
+    "nommer les trois programmes de luciole et dire où chacun tourne ;",
     "dire d'un fichier de Notes s'il s'exécute sur le Client ou le Server, et pourquoi ;",
-    "retrouver le dossier de <code>packages/airtty/src</code> qui porte une responsabilité donnée.",
+    "retrouver le dossier de <code>packages/luciole/src</code> qui porte une responsabilité donnée.",
   ]}
 >
   <h2>En une phrase</h2>
-  <p>Tu écris une application dans <strong>un seul dossier</strong>. <code>airtty build</code> la coupe en <strong>deux programmes</strong> : un <span class="s">Server</span> qui lit les données et rend des pages, et un <span class="c">Client</span> qui dessine dans le terminal et gère le clavier. Les deux se parlent en <span class="w">React Flight</span>, le format de sérialisation des React Server Components.</p>
+  <p>Tu écris une application dans <strong>un seul dossier</strong>. <code>luciole build</code> la coupe en <strong>deux programmes</strong> : un <span class="s">Server</span> qui lit les données et rend des pages, et un <span class="c">Client</span> qui dessine dans le terminal et gère le clavier. Les deux se parlent en <span class="w">React Flight</span>, le format de sérialisation des React Server Components.</p>
 
   <h2>Une minute de Notes</h2>
   <p>Tout le guide s'appuie sur <code>examples/notes</code>, une petite app de notes. Voici ce qui se passe quand on ouvre une note, qu'on la modifie puis qu'on l'enregistre. Garde ce schéma en tête : les chapitres 4 et 5 le détaillent ligne par ligne.</p>
@@ -135,7 +135,7 @@ const areas: { name: string; tone: string; chapter: string; files: [string, stri
     <table>
       <thead><tr><th>Programme</th><th>Où il tourne</th><th>Ce qu'il contient</th><th>Ce qu'il n'a jamais</th></tr></thead>
       <tbody>
-        <tr><td class="b">Build</td><td>la machine du développeur, une fois</td><td>le compilateur : lit <code>app/</code>, vérifie les frontières, écrit <code>.airtty/</code></td><td>—</td></tr>
+        <tr><td class="b">Build</td><td>la machine du développeur, une fois</td><td>le compilateur : lit <code>app/</code>, vérifie les frontières, écrit <code>.luciole/</code></td><td>—</td></tr>
         <tr><td class="s">Server</td><td>là où vivent les données</td><td>les pages, les Server Functions, le cache, l'accès SQLite</td><td>OpenTUI, le clavier, l'écran</td></tr>
         <tr><td class="c">Client</td><td>le terminal de l'utilisateur</td><td>OpenTUI, TanStack Router, les Client Components, le Transport</td><td>les sources Server, la base, les secrets</td></tr>
       </tbody>
@@ -144,7 +144,7 @@ const areas: { name: string; tone: string; chapter: string; files: [string, stri
   <p>Server et Client portent le même <strong>build ID</strong>, une empreinte calculée au build. Chaque requête le transporte, et le Server refuse celles qui ne portent pas le sien. Un Client et un Server issus de deux builds différents ne peuvent donc jamais se parler (chapitre 3).</p>
 
   <h2>Une directive décide du côté</h2>
-  <p>La première ligne d'un fichier place tout son code d'un côté. C'est l'unique règle à connaître pour lire une app airtty :</p>
+  <p>La première ligne d'un fichier place tout son code d'un côté. C'est l'unique règle à connaître pour lire une app luciole :</p>
   <div class="table">
     <table>
       <thead><tr><th>En tête du fichier</th><th>S'exécute</th><th>Dans Notes</th></tr></thead>
@@ -171,7 +171,7 @@ const areas: { name: string; tone: string; chapter: string; files: [string, stri
     <table>
       <thead><tr><th>Dossier</th><th>Rôle</th></tr></thead>
       <tbody>
-        <tr><td><code>packages/airtty/</code></td><td>le framework : CLI, build, runtimes Client et Server. Plus un sandbox en Rust dans <code>native/</code>.</td></tr>
+        <tr><td><code>packages/luciole/</code></td><td>le framework : CLI, build, runtimes Client et Server. Plus un sandbox en Rust dans <code>native/</code>.</td></tr>
         <tr><td><code>packages/desktop/</code></td><td>prototype d'app desktop (Electrobun, xterm.js)</td></tr>
         <tr><td><code>examples/</code></td><td>huit apps, chacune un package : notes, forge, chat, files, mux…</td></tr>
         <tr><td><code>tests/</code> · <code>scripts/</code></td><td>tests d'intégration qui construisent et lancent les exemples ; parcours PTY</td></tr>
@@ -181,7 +181,7 @@ const areas: { name: string; tone: string; chapter: string; files: [string, stri
   </div>
 
   <h2>Où vit quoi dans le framework</h2>
-  <p>Les chemins sont relatifs à <code>packages/airtty/src/</code>. La couleur dit où tourne le code, et chaque bloc renvoie au chapitre qui le traverse.</p>
+  <p>Les chemins sont relatifs à <code>packages/luciole/src/</code>. La couleur dit où tourne le code, et chaque bloc renvoie au chapitre qui le traverse.</p>
   <div class="areas">
     {
       areas.map((area) => (
@@ -200,7 +200,7 @@ const areas: { name: string; tone: string; chapter: string; files: [string, stri
     }
   </div>
 
-  <p>Le framework s'étend sans toucher à ses fichiers centraux (<Src path="packages/airtty/src/client.tsx" />, <Src path="packages/airtty/src/transport.ts" />, <Src path="packages/airtty/src/server.ts" />). Pour cela, il offre des points d'extension : décorer le Transport (<code>wrapTransport</code>), écouter les événements (<code>onEvent</code>, <code>serve(&#123; instrument &#125;)</code>), ajouter une sous-commande dans <code>commands/</code>. Les DevTools et le cache s'y branchent.</p>
+  <p>Le framework s'étend sans toucher à ses fichiers centraux (<Src path="packages/luciole/src/client.tsx" />, <Src path="packages/luciole/src/transport.ts" />, <Src path="packages/luciole/src/server.ts" />). Pour cela, il offre des points d'extension : décorer le Transport (<code>wrapTransport</code>), écouter les événements (<code>onEvent</code>, <code>serve(&#123; instrument &#125;)</code>), ajouter une sous-commande dans <code>commands/</code>. Les DevTools et le cache s'y branchent.</p>
 
   <Callout kind="retenir">
     <ul>

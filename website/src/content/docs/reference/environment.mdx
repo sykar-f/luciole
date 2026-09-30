@@ -2,14 +2,14 @@
 title: Environment variables
 description: Every variable the Client, the Server, the launcher and the tools read, with its default. Both processes validate their environment at startup and stop on an invalid value, naming it.
 sources:
-  - packages/airtty/src/run.tsx
-  - packages/airtty/src/serve.ts
-  - packages/airtty/src/transport.ts
-  - packages/airtty/src/connect.ts
-  - packages/airtty/src/launcher/lifetime.ts
-  - packages/airtty/src/devtools
-  - packages/airtty/src/sandbox/mechanism.ts
-  - packages/airtty/src/registry/npm.ts
+  - packages/luciole/src/run.tsx
+  - packages/luciole/src/serve.ts
+  - packages/luciole/src/transport.ts
+  - packages/luciole/src/connect.ts
+  - packages/luciole/src/launcher/lifetime.ts
+  - packages/luciole/src/devtools
+  - packages/luciole/src/sandbox/mechanism.ts
+  - packages/luciole/src/registry/npm.ts
 ---
 
 import Note from "../../../components/docs/Note.astro";
@@ -19,80 +19,80 @@ process with a message that names the variable.
 
 ## Client
 
-| Variable                | Default                                              | Effect                                                                                                                         |
-| ----------------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `AIRTTY_URL`            | the user's config file, then `http://127.0.0.1:3000` | The Server to join, after `--url` ([opening an app](/docs/guides/opening-an-app/#joining-a-server-that-already-runs)).         |
-| `AIRTTY_TOKEN`          | none                                                 | The bearer sent as `Authorization: Bearer …` in local single-user mode.                                                        |
-| `AIRTTY_LATENCY_MS`     | `0`                                                  | A simulated round trip added to every app request, half each way.                                                              |
-| `AIRTTY_JITTER_MS`      | `0`                                                  | A random extra delay, up to this value, on each direction of each request.                                                     |
-| `AIRTTY_CHUNK_DELAY_MS` | `0`                                                  | A delay before each chunk of a response reaches the decoder.                                                                   |
-| `AIRTTY_FAULT`          | none                                                 | Simulated faults with probabilities: `refuse:0.1,drop:0.05,cut:0.05` ([latency and faults](/docs/guides/latency-and-faults/)). |
-| `AIRTTY_PING_MS`        | `10000`                                              | How often a Client pings a Server the launcher manages.                                                                        |
-| `AIRTTY_DESKTOP`        | unset                                                | `1`: the Client fills a desktop window. <kbd>Ctrl+C</kbd> belongs to the app; closing the window quits.                        |
-| `AIRTTY_DEVTOOLS`       | unset                                                | Development only: the address of `airtty devtools` ([DevTools](/docs/guides/devtools/)).                                       |
+| Variable                 | Default                                              | Effect                                                                                                                         |
+| ------------------------ | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `LUCIOLE_URL`            | the user's config file, then `http://127.0.0.1:3000` | The Server to join, after `--url` ([opening an app](/docs/guides/opening-an-app/#joining-a-server-that-already-runs)).         |
+| `LUCIOLE_TOKEN`          | none                                                 | The bearer sent as `Authorization: Bearer …` in local single-user mode.                                                        |
+| `LUCIOLE_LATENCY_MS`     | `0`                                                  | A simulated round trip added to every app request, half each way.                                                              |
+| `LUCIOLE_JITTER_MS`      | `0`                                                  | A random extra delay, up to this value, on each direction of each request.                                                     |
+| `LUCIOLE_CHUNK_DELAY_MS` | `0`                                                  | A delay before each chunk of a response reaches the decoder.                                                                   |
+| `LUCIOLE_FAULT`          | none                                                 | Simulated faults with probabilities: `refuse:0.1,drop:0.05,cut:0.05` ([latency and faults](/docs/guides/latency-and-faults/)). |
+| `LUCIOLE_PING_MS`        | `10000`                                              | How often a Client pings a Server the launcher manages.                                                                        |
+| `LUCIOLE_DESKTOP`        | unset                                                | `1`: the Client fills a desktop window. <kbd>Ctrl+C</kbd> belongs to the app; closing the window quits.                        |
+| `LUCIOLE_DEVTOOLS`       | unset                                                | Development only: the address of `luciole devtools` ([DevTools](/docs/guides/devtools/)).                                      |
 
 ## Server
 
-| Variable            | Default                | Effect                                                                                                                               |
-| ------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `PORT`              | `3000`                 | The TCP port. `0` picks a free one (`airtty dev` does).                                                                              |
-| `AIRTTY_HOST`       | `127.0.0.1`            | The address to listen on. Anything but loopback requires `AIRTTY_TOKEN` or `server/auth.ts`.                                         |
-| `AIRTTY_SOCKET`     | unset                  | Listen on this Unix socket (mode `0600`) instead of TCP. The Client joins it with `--url unix:/path`.                                |
-| `AIRTTY_TOKEN`      | none                   | Required from every request in local single-user mode.                                                                               |
-| `AIRTTY_USER`       | `local`                | The identity of that single user, returned by `getSession()`.                                                                        |
-| `AIRTTY_WEB_ORIGIN` | unset                  | The one browser origin allowed to open the app (`airtty build --web`); without it, requests carrying a browser `Origin` are refused. |
-| `AIRTTY_DEVTOOLS`   | unset                  | Development only; ignored with a warning under `NODE_ENV=production`.                                                                |
-| `AIRTTY_ARGS`       | set by the entry point | The app's checked arguments (`{ v, argv, cwd }`), which the Server parses again ([app arguments](/docs/reference/app-arguments/)).   |
+| Variable             | Default                | Effect                                                                                                                                |
+| -------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `PORT`               | `3000`                 | The TCP port. `0` picks a free one (`luciole dev` does).                                                                              |
+| `LUCIOLE_HOST`       | `127.0.0.1`            | The address to listen on. Anything but loopback requires `LUCIOLE_TOKEN` or `server/auth.ts`.                                         |
+| `LUCIOLE_SOCKET`     | unset                  | Listen on this Unix socket (mode `0600`) instead of TCP. The Client joins it with `--url unix:/path`.                                 |
+| `LUCIOLE_TOKEN`      | none                   | Required from every request in local single-user mode.                                                                                |
+| `LUCIOLE_USER`       | `local`                | The identity of that single user, returned by `getSession()`.                                                                         |
+| `LUCIOLE_WEB_ORIGIN` | unset                  | The one browser origin allowed to open the app (`luciole build --web`); without it, requests carrying a browser `Origin` are refused. |
+| `LUCIOLE_DEVTOOLS`   | unset                  | Development only; ignored with a warning under `NODE_ENV=production`.                                                                 |
+| `LUCIOLE_ARGS`       | set by the entry point | The app's checked arguments (`{ v, argv, cwd }`), which the Server parses again ([app arguments](/docs/reference/app-arguments/)).    |
 
 ## Launcher and binaries
 
-| Variable               | Default                                                  | Effect                                                                    |
-| ---------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------- |
-| `AIRTTY_SSH`           | `ssh`                                                    | The ssh command `--on` uses.                                              |
-| `AIRTTY_REGISTRY`      | `NPM_CONFIG_REGISTRY`, then `https://registry.npmjs.org` | The npm registry to search and install apps from.                         |
-| `AIRTTY_PUBLISHER_KEY` | `$XDG_CONFIG_HOME/airtty/keys/publisher.pem`             | The publisher key that signs app bundles.                                 |
-| `AIRTTY_NATIVE_DIR`    | `native/` next to the binary                             | Where a compiled binary finds its native Server packages.                 |
-| `AIRTTY_SESSION_KEY`   | the Server's URL                                         | What a Client files its restorable session under; the launcher sets it.   |
-| `AIRTTY_GRACE_MS`      | `900000` (15 min)                                        | A managed Server's grace period; the launcher sets it from `--grace`.     |
-| `AIRTTY_WATCHDOG_MS`   | `30000`                                                  | How long a managed Server waits for a ping before counting a Client lost. |
+| Variable                | Default                                                  | Effect                                                                    |
+| ----------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `LUCIOLE_SSH`           | `ssh`                                                    | The ssh command `--on` uses.                                              |
+| `LUCIOLE_REGISTRY`      | `NPM_CONFIG_REGISTRY`, then `https://registry.npmjs.org` | The npm registry to search and install apps from.                         |
+| `LUCIOLE_PUBLISHER_KEY` | `$XDG_CONFIG_HOME/luciole/keys/publisher.pem`            | The publisher key that signs app bundles.                                 |
+| `LUCIOLE_NATIVE_DIR`    | `native/` next to the binary                             | Where a compiled binary finds its native Server packages.                 |
+| `LUCIOLE_SESSION_KEY`   | the Server's URL                                         | What a Client files its restorable session under; the launcher sets it.   |
+| `LUCIOLE_GRACE_MS`      | `900000` (15 min)                                        | A managed Server's grace period; the launcher sets it from `--grace`.     |
+| `LUCIOLE_WATCHDOG_MS`   | `30000`                                                  | How long a managed Server waits for a ping before counting a Client lost. |
 
-The launcher also sets variables for the processes it starts (`AIRTTY_LIFETIME`,
-`AIRTTY_LAUNCH`, `AIRTTY_SESSION`…): they are its protocol with them, not settings.
+The launcher also sets variables for the processes it starts (`LUCIOLE_LIFETIME`,
+`LUCIOLE_LAUNCH`, `LUCIOLE_SESSION`…): they are its protocol with them, not settings.
 
 ## Sandbox
 
-| Variable                   | Effect                                                                                                                                                 |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `AIRTTY_SANDBOX_MECHANISM` | Asks the Linux sandbox for a weaker mechanism than the best available (`userns`, `bwrap`, `landlock`), for tests; never one the system does not allow. |
-| `AIRTTY_SANDBOX_LAUNCHER`  | Another `airtty-sandbox` launcher, such as a local cargo build.                                                                                        |
+| Variable                    | Effect                                                                                                                                                 |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `LUCIOLE_SANDBOX_MECHANISM` | Asks the Linux sandbox for a weaker mechanism than the best available (`userns`, `bwrap`, `landlock`), for tests; never one the system does not allow. |
+| `LUCIOLE_SANDBOX_LAUNCHER`  | Another `luciole-sandbox` launcher, such as a local cargo build.                                                                                       |
 
 ## DevTools
 
-| Variable                 | Effect                                                                         |
-| ------------------------ | ------------------------------------------------------------------------------ |
-| `AIRTTY_DEVTOOLS_LISTEN` | Where the DevTools' Server listens; `none` opens no bus (demo or replay only). |
-| `AIRTTY_DEVTOOLS_DEMO`   | `1`: replay a simulated session.                                               |
-| `AIRTTY_DEVTOOLS_REPLAY` | A recording to open.                                                           |
-| `BUN_OPTIONS`            | `--preload=…/devtools/hook.ts` enables the Components panel.                   |
-| `DEV`                    | `true`: OpenTUI connects to the standalone React DevTools.                     |
+| Variable                  | Effect                                                                         |
+| ------------------------- | ------------------------------------------------------------------------------ |
+| `LUCIOLE_DEVTOOLS_LISTEN` | Where the DevTools' Server listens; `none` opens no bus (demo or replay only). |
+| `LUCIOLE_DEVTOOLS_DEMO`   | `1`: replay a simulated session.                                               |
+| `LUCIOLE_DEVTOOLS_REPLAY` | A recording to open.                                                           |
+| `BUN_OPTIONS`             | `--preload=…/devtools/hook.ts` enables the Components panel.                   |
+| `DEV`                     | `true`: OpenTUI connects to the standalone React DevTools.                     |
 
 ## Directories
 
-The XDG variables decide where airtty keeps its files:
+The XDG variables decide where luciole keeps its files:
 
-| What                                  | Where                                                        |
-| ------------------------------------- | ------------------------------------------------------------ |
-| restorable sessions                   | `$XDG_STATE_HOME/airtty/<app>/sessions/`                     |
-| logs of launched Servers              | `$XDG_STATE_HOME/airtty/<app>/server.log`                    |
-| where a Client finds its Server       | `$XDG_CONFIG_HOME/airtty/<app>.json`                         |
-| trust granted to repositories         | `$XDG_CONFIG_HOME/airtty/trust.json`                         |
-| origins opened by URL                 | `$XDG_STATE_HOME/airtty/origins/<sha256(origin)>/`           |
-| installed apps, `--on` installations  | `$XDG_DATA_HOME/airtty/apps/<app>/`                          |
-| git checkouts and builds              | `$XDG_CACHE_HOME/airtty/git/`                                |
-| bundles downloaded by URL             | `$XDG_CACHE_HOME/airtty/bundles/<sha256>.cjs`                |
-| official Bun runtimes for `--compile` | `$XDG_CACHE_HOME/airtty/runtime/`                            |
-| the web runtime                       | `$XDG_CACHE_HOME/airtty/web/`                                |
-| sockets of managed Servers            | `$XDG_RUNTIME_DIR/airtty`, else `/tmp/airtty-<uid>` (`0700`) |
+| What                                  | Where                                                          |
+| ------------------------------------- | -------------------------------------------------------------- |
+| restorable sessions                   | `$XDG_STATE_HOME/luciole/<app>/sessions/`                      |
+| logs of launched Servers              | `$XDG_STATE_HOME/luciole/<app>/server.log`                     |
+| where a Client finds its Server       | `$XDG_CONFIG_HOME/luciole/<app>.json`                          |
+| trust granted to repositories         | `$XDG_CONFIG_HOME/luciole/trust.json`                          |
+| origins opened by URL                 | `$XDG_STATE_HOME/luciole/origins/<sha256(origin)>/`            |
+| installed apps, `--on` installations  | `$XDG_DATA_HOME/luciole/apps/<app>/`                           |
+| git checkouts and builds              | `$XDG_CACHE_HOME/luciole/git/`                                 |
+| bundles downloaded by URL             | `$XDG_CACHE_HOME/luciole/bundles/<sha256>.cjs`                 |
+| official Bun runtimes for `--compile` | `$XDG_CACHE_HOME/luciole/runtime/`                             |
+| the web runtime                       | `$XDG_CACHE_HOME/luciole/web/`                                 |
+| sockets of managed Servers            | `$XDG_RUNTIME_DIR/luciole`, else `/tmp/luciole-<uid>` (`0700`) |
 
 <Note>
   An app's own variables (`NOTES_DB` for Notes, `CHAT_DEMO` for Chat) are the app's business: the

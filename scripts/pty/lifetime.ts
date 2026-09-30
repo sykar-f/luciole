@@ -1,5 +1,5 @@
 /**
- * `airtty ./examples/notes` on a PTY, across the Server's lifetime: a Client killed with
+ * `luciole ./examples/notes` on a PTY, across the Server's lifetime: a Client killed with
  * SIGKILL leaves its Server in grace; the next launch attaches to that same Server and
  * restores the route and the typed text; an unreachable Server shows Disconnected, then
  * Connected once it answers again; Ctrl+C stops the Server. Offline.
@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
-import { LifetimeStatus } from "../../packages/airtty/src/launcher/lifetime";
+import { LifetimeStatus } from "../../packages/luciole/src/launcher/lifetime";
 import { ctrl, drive, type Driver, Keys } from "./driver";
 import { BUN, CLI, defer, eventually, example, report, temporaryDirectory } from "./harness";
 
@@ -35,12 +35,12 @@ async function status(socket: string | undefined) {
   }
 }
 
-using directory = temporaryDirectory("airtty-pty-lifetime-");
+using directory = temporaryDirectory("luciole-pty-lifetime-");
 // Under /tmp: a Unix socket's path is short (104 bytes on macOS).
-using runtime = temporaryDirectory("airtty-rt-", "/tmp");
-const sessions = join(directory.path, "state/airtty/notes/sessions");
+using runtime = temporaryDirectory("luciole-rt-", "/tmp");
+const sessions = join(directory.path, "state/luciole/notes/sessions");
 const serverSocket = () => {
-  const sockets = join(runtime.path, "airtty");
+  const sockets = join(runtime.path, "luciole");
   const found = existsSync(sockets)
     ? readdirSync(sockets).find((name) => name.endsWith(".sock"))
     : undefined;
@@ -63,7 +63,7 @@ const start = () =>
       XDG_STATE_HOME: join(directory.path, "state"),
       XDG_RUNTIME_DIR: runtime.path,
       NOTES_DB: join(directory.path, "notes.sqlite"),
-      AIRTTY_PING_MS: "500",
+      LUCIOLE_PING_MS: "500",
     },
   });
 const wait = (t: Driver, text: string) => t.waitFor(text, { timeout: TIMEOUT_MS });

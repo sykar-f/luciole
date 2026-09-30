@@ -5,58 +5,58 @@ sources:
   - docs/DISTRIBUTION.md
   - docs/WEB.md
   - docs/README.fr.md
-  - packages/airtty/src/launcher
-  - packages/airtty/src/connect.ts
-  - packages/airtty/src/commands/launch.ts
-  - packages/airtty/src/commands/start.ts
+  - packages/luciole/src/launcher
+  - packages/luciole/src/connect.ts
+  - packages/luciole/src/commands/launch.ts
+  - packages/luciole/src/commands/start.ts
 ---
 
 import Note from "../../../components/docs/Note.astro";
 
-One library, `src/launcher/`, opens an app wherever it comes from: `airtty <target>`,
-`airttyx <target>` and the binaries the build compiles all go through it. From a clone, write
-`bun packages/airtty/src/cli.ts` where this page writes `airtty`.
+One library, `src/launcher/`, opens an app wherever it comes from: `luciole <target>`,
+`luciolex <target>` and the binaries the build compiles all go through it. From a clone, write
+`bun packages/luciole/src/cli.ts` where this page writes `luciole`.
 
-| Target                               | Example                                 | What happens                                                        |
-| ------------------------------------ | --------------------------------------- | ------------------------------------------------------------------- |
-| a path (`./`, `../`, `/`, `~/`, `.`) | `airtty ./examples/notes`               | build, then a local launch                                          |
-| an installed app                     | `airtty notes`                          | its binary                                                          |
-| an npm spec                          | `airtty @ada/notes@^1.2`                | installed after confirmation if missing, then launched              |
-| a git source                         | `airtty github:ada/tools#v1/apps/notes` | fetch, trust, install, build (cached), local launch                 |
-| a Server URL                         | `airtty https://notes.example.com`      | the generic Client: signed bundle, pinned key, `sandbox` by default |
+| Target                               | Example                                  | What happens                                                        |
+| ------------------------------------ | ---------------------------------------- | ------------------------------------------------------------------- |
+| a path (`./`, `../`, `/`, `~/`, `.`) | `luciole ./examples/notes`               | build, then a local launch                                          |
+| an installed app                     | `luciole notes`                          | its binary                                                          |
+| an npm spec                          | `luciole @ada/notes@^1.2`                | installed after confirmation if missing, then launched              |
+| a git source                         | `luciole github:ada/tools#v1/apps/notes` | fetch, trust, install, build (cached), local launch                 |
+| a Server URL                         | `luciole https://notes.example.com`      | the generic Client: signed bundle, pinned key, `sandbox` by default |
 
 A bare word (`notes`) is an installed app if there is one, else an npm spec. A relative path
-without `./` is refused with that hint rather than guessed. `airtty` alone opens the
-launcher, an app that lists installed apps and searches the registry. `airttyx build`
-launches the app named `build`: `airttyx` never reads its target as a subcommand.
+without `./` is refused with that hint rather than guessed. `luciole` alone opens the
+launcher, an app that lists installed apps and searches the registry. `luciolex build`
+launches the app named `build`: `luciolex` never reads its target as a subcommand.
 
 ## On this machine
 
 ```sh
-airtty ./my-app
+luciole ./my-app
 ```
 
 The launcher builds the directory and starts its Server on a **Unix socket** (mode `0600`,
 in a `0700` directory of the user), not a port: no port conflict, and no one else can
 connect. Two launches of the same target share one Server, by default. The Server runs in
 the directory the command was typed in, so Notes creates `notes.sqlite` there; what it
-writes goes to `$XDG_STATE_HOME/airtty/<app>/server.log`, never to the Client's screen.
+writes goes to `$XDG_STATE_HOME/luciole/<app>/server.log`, never to the Client's screen.
 
 The Server outlives the Client for a grace period (15 minutes by default, `--grace <duration>`,
 `0` stops at once): a Client that crashes and comes back finds the same Server, its
 state, its route and its named fields. Quitting with <kbd>Ctrl+C</kbd> stops it at once when
 it was the last Client. How launches share a Server is the app's choice
-([`airtty.server`](/docs/reference/package-json/#server-and-grace)).
+([`luciole.server`](/docs/reference/package-json/#server-and-grace)).
 
-During development, `airtty dev --app <dir>` builds, starts both processes, and rebuilds on
+During development, `luciole dev --app <dir>` builds, starts both processes, and rebuilds on
 every change; the Client reopens the same page ([session restore](/docs/concepts/session-restore/)).
 It ends when the Client does, with the Client's exit code, and stops both processes on SIGINT,
-SIGTERM or SIGHUP ([CLI](/docs/reference/cli/#airtty-dev---app-dir----app-arguments)).
+SIGTERM or SIGHUP ([CLI](/docs/reference/cli/#luciole-dev---app-dir----app-arguments)).
 
 ## Joining a Server that already runs
 
-A Client finds its Server in this order: `--url`, then `AIRTTY_URL`, then the user's file
-`$XDG_CONFIG_HOME/airtty/<app>.json` (`~/.config/airtty/notes.json` for Notes), then
+A Client finds its Server in this order: `--url`, then `LUCIOLE_URL`, then the user's file
+`$XDG_CONFIG_HOME/luciole/<app>.json` (`~/.config/luciole/notes.json` for Notes), then
 `http://127.0.0.1:3000`. The file holds only the URL; an unreadable file, or one without
 `url`, stops the Client with a message rather than being ignored.
 
@@ -67,9 +67,9 @@ A Client finds its Server in this order: `--url`, then `AIRTTY_URL`, then the us
 With built artifacts, the two roles start separately:
 
 ```sh
-airtty build
-airtty start --role server
-airtty start --role client --url http://127.0.0.1:3000   # in another terminal
+luciole build
+luciole start --role server
+luciole start --role client --url http://127.0.0.1:3000   # in another terminal
 ```
 
 ### Over SSH
@@ -77,9 +77,9 @@ airtty start --role client --url http://127.0.0.1:3000   # in another terminal
 An `ssh://` URL opens the tunnel itself; the Server keeps listening on loopback.
 
 ```sh
-airtty connect ssh://alice@notes.example.com            # Server on 127.0.0.1:3000 there
-airtty connect ssh://alice@notes.example.com:2222/4000  # ssh on 2222, Server on 4000
-airtty connect ssh://alice@bastion/10.0.0.5:3000        # Server reached from the ssh host
+luciole connect ssh://alice@notes.example.com            # Server on 127.0.0.1:3000 there
+luciole connect ssh://alice@notes.example.com:2222/4000  # ssh on 2222, Server on 4000
+luciole connect ssh://alice@bastion/10.0.0.5:3000        # Server reached from the ssh host
 ```
 
 The form is `ssh://[user@]host[:ssh-port][/[remote-host:]remote-port]`. Before taking the
@@ -102,9 +102,9 @@ notes --on build-box
 ```
 
 1. One master ssh connection authenticates once; the probe, the upload and the Server
-   reuse it (`AIRTTY_SSH` replaces `ssh`).
+   reuse it (`LUCIOLE_SSH` replaces `ssh`).
 2. The host reports its OS, architecture and libc, and whether this build is already
-   installed under `~/.local/share/airtty/apps/<app>/<buildId>/`.
+   installed under `~/.local/share/luciole/apps/<app>/<buildId>/`.
 3. If not, or if it no longer matches its `SHA256SUMS`, the binary uploads itself when the
    host's platform is its own, or the one given with `--target`, whose identity must be the
    same app, the same build and the host's platform. The archive is checked, then swapped
@@ -124,7 +124,7 @@ its grace period.
 ## From a git source
 
 ```sh
-airtty github:ada/tools#v1/apps/notes
+luciole github:ada/tools#v1/apps/notes
 ```
 
 Accepted forms: `github:user/repo[#ref][/dir]`, `gitlab:…`,
@@ -139,7 +139,7 @@ in `trustedDependencies`, as Bun does by default.
 ## By URL, in the generic Client
 
 ```sh
-airtty https://notes.example.com
+luciole https://notes.example.com
 ```
 
 The Server publishes a signed bundle of its Client code (`GET /manifest`,
@@ -153,24 +153,24 @@ enforce: [apps you did not write](/docs/guides/untrusted-apps/).
 The browser is one more host: it evaluates the same app bundle against a web runtime,
 OpenTUI compiled to WebAssembly and drawn by xterm.js.
 
-| Build                      | Server                                       | For                                   |
-| -------------------------- | -------------------------------------------- | ------------------------------------- |
-| `airtty build --web`       | the usual Server, which also serves the page | opening a hosted app from a link      |
-| `airtty build --web-local` | the same handler, in a SharedWorker          | a static site, a demo, an offline app |
+| Build                       | Server                                       | For                                   |
+| --------------------------- | -------------------------------------------- | ------------------------------------- |
+| `luciole build --web`       | the usual Server, which also serves the page | opening a hosted app from a link      |
+| `luciole build --web-local` | the same handler, in a SharedWorker          | a static site, a demo, an offline app |
 
-**`--web`**: the Server serves the page under `/_airtty/web/` to **one declared origin**:
+**`--web`**: the Server serves the page under `/_luciole/web/` to **one declared origin**:
 
 ```sh
-airtty build --web
-AIRTTY_WEB_ORIGIN=https://notes.example.com PORT=3000 bun --conditions=react-server .airtty/server/index.js
+luciole build --web
+LUCIOLE_WEB_ORIGIN=https://notes.example.com PORT=3000 bun --conditions=react-server .luciole/server/index.js
 ```
 
 The first build prepares the web runtime once per framework version (it clones OpenTUI and
-compiles it with Zig 0.16.0; `airtty web-runtime` does it ahead of time). Without
-`AIRTTY_WEB_ORIGIN` there is no web route, and the Server keeps refusing any request that
+compiles it with Zig 0.16.0; `luciole web-runtime` does it ahead of time). Without
+`LUCIOLE_WEB_ORIGIN` there is no web route, and the Server keeps refusing any request that
 carries a browser `Origin`. Authentication is unchanged; the bearer stays in memory.
 
-**`--web-local`** writes a static site into `.airtty/web/`, to serve from any static host
+**`--web-local`** writes a static site into `.luciole/web/`, to serve from any static host
 (`application/wasm` for `.wasm` files). The Server runs in a SharedWorker shared by every tab
 of the origin; its SQLite databases live in memory and are written to OPFS before each
 Server Function answers. The Server code may use `bun:sqlite` (a subset), `Bun.sleep`,
@@ -181,7 +181,7 @@ The site's own demos are built this way.
 ## As a single binary
 
 ```sh
-airtty build --compile
+luciole build --compile
 ```
 
 One executable per OS and architecture, with the Bun runtime, OpenTUI's native library and
@@ -204,6 +204,6 @@ Targets, runtimes, signing and notarization for macOS, glibc and musl:
 
 <Note>
   Whatever the way in, the app's own options (`app/args.ts`) configure its Server. They are refused
-  with `--url`, `airtty connect` and the generic Client, which join a Server that is already
+  with `--url`, `luciole connect` and the generic Client, which join a Server that is already
   configured ([app arguments](/docs/reference/app-arguments/)).
 </Note>

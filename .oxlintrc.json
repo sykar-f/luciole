@@ -70,8 +70,8 @@
       "files": [
         "examples/forge/server/ci.ts",
         "examples/forge/server/seed.ts",
-        "packages/airtty/src/devtools/fixtures.ts",
-        "packages/airtty/src/web/node/sha256.ts",
+        "packages/luciole/src/devtools/fixtures.ts",
+        "packages/luciole/src/web/node/sha256.ts",
         "website/src/pages/guide/index.astro",
         "website/src/pages/guide/build.astro"
       ],
@@ -82,7 +82,7 @@
   ],
   "ignorePatterns": [
     "**/node_modules/**",
-    "**/.airtty/**",
+    "**/.luciole/**",
     "**/routeTree.gen.ts",
     "probes/vt-embed/**",
     "probes/devtools-tanstack/**",

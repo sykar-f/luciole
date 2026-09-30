@@ -1,9 +1,9 @@
 {
-  "extends": "./packages/airtty/tsconfig.base.json",
-  "include": ["tests", "scripts", "probes", "packages/airtty/types.d.ts"],
+  "extends": "./packages/luciole/tsconfig.base.json",
+  "include": ["tests", "scripts", "probes", "packages/luciole/types.d.ts"],
   "exclude": [
     "**/node_modules",
-    "**/.airtty",
+    "**/.luciole",
     "probes/compile/wrapper.ts",
     "probes/vt-embed",
     "probes/devtools-tanstack"

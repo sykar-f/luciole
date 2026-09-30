@@ -24,7 +24,7 @@ const { path, find, until, count, after, mark = [], tone = "neutral", caption } 
 const lang: BundledLanguage =
   Astro.props.lang ?? (path.endsWith(".rs") ? "rust" : path.endsWith(".json") ? "json" : "tsx");
 const picked = find === undefined ? { code: whole(path), start: 1, end: whole(path).split("\n").length } : excerpt(path, { find, until, count, after });
-const name = path.replace(/^packages\/airtty\//, "");
+const name = path.replace(/^packages\/luciole\//, "");
 const lines = picked.start === picked.end ? `${picked.start}` : `${picked.start}–${picked.end}`;
 
 for (const text of mark) {

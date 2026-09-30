@@ -1,6 +1,6 @@
 /**
  * Builds the landing page's live demos: example applications as static sites whose Server
- * runs in the browser (docs/WEB.md, `airtty build --web-local`), in public/demo/<app>/.
+ * runs in the browser (docs/WEB.md, `luciole build --web-local`), in public/demo/<app>/.
  * The web runtime is the framework's, the same for every application: it is published once
  * in public/demo/runtime/ and each demo's page loads it from there, so the first demo a
  * reader starts puts the others' largest files in the browser's cache. Generated, not
@@ -87,11 +87,11 @@ export const DEMOS: Record<string, { app: string; seed?: () => Promise<Seed> }> 
       env: { CODER_HARNESS: "fake", CODER_CWD: "/home/ada/src/timers" },
     }),
   },
-  // `airtty devtools --demo` with no bus: a page has no socket to listen on.
+  // `luciole devtools --demo` with no bus: a page has no socket to listen on.
   devtools: {
-    app: "packages/airtty/src/devtools/airtty-devtools",
+    app: "packages/luciole/src/devtools/luciole-devtools",
     seed: async () => ({
-      env: { AIRTTY_DEVTOOLS_LISTEN: "none", AIRTTY_DEVTOOLS_DEMO: "1" },
+      env: { LUCIOLE_DEVTOOLS_LISTEN: "none", LUCIOLE_DEVTOOLS_DEMO: "1" },
     }),
   },
 };
@@ -104,11 +104,11 @@ for (const [name, { app, seed: seedOf }] of Object.entries(DEMOS)) {
   // Node's API, not Bun's: website/ has no Bun types, and Bun runs it the same.
   const build = spawnSync(
     "bun",
-    ["packages/airtty/src/cli.ts", "build", "--app", app, "--web-local"],
+    ["packages/luciole/src/cli.ts", "build", "--app", app, "--web-local"],
     { cwd: root, stdio: ["ignore", "inherit", "inherit"] },
   );
   if (build.status !== 0) process.exit(build.status ?? 1);
-  const site = join(root, app, ".airtty/web");
+  const site = join(root, app, ".luciole/web");
   const abi = await readFile(join(site, "web-runtime.json"), "utf8");
   if (runtime === undefined) {
     runtime = abi;

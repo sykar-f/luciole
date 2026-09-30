@@ -4,10 +4,10 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { z } from "zod";
-import { serverStatus } from "../packages/airtty/src/launcher/managed";
+import { serverStatus } from "../packages/luciole/src/launcher/managed";
 import { leaveCrashedSession } from "./helpers";
 
-const cli = resolve("packages/airtty/src/cli.ts");
+const cli = resolve("packages/luciole/src/cli.ts");
 
 // macOS and util-linux spell script(1) differently; see tests/compile.test.ts.
 const inPty = (log: string, command: string) => {
@@ -18,9 +18,9 @@ const inPty = (log: string, command: string) => {
   return ["/bin/sh", "-c", `(while [ ! -f stop ]; do sleep 0.1; done; printf '\\003') | ${script}`];
 };
 
-test("`airtty ./app` builds it, runs its Server on a socket and its Client here", async () => {
-  const temporary = await mkdtemp("/tmp/airtty-t-");
-  const run = await mkdtemp(join(tmpdir(), "airtty-launch-"));
+test("`luciole ./app` builds it, runs its Server on a socket and its Client here", async () => {
+  const temporary = await mkdtemp("/tmp/luciole-t-");
+  const run = await mkdtemp(join(tmpdir(), "luciole-launch-"));
   try {
     // A Client of this app crashed on a note: the new launch, on another socket, reopens it.
     await leaveCrashedSession(
@@ -51,12 +51,12 @@ test("`airtty ./app` builds it, runs its Server on a socket and its Client here"
       screen = Bun.stripANSI(await readFile(log, "utf8").catch(() => ""));
     }
     const sockets = () =>
-      readdirSync(join(temporary, "airtty")).filter((entry) => entry.endsWith(".sock"));
+      readdirSync(join(temporary, "luciole")).filter((entry) => entry.endsWith(".sock"));
     expect(sockets()).toHaveLength(1);
     await Bun.write(join(run, "stop"), "");
     await Promise.race([child.exited, Bun.sleep(5000).then(() => child.kill())]);
     expect(screen).toContain("baseline:");
-    expect(existsSync(join(run, "state/airtty/notes/server.log"))).toBe(true);
+    expect(existsSync(join(run, "state/luciole/notes/server.log"))).toBe(true);
     const gone = performance.now() + 3000;
     while (sockets().length && performance.now() < gone) await Bun.sleep(50);
     expect(sockets()).toEqual([]);
@@ -67,14 +67,14 @@ test("`airtty ./app` builds it, runs its Server on a socket and its Client here"
 }, 120000);
 
 test("a launcher killed with SIGKILL leaves its Server in grace, or stops it with no grace", async () => {
-  const work = await mkdtemp(join(tmpdir(), "airtty-kill-"));
-  const runtime = await mkdtemp("/tmp/airtty-rt-");
-  // A launcher holding its Server's stdin, as `airtty ./app` and app binaries do.
+  const work = await mkdtemp(join(tmpdir(), "luciole-kill-"));
+  const runtime = await mkdtemp("/tmp/luciole-rt-");
+  // A launcher holding its Server's stdin, as `luciole ./app` and app binaries do.
   const launcher = async (graceMs: number) => {
     const script = join(work, `launcher-${graceMs}.ts`);
     await Bun.write(
       script,
-      `import { ensureServer, serverId } from ${JSON.stringify(resolve("packages/airtty/src/launcher/managed.ts"))};
+      `import { ensureServer, serverId } from ${JSON.stringify(resolve("packages/luciole/src/launcher/managed.ts"))};
 const server = await ensureServer({
   id: serverId("local:kill-${graceMs}"),
   name: "kill",
@@ -126,15 +126,15 @@ setInterval(() => {}, 1000);`,
 });
 
 test("the CLI explains what it cannot launch", () => {
-  const airtty = (...args: string[]) => {
+  const luciole = (...args: string[]) => {
     const result = Bun.spawnSync([process.execPath, cli, ...args]);
     return { code: result.exitCode, stderr: result.stderr.toString() };
   };
   // Refused before the Server is contacted: what a URL takes is said.
-  expect(airtty("https://notes.example.com", "--nope")).toMatchObject({ code: 1 });
-  expect(airtty("https://notes.example.com", "--nope").stderr).toContain("--inline or --sandbox");
-  expect(airtty("./no-such-app").stderr).toContain("is not an airtty app");
-  expect(airtty("examples/notes").stderr).toContain("start it with ./");
-  expect(airtty("--nope").stderr).toContain("Usage: airtty");
-  expect(airtty("./examples/notes", "--on", "host").stderr).toContain("airtty build --compile");
+  expect(luciole("https://notes.example.com", "--nope")).toMatchObject({ code: 1 });
+  expect(luciole("https://notes.example.com", "--nope").stderr).toContain("--inline or --sandbox");
+  expect(luciole("./no-such-app").stderr).toContain("is not a luciole app");
+  expect(luciole("examples/notes").stderr).toContain("start it with ./");
+  expect(luciole("--nope").stderr).toContain("Usage: luciole");
+  expect(luciole("./examples/notes", "--on", "host").stderr).toContain("luciole build --compile");
 });

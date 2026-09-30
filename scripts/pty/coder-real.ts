@@ -29,7 +29,7 @@ const MODEL_TIMEOUT_MS = 120_000;
 const EXIT_TIMEOUT_MS = 15_000;
 const CHILD_EXIT_TIMEOUT_MS = 10_000;
 
-using directory = temporaryDirectory("airtty-coder-real-");
+using directory = temporaryDirectory("luciole-coder-real-");
 const project = join(directory.path, "project");
 mkdirSync(project);
 /** Processes working in the project directory: the harness and its tools. */

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Capture real screens of the example applications for the website.
 
-Each scene starts an application with `airtty dev` in a PTY, plays keys, and writes the
+Each scene starts an application with `luciole dev` in a PTY, plays keys, and writes the
 screen pyte decoded (text, colours, attributes) to src/frames/<name>.json. The site
 renders those cells as HTML: what it shows is what the terminal received, not a mock-up.
 
@@ -36,7 +36,7 @@ SITE = pathlib.Path(__file__).resolve().parents[1]
 ROOT = SITE.parent
 OUT = SITE / "src/frames"
 BUN = shutil.which("bun")
-CLI = str(ROOT / "packages/airtty/src/cli.ts")
+CLI = str(ROOT / "packages/luciole/src/cli.ts")
 # The seed's clock (examples/forge/server/seed.ts) plus 22 days, as in scripts/pty-forge.py:
 # the ages Forge shows do not depend on the day of the capture.
 FORGE_CLOCK = "2026-09-23T09:00:00Z"
@@ -142,7 +142,7 @@ def cells(screen):
 
 # The checkout's absolute path is the capturer's, not the reader's: each occurrence becomes
 # a neutral path padded to the same width, so right-aligned text stays where it was.
-PRIVATE = [(str(ROOT), "/home/ada/src/airtty"), (str(ROOT).replace(str(pathlib.Path.home()), "~"), "~/src/airtty")]
+PRIVATE = [(str(ROOT), "/home/ada/src/luciole"), (str(ROOT).replace(str(pathlib.Path.home()), "~"), "~/src/luciole")]
 
 
 TMPDIR = re.compile(r"/var/folders/[^/]+/[^/]+/T/")
@@ -192,9 +192,9 @@ def save(term, name, title, replace=()):
 def dev(app, env, directory, cols, rows, cwd=ROOT):
     return Terminal(
         [BUN, CLI, "dev", "--app", str(ROOT / "examples" / app)],
-        # AIRTTY_DESKTOP: Ctrl+C belongs to the application, as in a page, so the key help
+        # LUCIOLE_DESKTOP: Ctrl+C belongs to the application, as in a page, so the key help
         # the capture shows is the one the live demo it stands in for draws.
-        {**os.environ, "TERM": "xterm-256color", "COLORTERM": "truecolor", "XDG_STATE_HOME": directory + "/state", "AIRTTY_DESKTOP": "1", **env},
+        {**os.environ, "TERM": "xterm-256color", "COLORTERM": "truecolor", "XDG_STATE_HOME": directory + "/state", "LUCIOLE_DESKTOP": "1", **env},
         cols, rows, cwd,
     )
 
@@ -282,7 +282,7 @@ def chat(directory):
     term = dev("chat", {"CHAT_DEMO": "1"}, directory, 140, 40)
     try:
         term.wait_for("Ask anything", 120)
-        term.send(b"How does airtty keep typing local when the Server is 500 ms away?\r")
+        term.send(b"How does luciole keep typing local when the Server is 500 ms away?\r")
         term.wait_for("Done.", 60)
         term.idle(1)
         save(term, "chat", "Chat: streamed answers")
@@ -313,11 +313,11 @@ def coder(directory):
 def devtools(directory):
     # The DevTools application as the live demo runs it (scripts/demo.ts): the demo session
     # with no bus, so no socket for an application to join and no instructions to join it,
-    # which `airtty devtools --demo` would show.
+    # which `luciole devtools --demo` would show.
     term = Terminal(
-        [BUN, CLI, "dev", "--app", str(ROOT / "packages/airtty/src/devtools/airtty-devtools")],
-        {**os.environ, "TERM": "xterm-256color", "COLORTERM": "truecolor", "XDG_STATE_HOME": directory + "/state", "AIRTTY_DESKTOP": "1",
-         "AIRTTY_DEVTOOLS_LISTEN": "none", "AIRTTY_DEVTOOLS_DEMO": "1"},
+        [BUN, CLI, "dev", "--app", str(ROOT / "packages/luciole/src/devtools/luciole-devtools")],
+        {**os.environ, "TERM": "xterm-256color", "COLORTERM": "truecolor", "XDG_STATE_HOME": directory + "/state", "LUCIOLE_DESKTOP": "1",
+         "LUCIOLE_DEVTOOLS_LISTEN": "none", "LUCIOLE_DEVTOOLS_DEMO": "1"},
         140, 40,
     )
     try:
@@ -334,12 +334,12 @@ def devtools(directory):
 def mux(directory):
     subprocess.run([BUN, CLI, "build", "--app", str(ROOT / "examples/mdreader")], check=True, stdout=subprocess.DEVNULL)
     docs = subprocess.Popen(
-        [BUN, "--conditions=react-server", str(ROOT / "examples/mdreader/.airtty/server/index.js")],
+        [BUN, "--conditions=react-server", str(ROOT / "examples/mdreader/.luciole/server/index.js")],
         env={**os.environ, "NODE_ENV": "production", "PORT": "0", "MD_PATH": str(ROOT / "docs/ROUTER.md")},
         stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
     )
     url = "http://127.0.0.1:" + str(json.loads(docs.stdout.readline())["port"])
-    apps = [{"name": "docs", "bundle": str(ROOT / "examples/mdreader/.airtty/app"), "url": url}]
+    apps = [{"name": "docs", "bundle": str(ROOT / "examples/mdreader/.luciole/app"), "url": url}]
     term = dev("mux", {
         "SHELL": "/bin/sh", "PS1": "$ ", "ENV": "",
         "MUX_PANES": json.dumps([["/bin/sh"], ["vim", "--clean", "examples/notes/app/notes/[id]/page.tsx"]]),
@@ -349,7 +349,7 @@ def mux(directory):
         term.wait_for("$ ", 120)
         term.idle(2)
         term.send(b"git log --oneline -12\r", 1)
-        save(term, "mux", "mux: a shell, vim and an airtty app side by side")
+        save(term, "mux", "mux: a shell, vim and a luciole app side by side")
     finally:
         term.stop()
         docs.terminate()
@@ -359,10 +359,10 @@ def flight(directory):
     """The bytes the Server sends for a note: React Flight, as the Client receives them."""
     app = ROOT / "examples/notes"
     subprocess.run([BUN, CLI, "build", "--app", str(app)], check=True, stdout=subprocess.DEVNULL)
-    build = json.loads((app / ".airtty/manifest.json").read_text())["buildId"]
+    build = json.loads((app / ".luciole/manifest.json").read_text())["buildId"]
     server = subprocess.Popen(
-        [BUN, "--conditions=react-server", str(app / ".airtty/server/index.js")],
-        env={**os.environ, "NODE_ENV": "production", "PORT": "0", "AIRTTY_TOKEN": "capture",
+        [BUN, "--conditions=react-server", str(app / ".luciole/server/index.js")],
+        env={**os.environ, "NODE_ENV": "production", "PORT": "0", "LUCIOLE_TOKEN": "capture",
              "NOTES_DB": directory + "/notes.sqlite"},
         stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
     )
@@ -371,7 +371,7 @@ def flight(directory):
         query = urllib.parse.urlencode({"route": "/notes/[id]", "params": json.dumps({"id": "1"})})
         request = urllib.request.Request(
             f"http://127.0.0.1:{port}/render?{query}",
-            headers={"authorization": "Bearer capture", "x-airtty-build": build, "x-airtty-call": "capture"},
+            headers={"authorization": "Bearer capture", "x-luciole-build": build, "x-luciole-call": "capture"},
         )
         body = urllib.request.urlopen(request).read().decode()
         OUT.mkdir(parents=True, exist_ok=True)
@@ -389,7 +389,7 @@ SCENES = {"forge": forge, "notes": notes, "chat": chat, "coder": coder, "files":
 def main():
     names = [a for a in sys.argv[1:] if not a.startswith("--")] or list(SCENES)
     for name in names:
-        with tempfile.TemporaryDirectory(prefix=f"airtty-capture-{name}-") as directory:
+        with tempfile.TemporaryDirectory(prefix=f"luciole-capture-{name}-") as directory:
             SCENES[name](directory)
 
 

@@ -1,8 +1,8 @@
 node_modules/
-.airtty/
+.luciole/
 *.sqlite*
 *.log
 __pycache__/
-.airtty-*/
+.luciole-*/
 examples/chat/pty-frame.txt
-packages/airtty/native/airtty-sandbox/target/
+packages/luciole/native/luciole-sandbox/target/

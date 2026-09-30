@@ -1,5 +1,5 @@
 "use client";
-import type { LoadingProps } from "airtty/client";
+import type { LoadingProps } from "luciole/client";
 import { Screen, SkeletonRows } from "../../../../../../components/frames";
 import { Help } from "../../../../../../components/Help";
 import { Pulse } from "../../../../../../components/Pulse";
@@ -18,7 +18,7 @@ export default function PullLoading({ params, path }: LoadingProps) {
     <Screen
       title={`#${params.number ?? ""} · loading ${tab}…`}
       subtitle="Waiting for Server… · the tabs and your review progress stay mounted"
-      help={<Help groups={["airtty"]} />}
+      help={<Help groups={["luciole"]} />}
     >
       <Pulse>
         <SkeletonRows count={tab === "files" ? FILE_ROWS : TAB_ROWS} width={72} />

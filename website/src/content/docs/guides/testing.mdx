@@ -20,7 +20,7 @@ and scripted journeys on a real PTY. This page says which of them an app can rel
 
 ## The build is a test
 
-`airtty build` refuses, with the file and line, what would be wrong at run time: a module
+`luciole build` refuses, with the file and line, what would be wrong at run time: a module
 that crosses the Client–Server boundary, a Server Function that is not a named async
 declaration, two routes with the same URL, a `"use cache"` closure, a React Client hook in a
 page. Errors are positioned where they are: a syntax error at the parser's line and column, an
@@ -50,19 +50,19 @@ second run to check that unsent text is kept:
   tone="neutral"
 />
 
-On the Server, `createHandler(config, options)` from `airtty/server` is the Server as a
-function of a `Request`, without listening. `airtty/build` builds an app from a test.
+On the Server, `createHandler(config, options)` from `luciole/server` is the Server as a
+function of a `Request`, without listening. `luciole/build` builds an app from a test.
 
 <Note kind="warning">
-  These entries are public (`airtty/client`, `airtty/server`, `airtty/build`), but the helpers the
-  repository's tests build on them (`tests/helpers.ts`: importing a built Client, launching a
+  These entries are public (`luciole/client`, `luciole/server`, `luciole/build`), but the helpers
+  the repository's tests build on them (`tests/helpers.ts`: importing a built Client, launching a
   Server) are not exported. An app outside the repository writes its own.
 </Note>
 
 ## Under a bad network
 
 Every test that drives a real Client can set the transport's conditions:
-`AIRTTY_LATENCY_MS`, `AIRTTY_JITTER_MS`, `AIRTTY_CHUNK_DELAY_MS` and `AIRTTY_FAULT`
+`LUCIOLE_LATENCY_MS`, `LUCIOLE_JITTER_MS`, `LUCIOLE_CHUNK_DELAY_MS` and `LUCIOLE_FAULT`
 ([latency and faults](/docs/guides/latency-and-faults/)). `tests/latency.test.tsx` checks
 that typing, scrolling and hover send no request under 500 ms of simulated latency.
 

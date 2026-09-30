@@ -2,16 +2,16 @@ import { test, expect } from "bun:test";
 import { mkdtemp, mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { loadAppBundle } from "../packages/airtty/src/app-bundle";
-import { build } from "../packages/airtty/src/build";
+import { loadAppBundle } from "../packages/luciole/src/app-bundle";
+import { build } from "../packages/luciole/src/build";
 import {
   CapabilityDenied,
   createApplication,
   host,
   type HostChannel,
-} from "../packages/airtty/src/client";
-import { directChannel, HostRequest } from "../packages/airtty/src/host";
-import { messageOf } from "../packages/airtty/src/guards";
+} from "../packages/luciole/src/client";
+import { directChannel, HostRequest } from "../packages/luciole/src/host";
+import { messageOf } from "../packages/luciole/src/guards";
 import { rejectionOf } from "./helpers";
 
 const isCall = (value: unknown): value is (text: string) => Promise<unknown> =>
@@ -51,12 +51,12 @@ test("requests are validated before anything performs them", async () => {
 });
 
 test("each bundle evaluation asks through the Application it is bound to", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "airtty-host-"));
+  const dir = await mkdtemp(join(tmpdir(), "luciole-host-"));
   try {
     for (const [name, text] of Object.entries({
       "app/layout.tsx": `"use client";export default function Layout({children}){return children}`,
       "app/page.tsx": `import {Copy} from '../components/copy'; export default function Page(){return <Copy/>}`,
-      "components/copy.tsx": `"use client";import {host} from 'airtty/client';export function Copy(){return null}export const copy=(text:string)=>host.clipboard.write(text);export const secret=(name:string)=>host.secret(name);`,
+      "components/copy.tsx": `"use client";import {host} from 'luciole/client';export function Copy(){return null}export const copy=(text:string)=>host.clipboard.write(text);export const secret=(name:string)=>host.secret(name);`,
     })) {
       await mkdir(join(dir, name, ".."), { recursive: true });
       await Bun.write(join(dir, name), text);
@@ -64,7 +64,7 @@ test("each bundle evaluation asks through the Application it is bound to", async
     await build(dir);
     const panes = await Promise.all(
       ["one", "two"].map(async (name) => {
-        const loaded = await loadAppBundle(join(dir, ".airtty/app"));
+        const loaded = await loadAppBundle(join(dir, ".luciole/app"));
         const { asked, channel } = recording((request) =>
           request.type === "secret" ? `${name}-secret` : undefined,
         );

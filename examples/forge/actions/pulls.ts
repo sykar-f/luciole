@@ -7,7 +7,7 @@ import type {
   Side,
   Verdict,
 } from "../components/model";
-import { invalidate } from "airtty/server";
+import { invalidate } from "luciole/server";
 import { actor, forge } from "../server/instance";
 import { OperationResultSchema, PublishResultSchema } from "../server/results";
 

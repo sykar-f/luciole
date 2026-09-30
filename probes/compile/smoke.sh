@@ -4,7 +4,7 @@
 set -eu
 bin=$(cd "$(dirname "$1")" && pwd)/$(basename "$1")
 timeout=$(command -v timeout)
-run=$(mktemp -d /private/tmp/airtty-compile.XXXXXX)
+run=$(mktemp -d /private/tmp/luciole-compile.XXXXXX)
 cp "$bin" "$run/client"
 cd "$run"
 # 3 s: first frame; Enter opens the selected note; 3 s later Ctrl+C.

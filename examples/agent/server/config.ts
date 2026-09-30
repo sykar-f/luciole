@@ -30,11 +30,11 @@ function load() {
     throw new Error(`Invalid ${issue?.path.join(".") ?? "environment"}: ${issue?.message}`);
   }
   // A stable sandbox rather than a fresh temporary directory: pi keys its sessions by
-  // working directory, so the conversation survives the rebuilds of `airtty dev`.
-  const cwd = resolve(env.data.AGENT_CWD ?? join(tmpdir(), "airtty-agent-sandbox"));
+  // working directory, so the conversation survives the rebuilds of `luciole dev`.
+  const cwd = resolve(env.data.AGENT_CWD ?? join(tmpdir(), "luciole-agent-sandbox"));
   mkdirSync(cwd, { recursive: true });
   const state = env.data.XDG_STATE_HOME ?? join(homedir(), ".local", "state");
-  const sessionDir = join(state, "airtty", "agent", "pi-sessions");
+  const sessionDir = join(state, "luciole", "agent", "pi-sessions");
   mkdirSync(sessionDir, { recursive: true });
   return {
     model: env.data.AGENT_MODEL,

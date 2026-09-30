@@ -10,8 +10,8 @@ import { spawnSync } from "node:child_process";
 import { join, resolve } from "node:path";
 import { act, Component, type ReactNode } from "react";
 import { testRender } from "@opentui/react/test-utils";
-import { build } from "../../packages/airtty/src/build";
-import { messageOf } from "../../packages/airtty/src/guards";
+import { build } from "../../packages/luciole/src/build";
+import { messageOf } from "../../packages/luciole/src/guards";
 import { destroy, importClient, launch, until } from "../../tests/helpers";
 import { guard } from "./guard";
 
@@ -75,7 +75,7 @@ class Catch extends Component<
 async function render(directory: string): Promise<{ diagnostics: Diagnostic[]; frame: string }> {
   let server: Awaited<ReturnType<typeof launch>>;
   try {
-    server = await launch(join(directory, ".airtty/server/index.js"));
+    server = await launch(join(directory, ".luciole/server/index.js"));
   } catch (error: unknown) {
     // A Server that does not start: its stderr says why (first lines only).
     return { diagnostics: diagnosticsOf(`server start: ${messageOf(error)}`), frame: "" };

@@ -27,7 +27,7 @@ export type LinuxRuntime = {
 };
 
 /** In-sandbox path of the proxy socket; a relay exposes it as 127.0.0.1:PROXY_PORT. */
-export const PROXY_SOCKET = "/run/airtty/proxy.sock";
+export const PROXY_SOCKET = "/run/luciole/proxy.sock";
 export const PROXY_PORT = 3128;
 
 // Landlock access bits (uapi/linux/landlock.h) and the ABI that introduced each.

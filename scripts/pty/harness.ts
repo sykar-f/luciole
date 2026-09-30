@@ -1,6 +1,6 @@
 /**
  * What the PTY journeys share around the driver: the repository's paths, private
- * temporary directories, built example Servers on a free port, the `airtty` CLI, and the
+ * temporary directories, built example Servers on a free port, the `luciole` CLI, and the
  * JSON report each journey prints. Every resource is `await using`-disposable, so that a
  * failed assertion still stops the processes it started.
  */
@@ -12,7 +12,7 @@ import { z } from "zod";
 export const ROOT = resolve(import.meta.dir, "../..");
 /** The Bun running this journey: the one every program under test runs on too. */
 export const BUN = process.execPath;
-export const CLI = join(ROOT, "packages/airtty/src/cli.ts");
+export const CLI = join(ROOT, "packages/luciole/src/cli.ts");
 export const example = (name: string) => join(ROOT, "examples", name);
 const STOP_TIMEOUT_MS = 5000;
 
@@ -35,7 +35,7 @@ export function environment(env: Record<string, string | undefined> = {}) {
 
 const Ready = z.object({ port: z.number().int() }).loose();
 /**
- * A process that prints a JSON line with its port when it listens (an airtty Server, a
+ * A process that prints a JSON line with its port when it listens (a luciole Server, a
  * fake upstream). Stopped with SIGTERM at the end of the scope.
  */
 export async function listening(
@@ -76,16 +76,16 @@ export async function listening(
   };
 }
 
-/** The built Server of an application (`airtty build`), in production. */
+/** The built Server of an application (`luciole build`), in production. */
 export const startServer = (app: string, env: Record<string, string | undefined> = {}) =>
-  listening([BUN, "--conditions=react-server", join(app, ".airtty/server/index.js")], {
+  listening([BUN, "--conditions=react-server", join(app, ".luciole/server/index.js")], {
     NODE_ENV: "production",
     PORT: "0",
     ...env,
   });
 
-/** Runs the `airtty` CLI to completion; `check` fails on a non-zero exit. */
-export function airtty(
+/** Runs the `luciole` CLI to completion; `check` fails on a non-zero exit. */
+export function luciole(
   args: readonly string[],
   options: { env?: Record<string, string | undefined>; cwd?: string; check?: boolean } = {},
 ) {
@@ -101,13 +101,15 @@ export function airtty(
     stderr: result.stderr.toString(),
   };
   if (options.check && outcome.exitCode !== 0)
-    throw new Error(`airtty ${args.join(" ")} exited with ${outcome.exitCode}:\n${outcome.stderr}`);
+    throw new Error(
+      `luciole ${args.join(" ")} exited with ${outcome.exitCode}:\n${outcome.stderr}`,
+    );
   return outcome;
 }
 
-/** `airtty build --app <app>`: the production artefacts a journey runs. */
+/** `luciole build --app <app>`: the production artefacts a journey runs. */
 export const build = (app: string, args: readonly string[] = [], env?: Record<string, string>) =>
-  airtty(["build", "--app", app, ...args], { env, check: true });
+  luciole(["build", "--app", app, ...args], { env, check: true });
 
 /** What a command printed, or "" when it failed. */
 export function commandOutput(command: readonly string[]) {

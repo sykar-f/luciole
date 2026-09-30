@@ -294,7 +294,7 @@ try {
   check("vim: alt screen, insert, :q! restores the shell screen", true, {
     vimStartMs: Math.round(vimMs),
   });
-  // An OpenTUI program (an airtty Client in `process` mode) inside the view: it probes the
+  // An OpenTUI program (a luciole Client in `process` mode) inside the view: it probes the
   // terminal at startup, takes keys through the emulator, and gives the screen back.
   await type("clear; bun child-opentui.tsx");
   const childMs = await waitFrame("opentui child", (f) => f.includes("opentui child ready"));

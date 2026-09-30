@@ -77,7 +77,7 @@
     }
   },
   "repair after a Client render error": true,
-  "a dying generated Client ends airtty dev (host sees onExit)": {
+  "a dying generated Client ends luciole dev (host sees onExit)": {
     "ok": true,
     "detail": {
       "ms": 1588.5,
@@ -92,7 +92,7 @@
       ]
     }
   },
-  "airtty dev keeps waiting after a failed first build": true,
+  "luciole dev keeps waiting after a failed first build": true,
   "repair of a failed first build starts the Client": {
     "ok": true,
     "detail": {

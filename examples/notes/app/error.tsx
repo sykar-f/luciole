@@ -1,5 +1,5 @@
 "use client";
-import { TransportError, type ErrorProps } from "airtty/client";
+import { TransportError, type ErrorProps } from "luciole/client";
 
 // The page could not be loaded. Notes names the outcome; the chrome's Ctrl+R retries.
 export default function PageError({ error }: ErrorProps) {

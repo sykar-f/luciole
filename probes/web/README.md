@@ -70,7 +70,7 @@ final est identique à l'octet** entre natif et WASM.
 Le même composant (`src/form-app.tsx`) dans une page : OpenTUI écrit ses frames dans
 xterm.js, xterm.js rend les touches comme `stdin` du renderer. `scripts/web/cdp.ts` pilote un Chrome
 headless par le protocole DevTools, sans dépendance : il tape, lit le buffer de xterm.js
-et capture `.airtty/browser/screen.png`. Premier frame en ~260 ms en local ; même écran
+et capture `.luciole/browser/screen.png`. Premier frame en ~260 ms en local ; même écran
 final qu'en natif.
 
 Ce qu'une page n'a pas et que le bundle navigateur fournit (`src/browser-node/`) :

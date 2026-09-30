@@ -1,6 +1,6 @@
 /**
  * The `sandbox` mode (docs/EMBEDDING.md, steps 7 and 8), with the mechanism this system
- * has (src/sandbox/mechanism.ts): Seatbelt on macOS; on Linux airtty-sandbox with
+ * has (src/sandbox/mechanism.ts): Seatbelt on macOS; on Linux luciole-sandbox with
  * namespaces, under bubblewrap, or Landlock alone. What a confined child really can do,
  * the egress proxy, the IPC channel of mediated capabilities, and an application opened
  * by URL, sandboxed, end to end. Without a sandbox on this system (no prebuilt launcher,
@@ -24,36 +24,36 @@ import { join, resolve } from "node:path";
 import { connect as connectTcp } from "node:net";
 import { createTestRenderer } from "@opentui/core/testing";
 import { z } from "zod";
-import { build } from "../packages/airtty/src/build";
-import { Capabilities } from "../packages/airtty/src/capabilities";
-import { messageOf } from "../packages/airtty/src/guards";
-import { prepareOrigin, sandboxHeader } from "../packages/airtty/src/generic/prepare";
-import type { HostRequest } from "../packages/airtty/src/host";
-import { directories } from "../packages/airtty/src/launcher/paths";
-import { generatePublisherKey, readPublisherKey } from "../packages/airtty/src/publisher";
-import { confine, scratch as newScratch } from "../packages/airtty/src/sandbox/confine";
+import { build } from "../packages/luciole/src/build";
+import { Capabilities } from "../packages/luciole/src/capabilities";
+import { messageOf } from "../packages/luciole/src/guards";
+import { prepareOrigin, sandboxHeader } from "../packages/luciole/src/generic/prepare";
+import type { HostRequest } from "../packages/luciole/src/host";
+import { directories } from "../packages/luciole/src/launcher/paths";
+import { generatePublisherKey, readPublisherKey } from "../packages/luciole/src/publisher";
+import { confine, scratch as newScratch } from "../packages/luciole/src/sandbox/confine";
 import {
   beyond,
   enforcement,
   mergeCapabilities,
   parseAllowFlags,
   unenforceable,
-} from "../packages/airtty/src/sandbox/grants";
-import { answer } from "../packages/airtty/src/sandbox/ipc";
-import { launcherPolicy, linuxCommand } from "../packages/airtty/src/sandbox/linux";
-import type { LinuxMechanism, Mechanism } from "../packages/airtty/src/sandbox/mechanism";
-import { createPermissions, type Question } from "../packages/airtty/src/sandbox/permissions";
-import { hostAllowed, startProxy } from "../packages/airtty/src/sandbox/proxy";
+} from "../packages/luciole/src/sandbox/grants";
+import { answer } from "../packages/luciole/src/sandbox/ipc";
+import { launcherPolicy, linuxCommand } from "../packages/luciole/src/sandbox/linux";
+import type { LinuxMechanism, Mechanism } from "../packages/luciole/src/sandbox/mechanism";
+import { createPermissions, type Question } from "../packages/luciole/src/sandbox/permissions";
+import { hostAllowed, startProxy } from "../packages/luciole/src/sandbox/proxy";
 import {
   buildChild,
   sandboxAvailability,
   sandboxRuntime,
-} from "../packages/airtty/src/sandbox/runtime";
-import { openSandbox } from "../packages/airtty/src/sandbox/spawn";
-import { confineServer } from "../packages/airtty/src/sandbox/server";
-import { startAppServer } from "../packages/airtty/src/dev/supervisor";
-import { spawnPty } from "../packages/airtty/src/vt/pty";
-import { VtTerminalRenderable } from "../packages/airtty/src/vt/gaps";
+} from "../packages/luciole/src/sandbox/runtime";
+import { openSandbox } from "../packages/luciole/src/sandbox/spawn";
+import { confineServer } from "../packages/luciole/src/sandbox/server";
+import { startAppServer } from "../packages/luciole/src/dev/supervisor";
+import { spawnPty } from "../packages/luciole/src/vt/pty";
+import { VtTerminalRenderable } from "../packages/luciole/src/vt/gaps";
 import { launch, until } from "./helpers";
 
 const availability = sandboxAvailability();
@@ -66,7 +66,7 @@ const privateDevpts = mechanism?.kind === "userns" || mechanism?.kind === "bwrap
 const NONE = Capabilities.parse({});
 const caps = (value: unknown) => Capabilities.parse(value);
 const scratch = () => newScratch().path;
-const SRC = resolve("packages/airtty/src");
+const SRC = resolve("packages/luciole/src");
 /** Refusals, as each mechanism reports them: Seatbelt, Landlock, nothing mounted (bwrap). */
 const REFUSED = /^(EPERM|EACCES|ENOENT|EROFS|ECONNREFUSED|ENETUNREACH)$/;
 
@@ -82,7 +82,7 @@ type Confined = {
 /**
  * The confinement a sandboxed Client gets for `granted` (src/sandbox/confine.ts), with its
  * Server at `server` (a loopback port by default, nothing listening). Scripts find the
- * Server's address in AIRTTY_TEST_SERVER and the proxy in HTTP_PROXY.
+ * Server's address in LUCIOLE_TEST_SERVER and the proxy in HTTP_PROXY.
  */
 async function confinedFor(
   granted: Capabilities,
@@ -118,7 +118,7 @@ async function confinedFor(
             HOME: tmp.path,
             TMPDIR: tmp.path,
             BUN_RUNTIME_TRANSPILER_CACHE_PATH: "0",
-            AIRTTY_TEST_SERVER: new URL(confinement.serverUrl).host,
+            LUCIOLE_TEST_SERVER: new URL(confinement.serverUrl).host,
             ...confinement.env,
           },
           command: (slave) => {
@@ -317,11 +317,11 @@ confined("the network: the Server always, the proxy for granted hosts, nothing e
   const sandbox = await confinedFor(granted, { server: `http://127.0.0.1:${server.port}` });
   try {
     // The Server, always (directly, or through the launcher's relay).
-    expect(await sandbox.run(tcp("process.env.AIRTTY_TEST_SERVER"))).toMatchObject({ ok: true });
+    expect(await sandbox.run(tcp("process.env.LUCIOLE_TEST_SERVER"))).toMatchObject({ ok: true });
     expect(
       await sandbox.run(
         attempt(
-          `const r=await fetch("http://"+process.env.AIRTTY_TEST_SERVER+"/x");return await r.text()`,
+          `const r=await fetch("http://"+process.env.LUCIOLE_TEST_SERVER+"/x");return await r.text()`,
         ),
       ),
     ).toMatchObject({ ok: true, detail: "server /x" });
@@ -411,7 +411,7 @@ test("pty is refused where no private devpts exists; offered where one does", ()
   const linux = (kind: LinuxMechanism["kind"], landlockAbi = 8): LinuxMechanism => ({
     kind,
     landlockAbi,
-    launcher: "/x/airtty-sandbox",
+    launcher: "/x/luciole-sandbox",
   });
   expect(unenforceable(pty, { kind: "seatbelt" })).toContain("/dev/ttys*");
   expect(unenforceable(pty, linux("landlock"))).toContain("/dev/pts");
@@ -424,9 +424,9 @@ test("pty is refused where no private devpts exists; offered where one does", ()
 });
 
 test("the Linux policy: structured, per mechanism, with the child's grants only", () => {
-  const runtime = { bun: "/usr/local/bin/bun", libraries: [], code: ["/opt/airtty/src"] };
+  const runtime = { bun: "/usr/local/bin/bun", libraries: [], code: ["/opt/luciole/src"] };
   const plan = (kind: LinuxMechanism["kind"], landlockAbi = 8) => ({
-    mechanism: { kind, landlockAbi, launcher: "/opt/airtty-sandbox", bwrap: "/usr/bin/bwrap" },
+    mechanism: { kind, landlockAbi, launcher: "/opt/luciole-sandbox", bwrap: "/usr/bin/bwrap" },
     runtime,
     capabilities: caps({ fs: { read: ["/data"] }, exec: ["/bin/ls"], pty: true }),
     tmp: "/tmp/s",
@@ -436,7 +436,7 @@ test("the Linux policy: structured, per mechanism, with the child's grants only"
   });
   const userns = launcherPolicy(plan("userns"));
   expect(userns).toMatchObject({ version: 1, namespaces: true, devpts: true });
-  for (const path of ["/usr", "/opt/airtty/src", "/app", "/data"])
+  for (const path of ["/usr", "/opt/luciole/src", "/app", "/data"])
     expect(userns.landlock?.read).toContain(path);
   expect(userns.landlock?.readWrite).toEqual(["/tmp/s", "/state", "/dev/null"]);
   for (const path of ["/usr/local/bin/bun", "/bin/ls"])
@@ -453,7 +453,7 @@ test("the Linux policy: structured, per mechanism, with the child's grants only"
   expect(argv[0]).toBe("/usr/bin/bwrap");
   for (const flag of ["--unshare-net", "--unshare-user", "--dev", "--proc"])
     expect(argv).toContain(flag);
-  const launcherAt = argv.lastIndexOf("/opt/airtty-sandbox");
+  const launcherAt = argv.lastIndexOf("/opt/luciole-sandbox");
   expect(argv.slice(launcherAt + 3)).toEqual(["--", "/usr/local/bin/bun", "child.js"]);
   expect(JSON.parse(argv[launcherAt + 2] ?? "")).toMatchObject({ namespaces: false });
   // Without Landlock, bubblewrap's mounts are all there is.
@@ -648,7 +648,7 @@ const PROBE_APP = {
   "app/layout.tsx": `"use client";export default function Layout({children}){return children}`,
   "app/page.tsx": `import {Probe} from '../components/probe'; export default function Page(){return <Probe/>}`,
   "components/probe.tsx":
-    `"use client";import {useEffect,useState} from 'react';import {CapabilityDenied,host} from 'airtty/client';` +
+    `"use client";import {useEffect,useState} from 'react';import {CapabilityDenied,host} from 'luciole/client';` +
     `export function Probe(){const [s,setS]=useState('asking');useEffect(()=>{` +
     `process.stdout.write('\\x1b]52;c;'+btoa('osc-from-sandbox')+'\\x07');` +
     `host.clipboard.write('ipc-from-sandbox').then(()=>'copied',e=>e instanceof CapabilityDenied?'denied '+e.capability:'failed '+e.message)` +
@@ -660,8 +660,8 @@ confined(
   "an application opened by URL runs sandboxed: shown by the VT stream, host asked over IPC",
   async () => {
     const home = scratch();
-    // Inside the repository (ignored by git: .airtty-*), where its Server resolves React.
-    const app = mkdtempSync(resolve(".airtty-sandbox-probe-"));
+    // Inside the repository (ignored by git: .luciole-*), where its Server resolves React.
+    const app = mkdtempSync(resolve(".luciole-sandbox-probe-"));
     const env: NodeJS.ProcessEnv = {
       ...process.env,
       HOME: home,
@@ -675,7 +675,7 @@ confined(
     }
     generatePublisherKey(env);
     await build(app, undefined, { signBundle: readPublisherKey(env) });
-    const server = await launch(join(app, ".airtty/server/index.js"));
+    const server = await launch(join(app, ".luciole/server/index.js"));
     const child = await buildChild();
     try {
       const logs: string[] = [];
@@ -759,7 +759,7 @@ confined(
   "a sandboxed Client reports its failed page to the host over IPC",
   async () => {
     const home = scratch();
-    const app = mkdtempSync(resolve(".airtty-sandbox-failure-"));
+    const app = mkdtempSync(resolve(".luciole-sandbox-failure-"));
     const env: NodeJS.ProcessEnv = {
       ...process.env,
       HOME: home,
@@ -776,7 +776,7 @@ confined(
     }
     generatePublisherKey(env);
     await build(app, undefined, { signBundle: readPublisherKey(env) });
-    const server = await launch(join(app, ".airtty/server/index.js"));
+    const server = await launch(join(app, ".luciole/server/index.js"));
     try {
       const prepared = await prepareOrigin(server.url, {
         allow: NONE,
@@ -835,10 +835,10 @@ console.log(JSON.stringify({ ready: true, port: server.port }));
 `;
 
 onMacOS("a confined Server listens on its port and nothing leaves its box", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "airtty-server-sandbox-"));
-  const outside = mkdtempSync(join(tmpdir(), "airtty-outside-"));
+  const dir = mkdtempSync(join(tmpdir(), "luciole-server-sandbox-"));
+  const outside = mkdtempSync(join(tmpdir(), "luciole-outside-"));
   const data = join(dir, "data");
-  mkdirSync(join(dir, ".airtty/server"), { recursive: true });
+  mkdirSync(join(dir, ".luciole/server"), { recursive: true });
   mkdirSync(data);
   const canary = join(outside, "canary");
   writeFileSync(canary, "secret");
@@ -847,14 +847,14 @@ onMacOS("a confined Server listens on its port and nothing leaves its box", asyn
   const address = service.address();
   const servicePort = typeof address === "object" && address ? address.port : 0;
   writeFileSync(
-    join(dir, ".airtty/server/index.js"),
+    join(dir, ".luciole/server/index.js"),
     ESCAPING_SERVER(canary, outside, data, servicePort),
   );
   const box = await confineServer({
     mechanism: { kind: "seatbelt" },
     runtime: sandboxRuntime(),
     granted: NONE,
-    readable: [join(dir, ".airtty")],
+    readable: [join(dir, ".luciole")],
     writable: [data],
   });
   try {
@@ -902,16 +902,16 @@ test("a Server is not confined where no mechanism can let it listen yet", async 
 onMacOS("a confined Server resolves packages through a readable node_modules link", async () => {
   // A project outside the repository links node_modules to the framework's packages
   // (studio): the resolver must follow the link, whose target is readable too.
-  const root = realpathSync(mkdtempSync(join(tmpdir(), "airtty-linked-")));
+  const root = realpathSync(mkdtempSync(join(tmpdir(), "luciole-linked-")));
   const packages = join(root, "packages/node_modules");
   const app = join(root, "app");
   mkdirSync(join(packages, "greeting"), { recursive: true });
   writeFileSync(join(packages, "greeting/package.json"), `{"name":"greeting","main":"index.js"}`);
   writeFileSync(join(packages, "greeting/index.js"), `module.exports = { word: "linked" };`);
-  mkdirSync(join(app, ".airtty/server"), { recursive: true });
+  mkdirSync(join(app, ".luciole/server"), { recursive: true });
   symlinkSync(packages, join(app, "node_modules"), "dir");
   writeFileSync(
-    join(app, ".airtty/server/index.js"),
+    join(app, ".luciole/server/index.js"),
     `import { word } from "greeting";
 const server = Bun.serve({ hostname: "127.0.0.1", port: Number(process.env.PORT), fetch: () => new Response(word) });
 console.log(JSON.stringify({ ready: true, port: server.port }));`,
@@ -920,7 +920,7 @@ console.log(JSON.stringify({ ready: true, port: server.port }));`,
     mechanism: { kind: "seatbelt" },
     runtime: sandboxRuntime(),
     granted: NONE,
-    readable: [join(app, ".airtty"), join(app, "node_modules")],
+    readable: [join(app, ".luciole"), join(app, "node_modules")],
     writable: [],
   });
   try {

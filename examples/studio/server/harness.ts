@@ -3,11 +3,11 @@
  * measurement of real harnesses (scripts/studio/measure.ts): which adapter, which one
  * when none is asked for, and what every start receives.
  */
-import { createHarness } from "@airtty/harness/adapters";
-import type { Harness, HarnessContext, HarnessStatus } from "@airtty/harness/adapters/types";
-import { detect } from "@airtty/harness/detect";
-import { HARNESS_NAMES, type HarnessId } from "@airtty/harness/model";
-import type { HarnessSessionOptions } from "@airtty/harness/session";
+import { createHarness } from "@luciole/harness/adapters";
+import type { Harness, HarnessContext, HarnessStatus } from "@luciole/harness/adapters/types";
+import { detect } from "@luciole/harness/detect";
+import { HARNESS_NAMES, type HarnessId } from "@luciole/harness/model";
+import type { HarnessSessionOptions } from "@luciole/harness/session";
 import { Generator } from "./generator";
 import { INSTRUCTIONS } from "./instructions";
 
@@ -38,7 +38,7 @@ export async function pick(wanted: HarnessId | undefined): Promise<HarnessStatus
 
 /** What every start of the harness receives: studio's name, instructions and tools. */
 export const START: NonNullable<HarnessSessionOptions["start"]> = {
-  client: "airtty-studio",
+  client: "luciole-studio",
   instructions: INSTRUCTIONS,
   tools: TOOLS,
   isolated: true,

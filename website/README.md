@@ -1,4 +1,4 @@
-# website : le site d'airtty
+# website : le site de luciole
 
 Site statique en Astro 7 et TypeScript, en anglais (public open source) :
 
@@ -50,14 +50,14 @@ et un seul OpenTUI. Oxlint et Oxfmt de la racine couvrent quand même ses source
 ## Les écrans sont de vraies captures
 
 Les terminaux de la page ne sont pas des maquettes. `scripts/capture.py` lance chaque
-exemple avec `airtty dev` dans un PTY, joue des touches, et écrit l'écran décodé par
+exemple avec `luciole dev` dans un PTY, joue des touches, et écrit l'écran décodé par
 pyte (caractères, couleurs, attributs) dans `src/frames/<nom>.json`. `Screen.astro` le
 redessine cellule par cellule en HTML : net à toute taille, sélectionnable.
 
 ```sh
-python3 -m venv /tmp/airtty-pty && /tmp/airtty-pty/bin/pip install -r scripts/requirements-pty.txt
-/tmp/airtty-pty/bin/python website/scripts/capture.py            # toutes les scènes, depuis la racine
-/tmp/airtty-pty/bin/python website/scripts/capture.py --print mux # une scène, texte affiché
+python3 -m venv /tmp/luciole-pty && /tmp/luciole-pty/bin/pip install -r scripts/requirements-pty.txt
+/tmp/luciole-pty/bin/python website/scripts/capture.py            # toutes les scènes, depuis la racine
+/tmp/luciole-pty/bin/python website/scripts/capture.py --print mux # une scène, texte affiché
 ```
 
 Le chemin absolu du checkout et le `$TMPDIR` de macOS sont remplacés par des chemins
@@ -66,9 +66,9 @@ pas du jour de la capture. Après un changement visible d'un exemple, relancer l
 
 ## Les démos live sont reconstruites, pas copiées à la main
 
-Le hero fait tourner Notes dans la page : `airtty build --web-local` de `examples/notes`,
+Le hero fait tourner Notes dans la page : `luciole build --web-local` de `examples/notes`,
 Client et Server dans l'onglet (voir `docs/WEB.md`). `scripts/demo.ts` refait ce build
-pour chaque démo (`forge`, `notes`, `mdreader`, `chat`, `coder`, `devtools`) et copie `.airtty/web/`
+pour chaque démo (`forge`, `notes`, `mdreader`, `chat`, `coder`, `devtools`) et copie `.luciole/web/`
 sans les source maps dans
 `public/demo/<app>/`, que Git ignore. Le runtime web, commun à toutes les applications, est
 publié une fois dans `public/demo/runtime/` : la première démo lancée met en cache les plus
@@ -89,7 +89,7 @@ lien ouvre la démo dans sa propre page.
 
 La landing en fait tourner plusieurs. Dans le hero, Notes deux fois, sur le même aller-retour
 de 500 ms placé autrement : avant chaque touche à gauche (comme SSH, `delays: "keys"`), avant
-chaque requête à droite (comme airtty) ; ce que le lecteur fait dans l'un est rejoué dans
+chaque requête à droite (comme luciole) ; ce que le lecteur fait dans l'un est rejoué dans
 l'autre (`typed`, puis `input`), et chaque écran mesure le temps de la touche à ses cellules.
 Sous 760 px ou avec l'économie de données, les deux captures seules. Dans « What you can
 build », les trois exemples démarrent l'un après l'autre après le chargement de la page et
@@ -97,7 +97,7 @@ ne s'arrêtent plus : choisir un onglet ne fait que changer celui qu'on voit. Le
 sont préchargés (`<link rel="prefetch">`, écrits dans un `<template>` que le script n'active
 que là où les démos tournent). Tant qu'un exemple n'est pas prêt, son écran est flou et le
 dit (« Loading the live demo »). Les scripts lisent l'écran d'une démo par
-`airttyScreen()` (docs/WEB.md), à jour même hors de vue, où xterm.js cesse de dessiner.
+`lucioleScreen()` (docs/WEB.md), à jour même hors de vue, où xterm.js cesse de dessiner.
 Sur `/examples/`, chacune (coder, Forge, Chat, mdreader, DevTools) tourne au clic, une seule
 à la fois, arrêtée quand on la quitte. Chaque démo trouve autour d'elle ce que
 `scripts/demo.ts` écrit dans `server-seed.json` : un environnement (`CHAT_DEMO=1`,

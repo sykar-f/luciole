@@ -8,7 +8,7 @@ import Src from "../../components/guide/Src.astro";
 import Callout from "../../components/guide/Callout.astro";
 import Quiz from "../../components/guide/Quiz.astro";
 
-const B = "packages/airtty/src/build.ts";
+const B = "packages/luciole/src/build.ts";
 
 // The two graphs of Notes, as the build computes them (clientGraph and serverGraph of manifest.json).
 type Node = { id: string; label: string; x: number; y: number; tone: "server" | "client" | "shared"; tag?: string };
@@ -53,7 +53,7 @@ const edges: Edge[] = [
 <Guide
   slug="build"
   outcomes={[
-    "suivre <code>airtty build</code> de la commande jusqu'au dossier <code>.airtty/</code> ;",
+    "suivre <code>luciole build</code> de la commande jusqu'au dossier <code>.luciole/</code> ;",
     "expliquer comment un composant Client ou une Server Function devient une <strong>référence</strong> ;",
     "lire une erreur de frontière et savoir quel import la provoque.",
   ]}
@@ -63,12 +63,12 @@ const edges: Edge[] = [
 
   <h2>Le parcours</h2>
   <Sequence
-    title="airtty build"
+    title="luciole build"
     lanes={[
       { id: "cli", label: "CLI", sub: "commands/build.ts", tone: "neutral" },
       { id: "build", label: "build()", sub: "build.ts", tone: "build" },
       { id: "bun", label: "Bun.build", sub: "plugin des frontières", tone: "build" },
-      { id: "disk", label: "Disque", sub: "app/ et .airtty/", tone: "neutral" },
+      { id: "disk", label: "Disque", sub: "app/ et .luciole/", tone: "neutral" },
     ]}
     messages={[
       { phase: "Lire" },
@@ -82,18 +82,18 @@ const edges: Edge[] = [
       { from: "build", to: "disk", label: "app/routeTree.gen.ts", n: 6 },
       { from: "build", to: "bun", label: "entrées server, client, app", n: 7 },
       { from: "bun", to: "bun", label: "remplace par des références", n: 8 },
-      { from: "bun", to: "disk", label: "bundles dans .airtty-<uuid>", n: 9 },
-      { from: "build", to: "disk", label: "rename → .airtty/", n: 10 },
+      { from: "bun", to: "disk", label: "bundles dans .luciole-<uuid>", n: 9 },
+      { from: "build", to: "disk", label: "rename → .luciole/", n: 10 },
     ]}
-    caption="Tout ce qui précède l'étape 10 se passe dans un dossier temporaire : un build qui échoue ne touche jamais .airtty/."
+    caption="Tout ce qui précède l'étape 10 se passe dans un dossier temporaire : un build qui échoue ne touche jamais .luciole/."
   />
 
   <Step n="1" tone="neutral" where="CLI" title="La commande lit ses options, puis délègue">
-    <p><Src path="packages/airtty/src/cli.ts" /> trouve la sous-commande dans le registre <Src path="packages/airtty/src/commands/index.ts" />. <Src path="packages/airtty/src/commands/build.ts" /> lit tous les drapeaux d'abord (<code>--compile</code>, <code>--sign-bundle</code>, <code>--web</code>), puis appelle <code>build()</code>. Sans <code>--app</code>, le dossier par défaut est <code>examples/notes</code>.</p>
+    <p><Src path="packages/luciole/src/cli.ts" /> trouve la sous-commande dans le registre <Src path="packages/luciole/src/commands/index.ts" />. <Src path="packages/luciole/src/commands/build.ts" /> lit tous les drapeaux d'abord (<code>--compile</code>, <code>--sign-bundle</code>, <code>--web</code>), puis appelle <code>build()</code>. Sans <code>--app</code>, le dossier par défaut est <code>examples/notes</code>.</p>
   </Step>
 
   <Step n="2" tone="build" title="app/ devient un route graph">
-    <p>Le build parcourt <code>app/</code> et ne garde que les fichiers de convention : <code>page</code>, <code>layout</code>, <code>loading</code>, <code>error</code>, <code>not-found</code>. <Src path="packages/airtty/src/route-graph.ts" find="export function compileRouteGraph" /> les transforme en une structure pure : segments, <code>[param]</code>, <code>[...splat]</code>, <code>(groupe)</code>. Un layout racine est obligatoire et les collisions sont refusées.</p>
+    <p>Le build parcourt <code>app/</code> et ne garde que les fichiers de convention : <code>page</code>, <code>layout</code>, <code>loading</code>, <code>error</code>, <code>not-found</code>. <Src path="packages/luciole/src/route-graph.ts" find="export function compileRouteGraph" /> les transforme en une structure pure : segments, <code>[param]</code>, <code>[...splat]</code>, <code>(groupe)</code>. Un layout racine est obligatoire et les collisions sont refusées.</p>
   </Step>
 
   <Step n="3" tone="build" title="Chaque source est lue par l'API TypeScript">
@@ -106,14 +106,14 @@ const edges: Edge[] = [
     <p>Une règle y est purement textuelle : tout fichier dont un dossier du chemin s'appelle <code>server</code> est interdit au Client, avec ou sans directive.</p>
     <p>Le graphe Server refuse aussi ce que React réserve au Client. Un Server Component qui importe <code>useState</code>, <code>useEffect</code> ou <code>createContext</code> se construirait, puis son Server mourrait au démarrage sur un export manquant de <code>react.react-server.js</code>, sans nommer ni la page ni le remède. Le build lit donc, dans le React que l'app résout, les exports de son entrée par défaut absents de son entrée <code>react-server</code>, et échoue sur le nom importé. Si React n'a pas la forme attendue, le contrôle est sauté plutôt que deviné.</p>
     <Excerpt path={B} find='if (i.name === "react" && ts.isImportDeclaration(i.node))' count={12} tone="build" mark={["clientOnlyReact.has(name)"]} />
-    <p>Si l'app déclare ses arguments dans <code>app/args.ts</code>, un troisième graphe part de ce fichier. Il tourne dans le lanceur <em>et</em> sur le Server : il refuse toute directive, tout fichier sous un dossier <code>server</code>, <code>airtty/server</code>, <code>airtty/client</code> et OpenTUI.</p>
+    <p>Si l'app déclare ses arguments dans <code>app/args.ts</code>, un troisième graphe part de ce fichier. Il tourne dans le lanceur <em>et</em> sur le Server : il refuse toute directive, tout fichier sous un dossier <code>server</code>, <code>luciole/server</code>, <code>luciole/client</code> et OpenTUI.</p>
   </Step>
 
   <Step n="5" tone="build" title="Le build ID : une empreinte de tout ce qui compte">
-    <p>Le build ID est une empreinte sha256, tronquée à 24 caractères hexadécimaux, de quatre choses : les sources de l'app, <strong>tous</strong> les fichiers du framework, le <code>bun.lock</code> qui gouverne l'installation, et ce que le build lit à côté des modules : <code>package.json</code>, <code>airtty.json</code> et l'icône.</p>
+    <p>Le build ID est une empreinte sha256, tronquée à 24 caractères hexadécimaux, de quatre choses : les sources de l'app, <strong>tous</strong> les fichiers du framework, le <code>bun.lock</code> qui gouverne l'installation, et ce que le build lit à côté des modules : <code>package.json</code>, <code>luciole.json</code> et l'icône.</p>
     <Excerpt path={B} find='const hash = createHash("sha256");' until="hash.update(relative(root, file)).update(await readFile(file)" tone="build" />
     <p>Conséquence : mettre à jour le framework change le build ID, même si l'app n'a pas bougé. Un Client et un Server issus de deux builds ne se parleront pas (chapitre 3).</p>
-    <p>À l'inverse, un build ID inchangé arrête le build ici : si <code>.airtty/manifest.json</code> porte déjà ce build ID, construit avec les mêmes options (bundle d'app, Server pour le navigateur, signature), <code>.airtty/</code> reste tel quel. Un build signé est toujours refait. Deux builds du même dossier ne se croisent pas : le second attend le verrou du premier.</p>
+    <p>À l'inverse, un build ID inchangé arrête le build ici : si <code>.luciole/manifest.json</code> porte déjà ce build ID, construit avec les mêmes options (bundle d'app, Server pour le navigateur, signature), <code>.luciole/</code> reste tel quel. Un build signé est toujours refait. Deux builds du même dossier ne se croisent pas : le second attend le verrou du premier.</p>
     <Excerpt path={B} find="const builtWith = { appBundle, webServer, signed: !!signBundle };" count={3} tone="build" mark={["await upToDate(output, buildId, builtWith)"]} />
   </Step>
 
@@ -128,18 +128,18 @@ const edges: Edge[] = [
       <li><strong>client</strong> : crée l'application avec une table <code>resolveModule</code> des composants Client ;</li>
       <li><strong>app</strong> : le Client sans runtime, pour qu'un hôte l'ouvre (chapitre 8).</li>
     </ul>
-    <p>Deux autres s'ajoutent selon l'app et les options : <strong>web-server</strong>, le Server bundlé pour le navigateur, avec <code>--web-local</code> (chapitre 9), et <strong>args</strong>, la seule définition de <code>app/args.ts</code>, que le lanceur importe pour vérifier les arguments avant de démarrer quoi que ce soit. Dans ce cas, l'entrée <strong>server</strong> commence par <Src path="packages/airtty/src/args-server.ts" /> et analyse les arguments avant de servir : un module de l'app peut lire <code>cli.get()</code> dès son chargement.</p>
+    <p>Deux autres s'ajoutent selon l'app et les options : <strong>web-server</strong>, le Server bundlé pour le navigateur, avec <code>--web-local</code> (chapitre 9), et <strong>args</strong>, la seule définition de <code>app/args.ts</code>, que le lanceur importe pour vérifier les arguments avant de démarrer quoi que ce soit. Dans ce cas, l'entrée <strong>server</strong> commence par <Src path="packages/luciole/src/args-server.ts" /> et analyse les arguments avant de servir : un module de l'app peut lire <code>cli.get()</code> dès son chargement.</p>
   </Step>
 
   <Step n="8" tone="build" title="Le plugin remplace le code de l'autre côté par des références">
-    <p>C'est le cœur du mécanisme. Pendant le bundling, le plugin <code>airtty-boundaries</code> intercepte chaque module :</p>
+    <p>C'est le cœur du mécanisme. Pendant le bundling, le plugin <code>luciole-boundaries</code> intercepte chaque module :</p>
     <Excerpt path={B} find='if (serverSide && m?.directive === "use client")' count={17} tone="build" mark={["registerClientReference", "actions.reference("]} />
     <ul>
       <li>Côté Server, un fichier <code>"use client"</code> devient une liste de <strong>Client References</strong>. Ce sont des fonctions qui lèvent une erreur si on les appelle : le Server ne peut que les <em>nommer</em> dans un rendu.</li>
       <li>Côté Client, un fichier <code>"use server"</code> devient des <strong>Server References</strong>, <code>actions.reference("id#nom")</code> : l'appel part en requête.</li>
       <li>Une fonction <code>"use cache"</code> est enveloppée par le runtime du cache (chapitre 6).</li>
     </ul>
-    <p>Le plugin refuse aussi un <em>paquet</em> npm Client qui importerait <code>server-only</code> ou <code>airtty/server</code>. L'étape 4 ne pouvait pas le voir.</p>
+    <p>Le plugin refuse aussi un <em>paquet</em> npm Client qui importerait <code>server-only</code> ou <code>luciole/server</code>. L'étape 4 ne pouvait pas le voir.</p>
   </Step>
 
   <Step n="9" tone="build" title="Les bundles sont écrits à part">
@@ -184,7 +184,7 @@ const edges: Edge[] = [
   <h2>Ce que le build produit</h2>
   <Sample
     label="bun run build, sur examples/notes"
-    code={`.airtty/
+    code={`.luciole/
 ├── server/     index.js      le programme Server
 ├── client/     index.js      le programme Client
 ├── app/        index.cjs     le Client sans runtime, pour un hôte
@@ -196,7 +196,7 @@ const edges: Edge[] = [
   <p>Le <code>manifest.json</code> garde la trace des deux graphes et des routes. Chaque clé de référence commence par le build ID : une référence d'un autre build ne peut pas se résoudre.</p>
   <Sample
     lang="json"
-    label=".airtty/manifest.json (extrait)"
+    label=".luciole/manifest.json (extrait)"
     code={`{
   "buildId": "e01495558432a2514ca7203e",
   "manifest": {
@@ -215,7 +215,7 @@ const edges: Edge[] = [
   <h2>Quand ça casse</h2>
   <p>Chaque violation cite le fichier, la ligne et la colonne, puis la <strong>chaîne d'imports</strong> qui y mène. Voici quatre erreurs réelles, provoquées sur des copies modifiées de Notes :</p>
   <Sample
-    label="airtty build, quatre violations"
+    label="luciole build, quatre violations"
     code={`components/NoteEditor.tsx:3:1: Server-only import in Client graph: ../server/repository
   via app/notes/[id]/page.tsx → components/NoteEditor.tsx
 
@@ -230,7 +230,7 @@ app/page.tsx:1:1: OpenTUI native runtime is Client-only
   <p>Lis la chaîne <code>via</code> de droite à gauche : elle part du fichier fautif et remonte jusqu'au point d'entrée qui l'a fait entrer dans le mauvais graphe.</p>
   <p>Deux erreurs de plus sont positionnées là où elles sont. Une erreur de syntaxe porte la ligne et la colonne du diagnostic de TypeScript, plus la ligne 1 du fichier. Un import introuvable est signalé sur la ligne de l'import, le chemin relatif à l'app. Et un hook de React dans une page échoue sur le nom importé. Les messages ci-dessous sont ceux que vérifie <Src path="tests/build.test.ts" /> :</p>
   <Sample
-    label="airtty build, un import introuvable, un hook dans une page"
+    label="luciole build, un import introuvable, un hook dans une page"
     code={`app/page.tsx:2:1: Cannot resolve ../components/Header
 
 app/page.tsx:1:19: useState is Client-only React: a Server Component cannot use it. Add "use client" at the top of this file, or move the part that needs it into a Client Component
@@ -239,9 +239,9 @@ app/page.tsx:1:19: useState is Client-only React: a Server Component cannot use 
 
   <Callout kind="piege">
     <ul>
-      <li><code>airtty build</code> écrit dans tes sources : <code>app/routeTree.gen.ts</code> est versionné.</li>
-      <li>Le build remplace <em>tout</em> <code>.airtty/</code> : un dossier <code>web/</code> produit par un <code>--web</code> précédent disparaît au build suivant sans <code>--web</code>.</li>
-      <li><Src path="packages/airtty/src/framework-hash.ts" /> n'entre pas dans le build ID. Il sert aux caches du lanceur git et du runtime web ; le build ID refait sa propre empreinte du framework.</li>
+      <li><code>luciole build</code> écrit dans tes sources : <code>app/routeTree.gen.ts</code> est versionné.</li>
+      <li>Le build remplace <em>tout</em> <code>.luciole/</code> : un dossier <code>web/</code> produit par un <code>--web</code> précédent disparaît au build suivant sans <code>--web</code>.</li>
+      <li><Src path="packages/luciole/src/framework-hash.ts" /> n'entre pas dans le build ID. Il sert aux caches du lanceur git et du runtime web ; le build ID refait sa propre empreinte du framework.</li>
     </ul>
   </Callout>
 
@@ -249,13 +249,13 @@ app/page.tsx:1:19: useState is Client-only React: a Server Component cannot use 
     <ul>
       <li>Deux graphes, calculés depuis les pages (Server) et depuis les frontières <code>"use client"</code> (Client).</li>
       <li>Ce qui appartient à l'autre côté est remplacé par une <strong>référence</strong> dont l'id commence par le build ID.</li>
-      <li>Le build ID couvre l'app, tout le framework, le lockfile, <code>package.json</code>, <code>airtty.json</code> et l'icône ; inchangé, il évite de refaire le build.</li>
+      <li>Le build ID couvre l'app, tout le framework, le lockfile, <code>package.json</code>, <code>luciole.json</code> et l'icône ; inchangé, il évite de refaire le build.</li>
       <li>Tout est construit à part puis publié par un seul <code>rename</code>.</li>
     </ul>
   </Callout>
 
   <Callout kind="essaie">
-    <p>Dans une copie de Notes, importe <code>../server/repository</code> depuis <code>components/NoteEditor.tsx</code>, puis lance <code>bun packages/airtty/src/cli.ts build --app &lt;copie&gt;</code>. Avant de lancer, prédis le message et sa chaîne <code>via</code>.</p>
+    <p>Dans une copie de Notes, importe <code>../server/repository</code> depuis <code>components/NoteEditor.tsx</code>, puis lance <code>bun packages/luciole/src/cli.ts build --app &lt;copie&gt;</code>. Avant de lancer, prédis le message et sa chaîne <code>via</code>.</p>
   </Callout>
 
   <Quiz

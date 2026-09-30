@@ -21,7 +21,7 @@ const MEMORY_BYTES = 33_554_432; // 32 MiB
 const CacheHome = z.string().min(1).optional();
 const directory = join(
   CacheHome.parse(process.env.XDG_CACHE_HOME) ?? join(homedir(), ".cache"),
-  "airtty-files",
+  "luciole-files",
   "thumbnails",
 );
 

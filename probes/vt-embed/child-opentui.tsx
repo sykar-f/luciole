@@ -1,7 +1,7 @@
 /** @jsxImportSource @opentui/react */
-// An OpenTUI program (what an airtty Client is) run inside <VtView>: it probes the host
+// An OpenTUI program (what a luciole Client is) run inside <VtView>: it probes the host
 // terminal at startup (DA1, OSC 10/11, kitty keyboard…), so it shows whether the embedding
-// emulator answers enough for an airtty app to start in `process` mode.
+// emulator answers enough for a luciole app to start in `process` mode.
 import { createCliRenderer } from "@opentui/core";
 import { createRoot, useKeyboard, useRenderer } from "@opentui/react";
 import { useState } from "react";

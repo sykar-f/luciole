@@ -1,5 +1,5 @@
 /**
- * A Client in a desktop window (AIRTTY_DESKTOP): Ctrl+C is the application's, closing the
+ * A Client in a desktop window (LUCIOLE_DESKTOP): Ctrl+C is the application's, closing the
  * window (a hangup of its PTY) quits on purpose, and a termination keeps the session as
  * in a terminal. The production Client runs on a real PTY (scripts/pty/driver.ts), as a
  * desktop host runs it.
@@ -8,7 +8,7 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import { mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { build } from "../packages/airtty/src/build";
+import { build } from "../packages/luciole/src/build";
 import { ctrl, drive } from "../scripts/pty/driver";
 import { launch } from "./helpers";
 
@@ -20,9 +20,9 @@ let server: Awaited<ReturnType<typeof launch>>;
 
 beforeAll(async () => {
   await build(root);
-  dir = await mkdtemp(join(tmpdir(), "airtty-desktop-"));
-  // In production, as the Client below: a development Server wants the bearer of `airtty dev`.
-  server = await launch(join(root, ".airtty/server/index.js"), {
+  dir = await mkdtemp(join(tmpdir(), "luciole-desktop-"));
+  // In production, as the Client below: a development Server wants the bearer of `luciole dev`.
+  server = await launch(join(root, ".luciole/server/index.js"), {
     NOTES_DB: join(dir, "notes.sqlite"),
     NODE_ENV: "production",
   });
@@ -33,15 +33,15 @@ afterAll(async () => {
 });
 
 const sessions = async (state: string) =>
-  readdir(join(state, "airtty/notes/sessions")).catch(() => []);
+  readdir(join(state, "luciole/notes/sessions")).catch(() => []);
 
 /** The notes Client in a window: started and connected; stopped at the end of its scope. */
 async function openWindow(state: string) {
   const window = await drive({
-    command: [process.execPath, join(root, ".airtty/client/index.js"), "--url", server.url],
+    command: [process.execPath, join(root, ".luciole/client/index.js"), "--url", server.url],
     cols: 100,
     rows: 28,
-    env: { NODE_ENV: "production", XDG_STATE_HOME: state, AIRTTY_DESKTOP: "1" },
+    env: { NODE_ENV: "production", XDG_STATE_HOME: state, LUCIOLE_DESKTOP: "1" },
   });
   await window.waitFor("Connected");
   return window;

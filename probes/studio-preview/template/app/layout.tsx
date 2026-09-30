@@ -1,8 +1,8 @@
 "use client";
-import { useConnection, type LayoutProps } from "airtty/client";
+import { useConnection, type LayoutProps } from "luciole/client";
 
 // The chrome studio's template keeps: the connection state and, in development, the
-// last build error (sent by `airtty dev`), so a failed rebuild shows over the last good
+// last build error (sent by `luciole dev`), so a failed rebuild shows over the last good
 // screen instead of replacing it.
 export default function Layout({ children }: LayoutProps) {
   const { status, buildError } = useConnection();

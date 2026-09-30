@@ -1,0 +1,21 @@
+[package]
+name = "luciole-sandbox"
+version = "0.1.0"
+edition = "2021"
+description = "Confines a luciole sandboxed Client on Linux (Landlock, seccomp, namespaces), then execs it"
+license = "MIT"
+publish = false
+
+# Few, pinned dependencies: this binary is shipped prebuilt and runs before untrusted code.
+[dependencies]
+libc = "=0.2.177"
+seccompiler = "=0.5.0"
+serde = { version = "=1.0.228", features = ["derive"] }
+serde_json = "=1.0.145"
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

@@ -4,20 +4,20 @@ import { chmod, cp, mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { z } from "zod";
-import { hostTarget } from "../packages/airtty/src/compile";
-import { sandboxSupported } from "../packages/airtty/src/sandbox/runtime";
-import { messageOf } from "../packages/airtty/src/guards";
-import { launch, resolveTarget } from "../packages/airtty/src/launcher";
-import type { Directories } from "../packages/airtty/src/launcher/paths";
+import { hostTarget } from "../packages/luciole/src/compile";
+import { sandboxSupported } from "../packages/luciole/src/sandbox/runtime";
+import { messageOf } from "../packages/luciole/src/guards";
+import { launch, resolveTarget } from "../packages/luciole/src/launcher";
+import type { Directories } from "../packages/luciole/src/launcher/paths";
 import {
   findInstalled,
   install,
   listInstalled,
   remove,
   update,
-} from "../packages/airtty/src/registry/apps";
-import { npmRegistry } from "../packages/airtty/src/registry/npm";
-import { packApp } from "../packages/airtty/src/registry/pack";
+} from "../packages/luciole/src/registry/apps";
+import { npmRegistry } from "../packages/luciole/src/registry/npm";
+import { packApp } from "../packages/luciole/src/registry/pack";
 import { rejectionOf } from "./helpers";
 
 let work: string, directories: Directories, server: ReturnType<typeof Bun.serve>;
@@ -37,7 +37,7 @@ async function fakeBinary(name: string, buildId: string, target: string) {
   await mkdir(join(work, "binaries"), { recursive: true });
   await Bun.write(
     file,
-    `#!/bin/sh\n# airtty-binary:1:${name}:${buildId}:${target};\necho "${buildId} $*" >> "${join(work, "runs.log")}"\n`,
+    `#!/bin/sh\n# luciole-binary:1:${name}:${buildId}:${target};\necho "${buildId} $*" >> "${join(work, "runs.log")}"\n`,
   );
   await chmod(file, 0o755);
   return file;
@@ -84,7 +84,7 @@ async function publish(options: { version: string; buildId: string; targets?: st
 }
 
 beforeAll(async () => {
-  work = await mkdtemp(join(tmpdir(), "airtty-registry-"));
+  work = await mkdtemp(join(tmpdir(), "luciole-registry-"));
   directories = {
     apps: join(work, "data/apps"),
     git: join(work, "cache/git"),
@@ -100,7 +100,7 @@ beforeAll(async () => {
         const text = url.searchParams.get("text") ?? "";
         const objects = [...packuments.values()]
           .filter(
-            (p) => text.includes("keywords:airtty-app") && p.versions[p["dist-tags"].latest ?? ""],
+            (p) => text.includes("keywords:luciole-app") && p.versions[p["dist-tags"].latest ?? ""],
           )
           .map((p) => ({ package: PackageJson.parse(p.versions[p["dist-tags"].latest ?? ""]) }))
           .filter(({ package: p }) => typeof p.keywords === "object");
@@ -139,8 +139,8 @@ test("pack writes an app package and one package per target, esbuild style", asy
   expect(await read(app)).toMatchObject({
     name: "@ada/notes",
     version: "1.0.0",
-    keywords: ["airtty-app"],
-    airtty: {
+    keywords: ["luciole-app"],
+    luciole: {
       name: "notes",
       buildId: "aa11",
       binaries: {
@@ -260,7 +260,7 @@ test("a tampered tarball, a missing target or a non-app package is refused", asy
   ).toContain("has no binary for bun-linux-arm64");
   expect(
     messageOf(await rejectionOf(install({ name: "@ada/notes-linux-x64-musl" }, registry))),
-  ).toContain('is not an airtty app: no "airtty" field');
+  ).toContain('is not a luciole app: no "luciole" field');
   expect(messageOf(await rejectionOf(install({ name: "@ada/ghost" }, registry)))).toContain(
     "@ada/ghost is not on",
   );
@@ -299,6 +299,6 @@ test("targets resolve in order: path, installed app, npm spec, git source, Serve
     await rejectionOf(launch("https://notes.example.com", { directories })),
   );
   if (sandboxSupported()) expect(refusal).not.toContain("--inline");
-  else expect(refusal).toContain("airtty https://notes.example.com --inline");
+  else expect(refusal).toContain("luciole https://notes.example.com --inline");
   expect(() => resolveTarget("examples/notes", at)).toThrow("start it with ./");
 });

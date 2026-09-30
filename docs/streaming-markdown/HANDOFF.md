@@ -1,7 +1,7 @@
 # Handoff : un composant markdown stable pendant le streaming
 
 Branche `feat/streaming-markdown`, worktree herdr
-`~/.herdr/worktrees/airtty/feat-streaming-markdown`, partie de `main` à `79410fc`. Ce
+`~/.herdr/worktrees/luciole/feat-streaming-markdown`, partie de `main` à `79410fc`. Ce
 document résume une investigation faite dans la session qui a construit `examples/coder` ;
 tout ce qui est chiffré ici a été mesuré, le reste est marqué comme hypothèse.
 
@@ -110,7 +110,7 @@ Documente dans `STATUS.md` ce que tu en reprends et ce que tu écartes.
 4. **Parité** avec le rendu actuel des messages terminés (marges entre blocs, puces,
    couleurs) ; sélection à la souris et OSC 52 du transcript doivent continuer à marcher.
 5. **Performance** : un message de 10 k tokens à ~20 deltas/s ; ne relexer que la queue.
-6. **Cible web** : airtty rend aussi dans un navigateur ; n'utiliser que des primitives
+6. **Cible web** : luciole rend aussi dans un navigateur ; n'utiliser que des primitives
    OpenTUI (box, text, code) pour rester portable.
 
 ## 6. Mesurer (le banc d'essai)
@@ -126,7 +126,7 @@ import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { drive, Keys } from "./driver";
 import { BUN, CLI, example, temporaryDirectory } from "./harness";
-using directory = temporaryDirectory("airtty-jitter-");
+using directory = temporaryDirectory("luciole-jitter-");
 const project = join(directory.path, "project");
 mkdirSync(project);
 await using t = await drive({
@@ -161,7 +161,7 @@ PTY qui **échoue** au-delà d'un seuil d'oscillations.
 ## 7. Critères de fin
 
 1. Composant (emplacement à choisir : `examples/coder/components/` d'abord, promotion
-   dans `packages/airtty` seulement si l'utilisateur le demande) utilisé par le transcript
+   dans `packages/luciole` seulement si l'utilisateur le demande) utilisé par le transcript
    de coder pour messages et « thinking », en cours et terminés.
 2. Banc PTY : **0 oscillation** et marqueurs bruts ≤ la variante `top-level` sur la
    réponse riche, en découpage par mots et par 3 caractères.
@@ -174,7 +174,7 @@ PTY qui **échoue** au-delà d'un seuil d'oscillations.
 
 ## 8. Décisions qui reviennent à l'utilisateur
 
-- Promouvoir le composant dans `packages/airtty` (API publique) plutôt que de le garder
+- Promouvoir le composant dans `packages/luciole` (API publique) plutôt que de le garder
   dans l'exemple.
 - Ajouter une dépendance au-delà de `marked` (déjà au catalogue).
 - Abandonner la parité visuelle avec `<markdown>` d'OpenTUI sur un point visible.

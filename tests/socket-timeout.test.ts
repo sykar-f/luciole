@@ -3,17 +3,17 @@ import { spawn } from "node:child_process";
 import { rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { createInterface } from "node:readline";
-import { connect, socketDirectory } from "../packages/airtty/src/connect";
-import { isAsyncIterable } from "../packages/airtty/src/guards";
-import { createHttpTransport } from "../packages/airtty/src/transport";
+import { connect, socketDirectory } from "../packages/luciole/src/connect";
+import { isAsyncIterable } from "../packages/luciole/src/guards";
+import { createHttpTransport } from "../packages/luciole/src/transport";
 
 // Bun applies its default idle timeout (10 s) on a Unix socket, where serve() cannot set
 // its own: a slow page, a slow Server Function and a stream quiet for 12 s must still
 // complete, as they do over TCP.
 test("a socket Server answers after more than Bun's idle timeout", async () => {
-  const socket = join(socketDirectory("airtty-slow-"), "s");
+  const socket = join(socketDirectory("luciole-slow-"), "s");
   const server = spawn(process.execPath, ["--conditions=react-server", "tests/slow-server.ts"], {
-    env: { ...process.env, AIRTTY_SOCKET: socket },
+    env: { ...process.env, LUCIOLE_SOCKET: socket },
     stdio: ["ignore", "pipe", "inherit"],
   });
   try {

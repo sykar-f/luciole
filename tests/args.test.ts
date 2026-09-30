@@ -6,10 +6,10 @@ import {
   decodeLaunchArgs,
   defineArgs,
   encodeLaunchArgs,
-} from "../packages/airtty/src/args";
-import { splitArgs, runtimeHelp } from "../packages/airtty/src/launcher/app-args";
-import { BUILT_FLAGS, builtArgs } from "../packages/airtty/src/launcher";
-import { messageOf } from "../packages/airtty/src/guards";
+} from "../packages/luciole/src/args";
+import { splitArgs, runtimeHelp } from "../packages/luciole/src/launcher/app-args";
+import { BUILT_FLAGS, builtArgs } from "../packages/luciole/src/launcher";
+import { messageOf } from "../packages/luciole/src/guards";
 import { rejectionOf } from "./helpers";
 
 const cli = defineArgs({
@@ -105,7 +105,7 @@ test("required options are named when missing", async () => {
 
 test("the runtime's flags are reserved, and unsupported shapes refused", () => {
   const declare = (options: z.ZodObject) => () => defineArgs({ options }).flags();
-  expect(declare(z.object({ url: z.string() }))).toThrow("--url is reserved by airtty");
+  expect(declare(z.object({ url: z.string() }))).toThrow("--url is reserved by luciole");
   expect(declare(z.object({ new: z.boolean() }))).toThrow("--new is reserved");
   expect(declare(z.object({ helpMe: z.boolean().meta({ short: "h" }) }))).toThrow("-h is reserved");
   expect(declare(z.object({ nested: z.object({ a: z.string() }) }))).toThrow("unsupported schema");
@@ -161,5 +161,5 @@ test("a launcher takes its own flags out, and leaves the rest to the application
     "application arguments configure a Server",
   );
   // What only a compiled binary does is said as before.
-  expect(() => builtArgs(["--on", "host"])).toThrow("airtty build --compile");
+  expect(() => builtArgs(["--on", "host"])).toThrow("luciole build --compile");
 });

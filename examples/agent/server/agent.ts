@@ -70,7 +70,7 @@ class Agent {
         "--thinking",
         config.thinking,
         // The latest session of this working directory continues: a rebuild of
-        // `airtty dev` restarts the Server, not the conversation.
+        // `luciole dev` restarts the Server, not the conversation.
         "--session-dir",
         config.sessionDir,
         "--continue",

@@ -1,9 +1,0 @@
-{
-  "extends": "../../tsconfig.base.json",
-  "compilerOptions": {
-    "lib": ["ESNext", "DOM"],
-    "types": ["bun"]
-  },
-  "include": [".", "../../types.d.ts"],
-  "exclude": ["**/node_modules", "**/.airtty"]
-}

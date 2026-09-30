@@ -1,1 +1,1 @@
-import "../../examples/notes/.airtty/client/index.js";
+import "../../examples/notes/.luciole/client/index.js";

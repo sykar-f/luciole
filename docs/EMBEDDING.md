@@ -6,8 +6,8 @@ Bun 1.4.2) : [inline](../probes/inline/README.md),
 [generic-client](../probes/generic-client/README.md),
 [vt-embed](../probes/vt-embed/README.md), [sandbox](../probes/sandbox/README.md).
 
-Objectif : un Client airtty capable d'ouvrir plusieurs applications à la fois, comme un
-navigateur à onglets ou un multiplexeur local (tmux, herdr) : applications airtty
+Objectif : un Client luciole capable d'ouvrir plusieurs applications à la fois, comme un
+navigateur à onglets ou un multiplexeur local (tmux, herdr) : applications luciole
 téléchargées depuis leur Server, applications installées, shells, vim.
 
 Un utilisateur de cette conception : l'aperçu en direct de studio, qui embarque en
@@ -28,11 +28,11 @@ telle que l'utilisateur l'a donnée, pas l'adresse locale d'un tunnel), un paque
 
 ### Trois modes d'isolation, un curseur par origine
 
-| Mode      | Où tourne l'application                                      | Isolation                     | Rendu                        | Pour                                          |
-| --------- | ------------------------------------------------------------ | ----------------------------- | ---------------------------- | --------------------------------------------- |
-| `inline`  | dans le processus du Client, même arbre React                | aucune                        | direct, focus/thème partagés | code de confiance : local, installé, signé    |
-| `process` | processus enfant, sans sandbox                               | crashs uniquement             | widget VT (PTY + émulateur)  | multiplexeur local : shells, vim, apps airtty |
-| `sandbox` | processus enfant sous sandbox OS (Seatbelt ; airtty-sandbox) | crashs + capacités appliquées | widget VT                    | URL distante, paquet non signé                |
+| Mode      | Où tourne l'application                                       | Isolation                     | Rendu                        | Pour                                           |
+| --------- | ------------------------------------------------------------- | ----------------------------- | ---------------------------- | ---------------------------------------------- |
+| `inline`  | dans le processus du Client, même arbre React                 | aucune                        | direct, focus/thème partagés | code de confiance : local, installé, signé     |
+| `process` | processus enfant, sans sandbox                                | crashs uniquement             | widget VT (PTY + émulateur)  | multiplexeur local : shells, vim, apps luciole |
+| `sandbox` | processus enfant sous sandbox OS (Seatbelt ; luciole-sandbox) | crashs + capacités appliquées | widget VT                    | URL distante, paquet non signé                 |
 
 Défauts : local ou installé → `process` ; URL distante ou paquet non signé → `sandbox`.
 L'utilisateur surcharge (réglage mémorisé par origine, ou flag CLI) ; l'application
@@ -44,8 +44,8 @@ jamais. `inline` est un choix explicite de l'utilisateur pour une origine de con
 À la Deno : `fs.read`/`fs.write` par chemin, `net` par hôte, `exec` (par binaire) et
 `pty`, `clipboard.read`/`clipboard.write`, `notify`, `open-url`, `secrets`,
 `input.global`, `tabs.message`. Déclarées **statiquement** dans le champ
-`airtty.capabilities` du `package.json` de l'application (décision 3), lisible avant
-toute exécution ; le lanceur définit déjà le champ `airtty` (`name`, `buildId`,
+`luciole.capabilities` du `package.json` de l'application (décision 3), lisible avant
+toute exécution ; le lanceur définit déjà le champ `luciole` (`name`, `buildId`,
 `binaries`), `capabilities` s'y ajoute avec le schéma Zod du probe sandbox
 (`probes/sandbox/capabilities.ts`). Le build recopie ce champ dans le manifeste signé
 (section 2) : une origine URL les annonce sans que le Client lise le `package.json`, et
@@ -83,18 +83,18 @@ toujours par un proxy de sortie tenu par l'hôte ; l'enfant ne résout même pas
 
 ## 2. Client générique : runtime et bundle d'application
 
-Aujourd'hui chaque application distribue son propre Client : `.airtty/client/index.js`
-embarque le runtime airtty, TanStack Router et le keymap ; seuls React, OpenTUI et Flight
+Aujourd'hui chaque application distribue son propre Client : `.luciole/client/index.js`
+embarque le runtime luciole, TanStack Router et le keymap ; seuls React, OpenTUI et Flight
 sont external (`src/build.ts`). Un Client générique inverse la relation.
 
-Point d'entrée (décision 2) : pas de nouvelle commande. `airtty https://…` passe par le
+Point d'entrée (décision 2) : pas de nouvelle commande. `luciole https://…` passe par le
 lanceur (`src/launcher/`), qui résout son argument dans l'ordre chemin → installé →
 npm → git → URL. Le Client générique se branche sur la dernière étape (URL :
 `GET /manifest`, puis ce qui suit) ; les étapes installé, npm et git fournissent un
-paquet dont le `package.json` porte déjà `airtty` (`name`, `buildId`, `binaries`,
+paquet dont le `package.json` porte déjà `luciole` (`name`, `buildId`, `binaries`,
 `capabilities`), et le même chargeur évalue son bundle sans téléchargement.
 
-- **Runtime** : React, OpenTUI, keymap, TanStack Router, Zod, le runtime airtty. Compilé
+- **Runtime** : React, OpenTUI, keymap, TanStack Router, Zod, le runtime luciole. Compilé
   dans le binaire du Client générique. Il doit lui-même être un artefact de build : la
   redirection `@tanstack/router-core/isServer` → `client.js` de `src/build.ts` s'y
   applique (probe : 292 Ko, 68 Ko gzip, sans React/OpenTUI).
@@ -102,10 +102,10 @@ paquet dont le `package.json` porte déjà `airtty` (`name`, `buildId`, `binarie
   `"use server"`, les dépendances propres à l'application. Tout le reste est un
   `require` résolu par l'hôte (probe : mdreader 20 Ko, 7,5 Ko gzip ; files 29 Ko).
 - **ABI de runtime** : la liste fermée des spécifiers que le bundle peut importer
-  (`airtty/client`, `airtty/route-tree`, `@tanstack/react-router`, `react`,
+  (`luciole/client`, `luciole/route-tree`, `@tanstack/react-router`, `react`,
   `react/jsx-runtime`, `@opentui/core`, `@opentui/react`, `@opentui/react/jsx-runtime`,
   `@opentui/keymap`, `@opentui/keymap/react`, `zod`, `zod/mini`), une version entière
-  incrémentée à la main quand un export d'`airtty/client` change de façon incompatible, et
+  incrémentée à la main quand un export d'`luciole/client` change de façon incompatible, et
   les versions exactes des paquets. Clé : `<version>-<sha256 court>`, écrite dans le
   manifeste, comparée **avant** le téléchargement.
 - **Format** : `bun-cjs`, `(function (exports, require, module, …) {…})`. L'hôte passe
@@ -132,7 +132,7 @@ canonique (tableau ordonné), jamais sur le JSON reçu. Le Client :
 4. lit le bundle dans le cache par sha256, sinon `GET /bundle`, vérifie le hash, publie
    le fichier par `rename` ;
 5. évalue, puis vérifie que le bundle exporte le buildId signé (le Transport enverra ce
-   buildId dans `x-airtty-build`, que le Server vérifie déjà).
+   buildId dans `x-luciole-build`, que le Server vérifie déjà).
 
 Probe : altération d'un octet, manifeste modifié après signature, clé changée, ABI
 différente, `require` hors ABI : tous refusés avant évaluation. Démarrage à chaud
@@ -142,11 +142,11 @@ frame complète de mdreader ≈ 200 ms, dont l'essentiel est le rendu Server.
 ### Stockage partitionné
 
 Tout ce que le Client écrit est rangé sous l'origine : sessions (`src/session.ts` range
-aujourd'hui par nom d'application : `$XDG_STATE_HOME/airtty/<app>/sessions`), bearer,
-configuration (`src/connect.ts` : `~/.config/airtty/<app>.json`), cache des bundles
+aujourd'hui par nom d'application : `$XDG_STATE_HOME/luciole/<app>/sessions`), bearer,
+configuration (`src/connect.ts` : `~/.config/luciole/<app>.json`), cache des bundles
 (partagé par hash, sans risque), clés épinglées, capacités accordées. Proposition :
-`$XDG_STATE_HOME/airtty/origins/<sha256(origine)>/` et le cache sous
-`$XDG_CACHE_HOME/airtty/bundles/<sha256>.cjs`.
+`$XDG_STATE_HOME/luciole/origins/<sha256(origine)>/` et le cache sous
+`$XDG_CACHE_HOME/luciole/bundles/<sha256>.cjs`.
 
 ## 3. Obstacles dans `src/` et refactors proposés
 
@@ -180,7 +180,7 @@ second.
 
 **Décision 4 : préfixe par instance, dès maintenant.** Chaque pane reçoit une clé
 d'instance (`p1`, `p2`…, `[a-z0-9-]{1,32}`), que son Transport envoie dans
-`x-airtty-instance` à chaque requête. Le Server écrit les Client References de la réponse
+`x-luciole-instance` à chaque requête. Le Server écrit les Client References de la réponse
 `<clé>@<buildId>/<chemin>` : Flight lit `manifest[id].id` pour chaque référence, il suffit
 de lui passer une copie du manifeste préfixée par la clé. Sans en-tête, les ids restent
 ceux d'aujourd'hui : le Client actuel ne change pas. Les ids de Server Functions ne
@@ -195,7 +195,7 @@ envoient leurs actions par leur propre Application.
   `installResolver(next)` devient `registerModules(key, resolver): () => void`, le global
   aiguille sur le préfixe `<clé>@`, et sans préfixe sur l'unique résolveur enregistré (le
   Client actuel).
-- `src/transport.ts` (≈ 3 lignes) : l'en-tête `x-airtty-instance` quand
+- `src/transport.ts` (≈ 3 lignes) : l'en-tête `x-luciole-instance` quand
   `HttpTransportOptions.instance` est défini ; `ApplicationOptions.instance` le transmet.
   Réglé par l'hôte (`<Embed>`, Client générique), jamais par l'application.
 - `src/server.ts` (≈ 15 lignes) : l'en-tête validé par Zod, une copie préfixée du
@@ -214,7 +214,7 @@ sont pas concernées : elles utilisent le `callServer` de leur réponse. Mesuré
 
 **Refactor** (`src/client.tsx`, ≈ 20 lignes) : les ids d'action ne portent pas la clé
 d'instance, l'aiguillage par préfixe est donc exclu ici. Chaque pane évalue son bundle
-avec sa propre table `require` : son `airtty/client` a un `actionReference` lié à
+avec sa propre table `require` : son `luciole/client` a un `actionReference` lié à
 l'Application du pane (c'est ce que fait le probe). `current` disparaît au profit de
 cette liaison ; le Client actuel, un seul pane, lie l'unique Application, et ne change
 pas de comportement.
@@ -222,7 +222,7 @@ pas de comportement.
 Une **Application par pane**, chacune avec son Transport (déjà par instance), son
 routeur en memory history (déjà), son `Restoration`, son bearer (déjà), ses listeners.
 Le reste de l'état « par processus » vit dans `run()` (`src/run.tsx` : signaux,
-session, supervision `airtty dev`) : il reste au niveau du Client hôte, pas des embeds.
+session, supervision `luciole dev`) : il reste au niveau du Client hôte, pas des embeds.
 
 ### O3. Clavier et focus
 
@@ -241,7 +241,7 @@ Le focus OpenTUI est global au renderer. Un `<input focused>` d'un embed inactif
 recevrait encore la frappe (le renderer route la touche au renderable focalisé, hors
 keymap). `<Embed>` met donc le focus de côté à la bascule et le rend au retour (étape 2).
 
-API publique (décision 1) : un nouvel export `<Embed>` dans `airtty/client`, `Shell`
+API publique (décision 1) : un nouvel export `<Embed>` dans `luciole/client`, `Shell`
 reste inchangé. Forme proposée, celle du probe (`EmbedShell`) :
 `<Embed app={Application} name={string} active={boolean} />`, qui porte le keymap du
 pane, sa boundary et le rendu du focus à la bascule.
@@ -255,14 +255,14 @@ application remplace l'écran entier (mesuré). **Refactor** : une boundary par 
 ### O5. Le build n'a qu'une sortie Client
 
 `src/build.ts` générait un Client complet. **Refactor** : une seconde sortie
-`.airtty/app/` (bundle `bun-cjs` sans runtime + `manifest.json` signé, qui recopie
-`airtty.capabilities` du `package.json`), produite par la même passe (les graphes, les
+`.luciole/app/` (bundle `bun-cjs` sans runtime + `manifest.json` signé, qui recopie
+`luciole.capabilities` du `package.json`), produite par la même passe (les graphes, les
 ids et les stubs sont déjà calculés) ; la validation des frontières est inchangée. Le probe la reconstruit en 130 lignes hors de `src/` en
-relisant `.airtty/manifest.json`.
+relisant `.luciole/manifest.json`.
 
 ### O6. Le Server ne sert pas de bundle
 
-Deux routes `GET` dans `serve()` (`src/server.ts`), sans session ni `x-airtty-build`
+Deux routes `GET` dans `serve()` (`src/server.ts`), sans session ni `x-luciole-build`
 (elles servent justement à l'obtenir) : `/manifest` (JSON signé) et `/bundle` (octets,
 `cache-control: immutable` car adressés par hash). Le probe les sert par un relais devant
 le Server ; les flux render/action/live traversent le relais sans tampon.
@@ -270,7 +270,7 @@ le Server ; les flux render/action/live traversent le relais sans tampon.
 ## 4. Modes `process` et `sandbox` : widget VT
 
 Un enfant `process` ou `sandbox` est un programme terminal ordinaire (shell, vim, ou un
-Client airtty lancé par `run()`, sans modification) ; l'hôte l'affiche dans un widget VT.
+Client luciole lancé par `run()`, sans modification) ; l'hôte l'affiche dans un widget VT.
 Probe : 15/15 assertions (shell, vim, application OpenTUI enfant, deux vues côte à côte).
 
 - **PTY** : `Bun.Terminal` (Bun 1.4.2), sans dépendance. `detached: true` est
@@ -308,11 +308,11 @@ keymap d'une application (ou de l'hôte) volerait les touches du terminal embarq
 la touche préfixe de l'hôte (`Ctrl+O` dans le probe) doit être réservée, jamais
 transmise au PTY. C'est le même mécanisme que O3.
 
-**v2, diffs de cellules OpenTUI par IPC** : l'enfant airtty rend dans un buffer hors
+**v2, diffs de cellules OpenTUI par IPC** : l'enfant luciole rend dans un buffer hors
 écran et envoie les cellules changées ; l'hôte les copie (`drawFrameBuffer`). Gain
 seulement si les diffs sont groupés au rythme des frames : 0,06 à 0,6 fois le flux VT ;
 envoyés à chaque lecture PTY de 4 Kio, jusqu'à 8,8 fois le flux VT, et il faut une
-commande de défilement. À envisager après la v1, pour les applications airtty seulement
+commande de défilement. À envisager après la v1, pour les applications luciole seulement
 (images kitty de files, fidélité exacte des couleurs) ; les shells restent en VT.
 
 Limites : exécuté sur macOS arm64 seulement ; Linux (`setsid` au lancement détaché)
@@ -337,7 +337,7 @@ macOS, Seatbelt (probe : 38/38 assertions) :
   `sandbox_init_with_parameters` par `bun:ffi` fonctionne aussi (API privée ; le lanceur
   doit être minimal, ce qu'il a ouvert avant reste utilisable).
 
-Linux : voir l'étape 8 (Avancement) ; le lanceur natif `airtty-sandbox` applique
+Linux : voir l'étape 8 (Avancement) ; le lanceur natif `luciole-sandbox` applique
 Landlock et seccomp juste avant l'`exec` de l'enfant (décision 6), avec ses propres espaces
 de noms ou sous bubblewrap quand le système les permet.
 
@@ -352,7 +352,7 @@ Server dont il ne se fie pas au code (l'aperçu de studio). Même profil génér
 terminal, plus l'écoute d'un seul port loopback choisi par l'hôte ; `net` par hôte via le
 proxy de l'hôte. Lecture : son build ; écriture : son répertoire de données (mesuré par
 `probes/studio-server-sandbox`, testé dans `tests/sandbox.test.ts`). macOS seulement : sous
-`airtty-sandbox`, le Server écouterait dans son espace de noms réseau et l'hôte le
+`luciole-sandbox`, le Server écouterait dans son espace de noms réseau et l'hôte le
 joindrait par un relais inverse, à construire ; ailleurs le mode est refusé.
 
 ## 6. Risques
@@ -361,14 +361,14 @@ joindrait par un relais inverse, à construire ; ailleurs le mode est refusé.
 | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
 | ABI trop large : chaque mise à jour de React/OpenTUI casse tous les bundles publiés | ABI minimale, Client générique multi-ABI (plusieurs runtimes en cache), refus explicite                                  |
 | `inline` perçu comme sûr                                                            | jamais par défaut pour une URL ; le lanceur affiche « confiance totale, capacités non appliquées » ; audit des built-ins |
-| TOFU : première connexion détournée                                                 | empreinte affichée au premier usage, épinglage hors bande (`airtty trust <origine> <fpr>`)                               |
+| TOFU : première connexion détournée                                                 | empreinte affichée au premier usage, épinglage hors bande (`luciole trust <origine> <fpr>`)                              |
 | Rotation de clé impossible                                                          | déclaration de rotation signée par l'ancienne clé (à concevoir)                                                          |
 | Seatbelt : `sandbox-exec` obsolète, SBPL non documenté                              | `sandbox_init` via FFI ; profil testé à chaque version de macOS (probe = test)                                           |
 | `localhost:<port du proxy>` autorise tout service qui prendrait ce port             | proxy lancé avant l'enfant, port tenu ; sur Linux, socket unix seul                                                      |
 | PTY en sandbox : la règle couvre tous les `/dev/ttys*`                              | règle sur le chemin exact du PTY alloué (étape 7) ; `pty` refusée en sandbox macOS                                       |
 | Clés d'instance choisies par le Client : une copie du manifeste par clé côté Server | cache borné, ou `Proxy` sans cache ; clé validée par Zod                                                                 |
 | Capacités déclarées dans le `package.json` et usage réel divergents                 | le build compare avec l'audit des built-ins ; en `sandbox`, l'OS tranche de toute façon                                  |
-| Dépendance au lanceur et au champ `airtty`                                          | étape 5 après le lanceur ; `capabilities` ajouté à son schéma par un diff court                                          |
+| Dépendance au lanceur et au champ `luciole`                                         | étape 5 après le lanceur ; `capabilities` ajouté à son schéma par un diff court                                          |
 | Focus global OpenTUI                                                                | l'hôte retire et rend le focus à la bascule                                                                              |
 | Fidélité VT (images kitty de files, souris, séquences rares)                        | voir section 4 ; v2 par diffs de cellules OpenTUI                                                                        |
 
@@ -376,16 +376,16 @@ joindrait par un relais inverse, à construire ; ailleurs le mode est refusé.
 
 Chaque étape est mergeable seule et garde `bun run verify` et les smokes PTY verts.
 
-| Étape | Contenu                                                                                                                                                                                                                          | Fichiers                                                                | Estimation |
-| ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | ---------- |
-| 1     | Préfixe d'instance : `registerModules`, `x-airtty-instance` (Transport, Server, manifeste préfixé en cache borné), `actionReference` lié au pane, fin de `current` ; tests à deux panes du même build et de deux builds (O1, O2) | `flight/client.ts`, `client.tsx`, `transport.ts`, `server.ts`, `tests/` | 3 j        |
-| 2     | Export `<Embed>` : keymap par pane, boundary, focus rendu à la bascule (O3, O4) ; test inline à deux apps (repris du probe)                                                                                                      | `client.tsx` (ou `embed.tsx`), `tests/`                                 | 3 j        |
-| 3     | Sortie `.airtty/app/` : bundle sans runtime, audit des built-ins, refus du TLA ; `airtty.capabilities` (schéma Zod partagé, recopié dans le manifeste, comparé à l'audit) ; runtime bundlé ; `src/abi.ts`                        | `build.ts` (ajout localisé), `abi.ts`, `capabilities.ts`                | 3,5 j      |
-| 4     | Signature (`airtty keys`, `airtty build --sign-bundle`), routes `/manifest` et `/bundle`                                                                                                                                         | `commands/keys.ts`, `server.ts` (2 routes), `sign.ts`                   | 2 j        |
-| 5     | Client générique branché sur le lanceur (étape URL ; paquets installés, npm, git par le même chargeur) : TOFU, cache, stockage par origine, onglets, bascule clavier ; mode `inline` et son avertissement                        | `launcher/*`, `generic/*`, `session.ts`, `connect.ts`                   | 4 j        |
-| 6     | Mode `process` : widget VT, PTY, clavier/souris/resize, multiplexeur local (shell, vim, apps airtty)                                                                                                                             | `vt/*`                                                                  | 5–8 j      |
-| 7     | Mode `sandbox` macOS : profil généré depuis `airtty.capabilities`, proxy de sortie, IPC des capacités médiées, écran des capacités, flags `--allow-*`                                                                            | `sandbox/*`                                                             | 6–8 j      |
-| 8     | Sandbox Linux : lanceur Rust Landlock + seccomp (décision 6), repli bwrap ; CI Linux                                                                                                                                             | `sandbox/linux.ts`, lanceur natif                                       | 5–7 j      |
+| Étape | Contenu                                                                                                                                                                                                                           | Fichiers                                                                | Estimation |
+| ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | ---------- |
+| 1     | Préfixe d'instance : `registerModules`, `x-luciole-instance` (Transport, Server, manifeste préfixé en cache borné), `actionReference` lié au pane, fin de `current` ; tests à deux panes du même build et de deux builds (O1, O2) | `flight/client.ts`, `client.tsx`, `transport.ts`, `server.ts`, `tests/` | 3 j        |
+| 2     | Export `<Embed>` : keymap par pane, boundary, focus rendu à la bascule (O3, O4) ; test inline à deux apps (repris du probe)                                                                                                       | `client.tsx` (ou `embed.tsx`), `tests/`                                 | 3 j        |
+| 3     | Sortie `.luciole/app/` : bundle sans runtime, audit des built-ins, refus du TLA ; `luciole.capabilities` (schéma Zod partagé, recopié dans le manifeste, comparé à l'audit) ; runtime bundlé ; `src/abi.ts`                       | `build.ts` (ajout localisé), `abi.ts`, `capabilities.ts`                | 3,5 j      |
+| 4     | Signature (`luciole keys`, `luciole build --sign-bundle`), routes `/manifest` et `/bundle`                                                                                                                                        | `commands/keys.ts`, `server.ts` (2 routes), `sign.ts`                   | 2 j        |
+| 5     | Client générique branché sur le lanceur (étape URL ; paquets installés, npm, git par le même chargeur) : TOFU, cache, stockage par origine, onglets, bascule clavier ; mode `inline` et son avertissement                         | `launcher/*`, `generic/*`, `session.ts`, `connect.ts`                   | 4 j        |
+| 6     | Mode `process` : widget VT, PTY, clavier/souris/resize, multiplexeur local (shell, vim, apps luciole)                                                                                                                             | `vt/*`                                                                  | 5–8 j      |
+| 7     | Mode `sandbox` macOS : profil généré depuis `luciole.capabilities`, proxy de sortie, IPC des capacités médiées, écran des capacités, flags `--allow-*`                                                                            | `sandbox/*`                                                             | 6–8 j      |
+| 8     | Sandbox Linux : lanceur Rust Landlock + seccomp (décision 6), repli bwrap ; CI Linux                                                                                                                                              | `sandbox/linux.ts`, lanceur natif                                       | 5–7 j      |
 
 Total : 31,5–38,5 jours (auparavant 31–38). Détail de l'écart :
 
@@ -393,15 +393,15 @@ Total : 31,5–38,5 jours (auparavant 31–38). Détail de l'écart :
 - étape 3, +0,5 j : le champ `capabilities` et sa comparaison avec l'audit ;
 - étape 5, −1 j : pas de commande ni d'analyse d'arguments, le lanceur les fournit.
 
-Dépendances : l'étape 5 suivait le lanceur (`src/launcher/`, champ `airtty`) ; les
+Dépendances : l'étape 5 suivait le lanceur (`src/launcher/`, champ `luciole`) ; les
 étapes 1 à 4 n'en dépendaient pas. Les étapes 1–2 profitent aussi aux applications
 actuelles (tests à plusieurs Applications, boundary).
 
 ### Avancement
 
 - **Étape 8 (mode `sandbox` Linux)** : livrée sur `feat/embed-sandbox-linux`
-  (`native/airtty-sandbox/`, `src/sandbox/{mechanism,linux,confine,bridge}.ts`). Un lanceur
-  natif en Rust, **`airtty-sandbox`**, reçoit une politique JSON structurée (validée par
+  (`native/luciole-sandbox/`, `src/sandbox/{mechanism,linux,confine,bridge}.ts`). Un lanceur
+  natif en Rust, **`luciole-sandbox`**, reçoit une politique JSON structurée (validée par
   Zod côté hôte et par serde, champs inconnus refusés, côté lanceur ; argv exécuté, jamais
   de shell), puis dans l'ordre : espaces de noms, relais, Landlock (appels système directs,
   droits selon l'ABI), seccomp, `execv`. Le mécanisme est choisi au lancement, le plus fort
@@ -449,17 +449,17 @@ actuelles (tests à plusieurs Applications, boundary).
   que l'hôte vérifie avant usage ; `bun scripts/build-sandbox.ts [--check]` les reconstruit
   à l'identique (image Rust épinglée par digest, `Cargo.lock`, dépendances épinglées :
   `libc`, `seccompiler`, `serde`, `serde_json`). L'utilisateur n'installe rien ; le Client
-  générique étant airtty lui-même, rien ne change pour `airtty build --compile`.
+  générique étant luciole lui-même, rien ne change pour `luciole build --compile`.
   Tests : `bun scripts/linux-sandbox.ts` (conteneurs Debian, utilisateur non root, un par
   mécanisme : `tests/sandbox.test.ts`, `test:pty:sandbox`, `cargo test`) ; job CI
   `linux-sandbox` (x64, `--check` compris). Tous verts en arm64. Limites : x64 n'est pas
   testable émulé sur arm64 (Rosetta : ni Landlock ni `open_tree`), il l'est en CI ; bwrap
   dans Docker demande `systempaths=unconfined` (monter un `/proc` neuf), pas un vrai hôte ;
   le chemin AppArmor d'Ubuntu (bwrap autorisé, lanceur refusé) est simulé en forçant le
-  mécanisme (`AIRTTY_SANDBOX_MECHANISM`), pas mesuré sur Ubuntu.
+  mécanisme (`LUCIOLE_SANDBOX_MECHANISM`), pas mesuré sur Ubuntu.
 
 - **Étape 7 (mode `sandbox` macOS)** : livrée sur `feat/embed-sandbox-macos`
-  (`src/sandbox/`). **Mode par défaut d'une URL sur macOS** : `airtty <url>` ouvre
+  (`src/sandbox/`). **Mode par défaut d'une URL sur macOS** : `luciole <url>` ouvre
   l'origine en `sandbox` ; `--inline` reste un choix explicite et mémorisé, `--sandbox`
   y revient ; ailleurs (Linux jusqu'à l'étape 8), refus sans `--inline` comme avant.
   Avant toute exécution, l'**écran des capacités** donne la route du Server et chaque
@@ -474,7 +474,7 @@ actuelles (tests à plusieurs Applications, boundary).
     qu'un Bun qui se sandboxe lui-même garde ce qu'il a ouvert avant et démarre sans
     confinement. Sans `/usr/bin/sandbox-exec`, le mode est refusé, jamais simulé.
   - **Profil généré** (`profile.ts`) : `deny default`, le minimum mesuré par le probe,
-    lecture d'airtty et de ses `node_modules`, du bundle épinglé, écriture de `sessions/`
+    lecture de luciole et de ses `node_modules`, du bundle épinglé, écriture de `sessions/`
     de l'origine et d'un répertoire privé (`TMPDIR`, `HOME`), puis les capacités.
     **PTY : `file-ioctl` sur le chemin exact de l'esclave alloué** (trouvé par numéro de
     périphérique, Bun ne l'expose pas) ; sans elle `setRawMode` échoue (EPERM).
@@ -482,8 +482,8 @@ actuelles (tests à plusieurs Applications, boundary).
     par l'hôte, ou proxy pour un Server distant) ; `net` par hôte via le proxy de l'hôte,
     lancé avant l'enfant et tenu jusqu'à sa fin, qui résout les noms et n'ouvre qu'un
     hôte par connexion (`Connection: close`) ; `net: *` par l'OS.
-  - **Capacités médiées** : `host` dans `airtty/client`, un par bundle (lié comme
-    `airtty:actions`), et les hooks `useHostMessage`, `useGlobalKey`, `useCapability`.
+  - **Capacités médiées** : `host` dans `luciole/client`, un par bundle (lié comme
+    `luciole:actions`), et les hooks `useHostMessage`, `useGlobalKey`, `useCapability`.
     L'enfant demande par l'IPC de Bun (socketpair hérité) ; l'hôte valide (Zod), vérifie
     la capacité, demande à l'utilisateur si elle n'est pas décidée (`Ctrl+O y`/`n`, réponse
     mémorisée), puis exécute. Un OSC 52 de l'enfant n'est qu'un octet du flux VT : le
@@ -499,19 +499,19 @@ actuelles (tests à plusieurs Applications, boundary).
   aussi les terminaux des autres sessions de l'utilisateur (mesuré : ouverture en
   lecture-écriture d'un PTY tenu par un autre processus) ; `(allow pseudo-tty)` ne suffit
   pas. Une capacité déclarée `pty` est affichée « refusée », `--allow-pty` est une erreur.
-  `host.secret` lit seulement (trousseau `airtty:<origine>`, rempli par l'utilisateur) ;
+  `host.secret` lit seulement (trousseau `luciole:<origine>`, rempli par l'utilisateur) ;
   `input.global` ne se demande pas à l'exécution (manifeste ou drapeau). Une capacité
   appliquée par l'OS ne change pas pendant l'exécution (profil fixe) ; seules les
   médiées peuvent être accordées en cours de route.
 
 - **Étape 5 (Client générique)** : livrée sur `feat/embed-generic` (`src/generic/`).
-  `airtty <url> [<url>…] [--inline] [--yes]` : l'étape URL du lanceur prépare chaque
+  `luciole <url> [<url>…] [--inline] [--yes]` : l'étape URL du lanceur prépare chaque
   origine dans le processus du lanceur, qui a encore le terminal pour ses questions
   (`prepare.ts`) : `GET /manifest`, signature exigée, clé ABI, épinglage TOFU par
   origine (empreinte affichée, question au premier usage ; clé changée → refus avec
-  `airtty trust <origine> <empreinte>`), puis `GET /bundle/<sha256>` en cache sous
-  `$XDG_CACHE_HOME/airtty/bundles/<sha256>.cjs`. Par origine, sous
-  `$XDG_STATE_HOME/airtty/origins/<sha256(origine)>/` : `origin.json` (clé épinglée, mode,
+  `luciole trust <origine> <empreinte>`), puis `GET /bundle/<sha256>` en cache sous
+  `$XDG_CACHE_HOME/luciole/bundles/<sha256>.cjs`. Par origine, sous
+  `$XDG_STATE_HOME/luciole/origins/<sha256(origine)>/` : `origin.json` (clé épinglée, mode,
   capacités acceptées), `app/` (manifeste reçu, lien vers le cache), `sessions/`.
   L'origine est l'URL donnée, normalisée (schéma, hôte, port ; chemin pour ssh), jamais
   l'adresse d'un tunnel. Puis l'app hôte `src/generic/browser` (construite et lancée comme
@@ -525,10 +525,10 @@ actuelles (tests à plusieurs Applications, boundary).
   pas proposé (il donnerait les mêmes droits qu'`inline`, avec un enfant de plus).
 
 - **Étape 4 (signature, routes, O6)** : livrée sur `feat/embed-sign`. Clé d'éditeur
-  Ed25519 (`src/publisher.ts`) : `airtty keys [generate]` (empreinte `SHA256:…` comme
-  ssh), fichier `$XDG_CONFIG_HOME/airtty/keys/publisher.pem` (ou `AIRTTY_PUBLISHER_KEY`),
+  Ed25519 (`src/publisher.ts`) : `luciole keys [generate]` (empreinte `SHA256:…` comme
+  ssh), fichier `$XDG_CONFIG_HOME/luciole/keys/publisher.pem` (ou `LUCIOLE_PUBLISHER_KEY`),
   0600 dans un répertoire 0700, refusée si d'autres peuvent la lire, jamais remplacée
-  par `generate`. `airtty build --sign-bundle` (implique `--app-bundle`) signe un encodage
+  par `generate`. `luciole build --sign-bundle` (implique `--app-bundle`) signe un encodage
   canonique : préfixe de domaine puis tableau ordonné des champs, `capabilities` à clés
   triées, clé publique comprise. Le Server sert `GET /manifest` (texte écrit par le
   build, `no-cache`) et `GET /bundle/<sha256>` (`immutable`) avant la session et le
@@ -538,13 +538,13 @@ actuelles (tests à plusieurs Applications, boundary).
   `immutable`).
 
 - **Étape 3 (bundle d'application, ABI, capacités, O5)** : livrée sur `feat/embed-bundle`.
-  `airtty build` produit `.airtty/app/` (troisième rôle du build, traité comme le Client
+  `luciole build` produit `.luciole/app/` (troisième rôle du build, traité comme le Client
   pour les frontières : `index.cjs` `bun-cjs` + `manifest.json` non signé). `src/abi.ts` :
   11 spécifiers, `ABI_VERSION` 1, versions épinglées (un test les compare à
   `package.json`), clé `1-<sha256 court>`. Audit des built-ins par le metafile ;
-  top-level await : pas de `.airtty/app/`, avertissement avec fichier et ligne, le Client
+  top-level await : pas de `.luciole/app/`, avertissement avec fichier et ligne, le Client
   et le Server construits comme avant (échec seulement avec `--app-bundle`) ;
-  `airtty.capabilities` (schéma de
+  `luciole.capabilities` (schéma de
   `src/capabilities.ts`, repris du probe sandbox, ajouté à `AppField` du registre)
   recopié dans le manifeste et comparé à l'audit (avertissement). `openApplication({
 bundle, url })` évalue ce bundle contre le runtime de l'hôte (`src/app-bundle.ts`) :
@@ -567,19 +567,19 @@ bundle, url })` évalue ce bundle contre le runtime de l'hôte (`src/app-bundle.
 
 - **Étape 1 (préfixe d'instance, O1, O2)** : livrée sur `feat/embed-instance`.
   `ApplicationOptions.instance` (clé `[a-z0-9-]{1,32}`, `src/instance.ts`) envoyée en
-  `x-airtty-instance` ; le Server passe à Flight une copie du manifeste préfixée par clé
+  `x-luciole-instance` ; le Server passe à Flight une copie du manifeste préfixée par clé
   (cache borné à 64 copies, analyse paresseuse), dans le flux imbriqué de la page comme
   dans l'enveloppe ; `registerModules(key, resolver)` remplace `installResolver`, dans un
   registre partagé par toutes les copies du runtime (`globalThis`). `let current` est
-  supprimé : le build émet par bundle un module `airtty:actions` (`createActions()` de
-  `airtty/client`) que les stubs `"use server"` importent et que `createApp` lie à
+  supprimé : le build émet par bundle un module `luciole:actions` (`createActions()` de
+  `luciole/client`) que les stubs `"use server"` importent et que `createApp` lie à
   l'Application qu'il crée. Écart : cette liaison par bundle touche `src/build.ts`
   (≈ 15 lignes) ; elle sert telle quelle aux bundles du Client générique (étape 3), sans
   table `require` à surcharger. Deux panes d'un même build = deux évaluations du bundle.
 
 - **Étape 6 (mode `process`)** : livrée sur `feat/embed-process`, avant l'étape 1 (use-cache
   et distribution modifiaient alors `server.ts`, `transport.ts` et `client.tsx`).
-  `<Terminal>` dans `airtty/client` (`src/vt/`), exemple `examples/mux`, smoke
+  `<Terminal>` dans `luciole/client` (`src/vt/`), exemple `examples/mux`, smoke
   `test:pty:mux`. Écarts : la touche préfixe est une prop du terminal (le keymap passe
   avant le renderable focalisé, le terminal doit savoir laquelle laisser) ; `run()` ne
   quitte plus sur un `Ctrl+C` déjà traité (sinon `Ctrl+C` dans un shell quitterait le
@@ -587,7 +587,7 @@ bundle, url })` évalue ce bundle contre le runtime de l'hôte (`src/app-bundle.
 
 ### Limites connues
 
-- Un binaire compilé (`airtty build --compile`) n'embarque pas `.airtty/app/` : son
+- Un binaire compilé (`luciole build --compile`) n'embarque pas `.luciole/app/` : son
   Server répond 404 à `/manifest` et `/bundle/…`, il ne peut pas être ouvert par URL.
 - L'épinglage est par origine : un Server qui change de port ou d'hôte est une nouvelle
   origine (nouvelle question, nouvelle clé épinglée).
@@ -599,10 +599,10 @@ document.
 
 1. **Pane embarquable** : un nouvel export `<Embed>`, pas de nouvelles props sur `Shell`
    (O3, étape 2).
-2. **Point d'entrée** : pas de nouvelle commande ; `airtty https://…` passe par le lanceur
+2. **Point d'entrée** : pas de nouvelle commande ; `luciole https://…` passe par le lanceur
    (chemin → installé → npm → git → URL), sur lequel se branche le
    Client générique (section 2, étape 5).
-3. **Capacités** : déclarées statiquement dans `airtty.capabilities` du `package.json`,
+3. **Capacités** : déclarées statiquement dans `luciole.capabilities` du `package.json`,
    lisibles avant toute exécution ; le build les recopie dans le manifeste signé
    (section 1, étapes 3 et 7).
 4. **Deux origines ou deux instances du même build** : préfixe par instance dès
@@ -610,8 +610,8 @@ document.
 5. **Accès Node sensibles en `inline`** : autorisés ; `inline` = confiance totale,
    capacités non appliquées, et le lanceur l'affiche explicitement (section 1, étape 5).
 
-6. **Sandbox Linux** : un **lanceur natif en Rust** (`airtty-sandbox`, livré compilé avec
-   airtty) applique lui-même Landlock et seccomp (TIOCSTI, `ptrace`, sockets Unix…), puis
+6. **Sandbox Linux** : un **lanceur natif en Rust** (`luciole-sandbox`, livré compilé avec
+   luciole) applique lui-même Landlock et seccomp (TIOCSTI, `ptrace`, sockets Unix…), puis
    `exec` l'enfant ; pas de `landrun`. Le mécanisme est choisi au lancement, le plus fort
    d'abord (étape 8) : `userns` (espaces de noms créés par le lanceur), sinon `bwrap`
    (quand AppArmor les refuse au lanceur, Ubuntu ≥ 23.10), sinon `landlock` seul, qui ne

@@ -6,7 +6,7 @@ import { InputRenderable } from "@opentui/core";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { build } from "../packages/airtty/src/build";
+import { build } from "../packages/luciole/src/build";
 import {
   launch,
   until,
@@ -20,8 +20,8 @@ import {
 const appDir = resolve("examples/notes");
 test("generated Notes: Flight action, preserved Draft, navigation, validation and offline editing", async () => {
   await build(appDir);
-  const folder = await mkdtemp(join(tmpdir(), "airtty-notes-"));
-  const server = await launch(join(appDir, ".airtty/server/index.js"), {
+  const folder = await mkdtemp(join(tmpdir(), "luciole-notes-"));
+  const server = await launch(join(appDir, ".luciole/server/index.js"), {
     NOTES_DB: join(folder, "notes.sqlite"),
     NOTES_DELAY_MS: "400",
   });

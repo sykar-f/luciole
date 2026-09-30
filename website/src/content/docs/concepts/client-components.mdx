@@ -6,7 +6,7 @@ sources:
   - docs/API.md
   - examples/notes/components/NoteEditor.tsx
   - examples/forge/components/editor.ts
-  - packages/airtty/src/build.ts
+  - packages/luciole/src/build.ts
 ---
 
 import Excerpt from "../../../components/guide/Excerpt.astro";
@@ -40,8 +40,8 @@ regular expression rewrites it.
 
 The framework declares only <kbd>Ctrl+C</kbd> (quit) and, during a navigation,
 
-<kbd>Esc</kbd> (cancel), in the `airtty` group. Every other key belongs to the app, through
-OpenTUI's keymap re-exported by `airtty/client`:
+<kbd>Esc</kbd> (cancel), in the `luciole` group. Every other key belongs to the app, through
+OpenTUI's keymap re-exported by `luciole/client`:
 
 <Excerpt
   path="examples/notes/components/NoteEditor.tsx"
@@ -79,19 +79,19 @@ Forge's editor launcher is the example in the repository:
 />
 
 The markers need no package: the build resolves them to empty modules, and
-`airtty/tsconfig` declares them so `tsc` accepts the import. There is no `*.server.*` or
+`luciole/tsconfig` declares them so `tsc` accepts the import. There is no `*.server.*` or
 `*.client.*` suffix.
 
 The Client's graph refuses modules under `server/`, anything that imports `server-only`,
-`airtty/server`, and `require()` or dynamic `import()` in the app's sources.
+`luciole/server`, and `require()` or dynamic `import()` in the app's sources.
 
 ## Packages
 
 A Client Component imports any installed package without declaring it; the bundler takes it
 with its dependencies. The markers work for packages too: a package that imports
-`server-only` or `airtty/server` and reaches the Client, or `client-only` and reaches the
+`server-only` or `luciole/server` and reaches the Client, or `client-only` and reaches the
 Server, fails the build. A third-party package that declares nothing can be put on the
-Server's side in an optional `airtty.json`:
+Server's side in an optional `luciole.json`:
 
 ```json
 { "serverPackages": ["@prisma/client", "bcrypt"] }

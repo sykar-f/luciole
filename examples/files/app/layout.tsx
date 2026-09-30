@@ -1,5 +1,5 @@
 "use client";
-import { KeyHelp, useBindings, useConnection, type LayoutProps } from "airtty/client";
+import { KeyHelp, useBindings, useConnection, type LayoutProps } from "luciole/client";
 
 export default function RootLayout({ children }: LayoutProps) {
   const { status, error, activity, refresh } = useConnection();
@@ -21,7 +21,7 @@ export default function RootLayout({ children }: LayoutProps) {
         {children}
       </box>
       <box id="files-footer" height={1} flexShrink={0}>
-        <KeyHelp inline groups={["global", "airtty"]} />
+        <KeyHelp inline groups={["global", "luciole"]} />
       </box>
     </box>
   );

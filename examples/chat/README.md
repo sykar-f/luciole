@@ -9,7 +9,7 @@ les événements de chaque réponse.
 
 ```sh
 export OPENROUTER_API_KEY=sk-or-…          # https://openrouter.ai/keys
-bun packages/airtty/src/cli.ts dev --app examples/chat
+bun packages/luciole/src/cli.ts dev --app examples/chat
 ```
 
 | Variable              | Défaut                         | Rôle                                                |
@@ -32,7 +32,7 @@ aux tests et aux captures :
 ```sh
 bun examples/chat/scripts/fake-openrouter.ts     # affiche {"port": …}
 OPENROUTER_API_KEY=sk-or-fake OPENROUTER_BASE_URL=http://127.0.0.1:<port>/api/v1 \
-  bun packages/airtty/src/cli.ts dev --app examples/chat
+  bun packages/luciole/src/cli.ts dev --app examples/chat
 ```
 
 Il renvoie un écho Markdown du dernier message (précédé de reasoning), puis l'usage et le
@@ -80,7 +80,7 @@ tsc --noEmit -p examples/chat && oxlint --deny-warnings examples/chat && oxfmt -
 bun run test:pty:chat
 ```
 
-`scripts/pty/chat.ts` lance `airtty dev` dans un PTY contre le faux serveur : message sans
+`scripts/pty/chat.ts` lance `luciole dev` dans un PTY contre le faux serveur : message sans
 clé, réponse streamée et rendue en Markdown, usage et coût, historique renvoyé au modèle,
 Échap qui interrompt la requête amont, Ctrl+G, erreur en cours de flux, Ctrl+N et
 Ctrl+↓, sortie propre du terminal. Il écrit le dernier écran dans `pty-frame.txt`.
@@ -91,7 +91,7 @@ Ctrl+↓, sortie propre du terminal. Il écrit le dernier écran dans `pty-frame
   d'une clé invalide (401) ont été vérifiés contre l'API réelle, le reste contre le faux
   serveur qui suit le format OpenAI/OpenRouter.
 - Les conversations vivent en mémoire du Client : Ctrl+C, un crash ou un rebuild de
-  `airtty dev` les perdent (seul le texte en cours de saisie est restauré).
+  `luciole dev` les perdent (seul le texte en cours de saisie est restauré).
 - Pas de copie presse-papiers, d'édition d'un message envoyé ni de choix du modèle depuis
   l'interface. Le reasoning n'est montré (en gris, une ligne) que tant qu'aucun texte n'est
   arrivé.
@@ -107,6 +107,6 @@ Ctrl+↓, sortie propre du terminal. Il écrit le dernier écran dans `pty-frame
   contrôlé de `<Textarea>` est alors en retard. L'exemple lit `plainText` du renderable au
   submit et le vide directement (`components/Chat.tsx`). Un helper du framework pour ce
   cas éviterait de le redécouvrir.
-- Pendant un rebuild de `airtty dev`, un répertoire de staging `examples/<app>/.airtty-<uuid>/`
+- Pendant un rebuild de `luciole dev`, un répertoire de staging `examples/<app>/.luciole-<uuid>/`
   existe brièvement ; ni `.gitignore` ni `oxlint` ne l'ignorent, donc un `oxlint` lancé à
   ce moment échoue sur le bundle généré.

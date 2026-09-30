@@ -10,20 +10,20 @@ import { createRootRoute } from "@tanstack/react-router";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { build } from "../packages/airtty/src/build";
+import { build } from "../packages/luciole/src/build";
 import {
   Application,
   Embed,
   openApplication,
   type ApplicationEvent,
   type ApplicationOptions,
-} from "../packages/airtty/src/client";
-import { ApplicationView } from "../packages/airtty/src/embed";
+} from "../packages/luciole/src/client";
+import { ApplicationView } from "../packages/luciole/src/embed";
 import { destroy, launch, rejectionOf, until, type TestUI } from "./helpers";
 
 const mdreader = resolve("examples/mdreader");
 const files = resolve("examples/files");
-const bundleOf = (app: string) => join(app, ".airtty/app");
+const bundleOf = (app: string) => join(app, ".luciole/app");
 
 /** The host's keymap, as a Shell provides it, and its prefix sequence. */
 function Host({ children, onSwitch }: { children: ReactNode; onSwitch: () => void }) {
@@ -56,11 +56,11 @@ const options = (): ApplicationOptions => ({
 test("<Embed>: two applications, keys to the active pane, focus set aside, crash contained, dispose", async () => {
   await build(mdreader);
   await build(files);
-  const docs = await mkdtemp(join(tmpdir(), "airtty-embed-"));
+  const docs = await mkdtemp(join(tmpdir(), "luciole-embed-"));
   await Bun.write(join(docs, "README.md"), "# Readme\n\nThe first document.\n");
   await Bun.write(join(docs, "guide.md"), "# Guide\n\nThe second document.\n");
-  const md = await launch(join(mdreader, ".airtty/server/index.js"), { MD_PATH: docs });
-  const fx = await launch(join(files, ".airtty/server/index.js"), { FILES_ROOT: docs });
+  const md = await launch(join(mdreader, ".luciole/server/index.js"), { MD_PATH: docs });
+  const fx = await launch(join(files, ".luciole/server/index.js"), { FILES_ROOT: docs });
   let ui: TestUI | undefined;
   const apps: Application[] = [];
   try {

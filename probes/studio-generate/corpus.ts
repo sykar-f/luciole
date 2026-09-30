@@ -55,7 +55,7 @@ export async function toggleTodo(id: number) {
 `;
 const todoList = (body: string) => `"use client";
 import { useState } from "react";
-import { useBindings } from "airtty/client";
+import { useBindings } from "luciole/client";
 import type { Todo } from "../server/todos";
 
 export function TodoList({

@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "airtty-compile-probe",
+      "name": "luciole-compile-probe",
       "dependencies": {
         "@opentui/core-linux-arm64": "0.5.12",
         "@opentui/core-linux-x64": "0.5.12",

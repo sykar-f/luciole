@@ -1,5 +1,5 @@
 ---
-// One source, the targets `airtty build` makes of it: a list on the left, and on the right
+// One source, the targets `luciole build` makes of it: a list on the left, and on the right
 // a frame that draws each one where it runs. Every scene is the same drawing: the client
 // (a terminal, as the icon of the code section draws one) at the same place on the left, the
 // server (its cylinder) on the right, never moving from one scene to the next. Only what
@@ -38,7 +38,7 @@ const targets: Target[] = [
     label: "The client and the server on your machine, joined by a unix socket",
     views: [
       {
-        command: "airtty ./notes",
+        command: "luciole ./notes",
         what: "both sides on your machine, over a private socket",
         frame: "machine",
         link: { name: "unix socket" },
@@ -52,7 +52,7 @@ const targets: Target[] = [
     label: "The client and the server in one executable, one file per OS and architecture",
     views: [
       {
-        command: "airtty build --compile",
+        command: "luciole build --compile",
         what: "per OS and architecture, nothing to install",
         frame: "file",
         link: { name: "unix socket" },
@@ -80,7 +80,7 @@ const targets: Target[] = [
     label: "The client on your machine, the server at notes.example.com, joined over HTTPS",
     views: [
       {
-        command: "airtty https://notes.example.com",
+        command: "luciole https://notes.example.com",
         what: "the generic client fetches the app over HTTPS",
         frame: "machine",
         host: "notes.example.com",
@@ -97,14 +97,14 @@ const targets: Target[] = [
       "The client in a browser tab, the server either in the same tab, joined by postMessage, or at notes.example.com, joined over HTTPS",
     views: [
       {
-        command: "airtty build --web-local",
+        command: "luciole build --web-local",
         what: "a static site, the server in a Web Worker",
         frame: "browser",
         link: { name: "postMessage" },
         note: "static files, data kept in the browser",
       },
       {
-        command: "airtty build --web",
+        command: "luciole build --web",
         what: "or the page calls your server over HTTPS",
         frame: "browser",
         host: "notes.example.com",

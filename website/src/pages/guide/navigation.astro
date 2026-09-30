@@ -83,7 +83,7 @@ const rows: Row[] = lines.map((text) => {
 
   <Step n="2" tone="client" title="La sélection devient une navigation">
     <Excerpt path="examples/notes/components/NoteList.tsx" find="onSelect={(_index, option) => {" count={3} tone="client" />
-    <p><code>navigate</code> est celui de TanStack Router, réexporté tel quel par <code>airtty/client</code>. Le chemin et ses paramètres sont typés grâce à <code>app/routeTree.gen.ts</code>, généré au build.</p>
+    <p><code>navigate</code> est celui de TanStack Router, réexporté tel quel par <code>luciole/client</code>. Le chemin et ses paramètres sont typés grâce à <code>app/routeTree.gen.ts</code>, généré au build.</p>
   </Step>
 
   <Step n="3" tone="client" title="Le router monte le layout, puis affiche le chargement sans attendre">
@@ -92,20 +92,20 @@ const rows: Row[] = lines.map((text) => {
   </Step>
 
   <Step n="4" tone="client" title="Le loader généré appelle l'application">
-    <Excerpt path="packages/airtty/src/route-tree.tsx" find="export function loadPage(" until="^}" tone="client" />
+    <Excerpt path="packages/luciole/src/route-tree.tsx" find="export function loadPage(" until="^}" tone="client" />
     <p>Le signal d'annulation de TanStack est transmis jusqu'à la requête. Si l'utilisateur quitte la page avant la réponse, la requête est abandonnée.</p>
   </Step>
 
   <Step n="5" tone="wire" title="Une requête GET, avec quatre en-têtes">
-    <Excerpt path="packages/airtty/src/transport.ts" find="const headers = new Headers(init.headers);" count={12} tone="wire" mark={["x-airtty-build", "x-airtty-call", "DEFAULT_TIMEOUT_MS"]} />
+    <Excerpt path="packages/luciole/src/transport.ts" find="const headers = new Headers(init.headers);" count={12} tone="wire" mark={["x-luciole-build", "x-luciole-call", "DEFAULT_TIMEOUT_MS"]} />
     <Sample
       lang="http"
       label="la requête envoyée"
       code={`GET /render?route=%2Fnotes%2F%5Bid%5D&params=%7B%22id%22%3A%221%22%7D
-x-airtty-build: 920d31f47ae6f42d30c60917
-x-airtty-call: 6f1c…                 un UUID par requête, pour relier Client et Server
+x-luciole-build: 920d31f47ae6f42d30c60917
+x-luciole-call: 6f1c…                 un UUID par requête, pour relier Client et Server
 authorization: Bearer <token>        seulement si un token est configuré
-x-airtty-instance: <clé>             seulement pour une app dans un pane (chapitre 8)`}
+x-luciole-instance: <clé>             seulement pour une app dans un pane (chapitre 8)`}
     />
     <p>La requête ne contient <strong>pas d'URL de page</strong> : elle transporte un identifiant de route (<code>/notes/[id]</code>) et des paramètres en JSON. Le Server ne fait aucun matching de chemin.</p>
   </Step>
@@ -120,13 +120,13 @@ x-airtty-instance: <clé>             seulement pour une app dans un pane (chapi
   </Step>
 
   <Step n="8" tone="server" title="La page est rendue en Flight, dans une enveloppe">
-    <Excerpt path="packages/airtty/src/server.ts" find='if (route.auth === "required" && !session) return unauthorized();' count={11} tone="server" mark={["renderPage(tree, (model) => renderToReadableStream(model, manifest))"]} />
+    <Excerpt path="packages/luciole/src/server.ts" find='if (route.auth === "required" && !session) return unauthorized();' count={11} tone="server" mark={["renderPage(tree, (model) => renderToReadableStream(model, manifest))"]} />
     <p>La réponse part <em>en streaming</em>, avec un statut 200 envoyé dès le début. C'est pourquoi une erreur survenue pendant le rendu ne peut plus changer le code HTTP : elle voyage dans le flux (voir « Quand ça casse »).</p>
   </Step>
 
   <Step n="9" tone="wire" title="Le Client décode, et résout les composants chez lui">
     <p>Le Transport décode l'enveloppe, puis le flux de la page. Pour chaque composant Client référencé, React Flight appelle un <code>__webpack_require__</code> que le framework remplace :</p>
-    <Excerpt path="packages/airtty/src/flight/client.ts" find="const loader = Object.assign(" count={10} tone="client" />
+    <Excerpt path="packages/luciole/src/flight/client.ts" find="const loader = Object.assign(" count={10} tone="client" />
     <p>L'id <code>&lt;buildId&gt;/components/NoteEditor.tsx</code> est cherché dans la table <code>resolveModule</code> du bundle Client. <strong>Aucun code n'est téléchargé</strong> : <code>chunks</code> est toujours vide.</p>
   </Step>
 
@@ -174,8 +174,8 @@ x-airtty-instance: <clé>             seulement pour une app dans un pane (chapi
         <tr><td>non authentifié</td><td>401</td><td>page de login si l'app en a une</td></tr>
         <tr><td>route ou params invalides</td><td>404 ou 400 : issue <code>rejected</code></td><td><code>error.tsx</code></td></tr>
         <tr><td>exception pendant le rendu</td><td>HTTP <strong>200</strong>, erreur dans le flux avec un digest opaque</td><td><code>error.tsx</code>, statut « Disconnected »</td></tr>
-        <tr><td><code>notFound()</code> dans la page</td><td>digest <code>airtty:not-found:…</code> conservé</td><td><code>not-found.tsx</code>, testé avant <code>error.tsx</code></td></tr>
-        <tr><td>Échap pendant le chargement</td><td><Src path="packages/airtty/src/client.tsx" find="cancel = () => {" /></td><td>retour à la page d'avant, <strong>sans requête</strong></td></tr>
+        <tr><td><code>notFound()</code> dans la page</td><td>digest <code>luciole:not-found:…</code> conservé</td><td><code>not-found.tsx</code>, testé avant <code>error.tsx</code></td></tr>
+        <tr><td>Échap pendant le chargement</td><td><Src path="packages/luciole/src/client.tsx" find="cancel = () => {" /></td><td>retour à la page d'avant, <strong>sans requête</strong></td></tr>
       </tbody>
     </table>
   </div>
@@ -183,7 +183,7 @@ x-airtty-instance: <clé>             seulement pour une app dans un pane (chapi
   <Callout kind="piege">
     <ul>
       <li>Une erreur de rendu arrive en HTTP 200 : le Server a répondu, mais le statut affiche « Disconnected ».</li>
-      <li>L'écran d'erreur d'une page émet aussi un événement <code>failure</code> (<code>path</code>, <code>message</code>) : un Client lancé avec un canal IPC (<code>airtty dev</code>, un hôte <code>sandbox</code>) l'envoie à son parent, qui sait ainsi quelle page a échoué et pourquoi. <code>notFound()</code> n'en émet pas : une page introuvable est une réponse, pas un échec.</li>
+      <li>L'écran d'erreur d'une page émet aussi un événement <code>failure</code> (<code>path</code>, <code>message</code>) : un Client lancé avec un canal IPC (<code>luciole dev</code>, un hôte <code>sandbox</code>) l'envoie à son parent, qui sait ainsi quelle page a échoué et pourquoi. <code>notFound()</code> n'en émet pas : une page introuvable est une réponse, pas un échec.</li>
       <li>Notes n'utilise pas <code>notFound()</code> : une note absente lève <code>Error("Note unavailable")</code> et passe par <code>error.tsx</code>. En production, son message n'arrive pas au Client.</li>
       <li>Échap a deux sens. Pendant le chargement, il annule (un <code>replace</code> vers la page d'avant). Dans une note ouverte, c'est le raccourci de <code>NoteEditor</code> qui navigue vers la liste.</li>
       <li>La liste déclare <code>staleTime = 30</code> : pendant 30 s, y revenir ne fait aucune requête.</li>
@@ -200,7 +200,7 @@ x-airtty-instance: <clé>             seulement pour une app dans un pane (chapi
   </Callout>
 
   <Callout kind="essaie">
-    <p>Lance Notes avec <code>AIRTTY_LATENCY_MS=1500 bun run dev</code>. Ouvre une note, puis appuie sur Échap pendant « Opening note… ». Ouvre ensuite le panneau des requêtes avec Ctrl+T et vérifie qu'aucune requête n'est partie pour revenir à la liste.</p>
+    <p>Lance Notes avec <code>LUCIOLE_LATENCY_MS=1500 bun run dev</code>. Ouvre une note, puis appuie sur Échap pendant « Opening note… ». Ouvre ensuite le panneau des requêtes avec Ctrl+T et vérifie qu'aucune requête n'est partie pour revenir à la liste.</p>
   </Callout>
 
   <Quiz

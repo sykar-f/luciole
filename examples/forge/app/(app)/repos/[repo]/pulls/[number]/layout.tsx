@@ -1,5 +1,5 @@
 "use client";
-import type { LayoutProps } from "airtty/client";
+import type { LayoutProps } from "luciole/client";
 import { PullChrome } from "../../../../../../components/PullChrome";
 
 export default function PullLayout({ children, params }: LayoutProps) {

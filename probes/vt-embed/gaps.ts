@@ -13,7 +13,7 @@
 // 2. Queries: libghostty-vt hands device attributes and color reports to its embedder,
 //    and OpenTUI registers no callback: DA1, DA2 and OSC 10/11 stay unanswered (DSR, DECRQM,
 //    XTVERSION, kitty `CSI ? u` are answered). Programs that wait for DA1 as a sentinel
-//    time out; OpenTUI apps (an airtty Client) fall back to an unknown theme.
+//    time out; OpenTUI apps (a luciole Client) fall back to an unknown theme.
 import { EmbeddedTerminalRenderable, type KeyEvent } from "@opentui/core";
 
 const ESC = "\x1b";

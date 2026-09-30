@@ -8,7 +8,7 @@ ces tags.
 ```ts
 // server/queries.ts
 "use cache";
-import { cacheLife, cacheTag } from "airtty/server";
+import { cacheLife, cacheTag } from "luciole/server";
 import { listNotes } from "./repository";
 
 export async function notesOf(owner: string) {
@@ -21,7 +21,7 @@ export async function notesOf(owner: string) {
 ```ts
 // actions/notes.ts
 "use server";
-import { getSession, invalidate } from "airtty/server";
+import { getSession, invalidate } from "luciole/server";
 
 export async function saveNote(snapshot: Snapshot) {
   const result = save(snapshot);
@@ -126,7 +126,7 @@ type CacheHandler = {
 
 - `memoryCache({ maxEntries = 1000 })`, par défaut : ce processus seulement, le moins
   récemment utilisé sort en premier, vidé à chaque redémarrage (donc à chaque rebuild de
-  `airtty dev`).
+  `luciole dev`).
 - `sqliteCache({ path, maxEntries = 10 000 })` (`bun:sqlite`) : survit aux redémarrages et
   se partage entre les processus Server d'une machine ; les plus anciennes entrées
   sortent au-delà de `maxEntries`, ce qui élimine aussi celles des builds précédents.
@@ -137,7 +137,7 @@ défaut à `serve({ cache })`.
 
 ```ts
 // server/cache.ts
-import { sqliteCache } from "airtty/server";
+import { sqliteCache } from "luciole/server";
 export default sqliteCache({ path: process.env.CACHE_DB ?? "cache.sqlite" });
 ```
 
@@ -192,7 +192,7 @@ ne peut l'entendre.
 **Agent DevTools Server** (`src/devtools/server-agent.ts`, dans le processus Server) :
 il n'importe pas `src/server.ts`, ce qui fermerait un cycle d'imports. `createHandler`
 lui passe `invalidateTag`, qui appelle `invalidate({ tag })` et rejette si le handler
-échoue. Une application appelle directement `invalidate` d'`airtty/server`.
+échoue. Une application appelle directement `invalidate` d'`luciole/server`.
 
 Le bundle Server ne contient qu'une copie du runtime : l'agent purge le même cache que
 les pages. Un tag invalide (virgule, espace, non-ASCII, > 256 caractères) lève tout de
@@ -222,7 +222,7 @@ décodage côté Client.
 
 Rien n'attend la page avant les en-têtes : ils partent tout de suite, la coquille suit dès
 que Flight l'écrit, et les tags arrivent après le dernier morceau. Il n'y a plus d'en-tête
-`x-airtty-tags`.
+`x-luciole-tags`.
 
 Le Client retient les tags de chaque arbre chargé (par l'objet que garde son match
 TanStack). À l'invalidation par tag, il revalide les routes dont l'arbre a lu un de ces

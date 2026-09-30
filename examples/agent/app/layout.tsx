@@ -1,5 +1,5 @@
 "use client";
-import { KeyHelp, useConnection, type LayoutProps } from "airtty/client";
+import { KeyHelp, useConnection, type LayoutProps } from "luciole/client";
 import { color } from "../components/theme";
 
 export default function RootLayout({ children }: LayoutProps) {
@@ -18,7 +18,7 @@ export default function RootLayout({ children }: LayoutProps) {
       <box id="agent-footer" height={1} flexShrink={0}>
         <KeyHelp
           inline
-          groups={["agent", "global", "airtty"]}
+          groups={["agent", "global", "luciole"]}
           fg={color.muted}
           accent={color.accent}
         />

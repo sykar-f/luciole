@@ -1,5 +1,5 @@
 "use client";
-import { useRouterState } from "airtty/client";
+import { useRouterState } from "luciole/client";
 import { Line, Screen, SkeletonRows } from "../components/frames";
 import { Help } from "../components/Help";
 import { Pulse } from "../components/Pulse";
@@ -13,7 +13,7 @@ export default function DirectoryLoading() {
     <Screen
       title={`Opening ${typeof dir === "string" && dir ? dir : "root"}…`}
       subtitle="Reading the directory on the Server · Esc cancels"
-      help={<Help groups={["airtty"]} />}
+      help={<Help groups={["luciole"]} />}
     >
       <box flexDirection="column" flexGrow={1} gap={1}>
         <Line fg={color.muted}>/ filter</Line>

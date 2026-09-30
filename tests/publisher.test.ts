@@ -3,29 +3,29 @@ import { createHash } from "node:crypto";
 import { chmod, mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { AppManifest } from "../packages/airtty/src/abi";
-import { loadAppBundle } from "../packages/airtty/src/app-bundle";
-import { appRoutes } from "../packages/airtty/src/app-routes";
-import { build } from "../packages/airtty/src/build";
-import { Capabilities } from "../packages/airtty/src/capabilities";
-import { messageOf } from "../packages/airtty/src/guards";
+import { AppManifest } from "../packages/luciole/src/abi";
+import { loadAppBundle } from "../packages/luciole/src/app-bundle";
+import { appRoutes } from "../packages/luciole/src/app-routes";
+import { build } from "../packages/luciole/src/build";
+import { Capabilities } from "../packages/luciole/src/capabilities";
+import { messageOf } from "../packages/luciole/src/guards";
 import {
   generatePublisherKey,
   publisherIdentity,
   readPublisherKey,
   verifyManifest,
-} from "../packages/airtty/src/publisher";
+} from "../packages/luciole/src/publisher";
 import { launch, rejectionOf } from "./helpers";
 
 const PERMISSIONS = 0o777;
 const latency = resolve("examples/latency");
-const bundleDir = join(latency, ".airtty/app");
+const bundleDir = join(latency, ".luciole/app");
 const manifestFile = join(bundleDir, "manifest.json");
 const readManifestFile = async () =>
   AppManifest.parse(JSON.parse(await readFile(manifestFile, "utf8")));
 
 async function withKeys<T>(run: (env: NodeJS.ProcessEnv) => Promise<T>) {
-  const home = await mkdtemp(join(tmpdir(), "airtty-keys-"));
+  const home = await mkdtemp(join(tmpdir(), "luciole-keys-"));
   try {
     return await run({ XDG_CONFIG_HOME: home, HOME: home });
   } finally {
@@ -35,9 +35,9 @@ async function withKeys<T>(run: (env: NodeJS.ProcessEnv) => Promise<T>) {
 
 test("a publisher key is created once, private, and refused when others can read it", async () => {
   await withKeys(async (env) => {
-    expect(() => readPublisherKey(env)).toThrow("airtty keys generate");
+    expect(() => readPublisherKey(env)).toThrow("luciole keys generate");
     const created = generatePublisherKey(env);
-    expect(created.file).toBe(join(env.XDG_CONFIG_HOME ?? "", "airtty/keys/publisher.pem"));
+    expect(created.file).toBe(join(env.XDG_CONFIG_HOME ?? "", "luciole/keys/publisher.pem"));
     expect((await stat(created.file)).mode & PERMISSIONS).toBe(0o600);
     expect((await stat(dirname(created.file))).mode & PERMISSIONS).toBe(0o700);
     expect(created.fingerprint).toMatch(/^SHA256:[A-Za-z0-9+/]{43}$/);
@@ -45,9 +45,9 @@ test("a publisher key is created once, private, and refused when others can read
     expect(publisherIdentity(readPublisherKey(env))).toEqual(created);
     await chmod(created.file, 0o644);
     expect(() => readPublisherKey(env)).toThrow("readable by others");
-    // AIRTTY_PUBLISHER_KEY points elsewhere, for a CI secret.
+    // LUCIOLE_PUBLISHER_KEY points elsewhere, for a CI secret.
     const other = join(env.XDG_CONFIG_HOME ?? "", "ci.pem");
-    expect(generatePublisherKey({ ...env, AIRTTY_PUBLISHER_KEY: other }).file).toBe(other);
+    expect(generatePublisherKey({ ...env, LUCIOLE_PUBLISHER_KEY: other }).file).toBe(other);
   });
 });
 
@@ -118,8 +118,8 @@ test("the Server serves its manifest and its bundle by hash, with no session or 
   const written = await readFile(manifestFile, "utf8");
   const { sha256 } = AppManifest.parse(JSON.parse(written));
   // A token makes every application route require the bearer: these two stay public.
-  const server = await launch(join(latency, ".airtty/server/index.js"), {
-    AIRTTY_TOKEN: "secret",
+  const server = await launch(join(latency, ".luciole/server/index.js"), {
+    LUCIOLE_TOKEN: "secret",
   });
   try {
     const manifest = await fetch(`${server.url}/manifest`);
@@ -139,7 +139,7 @@ test("the Server serves its manifest and its bundle by hash, with no session or 
 }, 60_000);
 
 test("without a bundle, both routes answer 404 rather than the build check", () => {
-  const routes = appRoutes(join(tmpdir(), "airtty-no-such-bundle"));
+  const routes = appRoutes(join(tmpdir(), "luciole-no-such-bundle"));
   const get = (path: string) =>
     routes(new Request(`http://x${path}`), new URL(`http://x${path}`))?.status;
   expect(get("/manifest")).toBe(404);

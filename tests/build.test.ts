@@ -2,11 +2,11 @@ import { test, expect } from "bun:test";
 import { mkdtemp, mkdir, rm, stat, symlink } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
-import { build } from "../packages/airtty/src/build";
-import { messageOf } from "../packages/airtty/src/guards";
+import { build } from "../packages/luciole/src/build";
+import { messageOf } from "../packages/luciole/src/guards";
 import { readManifest, rejectionOf } from "./helpers";
 async function fixture(files: Record<string, string>, run: (dir: string) => Promise<void>) {
-  const dir = await mkdtemp(join(tmpdir(), "airtty-build-"));
+  const dir = await mkdtemp(join(tmpdir(), "luciole-build-"));
   try {
     for (const [name, text] of Object.entries({
       "app/layout.tsx": `"use client";export default function Layout({children}){return children}`,
@@ -33,15 +33,15 @@ test("automatic graph, Client reexports, action proxies, no repository in Client
       await build(dir);
       const manifest = await readManifest(dir);
       expect(manifest.manifest[`${manifest.buildId}/components/barrel.ts#Editor`]).toBeDefined();
-      expect(await Bun.file(join(dir, ".airtty/client/index.js")).text()).not.toContain(
+      expect(await Bun.file(join(dir, ".luciole/client/index.js")).text()).not.toContain(
         "SECRET_REPOSITORY_SENTINEL",
       );
-      expect(await Bun.file(join(dir, ".airtty/server/index.js")).text()).toContain(
+      expect(await Bun.file(join(dir, ".luciole/server/index.js")).text()).toContain(
         "SECRET_REPOSITORY_SENTINEL",
       );
       expect(manifest.clientGraph).not.toContain("server/repository.ts");
       // TanStack's server build would bypass the Client transition machinery.
-      const client = await Bun.file(join(dir, ".airtty/client/index.js")).text();
+      const client = await Bun.file(join(dir, ".luciole/client/index.js")).text();
       expect(client).toContain("createRouter");
       expect(client).not.toContain('process.env.NODE_ENV === "test" ? void 0 : true');
     },
@@ -81,7 +81,7 @@ test("a Client module may use Bun and Node builtins: only the side markers decid
     async (dir) => {
       await build(dir);
       expect((await readManifest(dir)).clientGraph).toContain("lib/local.ts");
-      expect(await Bun.file(join(dir, ".airtty/client/index.js")).text()).toContain(
+      expect(await Bun.file(join(dir, ".luciole/client/index.js")).text()).toContain(
         "LOCAL_STORE_SENTINEL",
       );
     },
@@ -142,7 +142,7 @@ for (const [file, source] of [
   ["app/layout.tsx", '"use client";export function Layout({children}){return children}'],
   [
     "app/(group)/layout.tsx",
-    '"use client";import {getSession} from "airtty/server";export default function Layout({children}){return <text>{getSession().userId}</text>}',
+    '"use client";import {getSession} from "luciole/server";export default function Layout({children}){return <text>{getSession().userId}</text>}',
   ],
 ] as const)
   test(`reject ${file}: ${source.slice(0, 48)}`, async () => {
@@ -166,7 +166,7 @@ test("route graph diagnostics abort the build before any artefact", async () => 
     },
     async (dir) => {
       expect(messageOf(await rejectionOf(build(dir)))).toContain("Route collision /users");
-      expect(await Bun.file(join(dir, ".airtty/manifest.json")).exists()).toBe(false);
+      expect(await Bun.file(join(dir, ".luciole/manifest.json")).exists()).toBe(false);
     },
   );
 });
@@ -211,7 +211,7 @@ const packages: Record<string, string> = {
   "node_modules/server-only/package.json": `{"name":"server-only","version":"0.0.1","main":"index.js"}`,
   "node_modules/server-only/index.js": ``,
   "node_modules/leaky-sdk/package.json": `{"name":"leaky-sdk","version":"0.1.0","main":"index.js"}`,
-  "node_modules/leaky-sdk/index.js": `import {getSession} from "airtty/server";export const who=()=>getSession();`,
+  "node_modules/leaky-sdk/index.js": `import {getSession} from "luciole/server";export const who=()=>getSession();`,
 };
 const clientUsing = (specifier: string, name: string) => ({
   "app/page.tsx": `import {Widget} from '../components/widget';export default function Page(){return <Widget/>}`,
@@ -225,7 +225,7 @@ test("Client packages: bundled without declaration, inventoried with their versi
     // Transitive dependencies included; Node builtins work on the terminal Client.
     expect(manifest.clientPackages).toContainEqual({ name: "chained", version: "2.0.0" });
     expect(manifest.clientPackages).toContainEqual({ name: "tiny-format", version: "1.2.3" });
-    expect(await Bun.file(join(dir, ".airtty/client/index.js")).text()).toContain(
+    expect(await Bun.file(join(dir, ".luciole/client/index.js")).text()).toContain(
       "TINY_FORMAT_SENTINEL",
     );
   });
@@ -236,11 +236,11 @@ test("Client packages: one made for the Server is refused with its name", async 
     expect(messageOf(await rejectionOf(build(dir)))).toContain(
       "Client package db-client imports server-only: it is Server-only",
     );
-    expect(await Bun.file(join(dir, ".airtty/manifest.json")).exists()).toBe(false);
+    expect(await Bun.file(join(dir, ".luciole/manifest.json")).exists()).toBe(false);
   });
   await fixture({ ...packages, ...clientUsing("leaky-sdk", "who") }, async (dir) => {
     expect(messageOf(await rejectionOf(build(dir)))).toContain(
-      "Client package leaky-sdk imports airtty/server: it is Server-only",
+      "Client package leaky-sdk imports luciole/server: it is Server-only",
     );
   });
   // The same package stays usable from Server code.
@@ -251,7 +251,7 @@ test("Client packages: one made for the Server is refused with its name", async 
     },
     async (dir) => {
       await build(dir);
-      expect(await Bun.file(join(dir, ".airtty/client/index.js")).text()).not.toContain(
+      expect(await Bun.file(join(dir, ".luciole/client/index.js")).text()).not.toContain(
         "SECRET_DB",
       );
     },
@@ -332,23 +332,23 @@ test("client-only code never runs on the Server, except behind a use client boun
     },
     async (dir) => {
       await build(dir);
-      expect(await Bun.file(join(dir, ".airtty/server/index.js")).text()).not.toContain("EDITOR");
+      expect(await Bun.file(join(dir, ".luciole/server/index.js")).text()).not.toContain("EDITOR");
     },
   );
 });
 
 test("serverPackages keeps listed third-party packages out of the Client", async () => {
-  const config = { "airtty.json": `{"serverPackages":["hasher"]}` };
+  const config = { "luciole.json": `{"serverPackages":["hasher"]}` };
   await fixture({ ...sidePackages, ...config, ...clientUsing("hasher", "hash") }, async (dir) => {
     expect(messageOf(await rejectionOf(build(dir)))).toMatch(
-      /components\/widget\.tsx:1:\d+: Server-only package in Client graph: hasher \(serverPackages in airtty\.json\)\n {2}via app\/page\.tsx → components\/widget\.tsx/,
+      /components\/widget\.tsx:1:\d+: Server-only package in Client graph: hasher \(serverPackages in luciole\.json\)\n {2}via app\/page\.tsx → components\/widget\.tsx/,
     );
   });
   await fixture(
     { ...sidePackages, ...config, ...clientUsing("auth-kit", "check") },
     async (dir) => {
       expect(messageOf(await rejectionOf(build(dir)))).toContain(
-        "Client package auth-kit imports hasher: it is listed in serverPackages (airtty.json)\n  via app/page.tsx → components/widget.tsx → auth-kit/index.js → hasher",
+        "Client package auth-kit imports hasher: it is listed in serverPackages (luciole.json)\n  via app/page.tsx → components/widget.tsx → auth-kit/index.js → hasher",
       );
     },
   );
@@ -364,16 +364,16 @@ test("serverPackages keeps listed third-party packages out of the Client", async
     },
     async (dir) => {
       await build(dir);
-      expect(await Bun.file(join(dir, ".airtty/client/index.js")).text()).not.toContain(
+      expect(await Bun.file(join(dir, ".luciole/client/index.js")).text()).not.toContain(
         "HASHER_SECRET",
       );
     },
   );
   for (const bad of [`{"serverPackages":"hasher"}`, `{"serverPackages":["hasher/sub"]}`, `nope`])
     await fixture(
-      { ...sidePackages, "airtty.json": bad, ...clientUsing("auth-kit", "check") },
+      { ...sidePackages, "luciole.json": bad, ...clientUsing("auth-kit", "check") },
       async (dir) => {
-        expect(messageOf(await rejectionOf(build(dir)))).toContain("airtty.json");
+        expect(messageOf(await rejectionOf(build(dir)))).toContain("luciole.json");
       },
     );
 });
@@ -388,7 +388,7 @@ test("application code shares the framework's zod; a package keeps its own", asy
     },
     async (dir) => {
       await build(dir);
-      const server = await Bun.file(join(dir, ".airtty/server/index.js")).text();
+      const server = await Bun.file(join(dir, ".luciole/server/index.js")).text();
       expect(server).toContain("LEGACY_ZOD_SENTINEL");
       expect(server).toContain("node_modules/zod/v4/classic/");
     },
@@ -404,10 +404,10 @@ test("the Client bundle embeds zod/mini, never the classic zod API", async () =>
     },
     async (dir) => {
       await build(dir);
-      const client = await Bun.file(join(dir, ".airtty/client/index.js")).text();
+      const client = await Bun.file(join(dir, ".luciole/client/index.js")).text();
       expect(client).toContain("node_modules/zod/v4/mini/");
       expect(client).not.toContain("node_modules/zod/v4/classic/");
-      const server = await Bun.file(join(dir, ".airtty/server/index.js")).text();
+      const server = await Bun.file(join(dir, ".luciole/server/index.js")).text();
       expect(server).toContain("node_modules/zod/v4/classic/");
     },
   );
@@ -420,11 +420,11 @@ test("concurrent builds take turns, and an unchanged build keeps the output in p
       // Two launches of one application at once: neither swaps directories under the other.
       const [first, second] = await Promise.all([build(dir), build(dir)]);
       expect(second.buildId).toBe(first.buildId);
-      const server = join(dir, ".airtty/server/index.js");
+      const server = join(dir, ".luciole/server/index.js");
       const { ino } = await stat(server);
       expect((await build(dir)).buildId).toBe(first.buildId);
       expect((await stat(server)).ino).toBe(ino);
-      expect(await Bun.file(join(dir, ".airtty-lock")).exists()).toBe(false);
+      expect(await Bun.file(join(dir, ".luciole-lock")).exists()).toBe(false);
       // The declaration is part of the identity: its metadata would go stale otherwise.
       await Bun.write(join(dir, "package.json"), JSON.stringify({ version: "2.0.0" }));
       const changed = await build(dir);
@@ -432,7 +432,7 @@ test("concurrent builds take turns, and an unchanged build keeps the output in p
       expect((await stat(server)).ino).not.toBe(ino);
       // Other options, another output: the Worker Server is missing from the first.
       await build(dir, undefined, { webServer: true });
-      expect(await Bun.file(join(dir, ".airtty/web-server/server-worker.js")).exists()).toBe(true);
+      expect(await Bun.file(join(dir, ".luciole/web-server/server-worker.js")).exists()).toBe(true);
     },
   );
 }, 60000);

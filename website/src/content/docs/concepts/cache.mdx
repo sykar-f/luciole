@@ -3,7 +3,7 @@ title: Caching Server reads
 description: '"use cache" keeps the result of a Server read, tagged; invalidate({ tag }) purges it and revalidates only the routes that read it.'
 sources:
   - docs/CACHE.md
-  - packages/airtty/src/cache
+  - packages/luciole/src/cache
   - examples/notes/server/queries.ts
   - examples/notes/server/tags.ts
   - examples/notes/actions/notes.ts
@@ -88,7 +88,7 @@ to the Server:
 
 ```ts
 // server/cache.ts
-import { sqliteCache } from "airtty/server";
+import { sqliteCache } from "luciole/server";
 export default sqliteCache({ path: process.env.CACHE_DB ?? "cache.sqlite" });
 ```
 

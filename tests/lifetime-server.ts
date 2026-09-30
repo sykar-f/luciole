@@ -1,7 +1,7 @@
 import React from "react";
 import { z } from "zod";
-import { serve } from "../packages/airtty/src/server";
-import { configureArgs, defineArgs } from "../packages/airtty/src/args";
+import { serve } from "../packages/luciole/src/server";
+import { configureArgs, defineArgs } from "../packages/luciole/src/args";
 // A Server built by hand whose build id a test chooses (TEST_BUILD_ID), to exercise the
 // launcher's managed lifetime (src/launcher/lifetime.ts); with TEST_ARGS, it declares
 // application arguments (src/args.ts), as a generated Server entry does.

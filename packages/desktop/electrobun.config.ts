@@ -1,8 +1,8 @@
 /**
- * The desktop bundle of one staged airtty application (scripts/stage.ts): a Bun main
+ * The desktop bundle of one staged luciole application (scripts/stage.ts): a Bun main
  * process that runs the app's binary on a PTY (src/host), and one xterm.js view that
  * shows it (src/view). Named, versioned and decorated from the app's own metadata
- * (`airtty` of its package.json, airtty/metadata).
+ * (`luciole` of its package.json, luciole/metadata).
  */
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -16,7 +16,7 @@ const staged = (file: string) => fileURLToPath(new URL(`${STAGE}/${file}`, impor
 const app = existsSync(staged(METADATA))
   ? readMetadata(readFileSync(staged(METADATA), "utf8"))
   : undefined;
-const name = app?.name ?? "airtty-desktop";
+const name = app?.name ?? "luciole-desktop";
 const icon = app?.icon ? `${STAGE}/${ICON_PNG}` : undefined;
 const iconset = existsSync(staged(ICONSET)) ? `${STAGE}/${ICONSET}` : undefined;
 
@@ -25,12 +25,12 @@ export default {
     name: app?.displayName ?? name,
     // Declared by the application, or one of its own under a namespace no one else uses.
     identifier:
-      app?.identifier ?? `dev.airtty.desktop.${name.toLowerCase().replace(/[^a-z0-9]/g, "-")}`,
+      app?.identifier ?? `dev.luciole.desktop.${name.toLowerCase().replace(/[^a-z0-9]/g, "-")}`,
     version: app?.version ?? "0.0.0",
     description: app?.description,
   },
   build: {
-    // Bun, the runtime airtty/pty is written and tested for, and the one the app binary
+    // Bun, the runtime luciole/pty is written and tested for, and the one the app binary
     // carries: scripts/single-runtime.ts has the host run on it. Cottontail, the default,
     // has Bun.Terminal too but cannot be replaced by the app binary.
     mainProcess: "bun",

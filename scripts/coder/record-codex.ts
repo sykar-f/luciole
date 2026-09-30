@@ -145,7 +145,7 @@ async function record(name: string, scenario: Scenario) {
       send({ id, method, params });
     });
   await request("initialize", {
-    clientInfo: { name: "airtty-coder", title: "coder (airtty)", version: "0.1.0" },
+    clientInfo: { name: "luciole-coder", title: "coder (luciole)", version: "0.1.0" },
     capabilities: { experimentalApi: true, requestAttestation: false },
   });
   send({ method: "initialized" });

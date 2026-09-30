@@ -25,7 +25,7 @@ const EVERYTHING = [
   /^tests\/[^/]*-server\.tsx?$/,
   /^tests\/fixtures\//,
 ];
-const CLI = /^packages\/airtty\/src\/(cli\.ts|commands\/)/;
+const CLI = /^packages\/luciole\/src\/(cli\.ts|commands\/)/;
 const TEST_FILE = /^tests\/.*\.test\.tsx?$/;
 
 function git(...args: string[]) {

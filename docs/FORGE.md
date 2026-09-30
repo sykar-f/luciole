@@ -2,7 +2,7 @@
 
 Forge est une forge de code review dans le terminal : dépôts, pull requests, diffs
 colorés, commentaires ligne à ligne, CI avec logs en direct, merge. Elle exerce dans
-un seul flux métier les capacités de airtty, d'OpenTUI et de TanStack Router,
+un seul flux métier les capacités de luciole, d'OpenTUI et de TanStack Router,
 et elle a servi à pousser le framework au-delà de son contrat : ce qu'elle a cassé
 est corrigé, testé et documenté ci-dessous.
 
@@ -14,20 +14,20 @@ choisi pour ses gros volumes, ses nombreux Drafts et sa mutation non rejouable (
 
 ```sh
 bun run forge                           # dev ; importe aussi les 8 derniers commits de ce dépôt
-AIRTTY_LATENCY_MS=500 bun run forge   # la même chose sous 500 ms de RTT par requête
+LUCIOLE_LATENCY_MS=500 bun run forge   # la même chose sous 500 ms de RTT par requête
 ```
 
 La base `forge.sqlite` est créée dans le répertoire courant (`FORGE_DB` pour en
 choisir une autre) avec des données déterministes. Sans `FORGE_GIT_REPO`, seuls les
 dépôts synthétiques `payments` et `web` existent ; `bun run forge` le positionne sur
-ce checkout, qui devient le dépôt `airtty` : la démo revoit le code du framework.
+ce checkout, qui devient le dépôt `luciole` : la démo revoit le code du framework.
 
 Production, deux artefacts :
 
 ```sh
-bun packages/airtty/src/cli.ts build --app examples/forge
-FORGE_DB=/tmp/forge.sqlite bun packages/airtty/src/cli.ts start --role server --app examples/forge
-bun packages/airtty/src/cli.ts start --role client --app examples/forge --url http://127.0.0.1:3000
+bun packages/luciole/src/cli.ts build --app examples/forge
+FORGE_DB=/tmp/forge.sqlite bun packages/luciole/src/cli.ts start --role server --app examples/forge
+bun packages/luciole/src/cli.ts start --role client --app examples/forge --url http://127.0.0.1:3000
 ```
 
 Réglages Server : `FORGE_SLOW_MS` (travail simulé, défaut 250 ms, rend le streaming
@@ -108,7 +108,7 @@ parcours reprend).
 Dans un second terminal, `bun run forge:operator` joue le second opérateur (même
 `FORGE_DB` que le Server).
 
-1. **Latence.** Lancer avec `AIRTTY_LATENCY_MS=500`. Se connecter `bob`. Dans
+1. **Latence.** Lancer avec `LUCIOLE_LATENCY_MS=500`. Se connecter `bob`. Dans
    l'inbox, `/` puis taper : le filtre répond à chaque frappe, sans réseau. Survoler
    et faire défiler à la souris.
 2. **Préchargement.** Descendre sur une PR, attendre une demi-seconde, Entrée :
@@ -175,7 +175,7 @@ Chaque point est parti d'un besoin réel de Forge et d'un test qui échouait.
 | Travail non sauvegardé invisible pour l'application.                                                                              | `DraftStore.unsaved()`, `size`, `clear()` dans `components/draft.ts` de Forge.                          | `draft.test.ts`                          |
 | **Formulaire perdu** : un rebuild ou un crash effaçait le texte tapé ; après un rebuild, Forge redemandait même la connexion.     | Champs nommés restaurés par entrée d'historique, session sur disque, bearer transmis en mémoire en dev. | `restore*.test.ts*`, `session.test.ts`   |
 | Titre « TERMINAL / NOTES » codé en dur dans le chrome.                                                                            | Titre dérivé du répertoire de l'application.                                                            | captures PTY                             |
-| `import "client-only"` refusé par `tsc` dans une application (TS2882) : seul le programme du framework déclarait `server-only`.   | `src/markers.d.ts`, inclus par `airtty/tsconfig` : les deux marqueurs, sans package.                    | `bun run check` (Forge)                  |
+| `import "client-only"` refusé par `tsc` dans une application (TS2882) : seul le programme du framework déclarait `server-only`.   | `src/markers.d.ts`, inclus par `luciole/tsconfig` : les deux marqueurs, sans package.                   | `bun run check` (Forge)                  |
 | `node:*` et `bun:*` refusés dans tout module Client applicatif, même `client-only` : l'éditeur contournait avec les globaux Bun.  | Heuristique supprimée : seuls les marqueurs de côté décident, comme pour les packages.                  | `build.test.ts`                          |
 
 Vérifié sans changement : `router.preloadRoute` fonctionne tel quel et TanStack
@@ -242,5 +242,5 @@ l'opérateur local.
   d'affichage physique ni campagne WAN.
 - Le token vit en mémoire : après un crash en production, Forge redemande la connexion,
   et la redirection vers `/login` remplace l'entrée d'historique qui portait le
-  formulaire, comme sur le web. Seul le rebuild de `airtty dev` transmet le bearer et
+  formulaire, comme sur le web. Seul le rebuild de `luciole dev` transmet le bearer et
   rouvre le formulaire rempli. Les Drafts (commentaires, description) restent en mémoire.

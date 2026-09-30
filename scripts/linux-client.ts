@@ -7,9 +7,9 @@ import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { z } from "zod";
-import { build } from "../packages/airtty/src/build";
-import { compileClient } from "../packages/airtty/src/compile";
-import { readJsonFile } from "../packages/airtty/src/package-json";
+import { build } from "../packages/luciole/src/build";
+import { compileClient } from "../packages/luciole/src/compile";
+import { readJsonFile } from "../packages/luciole/src/package-json";
 import { launch } from "../tests/helpers";
 
 const args = process.argv.slice(2);
@@ -23,7 +23,7 @@ const STARTUP_MS = 60000;
 const POLL_MS = 100;
 // Enough of the last screen to see why the Client did not show the notes.
 const SCREEN_TAIL = 1500;
-const work = await mkdtemp(join(tmpdir(), "airtty-linux-"));
+const work = await mkdtemp(join(tmpdir(), "luciole-linux-"));
 
 async function run(cmd: string[], options: { cwd?: string; stdin?: string } = {}) {
   const child = Bun.spawn(cmd, {
@@ -41,7 +41,7 @@ async function run(cmd: string[], options: { cwd?: string; stdin?: string } = {}
 }
 
 // Bun's musl runtime links libstdc++ and libgcc, which Alpine does not install by default.
-const muslImage = `airtty-alpine-libstdcxx:${arch}`;
+const muslImage = `luciole-alpine-libstdcxx:${arch}`;
 const cases = [
   { name: "glibc", target: `bun-linux-${arch}`, image: "debian:bookworm-slim", flags: [] },
   { name: "musl", target: `bun-linux-${arch}-musl`, image: muslImage, flags: [] },
@@ -56,7 +56,7 @@ const cases = [
 
 let failed = false;
 const { output } = await build(root);
-const server = await launch(join(root, ".airtty/server/index.js"), {
+const server = await launch(join(root, ".luciole/server/index.js"), {
   NOTES_DB: join(work, "notes.sqlite"),
 });
 try {
@@ -95,7 +95,7 @@ try {
         nativeDir: native,
         outfile,
       });
-    const name = `airtty-linux-${process.pid}-${i}`;
+    const name = `luciole-linux-${process.pid}-${i}`;
     const started = performance.now();
     const container = Bun.spawn(
       [

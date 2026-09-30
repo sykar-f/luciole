@@ -1,5 +1,5 @@
 "use cache";
-import { cacheTag } from "airtty/server";
+import { cacheTag } from "luciole/server";
 import { findNote, listNotes } from "./repository";
 import { noteTag, notesTag } from "./tags";
 

@@ -6,13 +6,13 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { z } from "zod";
-import { build } from "../packages/airtty/src/build";
-import { compileApp, hostTarget } from "../packages/airtty/src/compile";
-import { connect, socketDirectory } from "../packages/airtty/src/connect";
-import { messageOf } from "../packages/airtty/src/guards";
-import { readBinaryIdentity, type BinaryIdentity } from "../packages/airtty/src/launcher/identity";
-import { serverId } from "../packages/airtty/src/launcher/managed";
-import { runOn } from "../packages/airtty/src/launcher/remote";
+import { build } from "../packages/luciole/src/build";
+import { compileApp, hostTarget } from "../packages/luciole/src/compile";
+import { connect, socketDirectory } from "../packages/luciole/src/connect";
+import { messageOf } from "../packages/luciole/src/guards";
+import { readBinaryIdentity, type BinaryIdentity } from "../packages/luciole/src/launcher/identity";
+import { serverId } from "../packages/luciole/src/launcher/managed";
+import { runOn } from "../packages/luciole/src/launcher/remote";
 import { leaveCrashedSession, rejectionOf, until } from "./helpers";
 
 const root = resolve("examples/notes");
@@ -61,7 +61,7 @@ else {
 `;
 
 beforeAll(async () => {
-  work = await mkdtemp(join(tmpdir(), "airtty-binary-"));
+  work = await mkdtemp(join(tmpdir(), "luciole-binary-"));
   const { output } = await build(root);
   const compiled = await compileApp(output, {
     name: "notes",
@@ -82,14 +82,14 @@ test("an app binary carries its identity, readable without running it", async ()
   const printed = Bun.spawnSync([binary, "--version"]).stdout.toString();
   expect(JSON.parse(printed)).toMatchObject(identity);
   expect(messageOf(await rejectionOf(readBinaryIdentity(join(root, "app/page.tsx"))))).toContain(
-    "is not an airtty app binary",
+    "is not a luciole app binary",
   );
 });
 
 const Ready = z.object({ ready: z.literal(true), socket: z.string(), buildId: z.string() });
 
 test("`notes serve --socket` is the Server alone, on a private socket", async () => {
-  const socket = join(socketDirectory("airtty-serve-"), "s");
+  const socket = join(socketDirectory("luciole-serve-"), "s");
   const server = spawn(binary, ["serve", "--socket", socket], {
     cwd: work,
     stdio: ["ignore", "pipe", "inherit"],
@@ -126,8 +126,8 @@ const inPty = (log: string, command: string) => {
 
 test("`notes` alone runs both roles here; quitting on purpose stops its Server", async () => {
   // A short TMPDIR, cleaned by this test: the launcher's socket directories go there.
-  const temporary = await mkdtemp("/tmp/airtty-t-");
-  const run = await mkdtemp(join(tmpdir(), "airtty-local-"));
+  const temporary = await mkdtemp("/tmp/luciole-t-");
+  const run = await mkdtemp(join(tmpdir(), "luciole-local-"));
   try {
     await copyFile(binary, join(run, "notes"));
     // A crashed local Client of this app, on a note: restored though the socket is new.
@@ -153,14 +153,14 @@ test("`notes` alone runs both roles here; quitting on purpose stops its Server",
     }
     // Listening now on its socket in the runtime directory, no TCP port.
     const sockets = () =>
-      readdirSync(join(temporary, "airtty")).filter((entry) => entry.endsWith(".sock"));
+      readdirSync(join(temporary, "luciole")).filter((entry) => entry.endsWith(".sock"));
     expect(sockets()).toHaveLength(1);
     await Bun.write(join(run, "stop"), "");
     await Promise.race([client.exited, Bun.sleep(15000).then(() => client.kill())]);
     expect(screen).toContain("baseline:");
     // The Server's data lives where the user ran it; its log in their state directory.
     expect(existsSync(join(run, "notes.sqlite"))).toBe(true);
-    expect(existsSync(join(run, ".local/state/airtty/notes/server.log"))).toBe(true);
+    expect(existsSync(join(run, ".local/state/luciole/notes/server.log"))).toBe(true);
     const deadlineGone = performance.now() + 5000;
     while (sockets().length && performance.now() < deadlineGone) await Bun.sleep(50);
     expect(sockets()).toEqual([]);
@@ -184,27 +184,27 @@ async function sshCalls(file: string) {
 
 /** A remote host for --on: its HOME, its runtime directory, the fake ssh's settings. */
 async function fakeHost() {
-  const home = await mkdtemp(join(tmpdir(), "airtty-remote-"));
+  const home = await mkdtemp(join(tmpdir(), "luciole-remote-"));
   // Short: socket paths must fit sun_path.
-  const runtime = await mkdtemp("/tmp/airtty-rrt-");
+  const runtime = await mkdtemp("/tmp/luciole-rrt-");
   const log = join(home, "ssh.jsonl");
   return {
     home,
     log,
     env: {
       ...process.env,
-      AIRTTY_SSH: join(work, "ssh"),
+      LUCIOLE_SSH: join(work, "ssh"),
       FAKE_SSH_LOG: log,
       FAKE_REMOTE_HOME: home,
       FAKE_REMOTE_RUNTIME: runtime,
     },
-    installed: join(home, `.local/share/airtty/apps/notes/${identity.buildId}/notes`),
+    installed: join(home, `.local/share/luciole/apps/notes/${identity.buildId}/notes`),
     /** Stops whatever Server is left there, then removes the host. */
     async remove() {
-      for (const entry of readdirSync(join(runtime, "airtty")).filter((e) => e.endsWith(".sock")))
+      for (const entry of readdirSync(join(runtime, "luciole")).filter((e) => e.endsWith(".sock")))
         await fetch("http://localhost/lifetime/stop", {
           method: "POST",
-          unix: join(runtime, "airtty", entry),
+          unix: join(runtime, "luciole", entry),
         }).catch(() => undefined);
       await rm(home, { recursive: true, force: true });
       await rm(runtime, { recursive: true, force: true });
@@ -214,7 +214,7 @@ async function fakeHost() {
 
 /** A Client of a --on Server, as the binary runs one: pinging, able to leave. */
 const clientOf = (url: string, id = "test") =>
-  connect(url, undefined, { AIRTTY_LIFETIME_CLIENT: id, AIRTTY_PING_MS: "100" });
+  connect(url, undefined, { LUCIOLE_LIFETIME_CLIENT: id, LUCIOLE_PING_MS: "100" });
 const Health = z.object({ buildId: z.string(), pid: z.number() });
 async function health(url: string) {
   const connection = await connect(url);
@@ -321,10 +321,10 @@ test("--on: a lost Client finds its Server again; a cut tunnel comes back by its
 }, 90000);
 
 test("--on a host of another platform needs a binary of the same build for it", async () => {
-  const remoteHome = await mkdtemp(join(tmpdir(), "airtty-remote-"));
+  const remoteHome = await mkdtemp(join(tmpdir(), "luciole-remote-"));
   const env = {
     ...process.env,
-    AIRTTY_SSH: join(work, "ssh"),
+    LUCIOLE_SSH: join(work, "ssh"),
     FAKE_SSH_LOG: join(remoteHome, "ssh.jsonl"),
     FAKE_REMOTE_HOME: remoteHome,
   };
@@ -343,11 +343,11 @@ test("--on a host of another platform needs a binary of the same build for it", 
     // Another app's binary, or another build's, is refused before any upload.
     const other = join(remoteHome, "other");
     await mkdir(join(remoteHome, "x"));
-    await Bun.write(other, `airtty-binary:1:notes:0000:${hostTarget()};`);
+    await Bun.write(other, `luciole-binary:1:notes:0000:${hostTarget()};`);
     expect(
       messageOf(await rejectionOf(runOn("host.example", { ...options, target: other }))),
     ).toContain(`needs notes ${identity.buildId}`);
-    expect(existsSync(join(remoteHome, ".local/share/airtty/apps/notes"))).toBe(false);
+    expect(existsSync(join(remoteHome, ".local/share/luciole/apps/notes"))).toBe(false);
     expect(messageOf(await rejectionOf(runOn("-oProxyCommand=x", options)))).toContain(
       'cannot start with "-"',
     );

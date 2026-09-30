@@ -1,5 +1,5 @@
 "use client";
-import { useBindings, useNavigate, type NotFoundProps } from "airtty/client";
+import { useBindings, useNavigate, type NotFoundProps } from "luciole/client";
 import { Screen } from "../components/frames";
 import { Help } from "../components/Help";
 import { color } from "../components/theme";

@@ -1,6 +1,6 @@
 "use client";
 import { useRef, useState } from "react";
-import { KeyHelp, useApplication, useBindings, useNavigate } from "airtty/client";
+import { KeyHelp, useApplication, useBindings, useNavigate } from "luciole/client";
 import { login } from "../actions/session";
 import { Line } from "./frames";
 import { drafts } from "./draft";
@@ -114,7 +114,7 @@ export function LoginForm({ accounts }: { accounts: { id: string; role: string }
         ))}
       </box>
       <box id="login-help" height={1}>
-        <KeyHelp inline groups={["login", "airtty"]} fg={color.faint} accent={color.muted} />
+        <KeyHelp inline groups={["login", "luciole"]} fg={color.faint} accent={color.muted} />
       </box>
     </box>
   );

@@ -8,7 +8,7 @@ import Src from "../../components/guide/Src.astro";
 import Callout from "../../components/guide/Callout.astro";
 import Quiz from "../../components/guide/Quiz.astro";
 
-const T = "packages/airtty/src/transport.ts";
+const T = "packages/luciole/src/transport.ts";
 
 // The three outcomes, by when the failure happened.
 const zones = [
@@ -65,7 +65,7 @@ const zones = [
       { from: "editor", to: "transport", label: "saveAction(snapshot)", n: 2 },
       { from: "transport", to: "transport", label: "encodeReply(args)", n: 3 },
       { phase: "Sur le Server" },
-      { from: "transport", to: "server", label: "POST /action, x-airtty-action", n: 4 },
+      { from: "transport", to: "server", label: "POST /action, x-luciole-action", n: 4 },
       { from: "server", to: "server", label: "auth, build, action connue ?", n: 5 },
       { from: "server", to: "action", label: "fn(...args) dans le contexte", n: 6 },
       { from: "action", to: "action", label: "UPDATE, puis invalidate(tags)", n: 7 },
@@ -90,9 +90,9 @@ const zones = [
       lang="http"
       label="POST /action capturé sur un Server Notes"
       code={`POST /action
-x-airtty-build:  e01495558432a2514ca7203e
-x-airtty-call:   11111111-2222-3333-4444-555555555555
-x-airtty-action: e01495558432a2514ca7203e/actions/notes.ts#saveNote
+x-luciole-build:  e01495558432a2514ca7203e
+x-luciole-call:   11111111-2222-3333-4444-555555555555
+x-luciole-action: e01495558432a2514ca7203e/actions/notes.ts#saveNote
 
 [{"id":"1","value":"Buy milk","version":1,"revision":3,"operationId":"3f1c2a9e-…"}]`}
     />
@@ -100,7 +100,7 @@ x-airtty-action: e01495558432a2514ca7203e/actions/notes.ts#saveNote
 
   <Step n="4–6" tone="server" title="Le Server trouve l'action dans une table générée">
     <p>Les mêmes contrôles que pour <code>/render</code> passent d'abord : auth, puis build ID. Ensuite, l'action est cherchée par son id dans une <code>Map</code> écrite au build. Aucune fonction non déclarée <code>"use server"</code> ne peut donc être appelée.</p>
-    <Excerpt path="packages/airtty/src/server.ts" find='const entry = config.actions.get(req.headers.get("x-airtty-action") ?? "");' count={15} tone="server" mark={["config.actions.get", 'entry.auth === "required" && !session', "await entry.fn(...args.data)", "await Promise.all(purges.values())"]} />
+    <Excerpt path="packages/luciole/src/server.ts" find='const entry = config.actions.get(req.headers.get("x-luciole-action") ?? "");' count={15} tone="server" mark={["config.actions.get", 'entry.auth === "required" && !session', "await entry.fn(...args.data)", "await Promise.all(purges.values())"]} />
     <p>Attention : les arguments arrivent <strong>non validés</strong>. C'est à l'action de les vérifier ; <code>saveNote</code> commence par <code>SnapshotInput.parse</code>.</p>
   </Step>
 
@@ -176,9 +176,9 @@ x-airtty-action: e01495558432a2514ca7203e/actions/notes.ts#saveNote
     <table>
       <thead><tr><th>Variable</th><th>Effet</th></tr></thead>
       <tbody>
-        <tr><td><code>AIRTTY_LATENCY_MS</code></td><td>aller-retour : la moitié avant l'envoi, la moitié après la réponse</td></tr>
-        <tr><td><code>AIRTTY_JITTER_MS</code></td><td>un aléa ajouté à chaque sens</td></tr>
-        <tr><td><code>AIRTTY_FAULT=refuse:0.1,drop:0.05,cut:0.05</code></td><td>une faute tirée par requête : <code>refuse</code> donne <code>not-sent</code>, <code>drop</code> et <code>cut</code> donnent <code>unknown</code></td></tr>
+        <tr><td><code>LUCIOLE_LATENCY_MS</code></td><td>aller-retour : la moitié avant l'envoi, la moitié après la réponse</td></tr>
+        <tr><td><code>LUCIOLE_JITTER_MS</code></td><td>un aléa ajouté à chaque sens</td></tr>
+        <tr><td><code>LUCIOLE_FAULT=refuse:0.1,drop:0.05,cut:0.05</code></td><td>une faute tirée par requête : <code>refuse</code> donne <code>not-sent</code>, <code>drop</code> et <code>cut</code> donnent <code>unknown</code></td></tr>
       </tbody>
     </table>
   </div>
@@ -187,9 +187,9 @@ x-airtty-action: e01495558432a2514ca7203e/actions/notes.ts#saveNote
   <Callout kind="piege">
     <ul>
       <li>Un Snapshot invalide fait lever <code>SnapshotInput.parse</code> dans l'action, ce qui donne un 500 et donc <code>unknown</code>. Pourtant, rien n'a été écrit.</li>
-      <li><code>x-airtty-call</code> change à chaque requête : l'idempotence repose sur l'<code>operationId</code> de l'app, jamais sur le <code>callId</code>.</li>
+      <li><code>x-luciole-call</code> change à chaque requête : l'idempotence repose sur l'<code>operationId</code> de l'app, jamais sur le <code>callId</code>.</li>
       <li>La revalidation n'est pas attendue : <code>draft.confirm</code> s'exécute pendant que le routeur recharge la page.</li>
-      <li>Notes n'a pas de <code>server/auth.ts</code> : ses actions sont quand même protégées (<code>auth: "required"</code>), et l'identité vient de l'auth par défaut, le bearer <code>AIRTTY_TOKEN</code> ou, à défaut, l'utilisateur <code>local</code>.</li>
+      <li>Notes n'a pas de <code>server/auth.ts</code> : ses actions sont quand même protégées (<code>auth: "required"</code>), et l'identité vient de l'auth par défaut, le bearer <code>LUCIOLE_TOKEN</code> ou, à défaut, l'utilisateur <code>local</code>.</li>
     </ul>
   </Callout>
 
@@ -203,7 +203,7 @@ x-airtty-action: e01495558432a2514ca7203e/actions/notes.ts#saveNote
   </Callout>
 
   <Callout kind="essaie">
-    <p>Lance Notes avec <code>AIRTTY_FAULT=drop:0.3 bun run dev</code>. La faute touche toutes les requêtes, ouvertures de pages comprises : réessaie jusqu'à ouvrir une note. Enregistre ensuite plusieurs fois. Quand « Unknown outcome » apparaît, prédis la version que Ctrl+O va révéler, puis vérifie. La valeur a bien été écrite : seule la réponse s'est perdue.</p>
+    <p>Lance Notes avec <code>LUCIOLE_FAULT=drop:0.3 bun run dev</code>. La faute touche toutes les requêtes, ouvertures de pages comprises : réessaie jusqu'à ouvrir une note. Enregistre ensuite plusieurs fois. Quand « Unknown outcome » apparaît, prédis la version que Ctrl+O va révéler, puis vérifie. La valeur a bien été écrite : seule la réponse s'est perdue.</p>
   </Callout>
 
   <Quiz

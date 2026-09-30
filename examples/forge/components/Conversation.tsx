@@ -1,7 +1,7 @@
 "use client";
 import { useRef, useState } from "react";
 import type { ScrollBoxRenderable } from "@opentui/core";
-import { ScrollBox, useBindings } from "airtty/client";
+import { ScrollBox, useBindings } from "luciole/client";
 import { useDraft, type Note } from "./draft";
 import {
   merge,

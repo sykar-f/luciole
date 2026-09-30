@@ -7,7 +7,7 @@ import { drive, Keys } from "../../../scripts/pty/driver";
 
 // NATIVE=1: the same source on the published native OpenTUI, to compare behaviors.
 const native = process.env.NATIVE === "1";
-const out = join(import.meta.dir, ".airtty/form");
+const out = join(import.meta.dir, ".luciole/form");
 const source = join(import.meta.dir, "src/form.tsx");
 if (!native) {
   const build = Bun.spawnSync(

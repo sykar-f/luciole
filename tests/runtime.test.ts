@@ -2,9 +2,9 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import { mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { build } from "../packages/airtty/src/build";
-import { compileClient, fetchRuntime, hostTarget } from "../packages/airtty/src/compile";
-import { messageOf } from "../packages/airtty/src/guards";
+import { build } from "../packages/luciole/src/build";
+import { compileClient, fetchRuntime, hostTarget } from "../packages/luciole/src/compile";
+import { messageOf } from "../packages/luciole/src/guards";
 import { rejectionOf } from "./helpers";
 
 // A registry serving a fake runtime package, the way npm publishes @oven/bun-<os>-<arch>.
@@ -17,7 +17,7 @@ const requests: string[] = [],
   caches: string[] = [];
 
 beforeAll(async () => {
-  work = await mkdtemp(join(tmpdir(), "airtty-runtime-"));
+  work = await mkdtemp(join(tmpdir(), "luciole-runtime-"));
   await mkdir(join(work, "package/bin"), { recursive: true });
   await Bun.write(join(work, "package/bin/bun"), "#!/bin/sh\necho stock\n");
   Bun.spawnSync(["tar", "czf", "runtime.tgz", "package"], { cwd: work });
@@ -41,7 +41,7 @@ afterAll(async () => {
 });
 
 const source = async () => {
-  const cache = await mkdtemp(join(tmpdir(), "airtty-cache-"));
+  const cache = await mkdtemp(join(tmpdir(), "luciole-cache-"));
   caches.push(cache);
   return { cache, registry: registry.url.href.replace(/\/$/, "") };
 };

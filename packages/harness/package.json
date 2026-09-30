@@ -1,8 +1,8 @@
 {
-  "name": "@airtty/harness",
+  "name": "@luciole/harness",
   "private": true,
   "type": "module",
-  "description": "Coding-agent harnesses (Claude Code, Codex, pi, opencode, a scripted one) behind one neutral model, for airtty examples.",
+  "description": "Coding-agent harnesses (Claude Code, Codex, pi, opencode, a scripted one) behind one neutral model, for luciole examples.",
   "exports": {
     "./model": "./src/model.ts",
     "./session": "./src/session.ts",
@@ -29,7 +29,7 @@
     "./ui/theme": "./src/ui/theme.ts"
   },
   "dependencies": {
-    "airtty": "workspace:*",
+    "luciole": "workspace:*",
     "@anthropic-ai/claude-agent-sdk": "catalog:",
     "@opentui/core": "catalog:",
     "@opentui/react": "catalog:",

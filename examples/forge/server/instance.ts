@@ -1,5 +1,5 @@
 import "server-only";
-import { getCallId, getSession, notFound } from "airtty/server";
+import { getCallId, getSession, notFound } from "luciole/server";
 import { z } from "zod";
 import type { Role } from "../components/model";
 import { createForge, type Actor } from "./forge";
@@ -31,7 +31,7 @@ export const forge = createForge(openDatabase(env.FORGE_DB), {
   now: start === undefined ? undefined : () => start + (Date.now() - booted),
 });
 if (env.FORGE_GIT_REPO)
-  importGitRepository(forge, env.FORGE_GIT_REPO, "airtty", env.FORGE_GIT_COMMITS);
+  importGitRepository(forge, env.FORGE_GIT_REPO, "luciole", env.FORGE_GIT_COMMITS);
 
 /** Simulated Server work, to make progressive Flight streaming visible. */
 export const slow = (factor = 1) => Bun.sleep(Math.round(env.FORGE_SLOW_MS * factor));

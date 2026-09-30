@@ -1,17 +1,17 @@
 import { createHash } from "node:crypto";
 import { join } from "node:path";
-import { readPackageJson } from "../../packages/airtty/src/package-json";
+import { readPackageJson } from "../../packages/luciole/src/package-json";
 
 /**
  * The runtime ABI: the only specifiers an application bundle may import from the generic
  * Client, everything else being bundled into the application. Bumped by hand when an
- * export of `airtty/client` or `airtty/route-tree` changes incompatibly; the package
+ * export of `luciole/client` or `luciole/route-tree` changes incompatibly; the package
  * versions below enter the key on their own.
  */
 export const ABI_VERSION = 1;
 export const ABI_SPECIFIERS = [
-  "airtty/client",
-  "airtty/route-tree",
+  "luciole/client",
+  "luciole/route-tree",
   "@tanstack/react-router",
   "react",
   "react/jsx-runtime",

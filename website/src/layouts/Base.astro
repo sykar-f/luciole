@@ -59,7 +59,7 @@ const card = Astro.site && !Astro.site.hostname.endsWith("github.com") ? new URL
         const trying = dev || params.has("palettes") || asked;
         let stored = {};
         try {
-          stored = (trying && JSON.parse(localStorage.getItem("airtty:palette") ?? "{}")) || {};
+          stored = (trying && JSON.parse(localStorage.getItem("luciole:palette") ?? "{}")) || {};
         } catch {
           // Storage refused or unreadable: the default palette.
         }

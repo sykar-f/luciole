@@ -2,14 +2,14 @@ import { expect, test } from "bun:test";
 import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { build } from "../packages/airtty/src/build";
-import { messageOf } from "../packages/airtty/src/guards";
+import { build } from "../packages/luciole/src/build";
+import { messageOf } from "../packages/luciole/src/guards";
 import { launch, importClient, readManifest } from "./helpers";
 
 // An exception in a Server Function is an unknown outcome for the Client, and must
 // never reveal Server internals (message, stack, paths, source) in the response.
 test("a failing Server Function answers a generic 500 without internals", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "airtty-errors-"));
+  const directory = await mkdtemp(join(tmpdir(), "luciole-errors-"));
   let server: Awaited<ReturnType<typeof launch>> | undefined;
   try {
     for (const name of ["app", "components", "actions"])
@@ -32,7 +32,7 @@ test("a failing Server Function answers a generic 500 without internals", async 
       `"use server";export async function explode(){throw new Error("SECRET_INTERNAL_SENTINEL")}`,
     );
     await build(directory);
-    server = await launch(join(directory, ".airtty/server/index.js"));
+    server = await launch(join(directory, ".luciole/server/index.js"));
     const manifest = await readManifest(directory);
     const { createApp } = await importClient(directory);
     const app = createApp({ url: server.url });
@@ -45,8 +45,8 @@ test("a failing Server Function answers a generic 500 without internals", async 
     const raw = await fetch(`${server.url}/action`, {
       method: "POST",
       headers: {
-        "x-airtty-build": manifest.buildId,
-        "x-airtty-action": `${manifest.buildId}/actions/explode.ts#explode`,
+        "x-luciole-build": manifest.buildId,
+        "x-luciole-action": `${manifest.buildId}/actions/explode.ts#explode`,
       },
       body: "[]",
     });

@@ -3,7 +3,7 @@ import { createRequire } from "node:module";
 import { readFileSync } from "node:fs";
 import { z } from "zod";
 import { workspaces } from "../package.json";
-import framework from "../packages/airtty/package.json";
+import framework from "../packages/luciole/package.json";
 
 // Verify the renderer's real resolution: a stale nested reconciler can hide a failed upgrade.
 test("OpenTUI uses the pinned reconciler and shares the application's React and Core", () => {
@@ -19,9 +19,9 @@ test("OpenTUI uses the pinned reconciler and shares the application's React and 
   expect(rendererRequire.resolve("@opentui/core")).toBe(require.resolve("@opentui/core"));
 });
 
-// airtty keeps exact versions, not `catalog:`: a starter outside the workspace installs it
+// luciole keeps exact versions, not `catalog:`: a starter outside the workspace installs it
 // from `file:` and could not resolve the catalog. Both must still name the same version.
-test("the airtty package pins what the workspace catalog pins", () => {
+test("the luciole package pins what the workspace catalog pins", () => {
   const catalog: Record<string, string> = workspaces.catalog;
   for (const [name, version] of Object.entries({
     ...framework.dependencies,

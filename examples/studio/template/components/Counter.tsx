@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { useBindings } from "airtty/client";
+import { useBindings } from "luciole/client";
 
 export function Counter({
   initial,

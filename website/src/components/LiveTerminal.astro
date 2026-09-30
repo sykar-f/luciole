@@ -143,7 +143,7 @@ const stand = JSON.stringify({
   import { FitAddon } from "@xterm/addon-fit";
   import "@xterm/xterm/css/xterm.css";
 
-  const Stage = z.object({ source: z.literal("airtty"), type: z.literal("stage"), stage: z.string() });
+  const Stage = z.object({ source: z.literal("luciole"), type: z.literal("stage"), stage: z.string() });
   const Script = z.array(
     z.object({
       wait: z.string(),
@@ -186,7 +186,7 @@ const stand = JSON.stringify({
 
   const sleep = (ms: number) => new Promise((done) => setTimeout(done, ms));
 
-  // As the runtime sets up its terminal (packages/airtty/src/web/platform/run.tsx): the same
+  // As the runtime sets up its terminal (packages/luciole/src/web/platform/run.tsx): the same
   // fonts, and the largest size at which the grid fits, so both draw every cell alike.
   const FONTS =
     'ui-monospace, "SF Mono", Menlo, "Cascadia Mono", Consolas, "DejaVu Sans Mono", monospace';
@@ -316,11 +316,11 @@ const stand = JSON.stringify({
   const Lines = z.array(z.string());
   /**
    * The live screen's rows as text: from the runtime's buffer (docs/WEB.md, "Page
-   * embarquée", `airttyScreen`), which a frame out of view keeps up to date; else from the
+   * embarquée", `lucioleScreen`), which a frame out of view keeps up to date; else from the
    * rows xterm.js draws.
    */
   const rowsOf = (frame: HTMLIFrameElement) => {
-    const read: unknown = frame.contentWindow ? Reflect.get(frame.contentWindow, "airttyScreen") : undefined;
+    const read: unknown = frame.contentWindow ? Reflect.get(frame.contentWindow, "lucioleScreen") : undefined;
     const value: unknown = typeof read === "function" ? Reflect.apply(read, frame.contentWindow, []) : undefined;
     const lines = value === undefined ? undefined : Lines.safeParse(value);
     if (lines?.success) return lines.data.map((line) => line.trimEnd());
@@ -410,7 +410,7 @@ const stand = JSON.stringify({
   }
 
   const type = (frame: HTMLIFrameElement, data: string) =>
-    frame.contentWindow?.postMessage({ source: "airtty", type: "input", data }, location.origin);
+    frame.contentWindow?.postMessage({ source: "luciole", type: "input", data }, location.origin);
 
   /** How to stop each started demo: its frame removed, its capture back. */
   const stops = new WeakMap<HTMLElement, () => void>();
@@ -428,7 +428,7 @@ const stand = JSON.stringify({
     const capture = standOf(root).data?.lines ?? [];
 
     const frame = document.createElement("iframe");
-    frame.title = "An airtty application running in this page";
+    frame.title = "A luciole application running in this page";
     // The screen's colours of the palette in use, as the stand-in took them.
     const src = new URL(root.dataset.src ?? "", location.href);
     const { background, foreground } = screenColours();
@@ -620,7 +620,7 @@ const stand = JSON.stringify({
     visibility: hidden;
   }
 
-  /* As the runtime's page lays out #airtty: the same box, so the same cells. Created by
+  /* As the runtime's page lays out #luciole: the same box, so the same cells. Created by
      the script: outside the component's scoped styles. */
   .layer :global(.stand) {
     position: absolute;

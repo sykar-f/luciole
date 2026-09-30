@@ -42,14 +42,14 @@ const files: [string, "client" | "server"][] = [
   ["server/queries.ts", "server"],
 ];
 
-const hosts = ["Terminal", "Binaire compilé", "airtty <url>", "Navigateur (WASM)", "Fenêtre desktop"];
+const hosts = ["Terminal", "Binaire compilé", "luciole <url>", "Navigateur (WASM)", "Fenêtre desktop"];
 ---
 
-<Base title="Guide d'architecture · airtty" description="Comprendre airtty de bout en bout, un parcours à la fois." lang="fr">
+<Base title="Guide d'architecture · luciole" description="Comprendre luciole de bout en bout, un parcours à la fois." lang="fr">
   <div class="guide">
     <header class="top">
       <div class="top-inner">
-        <a class="mark" href="/guide/">air<span class="tty">tty</span> <span class="slash">/</span> guide</a>
+        <a class="mark" href="/guide/">luciole <span class="slash">/</span> guide</a>
         <a class="site" href="/">Le site</a>
       </div>
     </header>
@@ -57,7 +57,7 @@ const hosts = ["Terminal", "Binaire compilé", "airtty <url>", "Navigateur (WASM
     <main class="index">
       <section class="intro">
         <p class="kicker">Guide d'architecture</p>
-        <h1>Comprendre airtty de bout en bout</h1>
+        <h1>Comprendre luciole de bout en bout</h1>
         <p class="lede-fr">Onze chapitres courts, à lire dans l'ordre. Chacun suit <strong>un seul parcours réel</strong> dans le code, par exemple une touche pressée, un build ou un crash, et le montre pas à pas, avec les fichiers et les lignes qui le font.</p>
         <p class="total">{chapters.length} chapitres · environ {Math.round(total / 5) * 5} minutes au total</p>
       </section>
@@ -66,7 +66,7 @@ const hosts = ["Terminal", "Binaire compilé", "airtty <url>", "Navigateur (WASM
         <h2 id="map-title">La carte</h2>
         <p class="hint">Chaque numéro renvoie au chapitre qui explique cette partie. Clique dessus.</p>
         <div class="diagram">
-          <svg viewBox="0 0 990 400" role="img" aria-label="Carte d'airtty : ton application, le build, le Client, le Server, où tourne le Client et les DevTools">
+          <svg viewBox="0 0 990 400" role="img" aria-label="Carte de luciole : ton application, le build, le Client, le Server, où tourne le Client et les DevTools">
             <defs>
               <marker id="m-build" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 1 L9 5 L0 9 z" style="fill: var(--build)" /></marker>
               <marker id="m-client" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 1 L9 5 L0 9 z" style="fill: var(--client)" /></marker>
@@ -93,14 +93,14 @@ const hosts = ["Terminal", "Binaire compilé", "airtty <url>", "Navigateur (WASM
             <!-- The build -->
             <line x1="248" y1="205" x2="282" y2="205" class="link build" marker-end="url(#m-build)" />
             <rect x="286" y="40" width="102" height="330" rx="12" class="box build" />
-            <text x="337" y="196" class="title" text-anchor="middle">airtty</text>
+            <text x="337" y="196" class="title" text-anchor="middle">luciole</text>
             <text x="337" y="214" class="title" text-anchor="middle">build</text>
             <text x="337" y="236" class="sub" text-anchor="middle">sépare</text>
 
             <line x1="388" y1="100" x2="496" y2="100" class="link build" marker-end="url(#m-build)" />
-            <text x="442" y="92" class="small" text-anchor="middle">.airtty/client</text>
+            <text x="442" y="92" class="small" text-anchor="middle">.luciole/client</text>
             <line x1="388" y1="310" x2="496" y2="310" class="link build" marker-end="url(#m-build)" />
-            <text x="442" y="302" class="small" text-anchor="middle">.airtty/server</text>
+            <text x="442" y="302" class="small" text-anchor="middle">.luciole/server</text>
 
             <!-- Client -->
             <rect x="500" y="40" width="276" height="130" rx="12" class="box client" />
@@ -210,10 +210,6 @@ const hosts = ["Terminal", "Binaire compilé", "airtty <url>", "Navigateur (WASM
   .mark {
     font-weight: 700;
     text-decoration: none;
-  }
-
-  .tty {
-    color: var(--mist);
   }
 
   .slash {

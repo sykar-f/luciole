@@ -4,8 +4,8 @@ import { createInterface } from "node:readline";
 import { act, type ReactNode } from "react";
 import type { testRender } from "@opentui/react/test-utils";
 import { z } from "zod";
-import type { Application, ApplicationOptions } from "../packages/airtty/src/client";
-import { readJsonFile } from "../packages/airtty/src/package-json";
+import type { Application, ApplicationOptions } from "../packages/luciole/src/client";
+import { readJsonFile } from "../packages/luciole/src/package-json";
 import type { DraftStore } from "../examples/notes/components/draft";
 
 /** `value`, which the test expects to exist: fails naming `what` when the domain has none. */
@@ -41,7 +41,7 @@ const Ready = z.object({
 });
 export async function launch(file: string, env: Record<string, string> = {}) {
   const child = spawn(process.execPath, ["--conditions=react-server", file], {
-    env: { ...process.env, PORT: "0", AIRTTY_TEST: "1", ...env },
+    env: { ...process.env, PORT: "0", LUCIOLE_TEST: "1", ...env },
     stdio: ["ignore", "pipe", "pipe"],
   });
   let errors = "";
@@ -91,7 +91,7 @@ export async function until(check: () => boolean, timeout = 5000) {
 /** What a generated Client's `createApp` takes: the build provides the rest. */
 export type ClientOptions = Omit<ApplicationOptions, "routeTree" | "buildId" | "resolveModule">;
 /**
- * The exports of a generated Client (`.airtty/client/index.js`, see src/build.ts). The
+ * The exports of a generated Client (`.luciole/client/index.js`, see src/build.ts). The
  * bundle is untyped JavaScript: its functions are checked to be there, their signatures
  * are the build's contract.
  */
@@ -111,7 +111,7 @@ const isBuiltClient = (value: unknown): value is BuiltClient =>
  * runtime (module registry, router, Drafts); the same tag shares it.
  */
 export async function importClient(directory: string, tag?: string): Promise<BuiltClient> {
-  const file = join(directory, ".airtty/client/index.js");
+  const file = join(directory, ".luciole/client/index.js");
   const module: unknown = await import(tag ? `${file}?${tag}` : file);
   if (!isBuiltClient(module)) throw new Error(`${file} is not a generated Client`);
   return module;
@@ -147,7 +147,7 @@ export function draftOf(app: Application, id: string) {
 }
 
 const ClientReference = z.object({ id: z.string(), chunks: z.array(z.string()), name: z.string() });
-/** `.airtty/manifest.json`, as src/build.ts writes it. */
+/** `.luciole/manifest.json`, as src/build.ts writes it. */
 const Manifest = z.object({
   buildId: z.string(),
   manifest: z.record(z.string(), ClientReference),
@@ -168,7 +168,7 @@ const Manifest = z.object({
   clientGraph: z.array(z.string()),
 });
 export const readManifest = (directory: string) =>
-  readJsonFile(join(directory, ".airtty/manifest.json"), Manifest);
+  readJsonFile(join(directory, ".luciole/manifest.json"), Manifest);
 
 /** Server counters, exposed in test mode only (`/test-metrics`). */
 export const Metrics = z.object({ renders: z.number(), actions: z.number() });
@@ -177,7 +177,7 @@ export async function metricsOf(
   headers: Record<string, string> = {},
 ) {
   const response = await fetch(server.url + "/test-metrics", {
-    headers: { "x-airtty-build": server.buildId, ...headers },
+    headers: { "x-luciole-build": server.buildId, ...headers },
   });
   return Metrics.parse(await response.json());
 }
@@ -203,7 +203,7 @@ export async function rejectionOf(promise: Promise<unknown>): Promise<unknown> {
 export async function leaveCrashedSession(state: string, name: string, key: string, href: string) {
   const dead = Bun.spawnSync(["true"]).pid;
   await Bun.write(
-    join(state, "airtty", name, "sessions", `${crypto.randomUUID()}.json`),
+    join(state, "luciole", name, "sessions", `${crypto.randomUUID()}.json`),
     JSON.stringify({
       version: 1,
       server: key,

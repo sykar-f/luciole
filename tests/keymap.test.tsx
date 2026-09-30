@@ -6,15 +6,15 @@ import { testRender } from "@opentui/react/test-utils";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { build } from "../packages/airtty/src/build";
+import { build } from "../packages/luciole/src/build";
 import { launch, importClient, destroy, renderable, type TestUI } from "./helpers";
 
 const root = resolve("examples/notes");
 
 test("help is generated from the keymap layers mounted right now", async () => {
   await build(root);
-  const dir = await mkdtemp(join(tmpdir(), "airtty-keymap-"));
-  const server = await launch(join(root, ".airtty/server/index.js"), {
+  const dir = await mkdtemp(join(tmpdir(), "luciole-keymap-"));
+  const server = await launch(join(root, ".luciole/server/index.js"), {
     NOTES_DB: join(dir, "notes.sqlite"),
   });
   const { createApp, Shell } = await importClient(root, "keymap");
@@ -59,8 +59,8 @@ test("help is generated from the keymap layers mounted right now", async () => {
 
 test("a desktop window leaves Ctrl+C to the application", async () => {
   await build(root);
-  const dir = await mkdtemp(join(tmpdir(), "airtty-keymap-"));
-  const server = await launch(join(root, ".airtty/server/index.js"), {
+  const dir = await mkdtemp(join(tmpdir(), "luciole-keymap-"));
+  const server = await launch(join(root, ".luciole/server/index.js"), {
     NOTES_DB: join(dir, "notes.sqlite"),
   });
   const { createApp, Shell } = await importClient(root, "keymap-desktop");

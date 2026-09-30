@@ -11,7 +11,7 @@
 //
 // The renderable is created imperatively under a React-owned <box> rather than registered
 // with extend(): extend() mutates a process-wide catalogue and needs a global JSX
-// augmentation, which an airtty runtime shared by several apps must not impose.
+// augmentation, which a luciole runtime shared by several apps must not impose.
 import { useEffect, useLayoutEffect, useRef } from "react";
 import type { BoxRenderable, EmbeddedTerminalRenderable } from "@opentui/core";
 import { useRenderer } from "@opentui/react";

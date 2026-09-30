@@ -10,10 +10,10 @@
 import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
-import { serialize } from "airtty/dev";
-import { Capabilities } from "airtty/sandbox";
-import type { Result } from "@airtty/harness/model";
-import { HarnessSession } from "@airtty/harness/session";
+import { serialize } from "luciole/dev";
+import { Capabilities } from "luciole/sandbox";
+import type { Result } from "@luciole/harness/model";
+import { HarnessSession } from "@luciole/harness/session";
 import type {
   Diagnostic,
   DraftState,
@@ -385,7 +385,7 @@ class Studio {
     );
   }
 
-  /** The preview's Client reported a failed page (G6, airtty/sandbox `onFailure`). */
+  /** The preview's Client reported a failed page (G6, luciole/sandbox `onFailure`). */
   reportFailure(revision: number, path: string, message: string) {
     // A draft is half a turn: the revision at its end is checked, and corrected.
     if (this.preview?.draft) return;
@@ -420,7 +420,7 @@ class Studio {
       readFileSync(join(project.directory, "package.json"), "utf8"),
     );
     const declared = PackageCapabilities.safeParse(parsed);
-    return declared.success ? declared.data.airtty.capabilities.net : [];
+    return declared.success ? declared.data.luciole.capabilities.net : [];
   }
 
   /** The user allows (or no longer allows) the app to reach `host`: a new revision. */
@@ -434,9 +434,9 @@ class Studio {
     const file = join(project.directory, "package.json");
     const parsed: unknown = JSON.parse(readFileSync(file, "utf8"));
     const manifest = PackageJson.parse(parsed);
-    manifest.airtty = {
-      ...manifest.airtty,
-      capabilities: { ...manifest.airtty?.capabilities, net: hosts },
+    manifest.luciole = {
+      ...manifest.luciole,
+      capabilities: { ...manifest.luciole?.capabilities, net: hosts },
     };
     writeFileSync(file, `${JSON.stringify(manifest, null, 2)}\n`);
     // studio's own change, committed as it is: the guard is for the harness's.
@@ -498,10 +498,10 @@ class Studio {
 }
 
 const PackageCapabilities = z.object({
-  airtty: z.object({ capabilities: z.object({ net: z.array(z.string()).default([]) }) }),
+  luciole: z.object({ capabilities: z.object({ net: z.array(z.string()).default([]) }) }),
 });
 const PackageJson = z.looseObject({
-  airtty: z.looseObject({ capabilities: z.looseObject({}).optional() }).optional(),
+  luciole: z.looseObject({ capabilities: z.looseObject({}).optional() }).optional(),
 });
 
 /** Whether two states of the working tree are the same files with the same contents. */

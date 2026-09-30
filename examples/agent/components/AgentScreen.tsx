@@ -8,7 +8,7 @@ import {
   useConnection,
   useLive,
   useRestoredFields,
-} from "airtty/client";
+} from "luciole/client";
 import { abort, feed, newSession, sendPrompt } from "../actions/agent";
 import { Frame } from "./Frame";
 import { Line } from "./Line";

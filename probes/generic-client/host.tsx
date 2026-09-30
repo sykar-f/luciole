@@ -10,15 +10,15 @@ import {
 } from "@opentui/keymap/addons";
 import { createOpenTuiKeymapHost } from "@opentui/keymap/opentui";
 import { KeymapProvider } from "@opentui/keymap/react";
-import type { Application, ApplicationOptions } from "../../packages/airtty/src/client";
-import { messageOf } from "../../packages/airtty/src/guards";
+import type { Application, ApplicationOptions } from "../../packages/luciole/src/client";
+import { messageOf } from "../../packages/luciole/src/guards";
 import type { AbiSpecifier } from "./abi";
 import type { LoadedBundle } from "./loader";
 import { abiModules, type Runtime } from "./runtime";
 
 /** Every Client pane: one Application, one module instance, one key. */
 type PaneOptions = Omit<ApplicationOptions, "routeTree" | "buildId" | "resolveModule">;
-export const INSTANCE_HEADER = "x-airtty-instance";
+export const INSTANCE_HEADER = "x-luciole-instance";
 
 /**
  * Several applications in one Client process, one Application per pane. Stands for the
@@ -27,11 +27,11 @@ export const INSTANCE_HEADER = "x-airtty-instance";
  * - `resolveModule`: one router for every pane, by the prefix of the id the Server wrote.
  *   React Flight's browser codec reads the single global `__webpack_require__`, lazily at
  *   render, so per-Application resolvers overwrite one another.
- * - `abiFor(key)`: a per-pane `airtty/client` whose `actionReference` calls that pane's
+ * - `abiFor(key)`: a per-pane `luciole/client` whose `actionReference` calls that pane's
  *   Application, instead of the process-wide `current` of src/client.tsx.
  *
  * `routeBy: "instance"` (decided): each pane has its own key, sent as
- * `x-airtty-instance`, and the Server prefixes Client Reference ids with it
+ * `x-luciole-instance`, and the Server prefixes Client Reference ids with it
  * (`p2@<buildId>/<path>`, see probes/inline/instance-server.ts). Two panes of one build
  * keep their own modules. `routeBy: "build"` keys by the build ID the ids already carry,
  * with no Server change: kept to show why it is not enough.
@@ -73,20 +73,20 @@ export function createPanes(runtime: Runtime, { routeBy }: { routeBy: "instance"
     /** The ABI the bundle of pane `key` is evaluated against. */
     abiFor(key: string) {
       const client = {
-        ...runtime.airttyClient,
+        ...runtime.lucioleClient,
         actionReference: (id: string) =>
           runtime.flight.createServerReference(id, (action: string, args: unknown[]) =>
             appOf(key).callServer(action, args),
           ),
       };
       return (specifier: AbiSpecifier) =>
-        specifier === "airtty/client" ? client : base[specifier];
+        specifier === "luciole/client" ? client : base[specifier];
     },
     mount(key: string, bundle: LoadedBundle, options: PaneOptions) {
       const pane = panes.get(key);
       if (!pane) throw new Error(`No pane ${key}`);
       const inner = options.fetch ?? fetch;
-      const app = runtime.airttyClient.createApplication({
+      const app = runtime.lucioleClient.createApplication({
         ...options,
         // The instance travels with every request; the Server writes it into the ids.
         fetch:

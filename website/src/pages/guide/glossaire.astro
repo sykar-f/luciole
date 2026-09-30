@@ -4,15 +4,15 @@ import { join, resolve } from "node:path";
 import Guide from "../../layouts/Guide.astro";
 import { source } from "../../lib/links";
 
-// Every entry at the top of packages/airtty/src, with its role and the chapter that covers it.
+// Every entry at the top of packages/luciole/src, with its role and the chapter that covers it.
 // The list is read from the checkout: a new module without a line here fails the build.
 const modules: Record<string, [string, string]> = {
   "cli.ts": ["arguments et registre des sous-commandes", "demarrage"],
-  "args.ts": ["airtty/args : arguments déclarés par app/args.ts, grammaire, aide, AIRTTY_ARGS relu par le Server", "demarrage"],
+  "args.ts": ["luciole/args : arguments déclarés par app/args.ts, grammaire, aide, LUCIOLE_ARGS relu par le Server", "demarrage"],
   commands: ["une sous-commande par fichier : dev, build, start, devtools, keys, trust…", "demarrage"],
-  dev: ["airtty/dev : supervision d'une app en développement (Server jusqu'à sa ligne ready, bearer, rebuilds un à la fois, échecs de page), partagée par airtty dev et studio", "demarrage"],
+  dev: ["luciole/dev : supervision d'une app en développement (Server jusqu'à sa ligne ready, bearer, rebuilds un à la fois, échecs de page), partagée par luciole dev et studio", "demarrage"],
   "build.ts": ["AST, graphes Client et Server, frontières, références, bundles, build ID", "build"],
-  "sources.ts": ["où sont les sources d'airtty, même quand build et sandbox sont bundlés dans une app (studio)", "build"],
+  "sources.ts": ["où sont les sources de luciole, même quand build et sandbox sont bundlés dans une app (studio)", "build"],
   "args-server.ts": ["premier import de l'entrée Server générée : marque le processus avant tout module de l'app", "build"],
   "build-names.ts": ["noms des composants et hooks pour les DevTools et les messages de React", "devtools"],
   "bundle-errors.ts": ["messages lisibles des échecs de Bun.build", "build"],
@@ -22,14 +22,14 @@ const modules: Record<string, [string, string]> = {
   "framework-hash.ts": ["empreinte du framework pour les caches du lanceur git et du runtime web", "build"],
   "package-json.ts": ["champs de package.json validés par Zod", "build"],
   "markers.d.ts": ["types de server-only et client-only", "build"],
-  "grammars.ts": ["airtty/grammars, sur demande : grammaires Tree-sitter en WebAssembly pour 14 langages de plus", "build"],
+  "grammars.ts": ["luciole/grammars, sur demande : grammaires Tree-sitter en WebAssembly pour 14 langages de plus", "build"],
   "serve.ts": ["écoute HTTP ou socket, auth par défaut, ligne ready", "demarrage"],
   "server.ts": ["handler : /render, /action, session, invalidate, build ID", "navigation"],
   "not-found.ts": ["notFound() à travers Flight, par un digest", "navigation"],
   cache: ['"use cache" : transformation, clé, tags, handlers mémoire et SQLite', "cache"],
   flight: ["codec React Flight et résolution des modules Client", "navigation"],
   "transport.ts": ["requêtes, en-têtes, délai, issues not-sent, rejected, unknown, réseau simulé", "server-functions"],
-  "connect.ts": ["URL du Server : --url, AIRTTY_URL, config ; tunnel ssh, socket unix", "demarrage"],
+  "connect.ts": ["URL du Server : --url, LUCIOLE_URL, config ; tunnel ssh, socket unix", "demarrage"],
   "run.tsx": ["démarrage du Client : session, renderer OpenTUI, signaux", "demarrage"],
   "client.tsx": ["Application, keymap, hooks, invalidation, réponses live", "navigation"],
   "runtime-context.ts": ["contexte React de l'Application montée", "navigation"],
@@ -38,23 +38,23 @@ const modules: Record<string, [string, string]> = {
   "fields.tsx": ["Input, Textarea et ScrollBox restaurables, useRestoredFields, useRestoredFocus", "session"],
   markdown: ["<Markdown> : réponse en flux découpée en blocs, dernier bloc fermé d'avance, rendu qui ne bouge pas", "navigation"],
   "guards.ts": ["gardes de type partagées par Server et Client", "carte"],
-  "instance.ts": ["clé d'instance d'un pane (x-airtty-instance)", "distribution"],
+  "instance.ts": ["clé d'instance d'un pane (x-luciole-instance)", "distribution"],
   "compile.ts": ["binaire unique (--compile) et runtime Bun officiel", "distribution"],
   "sign.ts": ["signature Developer ID et notarisation macOS", "distribution"],
   "native.ts": ["paquets Server à code natif, gardés hors du bundle", "distribution"],
-  launcher: ["airtty <cible> : résolution, Server géré, git, --on", "distribution"],
-  "launch.ts": ["portée d'un Server (shared, per-directory, per-launch) et AIRTTY_LAUNCH, lu par getLaunch()", "distribution"],
+  launcher: ["luciole <cible> : résolution, Server géré, git, --on", "distribution"],
+  "launch.ts": ["portée d'un Server (shared, per-directory, per-launch) et LUCIOLE_LAUNCH, lu par getLaunch()", "distribution"],
   registry: ["registre d'apps, npm, apps installées", "distribution"],
-  "airttyx.ts": ["airttyx <cible>, comme npx : la cible n'est jamais une sous-commande", "distribution"],
-  generic: ["Client générique airtty <url> : origine, épinglage, cache des bundles, hôte à onglets", "distribution"],
+  "luciolex.ts": ["luciolex <cible>, comme npx : la cible n'est jamais une sous-commande", "distribution"],
+  generic: ["Client générique luciole <url> : origine, épinglage, cache des bundles, hôte à onglets", "distribution"],
   "abi.ts": ["ABI du runtime : ce qu'un bundle d'app peut importer", "distribution"],
   "app-bundle.ts": ["openApplication : vérifier et évaluer un bundle d'app", "distribution"],
   "app-evaluate.ts": ["contrôles du manifeste et require limité à l'ABI", "distribution"],
   "app-routes.ts": ["GET /manifest et GET /bundle/<sha256> du Server", "distribution"],
   "app-metadata.ts": ["nom, identifiant et icône d'une app, pour qui l'affiche", "distribution"],
-  "capabilities.ts": ["capacités déclarées d'une app (airtty.capabilities)", "distribution"],
+  "capabilities.ts": ["capacités déclarées d'une app (luciole.capabilities)", "distribution"],
   "publisher.ts": ["clé d'éditeur Ed25519 et signature du manifeste", "distribution"],
-  sandbox: ["confinement d'une origine : Seatbelt, airtty-sandbox, proxy, IPC ; confineServer pour un Server qui écoute (macOS)", "distribution"],
+  sandbox: ["confinement d'une origine : Seatbelt, luciole-sandbox, proxy, IPC ; confineServer pour un Server qui écoute (macOS)", "distribution"],
   "embed.tsx": ["<Embed> : une autre app dans un pane", "distribution"],
   "host.ts": ["host : ce qu'une app demande à son hôte (presse-papier, notifications…)", "distribution"],
   "host-direct.ts": ["ce que le Client fait lui-même quand l'app demande à son hôte", "distribution"],
@@ -63,10 +63,10 @@ const modules: Record<string, [string, string]> = {
   web: ["runtime navigateur : OpenTUI en WASM, substituts de Node, SharedWorker", "web-desktop"],
   "web-routes.ts": ["la page web servie par un Server, sur l'origine déclarée", "web-desktop"],
   "web-runtime.ts": ["préparation du runtime web, une fois par ABI et framework", "web-desktop"],
-  devtools: ["agents, protocole, hook de fibers, app airtty devtools", "devtools"],
+  devtools: ["agents, protocole, hook de fibers, app luciole devtools", "devtools"],
 };
 
-const src = resolve(process.cwd(), "..", "packages/airtty/src");
+const src = resolve(process.cwd(), "..", "packages/luciole/src");
 const present = readdirSync(src).filter((name) => !name.startsWith("."));
 const missing = present.filter((name) => !(name in modules));
 const stale = Object.keys(modules).filter((name) => !present.includes(name));
@@ -79,10 +79,10 @@ const rows = present
 
 const terms: [string, string, string][] = [
   ["ABI", "liste fermée des paquets (et versions) qu'un bundle d'app laisse à son hôte ; sa clé doit être identique des deux côtés", "distribution"],
-  ["Build ID", "24 caractères hexadécimaux d'une empreinte de l'app, du framework, du bun.lock, de package.json, d'airtty.json et de l'icône ; porté par x-airtty-build", "build"],
+  ["Build ID", "24 caractères hexadécimaux d'une empreinte de l'app, du framework, du bun.lock, de package.json, de luciole.json et de l'icône ; porté par x-luciole-build", "build"],
   ["Arguments d'application", "options déclarées par app/args.ts, vérifiées par le lanceur puis analysées à nouveau par le Server, qui fait foi", "demarrage"],
-  ["Bundle d'application", ".airtty/app : le Client sans runtime, plus un manifeste, évalué par un hôte", "distribution"],
-  ["callId", "UUID d'une requête (x-airtty-call), qui relie événements Client, Server et logs", "devtools"],
+  ["Bundle d'application", ".luciole/app : le Client sans runtime, plus un manifeste, évalué par un hôte", "distribution"],
+  ["callId", "UUID d'une requête (x-luciole-call), qui relie événements Client, Server et logs", "devtools"],
   ["Clé de session", "identifiant stable d'un Server (local:…, git:…, ssh:…), sous lequel un Client range sa session", "session"],
   ["Client Reference", "id <buildId>/chemin + export d'un module \"use client\" ; le Client le résout chez lui", "build"],
   ["Enveloppe d'action", "{ kind, value, callId, invalidate, tags } renvoyée par /action", "server-functions"],
@@ -92,11 +92,11 @@ const terms: [string, string, string][] = [
   ["Grâce", "délai (15 min) pendant lequel un Server géré attend le retour d'un Client perdu", "distribution"],
   ["Issue (outcome)", "ce que le Transport sait d'une requête échouée : not-sent, rejected, unknown", "server-functions"],
   ["Orphelin", "fichier de session dont le processus est mort, repris par le prochain Client de même clé", "session"],
-  ["Portée du Server", "combien de lancements partagent un Server géré : shared, per-directory ou per-launch, déclarée par airtty.server", "distribution"],
+  ["Portée du Server", "combien de lancements partagent un Server géré : shared, per-directory ou per-launch, déclarée par luciole.server", "distribution"],
   ["Route graph", "structure pure tirée de app/ : layouts, pages, params, écrans de chargement et d'erreur", "build"],
   ["Server Function", "export async function d'un module \"use server\", appelée depuis le Client par /action", "server-functions"],
   ["Server Reference", "{ id: \"<buildId>/chemin#nom\" } : une Server Function vue du Client", "server-functions"],
-  ["Superviseur", "le processus airtty dev, qui rebuild et relance Server et Client", "demarrage"],
+  ["Superviseur", "le processus luciole dev, qui rebuild et relance Server et Client", "demarrage"],
   ["Tag de cache", "étiquette posée par cacheTag, cible de invalidate({ tag })", "cache"],
   ["TOFU", "trust on first use : la clé d'éditeur est épinglée au premier usage, toute autre ensuite refusée", "distribution"],
   ["Transport", "l'interface du Client qui parle au Server : render, call, setToken", "server-functions"],
@@ -118,7 +118,7 @@ const title = (slug: string) => slug.replace(/-/g, " ");
   </dl>
 
   <h2>Tous les modules du framework</h2>
-  <p>Toutes les entrées de <code>packages/airtty/src/</code>, sans exception, triées par chapitre. Cette liste est vérifiée au build : un module ajouté ou supprimé sans mise à jour de cette page fait échouer la construction du site.</p>
+  <p>Toutes les entrées de <code>packages/luciole/src/</code>, sans exception, triées par chapitre. Cette liste est vérifiée au build : un module ajouté ou supprimé sans mise à jour de cette page fait échouer la construction du site.</p>
   <div class="table">
     <table>
       <thead><tr><th>Module</th><th>Rôle</th><th>Chapitre</th></tr></thead>
@@ -126,7 +126,7 @@ const title = (slug: string) => slug.replace(/-/g, " ");
         {
           rows.map((row) => (
             <tr>
-              <td><a href={source(`packages/airtty/src/${row.path}`)}><code>{row.name}</code></a></td>
+              <td><a href={source(`packages/luciole/src/${row.path}`)}><code>{row.name}</code></a></td>
               <td>{row.role}</td>
               <td><a href={`/guide/${row.chapter}/`}>{title(row.chapter)}</a></td>
             </tr>

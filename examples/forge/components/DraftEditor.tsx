@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef } from "react";
 import type { TextareaRenderable } from "@opentui/core";
-import { useBindings } from "airtty/client";
+import { useBindings } from "luciole/client";
 import { useDraft, type Note, type SaveResult, type Snapshot } from "./draft";
 import { Line } from "./frames";
 import { color } from "./theme";

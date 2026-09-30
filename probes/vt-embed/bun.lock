@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "airtty-vt-embed-probe",
+      "name": "luciole-vt-embed-probe",
       "dependencies": {
         "@xterm/addon-serialize": "0.14.0",
         "@xterm/addon-unicode-graphemes": "0.4.0",

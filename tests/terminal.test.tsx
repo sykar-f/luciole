@@ -6,8 +6,8 @@ import { useRenderer } from "@opentui/react";
 import { testRender } from "@opentui/react/test-utils";
 import { createDefaultOpenTuiKeymap } from "@opentui/keymap/opentui";
 import { KeymapProvider, useBindings } from "@opentui/keymap/react";
-import { Terminal } from "../packages/airtty/src/client";
-import { legacyKey, queryResponder } from "../packages/airtty/src/vt/gaps";
+import { Terminal } from "../packages/luciole/src/client";
+import { legacyKey, queryResponder } from "../packages/luciole/src/vt/gaps";
 import { destroy, until, type TestUI } from "./helpers";
 
 const key = (name: string, mods: Partial<{ ctrl: boolean; meta: boolean; shift: boolean }> = {}) =>

@@ -5,8 +5,8 @@ import {
   TransportError,
   createHttpTransport,
   type Fetch,
-} from "../packages/airtty/src/transport";
-import { messageOf } from "../packages/airtty/src/guards";
+} from "../packages/luciole/src/transport";
+import { messageOf } from "../packages/luciole/src/guards";
 import { rejectionOf, renderBody } from "./helpers";
 
 const base = {
@@ -37,7 +37,7 @@ test("render requests the route by id with build identity and the current bearer
         path: url.pathname,
         route: url.searchParams.get("route"),
         params: JSON.parse(url.searchParams.get("params") ?? "null"),
-        build: headers.get("x-airtty-build"),
+        build: headers.get("x-luciole-build"),
         auth: headers.get("authorization"),
         search: JSON.parse(url.searchParams.get("search") ?? "null"),
       });
@@ -96,7 +96,7 @@ test("build mismatch and missing session are typed failures", async () => {
       () =>
         new Response("Authentication required", {
           status: 401,
-          headers: { "x-airtty-login": "/login" },
+          headers: { "x-luciole-login": "/login" },
         }),
     ),
   });
@@ -151,7 +151,7 @@ test("an action response outside the envelope schema is a TransportError", async
     createHttpTransport({
       ...base,
       fetch: stub((_url, init) => {
-        const callId = new Headers(init.headers).get("x-airtty-call") ?? "";
+        const callId = new Headers(init.headers).get("x-luciole-call") ?? "";
         // One Flight model row: the root value, as JSON.
         return new Response(`0:${JSON.stringify(envelope(callId))}\n`);
       }),

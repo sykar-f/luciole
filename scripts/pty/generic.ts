@@ -1,20 +1,20 @@
 /**
- * `airtty http://…` on a real PTY: the generic Client opens an application from its Server.
+ * `luciole http://…` on a real PTY: the generic Client opens an application from its Server.
  *
  * Journey, offline and on private XDG directories: a publisher key, mdreader built with a
  * signed bundle, its Server on a fixed local port → without --inline nothing opens → with
  * --inline the warning and the declared capabilities are shown, the key is pinned, the app
  * runs in a tab and follows its keys → a second launch needs no flag nor question → Ctrl+C
  * in the app closes its tab and the Client → a new publisher key is refused with the
- * `airtty trust` command to accept it → after `airtty trust` it opens again.
+ * `luciole trust` command to accept it → after `luciole trust` it opens again.
  */
 import assert from "node:assert/strict";
 import { join } from "node:path";
 import { ctrl } from "./driver";
-import { airtty, build, defer, report, temporaryDirectory } from "./harness";
+import { luciole, build, defer, report, temporaryDirectory } from "./harness";
 import { MDREADER, openByUrl, privateEnvironment, publish, startLibrary } from "./published";
 
-using directory = temporaryDirectory("airtty-pty-generic-");
+using directory = temporaryDirectory("luciole-pty-generic-");
 const { env, docs } = privateEnvironment(directory.path, "generic");
 let server: Awaited<ReturnType<typeof startLibrary>> | undefined;
 // The example keeps an unsigned build, as the repository expects.
@@ -29,7 +29,7 @@ const open = (...args: string[]) => openByUrl(url, args, env, directory.path);
 
 // Without --inline nothing of the application runs: refused where the sandbox does not
 // exist, offered sandboxed on macOS, where no terminal confirms it here.
-const refused = airtty([url], { env });
+const refused = luciole([url], { env });
 assert.notEqual(refused.exitCode, 0, refused.stderr);
 assert.ok(
   refused.stderr.includes("--inline") || refused.stderr.includes("not opened"),
@@ -61,14 +61,14 @@ assert.ok(
 await server.stop();
 const keyB = publish(env, join(directory.path, "publisher-b"));
 server = await startLibrary(env, docs, port);
-const changed = airtty([url], { env });
+const changed = luciole([url], { env });
 assert.notEqual(changed.exitCode, 0, JSON.stringify(changed));
 assert.ok(changed.stderr.includes("publisher key changed"), changed.stderr);
-assert.ok(changed.stderr.includes(`airtty trust ${url} ${keyB}`), changed.stderr);
+assert.ok(changed.stderr.includes(`luciole trust ${url} ${keyB}`), changed.stderr);
 
 {
   // Accepted out of band: it opens again.
-  airtty(["trust", url, keyB], { env, check: true });
+  luciole(["trust", url, keyB], { env, check: true });
   await using t = await open();
   await t.waitFor("alpha-generic");
   await t.type(ctrl("o"));

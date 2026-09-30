@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import { AsyncLocalStorage, hooks } from "../packages/airtty/src/web/async-context/storage";
-import { transformAsyncContext } from "../packages/airtty/src/web/async-context/transform";
+import { AsyncLocalStorage, hooks } from "../packages/luciole/src/web/async-context/storage";
+import { transformAsyncContext } from "../packages/luciole/src/web/async-context/transform";
 
 test("every wait keeps the frame it was in: await, async yield, for await", () => {
   const out = transformAsyncContext(

@@ -5,7 +5,7 @@ import {
   createHttpTransport,
   TransportError,
   type TransportEvent,
-} from "../packages/airtty/src/transport";
+} from "../packages/luciole/src/transport";
 import { launch, rejectionOf, until } from "./helpers";
 
 // What tests/instrument-server.ts prints for each ServerEvent (src/server.ts).
@@ -66,7 +66,7 @@ test("the Server reports each render and action under the Client's callId", asyn
     }
     const action = await fetch(`${server.url}/action`, {
       method: "POST",
-      headers: { "x-airtty-build": "build-1", "x-airtty-action": "a.ts#run" },
+      headers: { "x-luciole-build": "build-1", "x-luciole-action": "a.ts#run" },
       body: "[]",
     });
     await action.text();

@@ -73,7 +73,7 @@ sessions), sans preuve. Un plafond de temps sur l'étape types est prudent.
    types 2, le rendu 3 ; le garde-fou arrête les 3 fautes de périmètre avant tout build. Les
    erreurs de types n'arrêtent pas le build : sans tsc, elles atteindraient l'aperçu.
 2. **Positions** : tsc donne fichier et ligne exacts ; le build, jamais (erreur de
-   syntaxe toujours en `1:1`, cause vérifiée : `packages/airtty/src/build.ts:322` passe
+   syntaxe toujours en `1:1`, cause vérifiée : `packages/luciole/src/build.ts:322` passe
    le nœud racine à `fail()` ; import introuvable sans ligne) ; le rendu donne un message
    sans position.
 3. **Hook dans un Server Component** : le build accepte la page, le Server généré meurt

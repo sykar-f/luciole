@@ -6,24 +6,24 @@ import { join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import sharp from "sharp";
 import { z } from "zod";
-import { build } from "../packages/airtty/src/build";
-import { compileApp, hostTarget } from "../packages/airtty/src/compile";
-import { connect } from "../packages/airtty/src/connect";
-import { messageOf } from "../packages/airtty/src/guards";
-import { isNativeDirectory, layOutNative, nativePackage } from "../packages/airtty/src/native";
-import { createHttpTransport } from "../packages/airtty/src/transport";
-import { checksums, packBundle } from "../packages/airtty/src/launcher/bundle";
-import { readBinaryIdentity } from "../packages/airtty/src/launcher/identity";
-import { install } from "../packages/airtty/src/registry/apps";
-import { packApp } from "../packages/airtty/src/registry/pack";
-import type { Registry } from "../packages/airtty/src/registry/registry";
+import { build } from "../packages/luciole/src/build";
+import { compileApp, hostTarget } from "../packages/luciole/src/compile";
+import { connect } from "../packages/luciole/src/connect";
+import { messageOf } from "../packages/luciole/src/guards";
+import { isNativeDirectory, layOutNative, nativePackage } from "../packages/luciole/src/native";
+import { createHttpTransport } from "../packages/luciole/src/transport";
+import { checksums, packBundle } from "../packages/luciole/src/launcher/bundle";
+import { readBinaryIdentity } from "../packages/luciole/src/launcher/identity";
+import { install } from "../packages/luciole/src/registry/apps";
+import { packApp } from "../packages/luciole/src/registry/pack";
+import type { Registry } from "../packages/luciole/src/registry/registry";
 import { rejectionOf } from "./helpers";
 
 // examples/files makes thumbnails with sharp, whose addon links libvips next to it.
 const root = resolve("examples/files");
 let work: string;
 beforeAll(async () => {
-  work = await mkdtemp(join(tmpdir(), "airtty-native-"));
+  work = await mkdtemp(join(tmpdir(), "luciole-native-"));
 });
 afterAll(() => rm(work, { recursive: true, force: true }));
 
@@ -68,7 +68,7 @@ test("a compiled binary loads sharp from native/ next to it, far from any node_m
     [`sharp-${hostTarget().slice(4)}`, `sharp-libvips-${hostTarget().slice(4)}`].sort(),
   );
   // Installed elsewhere, as apps/<app>/<buildId>/ would be: the binary and native/ only.
-  const app = await mkdtemp("/tmp/airtty-app-");
+  const app = await mkdtemp("/tmp/luciole-app-");
   const pictures = join(work, "pictures");
   await mkdir(pictures);
   await sharp({ create: { width: 400, height: 300, channels: 3, background: "#3366cc" } })

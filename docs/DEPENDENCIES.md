@@ -34,15 +34,15 @@ Ajoutées au catalogue après ce contrôle, sans comparaison aux tags `latest` :
 | electrobun                                     | 2.0.1                    | desktop                                 |
 | marked                                         | 17.0.1                   | framework (`<Markdown>`), mdreader      |
 | sharp                                          | 0.35.4                   | files                                   |
-| tree-sitter-bash / -c / -cpp                   | 0.25.1 / 0.24.1 / 0.23.4 | framework (`airtty/grammars`)           |
-| tree-sitter-css / -go / -html                  | 0.25.0 / 0.25.0 / 0.23.2 | framework (`airtty/grammars`)           |
-| tree-sitter-java / -json / -php                | 0.23.5 / 0.24.8 / 0.24.2 | framework (`airtty/grammars`)           |
-| tree-sitter-python / -ruby                     | 0.25.0 / 0.23.1          | framework (`airtty/grammars`)           |
-| tree-sitter-rust                               | 0.24.0                   | framework (`airtty/grammars`)           |
-| @tree-sitter-grammars/tree-sitter-toml / -yaml | 0.7.0 / 0.7.1            | framework (`airtty/grammars`)           |
+| tree-sitter-bash / -c / -cpp                   | 0.25.1 / 0.24.1 / 0.23.4 | framework (`luciole/grammars`)          |
+| tree-sitter-css / -go / -html                  | 0.25.0 / 0.25.0 / 0.23.2 | framework (`luciole/grammars`)          |
+| tree-sitter-java / -json / -php                | 0.23.5 / 0.24.8 / 0.24.2 | framework (`luciole/grammars`)          |
+| tree-sitter-python / -ruby                     | 0.25.0 / 0.23.1          | framework (`luciole/grammars`)          |
+| tree-sitter-rust                               | 0.24.0                   | framework (`luciole/grammars`)          |
+| @tree-sitter-grammars/tree-sitter-toml / -yaml | 0.7.0 / 0.7.1            | framework (`luciole/grammars`)          |
 | @anthropic-ai/claude-agent-sdk                 | 0.3.283                  | harness (couplé à Claude Code 2.1.283)  |
 
-Les grammaires Tree-sitter (`airtty/grammars`, licence MIT) sont les paquets officiels :
+Les grammaires Tree-sitter (`luciole/grammars`, licence MIT) sont les paquets officiels :
 chacun livre son WebAssembly et ses requêtes de coloration à la même version. Seul le
 WebAssembly sert ; leurs liaisons natives ne sont jamais construites (Bun bloque leurs
 scripts `install`, `bun pm untrusted` les liste) et leurs dépendances `node-addon-api` et
@@ -50,7 +50,7 @@ scripts `install`, `bun pm untrusted` les liste) et leurs dépendances `node-add
 paquet npm avec le WebAssembly de diff ni de SQL : les blocs diff sont colorés sans
 grammaire, SQL reste en texte brut.
 
-Les arguments de ligne de commande des applications (`airtty/args`, `src/args.ts`)
+Les arguments de ligne de commande des applications (`luciole/args`, `src/args.ts`)
 n'ajoutent aucune dépendance : le parseur est maison (~300 lignes), piloté par le Standard
 Schema et le Standard JSON Schema que zod 4 implémente déjà. commander, citty et cac
 n'ont pas d'intégration de schéma, `util.parseArgs` ne sait pas exprimer une option à
@@ -95,7 +95,7 @@ bibliothèque de formulaires s'utilise telle quelle avec `Input`, `Textarea` et
 Router : une seule copie dans le lockfile. Un starter reçoit les dépendances de Notes et
 l'outillage du framework : ni TanStack Form, ni `marked` (mdreader), ni `sharp` (files).
 
-Zod 4.6.5 valide les données externes (variables d'environnement, `airtty.json`, JSON
+Zod 4.6.5 valide les données externes (variables d'environnement, `luciole.json`, JSON
 lu sur disque, requêtes reçues par le Server, enveloppes reçues par le Client). Le
 bundle Client n'embarque que `zod/mini`, l'API fonctionnelle tree-shakable de la même
 version : mesuré isolément sur un schéma d'enveloppe, `zod/mini` ajoute 28 Ko non

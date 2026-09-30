@@ -8,14 +8,14 @@ import {
   PLUGIN,
   PROTOCOL_VERSION,
   type Address,
-} from "../packages/airtty/src/devtools/protocol";
+} from "../packages/luciole/src/devtools/protocol";
 import {
   parseCommand,
   parseEvent,
   type DevtoolsEvent,
-} from "../packages/airtty/src/devtools/schema";
-import { connectAgent, listenBus, type Connection } from "../packages/airtty/src/devtools/wire";
-import { messageOf } from "../packages/airtty/src/guards";
+} from "../packages/luciole/src/devtools/schema";
+import { connectAgent, listenBus, type Connection } from "../packages/luciole/src/devtools/wire";
+import { messageOf } from "../packages/luciole/src/guards";
 import { rejectionOf, until } from "./helpers";
 
 const hello = { protocol: PROTOCOL_VERSION, role: "client" as const, pid: process.pid };
@@ -50,18 +50,18 @@ async function roundTrip(address: Address, listenAddress = address) {
     agent.send(request("after"));
     await until(() => received.length === 3);
     expect(received.map((e) => e.type)).toEqual([
-      "airtty:hello",
-      "airtty-client:request",
-      "airtty-client:request",
+      "luciole:hello",
+      "luciole-client:request",
+      "luciole-client:request",
     ]);
     const ids = received.map((e) =>
-      e.type === "airtty:hello" ? e.payload.pid : "callId" in e.payload ? e.payload.callId : "",
+      e.type === "luciole:hello" ? e.payload.pid : "callId" in e.payload ? e.payload.callId : "",
     );
     expect(ids).toEqual([process.pid, "before", "after"]);
     connections[0]?.send(message(PLUGIN.control, "invalidate", { paths: ["/notes"] }));
     await until(() => commands.length === 1);
     expect(parseCommand(commands[0])).toEqual({
-      type: "airtty-devtools:invalidate",
+      type: "luciole-devtools:invalidate",
       suffix: "invalidate",
       payload: { paths: ["/notes"] },
     });
@@ -72,7 +72,7 @@ async function roundTrip(address: Address, listenAddress = address) {
 }
 
 test("an agent buffers until the DevTools listen, then streams and receives commands", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "airtty-devtools-"));
+  const dir = await mkdtemp(join(tmpdir(), "luciole-devtools-"));
   try {
     const path = join(dir, "bus.sock");
     await roundTrip({ kind: "unix", path });
@@ -90,7 +90,7 @@ test("the same protocol runs over a WebSocket", async () => {
 });
 
 test("a live DevTools keeps its socket; a dead one's socket is reused, owner-only", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "airtty-devtools-"));
+  const dir = await mkdtemp(join(tmpdir(), "luciole-devtools-"));
   const address: Address = { kind: "unix", path: join(dir, "bus.sock") };
   try {
     const first = await listenBus({ address, onMessage: () => {} });
@@ -111,9 +111,9 @@ test("addresses and malformed messages", () => {
   expect(parseAddress("1", { XDG_RUNTIME_DIR: "/run/u" }).kind).toBe("unix");
   expect(parseAddress("unix:/tmp/x.sock")).toEqual({ kind: "unix", path: "/tmp/x.sock" });
   expect(parseAddress("ws://127.0.0.1:4206")).toEqual({ kind: "ws", url: "ws://127.0.0.1:4206" });
-  expect(() => parseAddress("localhost:1")).toThrow(/AIRTTY_DEVTOOLS/);
+  expect(() => parseAddress("localhost:1")).toThrow(/LUCIOLE_DEVTOOLS/);
   expect(
-    parseEvent({ type: "airtty-client:request", pluginId: "airtty-client", payload: {} }),
+    parseEvent({ type: "luciole-client:request", pluginId: "luciole-client", payload: {} }),
   ).toBe(undefined);
   expect(parseEvent({ type: "other:x", pluginId: "other", payload: {} })).toBe(undefined);
   expect(parseEvent("nope")).toBe(undefined);

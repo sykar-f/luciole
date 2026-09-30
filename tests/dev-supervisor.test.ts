@@ -1,5 +1,5 @@
 /**
- * `airtty dev` as a program on a PTY, the way a host embeds it (a multiplexer's
+ * `luciole dev` as a program on a PTY, the way a host embeds it (a multiplexer's
  * `<Terminal>`, studio's preview): what it leaves behind when the terminal goes away, and
  * the pieces of supervision it shares with other hosts (src/dev/supervisor.ts).
  */
@@ -8,25 +8,25 @@ import { mkdtemp, mkdir, rm } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { build } from "../packages/airtty/src/build";
+import { build } from "../packages/luciole/src/build";
 import {
   ClientFailure,
   linkFrameworkModules,
   serialize,
   startAppServer,
-} from "../packages/airtty/src/dev/supervisor";
-import { messageOf } from "../packages/airtty/src/guards";
-import { spawnPty, type Pty } from "../packages/airtty/src/vt/pty";
+} from "../packages/luciole/src/dev/supervisor";
+import { messageOf } from "../packages/luciole/src/guards";
+import { spawnPty, type Pty } from "../packages/luciole/src/vt/pty";
 import { rejectionOf, until } from "./helpers";
 
-const CLI = resolve("packages/airtty/src/cli.ts");
+const CLI = resolve("packages/luciole/src/cli.ts");
 const STARTUP_MS = 15_000;
 const EXIT_MS = 5000;
 const COLUMNS = 80;
 const ROWS = 24;
 
 async function app(page: string) {
-  const dir = await mkdtemp(join(tmpdir(), "airtty-dev-supervisor-"));
+  const dir = await mkdtemp(join(tmpdir(), "luciole-dev-supervisor-"));
   for (const [name, text] of Object.entries({
     "app/layout.tsx": `"use client";\nexport default function Layout({ children }) {\n  return children;\n}\n`,
     "app/page.tsx": page,
@@ -36,7 +36,7 @@ async function app(page: string) {
   }
   return dir;
 }
-/** `airtty dev --app dir` on a PTY, what it wrote, how it ended. */
+/** `luciole dev --app dir` on a PTY, what it wrote, how it ended. */
 function dev(dir: string) {
   let screen = "";
   const ended: (number | null)[] = [];
@@ -63,7 +63,7 @@ const alive = (pid: number) => {
   }
 };
 
-test("a hangup of its terminal stops airtty dev's Server and Client too", async () => {
+test("a hangup of its terminal stops luciole dev's Server and Client too", async () => {
   const dir = await app(
     `export default function Page() {\n  return <text>dev fixture</text>;\n}\n`,
   );
@@ -82,7 +82,7 @@ test("a hangup of its terminal stops airtty dev's Server and Client too", async 
   }
 });
 
-test("airtty dev ends with its Client's exit code: a crash is not a quit", async () => {
+test("luciole dev ends with its Client's exit code: a crash is not a quit", async () => {
   const CRASH_CODE = 3;
   const dir = await app(
     `import { Crash } from "../components/Crash";\nexport default function Page() {\n  return <Crash />;\n}\n`,
@@ -123,8 +123,8 @@ test("serialize: one run at a time, one more for any calls made during it", asyn
 });
 
 test("startAppServer: resolves with the port, or rejects with what the Server said", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "airtty-app-server-"));
-  const entry = join(dir, ".airtty/server/index.js");
+  const dir = await mkdtemp(join(tmpdir(), "luciole-app-server-"));
+  const entry = join(dir, ".luciole/server/index.js");
   await mkdir(join(entry, ".."), { recursive: true });
   try {
     await Bun.write(
@@ -144,7 +144,7 @@ test("startAppServer: resolves with the port, or rejects with what the Server sa
     // Built elsewhere (`build(directory, output)`): the same Server from its output.
     const elsewhere = await startAppServer({
       directory: "/nonexistent",
-      output: join(dir, ".airtty"),
+      output: join(dir, ".luciole"),
       env: process.env,
     });
     expect(elsewhere.port).toBe(4331);
@@ -171,14 +171,14 @@ test("a Client started with an IPC channel reports the page that failed, and why
   let client: Pty | undefined;
   try {
     await build(dir);
-    await linkFrameworkModules(dir, resolve("packages/airtty"));
+    await linkFrameworkModules(dir, resolve("packages/luciole"));
     const server = await startAppServer({ directory: dir, env: { ...process.env, PORT: "0" } });
     try {
       const failures: ClientFailure[] = [];
       client = spawnPty({
         command: [
           process.execPath,
-          join(dir, ".airtty/client/index.js"),
+          join(dir, ".luciole/client/index.js"),
           "--url",
           `http://127.0.0.1:${server.port}`,
         ],

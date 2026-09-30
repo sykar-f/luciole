@@ -11,7 +11,7 @@ et les actions, et composer des références de Client Components. Son JSX utili
 Les `layout.tsx`, `loading.tsx`, `error.tsx` et `not-found.tsx` sont toujours des
 Client Components : ils
 doivent déclarer `"use client"` et un export par défaut, sinon le build échoue avec
-fichier/ligne. Ils ne peuvent donc importer ni `airtty/server`, ni un
+fichier/ligne. Ils ne peuvent donc importer ni `luciole/server`, ni un
 module `server/`. Les pages restent Server et n'entrent jamais dans le bundle Client.
 
 `"use client"` coupe le graphe Server. Tous les imports et réexports runtime locaux
@@ -53,14 +53,14 @@ valeur est enregistrée dans le manifest de routes.
 Le graphe Client refuse :
 
 - les modules sous `server/` et tout import transitif de `server-only` ;
-- `airtty/server` ;
+- `luciole/server` ;
 - `require()` et `import()` dynamiques dans les sources applicatives.
 
 `app/args.ts` n'est d'aucun côté : il tourne dans le lanceur (ou le binaire) pour
 vérifier la ligne de commande et produire `--help`, puis dans le Server qui la reparse.
-Son graphe refuse donc `server-only`, `client-only`, `airtty/server`, `airtty/client`,
+Son graphe refuse donc `server-only`, `client-only`, `luciole/server`, `luciole/client`,
 OpenTUI, les modules sous `server/` et toute directive (`"use client"`, `"use server"`,
-`"use cache"`). Le build le bundle à part, entier, dans `.airtty/args/`.
+`"use cache"`). Le build le bundle à part, entier, dans `.luciole/args/`.
 
 Les builtins `node:*` et `bun:*` ne décident pas du côté d'un module : le Client
 tourne sur Bun, il peut lire un fichier, lancer un processus ou ouvrir une base locale,
@@ -70,7 +70,7 @@ métier qui ouvre la base du Server doit donc le déclarer : sans marqueur, il s
 embarqué dans le Client et ouvrirait une base sur la machine de l'utilisateur.
 
 TanStack Router est l'intégration auditée du runtime : les applications
-utilisent ses primitives via `airtty/client`, et le bundle Client l'embarque en forçant
+utilisent ses primitives via `luciole/client`, et le bundle Client l'embarque en forçant
 sa variante navigateur de `@tanstack/router-core/isServer`.
 
 ## Rester d'un seul côté
@@ -95,7 +95,7 @@ agit sur la mauvaise machine : c'est ce que `client-only` empêche. Exemple rée
 Les deux marqueurs valent pour le code applicatif et pour les packages npm, qui ne
 peuvent pas être renommés. Il n'y a pas de suffixe `*.server.*` ni `*.client.*`.
 Ils ne demandent aucun package : le build les résout en modules vides, et
-`airtty/tsconfig` les déclare (`src/markers.d.ts`) pour que `tsc` accepte l'import.
+`luciole/tsconfig` les déclare (`src/markers.d.ts`) pour que `tsc` accepte l'import.
 
 ## Packages
 
@@ -106,9 +106,9 @@ package qui utilise `node:path` y fonctionne normalement. Dans le runtime naviga
 peut pas fournir (`node:child_process`, `node:tty`…) échouent à l'usage (voir
 [WEB.md](WEB.md)).
 
-Un package qui importe `server-only` ou `airtty/server` et atteint le bundle Client,
+Un package qui importe `server-only` ou `luciole/server` et atteint le bundle Client,
 ou qui importe `client-only` et atteint le bundle Server, fait échouer le build. Pour
-un package tiers qui ne se déclare pas lui-même, `airtty.json` (facultatif) le range
+un package tiers qui ne se déclare pas lui-même, `luciole.json` (facultatif) le range
 côté Server :
 
 ```json
@@ -131,7 +131,7 @@ Les imports applicatifs utilisent des chemins relatifs avec extensions omises
 ou explicites. Les alias tsconfig ne sont pas pris en charge par ce compilateur.
 Le runtime interne est une dépendance de confiance.
 
-`.airtty/manifest.json` expose les graphes pour inspection. Les tests contrôlent
+`.luciole/manifest.json` expose les graphes pour inspection. Les tests contrôlent
 l’absence d’un marqueur métier dans le bundle Client, les imports transitifs,
 les réexports et le maintien du dernier build utilisable en cas d’erreur.
 

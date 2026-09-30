@@ -1,16 +1,16 @@
 {
-  "name": "@airtty-examples/coder",
+  "name": "@luciole-examples/coder",
   "private": true,
   "type": "module",
   "description": "One coding-agent session in a terminal, on Claude Code, Codex, pi or opencode.",
-  "airtty": {
+  "luciole": {
     "displayName": "coder",
     "server": "per-launch",
     "grace": "15m"
   },
   "dependencies": {
-    "airtty": "workspace:*",
-    "@airtty/harness": "workspace:*",
+    "luciole": "workspace:*",
+    "@luciole/harness": "workspace:*",
     "@opentui/core": "catalog:",
     "@opentui/keymap": "catalog:",
     "@opentui/react": "catalog:",

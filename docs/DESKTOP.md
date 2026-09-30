@@ -1,12 +1,12 @@
 # Mode desktop
 
-Une application airtty peut remplir une fenêtre à elle, comme une app de bureau, plutôt
+Une application luciole peut remplir une fenêtre à elle, comme une app de bureau, plutôt
 qu'un onglet de terminal. L'hôte (la fenêtre) lance le binaire de l'app sur un PTY et en
 affiche l'écran ; le Client, lui, sait qu'il n'est plus dans un terminal partagé.
 
-## Le contrat : `AIRTTY_DESKTOP=1`
+## Le contrat : `LUCIOLE_DESKTOP=1`
 
-L'hôte pose `AIRTTY_DESKTOP=1` dans l'environnement du binaire. Le lanceur (binaire
+L'hôte pose `LUCIOLE_DESKTOP=1` dans l'environnement du binaire. Le lanceur (binaire
 à deux rôles, [DISTRIBUTION.md](DISTRIBUTION.md)) la transmet au Client, et le Client
 générique à ses onglets sandboxés. Sous cette variable :
 
@@ -45,13 +45,13 @@ Un prototype d'hôte : une fenêtre [Electrobun](https://framework.blackboard.sh
 dont le processus principal est Bun (`build.mainProcess: "bun"`), et une vue xterm.js
 dans le webview du système. Electrobun 2 prend par défaut Cottontail, son propre runtime
 (JavaScriptCore, API Bun) : il a `Bun.Terminal` et un vrai PTY, mais pèse autant que Bun
-(~60 Mo) et `airtty/pty` n'a été éprouvé que sous Bun.
+(~60 Mo) et `luciole/pty` n'a été éprouvé que sous Bun.
 
 ```text
 fenêtre (webview système)          processus principal (Bun)            PTY
 ┌────────────────────────┐  RPC   ┌──────────────────────────┐        ┌──────────────┐
 │ xterm.js : rendu,      │ ─────▶ │ src/host/session.ts      │ ─────▶ │ bin/<app>    │
-│ clavier, souris, coller│ ◀───── │ spawnPty (airtty/pty),   │ ◀───── │ AIRTTY_      │
+│ clavier, souris, coller│ ◀───── │ spawnPty (luciole/pty),   │ ◀───── │ LUCIOLE_      │
 └────────────────────────┘ output │ UTF-8 décodé, par tour   │        │ DESKTOP=1    │
                                   └──────────────────────────┘        └──────────────┘
 ```
@@ -88,7 +88,7 @@ plutôt que sur le Mac de l'utilisateur. Rien dans le bundle ne cherche un Bun i
 
 ### Un seul Bun
 
-Le binaire de l'app (`airtty build --compile`) embarque un Bun complet, et Electrobun en
+Le binaire de l'app (`luciole build --compile`) embarque un Bun complet, et Electrobun en
 livre un autre pour l'hôte. Le hook `postBuild` (`scripts/single-runtime.ts`), exécuté
 avant qu'Electrobun ne signe le bundle, fait tourner l'hôte sur le binaire de l'app :
 
@@ -96,7 +96,7 @@ avant qu'Electrobun ne signe le bundle, fait tourner l'hôte sur le binaire de l
 Contents/MacOS/launcher      natif Electrobun : lance « bun main.js »
 Contents/MacOS/bun           script : BUN_BE_BUN=1 exec ./<app> "$@"
 Contents/MacOS/<app>         le binaire de l'app, à côté des bibliothèques d'Electrobun
-Resources/app/airtty/bin/<app> → lien vers MacOS/<app>, que l'hôte lance sur le PTY
+Resources/app/luciole/bin/<app> → lien vers MacOS/<app>, que l'hôte lance sur le PTY
 
 launcher ─▶ <app> en Bun (hôte, main.js) ─▶ <app> (Client, sur le PTY) ─▶ <app> serve
 ```
@@ -119,7 +119,7 @@ arrêtent le Client et le Server géré aussitôt, et suppriment la session.
 
 Le bundle prend ce que l'app déclare d'elle-même (métadonnées, [API.md](API.md)) :
 `displayName` nomme l'app (`Notes.app`, titre de fenêtre, menus), `identifier` devient
-son identifiant de bundle (`dev.airtty.desktop.<app>` sinon), `version` et `description`
+son identifiant de bundle (`dev.luciole.desktop.<app>` sinon), `version` et `description`
 viennent de son `package.json`. L'icône devient un iconset sur macOS (`sips`, puis
 `iconutil` par Electrobun), un PNG sous Windows et Linux.
 

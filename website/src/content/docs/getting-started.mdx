@@ -3,8 +3,8 @@ title: Getting started
 description: Run the Notes example, make a first visible change, slow the network down and create an app of your own.
 sources:
   - examples/notes
-  - packages/airtty/src/commands/init.ts
-  - packages/airtty/src/commands/dev.ts
+  - packages/luciole/src/commands/init.ts
+  - packages/luciole/src/commands/dev.ts
 ---
 
 import CopyCommand from "../../components/CopyCommand.astro";
@@ -75,7 +75,7 @@ From the root of the clone:
   lines={[`${commands.fromClone} init ../my-app`, "cd ../my-app", "bun install", "bun run dev"]}
 />
 
-The starter is a copy of Notes to reshape, in one codebase. Its `airtty` dependency points
+The starter is a copy of Notes to reshape, in one codebase. Its `luciole` dependency points
 at your clone (`file:`), which has to stay where it is.
 
 | Directory     | What goes there                                                                                               |
@@ -85,12 +85,12 @@ at your clone (`file:`), which has to stay where it is.
 | `actions/`    | Server Functions, marked `"use server"`: the client calls them like functions.                                |
 | `server/`     | Code that only the server runs: the database, queries, checks.                                                |
 
-The starter's scripts call the installed CLI: `bun run dev` is `airtty dev --app .`,
-`bun run build` is `airtty build --app .`, `bun run check` type-checks and `bun run verify`
+The starter's scripts call the installed CLI: `bun run dev` is `luciole dev --app .`,
+`bun run build` is `luciole build --app .`, `bun run check` type-checks and `bun run verify`
 runs the checks, lint, format and build together.
 
 <Note>
-  In the clone, <code>{commands.fromClone}</code> runs the same commands as `airtty` without
+  In the clone, <code>{commands.fromClone}</code> runs the same commands as `luciole` without
   installing anything. The [CLI reference](/docs/reference/cli/) lists them all.
 </Note>
 

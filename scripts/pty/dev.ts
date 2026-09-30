@@ -1,5 +1,5 @@
 /**
- * `airtty dev` on a PTY: a compiler failure is displayed inside the still-editable Client;
+ * `luciole dev` on a PTY: a compiler failure is displayed inside the still-editable Client;
  * a valid rebuild reopens the page with its named fields; shutdown reaps both children.
  */
 import assert from "node:assert/strict";
@@ -19,13 +19,13 @@ import {
 
 const TIMEOUT_MS = 20_000;
 
-using directory = temporaryDirectory("airtty-dev-");
+using directory = temporaryDirectory("luciole-dev-");
 const app = join(directory.path, "app-source");
 cpSync(example("notes"), app, {
   recursive: true,
-  filter: (source) => basename(source) !== ".airtty" && !basename(source).includes(".sqlite"),
+  filter: (source) => basename(source) !== ".luciole" && !basename(source).includes(".sqlite"),
 });
-const sessions = join(directory.path, "state/airtty/app-source/sessions");
+const sessions = join(directory.path, "state/luciole/app-source/sessions");
 await using t = await drive({
   command: [BUN, CLI, "dev", "--app", app],
   cols: 140,

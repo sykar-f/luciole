@@ -1,5 +1,5 @@
-// Starts a built airtty Server ($SERVER_ENTRY) as if src/server.ts had the proposed instance
-// prefix (docs/EMBEDDING.md, O1): a Client pane sends `x-airtty-instance: <key>`, and the
+// Starts a built luciole Server ($SERVER_ENTRY) as if src/server.ts had the proposed instance
+// prefix (docs/EMBEDDING.md, O1): a Client pane sends `x-luciole-instance: <key>`, and the
 // Client References of every Flight payload answered to it are written as
 // `<key>@<buildId>/<path>`, so the pane's module router finds that pane's modules.
 //
@@ -11,7 +11,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { z } from "zod";
 
 const Instance = z.string().regex(/^[a-z0-9-]{1,32}$/);
-const HEADER = "x-airtty-instance";
+const HEADER = "x-luciole-instance";
 const current = new AsyncLocalStorage<string | undefined>();
 const ClientReference = z.object({ id: z.string() }).loose();
 const Manifest = z.record(z.string(), ClientReference);

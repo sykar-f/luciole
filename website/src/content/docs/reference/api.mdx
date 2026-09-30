@@ -1,23 +1,23 @@
 ---
 title: API
-description: What the package exports, entry by entry. airtty/client for Client Components, airtty/server for the Server, and the entries hosts, tools and tests use.
+description: What the package exports, entry by entry. luciole/client for Client Components, luciole/server for the Server, and the entries hosts, tools and tests use.
 sources:
   - docs/API.md
-  - packages/airtty/package.json
-  - packages/airtty/src/client.tsx
-  - packages/airtty/src/server.ts
-  - packages/airtty/src/transport.ts
-  - packages/airtty/src/host.ts
-  - packages/airtty/src/markdown
-  - packages/airtty/src/dev/supervisor.ts
-  - packages/airtty/src/run.tsx
+  - packages/luciole/package.json
+  - packages/luciole/src/client.tsx
+  - packages/luciole/src/server.ts
+  - packages/luciole/src/transport.ts
+  - packages/luciole/src/host.ts
+  - packages/luciole/src/markdown
+  - packages/luciole/src/dev/supervisor.ts
+  - packages/luciole/src/run.tsx
 ---
 
 import Excerpt from "../../../components/guide/Excerpt.astro";
 import Note from "../../../components/docs/Note.astro";
 
 <Excerpt
-  path="packages/airtty/package.json"
+  path="packages/luciole/package.json"
   find='"exports"'
   until="},"
   tone="neutral"
@@ -27,7 +27,7 @@ import Note from "../../../components/docs/Note.astro";
 The framework holds no business state: no Draft, no pending operation, no retry policy. It
 reports what happened to each request; the app decides.
 
-## `airtty/client`
+## `luciole/client`
 
 For Client Components only.
 
@@ -63,7 +63,7 @@ For Client Components only.
 
 | Export                                                                             | Contract                                                                                  |
 | ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `<Embed app name active prefix? />`, `openApplication({ bundle, url, instance? })` | Another airtty app in a pane ([terminals and panes](/docs/guides/terminals-and-panes/)).  |
+| `<Embed app name active prefix? />`, `openApplication({ bundle, url, instance? })` | Another luciole app in a pane ([terminals and panes](/docs/guides/terminals-and-panes/)). |
 | `<Terminal command active prefix? cwd? env? onExit? />`                            | A local program on a PTY, drawn in the tree.                                              |
 | `<TerminalView program label spawn active prefix? onExit? />`                      | The same widget, the host starting the program itself: a sandboxed Client, a custom stop. |
 | `<Markdown content streaming syntaxStyle onLink? imageBase? />`                    | Markdown rendered by blocks: while `content` streams, the text already shown never moves. |
@@ -72,7 +72,7 @@ For Client Components only.
 finished blocks render once, the last block is closed ahead of time (`**bold` shows bold), and
 text is styled without Tree-sitter so the streaming and final renders match. Code is coloured
 once its fence closes; `diff` blocks are coloured line by line from the start. OpenTUI knows
-JavaScript, TypeScript, Markdown and Zig; `import "airtty/grammars"` (once, in the Client)
+JavaScript, TypeScript, Markdown and Zig; `import "luciole/grammars"` (once, in the Client)
 adds Bash, C, C++, CSS, Go, HTML, Java, JSON, PHP, Python, Ruby, Rust, TOML and YAML. A click
 on a link calls `onLink(url)`; images are drawn with kitty, sixel or half blocks.
 
@@ -84,7 +84,7 @@ on a link calls `onLink(url)`; images are drawn with kitty, sixel or half blocks
 | `useHostMessage(fn)`, `useGlobalKey(key, fn)`, `useCapability(name)` | Messages from other tabs and global keys while mounted; a capability's `granted`, `denied` or `prompt`. |
 
 ```tsx
-import { CapabilityDenied, host, useCapability } from "airtty/client";
+import { CapabilityDenied, host, useCapability } from "luciole/client";
 
 await host.clipboard.write(path); // rejects with CapabilityDenied if the host refuses
 const state = useCapability("clipboard.write"); // "granted" | "denied" | "prompt"
@@ -119,7 +119,7 @@ Client or an `inline` pane acts itself, with the user's rights (`pbcopy`, `osasc
 and the types `LiveState`, `TracerLike`, `Session`, `SessionEntry`,
 `OpenApplicationOptions`, `PublisherCheck`. An app does not need them.
 
-## `airtty/server`
+## `luciole/server`
 
 | Export                                                                | Contract                                                                                                                               |
 | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
@@ -141,21 +141,21 @@ wrapped. `/action` answers with `Server-Timing: total;dur=…`.
 
 ## Other entries
 
-| Entry               | For                                                                                                                                    |
-| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `airtty/args`       | `defineArgs`, for `app/args.ts`.                                                                                                       |
-| `airtty/route-tree` | What `app/routeTree.gen.ts` calls: `rootRoute`, `layoutRoute`, `pageRoute`, `loadPage`, `validateSearch`.                              |
-| `airtty/build`      | `build(directory, output?, { appBundle?, signBundle?, webServer? }?)` → `{ buildId, output }`; publisher keys for `signBundle`.        |
-| `airtty/dev`        | Supervising an app under development (below).                                                                                          |
-| `airtty/sandbox`    | The `sandbox` mode for a host: `openSandbox` (a confined Client for `<TerminalView>`), `confineServer`, `sandboxAvailability`.         |
-| `airtty/pty`        | `spawnPty({ command, cols, rows, env?, cwd?, onData, onExit, … })` → `{ write, resize, kill, send, pid }`: `Bun.Terminal`, POSIX only. |
-| `airtty/metadata`   | `AppMetadata`, the schema of `.airtty/metadata.json`, and the functions that read and write it.                                        |
-| `airtty/grammars`   | Side effect only: registers the extra Tree-sitter grammars.                                                                            |
-| `airtty/tsconfig`   | The TypeScript configuration every app extends.                                                                                        |
+| Entry                | For                                                                                                                                    |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `luciole/args`       | `defineArgs`, for `app/args.ts`.                                                                                                       |
+| `luciole/route-tree` | What `app/routeTree.gen.ts` calls: `rootRoute`, `layoutRoute`, `pageRoute`, `loadPage`, `validateSearch`.                              |
+| `luciole/build`      | `build(directory, output?, { appBundle?, signBundle?, webServer? }?)` → `{ buildId, output }`; publisher keys for `signBundle`.        |
+| `luciole/dev`        | Supervising an app under development (below).                                                                                          |
+| `luciole/sandbox`    | The `sandbox` mode for a host: `openSandbox` (a confined Client for `<TerminalView>`), `confineServer`, `sandboxAvailability`.         |
+| `luciole/pty`        | `spawnPty({ command, cols, rows, env?, cwd?, onData, onExit, … })` → `{ write, resize, kill, send, pid }`: `Bun.Terminal`, POSIX only. |
+| `luciole/metadata`   | `AppMetadata`, the schema of `.luciole/metadata.json`, and the functions that read and write it.                                       |
+| `luciole/grammars`   | Side effect only: registers the extra Tree-sitter grammars.                                                                            |
+| `luciole/tsconfig`   | The TypeScript configuration every app extends.                                                                                        |
 
-## Supervising an app: `airtty/dev`
+## Supervising an app: `luciole/dev`
 
-What `airtty dev` is made of, for a host that supervises an app but decides itself when to
+What `luciole dev` is made of, for a host that supervises an app but decides itself when to
 rebuild (studio, at the end of a model's turn):
 
 | Export                                                                                  | Contract                                                                                                                                                                                                                                                              |
@@ -164,15 +164,15 @@ rebuild (studio, at the end of a model's turn):
 | `bearerRelay()`                                                                         | `{ attach(client) }`: hands the bearer from one Client to the next in memory, so a rebuild does not ask to sign in again.                                                                                                                                             |
 | `serialize(task)`                                                                       | `{ run, busy }`: never two runs at once; calls during a run ask for one more after it.                                                                                                                                                                                |
 | `onClientFailure(client, listener)`, `ClientFailure`                                    | The `{ type: "failure", path, message }` messages a Client sends its parent.                                                                                                                                                                                          |
-| `linkFrameworkModules(directory, from)`, `stopChild(child)`                             | Links `.airtty/node_modules` to the framework's packages; stops a child with SIGTERM, then SIGKILL.                                                                                                                                                                   |
+| `linkFrameworkModules(directory, from)`, `stopChild(child)`                             | Links `.luciole/node_modules` to the framework's packages; stops a child with SIGTERM, then SIGKILL.                                                                                                                                                                  |
 
-A Client started with an IPC channel (by `airtty dev`, a `sandbox` host, studio) sends its
+A Client started with an IPC channel (by `luciole dev`, a `sandbox` host, studio) sends its
 parent every page failure: `{ type: "failure", path, message }`, the message cut to 2,000
 characters. The error screen alone only tells a person; this tells the program that started
 the Client which page failed and why.
 
 <Excerpt
-  path="packages/airtty/src/run.tsx"
+  path="packages/luciole/src/run.tsx"
   find="// Whoever started this Client over IPC"
   count={12}
   tone="client"
@@ -185,7 +185,7 @@ or decorated with `wrapTransport(inner)` (a cache, a recorder, a replay) without
 runtime:
 
 <Excerpt
-  path="packages/airtty/src/transport.ts"
+  path="packages/luciole/src/transport.ts"
   find="export interface Transport"
   until="^}"
   tone="wire"

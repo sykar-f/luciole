@@ -1,5 +1,5 @@
 "use client";
-import type { NotFoundProps } from "airtty/client";
+import type { NotFoundProps } from "luciole/client";
 import { Column, DocFrame, Line } from "../components/frames";
 import { Help } from "../components/Help";
 import { color } from "../components/theme";

@@ -1,5 +1,5 @@
 "use client";
-import { useConnection, type LayoutProps } from "airtty/client";
+import { useConnection, type LayoutProps } from "luciole/client";
 
 // The frame every page shares: the app's name and whether its Server answers.
 export default function Layout({ children }: LayoutProps) {

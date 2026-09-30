@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "airtty-website",
+      "name": "luciole-website",
       "dependencies": {
         "@astrojs/markdown-satteri": "0.4.2",
         "@astrojs/mdx": "8.0.2",

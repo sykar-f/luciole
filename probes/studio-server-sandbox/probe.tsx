@@ -25,15 +25,15 @@ import { createInterface } from "node:readline";
 import { act } from "react";
 import { testRender } from "@opentui/react/test-utils";
 import { z } from "zod";
-import { build } from "../../packages/airtty/src/build";
-import { Capabilities } from "../../packages/airtty/src/capabilities";
-import { sandboxed, seatbeltProfile } from "../../packages/airtty/src/sandbox/profile";
-import { sandboxAvailability, sandboxRuntime } from "../../packages/airtty/src/sandbox/runtime";
+import { build } from "../../packages/luciole/src/build";
+import { Capabilities } from "../../packages/luciole/src/capabilities";
+import { sandboxed, seatbeltProfile } from "../../packages/luciole/src/sandbox/profile";
+import { sandboxAvailability, sandboxRuntime } from "../../packages/luciole/src/sandbox/runtime";
 import { destroy, importClient, until } from "../../tests/helpers";
 
 const HERE = import.meta.dir;
 const TEMPLATE = resolve(HERE, "../studio-preview/template");
-const WORK = join(HERE, ".airtty-work");
+const WORK = join(HERE, ".luciole-work");
 const STARTUP_TIMEOUT_MS = 15_000;
 const RENDER_TIMEOUT_MS = 10_000;
 const WIDTH = 100;
@@ -148,7 +148,7 @@ async function startServer(confined: boolean) {
   const entry = [
     process.execPath,
     "--conditions=react-server",
-    join(directory, ".airtty/server/index.js"),
+    join(directory, ".luciole/server/index.js"),
   ];
   let profile = "";
   if (confined) {
@@ -159,7 +159,7 @@ async function startServer(confined: boolean) {
         capabilities: Capabilities.parse({}),
         tmp: scratch,
         // The built app only: its sources stay unreadable, and so does everything else.
-        readable: [join(directory, ".airtty"), join(directory, "package.json")],
+        readable: [join(directory, ".luciole"), join(directory, "package.json")],
         writable: [data],
         // No terminal: the Server's stdio are pipes.
         tty: "/dev/null",
