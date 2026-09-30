@@ -93,6 +93,7 @@ Other examples, run from the repository root:
 | `bun run mdreader`          | Markdown reader for the `.md` files of the current directory |
 | `bun run mux`               | Local programs side by side, each on its own PTY             |
 | `bun run studio -- -H fake` | Describe an app, watch it written and running (scripted)     |
+| `bun run flow`              | A CI pipeline on a node canvas (`@luciole/flow`), run live   |
 
 The `chat`, `agent`, `coder` and `studio` examples talk to real models or coding agents once
 configured; see their READMEs in [`examples/`](examples/).
