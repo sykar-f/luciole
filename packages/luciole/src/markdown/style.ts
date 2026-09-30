@@ -87,6 +87,7 @@ export function markdownStyle(palette: MarkdownPalette): SyntaxStyle {
     "markup.kbd": fg(palette.text, { bg: hex(palette.panel), bold: true }),
     "markup.underline": { underline: true },
     "markup.footnote": fg(palette.muted),
+    "markup.math": fg(palette.text, { italic: true }),
     "markup.alert.note": fg(palette.link, { bold: true }),
     "markup.alert.tip": fg(palette.ok, { bold: true }),
     "markup.alert.important": fg(palette.accent, { bold: true }),
