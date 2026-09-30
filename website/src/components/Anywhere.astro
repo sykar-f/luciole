@@ -1,24 +1,132 @@
 ---
 // One source, the targets `airtty build` makes of it: a list on the left, and on the right
-// a square that shows each one where it runs, the same Notes screen (a real capture,
-// scripts/capture.py) in every one. It moves on by itself, the list following, and stops
-// while the reader points at it or picks one. The commands are those docs/ gives (README,
+// a frame that draws each one where it runs. Every scene is the same drawing: the client
+// (a terminal, as the icon of the code section draws one) at the same place on the left, the
+// server (its cylinder) on the right, never moving from one scene to the next. Only what
+// changes with the target changes: the frame around what shares a machine, the link
+// between the two sides (solid on one machine, dashed across the network), and one detail
+// below. A target built two ways (the web page) shows both in turn, on a slide twice as
+// long. It moves on by itself, the list following, and stops while the reader points at it
+// or picks one. The commands and the facts are those docs/ gives (README,
 // DISTRIBUTION.md, WEB.md).
 
-
+// What holds the client: a computer, the executable, a browser. With a `host`, the frame
+// holds the client alone and the server is drawn on that host.
+type Frame = "machine" | "file" | "browser";
+type View = {
+  command: string;
+  what: string;
+  frame: Frame;
+  // The host the server runs on, when not with the client.
+  host?: string;
+  // The link between the two sides, as the drawing names it; `remote` when it crosses a network.
+  link: { name: string; remote?: boolean };
+  // The one line under the drawing, when the view has one; `signed` puts the bundle before it.
+  note?: string;
+  signed?: boolean;
+};
 type Target = {
   id: "local" | "binary" | "ssh" | "url" | "web";
   name: string;
-  command: string;
-  what: string;
+  label: string;
+  views: [View] | [View, View];
 };
 const targets: Target[] = [
-  { id: "local", name: "Local", command: "airtty ./notes", what: "both sides on your machine, over a private socket" },
-  { id: "binary", name: "One executable", command: "airtty build --compile", what: "per OS and architecture, nothing to install" },
-  { id: "ssh", name: "Over SSH", command: "notes --on build-box", what: "server next to the data, keys stay here" },
-  { id: "url", name: "From a URL", command: "airtty https://notes.example.com", what: "the generic client runs the signed bundle" },
-  { id: "web", name: "In a web page", command: "airtty build --web-local", what: "a static site, the server in a Web Worker" },
+  {
+    id: "local",
+    name: "Local",
+    label: "The client and the server on your machine, joined by a unix socket",
+    views: [
+      {
+        command: "airtty ./notes",
+        what: "both sides on your machine, over a private socket",
+        frame: "machine",
+        link: { name: "unix socket" },
+        note: "no port opened, no network",
+      },
+    ],
+  },
+  {
+    id: "binary",
+    name: "One executable",
+    label: "The client and the server in one executable, one file per OS and architecture",
+    views: [
+      {
+        command: "airtty build --compile",
+        what: "per OS and architecture, nothing to install",
+        frame: "file",
+        link: { name: "unix socket" },
+      },
+    ],
+  },
+  {
+    id: "ssh",
+    name: "Over SSH",
+    label: "The client on your machine, the server on build-box, joined over SSH",
+    views: [
+      {
+        command: "notes --on build-box",
+        what: "the server next to the data, every key answered here",
+        frame: "machine",
+        host: "build-box",
+        link: { name: "ssh", remote: true },
+        note: "installed on the host when needed",
+      },
+    ],
+  },
+  {
+    id: "url",
+    name: "From a URL",
+    label: "The client on your machine, the server at notes.example.com, joined over HTTPS",
+    views: [
+      {
+        command: "airtty https://notes.example.com",
+        what: "the generic client fetches the app over HTTPS",
+        frame: "machine",
+        host: "notes.example.com",
+        link: { name: "https", remote: true },
+        note: "signed bundle, checked before it runs",
+        signed: true,
+      },
+    ],
+  },
+  {
+    id: "web",
+    name: "In a web page",
+    label:
+      "The client in a browser tab, the server either in the same tab, joined by postMessage, or at notes.example.com, joined over HTTPS",
+    views: [
+      {
+        command: "airtty build --web-local",
+        what: "a static site, the server in a Web Worker",
+        frame: "browser",
+        link: { name: "postMessage" },
+        note: "static files, data kept in the browser",
+      },
+      {
+        command: "airtty build --web",
+        what: "or the page calls your server over HTTPS",
+        frame: "browser",
+        host: "notes.example.com",
+        link: { name: "https", remote: true },
+        note: "the server serves the page too",
+      },
+    ],
+  },
 ];
+
+// The files --compile makes, one per target.
+const platforms = [
+  ["darwin", "arm64"],
+  ["darwin", "x64"],
+  ["linux", "arm64"],
+  ["linux", "x64"],
+];
+
+// A view of two plays in its half of the slide.
+const phase = (target: Target, j: number) => (target.views.length > 1 ? `phase-${j}` : undefined);
+// A target of two views gets a slide twice as long.
+const slide = (target: Target) => (target.views.length > 1 ? "--slide: 9s" : undefined);
 ---
 
 <section class="section" id="anywhere" aria-labelledby="anywhere-title">
@@ -35,11 +143,6 @@ const targets: Target[] = [
 
     <div class="show away" data-show>
       <div class="side">
-        <p class="source">
-          <span class="dim">examples/notes</span> <span aria-hidden="true">→</span> <code
-            ><span class="dim">$ </span>airtty build</code
-          >
-        </p>
         <ol class="ways" role="tablist" aria-label="Where it runs">
           {
             targets.map((target, i) => (
@@ -52,14 +155,22 @@ const targets: Target[] = [
                   aria-selected={i === 0 ? "true" : "false"}
                   tabindex={i === 0 ? 0 : -1}
                   data-way={target.id}
+                  style={slide(target)}
                 >
                   <span class="name">{target.name}</span>
-                  <code class="command">
-                    <span aria-hidden="true">$ </span>
-                    {target.command}
-                  </code>
-                  <span class="what">{target.what}</span>
+                  <span class="views">
+                    {target.views.map((view, j) => (
+                      <span class:list={["view", phase(target, j)]}>
+                        <code class="command">
+                          <span aria-hidden="true">$ </span>
+                          {view.command}
+                        </code>
+                        <span class="what">{view.what}</span>
+                      </span>
+                    ))}
+                  </span>
                   <span class="progress" aria-hidden="true" />
+                  {target.views.length > 1 && <span class="half" aria-hidden="true" />}
                 </button>
               </li>
             ))
@@ -76,126 +187,117 @@ const targets: Target[] = [
               id={`scene-${target.id}`}
               aria-labelledby={`way-${target.id}`}
               data-scene={target.id}
+              style={slide(target)}
               hidden={i !== 0}
             >
-              {target.id === "local" && (
-                <svg viewBox="0 0 400 400" role="img" aria-label="Both sides on one machine, over a private socket">
-                  <text class="t" x="60" y="56">your machine</text>
-                  <rect class="n" x="60" y="68" width="280" height="190" rx="10" />
-                  <path class="n" d="M28 270 H372 L352 296 H48 Z" />
-                  <rect class="c" x="82" y="92" width="136" height="110" rx="5" />
-                  <path class="c" d="M82 108 H218" />
-                  <path class="c" d="M96 124 l8 6 -8 6 M110 136 h14" />
-                  <path class="c faint" d="M96 152 h74 M96 164 h54 M96 176 h81" />
-                  <rect class="s" x="236" y="104" width="90" height="26" rx="3" />
-                  <rect class="s" x="236" y="136" width="90" height="26" rx="3" />
-                  <rect class="s" x="236" y="168" width="90" height="26" rx="3" />
-                  <path class="s" d="M248 117 h6 M248 149 h6 M248 181 h6" />
-                  <path class="p" d="M218 150 H236" />
-                  <path class="p" d="M222 146 l-4 4 4 4 M232 146 l4 4 -4 4" />
-                  <text class="t" x="200" y="236" text-anchor="middle">unix socket</text>
-                  <text class="tp" x="200" y="340" text-anchor="middle">one machine, both sides</text>
-                </svg>
-              )}
-              {target.id === "binary" && (
-                <svg viewBox="0 0 400 400" role="img" aria-label="One executable per OS and architecture">
-                  <path class="p" d="M135 40 H245 L285 80 V240 H135 Z M245 40 V80 H285" />
-                  <text class="tp" x="155" y="72">notes</text>
-                  <rect class="c" x="155" y="104" width="110" height="46" rx="3" />
-                  <text class="tc" x="210" y="132" text-anchor="middle">client</text>
-                  <rect class="s" x="155" y="162" width="110" height="46" rx="3" />
-                  <text class="ts" x="210" y="190" text-anchor="middle">server</text>
-                  <path class="n thin" d="M210 240 V262 M60 290 V276 Q60 262 74 262 H346 Q360 262 360 276 V290 M160 262 V290 M260 262 V290" />
-                  <rect class="n" x="15" y="290" width="90" height="34" rx="3" /><text class="t small" x="60" y="304" text-anchor="middle">darwin</text><text class="t small" x="60" y="318" text-anchor="middle">arm64</text><rect class="n" x="115" y="290" width="90" height="34" rx="3" /><text class="t small" x="160" y="304" text-anchor="middle">darwin</text><text class="t small" x="160" y="318" text-anchor="middle">x64</text><rect class="n" x="215" y="290" width="90" height="34" rx="3" /><text class="t small" x="260" y="304" text-anchor="middle">linux</text><text class="t small" x="260" y="318" text-anchor="middle">arm64</text><rect class="n" x="315" y="290" width="90" height="34" rx="3" /><text class="t small" x="360" y="304" text-anchor="middle">linux</text><text class="t small" x="360" y="318" text-anchor="middle">x64</text>
-                  <text class="tp" x="200" y="370" text-anchor="middle">one file each, nothing to install</text>
-                </svg>
-              )}
-              {target.id === "ssh" && (
-                <svg viewBox="0 0 400 400" role="img" aria-label="The client on a laptop, the server on a host reached over SSH">
-                  <text class="t" x="24" y="96">laptop</text>
-                  <rect class="n" x="24" y="108" width="140" height="100" rx="8" />
-                  <path class="n" d="M8 218 H180 L170 234 H18 Z" />
-                  <rect class="c" x="36" y="120" width="116" height="76" rx="5" />
-                  <path class="c" d="M36 136 H152" />
-                  <path class="c" d="M50 152 l8 6 -8 6 M64 164 h14" />
-                  <path class="c faint" d="M50 180 h63 M50 192 h46 M50 204 h69" />
-                  <rect class="c" x="30" y="250" width="12" height="11" rx="2" /><rect class="c" x="46" y="250" width="12" height="11" rx="2" /><rect class="c" x="62" y="250" width="12" height="11" rx="2" /><rect class="c" x="78" y="250" width="12" height="11" rx="2" /><rect class="c" x="94" y="250" width="12" height="11" rx="2" /><rect class="c" x="110" y="250" width="12" height="11" rx="2" /><rect class="c" x="126" y="250" width="12" height="11" rx="2" /><rect class="c" x="142" y="250" width="12" height="11" rx="2" /><rect class="c" x="30" y="266" width="12" height="11" rx="2" /><rect class="c" x="46" y="266" width="12" height="11" rx="2" /><rect class="c" x="62" y="266" width="12" height="11" rx="2" /><rect class="c" x="78" y="266" width="12" height="11" rx="2" /><rect class="c" x="94" y="266" width="12" height="11" rx="2" /><rect class="c" x="110" y="266" width="12" height="11" rx="2" /><rect class="c" x="126" y="266" width="12" height="11" rx="2" /><rect class="c" x="142" y="266" width="12" height="11" rx="2" /><rect class="c" x="30" y="282" width="12" height="11" rx="2" /><rect class="c" x="46" y="282" width="12" height="11" rx="2" /><rect class="c" x="62" y="282" width="12" height="11" rx="2" /><rect class="c" x="78" y="282" width="12" height="11" rx="2" /><rect class="c" x="94" y="282" width="12" height="11" rx="2" /><rect class="c" x="110" y="282" width="12" height="11" rx="2" /><rect class="c" x="126" y="282" width="12" height="11" rx="2" /><rect class="c" x="142" y="282" width="12" height="11" rx="2" />
-                  <text class="tc" x="94" y="316" text-anchor="middle">keys stay here</text>
-                  <text class="t" x="264" y="84">build-box</text>
-                  <rect class="s" x="264" y="96" width="90" height="26" rx="3" />
-                  <rect class="s" x="264" y="128" width="90" height="26" rx="3" />
-                  <rect class="s" x="264" y="160" width="90" height="26" rx="3" />
-                  <path class="s" d="M276 109 h6 M276 141 h6 M276 173 h6" />
-                  <ellipse class="s" cx="309" cy="222" rx="22" ry="7" />
-                  <path class="s" d="M287 222 v26 a22 7 0 0 0 44 0 v-26" />
-                  <text class="ts" x="309" y="276" text-anchor="middle">data</text>
-                  <path class="n dash" d="M170 158 H258" />
-                  <rect class="p" x="206" y="138" width="16" height="13" rx="2" />
-                  <path class="p" d="M209 138 v-4 a5 5 0 0 1 10 0 v4" />
-                  <rect class="s fill" x="182" y="154" width="8" height="8" />
-                  <rect class="s fill" x="236" y="154" width="8" height="8" />
-                  <text class="t" x="214" y="184" text-anchor="middle">ssh</text>
-                  <text class="t" x="214" y="200" text-anchor="middle">requests only</text>
-                  <text class="tp" x="200" y="370" text-anchor="middle">the server next to its data</text>
-                </svg>
-              )}
-              {target.id === "url" && (
-                <svg viewBox="0 0 400 400" role="img" aria-label="The generic client runs a server's signed bundle, over HTTPS">
-                  <circle class="s" cx="200" cy="82" r="46" />
-                  <ellipse class="s" cx="200" cy="82" rx="20" ry="46" />
-                  <path class="s" d="M154 82 H246 M160 60 H240 M160 104 H240" />
-                  <text class="tp" x="200" y="150" text-anchor="middle">notes.example.com</text>
-                  <rect class="p" x="262" y="62" width="16" height="13" rx="2" />
-                  <path class="p" d="M265 62 v-4 a5 5 0 0 1 10 0 v4" />
-                  <text class="t" x="286" y="73">https</text>
-                  <path class="n dash" d="M200 160 V196 M200 254 V262" />
-                  <path class="p" d="M178 204 L200 194 L222 204 V232 L200 242 L178 232 Z M178 204 L200 214 L222 204 M200 214 V242" />
-                  <circle class="c" cx="228" cy="236" r="9" />
-                  <path class="c" d="M224 236 l3 3 5 -6" />
-                  <text class="t" x="246" y="222">signed bundle</text>
-                  <text class="t" x="246" y="238">checked, then run</text>
-                  <rect class="c" x="118" y="262" width="164" height="100" rx="5" />
-                  <path class="c" d="M118 278 H282" />
-                  <path class="c" d="M132 294 l8 6 -8 6 M146 306 h14" />
-                  <path class="c faint" d="M132 322 h90 M132 334 h65 M132 346 h98" />
-                  <text class="tc" x="200" y="382" text-anchor="middle">the generic client, any terminal</text>
-                </svg>
-              )}
-              {target.id === "web" && (
-                <svg viewBox="0 0 400 400" role="img" aria-label="A static web page: the client and the server in one browser tab">
-                  <rect class="n" x="30" y="50" width="340" height="290" rx="10" />
-                  <path class="n" d="M30 84 H370" />
-                  <circle class="n" cx="50" cy="67" r="4" /><circle class="n" cx="64" cy="67" r="4" /><circle class="n" cx="78" cy="67" r="4" />
-                  <rect class="n" x="100" y="58" width="220" height="18" rx="9" />
-                  <text class="t" x="210" y="71" text-anchor="middle">notes.example.com</text>
-                  <rect class="c" x="50" y="104" width="190" height="150" rx="5" />
-                  <path class="c" d="M50 120 H240" />
-                  <path class="c" d="M64 136 l8 6 -8 6 M78 148 h14" />
-                  <path class="c faint" d="M64 164 h104 M64 176 h76 M64 188 h114" />
-                  <text class="tc" x="145" y="280" text-anchor="middle">xterm.js, the client</text>
-                  <rect class="s" x="270" y="126" width="70" height="20" rx="3" />
-                  <rect class="s" x="270" y="152" width="70" height="20" rx="3" />
-                  <path class="s" d="M280 136 h6 M280 162 h6" />
-                  <text class="ts" x="305" y="196" text-anchor="middle">Web Worker</text>
-                  <text class="t" x="305" y="212" text-anchor="middle">the server</text>
-                  <ellipse class="s" cx="305" cy="236" rx="22" ry="7" />
-                  <path class="s" d="M283 236 v26 a22 7 0 0 0 44 0 v-26" />
-                  <path class="p" d="M242 150 H266" />
-                  <path class="p" d="M246 146 l-4 4 4 4 M262 146 l4 4 -4 4" />
-                  <text class="tp" x="200" y="372" text-anchor="middle">one tab, a static site, no server to run</text>
-                </svg>
-              )}
+              <svg viewBox="0 60 400 300" role="img" aria-label={target.label}>
+                {target.views.map((view, j) => {
+                  // The client's frame spans the whole drawing, or its left part when the
+                  // server is on a host of its own.
+                  const w = view.host ? 170 : 360;
+                  const mid = 20 + w / 2;
+                  return (
+                    <g class={phase(target, j)} aria-hidden="true">
+                      <g class="vary">
+                        {/* What changes: the frame around what shares a machine. */}
+                        {view.frame === "machine" && (
+                          <>
+                            <text class="t" x="20" y="88">your machine</text>
+                            <rect class="n" x="20" y="100" width={w} height="178" rx="8" />
+                            <rect class="n faint" x="27" y="107" width={w - 14} height="164" rx="3" />
+                            <path class="n" d={`M${mid - 13} 278 L${mid - 17} 296 H${mid + 17} L${mid + 13} 278`} />
+                            <rect class="n" x={mid - 38} y="296" width="76" height="6" rx="3" />
+                          </>
+                        )}
+                        {view.frame === "file" && (
+                          <>
+                            <text class="t" x="20" y="88">./notes</text>
+                            <path class="n" d="M20 100 H352 L380 128 V278 H20 Z M352 100 V128 H380" />
+                          </>
+                        )}
+                        {view.frame === "browser" && (
+                          <>
+                            <rect class="n" x="20" y="62" width={w} height="216" rx="8" />
+                            <path class="n" d={`M20 100 H${20 + w}`} />
+                            <circle class="n" cx="34" cy="81" r="3" />
+                            <circle class="n" cx="45" cy="81" r="3" />
+                            <circle class="n" cx="56" cy="81" r="3" />
+                            <rect class="n" x="68" y="72" width={w - 56} height="18" rx="9" />
+                            <text class="t tiny" x={40 + w / 2} y="84.5" text-anchor="middle">notes.example.com</text>
+                          </>
+                        )}
+                        {view.host && (
+                          <>
+                            {/* A tower: a bay and its lights on top, a grille below, on its feet. */}
+                            <text class="t" x="244" y="88">{view.host}</text>
+                            <rect class="n" x="244" y="100" width="136" height="198" rx="5" />
+                            <rect class="n" x="258" y="112" width="74" height="9" rx="2" />
+                            <circle class="n dot" cx="346" cy="116.5" r="2.5" />
+                            <circle class="n" cx="358" cy="116.5" r="2.5" />
+                            <path class="n faint" d="M270 278 H354 M270 286 H354" />
+                            <path class="n" d="M258 298 v5 h14 v-5 M352 298 v5 h14 v-5" />
+                          </>
+                        )}
+
+                        {/* The link: its name on it, dashed when it crosses a network. */}
+                        <path class:list={["p", { dash: view.link.remote }]} d="M178 190 H268" />
+                        <path class="p" d="M183 185 l-5 5 5 5 M263 185 l5 5 -5 5" />
+                        <text class="tp" x="223" y="180" text-anchor="middle">{view.link.name}</text>
+                        {view.link.remote && (
+                          <path class="p" d="M217 199 h12 v10 h-12 Z M220 199 v-3 a3 3 0 0 1 6 0 v3" />
+                        )}
+
+                        {/* The detail under the drawing. */}
+                        {view.frame === "file" &&
+                          platforms.map(([os, arch], k) => {
+                            const x = 19 + k * 92;
+                            return (
+                              <>
+                                <path class="n" d={`M${x} 306 H${x + 76} L${x + 86} 316 V350 H${x} Z M${x + 76} 306 V316 H${x + 86}`} />
+                                <text class="t" x={x + 40} y="325" text-anchor="middle">{os}</text>
+                                <text class="t" x={x + 40} y="340" text-anchor="middle">{arch}</text>
+                              </>
+                            );
+                          })}
+                        {view.signed && (
+                          <>
+                            <path class="p" d="M50 318 L62 312 L74 318 V332 L62 338 L50 332 Z M50 318 L62 324 L74 318 M62 324 V338" />
+                            <circle class="c" cx="76" cy="335" r="6" />
+                            <path class="c" d="M73 335 l2 2 3.5 -4" />
+                            <text class="t" x="92" y="332">{view.note}</text>
+                          </>
+                        )}
+                        {view.note && !view.signed && (
+                          <text class="t" x="200" y="332" text-anchor="middle">{view.note}</text>
+                        )}
+                      </g>
+                    </g>
+                  );
+                })}
+
+                {/* What never changes: the two sides, where they always are. */}
+                <g class="still" aria-hidden="true">
+                  <rect class="c" x="36" y="138" width="136" height="104" rx="5" />
+                  <path class="c" d="M36 154 H172" />
+                  <circle class="c" cx="46" cy="146" r="2.2" />
+                  <circle class="c" cx="55" cy="146" r="2.2" />
+                  <circle class="c" cx="64" cy="146" r="2.2" />
+                  <path class="c" d="M46 166 l5 4.5 -5 4.5 M58 170.5 H96" />
+                  <path class="c faint" d="M46 186 H150 M46 199 H126 M46 212 H140" />
+                  <path class="c" d="M46 224 l5 4.5 -5 4.5" />
+                  <rect class="cursor" x="58" y="224" width="7" height="10" rx="1" />
+                  <text class="tc" x="104" y="264" text-anchor="middle">client</text>
+
+                  <ellipse class="s" cx="312" cy="150" rx="38" ry="10" />
+                  <path class="s" d="M274 150 V230 a38 10 0 0 0 76 0 V150 M274 190 a38 10 0 0 0 76 0" />
+                  <text class="ts" x="312" y="264" text-anchor="middle">server</text>
+                </g>
+              </svg>
             </div>
           ))
         }
       </div>
     </div>
-
-    <p class="more">
-      How apps are shipped, and when an app you did not write runs confined:{" "}
-      <a href="/docs/guides/opening-an-app/">opening an app</a>,{" "}
-      <a href="/docs/guides/untrusted-apps/">apps you did not write</a>.
-    </p>
   </div>
 </section>
 
@@ -258,21 +360,6 @@ const targets: Target[] = [
     gap: 16px;
   }
 
-  .source {
-    color: var(--paper);
-    font: 400 0.85rem / 1.5 var(--mono);
-  }
-
-  .source code {
-    padding: 0;
-    background: none;
-    color: var(--paper);
-    font-weight: 600;
-  }
-
-  .dim {
-    color: var(--dim);
-  }
 
   .ways {
     display: grid;
@@ -338,6 +425,58 @@ const targets: Target[] = [
     font: 400 0.88rem / 1.5 var(--sans);
   }
 
+  /* A way built two ways: both lines in one place, each shown in its half of the slide. */
+  .views {
+    display: grid;
+  }
+
+  .view {
+    display: grid;
+    grid-area: 1 / 1;
+    gap: 4px;
+  }
+
+  .phase-1 {
+    opacity: 0;
+  }
+
+  [aria-selected="true"] .phase-0,
+  .scene .phase-0 {
+    animation: phase-0 var(--slide, 4.5s) linear forwards;
+  }
+
+  [aria-selected="true"] .phase-1,
+  .scene .phase-1 {
+    animation: phase-1 var(--slide, 4.5s) linear forwards;
+  }
+
+  .held :is(.phase-0, .phase-1),
+  .away :is(.phase-0, .phase-1) {
+    animation-play-state: paused;
+  }
+
+  @keyframes phase-0 {
+    0%,
+    48% {
+      opacity: 1;
+    }
+    52%,
+    100% {
+      opacity: 0;
+    }
+  }
+
+  @keyframes phase-1 {
+    0%,
+    48% {
+      opacity: 0;
+    }
+    52%,
+    100% {
+      opacity: 1;
+    }
+  }
+
   .progress {
     position: absolute;
     bottom: -1px;
@@ -356,16 +495,31 @@ const targets: Target[] = [
     animation-play-state: paused;
   }
 
+  /* The middle of a slide of two views, where the second begins: a notch in the bar. */
+  .half {
+    display: none;
+    position: absolute;
+    bottom: -1px;
+    left: 50%;
+    width: 3px;
+    height: 2px;
+    background: var(--night);
+  }
+
+  [aria-selected="true"] .half {
+    display: block;
+  }
+
   @keyframes fill {
     to {
       width: 100%;
     }
   }
 
-  /* The square: one scene at a time, drawn large. */
+  /* The frame: one scene at a time, drawn large, in the proportions of the drawing. */
   .square {
     display: grid;
-    aspect-ratio: 1;
+    aspect-ratio: 4 / 3;
     border: 1px solid var(--rule-strong);
     border-radius: 4px;
     background: color-mix(in srgb, var(--panel) 60%, transparent);
@@ -375,42 +529,25 @@ const targets: Target[] = [
     display: grid;
     align-content: center;
     grid-area: 1 / 1;
-    padding: clamp(20px, 4vw, 48px);
+    padding: clamp(8px, 2.5vw, 32px);
     color: var(--mist);
     font: 400 0.82rem / 1.4 var(--mono);
-    animation: arrive 0.35s ease-out;
+  }
+
+  /* The two sides stay put from one scene to the next; only what changes arrives. */
+  .scene .vary {
+    animation: arrive 0.4s ease-out;
   }
 
   @keyframes arrive {
     from {
       opacity: 0;
-      transform: translateY(8px);
     }
   }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   /* The drawings: the medium in plain strokes, the client's part in its colour, the
-     server's in its own, with the cue that is not colour (dashes where hues are near). */
+     server's in its own, with the cue that is not colour (dashes where hues are near).
+     Colour names a side and nothing else: every other word is in the neutrals. */
   .scene svg {
     width: 100%;
     height: auto;
@@ -426,6 +563,10 @@ const targets: Target[] = [
     stroke: var(--mist);
   }
 
+  .scene .dot {
+    fill: var(--mist);
+  }
+
   .scene .p {
     stroke: var(--paper);
   }
@@ -434,22 +575,25 @@ const targets: Target[] = [
     stroke: var(--client);
   }
 
+  /* The terminal's cursor, blinking as one does. */
+  .scene .cursor {
+    fill: var(--client);
+    animation: blink 1.1s steps(1) infinite;
+  }
+
+  @keyframes blink {
+    50% {
+      opacity: 0;
+    }
+  }
+
   .scene .s {
     stroke: var(--server);
     stroke-dasharray: var(--server-dash, none);
   }
 
-  .scene .fill {
-    fill: var(--server);
-    stroke-dasharray: none;
-  }
-
   .scene .faint {
     opacity: 0.45;
-  }
-
-  .scene .thin {
-    stroke-width: 1;
   }
 
   .scene .dash {
@@ -461,8 +605,8 @@ const targets: Target[] = [
     font-size: 12px;
   }
 
-  .scene .small {
-    font-size: 10.5px;
+  .scene .tiny {
+    font-size: 10px;
   }
 
   .scene .t {
@@ -471,7 +615,7 @@ const targets: Target[] = [
 
   .scene .tp {
     fill: var(--paper);
-    font-size: 13px;
+    font-weight: 500;
   }
 
   .scene .tc {
@@ -482,16 +626,14 @@ const targets: Target[] = [
     fill: var(--server);
   }
 
-  .more {
-    margin-top: 32px;
-    color: var(--mist);
-    font-size: 0.88rem;
-  }
 
   /* Still: the chosen way stays until the reader picks another. */
   @media (prefers-reduced-motion: reduce) {
     [aria-selected="true"] .progress,
-    .scene {
+    .scene .vary,
+    .scene .cursor,
+    [aria-selected="true"] :is(.phase-0, .phase-1),
+    .scene :is(.phase-0, .phase-1) {
       animation: none;
     }
   }
