@@ -68,6 +68,19 @@
         "zod": "catalog:",
       },
     },
+    "examples/flow": {
+      "name": "@luciole-examples/flow",
+      "dependencies": {
+        "@luciole/flow": "workspace:*",
+        "@opentui/core": "catalog:",
+        "@opentui/keymap": "catalog:",
+        "@opentui/react": "catalog:",
+        "@tanstack/react-router": "catalog:",
+        "luciole": "workspace:*",
+        "react": "catalog:",
+        "zod": "catalog:",
+      },
+    },
     "examples/forge": {
       "name": "@luciole-examples/forge",
       "dependencies": {
@@ -351,6 +364,8 @@
     "@luciole-examples/coder": ["@luciole-examples/coder@workspace:examples/coder"],
 
     "@luciole-examples/files": ["@luciole-examples/files@workspace:examples/files"],
+
+    "@luciole-examples/flow": ["@luciole-examples/flow@workspace:examples/flow"],
 
     "@luciole-examples/forge": ["@luciole-examples/forge@workspace:examples/forge"],
 

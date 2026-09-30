@@ -25,6 +25,7 @@ const projects = [
   "examples/mux",
   "examples/coder",
   "examples/studio",
+  "examples/flow",
   "examples/studio/template",
 ];
 const MS_PER_SECOND = 1000;
