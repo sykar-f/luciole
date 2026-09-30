@@ -34,6 +34,9 @@ export type MarkdownPalette = {
 
 // How far a quote's bar goes from the accent toward the band: present, not loud.
 const QUOTE_BAR = 0.45;
+// How far operators and punctuation step back from the text toward the muted color.
+const OPERATOR = 0.4;
+const PUNCTUATION = 0.65;
 /** `from` moved toward `to` by `amount` (0 to 1). */
 function mix(from: string, to: string, amount: number) {
   const a = RGBA.fromHex(from);
@@ -81,6 +84,7 @@ export function markdownStyle(palette: MarkdownPalette): SyntaxStyle {
     "markup.list.checked": fg(palette.ok),
     "markup.list.unchecked": fg(palette.muted),
     keyword: fg(palette.danger, { bold: true }),
+    "keyword.operator": fg(palette.danger),
     string: fg(palette.code),
     "string.special": fg(palette.code),
     escape: fg(palette.link),
@@ -98,6 +102,27 @@ export function markdownStyle(palette: MarkdownPalette): SyntaxStyle {
     namespace: fg(palette.ok),
     "variable.builtin": fg(palette.ok),
     tag: fg(palette.ok),
+    "tag.attribute": fg(palette.link),
+    // Names read as text; what only structures the code steps back, so that strings,
+    // keywords and calls stand out.
+    variable: fg(palette.text),
+    "variable.parameter": fg(palette.text, { italic: true }),
+    parameter: fg(palette.text, { italic: true }),
+    "variable.member": fg(palette.text),
+    none: fg(palette.text),
+    embedded: fg(palette.text),
+    operator: { fg: mix(palette.text, palette.muted, OPERATOR) },
+    punctuation: { fg: mix(palette.text, palette.muted, PUNCTUATION) },
+    delimiter: { fg: mix(palette.text, palette.muted, PUNCTUATION) },
+    "punctuation.special": fg(palette.accent),
+    "string.escape": fg(palette.link),
+    "string.regexp": fg(palette.link),
+    "character.special": fg(palette.link),
+    "function.builtin": fg(palette.accent, { italic: true }),
+    "function.macro": fg(palette.accent, { italic: true }),
+    "type.builtin": fg(palette.ok, { italic: true }),
+    "constant.builtin": fg(palette.link, { bold: true }),
+    "comment.documentation": fg(palette.muted, { italic: true }),
     // Code blocks tagged diff or patch, colored line by line.
     "diff.plus": fg(palette.ok),
     "diff.minus": fg(palette.danger),

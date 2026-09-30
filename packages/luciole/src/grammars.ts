@@ -1,6 +1,7 @@
 /**
  * `import "luciole/grammars"`: Tree-sitter grammars for the languages OpenTUI 0.5.12 does not
- * highlight on its own (it ships JavaScript, TypeScript, Markdown and Zig). Once imported,
+ * highlight on its own (it ships JavaScript, TypeScript, Markdown and Zig), and TypeScript
+ * and TSX done right. Once imported,
  * `<code>`, `<diff>` and `<Markdown>` code blocks in these languages are highlighted.
  *
  * Opt-in, because each grammar is a WebAssembly file the build copies next to the bundle
@@ -38,6 +39,13 @@ import toml from "@tree-sitter-grammars/tree-sitter-toml/tree-sitter-toml.wasm" 
 import tomlHighlights from "@tree-sitter-grammars/tree-sitter-toml/queries/highlights.scm" with { type: "file" };
 import yaml from "@tree-sitter-grammars/tree-sitter-yaml/tree-sitter-yaml.wasm" with { type: "file" };
 import yamlHighlights from "@tree-sitter-grammars/tree-sitter-yaml/queries/highlights.scm" with { type: "file" };
+import lua from "@tree-sitter-grammars/tree-sitter-lua/tree-sitter-lua.wasm" with { type: "file" };
+import luaHighlights from "@tree-sitter-grammars/tree-sitter-lua/queries/highlights.scm" with { type: "file" };
+import typescript from "tree-sitter-typescript/tree-sitter-typescript.wasm" with { type: "file" };
+import tsx from "tree-sitter-typescript/tree-sitter-tsx.wasm" with { type: "file" };
+// OpenTUI's own TypeScript queries, fixed (see the file), and JSX on top for TSX.
+import typescriptHighlights from "./queries/typescript.scm" with { type: "file" };
+import jsxHighlights from "./queries/jsx.scm" with { type: "file" };
 
 /**
  * Where a copied file is. The bundler writes its path relative to the bundle, and OpenTUI
@@ -70,6 +78,7 @@ export const GRAMMARS: readonly FiletypeParserOptions[] = [
   },
   { filetype: "html", wasm: at(html), queries: { highlights: [at(htmlHighlights)] } },
   { filetype: "java", wasm: at(java), queries: { highlights: [at(javaHighlights)] } },
+  { filetype: "lua", wasm: at(lua), queries: { highlights: [at(luaHighlights)] } },
   {
     filetype: "json",
     aliases: ["jsonc"],
@@ -81,6 +90,20 @@ export const GRAMMARS: readonly FiletypeParserOptions[] = [
   { filetype: "ruby", wasm: at(ruby), queries: { highlights: [at(rubyHighlights)] } },
   { filetype: "rust", wasm: at(rust), queries: { highlights: [at(rustHighlights)] } },
   { filetype: "toml", wasm: at(toml), queries: { highlights: [at(tomlHighlights)] } },
+  // Replaces OpenTUI's TypeScript, whose queries drew every identifier as a constant.
+  {
+    filetype: "typescript",
+    aliases: ["ts", "mts", "cts"],
+    wasm: at(typescript),
+    queries: { highlights: [at(typescriptHighlights)] },
+  },
+  // OpenTUI reads TSX with the TypeScript grammar, which JSX derails.
+  {
+    filetype: "typescriptreact",
+    aliases: ["tsx"],
+    wasm: at(tsx),
+    queries: { highlights: [at(typescriptHighlights), at(jsxHighlights)] },
+  },
   { filetype: "yaml", wasm: at(yaml), queries: { highlights: [at(yamlHighlights)] } },
 ];
 

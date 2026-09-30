@@ -16,6 +16,7 @@
       "@sqlite.org/sqlite-wasm": "3.53.4-build1",
       "@tanstack/react-form": "1.33.5",
       "@tanstack/react-router": "1.170.38",
+      "@tree-sitter-grammars/tree-sitter-lua": "0.4.1",
       "@tree-sitter-grammars/tree-sitter-toml": "0.7.0",
       "@tree-sitter-grammars/tree-sitter-yaml": "0.7.1",
       "@types/bun": "1.4.2",
@@ -47,6 +48,7 @@
       "tree-sitter-python": "0.25.0",
       "tree-sitter-ruby": "0.23.1",
       "tree-sitter-rust": "0.24.0",
+      "tree-sitter-typescript": "0.23.2",
       "typescript": "7.0.2",
       "zod": "4.6.5"
     }
