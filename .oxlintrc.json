@@ -61,7 +61,7 @@
   },
   "overrides": [
     {
-      "files": ["tests/**", "scripts/pty/**"],
+      "files": ["tests/**", "scripts/pty/**", "packages/*/test/**"],
       "rules": {
         "no-magic-numbers": "off"
       }
@@ -83,6 +83,7 @@
   "ignorePatterns": [
     "**/node_modules/**",
     "**/.luciole/**",
+    "packages/flow/dist/**",
     "**/routeTree.gen.ts",
     "probes/vt-embed/**",
     "probes/devtools-tanstack/**",

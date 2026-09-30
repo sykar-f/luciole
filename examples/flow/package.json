@@ -1,0 +1,19 @@
+{
+  "name": "@luciole-examples/flow",
+  "private": true,
+  "type": "module",
+  "description": "A CI pipeline editor on a node canvas: steps kept and run by the Server, drawn with @luciole/flow.",
+  "luciole": {
+    "displayName": "flow"
+  },
+  "dependencies": {
+    "luciole": "workspace:*",
+    "@luciole/flow": "workspace:*",
+    "@opentui/core": "catalog:",
+    "@opentui/keymap": "catalog:",
+    "@opentui/react": "catalog:",
+    "@tanstack/react-router": "catalog:",
+    "react": "catalog:",
+    "zod": "catalog:"
+  }
+}

@@ -6,6 +6,7 @@
   "ignorePatterns": [
     "**/node_modules/**",
     "**/.luciole/**",
+    "packages/flow/dist/**",
     "**/routeTree.gen.ts",
     "bun.lock",
     "**/bun.lock",
