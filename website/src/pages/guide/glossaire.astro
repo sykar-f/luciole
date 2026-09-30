@@ -8,6 +8,8 @@ import { source } from "../../lib/links";
 // The list is read from the checkout: a new module without a line here fails the build.
 const modules: Record<string, [string, string]> = {
   "cli.ts": ["arguments et registre des sous-commandes", "demarrage"],
+  "mascot.ts": ["la luciole de luciole init, en demi-blocs et couleurs 24 bits, seulement pour une personne à un terminal en couleur", "demarrage"],
+  "mascot-sprite.gen.ts": ["pixels et palette de la mascotte, générés depuis website/design/mascot/small", "demarrage"],
   "args.ts": ["luciole/args : arguments déclarés par app/args.ts, grammaire, aide, LUCIOLE_ARGS relu par le Server", "demarrage"],
   commands: ["une sous-commande par fichier : dev, build, start, devtools, keys, trust…", "demarrage"],
   dev: ["luciole/dev : supervision d'une app en développement (Server jusqu'à sa ligne ready, bearer, rebuilds un à la fois, échecs de page), partagée par luciole dev et studio", "demarrage"],
