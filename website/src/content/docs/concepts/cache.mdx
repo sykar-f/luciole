@@ -73,7 +73,7 @@ A cached function that calls another inherits its tags and its shortest lifetime
 <Note kind="warning">
   `getSession()` and `getOptionalSession()` **throw** inside a cached function and anything it
   calls: its result is shared by every caller with the same arguments. Pass the identity as an
-  argument, as Notes' pages do with `notesOf(getSession().userId)`.
+  argument, as Notes does with `noteOf(getSession().userId, params.id)`.
 </Note>
 
 ## Where entries live
@@ -115,7 +115,7 @@ export const staleTime = 30; // seconds; a literal or a product (5 * 60)
 
 For that long, coming back to the page shows its cached tree **without a request**. Without
 it, the cached tree shows and then revalidates. An invalidation (path, tag, `refresh()`)
-overrides it. Notes' list declares 30 seconds.
+overrides it.
 
 ## Outside a Server Function
 

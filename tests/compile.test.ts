@@ -62,17 +62,17 @@ test("the compiled Client runs alone: no Bun, no node_modules, same build as its
     });
     let screen = "";
     const deadline = performance.now() + 15000;
-    while (performance.now() < deadline && !screen.includes("First note")) {
+    while (performance.now() < deadline && !screen.includes("Welcome to Notes")) {
       await Bun.sleep(100);
       screen = Bun.stripANSI(await readFile(log, "utf8").catch(() => ""));
     }
     await Bun.write(join(run, "stop"), "");
     await Promise.race([client.exited, Bun.sleep(3000).then(() => client.kill())]);
     // The list only exists once the Server answered (the renderer redraws changed cells
-    // only, so the heading's status is not captured as one word).
-    expect(screen).toContain("TERMINAL / NOTES");
-    expect(screen).toContain("YOUR NOTES");
-    expect(screen).toContain("First note");
+    // only, so a status is not captured as one word).
+    expect(screen).toContain("+ New note");
+    expect(screen).toContain("No note selected");
+    expect(screen).toContain("Welcome to Notes");
     // The build identity travels inside the binary.
     expect(await Bun.file(outfile).text()).toContain(buildId);
     await rm(run, { recursive: true, force: true });

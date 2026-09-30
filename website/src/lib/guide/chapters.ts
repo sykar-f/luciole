@@ -33,7 +33,7 @@ export const chapters: Chapter[] = [
   {
     slug: "navigation",
     title: "Une navigation",
-    question: "Que se passe-t-il entre Entrée et la note affichée ?",
+    question: "Que se passe-t-il entre un clic sur une note et la note affichée ?",
     minutes: 14,
     part: "Une requête, de bout en bout",
   },

@@ -2,7 +2,7 @@
 import { test, expect } from "bun:test";
 import { act } from "react";
 import { testRender } from "@opentui/react/test-utils";
-import { InputRenderable } from "@opentui/core";
+import { TextareaRenderable } from "@opentui/core";
 import { mkdtemp, rm, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -15,8 +15,8 @@ import {
   importClient,
   destroy,
   draftOf,
-  metricsOf,
   renderable,
+  clickOn,
   type TestUI,
 } from "./helpers";
 const root = resolve("examples/notes");
@@ -29,10 +29,16 @@ const SaveResult = z.discriminatedUnion("ok", [
       title: z.string(),
       value: z.string(),
       version: z.number(),
+      updated: z.number(),
     }),
     operationId: z.string(),
   }),
-  z.strictObject({ ok: z.literal(false), error: z.string(), operationId: z.string() }),
+  z.strictObject({
+    ok: z.literal(false),
+    error: z.string(),
+    operationId: z.string(),
+    conflict: z.optional(z.boolean()),
+  }),
 ]);
 const count = (db: Database) =>
   db.query<{ n: number }, []>("SELECT COUNT(*) AS n FROM operations").get()?.n;
@@ -43,6 +49,7 @@ test("lost commit: durable outcome recovery, no mutation replay, reconnect refre
   let server = await launch(join(root, ".luciole/server/index.js"), {
     NOTES_DB: dbPath,
     LUCIOLE_TEST_DROP_ONCE: "1",
+    NOTES_AUTOSAVE_MS: "0",
   });
   const { createApp, Shell } = await importClient(root, "loss");
   const app = createApp({ url: server.url, initialPath: "/notes/1" });
@@ -51,11 +58,16 @@ test("lost commit: durable outcome recovery, no mutation replay, reconnect refre
     await app.router.load();
     const ui = await testRender(<Shell app={app} />, { width: 100, height: 24 });
     rendered = ui;
+    // Return edits the note shown; Ctrl+S saves it.
+    await act(async () => {
+      ui.mockInput.pressEnter();
+    });
+    const seed = renderable(ui, "note-1", TextareaRenderable).plainText;
     await act(async () => {
       await ui.mockInput.typeText("abc");
     });
     await act(async () => {
-      ui.mockInput.pressEnter();
+      ui.mockInput.pressKey("s", { ctrl: true });
     });
     const draft = draftOf(app, "1");
     await act(async () => {
@@ -67,12 +79,13 @@ test("lost commit: durable outcome recovery, no mutation replay, reconnect refre
     server = await launch(join(root, ".luciole/server/index.js"), {
       NOTES_DB: dbPath,
       PORT: String(server.port),
+      NOTES_AUTOSAVE_MS: "0",
     });
     expect(server.pid).not.toBe(previousPid);
     await act(async () => {
       await ui.mockInput.typeText("d");
     });
-    expect(draft.value).toBe("abcd");
+    expect(draft.value).toBe(`${seed}abcd`);
     const db = new Database(dbPath, { readonly: true });
     expect(
       db
@@ -81,7 +94,7 @@ test("lost commit: durable outcome recovery, no mutation replay, reconnect refre
         )
         .get("1"),
     ).toEqual({
-      value: "abc",
+      value: `${seed}abc`,
       version: 2,
     });
     expect(count(db)).toBe(1);
@@ -89,21 +102,21 @@ test("lost commit: durable outcome recovery, no mutation replay, reconnect refre
       await app.refresh();
     });
     expect(draft.unknown).toBe(true);
+    // The toolbar says the outcome is unknown and offers to check again.
     await act(async () => {
-      ui.mockInput.pressKey("o", { ctrl: true });
+      await clickOn(ui, "Check again");
     });
     await act(async () => {
       await until(() => !draft.pending);
       await Bun.sleep(30);
     });
-    expect(draft.baseline).toBe("abc");
-    expect(draft.value).toBe("abcd");
+    expect(draft.baseline).toBe(`${seed}abc`);
+    expect(draft.value).toBe(`${seed}abcd`);
     expect(draft.version).toBe(2);
     expect(draft.unknown).toBe(false);
+    // One operation stored, the lost one: resolving it looked it up, never replayed it.
     expect(count(db)).toBe(1);
     db.close();
-    const metrics = await metricsOf(server);
-    expect(metrics.actions).toBe(1); // only the lookup in the restarted process; no save replay
     expect(operationId).toBeDefined();
     expect(app.status).toBe("Connected");
   } finally {
@@ -117,6 +130,7 @@ test("out-of-order navigation, incompatible build preserves mounted editor, refr
   const dir = await mkdtemp(join(tmpdir(), "luciole-network-"));
   const server = await launch(join(root, ".luciole/server/index.js"), {
     NOTES_DB: join(dir, "notes.sqlite"),
+    NOTES_AUTOSAVE_MS: "0",
   });
   const { createApp, Shell } = await importClient(root, "network");
   let slow = false,
@@ -128,7 +142,10 @@ test("out-of-order navigation, incompatible build preserves mounted editor, refr
     fetch: async (input: URL, init: RequestInit) => {
       const url = String(input);
       if (incompatible) return new Response("Incompatible build", { status: 409 });
-      if (block && url.includes("/render")) throw new Error("network unavailable during refresh");
+      // The refresh after the save fails, and so does the sidebar's list read beside it.
+      const listing = new Headers(init.headers).get("x-luciole-action")?.endsWith("#listNotes");
+      if (block && (url.includes("/render") || listing))
+        throw new Error("network unavailable during refresh");
       if (slow && new URL(url).searchParams.get("params") === '{"id":"1"}') await Bun.sleep(350);
       return fetch(input, init);
     },
@@ -139,18 +156,22 @@ test("out-of-order navigation, incompatible build preserves mounted editor, refr
     const ui = await testRender(<Shell app={app} />, { width: 100, height: 24 });
     rendered = ui;
     await act(async () => {
+      ui.mockInput.pressEnter();
+    });
+    const seed = renderable(ui, "note-1", TextareaRenderable).plainText;
+    await act(async () => {
       await ui.mockInput.typeText("abc");
     });
     block = true;
     await act(async () => {
-      ui.mockInput.pressEnter();
+      ui.mockInput.pressKey("s", { ctrl: true });
     });
     const draft = draftOf(app, "1");
     await act(async () => {
       await until(() => !draft.pending);
       await until(() => app.status === "Disconnected");
     });
-    expect(draft.baseline).toBe("abc");
+    expect(draft.baseline).toBe(`${seed}abc`);
     expect(draft.unknown).toBe(false);
     expect(draft.dirty).toBe(false);
     block = false;
@@ -166,7 +187,11 @@ test("out-of-order navigation, incompatible build preserves mounted editor, refr
     });
     // The latest navigation wins; the slower superseded response never replaces it.
     expect(app.router.state.resolvedLocation?.pathname).toBe("/notes/2");
-    const field = renderable(ui, "note-2", InputRenderable);
+    const field = renderable(ui, "note-2", TextareaRenderable);
+    const other = field.plainText;
+    await act(async () => {
+      ui.mockInput.pressEnter();
+    });
     await act(async () => {
       await ui.mockInput.typeText("keep");
     });
@@ -176,11 +201,11 @@ test("out-of-order navigation, incompatible build preserves mounted editor, refr
     });
     expect(app.status).toBe("Incompatible build");
     expect(ui.renderer.root.findDescendantById("note-2")).toBe(field);
-    expect(field.value).toBe("keep");
+    expect(field.plainText).toBe(`${other}keep`);
     await act(async () => {
       await ui.mockInput.typeText("!");
     });
-    expect(field.value).toBe("keep!");
+    expect(field.plainText).toBe(`${other}keep!`);
     const bad = await fetch(server.url + "/render?route=%2F&params=%7B%7D", {
       headers: { "x-luciole-build": "old" },
     });
@@ -253,21 +278,22 @@ test("Notes validation, normalization, version conflict, durable deduplication a
       );
     const snapshot = {
       id: "1",
-      value: "",
+      value: "x".repeat(20_001),
       version: 1,
       revision: 0,
       operationId: crypto.randomUUID(),
     };
     expect((await save(snapshot)).ok).toBe(false);
+    // Leading spaces are Markdown (an indented block); trailing ones are dropped.
     const valid = {
       ...snapshot,
-      value: " abc ",
+      value: " abc \n\n",
       operationId: crypto.randomUUID(),
     };
     const result = await save(valid);
     expect(result.ok).toBe(true);
     const note = result.ok ? result.note : undefined;
-    expect(note?.value).toBe("abc");
+    expect(note?.value).toBe(" abc");
     expect(note?.version).toBe(2);
     expect(await save(valid)).toEqual(result);
     const conflict = await save({
@@ -276,7 +302,7 @@ test("Notes validation, normalization, version conflict, durable deduplication a
       operationId: crypto.randomUUID(),
     });
     expect(conflict.ok).toBe(false);
-    expect(conflict.ok ? "" : conflict.error).toContain("conflict");
+    expect(conflict.ok ? false : conflict.conflict).toBe(true);
   } finally {
     await server.stop();
     await rm(dir, { recursive: true, force: true });

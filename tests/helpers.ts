@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
 import { act, type ReactNode } from "react";
+import type { MouseButton } from "@opentui/core/testing";
 import type { testRender } from "@opentui/react/test-utils";
 import { z } from "zod";
 import type { Application, ApplicationOptions } from "../packages/luciole/src/client";
@@ -141,7 +142,7 @@ export function draftOf(app: Application, id: string) {
   const store = draftsOf(app);
   const opened = store.size;
   // `get` opens a Draft from a Note when none exists: the size tells whether it did.
-  const draft = store.get({ id, title: "", value: "", version: 0 });
+  const draft = store.get({ id, title: "", value: "", version: 0, updated: 0 });
   if (store.size !== opened) throw new Error(`No Draft is open for note ${id}`);
   return draft;
 }
@@ -225,4 +226,18 @@ export async function leaveCrashedSession(state: string, name: string, key: stri
 export function renderBody(page: string, tags: string[] = []) {
   const bytes = new TextEncoder().encode(page).byteLength.toString(16);
   return `1:R\n0:{"tree":"$1","tags":"$@2"}\n1:o${bytes},${page}1:C\n2:${JSON.stringify(tags)}\n`;
+}
+
+/** Where `text` is drawn: its first cell, or undefined when the frame does not show it. */
+export function cellOf(ui: TestUI, text: string) {
+  const rows = ui.captureCharFrame().split("\n");
+  const y = rows.findIndex((row) => row.includes(text));
+  return y < 0 ? undefined : { x: rows[y]?.indexOf(text) ?? 0, y };
+}
+/** A left click on the first cell of `text`, as a user points at a label; fails if not shown. */
+export async function clickOn(ui: TestUI, text: string, button?: MouseButton) {
+  await ui.renderOnce();
+  const cell = cellOf(ui, text);
+  if (!cell) throw new Error(`Nothing to click: "${text}" is not shown\n${ui.captureCharFrame()}`);
+  await ui.mockMouse.click(cell.x, cell.y, button);
 }

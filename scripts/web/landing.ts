@@ -22,9 +22,9 @@ const MATCHING_ROWS = 0.95;
 const AFTER_MS = 1500;
 const REVEAL_TIMEOUT_MS = 40_000;
 const VISITS = 2;
-/** Notes, in Wire: Return opens the selected note, whose editor shows its baseline. */
+/** Notes, in Wire: Return opens the most recent note, shown with its Edit button. */
 const NOTES_FRAME = `document.querySelector('#wire [data-live] iframe')`;
-const NOTE_EDITOR = "baseline:";
+const NOTE_EDITOR = "✎ Edit";
 /** Longer than the runtime's delay before it saves a session (run.tsx, SAVE_DELAY_MS). */
 const SAVED_MS = 500;
 /** How many differing rows a failure quotes. */

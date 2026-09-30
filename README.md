@@ -87,7 +87,7 @@ Other examples, run from the repository root:
 
 | Command                     | Example                                                      |
 | --------------------------- | ------------------------------------------------------------ |
-| `bun run dev`               | Notes: list, editor, SQLite on the Server                    |
+| `bun run dev`               | Notes: Markdown notebook, by mouse, SQLite on the Server     |
 | `CHAT_DEMO=1 bun run chat`  | AI chat with a scripted offline model (no API key)           |
 | `bun run files`             | File explorer of the current directory                       |
 | `bun run mdreader`          | Markdown reader for the `.md` files of the current directory |

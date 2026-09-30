@@ -15,24 +15,25 @@ first line say which.
 
 ## The files
 
-| File                         | Side   | What it does                                                                     |
-| ---------------------------- | ------ | -------------------------------------------------------------------------------- |
-| `app/layout.tsx`             | Client | The persistent chrome: connection status, global keys, the key help.             |
-| `app/page.tsx`               | Server | The list, read from the database through a cached query.                         |
-| `app/notes/layout.tsx`       | Client | Stays mounted between notes: the trail of notes opened this visit.               |
-| `app/notes/[id]/page.tsx`    | Server | Loads a note and hands the save action to the editor as a prop.                  |
-| `app/notes/[id]/loading.tsx` | Client | Shown the moment <kbd>Enter</kbd> is pressed, while the page travels.            |
-| `app/error.tsx`              | Client | A page that failed to load, with its outcome.                                    |
-| `app/routeTree.gen.ts`       | —      | The typed route tree, written by the build. Committed, never edited.             |
-| `components/NoteList.tsx`    | Client | Selection and navigation, handled in the terminal.                               |
-| `components/NoteEditor.tsx`  | Client | Every keystroke, the save key, the restorable field.                             |
-| `components/NoteFrame.tsx`   | both   | Presentation shared by the Server page and the loading screen; no Server access. |
-| `components/draft.ts`        | Client | Notes' own policy: Drafts in memory, saves whose outcome is unknown.             |
-| `actions/notes.ts`           | Server | Server Functions, `"use server"`: `saveNote`, `getOperation`.                    |
-| `server/repository.ts`       | Server | SQLite, ownership checks and transactions.                                       |
-| `server/schemas.ts`          | Server | Zod schemas for the arguments the Server receives.                               |
-| `server/queries.ts`          | Server | Reads cached with `"use cache"`, tagged.                                         |
-| `server/tags.ts`             | Server | The cache tags of those reads.                                                   |
+| File                           | Side   | What it does                                                                         |
+| ------------------------------ | ------ | ------------------------------------------------------------------------------------ |
+| `app/layout.tsx`               | Client | The persistent window: toolbar, connection status, the sidebar and its search.       |
+| `app/page.tsx`                 | Server | No note chosen yet: what to do next.                                                 |
+| `app/notes/[id]/page.tsx`      | Server | Loads a note and hands the save and lookup actions to the editor as props.           |
+| `app/notes/[id]/loading.tsx`   | Client | Shown the moment a note is clicked, while the page travels.                          |
+| `app/notes/[id]/not-found.tsx` | Client | A deleted note, or one that never was.                                               |
+| `app/error.tsx`                | Client | A page that failed to load: why, and a button to try again.                          |
+| `app/routeTree.gen.ts`         | —      | The typed route tree, written by the build. Committed, never edited.                 |
+| `components/Sidebar.tsx`       | Client | Search, selection and navigation, handled in the terminal.                           |
+| `components/notes-list.ts`     | Client | The sidebar's notes, read through a Server Function and again after each change.     |
+| `components/NoteEditor.tsx`    | Client | Every keystroke, the Markdown view, autosave, the restorable field.                  |
+| `components/NoteFrame.tsx`     | Client | No directive: shared by the editor and the loading screen, it follows its importers. |
+| `components/draft.ts`          | Client | Notes' own policy: Drafts in memory, saves whose outcome is unknown.                 |
+| `actions/notes.ts`             | Server | Server Functions, `"use server"`: `saveNote`, `getOperation`, `listNotes` and more.  |
+| `server/repository.ts`         | Server | SQLite, ownership checks and transactions.                                           |
+| `server/schemas.ts`            | Server | Zod schemas for the arguments the Server receives.                                   |
+| `server/queries.ts`            | Server | Reads cached with `"use cache"`, tagged.                                             |
+| `server/tags.ts`               | Server | The cache tags of those reads.                                                       |
 
 Two optional files are absent from Notes: `server/auth.ts`, an identity adapter
 ([authentication](/docs/concepts/authentication/)), and `server/cache.ts`, the cache handler
@@ -53,8 +54,9 @@ You write no RPC protocol, module registry, Flight manifest or OpenTUI bootstrap
   tone="server"
 />
 
-2. The editor handles each key locally. <kbd>Ctrl+S</kbd> or <kbd>Enter</kbd> calls `send`,
-   which calls the reference through Notes' Draft store and the restored-field group:
+2. The editor handles each key locally. About a second after typing stops (or on **Save**
+   when autosave is off), it calls `send`, which calls the reference through Notes' Draft
+   store and the restored-field group:
 
 <Excerpt
   path="examples/notes/components/NoteEditor.tsx"
@@ -76,7 +78,7 @@ You write no RPC protocol, module registry, Flight manifest or OpenTUI bootstrap
 />
 
 4. The repository writes the note and the operation's result in one SQLite transaction:
-   that is what lets <kbd>Ctrl+O</kbd> look up a save whose response was lost.
+   that is what lets the **Check again** button look up a save whose response was lost.
 
 5. The response carries the result and the invalidated tags. The Client revalidates the
    routes that read them; the editor confirms its Draft.

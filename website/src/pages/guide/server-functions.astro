@@ -61,7 +61,7 @@ const zones = [
     ]}
     messages={[
       { phase: "Dans le terminal" },
-      { from: "editor", to: "editor", label: "Entrée : Draft → Snapshot", n: 1 },
+      { from: "editor", to: "editor", label: "1 s sans frappe : Draft → Snapshot", n: 1 },
       { from: "editor", to: "transport", label: "saveAction(snapshot)", n: 2 },
       { from: "transport", to: "transport", label: "encodeReply(args)", n: 3 },
       { phase: "Sur le Server" },
@@ -115,7 +115,7 @@ x-luciole-action: e01495558432a2514ca7203e/actions/notes.ts#saveNote
       lang="json"
       label="réponse capturée"
       code={`0:{"kind":"result",
-   "value":{"ok":true,"note":{"id":"1","title":"First note","value":"Buy milk","version":2},"operationId":"3f1c2a9e-…"},
+   "value":{"ok":true,"note":{"id":"1","title":"Welcome to Notes","value":"Buy milk","version":2,"updated":1790758800000},"operationId":"3f1c2a9e-…"},
    "callId":"11111111-2222-3333-4444-555555555555",
    "invalidate":[],
    "tags":["notes:local","note:local:1"]}`}
@@ -124,7 +124,7 @@ x-luciole-action: e01495558432a2514ca7203e/actions/notes.ts#saveNote
 
   <Step n="10–11" tone="wire" title="Le Client vérifie, revalide, puis rend la valeur">
     <Excerpt path={T} find="const envelope = ActionEnvelope.safeParse(decoded);" count={6} tone="wire" mark={["envelope.data.callId !== callId", "options.onInvalidate?.(invalidate, tags)"]} />
-    <p>Le Client connaît les tags lus par chaque page affichée ou en cache (la dernière ligne de chaque <code>/render</code>, chapitre 4). Il ne recharge que les routes qui ont lu <code>notes:local</code> ou <code>note:local:1</code>, même si la liste déclarait un <code>staleTime</code> de 30 s. La page de la note 2 n'est pas redemandée.</p>
+    <p>Le Client connaît les tags lus par chaque page affichée ou en cache (la dernière ligne de chaque <code>/render</code>, chapitre 4). Il ne recharge que les routes qui ont lu <code>notes:local</code> ou <code>note:local:1</code> : ici, la page de la note 1. La page de la note 2 n'est pas redemandée. La liste n'est pas une route : le layout l'a lue par la Server Function <code>listNotes</code>, et <code>useInvalidation</code> la lui fait relire.</p>
   </Step>
 
   <h2>Les trois issues d'un échec</h2>
@@ -165,7 +165,7 @@ x-luciole-action: e01495558432a2514ca7203e/actions/notes.ts#saveNote
       <thead><tr><th>Issue</th><th>Notes affiche</th><th>Et ensuite</th></tr></thead>
       <tbody>
         <tr><td><code>not-sent</code>, <code>rejected</code></td><td>« Not saved »</td><td>le texte est intact, réessayer est sans risque</td></tr>
-        <tr><td><code>unknown</code></td><td>« Unknown outcome »</td><td>Ctrl+O appelle <code>getOperation(operationId)</code> pour demander au Server ce qu'est devenue l'opération</td></tr>
+        <tr><td><code>unknown</code></td><td>« Connection lost while saving »</td><td>le bouton « Check again » appelle <code>getOperation(operationId)</code> pour demander au Server ce qu'est devenue l'opération</td></tr>
       </tbody>
     </table>
   </div>
@@ -203,14 +203,14 @@ x-luciole-action: e01495558432a2514ca7203e/actions/notes.ts#saveNote
   </Callout>
 
   <Callout kind="essaie">
-    <p>Lance Notes avec <code>LUCIOLE_FAULT=drop:0.3 bun run dev</code>. La faute touche toutes les requêtes, ouvertures de pages comprises : réessaie jusqu'à ouvrir une note. Enregistre ensuite plusieurs fois. Quand « Unknown outcome » apparaît, prédis la version que Ctrl+O va révéler, puis vérifie. La valeur a bien été écrite : seule la réponse s'est perdue.</p>
+    <p>Lance Notes avec <code>LUCIOLE_FAULT=drop:0.3 bun run dev</code>. La faute touche toutes les requêtes, ouvertures de pages comprises : réessaie jusqu'à ouvrir une note. Modifie-la ensuite plusieurs fois. Quand « Connection lost while saving » apparaît, prédis la version que « Check again » va révéler, puis vérifie. La valeur a bien été écrite : seule la réponse s'est perdue.</p>
   </Callout>
 
   <Quiz
     items={[
       {
         q: "Le Server crashe juste après avoir enregistré la note. Quelle issue reçoit le Client, et comment Notes s'en sort-il ?",
-        a: "<p><code>unknown</code> : <code>fetch</code> échoue sans code « non connecté », ou reçoit un 5xx. Notes passe le Draft en « Unknown outcome » ; Ctrl+O appelle <code>getOperation(operationId)</code>, qui relit la table <code>operations</code>.</p>",
+        a: "<p><code>unknown</code> : <code>fetch</code> échoue sans code « non connecté », ou reçoit un 5xx. Notes passe le Draft en « Connection lost while saving » ; le bouton « Check again » appelle <code>getOperation(operationId)</code>, qui relit la table <code>operations</code>.</p>",
       },
       {
         q: "Pourquoi un 404 sur <code>/action</code> est-il <code>rejected</code> et pas <code>unknown</code> ?",
@@ -218,7 +218,7 @@ x-luciole-action: e01495558432a2514ca7203e/actions/notes.ts#saveNote
       },
       {
         q: "Après avoir enregistré la note 1, quelles pages le Client recharge-t-il ?",
-        a: "<p>Celles dont le rendu a lu <code>notes:local</code> ou <code>note:local:1</code> : la liste et la note 1. La note 2 a lu <code>note:local:2</code> et reste en cache. Une page dont les tags ne sont pas encore arrivés est rechargée par prudence.</p>",
+        a: "<p>Celles dont le rendu a lu <code>notes:local</code> ou <code>note:local:1</code> : la note 1. La note 2 a lu <code>note:local:2</code> et reste en cache. La liste n'est pas une page : le layout la relit par <code>listNotes</code>, prévenu par <code>useInvalidation</code>. Une page dont les tags ne sont pas encore arrivés est rechargée par prudence.</p>",
       },
       {
         q: "Où est décidé qu'une action exige une session ?",

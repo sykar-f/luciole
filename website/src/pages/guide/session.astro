@@ -24,7 +24,7 @@ import Quiz from "../../components/guide/Quiz.astro";
   <Sequence
     title="Un crash, puis le retour"
     lanes={[
-      { id: "field", label: "Champ nommé", sub: "<Input name>", tone: "client" },
+      { id: "field", label: "Champ nommé", sub: "<Textarea name>", tone: "client" },
       { id: "client", label: "Client", sub: "run.tsx", tone: "client" },
       { id: "file", label: "Fichier", sub: "sessions/<uuid>.json", tone: "neutral" },
       { id: "next", label: "Client suivant", sub: "même clé", tone: "client" },
@@ -46,7 +46,7 @@ import Quiz from "../../components/guide/Quiz.astro";
   />
 
   <Step n="1–2" tone="client" title="Seule la frappe crée un champ gardé">
-    <p>Un <code>&lt;Input name="note/text"&gt;</code> enregistre son texte dans l'entrée d'historique où il est apparu. Une valeur posée par le code de l'app ne crée jamais de champ gardé : seule une frappe de l'utilisateur en crée un.</p>
+    <p>Un <code>&lt;Textarea name="note/text"&gt;</code> enregistre son texte dans l'entrée d'historique où il est apparu. Une valeur posée par le code de l'app ne crée jamais de champ gardé : seule une frappe de l'utilisateur en crée un.</p>
     <Excerpt path="packages/luciole/src/restore.ts" find="save(place: Place, name: string, value: string" count={13} tone="client" mark={["if (typed) this.sent.delete(key);", "else if (this.sent.has(key)"]} />
     <p>Le fichier est réécrit 200 ms après le dernier changement, par écriture dans un fichier temporaire puis <code>rename</code>, en mode 0600. Un texte vide ou de plus de 100 000 caractères n'est pas gardé, et l'historique est plafonné à 50 entrées.</p>
   </Step>
@@ -86,7 +86,7 @@ import Quiz from "../../components/guide/Quiz.astro";
   <ol>
     <li>Le texte du groupe est <strong>retiré</strong> de la session avant l'envoi.</li>
     <li>Il est <strong>remis</strong> si l'action répond un échec métier (<code>failed(result)</code>), ou si la requête n'a certainement pas eu lieu (<code>not-sent</code>, <code>rejected</code>).</li>
-    <li>Il reste <strong>oublié</strong> après un <code>unknown</code> : le framework ne sait pas, donc il ne repropose pas. L'app tranche ; dans Notes, c'est Ctrl+O.</li>
+    <li>Il reste <strong>oublié</strong> après un <code>unknown</code> : le framework ne sait pas, donc il ne repropose pas. L'app tranche ; dans Notes, c'est le bouton « Check again ».</li>
   </ol>
   <p>Notes l'utilise pour son éditeur, et Forge pour son formulaire de pull request :</p>
   <Excerpt path="examples/notes/components/NoteEditor.tsx" find="fields = useRestoredFields" count={3} tone="client" />
@@ -127,7 +127,7 @@ import Quiz from "../../components/guide/Quiz.astro";
   </Callout>
 
   <Callout kind="essaie">
-    <p>Dans <code>luciole dev</code>, ouvre une note, tape quelques mots sans enregistrer, puis modifie un fichier <code>.tsx</code>. Le Client redémarre sur la même note avec ton texte. Recommence, mais quitte avec Ctrl+C puis relance : cette fois, le texte a disparu.</p>
+    <p>Lance <code>luciole dev</code> avec <code>NOTES_AUTOSAVE_MS=0</code> (sinon la note s'enregistre une seconde après la dernière frappe), ouvre une note, tape quelques mots sans enregistrer, puis modifie un fichier <code>.tsx</code>. Le Client redémarre sur la même note avec ton texte. Recommence, mais quitte avec Ctrl+C puis relance : cette fois, le texte a disparu.</p>
   </Callout>
 
   <Quiz
@@ -138,7 +138,7 @@ import Quiz from "../../components/guide/Quiz.astro";
       },
       {
         q: "L'utilisateur envoie une note, la réponse se perd (<code>unknown</code>), puis le Client crashe. Le texte revient-il ?",
-        a: "<p>Non. <code>submit</code> l'a retiré avant l'envoi, et une issue <code>unknown</code> ne le remet pas. C'est à l'app de trancher, par exemple avec Ctrl+O dans Notes.</p>",
+        a: "<p>Non. <code>submit</code> l'a retiré avant l'envoi, et une issue <code>unknown</code> ne le remet pas. C'est à l'app de trancher, par exemple avec le bouton « Check again » de Notes.</p>",
       },
       {
         q: "Qu'est-ce qui distingue, pour la session, un rebuild de <code>luciole dev</code> d'un Ctrl+C ?",

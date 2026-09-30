@@ -12,15 +12,18 @@ import flight from "../../frames/flight.txt?raw";
 
 // The response holds two Flight streams: the envelope, and the page carried inside it as bytes.
 type Row = { text: string; inner: boolean; note: string };
+// Sizes read from the capture itself, so a new capture cannot leave them wrong.
+const packedSize = parseInt(/^1:o([0-9a-f]+),/m.exec(flight)?.[1] ?? "0", 16);
+const totalSize = new TextEncoder().encode(flight.trim()).length;
 const notes: [RegExp, boolean, string][] = [
   [/^1:R$/, false, "La ligne 1 sera un flux : celui de la page."],
   [/^0:\{"tree"/, false, "L'enveloppe : tree est le flux de la ligne 1, tags une promesse (ligne 2)."],
-  [/^1:o[0-9a-f]+,$/, false, "Un bloc binaire de 0x246 = 582 octets : la page, elle-même en Flight."],
+  [/^1:o[0-9a-f]+,$/, false, `Un bloc binaire de ${packedSize} octets : la page, elle-même en Flight.`],
   [/components\/NoteEditor\.tsx"$/, true, "L'id du module Client : build ID + chemin."],
   [/^\d+:I\[/, true, "« Importe NoteEditor » : le code est déjà dans le Client, seul le nom voyage."],
   [/#saveNote"/, true, "Une Server Reference : un id, jamais le code de la fonction."],
   [/#getOperation"/, true, "Une deuxième Server Reference."],
-  [/^0:\["\$","box"/, true, "La page : des éléments OpenTUI. $L2 est NoteEditor, $h3 et $h4 les deux actions."],
+  [/^0:\[\["\$","\$L2"/, true, "La page : $L2 est NoteEditor, $h3 et $h4 les deux actions ; ses props voyagent en JSON, la note comprise."],
   [/^1:C$/, false, "Fin du flux de la page."],
   [/^2:\["note:/, false, "Les tags de cache lus pendant le rendu : ce qu'une sauvegarde rafraîchira."],
 ];
@@ -40,26 +43,26 @@ const rows: Row[] = lines.map((text) => {
 <Guide
   slug="navigation"
   outcomes={[
-    "suivre une touche depuis OpenTUI jusqu'à la requête <code>/render</code> et retour ;",
+    "suivre un clic depuis OpenTUI jusqu'à la requête <code>/render</code> et retour ;",
     "lire une réponse Flight réelle ligne par ligne ;",
     "dire ce qui reste dans le terminal et ce qui traverse, y compris quand ça échoue.",
   ]}
 >
   <h2>En une phrase</h2>
-  <p>Entrée sélectionne une note ; TanStack Router affiche tout de suite <code>loading.tsx</code> et lance un loader ; le loader demande la page au Server en <code>GET /render</code> ; le Server la rend en React Flight ; le Client décode l'arbre, résout les composants Client avec ses propres modules et remplace l'écran de chargement. <strong>Les layouts ne bougent pas.</strong></p>
+  <p>Un clic dans la liste ouvre une note ; TanStack Router affiche tout de suite <code>loading.tsx</code> et lance un loader ; le loader demande la page au Server en <code>GET /render</code> ; le Server la rend en React Flight ; le Client décode l'arbre, résout les composants Client avec ses propres modules et remplace l'écran de chargement. <strong>Le layout ne bouge pas.</strong></p>
 
   <h2>Le parcours</h2>
   <Sequence
-    title="Entrée sur une note"
+    title="Un clic sur une note"
     lanes={[
-      { id: "tui", label: "OpenTUI", sub: "clavier et écran", tone: "client" },
+      { id: "tui", label: "OpenTUI", sub: "souris, clavier, écran", tone: "client" },
       { id: "router", label: "Router", sub: "TanStack + client.tsx", tone: "client" },
       { id: "transport", label: "Transport", sub: "transport.ts", tone: "wire" },
       { id: "server", label: "Server", sub: "server.ts", tone: "server" },
     ]}
     messages={[
       { phase: "Dans le terminal" },
-      { from: "tui", to: "tui", label: "Entrée → keymap → <select>", n: 1 },
+      { from: "tui", to: "tui", label: "clic → ligne → onMouseDown", n: 1 },
       { from: "tui", to: "router", label: "navigate(/notes/$id)", n: 2 },
       { from: "router", to: "router", label: "loading.tsx affiché", n: 3 },
       { from: "router", to: "transport", label: "loadPage → renderPage", n: 4 },
@@ -77,17 +80,19 @@ const rows: Row[] = lines.map((text) => {
     caption="Les étapes 1 à 4 et 9 à 11 se passent dans le terminal. Les tags (12) arrivent en dernier, une fois le rendu de la page vraiment terminé."
   />
 
-  <Step n="1" tone="client" title="La touche passe par le keymap, puis par le composant focalisé">
-    <p>OpenTUI décode <code>\r</code> en un événement <code>return</code>. Il le propose d'abord aux écouteurs globaux (le keymap du framework et de l'app), puis au composant qui a le focus. Ici, le keymap n'a aucun raccourci pour Entrée : Notes lie <code>ctrl+r</code> et <code>ctrl+t</code>, le framework <code>ctrl+c</code> et <code>escape</code> (ce dernier seulement pendant une navigation). La touche arrive donc au <code>&lt;select focused&gt;</code> de la liste.</p>
+  <Step n="1" tone="client" title="Le clic va à la ligne sous le pointeur">
+    <p>Le terminal envoie le clic comme une séquence souris SGR (<code>\x1b[&lt;0;x;yM</code>). OpenTUI la décode, cherche l'élément sous le pointeur et appelle son <code>onMouseDown</code> : ici, la ligne de la note dans la barre latérale. Le keymap n'intervient pas, il ne reçoit que des touches. Un clic droit ouvre le menu de la note au lieu de l'ouvrir.</p>
+    <Excerpt path="examples/notes/components/Sidebar.tsx" find="onMouseDown={(event: MouseEvent) => {" after="const dated =" count={4} tone="client" mark={["onOpen()"]} />
   </Step>
 
-  <Step n="2" tone="client" title="La sélection devient une navigation">
-    <Excerpt path="examples/notes/components/NoteList.tsx" find="onSelect={(_index, option) => {" count={3} tone="client" />
+  <Step n="2" tone="client" title="Le clic devient une navigation">
+    <p><code>onOpen</code> appelle <code>commands.open(id)</code>, qui navigue :</p>
+    <Excerpt path="examples/notes/components/commands.ts" find="export function useCommands()" until="open: (id: string) => void open(id)," tone="client" mark={["navigate("]} />
     <p><code>navigate</code> est celui de TanStack Router, réexporté tel quel par <code>luciole/client</code>. Le chemin et ses paramètres sont typés grâce à <code>app/routeTree.gen.ts</code>, généré au build.</p>
   </Step>
 
-  <Step n="3" tone="client" title="Le router monte le layout, puis affiche le chargement sans attendre">
-    <p>Le route tree généré imbrique la page <code>$id</code> sous le layout <code>notes</code>. Le layout racine reste monté ; le layout <code>notes</code> est monté ; comme le délai d'attente est nul (<code>defaultPendingMs: 0</code>), <code>loading.tsx</code> s'affiche dans l'instant. C'est un Client Component : il ne demande rien au Server.</p>
+  <Step n="3" tone="client" title="Le router garde le layout, puis affiche le chargement sans attendre">
+    <p>Le route tree généré place la page <code>$id</code> directement sous le layout racine, qui reste monté : la barre latérale et sa recherche ne bougent pas. Comme le délai d'attente est nul (<code>defaultPendingMs: 0</code>), <code>loading.tsx</code> s'affiche dans l'instant, avec le titre que la liste connaît déjà. C'est un Client Component : il ne demande rien au Server.</p>
     <Excerpt path="examples/notes/app/routeTree.gen.ts" find="const page1Route = createRoute({" until="^});" tone="client" mark={['loader: (ctx) => loadPage(ctx, "/notes/[id]", ["id"])']} />
   </Step>
 
@@ -131,7 +136,7 @@ x-luciole-instance: <clé>             seulement pour une app dans un pane (chap
   </Step>
 
   <Step n="10–11" tone="client" title="L'arbre devient la page">
-    <p>L'arbre décodé devient la <code>loaderData</code> de la route. Le composant de page la rend à la place de <code>loading.tsx</code> ; OpenTUI dessine les <code>box</code> et <code>text</code>, et <code>NoteEditor</code> prend le focus. Le statut passe à « Connected », mais seulement si ce chargement est toujours le chargement courant.</p>
+    <p>L'arbre décodé devient la <code>loaderData</code> de la route. Le composant de page la rend à la place de <code>loading.tsx</code> ; OpenTUI dessine les <code>box</code> et <code>text</code>, et <code>NoteEditor</code> affiche la note en Markdown. Le statut passe à « Connected », mais seulement si ce chargement est toujours le chargement courant.</p>
   </Step>
 
   <Step n="12" tone="wire" title="Les tags arrivent en dernier">
@@ -139,7 +144,7 @@ x-luciole-instance: <clé>             seulement pour une app dans un pane (chap
   </Step>
 
   <h2>La réponse, ligne par ligne</h2>
-  <p>Voici la vraie réponse du Server pour <code>/notes/1</code>, soit 645 octets. Elle contient <strong>deux flux Flight imbriqués</strong>, chacun avec sa propre numérotation. En retrait : le flux de la page, transporté en octets dans l'enveloppe.</p>
+  <p>Voici la vraie réponse du Server pour <code>/notes/1</code>, soit {totalSize} octets. Elle contient <strong>deux flux Flight imbriqués</strong>, chacun avec sa propre numérotation. En retrait : le flux de la page, transporté en octets dans l'enveloppe.</p>
   <ol class="flight">
     {
       rows.map((row) => (
@@ -147,14 +152,14 @@ x-luciole-instance: <clé>             seulement pour une app dans un pane (chap
       ))
     }
   </ol>
-  <p>Remarque ce que la page est devenue. <code>NotePageFrame</code>, sans directive, a été exécuté sur le Server et réduit à des <code>box</code> et <code>text</code>. <code>NoteEditor</code>, lui, n'est qu'un nom (<code>$L2</code>) : il s'exécutera dans le terminal.</p>
+  <p>Remarque ce que la page est devenue. Le composant de page a été exécuté sur le Server : il a lu la note et n'en a gardé que ce qu'il rend. <code>NoteEditor</code>, lui, n'est qu'un nom (<code>$L2</code>) suivi de ses props : il s'exécutera dans le terminal.</p>
 
   <h2>Ce qui reste local, ce qui traverse</h2>
   <div class="table">
     <table>
       <thead><tr><th>Reste dans le terminal</th><th>Traverse le réseau</th></tr></thead>
       <tbody>
-        <tr><td>la touche, le focus, la sélection</td><td>l'id de route et les paramètres</td></tr>
+        <tr><td>le clic, le focus, la sélection</td><td>l'id de route et les paramètres</td></tr>
         <tr><td>la navigation, l'historique</td><td>le build ID, le <code>callId</code>, le bearer</td></tr>
         <tr><td>les layouts et leur état</td><td>l'arbre rendu : éléments et références</td></tr>
         <tr><td><code>loading.tsx</code>, <code>error.tsx</code></td><td>les tags de cache lus par la page</td></tr>
@@ -168,7 +173,7 @@ x-luciole-instance: <clé>             seulement pour une app dans un pane (chap
     <table>
       <thead><tr><th>Cas</th><th>Où c'est décidé</th><th>Écran</th></tr></thead>
       <tbody>
-        <tr><td>Server injoignable</td><td><code>fetch</code> échoue : issue <code>not-sent</code></td><td><code>error.tsx</code>, statut « Disconnected », Ctrl+R réessaie</td></tr>
+        <tr><td>Server injoignable</td><td><code>fetch</code> échoue : issue <code>not-sent</code></td><td><code>error.tsx</code>, statut « Disconnected », « Reconnect » réessaie</td></tr>
         <tr><td>pas de réponse en 10 s</td><td>le délai coupe : issue <code>unknown</code></td><td><code>error.tsx</code></td></tr>
         <tr><td>build différent</td><td>409 → <code>BuildMismatch</code></td><td>« Incompatible build », cache du routeur purgé</td></tr>
         <tr><td>non authentifié</td><td>401</td><td>page de login si l'app en a une</td></tr>
@@ -184,9 +189,9 @@ x-luciole-instance: <clé>             seulement pour une app dans un pane (chap
     <ul>
       <li>Une erreur de rendu arrive en HTTP 200 : le Server a répondu, mais le statut affiche « Disconnected ».</li>
       <li>L'écran d'erreur d'une page émet aussi un événement <code>failure</code> (<code>path</code>, <code>message</code>) : un Client lancé avec un canal IPC (<code>luciole dev</code>, un hôte <code>sandbox</code>) l'envoie à son parent, qui sait ainsi quelle page a échoué et pourquoi. <code>notFound()</code> n'en émet pas : une page introuvable est une réponse, pas un échec.</li>
-      <li>Notes n'utilise pas <code>notFound()</code> : une note absente lève <code>Error("Note unavailable")</code> et passe par <code>error.tsx</code>. En production, son message n'arrive pas au Client.</li>
-      <li>Échap a deux sens. Pendant le chargement, il annule (un <code>replace</code> vers la page d'avant). Dans une note ouverte, c'est le raccourci de <code>NoteEditor</code> qui navigue vers la liste.</li>
-      <li>La liste déclare <code>staleTime = 30</code> : pendant 30 s, y revenir ne fait aucune requête.</li>
+      <li>Une note absente appelle <code>notFound("Note")</code> : Notes affiche <code>app/notes/[id]/not-found.tsx</code>, qui dit qu'aucune note n'est choisie, sans passer par <code>error.tsx</code>.</li>
+      <li>Échap a deux sens. Pendant le chargement, il annule (un <code>replace</code> vers la page d'avant). Dans une note en cours d'édition, c'est un raccourci caché de <code>NoteEditor</code> qui revient à la lecture, comme « ✓ Done ».</li>
+      <li>La liste n'est pas une page : le layout la lit par la Server Function <code>listNotes</code> et la relit après chaque invalidation (<code>useInvalidation</code>). Ouvrir une note ne la redemande pas.</li>
     </ul>
   </Callout>
 
@@ -194,20 +199,20 @@ x-luciole-instance: <clé>             seulement pour une app dans un pane (chap
     <ul>
       <li>Le Client envoie un <strong>id de route</strong> et des paramètres, jamais une URL à interpréter : le Server ne connaît que son registre.</li>
       <li>L'arbre revient en Flight ; un composant Client n'y est qu'un nom, résolu localement.</li>
-      <li>Les layouts restent montés ; seul l'emplacement de la page change.</li>
+      <li>Le layout reste monté ; seul l'emplacement de la page change.</li>
       <li>Le délai de 10 s ne couvre que l'arrivée du début de la réponse ; le flux continue ensuite.</li>
     </ul>
   </Callout>
 
   <Callout kind="essaie">
-    <p>Lance Notes avec <code>LUCIOLE_LATENCY_MS=1500 bun run dev</code>. Ouvre une note, puis appuie sur Échap pendant « Opening note… ». Ouvre ensuite le panneau des requêtes avec Ctrl+T et vérifie qu'aucune requête n'est partie pour revenir à la liste.</p>
+    <p>Lance Notes avec <code>LUCIOLE_LATENCY_MS=1500 bun run dev</code>. Ouvre une note, puis appuie sur Échap (ou clique « Cancel ») pendant « Loading the note… ». Ouvre ensuite le panneau des requêtes avec Ctrl+T et vérifie qu'aucune requête n'est partie pour revenir à la page d'avant.</p>
   </Callout>
 
   <Quiz
     items={[
       {
-        q: "Le keymap écoute avant le <code>&lt;select&gt;</code>. Pourquoi Entrée atteint-elle quand même la liste ?",
-        a: "<p>Le keymap ne consomme que les touches qu'il connaît. Aucun raccourci actif ne porte sur Entrée : l'événement n'est ni annulé ni stoppé, et OpenTUI le passe au composant focalisé.</p>",
+        q: "Le keymap ne voit passer aucune touche. Comment le clic sur une note devient-il une navigation ?",
+        a: "<p>OpenTUI décode la séquence souris SGR, trouve la ligne sous le pointeur et appelle son <code>onMouseDown</code>. Avec le bouton gauche, la ligne appelle <code>onOpen</code>, puis <code>commands.open(id)</code>, qui appelle <code>navigate</code>. Le keymap ne reçoit que les touches.</p>",
       },
       {
         q: "Dans la réponse, que contient la dernière ligne <code>2:[\"note:local:1\"]</code>, et d'où vient-elle ?",
@@ -218,7 +223,7 @@ x-luciole-instance: <clé>             seulement pour une app dans un pane (chap
         a: "<p>Il l'a déjà : <code>NoteEditor</code> est dans le bundle Client, et la réponse n'en porte que l'id. Le <code>__webpack_require__</code> du framework le cherche dans la table <code>resolveModule</code> générée au build.</p>",
       },
       {
-        q: "Échap pendant « Opening note 1… » : combien de requêtes partent ?",
+        q: "Échap pendant « Loading the note… » : combien de requêtes partent ?",
         a: "<p>Aucune nouvelle. <code>cancel</code> fait un <code>replace</code> vers la page déjà affichée, marquée <code>terminalRestore</code>, pour laquelle <code>shouldReload</code> renvoie <code>false</code>. Le <code>/render</code> en cours est annulé par le signal de TanStack.</p>",
       },
     ]}

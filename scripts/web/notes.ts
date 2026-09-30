@@ -8,7 +8,7 @@
 import { join } from "node:path";
 import { build, example, startServer } from "../pty/harness";
 import { Browser } from "./cdp";
-import { shows } from "./site";
+import { cellOf, rowWith, shows } from "./site";
 
 const FORBIDDEN = 403;
 /** A port nobody listens on now: the Server's origin must name it before it starts. */
@@ -31,34 +31,40 @@ await using server = await startServer(example("notes"), {
 await using browser = await Browser.start();
 const started = performance.now();
 await browser.open(origin);
-const first = await browser.waitFor(shows("NOTES"), "the Notes screen");
+const first = await browser.waitFor(shows("Welcome to Notes"), "the Notes screen");
 report.firstScreenMs = Math.round(performance.now() - started);
 report.redirectedToRuntime =
   String(await browser.evaluate("location.pathname")) === "/_luciole/web/";
 console.log(first);
+
+// Everything by pointing: open a note from the list, edit it, finish.
+await browser.clickAt(cellOf("Welcome to Notes"));
+await browser.waitFor(shows("✎ Edit"), "the note");
 const screenshot = join(example("notes"), ".luciole/web-journey.png");
 await browser.screenshot(screenshot);
-
 // A Server Function from the page: a POST, with the declared Origin, admitted.
 const BASE36 = 36;
 const marker = `web${Date.now().toString(BASE36)}`;
-await browser.press("Enter");
-await browser.waitFor(shows("baseline:"), "the note editor");
+const BODY = "Written in the browser";
+await browser.clickAt(cellOf("+ New note"));
+await browser.waitFor(shows("✓ Done"), "the new note, its title ready");
 await browser.insertText(marker);
-await browser.waitFor(shows(marker), "the typed text");
 await browser.press("Enter");
+await browser.insertText(BODY);
+await browser.waitFor(shows(BODY), "the typed text");
+await browser.clickAt(cellOf("✓ Done"));
 report.savedFromThePage = !!(await browser.waitFor(
-  `[...document.querySelectorAll(".xterm-rows > div")].some((row) => row.textContent.includes("baseline:") && row.textContent.includes(${JSON.stringify(marker)}))`,
-  "the saved baseline",
+  `${rowWith("✓ Saved")} && ${rowWith(marker, "⋯")} && ${shows(BODY)}`,
+  "the saved note, listed under its title",
 ));
-await browser.press("Escape");
-await browser.waitFor(shows("YOUR NOTES"), "the list");
-await browser.press("Enter");
-await browser.waitFor(shows(marker), "the reopened note");
+await browser.clickAt(cellOf("Shopping list"));
+await browser.waitFor(shows("Coffee beans"), "the other note");
+await browser.clickAt(cellOf(marker));
+await browser.waitFor(shows(BODY), "the reopened note");
 
 // The tab's session: a reload reopens the same entry, from localStorage.
 await browser.open(origin);
-report.reloadRestoresTheNote = !!(await browser.waitFor(shows("baseline:"), "the restored note"));
+report.reloadRestoresTheNote = !!(await browser.waitFor(shows(BODY), "the restored note"));
 report.otherOriginRefused =
   (await fetch(`${server.url}/manifest`, { headers: { origin: "http://evil.example" } })).status ===
   FORBIDDEN;

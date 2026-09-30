@@ -112,7 +112,7 @@ const areas: { name: string; tone: string; chapter: string; files: [string, stri
     ]}
     messages={[
       { phase: "Ouvrir une note" },
-      { from: "user", to: "client", label: "Entrée", n: 1 },
+      { from: "user", to: "client", label: "clic dans la liste", n: 1 },
       { from: "client", to: "client", label: "loading.tsx dessiné", n: 2 },
       { from: "client", to: "server", label: "GET /render /notes/1", n: 3, tone: "wire" },
       { from: "server", to: "db", label: "SELECT (ou cache)", n: 4 },
@@ -120,7 +120,7 @@ const areas: { name: string; tone: string; chapter: string; files: [string, stri
       { from: "client", to: "client", label: "OpenTUI dessine la page", n: 6 },
       { phase: "Modifier, puis enregistrer" },
       { from: "user", to: "client", label: "frappes : restent locales", n: 7 },
-      { from: "user", to: "client", label: "Entrée", n: 8 },
+      { from: "user", to: "client", label: "1 s sans frappe", n: 8 },
       { from: "client", to: "server", label: "POST /action saveNote", n: 9, tone: "wire" },
       { from: "server", to: "db", label: "UPDATE + invalidate", n: 10 },
       { from: "server", to: "client", label: "résultat + tags invalidés", n: 11, back: true, tone: "wire" },
@@ -152,7 +152,7 @@ const areas: { name: string; tone: string; chapter: string; files: [string, stri
         <tr><td><code>"use client"</code></td><td class="c">dans le terminal</td><td><code>app/layout.tsx</code>, <code>components/NoteEditor.tsx</code></td></tr>
         <tr><td><code>"use server"</code></td><td class="s">sur le Server, appelable depuis le Client</td><td><code>actions/notes.ts</code></td></tr>
         <tr><td><code>"use cache"</code></td><td class="s">sur le Server, résultat mémorisé</td><td><code>server/queries.ts</code></td></tr>
-        <tr><td>rien</td><td>du côté de celui qui l'importe</td><td><code>app/page.tsx</code> (Server), <code>components/NoteFrame.tsx</code> (les deux)</td></tr>
+        <tr><td>rien</td><td>du côté de celui qui l'importe</td><td><code>app/page.tsx</code> (Server), <code>components/NoteFrame.tsx</code> (Client, car seuls des Client Components l'importent)</td></tr>
       </tbody>
     </table>
   </div>
@@ -163,7 +163,7 @@ const areas: { name: string; tone: string; chapter: string; files: [string, stri
   <p>Deux choses traversent ici la frontière. <code>initialNote</code> est une donnée : elle est sérialisée. <code>saveAction</code> est une fonction du Server : le Client reçoit une <strong>référence</strong> vers elle, jamais son code. L'appeler envoie une requête (chapitre 5).</p>
 
   <Callout kind="piege">
-    <p>Sans directive, un fichier n'est ni Client ni Server : il est copié dans chaque programme qui l'importe. <code>NoteFrame.tsx</code> est ainsi bundlé des deux côtés. Autre règle, purement textuelle : tout fichier dont un dossier du chemin s'appelle <code>server</code> est interdit au Client.</p>
+    <p>Sans directive, un fichier n'est ni Client ni Server : il est copié dans chaque programme qui l'importe. <code>NoteFrame.tsx</code>, importé seulement par l'éditeur et l'écran de chargement, n'est bundlé que côté Client ; une page qui l'importerait l'embarquerait aussi côté Server. Autre règle, purement textuelle : tout fichier dont un dossier du chemin s'appelle <code>server</code> est interdit au Client.</p>
   </Callout>
 
   <h2>Le dépôt</h2>

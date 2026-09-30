@@ -171,8 +171,8 @@ const H = 88;
         a: "<p>Jamais : le build ID fait partie de la clé. Elles restent sur disque jusqu'à l'éviction, au-delà de <code>maxEntries</code>.</p>",
       },
       {
-        q: "Comment le Client sait-il qu'il doit recharger la liste après <code>saveNote</code>, alors qu'elle déclare <code>staleTime = 30</code> ?",
-        a: "<p>Le rendu de <code>/</code> s'est terminé par <code>2:[\"notes:local\"]</code>, que le Client a gardé pour cette page. L'enveloppe de l'action porte <code>notes:local</code> : l'intersection désigne la liste, rechargée malgré son <code>staleTime</code>.</p>",
+        q: "Aucune page ne lit la liste de la barre latérale. Comment se met-elle à jour après <code>saveNote</code> ?",
+        a: "<p>Le layout la lit par la Server Function <code>listNotes</code>, qui appelle <code>notesOf</code>, étiqueté <code>notes:local</code>. <code>saveNote</code> purge ce tag ; à la réponse de l'action, le Client prévient les abonnés de <code>useInvalidation</code>, et le layout rappelle <code>listNotes</code>, qui recalcule la liste (<code>miss</code>).</p>",
       },
       {
         q: "Un rendu est en train de calculer <code>noteOf</code> quand une action invalide son tag. Que devient le résultat ?",

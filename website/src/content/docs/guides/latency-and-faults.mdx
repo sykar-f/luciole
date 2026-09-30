@@ -66,9 +66,9 @@ The three faults, and the outcome the app receives for each:
 
 <CopyCommand lines={[`${envPrefix}_LATENCY_MS=300 ${envPrefix}_FAULT=drop:0.3 bun run dev`]} />
 
-With a lost response, a save in Notes shows "Unknown outcome": the Server may have written
-the note. <kbd>Ctrl+O</kbd> asks the Server what happened to that operation, instead of
-sending it again ([Server Functions](/docs/concepts/server-functions/#when-a-call-fails)).
+With a lost response, a save in Notes shows "Connection lost while saving": the Server may
+have written the note. **Check again** asks the Server what happened to that operation,
+instead of sending it again ([Server Functions](/docs/concepts/server-functions/#when-a-call-fails)).
 
 ## What the app should do with each outcome
 

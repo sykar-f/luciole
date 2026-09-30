@@ -8,31 +8,25 @@ import {
   type TerminalRouter,
 } from "luciole/route-tree";
 import Layout0 from "./layout";
-import Layout1 from "./notes/layout";
-import Error2 from "./error";
-import Loading3 from "./notes/[id]/loading";
+import Error1 from "./error";
+import Loading2 from "./notes/[id]/loading";
+import NotFound3 from "./notes/[id]/not-found";
 
 const rootRoute = createRootRoute(Layout0);
-const layout0Route = createRoute({
-  getParentRoute: () => rootRoute,
-  path: "notes",
-  ...layoutRoute(Layout1, []),
-});
 const page0Route = createRoute({
   getParentRoute: () => rootRoute,
   path: "/",
-  staleTime: 30000,
   loader: (ctx) => loadPage(ctx, "/", []),
-  ...pageRoute([], { error: Error2 }),
+  ...pageRoute([], { error: Error1 }),
 });
 const page1Route = createRoute({
-  getParentRoute: () => layout0Route,
-  path: "$id",
+  getParentRoute: () => rootRoute,
+  path: "notes/$id",
   loader: (ctx) => loadPage(ctx, "/notes/[id]", ["id"]),
-  ...pageRoute(["id"], { loading: Loading3, error: Error2 }),
+  ...pageRoute(["id"], { loading: Loading2, error: Error1, notFound: NotFound3 }),
 });
 
-export const routeTree = rootRoute.addChildren([layout0Route.addChildren([page1Route]), page0Route]);
+export const routeTree = rootRoute.addChildren([page0Route, page1Route]);
 
 declare module "@tanstack/react-router" {
   interface Register {

@@ -8,7 +8,7 @@
 import assert from "node:assert/strict";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
-import { ctrl, drive, Keys } from "./driver";
+import { ctrl, drive } from "./driver";
 import { BUN, ROOT, numberFromEnv, report, startServer, temporaryDirectory } from "./harness";
 
 const { values: args } = parseArgs({
@@ -28,6 +28,8 @@ await using server = args.url
   : await startServer(join(ROOT, "examples/notes"), {
       NOTES_DB: join(directory.path, "notes.sqlite"),
       NOTES_DELAY_MS: String(serverDelay),
+      // Saves only when asked: the journey times its own save.
+      NOTES_AUTOSAVE_MS: "0",
       LUCIOLE_TEST: "1",
     });
 const url = args.url ?? server?.url ?? "";
@@ -39,58 +41,65 @@ await using t = await drive({
   env: { NODE_ENV: "production", XDG_STATE_HOME: join(directory.path, "state") },
 });
 
-/** The rows of the page's frame: title, box top and bottom, status line. */
+/** The rows of the window's frame: toolbar, search box, the list's count. */
 async function layoutRows() {
   const lines = await t.lines();
-  return ["Personal notebook", "┌", "└", "reconnect"].map((marker) =>
+  return ["+ New note", "⌕", "2 notes"].map((marker) =>
     lines.findIndex((line) => line.includes(marker)),
   );
 }
 
-await t.waitFor("First note");
+// Everything by pointing, as a user who was never told a key.
+await t.waitFor("Welcome to Notes");
 const navigationStart = performance.now();
-t.write(Keys.enter);
+await t.click("Welcome to Notes");
 let loadingMs: number | undefined;
 let loadingRows: number[] | undefined;
 if (latency >= VISIBLE_LOADING_RTT_MS) {
-  loadingMs = (await t.waitFor("Opening note 1")) - navigationStart;
+  loadingMs = (await t.waitFor("Loading the note…")) - navigationStart;
   assert.ok(loadingMs < latency * 0.8, `loading shown after ${loadingMs} ms`);
   loadingRows = await layoutRows();
 }
-await t.waitFor("baseline:");
+await t.waitFor("✎ Edit");
 if (loadingRows) assert.deepEqual(await layoutRows(), loadingRows, "the loading layout moved");
+await t.click("✎ Edit");
+await t.waitFor("✓ Done");
 t.write("abc");
 await t.waitFor("abc");
-t.write(Keys.enter);
+t.write(ctrl("s"));
 await t.waitFor("Saving");
 const start = performance.now();
 t.write("d");
 const localMs = (await t.waitFor("abcd")) - start;
 assert.ok(localMs < 500, `typing reached the PTY after ${localMs} ms`);
-await t.waitFor("baseline: abc");
+// Saved "abc"; the "d" typed meanwhile is the Draft's, still to save.
+await t.waitFor("Edited");
 assert.ok((await t.text()).includes("abcd"));
-t.write(Keys.escape);
-await t.waitFor("YOUR NOTES");
-t.write(Keys.enter);
+// Another note, then back: the Draft outlived its editor.
+await t.click("+ New note");
+await t.waitFor("Untitled");
+await t.click("Welcome to Notes");
 await t.waitFor("abcd");
-// The reopened note may first show the router's cached version 1; the saved note is
-// version 2 once revalidated. Waiting for it keeps docs/pty-frame.txt deterministic.
-await t.waitFor("version 2");
+await t.waitFor("Edited");
 if (server) {
   await server.stop();
   t.write(ctrl("r"));
   await t.waitFor("Disconnected");
+  await t.waitFor("Reconnect");
+  await t.click("✎ Edit");
+  await t.waitFor("✓ Done");
   t.write("e");
   await t.waitFor("abcde");
 }
 await Bun.write(join(ROOT, "docs/pty-frame.txt"), await t.snapshot());
 if (server) {
-  // A failed navigation reports its error in the page slot; no console overlay covers the UI.
-  t.write(Keys.escape);
-  await t.waitFor("Ctrl+R to retry");
+  // A failed navigation reports its error in the page slot, with a button to try again;
+  // no console overlay covers the UI.
+  await t.click("Shopping list");
+  await t.waitFor("Try again");
   await t.pause(200);
   const shown = await t.text();
-  assert.ok(shown.includes("Personal notebook") && !shown.includes("Console"), shown);
+  assert.ok(shown.includes("+ New note") && !shown.includes("Console"), shown);
 }
 await t.quit();
 

@@ -1,41 +1,32 @@
 "use client";
-import { useEffect, useRef } from "react";
-import type { BoxRenderable } from "@opentui/core";
-import { useTimeline } from "@opentui/react";
-import { KeyHelp, type LoadingProps } from "luciole/client";
-import { NotePageFrame, NoteEditorFrame } from "../../../components/NoteFrame";
+import type { LoadingProps } from "luciole/client";
+import { titleOf } from "../../../components/commands";
+import { NotePane } from "../../../components/NoteFrame";
+import { useKnownNotes } from "../../../components/notes-list";
+import { Pulse } from "../../../components/Pulse";
+import { usePalette } from "../../../components/theme";
+import { Line } from "../../../components/ui";
 
+// The list already knows the note's title: the page opens with it while the Server
+// renders the rest. The layout stays mounted; only this slot is replaced.
 export default function Loading({ params }: LoadingProps) {
-  const skeleton = useRef<BoxRenderable>(null);
-  const timeline = useTimeline({ autoplay: false, duration: 1700, loop: true });
-  useEffect(() => {
-    if (!skeleton.current) return;
-    timeline.add(skeleton.current, {
-      duration: 850,
-      ease: "inOutSine",
-      opacity: 0.2,
-      loop: true,
-      alternate: true,
-    });
-    timeline.play();
-    return () => {
-      timeline.pause();
-    };
-  }, [timeline]);
-  // The notebook and notes layouts stay mounted: only the page slot is replaced.
+  const color = usePalette();
+  const { notes } = useKnownNotes();
+  const known = notes?.find((note) => note.id === params.id);
   return (
-    <NotePageFrame title={`Opening note ${params.id}…`}>
-      <NoteEditorFrame
-        field={
-          <box ref={skeleton}>
-            <text id="note-placeholder" height={1} wrapMode="none" truncate fg="#d6d6d6">
-              Loading note content…
-            </text>
-          </box>
-        }
-        status="Waiting for Server…"
-        help={<KeyHelp inline groups={["luciole"]} />}
-      />
-    </NotePageFrame>
+    <NotePane
+      toolbar={<Line fg={color.muted}>Opening…</Line>}
+      title={
+        <Line fg={color.accent} bold>
+          {known ? titleOf(known) : "Opening note…"}
+        </Line>
+      }
+    >
+      <Pulse>
+        <Line id="note-placeholder" fg={color.muted}>
+          Loading the note…
+        </Line>
+      </Pulse>
+    </NotePane>
   );
 }

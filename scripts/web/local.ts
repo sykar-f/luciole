@@ -7,7 +7,7 @@
 import { join } from "node:path";
 import { build, example } from "../pty/harness";
 import { Browser } from "./cdp";
-import { rowWith, serveSite, shows } from "./site";
+import { cellOf, rowWith, serveSite, shows } from "./site";
 
 build(example("notes"), ["--web-local"]);
 const site = join(example("notes"), ".luciole/web");
@@ -19,7 +19,7 @@ try {
   await browser.send("Emulation.setFocusEmulationEnabled", { enabled: true });
   const started = performance.now();
   await browser.open(files.url.href);
-  console.log(await browser.waitFor(shows("First note"), "the Notes screen"));
+  console.log(await browser.waitFor(shows("Welcome to Notes"), "the Notes screen"));
   report.firstScreenMs = Math.round(performance.now() - started);
   report.sharedWorker = await browser.evaluate("typeof SharedWorker === 'function'");
 
@@ -28,33 +28,31 @@ try {
   await browser.evaluate(`document.querySelector(".xterm-helper-textarea").blur()`);
   await browser.click(".xterm-screen");
 
+  // A note written in the browser: New note, a title, Return, its text, Done.
   const BASE36 = 36;
   const marker = `local${Date.now().toString(BASE36)}`;
-  await browser.press("Enter");
-  await browser.waitFor(shows("baseline:"), "the note editor");
+  const BODY = "Kept in the origin's files";
+  await browser.clickAt(cellOf("+ New note"));
+  await browser.waitFor(shows("✓ Done"), "the new note, its title ready");
   await browser.insertText(marker);
-  await browser.waitFor(shows(marker), "the typed text");
   await browser.press("Enter");
+  await browser.insertText(BODY);
+  await browser.waitFor(shows(BODY), "the typed text");
+  await browser.clickAt(cellOf("✓ Done"));
   report.savedInTheBrowser = !!(await browser.waitFor(
-    rowWith("baseline:", marker),
-    "the saved baseline",
+    `${rowWith("✓ Saved")} && ${rowWith(marker, "⋯")}`,
+    "the saved note, listed under its title",
   ));
-  await browser.press("Escape");
-  await browser.waitFor(shows("YOUR NOTES"), "the list");
 
   // A new page load: a new Worker, the database read back from OPFS.
   await browser.open(`${files.url.href}?reload`);
-  await browser.waitFor(shows("First note"), "the list again");
-  await browser.press("Enter");
-  report.persistedAcrossLoads = !!(await browser.waitFor(shows(marker), "the stored note"));
+  await browser.waitFor(shows(marker), "the list again");
+  await browser.clickAt(cellOf(marker));
+  report.persistedAcrossLoads = !!(await browser.waitFor(shows(BODY), "the stored note"));
 
-  // A click on a note opens it, as Enter does.
-  await browser.press("Escape");
-  await browser.waitFor(shows("YOUR NOTES"), "the list once more");
-  await browser.clickAt(
-    `(() => { const row = [...document.querySelectorAll(".xterm-rows > div")].find((r) => r.textContent.includes("Second note")).getBoundingClientRect(); return { x: row.x + row.width / 4, y: row.y + row.height / 2 }; })()`,
-  );
-  report.openedByClick = !!(await browser.waitFor(shows("Second note ·"), "the clicked note"));
+  // A click on another note opens it.
+  await browser.clickAt(cellOf("Shopping list"));
+  report.openedByClick = !!(await browser.waitFor(shows("Coffee beans"), "the clicked note"));
   await browser.screenshot(join(example("notes"), ".luciole/web-local.png"));
 } finally {
   await files.stop(true);

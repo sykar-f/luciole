@@ -37,3 +37,9 @@ export const shows = (text: string) =>
   `(${SCREEN}).includes(${JSON.stringify(text)}) && (${SCREEN})`;
 export const rowWith = (...texts: string[]) =>
   `[...document.querySelectorAll(".xterm-rows > div")].some((row) => ${texts.map((t) => `row.textContent.includes(${JSON.stringify(t)})`).join(" && ")})`;
+/**
+ * The middle of the first cell of `text` on the screen xterm.js draws, as a point for
+ * `Browser.clickAt`: a click on the words a user would point at.
+ */
+export const cellOf = (text: string) =>
+  `(() => { const row = [...document.querySelectorAll(".xterm-rows > div")].find((r) => r.textContent.includes(${JSON.stringify(text)})); const r = row.getBoundingClientRect(); const cell = r.width / row.textContent.length; return { x: r.x + (row.textContent.indexOf(${JSON.stringify(text)}) + 0.5) * cell, y: r.y + r.height / 2 }; })()`;
