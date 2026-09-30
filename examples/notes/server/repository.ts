@@ -104,9 +104,17 @@ export function save(snapshot: Snapshot): SaveResult {
     .transaction(() => {
       const previous = operation(snapshot.operationId);
       if (previous) return previous;
-      const note = loadNote(snapshot.id);
+      // Refused and recorded, not thrown: a lookup then finds the answer, and the Client
+      // stops sending again a save that can never be written.
+      const note = findNote(getSession().userId, snapshot.id);
       let result: SaveResult;
-      if (snapshot.value.length > MAX_VALUE)
+      if (!note)
+        result = {
+          ok: false,
+          error: "This note was deleted",
+          operationId: snapshot.operationId,
+        };
+      else if (snapshot.value.length > MAX_VALUE)
         result = {
           ok: false,
           error: `A note holds up to ${MAX_VALUE} characters`,

@@ -136,3 +136,17 @@ test("failures are counted until the Server answers, and an unknown save is look
   d.confirm({ ok: true, operationId: looked?.operationId ?? "", note: note("1", "abc", 2) });
   expect([d.failures, d.since, d.error, d.resolving]).toEqual([0, undefined, "", false]);
 });
+test("a failed save is forgotten once the text is back to what the Server has", () => {
+  const d = new Draft("1", note("1", "base"));
+  d.edit("base!");
+  d.begin();
+  d.fail("Not saved: refused");
+  d.edit("base");
+  expect([d.failures, d.since]).toEqual([0, undefined]);
+  // Not while a save is in flight: it may still be written.
+  d.edit("base?");
+  d.begin();
+  d.markUnknown();
+  d.edit("base");
+  expect(d.failures).toBe(1);
+});

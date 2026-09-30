@@ -7,11 +7,11 @@
                                      Welcome to Notes
  ╭────────────────────────────╮ ▀
  │ Untitled                   │
- │ 00:07     No additional t… │    𜶪 Getting around
+ │ 00:45     No additional t… │    𜶪 Getting around
  ╰────────────────────────────╯
  ╭────────────────────────────╮      • Click anywhere in a note and write: Markdown turns into what it
  │ Welcome to Notes        ⋯  │        means as you type it (**bold**, # title, - list)
- │ ● 00:07     Notes are wri… │      • Click a title to rename its note
+ │ ● 00:45     Notes are wri… │      • Click a title to rename its note
  ╰────────────────────────────╯      • New note starts a blank one; the search box filters them all
  ╭────────────────────────────╮      • Hover a note in the list for its menu, or right-click it
  │ Shopping list              │

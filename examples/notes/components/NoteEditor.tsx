@@ -78,7 +78,9 @@ export function NoteEditor({ initialNote: note, saveAction, resolveAction, autos
   // A save the Server has not answered: its outcome is looked up, or it is sent again.
   const retry = () =>
     draft.unknown ? void recover(resolveAction, saveAction) : canSave ? send() : undefined;
-  const failing = draft.failures > 0 && !draft.conflict;
+  // An unknown save is settled first, conflict or not: keeping or dropping this Draft
+  // needs to know whether it was written.
+  const failing = draft.failures > 0 && (draft.unknown || !draft.conflict);
   // Retried by itself, waiting longer each time: most failures are a moment's.
   const waiting = failing && (draft.unknown ? !draft.resolving : canSave);
   // For timers and effects: the retry due now, if one is.
@@ -152,7 +154,7 @@ export function NoteEditor({ initialNote: note, saveAction, resolveAction, autos
         ...(focus === null ? [{ key: "return", cmd: startEditing }] : []),
       ],
     }),
-    [editing, focus, canSave, draft],
+    [editing, focus, canSave, failing, draft],
   );
 
   const copy = async () => {
@@ -173,7 +175,7 @@ export function NoteEditor({ initialNote: note, saveAction, resolveAction, autos
   return (
     <NotePane
       status={
-        draft.conflict ? (
+        draft.conflict && !(failing && !quiet) ? (
           <StatusLine
             fg={color.warn}
             text={
@@ -184,7 +186,7 @@ export function NoteEditor({ initialNote: note, saveAction, resolveAction, autos
           >
             <Button
               tone="primary"
-              disabled={behind}
+              disabled={behind || !!draft.pending}
               onPress={() => {
                 adopt();
                 send();
@@ -193,7 +195,7 @@ export function NoteEditor({ initialNote: note, saveAction, resolveAction, autos
               Keep mine
             </Button>
             <Button
-              disabled={behind}
+              disabled={behind || !!draft.pending}
               onPress={() => {
                 discard();
                 fields.clear();

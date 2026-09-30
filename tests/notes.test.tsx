@@ -359,11 +359,35 @@ test("a slow save is said to be slow, then unconfirmed, and settles once the Ser
     await eventually(() => status(ui) === "Still saving…", QUIET_MS * 2);
     await eventually(() => status(ui).startsWith("Save not confirmed"), QUIET_MS);
     expect(await frame(ui)).toContain("Check again");
+    // Ctrl+S looks it up now, without waiting for the next automatic check.
+    if (!draft.resolving)
+      await act(async () => {
+        ui.mockInput.pressKey("s", { ctrl: true });
+      });
+    expect(draft.resolving || !draft.pending).toBe(true);
     // The original save lands; the automatic check finds it.
     await act(async () => until(() => !draft.pending && !draft.dirty, QUIET_MS * 2));
     await frame(ui);
     expect(status(ui)).toBe("");
     expect(draft.baseline).toBe(text);
+  } finally {
+    await stop();
+  }
+});
+
+test("a save of a note deleted elsewhere is refused and recorded, never retried forever", async () => {
+  const { app, server, stop } = await start("notes-deleted");
+  try {
+    const call = (name: string, args: unknown[]) =>
+      app.callServer(`${server.buildId}/actions/notes.ts#${name}`, args);
+    await call("deleteNote", ["2"]);
+    const operationId = crypto.randomUUID();
+    const refused = { ok: false, error: "This note was deleted", operationId };
+    expect(
+      await call("saveNote", [{ id: "2", value: "late", version: 1, revision: 0, operationId }]),
+    ).toEqual(refused);
+    // A lookup finds the refusal: an unknown outcome settles instead of being sent again.
+    expect(await call("getOperation", [operationId])).toEqual(refused);
   } finally {
     await stop();
   }

@@ -53,7 +53,14 @@ export class Draft {
       this.value = value;
       this.revision++;
       this.error = "";
+      this.settleIfClean();
     }
+  }
+  /** Back to what the Server has, nothing in flight: no failed save is left to retry. */
+  private settleIfClean() {
+    if (this.dirty || this.pending) return;
+    this.since = undefined;
+    this.failures = 0;
   }
   begin(): Snapshot {
     if (this.pending) throw new Error("Resolve the current operation before saving");
@@ -123,6 +130,7 @@ export class Draft {
     this.value = this.baseline = note.value;
     this.version = note.version;
     this.revision++;
+    this.settleIfClean();
   }
   /**
    * Keeps this Draft over a note changed elsewhere: the next save replaces `note`,
