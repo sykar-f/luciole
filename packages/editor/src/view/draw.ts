@@ -1,4 +1,4 @@
-import { RGBA, type OptimizedBuffer } from "@opentui/core";
+import { RGBA, type NativeImage, type OptimizedBuffer } from "@opentui/core";
 import { comparePos } from "../model/doc.ts";
 import type { Pos } from "../model/types.ts";
 import type { Layout, Line } from "./layout.ts";
@@ -23,10 +23,19 @@ export type DrawOptions = {
    * they fade in transparency.
    */
   readonly background?: RGBA;
+  /** The task whose box is under the pointer (its block). */
+  readonly hoveredTask?: number;
+  /** How images are drawn, when the terminal draws them. */
+  readonly images?: {
+    readonly get: (url: string) => NativeImage | undefined;
+    readonly protocol: "kitty" | "sixel";
+    /** A cell's size in pixels, when the terminal told it. */
+    readonly cell: { readonly width: number; readonly height: number } | null;
+  };
 };
 
 const RULE = "─";
-const BAR = "│";
+const BAR = "▎";
 const QUOTE_STEP = 2;
 // Past this much of the fade, a column is left unpainted: the terminal's own background,
 // transparency included, shows at the edge.
@@ -45,13 +54,24 @@ export function drawLayout(
     comparePos(selection.from, { block, offset }) <= 0 &&
     comparePos({ block, offset }, selection.to) < 0;
   const faint = theme.faint();
+  const quoteBar = theme.quoteBar();
   for (let row = 0; row < view.height; row++) {
     const line = layout.lines[view.scroll + row];
     if (!line) break;
     const y = view.y + row;
     drawBackground(buffer, line, view, y, options.background);
     for (let bar = 0; bar < line.bars; bar++)
-      buffer.drawText(BAR, view.x + bar * QUOTE_STEP, y, faint);
+      buffer.drawText(BAR, view.x + bar * QUOTE_STEP, y, quoteBar);
+    // An image from its first row on screen: the rows above the top are cut from it.
+    if (line.image && (line.image.row === 0 || row === 0) && options.images)
+      drawImage(
+        buffer,
+        line,
+        view,
+        y,
+        Math.min(line.image.rows - line.image.row, view.height - row),
+        options.images,
+      );
     if (line.rule) {
       buffer.drawText(RULE.repeat(Math.max(0, view.width - line.x)), view.x + line.x, y, faint);
       if (
@@ -62,15 +82,20 @@ export function drawLayout(
         buffer.fillRect(view.x + line.x, y, 1, 1, theme.selection);
       continue;
     }
-    if (line.marker)
+    if (line.marker) {
+      const look =
+        line.marker.task && options.hoveredTask === line.block
+          ? theme.taskHover()
+          : line.marker.look;
       buffer.drawText(
         line.marker.text,
         view.x + line.marker.x,
         y,
-        line.marker.look.fg,
-        undefined,
-        line.marker.look.attributes,
+        look.fg,
+        look.bg,
+        look.attributes,
       );
+    }
     if (line.label) {
       const x = view.x + Math.max(0, view.width - line.label.text.length - 1);
       buffer.drawText(
@@ -117,14 +142,47 @@ function drawBackground(
   if (line.fill)
     buffer.fillRect(view.x + line.x, y, Math.max(0, view.width - line.x), 1, line.fill);
   if (!line.band) return;
-  const { color, from } = line.band;
-  // Full up to `from`, then fading out over what is left of the width.
-  const span = Math.max(1, view.width - from);
-  for (let cell = line.x; cell < view.width; cell++) {
+  const { color, from, to, cap } = line.band;
+  // Full up to `from`, then fading out until `to`; its first cell rounded by `cap`.
+  const span = Math.max(1, to - from);
+  for (let cell = line.x; cell < Math.min(view.width, to); cell++) {
     const faded = Math.max(0, cell + 1 - from) / span;
     if (faded >= UNPAINTED) break;
-    buffer.fillRect(view.x + cell, y, 1, 1, fade(color, background, faded));
+    const shade = fade(color, background, faded);
+    if (cell === line.x && cap) buffer.drawText(cap, view.x + cell, y, shade);
+    else buffer.fillRect(view.x + cell, y, 1, 1, shade);
   }
+}
+
+/** `rows` rows of `line`'s image from `y`: the part of it that shows. */
+function drawImage(
+  buffer: OptimizedBuffer,
+  line: Line,
+  view: Viewport,
+  y: number,
+  rows: number,
+  images: NonNullable<DrawOptions["images"]>,
+) {
+  const placed = line.image;
+  const image = placed && images.get(placed.url);
+  if (!placed || !image || rows <= 0) return;
+  const top = Math.floor((placed.row / placed.rows) * image.height);
+  const bottom = Math.ceil(((placed.row + rows) / placed.rows) * image.height);
+  const { cell } = images;
+  buffer.drawImage(
+    image,
+    view.x + line.x,
+    y,
+    placed.cols,
+    rows,
+    cell ? Math.round(placed.cols * cell.width) : 0,
+    cell ? Math.round(rows * cell.height) : 0,
+    0,
+    top,
+    image.width,
+    Math.max(1, Math.min(image.height, bottom) - top),
+    images.protocol,
+  );
 }
 
 /** `band` faded by `amount` (0 to 1) into `background`, or into transparency without it. */

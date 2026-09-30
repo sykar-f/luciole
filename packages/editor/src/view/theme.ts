@@ -10,8 +10,8 @@ export type Look = { fg: RGBA; bg?: RGBA; attributes: number };
 const FALLBACK_FG = RGBA.fromHex("#c9d1d9");
 const FALLBACK_FAINT = RGBA.fromHex("#6e7681");
 const FALLBACK_SELECTION = RGBA.fromHex("#264f78");
-/** Heading levels drawn apart; deeper ones look like the last. */
-export const HEADING_LEVELS = 3;
+/** Heading levels drawn apart: all six of Markdown's. */
+export const HEADING_LEVELS = 6;
 
 export class Theme {
   private readonly syntax: SyntaxStyle;
@@ -88,13 +88,13 @@ export class Theme {
     if (marks.bold) groups.push("markup.strong");
     if (marks.italic) groups.push("markup.italic");
     if (marks.strike) groups.push(STRIKE);
-    if (marks.code) groups.push("markup.raw");
+    if (marks.code) groups.push("markup.raw", "markup.raw.inline");
     if (marks.link !== undefined) groups.push("markup.link");
     if (marks.verbatim) groups.push("markup.link.url");
     return groups;
   }
 
-  /** The band behind a heading, from its style's background: none below level 3. */
+  /** The band behind a heading, from its style's background: none for the deeper levels. */
   band(level: number): RGBA | undefined {
     if (level > HEADING_LEVELS) return undefined;
     return this.lookup(`${HEADING}.${level}`)?.bg;
@@ -103,9 +103,19 @@ export class Theme {
   panel(): RGBA | undefined {
     return this.lookup("markup.raw.block")?.bg;
   }
-  /** Rules, quote bars, the placeholder: what steps back. */
+  /** Rules, table borders, the placeholder: what steps back. */
   faint(): RGBA {
     return this.lookup("conceal")?.fg ?? FALLBACK_FAINT;
+  }
+  /** The bar in a quote's margin: its own color when the style has one, else faint. */
+  quoteBar(): RGBA {
+    return this.lookup("markup.quote.bar")?.fg ?? this.faint();
+  }
+  /** A task's box under the pointer: the list's color on the code panel. */
+  taskHover(): Look {
+    const look = this.look(["markup.list"]);
+    const bg = this.panel();
+    return bg ? { ...look, bg } : look;
   }
   marker(groups: readonly string[] = []): Look {
     return this.look(["markup.list", ...groups]);

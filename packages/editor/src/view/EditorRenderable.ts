@@ -19,7 +19,16 @@ import { wordAround } from "../model/text.ts";
 import type { Pos } from "../model/types.ts";
 import { drawLayout } from "./draw.ts";
 import { intentOf, perform, type Intent, type Motion } from "./keys.ts";
-import { cellOf, layoutDocument, posAt, type Glyph, type Layout } from "./layout.ts";
+import { forgetWaiting, imageAt, protocolOf } from "./images.ts";
+import {
+  cellOf,
+  layoutDocument,
+  posAt,
+  type CellSize,
+  type Glyph,
+  type Layout,
+  type LayoutOptions,
+} from "./layout.ts";
 import { lineEdge, moveHorizontal, moveVertical } from "./motion.ts";
 import { Highlighter } from "./highlight.ts";
 import { Theme } from "./theme.ts";
@@ -46,13 +55,21 @@ export type MarkdownEditorOptions = RenderableOptions<MarkdownEditorRenderable> 
   /** The terminal's background (OSC 11): heading bands fade into it. */
   terminalBackground?: RGBA;
   /**
-   * The widest text runs, in cells, as on a printed page; heading bands, code panels and
-   * rules still reach the editor's right edge. The editor's width by default.
+   * The widest the page runs, in cells, as on a printed page: narrower than the editor, it
+   * is centered in it, and heading bands and code panels reach into its left margin so
+   * that all text starts at one column. The editor's width by default.
    */
   readingWidth?: number;
 };
 
 const SCROLL_LINES = 3;
+// How far bands and code panels reach into the margin, when there is one.
+const HANG = 2;
+// Narrower than this, an editor gives its margin back to the text.
+const MIN_MARGINED = 40;
+// Terminals that draw octants themselves (Unicode 16), whatever the font: bands get their
+// rounded ends there, square ones elsewhere.
+const OCTANTS = /ghostty|kitty|wezterm/i;
 const MULTI_CLICK_MS = 400;
 const DOUBLE = 2;
 const TRIPLE = 3;
@@ -66,7 +83,20 @@ export class MarkdownEditorRenderable extends Renderable {
   private theme: Theme | null = null;
   private syntax: SyntaxStyle | null = null;
   private selectionBg: RGBA | undefined;
-  private laid: { layout: Layout; doc: unknown; width: number; theme: Theme } | null = null;
+  private laid: { layout: Layout; doc: unknown; key: string; theme: Theme } | null = null;
+  /** The task whose box is under the pointer. */
+  private hoveredTask: number | null = null;
+  /** Bumped when an image arrives: the blocks holding images are laid out again. */
+  private images = 0;
+  private readonly imageReady = () => {
+    this.images++;
+    this.laid = null;
+    this.requestRender();
+  };
+  private readonly capabilitiesChanged = () => {
+    this.laid = null;
+    this.requestRender();
+  };
   private scroll = 0;
   /** The column vertical moves keep, from the first of them. */
   private goal: number | null = null;
@@ -102,6 +132,23 @@ export class MarkdownEditorRenderable extends Renderable {
     this._onLink = options.onLink;
     this._onCopy = options.onCopy;
     this._onFocusRequest = options.onFocusRequest;
+    this.listen("on");
+  }
+
+  /**
+   * The terminal's capabilities (images, octants) arrive after the first frame. The context
+   * is an EventEmitter typed only with Node's types, which this package does not load:
+   * reached through Reflect.
+   */
+  private listen(method: "on" | "off") {
+    const handler: unknown = Reflect.get(this.ctx, method);
+    if (typeof handler === "function")
+      Reflect.apply(handler, this.ctx, ["capabilities", this.capabilitiesChanged]);
+  }
+  protected override destroySelf(): void {
+    this.listen("off");
+    forgetWaiting(this.imageReady);
+    super.destroySelf();
   }
 
   set value(markdown: string) {
@@ -150,19 +197,54 @@ export class MarkdownEditorRenderable extends Renderable {
     this.theme ??= new Theme(this.syntax, this.selectionBg ? { selection: this.selectionBg } : {});
     return this.theme;
   }
-  /** The document laid out for the current width, recomputed only when either changed. */
+  /**
+   * The page: `readingWidth` wide at most, centered, and the margin left of it. With a
+   * reading width, the page keeps a margin for bands and panels however narrow the editor
+   * (unless it is too narrow to spare one).
+   */
+  private column() {
+    const spare = Number.isFinite(this.reading) && this.width >= MIN_MARGINED;
+    const room = spare ? this.width - HANG * 2 : this.width;
+    const width = Math.max(1, Math.min(room, this.reading));
+    const offset = Math.max(0, Math.floor((this.width - width) / 2));
+    return { width, offset };
+  }
+  /** A cell's size in pixels, when the terminal told its own. */
+  private cell(): CellSize | null {
+    const { resolution, terminalWidth, terminalHeight } = this.ctx;
+    if (!resolution || !terminalWidth || !terminalHeight) return null;
+    return { width: resolution.width / terminalWidth, height: resolution.height / terminalHeight };
+  }
+
+  /** The document laid out for the current page, recomputed only when that changed. */
   private layout(): Layout | null {
     const theme = this.currentTheme();
-    const width = Math.max(1, Math.min(this.width, this.reading));
     if (!theme) return null;
+    const { width, offset } = this.column();
     const doc = this.controller.state.doc;
-    const laid = this.laid;
-    if (laid && laid.doc === doc && laid.width === width && laid.theme === theme)
-      return laid.layout;
-    const layout = layoutDocument(doc, width, theme, {
+    const protocol = protocolOf(this.ctx);
+    const cell = this.cell();
+    const options: LayoutOptions = {
       highlight: (block, lang, text) => this.highlighter.lookup(block, lang, text),
-    });
-    this.laid = { layout, doc, width, theme };
+      hang: Math.min(HANG, offset),
+      caps: OCTANTS.test(this.ctx.capabilities?.terminal.name ?? ""),
+      // The block being edited shows its Markdown: a table's pipes, an image's source.
+      ...(this.focused ? { revealed: this.controller.state.selection.head.block } : {}),
+      images: [protocol, this.images, cell?.width, cell?.height].join(":"),
+      ...(cell ? { cell } : {}),
+      image: (url) => {
+        if (!protocol) return undefined;
+        const image = imageAt(url, this.imageReady);
+        return image === "missing" || image === undefined
+          ? image
+          : { width: image.width, height: image.height };
+      },
+    };
+    const key = [width, options.hang, options.caps, options.revealed, options.images].join(":");
+    const laid = this.laid;
+    if (laid && laid.doc === doc && laid.key === key && laid.theme === theme) return laid.layout;
+    const layout = layoutDocument(doc, width, theme, options);
+    this.laid = { layout, doc, key, theme };
     return layout;
   }
 
@@ -172,13 +254,15 @@ export class MarkdownEditorRenderable extends Renderable {
     if (!layout || !theme) return;
     this.clampScroll(layout);
     const { selection } = this.controller.state;
+    const { width, offset } = this.column();
+    const protocol = protocolOf(this.ctx);
     drawLayout(
       buffer,
       layout,
       {
-        x: this.screenX,
+        x: this.screenX + offset,
         y: this.screenY,
-        width: this.width,
+        width,
         height: this.height,
         scroll: this.scroll,
       },
@@ -187,6 +271,19 @@ export class MarkdownEditorRenderable extends Renderable {
         selection: isCollapsed(selection) ? null : range(selection),
         ...(this._placeholder ? { placeholder: this._placeholder } : {}),
         ...(this.background ? { background: this.background } : {}),
+        ...(this.hoveredTask === null ? {} : { hoveredTask: this.hoveredTask }),
+        ...(protocol
+          ? {
+              images: {
+                get: (url: string) => {
+                  const image = imageAt(url, this.imageReady);
+                  return image === "missing" ? undefined : image;
+                },
+                protocol,
+                cell: this.cell(),
+              },
+            }
+          : {}),
       },
     );
     this.placeCursor(layout);
@@ -195,10 +292,11 @@ export class MarkdownEditorRenderable extends Renderable {
   private placeCursor(layout: Layout) {
     if (!this.focused) return;
     const { row, col } = cellOf(layout, this.controller.state.selection.head);
-    const visible = row >= this.scroll && row < this.scroll + this.height && col < this.width;
+    const { width, offset } = this.column();
+    const visible = row >= this.scroll && row < this.scroll + this.height && col < width;
     // Terminal cursor coordinates start at 1.
     this.ctx.setCursorPosition(
-      this.screenX + col + 1,
+      this.screenX + offset + col + 1,
       this.screenY + row - this.scroll + 1,
       visible,
     );
@@ -316,7 +414,7 @@ export class MarkdownEditorRenderable extends Renderable {
     const layout = this.layout();
     if (!layout) return null;
     const row = event.y - this.screenY + this.scroll;
-    const col = event.x - this.screenX;
+    const col = event.x - this.screenX - this.column().offset;
     const line = layout.lines[row];
     const glyph: Glyph | undefined = line?.glyphs.find((g) => col >= g.x && col < g.x + g.width);
     return { layout, row, col, line, glyph, pos: posAt(layout, row, col) };
@@ -341,15 +439,24 @@ export class MarkdownEditorRenderable extends Renderable {
       }
       case "move":
       case "over": {
-        const link = this.hit(event)?.glyph?.link;
+        const hit = this.hit(event);
+        const task = hit && onTaskBox(hit.line, hit.col) ? (hit.line?.block ?? null) : null;
+        if (task !== this.hoveredTask) {
+          this.hoveredTask = task;
+          this.requestRender();
+        }
+        const link = hit?.glyph?.link ?? hit?.line?.image?.link;
+        const follows = !this.focused || event.modifiers.ctrl || event.modifiers.alt;
         this.ctx.setMousePointer(
-          link !== undefined && (!this.focused || event.modifiers.ctrl || event.modifiers.alt)
-            ? "pointer"
-            : "text",
+          task !== null || (link !== undefined && follows) ? "pointer" : "text",
         );
         return;
       }
       case "out":
+        if (this.hoveredTask !== null) {
+          this.hoveredTask = null;
+          this.requestRender();
+        }
         this.ctx.setMousePointer("default");
         return;
       case "down":
@@ -376,15 +483,11 @@ export class MarkdownEditorRenderable extends Renderable {
     event.stopPropagation();
     const { line, glyph, pos, col } = hit;
     // A task's box ticks it, whatever the focus.
-    if (
-      line?.marker?.task &&
-      col >= line.marker.x &&
-      col < line.marker.x + line.marker.text.length + 1
-    ) {
+    if (line && onTaskBox(line, col)) {
       this.controller.toggleTask(line.block);
       return;
     }
-    const link = glyph?.link;
+    const link = glyph?.link ?? line?.image?.link;
     if (
       link !== undefined &&
       this._onLink &&
@@ -427,4 +530,10 @@ export class MarkdownEditorRenderable extends Renderable {
       head: { block: pos.block, offset: length },
     });
   }
+}
+
+/** Whether column `col` of `line` is on a task's box (or the space after it). */
+function onTaskBox(line: Layout["lines"][number] | undefined, col: number) {
+  const marker = line?.marker;
+  return marker?.task === true && col >= marker.x && col < marker.x + marker.text.length + 1;
 }

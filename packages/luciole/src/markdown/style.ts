@@ -18,7 +18,7 @@ export type MarkdownPalette = {
   onBand: string;
   /** The band behind H1 and H2, fading out to the right. */
   band: string;
-  /** The quieter band behind H3. */
+  /** The quieter band behind H3 (H4 to H6 have none: a bar, then plain bold). */
   bandQuiet: string;
   /** Inline code and strings. */
   code: string;
@@ -31,6 +31,16 @@ export type MarkdownPalette = {
   /** Types, tags, added lines. */
   ok: string;
 };
+
+// How far a quote's bar goes from the accent toward the band: present, not loud.
+const QUOTE_BAR = 0.45;
+/** `from` moved toward `to` by `amount` (0 to 1). */
+function mix(from: string, to: string, amount: number) {
+  const a = RGBA.fromHex(from);
+  const b = RGBA.fromHex(to);
+  const at = (x: number, y: number) => x + (y - x) * amount;
+  return RGBA.fromValues(at(a.r, b.r), at(a.g, b.g), at(a.b, b.b), 1);
+}
 
 /**
  * A complete `SyntaxStyle` for Markdown and the code it holds, from a palette: heading
@@ -50,15 +60,23 @@ export function markdownStyle(palette: MarkdownPalette): SyntaxStyle {
     "markup.heading.1": fg(palette.onBand, { bg: hex(palette.band), bold: true }),
     "markup.heading.2": fg(palette.onBand, { bg: hex(palette.band), bold: true }),
     "markup.heading.3": fg(palette.accent, { bg: hex(palette.bandQuiet), bold: true }),
+    "markup.heading.4": fg(palette.accent, { bold: true }),
+    "markup.heading.5": fg(palette.text, { bold: true }),
+    "markup.heading.6": fg(palette.muted, { bold: true }),
     "markup.strong": { bold: true },
     "markup.italic": { italic: true },
     "markup.strikethrough": fg(palette.muted, { dim: true }),
     "markup.quote": fg(palette.muted, { italic: true }),
+    "markup.quote.bar": { fg: mix(palette.accent, palette.band, QUOTE_BAR) },
     "markup.raw": fg(palette.code),
     "markup.raw.block": { bg: hex(palette.panel) },
+    "markup.raw.inline": { bg: hex(palette.panel) },
     "markup.link": fg(palette.link, { underline: true }),
     "markup.link.label": fg(palette.link, { underline: true }),
     "markup.link.url": fg(palette.muted, { underline: true }),
+    // An image the terminal cannot draw, or not yet: its alternative text, as a link reads.
+    "markup.image": fg(palette.link, { italic: true }),
+    "markup.image.missing": fg(palette.muted, { italic: true }),
     "markup.list": fg(palette.accent),
     "markup.list.checked": fg(palette.ok),
     "markup.list.unchecked": fg(palette.muted),

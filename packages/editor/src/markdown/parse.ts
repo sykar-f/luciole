@@ -280,3 +280,77 @@ const KINDS: ReadonlySet<string> = new Set<MarkedToken["type"]>([
 ]);
 /** Narrows marked's open `Token` union (it admits any `type`) to the tokens it documents. */
 const known = (token: Token): token is MarkedToken => KINDS.has(token.type);
+
+export type Align = "left" | "center" | "right" | null;
+/** A cell's text and where it is written in the table's Markdown: `from`..`to`. */
+export type Cell = { readonly content: Inline; readonly from: number; readonly to: number };
+/** A GFM table, read for drawing: its rows (the header first) and how each column aligns. */
+export type Table = {
+  readonly align: readonly Align[];
+  readonly rows: readonly (readonly Cell[])[];
+};
+
+/**
+ * `markdown` as a table, when it is exactly one; null otherwise. The editor keeps a table as
+ * written (a raw block): this reads it only to draw it.
+ */
+export function tableOf(markdown: string): Table | null {
+  const tokens = new Lexer({ gfm: true }).lex(markdown).filter((t) => t.type !== "space");
+  const [table] = tokens;
+  if (tokens.length !== 1 || !table || !known(table) || table.type !== "table") return null;
+  const lines = lineStarts(markdown);
+  // The source lines: the header, the delimiter row, then one line per row.
+  const cellsOf = (cells: readonly Tokens.TableCell[], line: number): Cell[] => {
+    const spans = cellSpans(markdown, lines[line] ?? 0, lines[line + 1] ?? markdown.length);
+    return cells.map((cell, index) => {
+      const span = spans[index] ?? { from: lines[line] ?? 0, to: lines[line] ?? 0 };
+      return { content: inlineOf(cell.tokens), ...span };
+    });
+  };
+  return {
+    align: table.align,
+    rows: [
+      cellsOf(table.header, 0),
+      ...table.rows.map((row, index) => cellsOf(row, index + DELIMITER_ROWS)),
+    ],
+  };
+}
+/** The header, then its delimiter row: where a table's body starts. */
+const DELIMITER_ROWS = 2;
+
+function lineStarts(text: string) {
+  const starts = [0];
+  for (let i = 0; i < text.length; i++) if (text[i] === "\n") starts.push(i + 1);
+  return starts;
+}
+
+/**
+ * Where each cell of the row written from `start` to `end` is, trimmed: split at the
+ * pipes that are neither escaped nor in code, the outer ones left out.
+ */
+function cellSpans(text: string, start: number, end: number) {
+  const pipes: number[] = [];
+  let code = false;
+  for (let i = start; i < end; i++) {
+    const char = text[i];
+    if (char === "\\") i++;
+    else if (char === "`") code = !code;
+    else if (char === "|" && !code) pipes.push(i);
+  }
+  let lineEnd = end;
+  while (lineEnd > start && /\s/.test(text[lineEnd - 1] ?? "")) lineEnd--;
+  let lineStart = start;
+  while (lineStart < lineEnd && /\s/.test(text[lineStart] ?? "")) lineStart++;
+  const bounds = [lineStart - 1, ...pipes, lineEnd];
+  if (pipes[0] === lineStart) bounds.shift();
+  if (pipes.at(-1) === lineEnd - 1) bounds.pop();
+  const spans: { from: number; to: number }[] = [];
+  for (let i = 0; i + 1 < bounds.length; i++) {
+    let from = (bounds[i] ?? 0) + 1;
+    let to = bounds[i + 1] ?? from;
+    while (from < to && /\s/.test(text[from] ?? "")) from++;
+    while (to > from && /\s/.test(text[to - 1] ?? "")) to--;
+    spans.push({ from, to });
+  }
+  return spans;
+}
