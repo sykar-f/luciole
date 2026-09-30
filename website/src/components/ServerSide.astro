@@ -73,11 +73,9 @@ const split = (path: string) => {
         <span class="phrase">The folder you know.</span> <span class="phrase">Split in two.</span>
       </h2>
       <p class="lede">
-        Lay out <code>app/</code> as you would for Next.js; <code>airtty build</code> sends each file to its side.
-      </p>
-      <p class="lede aside">
-        One difference: layouts and loading states run in your terminal, so the next page's loading
-        screen shows the moment you press Enter.
+        Lay out <code>app/</code> as you would for Next.js. <code>airtty build</code> sends each file to its
+        side. One difference: layouts and loading screens run in your terminal, so changing pages never
+        waits to start.
       </p>
     </div>
 
@@ -225,12 +223,6 @@ const split = (path: string) => {
     white-space: nowrap;
   }
 
-  /* The one thing the drawing cannot say, a step below the claim. */
-  .aside {
-    margin-top: -6px;
-    font-size: var(--step-0);
-  }
-
   /* Three columns, read left to right: the tree, the build, the two sides. The wires are
      laid over the whole figure. */
   .split {
@@ -256,6 +248,11 @@ const split = (path: string) => {
     font-weight: 600;
     text-decoration: underline dotted var(--dim);
     text-underline-offset: 4px;
+  }
+
+  /* Clear of the dotted underline, which sits 4px below the text. */
+  .tree-title:focus-visible {
+    outline-offset: 7px;
   }
 
   .tree-title:hover {
