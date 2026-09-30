@@ -22,6 +22,11 @@ jobs:
         working-directory: website
       - run: bun run probes
       - run: bun run verify
+      # The guide quotes the checkout by anchors and indexes every module of luciole/src:
+      # only building the site shows that a change to the code left the guide behind.
+      - if: runner.os == 'Linux'
+        run: bun run check && bun run build
+        working-directory: website
       - run: bun run test:pty
       - run: bun run test:pty:dev
       - run: bun scripts/clean-install.ts
