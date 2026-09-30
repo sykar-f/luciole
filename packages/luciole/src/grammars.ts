@@ -46,6 +46,10 @@ import tsx from "tree-sitter-typescript/tree-sitter-tsx.wasm" with { type: "file
 // OpenTUI's own TypeScript queries, fixed (see the file), and JSX on top for TSX.
 import typescriptHighlights from "./queries/typescript.scm" with { type: "file" };
 import jsxHighlights from "./queries/jsx.scm" with { type: "file" };
+// Keys and punctuation the data languages' own queries leave out.
+import jsonExtra from "./queries/json.scm" with { type: "file" };
+import yamlKeys from "./queries/keys.yaml.scm" with { type: "file" };
+import tomlKeys from "./queries/keys.toml.scm" with { type: "file" };
 
 /**
  * Where a copied file is. The bundler writes its path relative to the bundle, and OpenTUI
@@ -83,13 +87,17 @@ export const GRAMMARS: readonly FiletypeParserOptions[] = [
     filetype: "json",
     aliases: ["jsonc"],
     wasm: at(json),
-    queries: { highlights: [at(jsonHighlights)] },
+    queries: { highlights: [at(jsonHighlights), at(jsonExtra)] },
   },
   { filetype: "php", wasm: at(php), queries: { highlights: [at(phpHighlights)] } },
   { filetype: "python", wasm: at(python), queries: { highlights: [at(pythonHighlights)] } },
   { filetype: "ruby", wasm: at(ruby), queries: { highlights: [at(rubyHighlights)] } },
   { filetype: "rust", wasm: at(rust), queries: { highlights: [at(rustHighlights)] } },
-  { filetype: "toml", wasm: at(toml), queries: { highlights: [at(tomlHighlights)] } },
+  {
+    filetype: "toml",
+    wasm: at(toml),
+    queries: { highlights: [at(tomlHighlights), at(tomlKeys)] },
+  },
   // Replaces OpenTUI's TypeScript, whose queries drew every identifier as a constant.
   {
     filetype: "typescript",
@@ -104,7 +112,12 @@ export const GRAMMARS: readonly FiletypeParserOptions[] = [
     wasm: at(tsx),
     queries: { highlights: [at(typescriptHighlights), at(jsxHighlights)] },
   },
-  { filetype: "yaml", wasm: at(yaml), queries: { highlights: [at(yamlHighlights)] } },
+  {
+    filetype: "yaml",
+    aliases: ["yml"],
+    wasm: at(yaml),
+    queries: { highlights: [at(yamlHighlights), at(yamlKeys)] },
+  },
 ];
 
 addDefaultParsers([...GRAMMARS]);

@@ -520,12 +520,12 @@ function rawLines(text: string, context: BlockContext): Line[] {
 
 /**
  * Front matter on a panel, as code is, labelled with its language: its keys in the color of
- * properties, its fences faint.
+ * keys in data, its fences faint.
  */
 function frontMatterLines(text: string, context: BlockContext): Line[] {
   const { x, width, theme, hang } = context;
   const faint = theme.look(["conceal"]);
-  const key = theme.look(["markup.raw", "property"]);
+  const key = theme.look(["markup.raw", "string.special.key"]);
   const value = theme.look([]);
   const lines = text.split("\n");
   const last = lines.length - 1;
@@ -639,7 +639,9 @@ function glyphsOf(block: Block, base: readonly string[], context: BlockContext):
   const code = context.highlights
     ? groupsByOffset(context.highlights, textOfBlock(block).length)
     : null;
-  return spansGlyphs(contentOf(block), base, context, code);
+  // Code a grammar colors starts from the text's color, not the one of plain code.
+  const from = code ? [...base, "markup.raw.code"] : base;
+  return spansGlyphs(contentOf(block), from, context, code);
 }
 
 /** `content` as glyphs over `base` groups, its offsets from 0. */

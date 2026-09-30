@@ -76,6 +76,8 @@ export function markdownStyle(palette: MarkdownPalette): SyntaxStyle {
     "markup.raw": fg(palette.code),
     "markup.raw.block": { bg: hex(palette.panel) },
     "markup.raw.inline": { bg: hex(palette.panel) },
+    // In code a grammar colors, what it leaves uncolored is text, not a string.
+    "markup.raw.code": fg(palette.text),
     "markup.link": fg(palette.link, { underline: true }),
     "markup.link.label": fg(palette.link, { underline: true }),
     "markup.link.url": fg(palette.muted, { underline: true }),
@@ -100,6 +102,8 @@ export function markdownStyle(palette: MarkdownPalette): SyntaxStyle {
     "keyword.operator": fg(palette.danger),
     string: fg(palette.code),
     "string.special": fg(palette.code),
+    // A key in data (JSON, YAML, TOML) in the color GitHub gives it: the structure reads first.
+    "string.special.key": fg(palette.ok),
     escape: fg(palette.link),
     comment: fg(palette.muted, { italic: true }),
     number: fg(palette.link),
