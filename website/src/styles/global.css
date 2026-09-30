@@ -1,7 +1,8 @@
 /* Colours come from the palette (styles/palettes.css): phosphor by default. Two accents,
    one meaning each, everywhere on the page: --client is what runs in the user's terminal,
    --server what runs on the Server; neither is ever decoration. Glow, scanlines and
-   afterglow belong to the screens (Screen.astro), never to the page around them. */
+   afterglow belong to the screens (Screen.astro), never to the page around them, but for
+   the hero's field of fireflies (HeroField.astro), faint and behind everything. */
 :root {
   /* Derived from the palette, so a preset sets only its base colours. */
   --client-soft: color-mix(in srgb, var(--client) 10%, transparent);

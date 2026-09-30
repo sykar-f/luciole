@@ -646,10 +646,19 @@ const stand = JSON.stringify({
     box-shadow: 0 0 calc(var(--glow-blur) * 1.6) color-mix(in srgb, var(--afterglow) 50%, transparent);
     mix-blend-mode: screen;
     opacity: var(--glow, 1);
-    animation: afterglow var(--glow-ms, 0.45s) ease-out forwards;
+    animation: afterglow var(--glow-ms, 0.45s) forwards;
   }
 
+  /* A firefly's flash: lit almost at once, then a slow fade, darkest last. */
   @keyframes afterglow {
+    from {
+      opacity: calc(var(--glow, 1) * 0.6);
+      animation-timing-function: ease-out;
+    }
+    8% {
+      opacity: var(--glow, 1);
+      animation-timing-function: cubic-bezier(0.25, 0, 0.55, 1);
+    }
     to {
       opacity: 0;
     }

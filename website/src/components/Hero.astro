@@ -5,6 +5,7 @@
 // only requests wait. Whatever the reader does in one
 // is replayed in the other (docs/WEB.md, "Page embarquée", `typed`), and the page's largest
 // type is not a claim but a measure: how long each screen took, from the key to its cells.
+import HeroField from "./HeroField.astro";
 import Screen from "./Screen.astro";
 import { frame } from "../lib/frames";
 
@@ -25,6 +26,7 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
 ---
 
 <section class="hero" id="top" data-duel data-columns={COLUMNS} data-rows={ROWS}>
+  <HeroField />
   <div class="wrap">
     <div class="top">
       <h1 aria-label={`With luciole, ${LOCAL.join(", ")}: none of it waits for the network.`}>
@@ -234,12 +236,15 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
   /* The first view is the hero whole: the title, the screens and their measures share the
      window's height instead of crowding its top. */
   .hero {
+    position: relative;
     display: flex;
     min-height: calc(100svh - 61px);
     padding: clamp(40px, 6vh, 72px) 0 clamp(112px, 16vh, 150px);
   }
 
   .hero > .wrap {
+    position: relative;
+    z-index: 1;
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -504,10 +509,19 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
     box-shadow: 0 0 calc(var(--glow-blur) * 1.6) color-mix(in srgb, var(--afterglow) 50%, transparent);
     mix-blend-mode: screen;
     opacity: var(--glow, 1);
-    animation: afterglow var(--glow-ms, 0.45s) ease-out forwards;
+    animation: afterglow var(--glow-ms, 0.45s) forwards;
   }
 
+  /* A firefly's flash: lit almost at once, then a slow fade, darkest last. */
   @keyframes afterglow {
+    from {
+      opacity: calc(var(--glow, 1) * 0.6);
+      animation-timing-function: ease-out;
+    }
+    8% {
+      opacity: var(--glow, 1);
+      animation-timing-function: cubic-bezier(0.25, 0, 0.55, 1);
+    }
     to {
       opacity: 0;
     }
