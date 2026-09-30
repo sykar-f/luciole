@@ -165,7 +165,7 @@ export function tagGroups(open: readonly string[]): string[] {
 
 export type AlertKind = "note" | "tip" | "important" | "warning" | "caution";
 const ALERTS: Readonly<Record<AlertKind, string>> = {
-  note: "ⓘ Note",
+  note: "◉ Note",
   tip: "✦ Tip",
   important: "❖ Important",
   warning: "⚠ Warning",
@@ -184,3 +184,14 @@ export function alertOf(content: Inline) {
 }
 const isAlertKind = (kind: string | undefined): kind is AlertKind =>
   kind !== undefined && kind in ALERTS;
+
+const FOOTNOTE = /^\[\^([^\]\s]+)\]:[ \t]*/;
+/** A footnote's definition opening a paragraph: its label shown, and the marker's length. */
+export function footnoteOf(content: Inline) {
+  const first = content[0];
+  if (!first || first.marks.code || first.marks.verbatim) return null;
+  const match = FOOTNOTE.exec(first.text);
+  if (!match) return null;
+  const label = match[1] ?? "";
+  return { shown: `${shifted(label, "sup") ?? `[${label}]`} `, length: match[0].length };
+}

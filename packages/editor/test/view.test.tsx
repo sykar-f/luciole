@@ -459,6 +459,8 @@ test("what notes write beyond CommonMark reads as it means, and as written where
       "press <kbd>Ctrl</kbd>+<kbd>C</kbd>, H<sub>2</sub>O, x<sup>2</sup> <!-- hidden -->",
       "",
       "one<br>two",
+      "",
+      "[^1]: The note itself.",
     ].join("\n"),
   );
   const frame = rows();
@@ -468,4 +470,5 @@ test("what notes write beyond CommonMark reads as it means, and as written where
   expect(frame.slice(4, 6)).toEqual(["▎ ⚠ Warning", "▎ Mind the step."]);
   expect(frame[7]).toBe("press  Ctrl + C , H₂O, x²");
   expect(frame.slice(9, 11)).toEqual(["one", "two"]);
+  expect(frame[12]).toBe("¹ The note itself.");
 });

@@ -6,6 +6,7 @@ import { isText, quoteOf, type Block, type Doc, type Inline, type Pos } from "..
 import { groupsByOffset, type Highlights } from "./highlight.ts";
 import {
   alertOf,
+  footnoteOf,
   isComment,
   isLineBreakTag,
   piecesOf,
@@ -437,19 +438,31 @@ function computeLines(block: Block, context: BlockContext): Line[] {
     case "paragraph": {
       const images = imageLines(block, context);
       if (images) return images;
-      // A quote opening with `[!NOTE]`: its title, in its color, over the marker.
-      const found = block.quote && !context.revealed ? alertOf(block.content) : null;
-      const shown = found
+      // A quote opening with `[!NOTE]`: its title, in its color, over the marker. A
+      // footnote's definition: its number, then its text, stepping back.
+      const alert = block.quote && !context.revealed ? alertOf(block.content) : null;
+      const note = !alert && !context.revealed ? footnoteOf(block.content) : null;
+      const over = (text: string, length: number, look: Look): Draft[] =>
+        graphemes(text).map((g, i) => ({
+          text: g.text,
+          offset: Math.min(length - 1, i),
+          width: cellWidth(g.text),
+          look,
+        }));
+      const muted = theme.look(["markup.footnote"]);
+      const shown = alert
         ? [
-            ...graphemes(found.title).map((g, i) => ({
-              text: g.text,
-              offset: Math.min(found.length - 1, i),
-              width: cellWidth(g.text),
-              look: theme.look([`markup.alert.${found.kind}`]),
-            })),
-            ...glyphs.filter((g) => g.offset >= found.length),
+            ...over(alert.title, alert.length, theme.look([`markup.alert.${alert.kind}`])),
+            ...glyphs.filter((g) => g.offset >= alert.length),
           ]
-        : glyphs;
+        : note
+          ? [
+              ...over(note.shown, note.length, theme.look(["markup.link"])),
+              ...glyphs
+                .filter((g) => g.offset >= note.length)
+                .map((g) => ({ ...g, look: { ...g.look, fg: muted.fg } })),
+            ]
+          : glyphs;
       return wrap(shown, x, width, { words: true }).map((line) => ({ ...line, ...at }));
     }
   }
