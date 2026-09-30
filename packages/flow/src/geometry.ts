@@ -2,7 +2,16 @@
  * Where things are on the canvas: flow coordinates (cells at zoom 1) to canvas cells,
  * semantic zoom, node rectangles, handle anchors, fitting the view. Pure functions.
  */
-import type { Detail, HandleSpec, HandleType, Node, Position, Rect, Viewport, XY } from "./types";
+import type {
+  Detail,
+  HandleSpec,
+  HandleType,
+  Node,
+  Position,
+  Rect,
+  Viewport,
+  XY,
+} from "./types.ts";
 
 /** The zoom levels, from closest to farthest. Each draws nodes with less detail. */
 const HALF = 0.5;

@@ -1,10 +1,10 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { RGBA, type BoxRenderable, type MouseEvent, type OptimizedBuffer } from "@opentui/core";
-import { absolutePositions, flowBounds, toFlow } from "./geometry";
-import { useStore, useStoreVersion } from "./hooks";
-import { drawMiniMap, Grid, type BackgroundVariant, type Role } from "./raster";
-import { roleColor, useFlowTheme } from "./theme";
-import type { Rect, XY } from "./types";
+import { absolutePositions, flowBounds, toFlow } from "./geometry.ts";
+import { useStore, useStoreVersion } from "./hooks.tsx";
+import { drawMiniMap, Grid, type BackgroundVariant, type Role } from "./raster.ts";
+import { roleColor, useFlowTheme } from "./theme.ts";
+import type { Rect, XY } from "./types.ts";
 
 const PANEL_Z = 100_000;
 const DEFAULT_GAP: XY = { x: 8, y: 4 };

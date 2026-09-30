@@ -9,13 +9,13 @@ import {
 } from "react";
 import { RGBA, type BoxRenderable, type MouseEvent, type OptimizedBuffer } from "@opentui/core";
 import { useBindings } from "@opentui/keymap/react";
-import { composeFrame, dropTarget, hitTest, type EdgeType, type Frame } from "./frame";
-import { absolutePositions, detailFor, pickAnchor, placeNodes, type Placed } from "./geometry";
-import { NodeIdContext, StoreContext, useStoreVersion } from "./hooks";
-import { cycle, follow, nearest, readingOrder, sibling } from "./navigation";
-import { builtinNodeTypes } from "./nodes";
-import { FlowStore, type CanvasNodeChange } from "./store";
-import { defaultTheme, roleColor, ThemeContext, useFlowTheme, type FlowTheme } from "./theme";
+import { composeFrame, dropTarget, hitTest, type EdgeType, type Frame } from "./frame.ts";
+import { absolutePositions, detailFor, pickAnchor, placeNodes, type Placed } from "./geometry.ts";
+import { NodeIdContext, StoreContext, useStoreVersion } from "./hooks.tsx";
+import { cycle, follow, nearest, readingOrder, sibling } from "./navigation.ts";
+import { builtinNodeTypes } from "./nodes.tsx";
+import { FlowStore, type CanvasNodeChange } from "./store.ts";
+import { defaultTheme, roleColor, ThemeContext, useFlowTheme, type FlowTheme } from "./theme.ts";
 import type {
   Connection,
   Edge,
@@ -25,7 +25,7 @@ import type {
   NodeComponent,
   Viewport,
   XY,
-} from "./types";
+} from "./types.ts";
 
 const PAN_X = 4;
 const PAN_Y = 2;

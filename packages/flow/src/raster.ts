@@ -5,9 +5,9 @@
  * (bezier) and slanted straight lines are drawn in braille dots, two by four per cell.
  * Pure: the canvas copies the grid into OpenTUI's buffer, tests print it.
  */
-import type { Position, Rect, XY } from "./types";
-import { getStepPoints } from "./vendor/xyflow/smoothstep";
-import { getBezierEdgeCenter, getControlWithCurvature } from "./vendor/xyflow/bezier";
+import type { Position, Rect, XY } from "./types.ts";
+import { getStepPoints } from "./vendor/xyflow/smoothstep.ts";
+import { getBezierEdgeCenter, getControlWithCurvature } from "./vendor/xyflow/bezier.ts";
 
 export type Role = "edge" | "selected" | "animated" | "label" | "marker" | "background" | "handle";
 export type Cell = {

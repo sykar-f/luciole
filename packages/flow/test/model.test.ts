@@ -13,19 +13,11 @@ import {
   placeNodes,
   stepZoom,
   zoomAround,
-} from "../packages/flow/src/geometry";
-import { cycle, follow, nearest, readingOrder, sibling } from "../packages/flow/src/navigation";
-import {
-  FlowStore,
-  type CanvasEdgeChange,
-  type CanvasNodeChange,
-} from "../packages/flow/src/store";
-import type { Edge, Node } from "../packages/flow/src/types";
-import {
-  addEdge,
-  applyEdgeChanges,
-  applyNodeChanges,
-} from "../packages/flow/src/vendor/xyflow/changes";
+} from "../src/geometry.ts";
+import { cycle, follow, nearest, readingOrder, sibling } from "../src/navigation.ts";
+import { FlowStore, type CanvasEdgeChange, type CanvasNodeChange } from "../src/store.ts";
+import type { Edge, Node } from "../src/types.ts";
+import { addEdge, applyEdgeChanges, applyNodeChanges } from "../src/vendor/xyflow/changes.ts";
 
 const node = (id: string, x: number, y: number, extra: Partial<Node> = {}): Node => ({
   id,

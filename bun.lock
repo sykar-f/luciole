@@ -161,14 +161,19 @@
     },
     "packages/flow": {
       "name": "@luciole/flow",
-      "dependencies": {
+      "version": "0.1.0",
+      "devDependencies": {
         "@opentui/core": "catalog:",
         "@opentui/keymap": "catalog:",
         "@opentui/react": "catalog:",
+        "@types/react": "catalog:",
         "react": "catalog:",
       },
-      "devDependencies": {
-        "luciole": "workspace:*",
+      "peerDependencies": {
+        "@opentui/core": "^0.5.12",
+        "@opentui/keymap": "^0.5.12",
+        "@opentui/react": "^0.5.12",
+        "react": "^19.2.0",
       },
     },
     "packages/harness": {

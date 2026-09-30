@@ -13,7 +13,7 @@ import {
   type Measured,
   type Placed,
   type Size,
-} from "./geometry";
+} from "./geometry.ts";
 import {
   drawBackground,
   drawEdge,
@@ -22,8 +22,8 @@ import {
   type BackgroundVariant,
   type EdgeDraw,
   type EdgeStyle,
-} from "./raster";
-import type { Edge, HandleSpec, Node, Position, Viewport, XY } from "./types";
+} from "./raster.ts";
+import type { Edge, HandleSpec, Node, Position, Viewport, XY } from "./types.ts";
 
 /**
  * A custom edge type: the corner points of its path from the source anchor cell to the

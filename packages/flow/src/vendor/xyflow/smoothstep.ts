@@ -1,8 +1,8 @@
 // Adapted from xyflow, packages/system/src/utils/edges/smoothstep-edge.ts (MIT, see LICENSE
 // and README.md in this directory): `getPoints` only, returning the orthogonal path's
 // corner points instead of an SVG path.
-import type { Position, XY } from "../../types";
-import { getEdgeCenter } from "./bezier";
+import type { Position, XY } from "../../types.ts";
+import { getEdgeCenter } from "./bezier.ts";
 
 const HALF = 0.5;
 

@@ -8,9 +8,9 @@ import {
   type ReactNode,
   type SetStateAction,
 } from "react";
-import { FlowStore } from "./store";
-import type { Detail, Edge, EdgeChange, Node, NodeChange, Viewport, XY } from "./types";
-import { applyEdgeChanges, applyNodeChanges } from "./vendor/xyflow/changes";
+import { FlowStore } from "./store.ts";
+import type { Detail, Edge, EdgeChange, Node, NodeChange, Viewport, XY } from "./types.ts";
+import { applyEdgeChanges, applyNodeChanges } from "./vendor/xyflow/changes.ts";
 
 export const StoreContext = createContext<FlowStore | null>(null);
 /** The node a `<Handle>` belongs to. */

@@ -1,7 +1,7 @@
 // Adapted from xyflow, packages/react/src/utils/changes.ts and
 // packages/system/src/utils/edges/general.ts (MIT, see LICENSE and README.md in this
 // directory): typed without `any`, and without the resizer's attributes.
-import type { Connection, Edge, EdgeChange, Node, NodeChange } from "../../types";
+import type { Connection, Edge, EdgeChange, Node, NodeChange } from "../../types.ts";
 
 type Change<T> =
   | { type: "add"; item: T; index?: number }

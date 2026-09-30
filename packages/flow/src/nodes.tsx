@@ -1,8 +1,8 @@
 import { useContext, useEffect, useId } from "react";
-import { labelOf } from "./geometry";
-import { NodeIdContext, useStore } from "./hooks";
-import { useFlowTheme } from "./theme";
-import type { HandleType, NodeComponent, NodeProps, Position } from "./types";
+import { labelOf } from "./geometry.ts";
+import { NodeIdContext, useStore } from "./hooks.tsx";
+import { useFlowTheme } from "./theme.ts";
+import type { HandleType, NodeComponent, NodeProps, Position } from "./types.ts";
 
 /**
  * Declares where a node's edges attach: a node component renders one per handle. It

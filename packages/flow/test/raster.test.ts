@@ -3,9 +3,9 @@
  * under the nodes (the nodes themselves are OpenTUI boxes, not part of the grid).
  */
 import { expect, test } from "bun:test";
-import { composeFrame, hitTest } from "../packages/flow/src/frame";
-import { drawEdge, drawMiniMap, Grid, pathCells } from "../packages/flow/src/raster";
-import type { Edge, Node } from "../packages/flow/src/types";
+import { composeFrame, hitTest } from "../src/frame.ts";
+import { drawEdge, drawMiniMap, Grid, pathCells } from "../src/raster.ts";
+import type { Edge, Node } from "../src/types.ts";
 
 // Three 5×3 nodes: a on the left, b above right, c below right.
 const nodes: Node[] = [

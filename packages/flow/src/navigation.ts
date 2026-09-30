@@ -4,7 +4,7 @@
  * upstream), among siblings, or to the nearest node on one side. Pure functions of the
  * graph and the nodes' positions.
  */
-import type { Edge, Node, Position, XY } from "./types";
+import type { Edge, Node, Position, XY } from "./types.ts";
 
 type Located = { id: string; at: XY };
 

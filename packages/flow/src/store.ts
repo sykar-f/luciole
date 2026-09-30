@@ -18,8 +18,8 @@ import {
   type Measured,
   type Placed,
   type Size,
-} from "./geometry";
-import type { BackgroundVariant } from "./raster";
+} from "./geometry.ts";
+import type { BackgroundVariant } from "./raster.ts";
 import type {
   Connection,
   Detail,
@@ -30,7 +30,7 @@ import type {
   NodeChange,
   Viewport,
   XY,
-} from "./types";
+} from "./types.ts";
 
 export type BackgroundConfig = { variant: BackgroundVariant; gap: XY; color?: string };
 

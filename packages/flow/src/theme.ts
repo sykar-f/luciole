@@ -1,5 +1,5 @@
 import { createContext, useContext } from "react";
-import type { Role } from "./raster";
+import type { Role } from "./raster.ts";
 
 /** The canvas's colors, as `#rrggbb`. `<Flow theme>` overrides any of them. */
 export type FlowTheme = {

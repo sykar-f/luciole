@@ -18,7 +18,7 @@ import {
   useNodesState,
   type Edge,
   type Node,
-} from "../packages/flow/src";
+} from "../src/index.ts";
 
 function Keys({ children }: { children: ReactNode }) {
   const renderer = useRenderer();
@@ -34,8 +34,8 @@ const NODES: Node[] = [
 ];
 const EDGES: Edge[] = [
   { id: "ab", source: "a", target: "b" },
-  // Not animated: its timer would update state outside act() (tests/flow-raster.test.ts
-  // covers the dashes).
+  // Not animated: its timer would update state outside act() (raster.test.ts covers the
+  // dashes).
   { id: "ac", source: "a", target: "c", label: "go" },
   { id: "bd", source: "b", target: "d" },
 ];

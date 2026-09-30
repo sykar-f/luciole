@@ -1,7 +1,7 @@
 // Adapted from xyflow, packages/system/src/utils/edges/bezier-edge.ts and
 // utils/edges/general.ts (MIT, see LICENSE and README.md in this directory): the control
 // points and centers as numbers instead of an SVG path.
-import type { Position } from "../../types";
+import type { Position } from "../../types.ts";
 
 const HALF = 0.5;
 // cubic bezier t=0.5 mid point weights: (1-t)^3, 3t(1-t)^2, 3t^2(1-t), t^3

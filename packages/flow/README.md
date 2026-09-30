@@ -3,7 +3,8 @@
 Des graphes de nœuds dans le terminal, sur le modèle de
 [React Flow](https://reactflow.dev) : mêmes noms (`nodes`, `edges`, `onNodesChange`,
 `applyNodeChanges`, `useNodesState`, `nodeTypes`, `<Handle>`, `<MiniMap>`…), rendu par
-OpenTUI. Paquet privé de l'espace de travail, utilisé par [`examples/flow`](../../examples/flow).
+OpenTUI. Paquet de l'espace de travail, encore privé (non publié), utilisé par
+[`examples/flow`](../../examples/flow). Licence MIT.
 
 ```tsx
 "use client";
@@ -113,6 +114,12 @@ changements sont repris de xyflow (MIT) dans [`src/vendor/xyflow`](src/vendor/xy
 qui explique pourquoi le paquet `@xyflow/system` n'est pas une dépendance. Tout le rendu
 et l'interaction sont propres au terminal.
 
-Tests : `tests/flow-raster.test.ts` (frames texte attendues), `tests/flow-model.test.ts`
-(géométrie, store, navigation), `tests/flow-canvas.test.tsx` (souris et clavier sur le
-canevas rendu).
+## Paquet, build et tests
+
+| Quoi               | Comment                                                                                                                                                                                                                             |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Pairs              | `react`, `@opentui/core`, `@opentui/react`, `@opentui/keymap` en `peerDependencies` : une seule copie, celle de l'application. Aucune dépendance propre.                                                                            |
+| Build              | `bun run build` (dans `packages/flow`) : `dist/`, ESM seul, un fichier par module, imports en `.js`, déclarations `.d.ts`, TypeScript 7. Pas de CommonJS.                                                                           |
+| `exports`          | `bun` → `src/index.ts` (Bun compile les sources, avec le `tsconfig.json` livré), sinon `types` → `dist/index.d.ts` et `default` → `dist/index.js`.                                                                                  |
+| Dans le dépôt      | Rien à construire : Bun et `luciole build` prennent la condition `bun` ; un consommateur TypeScript la déclare (`"customConditions": ["bun"]`, voir `examples/flow/tsconfig.json`).                                                 |
+| Tests (`bun test`) | `test/raster.test.ts` (frames texte attendues), `test/model.test.ts` (géométrie, store, navigation), `test/canvas.test.tsx` (souris et clavier sur le canevas rendu), `test/package.test.ts` (le build et le manifeste publiables). |
