@@ -125,3 +125,31 @@ Les versions npm sont vérifiables avec `npm view <package> dist-tags.latest`.
 
 La validation locale est décrite dans [VALIDATION.md](VALIDATION.md).
 Le workflow macOS/Linux s’exécute sur GitHub Actions à chaque push et pull request.
+
+## Licences
+
+`bun run licenses` (`scripts/licenses.ts`) lit les `package.json` installés et vérifie
+l'arbre de production (dépendances, optionnelles, pairs résolus) de `luciole`,
+`@luciole/flow` et `@luciole/editor`. Il échoue dès qu'un paquet livré porte une licence
+bloquante (GPL, AGPL, SSPL, absente, « SEE LICENSE IN »). Les espaces de travail privés
+(`harness`, `desktop`, `examples/*`) sont listés à part et n'échouent jamais.
+
+Résultat du 1er octobre 2026 : 137, 23 et 22 paquets, tous permissifs (MIT, Apache-2.0,
+BSD-3-Clause, Unlicense), sauf une licence non permissive dans l'arbre livré :
+
+| Licence | Paquet              | Livré par | Pourquoi c'est acceptable                                                                                                                                                                                                                                  |
+| ------- | ------------------- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| MPL-2.0 | `@resvg/resvg-wasm` | `luciole` | Copyleft faible, au niveau du fichier : le paquet est utilisé tel quel, sans modification, et n'impose rien au code MIT de luciole. L'obligation (avis de licence et accès au source) est remplie par [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md). |
+
+Le script ne lit que ce qui est installé : les dépendances optionnelles d'autres plateformes
+(binaires `@opentui/core-linux-*`, `@typescript/typescript-*`) sont listées comme absentes et
+leur licence n'est pas lue ; une dépendance requise qui ne se résout pas fait échouer le
+contrôle. À relancer sous Linux quand la CI le branchera.
+
+Hors de ce qui est livré, deux licences non permissives apparaissent, et le script les
+signale comme « non livrées » :
+
+| Licence                        | Paquet                                        | Utilisé par                                                    | Pourquoi ce n'est pas livré                                                                                                              |
+| ------------------------------ | --------------------------------------------- | -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| LGPL-3.0-or-later              | `@img/sharp-libvips-*` (libvips, via `sharp`) | `examples/files` et `devDependencies` du paquet racine (privé) | `sharp` n'est une dépendance d'aucun paquet livré ; un exemple ne se publie pas. À revoir si `sharp` entre un jour dans un paquet livré. |
+| propriétaire (« SEE LICENSE ») | `@anthropic-ai/claude-agent-sdk`              | `@luciole/harness` (privé), exemples                           | Le harnais est privé et n'est pas publié ; le SDK n'est redistribué avec aucun paquet livré.                                             |
