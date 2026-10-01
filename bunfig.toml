@@ -3,3 +3,8 @@
 # reconciler that tests/dependencies.test.ts requires.
 [install]
 linker = "hoisted"
+
+# A thread that fails a test worker whose main thread stopped answering (a synchronous
+# call that never returns), instead of letting `bun test --parallel` wait forever.
+[test]
+preload = ["./tests/watchdog.ts"]
