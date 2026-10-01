@@ -40,6 +40,8 @@ const KEPT_MS = 5000;
 // Side by side at 160 columns, the preview's frame starts here: the transcript (which
 // shows the diffs, the apps' texts included) stays left of it.
 const PREVIEW_COLUMN = 80;
+// How often a failure's trail samples the conversation.
+const SAMPLE_MS = 100;
 
 /** studio on its scripted generator, in a project of its own. */
 async function launch(mode: keyof typeof WRITE_MS) {
@@ -78,9 +80,36 @@ async function launch(mode: keyof typeof WRITE_MS) {
     mkdirSync(FRAMES, { recursive: true });
     await Bun.write(join(FRAMES, `${mode}-${step}.txt`), await t.snapshot());
   };
-  const wait = (needle: string | RegExp) => t.waitFor(needle, { timeout: TIMEOUT_MS });
+  // The conversation pane shows only its tail: what a failed wait could not see is what
+  // went by since, so each new line of it is kept, in order, for the failure to print.
+  const trail: string[] = [];
+  const seen = new Set<string>();
+  const sampler = setInterval(() => {
+    t.text().then(
+      (text) => {
+        for (const line of text.split("\n")) {
+          const left = line.slice(0, PREVIEW_COLUMN).trimEnd();
+          if (left && !seen.has(left)) {
+            seen.add(left);
+            trail.push(left);
+          }
+        }
+      },
+      () => undefined,
+    );
+  }, SAMPLE_MS);
+  sampler.unref();
+  const awaited = (waiting: Promise<unknown>, where = "") =>
+    waiting.catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(
+        `${mode}: ${message}${where}\n--- conversation lines, in the order they first appeared\n${trail.join("\n")}`,
+        { cause: error },
+      );
+    });
+  const wait = (needle: string | RegExp) => awaited(t.waitFor(needle, { timeout: TIMEOUT_MS }));
   const waitShown = (needle: string | RegExp) =>
-    t.waitFor(inPreview(needle), { timeout: TIMEOUT_MS });
+    awaited(t.waitFor(inPreview(needle), { timeout: TIMEOUT_MS }), ` (${needle}, in the preview)`);
   const prompt = async (text: string) => {
     await t.type(text);
     await t.type(Keys.enter);
@@ -112,6 +141,7 @@ async function launch(mode: keyof typeof WRITE_MS) {
       );
     },
     async [Symbol.asyncDispose]() {
+      clearInterval(sampler);
       await t[Symbol.asyncDispose]();
       directory[Symbol.dispose]();
     },
@@ -245,7 +275,9 @@ await studio.quit();
 
 // The same with the Clients unconfined: each one reopens the project's session by its id.
 await using unconfined = await launch("process");
-await unconfined.t.waitFor("describe the app you want", { timeout: BOOT_TIMEOUT_MS });
+await unconfined.t.waitFor("describe the app you want", {
+  timeout: BOOT_TIMEOUT_MS,
+});
 await unconfined.wait(/ r0 · process /);
 const processDrafts = await guestbook(unconfined, 0);
 await unconfined.quit();
