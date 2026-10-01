@@ -83,8 +83,8 @@ test("git import turns real commits of this checkout into reviewable pull reques
   const db = openDatabase(join(temp, "forge.sqlite"));
   try {
     const forge = createForge(db);
-    expect(importGitRepository(forge, resolve("."), "luciole", 4)).toBe(4);
-    expect(importGitRepository(forge, resolve("."), "luciole", 4)).toBe(0);
+    expect(await importGitRepository(forge, resolve("."), "luciole", 4)).toBe(4);
+    expect(await importGitRepository(forge, resolve("."), "luciole", 4)).toBe(0);
     const pulls = forge.pulls("luciole");
     expect(pulls.length).toBeGreaterThan(0);
     const pull = present(forge.pull("luciole", pulls[0].number), "imported pull request");
