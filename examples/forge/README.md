@@ -58,5 +58,5 @@ bun run forge:operator lose merge                 # la prochaine réponse de fus
 
 ```sh
 bun run test:pty:forge     # parcours PTY sur les artefacts construits, Server et Client séparés
-bun run test:web:forge     # le même exemple dans un navigateur headless (Google Chrome ; `CHROME=` pour un autre chemin)
+bun run test:web:forge     # navigateur headless : Google Chrome (`CHROME=` pour un autre chemin) et runtime web (Zig 0.16.0, `ZIG=`)
 ```
