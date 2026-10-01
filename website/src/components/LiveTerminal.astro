@@ -383,10 +383,11 @@ const stand = JSON.stringify({
   }
 
   /**
-   * What the live application rewrites: it tells the wheel whether the app scrolled
-   * (lib/overscroll.ts: held, the wheel goes to the app first, and on to the page when it
-   * scrolls nothing); with the afterglow, each cell glows a moment, as in the intro
-   * (lib/glow.ts), and the counter under the screen says how many cells each change wrote.
+   * The live application's wheel and what it rewrites. Held, the wheel goes to the app
+   * while it has something to scroll under the pointer, and on to the page once it has not
+   * (lib/overscroll.ts). With the afterglow, each cell it rewrites glows a moment, as in
+   * the intro (lib/glow.ts), and the counter under the screen says how many cells each
+   * change wrote.
    */
   function watch(root: HTMLElement, frame: HTMLIFrameElement, signal: AbortSignal) {
     const layer = root.querySelector<HTMLElement>("[data-glows]");
@@ -395,7 +396,7 @@ const stand = JSON.stringify({
     const { columns, rows, total } = stand;
     const glowing = root.dataset.afterglow !== undefined && !still();
     if (glowing) hud(root, "live", count(0, total));
-    const answered = overscroll({ frame, delayMs: () => 0, signal });
+    overscroll({ frame, signal });
     glowWrites({
       frame,
       layer: glowing ? layer : document.createElement("div"),
@@ -403,7 +404,6 @@ const stand = JSON.stringify({
       rows,
       signal,
       onWritten: (cells) => {
-        answered();
         if (glowing) hud(root, "live", count(cells, total));
       },
     });

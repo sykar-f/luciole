@@ -1,36 +1,32 @@
 // The wheel over a live terminal, as a browser chains it between nested scrollers: the
-// application gets it first; when its screen has not changed by the time it should have
-// answered, it had nothing to scroll there, and the wheel goes on to the page, the turns
-// it already took included. The page keeps it until the screen changes again or the wheel
-// turns the other way, when the application gets the next turn back.
+// application gets it while what is under the pointer can still scroll that way, the page
+// once it cannot (lib/wheel.ts decides, gesture by gesture). The runtime says which, from
+// the screen it shows (docs/WEB.md, "Page embarquée", `lucioleScrollRoom`): over a slowed
+// link, a screen that has not answered yet is not taken for one with nothing to scroll.
 
-/** How long an application takes, once a turn has reached it, to redraw what scrolled. */
-const ANSWER_MS = 200;
-/** Wheel events further apart than this are two gestures: the page's hold ends. */
-const GESTURE_GAP_MS = 600;
+import * as z from "zod/mini";
+import { wheelChain } from "./wheel";
+
 const LINE_PX = 16;
+const Room = z.object({ up: z.boolean(), down: z.boolean() });
 
 export type OverscrollOptions = {
   /** The web runtime's frame, same origin: its wheel events are read before its terminal. */
   frame: HTMLIFrameElement;
-  /** How long a turn takes to reach the application (0 when its keys are local). */
-  delayMs: () => number;
   signal: AbortSignal;
 };
 
-/** Starts chaining the frame's wheel to the page; call the result on each screen write. */
-export function overscroll({ frame, delayMs, signal }: OverscrollOptions): () => void {
+/** Starts chaining the frame's wheel to the page. */
+export function overscroll({ frame, signal }: OverscrollOptions) {
   const inner = frame.contentWindow;
-  if (!inner) return () => {};
-  /** Pixels turned since the screen last changed, and when the first of them was. */
-  let unanswered = 0;
-  let since: number | undefined;
-  let page = false;
-  let last = 0;
-  let direction = 0;
-  let check: ReturnType<typeof setTimeout> | undefined;
-
-  const scroll = (top: number) => scrollBy({ top, behavior: "instant" });
+  if (!inner) return;
+  const chain = wheelChain();
+  /** What the application can still scroll at a point of the frame; unknown: everything. */
+  const room = (x: number, y: number) => {
+    const read: unknown = Reflect.get(inner, "lucioleScrollRoom");
+    if (typeof read !== "function") return undefined;
+    return Room.safeParse(Reflect.apply(read, inner, [x, y])).data;
+  };
   const pixels = (event: WheelEvent) =>
     event.deltaMode === 1
       ? event.deltaY * LINE_PX
@@ -38,39 +34,25 @@ export function overscroll({ frame, delayMs, signal }: OverscrollOptions): () =>
         ? event.deltaY * innerHeight
         : event.deltaY;
 
-  const giveToPage = () => {
-    if (page || since === undefined) return;
-    if (performance.now() < since + delayMs() + ANSWER_MS) return;
-    page = true;
-    scroll(unanswered);
-    unanswered = 0;
-  };
-
+  // The page's own gestures: one that sweeps the terminal under the pointer stays the page's.
+  addEventListener("wheel", (event) => chain.outside(performance.now(), event.deltaY), {
+    passive: true,
+    signal,
+  });
   inner.addEventListener(
     "wheel",
     (event) => {
-      const now = performance.now();
-      const turn = Math.sign(event.deltaY);
-      if (now - last > GESTURE_GAP_MS || (turn && direction && turn !== direction)) page = false;
-      last = now;
-      if (turn) direction = turn;
-      if (page) {
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        return scroll(pixels(event));
-      }
-      unanswered += pixels(event);
-      since ??= now;
-      clearTimeout(check);
-      check = setTimeout(giveToPage, Math.max(0, since + delayMs() + ANSWER_MS - now));
+      const owner = chain.turn(performance.now(), event.deltaY, () =>
+        room(event.clientX, event.clientY),
+      );
+      if (owner === "app") return;
+      // Kept from the terminal, which would send it to the application and cancel it.
+      event.stopImmediatePropagation();
+      // A turn the browser no longer lets the page cancel, it scrolls itself.
+      if (!event.cancelable) return;
+      event.preventDefault();
+      scrollBy({ top: pixels(event), behavior: "instant" });
     },
     { capture: true, passive: false, signal },
   );
-
-  return () => {
-    unanswered = 0;
-    since = undefined;
-    page = false;
-    clearTimeout(check);
-  };
 }
