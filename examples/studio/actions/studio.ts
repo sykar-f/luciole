@@ -38,10 +38,13 @@ const failed = (error: unknown): Result => ({
 
 /**
  * The harness session, live: a snapshot, then patches. The argument only renews the
- * subscription (a gap in the patches).
+ * subscription (a gap in the patches). It does not wait for the project to open: that
+ * is a build and a preview, which a loaded host takes longer than the Client's request
+ * timeout, and a feed that times out is never asked for again. The session exists from
+ * the start, and what the opening writes to it reaches this feed as patches.
  */
 export async function feed(_attempt: number): Promise<AsyncIterable<Update>> {
-  await studio.open();
+  void studio.open();
   return studio.session.subscribe();
 }
 
