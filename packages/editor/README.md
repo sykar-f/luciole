@@ -115,7 +115,7 @@ la page. Avec `readingWidth`, la barre se tient dans la marge de la page ; sans 
 l'éditeur garde sa dernière colonne pour elle, affichée ou non, pour que le texte ne
 bouge pas quand elle apparaît. `scrollbar={false}` la retire (et rend la colonne).
 
-Un document qui dépasse défile **au-delà de sa dernière ligne** d'un tiers de la hauteur
+Un document qui dépasse défile **au-delà de sa dernière ligne** d'un quart de la hauteur
 visible : la fin du texte se lit à hauteur d'œil, pas collée au bord. Cet espace n'est
 pas du contenu : rien dans le Markdown, le curseur n'y va pas, et un document qui tient à
 l'écran ne défile pas du tout. `wheelRoom()` en tient compte : dans une page web

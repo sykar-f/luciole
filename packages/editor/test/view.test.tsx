@@ -536,11 +536,11 @@ test("a document that fits shows no scrollbar; one that does not, a faint thumb 
   await show(paragraphs(5));
   expect(thumbRows()).toEqual([]);
   await show(paragraphs(60));
-  // 119 rows through 30, and a 10-row tail past them: the thumb is 30/129 of 60 halves.
+  // 119 rows through 30, and a 7-row tail past them: the thumb is 30/126 of 60 halves,
+  // fourteen: seven full rows.
   const thumb = thumbRows();
   expect(thumb.length).toBe(7);
-  expect(thumb.slice(0, 6)).toEqual(["█", "█", "█", "█", "█", "█"]);
-  expect(thumb[6]).toBe("▀");
+  expect(thumb).toEqual(["█", "█", "█", "█", "█", "█", "█"]);
   expect(cell(BAR_X, 0).char).toBe("█");
   expect(same(cell(BAR_X, 0).fg, FAINT)).toBe(true);
   // The page keeps its sixty columns: nothing of the text reaches the bar's column.
@@ -549,13 +549,13 @@ test("a document that fits shows no scrollbar; one that does not, a faint thumb 
   expect(bottom()).toMatchObject({ last: HEIGHT - 2, empty: 1, text: "line 14" });
 });
 
-test("the wheel scrolls past the last line by a third of the editor, the thumb at the bottom", async () => {
+test("the wheel scrolls past the last line by a quarter of the editor, the thumb at the bottom", async () => {
   const log: string[] = [];
   await show(paragraphs(60), log);
   for (let i = 0; i < 100; i++) await ui?.mockMouse.scroll(10, 10, "down");
   await ui?.renderOnce();
-  // The tail: ten empty rows under the last line, and no further.
-  expect(bottom()).toMatchObject({ last: HEIGHT - 1 - 10, empty: 10, text: "line 59" });
+  // The tail: seven empty rows under the last line, and no further.
+  expect(bottom()).toMatchObject({ last: HEIGHT - 1 - 7, empty: 7, text: "line 59" });
   expect(cell(BAR_X, HEIGHT - 1).char).toBe("█");
   expect(cell(BAR_X, 0).char).toBe(" ");
   // Not content: nothing was added to the Markdown.
@@ -564,7 +564,7 @@ test("the wheel scrolls past the last line by a third of the editor, the thumb a
   await ui?.mockMouse.scroll(10, 10, "up");
   await ui?.renderOnce();
   expect(cell(BAR_X, HEIGHT - 1).char).toBe("▀");
-  expect(bottom().empty).toBe(7);
+  expect(bottom().empty).toBe(4);
 });
 
 test("the cursor stops at the last line: the keyboard brings it into view, never into the tail", async () => {
@@ -596,8 +596,8 @@ test("the cursor stops at the last line: the keyboard brings it into view, never
 
 test("the thumb drags the page; a click on the track brings the page there", async () => {
   await show(paragraphs(60));
-  // Taken by its top row and dragged ten rows down: 20 of the 47 halves the thumb may
-  // travel, 20/47 of the 99 rows the page may scroll: 42 rows, 21 paragraphs.
+  // Taken by its top row and dragged ten rows down: 20 of the 46 halves the thumb may
+  // travel, 20/46 of the 96 rows the page may scroll: 42 rows, 21 paragraphs.
   await ui?.mockMouse.drag(BAR_X, 0, BAR_X, 10);
   await ui?.renderOnce();
   expect(cell(BAR_X, 10).char).toBe("█");
@@ -607,7 +607,7 @@ test("the thumb drags the page; a click on the track brings the page there", asy
   await ui?.mockMouse.click(BAR_X, HEIGHT - 1);
   await ui?.renderOnce();
   expect(cell(BAR_X, HEIGHT - 1).char).toBe("█");
-  expect(bottom()).toMatchObject({ text: "line 59", empty: 10 });
+  expect(bottom()).toMatchObject({ text: "line 59", empty: 7 });
   // A click on the bar never moves the cursor into the text.
   expect(ui?.renderer.currentFocusedRenderable?.id).toBeDefined();
 });

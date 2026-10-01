@@ -6,7 +6,7 @@
  * A document scrolled through a window of `height` rows: how far it may go.
  *
  * A document that fits does not scroll at all. One that does not may scroll past its last
- * line by a `tail` of empty rows (a third of the window), so that the end of the text can
+ * line by a `tail` of empty rows (a quarter of the window), so that the end of the text can
  * be read where the eye is, not pinned to the bottom edge. The tail is not content: the
  * Markdown does not hold it, and the cursor never goes there.
  */
@@ -22,7 +22,7 @@ export type Extent = {
 };
 
 /** The window's height is split in this many to make the tail. */
-const TAIL_SHARE = 3;
+const TAIL_SHARE = 4;
 
 export function extentOf(lines: number, height: number): Extent {
   const window = Math.max(0, height);

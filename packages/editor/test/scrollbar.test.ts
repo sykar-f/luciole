@@ -15,22 +15,22 @@ test("a document that fits does not scroll: no tail, no thumb", () => {
   }
 });
 
-test("a document one line too tall scrolls past its end by a third of the window", () => {
+test("a document one line too tall scrolls past its end by a quarter of the window", () => {
   const extent = extentOf(HEIGHT + 1, HEIGHT);
-  expect(extent.tail).toBe(8);
-  expect(extent.content).toBe(HEIGHT + 1 + 8);
-  expect(extent.max).toBe(1 + 8);
+  expect(extent.tail).toBe(6);
+  expect(extent.content).toBe(HEIGHT + 1 + 6);
+  expect(extent.max).toBe(1 + 6);
   // The scrollbar accounts for the tail: the thumb is a share of lines and tail together.
-  expect(thumbOf(extent, 0, HEIGHT)).toEqual({ from: 0, to: 34 });
+  expect(thumbOf(extent, 0, HEIGHT)).toEqual({ from: 0, to: 37 });
 });
 
 test("the thumb is the window's share of the content, from the top to the bottom of the track", () => {
-  // 120 lines through 24: a 32-line tail is not content, but it is scrolled through.
+  // 120 lines through 24: a 6-row tail is not content, but it is scrolled through.
   const extent = extentOf(120, HEIGHT);
-  expect(extent).toMatchObject({ tail: 8, content: 128, max: 104 });
+  expect(extent).toMatchObject({ tail: 6, content: 126, max: 102 });
   const track = HEIGHT * 2;
   const top = thumbOf(extent, 0, HEIGHT);
-  expect(top).toEqual({ from: 0, to: Math.floor((track * HEIGHT) / 128) });
+  expect(top).toEqual({ from: 0, to: Math.floor((track * HEIGHT) / 126) });
   const bottom = thumbOf(extent, extent.max, HEIGHT);
   expect(bottom?.to).toBe(track);
   expect((bottom?.to ?? 0) - (bottom?.from ?? 0)).toBe((top?.to ?? 0) - (top?.from ?? 0));
@@ -56,7 +56,7 @@ test("a thumb put somewhere on the track means the scroll that draws it there", 
   for (const scroll of [0, 1, 17, 50, 103, extent.max]) {
     const thumb = thumbOf(extent, scroll, HEIGHT);
     const back = scrollForThumb(extent, thumb?.from ?? 0, HEIGHT);
-    // The track has 48 halves for 104 positions: back within a position of the scroll.
+    // The track has 48 halves for 102 positions: back within a position of the scroll.
     expect(Math.abs(back - scroll)).toBeLessThanOrEqual(2);
     expect(thumbOf(extent, back, HEIGHT)).toEqual(thumb);
   }
