@@ -1,8 +1,10 @@
 {
   "name": "@luciole/harness",
+  "version": "0.1.0",
+  "license": "MIT",
   "private": true,
   "type": "module",
-  "description": "Coding-agent harnesses (Claude Code, Codex, pi, opencode, a scripted one) behind one neutral model, for luciole examples.",
+  "description": "Internal, unpublished package: coding-agent harnesses (Claude Code, Codex, pi, opencode, a scripted one) behind one neutral model, for luciole examples.",
   "exports": {
     "./model": "./src/model.ts",
     "./session": "./src/session.ts",

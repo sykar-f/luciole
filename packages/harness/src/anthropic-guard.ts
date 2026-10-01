@@ -5,8 +5,9 @@ import { probe } from "./probe";
 import { parseLine } from "./jsonl";
 
 /**
- * Anthropic forbids its subscription login (OAuth) outside its own applications
- * (docs/CODER-HANDOFF.md §3.5): pi and opencode can use it, coder must not let them.
+ * Anthropic's terms reserve its subscription login (OAuth) for its own applications
+ * (https://code.claude.com/docs/en/legal-and-compliance): pi and opencode can use it,
+ * coder must not let them.
  * Claude stays available there through an API key, Bedrock, Vertex, Copilot…; a Claude
  * subscription goes through `--harness claude`.
  *
@@ -89,7 +90,7 @@ const SUBSCRIPTION_PLUGIN = /anthropic|claude/i;
 export type OpencodeGet = (path: string) => Promise<unknown>;
 
 /**
- * Every sign that opencode would use an Anthropic subscription (opencode-report §4):
+ * Every sign that opencode would use an Anthropic subscription (opencode has several ways to hold that login):
  * its login's type, a login method its server offers, a plugin that adds one.
  */
 export async function opencodeAnthropicOAuth(env: NodeJS.ProcessEnv, get?: OpencodeGet) {

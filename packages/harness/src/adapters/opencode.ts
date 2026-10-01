@@ -56,7 +56,7 @@ import {
 import type { Harness, HarnessContext, HarnessEvent, StartOptions, UserInput } from "./types";
 
 /**
- * opencode through `opencode serve` (docs/coder/research/opencode-report.md): one server
+ * opencode through `opencode serve`: one server
  * per coder session, on a random port of 127.0.0.1 behind a random password, driven
  * over HTTP with its server-sent events. Plain `fetch`, not `@opencode-ai/sdk`: coder
  * uses a dozen routes, checks every answer with Zod anyway, and the SDK would add a
@@ -103,7 +103,7 @@ const rule = (permission: string, action: Rule["action"]): Rule => ({
 });
 /**
  * Coder's modes as opencode's session rules; the last rule that matches wins
- * (opencode-report §3). Read only also runs the `plan` agent.
+ * (opencode's permission rules are evaluated in order). Read only also runs the `plan` agent.
  */
 export const MODE_RULES: Record<Mode, readonly Rule[]> = {
   read: [
