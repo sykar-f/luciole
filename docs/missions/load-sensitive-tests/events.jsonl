@@ -1,0 +1,10 @@
+{"ts":"2026-10-01T18:52:46.410Z","mission":"load-sensitive-tests","type":"proposed","by":"master-airtty","ref":"inbox/handled/20261001-load-sensitive-tests.md"}
+{"ts":"2026-10-01T18:52:46.538Z","mission":"load-sensitive-tests","type":"prepared","by":"master-airtty","ref":"missions/load-sensitive-tests/brief.v1.md"}
+{"ts":"2026-10-01T18:52:55.884Z","mission":"load-sensitive-tests","type":"dispatched","by":"master-airtty","sha":"6991973209ad6d7f21f46fc3c61c39637bce875e","ref":"missions/load-sensitive-tests/brief.v1.md","note":"airtty-load-sensitive-tests claude","role":"worker"}
+{"ts":"2026-10-01T18:53:04.128Z","mission":"load-sensitive-tests","type":"acked","by":"airtty-load-sensitive-tests"}
+{"ts":"2026-10-01T19:17:05.352Z","mission":"load-sensitive-tests","type":"delivered","by":"airtty-load-sensitive-tests","sha":"3e9a66fa4040beaccb78394aaed4228f37fd145a","ref":"missions/load-sensitive-tests/delivery.1.md"}
+{"ts":"2026-10-01T19:51:26.073Z","mission":"load-sensitive-tests","type":"review","by":"master-airtty","sha":"3e9a66fa4040beaccb78394aaed4228f37fd145a","ref":"missions/load-sensitive-tests/reviews/1.prompt.md","note":"job 20261001T195125.981Z-91948-2deb-reviewer-load-sensitive-tests-codex"}
+{"ts":"2026-10-01T19:53:24.617Z","mission":"load-sensitive-tests","type":"rejected","by":"master-airtty","sha":"3e9a66fa4040beaccb78394aaed4228f37fd145a","ref":"missions/load-sensitive-tests/reviews/1.triage.md"}
+{"ts":"2026-10-01T20:02:58.229Z","mission":"load-sensitive-tests","type":"delivered","by":"airtty-load-sensitive-tests","sha":"4d0fdd9be77ec51146cdd1c95642670947464269","ref":"missions/load-sensitive-tests/delivery.2.md"}
+{"ts":"2026-10-01T20:03:13.118Z","mission":"load-sensitive-tests","type":"review","by":"master-airtty","sha":"4d0fdd9be77ec51146cdd1c95642670947464269","ref":"missions/load-sensitive-tests/reviews/2.prompt.md","note":"job 20261001T200313.103Z-25274-375b-reviewer-load-sensitive-tests-codex"}
+{"ts":"2026-10-01T20:04:49.434Z","mission":"load-sensitive-tests","type":"reviewed","by":"master-airtty","sha":"4d0fdd9be77ec51146cdd1c95642670947464269","ref":"missions/load-sensitive-tests/reviews/2.triage.md"}
