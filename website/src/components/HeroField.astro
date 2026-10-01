@@ -4,8 +4,20 @@
 // do (the afterglow's curve, lib/glow.ts), then steps to a neighbouring cell and flashes
 // again, a few times, before going out. Not a picture: the name's light, in the medium's
 // grain. Faint, and only in the open: never over the title, its lede and buttons, or under
-// the screens, whose glass is opaque.
-// Still when the reader asks for less motion; paused out of view.
+// the screens, whose glass is opaque. Left alone they are few and slow, each with its own
+// slight tempo. A mouse startles them when it surprises them: setting off from rest, or
+// suddenly quickening, there where it did; its steady gliding barely does, as they grow used
+// to it. Startled, the ones near it light up, the nearest first and brightest, and fly off
+// from it, wavering and curving upward as a firefly climbs while it flashes; a sharp start
+// also wakes a few newcomers by it, who fly off the same way. Only a fine pointer does, and
+// only when it moves.
+// They are not all as near: each has a depth, from the far back to just behind the glass, and
+// its nearness sets how big, bright and swift it looks, the nearest a little out of focus;
+// there are more far off than near, as the space widens with distance. The pointer is on the
+// glass, so it reaches the near ones first, and a startled one flies off into the depth,
+// shrinking, dimming and slowing as it recedes toward the vanishing point.
+// Still when the reader asks for less motion; paused out of view or in a hidden tab, and
+// asleep while every one of them is dark.
 ---
 
 <canvas class="field" data-field aria-hidden="true"></canvas>
@@ -18,11 +30,18 @@
   /** The lit part of a cell: a square in its middle, as the wordmark's i has. */
   const DOT = 5;
   /** One firefly per this many square pixels of open field, and never more than MOST. */
-  const AREA = 45_000;
-  const MOST = 16;
+  const AREA = 65_000;
+  const MOST = 10;
   /** What they keep clear of, and by how many pixels. */
   const COVERED = ".hero .top, .hero .ping, .hero .glass";
   const MARGIN = 28;
+  /** What their light never spills over, however wide a halo: the words, not the opaque
+   *  screens. Shielded with a soft edge SHIELD_SOFT pixels wide, from SHIELD_PAD outside them. */
+  const SHIELDED = ".hero .top, .hero .ping";
+  const SHIELD_SOFT = 14;
+  const SHIELD_PAD = 6;
+  /** The screens: a pointer entering them leaves the field, as their frames keep its moves. */
+  const SCREENS = ".hero .glass";
   /** A flash: up almost at once, a short hold, then a long fade. */
   const RISE_MS = 90;
   const HOLD_MS = 70;
@@ -32,6 +51,9 @@
   /** The quick second pulse of a double flash: how late, and how bright against the first. */
   const TWICE_MS = 260;
   const TWICE_PEAK = 0.8;
+  /** In a double flash, the first pulse's dot fades this fast, so the two beats read apart,
+   *  while its halo keeps the afterglow. */
+  const BEAT_FADE_MS = 140;
   /** How often a flash is a double one. */
   const TWICE_ODDS = 0.3;
   /** A firefly's peak, its halo's reach in cells and brightness, and the dimmest worth drawing. */
@@ -39,34 +61,136 @@
   const HALO = 2.2;
   const HALO_PEAK = 0.22;
   const UNSEEN = 0.01;
+  /** Each firefly's own: how slow its flashes run against the others', and how bright. */
+  const TEMPO = { from: 0.92, to: 1.1 };
+  const GAIN = { from: 0.9, to: 1 };
   /** Flashes a firefly gives before leaving: at least FEWEST, up to FEWEST + MORE - 1. */
   const FEWEST = 2;
   const MORE = 4;
   /** The dark wait before a newcomer's first flash, and between two flashes, in ms. */
-  const FIRST_WAIT_MS = { from: 0, to: 2600 };
-  const WAIT_MS = { from: 250, to: 1100 };
+  const FIRST_WAIT_MS = { from: 0, to: 4000 };
+  const WAIT_MS = { from: 900, to: 2600 };
   /** Held still, how lit each firefly is drawn: somewhere mid-fade. */
   const POSED = { from: 0.15, to: 0.6 };
-  /** Random cells tried for an open one before settling for a covered one. */
-  const TRIES = 40;
   /** A step between flashes, drawn from these: each one a tenth of the odds. */
   const LEAP = 2;
   const STEPS = [-LEAP, -1, -1, -1, 0, 0, 1, 1, 1, LEAP];
+  /** How surprised they are: by the pointer's haste (its speed averaged over HASTE_MS) outrunning
+   *  the pace it was keeping (averaged over PACE_MS), both fading when it stops; past SLACK, and
+   *  by ALARM_SPEED more at the most, in px per ms. The surprise fades over ALARM_FADE_MS. Moves
+   *  closer than MIN_GAP_MS are gathered into one; a pause counts as MAX_GAP_MS of motion. */
+  const HASTE_MS = 40;
+  const PACE_MS = 450;
+  const SLACK = 0.08;
+  const ALARM_SPEED = 0.5;
+  const ALARM_FADE_MS = 400;
+  const MIN_GAP_MS = 8;
+  const MAX_GAP_MS = 50;
+  /** Below this, a surprise is spent. A new one starts where the pointer is only when it
+   *  outgrows the fading one by RENEW; a smaller rise strengthens it where it began. */
+  const CALMED = 0.02;
+  const RENEW = 0.25;
+  /** Whom the pointer startles, in pixels: the ones it brushes as it moves, and around where it
+   *  surprised them, out to STIR_REACH at the most; the nearest soonest and most. */
+  const CALM_REACH = 60;
+  const STIR_REACH = 220;
+  /** A startled flash: brighter by up to this share (BOOST_CALM of it when it is no surprise),
+   *  led off up to this late with distance. */
+  const STIR_BOOST = 0.45;
+  const BOOST_CALM = 0.4;
+  const STIR_DELAY_MS = 240;
+  /** A startled firefly is left alone this long before it can be startled again. */
+  const STIR_REST_MS = 2200;
+  /** Its flight, a hop at a time: from HOPS.from hops when barely surprised to HOPS.to at the
+   *  most, as many as its flash lasts, each about STRIDE pixels; the first FIRST_HOP_MS after
+   *  it lights, each next one slower by SLOWING. Its heading wavers (a turn that keeps
+   *  TURN_KEEP of itself and gains up to WOBBLE radians a hop) and bends upward by CLIMB of the
+   *  way each hop, CLIMB_DARK of that while it is dark: a firefly climbs as it flashes. A hop
+   *  crossfades the two cells over HOP_MS at most, so it glides without leaving the grain. */
+  const HOPS = { from: 4, to: 12 };
+  /** How much of its due a flight gets, and how uneven the wait between two hops is. */
+  const HOPS_SHARE = { from: 0.7, to: 1 };
+  const HOP_JITTER = { from: 0.8, to: 1.25 };
+  const STRIDE = { from: 9, to: 19 };
+  const FIRST_HOP_MS = 80;
+  const SLOWING = 1.14;
+  const TURN_KEEP = 0.7;
+  const WOBBLE = 0.45;
+  const CLIMB = 0.12;
+  const CLIMB_DARK = 0.4;
+  const UP = -Math.PI / 2;
+  const HOP_MS = 90;
+  /** A surprise past BURST wakes newcomers where it began, as many as it is strong, never more
+   *  than GUESTS out at once, and not again before BURST_REST_MS; this many pixels off it. */
+  const BURST = 0.45;
+  const BURST_REST_MS = 1500;
+  const GUESTS = 3;
+  const GUEST_OFF = { from: 36, to: 110 };
+  /** Places tried around the pointer for a newcomer before giving up. */
+  const GUEST_TRIES = 8;
+  /** Depth, from 0 (the far back) to 1 (just behind the glass), and how large it makes a firefly
+   *  look, from FAR to NEAR: its dot, its halo, its steps. Its light dims with distance, as its
+   *  size to the power DIMMING. Depths are drawn skewed toward the back by FAR_SKEW, as more of
+   *  the space lies there. */
+  const FAR = 0.45;
+  const NEAR = 1.15;
+  const DIMMING = 1.3;
+  const FAR_SKEW = 1.6;
+  /** The depth in focus; nearer, a firefly blurs, up to the nearest: its dot wider by BOKEH_DOT
+   *  and fainter by BOKEH_FADE, its halo wider by BOKEH_REACH, with a flat core over
+   *  BOKEH_CORE of it, the halo dimmed to spread the same light, not add to it. */
+  const FOCUS = 0.6;
+  const BOKEH_DOT = 0.2;
+  const BOKEH_FADE = 0.35;
+  const BOKEH_REACH = 0.1;
+  const BOKEH_CORE = 0.3;
+  /** How far back the far end lies, in pixels, as the pointer on the glass feels it. */
+  const DEPTH_PX = 240;
+  /** Between two flashes a firefly drifts in depth by up to this much; fleeing, it recedes by
+   *  this much a hop. Receding pulls it toward the vanishing point, softened by PERSPECTIVE,
+   *  and never by more than PULL_CAP of its stride, so it never flies against its own way. */
+  const DEPTH_DRIFT = 0.06;
+  const RECEDE = { from: 0.01, to: 0.045 };
+  const PERSPECTIVE = 0.3;
+  const PULL_CAP = 0.25;
+  /** Newcomers wake this near: close to the glass, where the pointer startles them. */
+  const GUEST_DEPTH = { from: 0.6, to: 0.95 };
+  /** Far enough to draw a shield's shape off the canvas and keep only its soft shadow. */
+  const OFFSTAGE = 100_000;
   /** An alpha channel's largest value, and its base in a hex colour. */
   const BYTE = 255;
   const HEX = 16;
 
   type Range = { from: number; to: number };
+  type Cell = { column: number; row: number };
+  type Box = { left: number; top: number; right: number; bottom: number };
 
-  type Firefly = {
-    column: number;
-    row: number;
-    /** When the current flash starts; before it, the firefly waits dark. */
+  type Firefly = Cell & {
+    /** Where it is, in pixels; its cell is the one lit for it there. */
+    x: number;
+    y: number;
+    /** How near, from 0 (the far back) to 1 (just behind the glass). */
+    z: number;
+    /** Its own: how slow its flashes run, how bright they are, how lit it is held still. */
+    tempo: number;
+    gain: number;
+    posed: number;
+    /** When the current flash starts, on the field's clock; before it, it waits dark. */
     at: number;
     /** Flashes left, this one included. */
     left: number;
     /** A second, quick pulse right after the first, as some fireflies signal. */
     twice: boolean;
+    /** How much brighter than a firefly's usual this flash is: 1 unless stirred. */
+    boost: number;
+    /** When the pointer last stirred it. */
+    stirred: number;
+    /** Woken by the pointer: it goes out for good, and no one takes its place. */
+    guest: boolean;
+    /** Fleeing the pointer: which way it goes, its hops to come. */
+    flight?: { heading: number; turn: number; hops: number; at: number; gap: number };
+    /** The cell and depth it just left, and when, for how long: it crossfades from them. */
+    trail?: Cell & { z: number; at: number; ms: number };
   };
 
   const canvas = document.querySelector<HTMLCanvasElement>("[data-field]");
@@ -74,146 +198,513 @@
   if (canvas && context) field(canvas, context);
 
   function field(canvas: HTMLCanvasElement, context: CanvasRenderingContext2D) {
-    const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const reduced = matchMedia("(prefers-reduced-motion: reduce)");
+    let still = reduced.matches;
     let colour = screenColours().afterglow;
+
+    // The field's measure: its size in CSS pixels and device pixels, its cells, the open ones,
+    // the vanishing point, and the soft shield over the words.
+    let width = 0;
+    let height = 0;
+    let ratio = 0;
     let columns = 0;
     let rows = 0;
-    let flies: Firefly[] = [];
-    /** Cells covered by the title block, the slider or a screen: never lit. */
+    let middle = { x: 0, y: 0 };
     let covered = new Set<number>();
-    const open = (column: number, row: number) => !covered.has(row * columns + column);
+    let openCells: number[] = [];
+    let shield: HTMLCanvasElement | undefined;
+    const open = (column: number, row: number) =>
+      column >= 0 && column < columns && row >= 0 && row < rows && !covered.has(row * columns + column);
+    /** The measure is out of date, to be taken again once the field is in view. */
+    let stale = true;
+    let flies: Firefly[] = [];
+
+    // The field's clock: the page's, less the time it spent stopped, so a hidden tab or a
+    // scroll away leaves every firefly where it was in its flash.
+    let offset = 0;
+    let stoppedAt = performance.now();
+    const clock = (real: number) => real - offset;
+
+    let visible = false;
     let running = false;
     let frame = 0;
+    let timer = 0;
 
     const random = ({ from, to }: Range) => from + Math.random() * (to - from);
-    const spawn = (now: number): Firefly => {
-      let column = 0;
-      let row = 0;
-      for (let tries = 0; tries < TRIES; tries++) {
-        column = Math.floor(Math.random() * columns);
-        row = Math.floor(Math.random() * rows);
-        if (open(column, row)) break;
-      }
-      return { column, row, left: FEWEST + Math.floor(Math.random() * MORE), ...next(now, FIRST_WAIT_MS) };
-    };
+    const centre = ({ column, row }: Cell) => ({
+      x: column * CELL.width + CELL.width / 2,
+      y: row * CELL.height + CELL.height / 2,
+    });
     const next = (now: number, wait: Range) => ({
       at: now + random(wait),
       twice: Math.random() < TWICE_ODDS,
+      boost: 1,
     });
+    const hatch = (cell: Cell, z: number, now: number): Firefly => ({
+      ...cell,
+      ...centre(cell),
+      z,
+      tempo: random(TEMPO),
+      gain: random(GAIN),
+      posed: random(POSED),
+      left: FEWEST + Math.floor(Math.random() * MORE),
+      stirred: -Infinity,
+      guest: false,
+      ...next(now, FIRST_WAIT_MS),
+    });
+    const spawn = (now: number) => {
+      const index = openCells[Math.floor(Math.random() * openCells.length)] ?? 0;
+      return hatch({ column: index % columns, row: Math.floor(index / columns) }, Math.random() ** FAR_SKEW, now);
+    };
 
-    const size = () => {
-      const ratio = devicePixelRatio || 1;
-      const { width, height } = canvas.getBoundingClientRect();
-      canvas.width = Math.round(width * ratio);
-      canvas.height = Math.round(height * ratio);
-      context.setTransform(ratio, 0, 0, ratio, 0, 0);
+    /** Takes the field's measure: its bitmap, only when its size changed; its open cells; the
+     *  shield over the words. */
+    const measure = () => {
+      const box = canvas.getBoundingClientRect();
+      const dpr = devicePixelRatio || 1;
+      if (box.width !== width || box.height !== height || dpr !== ratio) {
+        ({ width, height } = box);
+        ratio = dpr;
+        canvas.width = Math.round(width * ratio);
+        canvas.height = Math.round(height * ratio);
+        context.setTransform(ratio, 0, 0, ratio, 0, 0);
+      }
+      middle = { x: width / 2, y: height / 2 };
       columns = Math.max(1, Math.floor(width / CELL.width));
       rows = Math.max(1, Math.floor(height / CELL.height));
-      const box = canvas.getBoundingClientRect();
+      const within = (element: Element): Box => {
+        const r = element.getBoundingClientRect();
+        return { left: r.left - box.left, top: r.top - box.top, right: r.right - box.left, bottom: r.bottom - box.top };
+      };
       covered = new Set();
       for (const element of document.querySelectorAll(COVERED)) {
-        const r = element.getBoundingClientRect();
-        const left = Math.max(0, Math.floor((r.left - box.left - MARGIN) / CELL.width));
-        const right = Math.min(columns - 1, Math.floor((r.right - box.left + MARGIN) / CELL.width));
-        const top = Math.max(0, Math.floor((r.top - box.top - MARGIN) / CELL.height));
-        const bottom = Math.min(rows - 1, Math.floor((r.bottom - box.top + MARGIN) / CELL.height));
+        const r = within(element);
+        const left = Math.max(0, Math.floor((r.left - MARGIN) / CELL.width));
+        const right = Math.min(columns - 1, Math.floor((r.right + MARGIN) / CELL.width));
+        const top = Math.max(0, Math.floor((r.top - MARGIN) / CELL.height));
+        const bottom = Math.min(rows - 1, Math.floor((r.bottom + MARGIN) / CELL.height));
         for (let y = top; y <= bottom; y++)
           for (let x = left; x <= right; x++) covered.add(y * columns + x);
       }
-      const free = columns * rows - covered.size;
-      const count = Math.min(MOST, Math.round((free * CELL.width * CELL.height) / AREA));
-      const now = performance.now();
-      flies = Array.from({ length: count }, () => spawn(now));
+      openCells = [];
+      for (let index = 0; index < columns * rows; index++) if (!covered.has(index)) openCells.push(index);
+      shield = shape([...document.querySelectorAll(SHIELDED)].map(within));
     };
 
-    /** How lit a flash is, `t` ms after it started: 0 to 1. */
-    const brightness = (t: number, twice: boolean) => {
-      const one = (t: number) => {
+    /** The words' shield: their boxes, a little wider, with a soft edge, in the bitmap's pixels.
+     *  Each box is drawn far off the canvas and only its blurred shadow lands on it. */
+    const shape = (boxes: Box[]) => {
+      if (!boxes.length) return undefined;
+      const sheet = document.createElement("canvas");
+      sheet.width = canvas.width;
+      sheet.height = canvas.height;
+      const pen = sheet.getContext("2d");
+      if (!pen) return undefined;
+      pen.setTransform(ratio, 0, 0, ratio, 0, 0);
+      pen.shadowColor = "#000";
+      pen.shadowBlur = SHIELD_SOFT * ratio;
+      pen.shadowOffsetX = OFFSTAGE * ratio;
+      for (const { left, top, right, bottom } of boxes)
+        pen.fillRect(
+          left - SHIELD_PAD - OFFSTAGE,
+          top - SHIELD_PAD,
+          right - left + SHIELD_PAD * 2,
+          bottom - top + SHIELD_PAD * 2,
+        );
+      return sheet;
+    };
+
+    /** Keeps the fireflies still in the open, adds or takes away to fit the field. */
+    const populate = (now: number) => {
+      flies = flies.filter((fly) => open(fly.column, fly.row));
+      const count = Math.min(MOST, Math.round((openCells.length * CELL.width * CELL.height) / AREA));
+      const residents = flies.filter((fly) => !fly.guest);
+      if (residents.length > count) {
+        const leaving = new Set(residents.slice(count));
+        flies = flies.filter((fly) => !leaving.has(fly));
+      }
+      for (let index = residents.length; index < count; index++) flies.push(spawn(now));
+    };
+
+    /** Brings the measure up to date, if the field is in view to be seen. */
+    const settle = () => {
+      if (!stale || !visible) return;
+      stale = false;
+      measure();
+      populate(clock(performance.now()));
+    };
+    /** Something moved or changed size: measure again, now if in view, else once it is. */
+    const refresh = () => {
+      stale = true;
+      if (!visible) return;
+      settle();
+      if (still) pose();
+      else wake();
+    };
+
+    /** How lit a firefly's flash is, `t` ms after it started, its halo and its dot: 0 to 1. */
+    const brightness = (t: number, fly: Firefly) => {
+      const one = (t: number, fade: number) => {
+        const rise = RISE_MS * fly.tempo;
+        const hold = rise + HOLD_MS * fly.tempo;
         if (t < 0) return 0;
-        if (t < RISE_MS) return t / RISE_MS;
-        if (t < RISE_MS + HOLD_MS) return 1;
-        const fading = (t - RISE_MS - HOLD_MS) / FADE_MS;
+        if (t < rise) return t / rise;
+        if (t < hold) return 1;
+        const fading = (t - hold) / (fade * fly.tempo);
         return fading >= 1 ? 0 : (1 - fading) ** AFTERGLOW;
       };
-      return twice ? Math.max(one(t), TWICE_PEAK * one(t - TWICE_MS)) : one(t);
+      if (!fly.twice) {
+        const lit = one(t, FADE_MS);
+        return { halo: lit, dot: lit };
+      }
+      const second = TWICE_PEAK * one(t - TWICE_MS * fly.tempo, FADE_MS);
+      return { halo: Math.max(one(t, FADE_MS), second), dot: Math.max(one(t, BEAT_FADE_MS), second) };
     };
-    const flashMs = (twice: boolean) => RISE_MS + HOLD_MS + FADE_MS + (twice ? TWICE_MS : 0);
+    const flashMs = (fly: Firefly) => (RISE_MS + HOLD_MS + FADE_MS + (fly.twice ? TWICE_MS : 0)) * fly.tempo;
 
-    const light = (fly: Firefly, amount: number) => {
-      if (amount <= UNSEEN) return;
-      const x = fly.column * CELL.width + CELL.width / 2;
-      const y = fly.row * CELL.height + CELL.height / 2;
-      const reach = CELL.height * HALO;
-      const halo = context.createRadialGradient(x, y, 0, x, y, reach);
-      halo.addColorStop(0, `${colour}${alpha(HALO_PEAK * amount)}`);
-      halo.addColorStop(1, `${colour}00`);
-      context.fillStyle = halo;
+    /** How large a firefly `z` deep looks, against one in the screens' plane. */
+    const scale = (z: number) => FAR + (NEAR - FAR) * z;
+    /** A cell lit for a firefly `z` deep, its halo and its dot by these amounts of a flash;
+     *  tells whether anything showed. */
+    const light = (cell: Cell, halo: number, dot: number, z: number) => {
+      const size = scale(z);
+      const dimmed = size ** DIMMING;
+      const haloGlow = halo * dimmed;
+      const dotGlow = dot * dimmed;
+      if (haloGlow <= UNSEEN && dotGlow <= UNSEEN) return false;
+      const { x, y } = centre(cell);
+      const blur = Math.max(0, (z - FOCUS) / (1 - FOCUS));
+      const wider = 1 + BOKEH_REACH * blur;
+      const core = BOKEH_CORE * blur;
+      // A wider halo with a flat core spreads the same light: as much dimmer as it covers more.
+      const spread = 1 / (wider ** 2 * (1 + core + core ** 2));
+      const reach = CELL.height * HALO * size * wider;
+      const gradient = context.createRadialGradient(x, y, 0, x, y, reach);
+      const haloAlpha = alpha(HALO_PEAK * haloGlow * spread);
+      gradient.addColorStop(0, `${colour}${haloAlpha}`);
+      if (core > 0) gradient.addColorStop(core, `${colour}${haloAlpha}`);
+      gradient.addColorStop(1, `${colour}00`);
+      context.fillStyle = gradient;
       context.fillRect(x - reach, y - reach, reach * 2, reach * 2);
-      context.fillStyle = `${colour}${alpha(PEAK * amount)}`;
-      context.fillRect(x - DOT / 2, y - DOT / 2, DOT, DOT);
+      const side = DOT * size * (1 + BOKEH_DOT * blur);
+      context.fillStyle = `${colour}${alpha(PEAK * dotGlow * (1 - BOKEH_FADE * blur))}`;
+      context.fillRect(x - side / 2, y - side / 2, side, side);
+      return true;
     };
 
+    /** Moves a firefly to (x, y) if the cell there is open; tells whether it moved. */
+    const place = (fly: Firefly, x: number, y: number) => {
+      const column = Math.floor(x / CELL.width);
+      const row = Math.floor(y / CELL.height);
+      if (!open(column, row)) return false;
+      Object.assign(fly, { x, y, column, row });
+      return true;
+    };
+
+    // The mouse: where it is and when (the page's clock), where its speed was last measured,
+    // the speeds it keeps, and the surprise it gave: how much, when (the field's clock), and
+    // where in the field it began.
+    let pointer: { x: number; y: number; at: number } | undefined;
+    let sample: { x: number; y: number; at: number } | undefined;
+    let haste = 0;
+    let pace = 0;
+    let alarm = { amount: 0, at: 0, x: 0, y: 0 };
+    let lastBurst = -Infinity;
+    const alarmed = (now: number) => alarm.amount * Math.exp(-(now - alarm.at) / ALARM_FADE_MS);
+    const moving = () => pointer !== undefined && performance.now() - pointer.at < MAX_GAP_MS;
+    /** The pointer gone (out of the hero, into a screen, cancelled, or the field stopped): no
+     *  speed kept, no surprise left. */
+    const forget = () => {
+      pointer = undefined;
+      sample = undefined;
+      haste = 0;
+      pace = 0;
+      alarm.amount = 0;
+    };
+
+    /** An open cell a little off (x, y), or none if it is hemmed in. */
+    const beside = (x: number, y: number) => {
+      for (let tries = 0; tries < GUEST_TRIES; tries++) {
+        const angle = Math.random() * 2 * Math.PI;
+        const off = random(GUEST_OFF);
+        const column = Math.floor((x + Math.cos(angle) * off) / CELL.width);
+        const row = Math.floor((y + Math.sin(angle) * off) / CELL.height);
+        if (open(column, row)) return { column, row };
+      }
+      return undefined;
+    };
+
+    /** How many hops fit in `ms`, the first at once and each next one slower. */
+    const hopsWithin = (ms: number) => {
+      let count = 0;
+      let gap = FIRST_HOP_MS * SLOWING;
+      for (let spent = 0; spent <= ms && count < HOPS.to; spent += gap, gap *= SLOWING) count++;
+      return count;
+    };
+
+    /** Startles a firefly `near` (x, y) (0 at the reach, 1 on it), as `surprised` as the field
+     *  is (0 to 1): it lights up, from however lit it already is, and flies off from there. */
+    const startle = (fly: Firefly, now: number, x: number, y: number, near: number, surprised: number) => {
+      const boost = 1 + STIR_BOOST * near * (BOOST_CALM + (1 - BOOST_CALM) * surprised);
+      const lit = Math.min(1, (brightness(now - fly.at, fly).halo * fly.boost) / boost);
+      // A lit one brightens from where it is; a dark one waits a moment, the farther the longer.
+      const at = lit > UNSEEN ? now - lit * RISE_MS * fly.tempo : now + (1 - near) * STIR_DELAY_MS;
+      Object.assign(fly, { at, twice: false, boost, stirred: now, left: Math.max(fly.left, 2) });
+      const heading =
+        fly.x === x && fly.y === y ? Math.random() * 2 * Math.PI : Math.atan2(fly.y - y, fly.x - x);
+      const wanted = Math.round(HOPS.from + (HOPS.to - HOPS.from) * surprised * random(HOPS_SHARE));
+      const start = Math.max(now, at) + FIRST_HOP_MS;
+      // No more hops than its flash lasts: a flight in the dark would go unseen.
+      const hops = Math.min(wanted, hopsWithin(at + flashMs(fly) - start));
+      fly.flight = hops > 0 ? { heading, turn: 0, hops, at: start, gap: FIRST_HOP_MS * SLOWING } : undefined;
+    };
+
+    /** A hop of a flying firefly, if one is due: along its wavering heading, climbing the more
+     *  the brighter it is, and back into the depth, its stride shrinking and its place drawn
+     *  toward the vanishing point as it recedes; a covered cell ends the flight. */
+    const flee = (fly: Firefly, now: number) => {
+      const flight = fly.flight;
+      if (!flight || now < flight.at) return;
+      const lit = brightness(now - fly.at, fly).halo;
+      flight.turn = flight.turn * TURN_KEEP + random({ from: -WOBBLE, to: WOBBLE });
+      flight.heading += flight.turn + CLIMB * (CLIMB_DARK + (1 - CLIMB_DARK) * lit) * towards(flight.heading, UP);
+      const z = Math.max(0, fly.z - random(RECEDE));
+      const size = scale(z);
+      const stride = random(STRIDE) * size;
+      const keep = (size / scale(fly.z)) ** PERSPECTIVE;
+      let pullX = (middle.x - fly.x) * (1 - keep);
+      let pullY = (middle.y - fly.y) * (1 - keep);
+      const pulled = Math.hypot(pullX, pullY);
+      if (pulled > PULL_CAP * stride) {
+        pullX *= (PULL_CAP * stride) / pulled;
+        pullY *= (PULL_CAP * stride) / pulled;
+      }
+      const gap = flight.gap * random(HOP_JITTER);
+      flight.hops -= 1;
+      flight.at = now + gap;
+      flight.gap *= SLOWING;
+      const from = { column: fly.column, row: fly.row, z: fly.z };
+      const x = fly.x + pullX + Math.cos(flight.heading) * stride;
+      const y = fly.y + pullY + Math.sin(flight.heading) * stride;
+      if (place(fly, x, y)) {
+        // Done crossfading before the next hop, so no more than two cells ever share its light.
+        fly.trail = { ...from, at: now, ms: Math.min(HOP_MS, gap) };
+        fly.z = z;
+      } else flight.hops = 0;
+      if (flight.hops <= 0) fly.flight = undefined;
+    };
+
+    /** The fireflies near (x, y) not resting from a startle: startled, as `surprised` as given. */
+    const scare = (now: number, x: number, y: number, reach: number, surprised: number) => {
+      for (const fly of flies) {
+        if (fly.flight || now - fly.stirred < STIR_REST_MS) continue;
+        // The pointer is on the glass: a far one is far from it, however close it looks.
+        const distance = Math.hypot(fly.x - x, fly.y - y, (1 - fly.z) * DEPTH_PX);
+        if (distance <= reach) startle(fly, now, x, y, 1 - distance / reach, surprised);
+      }
+    };
+
+    /** The pointer brushes the ones it passes; a surprise startles the ones around where it
+     *  began, the farther the more surprised, and a sharp one wakes newcomers there. */
+    const stir = (now: number) => {
+      const surprised = alarmed(now);
+      if (pointer && moving()) {
+        const box = canvas.getBoundingClientRect();
+        scare(now, pointer.x - box.left, pointer.y - box.top, CALM_REACH, 0);
+      }
+      if (surprised < CALMED) return;
+      const reach = CALM_REACH + (STIR_REACH - CALM_REACH) * surprised;
+      scare(now, alarm.x, alarm.y, reach, surprised);
+      if (surprised < BURST || now - lastBurst < BURST_REST_MS) return;
+      lastBurst = now;
+      const out = flies.filter((fly) => fly.guest).length;
+      const count = Math.min(GUESTS - out, Math.round(GUESTS * surprised));
+      for (let index = 0; index < count; index++) {
+        const cell = beside(alarm.x, alarm.y);
+        if (!cell) continue;
+        const guest = { ...hatch(cell, random(GUEST_DEPTH), now), at: now, left: 1, twice: false, guest: true };
+        const distance = Math.hypot(guest.x - alarm.x, guest.y - alarm.y, (1 - guest.z) * DEPTH_PX);
+        startle(guest, now, alarm.x, alarm.y, Math.max(0, 1 - distance / reach), surprised);
+        guest.left = 1 + Math.floor(Math.random() * 2);
+        flies.push(guest);
+      }
+    };
+
+    /** A frame: stir, move, light; tells whether anything is lit or under way. */
     const draw = (now: number) => {
-      context.clearRect(0, 0, canvas.width, canvas.height);
+      stir(now);
+      context.clearRect(0, 0, width, height);
       context.globalCompositeOperation = "lighter";
+      let busy = false;
+      let gone = false;
       for (const [index, fly] of flies.entries()) {
-        const t = now - fly.at;
-        light(fly, brightness(t, fly.twice));
-        if (t < flashMs(fly.twice)) continue;
-        // Its flash done: a step to a neighbouring cell and a pause, or out for good.
+        flee(fly, now);
+        const lit = brightness(now - fly.at, fly);
+        const halo = lit.halo * fly.boost * fly.gain;
+        const dot = lit.dot * fly.boost * fly.gain;
+        const trail = fly.trail;
+        const crossing = trail ? (now - trail.at) / trail.ms : 1;
+        if (trail && crossing < 1) {
+          // Both cells at the depth it is passing through, the old one fading as the new lights.
+          const z = trail.z + (fly.z - trail.z) * crossing;
+          light(trail, halo * (1 - crossing), dot * (1 - crossing), z);
+          light(fly, halo * crossing, dot * crossing, z);
+          busy = true;
+        } else {
+          fly.trail = undefined;
+          if (light(fly, halo, dot, fly.z)) busy = true;
+        }
+        if (fly.flight) busy = true;
+        if (now - fly.at < flashMs(fly)) continue;
+        // Its flash done: a step, the shorter the farther, a drift in depth, and a pause; or out
+        // for good.
+        fly.flight = undefined;
+        fly.trail = undefined;
         fly.left -= 1;
         if (fly.left <= 0) {
-          flies[index] = spawn(now);
+          if (fly.guest) gone = true;
+          else flies[index] = spawn(now);
           continue;
         }
-        const column = clamp(fly.column + step(), columns);
-        const row = clamp(fly.row + step(), rows);
-        if (open(column, row)) Object.assign(fly, { column, row });
+        const size = scale(fly.z);
+        place(fly, fly.x + step() * CELL.width * size, fly.y + step() * CELL.height * size);
+        fly.z = Math.min(1, Math.max(0, fly.z + random({ from: -DEPTH_DRIFT, to: DEPTH_DRIFT })));
         Object.assign(fly, next(now, WAIT_MS));
       }
+      if (gone) flies = flies.filter((fly) => !fly.guest || fly.left > 0);
+      if (shield) {
+        context.globalCompositeOperation = "destination-out";
+        context.drawImage(shield, 0, 0, width, height);
+      }
       context.globalCompositeOperation = "source-over";
+      return busy || moving() || alarmed(now) >= CALMED;
     };
 
-    const tick = (now: number) => {
+    /** When the next firefly lights or ends its flash: until then, nothing to draw. */
+    const nextWake = (now: number) =>
+      Math.min(...flies.map((fly) => (fly.at > now ? fly.at : fly.at + flashMs(fly))));
+
+    const tick = (real: number) => {
+      frame = 0;
       if (!running) return;
-      draw(now);
-      frame = requestAnimationFrame(tick);
+      const now = clock(real);
+      if (draw(now)) {
+        frame = requestAnimationFrame(tick);
+        return;
+      }
+      // All dark: asleep until the next flash, or until the pointer moves.
+      const until = nextWake(now);
+      if (Number.isFinite(until)) timer = window.setTimeout(wake, Math.max(0, until - now));
     };
-    const play = (on: boolean) => {
+    function wake() {
+      if (!running || frame) return;
+      window.clearTimeout(timer);
+      timer = 0;
+      frame = requestAnimationFrame(tick);
+    }
+    /** Runs while in view, in a shown tab, with motion welcome; stops the clock otherwise. */
+    const play = () => {
+      const on = visible && !document.hidden && !still;
       if (on === running) return;
       running = on;
+      if (on) {
+        offset += performance.now() - stoppedAt;
+        settle();
+        wake();
+        return;
+      }
+      stoppedAt = performance.now();
       cancelAnimationFrame(frame);
-      if (on) frame = requestAnimationFrame(tick);
+      window.clearTimeout(timer);
+      frame = 0;
+      timer = 0;
+      forget();
     };
 
-    // Held still: a few cells caught mid-fade, drawn once.
+    // Held still: each firefly caught mid-fade, as lit as it always is held, drawn once.
     const pose = () => {
-      context.clearRect(0, 0, canvas.width, canvas.height);
-      for (const fly of flies) light(fly, random(POSED));
+      context.clearRect(0, 0, width, height);
+      for (const fly of flies) light(fly, fly.posed * fly.gain, fly.posed * fly.gain, fly.z);
+      if (shield) {
+        context.globalCompositeOperation = "destination-out";
+        context.drawImage(shield, 0, 0, width, height);
+        context.globalCompositeOperation = "source-over";
+      }
     };
 
-    size();
-    // The title's box settles once its fonts are in.
-    void document.fonts.ready.then(() => {
-      size();
-      if (still) pose();
-    });
-    new ResizeObserver(() => {
-      size();
-      if (still) pose();
-    }).observe(canvas);
-    document.addEventListener("palette", () => {
-      colour = screenColours().afterglow;
-      if (still) pose();
-    });
-    if (still) return pose();
-
-    let visible = false;
     new IntersectionObserver(([entry]) => {
       visible = entry?.isIntersecting ?? false;
-      play(visible && !document.hidden);
+      if (visible && still) {
+        settle();
+        pose();
+      }
+      play();
     }).observe(canvas);
-    document.addEventListener("visibilitychange", () => play(visible && !document.hidden));
+    document.addEventListener("visibilitychange", play);
+    reduced.addEventListener("change", () => {
+      still = reduced.matches;
+      play();
+      if (still && visible) {
+        settle();
+        pose();
+      }
+    });
+    // Measured again when the field or what it keeps clear of changes size, when the title's
+    // fonts are in, and when the screen's pixel ratio changes.
+    const resized = new ResizeObserver(refresh);
+    resized.observe(canvas);
+    for (const element of document.querySelectorAll(COVERED)) resized.observe(element);
+    void document.fonts.ready.then(refresh);
+    const watchRatio = () =>
+      matchMedia(`(resolution: ${devicePixelRatio}dppx)`).addEventListener(
+        "change",
+        () => {
+          refresh();
+          watchRatio();
+        },
+        { once: true },
+      );
+    watchRatio();
+    document.addEventListener("palette", () => {
+      colour = screenColours().afterglow;
+      if (still && visible) pose();
+    });
+
+    // The mouse, not a finger: a touch would stir them only where it lands, and a tap is not
+    // a passage. Here the pointer is only measured; the stirring waits for the next frame.
+    const hero = canvas.parentElement;
+    hero?.addEventListener("pointermove", (event) => {
+      if (!running || (event.pointerType !== "mouse" && event.pointerType !== "pen")) return;
+      const real = event.timeStamp;
+      pointer = { x: event.clientX, y: event.clientY, at: real };
+      wake();
+      if (!sample) {
+        sample = pointer;
+        return;
+      }
+      const gap = real - sample.at;
+      // Moves too close together are gathered into the next measure, not guessed apart.
+      if (gap < MIN_GAP_MS) return;
+      const active = Math.min(gap, MAX_GAP_MS);
+      const speed = Math.hypot(pointer.x - sample.x, pointer.y - sample.y) / active;
+      sample = pointer;
+      // Each average fades over the whole gap (after a rest, nothing kept) and takes in this
+      // speed for the time it moved: steady, both settle on that speed, and no surprise is left.
+      const average = (value: number, ms: number) =>
+        value * Math.exp(-gap / ms) + speed * (1 - Math.exp(-active / ms));
+      haste = average(haste, HASTE_MS);
+      pace = average(pace, PACE_MS);
+      const surprise = Math.min(1, Math.max(0, (haste - pace - SLACK) / ALARM_SPEED));
+      const now = clock(real);
+      const current = alarmed(now);
+      if (surprise > current + RENEW || (current < CALMED && surprise >= CALMED)) {
+        const box = canvas.getBoundingClientRect();
+        alarm = { amount: surprise, at: now, x: pointer.x - box.left, y: pointer.y - box.top };
+      } else if (surprise > current) alarm = { ...alarm, amount: surprise, at: now };
+    });
+    hero?.addEventListener("pointerleave", forget);
+    hero?.addEventListener("pointercancel", forget);
+    for (const screen of document.querySelectorAll(SCREENS)) screen.addEventListener("pointerenter", forget);
   }
 
   /** -1, 0 or 1 cell, rarely 2: a firefly drifts, it does not jump. */
@@ -221,8 +712,9 @@
     return STEPS[Math.floor(Math.random() * STEPS.length)] ?? 0;
   }
 
-  function clamp(value: number, count: number) {
-    return Math.min(count - 1, Math.max(0, value));
+  /** The turn, in radians between -π and π, from `heading` to `goal`. */
+  function towards(heading: number, goal: number) {
+    return Math.atan2(Math.sin(goal - heading), Math.cos(goal - heading));
   }
 
   /** `amount` (0 to 1) as the two hex digits of an `#rrggbbaa` colour. */
