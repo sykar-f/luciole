@@ -10,39 +10,8 @@
  * never built (Bun blocks their install scripts): only the WebAssembly is used. The web
  * target serves its own Tree-sitter files: there, these languages stay plain text.
  */
+import { loadOptional } from "./optional";
 import { addDefaultParsers, type FiletypeParserOptions } from "@opentui/core";
-import bash from "tree-sitter-bash/tree-sitter-bash.wasm" with { type: "file" };
-import bashHighlights from "tree-sitter-bash/queries/highlights.scm" with { type: "file" };
-import c from "tree-sitter-c/tree-sitter-c.wasm" with { type: "file" };
-import cHighlights from "tree-sitter-c/queries/highlights.scm" with { type: "file" };
-import cpp from "tree-sitter-cpp/tree-sitter-cpp.wasm" with { type: "file" };
-import cppHighlights from "tree-sitter-cpp/queries/highlights.scm" with { type: "file" };
-import css from "tree-sitter-css/tree-sitter-css.wasm" with { type: "file" };
-import cssHighlights from "tree-sitter-css/queries/highlights.scm" with { type: "file" };
-import go from "tree-sitter-go/tree-sitter-go.wasm" with { type: "file" };
-import goHighlights from "tree-sitter-go/queries/highlights.scm" with { type: "file" };
-import html from "tree-sitter-html/tree-sitter-html.wasm" with { type: "file" };
-import htmlHighlights from "tree-sitter-html/queries/highlights.scm" with { type: "file" };
-import java from "tree-sitter-java/tree-sitter-java.wasm" with { type: "file" };
-import javaHighlights from "tree-sitter-java/queries/highlights.scm" with { type: "file" };
-import json from "tree-sitter-json/tree-sitter-json.wasm" with { type: "file" };
-import jsonHighlights from "tree-sitter-json/queries/highlights.scm" with { type: "file" };
-import php from "tree-sitter-php/tree-sitter-php.wasm" with { type: "file" };
-import phpHighlights from "tree-sitter-php/queries/highlights.scm" with { type: "file" };
-import python from "tree-sitter-python/tree-sitter-python.wasm" with { type: "file" };
-import pythonHighlights from "tree-sitter-python/queries/highlights.scm" with { type: "file" };
-import ruby from "tree-sitter-ruby/tree-sitter-ruby.wasm" with { type: "file" };
-import rubyHighlights from "tree-sitter-ruby/queries/highlights.scm" with { type: "file" };
-import rust from "tree-sitter-rust/tree-sitter-rust.wasm" with { type: "file" };
-import rustHighlights from "tree-sitter-rust/queries/highlights.scm" with { type: "file" };
-import toml from "@tree-sitter-grammars/tree-sitter-toml/tree-sitter-toml.wasm" with { type: "file" };
-import tomlHighlights from "@tree-sitter-grammars/tree-sitter-toml/queries/highlights.scm" with { type: "file" };
-import yaml from "@tree-sitter-grammars/tree-sitter-yaml/tree-sitter-yaml.wasm" with { type: "file" };
-import yamlHighlights from "@tree-sitter-grammars/tree-sitter-yaml/queries/highlights.scm" with { type: "file" };
-import lua from "@tree-sitter-grammars/tree-sitter-lua/tree-sitter-lua.wasm" with { type: "file" };
-import luaHighlights from "@tree-sitter-grammars/tree-sitter-lua/queries/highlights.scm" with { type: "file" };
-import typescript from "tree-sitter-typescript/tree-sitter-typescript.wasm" with { type: "file" };
-import tsx from "tree-sitter-typescript/tree-sitter-tsx.wasm" with { type: "file" };
 // OpenTUI's own TypeScript queries, fixed (see the file), and JSX on top for TSX.
 import typescriptHighlights from "./queries/typescript.scm" with { type: "file" };
 import jsxHighlights from "./queries/jsx.scm" with { type: "file" };
@@ -62,61 +31,218 @@ function at(file: string) {
   return url.protocol === "file:" ? decodeURIComponent(url.pathname) : url.href;
 }
 
+const FEATURE = "luciole/grammars";
+
+/**
+ * The grammars are optional dependencies (docs/DEPENDENCIES.md): an app that never imports
+ * this module does not install them, and one that lacks a package is told which to add.
+ */
+async function grammar(name: string, load: () => Promise<{ default: string }>) {
+  return at((await loadOptional(FEATURE, name, load)).default);
+}
+
+const bash = await grammar(
+  "tree-sitter-bash",
+  () => import("tree-sitter-bash/tree-sitter-bash.wasm", { with: { type: "file" } }),
+);
+const bashHighlights = await grammar(
+  "tree-sitter-bash",
+  () => import("tree-sitter-bash/queries/highlights.scm", { with: { type: "file" } }),
+);
+const c = await grammar(
+  "tree-sitter-c",
+  () => import("tree-sitter-c/tree-sitter-c.wasm", { with: { type: "file" } }),
+);
+const cHighlights = await grammar(
+  "tree-sitter-c",
+  () => import("tree-sitter-c/queries/highlights.scm", { with: { type: "file" } }),
+);
+const cpp = await grammar(
+  "tree-sitter-cpp",
+  () => import("tree-sitter-cpp/tree-sitter-cpp.wasm", { with: { type: "file" } }),
+);
+const cppHighlights = await grammar(
+  "tree-sitter-cpp",
+  () => import("tree-sitter-cpp/queries/highlights.scm", { with: { type: "file" } }),
+);
+const css = await grammar(
+  "tree-sitter-css",
+  () => import("tree-sitter-css/tree-sitter-css.wasm", { with: { type: "file" } }),
+);
+const cssHighlights = await grammar(
+  "tree-sitter-css",
+  () => import("tree-sitter-css/queries/highlights.scm", { with: { type: "file" } }),
+);
+const go = await grammar(
+  "tree-sitter-go",
+  () => import("tree-sitter-go/tree-sitter-go.wasm", { with: { type: "file" } }),
+);
+const goHighlights = await grammar(
+  "tree-sitter-go",
+  () => import("tree-sitter-go/queries/highlights.scm", { with: { type: "file" } }),
+);
+const html = await grammar(
+  "tree-sitter-html",
+  () => import("tree-sitter-html/tree-sitter-html.wasm", { with: { type: "file" } }),
+);
+const htmlHighlights = await grammar(
+  "tree-sitter-html",
+  () => import("tree-sitter-html/queries/highlights.scm", { with: { type: "file" } }),
+);
+const java = await grammar(
+  "tree-sitter-java",
+  () => import("tree-sitter-java/tree-sitter-java.wasm", { with: { type: "file" } }),
+);
+const javaHighlights = await grammar(
+  "tree-sitter-java",
+  () => import("tree-sitter-java/queries/highlights.scm", { with: { type: "file" } }),
+);
+const json = await grammar(
+  "tree-sitter-json",
+  () => import("tree-sitter-json/tree-sitter-json.wasm", { with: { type: "file" } }),
+);
+const jsonHighlights = await grammar(
+  "tree-sitter-json",
+  () => import("tree-sitter-json/queries/highlights.scm", { with: { type: "file" } }),
+);
+const php = await grammar(
+  "tree-sitter-php",
+  () => import("tree-sitter-php/tree-sitter-php.wasm", { with: { type: "file" } }),
+);
+const phpHighlights = await grammar(
+  "tree-sitter-php",
+  () => import("tree-sitter-php/queries/highlights.scm", { with: { type: "file" } }),
+);
+const python = await grammar(
+  "tree-sitter-python",
+  () => import("tree-sitter-python/tree-sitter-python.wasm", { with: { type: "file" } }),
+);
+const pythonHighlights = await grammar(
+  "tree-sitter-python",
+  () => import("tree-sitter-python/queries/highlights.scm", { with: { type: "file" } }),
+);
+const ruby = await grammar(
+  "tree-sitter-ruby",
+  () => import("tree-sitter-ruby/tree-sitter-ruby.wasm", { with: { type: "file" } }),
+);
+const rubyHighlights = await grammar(
+  "tree-sitter-ruby",
+  () => import("tree-sitter-ruby/queries/highlights.scm", { with: { type: "file" } }),
+);
+const rust = await grammar(
+  "tree-sitter-rust",
+  () => import("tree-sitter-rust/tree-sitter-rust.wasm", { with: { type: "file" } }),
+);
+const rustHighlights = await grammar(
+  "tree-sitter-rust",
+  () => import("tree-sitter-rust/queries/highlights.scm", { with: { type: "file" } }),
+);
+const toml = await grammar(
+  "@tree-sitter-grammars/tree-sitter-toml",
+  () =>
+    import("@tree-sitter-grammars/tree-sitter-toml/tree-sitter-toml.wasm", {
+      with: { type: "file" },
+    }),
+);
+const tomlHighlights = await grammar(
+  "@tree-sitter-grammars/tree-sitter-toml",
+  () =>
+    import("@tree-sitter-grammars/tree-sitter-toml/queries/highlights.scm", {
+      with: { type: "file" },
+    }),
+);
+const yaml = await grammar(
+  "@tree-sitter-grammars/tree-sitter-yaml",
+  () =>
+    import("@tree-sitter-grammars/tree-sitter-yaml/tree-sitter-yaml.wasm", {
+      with: { type: "file" },
+    }),
+);
+const yamlHighlights = await grammar(
+  "@tree-sitter-grammars/tree-sitter-yaml",
+  () =>
+    import("@tree-sitter-grammars/tree-sitter-yaml/queries/highlights.scm", {
+      with: { type: "file" },
+    }),
+);
+const lua = await grammar(
+  "@tree-sitter-grammars/tree-sitter-lua",
+  () =>
+    import("@tree-sitter-grammars/tree-sitter-lua/tree-sitter-lua.wasm", {
+      with: { type: "file" },
+    }),
+);
+const luaHighlights = await grammar(
+  "@tree-sitter-grammars/tree-sitter-lua",
+  () =>
+    import("@tree-sitter-grammars/tree-sitter-lua/queries/highlights.scm", {
+      with: { type: "file" },
+    }),
+);
+const typescript = await grammar(
+  "tree-sitter-typescript",
+  () => import("tree-sitter-typescript/tree-sitter-typescript.wasm", { with: { type: "file" } }),
+);
+const tsx = await grammar(
+  "tree-sitter-typescript",
+  () => import("tree-sitter-typescript/tree-sitter-tsx.wasm", { with: { type: "file" } }),
+);
+
 /** Filetypes as OpenTUI names them (`infoStringToFiletype`), with the other names in use. */
 export const GRAMMARS: readonly FiletypeParserOptions[] = [
   {
     filetype: "bash",
     aliases: ["shell", "sh", "zsh"],
-    wasm: at(bash),
-    queries: { highlights: [at(bashHighlights)] },
+    wasm: bash,
+    queries: { highlights: [bashHighlights] },
   },
-  { filetype: "c", wasm: at(c), queries: { highlights: [at(cHighlights)] } },
+  { filetype: "c", wasm: c, queries: { highlights: [cHighlights] } },
   // C++ extends C: its queries only add to C's.
-  { filetype: "cpp", wasm: at(cpp), queries: { highlights: [at(cHighlights), at(cppHighlights)] } },
-  { filetype: "css", wasm: at(css), queries: { highlights: [at(cssHighlights)] } },
+  { filetype: "cpp", wasm: cpp, queries: { highlights: [cHighlights, cppHighlights] } },
+  { filetype: "css", wasm: css, queries: { highlights: [cssHighlights] } },
   {
     filetype: "go",
     aliases: ["golang"],
-    wasm: at(go),
-    queries: { highlights: [at(goHighlights)] },
+    wasm: go,
+    queries: { highlights: [goHighlights] },
   },
-  { filetype: "html", wasm: at(html), queries: { highlights: [at(htmlHighlights)] } },
-  { filetype: "java", wasm: at(java), queries: { highlights: [at(javaHighlights)] } },
-  { filetype: "lua", wasm: at(lua), queries: { highlights: [at(luaHighlights)] } },
+  { filetype: "html", wasm: html, queries: { highlights: [htmlHighlights] } },
+  { filetype: "java", wasm: java, queries: { highlights: [javaHighlights] } },
+  { filetype: "lua", wasm: lua, queries: { highlights: [luaHighlights] } },
   {
     filetype: "json",
     aliases: ["jsonc"],
-    wasm: at(json),
-    queries: { highlights: [at(jsonHighlights), at(jsonExtra)] },
+    wasm: json,
+    queries: { highlights: [jsonHighlights, at(jsonExtra)] },
   },
-  { filetype: "php", wasm: at(php), queries: { highlights: [at(phpHighlights)] } },
-  { filetype: "python", wasm: at(python), queries: { highlights: [at(pythonHighlights)] } },
-  { filetype: "ruby", wasm: at(ruby), queries: { highlights: [at(rubyHighlights)] } },
-  { filetype: "rust", wasm: at(rust), queries: { highlights: [at(rustHighlights)] } },
+  { filetype: "php", wasm: php, queries: { highlights: [phpHighlights] } },
+  { filetype: "python", wasm: python, queries: { highlights: [pythonHighlights] } },
+  { filetype: "ruby", wasm: ruby, queries: { highlights: [rubyHighlights] } },
+  { filetype: "rust", wasm: rust, queries: { highlights: [rustHighlights] } },
   {
     filetype: "toml",
-    wasm: at(toml),
-    queries: { highlights: [at(tomlHighlights), at(tomlKeys)] },
+    wasm: toml,
+    queries: { highlights: [tomlHighlights, at(tomlKeys)] },
   },
   // Replaces OpenTUI's TypeScript, whose queries drew every identifier as a constant.
   {
     filetype: "typescript",
     aliases: ["ts", "mts", "cts"],
-    wasm: at(typescript),
+    wasm: typescript,
     queries: { highlights: [at(typescriptHighlights)] },
   },
   // OpenTUI reads TSX with the TypeScript grammar, which JSX derails.
   {
     filetype: "typescriptreact",
     aliases: ["tsx"],
-    wasm: at(tsx),
+    wasm: tsx,
     queries: { highlights: [at(typescriptHighlights), at(jsxHighlights)] },
   },
   {
     filetype: "yaml",
     aliases: ["yml"],
-    wasm: at(yaml),
-    queries: { highlights: [at(yamlHighlights), at(yamlKeys)] },
+    wasm: yaml,
+    queries: { highlights: [yamlHighlights, at(yamlKeys)] },
   },
 ];
 

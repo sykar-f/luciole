@@ -6,15 +6,7 @@
  * to PNG, in WebAssembly: nothing native to build) weigh a few megabytes. Both start on the
  * first formula, then each formula takes milliseconds.
  */
-import { initWasm, Resvg } from "@resvg/resvg-wasm";
-import resvgWasm from "@resvg/resvg-wasm/index_bg.wasm" with { type: "file" };
-import { LiteElement } from "mathjax-full/js/adaptors/lite/Element.js";
-import { liteAdaptor } from "mathjax-full/js/adaptors/liteAdaptor.js";
-import { RegisterHTMLHandler } from "mathjax-full/js/handlers/html.js";
-import { AllPackages } from "mathjax-full/js/input/tex/AllPackages.js";
-import { TeX } from "mathjax-full/js/input/tex.js";
-import { mathjax } from "mathjax-full/js/mathjax.js";
-import { SVG } from "mathjax-full/js/output/svg.js";
+import { loadOptional } from "./optional";
 
 /** Where a copied file is, resolved from this module (see `luciole/grammars`). */
 function at(file: string) {
@@ -22,9 +14,37 @@ function at(file: string) {
   return url.protocol === "file:" ? decodeURIComponent(url.pathname) : url.href;
 }
 
+const FEATURE = "luciole/math";
+
 let started: ReturnType<typeof start> | undefined;
 async function start() {
-  await initWasm(await Bun.file(at(resvgWasm)).arrayBuffer());
+  // Optional dependencies (docs/DEPENDENCIES.md): loaded on the first formula.
+  const resvg = await loadOptional(FEATURE, "@resvg/resvg-wasm", () => import("@resvg/resvg-wasm"));
+  const resvgWasm = await loadOptional(
+    FEATURE,
+    "@resvg/resvg-wasm",
+    () => import("@resvg/resvg-wasm/index_bg.wasm", { with: { type: "file" } }),
+  );
+  const [
+    { LiteElement },
+    { liteAdaptor },
+    { RegisterHTMLHandler },
+    { AllPackages },
+    { TeX },
+    { mathjax },
+    { SVG },
+  ] = await loadOptional(FEATURE, "mathjax-full", () =>
+    Promise.all([
+      import("mathjax-full/js/adaptors/lite/Element.js"),
+      import("mathjax-full/js/adaptors/liteAdaptor.js"),
+      import("mathjax-full/js/handlers/html.js"),
+      import("mathjax-full/js/input/tex/AllPackages.js"),
+      import("mathjax-full/js/input/tex.js"),
+      import("mathjax-full/js/mathjax.js"),
+      import("mathjax-full/js/output/svg.js"),
+    ]),
+  );
+  await resvg.initWasm(await Bun.file(at(resvgWasm.default)).arrayBuffer());
   const adaptor = liteAdaptor();
   RegisterHTMLHandler(adaptor);
   const document = mathjax.document("", {
@@ -34,7 +54,7 @@ async function start() {
     // Each formula carries its own glyphs: it is drawn alone.
     OutputJax: new SVG({ fontCache: "local" }),
   });
-  return { adaptor, document };
+  return { adaptor, document, LiteElement, Resvg: resvg.Resvg };
 }
 
 const EX = /height="([\d.]+)ex"/;
@@ -48,7 +68,7 @@ export async function renderMath(
   options: { display: boolean; color: string; scale: number },
 ): Promise<Uint8Array> {
   started ??= start();
-  const { adaptor, document } = await started;
+  const { adaptor, document, LiteElement, Resvg } = await started;
   // MathJax types what it converts as any: the lite adaptor makes elements of its own.
   const node: unknown = document.convert(tex, { display: options.display });
   if (!(node instanceof LiteElement)) throw new Error(`MathJax gave no element for ${tex}`);
