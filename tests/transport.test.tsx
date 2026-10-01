@@ -15,6 +15,7 @@ import {
   destroy,
   draftOf,
   markdownEditor,
+  temporaryApp,
   type TestUI,
 } from "./helpers";
 const root = resolve("examples/notes");
@@ -212,7 +213,7 @@ test("out-of-order navigation, incompatible build preserves mounted editor, refr
   }
 });
 test("progressive Flight Suspense renders fallback before delayed content", async () => {
-  const dir = await mkdtemp(join(root, "../../.stream-test-"));
+  const dir = await temporaryApp("stream");
   let server: Awaited<ReturnType<typeof launch>> | undefined, rendered: TestUI | undefined;
   try {
     await mkdir(join(dir, "app"), { recursive: true });

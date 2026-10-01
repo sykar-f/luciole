@@ -1,5 +1,7 @@
 import { spawn } from "node:child_process";
-import { join } from "node:path";
+import { mkdtemp, symlink } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { act, type ReactNode } from "react";
 import type { MouseButton } from "@opentui/core/testing";
@@ -13,6 +15,17 @@ import type { DraftStore } from "../examples/notes/components/draft";
 export function present<T>(value: T | null | undefined, what: string): T {
   if (value === null || value === undefined) throw new Error(`Expected ${what}`);
   return value;
+}
+
+/**
+ * A fresh application directory under tmpdir, named after `prefix`, with the checkout's
+ * node_modules linked in: `luciole`, React and its packages resolve as in an example,
+ * and a run killed midway leaves nothing in the checkout (format and lint read it).
+ */
+export async function temporaryApp(prefix: string) {
+  const directory = await mkdtemp(join(tmpdir(), `luciole-${prefix}-`));
+  await symlink(resolve("node_modules"), join(directory, "node_modules"), "dir");
+  return directory;
 }
 
 /** What `testRender` resolves with: the renderer, input mocks and frame captures. */

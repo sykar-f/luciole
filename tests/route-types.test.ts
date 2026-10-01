@@ -1,16 +1,16 @@
 import { expect, test } from "bun:test";
-import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, readFile, rm } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { build } from "../packages/luciole/src/build";
 import { ROUTE_TREE_FILE } from "../packages/luciole/src/route-graph";
+import { temporaryApp } from "./helpers";
 
-// Inside the checkout so `luciole` and TanStack resolve like in an example.
 test("generated route tree types navigation targets and params", async () => {
-  const dir = await mkdtemp(join(resolve("."), ".route-types-"));
+  const dir = await temporaryApp("route-types");
   try {
     const files: Record<string, string> = {
       "tsconfig.json": JSON.stringify({
-        extends: "../packages/luciole/tsconfig.base.json",
+        extends: resolve("packages/luciole/tsconfig.base.json"),
         include: ["app", "components"],
       }),
       "app/layout.tsx": `"use client";import type {LayoutProps} from "luciole/client";export default function Layout({children}:LayoutProps){return <box>{children}</box>}`,
