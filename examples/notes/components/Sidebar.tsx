@@ -6,7 +6,15 @@ import { titleOf, useCommands } from "./commands";
 import { drafts, type Note } from "./draft";
 import { notesList, useNotesList } from "./notes-list";
 import { usePalette, type Palette } from "./theme";
-import { Button, ICON_BUTTON_HEIGHT, ICON_BUTTON_WIDTH, IconButton, Line, useHover } from "./ui";
+import {
+  BlockButton,
+  Button,
+  ICON_BUTTON_HEIGHT,
+  ICON_BUTTON_WIDTH,
+  IconButton,
+  Line,
+  useHover,
+} from "./ui";
 import { excerptOf, fit, whenShort } from "./format";
 import { ui, useUi } from "./ui-state";
 
@@ -76,14 +84,14 @@ export function Sidebar({ width }: { width: number }) {
             <Line fg={color.muted}>{error || "Loading notes…"}</Line>
           </box>
         ) : shown.length === 0 ? (
-          <box paddingX={2} flexDirection="column" gap={1}>
+          <box paddingX={2} flexDirection="column" alignItems="flex-start" gap={1}>
             <Line fg={color.muted}>{query ? `No note matches “${query}”` : "No notes yet"}</Line>
             {query ? (
               <Button onPress={() => setQuery("")}>Clear search</Button>
             ) : (
-              <Button tone="primary" onPress={() => void commands.create()}>
+              <BlockButton tone="primary" onPress={() => void commands.create()}>
                 + New note
-              </Button>
+              </BlockButton>
             )}
           </box>
         ) : (

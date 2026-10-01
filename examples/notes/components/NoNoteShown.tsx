@@ -3,7 +3,7 @@ import { useCommands } from "./commands";
 import { EmptyPane } from "./NoteFrame";
 import { useKnownNotes } from "./notes-list";
 import { usePalette } from "./theme";
-import { Button, Line } from "./ui";
+import { BlockButton, Line } from "./ui";
 
 /** The right side with no note open: what the list holds, and how to start one. */
 export function NoNoteShown() {
@@ -19,9 +19,9 @@ export function NoNoteShown() {
       <Line fg={color.muted}>
         {count ? "Choose one in the list, or start a new one." : "Start your first note."}
       </Line>
-      <Button tone="primary" onPress={() => void commands.create()}>
+      <BlockButton id="start-note" tone="primary" onPress={() => void commands.create()}>
         + New note
-      </Button>
+      </BlockButton>
     </EmptyPane>
   );
 }
