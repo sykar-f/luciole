@@ -10,11 +10,7 @@ import { DEMO_END, DEMO_PROMPT } from "../../packages/harness/src/adapters/fake"
 import { SCRIPTED } from "../../packages/harness/src/ui/StatusLine";
 import { build, example } from "../pty/harness";
 import { Browser } from "./cdp";
-import { rowWith, SCREEN, serveSite, shows } from "./site";
-
-/** How many colours the first row showing `text` is drawn in: one means no highlighting. */
-const coloursOfRow = (text: string) =>
-  `(() => { const row = [...document.querySelectorAll(".xterm-rows > div")].find((r) => r.textContent.includes(${JSON.stringify(text)})); return row ? new Set([...row.querySelectorAll("span")].map((s) => getComputedStyle(s).color)).size : 0; })()`;
+import { coloursOfRow, rowWith, SCREEN, serveSite, shows } from "./site";
 
 /** Two frames: what a key changed (the focused field) is drawn before the next key. */
 const FRAMES =
@@ -52,7 +48,7 @@ try {
 
     // In the prompt's box: a click in the transcript would leave the prompt for it.
     await browser.clickAt(
-      `(() => { const row = [...document.querySelectorAll(".xterm-rows > div")].find((r) => r.textContent.includes("Message…")).getBoundingClientRect(); return { x: row.x + row.width / 2, y: row.y + row.height / 2 }; })()`,
+      `(() => { const y = lucioleScreen().findIndex((row) => row.includes("Message…")); const box = document.querySelector(".xterm-screen").getBoundingClientRect(); return { x: box.x + box.width / 2, y: box.y + ((y + 0.5) * box.height) / lucioleScreen().length }; })()`,
     );
     await browser.evaluate(FRAMES);
     await browser.insertText(DEMO_PROMPT);

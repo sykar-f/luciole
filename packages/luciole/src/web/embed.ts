@@ -79,6 +79,36 @@ export function exposeScreen(read: () => string[]) {
 }
 
 /**
+ * The screen cell by cell, `lucioleCells()`: each cell's text and style in one string
+ * (run.tsx, `screenCells`), for a page that compares two screens or counts a row's
+ * colours. What xterm.js draws is in a canvas: nothing in the DOM says it.
+ */
+export function exposeCells(read: () => string[][]) {
+  Reflect.set(window, "lucioleCells", read);
+}
+
+/** Cells rewritten along a row, from `column`, `length` of them. */
+export type Run = { row: number; column: number; length: number };
+
+/**
+ * `lucioleWrites(listener)`: told at each render which cells it rewrote, as runs, and
+ * how many; returns how to stop listening. The embedding page's afterglow and the duel's
+ * measure read the terminal's own renders rather than the DOM the GPU renderer leaves empty.
+ */
+export function exposeWrites(
+  subscribe: (listener: (runs: Run[], written: number) => void) => () => void,
+) {
+  Reflect.set(window, "lucioleWrites", subscribe);
+}
+
+export type Renderer = "webgl" | "dom";
+
+/** `lucioleRenderer()`: what draws the terminal now, for a page or a journey to report. */
+export function exposeRenderer(read: () => Renderer) {
+  Reflect.set(window, "lucioleRenderer", read);
+}
+
+/**
  * Whether the wheel, at a point of the frame (a `WheelEvent`'s `clientX`/`clientY`), still
  * scrolls something in the application, up and down: `lucioleScrollRoom(x, y)` on the
  * frame's window. Read synchronously, at each turn, from what the screen shows (over a

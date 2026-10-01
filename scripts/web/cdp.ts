@@ -43,8 +43,14 @@ const KEYS = {
   Tab: { code: "Tab", keyCode: 9, text: "\t" },
 } as const;
 
+const Context = z.object({
+  context: z.object({ id: z.number(), origin: z.string() }),
+});
+
 export class Browser implements AsyncDisposable {
   readonly logs: string[] = [];
+  /** The execution contexts the page made, by id: a frame of another origin has its own. */
+  private readonly contexts = new Map<number, string>();
   private sequence = 0;
   private readonly pending = new Map<number, (reply: z.infer<typeof Reply>) => void>();
   private readonly process: Bun.Subprocess;
@@ -104,6 +110,10 @@ export class Browser implements AsyncDisposable {
     }
     const event = Event.safeParse(json);
     if (!event.success) return;
+    const context = Context.safeParse(event.data.params);
+    if (event.data.method === "Runtime.executionContextCreated" && context.success)
+      this.contexts.set(context.data.context.id, context.data.context.origin);
+    if (event.data.method === "Runtime.executionContextsCleared") this.contexts.clear();
     const thrown = Thrown.safeParse(event.data.params);
     if (event.data.method === "Runtime.exceptionThrown" && thrown.success)
       this.logs.push(
@@ -135,6 +145,20 @@ export class Browser implements AsyncDisposable {
   async evaluate(expression: string): Promise<unknown> {
     const evaluated = Evaluated.parse(
       await this.send("Runtime.evaluate", { expression, returnByValue: true, awaitPromise: true }),
+    );
+    if (evaluated.exceptionDetails) throw new Error(evaluated.exceptionDetails.text);
+    return evaluated.result.value;
+  }
+
+  /**
+   * `expression` in the latest frame of `origin`: what a page of another origin cannot
+   * read through its script, the protocol reads in the frame's own context.
+   */
+  async evaluateIn(origin: string, expression: string): Promise<unknown> {
+    const contextId = [...this.contexts].findLast(([, at]) => at === origin)?.[0];
+    if (contextId === undefined) throw new Error(`no frame of ${origin} in the page`);
+    const evaluated = Evaluated.parse(
+      await this.send("Runtime.evaluate", { expression, contextId, returnByValue: true }),
     );
     if (evaluated.exceptionDetails) throw new Error(evaluated.exceptionDetails.text);
     return evaluated.result.value;

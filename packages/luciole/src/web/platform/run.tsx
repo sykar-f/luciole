@@ -9,6 +9,7 @@ import { PassThrough } from "node:stream";
 import * as z from "zod/mini";
 import { Terminal as XTerm } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
+import { WebglAddon } from "@xterm/addon-webgl";
 import { createCliRenderer } from "@opentui/core";
 import { createRoot } from "@opentui/react";
 import { Shell, type Application, type ApplicationOptions } from "../../client";
@@ -20,12 +21,17 @@ import {
   embedded,
   onInput,
   tellTyped,
+  exposeCells,
+  exposeRenderer,
   exposeScreen,
   exposeScrollRoom,
+  exposeWrites,
   stage,
   tellEvent,
   type Grid,
   type Look,
+  type Renderer,
+  type Run,
 } from "../embed";
 
 /** What `run()` gives the function that creates its Application. */
@@ -63,6 +69,36 @@ const FONTS =
 const LARGEST_FONT = 24;
 const SMALLEST_FONT = 4;
 const FONT_STEP = 0.25;
+
+/**
+ * The GPU renderer, where the page has WebGL2 (@xterm/addon-webgl): box drawing, blocks
+ * and powerline glyphs drawn to the pixel by xterm.js (`customGlyphs`) and every cell a
+ * whole device pixel wide, where the DOM renderer draws the font's glyphs in cells of a
+ * fractional width: the blocks of a scrollbar then showed a seam between them, and a
+ * frame's lines broke where the font's line height left a gap. Without WebGL2, or once
+ * the context is lost (a browser keeps about sixteen; the least used go first, a frame's
+ * out of view before a visible one's), the DOM renderer draws as before, at once: not a
+ * blank screen for the seconds xterm.js would wait for the context to come back. Loaded
+ * before the font is sized: the two renderers do not round a cell alike.
+ */
+function drawOnGpu(terminal: XTerm) {
+  let webgl: WebglAddon | undefined;
+  const fallBack = () => {
+    webgl?.dispose();
+    webgl = undefined;
+  };
+  try {
+    webgl = new WebglAddon();
+    webgl.onContextLoss(fallBack);
+    terminal.loadAddon(webgl);
+    terminal.element
+      ?.querySelector(".xterm-screen canvas")
+      ?.addEventListener("webglcontextlost", fallBack);
+  } catch {
+    fallBack();
+  }
+  return (): Renderer => (webgl ? "webgl" : "dom");
+}
 
 /**
  * The largest font, on steps of FONT_STEP, at which `grid` fits the element, then exactly
@@ -198,6 +234,72 @@ function screenLines(terminal: XTerm) {
   );
 }
 
+/**
+ * The visible cells as drawn, each its text and its style in one string, so that a cell
+ * rewritten the same is told from one changed; "" past a wide character. Read from the
+ * buffer: the GPU renderer leaves nothing in the DOM to read.
+ */
+function screenCells(terminal: XTerm): string[][] {
+  const buffer = terminal.buffer.active;
+  const cell = buffer.getNullCell();
+  return Array.from({ length: terminal.rows }, (_, y) => {
+    const line = buffer.getLine(buffer.viewportY + y);
+    return Array.from({ length: terminal.cols }, (_, x) => {
+      if (!line?.getCell(x, cell)) return "";
+      const style = [
+        cell.isBold(),
+        cell.isItalic(),
+        cell.isDim(),
+        cell.isUnderline(),
+        cell.isInverse(),
+        cell.isStrikethrough(),
+      ]
+        .map((on) => (on ? "1" : "0"))
+        .join("");
+      return `${cell.getChars()}|${cell.getFgColorMode()}:${cell.getFgColor()}|${cell.getBgColorMode()}:${cell.getBgColor()}|${style}`;
+    });
+  });
+}
+
+/**
+ * What each render of the terminal rewrote: the cells that differ from the last render,
+ * as runs along their rows, told to whoever listens (the embedding page's afterglow, and
+ * the duel's measure). Compared only while someone listens: a page that does not ask
+ * pays nothing for it.
+ */
+function tellWrites(terminal: XTerm) {
+  const listeners = new Set<(runs: Run[], written: number) => void>();
+  let before: string[][] = [];
+  terminal.onRender(() => {
+    if (!listeners.size) return;
+    const after = screenCells(terminal);
+    const runs: Run[] = [];
+    let written = 0;
+    after.forEach((cells, row) => {
+      const old = before[row] ?? [];
+      let start = -1;
+      for (let x = 0; x <= cells.length; x++) {
+        const changed = x < cells.length && cells[x] !== old[x];
+        if (changed) written++;
+        if (changed && start < 0) start = x;
+        if (!changed && start >= 0) {
+          runs.push({ row, column: start, length: x - start });
+          start = -1;
+        }
+      }
+    });
+    before = after;
+    if (written) for (const listener of listeners) listener(runs, written);
+  });
+  return (listener: (runs: Run[], written: number) => void) => {
+    if (!listeners.size) before = screenCells(terminal);
+    listeners.add(listener);
+    return () => {
+      listeners.delete(listener);
+    };
+  };
+}
+
 export async function runInPage(
   create: (options: RunOptions) => Application,
   {
@@ -222,10 +324,15 @@ export async function runInPage(
   const fit = new FitAddon();
   terminal.loadAddon(fit);
   terminal.open(element);
+  const drawnBy = drawOnGpu(terminal);
   terminal.attachCustomWheelEventHandler(wheelReports(terminal));
-  // Framed, the embedding page reads the screen from the buffer, not from the rows
-  // xterm.js draws: those stop being drawn while the frame is out of view.
-  if (embedded) exposeScreen(() => screenLines(terminal));
+  // The page around the terminal, and the journeys that drive it, read the screen from
+  // the buffer, not from the DOM: the GPU renderer draws nothing there, and the DOM
+  // renderer stops drawing while a frame is out of view.
+  exposeScreen(() => screenLines(terminal));
+  exposeCells(() => screenCells(terminal));
+  exposeWrites(tellWrites(terminal));
+  exposeRenderer(drawnBy);
   const layout = () => (grid ? fitGrid(terminal, fit, grid, element) : fit.fit());
   layout();
   // In a page of its own, the terminal is what the reader came for. Framed, a focus

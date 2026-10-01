@@ -335,19 +335,22 @@ OPFS est partagé par toute l'origine : le Server web range ses données sous le
 Une page **de la même origine** qui place le runtime dans un `iframe` le pilote ainsi
 (`src/web/embed.ts`, vérifié par `bun run test:web:embed`) :
 
-| Sens              | Forme                                                                                                                                                                                      | Pour                                                                                                                      |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
-| URL de l'`iframe` | `?columns=140&rows=40`                                                                                                                                                                     | une grille fixe, la police ajustée pour la contenir                                                                       |
-| URL de l'`iframe` | `&background=0a0f16&foreground=e6edf3`                                                                                                                                                     | les couleurs par défaut du terminal et de la page                                                                         |
-| URL de l'`iframe` | `&restore=off`                                                                                                                                                                             | démarrer sur la première route, sans restaurer ni garder la session (la landing revient à l'écran de sa capture)          |
-| URL de l'`iframe` | `&path=/notes/1`                                                                                                                                                                           | sans session restaurée, la route où l'application s'ouvre (`initialPath`) : le duel de la landing montre une note         |
-| runtime → page    | `{ source: "luciole", type: "stage", stage }`, dans l'ordre `runtime`, `bundle`, `server`, `terminal`, `drawn`                                                                             | afficher le démarrage pendant l'attente                                                                                   |
-| page → runtime    | `{ source: "luciole", type: "input", data }`                                                                                                                                               | taper dans le terminal comme un clavier                                                                                   |
-| runtime → page    | `{ source: "luciole", type: "typed", data }` : ce que la main envoie à l'app (touches, collages, clics et molette encodés ; pas les réponses du terminal à ses requêtes)                   | la rejouer dans un autre `iframe` de même grille (`input`)                                                                |
-| page → runtime    | `iframe.contentWindow.lucioleScreen()` : les lignes visibles, lues dans le buffer                                                                                                          | lire l'écran même quand l'`iframe` est hors de vue (xterm.js cesse alors de dessiner ses lignes)                          |
-| page → runtime    | `iframe.contentWindow.lucioleScrollRoom(x, y)` : `{ up, down }`, si la molette fait encore défiler quelque chose sous ce point de l'`iframe` (`clientX`/`clientY`), lu sur l'écran affiché | ne faire défiler la page qu'en butée, comme un navigateur entre scrollers imbriqués (`website/src/lib/wheel.ts`)          |
-| runtime → page    | `{ source: "luciole", type: "event", event }` : les événements du transport (`request`, `response`, `end`, `error`) et les invalidations                                                   | montrer ce qui traverse le réseau                                                                                         |
-| page → runtime    | `{ source: "luciole", type: "network", latencyMs, fault?, delays? }`                                                                                                                       | un aller-retour simulé (moitié à l'aller, moitié au retour) et la panne de la prochaine requête (`refuse`, `drop`, `cut`) |
+| Sens              | Forme                                                                                                                                                                                      | Pour                                                                                                                                           |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| URL de l'`iframe` | `?columns=140&rows=40`                                                                                                                                                                     | une grille fixe, la police ajustée pour la contenir                                                                                            |
+| URL de l'`iframe` | `&background=0a0f16&foreground=e6edf3`                                                                                                                                                     | les couleurs par défaut du terminal et de la page                                                                                              |
+| URL de l'`iframe` | `&restore=off`                                                                                                                                                                             | démarrer sur la première route, sans restaurer ni garder la session (la landing revient à l'écran de sa capture)                               |
+| URL de l'`iframe` | `&path=/notes/1`                                                                                                                                                                           | sans session restaurée, la route où l'application s'ouvre (`initialPath`) : le duel de la landing montre une note                              |
+| runtime → page    | `{ source: "luciole", type: "stage", stage }`, dans l'ordre `runtime`, `bundle`, `server`, `terminal`, `drawn`                                                                             | afficher le démarrage pendant l'attente                                                                                                        |
+| page → runtime    | `{ source: "luciole", type: "input", data }`                                                                                                                                               | taper dans le terminal comme un clavier                                                                                                        |
+| runtime → page    | `{ source: "luciole", type: "typed", data }` : ce que la main envoie à l'app (touches, collages, clics et molette encodés ; pas les réponses du terminal à ses requêtes)                   | la rejouer dans un autre `iframe` de même grille (`input`)                                                                                     |
+| page → runtime    | `iframe.contentWindow.lucioleScreen()` : les lignes visibles, lues dans le buffer                                                                                                          | lire l'écran même quand l'`iframe` est hors de vue (xterm.js cesse alors de dessiner), et le DOM ne dit rien de ce que le moteur WebGL dessine |
+| page → runtime    | `iframe.contentWindow.lucioleCells()` : chaque cellule visible, texte et style en une chaîne                                                                                               | comparer deux écrans, compter les couleurs d'une ligne (les parcours `scripts/web/`)                                                           |
+| page → runtime    | `iframe.contentWindow.lucioleWrites(listener)` : à chaque rendu, les cellules réécrites (`{ row, column, length }[]`) et leur nombre ; rend de quoi arrêter d'écouter                      | l'afterglow de la landing (`website/src/lib/glow.ts`) et la mesure du duel, sans lire le DOM                                                   |
+| page → runtime    | `iframe.contentWindow.lucioleRenderer()` : `"webgl"` ou `"dom"`                                                                                                                            | savoir ce qui dessine (les parcours le rapportent)                                                                                             |
+| page → runtime    | `iframe.contentWindow.lucioleScrollRoom(x, y)` : `{ up, down }`, si la molette fait encore défiler quelque chose sous ce point de l'`iframe` (`clientX`/`clientY`), lu sur l'écran affiché | ne faire défiler la page qu'en butée, comme un navigateur entre scrollers imbriqués (`website/src/lib/wheel.ts`)                               |
+| runtime → page    | `{ source: "luciole", type: "event", event }` : les événements du transport (`request`, `response`, `end`, `error`) et les invalidations                                                   | montrer ce qui traverse le réseau                                                                                                              |
+| page → runtime    | `{ source: "luciole", type: "network", latencyMs, fault?, delays? }`                                                                                                                       | un aller-retour simulé (moitié à l'aller, moitié au retour) et la panne de la prochaine requête (`refuse`, `drop`, `cut`)                      |
 
 `lucioleScrollRoom` suit le chemin d'OpenTUI pour un événement `scroll` : le renderable
 sous la cellule (ou celui qui a le focus), puis chacun de ses parents. Les `ScrollBox`,
@@ -375,8 +378,9 @@ qui tape, n'attend jamais. La landing s'en sert pour comparer les deux découpag
 lui. Une page d'une autre origine n'entend aucune étape (`postMessage` vise l'origine du
 runtime) et ce qu'elle envoie est ignoré : elle ne doit pas piloter une application qu'elle
 encadre. La landing (`LiveTerminal.astro`) montre la capture de l'écran pendant le
-démarrage, la remplace à la même grille, et lit l'écran de l'`iframe` par son DOM pour
-dérouler un script (connexion à Forge).
+démarrage, la remplace à la même grille, et lit l'écran de l'`iframe` par `lucioleScreen`
+pour dérouler un script (connexion à Forge). Ces fonctions sont posées sur `window` que la
+page soit encadrée ou non : les parcours `scripts/web/` lisent l'écran par elles aussi.
 
 ## 4. Rendu et entrée
 
@@ -386,6 +390,19 @@ dérouler un script (connexion à Forge).
   `process.platform/env`, `events`, et des `fs` inertes (logs) : un petit module
   `process` du runtime web.
 - Émulateur : **xterm.js** (décision 3), comme `packages/desktop`.
+- Moteur de rendu : **WebGL** (`@xterm/addon-webgl`, `run.tsx`, `drawOnGpu`), chargé avant
+  que la police ne soit ajustée à la grille. xterm.js y dessine lui-même filets, blocs et
+  glyphes powerline (`customGlyphs`) et donne à chaque cellule un nombre entier de pixels
+  physiques : le moteur DOM, qui dessine les glyphes de la police dans des cellules de
+  largeur fractionnaire, laissait un jour entre les `█ ▀ ▄` d'une barre de défilement et
+  cassait les cadres selon la police et sa hauteur de ligne. Sans WebGL2, ou dès que le
+  navigateur reprend le contexte (il en garde une quinzaine ; les moins utilisés partent
+  d'abord, ceux des `iframe` hors de vue avant les visibles), le moteur DOM reprend aussitôt,
+  sans écran vide. La landing charge le même moteur sur le terminal qui tient lieu de
+  capture (`website/src/lib/gpu.ts`) et calcule la grille comme lui (`lib/cells.ts`) : au
+  pire cas de la page d'accueil, deux `iframe` du duel, six terminaux de capture et une
+  démo vive, neuf contextes. Les octants des titres de `@luciole/editor` (U+1CD00–1CDE5)
+  ne font pas partie des glyphes dessinés par xterm.js : ils viennent de la police.
 - Plus tard, un renderer qui peint directement le buffer de cellules d'OpenTUI sur un
   canvas supprimerait l'aller-retour ANSI ; ce n'est pas nécessaire pour commencer.
 - Clavier : les gestes suivent `LUCIOLE_DESKTOP` (Ctrl+C à l'app) ; les raccourcis du
