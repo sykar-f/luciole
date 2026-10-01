@@ -14,12 +14,14 @@ import { createRoot } from "@opentui/react";
 import { Shell, type Application, type ApplicationOptions } from "../../client";
 import type { Session } from "../../restore";
 import { isInputStream, terminalOutput } from "../streams";
+import { wheelRoom } from "../wheel-room";
 import {
   controlledNetwork,
   embedded,
   onInput,
   tellTyped,
   exposeScreen,
+  exposeScrollRoom,
   stage,
   tellEvent,
   type Grid,
@@ -120,6 +122,19 @@ function pageSession(key: string) {
 /** A session neither read nor written: the application starts at its first route each time. */
 const forgotten = { restored: undefined, schedule() {}, flush() {}, remove() {} };
 
+/**
+ * The cell under a point of the page, 0-based, as xterm.js reports the mouse: from the
+ * screen element's box and the grid. None outside the grid (the padding around it).
+ */
+function cellAt(terminal: XTerm, x: number, y: number) {
+  const box = terminal.element?.querySelector(".xterm-screen")?.getBoundingClientRect();
+  if (!box?.width || !box.height) return undefined;
+  const column = Math.floor(((x - box.left) / box.width) * terminal.cols);
+  const row = Math.floor(((y - box.top) / box.height) * terminal.rows);
+  if (column < 0 || row < 0 || column >= terminal.cols || row >= terminal.rows) return undefined;
+  return { column, row };
+}
+
 /** The visible rows as text, read from the active buffer. */
 function screenLines(terminal: XTerm) {
   const buffer = terminal.buffer.active;
@@ -205,6 +220,15 @@ export async function runInPage(
     exitSignals: [],
   });
   Object.assign(globalThis, { requestAnimationFrame, cancelAnimationFrame });
+  // Framed, the embedding page asks at each turn of the wheel whether the application
+  // still scrolls under the pointer. Without mouse tracking the wheel reaches nothing it
+  // draws: xterm.js would turn it into arrow keys.
+  if (embedded)
+    exposeScrollRoom((x, y) => {
+      const cell = cellAt(terminal, x, y);
+      if (!cell || terminal.modes.mouseTrackingMode === "none") return { up: false, down: false };
+      return wheelRoom(renderer, cell.column, cell.row);
+    });
   terminal.onResize(({ cols, rows }) => renderer.resize(cols, rows));
   new ResizeObserver(layout).observe(element);
   stage("terminal");

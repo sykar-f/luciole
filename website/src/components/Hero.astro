@@ -182,9 +182,10 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
       if (Drawn.safeParse(event.data).success) {
         frame.parentElement?.classList.add("on");
         const signal = new AbortController().signal;
-        // A turn of the wheel the app has nothing to scroll for goes on to the page, once
-        // the app has had the time to answer it: a round trip later over SSH.
-        const answered = overscroll({ frame, delayMs: () => (ssh(frame) ? rtt : 0), signal });
+        // A turn of the wheel the app has nothing left to scroll for goes on to the page:
+        // as the screen shows it, so the turns still crossing the round trip over SSH
+        // are not taken for nothing to scroll.
+        overscroll({ frame, signal });
         const layer = frame.parentElement?.querySelector<HTMLElement>("[data-glows]");
         if (layer)
           glowWrites({
@@ -193,10 +194,7 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
             columns,
             rows,
             signal,
-            onWritten: () => {
-              answered();
-              measured(frame);
-            },
+            onWritten: () => measured(frame),
           });
         return void network(frame);
       }

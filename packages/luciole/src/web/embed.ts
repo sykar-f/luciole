@@ -78,6 +78,18 @@ export function exposeScreen(read: () => string[]) {
   Reflect.set(window, "lucioleScreen", read);
 }
 
+/**
+ * Whether the wheel, at a point of the frame (a `WheelEvent`'s `clientX`/`clientY`), still
+ * scrolls something in the application, up and down: `lucioleScrollRoom(x, y)` on the
+ * frame's window. Read synchronously, at each turn, from what the screen shows (over a
+ * slowed link, the turns still on their way have not moved it yet): the embedding page
+ * scrolls itself only where the application has nothing left to scroll, as a browser
+ * chains the wheel between nested scrollers.
+ */
+export function exposeScrollRoom(read: (x: number, y: number) => { up: boolean; down: boolean }) {
+  Reflect.set(window, "lucioleScrollRoom", read);
+}
+
 const handlers: { [T in Command["type"]]?: (command: Extract<Command, { type: T }>) => void } = {};
 if (embedded)
   addEventListener("message", (event) => {
