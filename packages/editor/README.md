@@ -7,6 +7,17 @@ fil de la frappe. Du Markdown entre (`value`), du Markdown sort (`onChange`). Pa
 l'espace de travail, encore privé (non publié), utilisé par
 [`examples/notes`](../../examples/notes). Licence MIT.
 
+## Installation
+
+```sh
+bun add @luciole/editor @opentui/core @opentui/react react
+# ou : npm install @luciole/editor @opentui/core @opentui/react react
+```
+
+`react`, `@opentui/core` et `@opentui/react` sont des pairs : une seule copie, celle de
+l'application. Le paquet est de l'ESM pur, avec ses déclarations ; il s'importe sous Bun
+et sous Node.
+
 ```tsx
 "use client";
 import { useState } from "react";

@@ -6,6 +6,17 @@ Des graphes de nœuds dans le terminal, sur le modèle de
 OpenTUI. Paquet de l'espace de travail, encore privé (non publié), utilisé par
 [`examples/flow`](../../examples/flow). Licence MIT.
 
+## Installation
+
+```sh
+bun add @luciole/flow @opentui/core @opentui/keymap @opentui/react react
+# ou : npm install @luciole/flow @opentui/core @opentui/keymap @opentui/react react
+```
+
+`react`, `@opentui/core`, `@opentui/keymap` et `@opentui/react` sont des pairs : une seule
+copie, celle de l'application. Le paquet est de l'ESM pur, avec ses déclarations ; il
+s'importe sous Bun et sous Node.
+
 ```tsx
 "use client";
 import {
