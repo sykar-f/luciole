@@ -26,8 +26,13 @@
     "README.md",
     "LICENSE"
   ],
+  "engines": {
+    "node": ">=20",
+    "bun": ">=1.3"
+  },
   "scripts": {
-    "build": "bun scripts/build.ts"
+    "build": "bun scripts/build.ts",
+    "prepack": "bun scripts/build.ts"
   },
   "peerDependencies": {
     "@opentui/core": "^0.5.12",
