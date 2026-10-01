@@ -1,9 +1,9 @@
 /**
  * The web runtime framed by a page of its origin (docs/WEB.md, "Page embarquée"), as the
  * landing page frames its live demos: the page hears the start stage by stage, fixes the
- * grid, types into the terminal, and puts the round trip before the keys; a frame of
- * another origin types nothing. Builds
- * examples/notes with `--web-local`.
+ * grid and the route it opens on, types into the terminal, and puts the round trip before
+ * the keys; a frame of another origin types nothing. Builds examples/notes with
+ * `--web-local`.
  *   bun run test:web:embed
  */
 import { join } from "node:path";
@@ -118,6 +118,9 @@ try {
   report.restored = !!(await browser.waitFor(frameShows("Getting around"), "the restored note"));
   await reopen(`${look}&restore=off`);
   report.notRestored = !!(await browser.waitFor(frameShows("No note selected"), "no note open"));
+  // `path`: with nothing restored, the route it opens on, as the landing page's duel does.
+  await reopen(`${look}&restore=off&path=/notes/1`);
+  report.openedPath = !!(await browser.waitFor(frameShows("Getting around"), "the note asked for"));
 
   // Another origin frames Notes: it hears no stage, and what it types is ignored. Its
   // script cannot read the frame; the DevTools protocol reads through it.
@@ -154,6 +157,7 @@ const expected = {
   typedHeard: true,
   restored: true,
   notRestored: true,
+  openedPath: true,
   otherOriginDrawn: true,
   otherOriginTyped: false,
   otherOriginHeard: 0,

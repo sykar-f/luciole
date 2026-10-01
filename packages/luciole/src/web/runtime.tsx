@@ -9,7 +9,7 @@ import "./setup";
 import { applicationOf, loadAppBundle } from "./platform/app-bundle";
 import { runInPage } from "./platform/run";
 import { connectServer } from "./server/page";
-import { lookOf, restoreOf, stage } from "./embed";
+import { lookOf, pathOf, restoreOf, stage } from "./embed";
 import { messageOf } from "../guards";
 
 const element = document.getElementById("luciole");
@@ -36,6 +36,7 @@ try {
     fetch,
     name,
     restore: restoreOf(location.search),
+    path: pathOf(location.search),
     ...look,
   });
 } catch (error) {

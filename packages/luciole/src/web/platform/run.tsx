@@ -29,7 +29,15 @@ import {
 /** What `run()` gives the function that creates its Application. */
 export type RunOptions = Pick<
   ApplicationOptions,
-  "url" | "fetch" | "token" | "latencyMs" | "network" | "session" | "wrapTransport" | "quitOnCtrlC"
+  | "url"
+  | "fetch"
+  | "token"
+  | "latencyMs"
+  | "network"
+  | "session"
+  | "initialPath"
+  | "wrapTransport"
+  | "quitOnCtrlC"
 >;
 export type PageOptions = {
   /** The element the terminal fills. */
@@ -42,6 +50,8 @@ export type PageOptions = {
   sessionKey?: string;
   /** `false`: no session restored, none kept (embed.ts, `restoreOf`). */
   restore?: boolean;
+  /** The route to open when no session is restored (embed.ts, `pathOf`). */
+  path?: string;
 } & Look;
 
 const SAVE_DELAY_MS = 200;
@@ -138,6 +148,7 @@ export async function runInPage(
     name,
     sessionKey,
     restore = true,
+    path,
     grid,
     background,
     foreground,
@@ -183,6 +194,7 @@ export async function runInPage(
     fetch: control?.fetch ?? fetch,
     network: control?.network,
     session: session.restored,
+    initialPath: path,
     quitOnCtrlC: false,
   });
   app.onEvent(tellEvent);
