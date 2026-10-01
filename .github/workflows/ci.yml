@@ -1,4 +1,4 @@
-name: MVP
+name: CI
 on: [push, pull_request]
 jobs:
   verify:
