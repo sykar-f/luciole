@@ -6,6 +6,7 @@ import { z } from "zod";
 import { ABI_KEY, ABI_PACKAGES, ABI_SPECIFIERS, AppManifest } from "../packages/luciole/src/abi";
 import { loadAppBundle, runtimeSpecifiers } from "../packages/luciole/src/app-bundle";
 import { build } from "../packages/luciole/src/build";
+import * as optional from "../packages/luciole/src/optional";
 import { messageOf } from "../packages/luciole/src/guards";
 import { readJsonFile } from "../packages/luciole/src/package-json";
 import { BUILD_TEST_MS, rejectionOf } from "./helpers";
@@ -145,3 +146,41 @@ test("the examples build their application bundle", async () => {
   expect(manifest.name).toBe("latency");
   expect((await loadAppBundle(join(dir, ".luciole/app"))).buildId).toBe(manifest.buildId);
 });
+
+test("the Notes application, which draws code with luciole/grammars, builds a bundle that loads", async () => {
+  const dir = resolve("examples/notes");
+  await build(dir, undefined, { appBundle: "required" });
+  const manifest = AppManifest.parse(await manifestOf(dir));
+  expect(manifest.name).toBe("notes");
+  expect((await loadAppBundle(join(dir, ".luciole/app"))).buildId).toBe(manifest.buildId);
+});
+
+test(
+  "an app that imports luciole/grammars without one of its packages is told which to install",
+  async () => {
+    await fixture(
+      {
+        "app/page.tsx": `import "luciole/grammars"; export default function Page(){return <text>x</text>}`,
+      },
+      async (dir) => {
+        // The workspace has every grammar: ask for one that no registry has.
+        const real = optional.assertInstalled;
+        const guard = spyOn(optional, "assertInstalled").mockImplementation((feature, names) =>
+          real(
+            feature,
+            names.map((name) => (name === "tree-sitter-rust" ? "tree-sitter-rust-absent" : name)),
+          ),
+        );
+        try {
+          const error = messageOf(await rejectionOf(build(dir)));
+          expect(error).toContain("luciole/grammars needs the optional package");
+          expect(error).toContain("bun add tree-sitter-rust-absent");
+          expect(guard).toHaveBeenCalled();
+        } finally {
+          guard.mockRestore();
+        }
+      },
+    );
+  },
+  BUILD_TEST_MS,
+);

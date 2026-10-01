@@ -947,7 +947,8 @@ async function buildUnlocked(
                   const entry = FRAMEWORK_ENTRIES.get(a.path.slice("luciole/".length));
                   if (!entry) throw new Error(`Unknown framework entry ${a.path}`);
                   // Its packages are optional: name the missing one, not a bare resolution error.
-                  if (entry === "grammars") assertInstalled("luciole/grammars", GRAMMAR_PACKAGES);
+                  if (entry === "grammars.ts")
+                    assertInstalled("luciole/grammars", GRAMMAR_PACKAGES);
                   return { path: join(framework, entry) };
                 },
               );
