@@ -137,9 +137,11 @@ export function IconButton({
 }) {
   const color = usePalette();
   const { lit, props } = usePress(onPress, false);
-  const { background, foreground } = toneColors(color, tone, lit, false);
-  // A quiet frame is drawn all the same: it is what makes the symbol a button.
-  const fill = background ?? color.button;
+  const { foreground } = toneColors(color, tone, lit, false);
+  // Every one on the same grey as the search box, so that the row reads as one bar. A
+  // primary one is told by its frame and symbol in the accent: a cell filled with it
+  // would square off the frame's rounded corners.
+  const primary = tone === "primary";
   return (
     <box
       id={id}
@@ -150,11 +152,11 @@ export function IconButton({
       alignItems="center"
       border
       borderStyle="rounded"
-      borderColor={tone === "primary" ? fill : lit ? color.muted : color.border}
-      backgroundColor={fill}
+      borderColor={primary ? (lit ? color.text : color.accent) : lit ? color.muted : color.border}
+      backgroundColor={lit ? color.buttonHover : color.button}
       {...props}
     >
-      <text wrapMode="none" fg={foreground}>
+      <text wrapMode="none" fg={primary ? (lit ? color.text : color.accent) : foreground}>
         {icon}
       </text>
     </box>
