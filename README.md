@@ -18,8 +18,20 @@ handled on the Client, without a round trip to the Server
 simulated latency). Navigation uses TanStack Router.
 
 > **Status: experimental.** No package is published to a registry yet, APIs change
-> without notice, and the name is not final. CI runs on macOS and Linux
-> ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)).
+> without notice, and the name is not final.
+
+What runs where:
+
+- **Development and the `luciole` CLI require [Bun](https://bun.sh) 1.4.2.** luciole
+  uses `Bun.Terminal`, `Bun.serve`, `Bun.build` and `bun:sqlite`, among others.
+- **`@luciole/flow` and `@luciole/editor` have no Bun dependency.**
+- **A compiled Client runs without Bun.** CI tests it in Debian and Alpine containers
+  ([`scripts/linux-client.ts`](scripts/linux-client.ts)).
+- **Operating systems:** CI covers macOS and Linux
+  ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)). Windows is untested.
+- **Desktop app:** `packages/desktop` is an experimental prototype for macOS arm64
+  only, and it is unsigned (see [docs/DESKTOP.md](docs/DESKTOP.md)).
+- **Examples** run from the monorepo root (`bun run forge`, below).
 
 ```text
 
