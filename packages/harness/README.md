@@ -25,7 +25,8 @@ controls.
 | `full`  | `default`, every tool allowed by the host | sandbox `danger-full-access`, approval `never` |
 
 pi and opencode get their own mapping (opencode: a per-mode list of session
-rules; `read` also runs its `plan` agent). The scripted harness ignores modes.
+rules; `read` also runs its `plan` agent). In the scripted harness, a requested edit is refused in `read`, asks for
+approval in `ask` and is applied in `edits` and `full`.
 
 ### `full` is full access
 
@@ -40,12 +41,20 @@ checkout or a VM.
 
 The child process inherits the full environment of the host (`process.env`
 unless a session is given another one), so it sees the same `PATH`, `HOME`
-and credentials as the host. Claude Code receives it whole because it needs
-`HOME`, `PATH` and the keychain; opencode and Codex get it as is.
+and credentials as the host. Each harness adds or removes only a few things:
 
-The only exception is an Anthropic subscription (OAuth) login: Anthropic
-reserves it for its own applications
-(<https://code.claude.com/docs/en/legal-and-compliance>), so for pi and
-opencode the environment is stripped of such tokens and a detected
-subscription login makes the harness refuse to start. Claude stays available
-through `--harness claude`, or through an API key elsewhere.
+- Claude Code receives it whole (it needs `HOME`, `PATH` and the keychain),
+  plus `CLAUDE_CODE_ENABLE_TODO_TOOLS` and `CLAUDE_AGENT_SDK_CLIENT_APP`.
+- Codex receives it as is.
+- opencode receives it plus a random server username and password for its
+  local `opencode serve`, and an `OPENCODE_CONFIG_CONTENT` that keeps the
+  user's own value and sets `share` to `disabled`.
+- pi and opencode receive it without Anthropic subscription (OAuth) tokens.
+
+Anthropic reserves its subscription login (OAuth) for its own applications
+(<https://code.claude.com/docs/en/legal-and-compliance>). When such a login
+is detected for pi or opencode, the harness still starts and its other
+providers stay usable, but Anthropic models are blocked (in the model picker,
+when selecting a model and before each prompt) with a message pointing to
+`--harness claude`. Claude stays available through an API key, or through the
+Claude Code harness for a subscription.
