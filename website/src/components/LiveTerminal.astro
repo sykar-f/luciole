@@ -139,6 +139,9 @@ const stand = JSON.stringify({
   import { glowWrites } from "../lib/glow";
   import { overscroll } from "../lib/overscroll";
   import { recolor, screenColours } from "../lib/recolor";
+  // As the runtime sets up its terminal: the same fonts, and the largest size at which the
+  // grid fits, so both draw every cell alike.
+  import { FONTS, FONT_STEP, LARGEST_FONT, SMALLEST_FONT } from "../lib/cells";
   import { Terminal } from "@xterm/xterm";
   import { FitAddon } from "@xterm/addon-fit";
   import "@xterm/xterm/css/xterm.css";
@@ -186,13 +189,6 @@ const stand = JSON.stringify({
 
   const sleep = (ms: number) => new Promise((done) => setTimeout(done, ms));
 
-  // As the runtime sets up its terminal (packages/luciole/src/web/platform/run.tsx): the same
-  // fonts, and the largest size at which the grid fits, so both draw every cell alike.
-  const FONTS =
-    'ui-monospace, "SF Mono", Menlo, "Cascadia Mono", Consolas, "DejaVu Sans Mono", monospace';
-  const LARGEST_FONT = 24;
-  const SMALLEST_FONT = 4;
-  const FONT_STEP = 0.25;
 
   /**
    * The terminal that stands in for the application until it has drawn: the capture,

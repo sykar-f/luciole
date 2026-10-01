@@ -237,6 +237,10 @@ def notes(directory):
     try:
         term.wait_for("Welcome to Notes", 120)
         term.idle(1)
+        # The hero's duel opens on the first note (Hero.astro, `path`): so does its capture.
+        term.send(b"\r")
+        term.wait_for("Getting around", 30)
+        term.idle(1)
         save(term, "notes", "Notes: a Server 500 ms away")
     finally:
         term.stop()
