@@ -1,7 +1,8 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { existsSync, realpathSync } from "node:fs";
 import { cp, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { z } from "zod";
 import {
   assertInstalled,
@@ -38,12 +39,39 @@ describe("optional dependencies", () => {
   });
 });
 
+const OPTIONAL_PACKAGES = [
+  "@resvg/resvg-wasm",
+  ...GRAMMAR_PACKAGES,
+  ...WEB_RUNTIME_PACKAGES,
+  ...WEB_SERVER_PACKAGES,
+];
+
+// The directories above `dir` (itself included) whose `node_modules` holds an optional package.
+function ancestorsHoldingPackages(dir: string): string[] {
+  const holders: string[] = [];
+  for (let current = dir; ; current = dirname(current)) {
+    if (OPTIONAL_PACKAGES.some((name) => existsSync(join(current, "node_modules", name))))
+      holders.push(current);
+    if (dirname(current) === current) return holders;
+  }
+}
+
+// TMPDIR may sit inside a checkout (the sweep sets it there), whose `node_modules` an app built
+// under it would resolve: take the first candidate with no such ancestor.
+function isolatedBase(): string {
+  const candidates = [tmpdir(), "/tmp", "/var/tmp"].filter((dir) => existsSync(dir));
+  const base = candidates.find((dir) => ancestorsHoldingPackages(realpathSync(dir)).length === 0);
+  if (base === undefined)
+    throw new Error(`no directory free of the optional packages among ${candidates.join(", ")}`);
+  return base;
+}
+
 // A copy of the modules with no `node_modules` above it (and no auto-install): what an app that
 // did not install the optional packages sees.
 describe("an app without the optional packages", () => {
   let root = "";
   beforeAll(async () => {
-    root = await mkdtemp(join(tmpdir(), "luciole-optional-"));
+    root = await mkdtemp(join(isolatedBase(), "luciole-optional-"));
     await cp(join(source, "optional.ts"), join(root, "optional.ts"));
     await cp(join(source, "math.ts"), join(root, "math.ts"));
     await writeFile(
@@ -66,6 +94,12 @@ await renderMath("x", { display: false, color: "#000", scale: 4 }).catch((error:
     );
   });
   afterAll(() => rm(root, { recursive: true, force: true }));
+
+  test("the premise holds: no optional package is resolvable from the app", () => {
+    expect(ancestorsHoldingPackages(realpathSync(root))).toEqual([]);
+    for (const name of OPTIONAL_PACKAGES)
+      expect(() => Bun.resolveSync(name, root), `${name} resolves from ${root}`).toThrow();
+  });
 
   async function run(file: string) {
     const child = Bun.spawn([process.execPath, "--no-install", join(root, file)], {
