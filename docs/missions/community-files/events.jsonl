@@ -1,0 +1,10 @@
+{"ts":"2026-10-01T18:45:11.669Z","mission":"community-files","type":"prepared","by":"master-airtty","ref":"missions/community-files/brief.v1.md"}
+{"ts":"2026-10-01T20:12:29.285Z","mission":"community-files","type":"prepared","by":"master-airtty","ref":"missions/community-files/brief.v2.md"}
+{"ts":"2026-10-01T20:13:40.351Z","mission":"community-files","type":"dispatched","by":"master-airtty","sha":"f80912ea6c6237cac204f7299cea8e988a7a8ec4","ref":"missions/community-files/brief.v2.md","note":"airtty-community-files claude","role":"worker"}
+{"ts":"2026-10-01T20:13:45.829Z","mission":"community-files","type":"acked","by":"airtty-community-files"}
+{"ts":"2026-10-01T20:15:15.859Z","mission":"community-files","type":"delivered","by":"airtty-community-files","sha":"eb955869ccbb6029da3bf83a63e47f555b643a65","ref":"missions/community-files/delivery.1.md"}
+{"ts":"2026-10-01T20:16:17.456Z","mission":"community-files","type":"review","by":"master-airtty","sha":"eb955869ccbb6029da3bf83a63e47f555b643a65","ref":"missions/community-files/reviews/1.prompt.md","note":"job 20261001T201616.616Z-63556-1d1b-reviewer-community-files-codex"}
+{"ts":"2026-10-01T20:19:15.984Z","mission":"community-files","type":"rejected","by":"master-airtty","sha":"eb955869ccbb6029da3bf83a63e47f555b643a65","ref":"missions/community-files/reviews/1.triage.md"}
+{"ts":"2026-10-01T20:19:53.777Z","mission":"community-files","type":"delivered","by":"airtty-community-files","sha":"853ef2e96771d62a4fa95d342f48e2d68a189547","ref":"missions/community-files/delivery.2.md"}
+{"ts":"2026-10-01T20:20:31.342Z","mission":"community-files","type":"review","by":"master-airtty","sha":"853ef2e96771d62a4fa95d342f48e2d68a189547","ref":"missions/community-files/reviews/2.prompt.md","note":"job 20261001T202031.259Z-75839-1aee-reviewer-community-files-codex"}
+{"ts":"2026-10-01T20:22:35.262Z","mission":"community-files","type":"reviewed","by":"master-airtty","sha":"853ef2e96771d62a4fa95d342f48e2d68a189547","ref":"missions/community-files/reviews/2.triage.md"}
