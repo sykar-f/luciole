@@ -64,6 +64,11 @@ export function serve(config: ServerConfig) {
         }
       : undefined,
   });
+  // Declared before `lifetime`, which stops through it; `server` exists by the time it runs.
+  const shutdown = () => {
+    void server.stop(true);
+    process.exit(0);
+  };
   // A Server the launcher manages lives as long as its Clients (src/launcher/lifetime.ts).
   const lifetime = socket
     ? managedLifetime(process.env, {
@@ -102,10 +107,6 @@ export function serve(config: ServerConfig) {
       buildId: config.buildId,
     }),
   );
-  const shutdown = () => {
-    void server.stop(true);
-    process.exit(0);
-  };
   process.on("SIGTERM", shutdown);
   process.on("SIGINT", shutdown);
   return server;

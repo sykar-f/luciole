@@ -87,6 +87,28 @@ function newSlave(before: ReadonlySet<number>) {
   }
   throw new Error("The new PTY's device path could not be found");
 }
+/**
+ * The programs still running, by pid, with the PTY each one holds. A host that quits
+ * through `process.exit` (a signal, a quit) unmounts nothing, so nothing else ends them.
+ */
+const live = new Map<number, Bun.Terminal>();
+let exitHooked = false;
+/**
+ * At exit: SIGKILL to the program's process group (it leads the group, `setsid`, so its
+ * pid is the group's; there is no time to wait for it to save, and one ignoring SIGHUP
+ * dies too), then the PTY's master closes, which hangs up the session leader and the
+ * foreground group. A job that left the group and ignores SIGHUP (nohup, disown)
+ * survives: nothing here signals every member of the session.
+ */
+function killAll() {
+  for (const [pid, terminal] of live) {
+    try {
+      process.kill(-pid, "SIGKILL");
+    } catch {}
+    terminal.close();
+  }
+  live.clear();
+}
 export function spawnPty(options: PtyOptions): Pty {
   const before = typeof options.command === "function" ? openDescriptors() : undefined;
   const terminal = new Bun.Terminal({
@@ -118,11 +140,17 @@ export function spawnPty(options: PtyOptions): Pty {
       ipc: (message: unknown) => options.ipc?.(message),
       serialization: "json",
     }),
-    onExit: (_child, code) => {
+    onExit: (child, code) => {
+      live.delete(child.pid);
       terminal.close();
       options.onExit(code);
     },
   });
+  live.set(child.pid, terminal);
+  if (!exitHooked) {
+    exitHooked = true;
+    process.on("exit", killAll);
+  }
   return {
     write: (data) => {
       if (!terminal.closed) terminal.write(data);
