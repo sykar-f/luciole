@@ -87,7 +87,16 @@ export function Sidebar({ width }: { width: number }) {
         />
         <NewNoteButton />
       </box>
-      <scrollbox id="notes" flexGrow={1} scrollY marginTop={1}>
+      {/* Its scrollbar as the note's: a faint thumb on the list's own background. */}
+      <scrollbox
+        id="notes"
+        flexGrow={1}
+        scrollY
+        marginTop={1}
+        verticalScrollbarOptions={{
+          trackOptions: { foregroundColor: color.faint, backgroundColor: color.sidebar },
+        }}
+      >
         {notes === null ? (
           <box paddingX={2}>
             <Line fg={color.muted}>{error || "Loading notes…"}</Line>

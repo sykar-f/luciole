@@ -29,6 +29,8 @@ const style = SyntaxStyle.fromStyles({
   keyword: { fg: RGBA.fromHex("#ff7b72") },
 });
 const WIDTH = 60;
+// The editor keeps its last column for the scrollbar: the page is one narrower than it.
+const BAR = 1;
 
 let ui: Awaited<ReturnType<typeof testRender>> | undefined;
 afterEach(() => {
@@ -39,7 +41,7 @@ afterEach(() => {
 function Harness({ initial, log = [] }: { initial: string; log?: string[] }) {
   const [value, setValue] = useState(initial);
   return (
-    <box width={WIDTH} height={30}>
+    <box width={WIDTH + BAR} height={30}>
       <MarkdownEditor
         value={value}
         onChange={(markdown) => {
@@ -55,7 +57,10 @@ function Harness({ initial, log = [] }: { initial: string; log?: string[] }) {
   );
 }
 async function show(markdown: string, log?: string[]) {
-  ui = await testRender(<Harness initial={markdown} log={log} />, { width: WIDTH, height: 30 });
+  ui = await testRender(<Harness initial={markdown} log={log} />, {
+    width: WIDTH + BAR,
+    height: 30,
+  });
   await ui.renderOnce();
   return ui;
 }
@@ -505,4 +510,149 @@ test("display math is a picture centered on the page when it can be drawn", () =
   expect(first?.image).toEqual({ url: "math:x^2", row: 0, rows: 2, cols: 10 });
   expect(first?.x).toBe(25);
   expect(lines.filter((line) => line.image?.url === "math:y")).toHaveLength(2);
+});
+
+// The scrollbar: a faint thumb down the editor's last column, the page's margin or the
+// column kept past it, while the document is taller than the editor (src/view/scrollbar.ts).
+const HEIGHT = 30;
+const BAR_X = WIDTH;
+const FAINT = RGBA.fromHex("#4a5561");
+const paragraphs = (count: number) =>
+  Array.from({ length: count }, (_, i) => `line ${i}`).join("\n\n");
+/** Row `y` of the page, the bar's column left out. */
+const text = (y: number) => (rows()[y] ?? "").slice(0, BAR_X).trimEnd();
+const thumbRows = () =>
+  Array.from({ length: HEIGHT }, (_, y) => cell(BAR_X, y).char).filter((c) => c !== " ");
+/** The last row showing text, and the empty rows under it. */
+const bottom = () => {
+  const frame = rows()
+    .slice(0, HEIGHT)
+    .map((row) => row.slice(0, BAR_X).trimEnd());
+  const last = frame.findLastIndex((row) => row !== "");
+  return { last, empty: HEIGHT - 1 - last, text: frame[last] };
+};
+
+test("a document that fits shows no scrollbar; one that does not, a faint thumb at the top", async () => {
+  await show(paragraphs(5));
+  expect(thumbRows()).toEqual([]);
+  await show(paragraphs(60));
+  // 119 rows through 30, and a 10-row tail past them: the thumb is 30/129 of 60 halves.
+  const thumb = thumbRows();
+  expect(thumb.length).toBe(7);
+  expect(thumb.slice(0, 6)).toEqual(["█", "█", "█", "█", "█", "█"]);
+  expect(thumb[6]).toBe("▀");
+  expect(cell(BAR_X, 0).char).toBe("█");
+  expect(same(cell(BAR_X, 0).fg, FAINT)).toBe(true);
+  // The page keeps its sixty columns: nothing of the text reaches the bar's column.
+  expect(text(0)).toBe("line 0");
+  expect(rows().every((row) => row.length <= WIDTH + BAR)).toBe(true);
+  expect(bottom()).toMatchObject({ last: HEIGHT - 2, empty: 1, text: "line 14" });
+});
+
+test("the wheel scrolls past the last line by a third of the editor, the thumb at the bottom", async () => {
+  const log: string[] = [];
+  await show(paragraphs(60), log);
+  for (let i = 0; i < 100; i++) await ui?.mockMouse.scroll(10, 10, "down");
+  await ui?.renderOnce();
+  // The tail: ten empty rows under the last line, and no further.
+  expect(bottom()).toMatchObject({ last: HEIGHT - 1 - 10, empty: 10, text: "line 59" });
+  expect(cell(BAR_X, HEIGHT - 1).char).toBe("█");
+  expect(cell(BAR_X, 0).char).toBe(" ");
+  // Not content: nothing was added to the Markdown.
+  expect(log).toEqual([]);
+  // Back up by three rows, the thumb follows: its end leaves the last row's lower half.
+  await ui?.mockMouse.scroll(10, 10, "up");
+  await ui?.renderOnce();
+  expect(cell(BAR_X, HEIGHT - 1).char).toBe("▀");
+  expect(bottom().empty).toBe(7);
+});
+
+test("the cursor stops at the last line: the keyboard brings it into view, never into the tail", async () => {
+  await show(paragraphs(60));
+  await act(async () => {
+    for (let i = 0; i < 130; i++) ui?.mockInput.pressArrow("down");
+  });
+  await ui?.renderOnce();
+  // The last line at the bottom row; the thumb near the end of its track, short of it by
+  // the tail the wheel may still travel.
+  expect(bottom()).toMatchObject({ last: HEIGHT - 1, empty: 0, text: "line 59" });
+  expect(cell(BAR_X, HEIGHT - 4).char).toBe("█");
+  expect(cell(BAR_X, HEIGHT - 1).char).toBe(" ");
+  // Down again moves nothing: there is no line to go to.
+  await act(async () => {
+    ui?.mockInput.pressArrow("down");
+  });
+  await ui?.renderOnce();
+  expect(bottom()).toMatchObject({ last: HEIGHT - 1, text: "line 59" });
+  // Typing at the end adds lines: the page follows the cursor, the bar the page.
+  await act(async () => {
+    ui?.mockInput.pressEnter();
+    await ui?.mockInput.typeText("more");
+  });
+  await ui?.renderOnce();
+  expect(bottom()).toMatchObject({ last: HEIGHT - 1, text: "more" });
+  expect(cell(BAR_X, HEIGHT - 4).char).toBe("█");
+});
+
+test("the thumb drags the page; a click on the track brings the page there", async () => {
+  await show(paragraphs(60));
+  // Taken by its top row and dragged ten rows down: 20 of the 47 halves the thumb may
+  // travel, 20/47 of the 99 rows the page may scroll: 42 rows, 21 paragraphs.
+  await ui?.mockMouse.drag(BAR_X, 0, BAR_X, 10);
+  await ui?.renderOnce();
+  expect(cell(BAR_X, 10).char).toBe("█");
+  expect(cell(BAR_X, 0).char).toBe(" ");
+  expect(text(0)).toBe("line 21");
+  // A click at the end of the track: the thumb comes there, the page to its end.
+  await ui?.mockMouse.click(BAR_X, HEIGHT - 1);
+  await ui?.renderOnce();
+  expect(cell(BAR_X, HEIGHT - 1).char).toBe("█");
+  expect(bottom()).toMatchObject({ text: "line 59", empty: 10 });
+  // A click on the bar never moves the cursor into the text.
+  expect(ui?.renderer.currentFocusedRenderable?.id).toBeDefined();
+});
+
+test("with a reading width, the bar stands in the margin and the text keeps its columns", async () => {
+  const value = paragraphs(60);
+  ui = await testRender(
+    <box width={WIDTH} height={HEIGHT}>
+      <MarkdownEditor
+        value={value}
+        syntaxStyle={style}
+        terminalBackground={TERMINAL}
+        readingWidth={40}
+        focused
+        flexGrow={1}
+      />
+    </box>,
+    { width: WIDTH, height: HEIGHT },
+  );
+  await ui.renderOnce();
+  // A 40-column page centered in 60: the text starts at column 10, the bar is column 59.
+  expect(
+    rows()[0]
+      ?.slice(0, WIDTH - 1)
+      .trimEnd(),
+  ).toBe(`${" ".repeat(10)}line 0`);
+  expect(cell(WIDTH - 1, 0).char).toBe("█");
+  expect(same(cell(WIDTH - 1, 0).fg, FAINT)).toBe(true);
+  // Without the bar, the same page.
+  ui.renderer.destroy();
+  ui = await testRender(
+    <box width={WIDTH} height={HEIGHT}>
+      <MarkdownEditor
+        value={value}
+        syntaxStyle={style}
+        terminalBackground={TERMINAL}
+        readingWidth={40}
+        scrollbar={false}
+        focused
+        flexGrow={1}
+      />
+    </box>,
+    { width: WIDTH, height: HEIGHT },
+  );
+  await ui.renderOnce();
+  expect(rows()[0]).toBe(`${" ".repeat(10)}line 0`);
+  expect(cell(WIDTH - 1, 0).char).toBe(" ");
 });

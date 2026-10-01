@@ -38,6 +38,8 @@ const { values: args } = parseArgs({
 const WEBSITE = join(import.meta.dirname, "../../website");
 const COLUMNS = Number(args.columns);
 const ROWS = Number(args.rows);
+/** The note's scrollbar and the window's padding right of it, in columns, in Notes. */
+const NOTE_BAR = 3;
 const PATHS: Record<string, string> = {
   notes: "/notes/3",
   mdreader: "/doc/concepts/client-and-server.md",
@@ -312,11 +314,13 @@ try {
     .array(z.string())
     .parse(await browser.evaluate(`${FRAME}.contentWindow.lucioleScreen()`));
   console.log(screen.join("\n"));
-  // The text being scrolled: right of the list's border, when there is a list.
+  // The text being scrolled: right of the list's border, when there is a list, and left
+  // of the note's scrollbar, whose thumb moves with the page but is not the text.
   const border = Math.max(...screen.map((row) => row.lastIndexOf("│", COLUMNS / 2)));
   const from = args.app === "notes" && border > 0 && border < COLUMNS / 2 ? border + 2 : 0;
+  const to = args.app === "notes" ? COLUMNS - NOTE_BAR : COLUMNS;
   await browser.evaluate(
-    `window.crop = (row) => row.slice(${from}); window.benchFrames = ${JSON.stringify(args.hero ? "iframe[data-side]" : "iframe")}`,
+    `window.crop = (row) => row.slice(${from}, ${to}).trimEnd(); window.benchFrames = ${JSON.stringify(args.hero ? "iframe[data-side]" : "iframe")}`,
   );
   const point = z
     .object({ x: z.number(), y: z.number() })
