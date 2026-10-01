@@ -6,7 +6,7 @@ import { titleOf, useCommands } from "./commands";
 import { drafts, type Note } from "./draft";
 import { notesList, useNotesList } from "./notes-list";
 import { usePalette, type Palette } from "./theme";
-import { Button, Line, useHover } from "./ui";
+import { Button, ICON_BUTTON_HEIGHT, ICON_BUTTON_WIDTH, IconButton, Line, useHover } from "./ui";
 import { excerptOf, fit, whenShort } from "./format";
 import { ui, useUi } from "./ui-state";
 
@@ -47,16 +47,6 @@ export function Sidebar({ width }: { width: number }) {
     }),
     [focus, selected, shown],
   );
-  const menuFor = (note: Note, x: number, y: number) =>
-    ui.openMenu({
-      x,
-      y,
-      items: [
-        { label: "Open", run: () => commands.open(note.id) },
-        { label: "Rename…", run: () => commands.rename(note.id) },
-        { label: "Delete", danger: true, run: () => void commands.remove(note) },
-      ],
-    });
   return (
     <box
       id="sidebar"
@@ -65,15 +55,21 @@ export function Sidebar({ width }: { width: number }) {
       flexDirection="column"
       backgroundColor={color.sidebar}
     >
-      <SearchBox
-        query={query}
-        focused={focus === "search"}
-        onQuery={setQuery}
-        onOpenFirst={() => {
-          const first = shown[0];
-          if (first) commands.open(first.id);
-        }}
-      />
+      {/* ≡ search +, one block: the ≡ belongs to the window, which draws it over the
+          room left here, so that it stays put while the list slides (app/layout.tsx). */}
+      <box flexDirection="row" height={ICON_BUTTON_HEIGHT} flexShrink={0} marginX={1}>
+        <box width={ICON_BUTTON_WIDTH} flexShrink={0} />
+        <SearchBox
+          query={query}
+          focused={focus === "search"}
+          onQuery={setQuery}
+          onOpenFirst={() => {
+            const first = shown[0];
+            if (first) commands.open(first.id);
+          }}
+        />
+        <NewNoteButton />
+      </box>
       <scrollbox id="notes" flexGrow={1} scrollY marginTop={1}>
         {notes === null ? (
           <box paddingX={2}>
@@ -106,7 +102,7 @@ export function Sidebar({ width }: { width: number }) {
                 ui.focus(null);
                 commands.open(note.id);
               }}
-              onMenu={(x, y) => menuFor(note, x, y)}
+              onMenu={(x, y) => commands.menu(note, x, y)}
             />
           ))
         )}
@@ -139,6 +135,14 @@ export function Sidebar({ width }: { width: number }) {
   );
 }
 
+/** "+", beside the search while the list is open, under the ≡ while it is folded. */
+export function NewNoteButton() {
+  const commands = useCommands();
+  return (
+    <IconButton id="new-note" icon="+" tone="primary" onPress={() => void commands.create()} />
+  );
+}
+
 function SearchBox({
   query,
   focused,
@@ -156,9 +160,9 @@ function SearchBox({
     <box
       id="search"
       flexDirection="row"
-      height={3}
-      flexShrink={0}
-      marginX={1}
+      flexGrow={1}
+      flexShrink={1}
+      height={ICON_BUTTON_HEIGHT}
       paddingLeft={1}
       border
       borderStyle="rounded"

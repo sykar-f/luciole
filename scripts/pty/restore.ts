@@ -2,8 +2,11 @@
 import assert from "node:assert/strict";
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { drive } from "./driver";
+import { ctrl, drive } from "./driver";
 import { BUN, example, report, startServer, temporaryDirectory } from "./harness";
+
+/** Lets a key's effect (Ctrl+E focusing the text) land before the next keys arrive. */
+const KEY_SETTLE_MS = 150;
 
 const PRIVATE_FILE_MODE = 0o600;
 const PERMISSION_BITS = 0o777;
@@ -39,9 +42,9 @@ const saved = () =>
   await using t = await start();
   await t.waitFor("Welcome to Notes");
   await t.click("Welcome to Notes");
-  await t.waitFor("✎ Write");
-  await t.click("✎ Write");
-  await t.waitFor("✓ Done");
+  await t.waitFor("Getting around");
+  // Ctrl+E: the cursor at the end of the text.
+  await t.type(ctrl("e"), KEY_SETTLE_MS);
   t.write("abc");
   await t.waitFor("abc");
   await t.pause(SESSION_WRITTEN_MS);
@@ -57,8 +60,7 @@ const saved = () =>
   await t.waitFor("abc");
   await t.waitFor("● Unsaved");
   assert.equal(saved().length, 1, saved().join());
-  await t.click("✎ Write");
-  await t.waitFor("✓ Done");
+  await t.type(ctrl("e"), KEY_SETTLE_MS);
   t.write("d");
   await t.waitFor("abcd");
   // A signal (a closed terminal, a rebuild): the session is written before exit.

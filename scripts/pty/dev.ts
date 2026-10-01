@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import { cpSync, existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
-import { drive } from "./driver";
+import { ctrl, drive } from "./driver";
 import {
   alive,
   BUN,
@@ -16,6 +16,9 @@ import {
   report,
   temporaryDirectory,
 } from "./harness";
+
+/** Lets a key's effect (Ctrl+E focusing the text) land before the next keys arrive. */
+const KEY_SETTLE_MS = 150;
 
 const TIMEOUT_MS = 20_000;
 
@@ -47,9 +50,9 @@ const wait = (text: string) => t.waitFor(text, { timeout: TIMEOUT_MS });
 
 await wait("Welcome to Notes");
 await t.click("Welcome to Notes");
-await wait("✎ Write");
-await t.click("✎ Write");
-await wait("✓ Done");
+await wait("Getting around");
+// Ctrl+E: the cursor at the end of the text.
+await t.type(ctrl("e"), KEY_SETTLE_MS);
 // On a line of its own: the end of the note would wrap it.
 t.write("\rkeep");
 await wait("keep");

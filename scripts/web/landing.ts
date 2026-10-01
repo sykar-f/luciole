@@ -22,9 +22,12 @@ const MATCHING_ROWS = 0.95;
 const AFTER_MS = 1500;
 const REVEAL_TIMEOUT_MS = 40_000;
 const VISITS = 2;
-/** Notes, in Wire: Return opens the most recent note, shown with its Edit button. */
+/**
+ * Notes, in Wire: Return opens the most recent note, shown with its "⋯" (no row has one
+ * before: a row shows its own only when selected or under the pointer).
+ */
 const NOTES_FRAME = `document.querySelector('#wire [data-live] iframe')`;
-const NOTE_EDITOR = "✎ Write";
+const NOTE_EDITOR = "⋯";
 /** Longer than the runtime's delay before it saves a session (run.tsx, SAVE_DELAY_MS). */
 const SAVED_MS = 500;
 /** How many differing rows a failure quotes. */

@@ -55,12 +55,17 @@ test("local route loading, cancel, refresh identity, failed navigation and super
   let rendered: TestUI | undefined;
   const geometry = (ui: TestUI) =>
     Object.fromEntries(
-      ["toolbar", "sidebar", "note-pane", "note-status-line", "note-heading", "note-body"].map(
-        (id) => {
-          const node = renderable(ui, id, Renderable);
-          return [id, [node.x, node.y, node.width, node.height]];
-        },
-      ),
+      [
+        "toggle-sidebar",
+        "sidebar",
+        "note-pane",
+        "note-status-line",
+        "note-heading",
+        "note-body",
+      ].map((id) => {
+        const node = renderable(ui, id, Renderable);
+        return [id, [node.x, node.y, node.width, node.height]];
+      }),
     );
   const resolved = () => app.router.state.resolvedLocation?.pathname;
   const pending = () => app.router.state.location.pathname;
@@ -136,7 +141,15 @@ test("local route loading, cancel, refresh identity, failed navigation and super
     });
     await ui.renderOnce();
     expect(geometry(ui)).toEqual(loadingGeometry);
-    expect(ui.captureCharFrame()).toContain("Syncing…");
+    // A refresh is mentioned once it lasts (every save reads its note again), and after
+    // what the page has to say: here, its unsaved text.
+    expect(ui.captureCharFrame()).not.toContain("Syncing…");
+    await act(async () => {
+      await Bun.sleep(1100);
+    });
+    await ui.renderOnce();
+    expect(ui.captureCharFrame()).toContain("● Unsaved");
+    expect(ui.captureCharFrame()).not.toContain("Syncing…");
     expect(ui.captureCharFrame()).not.toContain("Loading the note…");
     expect(ui.renderer.root.findDescendantById("note-1")).toBe(field.node);
     expect(field.value).toBe(`${seed}draft!`);
@@ -181,7 +194,7 @@ test("local route loading, cancel, refresh identity, failed navigation and super
     await ui.renderOnce();
     expect(resolved()).toBe("/notes/1");
     expect(ui.captureCharFrame()).toContain("offline");
-    expect(ui.captureCharFrame()).toContain("◧ Hide list");
+    expect(ui.renderer.root.findDescendantById("toggle-sidebar")).toBeDefined();
     expect(ui.captureCharFrame()).toContain("Try again");
     expect(app.status).toBe("Disconnected");
     expect(draft.version).toBe(2);

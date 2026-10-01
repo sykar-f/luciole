@@ -1,5 +1,6 @@
 "use client";
 import { TransportError, type ErrorProps } from "luciole/client";
+import { EmptyPane } from "../components/NoteFrame";
 import { usePalette } from "../components/theme";
 import { Button, Line } from "../components/ui";
 
@@ -13,18 +14,11 @@ export default function PageError({ error, retry }: ErrorProps) {
         ? error.message
         : "Render failed";
   return (
-    <box
-      id="note-error"
-      flexDirection="column"
-      flexGrow={1}
-      alignItems="center"
-      justifyContent="center"
-      gap={1}
-    >
+    <EmptyPane id="note-error">
       <Line fg={color.warn}>{reason}</Line>
       <Button tone="primary" onPress={() => void retry()}>
         Try again
       </Button>
-    </box>
+    </EmptyPane>
   );
 }

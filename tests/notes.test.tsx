@@ -2,7 +2,7 @@
 import { test, expect } from "bun:test";
 import { act } from "react";
 import { testRender } from "@opentui/react/test-utils";
-import { TextRenderable } from "@opentui/core";
+import { Renderable, TextRenderable } from "@opentui/core";
 import { MouseButtons, type MouseButton } from "@opentui/core/testing";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -17,6 +17,7 @@ import {
   metricsOf,
   markdownEditor,
   clickOn,
+  renderable,
   type ClientOptions,
   type TestUI,
 } from "./helpers";
@@ -90,8 +91,23 @@ async function write(app: Parameters<typeof path>[0], ui: TestUI) {
   await act(async () => until(() => ui.captureCharFrame().includes("Welcome to Notes")));
   await click(ui, "Welcome to Notes");
   await act(async () => until(() => path(app) === "/notes/1"));
-  await click(ui, "✎ Write");
+  await writeAtEnd(ui);
 }
+/** Ctrl+E: the cursor at the end of the text shown, as a click there would put it. */
+const writeAtEnd = (ui: TestUI) =>
+  act(async () => {
+    ui.mockInput.pressKey("e", { ctrl: true });
+  });
+/** A left click in the middle of the renderable `id` (a button with no words: ≡, +, ⋯). */
+const press = (ui: TestUI, id: string) =>
+  act(async () => {
+    const node = renderable(ui, id, Renderable);
+    await ui.mockMouse.click(
+      node.x + Math.floor(node.width / 2),
+      node.y + Math.floor(node.height / 2),
+    );
+    await Bun.sleep(30);
+  });
 /** The sidebar at 110 columns: 30% of the screen. */
 const SIDEBAR_WIDTH = 33;
 const sidebarSlot = (ui: TestUI) => ui.renderer.root.findDescendantById("sidebar")?.parent;
@@ -114,7 +130,7 @@ test("generated Notes: Flight action, preserved Draft, navigation and offline ed
     // Read as Markdown: headings without their markers, and nothing to type into.
     expect(await frame(ui)).toContain("Getting around");
     expect(await frame(ui)).not.toContain("## Getting around");
-    await click(ui, "✎ Write");
+    await writeAtEnd(ui);
     const input = (id: string) => markdownEditor(ui, id);
     const field = input("note-1");
     const seed = field.value;
@@ -169,7 +185,7 @@ test("generated Notes: Flight action, preserved Draft, navigation and offline ed
     expect(input("note-1").value).toBe(`${seed}abcd`);
 
     const localBefore = await counts();
-    await click(ui, "✎ Write");
+    await writeAtEnd(ui);
     await act(async () => {
       await ui.mockInput.typeText("e");
       ui.mockInput.pressArrow("left");
@@ -189,6 +205,9 @@ test("generated Notes: Flight action, preserved Draft, navigation and offline ed
       await until(() => app.status === "Disconnected");
     });
     expect(input("note-1").value).toBe(`${seed}abcdef`);
+    // A lost connection is said once it lasts; it speaks before the page, and says what
+    // becomes of the unsaved text.
+    await eventually(() => status(ui) === "○ Disconnected. Your text is kept here.", 5000);
     expect(await frame(ui)).toContain("Reconnect");
   } finally {
     await stop();
@@ -204,7 +223,7 @@ test("every action is a click: new, rename, search, fold, delete and undo", asyn
     expect(await frame(ui)).not.toMatch(/ctrl\+|Ctrl\+|Esc /);
 
     // A new note opens with its title ready to type; Return moves on to the text.
-    await click(ui, "+ New note");
+    await press(ui, "new-note");
     await act(async () => until(() => /^\/notes\/[0-9a-f]{8}$/.test(path(app) ?? "")));
     const id = path(app)?.split("/").at(-1) ?? "";
     await act(async () => {
@@ -214,7 +233,9 @@ test("every action is a click: new, rename, search, fold, delete and undo", asyn
     await act(async () => {
       await ui.mockInput.typeText("- **one**");
     });
-    await click(ui, "✓ Done");
+    // Autosave is off here: the line above the title offers to save.
+    await act(async () => until(() => status(ui) === "● Unsaved"));
+    await click(ui, "Save");
     await act(async () => until(() => !draftOf(app, id).dirty && !draftOf(app, id).pending));
     const shown = await frame(ui);
     // Saved, and nothing says so: no time, no "Saved".
@@ -235,12 +256,17 @@ test("every action is a click: new, rename, search, fold, delete and undo", asyn
     await click(ui, "✕");
     expect(await frame(ui)).toContain("Welcome to Notes");
 
-    // The list slides away and comes back.
-    await click(ui, "◧ Hide list");
+    // The list slides away to a rail and comes back; ≡ stays where it was all along.
+    const toggle = renderable(ui, "toggle-sidebar", Renderable);
+    const at = [toggle.x, toggle.y];
+    await press(ui, "toggle-sidebar");
     await untilRendered(ui, () => !ui.renderer.root.findDescendantById("sidebar"));
-    await click(ui, "◧ Show list");
+    expect(ui.renderer.root.findDescendantById("rail")).toBeDefined();
+    expect([toggle.x, toggle.y]).toEqual(at);
+    await press(ui, "toggle-sidebar");
     expect(ui.renderer.root.findDescendantById("sidebar")).toBeDefined();
     await untilRendered(ui, () => sidebarSlot(ui)?.width === SIDEBAR_WIDTH);
+    expect([toggle.x, toggle.y]).toEqual(at);
 
     // A right click on a note offers its menu; Rename… opens its title.
     await click(ui, "Shopping list", MouseButtons.RIGHT);
@@ -256,7 +282,7 @@ test("every action is a click: new, rename, search, fold, delete and undo", asyn
 
     // Saved elsewhere while this Client edits (Return left the title for the text): its
     // text is kept, and "Keep mine" wins.
-    expect(await frame(ui)).toContain("✓ Done");
+    expect(Reflect.get(markdownEditor(ui, "note-2").node, "focused")).toBe(true);
     await act(async () => {
       await ui.mockInput.typeText("mine");
     });
@@ -278,6 +304,9 @@ test("every action is a click: new, rename, search, fold, delete and undo", asyn
     await act(async () => until(() => path(app) === `/notes/${id}`));
     // However many notes the notebook is seeded with: one less, then as many again.
     const count = Number(/(\d+) notes/.exec(await frame(ui))?.[1]);
+    // The note's own ⋯, at the end of its title: the same menu as its row's.
+    await press(ui, "note-menu");
+    expect(await frame(ui)).toContain("Copy as Markdown");
     await click(ui, "Delete");
     await act(async () => until(() => ui.captureCharFrame().includes("Deleted “Plans”")));
     expect(path(app)).not.toBe(`/notes/${id}`);
@@ -315,13 +344,16 @@ test("a save that cannot reach the Server is retried quietly, then reported unti
     await act(async () => {
       ui.mockInput.pressKey("s", { ctrl: true });
     });
-    // Refused at once, retried behind the user's back: nothing alarming yet.
+    // Refused at once, retried behind the user's back: nothing alarming yet, not even the
+    // connection the refusal reported lost.
     await act(async () => until(() => draft.failures >= 2));
-    expect(status(ui)).not.toContain("Could not reach");
-    await eventually(() => status(ui).includes("Could not reach"), QUIET_MS * 2);
+    expect(app.status).toBe("Disconnected");
+    expect(status(ui)).not.toContain("Disconnected");
+    await eventually(() => status(ui).includes("Disconnected"), QUIET_MS * 2);
     expect(performance.now() - asked).toBeGreaterThanOrEqual(QUIET_MS - 100);
-    expect(status(ui)).toBe("Could not reach the Server. Your text is kept here.");
-    expect(await frame(ui)).toContain("Retry");
+    // The connection speaks for the save it failed, with the way to try it again.
+    expect(status(ui)).toBe("○ Disconnected. Your text is kept here.");
+    expect(await frame(ui)).toContain("Reconnect");
     // Nothing lost, nothing moved.
     expect(draft.value).toBe(text);
     expect(body()).toBe(top);
@@ -357,8 +389,10 @@ test("a slow save is said to be slow, then unconfirmed, and settles once the Ser
       ui.mockInput.pressKey("s", { ctrl: true });
     });
     await eventually(() => status(ui) === "Still saving…", QUIET_MS * 2);
-    await eventually(() => status(ui).startsWith("Save not confirmed"), QUIET_MS);
-    expect(await frame(ui)).toContain("Check again");
+    // Unanswered, the request reported the connection lost: that speaks first.
+    await act(async () => until(() => draft.unknown, QUIET_MS));
+    await eventually(() => status(ui) === "○ Disconnected. Your text is kept here.", QUIET_MS);
+    expect(await frame(ui)).toContain("Reconnect");
     // Ctrl+S looks it up now, without waiting for the next automatic check.
     if (!draft.resolving)
       await act(async () => {

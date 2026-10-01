@@ -1,28 +1,28 @@
-
-  ◧ Hide list   + New note  │  ✓ Done   Copy  │  Delete                   ○ Disconnected  Reconnect  │  Quit
-
- ╭Unable─to─connect.─Is─the─computer able to access the url?
- │ ⌕ Search                    │     Could not reach the Server. Your text is kept here.  Retry
- ╰─────────────────────────────╯
-                                     Welcome to Notes
- ╭────────────────────────────╮ ▀
- │ Untitled                   │
- │ 00:45     No additional t… │    𜶪 Getting around
+  Unable to connect. Is the computer able to access the url?
+ ╭───╮╭───────────────────╮╭───╮
+ │ ≡ ││ ⌕ Search          ││ + │     ○ Disconnected. Your text is kept here.  Reconnect
+ ╰───╯╰───────────────────╯╰───╯
+                                     Welcome to Notes                                                     ⋯
+ ╭────────────────────────────╮ █
+ │ Untitled                   │ █
+ │ 01:10     No additional t… │ █  𜶪 Getting around
+ ╰────────────────────────────╯ █
+ ╭────────────────────────────╮ █    • Click anywhere in a note and write: Markdown turns into what it
+ │ Welcome to Notes        ⋯  │ █      means as you type it (**bold**, # title, - list)
+ │ ● 01:10     Notes are wri… │ █    • Click a title to rename its note
+ ╰────────────────────────────╯      • +, beside the search, starts a blank note; the search box filters
+ ╭────────────────────────────╮        them all
+ │ Shopping list              │      • ≡ folds the list away, and brings it back
+ │ Sep 23    Coffee beans     │      • Hover a note in the list for its menu, or right-click it
  ╰────────────────────────────╯
- ╭────────────────────────────╮      • Click anywhere in a note and write: Markdown turns into what it
- │ Welcome to Notes        ⋯  │        means as you type it (**bold**, # title, - list)
- │ ● 00:45     Notes are wri… │      • Click a title to rename its note
- ╰────────────────────────────╯      • New note starts a blank one; the search box filters them all
- ╭────────────────────────────╮      • Hover a note in the list for its menu, or right-click it
- │ Shopping list              │
- │ Sep 23    Coffee beans     │                                                                        ts
- ╰────────────────────────────╯      // What the list on the left reads, cached until a save invalidates i
- ╭────────────────────────────╮      t
- │ Markdown, the whole spec   │      export async function notesOf(owner: string) {
- │ Sep 22    Every construct… │        cacheTag(notesTag(owner));
- ╰────────────────────────────╯        return listNotes(owner);
- ╭────────────────────────────╮      }
- │ Math, as GitHub writes it  │
+ ╭────────────────────────────╮                                                                        ts
+ │ Markdown, the whole spec   │      // What the list on the left reads, cached until a save invalidates i
+ │ Sep 22    Every construct… │      t
+ ╰────────────────────────────╯      export async function notesOf(owner: string) {
+ ╭────────────────────────────╮        cacheTag(notesTag(owner));
+ │ Math, as GitHub writes it  │        return listNotes(owner);
+ │ Sep 21    Math as GitHub … │      }
+ ╰────────────────────────────╯
  ───────────────────────────────
   Server unreachable     Retry       ▎ Changes are saved on their own, a moment after you stop
                                      ▎ typing.abcde

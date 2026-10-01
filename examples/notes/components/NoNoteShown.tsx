@@ -1,5 +1,6 @@
 "use client";
 import { useCommands } from "./commands";
+import { EmptyPane } from "./NoteFrame";
 import { useKnownNotes } from "./notes-list";
 import { usePalette } from "./theme";
 import { Button, Line } from "./ui";
@@ -11,14 +12,7 @@ export function NoNoteShown() {
   const { notes } = useKnownNotes();
   const count = notes?.length ?? 0;
   return (
-    <box
-      id="no-note"
-      flexDirection="column"
-      flexGrow={1}
-      alignItems="center"
-      justifyContent="center"
-      gap={1}
-    >
+    <EmptyPane id="no-note">
       <Line fg={color.text} bold>
         No note selected
       </Line>
@@ -28,6 +22,6 @@ export function NoNoteShown() {
       <Button tone="primary" onPress={() => void commands.create()}>
         + New note
       </Button>
-    </box>
+    </EmptyPane>
   );
 }

@@ -37,22 +37,23 @@ report.redirectedToRuntime =
   String(await browser.evaluate("location.pathname")) === "/_luciole/web/";
 console.log(first);
 
-// Everything by pointing: open a note from the list, edit it, finish.
+// Everything by pointing: open a note from the list, then write a new one.
 await browser.clickAt(cellOf("Welcome to Notes"));
-await browser.waitFor(shows("✎ Write"), "the note");
+await browser.waitFor(shows("Getting around"), "the note");
 const screenshot = join(example("notes"), ".luciole/web-journey.png");
 await browser.screenshot(screenshot);
 // A Server Function from the page: a POST, with the declared Origin, admitted.
 const BASE36 = 36;
 const marker = `web${Date.now().toString(BASE36)}`;
 const BODY = "Written in the browser";
-await browser.clickAt(cellOf("+ New note"));
-await browser.waitFor(shows("✓ Done"), "the new note, its title ready");
+// The "+" beside the search.
+await browser.clickAt(cellOf("│ + │"));
+await browser.waitFor(shows("Untitled"), "the new note, its title ready");
 await browser.insertText(marker);
 await browser.press("Enter");
 await browser.insertText(BODY);
 await browser.waitFor(shows(BODY), "the typed text");
-await browser.clickAt(cellOf("✓ Done"));
+// Nothing to press: it saves itself a moment later.
 report.savedFromThePage = !!(await browser.waitFor(
   `!${rowWith("●", marker)} && ${rowWith(marker, "⋯")} && ${shows(BODY)}`,
   "the saved note, listed under its title",

@@ -1,11 +1,10 @@
 "use client";
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { MouseEvent } from "@opentui/core";
 import { useRenderer } from "@opentui/react";
 import { MarkdownEditor, type MarkdownEditorRenderable } from "@luciole/editor";
 import { renderMath } from "luciole/math";
 import {
-  CapabilityDenied,
   host,
   useBindings,
   useConnection,
@@ -16,7 +15,7 @@ import { renameNote } from "../actions/notes";
 import { titleOf, useCommands } from "./commands";
 import { useDraft, type Note, type SaveResult, type Snapshot } from "./draft";
 import { NotePane, READING_WIDTH } from "./NoteFrame";
-import { Separator, ToolbarActions } from "./Toolbar";
+import { StatusMessage } from "./StatusLine";
 import { useTheme, type Palette } from "./theme";
 import { Button } from "./ui";
 import { ui, useUi } from "./ui-state";
@@ -48,7 +47,6 @@ const RETRY_LAST_MS = 15_000;
  */
 export function NoteEditor({ initialNote: note, saveAction, resolveAction, autosaveMs }: Props) {
   const { color, syntax } = useTheme();
-  const renderer = useRenderer();
   const { focus, renaming } = useUi();
   const commands = useCommands();
   const { draft, edit, save, recover, discard, adopt } = useDraft(note);
@@ -140,6 +138,8 @@ export function NoteEditor({ initialNote: note, saveAction, resolveAction, autos
     ui.focus("body");
     body.current?.controller.end();
   };
+  // Esc, or Ctrl+E again: the text is left, and saved now if autosave is off. Nothing on
+  // screen says so: the text is written where it is read, and a click elsewhere leaves it.
   const done = () => {
     ui.focus(null);
     if (canSave) send();
@@ -157,26 +157,17 @@ export function NoteEditor({ initialNote: note, saveAction, resolveAction, autos
     [editing, focus, canSave, failing, draft],
   );
 
-  const copy = async () => {
-    try {
-      await host.clipboard.write(draft.value);
-      ui.toast({ text: "Copied as Markdown" });
-      return;
-    } catch (error: unknown) {
-      if (error instanceof CapabilityDenied) {
-        ui.toast({ text: "The clipboard is not available here" });
-        return;
-      }
-    }
-    const copied = renderer.isOsc52Supported() && renderer.copyToClipboardOSC52(draft.value);
-    ui.toast({ text: copied ? "Copied as Markdown" : "The clipboard is not available here" });
-  };
-
+  // Said in warning colors: a lost connection, which caused it most often, says it instead.
+  const warning =
+    (draft.conflict && !(failing && !quiet)) ||
+    (failing && !quiet) ||
+    (!!draft.error && !draft.failures && !draft.pending);
   return (
     <NotePane
+      warning={warning}
       status={
         draft.conflict && !(failing && !quiet) ? (
-          <StatusLine
+          <StatusMessage
             fg={color.warn}
             text={
               behind
@@ -203,10 +194,10 @@ export function NoteEditor({ initialNote: note, saveAction, resolveAction, autos
             >
               Use theirs
             </Button>
-          </StatusLine>
+          </StatusMessage>
         ) : failing && !quiet ? (
           // Retries go on behind the message; it leaves when one succeeds.
-          <StatusLine
+          <StatusMessage
             fg={color.warn}
             text={
               draft.unknown
@@ -227,25 +218,25 @@ export function NoteEditor({ initialNote: note, saveAction, resolveAction, autos
                   ? "Retrying…"
                   : "Retry"}
             </Button>
-          </StatusLine>
+          </StatusMessage>
         ) : draft.error && !draft.failures && !draft.pending ? (
           // Refused by the Server: retrying the same text would change nothing.
-          <StatusLine fg={color.warn} text={`Not saved: ${draft.error}`}>
+          <StatusMessage fg={color.warn} text={`Not saved: ${draft.error}`}>
             {canSave ? (
               <Button tone="quiet" onPress={send}>
                 Retry
               </Button>
             ) : null}
-          </StatusLine>
+          </StatusMessage>
         ) : draft.pending && !quiet ? (
-          <StatusLine fg={color.muted} text="Still saving…" />
+          <StatusMessage fg={color.muted} text="Still saving…" />
         ) : !autosaveMs && canSave ? (
           // Without autosave, the list's mark for unsaved work, and the way to save it.
-          <StatusLine fg={color.muted} text="● Unsaved">
+          <StatusMessage fg={color.muted} text="● Unsaved">
             <Button tone="quiet" onPress={send}>
               Save
             </Button>
-          </StatusLine>
+          </StatusMessage>
         ) : null
       }
       title={
@@ -257,27 +248,12 @@ export function NoteEditor({ initialNote: note, saveAction, resolveAction, autos
           onDone={() => startEditing()}
         />
       }
+      menu={
+        <Button id="note-menu" tone="quiet" onPress={(e) => commands.menu(note, e.x, e.y + 1)}>
+          ⋯
+        </Button>
+      }
     >
-      {/* The text is written where it is shown: "Write" puts the cursor at its end, for
-          those who look for a button rather than click the page. Delete stands apart. */}
-      <ToolbarActions>
-        {editing ? (
-          <Button id="done" tone="primary" onPress={done}>
-            ✓ Done
-          </Button>
-        ) : (
-          <Button id="edit" onPress={startEditing}>
-            ✎ Write
-          </Button>
-        )}
-        <Button tone="quiet" onPress={() => void copy()}>
-          Copy
-        </Button>
-        <Separator />
-        <Button id="delete-note" tone="danger" onPress={() => void commands.remove(note)}>
-          Delete
-        </Button>
-      </ToolbarActions>
       <box flexDirection="column" flexGrow={1}>
         <MarkdownEditor
           ref={body}
@@ -298,18 +274,6 @@ export function NoteEditor({ initialNote: note, saveAction, resolveAction, autos
         />
       </box>
     </NotePane>
-  );
-}
-
-/** One line of the save's state: its words, cut short before its buttons are. */
-function StatusLine({ fg, text, children }: { fg: string; text: string; children?: ReactNode }) {
-  return (
-    <box flexDirection="row" flexGrow={1} gap={1}>
-      <text id="note-status" flexShrink={1} wrapMode="none" truncate fg={fg}>
-        {text}
-      </text>
-      {children}
-    </box>
   );
 }
 
