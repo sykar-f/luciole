@@ -88,6 +88,10 @@ export function keepAlive(fetchServer: Fetch, client: string, pingMs: number): M
   const listeners = new Set<(reachable: boolean) => void>();
   // The Client starts connected: a first ping that fails is a change, and is reported.
   let reachable = true;
+  // Pings overlap when one outlasts the interval: an answer older than one already
+  // counted says nothing new, however late it comes.
+  let sent = 0;
+  let counted = 0;
   const call = (path: string, signal?: AbortSignal) =>
     fetchServer(new URL(path, "http://localhost"), {
       method: "POST",
@@ -95,10 +99,13 @@ export function keepAlive(fetchServer: Fetch, client: string, pingMs: number): M
       signal,
     });
   const ping = async () => {
+    const turn = ++sent;
     const now = await call("/lifetime/ping", AbortSignal.timeout(pingMs)).then(
       (response) => response.ok,
       () => false,
     );
+    if (turn < counted) return;
+    counted = turn;
     if (now === reachable) return;
     reachable = now;
     for (const listener of listeners) listener(now);
