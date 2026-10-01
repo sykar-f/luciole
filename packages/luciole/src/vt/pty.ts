@@ -9,7 +9,7 @@
  * emulator or tmux does; closing the PTY then hangs the whole session up
  * (probes/vt-embed).
  */
-import { existsSync, fstatSync, readdirSync, statSync } from "node:fs";
+import { fstatSync, readdirSync, realpathSync } from "node:fs";
 export type PtyOptions = {
   /**
    * The program and its arguments; a function receives the exact path of the PTY's
@@ -39,51 +39,23 @@ export type Pty = {
 
 /** The open file descriptors of this process. */
 const openDescriptors = () => new Set(readdirSync("/dev/fd").map(Number));
-/** Scans of /dev for a new slave, and the pause between two. */
-// Up to 2 s: on a loaded machine where PTYs of other sessions come and go, the new
-// slave took longer than the 100 ms first allowed to show up in /dev.
-const SCAN_ATTEMPTS = 40;
-const SCAN_PAUSE_MS = 50;
-/**
- * The PTY slaves by device number. Other processes open and close PTYs meanwhile: one
- * listed but gone by the time it is examined is skipped.
- */
-function slaves() {
-  // macOS names slaves /dev/ttysNNN, Linux /dev/pts/N.
-  const candidates = [
-    ...readdirSync("/dev")
-      .filter((name) => /^ttys\d+$/.test(name))
-      .map((name) => `/dev/${name}`),
-    ...(existsSync("/dev/pts") ? readdirSync("/dev/pts").map((name) => `/dev/pts/${name}`) : []),
-  ];
-  const devices = new Map<number, string>();
-  for (const path of candidates) {
-    const stat = statSync(path, { throwIfNoEntry: false });
-    if (stat) devices.set(stat.rdev, path);
-  }
-  return devices;
-}
+/** What a PTY slave is called: macOS /dev/ttysNNN, Linux /dev/pts/N. */
+const SLAVE_PATH = /^\/dev\/(?:ttys\d+|pts\/\d+)$/;
 /**
  * The path of the terminal device a descriptor opened since `before` refers to: a PTY
- * slave `Bun.Terminal` just allocated. Bun does not say it; the device number does.
+ * slave `Bun.Terminal` just allocated. Bun does not say it, the descriptor does: the
+ * kernel resolves it (F_GETPATH on macOS, /proc/self/fd on Linux), so nothing is looked
+ * up in /dev by name and nothing waits on time. The master (/dev/ptmx) and other
+ * descriptors the call opened do not match the slave pattern.
  */
 function newSlave(before: ReadonlySet<number>) {
-  const opened = new Set<number>();
   for (const fd of openDescriptors()) {
     if (before.has(fd)) continue;
     try {
-      const stat = fstatSync(fd);
-      if (stat.isCharacterDevice()) opened.add(stat.rdev);
+      if (!fstatSync(fd).isCharacterDevice()) continue;
+      const path = realpathSync(`/dev/fd/${fd}`);
+      if (SLAVE_PATH.test(path)) return path;
     } catch {}
-  }
-  // A slave just allocated may not be listed in /dev yet while PTYs come and go.
-  for (let attempt = 0; attempt < SCAN_ATTEMPTS; attempt++) {
-    const devices = slaves();
-    for (const rdev of opened) {
-      const path = devices.get(rdev);
-      if (path) return path;
-    }
-    Bun.sleepSync(SCAN_PAUSE_MS);
   }
   throw new Error("The new PTY's device path could not be found");
 }
