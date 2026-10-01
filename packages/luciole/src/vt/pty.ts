@@ -87,6 +87,24 @@ function newSlave(before: ReadonlySet<number>) {
   }
   throw new Error("The new PTY's device path could not be found");
 }
+/**
+ * The programs still running. Each has a session of its own, so nothing hangs it up when
+ * the Client quits through `process.exit` (a signal, a quit, a crash that exits) and
+ * unmounts nothing: the kernel's hangup on the PTY's close does not reach a program that
+ * ignores SIGHUP, nor a background job.
+ */
+const live = new Set<number>();
+let exitHooked = false;
+/** Too late to wait for a program to save and leave: its whole session is killed. */
+function killAll() {
+  for (const pid of live) {
+    try {
+      // The program is its session's leader (setsid): its pid is the group's.
+      process.kill(-pid, "SIGKILL");
+    } catch {}
+  }
+  live.clear();
+}
 export function spawnPty(options: PtyOptions): Pty {
   const before = typeof options.command === "function" ? openDescriptors() : undefined;
   const terminal = new Bun.Terminal({
@@ -118,11 +136,17 @@ export function spawnPty(options: PtyOptions): Pty {
       ipc: (message: unknown) => options.ipc?.(message),
       serialization: "json",
     }),
-    onExit: (_child, code) => {
+    onExit: (child, code) => {
+      live.delete(child.pid);
       terminal.close();
       options.onExit(code);
     },
   });
+  live.add(child.pid);
+  if (!exitHooked) {
+    exitHooked = true;
+    process.on("exit", killAll);
+  }
   return {
     write: (data) => {
       if (!terminal.closed) terminal.write(data);

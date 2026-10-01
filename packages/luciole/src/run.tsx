@@ -177,6 +177,9 @@ export async function run(
   process.on("SIGHUP", desktop ? quit : interrupted);
   app.quit = quit;
   renderer = await createCliRenderer({ exitOnCtrlC: false });
+  // OpenTUI restores the terminal on its own signals only: any other `process.exit`
+  // (the Client's own, a library's) would leave it raw, on the alternate screen.
+  process.on("exit", () => renderer?.destroy());
   devtools?.attach(app, renderer);
   const root = createRoot(renderer);
   // RouterProvider's Transitioner performs the initial load.
