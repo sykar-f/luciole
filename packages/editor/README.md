@@ -87,7 +87,8 @@ le `<Markdown>` de luciole (`markup.heading.1`, `markup.raw.block`…) :
   d'échappement), Mac AZERTY (`[ ] { } | ~ \` avec Option). Même Markdown, même écran.
 - **Le rendu, cellule par cellule** (`test/view.test.tsx`) : bandeaux des titres (H1 sur
   trois lignes, plein jusqu'à la colonne 28 puis dégradé jusqu'au bord), espacements,
-  barres de citation, alignement du contenu des listes, panneau de code coloré.
+  barres de citation, alignement du contenu des listes, panneau de code coloré, barre de
+  défilement (pouce, espace de fin, glisser, note courte sans barre).
 
 L'écriture des marques se vérifie elle-même : `marked` s'écarte de CommonMark sur
 certaines suites de délimiteurs mêlés (`~~*`, `***`), donc chaque texte formaté est relu, et
@@ -102,6 +103,24 @@ ce qu'il se relise tel quel.
 - Les images s'affichent comme leur Markdown (`![alt](src)`).
 - Un soulignement setext (`===` sous un paragraphe) ne se tape pas : Entrée sépare déjà
   les blocs, comme une ligne vide.
+
+## Défilement
+
+L'éditeur défile lui-même, à la molette, au clavier (le curseur reste en vue) et pendant
+la frappe. Une **barre de défilement** discrète descend sa dernière colonne dès que le
+document dépasse sa hauteur : un pouce dans la couleur `conceal` du style (celle des
+filets), long comme la part visible du texte, placé où en est la lecture, en demi-lignes
+(`█ ▀ ▄`, comme les `ScrollBox` d'OpenTUI). Il se glisse ; un clic sur la piste y amène
+la page. Avec `readingWidth`, la barre se tient dans la marge de la page ; sans marge,
+l'éditeur garde sa dernière colonne pour elle, affichée ou non, pour que le texte ne
+bouge pas quand elle apparaît. `scrollbar={false}` la retire (et rend la colonne).
+
+Un document qui dépasse défile **au-delà de sa dernière ligne** d'un tiers de la hauteur
+visible : la fin du texte se lit à hauteur d'œil, pas collée au bord. Cet espace n'est
+pas du contenu : rien dans le Markdown, le curseur n'y va pas, et un document qui tient à
+l'écran ne défile pas du tout. `wheelRoom()` en tient compte : dans une page web
+(docs/WEB.md, `lucioleScrollRoom`), la page ne reprend la molette qu'une fois cet
+espace parcouru. La géométrie est pure (`src/view/scrollbar.ts`, `test/scrollbar.test.ts`).
 
 ## Depuis l'extérieur
 

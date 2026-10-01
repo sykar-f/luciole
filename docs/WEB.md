@@ -352,8 +352,10 @@ Une page **de la même origine** qui place le runtime dans un `iframe` le pilote
 `lucioleScrollRoom` suit le chemin d'OpenTUI pour un événement `scroll` : le renderable
 sous la cellule (ou celui qui a le focus), puis chacun de ses parents. Les `ScrollBox`,
 textes et zones de saisie disent ce qu'il leur reste de chaque côté ; un renderable qui
-défile lui-même le dit par `wheelRoom()` (l'éditeur de `@luciole/editor`) ; un autre qui
-écoute la molette sans le dire (`onMouseScroll`, un terminal embarqué) la garde. La réponse
+défile lui-même le dit par `wheelRoom()` (l'éditeur de `@luciole/editor`, l'espace de
+fin au-delà de sa dernière ligne compris : la page ne reprend la molette qu'une fois cet
+espace parcouru) ; un autre qui écoute la molette sans le dire (`onMouseScroll`, un
+terminal embarqué) la garde. La réponse
 vient de l'écran affiché, pas d'un délai : avec `delays: "keys"`, les tours encore en
 route ne l'ont pas changé, et un écran qui tarde à répondre n'est pas pris pour un écran
 sans rien à faire défiler.

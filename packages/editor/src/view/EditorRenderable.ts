@@ -32,6 +32,7 @@ import {
   type LayoutOptions,
 } from "./layout.ts";
 import { lastPos, lineEdge, moveHorizontal, moveVertical } from "./motion.ts";
+import { extentOf, glyphsOf, HALVES, scrollForThumb, thumbOf, type Extent } from "./scrollbar.ts";
 import { Highlighter } from "./highlight.ts";
 import { Theme } from "./theme.ts";
 
@@ -62,6 +63,13 @@ export type MarkdownEditorOptions = RenderableOptions<MarkdownEditorRenderable> 
    * that all text starts at one column. The editor's width by default.
    */
   readingWidth?: number;
+  /**
+   * A scrollbar down the right edge while the document is taller than the editor: the
+   * thumb says where the reader is and how much of the text shows, and drags. It stands
+   * in the page's margin when there is one (`readingWidth`); without one, the editor's
+   * last column is kept for it, shown or not, so that the text never shifts. On by default.
+   */
+  scrollbar?: boolean;
   /**
    * Draws TeX to a PNG, for display math (`$$…$$`, a ```math fence) in terminals that draw
    * pictures. Without it, display math shows its TeX. `luciole/math` has one.
@@ -122,6 +130,9 @@ export class MarkdownEditorRenderable extends Renderable {
   private goal: number | null = null;
   private clicks = { count: 0, at: 0, x: -1, y: -1 };
   private dragging = false;
+  private bar = true;
+  /** While the thumb is dragged: how far into it, in half-rows, it was taken. */
+  private barDrag: number | null = null;
   private _placeholder = "";
   private background: RGBA | undefined;
   private reading = Infinity;
@@ -153,6 +164,7 @@ export class MarkdownEditorRenderable extends Renderable {
     this._placeholder = options.placeholder ?? "";
     this.background = options.terminalBackground;
     this.reading = options.readingWidth ?? Infinity;
+    this.bar = options.scrollbar ?? true;
     this._onChange = options.onChange;
     this._onLink = options.onLink;
     this._onCopy = options.onCopy;
@@ -198,6 +210,10 @@ export class MarkdownEditorRenderable extends Renderable {
   }
   set readingWidth(width: number | undefined) {
     this.reading = width ?? Infinity;
+    this.requestRender();
+  }
+  set scrollbar(shown: boolean | undefined) {
+    this.bar = shown ?? true;
     this.requestRender();
   }
   set terminalBackground(color: RGBA | undefined) {
@@ -252,11 +268,12 @@ export class MarkdownEditorRenderable extends Renderable {
   /**
    * The page: `readingWidth` wide at most, centered, and the margin left of it. With a
    * reading width, the page keeps a margin for bands and panels however narrow the editor
-   * (unless it is too narrow to spare one).
+   * (unless it is too narrow to spare one). Without a margin, the scrollbar's column is
+   * taken off the page's width, whether the bar shows or not.
    */
   private column() {
     const spare = Number.isFinite(this.reading) && this.width >= MIN_MARGINED;
-    const room = spare ? this.width - HANG * 2 : this.width;
+    const room = spare ? this.width - HANG * 2 : this.width - (this.bar ? 1 : 0);
     const width = Math.max(1, Math.min(room, this.reading));
     const offset = Math.max(0, Math.floor((this.width - width) / 2));
     return { width, offset };
@@ -338,7 +355,28 @@ export class MarkdownEditorRenderable extends Renderable {
           : {}),
       },
     );
+    this.drawScrollbar(buffer, layout, theme);
     this.placeCursor(layout);
+  }
+
+  /** The column the scrollbar stands in: the editor's last. */
+  private barX() {
+    return this.screenX + this.width - 1;
+  }
+  private drawScrollbar(buffer: OptimizedBuffer, layout: Layout, theme: Theme) {
+    if (!this.bar) return;
+    const thumb = thumbOf(this.extent(layout), this.scroll, this.height);
+    if (!thumb) return;
+    const x = this.barX();
+    const faint = theme.faint();
+    // Only the thumb is drawn: the track is the page, whatever shows there.
+    glyphsOf(thumb, this.height).forEach((glyph, row) => {
+      if (glyph !== " ") buffer.drawText(glyph, x, this.screenY + row, faint);
+    });
+  }
+  /** Whether the bar shows: the document scrolls, and it was asked for. */
+  private barShown(layout: Layout) {
+    return this.bar && this.extent(layout).max > 0;
   }
 
   private placeCursor(layout: Layout) {
@@ -375,14 +413,17 @@ export class MarkdownEditorRenderable extends Renderable {
   wheelRoom() {
     const layout = this.layout();
     if (!layout) return { up: false, down: false };
-    const max = Math.max(0, layout.lines.length - this.height);
+    const { max } = this.extent(layout);
     const at = Math.max(0, Math.min(max, this.scroll));
     return { up: at > 0, down: at < max };
   }
 
+  /** How far the document scrolls: past its last line by a tail, once it overflows. */
+  private extent(layout: Layout): Extent {
+    return extentOf(layout.lines.length, this.height);
+  }
   private clampScroll(layout: Layout) {
-    const max = Math.max(0, layout.lines.length - this.height);
-    this.scroll = Math.max(0, Math.min(max, this.scroll));
+    this.scroll = Math.max(0, Math.min(this.extent(layout).max, this.scroll));
   }
   private keepCursorInView() {
     const layout = this.layout();
@@ -505,6 +546,15 @@ export class MarkdownEditorRenderable extends Renderable {
       }
       case "move":
       case "over": {
+        const layout = this.layout();
+        if (layout && this.onBar(event, layout)) {
+          if (this.hoveredTask !== null) {
+            this.hoveredTask = null;
+            this.requestRender();
+          }
+          this.ctx.setMousePointer("default");
+          return;
+        }
         const hit = this.hit(event);
         const task = hit && onTaskBox(hit.line, hit.col) ? (hit.line?.block ?? null) : null;
         if (task !== this.hoveredTask) {
@@ -529,7 +579,8 @@ export class MarkdownEditorRenderable extends Renderable {
         if (event.button === MouseButton.LEFT) this.press(event);
         return;
       case "drag":
-        if (this.dragging) {
+        if (this.barDrag !== null) this.dragThumb(event);
+        else if (this.dragging) {
           const hit = this.hit(event);
           if (hit) this.controller.moveTo(hit.pos, { extend: true });
         }
@@ -537,16 +588,49 @@ export class MarkdownEditorRenderable extends Renderable {
       case "up":
       case "drag-end":
         this.dragging = false;
+        this.barDrag = null;
         return;
       default:
         return;
     }
   }
 
+  /** Whether the pointer is on the scrollbar, while it shows. */
+  private onBar(event: MouseEvent, layout: Layout) {
+    return this.barShown(layout) && event.x === this.barX();
+  }
+  /**
+   * A press on the scrollbar: on the thumb, it is taken where it is; on the track, it comes
+   * under the pointer by its middle first. Either way it then follows the pointer.
+   */
+  private pressBar(event: MouseEvent, layout: Layout) {
+    const extent = this.extent(layout);
+    const thumb = thumbOf(extent, this.scroll, this.height);
+    if (!thumb) return;
+    const half = (event.y - this.screenY) * HALVES;
+    // The row pressed holds some of the thumb, by either half.
+    const inside = half + HALVES > thumb.from && half < thumb.to;
+    this.barDrag = inside
+      ? Math.max(0, half - thumb.from)
+      : Math.floor((thumb.to - thumb.from) / HALVES);
+    if (!inside) this.dragThumb(event);
+  }
+  private dragThumb(event: MouseEvent) {
+    const layout = this.layout();
+    if (!layout || this.barDrag === null) return;
+    const half = (event.y - this.screenY) * HALVES - this.barDrag;
+    this.scroll = scrollForThumb(this.extent(layout), half, this.height);
+    this.requestRender();
+  }
+
   private press(event: MouseEvent) {
     const hit = this.hit(event);
     if (!hit) return;
     event.stopPropagation();
+    if (this.onBar(event, hit.layout)) {
+      this.pressBar(event, hit.layout);
+      return;
+    }
     const { line, glyph, pos, col } = hit;
     // A task's box ticks it, whatever the focus.
     if (line && onTaskBox(line, col)) {

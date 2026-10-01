@@ -67,6 +67,7 @@ async function screen() {
   });
   await ui?.renderOnce();
 }
+const screenShows = (text: string) => ui?.captureCharFrame().includes(text) === true;
 const room = (at: { x: number; y: number }) => {
   if (!ui) throw new Error("no screen");
   return wheelRoom(ui.renderer, at.x, at.y);
@@ -103,15 +104,39 @@ test("a scroll box has room down from its top, both ways in between, up at its e
   expect(await turn(LIST_ROW, "down")).toBe(false);
 });
 
-test("the editor of @luciole/editor says its own room, to its last line", async () => {
+test("the editor of @luciole/editor says its own room, past its last line by its tail", async () => {
   await screen();
   expect(room(EDITOR)).toEqual({ up: false, down: true });
   expect(await turn(EDITOR, "up")).toBe(false);
   expect(await turn(EDITOR, "down")).toBe(true);
   expect(room(EDITOR)).toEqual({ up: true, down: true });
-  await turn(EDITOR, "down", 40);
+  // 59 rows through 8: the last line reaches the bottom row after 51; the editor keeps
+  // the wheel for a tail of 2 more (a third of its height), and only then lets it go.
+  await turn(EDITOR, "down", 16);
+  expect(screenShows("line 29")).toBe(true);
+  expect(room(EDITOR)).toEqual({ up: true, down: true });
+  expect(await turn(EDITOR, "down")).toBe(true);
   expect(room(EDITOR)).toEqual({ up: true, down: false });
   expect(await turn(EDITOR, "down")).toBe(false);
+});
+
+test("an editor whose text fits has no room either way: a short note never scrolls", async () => {
+  await act(async () => {
+    ui = await testRender(
+      <box width={WIDTH} height={HEIGHT}>
+        <MarkdownEditor
+          value={lines(3).join("\n\n")}
+          syntaxStyle={style}
+          terminalBackground={RGBA.fromHex("#0d1117")}
+          flexGrow={1}
+        />
+      </box>,
+      { width: WIDTH, height: HEIGHT },
+    );
+  });
+  await ui?.renderOnce();
+  expect(room({ x: 2, y: 2 })).toEqual({ up: false, down: false });
+  expect(await turn({ x: 2, y: 2 }, "down")).toBe(false);
 });
 
 test("a renderable that handles the wheel itself keeps it, whatever it does with it", async () => {
