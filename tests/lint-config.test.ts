@@ -8,16 +8,22 @@ import { z } from "zod";
 // say the same about every rule. They need only the root's oxlint binary, not website/'s install.
 const root = resolve(import.meta.dir, "..");
 
-const Resolved = z.object({
-  plugins: z.array(z.string()),
-  categories: z.record(z.string(), z.unknown()),
-  options: z.object({ typeAware: z.boolean().optional() }),
+// Everything oxlint prints is kept (loose objects), so an option nobody thought of yet is
+// compared too. Only what legitimately differs between the two files is set aside.
+const Resolved = z.looseObject({
+  options: z.looseObject({ typeAware: z.boolean().optional() }),
   rules: z.record(z.string(), z.unknown()),
   overrides: z.array(
-    z.object({ files: z.array(z.string()), rules: z.record(z.string(), z.unknown()) }),
+    z.looseObject({ files: z.array(z.string()), rules: z.record(z.string(), z.unknown()) }),
   ),
   ignorePatterns: z.array(z.string()),
 });
+
+const DIFFERS_BY_DESIGN = new Set(["$schema", "overrides", "ignorePatterns"]);
+
+function comparable(config: z.infer<typeof Resolved>) {
+  return Object.fromEntries(Object.entries(config).filter(([key]) => !DIFFERS_BY_DESIGN.has(key)));
+}
 
 async function resolved(cwd: string, config: string) {
   const child = Bun.spawn(
@@ -43,10 +49,7 @@ test("website/ is linted by exactly the root's rules, options included", async (
     resolved(resolve(root, "website"), "oxlint.website.json"),
   ]);
   expect(Object.keys(base.rules).length).toBeGreaterThan(0);
-  expect(site.rules).toEqual(base.rules);
-  expect(site.categories).toEqual(base.categories);
-  expect(site.plugins).toEqual(base.plugins);
-  expect(site.options).toEqual(base.options);
+  expect(comparable(site)).toEqual(comparable(base));
 });
 
 test("the website is linted type-aware, with the type-aware rules on", async () => {
