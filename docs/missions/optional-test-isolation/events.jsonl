@@ -1,0 +1,6 @@
+{"ts":"2026-10-01T21:23:33.214Z","mission":"optional-test-isolation","type":"prepared","by":"master-airtty","ref":"missions/optional-test-isolation/brief.v1.md"}
+{"ts":"2026-10-01T21:23:37.705Z","mission":"optional-test-isolation","type":"dispatched","by":"master-airtty","sha":"84c733856ca1497cef790e718d32b8f874bcd5c5","ref":"missions/optional-test-isolation/brief.v1.md","note":"airtty-optional-test-isolation claude","role":"worker"}
+{"ts":"2026-10-01T21:23:42.350Z","mission":"optional-test-isolation","type":"acked","by":"airtty-optional-test-isolation"}
+{"ts":"2026-10-01T21:24:18.113Z","mission":"optional-test-isolation","type":"delivered","by":"airtty-optional-test-isolation","sha":"cde9916960c2300e75d5ac64dec7a2a5a199064b","ref":"missions/optional-test-isolation/delivery.1.md"}
+{"ts":"2026-10-01T21:24:22.650Z","mission":"optional-test-isolation","type":"review","by":"master-airtty","sha":"cde9916960c2300e75d5ac64dec7a2a5a199064b","ref":"missions/optional-test-isolation/reviews/1.prompt.md","note":"job 20261001T212422.635Z-91491-a29c-reviewer-optional-test-isolation-codex"}
+{"ts":"2026-10-01T21:25:23.667Z","mission":"optional-test-isolation","type":"reviewed","by":"master-airtty","sha":"cde9916960c2300e75d5ac64dec7a2a5a199064b","ref":"missions/optional-test-isolation/reviews/1.triage.md"}
