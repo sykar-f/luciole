@@ -1,5 +1,5 @@
 {
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "$schema": "../node_modules/oxlint/configuration_schema.json",
   "plugins": ["typescript", "oxc", "unicorn", "react"],
   "categories": {
     "correctness": "error"
@@ -61,31 +61,11 @@
   },
   "overrides": [
     {
-      "files": ["tests/**", "scripts/pty/**", "packages/*/test/**"],
-      "rules": {
-        "no-magic-numbers": "off"
-      }
-    },
-    {
-      "files": [
-        "examples/forge/server/ci.ts",
-        "examples/forge/server/seed.ts",
-        "packages/luciole/src/devtools/fixtures.ts",
-        "packages/luciole/src/web/node/sha256.ts"
-      ],
+      "files": ["src/pages/guide/index.astro", "src/pages/guide/build.astro"],
       "rules": {
         "no-magic-numbers": "off"
       }
     }
   ],
-  "ignorePatterns": [
-    "**/node_modules/**",
-    "**/.luciole/**",
-    "packages/flow/dist/**",
-    "**/routeTree.gen.ts",
-    "probes/vt-embed/**",
-    "probes/devtools-tanstack/**",
-    "website/**",
-    "packages/harness/src/adapters/codex-protocol/**"
-  ]
+  "ignorePatterns": ["**/node_modules/**", "dist/**", "design/**", ".astro/**"]
 }

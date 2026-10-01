@@ -11,6 +11,7 @@
     "bun.lock",
     "**/bun.lock",
     "docs/HANDOFF.md",
+    "docs/missions/**",
     "docs/pty-frame.txt",
     "probes/**/results.json",
     "tests/fixtures/markdown/**",

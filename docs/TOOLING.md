@@ -81,9 +81,9 @@ internes gardent de simples types TypeScript.
 
 La CI (`.github/workflows/ci.yml`, GitHub Actions) tourne à chaque push et pull request.
 Le job `verify`, sous macOS et Linux, enchaîne `bun install --frozen-lockfile`, la même
-installation dans `website/` suivie de `astro sync` (le lint type-checke ses sources, qui
-ont besoin des paquets d'Astro et des types générés dans `website/.astro`),
-`bun run probes`, `bun run verify`, `test:pty`, `test:pty:dev` et
+installation dans `website/` suivie de `astro sync`, puis `bun run lint` dans `website/`
+(le lint racine ignore `website/` : le lint type-aware de ses sources a besoin des paquets
+d'Astro et des types générés dans `website/.astro`), `bun run probes`, `bun run verify`, `test:pty`, `test:pty:dev` et
 `scripts/clean-install.ts`, puis, sous Linux seulement, `scripts/linux-client.ts`. Le job
 `linux-sandbox` vérifie que le lanceur versionné est celui que ses sources construisent
 (`scripts/build-sandbox.ts --check`), puis lance `scripts/linux-sandbox.ts`. En local,
