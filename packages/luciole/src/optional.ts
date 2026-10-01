@@ -7,6 +7,34 @@ import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
 
+/** What `luciole/grammars` bundles: the build checks them before it resolves the module. */
+export const GRAMMAR_PACKAGES = [
+  "tree-sitter-bash",
+  "tree-sitter-c",
+  "tree-sitter-cpp",
+  "tree-sitter-css",
+  "tree-sitter-go",
+  "tree-sitter-html",
+  "tree-sitter-java",
+  "tree-sitter-json",
+  "tree-sitter-php",
+  "tree-sitter-python",
+  "tree-sitter-ruby",
+  "tree-sitter-rust",
+  "tree-sitter-typescript",
+  "@tree-sitter-grammars/tree-sitter-lua",
+  "@tree-sitter-grammars/tree-sitter-toml",
+  "@tree-sitter-grammars/tree-sitter-yaml",
+] as const;
+/** The web runtime bundles xterm.js. */
+export const WEB_RUNTIME_PACKAGES = [
+  "@xterm/xterm",
+  "@xterm/addon-fit",
+  "@xterm/addon-webgl",
+] as const;
+/** The web target's Worker ships SQLite. */
+export const WEB_SERVER_PACKAGES = ["@sqlite.org/sqlite-wasm"] as const;
+
 /** The package a resolution error is about, or undefined when it is some other error. */
 function missingPackage(error: unknown, candidates: readonly string[]) {
   if (!(error instanceof Error)) return undefined;

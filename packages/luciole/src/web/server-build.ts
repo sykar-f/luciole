@@ -8,7 +8,7 @@ import type { BunPlugin } from "bun";
 import { copyFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join } from "node:path";
-import { assertInstalled } from "../optional";
+import { assertInstalled, WEB_SERVER_PACKAGES } from "../optional";
 import { abiKeyLiteral } from "./abi-key";
 import { browserNode } from "./node/plugin";
 import { platformVariants } from "./platform";
@@ -25,7 +25,7 @@ const serverModules: BunPlugin = {
   name: "luciole-web-server-modules",
   setup(build) {
     // The Worker always ships SQLite (an optional dependency): say so before bundling.
-    assertInstalled("the web target", ["@sqlite.org/sqlite-wasm"]);
+    assertInstalled("the web target", WEB_SERVER_PACKAGES);
     build.onResolve({ filter: /^bun:sqlite$/ }, () => ({
       path: join(import.meta.dir, "node/bun-sqlite.ts"),
     }));
