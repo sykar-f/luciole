@@ -1,3 +1,0 @@
-# Mission pty-slave-scan-load — PROPOSED: the PTY slave lookup gives up under load
-
-`newSlave` in packages/luciole/src/vt/pty.ts scans /dev a fixed number of times (SCAN_ATTEMPTS × SCAN_PAUSE_MS, about 2 s since commit 6079e40) for the device a fresh `Bun.Terminal` opened, then throws "The new PTY's device path could not be found". Under host load ~440 tests/sandbox.test.ts "Bun and OpenTUI start confined, raw mode on their own terminal included" failed on it (luciole-manifest round 2 verify log). Find a way to learn the slave path that does not race /dev (e.g. ttyname-like lookup from the slave fd via /dev/fd or ioctl, or a wait on the event) instead of a longer budget. Prerequisite: client-crash-cleanup (owns pty.ts).
