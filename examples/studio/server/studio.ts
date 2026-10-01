@@ -263,8 +263,19 @@ class Studio {
     this.validation = { ...this.validation, state: "passed", revision: number };
     if (changes.size) this.session.note("info", `Revision r${number} built and running.`);
     this.changed();
-    // The types, beside the preview: they do not stop it, they are corrected too.
-    started = performance.now();
+    await this.checkTypes(project, servers, number);
+  }
+
+  /**
+   * The types, beside the preview: they do not stop it, they are corrected too. Public
+   * for tests/studio-feed.test.ts, which calls it with the revision it wants checked.
+   */
+  async checkTypes(
+    project: Pick<Project, "changes">,
+    servers: Pick<PreviewServers, "types">,
+    number: number,
+  ) {
+    const started = performance.now();
     const types = await servers.types();
     this.stage("types", !types.length, performance.now() - started);
     // tsc reads the working tree as it is then: a turn that wrote since the revision
@@ -278,7 +289,7 @@ class Studio {
   }
 
   /** Whether the working tree holds anything beyond the last revision. */
-  private async treeMoved(project: Project) {
+  private async treeMoved(project: Pick<Project, "changes">) {
     const changes = await project.changes();
     changes.delete(GENERATED);
     return changes.size > 0;
