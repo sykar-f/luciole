@@ -11,6 +11,13 @@ import type { Application, ApplicationOptions } from "../packages/luciole/src/cl
 import { readJsonFile } from "../packages/luciole/src/package-json";
 import type { DraftStore } from "../examples/notes/components/draft";
 
+/**
+ * The budget of a test that builds an application, or several, and starts its Server:
+ * 3 to 15 s on this suite under a loaded machine (several sessions on one Mac, swapping),
+ * where the default 20 s left no room for a stall of the machine itself.
+ */
+export const BUILD_TEST_MS = 60_000;
+
 /** `value`, which the test expects to exist: fails naming `what` when the domain has none. */
 export function present<T>(value: T | null | undefined, what: string): T {
   if (value === null || value === undefined) throw new Error(`Expected ${what}`);

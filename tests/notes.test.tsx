@@ -9,6 +9,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { build } from "../packages/luciole/src/build";
 import {
+  BUILD_TEST_MS,
   launch,
   until,
   importClient,
@@ -325,95 +326,103 @@ test("every action is a click: new, rename, search, fold, delete and undo", asyn
   }
 });
 
-test("a save that cannot reach the Server is retried quietly, then reported until it saves", async () => {
-  let refuse = true;
-  const { app, ui, stop } = await start(
-    "notes-refused",
-    {},
-    {
-      network: {
-        fault: ({ kind, target }) =>
-          refuse && kind === "action" && target.endsWith("#saveNote") ? "refuse" : undefined,
+test(
+  "a save that cannot reach the Server is retried quietly, then reported until it saves",
+  async () => {
+    let refuse = true;
+    const { app, ui, stop } = await start(
+      "notes-refused",
+      {},
+      {
+        network: {
+          fault: ({ kind, target }) =>
+            refuse && kind === "action" && target.endsWith("#saveNote") ? "refuse" : undefined,
+        },
       },
-    },
-  );
-  try {
-    await write(app, ui);
-    await act(async () => {
-      await ui.mockInput.typeText("kept");
-    });
-    const draft = draftOf(app, "1");
-    const text = draft.value;
-    const body = () => ui.renderer.root.findDescendantById("note-body")?.y;
-    const top = body();
-    const asked = performance.now();
-    await act(async () => {
-      ui.mockInput.pressKey("s", { ctrl: true });
-    });
-    // Refused at once, retried behind the user's back: nothing alarming yet, not even the
-    // connection the refusal reported lost.
-    await act(async () => until(() => draft.failures >= 2));
-    expect(app.status).toBe("Disconnected");
-    expect(status(ui)).not.toContain("Disconnected");
-    await eventually(() => status(ui).includes("Disconnected"), QUIET_MS * 2);
-    expect(performance.now() - asked).toBeGreaterThanOrEqual(QUIET_MS - 100);
-    // The connection speaks for the save it failed, with the way to try it again.
-    expect(status(ui)).toBe("○ Disconnected. Your text is kept here.");
-    expect(await frame(ui)).toContain("Reconnect");
-    // Nothing lost, nothing moved.
-    expect(draft.value).toBe(text);
-    expect(body()).toBe(top);
-    // Back: Ctrl+S retries now, and the message leaves by itself.
-    refuse = false;
-    await act(async () => {
-      ui.mockInput.pressKey("s", { ctrl: true });
-    });
-    await act(async () => until(() => !draft.pending && !draft.dirty));
-    await frame(ui);
-    expect(status(ui)).toBe("");
-    expect(draft.baseline).toBe(text);
-  } finally {
-    await stop();
-  }
-});
-
-test("a slow save is said to be slow, then unconfirmed, and settles once the Server has it", async () => {
-  // The Server takes 4 s to save; the Client waits 3.5 s for an answer.
-  const { app, ui, stop } = await start(
-    "notes-timeout",
-    { NOTES_DELAY_MS: "4000" },
-    { timeoutMs: 3500 },
-  );
-  try {
-    await write(app, ui);
-    await act(async () => {
-      await ui.mockInput.typeText("slow");
-    });
-    const draft = draftOf(app, "1");
-    const text = draft.value;
-    await act(async () => {
-      ui.mockInput.pressKey("s", { ctrl: true });
-    });
-    await eventually(() => status(ui) === "Still saving…", QUIET_MS * 2);
-    // Unanswered, the request reported the connection lost: that speaks first.
-    await act(async () => until(() => draft.unknown, QUIET_MS));
-    await eventually(() => status(ui) === "○ Disconnected. Your text is kept here.", QUIET_MS);
-    expect(await frame(ui)).toContain("Reconnect");
-    // Ctrl+S looks it up now, without waiting for the next automatic check.
-    if (!draft.resolving)
+    );
+    try {
+      await write(app, ui);
+      await act(async () => {
+        await ui.mockInput.typeText("kept");
+      });
+      const draft = draftOf(app, "1");
+      const text = draft.value;
+      const body = () => ui.renderer.root.findDescendantById("note-body")?.y;
+      const top = body();
+      const asked = performance.now();
       await act(async () => {
         ui.mockInput.pressKey("s", { ctrl: true });
       });
-    expect(draft.resolving || !draft.pending).toBe(true);
-    // The original save lands; the automatic check finds it.
-    await act(async () => until(() => !draft.pending && !draft.dirty, QUIET_MS * 2));
-    await frame(ui);
-    expect(status(ui)).toBe("");
-    expect(draft.baseline).toBe(text);
-  } finally {
-    await stop();
-  }
-});
+      // Refused at once, retried behind the user's back: nothing alarming yet, not even the
+      // connection the refusal reported lost.
+      await act(async () => until(() => draft.failures >= 2));
+      expect(app.status).toBe("Disconnected");
+      expect(status(ui)).not.toContain("Disconnected");
+      await eventually(() => status(ui).includes("Disconnected"), QUIET_MS * 2);
+      expect(performance.now() - asked).toBeGreaterThanOrEqual(QUIET_MS - 100);
+      // The connection speaks for the save it failed, with the way to try it again.
+      expect(status(ui)).toBe("○ Disconnected. Your text is kept here.");
+      expect(await frame(ui)).toContain("Reconnect");
+      // Nothing lost, nothing moved.
+      expect(draft.value).toBe(text);
+      expect(body()).toBe(top);
+      // Back: Ctrl+S retries now, and the message leaves by itself.
+      refuse = false;
+      await act(async () => {
+        ui.mockInput.pressKey("s", { ctrl: true });
+      });
+      await act(async () => until(() => !draft.pending && !draft.dirty));
+      await frame(ui);
+      expect(status(ui)).toBe("");
+      expect(draft.baseline).toBe(text);
+    } finally {
+      await stop();
+    }
+  },
+  BUILD_TEST_MS,
+);
+
+test(
+  "a slow save is said to be slow, then unconfirmed, and settles once the Server has it",
+  async () => {
+    // The Server takes 4 s to save; the Client waits 3.5 s for an answer.
+    const { app, ui, stop } = await start(
+      "notes-timeout",
+      { NOTES_DELAY_MS: "4000" },
+      { timeoutMs: 3500 },
+    );
+    try {
+      await write(app, ui);
+      await act(async () => {
+        await ui.mockInput.typeText("slow");
+      });
+      const draft = draftOf(app, "1");
+      const text = draft.value;
+      await act(async () => {
+        ui.mockInput.pressKey("s", { ctrl: true });
+      });
+      await eventually(() => status(ui) === "Still saving…", QUIET_MS * 2);
+      // Unanswered, the request reported the connection lost: that speaks first.
+      await act(async () => until(() => draft.unknown, QUIET_MS));
+      await eventually(() => status(ui) === "○ Disconnected. Your text is kept here.", QUIET_MS);
+      expect(await frame(ui)).toContain("Reconnect");
+      // Ctrl+S looks it up now, without waiting for the next automatic check.
+      if (!draft.resolving)
+        await act(async () => {
+          ui.mockInput.pressKey("s", { ctrl: true });
+        });
+      expect(draft.resolving || !draft.pending).toBe(true);
+      // The original save lands; the automatic check finds it.
+      await act(async () => until(() => !draft.pending && !draft.dirty, QUIET_MS * 2));
+      await frame(ui);
+      expect(status(ui)).toBe("");
+      expect(draft.baseline).toBe(text);
+    } finally {
+      await stop();
+    }
+  },
+  BUILD_TEST_MS,
+);
 
 test("a save of a note deleted elsewhere is refused and recorded, never retried forever", async () => {
   const { app, server, stop } = await start("notes-deleted");

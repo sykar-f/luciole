@@ -8,7 +8,7 @@ import { loadAppBundle, runtimeSpecifiers } from "../packages/luciole/src/app-bu
 import { build } from "../packages/luciole/src/build";
 import { messageOf } from "../packages/luciole/src/guards";
 import { readJsonFile } from "../packages/luciole/src/package-json";
-import { rejectionOf } from "./helpers";
+import { BUILD_TEST_MS, rejectionOf } from "./helpers";
 
 test("the ABI names the installed versions and the runtime provides every specifier", async () => {
   // The workspace catalog pins every version the framework and the examples declare.
@@ -103,34 +103,40 @@ test("a bundle is refused for another ABI, altered bytes or an undeclared built-
   );
 });
 
-test("top-level await in Client code: the app builds, is not embeddable, and says where", async () => {
-  await fixture(
-    {
-      "app/page.tsx": `import {Late} from '../components/late'; export default function Page(){return <Late/>}`,
-      "components/late.tsx": `"use client";\nconst value = await Promise.resolve("x");\nexport function Late(){return <text>{value}</text>}`,
-    },
-    async (dir) => {
-      const warn = spyOn(console, "warn").mockImplementation(() => {});
-      try {
-        // Not embedded: the Client and the Server build as before, without .luciole/app.
-        await build(dir);
-        expect(await Bun.file(join(dir, ".luciole/client/index.js")).exists()).toBe(true);
-        expect(await Bun.file(join(dir, ".luciole/app/manifest.json")).exists()).toBe(false);
-        expect(warn.mock.calls.map(([m]) => String(m)).join("\n")).toContain(
-          "components/late.tsx:2: top-level await in Client code",
+test(
+  "top-level await in Client code: the app builds, is not embeddable, and says where",
+  async () => {
+    await fixture(
+      {
+        "app/page.tsx": `import {Late} from '../components/late'; export default function Page(){return <Late/>}`,
+        "components/late.tsx": `"use client";\nconst value = await Promise.resolve("x");\nexport function Late(){return <text>{value}</text>}`,
+      },
+      async (dir) => {
+        const warn = spyOn(console, "warn").mockImplementation(() => {});
+        try {
+          // Not embedded: the Client and the Server build as before, without .luciole/app.
+          await build(dir);
+          expect(await Bun.file(join(dir, ".luciole/client/index.js")).exists()).toBe(true);
+          expect(await Bun.file(join(dir, ".luciole/app/manifest.json")).exists()).toBe(false);
+          expect(warn.mock.calls.map(([m]) => String(m)).join("\n")).toContain(
+            "components/late.tsx:2: top-level await in Client code",
+          );
+          expect(messageOf(await rejectionOf(loadAppBundle(join(dir, ".luciole/app"))))).toContain(
+            "has no application bundle",
+          );
+        } finally {
+          warn.mockRestore();
+        }
+        // Embedding asked for explicitly (`luciole build --app-bundle`): the build fails.
+        const error = messageOf(
+          await rejectionOf(build(dir, undefined, { appBundle: "required" })),
         );
-        expect(messageOf(await rejectionOf(loadAppBundle(join(dir, ".luciole/app"))))).toContain(
-          "has no application bundle",
-        );
-      } finally {
-        warn.mockRestore();
-      }
-      // Embedding asked for explicitly (`luciole build --app-bundle`): the build fails.
-      const error = messageOf(await rejectionOf(build(dir, undefined, { appBundle: "required" })));
-      expect(error).toContain("components/late.tsx:2: top-level await in Client code");
-    },
-  );
-});
+        expect(error).toContain("components/late.tsx:2: top-level await in Client code");
+      },
+    );
+  },
+  BUILD_TEST_MS,
+);
 
 test("the examples build their application bundle", async () => {
   const dir = resolve("examples/latency");
