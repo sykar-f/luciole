@@ -121,33 +121,37 @@ export function Button({
 export const ICON_BUTTON_WIDTH = 5;
 export const ICON_BUTTON_HEIGHT = 3;
 /**
- * One symbol in a rounded frame, three rows high: a target found without aiming, framed
- * like the search box so that a row of them reads as one block.
+ * A button three rows high in a rounded frame, a cell of air around its words: a target
+ * found without aiming, framed like the search box so that a row of them reads as one
+ * block. As wide as its words, unless told otherwise.
  */
-export function IconButton({
+export function BlockButton({
   id,
-  icon,
+  children,
   onPress,
   tone = "plain",
+  width,
 }: {
   id?: string;
-  icon: string;
+  children: ReactNode;
   onPress: (event: MouseEvent) => void;
   tone?: Tone;
+  width?: number;
 }) {
   const color = usePalette();
   const { lit, props } = usePress(onPress, false);
   const { foreground } = toneColors(color, tone, lit, false);
   // Every one on the same grey as the search box, so that the row reads as one bar. A
-  // primary one is told by its frame and symbol in the accent: a cell filled with it
+  // primary one is told by its frame and words in the accent: a cell filled with it
   // would square off the frame's rounded corners.
   const primary = tone === "primary";
   return (
     <box
       id={id}
-      width={ICON_BUTTON_WIDTH}
+      width={width}
       height={ICON_BUTTON_HEIGHT}
       flexShrink={0}
+      paddingX={1}
       justifyContent="center"
       alignItems="center"
       border
@@ -157,9 +161,27 @@ export function IconButton({
       {...props}
     >
       <text wrapMode="none" fg={primary ? (lit ? color.text : color.accent) : foreground}>
-        {icon}
+        {children}
       </text>
     </box>
+  );
+}
+/** One symbol in a block button, as wide as tall. */
+export function IconButton({
+  id,
+  icon,
+  onPress,
+  tone,
+}: {
+  id?: string;
+  icon: string;
+  onPress: (event: MouseEvent) => void;
+  tone?: Tone;
+}) {
+  return (
+    <BlockButton id={id} width={ICON_BUTTON_WIDTH} onPress={onPress} tone={tone}>
+      {icon}
+    </BlockButton>
   );
 }
 

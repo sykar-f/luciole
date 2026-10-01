@@ -31,13 +31,19 @@ export default function Layout({ children }: LayoutProps) {
     </PaletteProvider>
   );
 }
-/** The folded list: its ≡ (drawn by the window) and "+", in a column of their own. */
+/**
+ * The folded list: its ≡ (drawn by the window) on the end of the list's bar, then "+", as
+ * far below it as the notes are.
+ */
 const RAIL_WIDTH = ICON_BUTTON_WIDTH + 2;
 function Rail() {
+  const color = usePalette();
   return (
-    <box id="rail" flexDirection="column" width={RAIL_WIDTH} paddingX={1}>
-      <box height={ICON_BUTTON_HEIGHT} flexShrink={0} />
-      <NewNoteButton />
+    <box id="rail" flexDirection="column" width={RAIL_WIDTH}>
+      <box height={ICON_BUTTON_HEIGHT} flexShrink={0} backgroundColor={color.button} />
+      <box flexShrink={0} paddingX={1} marginTop={1}>
+        <NewNoteButton />
+      </box>
     </box>
   );
 }

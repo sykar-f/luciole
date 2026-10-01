@@ -219,6 +219,12 @@ test("every action is a click: new, rename, search, fold, delete and undo", asyn
   try {
     await act(async () => until(() => ui.captureCharFrame().includes("Shopping list")));
     expect(await frame(ui)).toContain("No note selected");
+    // The list's bar runs from one edge of the list to the other; the page's "+ New note"
+    // is a block, a row of air above and below its words.
+    const sidebar = renderable(ui, "sidebar", Renderable);
+    const bar = renderable(ui, "sidebar-bar", Renderable);
+    expect([bar.x, bar.width]).toEqual([sidebar.x, sidebar.width]);
+    expect(renderable(ui, "start-note", Renderable).height).toBe(3);
     // No shortcut is ever written on screen.
     expect(await frame(ui)).not.toMatch(/ctrl\+|Ctrl\+|Esc /);
 
