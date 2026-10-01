@@ -358,6 +358,12 @@ vient de l'écran affiché, pas d'un délai : avec `delays: "keys"`, les tours e
 route ne l'ont pas changé, et un écran qui tarde à répondre n'est pas pris pour un écran
 sans rien à faire défiler.
 
+La molette arrive à l'application comme d'un terminal natif : un rapport SGR par hauteur
+de ligne parcourue, le reste gardé pour le tour suivant (`wheelReports`,
+`src/web/platform/run.tsx`). xterm.js seul envoie un rapport par événement `wheel`, quelle
+que soit sa distance, et compte le trackpad pour un tiers : un cran de 100 px n'avançait
+une note que de 3 lignes, un balayage de 777 px de 33 (`scripts/web/scroll-bench.ts`).
+
 La latence passe par le `fetch` de l'Application : le transport la mesure comme celle d'un
 Server lointain, et ses propres pannes (`LUCIOLE_FAULT`) s'appliquent. Avec
 `delays: "keys"`, l'aller-retour se place avant les touches, comme en SSH où toute

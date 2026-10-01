@@ -7,6 +7,7 @@
  *   bun run test:web:embed
  */
 import { join } from "node:path";
+import * as z from "zod/mini";
 import { build, example } from "../pty/harness";
 import { Browser } from "./cdp";
 import { serveSite } from "./site";
@@ -19,6 +20,10 @@ const LATENCY_MS = 300;
 const KEYS_LATENCY_MS = 1200;
 const KEY = "Q";
 const DRAW_TIMEOUT_MS = 6000;
+/** A turn of the wheel, in rows, and a trackpad's small turns adding up to two rows. */
+const WHEEL_ROWS = 3;
+const SWIPE = { turns: 5, rows: 0.42 };
+const WheelPoint = z.object({ x: z.number(), y: z.number(), row: z.number() });
 const POLL_MS = 150;
 /** Long enough for Return to put the cursor in the note before the next key arrives. */
 const EDIT_SETTLE_MS = 300;
@@ -150,6 +155,39 @@ try {
     report.roomOverScrolledList = await roomAt(LIST_CELL);
   }
 
+  // A real wheel over the list: one report for each row's height it travels, as a native
+  // terminal sends them, what is left kept for the next turn (xterm.js alone sends one per
+  // event, and a third of a trackpad's).
+  const { x, y, row } = WheelPoint.parse(
+    await browser.evaluate(`(() => {
+      const frame = document.querySelector("iframe").getBoundingClientRect();
+      const box = document.querySelector("iframe").contentDocument.querySelector(".xterm-screen").getBoundingClientRect();
+      return {
+        x: frame.x + box.left + ((${LIST_CELL.column} + 0.5) * box.width) / ${COLUMNS},
+        y: frame.y + box.top + ((${LIST_CELL.row} + 0.5) * box.height) / ${ROWS},
+        row: box.height / ${ROWS},
+      };
+    })()`),
+  );
+  /** Turns the wheel down by these rows each, and counts the reports the page hears. */
+  const wheelReports = async (turns: readonly number[]) => {
+    await browser.evaluate("window.heard.length = 0");
+    for (const turn of turns)
+      await browser.send("Input.dispatchMouseEvent", {
+        type: "mouseWheel",
+        x,
+        y,
+        deltaX: 0,
+        deltaY: turn * row,
+      });
+    await Bun.sleep(POLL_MS);
+    return browser.evaluate(
+      `window.heard.filter((m) => m.type === "typed").reduce((sum, m) => sum + (m.data.match(/\\x1b\\[<65;/g)?.length ?? 0), 0)`,
+    );
+  };
+  report.wheelNotch = await wheelReports([WHEEL_ROWS]);
+  report.wheelSwipe = await wheelReports(Array.from({ length: SWIPE.turns }, () => SWIPE.rows));
+
   // Another origin frames Notes: it hears no stage, and what it types is ignored. Its
   // script cannot read the frame; the DevTools protocol reads through it.
   const framed = new URL(look, notes.url).href;
@@ -189,6 +227,8 @@ const expected = {
   roomOverToolbar: JSON.stringify({ up: false, down: false }),
   roomOverEmptyNote: JSON.stringify({ up: false, down: false }),
   roomOverScrolledList: JSON.stringify({ up: true, down: true }),
+  wheelNotch: WHEEL_ROWS,
+  wheelSwipe: 2,
   openedPath: true,
   otherOriginDrawn: true,
   otherOriginTyped: false,
