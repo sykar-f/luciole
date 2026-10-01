@@ -40,8 +40,10 @@ export type Pty = {
 /** The open file descriptors of this process. */
 const openDescriptors = () => new Set(readdirSync("/dev/fd").map(Number));
 /** Scans of /dev for a new slave, and the pause between two. */
-const SCAN_ATTEMPTS = 20;
-const SCAN_PAUSE_MS = 5;
+// Up to 2 s: on a loaded machine where PTYs of other sessions come and go, the new
+// slave took longer than the 100 ms first allowed to show up in /dev.
+const SCAN_ATTEMPTS = 40;
+const SCAN_PAUSE_MS = 50;
 /**
  * The PTY slaves by device number. Other processes open and close PTYs meanwhile: one
  * listed but gone by the time it is examined is skipped.
