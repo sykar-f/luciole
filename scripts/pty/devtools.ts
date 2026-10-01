@@ -48,7 +48,7 @@ await wait(devtools, "Server: request +");
 
 // Return opens the first note: a key never shown, for those who look for it.
 app.write("\r");
-await wait(app, "✎ Write");
+await wait(app, "Getting around");
 await wait(devtools, "▣ /notes/1");
 
 devtools.write("2");
@@ -59,7 +59,6 @@ devtools.write("h");
 await wait(devtools, "flashing in app");
 // Return again edits the note; typing re-renders it.
 app.write("\r");
-await wait(app, "✓ Done");
 app.write("x");
 await wait(app, "┌──", FLASH_TIMEOUT_MS);
 devtools.write("h");

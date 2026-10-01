@@ -3,7 +3,7 @@ import { useState, type ReactNode } from "react";
 import type { MouseEvent } from "@opentui/core";
 import { useRenderer } from "@opentui/react";
 import { useBindings } from "luciole/client";
-import { usePalette } from "./theme";
+import { usePalette, type Palette } from "./theme";
 import { ui, useUi, type Menu } from "./ui-state";
 
 // The notebook's controls: every action is something to point at. Keys exist for some
@@ -51,23 +51,8 @@ export function useHover() {
 
 /** "danger" is quiet until pointed at, then says what it would destroy in red. */
 type Tone = "primary" | "plain" | "quiet" | "danger";
-/** A labelled button, one row high: it lights up under the pointer. */
-export function Button({
-  id,
-  children,
-  onPress,
-  tone = "plain",
-  disabled = false,
-}: {
-  id?: string;
-  children: ReactNode;
-  onPress: () => void;
-  tone?: Tone;
-  disabled?: boolean;
-}) {
-  const color = usePalette();
-  const { hovered, handlers } = useHover();
-  const lit = hovered && !disabled;
+/** A button's colors for its tone, lit under the pointer or not. */
+function toneColors(color: Palette, tone: Tone, lit: boolean, disabled: boolean) {
   const background =
     tone === "primary"
       ? lit
@@ -89,21 +74,90 @@ export function Button({
         : (tone === "quiet" || tone === "danger") && !lit
           ? color.muted
           : color.text;
+  return { background, foreground };
+}
+/** Pressed with any mouse button, never through to what lies beneath. */
+function usePress(onPress: (event: MouseEvent) => void, disabled: boolean) {
+  const { hovered, handlers } = useHover();
+  return {
+    lit: hovered && !disabled,
+    props: {
+      ...(disabled ? {} : handlers),
+      onMouseDown: (event: MouseEvent) => {
+        event.stopPropagation();
+        if (!disabled) onPress(event);
+      },
+    },
+  };
+}
+/** A labelled button, one row high: it lights up under the pointer. */
+export function Button({
+  id,
+  children,
+  onPress,
+  tone = "plain",
+  disabled = false,
+}: {
+  id?: string;
+  children: ReactNode;
+  /** The click that pressed it, for what opens where the pointer is (a menu). */
+  onPress: (event: MouseEvent) => void;
+  tone?: Tone;
+  disabled?: boolean;
+}) {
+  const color = usePalette();
+  const { lit, props } = usePress(onPress, disabled);
+  const { background, foreground } = toneColors(color, tone, lit, disabled);
+  return (
+    <box id={id} height={1} flexShrink={0} paddingX={1} backgroundColor={background} {...props}>
+      <text wrapMode="none" fg={foreground}>
+        {children}
+      </text>
+    </box>
+  );
+}
+
+/** An icon button's size: as tall as the search box beside it, about as wide as tall. */
+export const ICON_BUTTON_WIDTH = 5;
+export const ICON_BUTTON_HEIGHT = 3;
+/**
+ * One symbol in a rounded frame, three rows high: a target found without aiming, framed
+ * like the search box so that a row of them reads as one block.
+ */
+export function IconButton({
+  id,
+  icon,
+  onPress,
+  tone = "plain",
+}: {
+  id?: string;
+  icon: string;
+  onPress: (event: MouseEvent) => void;
+  tone?: Tone;
+}) {
+  const color = usePalette();
+  const { lit, props } = usePress(onPress, false);
+  const { foreground } = toneColors(color, tone, lit, false);
+  // Every one on the same grey as the search box, so that the row reads as one bar. A
+  // primary one is told by its frame and symbol in the accent: a cell filled with it
+  // would square off the frame's rounded corners.
+  const primary = tone === "primary";
   return (
     <box
       id={id}
-      height={1}
+      width={ICON_BUTTON_WIDTH}
+      height={ICON_BUTTON_HEIGHT}
       flexShrink={0}
-      paddingX={1}
-      backgroundColor={background}
-      {...(disabled ? {} : handlers)}
-      onMouseDown={(event: MouseEvent) => {
-        event.stopPropagation();
-        if (!disabled) onPress();
-      }}
+      justifyContent="center"
+      alignItems="center"
+      border
+      borderStyle="rounded"
+      borderColor={primary ? (lit ? color.text : color.accent) : lit ? color.muted : color.border}
+      backgroundColor={lit ? color.buttonHover : color.button}
+      {...props}
     >
-      <text wrapMode="none" fg={foreground}>
-        {children}
+      <text wrapMode="none" fg={primary ? (lit ? color.text : color.accent) : foreground}>
+        {icon}
       </text>
     </box>
   );

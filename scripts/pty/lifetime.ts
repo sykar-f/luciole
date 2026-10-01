@@ -12,6 +12,9 @@ import { LifetimeStatus } from "../../packages/luciole/src/launcher/lifetime";
 import { ctrl, drive, type Driver } from "./driver";
 import { BUN, CLI, defer, eventually, example, report, temporaryDirectory } from "./harness";
 
+/** Lets a key's effect (Ctrl+E focusing the text) land before the next keys arrive. */
+const KEY_SETTLE_MS = 150;
+
 const TIMEOUT_MS = 30_000;
 const ENDED_TIMEOUT_MS = 10_000;
 const GRACE_TIMEOUT_MS = 5000;
@@ -75,9 +78,9 @@ let first: z.infer<typeof LifetimeStatus> | undefined;
   await using t = await start();
   await wait(t, "Welcome to Notes");
   await t.click("Welcome to Notes");
-  await wait(t, "✎ Write");
-  await t.click("✎ Write");
-  await wait(t, "✓ Done");
+  await wait(t, "Getting around");
+  // Ctrl+E: the cursor at the end of the text.
+  await t.type(ctrl("e"), KEY_SETTLE_MS);
   // On a line of their own: the end of the note would wrap them.
   t.write("\runsaved words");
   await wait(t, "unsaved words");
@@ -108,7 +111,7 @@ assert.ok(
   process.kill(first.pid, "SIGSTOP");
   await wait(t, "Disconnected");
   process.kill(first.pid, "SIGCONT");
-  // Connected again: the toolbar says nothing when the connection works.
+  // Connected again: the status line says nothing when the connection works.
   await t.waitFor("Disconnected", { timeout: TIMEOUT_MS, absent: true });
   assert.ok((await t.text()).includes("unsaved words"), await t.text());
   // Quitting on purpose stops the Server.

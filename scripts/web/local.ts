@@ -28,17 +28,16 @@ try {
   await browser.evaluate(`document.querySelector(".xterm-helper-textarea").blur()`);
   await browser.click(".xterm-screen");
 
-  // A note written in the browser: New note, a title, Return, its text, Done.
+  // A note written in the browser: New note, a title, Return, its text, saved by itself.
   const BASE36 = 36;
   const marker = `local${Date.now().toString(BASE36)}`;
   const BODY = "Kept in the origin's files";
   await browser.clickAt(cellOf("+ New note"));
-  await browser.waitFor(shows("✓ Done"), "the new note, its title ready");
+  await browser.waitFor(shows("Untitled"), "the new note, its title ready");
   await browser.insertText(marker);
   await browser.press("Enter");
   await browser.insertText(BODY);
   await browser.waitFor(shows(BODY), "the typed text");
-  await browser.clickAt(cellOf("✓ Done"));
   report.savedInTheBrowser = !!(await browser.waitFor(
     `!${rowWith("●", marker)} && ${rowWith(marker, "⋯")}`,
     "the saved note, listed under its title",

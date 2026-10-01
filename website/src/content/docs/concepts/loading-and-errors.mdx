@@ -32,7 +32,7 @@ the framework shows "Connecting…" before the first answer, then "Loading…".
 
 The loading screen and the page it stands for should share their layout rules, or the page
 jumps when it arrives. Notes draws both with `components/NoteFrame.tsx`: same frame, a
-toolbar row, the title on one line, the note below; the title is already known, from the
+status line, the title on one line, the note below; the title is already known, from the
 list the layout holds. The framework cannot know the size of a Server page it has not
 received yet: that stability is the app's contract. An animation should change colours or constant-width glyphs only; Notes pulses
 the skeleton's opacity with OpenTUI's `useTimeline` and stops it on unmount.
@@ -67,20 +67,16 @@ outage.
 
 The framework draws no header or footer. `useConnection()` gives the chrome what it needs:
 `status`, `error`, `buildError` (a failed rebuild under `luciole dev`), `refresh`, and
-`activity`, one of `connect`, `navigate`, `refresh` or `idle`. Notes shows it in its root
-layout:
+`activity`, one of `connect`, `navigate`, `refresh` or `idle`. Notes has no toolbar: it
+says all of it on the line above the note's title, the one its save uses, one message at a
+time. A lost connection comes first, then the page's own words, then what the router is
+doing; each waits a moment before it speaks, so that a line which says nothing while all
+goes well does not flash after every save:
 
 <Excerpt
-  path="examples/notes/app/layout.tsx"
-  find="const { status, error, buildError, activity, refresh }"
-  count={1}
-  tone="client"
-/>
-
-<Excerpt
-  path="examples/notes/app/layout.tsx"
-  find='{activity === "navigate" ? ('
-  until="Reconnect"
+  path="examples/notes/components/StatusLine.tsx"
+  find="const message ="
+  until="    ) : null;"
   mark={["app.cancel", "refresh()"]}
   tone="client"
 />

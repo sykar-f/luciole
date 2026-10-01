@@ -8,7 +8,6 @@ import { join, resolve } from "node:path";
 import type { Application, Session } from "../packages/luciole/src/client";
 import { build } from "../packages/luciole/src/build";
 import {
-  clickOn,
   destroy,
   draftOf,
   importClient,
@@ -98,9 +97,9 @@ test("a named field comes back after a restart, is forgotten once sent, kept if 
     expect(fieldsAt(app, "/notes/1")).toEqual({});
 
     // The first bearer keeps typed text (a sign-in after a crash); replacing it forgets it.
-    // Typing needs the text in hand again: a click on Write.
+    // Typing needs the text in hand again: Ctrl+E puts the cursor back at its end.
     await act(async () => {
-      await clickOn(ui, "✎ Write");
+      ui.mockInput.pressKey("e", { ctrl: true });
     });
     await act(async () => {
       await ui.mockInput.typeText("d");

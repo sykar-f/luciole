@@ -20,6 +20,8 @@ const KEYS_LATENCY_MS = 1200;
 const KEY = "Q";
 const DRAW_TIMEOUT_MS = 6000;
 const POLL_MS = 150;
+/** Long enough for Return to put the cursor in the note before the next key arrives. */
+const EDIT_SETTLE_MS = 300;
 const frameShows = (text: string) =>
   `${FRAME_SCREEN}.map((row) => row.textContent).join("\\n").includes(${JSON.stringify(text)})`;
 
@@ -71,7 +73,7 @@ try {
   // being typed): the render it hears took at least the round trip.
   await browser.evaluate(`send({ type: "network", latencyMs: ${LATENCY_MS} })`);
   await browser.evaluate(`send({ type: "input", data: "\\r" })`);
-  report.typedByTheHost = !!(await browser.waitFor(frameShows("✎ Write"), "the note"));
+  report.typedByTheHost = !!(await browser.waitFor(frameShows("Getting around"), "the note"));
   report.slowedRender = await browser.waitFor(
     `events.some((e) => e.type === "end" && e.kind === "render" && e.ms >= ${LATENCY_MS})`,
     "a render slowed by the page",
@@ -80,7 +82,8 @@ try {
   await browser.evaluate(`send({ type: "network", latencyMs: ${LATENCY_MS}, fault: "refuse" })`);
   // Return edits the note, then Ctrl+S saves it.
   await browser.evaluate(`send({ type: "input", data: "\\r" })`);
-  await browser.waitFor(frameShows("✓ Done"), "the note being edited");
+  // Nothing on screen says the text is being edited: the cursor is in it a moment later.
+  await Bun.sleep(EDIT_SETTLE_MS);
   await browser.evaluate(`send({ type: "input", data: "x" })`);
   await browser.waitFor(frameShows("typing.x"), "the edit");
   await browser.evaluate(`send({ type: "input", data: "\\u0013" })`);
@@ -112,7 +115,7 @@ try {
     await browser.waitFor(`window.stages.includes("drawn")`, "the drawn stage");
   };
   await reopen(look);
-  report.restored = !!(await browser.waitFor(frameShows("✎ Write"), "the restored note"));
+  report.restored = !!(await browser.waitFor(frameShows("Getting around"), "the restored note"));
   await reopen(`${look}&restore=off`);
   report.notRestored = !!(await browser.waitFor(frameShows("No note selected"), "no note open"));
 
@@ -131,7 +134,7 @@ try {
   await Bun.sleep(OTHER_ORIGIN_WAIT_MS);
   const screen = await everything();
   report.otherOriginDrawn = screen.includes("Welcome to Notes");
-  report.otherOriginTyped = screen.includes("✎ Write");
+  report.otherOriginTyped = screen.includes("Getting around");
   report.otherOriginHeard = await browser.evaluate("window.heard.length");
 } finally {
   await notes.stop(true);

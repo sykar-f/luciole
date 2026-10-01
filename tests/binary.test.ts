@@ -147,7 +147,7 @@ test("`notes` alone runs both roles here; quitting on purpose stops its Server",
     });
     let screen = "";
     const deadline = performance.now() + 15000;
-    while (performance.now() < deadline && !screen.includes("✎ Write")) {
+    while (performance.now() < deadline && !screen.includes("Getting around")) {
       await Bun.sleep(100);
       screen = Bun.stripANSI(await readFile(log, "utf8").catch(() => ""));
     }
@@ -157,7 +157,7 @@ test("`notes` alone runs both roles here; quitting on purpose stops its Server",
     expect(sockets()).toHaveLength(1);
     await Bun.write(join(run, "stop"), "");
     await Promise.race([client.exited, Bun.sleep(15000).then(() => client.kill())]);
-    expect(screen).toContain("✎ Write");
+    expect(screen).toContain("Getting around");
     // The Server's data lives where the user ran it; its log in their state directory.
     expect(existsSync(join(run, "notes.sqlite"))).toBe(true);
     expect(existsSync(join(run, ".local/state/luciole/notes/server.log"))).toBe(true);

@@ -21,9 +21,11 @@ const latency = numberFromEnv("LUCIOLE_LATENCY_MS", 0);
 const serverDelay = numberFromEnv("NOTES_DELAY_MS", 700);
 // Under this simulated RTT the loading screen is too brief to be caught.
 const VISIBLE_LOADING_RTT_MS = 400;
-/** How long a failing save goes unmentioned (NoteEditor's QUIET_MS). */
+/** Lets a key's effect (Ctrl+E focusing the text) land before the next keys arrive. */
+const KEY_SETTLE_MS = 150;
+/** How long a lost connection goes unmentioned (StatusLine's LOST_QUIET_MS). */
 const QUIET_MS = 3000;
-let failureShownMs: number | undefined;
+let lossShownMs: number | undefined;
 
 using directory = temporaryDirectory("luciole-pty-");
 await using server = args.url
@@ -44,12 +46,10 @@ await using t = await drive({
   env: { NODE_ENV: "production", XDG_STATE_HOME: join(directory.path, "state") },
 });
 
-/** The rows of the window's frame: toolbar, search box, the list's count. */
+/** The rows of the window's frame: search box, the list's count. */
 async function layoutRows() {
   const lines = await t.lines();
-  return [/\+ New note/, /⌕/, /^\s*\d+ notes\b/].map((marker) =>
-    lines.findIndex((line) => marker.test(line)),
-  );
+  return [/⌕/, /^\s*\d+ notes\b/].map((marker) => lines.findIndex((line) => marker.test(line)));
 }
 
 // Everything by pointing, as a user who was never told a key.
@@ -63,10 +63,10 @@ if (latency >= VISIBLE_LOADING_RTT_MS) {
   assert.ok(loadingMs < latency * 0.8, `loading shown after ${loadingMs} ms`);
   loadingRows = await layoutRows();
 }
-await t.waitFor("✎ Write");
+await t.waitFor("Getting around");
 if (loadingRows) assert.deepEqual(await layoutRows(), loadingRows, "the loading layout moved");
-await t.click("✎ Write");
-await t.waitFor("✓ Done");
+// Ctrl+E: the cursor at the end of the text, where a click there would put it.
+await t.type(ctrl("e"), KEY_SETTLE_MS);
 t.write("abc");
 await t.waitFor("abc");
 // Autosave is off: unsaved text is marked until Ctrl+S sends it, then nothing is said.
@@ -80,8 +80,8 @@ assert.ok(localMs < 500, `typing reached the PTY after ${localMs} ms`);
 // Saved "abc"; the "d" typed meanwhile is the Draft's, still to save.
 await t.waitFor("● Unsaved");
 assert.ok((await t.text()).includes("abcd"));
-// Another note, then back: the Draft outlived its editor.
-await t.click("+ New note");
+// Another note (the "+" beside the search), then back: the Draft outlived its editor.
+await t.click("│ + │");
 await t.waitFor("Untitled");
 await t.click("Welcome to Notes");
 await t.waitFor("abcd");
@@ -89,17 +89,17 @@ await t.waitFor("● Unsaved");
 if (server) {
   await server.stop();
   t.write(ctrl("r"));
-  await t.waitFor("Disconnected");
+  const lost = performance.now();
+  // Said once it lasts, over the page's own words, and about the text not yet saved.
+  lossShownMs = (await t.waitFor("Disconnected")) - lost;
+  assert.ok(lossShownMs >= QUIET_MS - 100, `lost connection said after ${lossShownMs} ms`);
   await t.waitFor("Reconnect");
-  await t.click("✎ Write");
-  await t.waitFor("✓ Done");
+  await t.type(ctrl("e"), KEY_SETTLE_MS);
   t.write("e");
   await t.waitFor("abcde");
-  // Saving with the Server gone: retried quietly, then said, with the text still there.
+  // Saving with the Server gone: refused, retried quietly, the text still there.
   t.write(ctrl("s"));
-  const asked = performance.now();
-  failureShownMs = (await t.waitFor("Could not reach the Server")) - asked;
-  assert.ok(failureShownMs >= QUIET_MS - 100, `failure reported after ${failureShownMs} ms`);
+  await t.pause(QUIET_MS);
   const shown = await t.text();
   assert.ok(shown.includes("Your text is kept here") && shown.includes("abcde"), shown);
 }
@@ -111,7 +111,7 @@ if (server) {
   await t.waitFor("Try again");
   await t.pause(200);
   const shown = await t.text();
-  assert.ok(shown.includes("+ New note") && !shown.includes("Console"), shown);
+  assert.ok(shown.includes("⌕") && !shown.includes("Console"), shown);
 }
 await t.quit();
 
@@ -125,7 +125,7 @@ report({
   simulatedRTTMs: latency,
   serverDelayMs: server ? serverDelay : "remote configuration",
   offlineEditing: Boolean(server),
-  saveFailureShownAfterMs: failureShownMs === undefined ? null : round(failureShownMs),
+  connectionLossShownAfterMs: lossShownMs === undefined ? null : round(lossShownMs),
   terminalRestored: true,
   transport: args.url ? "external Server (topology supplied by caller)" : "loopback",
   physicalDisplayLatencyMeasured: false,

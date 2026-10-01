@@ -72,8 +72,11 @@ operation again only if the Server has no trace of it
 ([Server Functions](/docs/concepts/server-functions/#when-a-call-fails)). A save still not
 settled after 3 seconds shows "Save not confirmed. Your text is kept here." above the title,
 with **Check again**; one that could not be sent shows "Could not reach the Server", with
-**Retry**. Retries go on by themselves, less and less often, and the message leaves once one
-succeeds. Open the requests panel (<kbd>Ctrl+T</kbd>) to watch them.
+**Retry**. When the failure also cost the connection, which is the usual case, the line says
+so instead ("○ Disconnected. Your text is kept here.", with **Reconnect**): a lost
+connection speaks before anything else on that line. Retries go on by themselves, less and
+less often, and the message leaves once one succeeds. Open the requests panel
+(<kbd>Ctrl+T</kbd>) to watch them.
 
 ## What the app should do with each outcome
 

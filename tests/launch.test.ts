@@ -46,7 +46,7 @@ test("`luciole ./app` builds it, runs its Server on a socket and its Client here
     let screen = "";
     // Includes building Notes: a loaded machine (a full `verify`) can take a while.
     const deadline = performance.now() + 60000;
-    while (performance.now() < deadline && !screen.includes("✎ Write")) {
+    while (performance.now() < deadline && !screen.includes("Getting around")) {
       await Bun.sleep(100);
       screen = Bun.stripANSI(await readFile(log, "utf8").catch(() => ""));
     }
@@ -55,7 +55,7 @@ test("`luciole ./app` builds it, runs its Server on a socket and its Client here
     expect(sockets()).toHaveLength(1);
     await Bun.write(join(run, "stop"), "");
     await Promise.race([child.exited, Bun.sleep(5000).then(() => child.kill())]);
-    expect(screen).toContain("✎ Write");
+    expect(screen).toContain("Getting around");
     expect(existsSync(join(run, "state/luciole/notes/server.log"))).toBe(true);
     const gone = performance.now() + 3000;
     while (sockets().length && performance.now() < gone) await Bun.sleep(50);

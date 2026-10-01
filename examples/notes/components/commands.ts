@@ -1,7 +1,8 @@
 "use client";
-import { TransportError, useNavigate, useParams } from "luciole/client";
+import { useRenderer } from "@opentui/react";
+import { CapabilityDenied, host, TransportError, useNavigate, useParams } from "luciole/client";
 import { createNote, deleteNote, restoreNote } from "../actions/notes";
-import type { Note } from "./draft";
+import { drafts, type Note } from "./draft";
 import { notesList } from "./notes-list";
 import { ui } from "./ui-state";
 
@@ -19,9 +20,26 @@ function failure(error: unknown) {
 /** What the sidebar, the menus and the note itself can do to notes. */
 export function useCommands() {
   const navigate = useNavigate();
+  const renderer = useRenderer();
   const { id: shown } = useParams({ strict: false });
   const open = (id: string) => navigate({ to: "/notes/$id", params: { id } });
-  return {
+  /** The text as typed here, saved or not: what the user sees is what is copied. */
+  const copy = async (note: Note) => {
+    const text = drafts.unsaved().find((d) => d.id === note.id)?.value ?? note.value;
+    try {
+      await host.clipboard.write(text);
+      ui.toast({ text: "Copied as Markdown" });
+      return;
+    } catch (error: unknown) {
+      if (error instanceof CapabilityDenied) {
+        ui.toast({ text: "The clipboard is not available here" });
+        return;
+      }
+    }
+    const copied = renderer.isOsc52Supported() && renderer.copyToClipboardOSC52(text);
+    ui.toast({ text: copied ? "Copied as Markdown" : "The clipboard is not available here" });
+  };
+  const commands = {
     open: (id: string) => void open(id),
     /** A blank note, opened with its title ready to type. */
     create: async () => {
@@ -63,5 +81,19 @@ export function useCommands() {
         },
       });
     },
+    copy: (note: Note) => void copy(note),
+    /** A note's menu, the same from its row in the list and from its page. */
+    menu: (note: Note, x: number, y: number) =>
+      ui.openMenu({
+        x,
+        y,
+        items: [
+          ...(note.id === shown ? [] : [{ label: "Open", run: () => commands.open(note.id) }]),
+          { label: "Rename…", run: () => commands.rename(note.id) },
+          { label: "Copy as Markdown", run: () => commands.copy(note) },
+          { label: "Delete", danger: true, run: () => void commands.remove(note) },
+        ],
+      }),
   };
+  return commands;
 }

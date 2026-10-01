@@ -17,7 +17,7 @@ first line say which.
 
 | File                           | Side   | What it does                                                                         |
 | ------------------------------ | ------ | ------------------------------------------------------------------------------------ |
-| `app/layout.tsx`               | Client | The persistent window: toolbar, connection status, the sidebar and its search.       |
+| `app/layout.tsx`               | Client | The persistent window: the sidebar, its search and the rail it folds into.           |
 | `app/page.tsx`                 | Server | No note chosen yet: what to do next.                                                 |
 | `app/notes/[id]/page.tsx`      | Server | Loads a note and hands the save and lookup actions to the editor as props.           |
 | `app/notes/[id]/loading.tsx`   | Client | Shown the moment a note is clicked, while the page travels.                          |
@@ -28,6 +28,7 @@ first line say which.
 | `components/notes-list.ts`     | Client | The sidebar's notes, read through a Server Function and again after each change.     |
 | `components/NoteEditor.tsx`    | Client | Every keystroke, the Markdown view, autosave, the restorable field.                  |
 | `components/NoteFrame.tsx`     | Client | No directive: shared by the editor and the loading screen, it follows its importers. |
+| `components/StatusLine.tsx`    | Client | The line above the title: connection, save, router, one message at a time.           |
 | `components/draft.ts`          | Client | Notes' own policy: Drafts in memory, saves whose outcome is unknown.                 |
 | `actions/notes.ts`             | Server | Server Functions, `"use server"`: `saveNote`, `getOperation`, `listNotes` and more.  |
 | `server/repository.ts`         | Server | SQLite, ownership checks and transactions.                                           |
