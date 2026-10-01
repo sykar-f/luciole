@@ -142,9 +142,9 @@ bloquait l'interface 30 à 150 ms par image ; avec les vignettes, l'interface r�
 ## Vérifications
 
 ```sh
-tsc --noEmit -p examples/files
-oxlint --deny-warnings examples/files
-oxfmt --check examples/files
+bun run check          # types de tout le monorepo
+bun run lint
+bun run format:check
 bun packages/luciole/src/cli.ts build --app examples/files
 bun run test:pty:files
 ```

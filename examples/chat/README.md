@@ -84,7 +84,7 @@ L'aide en bas d'écran est générée depuis les raccourcis actifs, comme dans F
 ## Vérification
 
 ```sh
-tsc --noEmit -p examples/chat && oxlint --deny-warnings examples/chat && oxfmt --check examples/chat
+bun run check && bun run lint && bun run format:check
 bun run test:pty:chat
 ```
 

@@ -79,9 +79,9 @@ répond en quelques secondes. `AGENT_MODEL=gpt-5.6-sol` pour les tâches diffici
 ## Vérification
 
 ```sh
-tsc --noEmit -p examples/agent
-oxlint --deny-warnings examples/agent
-oxfmt --check examples/agent
+bun run check          # types de tout le monorepo
+bun run lint
+bun run format:check
 bun run test:pty:agent   # vrai pi, vrai modèle : consomme un peu de quota
 ```
 

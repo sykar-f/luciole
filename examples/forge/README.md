@@ -26,8 +26,8 @@ bun packages/luciole/src/cli.ts dev --app examples/forge
 
 Aucune clé API, aucun réseau. Au premier affichage, la page de connexion attend un
 utilisateur et un PIN : `alice` (mainteneuse), `bob` (contributeur) ou `carol` (lectrice),
-PIN `forge`. Attendez-vous ensuite à la liste des pull requests du dépôt `payments`, avec
-leurs checks .
+PIN `forge`. Attendez-vous ensuite à l'Inbox : les pull requests qui demandent votre relecture,
+tous dépôts confondus.
 
 | Variable             | Défaut         | Rôle                                                             |
 | -------------------- | -------------- | ---------------------------------------------------------------- |
@@ -58,5 +58,5 @@ bun run forge:operator lose merge                 # la prochaine réponse de fus
 
 ```sh
 bun run test:pty:forge     # parcours PTY sur les artefacts construits, Server et Client séparés
-bun run test:web:forge     # le même exemple dans un navigateur headless
+bun run test:web:forge     # le même exemple dans un navigateur headless (Google Chrome ; `CHROME=` pour un autre chemin)
 ```

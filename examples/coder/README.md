@@ -50,7 +50,7 @@ opencode, pi, sinon il dit ce qui manque. `CODER_HARNESS` et `CODER_CWD` tiennen
 Le site fait tourner coder dans la page (`luciole build --web-local`, docs/WEB.md) : le
 Server vit dans un Worker, sans processus ni réseau, donc sur le harness `fake` seul.
 `website/scripts/demo.ts` lui donne `CODER_HARNESS=fake` et un projet fictif
-(`CODER_CWD=~/src/timers`). Dans le Worker, `server/session.ts` importe
+(`CODER_CWD`, par exemple `~/src/timers`). Dans le Worker, `server/session.ts` importe
 `@luciole/harness/adapters`, que le `package.json` de `packages/harness` résout en
 `src/adapters/browser.ts` sous la condition `browser` : l'Agent SDK de Claude
 (`readline`, `net`) et les autres adaptateurs n'y entrent pas.

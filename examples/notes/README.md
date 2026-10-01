@@ -25,7 +25,7 @@ remplie de quelques notes d'exemple ; la liste est à gauche, la note ouverte à
 | `NOTES_DB`           | `notes.sqlite` | Fichier SQLite des notes (relatif au répertoire courant).                  |
 | `LUCIOLE_USER`       | `local`        | Propriétaire des notes : chaque utilisateur voit les siennes.              |
 | `NOTES_AUTOSAVE_MS`  | `1000`         | Délai de sauvegarde après la dernière frappe ; `0` : à la main (`Ctrl+S`). |
-| `NOTES_DELAY_MS`     | `0`            | Délai ajouté à chaque action, pour voir les états d'attente.               |
+| `NOTES_DELAY_MS`     | `0`            | Délai ajouté à l'enregistrement d'une note (`saveNote` seulement).         |
 | `LUCIOLE_LATENCY_MS` | `0`            | Latence réseau simulée avant chaque requête.                               |
 
 ## Clavier
@@ -43,5 +43,5 @@ remplie de quelques notes d'exemple ; la liste est à gauche, la note ouverte à
 ## Vérification
 
 ```sh
-bun run test:web           # le même exemple dans un navigateur headless (runtime web, Zig 0.16.0)
+bun run test:web           # navigateur headless : Google Chrome (`CHROME=` pour un autre chemin) et runtime web (Zig 0.16.0, `ZIG=`)
 ```

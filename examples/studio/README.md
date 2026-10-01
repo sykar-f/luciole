@@ -10,8 +10,8 @@ faisiez dans l'app. Conception : [docs/studio/SPEC.md](../../docs/studio/SPEC.md
 
 Depuis la racine du monorepo (les dépendances sont `workspace:*` et `catalog:` : l'exemple
 ne se lance pas depuis son propre dossier). Prérequis : Bun 1.4.2, `bun install
---frozen-lockfile` une fois, et — pour `-H claude` seulement — le binaire `claude`
-dans le `PATH`, déjà connecté par vous (`claude auth login`) ; aucune clé API n'est
+--frozen-lockfile` une fois, `git` (studio tient un dépôt git dans le projet) et — pour `-H claude`
+seulement — le binaire `claude` dans le `PATH`, déjà connecté par vous (`claude auth login`) ; aucune clé API n'est
 lue. `-H fake` n'exige rien. Attendez-vous à la conversation à gauche et, à droite,
 l'application générée qui apparaît au premier brouillon.
 
