@@ -45,6 +45,7 @@ const modules: Record<string, [string, string]> = {
   "instance.ts": ["clé d'instance d'un pane (x-luciole-instance)", "distribution"],
   "compile.ts": ["binaire unique (--compile) et runtime Bun officiel", "distribution"],
   "sign.ts": ["signature Developer ID et notarisation macOS", "distribution"],
+  "subprocess.ts": ["lance ssh, tar, otool et codesign et attend leur fin de façon asynchrone : le spawnSync de Bun 1.4 peut perdre la fin de l'enfant et figer le processus", "distribution"],
   "native.ts": ["paquets Server à code natif, gardés hors du bundle", "distribution"],
   launcher: ["luciole <cible> : résolution, Server géré, git, --on", "distribution"],
   "launch.ts": ["portée d'un Server (shared, per-directory, per-launch) et LUCIOLE_LAUNCH, lu par getLaunch()", "distribution"],
