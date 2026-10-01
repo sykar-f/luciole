@@ -267,10 +267,21 @@ class Studio {
     started = performance.now();
     const types = await servers.types();
     this.stage("types", !types.length, performance.now() - started);
-    if (types.length && this.revision === number) {
+    // tsc reads the working tree as it is then: a turn that wrote since the revision
+    // (slow on a loaded host) would be reproached to the revision, and its own
+    // validation, which comes next, says what is wrong with it.
+    const moved = types.length > 0 && (await this.treeMoved(project));
+    if (types.length && this.revision === number && !moved) {
       this.problems.set(number, "types");
       this.fail("types", types, undefined, number);
     }
+  }
+
+  /** Whether the working tree holds anything beyond the last revision. */
+  private async treeMoved(project: Project) {
+    const changes = await project.changes();
+    changes.delete(GENERATED);
+    return changes.size > 0;
   }
 
   /**
