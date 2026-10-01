@@ -5,7 +5,7 @@
  * at once here.
  */
 import { test, expect } from "bun:test";
-import { statSync } from "node:fs";
+import { closeSync, openSync, statSync } from "node:fs";
 import { spawnPty } from "../packages/luciole/src/vt/pty";
 
 const IN_A_ROW = 200;
@@ -68,5 +68,40 @@ test("PTYs open together each get their own slave", async () => {
     expect(new Set(ptys.map((pty) => pty.tty)).size).toBe(HELD);
   } finally {
     await Promise.all(ptys.map((pty) => pty.close()));
+  }
+});
+
+/**
+ * A descriptor below the ones `spawnPty` takes is closed after it listed the open ones
+ * (a pool thread closing a file, an earlier test's cleanup): the master reuses that
+ * number and the slave the number the listing itself used for its directory. Both are
+ * numbers the listing saw, yet the slave is new.
+ */
+test("the slave is found when a lower descriptor closes after the listing", () => {
+  const hole = openSync("/dev/null", "r");
+  let tty = "";
+  let closed = false;
+  const pty = spawnPty({
+    command: (path) => {
+      tty = path;
+      return ["/bin/sleep", "30"];
+    },
+    // Read once the listing is taken and before the PTY opens.
+    get cols() {
+      if (!closed) {
+        closed = true;
+        closeSync(hole);
+      }
+      return 80;
+    },
+    rows: 24,
+    onData: () => {},
+    onExit: () => {},
+  });
+  try {
+    expect(closed).toBe(true);
+    expect(tty).toMatch(SLAVE_PATH);
+  } finally {
+    pty.kill();
   }
 });
