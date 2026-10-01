@@ -352,7 +352,7 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
     position: relative;
     display: flex;
     min-height: calc(100svh - 61px);
-    padding: clamp(40px, 6vh, 72px) 0 clamp(112px, 16vh, 150px);
+    padding: clamp(24px, 4vh, 72px) 0 clamp(112px, 16vh, 150px);
   }
 
   .hero > .wrap {
@@ -371,7 +371,7 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
     grid-template-columns: 1fr 1fr;
     align-items: end;
     gap: 20px clamp(20px, 2.5vw, 36px);
-    margin-bottom: clamp(28px, 5vh, 48px);
+    margin-bottom: clamp(20px, 3.5vh, 48px);
   }
 
   h1 {
@@ -430,7 +430,7 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
     align-items: center;
     justify-content: center;
     gap: 12px 5ch;
-    margin-bottom: 28px;
+    margin-bottom: 20px;
     font: 400 0.8rem / 1.4 var(--mono);
     color: var(--mist);
   }
@@ -561,16 +561,25 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
      laid out at the same size and only the transform differs: trading places is a
      transition, and the live terminals never refit on the way. */
   @media (min-width: 761px) {
+    /* Wider than the column of text above it: the screens are what the reader came for.
+       Each screen takes a little more than half of it, so they overlap in the middle; in
+       a short window the whole stage narrows, so the measure under the screen in front
+       stays in the first view (what the title and the controls leave of the window's
+       height, at the frame's proportions). */
     .pair {
+      --share: 0.57;
+      align-self: center;
+      width: min(
+        100vw - 64px,
+        1440px,
+        max(720px, calc(((100svh - 520px) * 1.91 + 18px) / var(--share)))
+      );
       grid-template-columns: 1fr;
     }
 
-    /* A little more than half the width each, less in a short window: the measure under
-       the screen in front stays in the first view (what the title and the controls leave
-       of the window's height, at the frame's proportions). */
     .pane {
       grid-area: 1 / 1;
-      width: max(50%, min(56%, calc((100svh - 500px) * 1.91 + 18px)));
+      width: calc(var(--share) * 100%);
       transition: transform 0.6s cubic-bezier(0.3, 0.7, 0.2, 1);
     }
 
@@ -594,11 +603,11 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
     }
 
     .ssh[data-depth="back"] {
-      transform: perspective(1600px) rotateY(7deg) scale(0.9);
+      transform: perspective(1600px) rotateY(12deg) scale(0.86);
     }
 
     .luciole[data-depth="back"] {
-      transform: perspective(1600px) rotateY(-7deg) scale(0.9);
+      transform: perspective(1600px) rotateY(-12deg) scale(0.86);
     }
 
     /* The overlap is in the middle: each screen's name and measure sit on its outer edge,
@@ -726,12 +735,22 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
     cursor: text;
   }
 
+  /* Each screen's selection ring: white for the classic one, green for luciole's. */
+  .ssh {
+    --edge: var(--paper);
+  }
+
+  .luciole {
+    --edge: var(--client);
+  }
+
   .luciole .glass {
     border-color: color-mix(in srgb, var(--client) 55%, transparent);
   }
 
+  /* The screen that has the keyboard is ringed in its own colour. */
   .held .glass {
-    outline: 2px solid var(--dominant);
+    outline: 2px solid var(--edge);
     outline-offset: 3px;
   }
 
