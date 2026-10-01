@@ -88,20 +88,24 @@ function newSlave(before: ReadonlySet<number>) {
   throw new Error("The new PTY's device path could not be found");
 }
 /**
- * The programs still running. Each has a session of its own, so nothing hangs it up when
- * the Client quits through `process.exit` (a signal, a quit, a crash that exits) and
- * unmounts nothing: the kernel's hangup on the PTY's close does not reach a program that
- * ignores SIGHUP, nor a background job.
+ * The programs still running, by pid, with the PTY each one holds. A host that quits
+ * through `process.exit` (a signal, a quit) unmounts nothing, so nothing else ends them.
  */
-const live = new Set<number>();
+const live = new Map<number, Bun.Terminal>();
 let exitHooked = false;
-/** Too late to wait for a program to save and leave: its whole session is killed. */
+/**
+ * What a terminal emulator does when its window closes, and no more: the program's
+ * process group is killed (it is the group's leader, `setsid`, so its pid is the group's;
+ * a program ignoring SIGHUP dies too, there is no time at exit to wait for it to save),
+ * and the PTY's master closes, which hangs up the rest of the session. A job that
+ * ignores SIGHUP and left the group (nohup, disown) survives, as it does a closed window.
+ */
 function killAll() {
-  for (const pid of live) {
+  for (const [pid, terminal] of live) {
     try {
-      // The program is its session's leader (setsid): its pid is the group's.
       process.kill(-pid, "SIGKILL");
     } catch {}
+    terminal.close();
   }
   live.clear();
 }
@@ -142,7 +146,7 @@ export function spawnPty(options: PtyOptions): Pty {
       options.onExit(code);
     },
   });
-  live.add(child.pid);
+  live.set(child.pid, terminal);
   if (!exitHooked) {
     exitHooked = true;
     process.on("exit", killAll);
