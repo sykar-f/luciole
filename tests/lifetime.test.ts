@@ -2,7 +2,7 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { connect } from "../packages/luciole/src/connect";
+import { connect, keepAlive } from "../packages/luciole/src/connect";
 import { messageOf } from "../packages/luciole/src/guards";
 import { parseDuration } from "../packages/luciole/src/launcher/lifetime";
 import {
@@ -147,14 +147,19 @@ test("pings follow a Server going away and coming back", async () => {
   const setup = options();
   const server = await ensureServer(setup);
   const seen: boolean[] = [];
-  const connection = await client(server.url, "watcher");
-  connection.managed?.watch((reachable) => seen.push(reachable));
-  await Bun.sleep(300);
+  // The Client's pings, with no deadline on their answers: a Server that is gone fails
+  // at once, so how long a live one takes on a loaded host never decides what is seen.
+  const connection = keepAlive(
+    (input, init) => fetch(input, { ...init, signal: undefined, unix: server.socket }),
+    "watcher",
+    100,
+  );
+  connection.watch((reachable) => seen.push(reachable));
   await fetch("http://localhost/lifetime/stop", { method: "POST", unix: server.socket });
   await until(() => seen.includes(false));
   const back = await ensureServer(setup);
   await until(() => seen.at(-1) === true);
   expect(seen).toEqual([false, true]);
-  await connection.managed?.leave();
+  await connection.leave();
   await gone(back.pid);
 });
