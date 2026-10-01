@@ -145,6 +145,50 @@ function cellAt(terminal: XTerm, x: number, y: number) {
   return { column, row };
 }
 
+const ESC = "\x1b";
+/** SGR mouse buttons of the wheel (OpenTUI enables mode 1006), and their modifier bits. */
+const WHEEL_UP = 64;
+const WHEEL_DOWN = 65;
+const ALT = 8;
+const CTRL = 16;
+
+/**
+ * The wheel as a terminal reports it to an application that tracks the mouse: one report
+ * for each row's height the wheel travels, as native terminals do. xterm.js sends one
+ * report per wheel event whatever its distance, and counts a trackpad's pixels for a third
+ * (CoreMouseService, consumeWheelEvent): a notch of a hundred pixels moved a document by
+ * one report, a trackpad swipe by a fraction of what it travelled. Returns xterm.js's
+ * custom wheel handler: false where it reports the turn itself. Shift+wheel and a terminal
+ * without mouse tracking are left to xterm.js.
+ */
+function wheelReports(terminal: XTerm) {
+  /** Pixels travelled the same way and not yet reported: less than a row. */
+  let rest = 0;
+  return (event: WheelEvent) => {
+    if (terminal.modes.mouseTrackingMode === "none" || event.shiftKey || !event.deltaY) return true;
+    const cell = cellAt(terminal, event.clientX, event.clientY);
+    const box = terminal.element?.querySelector(".xterm-screen")?.getBoundingClientRect();
+    if (!cell || !box?.height) return true;
+    const row = box.height / terminal.rows;
+    const pixels =
+      event.deltaMode === WheelEvent.DOM_DELTA_LINE
+        ? event.deltaY * row
+        : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
+          ? event.deltaY * box.height
+          : event.deltaY;
+    if (Math.sign(pixels) !== Math.sign(rest)) rest = 0;
+    rest += pixels;
+    const rows = Math.trunc(rest / row);
+    rest -= rows * row;
+    if (!rows) return false;
+    const button =
+      (rows < 0 ? WHEEL_UP : WHEEL_DOWN) + (event.altKey ? ALT : 0) + (event.ctrlKey ? CTRL : 0);
+    // As typed: the application, the embedding page and its replay all get it (onData).
+    terminal.input(`${ESC}[<${button};${cell.column + 1};${cell.row + 1}M`.repeat(Math.abs(rows)));
+    return false;
+  };
+}
+
 /** The visible rows as text, read from the active buffer. */
 function screenLines(terminal: XTerm) {
   const buffer = terminal.buffer.active;
@@ -178,6 +222,7 @@ export async function runInPage(
   const fit = new FitAddon();
   terminal.loadAddon(fit);
   terminal.open(element);
+  terminal.attachCustomWheelEventHandler(wheelReports(terminal));
   // Framed, the embedding page reads the screen from the buffer, not from the rows
   // xterm.js draws: those stop being drawn while the frame is out of view.
   if (embedded) exposeScreen(() => screenLines(terminal));
