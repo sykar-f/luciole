@@ -7,11 +7,13 @@ import {
   configPath,
   connect,
   DEFAULT_URL,
+  keepAlive,
   openTunnel,
   serverUrl,
   socketDirectory,
 } from "../packages/luciole/src/connect";
 import { messageOf } from "../packages/luciole/src/guards";
+import type { Fetch } from "../packages/luciole/src/transport";
 import { rejectionOf, until } from "./helpers";
 
 let work: string, fakeSsh: string, server: ReturnType<typeof Bun.serve>;
@@ -229,4 +231,12 @@ test("ssh failures, stalls and option-like hosts are explained", async () => {
       await rejectionOf(openTunnel("ssh://nobody.example", { ssh: join(work, "missing") })),
     ),
   ).toContain("ENOENT");
+});
+
+test("a first ping that fails is reported: the Client started connected", async () => {
+  const refused: Fetch = () => Promise.reject(new Error("refused"));
+  const seen: boolean[] = [];
+  keepAlive(refused, "watcher", 5).watch((reachable) => seen.push(reachable));
+  await until(() => seen.length > 0);
+  expect(seen).toEqual([false]);
 });

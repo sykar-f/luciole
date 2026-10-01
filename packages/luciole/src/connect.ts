@@ -84,9 +84,10 @@ const LifetimeEnvironment = z.object({
  * Pings the Server now and every `LUCIOLE_PING_MS` (10 s): the Server's watchdog hears
  * this Client, and a change in whether pings get through is reported to the Client.
  */
-function keepAlive(fetchServer: Fetch, client: string, pingMs: number): ManagedConnection {
+export function keepAlive(fetchServer: Fetch, client: string, pingMs: number): ManagedConnection {
   const listeners = new Set<(reachable: boolean) => void>();
-  let reachable: boolean | undefined;
+  // The Client starts connected: a first ping that fails is a change, and is reported.
+  let reachable = true;
   const call = (path: string, signal?: AbortSignal) =>
     fetchServer(new URL(path, "http://localhost"), {
       method: "POST",
@@ -99,10 +100,8 @@ function keepAlive(fetchServer: Fetch, client: string, pingMs: number): ManagedC
       () => false,
     );
     if (now === reachable) return;
-    const before = reachable;
     reachable = now;
-    // The first answer only sets the baseline: the Client starts connected anyway.
-    if (before !== undefined) for (const listener of listeners) listener(now);
+    for (const listener of listeners) listener(now);
   };
   void ping();
   setInterval(() => void ping(), pingMs).unref();
