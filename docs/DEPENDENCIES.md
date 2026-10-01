@@ -153,3 +153,28 @@ signale comme « non livrées » :
 | ------------------------------ | --------------------------------------------- | -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | LGPL-3.0-or-later              | `@img/sharp-libvips-*` (libvips, via `sharp`) | `examples/files` et `devDependencies` du paquet racine (privé) | `sharp` n'est une dépendance d'aucun paquet livré ; un exemple ne se publie pas. À revoir si `sharp` entre un jour dans un paquet livré. |
 | propriétaire (« SEE LICENSE ») | `@anthropic-ai/claude-agent-sdk`              | `@luciole/harness` (privé), exemples                           | Le harnais est privé et n'est pas publié ; le SDK n'est redistribué avec aucun paquet livré.                                             |
+
+## Ce que `luciole` installe (`packages/luciole/package.json`)
+
+Installer `luciole` n'installe que ce que toute application utilise. Les plages publiées
+sont en `^` ; le catalogue du dépôt et les `devDependencies` gardent les versions exactes,
+pour que le dépôt reste reproductible.
+
+| Dépendance                                        | Classe                  | Avant → après               | Raison                                                                                                                                             |
+| ------------------------------------------------- | ----------------------- | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| @opentui/core, keymap, react                      | toute application       | exact → `^`                 | Le moteur de rendu : chaque application l'utilise.                                                                                                 |
+| @tanstack/react-router, react-reconciler          | toute application       | exact → `^`                 | Routeur et réconciliateur de chaque application.                                                                                                   |
+| react-server-dom-webpack, zod                     | toute application       | exact → `^`                 | Flight (RSC) et schémas des actions et des arguments.                                                                                              |
+| marked                                            | toute application       | exact → `^`                 | `<Markdown>` fait partie du client ; il n'est pas chargé à la demande.                                                                             |
+| @typescript/typescript6                           | outil du build, runtime | exact → `^`                 | `luciole build` lit l'AST de l'application avec cette API (`build.ts`, cache, contexte asynchrone) : il lui faut à l'exécution.                    |
+| typescript (7)                                    | outil de l'application  | dependency → devDependency  | Aucun module de `luciole` ne l'importe : seul `tsc --noEmit` l'utilise, et `luciole init` le range déjà dans les devDependencies de l'application. |
+| tree-sitter-\* (13), @tree-sitter-grammars/\* (3) | optionnelle             | dependency → peer optionnel | Servent à `luciole/grammars` seul, que l'application importe ou non.                                                                               |
+| mathjax-full, @resvg/resvg-wasm                   | optionnelle             | dependency → peer optionnel | Servent à `luciole/math` seul (quelques mégaoctets de WebAssembly).                                                                                |
+| @sqlite.org/sqlite-wasm                           | optionnelle             | dependency → peer optionnel | Le Worker de la cible web (`--web=local`) l'embarque ; le cache serveur utilise `bun:sqlite` et n'en dépend pas.                                   |
+| @xterm/xterm, addon-fit, addon-webgl              | optionnelle             | dependency → peer optionnel | Le runtime de la cible web les bundle ; aucune autre cible n'y touche.                                                                             |
+
+Une fonctionnalité optionnelle sans son paquet échoue avec un message qui le nomme
+(`luciole/math needs the optional package mathjax-full, which is not installed: run
+\`bun add mathjax-full\``) : `src/optional.ts`. `luciole/math`et`luciole/grammars`chargent leurs paquets par`import()`dynamique, à la première formule ou à l'import du
+module ; les builds web vérifient les leurs avant d'empaqueter. Le dépôt garde ces paquets
+en`devDependencies`de`luciole`pour que les exemples et les tests les trouvent ;`luciole init`les range dans les`devDependencies` de l'application créée.
