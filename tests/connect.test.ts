@@ -7,11 +7,13 @@ import {
   configPath,
   connect,
   DEFAULT_URL,
+  keepAlive,
   openTunnel,
   serverUrl,
   socketDirectory,
 } from "../packages/luciole/src/connect";
 import { messageOf } from "../packages/luciole/src/guards";
+import type { Fetch } from "../packages/luciole/src/transport";
 import { rejectionOf, until } from "./helpers";
 
 let work: string, fakeSsh: string, server: ReturnType<typeof Bun.serve>;
@@ -229,4 +231,41 @@ test("ssh failures, stalls and option-like hosts are explained", async () => {
       await rejectionOf(openTunnel("ssh://nobody.example", { ssh: join(work, "missing") })),
     ),
   ).toContain("ENOENT");
+});
+
+test("a first ping that fails is reported: the Client started connected", async () => {
+  const refused: Fetch = () => Promise.reject(new Error("refused"));
+  const seen: boolean[] = [];
+  keepAlive(refused, "watcher", 5).watch((reachable) => seen.push(reachable));
+  await until(() => seen.length > 0);
+  expect(seen).toEqual([false]);
+});
+
+// Pings overlap when one outlasts the interval, and then answer in any order.
+test("a ping answered late does not undo what a newer one said", async () => {
+  const pings: PromiseWithResolvers<Response>[] = [];
+  const fetchServer: Fetch = () => {
+    const ping = Promise.withResolvers<Response>();
+    pings.push(ping);
+    return ping.promise;
+  };
+  const seen: boolean[] = [];
+  keepAlive(fetchServer, "watcher", 5).watch((reachable) => seen.push(reachable));
+  // None answers on its own: the test says which does, and in what order.
+  const answer = async (index: number, outcome: "ok" | "lost") => {
+    await until(() => pings.length > index);
+    if (outcome === "ok") pings[index]?.resolve(new Response());
+    else pings[index]?.reject(new Error("no answer"));
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+  };
+  // The newest ping finds the Server gone; the older ones, answering after it, are stale.
+  await answer(2, "lost");
+  await answer(0, "ok");
+  await answer(1, "ok");
+  expect(seen).toEqual([false]);
+  // The newest finds it back; an older ping's failure, late, is stale too.
+  await answer(5, "ok");
+  await answer(3, "lost");
+  await answer(4, "lost");
+  expect(seen).toEqual([false, true]);
 });
