@@ -7,6 +7,7 @@ import { test, expect, beforeAll, afterAll } from "bun:test";
 import { mkdtemp, mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { z } from "zod";
 import { build } from "../packages/luciole/src/build";
 import { linkFrameworkModules, startAppServer } from "../packages/luciole/src/dev/supervisor";
 import { spawnPty, type Pty } from "../packages/luciole/src/vt/pty";
@@ -23,6 +24,7 @@ const LEAVE_ALTERNATE_SCREEN = "\x1b[?1049l";
 const HIDE_CURSOR = "\x1b[?25l";
 const SHOW_CURSOR = "\x1b[?25h";
 
+const Pong = z.object({ type: z.literal("pong") });
 const alive = (pid: number) => {
   try {
     process.kill(pid, 0);
@@ -33,24 +35,26 @@ const alive = (pid: number) => {
 };
 
 /**
- * One page, built once (a build takes tens of seconds on a loaded machine): what it does
- * after its first render is the `FIXTURE` of the Client's environment.
+ * One page, built once (a build takes tens of seconds on a loaded machine). The test
+ * drives it by key once it has seen the first frame: `x` does what the Client's
+ * `FIXTURE` says, `p` answers over IPC to prove the Client still runs.
  */
 const PAGE = `"use client";
-import { useEffect } from "react";
+import { useKeyboard } from "@opentui/react";
 import { Terminal } from "luciole/client";
 export default function Page() {
-  useEffect(() => {
-    const fixture = process.env.FIXTURE;
-    if (fixture === "exit") setTimeout(() => process.exit(3), 300);
-    if (fixture === "throw")
+  useKeyboard((key) => {
+    if (key.name === "p") process.send?.({ type: "pong" });
+    if (key.name !== "x") return;
+    if (process.env.FIXTURE === "exit") process.exit(3);
+    if (process.env.FIXTURE === "throw")
       setTimeout(() => {
         throw new Error("after the first render");
-      }, 300);
-  }, []);
+      }, 0);
+  });
   if (process.env.FIXTURE === "terminal")
     return <Terminal command={["sh", "-c", "trap '' HUP; echo child=$$; exec sleep 300"]} />;
-  return <text>crash fixture</text>;
+  return <text>READY</text>;
 }
 `;
 
@@ -79,12 +83,14 @@ async function withClient(
   fixture: string,
   body: (client: {
     pty: Pty;
+    pongs: () => number;
     screen: () => string;
     ended: () => (number | null)[];
   }) => Promise<void>,
 ) {
   let screen = "";
   const ended: (number | null)[] = [];
+  let pongs = 0;
   const pty = spawnPty({
     command: [
       process.execPath,
@@ -97,25 +103,35 @@ async function withClient(
     rows: ROWS,
     onData: (bytes) => (screen += new TextDecoder().decode(bytes)),
     onExit: (code) => ended.push(code),
+    ipc: (message) => {
+      if (Pong.safeParse(message).success) pongs++;
+    },
   });
   try {
-    await body({ pty, screen: () => screen, ended: () => ended });
+    await body({ pty, pongs: () => pongs, screen: () => screen, ended: () => ended });
   } finally {
     pty.kill();
   }
 }
 
+const frameSeen = (client: { screen: () => string }) =>
+  until(() => client.screen().includes("READY"), STARTUP_MS);
+
 test(
   "a Client that exits through process.exit after its first render resets the terminal",
   () =>
     withClient("exit", async (client) => {
-      await until(() => client.ended().length > 0, STARTUP_MS);
+      await frameSeen(client);
+      client.pty.write("x");
+      await until(() => client.ended().length > 0, GONE_MS);
       expect(client.ended()[0]).toBe(3);
       const screen = client.screen();
-      expect(screen.lastIndexOf(LEAVE_ALTERNATE_SCREEN)).toBeGreaterThan(
-        screen.indexOf(ENTER_ALTERNATE_SCREEN),
-      );
-      expect(screen.lastIndexOf(SHOW_CURSOR)).toBeGreaterThan(screen.lastIndexOf(HIDE_CURSOR));
+      const entered = screen.indexOf(ENTER_ALTERNATE_SCREEN);
+      expect(entered).toBeGreaterThan(-1);
+      expect(screen.lastIndexOf(LEAVE_ALTERNATE_SCREEN)).toBeGreaterThan(entered);
+      const hidden = screen.lastIndexOf(HIDE_CURSOR);
+      expect(hidden).toBeGreaterThan(-1);
+      expect(screen.lastIndexOf(SHOW_CURSOR)).toBeGreaterThan(hidden);
     }),
   TEST_MS,
 );
@@ -127,14 +143,19 @@ test(
   "an exception after the first render leaves the Client alive, its terminal reset on exit",
   () =>
     withClient("throw", async (client) => {
-      await until(() => client.screen().includes("after the first render"), STARTUP_MS);
-      await Bun.sleep(500);
+      await frameSeen(client);
+      client.pty.write("x");
+      await until(() => client.screen().includes("after the first render"), GONE_MS);
       expect(client.ended()).toEqual([]);
+      // Still running: it answers a key.
+      client.pty.write("p");
+      await until(() => client.pongs() > 0, GONE_MS);
       process.kill(client.pty.pid, "SIGTERM");
       await until(() => client.ended().length > 0, GONE_MS);
-      expect(client.screen().lastIndexOf(LEAVE_ALTERNATE_SCREEN)).toBeGreaterThan(
-        client.screen().indexOf(ENTER_ALTERNATE_SCREEN),
-      );
+      const screen = client.screen();
+      const entered = screen.indexOf(ENTER_ALTERNATE_SCREEN);
+      expect(entered).toBeGreaterThan(-1);
+      expect(screen.lastIndexOf(LEAVE_ALTERNATE_SCREEN)).toBeGreaterThan(entered);
     }),
   TEST_MS,
 );
