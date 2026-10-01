@@ -1,7 +1,0 @@
-{"ts":"2026-10-01T18:57:26.148Z","mission":"lint-config-test-full","type":"prepared","by":"master-airtty","ref":"missions/lint-config-test-full/brief.v1.md"}
-{"ts":"2026-10-01T20:12:29.614Z","mission":"lint-config-test-full","type":"prepared","by":"master-airtty","ref":"missions/lint-config-test-full/brief.v2.md"}
-{"ts":"2026-10-01T20:14:26.963Z","mission":"lint-config-test-full","type":"dispatched","by":"master-airtty","sha":"f80912ea6c6237cac204f7299cea8e988a7a8ec4","ref":"missions/lint-config-test-full/brief.v2.md","note":"airtty-lint-config-test-full claude","role":"worker"}
-{"ts":"2026-10-01T20:14:36.033Z","mission":"lint-config-test-full","type":"acked","by":"airtty-lint-config-test-full"}
-{"ts":"2026-10-01T20:15:54.429Z","mission":"lint-config-test-full","type":"delivered","by":"airtty-lint-config-test-full","sha":"7f7334f48222bdded9cfb8505111b9d49a11be99","ref":"missions/lint-config-test-full/delivery.1.md"}
-{"ts":"2026-10-01T20:16:35.583Z","mission":"lint-config-test-full","type":"review","by":"master-airtty","sha":"7f7334f48222bdded9cfb8505111b9d49a11be99","ref":"missions/lint-config-test-full/reviews/1.prompt.md","note":"job 20261001T201635.539Z-64385-051c-reviewer-lint-config-test-full-codex"}
-{"ts":"2026-10-01T20:19:02.651Z","mission":"lint-config-test-full","type":"reviewed","by":"master-airtty","sha":"7f7334f48222bdded9cfb8505111b9d49a11be99","ref":"missions/lint-config-test-full/reviews/1.triage.md"}
