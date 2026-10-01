@@ -72,4 +72,4 @@ l'exemple, lance Server et Client de production sur un vrai PTY de 160×40 et pa
 tab et `]` → ajout, renommage, suppression → liaison au clavier → clic et drag → run en
 direct (arêtes animées, `e2e` échoue, `production` sautée) → zoom sémantique. Un second
 Client relit ensuite le pipeline : le lien et le déplacement sont bien sur le Server. La
-frame finale est écrite dans [`docs/flow-pty-frame.txt`](../../docs/flow-pty-frame.txt).
+frame finale est écrite dans `docs/flow-pty-frame.txt` (non versionné).

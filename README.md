@@ -76,8 +76,7 @@ What runs where:
 ```
 
 _The Forge example after a merge, in a 140×40 terminal. This frame is captured from
-a real PTY by [`scripts/pty/forge.ts`](scripts/pty/forge.ts) and saved as
-[`docs/forge-pty-frame.txt`](docs/forge-pty-frame.txt)._
+a real PTY by [`scripts/pty/forge.ts`](scripts/pty/forge.ts)._
 
 ## Run the example locally
 
