@@ -1,6 +1,64 @@
 {
   "$schema": "../node_modules/oxlint/configuration_schema.json",
-  "extends": ["../.oxlintrc.json"],
+  "plugins": ["typescript", "oxc", "unicorn", "react"],
+  "categories": {
+    "correctness": "error"
+  },
+  "options": {
+    "typeAware": true
+  },
+  "rules": {
+    "eslint/no-unused-vars": "error",
+    "eslint/eqeqeq": "error",
+    "typescript/no-empty-object-type": "error",
+    "typescript/no-explicit-any": "error",
+    "typescript/consistent-type-assertions": [
+      "error",
+      {
+        "assertionStyle": "never"
+      }
+    ],
+    "typescript/no-non-null-assertion": "error",
+    "typescript/ban-ts-comment": [
+      "error",
+      {
+        "ts-ignore": true,
+        "ts-expect-error": true,
+        "ts-nocheck": true,
+        "ts-check": false
+      }
+    ],
+    "typescript/no-unsafe-function-type": "error",
+    "typescript/no-wrapper-object-types": "error",
+    "typescript/no-restricted-types": [
+      "error",
+      {
+        "types": {
+          "object": "Describe the shape, or use Record<string, unknown>."
+        }
+      }
+    ],
+    "typescript/no-unsafe-assignment": "error",
+    "typescript/no-unsafe-member-access": "error",
+    "typescript/no-unsafe-argument": "error",
+    "typescript/no-unsafe-call": "error",
+    "typescript/no-unsafe-return": "error",
+    "typescript/no-unnecessary-type-assertion": "error",
+    "typescript/use-unknown-in-catch-callback-variable": "error",
+    "no-magic-numbers": [
+      "error",
+      {
+        "ignore": [-1, 0, 1, 2],
+        "ignoreArrayIndexes": true,
+        "ignoreDefaultValues": true,
+        "ignoreClassFieldInitialValues": true,
+        "ignoreTypeIndexes": true,
+        "ignoreNumericLiteralTypes": true,
+        "ignoreReadonlyClassProperties": true,
+        "enforceConst": true
+      }
+    ]
+  },
   "overrides": [
     {
       "files": ["src/pages/guide/index.astro", "src/pages/guide/build.astro"],
@@ -9,5 +67,5 @@
       }
     }
   ],
-  "ignorePatterns": ["dist/**", "design/**", ".astro/**"]
+  "ignorePatterns": ["**/node_modules/**", "dist/**", "design/**", ".astro/**"]
 }

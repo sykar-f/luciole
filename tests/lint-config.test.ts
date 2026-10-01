@@ -1,0 +1,68 @@
+import { expect, test } from "bun:test";
+import { resolve } from "node:path";
+import { z } from "zod";
+
+// The root lint ignores website/, which is linted from there with its own config: oxlint's
+// `extends` drops the options of the rules it inherits (and the categories), so that file
+// is a full copy of the root's. These tests keep the copy honest: both resolved configs must
+// say the same about every rule. They need only the root's oxlint binary, not website/'s install.
+const root = resolve(import.meta.dir, "..");
+
+const Resolved = z.object({
+  plugins: z.array(z.string()),
+  categories: z.record(z.string(), z.unknown()),
+  options: z.object({ typeAware: z.boolean().optional() }),
+  rules: z.record(z.string(), z.unknown()),
+  overrides: z.array(
+    z.object({ files: z.array(z.string()), rules: z.record(z.string(), z.unknown()) }),
+  ),
+  ignorePatterns: z.array(z.string()),
+});
+
+async function resolved(cwd: string, config: string) {
+  const child = Bun.spawn(
+    [resolve(root, "node_modules/.bin/oxlint"), "-c", config, "--print-config"],
+    {
+      cwd,
+      stdout: "pipe",
+      stderr: "pipe",
+    },
+  );
+  const [code, out, err] = await Promise.all([
+    child.exited,
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+  ]);
+  if (code !== 0) throw new Error(`oxlint --print-config ${config} failed: ${err}`);
+  return Resolved.parse(JSON.parse(out));
+}
+
+test("website/ is linted by exactly the root's rules, options included", async () => {
+  const [base, site] = await Promise.all([
+    resolved(root, ".oxlintrc.json"),
+    resolved(resolve(root, "website"), "oxlint.website.json"),
+  ]);
+  expect(Object.keys(base.rules).length).toBeGreaterThan(0);
+  expect(site.rules).toEqual(base.rules);
+  expect(site.categories).toEqual(base.categories);
+  expect(site.plugins).toEqual(base.plugins);
+  expect(site.options).toEqual(base.options);
+});
+
+test("the website is linted type-aware, with the type-aware rules on", async () => {
+  const site = await resolved(resolve(root, "website"), "oxlint.website.json");
+  expect(site.options.typeAware).toBe(true);
+  for (const rule of ["no-unsafe-assignment", "no-unsafe-call", "no-unsafe-member-access"])
+    expect(site.rules[`typescript/${rule}`]).toBeDefined();
+});
+
+test("the root config ignores website/, and the guide pages keep their magic-number exception", async () => {
+  const [base, site] = await Promise.all([
+    resolved(root, ".oxlintrc.json"),
+    resolved(resolve(root, "website"), "oxlint.website.json"),
+  ]);
+  expect(base.ignorePatterns).toContain("website/**");
+  expect(base.overrides.flatMap((o) => o.files).some((f) => f.startsWith("website/"))).toBe(false);
+  const exempt = site.overrides.find((o) => o.rules["no-magic-numbers"] === "allow");
+  expect(exempt?.files).toEqual(["src/pages/guide/index.astro", "src/pages/guide/build.astro"]);
+});
