@@ -46,7 +46,7 @@ and credentials as the host. Each harness adds or removes only a few things:
 - Claude Code receives it whole (it needs `HOME`, `PATH` and the keychain),
   plus `CLAUDE_CODE_ENABLE_TODO_TOOLS` and `CLAUDE_AGENT_SDK_CLIENT_APP`.
 - Codex receives it as is.
-- opencode receives it plus a random server username and password for its
+- opencode receives it plus the server username `opencode` and a random password for its
   local `opencode serve`, and an `OPENCODE_CONFIG_CONTENT` that keeps the
   user's own value and sets `share` to `disabled`.
 - pi and opencode receive it without Anthropic subscription (OAuth) tokens.
