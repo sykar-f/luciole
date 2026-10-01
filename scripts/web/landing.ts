@@ -1,10 +1,10 @@
 /**
- * The landing page's live demos (website/, LiveTerminal.astro): each one replaces its
- * capture only once its live screen reads as the capture, on a first visit and on a
- * second, and stays so. A demo revealed on a screen still loading, or one the capture no
- * longer shows (an out-of-date capture, a script that no longer reaches it), fails. Each
- * visit ends with the reader opening a note in Notes: the next one starts at the list
- * again, as its capture shows. Builds the demos and the site.
+ * The landing page's live demos (website/, LiveTerminal.astro): each one of the gallery
+ * replaces its capture only once its live screen reads as the capture (both read from
+ * their terminals' buffers), on a first visit and on a second, and stays so; the hero's
+ * duel comes live over its HTML captures. A demo revealed on a screen still loading, or
+ * one the capture no longer shows (an out-of-date capture, a script that no longer
+ * reaches it), fails. Builds the demos and the site.
  *   bun run test:web:landing
  */
 import { spawnSync } from "node:child_process";
@@ -14,41 +14,33 @@ import { Browser } from "./cdp";
 import { serveSite } from "./site";
 
 const WEBSITE = join(import.meta.dirname, "../../website");
-/** Where each demo is, by the closest element with an id: the hero, the gallery's panels, Wire. */
-const PLACES = ["top", "app-panel-0", "app-panel-1", "app-panel-2", "app-panel-3", "wire"];
+/** The hero's duel: two frames of Notes over HTML captures, both to come live. */
+const DUEL = "[data-duel] .frame.on";
 /** As LiveTerminal.astro: the rows that may differ, a duration or a date. */
 const MATCHING_ROWS = 0.95;
 /** How long after its reveal a demo must still show its capture. */
 const AFTER_MS = 1500;
 const REVEAL_TIMEOUT_MS = 40_000;
 const VISITS = 2;
-/**
- * Notes, in Wire: Return opens the most recent note, shown with its "⋯" (no row has one
- * before: a row shows its own only when selected or under the pointer).
- */
-const NOTES_FRAME = `document.querySelector('#wire [data-live] iframe')`;
-const NOTE_EDITOR = "⋯";
-/** Longer than the runtime's delay before it saves a session (run.tsx, SAVE_DELAY_MS). */
-const SAVED_MS = 500;
 /** How many differing rows a failure quotes. */
 const QUOTED_ROWS = 5;
 
 // Recorded in the page the moment a demo is revealed, then AFTER_MS later: the rows of its
-// capture's stand-in and of the live screen that differ.
+// capture's stand-in and of the live screen that differ, each read from its terminal's
+// buffer (`lucioleScreen`, on the stand-in's element and on the frame's window).
 const recorder = `
 window.reveals = [];
-const rows = (root) => [...(root?.querySelectorAll(".xterm-rows > div") ?? [])]
-  .map((row) => row.textContent.replaceAll("\\u00a0", " ").trimEnd());
+const rows = (screen) => (screen?.lucioleScreen?.() ?? []).map((row) => row.trimEnd());
 const differing = (root) => {
   const capture = rows(root.querySelector(".stand"));
-  const live = rows(root.querySelector("iframe")?.contentDocument);
+  const live = rows(root.querySelector("iframe")?.contentWindow);
   return capture.flatMap((line, i) => (live[i] === line ? [] : [{ row: i, capture: line, live: live[i] }]));
 };
 new MutationObserver((mutations) => {
   for (const { target } of mutations) {
     if (!(target instanceof HTMLElement) || !target.matches("[data-live].on") || target.revealed) continue;
     target.revealed = true;
-    const reveal = { place: target.closest("[id]")?.id, demo: target.dataset.src.split("/")[2], rows: rows(target.querySelector(".stand")).length, at: differing(target) };
+    const reveal = { place: target.closest("[data-use]")?.dataset.use ?? target.closest("[id]")?.id, demo: target.dataset.src.split("/")[2], rows: rows(target.querySelector(".stand")).length, at: differing(target) };
     setTimeout(() => window.reveals.push({ ...reveal, after: differing(target) }), ${AFTER_MS});
   }
 }).observe(document, { subtree: true, attributes: true, attributeFilter: ["class"] });
@@ -86,11 +78,23 @@ try {
   // The same browser each time: the second visit restores what the first left.
   for (let visit = 1; visit <= VISITS; visit++) {
     await browser.open(site.url.href);
-    for (const place of PLACES) {
-      // A gallery panel runs once picked; Wire and the hero, once near the viewport.
-      const tab = place.replace("app-panel-", "app-tab-");
+    // The duel starts with the page: both its screens come live over their captures.
+    await browser.waitFor(
+      `document.querySelectorAll(${JSON.stringify(DUEL)}).length === 2`,
+      `the duel, visit ${visit}`,
+      REVEAL_TIMEOUT_MS,
+    );
+    // The gallery's examples, each picked in turn: a pick starts its demo over its capture.
+    const picks = z
+      .array(z.string())
+      .parse(
+        await browser.evaluate(
+          `[...document.querySelectorAll('input[name="use"]')].map((input) => input.value)`,
+        ),
+      );
+    for (const place of picks) {
       await browser.evaluate(
-        `document.getElementById(${JSON.stringify(place)}).scrollIntoView(), document.getElementById(${JSON.stringify(tab)})?.click()`,
+        `document.getElementById("use-${place}").scrollIntoView(), document.getElementById("use-${place}").click()`,
       );
       await browser.waitFor(revealed(place), `${place}, visit ${visit}`, REVEAL_TIMEOUT_MS);
     }
@@ -109,16 +113,6 @@ try {
             `visit ${visit}: ${demo} ${when} on another screen than its capture:\n${JSON.stringify(differ.slice(0, QUOTED_ROWS), null, 2)}`,
           );
     }
-    // The reader goes somewhere the capture does not show; a restored session would
-    // reopen it on the next visit.
-    await browser.evaluate(
-      `${NOTES_FRAME}.contentWindow.postMessage({ source: "luciole", type: "input", data: "\\r" }, location.origin)`,
-    );
-    await browser.waitFor(
-      `[...${NOTES_FRAME}.contentDocument.querySelectorAll(".xterm-rows > div")].some((row) => row.textContent.includes(${JSON.stringify(NOTE_EDITOR)}))`,
-      `a note opened in Notes, visit ${visit}`,
-    );
-    await Bun.sleep(SAVED_MS);
   }
 } finally {
   await site.stop(true);

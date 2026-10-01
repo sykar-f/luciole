@@ -111,7 +111,7 @@ test("the editor of @luciole/editor says its own room, past its last line by its
   expect(await turn(EDITOR, "down")).toBe(true);
   expect(room(EDITOR)).toEqual({ up: true, down: true });
   // 59 rows through 8: the last line reaches the bottom row after 51; the editor keeps
-  // the wheel for a tail of 2 more (a third of its height), and only then lets it go.
+  // the wheel for a tail of 2 more (a quarter of its height), and only then lets it go.
   await turn(EDITOR, "down", 16);
   expect(screenShows("line 29")).toBe(true);
   expect(room(EDITOR)).toEqual({ up: true, down: true });

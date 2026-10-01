@@ -10,11 +10,11 @@ import { join } from "node:path";
 import * as z from "zod/mini";
 import { build, example } from "../pty/harness";
 import { Browser } from "./cdp";
-import { serveSite } from "./site";
+import { SCREEN, serveSite } from "./site";
 
 const COLUMNS = 100;
 const ROWS = 30;
-const FRAME_SCREEN = `[...document.querySelector("iframe").contentDocument.querySelectorAll(".xterm-rows > div")]`;
+const FRAME = `document.querySelector("iframe").contentWindow`;
 const OTHER_ORIGIN_WAIT_MS = 1500;
 const LATENCY_MS = 300;
 const KEYS_LATENCY_MS = 1200;
@@ -32,7 +32,7 @@ const LIST_CELL = { column: 5, row: 10 };
 const TOOLBAR_CELL = { column: 10, row: 1 };
 const NOTE_CELL = { column: 60, row: 15 };
 const frameShows = (text: string) =>
-  `${FRAME_SCREEN}.map((row) => row.textContent).join("\\n").includes(${JSON.stringify(text)})`;
+  `${FRAME}.lucioleScreen().join("\\n").includes(${JSON.stringify(text)})`;
 
 build(example("notes"), ["--web-local"]);
 const site = join(example("notes"), ".luciole/web");
@@ -70,7 +70,11 @@ try {
   report.stages = await browser.evaluate("window.stages.join(',')");
   await browser.waitFor(frameShows("Welcome to Notes"), "the Notes screen");
   report.grid = await browser.evaluate(
-    `(() => { const rows = ${FRAME_SCREEN}; return rows.length + "x" + Math.max(...rows.map((r) => r.textContent.length)); })()`,
+    `(() => { const cells = ${FRAME}.lucioleCells(); return cells.length + "x" + cells[0].length; })()`,
+  );
+  // The GPU renderer wherever the page has WebGL2 (docs/WEB.md, "Rendu et entrée").
+  report.gpu = await browser.evaluate(
+    `${FRAME}.lucioleRenderer() === (document.createElement("canvas").getContext("webgl2") ? "webgl" : "dom")`,
   );
   report.pageColour = await browser.evaluate(
     `getComputedStyle(document.querySelector("iframe").contentDocument.body).backgroundColor`,
@@ -142,7 +146,16 @@ try {
       const y = box.top + ((${cell.row} + 0.5) * box.height) / ${ROWS};
       return JSON.stringify(frame.contentWindow.lucioleScrollRoom(x, y));
     })()`);
+  // The note shows before the list beside it has its rows: the list, once drawn, scrolls.
+  const listDrawnBy = performance.now() + DRAW_TIMEOUT_MS;
   report.roomOverList = await roomAt(LIST_CELL);
+  while (
+    report.roomOverList !== JSON.stringify({ up: false, down: true }) &&
+    performance.now() < listDrawnBy
+  ) {
+    await Bun.sleep(POLL_MS);
+    report.roomOverList = await roomAt(LIST_CELL);
+  }
   report.roomOverToolbar = await roomAt(TOOLBAR_CELL);
   report.roomOverEmptyNote = await roomAt(NOTE_CELL);
   await browser.evaluate(
@@ -189,19 +202,19 @@ try {
   report.wheelSwipe = await wheelReports(Array.from({ length: SWIPE.turns }, () => SWIPE.rows));
 
   // Another origin frames Notes: it hears no stage, and what it types is ignored. Its
-  // script cannot read the frame; the DevTools protocol reads through it.
+  // script cannot read the frame; the DevTools protocol reads in the frame's own context.
   const framed = new URL(look, notes.url).href;
   await browser.open(new URL(`/host.html?src=${encodeURIComponent(framed)}`, hostSite.url).href);
-  const everything = async () =>
-    JSON.stringify(await browser.send("DOM.getDocument", { depth: -1, pierce: true }));
+  const framedScreen = async () =>
+    String(await browser.evaluateIn(notes.url.origin, SCREEN).catch(() => ""));
   const deadline = performance.now() + DRAW_TIMEOUT_MS;
-  while (!(await everything()).includes("Welcome to Notes") && performance.now() < deadline)
+  while (!(await framedScreen()).includes("Welcome to Notes") && performance.now() < deadline)
     await Bun.sleep(POLL_MS);
   await browser.evaluate(
     `document.querySelector("iframe").contentWindow.postMessage({ source: "luciole", type: "input", data: "\\r" }, "*")`,
   );
   await Bun.sleep(OTHER_ORIGIN_WAIT_MS);
-  const screen = await everything();
+  const screen = await framedScreen();
   report.otherOriginDrawn = screen.includes("Welcome to Notes");
   report.otherOriginTyped = screen.includes("Getting around");
   report.otherOriginHeard = await browser.evaluate("window.heard.length");
@@ -213,6 +226,7 @@ console.log(JSON.stringify(report, null, 2));
 const expected = {
   stages: "runtime,bundle,server,terminal,drawn",
   grid: `${ROWS}x${COLUMNS}`,
+  gpu: true,
   pageColour: "rgb(10, 15, 22)",
   focusStayed: true,
   typedByTheHost: true,

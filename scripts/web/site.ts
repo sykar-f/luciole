@@ -1,6 +1,6 @@
 /**
  * What the web journeys share: an application's `.luciole/web/` served as a static host
- * would (`--web-local`, docs/WEB.md), and the screen xterm.js draws into the DOM, as text.
+ * would (`--web-local`, docs/WEB.md), and the screen the runtime shows, as text.
  */
 import { join } from "node:path";
 
@@ -31,15 +31,21 @@ export function serveSite(site: string) {
   });
 }
 
-/** The rows xterm.js renders into the DOM, as text. */
-export const SCREEN = `[...document.querySelectorAll(".xterm-rows > div")].map((row) => row.textContent).join("\\n")`;
+/**
+ * The screen as the runtime reads it from its buffer (docs/WEB.md, "Page embarquée",
+ * `lucioleScreen`), as text: the GPU renderer leaves nothing in the DOM to read.
+ */
+export const SCREEN = `lucioleScreen().join("\\n")`;
 export const shows = (text: string) =>
   `(${SCREEN}).includes(${JSON.stringify(text)}) && (${SCREEN})`;
 export const rowWith = (...texts: string[]) =>
-  `[...document.querySelectorAll(".xterm-rows > div")].some((row) => ${texts.map((t) => `row.textContent.includes(${JSON.stringify(t)})`).join(" && ")})`;
+  `lucioleScreen().some((row) => ${texts.map((t) => `row.includes(${JSON.stringify(t)})`).join(" && ")})`;
 /**
- * The middle of the first cell of `text` on the screen xterm.js draws, as a point for
- * `Browser.clickAt`: a click on the words a user would point at.
+ * The middle of the first cell of `text` on the screen, as a point for `Browser.clickAt`:
+ * a click on the words a user would point at. From the screen element's box and the grid.
  */
 export const cellOf = (text: string) =>
-  `(() => { const row = [...document.querySelectorAll(".xterm-rows > div")].find((r) => r.textContent.includes(${JSON.stringify(text)})); const r = row.getBoundingClientRect(); const cell = r.width / row.textContent.length; return { x: r.x + (row.textContent.indexOf(${JSON.stringify(text)}) + 0.5) * cell, y: r.y + r.height / 2 }; })()`;
+  `(() => { const rows = lucioleScreen(); const y = rows.findIndex((row) => row.includes(${JSON.stringify(text)})); const columns = lucioleCells()[0].length; const box = document.querySelector(".xterm-screen").getBoundingClientRect(); return { x: box.x + ((rows[y].indexOf(${JSON.stringify(text)}) + 0.5) * box.width) / columns, y: box.y + ((y + 0.5) * box.height) / rows.length }; })()`;
+/** How many colours the first row showing `text` is drawn in: 0 without such a row. */
+export const coloursOfRow = (text: string) =>
+  `(() => { const y = lucioleScreen().findIndex((row) => row.includes(${JSON.stringify(text)})); return y < 0 ? 0 : new Set(lucioleCells()[y].filter((cell) => cell).map((cell) => cell.split("|")[1])).size; })()`;

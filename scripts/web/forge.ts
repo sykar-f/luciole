@@ -8,11 +8,9 @@
 import { join } from "node:path";
 import { build, example } from "../pty/harness";
 import { Browser } from "./cdp";
-import { rowWith, serveSite, shows } from "./site";
+import { coloursOfRow, rowWith, serveSite, shows } from "./site";
 
 /** How many colours the first row showing `text` is drawn in: one means no highlighting. */
-const coloursOfRow = (text: string) =>
-  `(() => { const row = [...document.querySelectorAll(".xterm-rows > div")].find((r) => r.textContent.includes(${JSON.stringify(text)})); return row ? new Set([...row.querySelectorAll("span")].map((s) => getComputedStyle(s).color)).size : 0; })()`;
 
 /** Two frames: what a key changed (the focused field) is drawn before the next key. */
 const FRAMES =
