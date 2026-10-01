@@ -3,6 +3,7 @@ import { expect, test } from "bun:test";
 import { Suspense, startTransition, use, useEffect, useState } from "react";
 import { createTestRenderer } from "@opentui/core/testing";
 import { createRoot } from "@opentui/react";
+import { until } from "./helpers";
 
 declare global {
   // Read by React to decide whether updates outside act() warn.
@@ -39,12 +40,20 @@ test("OpenTUI commits React transitions with the pinned reconciler", async () =>
         <Value />
       </Suspense>,
     );
-    await Bun.sleep(30);
+    // Waited for, not slept for: a mount or a commit takes longer on a loaded machine.
+    await until(() => handle.update !== undefined);
     const update = handle.update;
     if (!update) throw new Error("Value never mounted");
     startTransition(() => update(Bun.sleep(30).then(() => "after")));
-    await Bun.sleep(400);
-    await renderOnce();
+    const shows = async (text: string) => {
+      await renderOnce();
+      return captureCharFrame().includes(text);
+    };
+    const deadline = performance.now() + 5000;
+    while (!(await shows("after")) && !failures.length) {
+      if (performance.now() > deadline) break;
+      await Bun.sleep(20);
+    }
     expect(failures).toEqual([]);
     expect(captureCharFrame()).toContain("after");
   } finally {
