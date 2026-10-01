@@ -19,13 +19,28 @@ test("OpenTUI uses the pinned reconciler and shares the application's React and 
   expect(rendererRequire.resolve("@opentui/core")).toBe(require.resolve("@opentui/core"));
 });
 
-// luciole keeps exact versions, not `catalog:`: a starter outside the workspace installs it
-// from `file:` and could not resolve the catalog. Both must still name the same version.
-test("the luciole package pins what the workspace catalog pins", () => {
+// luciole does not use `catalog:`: a starter outside the workspace installs it from `file:` and
+// could not resolve the catalog. What it publishes (dependencies, peers) is a caret range over
+// the catalog's version, what it develops with (devDependencies) is the catalog's exact pin.
+test("the luciole package ranges what the workspace catalog pins", () => {
   const catalog: Record<string, string> = workspaces.catalog;
-  for (const [name, version] of Object.entries({
+  for (const [name, range] of Object.entries({
     ...framework.dependencies,
-    ...framework.devDependencies,
-  }))
+    ...framework.peerDependencies,
+  })) {
+    // react and react-dom are peers of the application, ranged by hand.
+    if (name === "react" || name === "react-dom") continue;
+    expect(`${name}@${range}`).toBe(`${name}@^${catalog[name]}`);
+  }
+  for (const [name, version] of Object.entries(framework.devDependencies))
     expect(`${name}@${version}`).toBe(`${name}@${catalog[name]}`);
+});
+
+test("every optional peer is declared optional, and kept as a development dependency", () => {
+  const optional = Object.keys(framework.peerDependenciesMeta);
+  for (const name of Object.keys(framework.peerDependencies)) {
+    if (name === "react" || name === "react-dom") continue;
+    expect(optional).toContain(name);
+    expect(Object.keys(framework.devDependencies)).toContain(name);
+  }
 });
