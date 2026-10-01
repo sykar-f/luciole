@@ -121,9 +121,10 @@ export function Button({
 export const ICON_BUTTON_WIDTH = 5;
 export const ICON_BUTTON_HEIGHT = 3;
 /**
- * A button three rows high in a rounded frame, a cell of air around its words: a target
- * found without aiming, framed like the search box so that a row of them reads as one
- * block. As wide as its words, unless told otherwise.
+ * A button three rows high, a cell of air around its words: a target found without
+ * aiming. Framed and rounded like the search box, so that a row of them reads as one
+ * block; or `filled`, the whole block in its tone, for the one thing a screen asks for.
+ * As wide as its words, unless told otherwise.
  */
 export function BlockButton({
   id,
@@ -131,18 +132,40 @@ export function BlockButton({
   onPress,
   tone = "plain",
   width,
+  filled = false,
 }: {
   id?: string;
   children: ReactNode;
   onPress: (event: MouseEvent) => void;
   tone?: Tone;
   width?: number;
+  filled?: boolean;
 }) {
   const color = usePalette();
   const { lit, props } = usePress(onPress, false);
-  const { foreground } = toneColors(color, tone, lit, false);
-  // Every one on the same grey as the search box, so that the row reads as one bar. A
-  // primary one is told by its frame and words in the accent: a cell filled with it
+  const { background, foreground } = toneColors(color, tone, lit, false);
+  // Filled: no frame, its cells as padding instead, so the block keeps a framed one's size
+  // (the corners are square, as any filled cell's).
+  if (filled)
+    return (
+      <box
+        id={id}
+        width={width}
+        height={ICON_BUTTON_HEIGHT}
+        flexShrink={0}
+        paddingX={2}
+        justifyContent="center"
+        alignItems="center"
+        backgroundColor={background}
+        {...props}
+      >
+        <text wrapMode="none" fg={foreground}>
+          {children}
+        </text>
+      </box>
+    );
+  // Every framed one on the same grey as the search box, so that the row reads as one bar.
+  // A primary one is told by its frame and words in the accent: a cell filled with it
   // would square off the frame's rounded corners.
   const primary = tone === "primary";
   return (

@@ -98,7 +98,7 @@ export function Sidebar({ width }: { width: number }) {
             {query ? (
               <Button onPress={() => setQuery("")}>Clear search</Button>
             ) : (
-              <BlockButton tone="primary" onPress={() => void commands.create()}>
+              <BlockButton tone="primary" filled onPress={() => void commands.create()}>
                 + New note
               </BlockButton>
             )}
