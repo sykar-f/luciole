@@ -28,6 +28,32 @@ export async function temporaryApp(prefix: string) {
   return directory;
 }
 
+/**
+ * Runs `command` to its end and gives what it wrote, through an asynchronous spawn.
+ * Bun 1.4's spawnSync can lose its child's exit and spin forever at 100 % CPU, the child
+ * a zombie (oven-sh/bun#34069); bun test's timeout cannot interrupt a blocked thread, so a
+ * worker that hit it hung the whole run. Awaited, the exit comes through the event loop,
+ * and a child that never ends fails by the test's timeout instead.
+ */
+export async function execute(
+  command: readonly string[],
+  options: { cwd?: string; env?: Record<string, string | undefined>; stdin?: Uint8Array } = {},
+) {
+  const child = Bun.spawn([...command], {
+    cwd: options.cwd,
+    env: options.env,
+    stdin: options.stdin ?? "ignore",
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+  const [stdout, stderr, exitCode] = await Promise.all([
+    new Response(child.stdout).arrayBuffer(),
+    new Response(child.stderr).arrayBuffer(),
+    child.exited,
+  ]);
+  return { pid: child.pid, exitCode, stdout: Buffer.from(stdout), stderr: Buffer.from(stderr) };
+}
+
 /** What `testRender` resolves with: the renderer, input mocks and frame captures. */
 export type TestUI = Awaited<ReturnType<typeof testRender>>;
 /** Destroys a test renderer inside `act()`, when the test got as far as rendering. */
@@ -231,7 +257,7 @@ export async function rejectionOf(promise: Promise<unknown>): Promise<unknown> {
  * the second of two history entries, owned by a process that no longer exists.
  */
 export async function leaveCrashedSession(state: string, name: string, key: string, href: string) {
-  const dead = Bun.spawnSync(["true"]).pid;
+  const dead = (await execute(["true"])).pid;
   await Bun.write(
     join(state, "luciole", name, "sessions", `${crypto.randomUUID()}.json`),
     JSON.stringify({

@@ -3,7 +3,6 @@
  * what reaches the build and what the harness may do, without a Server.
  */
 import { test, expect } from "bun:test";
-import { spawnSync } from "node:child_process";
 import {
   existsSync,
   mkdirSync,
@@ -18,6 +17,7 @@ import { join, relative as relativePath, resolve } from "node:path";
 import { advise, guard } from "../examples/studio/server/guard";
 import { policy } from "../examples/studio/server/policy";
 import { diagnosticsOf } from "../examples/studio/server/preview";
+import { execute } from "./helpers";
 import { Project } from "../examples/studio/server/project";
 import { TEMPLATE } from "../examples/studio/server/template.gen";
 import { messageOf } from "../packages/luciole/src/guards";
@@ -27,16 +27,14 @@ function scratch() {
   return { root, [Symbol.dispose]: () => rmSync(root, { recursive: true, force: true }) };
 }
 
-test("the generated template matches examples/studio/template", () => {
-  const check = spawnSync(
+test("the generated template matches examples/studio/template", async () => {
+  const check = await execute([
     process.execPath,
-    [resolve("examples/studio/scripts/template.ts"), "--check"],
-    {
-      encoding: "utf8",
-    },
-  );
-  expect(check.stderr).toBe("");
-  expect(check.status).toBe(0);
+    resolve("examples/studio/scripts/template.ts"),
+    "--check",
+  ]);
+  expect(check.stderr.toString()).toBe("");
+  expect(check.exitCode).toBe(0);
 });
 
 test("a new project is the template as r0, linked to the framework's packages", () => {

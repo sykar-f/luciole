@@ -5,7 +5,7 @@ import { join, resolve } from "node:path";
 import { build } from "../packages/luciole/src/build";
 import { compileClient, fetchRuntime, hostTarget } from "../packages/luciole/src/compile";
 import { messageOf } from "../packages/luciole/src/guards";
-import { rejectionOf } from "./helpers";
+import { execute, rejectionOf } from "./helpers";
 
 // A registry serving a fake runtime package, the way npm publishes @oven/bun-<os>-<arch>.
 const name = (() => {
@@ -20,7 +20,7 @@ beforeAll(async () => {
   work = await mkdtemp(join(tmpdir(), "luciole-runtime-"));
   await mkdir(join(work, "package/bin"), { recursive: true });
   await Bun.write(join(work, "package/bin/bun"), "#!/bin/sh\necho stock\n");
-  Bun.spawnSync(["tar", "czf", "runtime.tgz", "package"], { cwd: work });
+  await execute(["tar", "czf", "runtime.tgz", "package"], { cwd: work });
   tarball = await Bun.file(join(work, "runtime.tgz")).bytes();
   integrity = `sha512-${new Bun.CryptoHasher("sha512").update(tarball).digest("base64")}`;
   registry = Bun.serve({

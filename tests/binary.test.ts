@@ -13,7 +13,7 @@ import { messageOf } from "../packages/luciole/src/guards";
 import { readBinaryIdentity, type BinaryIdentity } from "../packages/luciole/src/launcher/identity";
 import { serverId } from "../packages/luciole/src/launcher/managed";
 import { runOn } from "../packages/luciole/src/launcher/remote";
-import { leaveCrashedSession, rejectionOf, until } from "./helpers";
+import { execute, leaveCrashedSession, rejectionOf, until } from "./helpers";
 
 const root = resolve("examples/notes");
 let work: string, binary: string, identity: BinaryIdentity;
@@ -79,7 +79,7 @@ afterAll(() => rm(work, { recursive: true, force: true }));
 test("an app binary carries its identity, readable without running it", async () => {
   expect(identity).toEqual({ name: "notes", buildId: identity.buildId, target: hostTarget() });
   expect(await readBinaryIdentity(binary)).toEqual(identity);
-  const printed = Bun.spawnSync([binary, "--version"]).stdout.toString();
+  const printed = (await execute([binary, "--version"])).stdout.toString();
   expect(JSON.parse(printed)).toMatchObject(identity);
   expect(messageOf(await rejectionOf(readBinaryIdentity(join(root, "app/page.tsx"))))).toContain(
     "is not a luciole app binary",
@@ -111,7 +111,7 @@ test("`notes serve --socket` is the Server alone, on a private socket", async ()
     await rm(join(socket, ".."), { recursive: true, force: true });
   }
   expect(
-    Bun.spawnSync([binary, "serve", "--http", ":1", "--socket", "/x"]).stderr.toString(),
+    (await execute([binary, "serve", "--http", ":1", "--socket", "/x"])).stderr.toString(),
   ).toContain("exclusive");
 });
 

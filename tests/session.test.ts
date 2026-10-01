@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
-import { spawnSync } from "node:child_process";
 import { mkdtemp, readdir, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Session } from "../packages/luciole/src/restore";
+import { execute } from "./helpers";
 import {
   ORPHAN_RETENTION_MS,
   SAVE_DELAY_MS,
@@ -33,7 +33,7 @@ const typed: Session = {
   ],
 };
 /** The pid of a process that has exited: what a crashed Client leaves in its file. */
-const deadPid = () => spawnSync(process.execPath, ["-e", ""]).pid;
+const deadPid = async () => (await execute([process.execPath, "-e", ""])).pid;
 /** Rewrites a session file as a Client with `pid`, last written `age` ago, would have. */
 async function leftBy(file: string, pid: number, age = 0) {
   const text = await Bun.file(file).text();
@@ -72,7 +72,7 @@ test("after a crash the next Client takes the newest session left for the same S
   ] as const) {
     openSession({ name: "notes", server: target, id, env: env() }).flush(session);
     // Each of them died, `age` ms ago.
-    await leftBy(join(dir, `${id}.json`), deadPid(), age);
+    await leftBy(join(dir, `${id}.json`), await deadPid(), age);
   }
   expect(openSession({ name: "notes", server, env: env() }).restored).toEqual(typed);
   // Two Clients never share one: the next takes the other, a third finds none left
@@ -101,7 +101,7 @@ test("old or unreadable sessions are not restored", async () => {
   const dir = sessionDirectory("notes", env());
   const stale = openSession({ name: "notes", server, id: "stale", env: env() });
   stale.flush(typed);
-  await leftBy(join(dir, "stale.json"), deadPid(), ORPHAN_RETENTION_MS + 1);
+  await leftBy(join(dir, "stale.json"), await deadPid(), ORPHAN_RETENTION_MS + 1);
   await Bun.write(join(dir, "broken.json"), "{");
   expect(openSession({ name: "notes", server, env: env() }).restored).toBeUndefined();
   expect(await files()).not.toContain("stale.json");

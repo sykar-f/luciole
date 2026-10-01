@@ -7,7 +7,6 @@
  * them; Ctrl+O u undoes; nothing outlives the studio.
  */
 import { beforeAll, expect, test } from "bun:test";
-import { spawnSync } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
 import { realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -16,7 +15,7 @@ import { act } from "react";
 import { testRender } from "@opentui/react/test-utils";
 import { build } from "../packages/luciole/src/build";
 import { isolationProblem } from "../examples/studio/server/preview";
-import { importClient, launch } from "./helpers";
+import { execute, importClient, launch } from "./helpers";
 
 const STUDIO = resolve("examples/studio");
 const MODE = isolationProblem("sandbox") ? "process" : "sandbox";
@@ -88,7 +87,7 @@ async function startStudio(mode: string = MODE) {
       await server.stop();
       // The preview's processes leave with the studio; on a loaded machine, not at once.
       const deadline = performance.now() + STOP_TIMEOUT_MS;
-      while (leftovers(project).length > 0 && performance.now() < deadline)
+      while ((await leftovers(project)).length > 0 && performance.now() < deadline)
         await Bun.sleep(POLL_MS);
       if (state === undefined) delete process.env.XDG_STATE_HOME;
       else process.env.XDG_STATE_HOME = state;
@@ -98,8 +97,8 @@ async function startStudio(mode: string = MODE) {
 }
 
 /** Processes still running from the project (the preview's Server or Client). */
-const leftovers = (project: string) =>
-  spawnSync("pgrep", ["-f", project], { encoding: "utf8" }).stdout.split(/\s+/).filter(Boolean);
+const leftovers = async (project: string) =>
+  (await execute(["pgrep", "-f", project])).stdout.toString().split(/\s+/).filter(Boolean);
 
 test(`studio (${MODE}): a prompt runs as a revision, failures are corrected, Ctrl+O u undoes`, async () => {
   const studio = await startStudio();
@@ -133,7 +132,7 @@ test(`studio (${MODE}): a prompt runs as a revision, failures are corrected, Ctr
   } finally {
     await studio.stop();
   }
-  expect(leftovers(studio.project)).toEqual([]);
+  expect(await leftovers(studio.project)).toEqual([]);
 }, 300_000);
 
 test("studio --preview process: the app runs with the user's rights, and says so; /allow is a revision", async () => {
@@ -152,5 +151,5 @@ test("studio --preview process: the app runs with the user's rights, and says so
   } finally {
     await studio.stop();
   }
-  expect(leftovers(studio.project)).toEqual([]);
+  expect(await leftovers(studio.project)).toEqual([]);
 }, 120_000);

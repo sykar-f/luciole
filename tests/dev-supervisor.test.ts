@@ -5,7 +5,6 @@
  */
 import { test, expect } from "bun:test";
 import { mkdtemp, mkdir, rm } from "node:fs/promises";
-import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { build } from "../packages/luciole/src/build";
@@ -17,7 +16,7 @@ import {
 } from "../packages/luciole/src/dev/supervisor";
 import { messageOf } from "../packages/luciole/src/guards";
 import { spawnPty, type Pty } from "../packages/luciole/src/vt/pty";
-import { rejectionOf, until } from "./helpers";
+import { execute, rejectionOf, until } from "./helpers";
 
 const CLI = resolve("packages/luciole/src/cli.ts");
 const STARTUP_MS = 15_000;
@@ -49,9 +48,10 @@ function dev(dir: string) {
   });
   return { pty, screen: () => screen, ended };
 }
-const childrenOf = (pid: number) =>
-  spawnSync("pgrep", ["-P", String(pid)], { encoding: "utf8" })
-    .stdout.split(/\s+/)
+const childrenOf = async (pid: number) =>
+  (await execute(["pgrep", "-P", String(pid)])).stdout
+    .toString()
+    .split(/\s+/)
     .filter(Boolean)
     .map(Number);
 const alive = (pid: number) => {
@@ -70,8 +70,14 @@ test("a hangup of its terminal stops luciole dev's Server and Client too", async
   const run = dev(dir);
   try {
     // Nothing answers the Client's terminal queries here: its children are the signal.
-    await until(() => childrenOf(run.pty.pid).length === 2, STARTUP_MS);
-    const children = childrenOf(run.pty.pid);
+    const deadline = performance.now() + STARTUP_MS;
+    let children = await childrenOf(run.pty.pid);
+    while (children.length !== 2) {
+      if (performance.now() > deadline)
+        throw new Error(`Expected 2 children, found ${children.join(", ")}`);
+      await Bun.sleep(50);
+      children = await childrenOf(run.pty.pid);
+    }
     // What <Terminal> does when it unmounts, and the kernel when a terminal closes.
     run.pty.kill();
     await until(() => run.ended.length > 0, EXIT_MS);
