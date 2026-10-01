@@ -142,6 +142,7 @@ const stand = JSON.stringify({
   // As the runtime sets up its terminal: the same fonts, and the largest size at which the
   // grid fits, so both draw every cell alike.
   import { FONTS, FONT_STEP, LARGEST_FONT, SMALLEST_FONT } from "../lib/cells";
+  import { drawOnGpu } from "../lib/gpu";
   import { Terminal } from "@xterm/xterm";
   import { FitAddon } from "@xterm/addon-fit";
   import "@xterm/xterm/css/xterm.css";
@@ -265,6 +266,14 @@ const stand = JSON.stringify({
     const fit = new FitAddon();
     terminal.loadAddon(fit);
     terminal.open(holder);
+    // As the runtime draws: the GPU, before the font is sized, so the same cells.
+    drawOnGpu(terminal);
+    // The capture as the stand-in shows it, as the runtime tells its own screen
+    // (`lucioleScreen`): what the landing's journey compares, the canvas saying nothing.
+    const buffer = terminal.buffer.active;
+    Reflect.set(holder, "lucioleScreen", () =>
+      Array.from({ length: terminal.rows }, (_, y) => buffer.getLine(buffer.viewportY + y)?.translateToString(true) ?? ""),
+    );
     let written = false;
     const layout = () => {
       // A hidden gallery panel has no size yet: laid out, then written, once it is shown,
@@ -308,21 +317,17 @@ const stand = JSON.stringify({
     });
   }
 
-  /** The rows xterm.js draws into the frame's DOM (same origin), as the capture's `lines`. */
   const Lines = z.array(z.string());
   /**
    * The live screen's rows as text: from the runtime's buffer (docs/WEB.md, "Page
-   * embarquée", `lucioleScreen`), which a frame out of view keeps up to date; else from the
-   * rows xterm.js draws.
+   * embarquée", `lucioleScreen`), which a frame out of view keeps up to date. The DOM says
+   * nothing of it: the runtime draws in a canvas. None until the runtime runs.
    */
   const rowsOf = (frame: HTMLIFrameElement) => {
     const read: unknown = frame.contentWindow ? Reflect.get(frame.contentWindow, "lucioleScreen") : undefined;
     const value: unknown = typeof read === "function" ? Reflect.apply(read, frame.contentWindow, []) : undefined;
     const lines = value === undefined ? undefined : Lines.safeParse(value);
-    if (lines?.success) return lines.data.map((line) => line.trimEnd());
-    return [...(frame.contentDocument?.querySelectorAll(".xterm-rows > div") ?? [])].map((row) =>
-      (row.textContent ?? "").replaceAll("\u00a0", " ").trimEnd(),
-    );
+    return lines?.success ? lines.data.map((line) => line.trimEnd()) : [];
   };
   const screenOf = (frame: HTMLIFrameElement) => rowsOf(frame).join("\n");
 

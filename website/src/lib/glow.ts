@@ -1,6 +1,8 @@
 // The live afterglow: each cell an application rewrites in a framed web runtime glows a
-// moment over it, as in the demos' intro. Read from the frame's own terminal (same origin):
-// its rows, compared cell by cell (character and style) at each frame of the page.
+// moment over it, as in the demos' intro. Told by the frame's own terminal (same origin,
+// docs/WEB.md "Page embarquée", `lucioleWrites`): at each of its renders, the cells that
+// differ from the last one, character or style.
+import * as z from "zod/mini";
 import { strength } from "./afterglow";
 
 /** How long a written cell of the live application glows at full strength. */
@@ -11,6 +13,7 @@ const SHORTEST_GLOW = 0.4;
 const MOST_GLOWS = 400;
 
 type Run = [row: number, column: number, length: number];
+const Written = z.array(z.object({ row: z.number(), column: z.number(), length: z.number() }));
 
 /** Runs merged per row: from the row's first change to its last. */
 function byRow(runs: Run[]) {
@@ -23,7 +26,7 @@ function byRow(runs: Run[]) {
 }
 
 export type GlowOptions = {
-  /** The web runtime's frame, drawn: its terminal is read through its document. */
+  /** The web runtime's frame, drawn: its terminal tells its renders through its window. */
   frame: HTMLIFrameElement;
   /** Laid exactly over the frame: the glowing cells go there, as `<i>` elements. */
   layer: HTMLElement;
@@ -46,51 +49,22 @@ export function glowWrites({
   onWritten,
   shows = () => true,
 }: GlowOptions) {
-  const inner = frame.contentDocument;
-  const rowsElement = inner?.querySelector<HTMLElement>(".xterm-rows");
-  const screen = inner?.querySelector<HTMLElement>(".xterm-screen");
-  if (!rowsElement || !screen) return;
+  const inner = frame.contentWindow;
+  const screen = frame.contentDocument?.querySelector<HTMLElement>(".xterm-screen");
+  const subscribe: unknown = inner ? Reflect.get(inner, "lucioleWrites") : undefined;
+  if (!inner || !screen || typeof subscribe !== "function") return;
   const total = columns * rows;
-  const cellsOf = (row: Element) => {
-    const cells: string[] = [];
-    for (const node of row.childNodes) {
-      const look =
-        node instanceof HTMLElement
-          ? `${[...node.classList].filter((name) => !name.startsWith("xterm-cursor")).join(" ")}|${node.style.cssText}`
-          : "";
-      for (const char of node.textContent ?? "") cells.push(`${char}${look}`);
-    }
-    return cells;
-  };
-  const snapshot = () => [...rowsElement.children].map(cellsOf);
-  let before = snapshot();
-  let queued = false;
-  const compare = () => {
-    queued = false;
+  const rendered = (told: unknown, count: unknown) => {
     if (signal.aborted) return;
-    const after = snapshot();
+    const written = z.number().safeParse(count).data ?? 0;
+    const parsed = Written.safeParse(told);
+    if (!written || !parsed.success) return;
+    onWritten?.(written);
+    if (!shows()) return;
     const box = screen.getBoundingClientRect();
     const width = box.width / columns;
     const height = box.height / rows;
-    const runs: Run[] = [];
-    let written = 0;
-    after.forEach((cells, y) => {
-      const old = before[y] ?? [];
-      let start = -1;
-      for (let x = 0; x <= columns; x++) {
-        const changed = x < columns && (cells[x] ?? "") !== (old[x] ?? "");
-        if (changed) written++;
-        if (changed && start < 0) start = x;
-        if (!changed && start >= 0) {
-          runs.push([y, start, x - start]);
-          start = -1;
-        }
-      }
-    });
-    before = after;
-    if (!written) return;
-    onWritten?.(written);
-    if (!shows()) return;
+    const runs = parsed.data.map(({ row, column, length }): Run => [row, column, length]);
     // Dimmer and shorter as more of the screen changes at once.
     const glow = strength(written, total);
     const lasting = Math.round(GLOW_MS * Math.max(SHORTEST_GLOW, glow));
@@ -102,19 +76,9 @@ export function glowWrites({
       layer.append(cell);
     }
   };
-  const watch = new MutationObserver(() => {
-    if (queued) return;
-    queued = true;
-    requestAnimationFrame(compare);
-  });
-  watch.observe(rowsElement, {
-    childList: true,
-    subtree: true,
-    characterData: true,
-    attributes: true,
-  });
+  const stop: unknown = Reflect.apply(subscribe, inner, [rendered]);
   signal.addEventListener("abort", () => {
-    watch.disconnect();
+    if (typeof stop === "function") Reflect.apply(stop, inner, []);
     layer.replaceChildren();
   });
 }

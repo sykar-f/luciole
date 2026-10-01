@@ -16,8 +16,10 @@ let context: OffscreenCanvasRenderingContext2D | null | undefined;
 
 /**
  * The grid of `columns` by `rows` cells at its largest font no wider than `room` pixels, as
- * xterm.js measures its font (canvas text metrics) and rounds its cells (DOM renderer, to
- * the device pixel); undefined where the browser does not measure fonts that way.
+ * xterm.js measures its font (canvas text metrics) and its GPU renderer rounds its cells:
+ * each a whole device pixel wide and high (the DOM renderer, which the runtime falls back
+ * on without WebGL2, keeps a fractional width: a grid a few pixels wider); undefined where
+ * the browser does not measure fonts that way.
  */
 export function gridSize(columns: number, rows: number, room: number): GridSize | undefined {
   context ??=
@@ -29,13 +31,14 @@ export function gridSize(columns: number, rows: number, room: number): GridSize 
     context.font = `${fontSize}px ${FONTS}`;
     const metrics = context.measureText("W");
     if (!("fontBoundingBoxAscent" in metrics)) return undefined;
-    const char = Math.ceil(
-      (metrics.fontBoundingBoxAscent + metrics.fontBoundingBoxDescent) * ratio,
-    );
+    const cell = {
+      width: Math.floor(metrics.width * ratio),
+      height: Math.ceil((metrics.fontBoundingBoxAscent + metrics.fontBoundingBoxDescent) * ratio),
+    };
     return {
       fontSize,
-      width: Math.round(metrics.width * columns),
-      height: Math.round((char * rows) / ratio),
+      width: Math.round((cell.width * columns) / ratio),
+      height: Math.round((cell.height * rows) / ratio),
     };
   };
   for (let fontSize = LARGEST_FONT; fontSize >= SMALLEST_FONT; fontSize -= FONT_STEP) {
