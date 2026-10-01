@@ -6,11 +6,13 @@
  * For each directory: `bun pm pack` into a temporary directory (which runs `prepack`),
  * then fails unless
  *   - the tarball's package.json holds no `workspace:` or `catalog:` spec;
- *   - every target of `exports`, `types`, `main` and `bin` exists in the tarball;
- *   - the tarball holds no test and nothing outside `files` (package.json, README and
- *     LICENSE aside);
+ *   - every target of `exports` (`*` patterns expanded; one matching nothing fails), `types`,
+ *     `main` and `bin` exists in the tarball;
+ *   - the tarball holds no test and nothing outside `files` (paths, directories, globs and
+ *     `!` exclusions; package.json, README and LICENSE aside);
  *   - the tarball installs in a temporary project (with the peers) and every export
- *     imports, once under `node` and once under `bun`.
+ *     imports, once under `node` and once under `bun`, every public subpath (JSON ones with
+ *     import attributes); an export no import can load fails rather than being skipped.
  * Prints one line per check and exits 0 when every package passes, 1 otherwise.
  * Installing reaches the npm registry for the package's own dependencies.
  *
@@ -62,28 +64,105 @@ export function unresolvedSpecs(manifest: Json): string[] {
   return found;
 }
 
-/** Every file path an `exports` value, `types`, `main` or `bin` points at. */
-export function manifestTargets(manifest: Json): string[] {
+/** Every file path `types`, `main`, `module` and `bin` point at. */
+export function fieldTargets(manifest: Json): string[] {
   const targets: string[] = [];
   const walk = (value: unknown): void => {
     if (typeof value === "string") targets.push(value);
     else if (Array.isArray(value)) value.forEach(walk);
     else if (value && typeof value === "object") Object.values(value).forEach(walk);
   };
-  walk(manifest.exports);
   walk(manifest.bin);
   for (const field of ["types", "typings", "main", "module"]) walk(manifest[field]);
   return targets;
 }
 
-/** The subpaths `exports` makes importable (patterns with `*` and non-JS files left out). */
-export function importableSubpaths(manifest: Json): string[] {
-  const exports = manifest.exports;
-  if (typeof exports === "string") return ["."];
-  if (!exports || typeof exports !== "object") return manifest.main ? ["."] : [];
-  const keys = Object.keys(exports);
-  if (!keys.some((key) => key.startsWith("."))) return ["."];
-  return keys.filter((key) => !key.includes("*") && !key.endsWith(".json"));
+// What `import()` can load: scripts and JSON. A declaration file is not one.
+const IMPORTABLE = /(?<!\.d)\.(m?[jt]sx?|c[jt]s|json)$/;
+
+/** The leaf strings of an `exports` value, conditions and arrays flattened (null skipped). */
+function leaves(value: unknown): string[] {
+  if (typeof value === "string") return [value];
+  if (Array.isArray(value)) return value.flatMap(leaves);
+  if (value && typeof value === "object") return Object.values(value).flatMap(leaves);
+  return [];
+}
+
+export type ExportMap = {
+  /** Public subpath (`.`, `./x`) to the concrete files it can resolve to, wildcards expanded. */
+  subpaths: Map<string, string[]>;
+  /** Targets that match no file of the tarball. */
+  problems: string[];
+};
+
+/**
+ * The public subpaths of `exports` and their target files, with each `*` pattern expanded
+ * against the tarball's `entries`; a target that matches nothing is a problem.
+ */
+export function resolveExports(manifest: Json, entries: readonly string[]): ExportMap {
+  const subpaths = new Map<string, string[]>();
+  const problems: string[] = [];
+  const raw = manifest.exports;
+  const isMap =
+    raw !== null &&
+    typeof raw === "object" &&
+    !Array.isArray(raw) &&
+    Object.keys(raw).some((key) => key.startsWith("."));
+  const map: Record<string, unknown> = isMap
+    ? Object.fromEntries(Object.entries(raw))
+    : raw === undefined
+      ? typeof manifest.main === "string"
+        ? { ".": manifest.main }
+        : {}
+      : { ".": raw };
+  const present = new Set(entries.map((entry) => normalize(entry)));
+  for (const [key, value] of Object.entries(map)) {
+    for (const leaf of leaves(value)) {
+      const target = normalize(leaf);
+      if (!key.includes("*") && !target.includes("*")) {
+        if (!present.has(target)) problems.push(`target ${leaf} (${key}) is not in the tarball`);
+        subpaths.set(key, [...(subpaths.get(key) ?? []), target]);
+        continue;
+      }
+      const star = target.indexOf("*");
+      const pattern = new RegExp(
+        `^${target
+          .split("*")
+          .map((part) => part.replace(/[.+?^${}()|[\]\\]/g, "\\$&"))
+          .join("(.*)")}$`,
+      );
+      let matched = false;
+      for (const entry of present) {
+        const hit = star === -1 ? null : pattern.exec(entry);
+        if (!hit) continue;
+        matched = true;
+        const sub = key.split("*").join(hit[1] ?? "");
+        subpaths.set(sub, [...(subpaths.get(sub) ?? []), entry]);
+      }
+      if (!matched) problems.push(`pattern ${leaf} (${key}) matches nothing in the tarball`);
+    }
+  }
+  return { subpaths, problems };
+}
+
+function matchesPattern(entry: string, pattern: string): boolean {
+  const clean = normalize(pattern.replace(/^\//, "")).replace(/\/$/, "");
+  return (
+    entry === clean ||
+    entry.startsWith(`${clean}/`) ||
+    new Bun.Glob(clean).match(entry) ||
+    new Bun.Glob(`${clean}/**`).match(entry)
+  );
+}
+
+/** Whether npm's `files` (paths, directories, globs, `!` exclusions) lets `entry` in. */
+export function inFiles(entry: string, files: readonly string[]): boolean {
+  const positive = files.filter((f) => !f.startsWith("!"));
+  const negative = files.filter((f) => f.startsWith("!")).map((f) => f.slice(1));
+  return (
+    positive.some((f) => matchesPattern(entry, f)) &&
+    !negative.some((f) => matchesPattern(entry, f))
+  );
 }
 
 /** What is wrong with the package at `dir`; empty when it packs, installs and imports. */
@@ -110,13 +189,14 @@ export async function checkPackage(dir: string, log: (line: string) => void): Pr
 
     for (const spec of unresolvedSpecs(manifest)) problems.push(`unresolved spec ${spec}`);
 
-    const present = new Set(entries);
-    for (const target of manifestTargets(manifest)) {
-      if (target.includes("*")) continue;
+    const exported = resolveExports(manifest, entries);
+    problems.push(...exported.problems);
+    const present = new Set(entries.map((entry) => normalize(entry)));
+    for (const target of fieldTargets(manifest)) {
       if (!present.has(normalize(target))) problems.push(`target ${target} is not in the tarball`);
     }
 
-    const files = (manifest.files ?? []).map((f) => normalize(f));
+    const files = manifest.files ?? [];
     const always =
       /^(package\.json|readme(\.[a-z]+)?|licen[cs]e(\.[a-z]+)?|changelog(\.[a-z]+)?)$/i;
     for (const entry of entries) {
@@ -125,8 +205,7 @@ export async function checkPackage(dir: string, log: (line: string) => void): Pr
         /(^|\/)(tests?|__tests__)\//.test(entry)
       )
         problems.push(`test in the tarball: ${entry}`);
-      const inFiles = files.some((f) => entry === f || entry.startsWith(`${f}/`));
-      if (!inFiles && !always.test(entry)) problems.push(`outside files: ${entry}`);
+      if (!inFiles(entry, files) && !always.test(entry)) problems.push(`outside files: ${entry}`);
     }
     log(`${name}: tarball ${tarball}, ${entries.length} files`);
     if (problems.length > 0) return problems;
@@ -145,10 +224,16 @@ export async function checkPackage(dir: string, log: (line: string) => void): Pr
     );
     const installed = await run(["bun", "install"], consumer);
     if (installed.code !== 0) return [`install failed: ${installed.out}`];
-    for (const sub of importableSubpaths(manifest)) {
+    for (const [sub, targets] of exported.subpaths) {
+      const importable = targets.filter((target) => IMPORTABLE.test(target));
+      if (importable.length === 0) {
+        problems.push(`export ${sub} points at no file import() can load: ${targets.join(", ")}`);
+        continue;
+      }
       const specifier = sub === "." ? name : `${name}/${sub.slice(2)}`;
+      const json = importable.every((target) => target.endsWith(".json"));
+      const code = `await import(${JSON.stringify(specifier)}${json ? ', { with: { type: "json" } }' : ""})`;
       for (const runtime of ["node", "bun"]) {
-        const code = `await import(${JSON.stringify(specifier)})`;
         const args =
           runtime === "node" ? ["node", "--input-type=module", "-e", code] : ["bun", "-e", code];
         const imported = await run(args, consumer);
