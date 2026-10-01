@@ -5,8 +5,8 @@
 // only requests wait. Whatever the reader does in one
 // is replayed in the other (docs/WEB.md, "Page embarquée", `typed`), and the page's largest
 // type is not a claim but a measure: how long each screen took, from the key to its cells.
-// One screen stands in front, the other floats behind it, still in sight: a click brings
-// it forward.
+// Each keeps its side; one stands in front, the other a step behind it, still in sight: a
+// click brings it forward, on its own side.
 import HeroField from "./HeroField.astro";
 import Screen from "./Screen.astro";
 import { frame } from "../lib/frames";
@@ -62,7 +62,7 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
       </h1>
       <p class="sub">
         luciole splits your React app in two: Server Components render next to your data, the client
-        runs in your terminal.
+        runs in your terminal, smooth at any ping.
       </p>
       <div class="actions">
         <a class="button primary" href="#start">Start a project</a>
@@ -554,33 +554,35 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
     margin: 0;
   }
 
-  /* Wide: a stage. The screen in front, on the right, at its full size and flat, so its
-     cells stay sharp; the other behind it, up and to the left, smaller and turned toward
-     it, its right edge under the front one: its list, its title and its measure in sight.
-     Both are laid out at the front's size and only the transform differs: trading places
-     is a transition, and the live terminals never refit on the way. */
+  /* Wide: a stage. Each screen keeps its side, the classic one left and luciole's right,
+     so the comparison reads the same whatever is in front. The one in front is at its full
+     size and flat, so its cells stay sharp; the other steps back on its own side, a little
+     smaller, dimmer and turned toward the middle, where the two overlap slightly. Both are
+     laid out at the same size and only the transform differs: trading places is a
+     transition, and the live terminals never refit on the way. */
   @media (min-width: 761px) {
     .pair {
-      /* How large the screen behind is, against the front one. */
-      --behind: 0.74;
-      /* How far the screen behind rises over the front one's top: room kept above. */
-      --rise: clamp(14px, 2vw, 24px);
-      container-type: inline-size;
       grid-template-columns: 1fr;
-      padding-top: var(--rise);
     }
 
-    /* The screen in front takes about two thirds of the width, less in a short window: its
-       measure, under it, stays in the first view (what the title and the controls leave of
-       the window's height, at the frame's proportions). */
+    /* A little more than half the width each, less in a short window: the measure under
+       the screen in front stays in the first view (what the title and the controls leave
+       of the window's height, at the frame's proportions). */
     .pane {
       grid-area: 1 / 1;
+      width: max(50%, min(56%, calc((100svh - 500px) * 1.91 + 18px)));
+      transition: transform 0.6s cubic-bezier(0.3, 0.7, 0.2, 1);
+    }
+
+    /* Each steps back toward its outer edge: the overlap in the middle only shrinks. */
+    .ssh {
+      justify-self: start;
+      transform-origin: 0 50%;
+    }
+
+    .luciole {
       justify-self: end;
-      width: max(56%, min(64%, calc((100svh - 528px) * 1.91 + 18px)));
-      transform-origin: 0 0;
-      transition:
-        transform 0.7s cubic-bezier(0.3, 0.7, 0.2, 1),
-        z-index 0.7s cubic-bezier(0.3, 0.7, 0.2, 1);
+      transform-origin: 100% 50%;
     }
 
     .pane[data-depth="front"] {
@@ -589,8 +591,34 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
 
     .pane[data-depth="back"] {
       z-index: 1;
-      transform: translateX(calc(100% - 100cqw)) translateY(calc(-1 * var(--rise)))
-        scale(var(--behind)) perspective(1400px) rotateY(14deg);
+    }
+
+    .ssh[data-depth="back"] {
+      transform: perspective(1600px) rotateY(7deg) scale(0.9);
+    }
+
+    .luciole[data-depth="back"] {
+      transform: perspective(1600px) rotateY(-7deg) scale(0.9);
+    }
+
+    /* The overlap is in the middle: each screen's name and measure sit on its outer edge,
+       in sight whichever screen is in front. */
+    .luciole .tag {
+      right: 16px;
+      left: auto;
+    }
+
+    .luciole .reading {
+      right: 0;
+    }
+
+    /* The measure behind is drawn smaller with its screen, and dimmer. */
+    .reading {
+      transition: opacity 0.6s ease;
+    }
+
+    .pane[data-depth="back"] .reading {
+      opacity: 0.55;
     }
 
     /* Over the screen behind, a cover that takes the click bringing it forward: the app
@@ -600,13 +628,13 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
       z-index: 4;
       inset: 0;
       border-radius: 4px;
-      background: color-mix(in srgb, var(--night) 30%, transparent);
+      background: color-mix(in srgb, var(--night) 22%, transparent);
       cursor: pointer;
       transition: background-color 0.2s ease;
     }
 
     .raise:hover {
-      background: color-mix(in srgb, var(--night) 8%, transparent);
+      background: color-mix(in srgb, var(--night) 6%, transparent);
     }
 
     .pane[data-depth="front"] .raise {
@@ -615,7 +643,8 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
   }
 
   @media (min-width: 761px) and (prefers-reduced-motion: reduce) {
-    .pane {
+    .pane,
+    .reading {
       transition: none;
     }
   }
