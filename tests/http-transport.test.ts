@@ -144,6 +144,33 @@ test("simulated latency validates configuration and respects the request timeout
   expect(called).toBe(false);
 });
 
+// The Server may well run an action the Client has given up on: the outcome is unknown.
+test("an action still running when the timeout passes is unknown, and the Server finishes it", async () => {
+  const release = Promise.withResolvers<void>();
+  let handler: Promise<void> | undefined;
+  let saved = false;
+  // A Server whose handler starts as the request arrives and ends when the test says so,
+  // whether or not anyone still waits for its answer.
+  const fetch: Fetch = (_url, init) => {
+    handler = release.promise.then(() => {
+      saved = true;
+    });
+    return new Promise<Response>((_resolve, reject) => {
+      const signal = init.signal;
+      signal?.addEventListener("abort", () => reject(signal.reason));
+    });
+  };
+  const transport = createHttpTransport({ ...base, timeoutMs: 1, fetch });
+  // Nothing but the timeout ends the wait: the handler is held until it has passed.
+  const error = await rejectionOf(transport.call("actions/a.ts#run", []));
+  expect(error).toBeInstanceOf(TransportError);
+  expect(error instanceof TransportError && error.outcome).toBe("unknown");
+  expect(saved).toBe(false);
+  release.resolve();
+  await handler;
+  expect(saved).toBe(true);
+});
+
 // A Server Function's answer is checked before its value is used: the envelope the
 // Server writes (src/server.ts), for this call, with string paths only.
 test("an action response outside the envelope schema is a TransportError", async () => {
