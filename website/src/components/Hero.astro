@@ -5,18 +5,33 @@
 // only requests wait. Whatever the reader does in one
 // is replayed in the other (docs/WEB.md, "Page embarquée", `typed`), and the page's largest
 // type is not a claim but a measure: how long each screen took, from the key to its cells.
+// One screen stands in front, the other floats behind it, still in sight: a click brings
+// it forward.
 import HeroField from "./HeroField.astro";
 import Screen from "./Screen.astro";
 import { frame } from "../lib/frames";
 
 const COLUMNS = 84;
 const ROWS = 24;
-const look = new URLSearchParams({ columns: String(COLUMNS), rows: String(ROWS), restore: "off" });
+/** The note both screens open on: the duel shows Notes at work, not asking for a note. */
+const OPEN = "/notes/1";
+const look = new URLSearchParams({
+  columns: String(COLUMNS),
+  rows: String(ROWS),
+  restore: "off",
+  path: OPEN,
+});
 const src = `/demo/notes/index.html?${look}`;
+/** luciole's screen in front: the reader's first key lands where it answers at once, and the
+ *  classic one, behind, shows the same key arriving a round trip later. */
 const sides = [
-  { id: "ssh", name: "Classic TUI", tag: "over SSH" },
-  { id: "luciole", name: "luciole app", tag: "over SSH" },
+  { id: "ssh", name: "Classic TUI", tag: "over SSH", depth: "back" },
+  { id: "luciole", name: "luciole app", tag: "over SSH", depth: "front" },
 ];
+/** The height of a cell of the live terminal, in ems of its font, about what xterm.js draws
+ *  with the runtime's fonts: the frame's proportions until the script measures the exact
+ *  cell (`fit`), or without it. */
+const LINE = 1.2;
 /** The round trip both screens start with, and how far the reader's slider takes it. */
 const PING = { value: 500, min: 20, max: 1000, step: 10 };
 const notes = frame("notes");
@@ -25,7 +40,14 @@ const notes = frame("notes");
 const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resizing"];
 ---
 
-<section class="hero" id="top" data-duel data-columns={COLUMNS} data-rows={ROWS}>
+<section
+  class="hero"
+  id="top"
+  data-duel
+  data-columns={COLUMNS}
+  data-rows={ROWS}
+  style={`--columns:${COLUMNS};--rows:${ROWS};--cell-line:${LINE}`}
+>
   <HeroField />
   <div class="wrap">
     <div class="top">
@@ -48,16 +70,23 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
       </div>
     </div>
 
-    <label class="ping" data-ping-control>
-      Same ping for both
-      <input type="range" data-ping min={PING.min} max={PING.max} step={PING.step} value={PING.value} />
-      <output data-ping-value>{PING.value} ms</output>
-    </label>
+    <div class="controls">
+      <label class="ping" data-ping-control>
+        Same ping for both
+        <input type="range" data-ping min={PING.min} max={PING.max} step={PING.step} value={PING.value} />
+        <output data-ping-value>{PING.value} ms</output>
+      </label>
+      <label class="switch">
+        <input type="checkbox" role="switch" data-afterglow checked />
+        <span class="track" aria-hidden="true"></span>
+        Afterglow
+      </label>
+    </div>
 
     <div class="pair">
       {
         sides.map((side) => (
-          <figure class:list={["pane", side.id]} data-pane={side.id}>
+          <figure class:list={["pane", side.id]} data-pane={side.id} data-depth={side.depth}>
             <figcaption class="tag">
               <b>{side.name}</b> · {side.tag}
             </figcaption>
@@ -67,6 +96,7 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
                 <div class="glows" data-glows aria-hidden="true" />
               </div>
             </div>
+            <div class="raise" data-raise aria-hidden="true" />
             <p class="reading" aria-live="polite">
               <output data-ms />
               <span class="unit">ms</span>
@@ -83,6 +113,7 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
 
 <script>
   import * as z from "zod/mini";
+  import { gridSize } from "../lib/cells";
   import { glowWrites } from "../lib/glow";
   import { overscroll } from "../lib/overscroll";
   import { screenColours } from "../lib/recolor";
@@ -93,6 +124,8 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
 
   /** A key its screen has not answered this long after it reached it changed nothing. */
   const ANSWER_MS = 250;
+  /** How wide a cell of the capture is, in ems of its font: JetBrains Mono's advance. */
+  const CAPTURE_CELL = 0.6;
   /** Below this width, two 84-column screens are too small to use: their captures stay. */
   const NARROW = "(max-width: 760px)";
   const ESC = "\u001b";
@@ -122,12 +155,81 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
 
   const root = document.querySelector<HTMLElement>("[data-duel]");
   const saving = Connection.safeParse(Reflect.get(navigator, "connection")).data?.saveData === true;
-  if (root && !matchMedia(NARROW).matches && !saving) duel(root);
+  if (root) {
+    fit(root);
+    const raise = stage(root);
+    if (!matchMedia(NARROW).matches && !saving) duel(root, raise);
+  }
 
-  function duel(root: HTMLElement) {
+  /** Where the reader types in a screen: its terminal's input, in the frame (same origin). */
+  const keyboard = (pane: HTMLElement) => {
+    const frame = pane.querySelector("iframe");
+    frame?.focus({ preventScroll: true });
+    frame?.contentDocument
+      ?.querySelector<HTMLElement>(".xterm-helper-textarea")
+      ?.focus({ preventScroll: true });
+  };
+
+  /**
+   * Each frame exactly as large as its grid at the size the runtime will draw it at
+   * (lib/cells.ts): the capture is drawn on those cells, and the live terminal, a margin
+   * larger on each side, fits that size and no other. Both screens share it: the one
+   * behind is laid out as the front one and only drawn smaller.
+   */
+  function fit(root: HTMLElement) {
+    const columns = Number(root.dataset.columns);
+    const rows = Number(root.dataset.rows);
+    const pane = root.querySelector<HTMLElement>("[data-pane]");
+    const glass = pane?.querySelector<HTMLElement>(".glass");
+    if (!pane || !glass) return;
+    const size = () => {
+      const look = getComputedStyle(glass);
+      const chrome = ["paddingLeft", "paddingRight", "borderLeftWidth", "borderRightWidth"] as const;
+      const room = pane.clientWidth - chrome.reduce((sum, side) => sum + parseFloat(look[side]), 0);
+      const grid = gridSize(columns, rows, room);
+      if (!grid) return;
+      // The capture's font fills the width: its rows take the height.
+      const capture = grid.width / columns / CAPTURE_CELL;
+      root.style.setProperty("--grid-width", `${grid.width}px`);
+      root.style.setProperty("--grid-height", `${grid.height}px`);
+      root.style.setProperty("--cell-line", String(grid.height / rows / capture));
+      root.dataset.sized = "";
+    };
+    size();
+    new ResizeObserver(size).observe(pane);
+  }
+
+  /**
+   * One screen in front, the other floating behind it (the styles below). A click on the
+   * one behind brings it forward and gives it the keyboard: that click lands on a cover
+   * over the screen, never in the app. Returns how to bring a screen forward.
+   */
+  function stage(root: HTMLElement) {
+    const panes = [...root.querySelectorAll<HTMLElement>("[data-pane]")];
+    const raise = (pane: HTMLElement) => {
+      if (pane.dataset.depth === "front") return;
+      for (const each of panes) each.dataset.depth = each === pane ? "front" : "back";
+    };
+    for (const pane of panes)
+      pane.querySelector("[data-raise]")?.addEventListener("click", () => {
+        raise(pane);
+        keyboard(pane);
+      });
+    return raise;
+  }
+
+  function duel(root: HTMLElement, raise: (pane: HTMLElement) => void) {
     const columns = Number(root.dataset.columns);
     const rows = Number(root.dataset.rows);
     const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    // The afterglow is motion: off for a reader who asks for less, until they switch it on.
+    const afterglow = root.querySelector<HTMLInputElement>("[data-afterglow]");
+    if (afterglow && still) afterglow.checked = false;
+    const glowing = () => afterglow?.checked ?? !still;
+    afterglow?.addEventListener("change", () => {
+      if (glowing()) return;
+      for (const layer of root.querySelectorAll("[data-glows]")) layer.replaceChildren();
+    });
     const { background, foreground } = screenColours();
     const frames: HTMLIFrameElement[] = [];
     for (const holder of root.querySelectorAll<HTMLElement>("[data-frame]")) {
@@ -180,6 +282,13 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
       // Once drawn: the poster goes, the cells the app rewrites glow and are timed, and the
       // round trip sits before each key (SSH) or each request (luciole).
       if (Drawn.safeParse(event.data).success) {
+        // The grid in the middle of its frame: what the font's steps leave over is shared
+        // between the four sides, as around the capture it replaces.
+        const centre = frame.contentDocument?.createElement("style");
+        if (centre) {
+          centre.textContent = "#luciole { display: grid; place-content: center }";
+          frame.contentDocument?.head.append(centre);
+        }
         frame.parentElement?.classList.add("on");
         const signal = new AbortController().signal;
         // A turn of the wheel the app has nothing left to scroll for goes on to the page:
@@ -190,10 +299,11 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
         if (layer)
           glowWrites({
             frame,
-            layer: still ? document.createElement("div") : layer,
+            layer,
             columns,
             rows,
             signal,
+            shows: glowing,
             onWritten: () => measured(frame),
           });
         return void network(frame);
@@ -221,10 +331,14 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
       }
     });
 
-    // Which screen has the reader's hands: the frame the focus went into.
+    // Which screen has the reader's hands: the frame the focus went into. Reached with the
+    // keyboard, the screen behind comes forward.
     const mark = () => {
-      for (const pane of root.querySelectorAll<HTMLElement>("[data-pane]"))
-        pane.classList.toggle("held", pane.contains(document.activeElement));
+      for (const pane of root.querySelectorAll<HTMLElement>("[data-pane]")) {
+        const held = pane.contains(document.activeElement);
+        pane.classList.toggle("held", held);
+        if (held) raise(pane);
+      }
     };
     addEventListener("blur", () => setTimeout(mark));
     addEventListener("focus", mark);
@@ -308,16 +422,23 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
     gap: 12px;
   }
 
-  /* One ping for both screens, set between them and the title: the only thing the reader
-     changes about the network. */
-  .ping {
+  /* Between the screens and the title, what the reader sets for both: one ping, the only
+     thing they change about the network, and whether rewritten cells glow. */
+  .controls {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: center;
-    gap: 1.5ch;
+    gap: 12px 5ch;
     margin-bottom: 28px;
     font: 400 0.8rem / 1.4 var(--mono);
     color: var(--mist);
+  }
+
+  .ping {
+    display: flex;
+    align-items: center;
+    gap: 1.5ch;
   }
 
   .ping input {
@@ -368,6 +489,58 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
     font-variant-numeric: tabular-nums;
   }
 
+  /* The afterglow's switch, drawn as the slider is: a thin rule, a block of paper. The
+     checkbox under it stays the control (keyboard, label, state). */
+  .switch {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 1.5ch;
+    cursor: pointer;
+  }
+
+  .switch input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: 0;
+    opacity: 0;
+  }
+
+  .track {
+    position: relative;
+    width: 26px;
+    height: 14px;
+    border: 1px solid var(--rule-strong);
+  }
+
+  .track::after {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 8px;
+    height: 8px;
+    background: var(--mist);
+    transition:
+      transform 0.15s ease,
+      background-color 0.15s ease;
+  }
+
+  .switch input:checked + .track::after {
+    transform: translateX(12px);
+    background: var(--paper);
+  }
+
+  .switch input:focus-visible + .track {
+    outline: 2px solid var(--dominant);
+    outline-offset: 4px;
+  }
+
+  .switch:has(input:checked) {
+    color: var(--paper);
+  }
+
   .pair {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -377,7 +550,74 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
   .pane {
     position: relative;
     display: grid;
+    min-width: 0;
     margin: 0;
+  }
+
+  /* Wide: a stage. The screen in front, on the right, at its full size and flat, so its
+     cells stay sharp; the other behind it, up and to the left, smaller and turned toward
+     it, its right edge under the front one: its list, its title and its measure in sight.
+     Both are laid out at the front's size and only the transform differs: trading places
+     is a transition, and the live terminals never refit on the way. */
+  @media (min-width: 761px) {
+    .pair {
+      /* How large the screen behind is, against the front one. */
+      --behind: 0.74;
+      /* How far the screen behind rises over the front one's top: room kept above. */
+      --rise: clamp(14px, 2vw, 24px);
+      container-type: inline-size;
+      grid-template-columns: 1fr;
+      padding-top: var(--rise);
+    }
+
+    /* The screen in front takes about two thirds of the width, less in a short window: its
+       measure, under it, stays in the first view (what the title and the controls leave of
+       the window's height, at the frame's proportions). */
+    .pane {
+      grid-area: 1 / 1;
+      justify-self: end;
+      width: max(56%, min(64%, calc((100svh - 528px) * 1.91 + 18px)));
+      transform-origin: 0 0;
+      transition:
+        transform 0.7s cubic-bezier(0.3, 0.7, 0.2, 1),
+        z-index 0.7s cubic-bezier(0.3, 0.7, 0.2, 1);
+    }
+
+    .pane[data-depth="front"] {
+      z-index: 2;
+    }
+
+    .pane[data-depth="back"] {
+      z-index: 1;
+      transform: translateX(calc(100% - 100cqw)) translateY(calc(-1 * var(--rise)))
+        scale(var(--behind)) perspective(1400px) rotateY(14deg);
+    }
+
+    /* Over the screen behind, a cover that takes the click bringing it forward: the app
+       under it never hears that click. It dims the screen a little, less when pointed at. */
+    .raise {
+      position: absolute;
+      z-index: 4;
+      inset: 0;
+      border-radius: 4px;
+      background: color-mix(in srgb, var(--night) 30%, transparent);
+      cursor: pointer;
+      transition: background-color 0.2s ease;
+    }
+
+    .raise:hover {
+      background: color-mix(in srgb, var(--night) 8%, transparent);
+    }
+
+    .pane[data-depth="front"] .raise {
+      display: none;
+    }
+  }
+
+  @media (min-width: 761px) and (prefers-reduced-motion: reduce) {
+    .pane {
+      transition: none;
+    }
   }
 
   /* Each screen's name and link, set in its top edge like a window title. */
@@ -442,11 +682,18 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
     color: var(--mist);
   }
 
+  /* Around the cells, the margin the runtime's page keeps around its terminal (web/index.html,
+     #luciole): the live frame covers it, the capture sits inside it. It is also what lets
+     the runtime fit the grid beside its scroll bar (14px) without fitting a larger one. */
   .glass {
-    padding: 8px;
+    --margin: 8px;
+    padding: var(--margin);
     border: 1px solid var(--rule-strong);
     border-radius: 4px;
     background: var(--screen);
+    box-shadow:
+      0 2px 6px rgb(0 0 0 / 0.35),
+      0 28px 60px -18px rgb(0 0 0 / 0.7);
     cursor: text;
   }
 
@@ -459,9 +706,22 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
     outline-offset: 3px;
   }
 
-  /* The capture holds the place and the size until the app has drawn over it. */
+  /* The cells and nothing else: the frame is as wide and high as the grid, at the live
+     terminal's cell. The capture holds the place until the app has drawn over it. */
   .frame {
     position: relative;
+    aspect-ratio: calc(var(--columns) * 0.6) / calc(var(--rows) * var(--cell-line));
+  }
+
+  /* Sized by the script to the live grid (fit): the glass wraps it. */
+  [data-sized] .glass {
+    justify-self: center;
+  }
+
+  [data-sized] .frame {
+    width: var(--grid-width);
+    height: var(--grid-height);
+    aspect-ratio: auto;
   }
 
   .frame :global(.bar) {
@@ -470,13 +730,28 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
 
   .frame :global(.term) {
     margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: none;
+  }
+
+  .frame :global(.screen) {
+    overflow: hidden;
+    padding: 0;
+    border-radius: 0;
+  }
+
+  .frame :global(.grid) {
+    margin: 0;
+    font-size: calc(100cqw / var(--cols) / 0.6);
   }
 
   .frame :global(iframe) {
     position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
+    inset: calc(-1 * var(--margin));
+    width: calc(100% + 2 * var(--margin));
+    height: calc(100% + 2 * var(--margin));
     border: 0;
     background: var(--screen);
     opacity: 0;
@@ -497,7 +772,7 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
   .glows {
     position: absolute;
     z-index: 2;
-    inset: 0;
+    inset: calc(-1 * var(--margin));
     overflow: hidden;
     pointer-events: none;
   }
@@ -550,7 +825,7 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
     }
 
     .reading,
-    .ping {
+    .controls {
       display: none;
     }
 

@@ -1,9 +1,9 @@
 /**
  * The web runtime framed by a page of its origin (docs/WEB.md, "Page embarquée"), as the
  * landing page frames its live demos: the page hears the start stage by stage, fixes the
- * grid, types into the terminal, puts the round trip before the keys, and asks whether the
- * wheel still scrolls something under a point; a frame of another origin types nothing. Builds
- * examples/notes with `--web-local`.
+ * grid and the route it opens on, types into the terminal, puts the round trip before the
+ * keys, and asks whether the wheel still scrolls something under a point; a frame of another
+ * origin types nothing. Builds examples/notes with `--web-local`.
  *   bun run test:web:embed
  */
 import { join } from "node:path";
@@ -122,6 +122,9 @@ try {
   report.restored = !!(await browser.waitFor(frameShows("Getting around"), "the restored note"));
   await reopen(`${look}&restore=off`);
   report.notRestored = !!(await browser.waitFor(frameShows("No note selected"), "no note open"));
+  // `path`: with nothing restored, the route it opens on, as the landing page's duel does.
+  await reopen(`${look}&restore=off&path=/notes/1`);
+  report.openedPath = !!(await browser.waitFor(frameShows("Getting around"), "the note asked for"));
 
   // The wheel's room, as the page asks for it at a point of the frame: the list scrolls
   // down from its top, the toolbar and the empty note scroll nothing; once the list has
@@ -186,6 +189,7 @@ const expected = {
   roomOverToolbar: JSON.stringify({ up: false, down: false }),
   roomOverEmptyNote: JSON.stringify({ up: false, down: false }),
   roomOverScrolledList: JSON.stringify({ up: true, down: true }),
+  openedPath: true,
   otherOriginDrawn: true,
   otherOriginTyped: false,
   otherOriginHeard: 0,

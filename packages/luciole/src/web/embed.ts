@@ -170,6 +170,16 @@ export type Look = { grid?: Grid; background?: string; foreground?: string };
 export const restoreOf = (search: string) => new URLSearchParams(search).get("restore") !== "off";
 
 /**
+ * `&path=/notes/1`: the route the application opens on, when no session is restored (as
+ * `initialPath`): the landing page's demo shows a note, not the screen asking for one.
+ * Only a path of the application's own: a full URL or `//host` is ignored.
+ */
+export function pathOf(search: string) {
+  const path = new URLSearchParams(search).get("path");
+  return path?.startsWith("/") && !path.startsWith("//") ? path : undefined;
+}
+
+/**
  * `?columns=140&rows=40`: a fixed grid, the font sized to fit it. `&background=0a0f16`,
  * `&foreground=e6edf3`: the terminal's default colours, those of the embedding page's own
  * drawing of the screen, so one replaces the other without a flash.

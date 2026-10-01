@@ -159,6 +159,8 @@ const html = frame.cells
     }
   }
 
+  /* A row is --cell-line em high: a page that lays a live terminal over the capture gives
+     the terminal's, so both grids match. */
   .grid {
     /* JetBrains Mono advances 0.6em: the grid fills the width exactly, never below 6px. */
     position: relative;
@@ -170,7 +172,7 @@ const html = frame.cells
   pre {
     margin: 0;
     color: var(--screen-fg);
-    font: 400 1em / 1.25 var(--term);
+    font: 400 1em / var(--cell-line, 1.25) var(--term);
     font-variant-ligatures: none;
     white-space: pre;
     tab-size: 8;
@@ -178,15 +180,15 @@ const html = frame.cells
 
   pre :global(.row) {
     display: block;
-    height: 1.25em;
+    height: calc(var(--cell-line, 1.25) * 1em);
   }
 
   .region {
     position: absolute;
     left: calc(var(--col) * 0.6em);
-    top: calc(var(--row) * 1.25em);
+    top: calc(var(--row) * var(--cell-line, 1.25) * 1em);
     width: calc(var(--w) * 0.6em);
-    height: calc(var(--h) * 1.25em);
+    height: calc(var(--h) * var(--cell-line, 1.25) * 1em);
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.25s;

@@ -32,10 +32,20 @@ export type GlowOptions = {
   signal: AbortSignal;
   /** Told how many cells each change wrote. */
   onWritten?: (cells: number) => void;
+  /** Whether the cells glow now: told of the changes either way (`onWritten`). */
+  shows?: () => boolean;
 };
 
 /** Makes each cell the frame's application rewrites glow, until `signal` aborts. */
-export function glowWrites({ frame, layer, columns, rows, signal, onWritten }: GlowOptions) {
+export function glowWrites({
+  frame,
+  layer,
+  columns,
+  rows,
+  signal,
+  onWritten,
+  shows = () => true,
+}: GlowOptions) {
   const inner = frame.contentDocument;
   const rowsElement = inner?.querySelector<HTMLElement>(".xterm-rows");
   const screen = inner?.querySelector<HTMLElement>(".xterm-screen");
@@ -80,6 +90,7 @@ export function glowWrites({ frame, layer, columns, rows, signal, onWritten }: G
     before = after;
     if (!written) return;
     onWritten?.(written);
+    if (!shows()) return;
     // Dimmer and shorter as more of the screen changes at once.
     const glow = strength(written, total);
     const lasting = Math.round(GLOW_MS * Math.max(SHORTEST_GLOW, glow));
