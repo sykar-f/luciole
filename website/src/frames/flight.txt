@@ -1,9 +1,9 @@
 1:R
 0:{"tree":"$1","tags":"$@2"}
-1:o3ee,1:"5092b99932870da5145fc0ea/components/NoteEditor.tsx"
+1:o462,1:"c112e8ee53d18b0c55bf0ad3/components/NoteEditor.tsx"
 2:I["$1",[],"NoteEditor"]
-3:{"id":"5092b99932870da5145fc0ea/actions/notes.ts#saveNote","bound":null}
-4:{"id":"5092b99932870da5145fc0ea/actions/notes.ts#getOperation","bound":null}
-0:[["$","$L2","1",{"initialNote":{"id":"1","title":"Welcome to Notes","value":"Notes are written in **Markdown** and kept in *SQLite* on the Server.\n\n## Getting around\n\n- Click anywhere in a note to edit it, then **Done** to read it again\n- Click a title to rename its note\n- **New note** starts a blank one; the search box filters them all\n- Hover a note in the list for its menu, or right-click it\n\n```ts\n// What the list on the left reads, cached until a save invalidates it\nexport async function notesOf(owner: string) {\n  cacheTag(notesTag(owner));\n  return listNotes(owner);\n}\n```\n\n> Changes are saved on their own, a moment after you stop typing.","version":1,"updated":1790154000000},"saveAction":"$h3","resolveAction":"$h4","autosaveMs":1000}]]
+3:{"id":"c112e8ee53d18b0c55bf0ad3/actions/notes.ts#saveNote","bound":null}
+4:{"id":"c112e8ee53d18b0c55bf0ad3/actions/notes.ts#getOperation","bound":null}
+0:[["$","$L2","1",{"initialNote":{"id":"1","title":"Welcome to Notes","value":"Notes are written in **Markdown** and kept in *SQLite* on the Server.\n\n## Getting around\n\n- Click anywhere in a note and write: Markdown turns into what it means as you type it (`**bold**`, `# title`, `- list`)\n- Click a title to rename its note\n- **+**, beside the search, starts a blank note; the search box filters them all\n- **≡** folds the list away, and brings it back\n- Hover a note in the list for its menu, or right-click it\n\n```ts\n// What the list on the left reads, cached until a save invalidates it\nexport async function notesOf(owner: string) {\n  cacheTag(notesTag(owner));\n  return listNotes(owner);\n}\n```\n\n> Changes are saved on their own, a moment after you stop typing.","version":1,"updated":1790154000000},"saveAction":"$h3","resolveAction":"$h4","autosaveMs":1000}]]
 1:C
 2:["note:local:1"]

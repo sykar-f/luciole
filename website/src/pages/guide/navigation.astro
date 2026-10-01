@@ -190,7 +190,7 @@ x-luciole-instance: <clé>             seulement pour une app dans un pane (chap
       <li>Une erreur de rendu arrive en HTTP 200 : le Server a répondu, mais le statut affiche « Disconnected ».</li>
       <li>L'écran d'erreur d'une page émet aussi un événement <code>failure</code> (<code>path</code>, <code>message</code>) : un Client lancé avec un canal IPC (<code>luciole dev</code>, un hôte <code>sandbox</code>) l'envoie à son parent, qui sait ainsi quelle page a échoué et pourquoi. <code>notFound()</code> n'en émet pas : une page introuvable est une réponse, pas un échec.</li>
       <li>Une note absente appelle <code>notFound("Note")</code> : Notes affiche <code>app/notes/[id]/not-found.tsx</code>, qui dit qu'aucune note n'est choisie, sans passer par <code>error.tsx</code>.</li>
-      <li>Échap a deux sens. Pendant le chargement, il annule (un <code>replace</code> vers la page d'avant). Dans une note en cours d'édition, c'est un raccourci caché de <code>NoteEditor</code> qui revient à la lecture, comme « ✓ Done ».</li>
+      <li>Échap a deux sens. Pendant le chargement, il annule (un <code>replace</code> vers la page d'avant). Dans une note en cours d'édition, c'est un raccourci caché de <code>NoteEditor</code> qui sort du texte (et l'enregistre si l'autosave est coupé) : aucun bouton ne le fait, le texte s'écrit là où il se lit.</li>
       <li>La liste n'est pas une page : le layout la lit par la Server Function <code>listNotes</code> et la relit après chaque invalidation (<code>useInvalidation</code>). Ouvrir une note ne la redemande pas.</li>
     </ul>
   </Callout>
