@@ -1,14 +1,17 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, realpathSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
+import parseSpdx from "spdx-expression-parse";
 import { z } from "zod";
 
 // Licence check over everything the published packages ship: the production
-// dependency tree (dependencies, optionalDependencies and the peer dependencies
-// that resolve) of each shipped package, read from the installed
+// dependency tree (dependencies, optionalDependencies and peerDependencies, at
+// every level) of each shipped package, read from the installed
 // `node_modules/**/package.json`. Exits non-zero when a blocking licence (GPL,
-// AGPL, SSPL, missing, "SEE LICENSE IN", unknown) sits in one of those trees.
-// Private workspaces (harness, desktop, examples) are listed apart as non-shipped
-// and never fail the check.
+// AGPL, SSPL, missing, "SEE LICENSE IN", unparsable) sits in one of those trees,
+// or when the tree cannot be proven complete: a required dependency that does not
+// resolve is an error, not a skip. Optional dependencies that are absent (other
+// platforms' binaries) are reported as such. Private workspaces (harness, desktop,
+// examples) are listed apart as non-shipped and never fail the check.
 //
 //   bun scripts/licenses.ts [--root DIR] [--ship PKG_DIR]... [--other PKG_DIR]...
 
@@ -25,6 +28,10 @@ export interface Report {
   dir: string;
   name: string;
   rows: Row[];
+  /** Optional dependencies that are not installed here. */
+  absent: string[];
+  /** Required dependencies (or peers) that do not resolve: the tree is incomplete. */
+  unresolved: string[];
 }
 
 const PERMISSIVE = new Set(
@@ -32,7 +39,6 @@ const PERMISSIVE = new Set(
     "MIT",
     "MIT-0",
     "ISC",
-    "BSD",
     "BSD-2-Clause",
     "BSD-3-Clause",
     "Apache-2.0",
@@ -54,6 +60,9 @@ const Manifest = z.object({
   dependencies: z.record(z.string(), z.string()).optional(),
   optionalDependencies: z.record(z.string(), z.string()).optional(),
   peerDependencies: z.record(z.string(), z.string()).optional(),
+  peerDependenciesMeta: z
+    .record(z.string(), z.object({ optional: z.boolean().optional() }))
+    .optional(),
 });
 type Manifest = z.infer<typeof Manifest>;
 const TypedLicense = z.object({ type: z.string() });
@@ -77,68 +86,78 @@ export function licenseOf(manifest: Manifest): string {
   return one(manifest.license) || one(manifest.licenses);
 }
 
+type Expression = ReturnType<typeof parseSpdx>;
+
+function kindOfLicense(id: string): Kind {
+  if (PERMISSIVE.has(id.toLowerCase())) return "permissive";
+  return NOTICE.test(id) ? "notice" : "blocking";
+}
+
 const rank: Record<Kind, number> = { permissive: 0, notice: 1, blocking: 2 };
 
-/** Classifies an SPDX expression: OR takes the best choice, AND the worst. */
+function kindOfExpression(tree: Expression): Kind {
+  if ("license" in tree) return tree.plus ? "blocking" : kindOfLicense(tree.license);
+  const left = kindOfExpression(tree.left);
+  const right = kindOfExpression(tree.right);
+  // OR: one acceptable branch is enough, the licensee picks it. AND: every branch applies.
+  const [best, worst] = rank[left] <= rank[right] ? [left, right] : [right, left];
+  return tree.conjunction === "or" ? best : worst;
+}
+
+/** Classifies an SPDX expression; anything missing or unparsable is blocking. */
 export function classify(expression: string): Kind {
   const text = expression.trim();
-  if (!text || /^see license/i.test(text) || /^unlicensed$/i.test(text)) return "blocking";
-  const tokens = text.replace(/[()]/g, " ").split(/\s+/).filter(Boolean);
-  // Parenthesised groups are rare; flatten with the usual precedence (AND binds tighter).
-  let current: string[] = [];
-  const orGroups: string[][] = [current];
-  for (const token of tokens) {
-    if (/^or$/i.test(token)) {
-      current = [];
-      orGroups.push(current);
-    } else if (!/^and$/i.test(token)) current.push(token);
+  if (!text || /^see license/i.test(text)) return "blocking";
+  try {
+    return kindOfExpression(parseSpdx(text));
+  } catch {
+    return "blocking";
   }
-  let best: Kind = "blocking";
-  for (const group of orGroups) {
-    let worst: Kind = "permissive";
-    for (const id of group) {
-      const kind: Kind = PERMISSIVE.has(id.toLowerCase())
-        ? "permissive"
-        : NOTICE.test(id)
-          ? "notice"
-          : "blocking";
-      if (rank[kind] > rank[worst]) worst = kind;
-    }
-    if (rank[worst] < rank[best]) best = worst;
-  }
-  return best;
 }
 
 /** Node resolution of a dependency's package directory, from `from` upward. */
 function resolveDependency(name: string, from: string): string | undefined {
   for (let dir = from; ; dir = dirname(dir)) {
     const candidate = join(dir, "node_modules", name);
-    if (existsSync(join(candidate, "package.json"))) return candidate;
+    if (existsSync(join(candidate, "package.json"))) return realpathSync(candidate);
     if (dirname(dir) === dir) return undefined;
   }
 }
 
 /** The production tree of one package directory, as one row per name@version. */
 export function scanPackage(dir: string): Report {
-  const root = readManifest(dir);
+  const start = realpathSync(dir);
+  const root = readManifest(start);
   if (!root) throw new Error(`no package.json in ${dir}`);
   const rows = new Map<string, Row>();
-  const seen = new Set<string>();
-  const visit = (pkgDir: string, manifest: Manifest, includePeers: boolean): void => {
-    const names = {
-      ...manifest.dependencies,
-      ...manifest.optionalDependencies,
-      ...(includePeers ? manifest.peerDependencies : {}),
-    };
-    for (const [name, range] of Object.entries(names)) {
-      if (range.startsWith("workspace:")) continue;
+  const absent = new Set<string>();
+  const unresolved = new Set<string>();
+  const seen = new Set<string>([start]);
+  const visit = (pkgDir: string, manifest: Manifest): void => {
+    const edges: [string, "required" | "optional"][] = [
+      ...Object.keys(manifest.dependencies ?? {}).map((n): [string, "required"] => [n, "required"]),
+      ...Object.keys(manifest.optionalDependencies ?? {}).map((n): [string, "optional"] => [
+        n,
+        "optional",
+      ]),
+      ...Object.keys(manifest.peerDependencies ?? {}).map(
+        (n): [string, "required" | "optional"] => [
+          n,
+          manifest.peerDependenciesMeta?.[n]?.optional ? "optional" : "required",
+        ],
+      ),
+    ];
+    for (const [name, need] of edges) {
       const found = resolveDependency(name, pkgDir);
-      // Optional dependencies (other platforms' binaries) are legitimately absent.
-      if (!found) continue;
-      const real = resolve(found);
-      if (seen.has(real)) continue;
-      seen.add(real);
-      const child = readManifest(real);
+      if (!found) {
+        (need === "optional" ? absent : unresolved).add(
+          `${name} (from ${manifest.name ?? pkgDir})`,
+        );
+        continue;
+      }
+      if (seen.has(found)) continue;
+      seen.add(found);
+      const child = readManifest(found);
       if (!child) continue;
       const license = licenseOf(child);
       rows.set(`${child.name ?? name}@${child.version ?? "?"}`, {
@@ -147,38 +166,29 @@ export function scanPackage(dir: string): Report {
         license: license || "(none)",
         kind: classify(license),
       });
-      visit(real, child, false);
+      visit(found, child);
     }
   };
-  visit(resolve(dir), root, true);
+  visit(start, root);
   return {
     dir,
     name: root.name ?? dir,
     rows: [...rows.values()].sort((a, b) => a.name.localeCompare(b.name)),
+    absent: [...absent].sort(),
+    unresolved: [...unresolved].sort(),
   };
 }
 
-function table(report: Report, only?: (row: Row) => boolean): string {
-  const rows = only ? report.rows.filter(only) : report.rows;
-  const width = (pick: (row: Row) => string, head: string): number =>
-    Math.max(head.length, ...rows.map((row) => pick(row).length));
-  const widthName = width((r) => `${r.name}@${r.version}`, "package");
-  const widthLicense = width((r) => r.license, "license");
+function table(rows: Row[]): string {
+  const label = (row: Row): string => `${row.name}@${row.version}`;
+  const widthName = Math.max("package".length, ...rows.map((r) => label(r).length));
+  const widthLicense = Math.max("license".length, ...rows.map((r) => r.license.length));
   const line = (a: string, b: string, c: string): string =>
     `  ${a.padEnd(widthName)}  ${b.padEnd(widthLicense)}  ${c}`;
   return [
     line("package", "license", "class"),
-    ...rows.map((r) => line(`${r.name}@${r.version}`, r.license, r.kind)),
+    ...rows.map((r) => line(label(r), r.license, r.kind)),
   ].join("\n");
-}
-
-function histogram(report: Report): string {
-  const counts = new Map<string, number>();
-  for (const row of report.rows) counts.set(row.license, (counts.get(row.license) ?? 0) + 1);
-  return [...counts]
-    .sort((a, b) => b[1] - a[1])
-    .map(([id, n]) => `${id} ${n}`)
-    .join(", ");
 }
 
 export interface Result {
@@ -188,23 +198,29 @@ export interface Result {
 
 export function run(root: string, shipped: string[], others: string[]): Result {
   const out: string[] = [];
-  let blocking = 0;
+  const failures: string[] = [];
+  const shippedKeys = new Set<string>();
   for (const dir of shipped) {
     const report = scanPackage(join(root, dir));
-    const bad = report.rows.filter((row) => row.kind === "blocking");
-    blocking += bad.length;
     out.push(`${report.name} (shipped): ${report.rows.length} packages`);
-    out.push(`  ${histogram(report)}`);
-    const listed = report.rows.filter((row) => row.kind !== "permissive");
-    out.push(
-      listed.length ? table(report, (row) => row.kind !== "permissive") : "  all permissive",
-    );
+    out.push(table(report.rows));
+    const byParent = new Map<string, string[]>();
+    for (const item of report.absent) {
+      const [name = "", parent = ""] = item.split(" (from ");
+      byParent.set(parent, [...(byParent.get(parent) ?? []), name]);
+    }
+    for (const [parent, names] of byParent)
+      out.push(`  absent optional, from ${parent.replace(/\)$/, "")}: ${names.join(", ")}`);
+    for (const item of report.unresolved) failures.push(`${report.name}: unresolved ${item}`);
+    for (const row of report.rows) {
+      shippedKeys.add(`${row.name}@${row.version}`);
+      if (row.kind === "blocking")
+        failures.push(`${report.name}: ${row.name}@${row.version} ${row.license}`);
+    }
     out.push("");
   }
-  const shippedKeys = new Set(
-    shipped.flatMap((dir) =>
-      scanPackage(join(root, dir)).rows.map((r) => `${r.name}@${r.version}`),
-    ),
+  const workspaceNames = new Set(
+    others.map((dir) => readManifest(join(root, dir))?.name).filter((n) => n !== undefined),
   );
   const apart = new Map<string, Row & { by: string[] }>();
   for (const dir of others) {
@@ -212,7 +228,8 @@ export function run(root: string, shipped: string[], others: string[]): Result {
     const report = scanPackage(join(root, dir));
     for (const row of report.rows) {
       const key = `${row.name}@${row.version}`;
-      if (row.kind === "permissive" || shippedKeys.has(key)) continue;
+      if (row.kind === "permissive" || shippedKeys.has(key) || workspaceNames.has(row.name))
+        continue;
       const known = apart.get(key) ?? { ...row, by: [] };
       known.by.push(report.name);
       apart.set(key, known);
@@ -224,16 +241,12 @@ export function run(root: string, shipped: string[], others: string[]): Result {
     out.push(`  ${row.name}@${row.version}  ${row.license}  ${row.kind}  via ${row.by.join(", ")}`);
   out.push("");
   out.push(
-    blocking
-      ? `FAIL: ${blocking} blocking licence(s) in a shipped tree`
+    failures.length
+      ? `FAIL: ${failures.length} problem(s) in shipped trees`
       : "OK: no blocking licence in a shipped tree",
   );
-  if (blocking)
-    for (const dir of shipped)
-      for (const row of scanPackage(join(root, dir)).rows)
-        if (row.kind === "blocking")
-          out.push(`  ${dir}: ${row.name}@${row.version} ${row.license}`);
-  return { code: blocking ? 1 : 0, output: out.join("\n") };
+  for (const failure of failures) out.push(`  ${failure}`);
+  return { code: failures.length ? 1 : 0, output: out.join("\n") };
 }
 
 if (import.meta.main) {
