@@ -71,9 +71,7 @@
         "examples/forge/server/ci.ts",
         "examples/forge/server/seed.ts",
         "packages/luciole/src/devtools/fixtures.ts",
-        "packages/luciole/src/web/node/sha256.ts",
-        "website/src/pages/guide/index.astro",
-        "website/src/pages/guide/build.astro"
+        "packages/luciole/src/web/node/sha256.ts"
       ],
       "rules": {
         "no-magic-numbers": "off"
@@ -87,9 +85,7 @@
     "**/routeTree.gen.ts",
     "probes/vt-embed/**",
     "probes/devtools-tanstack/**",
-    "website/dist/**",
-    "website/design/**",
-    "website/.astro/**",
+    "website/**",
     "packages/harness/src/adapters/codex-protocol/**"
   ]
 }
