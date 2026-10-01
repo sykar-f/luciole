@@ -5,7 +5,6 @@
  * signing key. `.luciole-studio/` holds what studio keeps beside the code (builds, the
  * project's publisher key, the lock); it is ignored by git and closed to the harness.
  */
-import { spawnSync } from "node:child_process";
 import {
   chmodSync,
   existsSync,
@@ -56,18 +55,24 @@ function packages() {
   return frameworkModules(dirname(Bun.resolveSync("luciole/client", import.meta.dir)));
 }
 
-function git(directory: string, args: readonly string[], input?: string) {
-  const result = spawnSync("git", [...GIT_IDENTITY, "-C", directory, ...args], {
-    encoding: "utf8",
-    input,
+// Asynchronous: Bun 1.4's spawnSync can lose a child's exit and spin forever at 100 % CPU
+// (oven-sh/bun#34069), and studio runs git at every turn.
+async function git(directory: string, args: readonly string[], input?: string) {
+  const child = Bun.spawn(["git", ...GIT_IDENTITY, "-C", directory, ...args], {
+    stdin: input === undefined ? "ignore" : Buffer.from(input),
+    stdout: "pipe",
+    stderr: "pipe",
     env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
   });
-  if (result.error) throw new Error(`git: ${result.error.message}`);
-  if (result.status !== 0)
-    throw new Error(`git ${args[0] ?? ""}: ${(result.stderr || result.stdout).trim()}`);
-  return result.stdout;
+  const [stdout, stderr, status] = await Promise.all([
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+    child.exited,
+  ]);
+  if (status !== 0) throw new Error(`git ${args[0] ?? ""}: ${(stderr || stdout).trim()}`);
+  return stdout;
 }
-const hasGit = () => spawnSync("git", ["--version"]).status === 0;
+const hasGit = () => Bun.which("git") !== null;
 
 /** Whether `pid` is a live process (the lock's owner). */
 function alive(pid: number) {
@@ -96,7 +101,7 @@ export class Project {
    * template as revision r0; a studio project is reopened; any other directory is
    * refused, never written into.
    */
-  static open(directory: string): Project {
+  static async open(directory: string): Promise<Project> {
     if (!hasGit()) throw new Error("studio keeps revisions with git: install git first");
     const project = new Project(resolve(directory));
     const entries = existsSync(project.directory) ? readdirSync(project.directory) : [];
@@ -107,7 +112,8 @@ export class Project {
       );
     mkdirSync(project.state, { recursive: true, mode: PRIVATE_DIRECTORY });
     project.acquire();
-    if (!known) project.create();
+    if (!known) await project.create();
+    else await project.reread();
     project.link();
     return project;
   }
@@ -128,14 +134,14 @@ export class Project {
     } catch {}
   }
 
-  private create() {
+  private async create() {
     for (const [file, content] of Object.entries(TEMPLATE)) {
       const path = join(this.directory, file);
       mkdirSync(dirname(path), { recursive: true });
       writeFileSync(path, content);
     }
-    git(this.directory, ["init", "-q"]);
-    this.commit("template");
+    await git(this.directory, ["init", "-q"]);
+    await this.commit("template");
   }
 
   /** node_modules → the framework's packages: nothing to install, nothing to fetch. */
@@ -160,8 +166,13 @@ export class Project {
   }
 
   /** Files changed since the last revision: path → new content, `null` when deleted. */
-  changes(): Map<string, string | null> {
-    const out = git(this.directory, ["status", "--porcelain=v1", "-z", "--untracked-files=all"]);
+  async changes(): Promise<Map<string, string | null>> {
+    const out = await git(this.directory, [
+      "status",
+      "--porcelain=v1",
+      "-z",
+      "--untracked-files=all",
+    ]);
     const changes = new Map<string, string | null>();
     const fields = out.split("\0").filter(Boolean);
     for (let i = 0; i < fields.length; i++) {
@@ -180,38 +191,45 @@ export class Project {
   }
 
   /** Puts `paths` back as the last revision has them: added files go, others return. */
-  discard(paths: readonly string[]) {
+  async discard(paths: readonly string[]) {
     const tracked = new Set(
-      git(this.directory, ["ls-tree", "-r", "--name-only", "-z", "HEAD"]).split("\0"),
+      (await git(this.directory, ["ls-tree", "-r", "--name-only", "-z", "HEAD"])).split("\0"),
     );
     const known = paths.filter((path) => tracked.has(path));
-    if (known.length) git(this.directory, ["checkout", "HEAD", "--", ...known]);
+    if (known.length) await git(this.directory, ["checkout", "HEAD", "--", ...known]);
     for (const path of paths.filter((p) => !tracked.has(p)))
       rmSync(join(this.directory, path), { force: true });
   }
 
   /** Commits everything as the next revision; its number. */
-  commit(summary: string): number {
-    const number = (this.revisions()[0]?.number ?? -1) + 1;
+  async commit(summary: string): Promise<number> {
+    const number = (this.known[0]?.number ?? -1) + 1;
     const line = summary.split("\n")[0]?.slice(0, SUBJECT_LENGTH) ?? "";
-    git(this.directory, ["add", "-A"]);
-    git(
+    await git(this.directory, ["add", "-A"]);
+    await git(
       this.directory,
       ["commit", "-q", "--allow-empty", "-F", "-"],
       `studio: r${number} · ${line}\n`,
     );
+    await this.reread();
     return number;
   }
 
-  /** The revisions, newest first. */
+  /** The revisions, newest first: as read at the last commit (nothing else writes them). */
   revisions(): Revision[] {
+    return this.known;
+  }
+  private known: Revision[] = [];
+
+  private async reread() {
     let log = "";
     try {
-      log = git(this.directory, ["log", "--format=%H%x00%s%x00%ct"]);
+      log = await git(this.directory, ["log", "--format=%H%x00%s%x00%ct"]);
     } catch {
-      return [];
+      this.known = [];
+      return;
     }
-    return log
+    this.known = log
       .split("\n")
       .filter(Boolean)
       .flatMap((line) => {
@@ -237,15 +255,15 @@ export class Project {
   }
 
   /** The files of revision `number` in the working tree, committed as a new revision. */
-  restore(number: number): number {
+  async restore(number: number): Promise<number> {
     const { hash } = this.revision(number);
-    git(this.directory, ["read-tree", "-u", "--reset", hash]);
+    await git(this.directory, ["read-tree", "-u", "--reset", hash]);
     return this.commit(`restored r${number}`);
   }
 
   /** What revision `number` changed, one patch per file. */
-  patch(number: number): FilePatch[] {
+  async patch(number: number): Promise<FilePatch[]> {
     const { hash } = this.revision(number);
-    return splitPatch(git(this.directory, ["show", "--format=", "--no-color", hash]));
+    return splitPatch(await git(this.directory, ["show", "--format=", "--no-color", hash]));
   }
 }

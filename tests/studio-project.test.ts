@@ -17,7 +17,7 @@ import { join, relative as relativePath, resolve } from "node:path";
 import { advise, guard } from "../examples/studio/server/guard";
 import { policy } from "../examples/studio/server/policy";
 import { diagnosticsOf } from "../examples/studio/server/preview";
-import { execute } from "./helpers";
+import { execute, rejectionOf } from "./helpers";
 import { Project } from "../examples/studio/server/project";
 import { TEMPLATE } from "../examples/studio/server/template.gen";
 import { messageOf } from "../packages/luciole/src/guards";
@@ -37,55 +37,55 @@ test("the generated template matches examples/studio/template", async () => {
   expect(check.exitCode).toBe(0);
 });
 
-test("a new project is the template as r0, linked to the framework's packages", () => {
+test("a new project is the template as r0, linked to the framework's packages", async () => {
   using dir = scratch();
-  const project = Project.open(join(dir.root, "demo"));
+  const project = await Project.open(join(dir.root, "demo"));
   try {
     for (const [file, content] of Object.entries(TEMPLATE))
       expect(readFileSync(join(project.directory, file), "utf8")).toBe(content);
     expect(existsSync(join(project.directory, "node_modules/react/package.json"))).toBe(true);
     expect(project.revisions().map((r) => [r.number, r.summary])).toEqual([[0, "template"]]);
-    expect(project.changes().size).toBe(0);
+    expect((await project.changes()).size).toBe(0);
     // Studio's own files and the app's data never show as changes.
     project.data();
     writeFileSync(join(project.data(), "app.sqlite"), "x");
-    expect(project.changes().size).toBe(0);
+    expect((await project.changes()).size).toBe(0);
   } finally {
     project.release();
   }
 });
 
-test("changes, discard, commit, restore and patch follow the working tree", () => {
+test("changes, discard, commit, restore and patch follow the working tree", async () => {
   using dir = scratch();
-  const project = Project.open(join(dir.root, "demo"));
+  const project = await Project.open(join(dir.root, "demo"));
   try {
     const greeting = join(project.directory, "server/greeting.ts");
     writeFileSync(greeting, 'export const greeting = "changed";\n');
     mkdirSync(join(project.directory, "components"), { recursive: true });
     writeFileSync(join(project.directory, "components/Extra.tsx"), "export const x = 1;\n");
-    expect([...project.changes().keys()].sort()).toEqual([
+    expect([...(await project.changes()).keys()].sort()).toEqual([
       "components/Extra.tsx",
       "server/greeting.ts",
     ]);
     // Refused changes go back as the last revision has them.
-    project.discard(["components/Extra.tsx", "server/greeting.ts"]);
-    expect(project.changes().size).toBe(0);
+    await project.discard(["components/Extra.tsx", "server/greeting.ts"]);
+    expect((await project.changes()).size).toBe(0);
     expect(readFileSync(greeting, "utf8")).toBe(TEMPLATE["server/greeting.ts"] ?? "");
     writeFileSync(greeting, 'export const greeting = "r1";\n');
-    expect(project.commit("Change the greeting\nwith details")).toBe(1);
+    expect(await project.commit("Change the greeting\nwith details")).toBe(1);
     writeFileSync(greeting, 'export const greeting = "r2";\n');
     writeFileSync(join(project.directory, "components/Extra.tsx"), "export const x = 2;\n");
-    expect(project.commit("Another change")).toBe(2);
+    expect(await project.commit("Another change")).toBe(2);
     expect(project.revisions().map((r) => `r${r.number} ${r.summary}`)).toEqual([
       "r2 Another change",
       "r1 Change the greeting",
       "r0 template",
     ]);
-    const patch = project.patch(1);
+    const patch = await project.patch(1);
     expect(patch.map((p) => p.path)).toEqual(["server/greeting.ts"]);
     expect(patch[0]?.patch).toContain('+export const greeting = "r1";');
     // Restoring r1: its files, and none it did not have, as revision r3.
-    expect(project.restore(1)).toBe(3);
+    expect(await project.restore(1)).toBe(3);
     expect(readFileSync(greeting, "utf8")).toBe('export const greeting = "r1";\n');
     expect(existsSync(join(project.directory, "components/Extra.tsx"))).toBe(false);
     expect(project.revisions()[0]?.summary).toBe("restored r1");
@@ -94,20 +94,20 @@ test("changes, discard, commit, restore and patch follow the working tree", () =
   }
 });
 
-test("studio never writes into a directory it did not create, nor opens a project twice", () => {
+test("studio never writes into a directory it did not create, nor opens a project twice", async () => {
   using dir = scratch();
   const other = join(dir.root, "someone-else");
   mkdirSync(other);
   writeFileSync(join(other, "notes.txt"), "mine");
-  expect(() => Project.open(other)).toThrow(/is not a studio project/);
+  expect(messageOf(await rejectionOf(Project.open(other)))).toMatch(/is not a studio project/);
   expect(readFileSync(join(other, "notes.txt"), "utf8")).toBe("mine");
-  const project = Project.open(join(dir.root, "demo"));
+  const project = await Project.open(join(dir.root, "demo"));
   try {
     // Another live studio holds it (here: this test's parent process).
     writeFileSync(join(project.state, "studio.pid"), String(process.ppid));
     let refusal = "";
     try {
-      Project.open(project.directory);
+      await Project.open(project.directory);
     } catch (error: unknown) {
       refusal = messageOf(error);
     }

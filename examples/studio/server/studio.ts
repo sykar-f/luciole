@@ -124,7 +124,7 @@ class Studio {
   private async boot() {
     // No sandbox: nothing runs, the harness included, unless --preview process says so.
     if (isolation) throw new Error(this.previewError ?? isolation);
-    const project = Project.open(config.directory);
+    const project = await Project.open(config.directory);
     this.project = project;
     this.hosts = this.declaredHosts();
     this.servers = new PreviewServers(project, config.preview);
@@ -217,7 +217,7 @@ class Studio {
     const servers = this.servers;
     if (!project || !servers) return;
     const cause = this.cause;
-    const changes = project.changes();
+    const changes = await project.changes();
     changes.delete(GENERATED);
     const first = cause === "start" || cause === "restart" || cause === "capability";
     if (!changes.size && !first && cause !== "restore") {
@@ -244,7 +244,7 @@ class Studio {
       );
     // A new revision only when something changed; the first build shows the last one.
     const number = changes.size
-      ? project.commit(this.summary(cause))
+      ? await project.commit(this.summary(cause))
       : (project.revisions()[0]?.number ?? 0);
     let started = performance.now();
     let target: PreviewTarget;
@@ -282,12 +282,12 @@ class Studio {
     const project = this.project;
     const servers = this.servers;
     if (!project || !servers || this.validation.state === "validating") return;
-    const tree = () => {
-      const changes = project.changes();
+    const tree = async () => {
+      const changes = await project.changes();
       changes.delete(GENERATED);
       return changes;
     };
-    const changes = tree();
+    const changes = await tree();
     if (!changes.size) return;
     // A file studio refuses never runs, not even as a draft: the turn's end undoes it.
     if (guard(changes).length) return this.drafting("waiting");
@@ -296,7 +296,7 @@ class Studio {
     if (!("output" in built)) return draft.superseded ? undefined : this.drafting("waiting");
     const output = built.output;
     // What was built is what was guarded: a write during the build supersedes it.
-    if (draft.superseded || !sameTree(changes, tree())) return removeBuild(output);
+    if (draft.superseded || !sameTree(changes, await tree())) return removeBuild(output);
     let target: PreviewTarget | undefined;
     try {
       target = await servers.startDraft(this.revision, output, () => !draft.superseded);
@@ -400,7 +400,7 @@ class Studio {
     const project = this.project;
     if (!project) throw new Error("No project open");
     if (this.session.snapshot().state === "running") await this.session.interrupt();
-    project.restore(number);
+    await project.restore(number);
     this.pendingNotes.push(
       `${STUDIO_PREFIX} Note: the user restored revision r${number}; the files are back to that state.`,
     );
@@ -440,7 +440,7 @@ class Studio {
     };
     writeFileSync(file, `${JSON.stringify(manifest, null, 2)}\n`);
     // studio's own change, committed as it is: the guard is for the harness's.
-    project.commit(`network: ${hosts.join(", ") || "none"}`);
+    await project.commit(`network: ${hosts.join(", ") || "none"}`);
     this.hosts = hosts;
     servers.granted = Capabilities.parse({ net: hosts });
     this.pendingNotes.push(

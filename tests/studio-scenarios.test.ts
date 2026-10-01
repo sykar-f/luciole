@@ -37,10 +37,10 @@ function write(project: Project, turn: Turn) {
 }
 
 /** The files of the scenario `scenario` continues, committed: where it starts from. */
-function startFrom(project: Project, scenario: Scenario) {
+async function startFrom(project: Project, scenario: Scenario) {
   if (!scenario.after) return;
   write(project, startingPoint(scenario));
-  project.commit(scenario.after);
+  await project.commit(scenario.after);
 }
 
 /** The first stage a turn fails at, or `ok`, as studio would find it. */
@@ -49,11 +49,11 @@ async function validate(
   servers: PreviewServers,
   revision: number,
 ): Promise<{ stage: Stage | "ok"; diagnostics: Diagnostic[] }> {
-  const changes = project.changes();
+  const changes = await project.changes();
   changes.delete("app/routeTree.gen.ts");
   const prepared = await prepare(project, servers, changes);
   if (!prepared.ok) return { stage: prepared.stage, diagnostics: prepared.diagnostics };
-  project.commit(`r${revision}`);
+  await project.commit(`r${revision}`);
   try {
     await servers.start(revision, prepared.output);
   } catch (error: unknown) {
@@ -71,12 +71,12 @@ for (const scenario of SCENARIOS)
     `scenario ${scenario.name}: caught at ${scenario.expected}, then corrected`,
     async () => {
       const root = realpathSync(mkdtempSync(join(tmpdir(), "studio-scenario-")));
-      const project = Project.open(join(root, "app"));
+      const project = await Project.open(join(root, "app"));
       const servers = new PreviewServers(project, MODE);
       try {
         const [first, ...corrections] = scenario.turns;
         if (!first) throw new Error(`${scenario.name} has no turn`);
-        startFrom(project, scenario);
+        await startFrom(project, scenario);
         for (const draft of scenario.drafts ?? []) write(project, draft);
         write(project, first);
         const found = await validate(project, servers, 1);
@@ -106,13 +106,13 @@ for (const scenario of SCENARIOS.filter((s) => s.drafts?.length))
     `scenario ${scenario.name}: each of its writes builds, as the drafts studio shows`,
     async () => {
       const root = realpathSync(mkdtempSync(join(tmpdir(), "studio-drafts-")));
-      const project = Project.open(join(root, "app"));
+      const project = await Project.open(join(root, "app"));
       const servers = new PreviewServers(project, MODE);
       try {
-        startFrom(project, scenario);
+        await startFrom(project, scenario);
         for (const draft of scenario.drafts ?? []) {
           write(project, draft);
-          const changes = project.changes();
+          const changes = await project.changes();
           changes.delete("app/routeTree.gen.ts");
           expect(await prepare(project, servers, changes)).toMatchObject({ ok: true });
         }
@@ -129,18 +129,18 @@ test(
   "a refused turn is undone whole: no file is left importing what was refused",
   async () => {
     const root = realpathSync(mkdtempSync(join(tmpdir(), "studio-refused-")));
-    const project = Project.open(join(root, "app"));
+    const project = await Project.open(join(root, "app"));
     const servers = new PreviewServers(project, MODE);
     try {
       write(project, {
         "server/git.ts": `import { execSync } from "node:child_process";\nexport const branch = () => execSync("git branch").toString();\n`,
         "app/page.tsx": `import { branch } from "../server/git";\nexport default function Page() {\n  return <text>{branch()}</text>;\n}\n`,
       });
-      const prepared = await prepare(project, servers, project.changes());
+      const prepared = await prepare(project, servers, await project.changes());
       expect(prepared.ok).toBe(false);
-      expect(project.changes().size).toBe(0);
+      expect((await project.changes()).size).toBe(0);
       // What remains builds: the last revision, untouched.
-      const again = await prepare(project, servers, project.changes());
+      const again = await prepare(project, servers, await project.changes());
       expect(again.ok).toBe(true);
     } finally {
       await servers.stop();

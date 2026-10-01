@@ -86,14 +86,14 @@ type Run = {
 async function measure(scenario: Scenario): Promise<Omit<Run, "scenario">> {
   const { prompt } = scenario;
   const root = realpathSync(mkdtempSync(join(tmpdir(), "studio-measure-")));
-  const project = Project.open(join(root, "app"));
+  const project = await Project.open(join(root, "app"));
   const start = Object.entries(startingPoint(scenario));
   for (const [path, content] of start) {
     const file = join(project.directory, path);
     mkdirSync(dirname(file), { recursive: true });
     writeFileSync(file, content);
   }
-  if (start.length) project.commit(scenario.after ?? "start");
+  if (start.length) await project.commit(scenario.after ?? "start");
   const servers = new PreviewServers(project, isolationProblem("sandbox") ? "process" : "sandbox");
   let ended: (() => void) | undefined;
   const session = new HarnessSession({
@@ -127,14 +127,14 @@ async function measure(scenario: Scenario): Promise<Omit<Run, "scenario">> {
     for (let revision = 1; revision <= 1 + options.fixes; revision++) {
       const started = performance.now();
       await turn(text);
-      const changes = project.changes();
+      const changes = await project.changes();
       changes.delete("app/routeTree.gen.ts");
       const prepared = await prepare(project, servers, changes);
       let attempt: Attempt;
       if (!prepared.ok)
         attempt = { stage: prepared.stage, diagnostics: prepared.diagnostics, ms: 0 };
       else {
-        project.commit(`r${revision}`);
+        await project.commit(`r${revision}`);
         try {
           await servers.start(revision, prepared.output);
           const types = await servers.types();

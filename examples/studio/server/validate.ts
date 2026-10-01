@@ -24,7 +24,7 @@ export async function prepare(
   if (refused.length) {
     // The whole turn goes: undoing only the refused files would leave the others
     // importing what is gone (measured on Claude Code: a build failure right after).
-    project.discard([...changes.keys()]);
+    await project.discard([...changes.keys()]);
     return {
       ok: false,
       stage: "guard",
