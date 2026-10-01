@@ -4,12 +4,22 @@ Interface minimale pour [pi](https://github.com/earendil-works/pi) : conversatio
 texte streamé, appels d'outils (`read`, `bash`, `edit`, `write`) avec arguments et
 résultats repliables, état en cours/idle, interruption et nouvelle session.
 
+## Lancement
+
+Depuis la racine du monorepo (les dépendances sont `workspace:*` et `catalog:` : l'exemple
+ne se lance pas depuis son propre dossier). Prérequis : Bun 1.4.2 et `bun install
+--frozen-lockfile` une fois.
+
 ```sh
-bun packages/luciole/src/cli.ts dev --app examples/agent
+bun run agent
 ```
 
+`bun run agent` est `luciole dev --app examples/agent`. Attendez-vous à une conversation
+vide avec le prompt en bas ; envoyez un message et la réponse arrive en streaming.
+
 Prérequis : le CLI `pi` (v0.85) dans le `PATH` et le provider `openai-codex` connecté
-(`~/.pi/agent/auth.json`, abonnement ChatGPT). Chaque prompt consomme ce quota.
+(`~/.pi/agent/auth.json`, abonnement ChatGPT). Chaque prompt consomme ce quota. Il n'existe pas de mode scripté : sans `pi` connecté, cet
+exemple ne se lance pas de bout en bout.
 
 ## Clavier
 
@@ -69,9 +79,9 @@ répond en quelques secondes. `AGENT_MODEL=gpt-5.6-sol` pour les tâches diffici
 ## Vérification
 
 ```sh
-tsc --noEmit -p examples/agent
-oxlint --deny-warnings examples/agent
-oxfmt --check examples/agent
+bun run check          # types de tout le monorepo
+bun run lint
+bun run format:check
 bun run test:pty:agent   # vrai pi, vrai modèle : consomme un peu de quota
 ```
 

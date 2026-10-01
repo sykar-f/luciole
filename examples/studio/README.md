@@ -6,6 +6,15 @@ Décrire une application luciole à un agent de code et **s'en servir pendant qu
 après chaque fichier écrit, une **révision** après chaque tour, sans perdre ce que vous
 faisiez dans l'app. Conception : [docs/studio/SPEC.md](../../docs/studio/SPEC.md).
 
+## Lancement
+
+Depuis la racine du monorepo (les dépendances sont `workspace:*` et `catalog:` : l'exemple
+ne se lance pas depuis son propre dossier). Prérequis : Bun 1.4.2, `bun install
+--frozen-lockfile` une fois, `git` (studio tient un dépôt git dans le projet) et — pour `-H claude`
+seulement — le binaire `claude` dans le `PATH`, déjà connecté par vous (`claude auth login`) ; aucune clé API n'est
+lue. `-H fake` n'exige rien. Attendez-vous à la conversation à gauche et, à droite,
+l'application générée qui apparaît au premier brouillon.
+
 ```sh
 bun run studio -- -H fake                    # générateur scripté : hors ligne, sans quota
 bun run studio -- -H claude --project todos  # un projet nommé, sous $XDG_DATA_HOME/luciole/studio
@@ -21,6 +30,13 @@ bun run studio -- --dir ~/apps/notes -r      # un dossier ; -r reprend la derni�
 | `--preview sandbox\|process`  | aperçu confiné (défaut), ou avec vos droits                                                |
 | `--fixes N`                   | corrections automatiques après un échec (défaut 2, au plus 5)                              |
 | `-m, --model`, `-e, --effort` | modèle et effort, tels que le harness les nomme                                            |
+
+> **Attention.** L'agent hérite de tout l'environnement de studio (variables, clés
+> comprises) et écrit dans le dossier du projet avec vos droits. Studio demande les
+> permissions au mode `ask` et n'offre pas `--mode` ; le mode `full` de coder, qui
+> désactive le bac à sable de l'agent (`danger-full-access` chez Codex), n'y est pas
+> proposé, mais ne l'activez dans aucun harness lancé à côté sur ce dossier. De même,
+> `--preview process` fait tourner l'application générée avec vos droits, sans confinement.
 
 Codex, pi et opencode restent réservés à coder pour l'instant : studio ne sait pas empêcher
 Codex de lancer des commandes (son protocole n'a pas de mode sans commandes), et les

@@ -8,6 +8,10 @@ l'autre.
 
 ## Lancer
 
+Depuis la racine du monorepo (les dépendances sont `workspace:*` et `catalog:` : l'exemple
+ne se lance pas depuis son propre dossier). Prérequis : Bun 1.4.2 et `bun install
+--frozen-lockfile` une fois. Aucune clé API, aucun réseau.
+
 ```sh
 bun run flow                        # dev
 FLOW_RUN_SCALE=0.3 bun run flow     # des runs trois fois plus courts

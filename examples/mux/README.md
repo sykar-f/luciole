@@ -4,16 +4,26 @@ Des programmes locaux côte à côte, chacun sur son PTY, dans une application l
 un petit tmux construit avec `<Terminal>` (`luciole/client`). C'est le mode `process` de
 [EMBEDDING.md](../../docs/EMBEDDING.md) : aucune isolation, les programmes ont vos droits.
 
+## Lancement
+
+Depuis la racine du monorepo (les dépendances sont `workspace:*` et `catalog:` : l'exemple
+ne se lance pas depuis son propre dossier). Prérequis : Bun 1.4.2 et `bun install
+--frozen-lockfile` une fois. Aucune clé API, aucun réseau ;
+les programmes des panes (`$SHELL`, `vim`, `htop`…) doivent être installés.
+
 ```sh
-bun packages/luciole/src/cli.ts dev --app examples/mux        # bun run mux
+bun run mux                                              # votre shell, et vim s'il est installé
 MUX_PANES='[["htop"],["vim","README.md"]]' bun run mux
 ```
+
+`bun run mux` est `luciole dev --app examples/mux`.
 
 Un pane peut aussi être une autre application luciole, affichée inline (`<Embed>`) avec
 son Server déjà lancé : son bundle d'application (`.luciole/app`, sans runtime) est évalué
 contre le runtime du multiplexeur.
 
 ```sh
+bun packages/luciole/src/cli.ts build --app examples/mdreader               # produit .luciole/
 bun --conditions=react-server examples/mdreader/.luciole/server/index.js &   # PORT=3000
 MUX_APPS='[{"name":"docs","bundle":"examples/mdreader/.luciole/app","url":"http://127.0.0.1:3000"}]' bun run mux
 ```

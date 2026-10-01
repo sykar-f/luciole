@@ -5,11 +5,21 @@ détails et aperçu de l'élément sélectionné (code avec numéros de ligne, i
 d'un dossier, hex dump d'un binaire). Le système de fichiers est lu par le Server ; le
 Client ne reçoit que des chemins relatifs à la racine.
 
+## Lancement
+
+Depuis la racine du monorepo (les dépendances sont `workspace:*` et `catalog:` : l'exemple
+ne se lance pas depuis son propre dossier). Prérequis : Bun 1.4.2 et `bun install
+--frozen-lockfile` une fois. Aucune clé API, aucun réseau.
+
 ```sh
-bun packages/luciole/src/cli.ts dev --app examples/files                     # racine : répertoire courant
-FILES_ROOT=~/Pictures bun packages/luciole/src/cli.ts dev --app examples/files
-LUCIOLE_LATENCY_MS=500 bun packages/luciole/src/cli.ts dev --app examples/files  # même parcours à 500 ms de RTT
+bun run files                                  # racine : répertoire courant
+FILES_ROOT=~/Pictures bun run files
+LUCIOLE_LATENCY_MS=500 bun run files          # même parcours à 500 ms de RTT
 ```
+
+`bun run files` est `luciole dev --app examples/files`. Attendez-vous à l'arborescence du
+répertoire d'où vous lancez la commande à gauche, et au panneau de détails et à
+l'aperçu de l'élément sélectionné à droite.
 
 ## Clavier
 
@@ -132,9 +142,9 @@ bloquait l'interface 30 à 150 ms par image ; avec les vignettes, l'interface r�
 ## Vérifications
 
 ```sh
-tsc --noEmit -p examples/files
-oxlint --deny-warnings examples/files
-oxfmt --check examples/files
+bun run check          # types de tout le monorepo
+bun run lint
+bun run format:check
 bun packages/luciole/src/cli.ts build --app examples/files
 bun run test:pty:files
 ```
