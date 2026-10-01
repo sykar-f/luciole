@@ -7,6 +7,7 @@ import { cp, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
 import { NATIVE_DIRECTORY, nativeTarget } from "../native";
+import { run } from "../subprocess";
 
 export const SUMS = "SHA256SUMS";
 
@@ -47,11 +48,11 @@ export async function packBundle(app: string, binary: string, target: string) {
     }
     await writeFile(join(staging, SUMS), await checksums(staging));
     // macOS tar would add AppleDouble files for extended attributes.
-    const tar = Bun.spawnSync(["tar", "cf", "-", "-C", staging, "."], {
+    const tar = await run(["tar", "cf", "-", "-C", staging, "."], {
       env: { ...process.env, COPYFILE_DISABLE: "1" },
     });
-    if (tar.exitCode !== 0) throw new Error(`tar: ${tar.stderr.toString()}`);
-    return new Uint8Array(tar.stdout);
+    if (tar.exitCode !== 0) throw new Error(`tar: ${tar.stderr}`);
+    return tar.stdout;
   } finally {
     await rm(staging, { recursive: true, force: true });
   }

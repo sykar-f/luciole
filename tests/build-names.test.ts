@@ -1,10 +1,10 @@
 import { expect, test } from "bun:test";
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { mkdir, rm } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { build } from "../packages/luciole/src/build";
 import { annotateNames, routeComponentName } from "../packages/luciole/src/build-names";
 import { sourceLocation } from "../packages/luciole/src/devtools/luciole-devtools/components/editor";
-import { importClient } from "./helpers";
+import { importClient, temporaryApp } from "./helpers";
 
 const runtime = "/fw/devtools/annotate.ts";
 const annotated = (text: string, relative = "components/X.tsx") =>
@@ -68,9 +68,8 @@ const helper = () => useState(1);
   expect(annotated("export const x = 1;\n")).toBe("export const x = 1;\n");
 });
 
-// Inside the checkout so `luciole` and its packages resolve like in an example.
 test("a built Client names its components and records their source and hooks", async () => {
-  const dir = await mkdtemp(join(resolve("."), ".build-names-"));
+  const dir = await temporaryApp("build-names");
   try {
     const files: Record<string, string> = {
       "app/layout.tsx": `"use client";\nimport type { LayoutProps } from "luciole/client";\nexport default function Layout({ children }: LayoutProps) {\n  return <box>{children}</box>;\n}\n`,

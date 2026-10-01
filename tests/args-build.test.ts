@@ -8,7 +8,7 @@ import { build } from "../packages/luciole/src/build";
 import { compileApp } from "../packages/luciole/src/compile";
 import { AppMetadata } from "../packages/luciole/src/app-metadata";
 import { messageOf } from "../packages/luciole/src/guards";
-import { launch, readManifest, rejectionOf, until } from "./helpers";
+import { execute, launch, readManifest, rejectionOf, until } from "./helpers";
 
 const cli = resolve("packages/luciole/src/cli.ts");
 const ARGS = `import { defineArgs } from "luciole/args";
@@ -160,18 +160,18 @@ test("an app binary parses them too: its --help, serve -- options, and none with
     outfile: join(dir, "bin/hello"),
     runtime: "host",
   });
-  const run = (...args: string[]) => Bun.spawnSync([outfile, ...args], { env: process.env });
-  const help = run("--help");
+  const run = (...args: string[]) => execute([outfile, ...args], { env: process.env });
+  const help = await run("--help");
   expect(help.exitCode).toBe(0);
   expect(help.stdout.toString()).toContain("-n, --name <value>");
   expect(help.stdout.toString()).toContain("--on <[user@]host>");
-  const typo = run("--nme", "x");
+  const typo = await run("--nme", "x");
   expect(typo.exitCode).toBe(2);
   expect(typo.stderr.toString()).toContain("did you mean --name?");
-  expect(run("--url", "unix:/nowhere", "-n", "x").stderr.toString()).toContain(
+  expect((await run("--url", "unix:/nowhere", "-n", "x")).stderr.toString()).toContain(
     "application arguments configure a Server",
   );
-  expect(run("serve", "--bogus").exitCode).toBe(2);
+  expect((await run("serve", "--bogus")).exitCode).toBe(2);
   // `serve -- options`: the Server alone, with its arguments.
   const socket = join(dir, "hello.sock");
   const server = spawn(outfile, ["serve", "--socket", socket, "--", "-n", "binary"], {

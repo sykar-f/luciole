@@ -3,10 +3,10 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import { act } from "react";
 import { Renderable } from "@opentui/core";
 import { testRender } from "@opentui/react/test-utils";
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { mkdir, rm } from "node:fs/promises";
+import { join } from "node:path";
 import { build } from "../packages/luciole/src/build";
-import { launch, importClient, destroy, renderable, type TestUI } from "./helpers";
+import { launch, importClient, destroy, renderable, temporaryApp, type TestUI } from "./helpers";
 
 // An application that shows its keys, as a terminal program does: a footer for the
 // layout's layer, a line for the page's. Inside the checkout so `luciole` resolves.
@@ -46,7 +46,7 @@ export function Editor() {
 };
 let root = "";
 beforeAll(async () => {
-  root = await mkdtemp(join(resolve("."), ".keymap-"));
+  root = await temporaryApp("keymap");
   for (const [name, text] of Object.entries(FILES)) {
     await mkdir(join(root, name, ".."), { recursive: true });
     await Bun.write(join(root, name), text);

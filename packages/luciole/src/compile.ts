@@ -3,6 +3,7 @@
  * machine. The build identity is inside it; it connects to Servers of the same build only.
  * Validated by probes/compile (OpenTUI embeds its native library through `type: "file"`).
  */
+import { run, textOf } from "./subprocess";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { cp, mkdir, mkdtemp, rename, rm } from "node:fs/promises";
@@ -73,12 +74,11 @@ function parseTarget(target: string) {
  * A macOS Bun from Nix or Homebrew may link libraries that other Macs do not have: the
  * binary built on it would not start there. Returns why, or nothing when it is stock.
  */
-export function runtimePortability(runtime: string) {
+export async function runtimePortability(runtime: string) {
   if (process.platform !== "darwin") return undefined;
-  const otool = Bun.spawnSync(["otool", "-L", runtime]);
+  const otool = await run(["otool", "-L", runtime]);
   if (otool.exitCode !== 0) return undefined;
-  const foreign = otool.stdout
-    .toString()
+  const foreign = textOf(otool.stdout)
     .split("\n")
     .slice(1)
     .map((line) => line.trim().split(" ")[0])
@@ -214,7 +214,7 @@ async function compileEntry(
   const outfile = resolve(options.outfile);
   const nativeDir = options.nativeDir ? resolve(options.nativeDir) : undefined;
   const runtime = await resolveRuntime(target, options);
-  const portability = runtimePortability(runtime);
+  const portability = await runtimePortability(runtime);
   if (portability && options.portable) throw new Error(portability);
   const result = await Bun.build({
     entrypoints: [entry],
@@ -306,8 +306,8 @@ export async function fetchRuntime(
   const staging = await mkdtemp(join(runtimes, `.${name}-`));
   try {
     await Bun.write(join(staging, "runtime.tgz"), tarball);
-    const tar = Bun.spawnSync(["tar", "xzf", "runtime.tgz"], { cwd: staging });
-    if (tar.exitCode !== 0) throw new Error(tar.stderr.toString());
+    const tar = await run(["tar", "xzf", "runtime.tgz"], { cwd: staging });
+    if (tar.exitCode !== 0) throw new Error(tar.stderr);
     await rm(join(staging, "runtime.tgz"));
     if (!(await Bun.file(join(staging, "package/bin/bun")).exists()))
       throw new Error(`${dist.tarball} holds no package/bin/bun`);

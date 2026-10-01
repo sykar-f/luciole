@@ -215,7 +215,7 @@ export class PreviewServers {
       this.mode === "sandbox"
         ? await confineServer({
             mechanism: { kind: "seatbelt" },
-            runtime: sandboxRuntime(),
+            runtime: await sandboxRuntime(),
             granted: this.granted,
             // Its build and the project's manifest; the node_modules link to the
             // framework's packages resolves into the runtime's code, readable already.

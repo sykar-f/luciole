@@ -110,7 +110,9 @@ test("<Embed>: two applications, keys to the active pane, focus set aside, crash
         <box flexDirection="row" flexGrow={1}>
           <Embed app={mdApp} name="md" active={current === "md"} prefix="ctrl+o" flexGrow={1} />
           <Embed app={fxApp} name="fx" active={current === "fx"} prefix="ctrl+o" flexGrow={1} />
-          <Embed app={crashing} name="bomb" active={false} flexGrow={1} />
+          {/* Its own width: the two applications grow with what they render, and their
+              width decides whether the crash message below fits on one line. */}
+          <Embed app={crashing} name="bomb" active={false} width={40} />
         </box>
       );
     }

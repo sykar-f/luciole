@@ -93,7 +93,7 @@ async function confinedFor(
   const url = options.server ?? "http://127.0.0.1:9";
   const confinement = await confine({
     mechanism,
-    runtime: sandboxRuntime(),
+    runtime: await sandboxRuntime(),
     granted,
     tmp: tmp.path,
     readable: options.readable ?? [],
@@ -104,6 +104,7 @@ async function confinedFor(
   });
   let profile = "";
   let tty = "";
+  const runtime = await sandboxRuntime();
   const run = async (script: string) => {
     let output = "";
     const code = await new Promise<number | null>((done, fail) => {
@@ -123,7 +124,7 @@ async function confinedFor(
           },
           command: (slave) => {
             tty = slave;
-            return confinement.command(slave, [sandboxRuntime().bun, "-e", script]);
+            return confinement.command(slave, [runtime.bun, "-e", script]);
           },
           onData: (bytes) => (output += new TextDecoder().decode(bytes)),
           onExit: done,
@@ -694,7 +695,7 @@ confined(
           {
             ...prepared,
             mechanism: prepared.mechanism ?? { kind: "seatbelt" },
-            runtime: sandboxRuntime(),
+            runtime: await sandboxRuntime(),
             child,
           },
           { env, ask, perform: (request) => (performed.push(request), Promise.resolve(undefined)) },
@@ -791,7 +792,7 @@ confined(
         {
           ...prepared,
           mechanism: prepared.mechanism ?? { kind: "seatbelt" },
-          runtime: sandboxRuntime(),
+          runtime: await sandboxRuntime(),
           child: await buildChild(),
         },
         { env, perform: () => Promise.resolve(undefined), onFailure: (f) => void failures.push(f) },
@@ -852,7 +853,7 @@ onMacOS("a confined Server listens on its port and nothing leaves its box", asyn
   );
   const box = await confineServer({
     mechanism: { kind: "seatbelt" },
-    runtime: sandboxRuntime(),
+    runtime: await sandboxRuntime(),
     granted: NONE,
     readable: [join(dir, ".luciole")],
     writable: [data],
@@ -888,7 +889,7 @@ onMacOS("a confined Server listens on its port and nothing leaves its box", asyn
 test("a Server is not confined where no mechanism can let it listen yet", async () => {
   const refusal = await confineServer({
     mechanism: { kind: "userns", landlockAbi: 8, launcher: "/nonexistent" },
-    runtime: sandboxRuntime(),
+    runtime: await sandboxRuntime(),
     granted: NONE,
     readable: [],
     writable: [],
@@ -918,7 +919,7 @@ console.log(JSON.stringify({ ready: true, port: server.port }));`,
   );
   const box = await confineServer({
     mechanism: { kind: "seatbelt" },
-    runtime: sandboxRuntime(),
+    runtime: await sandboxRuntime(),
     granted: NONE,
     readable: [join(app, ".luciole"), join(app, "node_modules")],
     writable: [],

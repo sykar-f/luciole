@@ -5,7 +5,7 @@ import { join, resolve } from "node:path";
 import { build } from "../packages/luciole/src/build";
 import { compileClient, hostTarget, runtimePortability } from "../packages/luciole/src/compile";
 import { messageOf } from "../packages/luciole/src/guards";
-import { launch, rejectionOf } from "./helpers";
+import { execute, launch, rejectionOf } from "./helpers";
 
 const root = resolve("examples/notes");
 
@@ -37,7 +37,7 @@ test("the compiled Client runs alone: no Bun, no node_modules, same build as its
     });
     expect<string>(target).toBe(hostTarget());
     if (process.platform === "darwin") {
-      const details = Bun.spawnSync([
+      const details = await execute([
         "codesign",
         "-d",
         "--verbose=2",
@@ -102,7 +102,8 @@ test("unsupported targets and missing native packages are explained", async () =
 }, 60000);
 
 // Only where the Bun running the tests links libraries other Macs lack (Nix, Homebrew).
-test.if(runtimePortability(process.execPath) !== undefined)(
+const portability = await runtimePortability(process.execPath);
+test.if(portability !== undefined)(
   "--portable refuses a runtime other machines could not start, before compiling",
   async () => {
     const { output } = await build(root);
@@ -134,21 +135,15 @@ test("signing is only accepted where it can succeed", async () => {
   );
 });
 
-test("a publishing flag without its value is refused before any build", () => {
+test("a publishing flag without its value is refused before any build", async () => {
   const cli = (...flags: string[]) =>
-    Bun.spawnSync(
-      [process.execPath, "packages/luciole/src/cli.ts", "build", "--compile", ...flags],
-      {
-        stdout: "pipe",
-        stderr: "pipe",
-      },
-    );
+    execute([process.execPath, "packages/luciole/src/cli.ts", "build", "--compile", ...flags]);
   // Last on the line, or followed by another flag: both used to mean "not requested".
   for (const flags of [
     ["--sign", "Developer ID Application: Acme", "--notarize"],
     ["--notarize", "--sign", "Developer ID Application: Acme"],
   ]) {
-    const run = cli(...flags);
+    const run = await cli(...flags);
     expect(run.exitCode).toBe(1);
     expect(run.stderr.toString()).toContain("--notarize needs a value");
     expect(run.stdout.toString()).not.toContain("buildId");

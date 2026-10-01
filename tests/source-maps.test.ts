@@ -1,12 +1,11 @@
 import { expect, test } from "bun:test";
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { mkdir, rm } from "node:fs/promises";
+import { join } from "node:path";
 import { build } from "../packages/luciole/src/build";
-import { importClient } from "./helpers";
+import { importClient, temporaryApp } from "./helpers";
 
-// Inside the checkout so `luciole` and its packages resolve like in an example.
 test("built bundles link source maps that point at the original lines", async () => {
-  const dir = await mkdtemp(join(resolve("."), ".source-maps-"));
+  const dir = await temporaryApp("source-maps");
   try {
     const files: Record<string, string> = {
       "app/layout.tsx": `"use client";\nimport type { LayoutProps } from "luciole/client";\nexport default function Layout({ children }: LayoutProps) {\n  return <box>{children}</box>;\n}\n`,

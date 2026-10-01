@@ -4,7 +4,7 @@ import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { build } from "../packages/luciole/src/build";
 import { messageOf } from "../packages/luciole/src/guards";
-import { readManifest, rejectionOf } from "./helpers";
+import { BUILD_TEST_MS, readManifest, rejectionOf } from "./helpers";
 async function fixture(files: Record<string, string>, run: (dir: string) => Promise<void>) {
   const dir = await mkdtemp(join(tmpdir(), "luciole-build-"));
   try {
@@ -170,35 +170,40 @@ test("route graph diagnostics abort the build before any artefact", async () => 
     },
   );
 });
-test("layouts and loadings belong to the build identity and the Client graph", async () => {
-  await fixture(
-    {
-      "app/page.tsx": "export default function Page(){return <text>home</text>}",
-      "app/loading.tsx": '"use client";export default function Loading(){return <text>wait</text>}',
-      "app/(group)/layout.tsx":
-        '"use client";export default function Layout({children}){return children}',
-      "app/(group)/about/page.tsx": "export default function Page(){return <text>about</text>}",
-    },
-    async (dir) => {
-      const first = await build(dir);
-      const manifest = await readManifest(dir);
-      for (const file of ["app/layout.tsx", "app/(group)/layout.tsx", "app/loading.tsx"])
-        expect(manifest.clientGraph).toContain(file);
-      expect(manifest.serverGraph).not.toContain("app/(group)/layout.tsx");
-      await Bun.write(
-        join(dir, "app/(group)/layout.tsx"),
-        '"use client";export default function Layout({children}){return <box>{children}</box>}',
-      );
-      const second = await build(dir);
-      expect(second.buildId).not.toBe(first.buildId);
-      await Bun.write(
-        join(dir, "app/loading.tsx"),
-        '"use client";export default function Loading(){return <text>changed</text>}',
-      );
-      expect((await build(dir)).buildId).not.toBe(second.buildId);
-    },
-  );
-});
+test(
+  "layouts and loadings belong to the build identity and the Client graph",
+  async () => {
+    await fixture(
+      {
+        "app/page.tsx": "export default function Page(){return <text>home</text>}",
+        "app/loading.tsx":
+          '"use client";export default function Loading(){return <text>wait</text>}',
+        "app/(group)/layout.tsx":
+          '"use client";export default function Layout({children}){return children}',
+        "app/(group)/about/page.tsx": "export default function Page(){return <text>about</text>}",
+      },
+      async (dir) => {
+        const first = await build(dir);
+        const manifest = await readManifest(dir);
+        for (const file of ["app/layout.tsx", "app/(group)/layout.tsx", "app/loading.tsx"])
+          expect(manifest.clientGraph).toContain(file);
+        expect(manifest.serverGraph).not.toContain("app/(group)/layout.tsx");
+        await Bun.write(
+          join(dir, "app/(group)/layout.tsx"),
+          '"use client";export default function Layout({children}){return <box>{children}</box>}',
+        );
+        const second = await build(dir);
+        expect(second.buildId).not.toBe(first.buildId);
+        await Bun.write(
+          join(dir, "app/loading.tsx"),
+          '"use client";export default function Loading(){return <text>changed</text>}',
+        );
+        expect((await build(dir)).buildId).not.toBe(second.buildId);
+      },
+    );
+  },
+  BUILD_TEST_MS,
+);
 
 // Fake installed packages: any package may reach the Client, unless it is made for the Server.
 const packages: Record<string, string> = {
@@ -231,32 +236,36 @@ test("Client packages: bundled without declaration, inventoried with their versi
   });
 });
 
-test("Client packages: one made for the Server is refused with its name", async () => {
-  await fixture({ ...packages, ...clientUsing("db-client", "query") }, async (dir) => {
-    expect(messageOf(await rejectionOf(build(dir)))).toContain(
-      "Client package db-client imports server-only: it is Server-only",
-    );
-    expect(await Bun.file(join(dir, ".luciole/manifest.json")).exists()).toBe(false);
-  });
-  await fixture({ ...packages, ...clientUsing("leaky-sdk", "who") }, async (dir) => {
-    expect(messageOf(await rejectionOf(build(dir)))).toContain(
-      "Client package leaky-sdk imports luciole/server: it is Server-only",
-    );
-  });
-  // The same package stays usable from Server code.
-  await fixture(
-    {
-      ...packages,
-      "app/page.tsx": `import {query} from "db-client";export default function Page(){return <text>{query()}</text>}`,
-    },
-    async (dir) => {
-      await build(dir);
-      expect(await Bun.file(join(dir, ".luciole/client/index.js")).text()).not.toContain(
-        "SECRET_DB",
+test(
+  "Client packages: one made for the Server is refused with its name",
+  async () => {
+    await fixture({ ...packages, ...clientUsing("db-client", "query") }, async (dir) => {
+      expect(messageOf(await rejectionOf(build(dir)))).toContain(
+        "Client package db-client imports server-only: it is Server-only",
       );
-    },
-  );
-});
+      expect(await Bun.file(join(dir, ".luciole/manifest.json")).exists()).toBe(false);
+    });
+    await fixture({ ...packages, ...clientUsing("leaky-sdk", "who") }, async (dir) => {
+      expect(messageOf(await rejectionOf(build(dir)))).toContain(
+        "Client package leaky-sdk imports luciole/server: it is Server-only",
+      );
+    });
+    // The same package stays usable from Server code.
+    await fixture(
+      {
+        ...packages,
+        "app/page.tsx": `import {query} from "db-client";export default function Page(){return <text>{query()}</text>}`,
+      },
+      async (dir) => {
+        await build(dir);
+        expect(await Bun.file(join(dir, ".luciole/client/index.js")).text()).not.toContain(
+          "SECRET_DB",
+        );
+      },
+    );
+  },
+  BUILD_TEST_MS,
+);
 
 const sidePackages: Record<string, string> = {
   "node_modules/client-only/package.json": `{"name":"client-only","version":"0.0.1","main":"index.js"}`,
@@ -337,46 +346,50 @@ test("client-only code never runs on the Server, except behind a use client boun
   );
 });
 
-test("serverPackages keeps listed third-party packages out of the Client", async () => {
-  const config = { "luciole.json": `{"serverPackages":["hasher"]}` };
-  await fixture({ ...sidePackages, ...config, ...clientUsing("hasher", "hash") }, async (dir) => {
-    expect(messageOf(await rejectionOf(build(dir)))).toMatch(
-      /components\/widget\.tsx:1:\d+: Server-only package in Client graph: hasher \(serverPackages in luciole\.json\)\n {2}via app\/page\.tsx → components\/widget\.tsx/,
-    );
-  });
-  await fixture(
-    { ...sidePackages, ...config, ...clientUsing("auth-kit", "check") },
-    async (dir) => {
-      expect(messageOf(await rejectionOf(build(dir)))).toContain(
-        "Client package auth-kit imports hasher: it is listed in serverPackages (luciole.json)\n  via app/page.tsx → components/widget.tsx → auth-kit/index.js → hasher",
+test(
+  "serverPackages keeps listed third-party packages out of the Client",
+  async () => {
+    const config = { "luciole.json": `{"serverPackages":["hasher"]}` };
+    await fixture({ ...sidePackages, ...config, ...clientUsing("hasher", "hash") }, async (dir) => {
+      expect(messageOf(await rejectionOf(build(dir)))).toMatch(
+        /components\/widget\.tsx:1:\d+: Server-only package in Client graph: hasher \(serverPackages in luciole\.json\)\n {2}via app\/page\.tsx → components\/widget\.tsx/,
       );
-    },
-  );
-  // Unlisted, the same package is bundled; listed, it stays usable on the Server.
-  await fixture({ ...sidePackages, ...clientUsing("auth-kit", "check") }, (dir) =>
-    build(dir).then(() => {}),
-  );
-  await fixture(
-    {
-      ...sidePackages,
-      ...config,
-      "app/page.tsx": `import {hash} from 'hasher';export default function Page(){return <text>{hash("x")}</text>}`,
-    },
-    async (dir) => {
-      await build(dir);
-      expect(await Bun.file(join(dir, ".luciole/client/index.js")).text()).not.toContain(
-        "HASHER_SECRET",
-      );
-    },
-  );
-  for (const bad of [`{"serverPackages":"hasher"}`, `{"serverPackages":["hasher/sub"]}`, `nope`])
+    });
     await fixture(
-      { ...sidePackages, "luciole.json": bad, ...clientUsing("auth-kit", "check") },
+      { ...sidePackages, ...config, ...clientUsing("auth-kit", "check") },
       async (dir) => {
-        expect(messageOf(await rejectionOf(build(dir)))).toContain("luciole.json");
+        expect(messageOf(await rejectionOf(build(dir)))).toContain(
+          "Client package auth-kit imports hasher: it is listed in serverPackages (luciole.json)\n  via app/page.tsx → components/widget.tsx → auth-kit/index.js → hasher",
+        );
       },
     );
-});
+    // Unlisted, the same package is bundled; listed, it stays usable on the Server.
+    await fixture({ ...sidePackages, ...clientUsing("auth-kit", "check") }, (dir) =>
+      build(dir).then(() => {}),
+    );
+    await fixture(
+      {
+        ...sidePackages,
+        ...config,
+        "app/page.tsx": `import {hash} from 'hasher';export default function Page(){return <text>{hash("x")}</text>}`,
+      },
+      async (dir) => {
+        await build(dir);
+        expect(await Bun.file(join(dir, ".luciole/client/index.js")).text()).not.toContain(
+          "HASHER_SECRET",
+        );
+      },
+    );
+    for (const bad of [`{"serverPackages":"hasher"}`, `{"serverPackages":["hasher/sub"]}`, `nope`])
+      await fixture(
+        { ...sidePackages, "luciole.json": bad, ...clientUsing("auth-kit", "check") },
+        async (dir) => {
+          expect(messageOf(await rejectionOf(build(dir)))).toContain("luciole.json");
+        },
+      );
+  },
+  BUILD_TEST_MS,
+);
 test("application code shares the framework's zod; a package keeps its own", async () => {
   await fixture(
     {

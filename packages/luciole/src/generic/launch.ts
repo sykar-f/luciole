@@ -65,7 +65,7 @@ export async function launchUrls(target: string, options: LaunchOptions): Promis
   // The sandboxed Client, run from luciole's tree (src/sandbox/runtime.ts): found here,
   // where luciole runs from its sources, and handed to the bundled generic Client.
   const sandbox = tabs.some((tab) => tab.mode === "sandbox")
-    ? { runtime: sandboxRuntime(), child: await buildChild() }
+    ? { runtime: await sandboxRuntime(), child: await buildChild() }
     : undefined;
   const bun = process.execPath;
   return runLocal({

@@ -20,7 +20,7 @@
  * to sh unchanged. Arguments are app names, build ids, hex and fixed flags: nothing to
  * quote. The application's own arguments go on stdin instead.
  */
-import { spawn, spawnSync, type ChildProcess } from "node:child_process";
+import { spawn, type ChildProcess } from "node:child_process";
 import { connect as connectSocket } from "node:net";
 import { rmSync } from "node:fs";
 import { join } from "node:path";
@@ -189,20 +189,35 @@ export async function runOn(
   const { host, args: to } = destinationOf(destination);
   const control = socketDirectory("luciole-on-");
   const shared = ["-o", `ControlPath=${join(control, "c")}`];
-  const closeMaster = () => {
-    spawnSync(ssh, [...shared, "-O", "exit", ...to], { stdio: "ignore", env });
+  const exitMaster = [...shared, "-O", "exit", ...to];
+  // Children run asynchronously throughout: Bun 1.4's spawnSync can miss a child's exit
+  // and spin forever (oven-sh/bun#34069), and the master is the first thing launched.
+  const closeMaster = async () => {
+    await sshRun(ssh, exitMaster, { env }).catch(() => undefined);
     rmSync(control, { recursive: true, force: true });
   };
-  process.on("exit", closeMaster);
+  // At the process's exit nothing can be awaited: a detached shell closes the master and
+  // removes its directory once ssh is done with the control socket in it.
+  const closeMasterAtExit = () => {
+    spawn("/bin/sh", ["-c", '"$@" >/dev/null 2>&1; rm -rf "$0"', control, ssh, ...exitMaster], {
+      detached: true,
+      stdio: "ignore",
+      env,
+    }).unref();
+  };
+  process.on("exit", closeMasterAtExit);
   try {
     // Authenticates in the foreground (prompts use the terminal), then stays behind.
-    const master = spawnSync(
-      ssh,
-      [...shared, "-o", "ControlMaster=yes", "-o", "ControlPersist=yes", "-M", "-N", "-f", ...to],
-      { stdio: ["inherit", "ignore", "inherit"], env },
-    );
-    if (master.error) throw master.error;
-    if (master.status !== 0) throw new Error(`ssh ${host}: exited with ${master.status}`);
+    const master = await new Promise<number | null>((done, fail) => {
+      const child = spawn(
+        ssh,
+        [...shared, "-o", "ControlMaster=yes", "-o", "ControlPersist=yes", "-M", "-N", "-f", ...to],
+        { stdio: ["inherit", "ignore", "inherit"], env },
+      );
+      child.once("error", fail);
+      child.once("exit", (code) => done(code));
+    });
+    if (master !== 0) throw new Error(`ssh ${host}: exited with ${master}`);
     const reuse = [...shared, "-o", "ControlMaster=no"];
     const command = [...reuse, ...to];
     const probe = await sshRun(ssh, [...command, remote(PROBE, name, identity.buildId)], {
@@ -259,17 +274,21 @@ export async function runOn(
       remoteSocket: server.socket,
       env,
     });
-    const stop = () => {
+    const stopAtExit = () => {
       tunnel.stop();
-      process.off("exit", stop);
-      closeMaster();
+      closeMasterAtExit();
     };
-    process.off("exit", closeMaster);
-    process.on("exit", stop);
-    return { url: tunnel.url, stop: async () => stop() };
+    const stop = async () => {
+      tunnel.stop();
+      process.off("exit", stopAtExit);
+      await closeMaster();
+    };
+    process.off("exit", closeMasterAtExit);
+    process.on("exit", stopAtExit);
+    return { url: tunnel.url, stop };
   } catch (error: unknown) {
-    process.off("exit", closeMaster);
-    closeMaster();
+    process.off("exit", closeMasterAtExit);
+    await closeMaster();
     throw error;
   }
 }

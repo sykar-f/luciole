@@ -97,7 +97,7 @@ export async function patch(
   const parsed = Revision.safeParse(number);
   if (!parsed.success) return { ok: false, error: "Invalid revision" };
   try {
-    return { ok: true, files: studio.patch(parsed.data) };
+    return { ok: true, files: await studio.patch(parsed.data) };
   } catch (error: unknown) {
     return { ok: false, error: error instanceof Error ? error.message : String(error) };
   }

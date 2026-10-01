@@ -1,5 +1,7 @@
 import { spawn } from "node:child_process";
-import { join } from "node:path";
+import { mkdtemp, symlink } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { act, type ReactNode } from "react";
 import type { MouseButton } from "@opentui/core/testing";
@@ -9,10 +11,54 @@ import type { Application, ApplicationOptions } from "../packages/luciole/src/cl
 import { readJsonFile } from "../packages/luciole/src/package-json";
 import type { DraftStore } from "../examples/notes/components/draft";
 
+/**
+ * The budget of a test that builds an application, or several, and starts its Server:
+ * 3 to 15 s on this suite under a loaded machine (several sessions on one Mac, swapping),
+ * where the default 20 s left no room for a stall of the machine itself.
+ */
+export const BUILD_TEST_MS = 60_000;
+
 /** `value`, which the test expects to exist: fails naming `what` when the domain has none. */
 export function present<T>(value: T | null | undefined, what: string): T {
   if (value === null || value === undefined) throw new Error(`Expected ${what}`);
   return value;
+}
+
+/**
+ * A fresh application directory under tmpdir, named after `prefix`, with the checkout's
+ * node_modules linked in: `luciole`, React and its packages resolve as in an example,
+ * and a run killed midway leaves nothing in the checkout (format and lint read it).
+ */
+export async function temporaryApp(prefix: string) {
+  const directory = await mkdtemp(join(tmpdir(), `luciole-${prefix}-`));
+  await symlink(resolve("node_modules"), join(directory, "node_modules"), "dir");
+  return directory;
+}
+
+/**
+ * Runs `command` to its end and gives what it wrote, through an asynchronous spawn.
+ * Bun 1.4's spawnSync can lose its child's exit and spin forever at 100 % CPU, the child
+ * a zombie (oven-sh/bun#34069); bun test's timeout cannot interrupt a blocked thread, so a
+ * worker that hit it hung the whole run. Awaited, the exit comes through the event loop,
+ * and a child that never ends fails by the test's timeout instead.
+ */
+export async function execute(
+  command: readonly string[],
+  options: { cwd?: string; env?: Record<string, string | undefined>; stdin?: Uint8Array } = {},
+) {
+  const child = Bun.spawn([...command], {
+    cwd: options.cwd,
+    env: options.env,
+    stdin: options.stdin ?? "ignore",
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+  const [stdout, stderr, exitCode] = await Promise.all([
+    new Response(child.stdout).arrayBuffer(),
+    new Response(child.stderr).arrayBuffer(),
+    child.exited,
+  ]);
+  return { pid: child.pid, exitCode, stdout: Buffer.from(stdout), stderr: Buffer.from(stderr) };
 }
 
 /** What `testRender` resolves with: the renderer, input mocks and frame captures. */
@@ -218,7 +264,7 @@ export async function rejectionOf(promise: Promise<unknown>): Promise<unknown> {
  * the second of two history entries, owned by a process that no longer exists.
  */
 export async function leaveCrashedSession(state: string, name: string, key: string, href: string) {
-  const dead = Bun.spawnSync(["true"]).pid;
+  const dead = (await execute(["true"])).pid;
   await Bun.write(
     join(state, "luciole", name, "sessions", `${crypto.randomUUID()}.json`),
     JSON.stringify({

@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { z } from "zod";
 import { serverStatus } from "../packages/luciole/src/launcher/managed";
-import { leaveCrashedSession } from "./helpers";
+import { execute, leaveCrashedSession } from "./helpers";
 
 const cli = resolve("packages/luciole/src/cli.ts");
 
@@ -125,16 +125,20 @@ setInterval(() => {}, 1000);`,
   }
 });
 
-test("the CLI explains what it cannot launch", () => {
-  const luciole = (...args: string[]) => {
-    const result = Bun.spawnSync([process.execPath, cli, ...args]);
+test("the CLI explains what it cannot launch", async () => {
+  const luciole = async (...args: string[]) => {
+    const result = await execute([process.execPath, cli, ...args]);
     return { code: result.exitCode, stderr: result.stderr.toString() };
   };
   // Refused before the Server is contacted: what a URL takes is said.
-  expect(luciole("https://notes.example.com", "--nope")).toMatchObject({ code: 1 });
-  expect(luciole("https://notes.example.com", "--nope").stderr).toContain("--inline or --sandbox");
-  expect(luciole("./no-such-app").stderr).toContain("is not a luciole app");
-  expect(luciole("examples/notes").stderr).toContain("start it with ./");
-  expect(luciole("--nope").stderr).toContain("Usage: luciole");
-  expect(luciole("./examples/notes", "--on", "host").stderr).toContain("luciole build --compile");
+  expect(await luciole("https://notes.example.com", "--nope")).toMatchObject({ code: 1 });
+  expect((await luciole("https://notes.example.com", "--nope")).stderr).toContain(
+    "--inline or --sandbox",
+  );
+  expect((await luciole("./no-such-app")).stderr).toContain("is not a luciole app");
+  expect((await luciole("examples/notes")).stderr).toContain("start it with ./");
+  expect((await luciole("--nope")).stderr).toContain("Usage: luciole");
+  expect((await luciole("./examples/notes", "--on", "host")).stderr).toContain(
+    "luciole build --compile",
+  );
 });

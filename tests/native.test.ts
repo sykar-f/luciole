@@ -17,7 +17,7 @@ import { readBinaryIdentity } from "../packages/luciole/src/launcher/identity";
 import { install } from "../packages/luciole/src/registry/apps";
 import { packApp } from "../packages/luciole/src/registry/pack";
 import type { Registry } from "../packages/luciole/src/registry/registry";
-import { rejectionOf } from "./helpers";
+import { execute, rejectionOf } from "./helpers";
 
 // examples/files makes thumbnails with sharp, whose addon links libvips next to it.
 const root = resolve("examples/files");
@@ -119,12 +119,12 @@ test("native/ travels with the binary: --on archive, npm package, install", asyn
   // The build compiled by the previous test.
   const binary = join(work, "build/files");
   const archive = await packBundle("files", binary, hostTarget());
-  const listing = Bun.spawnSync(["tar", "tf", "-"], { stdin: archive }).stdout.toString();
+  const listing = (await execute(["tar", "tf", "-"], { stdin: archive })).stdout.toString();
   expect(listing).toContain("./native/node_modules/sharp/package.json");
   expect(listing).toContain("./native/server.js");
   const unpacked = join(work, "unpacked");
   await mkdir(unpacked);
-  Bun.spawnSync(["tar", "xf", "-", "-C", unpacked], { stdin: archive });
+  await execute(["tar", "xf", "-", "-C", unpacked], { stdin: archive });
   const sums = await Bun.file(join(unpacked, "SHA256SUMS")).text();
   expect(sums).toContain("  native/server.js\n");
   expect(sums).toContain(`  native/node_modules/@img/sharp-${hostTarget().slice(4)}/package.json`);

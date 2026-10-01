@@ -18,7 +18,7 @@ import {
 } from "../packages/luciole/src/registry/apps";
 import { npmRegistry } from "../packages/luciole/src/registry/npm";
 import { packApp } from "../packages/luciole/src/registry/pack";
-import { rejectionOf } from "./helpers";
+import { execute, rejectionOf } from "./helpers";
 
 let work: string, directories: Directories, server: ReturnType<typeof Bun.serve>;
 /** What the fake registry serves: packuments by name, tarballs by path. */
@@ -64,7 +64,7 @@ async function publish(options: { version: string; buildId: string; targets?: st
     );
     const staging = await mkdtemp(join(work, "tar-"));
     await cp(directory, join(staging, "package"), { recursive: true });
-    const tgz = Bun.spawnSync(["tar", "czf", "-", "-C", staging, "package"]).stdout;
+    const tgz = (await execute(["tar", "czf", "-", "-C", staging, "package"])).stdout;
     const path = `/tarballs/${basename(directory)}-${manifest.version}.tgz`;
     tarballs.set(path, new Uint8Array(tgz));
     const integrity = `sha512-${new Bun.CryptoHasher("sha512").update(tgz).digest("base64")}`;

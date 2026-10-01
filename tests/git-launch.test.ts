@@ -11,7 +11,7 @@ import {
   type GitOptions,
 } from "../packages/luciole/src/launcher/git";
 import { parseGitSource } from "../packages/luciole/src/launcher/git-source";
-import { rejectionOf } from "./helpers";
+import { execute, rejectionOf } from "./helpers";
 
 let work: string, remote: string;
 const GIT_ENV = {
@@ -20,14 +20,14 @@ const GIT_ENV = {
   GIT_COMMITTER_NAME: "Ada",
   GIT_COMMITTER_EMAIL: "ada@example.com",
 };
-function git(cwd: string, ...args: string[]) {
-  const result = Bun.spawnSync(["git", ...args], { cwd, env: { ...process.env, ...GIT_ENV } });
+async function git(cwd: string, ...args: string[]) {
+  const result = await execute(["git", ...args], { cwd, env: { ...process.env, ...GIT_ENV } });
   if (result.exitCode !== 0) throw new Error(result.stderr.toString());
   return result.stdout.toString().trim();
 }
-const commit = (message: string) => {
-  git(remote, "add", "-A");
-  git(remote, "commit", "-qm", message);
+const commit = async (message: string) => {
+  await git(remote, "add", "-A");
+  await git(remote, "commit", "-qm", message);
   return git(remote, "rev-parse", "HEAD");
 };
 
@@ -43,8 +43,8 @@ beforeAll(async () => {
   // there is: what is tested is the launcher, not what an example app depends on.
   for (const [name, text] of Object.entries(APP))
     await Bun.write(join(remote, "apps/notes", name), text);
-  git(remote, "init", "-q", "-b", "main");
-  commit("Notes");
+  await git(remote, "init", "-q", "-b", "main");
+  await commit("Notes");
 });
 afterAll(() => rm(work, { recursive: true, force: true }));
 
@@ -135,17 +135,17 @@ test("a repository is accepted once; a new commit is fetched, announced and buil
   );
   expect(h.builds).toEqual([]);
   expect(h.questions[0]).toContain(`file://${remote} was never run here`);
-  expect(h.questions[0]).toContain(git(remote, "rev-parse", "HEAD"));
+  expect(h.questions[0]).toContain(await git(remote, "rev-parse", "HEAD"));
   expect(h.questions[0]).toContain("Notes");
   h.answer = true;
   const first = await prepareGitApp(source, h.options);
-  expect(first.sha).toBe(git(remote, "rev-parse", "HEAD"));
+  expect(first.sha).toBe(await git(remote, "rev-parse", "HEAD"));
   // <cache>/<hash of the url>/<sha>/<repository>/<directory>
   expect(first.directory).toStartWith(join(work, "cache/git/"));
   expect(first.directory).toEndWith(join(first.sha, "remote/apps/notes"));
   expect(existsSync(join(first.directory, ".luciole/server/index.js"))).toBe(true);
   // Shallow: one commit only.
-  expect(git(join(first.directory, "../.."), "rev-list", "--count", "HEAD")).toBe("1");
+  expect(await git(join(first.directory, "../.."), "rev-list", "--count", "HEAD")).toBe("1");
   expect(h.builds).toHaveLength(1);
   expect(h.questions).toHaveLength(2);
   // Unchanged: launched as is, no question, no build.
@@ -154,9 +154,9 @@ test("a repository is accepted once; a new commit is fetched, announced and buil
   expect(h.questions).toHaveLength(2);
   // New commits of the accepted repository: no question, an account of them, a build.
   await Bun.write(join(remote, "apps/notes/README.md"), "Notes\n");
-  commit("Add a README");
+  await commit("Add a README");
   await Bun.write(join(remote, "apps/notes/CHANGES.md"), "Changes\n");
-  const second = commit("Add a changelog");
+  const second = await commit("Add a changelog");
   const next = await prepareGitApp(source, h.options);
   expect(next.sha).toBe(second);
   expect(h.questions).toHaveLength(2);
@@ -169,7 +169,7 @@ test("a repository is accepted once; a new commit is fetched, announced and buil
   // Many commits: the account stays short and says it is cut.
   for (let i = 1; i <= 12; i++) {
     await Bun.write(join(remote, "apps/notes/CHANGES.md"), `Change ${i}\n`);
-    commit(`Change ${i}`);
+    await commit(`Change ${i}`);
   }
   h.logs.length = 0;
   await prepareGitApp(source, h.options);
@@ -179,12 +179,14 @@ test("a repository is accepted once; a new commit is fetched, announced and buil
   expect(long.at(-1)).toBe("  … (earlier commits not shown)");
   expect(h.questions).toHaveLength(2);
   const trust: unknown = JSON.parse(await readFile(join(work, "config/trust.json"), "utf8"));
-  expect(trust).toMatchObject({ [`file://${remote}`]: { sha: git(remote, "rev-parse", "HEAD") } });
+  expect(trust).toMatchObject({
+    [`file://${remote}`]: { sha: await git(remote, "rev-parse", "HEAD") },
+  });
 }, 60000);
 
 test("offline, a branch launches its last checkout with a warning; tags and shas never ask", async () => {
   const h = harness();
-  git(remote, "tag", "v1");
+  await git(remote, "tag", "v1");
   const tagged = { url: `file://${remote}`, ref: "v1", directory: "apps/notes" };
   const branch = { url: `file://${remote}`, ref: "main", directory: "apps/notes" };
   const v1 = await prepareGitApp(tagged, h.options);
@@ -220,13 +222,13 @@ test("an app is installed from its bun.lock only; a missing ref or app is explai
     join(app, "package.json"),
     JSON.stringify({ name: "notes", private: true, dependencies: { dep: "file:./dep" } }),
   );
-  commit("Declare packages without a lockfile");
+  await commit("Declare packages without a lockfile");
   const source = { url: `file://${remote}`, directory: "apps/notes" };
   expect(messageOf(await rejectionOf(prepareGitApp(source, h.options)))).toContain(
     "has no bun.lock",
   );
-  expect(Bun.spawnSync([process.execPath, "install"], { cwd: app }).exitCode).toBe(0);
-  commit("Lock");
+  expect((await execute([process.execPath, "install"], { cwd: app })).exitCode).toBe(0);
+  await commit("Lock");
   await prepareGitApp(source, h.options);
   expect(h.logs).toContain("Installing dependencies (bun install --frozen-lockfile)…");
   expect(existsSync(join(h.builds[0] ?? "", "node_modules/dep/package.json"))).toBe(true);
