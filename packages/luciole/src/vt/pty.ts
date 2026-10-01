@@ -36,8 +36,22 @@ export type Pty = {
   readonly pid: number;
 };
 
-/** The open file descriptors of this process. */
-const openDescriptors = () => new Set(readdirSync("/dev/fd").map(Number));
+/**
+ * The open file descriptors of this process, each with what it refers to. A number alone
+ * does not say a descriptor is old: listing /dev/fd opens a directory descriptor that is
+ * closed again, and any descriptor closed meanwhile (a pool thread, an earlier test's
+ * cleanup) frees a number the PTY then takes. What a number refers to does not repeat.
+ */
+function openDescriptors() {
+  const open = new Map<number, string>();
+  for (const fd of readdirSync("/dev/fd").map(Number)) {
+    try {
+      const { dev, ino, rdev } = fstatSync(fd);
+      open.set(fd, `${dev}:${ino}:${rdev}`);
+    } catch {}
+  }
+  return open;
+}
 /** What a PTY slave is called: macOS /dev/ttysNNN, Linux /dev/pts/N. */
 const SLAVE_PATH = /^\/dev\/(?:ttys\d+|pts\/\d+)$/;
 /**
@@ -46,13 +60,12 @@ const SLAVE_PATH = /^\/dev\/(?:ttys\d+|pts\/\d+)$/;
  * `realpath` of /dev/fd/<n> asks the kernel, not a listing of /dev, so nothing waits on
  * time. Verified on macOS only (F_GETPATH: 200 PTYs in a row, each path present and with
  * the descriptor's device number). On Linux this is reasoning, not a run: /dev/fd is
- * /proc/self/fd, whose entries are symlinks to /dev/pts/N. Why the old scan of /dev
- * missed the entry under load is a hypothesis (a listing racing other processes' PTYs
- * coming and going), not something measured. The master (/dev/ptmx) never matches.
+ * /proc/self/fd, whose entries are symlinks to /dev/pts/N. The master (/dev/ptmx) never
+ * matches.
  */
-function newSlave(before: ReadonlySet<number>) {
-  for (const fd of openDescriptors()) {
-    if (before.has(fd)) continue;
+function newSlave(before: ReadonlyMap<number, string>) {
+  for (const [fd, identity] of openDescriptors()) {
+    if (before.get(fd) === identity) continue;
     try {
       if (!fstatSync(fd).isCharacterDevice()) continue;
       const path = realpathSync(`/dev/fd/${fd}`);
@@ -95,7 +108,7 @@ export function spawnPty(options: PtyOptions): Pty {
   try {
     command =
       typeof options.command === "function"
-        ? options.command(newSlave(before ?? new Set()))
+        ? options.command(newSlave(before ?? new Map()))
         : options.command;
     if (!command[0]) throw new Error("A terminal needs a command");
   } catch (error: unknown) {
