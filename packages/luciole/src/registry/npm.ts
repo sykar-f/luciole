@@ -10,6 +10,7 @@
  * not verified, so this protects from a damaged download, not from a compromised
  * registry.
  */
+import { run } from "../subprocess";
 import { existsSync } from "node:fs";
 import { mkdtemp, rename, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -177,9 +178,7 @@ export function npmRegistry(location = registryUrl()): Registry {
 async function buildIn(tarball: Uint8Array, app: string, source: string, directory: string) {
   const staging = await mkdtemp(join(tmpdir(), "luciole-package-"));
   try {
-    const tar = Bun.spawnSync(["tar", "xzf", "-", "-C", staging, "package/bin"], {
-      stdin: tarball,
-    });
+    const tar = await run(["tar", "xzf", "-", "-C", staging, "package/bin"], { stdin: tarball });
     if (tar.exitCode !== 0 || !existsSync(join(staging, "package/bin", app)))
       throw new Error(`${source} holds no package/bin/${app}`);
     await rename(join(staging, "package/bin"), directory);

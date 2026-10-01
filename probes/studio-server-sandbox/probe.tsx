@@ -152,7 +152,7 @@ async function startServer(confined: boolean) {
   ];
   let profile = "";
   if (confined) {
-    const runtime = sandboxRuntime();
+    const runtime = await sandboxRuntime();
     profile = [
       seatbeltProfile({
         runtime: { ...runtime, bun: realpathSync(process.execPath) },

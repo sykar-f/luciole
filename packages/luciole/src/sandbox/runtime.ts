@@ -3,11 +3,11 @@
  * the libraries it links, luciole's sources, the node_modules its runtime resolves from.
  * Found once per host process; nothing of the user's files.
  */
-import { spawnSync } from "node:child_process";
 import { existsSync, realpathSync } from "node:fs";
 import { basename, dirname, join, sep } from "node:path";
 import { ABI_PACKAGES } from "../abi";
 import { lucioleSources } from "../sources";
+import { run, textOf } from "../subprocess";
 import { detectMechanism, type Availability } from "./mechanism";
 import type { SandboxRuntime } from "./profile";
 
@@ -45,9 +45,9 @@ function nodeModulesOf(name: string) {
  * Non-system dylibs `bun` links on macOS (Nix installs ICU next to it), by their
  * directories. On Linux its system libraries are under /usr and /lib, read anyway.
  */
-function libraries(bun: string) {
+async function libraries(bun: string) {
   if (process.platform !== "darwin") return [];
-  const listed = spawnSync("otool", ["-L", bun], { encoding: "utf8" }).stdout ?? "";
+  const listed = textOf((await run(["otool", "-L", bun])).stdout);
   return [
     ...new Set(
       listed
@@ -99,13 +99,13 @@ export async function buildChild() {
 }
 
 let found: SandboxRuntime | undefined;
-export function sandboxRuntime(): SandboxRuntime {
+export async function sandboxRuntime(): Promise<SandboxRuntime> {
   if (found) return found;
   const bun = realpathSync(process.execPath);
   found = {
     bun,
     // Its own prefix too: a Nix or Homebrew Bun keeps its files beside the binary.
-    libraries: [dirname(dirname(bun)), ...libraries(bun)],
+    libraries: [dirname(dirname(bun)), ...(await libraries(bun))],
     code: [
       SOURCES,
       ...new Set(

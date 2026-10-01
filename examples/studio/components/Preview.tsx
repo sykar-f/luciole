@@ -105,8 +105,8 @@ function SandboxPreview(props: PreviewProps) {
     const { preview } = latest.current;
     let opened: Sandbox | undefined;
     let closed = false;
-    void Promise.all([leaving, buildChild()])
-      .then(([, child]) =>
+    void Promise.all([leaving, buildChild(), sandboxRuntime()])
+      .then(([, child, runtime]) =>
         openSandbox(
           {
             origin: `studio:${preview.project}`,
@@ -115,7 +115,7 @@ function SandboxPreview(props: PreviewProps) {
             fingerprint: preview.fingerprint,
             sessions: preview.sessions,
             granted: Capabilities.parse({ net: preview.hosts }),
-            runtime: sandboxRuntime(),
+            runtime,
             child,
             mechanism,
           },

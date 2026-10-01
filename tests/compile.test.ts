@@ -102,7 +102,8 @@ test("unsupported targets and missing native packages are explained", async () =
 }, 60000);
 
 // Only where the Bun running the tests links libraries other Macs lack (Nix, Homebrew).
-test.if(runtimePortability(process.execPath) !== undefined)(
+const portability = await runtimePortability(process.execPath);
+test.if(portability !== undefined)(
   "--portable refuses a runtime other machines could not start, before compiling",
   async () => {
     const { output } = await build(root);

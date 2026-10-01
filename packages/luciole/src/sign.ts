@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { mkdtemp, rm } from "node:fs/promises";
 import { z } from "zod";
+import { run as runCommand, textOf } from "./subprocess";
 
 export type SignOptions = {
   /** codesign identity: "Developer ID Application: …" to distribute, "-" for ad hoc. */
@@ -45,13 +46,13 @@ export function checkSigning(target: string, { sign, notarize }: SignOptions) {
     );
 }
 
-function run(command: string[]) {
-  const result = Bun.spawnSync(command, { stdout: "pipe", stderr: "pipe" });
+async function run(command: string[]) {
+  const result = await runCommand(command);
   if (result.exitCode !== 0)
     throw new Error(
-      `${command.slice(0, 2).join(" ")} failed:\n${result.stderr.toString()}${result.stdout.toString()}`,
+      `${command.slice(0, 2).join(" ")} failed:\n${result.stderr}${textOf(result.stdout)}`,
     );
-  return result.stdout.toString();
+  return textOf(result.stdout);
 }
 
 async function inTemporary<T>(use: (dir: string) => Promise<T>) {
@@ -68,7 +69,7 @@ export function signClient(outfile: string, identity: string) {
   return inTemporary(async (dir) => {
     const entitlements = join(dir, "entitlements.plist");
     await Bun.write(entitlements, ENTITLEMENTS);
-    run([
+    await run([
       "codesign",
       "--force",
       "--options",
@@ -81,7 +82,7 @@ export function signClient(outfile: string, identity: string) {
       identity,
       outfile,
     ]);
-    run(["codesign", "--verify", "--strict", "--verbose=2", outfile]);
+    await run(["codesign", "--verify", "--strict", "--verbose=2", outfile]);
   });
 }
 
@@ -96,10 +97,10 @@ const Submission = z.object({ id: z.string().optional(), status: z.string().opti
 export function notarizeClient(outfile: string, profile: string) {
   return inTemporary(async (dir) => {
     const archive = join(dir, `${basename(outfile)}.zip`);
-    run(["ditto", "-c", "-k", "--keepParent", outfile, archive]);
+    await run(["ditto", "-c", "-k", "--keepParent", outfile, archive]);
     const profileArgs = ["--keychain-profile", profile];
     const submission: unknown = JSON.parse(
-      run([
+      await run([
         "xcrun",
         "notarytool",
         "submit",
@@ -113,7 +114,7 @@ export function notarizeClient(outfile: string, profile: string) {
     const parsed = Submission.safeParse(submission);
     const { id, status } = parsed.success ? parsed.data : {};
     if (id && status === "Accepted") return id;
-    const log = id ? run(["xcrun", "notarytool", "log", id, ...profileArgs]) : "";
+    const log = id ? await run(["xcrun", "notarytool", "log", id, ...profileArgs]) : "";
     throw new Error(
       `Notarization ${id ?? "submission"} ended with ${status ?? "no status"}\n${log}`,
     );
