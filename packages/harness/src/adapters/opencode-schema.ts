@@ -1,7 +1,7 @@
 import { z } from "zod";
 
-// What coder reads from `opencode serve` (1.18.31, docs/coder/research/opencode-report.md
-// §2), checked on arrival: every response and every server-sent event is external data.
+// What coder reads from `opencode serve` (1.18.31), checked on arrival: every response and
+// every server-sent event is external data.
 // Checked against the exchanges recorded in tests/fixtures/coder/opencode/.
 
 /** One server-sent event: `data: {id, type, properties}`. */

@@ -8,7 +8,7 @@ import { opencodeAnthropicOAuth, piAnthropicOAuth } from "./anthropic-guard";
 /**
  * Whether each harness can run here, found without asking a model anything: its binary,
  * its version, whether it is signed in. Never a token: only what the harness itself
- * prints about its login (docs/CODER-HANDOFF.md §3).
+ * prints about its login.
  */
 
 const firstLine = (text: string) => text.trim().split("\n")[0] ?? "";
