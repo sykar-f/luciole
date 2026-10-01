@@ -1,6 +1,6 @@
 /**
  * Bun.build plugin that builds @opentui/core from its sources against opentui.wasm
- * (docs/WEB.md, W7 and decision 4; proven in probes/web). Each substitution names the source it expects and
+ * (docs/WEB.md, W7 and decision 4). Each substitution names the source it expects and
  * fails the build when that source changed: a new OpenTUI version is a new ABI key, and
  * this is where it is checked.
  */

@@ -1,6 +1,6 @@
 /**
  * What OpenTUI 0.5.12's EmbeddedTerminalRenderable leaves undone, and the smallest
- * host-side patches (measured in probes/vt-embed). Both belong upstream: they live in
+ * host-side patches (measured against it). Both belong upstream: they live in
  * this one module so that removing them, once OpenTUI fixes them, is one import.
  *
  * 1. Keys, legacy keyboard protocol (no kitty flags: most terminals and every mock).

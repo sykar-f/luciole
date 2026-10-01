@@ -10,7 +10,7 @@
  *
  * Fails above MARKDOWN_MAX_OSCILLATIONS (0) or MARKDOWN_MAX_RAW_FRAMES (0) raw frames per
  * run. For comparison, OpenTUI 0.5.12's `<markdown internalBlockMode="top-level">` gives
- * 0 and 19 oscillations, 62 and 282 raw frames (docs/streaming-markdown/STATUS.md).
+ * 0 and 19 oscillations, 62 and 282 raw frames.
  * MARKDOWN_FRAMES=<dir> writes the samples there as JSON.
  *
  *   bun scripts/pty/markdown-stability.ts claude|codex|pi|opencode

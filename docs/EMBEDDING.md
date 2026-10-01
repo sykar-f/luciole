@@ -1,10 +1,9 @@
 # Client générique et applications embarquées
 
 Statut : étapes 1 à 8 livrées (voir [Avancement](#avancement)) ; la conception ci-dessous
-s'appuie sur quatre probes exécutés le 24 septembre 2026 (macOS 26.6.2 arm64,
-Bun 1.4.2) : [inline](../probes/inline/README.md),
-[generic-client](../probes/generic-client/README.md),
-[vt-embed](../probes/vt-embed/README.md), [sandbox](../probes/sandbox/README.md).
+s'appuie sur quatre prototypes jetables exécutés le 24 septembre 2026 (macOS 26.6.2 arm64,
+Bun 1.4.2) : inline, generic-client, vt-embed et sandbox (retirés du dépôt ; leurs mesures
+sont reprises ci-dessous et leur code vit dans `packages/luciole/src`).
 
 Objectif : un Client luciole capable d'ouvrir plusieurs applications à la fois, comme un
 navigateur à onglets ou un multiplexeur local (tmux, herdr) : applications luciole
@@ -12,7 +11,7 @@ téléchargées depuis leur Server, applications installées, shells, vim.
 
 Un utilisateur de cette conception : l'aperçu en direct de studio, qui embarque en
 `sandbox` une application générée par un harness et confine aussi son Server
-([studio/SPEC.md](studio/SPEC.md)).
+([DESIGN.md](../examples/studio/DESIGN.md)).
 
 Les décisions prises sur la conception sont regroupées en [section 8](#8-décisions) ;
 le reste du document en tient compte.
@@ -46,8 +45,8 @@ jamais. `inline` est un choix explicite de l'utilisateur pour une origine de con
 `input.global`, `tabs.message`. Déclarées **statiquement** dans le champ
 `luciole.capabilities` du `package.json` de l'application (décision 3), lisible avant
 toute exécution ; le lanceur définit déjà le champ `luciole` (`name`, `buildId`,
-`binaries`), `capabilities` s'y ajoute avec le schéma Zod du probe sandbox
-(`probes/sandbox/capabilities.ts`). Le build recopie ce champ dans le manifeste signé
+`binaries`), `capabilities` s'y ajoute avec le schéma Zod défini dans
+`packages/luciole/src/capabilities.ts`. Le build recopie ce champ dans le manifeste signé
 (section 2) : une origine URL les annonce sans que le Client lise le `package.json`, et
 une application installée les donne par son `package.json`. Le build compare ce champ à
 l'audit des built-ins Node du bundle Client (`fs/*` → `fs.*`, `child_process` → `exec`,
@@ -65,7 +64,7 @@ déclarées, non appliquées : fs.read, exec… ». Aucun interrupteur par capac
 proposé dans ces deux modes. Tout accorder équivaut à passer en `process` : le Client
 le propose au lieu de simuler une sandbox vide.
 
-Qui applique quoi (mesuré, voir probes/sandbox) :
+Qui applique quoi (mesuré) :
 
 | Capacité                                         | macOS                                                                      | Linux                                                                   |
 | ------------------------------------------------ | -------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
@@ -153,7 +152,7 @@ configuration (`src/connect.ts` : `~/.config/luciole/<app>.json`), cache des bun
 Le probe inline monte `examples/mdreader` et `examples/files` côte à côte dans un seul
 processus et mesure chaque obstacle (état de `src/` avant l'étape 1), puis le même
 scénario avec les refactors appliqués depuis l'extérieur de `src/`
-(`probes/generic-client/host.tsx`) : tout passe.
+(prototype generic-client) : tout passe.
 
 ### O1. Un seul résolveur de modules par processus
 
@@ -184,8 +183,8 @@ d'instance (`p1`, `p2`…, `[a-z0-9-]{1,32}`), que son Transport envoie dans
 `<clé>@<buildId>/<chemin>` : Flight lit `manifest[id].id` pour chaque référence, il suffit
 de lui passer une copie du manifeste préfixée par la clé. Sans en-tête, les ids restent
 ceux d'aujourd'hui : le Client actuel ne change pas. Les ids de Server Functions ne
-changent pas (le Server les connaît ainsi). Mesuré (`panes/instance`, Server patché par
-`probes/inline/instance-server.ts`, sans toucher `src/`) : deux panes de mdreader contre
+changent pas (le Server les connaît ainsi). Mesuré (`panes/instance`, Server patché depuis
+l'extérieur de `src/`) : deux panes de mdreader contre
 deux Servers affichent chacun son document, résolvent avec leurs propres modules et
 envoient leurs actions par leur propre Application.
 
@@ -298,7 +297,7 @@ application OpenTUI enfant prête ≈ 91 ms, `seq 1..100000` à 16 Mo/s (limité
 et le PTY). Taille du PTY = boîte intérieure ; le redimensionnement atteint le programme
 (`stty size`).
 
-Trous d'OpenTUI 0.5.12, à remonter en amont, comblés dans `probes/vt-embed/gaps.ts` :
+Trous d'OpenTUI 0.5.12, à remonter en amont, comblés dans `packages/luciole/src/vt/gaps.ts` :
 sans protocole clavier kitty, F1–F12, `Alt+x` et Backspace n'envoient rien ; DA1, DA2 et
 OSC 10/11 restent sans réponse ; OSC 8 (hyperliens) n'apparaît pas dans le rendu (non
 comblé).
@@ -350,8 +349,8 @@ atteindre le presse-papiers sans passer par la vérification de capacité).
 **Server confiné** (`src/sandbox/server.ts`, `confineServer`) : pour un hôte qui lance un
 Server dont il ne se fie pas au code (l'aperçu de studio). Même profil généré, sans
 terminal, plus l'écoute d'un seul port loopback choisi par l'hôte ; `net` par hôte via le
-proxy de l'hôte. Lecture : son build ; écriture : son répertoire de données (mesuré par
-`probes/studio-server-sandbox`, testé dans `tests/sandbox.test.ts`). macOS seulement : sous
+proxy de l'hôte. Lecture : son build ; écriture : son répertoire de données (testé dans
+`tests/sandbox.test.ts`). macOS seulement : sous
 `luciole-sandbox`, le Server écouterait dans son espace de noms réseau et l'hôte le
 joindrait par un relais inverse, à construire ; ailleurs le mode est refusé.
 

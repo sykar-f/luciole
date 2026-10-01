@@ -6,8 +6,7 @@ un seul flux métier les capacités de luciole, d'OpenTUI et de TanStack Router,
 et elle a servi à pousser le framework au-delà de son contrat : ce qu'elle a cassé
 est corrigé, testé et documenté ci-dessous.
 
-Remplace la démo « Incident Control Room » prévue par
-[COMPLEX-DEMO-HANDOFF.md](COMPLEX-DEMO-HANDOFF.md) : même matrice de preuves, domaine
+Remplace la démo « Incident Control Room » prévue : même matrice de preuves, domaine
 choisi pour ses gros volumes, ses nombreux Drafts et sa mutation non rejouable (merge).
 
 ## Lancer

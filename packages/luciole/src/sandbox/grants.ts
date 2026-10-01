@@ -157,8 +157,7 @@ const privateDevpts = (mechanism: Mechanism) =>
   mechanism.kind === "userns" || mechanism.kind === "bwrap";
 
 /**
- * Why `mechanism` cannot enforce these grants, or `undefined`. Measured (probes/sandbox,
- * tests/sandbox.test.ts):
+ * Why `mechanism` cannot enforce these grants, or `undefined`. Measured (tests/sandbox.test.ts):
  *
  * - `pty` needs the child's own PTYs apart from the user's terminals. Seatbelt only
  *   matches paths, and its only workable rule (/dev/ttys*) opens every terminal of the

@@ -1,8 +1,8 @@
 /**
  * The Seatbelt (SBPL) profile of one sandboxed child, generated from the capabilities
  * the user granted its origin (docs/EMBEDDING.md, section 5). Deny by default; the base
- * rules are the minimum Bun and OpenTUI need to start, measured by bisection in
- * probes/sandbox on macOS 26.6 / Bun 1.4.2: removing one makes the child abort, or
+ * rules are the minimum Bun and OpenTUI need to start, measured by bisection
+ * on macOS 26.6 / Bun 1.4.2: removing one makes the child abort, or
  * silently change behavior (the time zone). Sub-processes inherit the profile.
  *
  * Every capability the profile opens has a line in `enforcement` (src/sandbox/grants.ts)
@@ -136,7 +136,7 @@ export function seatbeltProfile(plan: ChildPlan): string {
       "(allow process-fork)",
       `(allow process-exec file-read* ${caps.exec.map((p) => `(literal ${str(real(p))})`).join(" ")})`,
     );
-  // A Server: its own port, bound and accepting, nothing else inbound (probes/studio-server-sandbox).
+  // A Server: its own port, bound and accepting, nothing else inbound.
   if (plan.listen !== undefined)
     rules.push(
       `(allow network-bind (local ip ${str(`localhost:${plan.listen}`)}))`,

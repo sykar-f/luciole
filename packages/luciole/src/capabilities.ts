@@ -3,7 +3,7 @@
  * package.json (docs/EMBEDDING.md, decision 3), copied by the build into its bundle's
  * manifest. Deno-like: every field defaults to nothing. Declaring is not enforcing: only
  * the `sandbox` mode applies them (steps 7 and 8); `inline` and `process` apply none,
- * and a host says so. Shape measured in probes/sandbox:
+ * and a host says so. Shape measured on the sandbox modes:
  *
  * - `exec` is `false`, `true` or absolute binaries: Seatbelt and Landlock match
  *   executables by path, and a sandboxed exec inherits the sandbox;

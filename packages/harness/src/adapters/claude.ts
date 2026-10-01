@@ -52,7 +52,7 @@ import {
 import type { Harness, HarnessContext, HarnessEvent, StartOptions, UserInput } from "./types";
 
 /**
- * Claude Code through the Agent SDK (docs/coder/research/claude-code-report.md): one
+ * Claude Code through the Agent SDK: one
  * long `query()` in streaming-input mode per session, fed by an inbox of user messages.
  * It always runs the user's own `claude` (pathToClaudeCodeExecutable), signed in by them;
  * never the binary the SDK bundles, never `--bare`, the environment passed whole.

@@ -83,8 +83,6 @@
     "**/.luciole/**",
     "packages/flow/dist/**",
     "**/routeTree.gen.ts",
-    "probes/vt-embed/**",
-    "probes/devtools-tanstack/**",
     "website/**",
     "packages/harness/src/adapters/codex-protocol/**"
   ]

@@ -95,10 +95,8 @@ les adapters ; il n’existe pas de désactivation globale des hooks.
 Les dépendances des effets React, imports inutilisés et écritures pendant le rendu
 signalés par Oxlint ont été corrigés.
 
-Le handoff historique, les résultats bruts de sondes et la capture PTY ne sont pas
-reformatés. Les sources des sondes sont couvertes par TypeScript et Oxlint, sauf
-`probes/vt-embed` et `probes/devtools-tanstack` (chacune avec son propre `tsconfig.json`,
-exclues du contrôle racine et du lint) et `probes/compile/wrapper.ts`, exclu du contrôle.
+Les résultats bruts de sondes et les captures PTY ne sont pas reformatés. Les sources des
+sondes sont couvertes par TypeScript et Oxlint.
 
 ## VS Code
 

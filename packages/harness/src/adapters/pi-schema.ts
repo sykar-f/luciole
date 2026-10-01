@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-// What coder reads from `pi --mode rpc` (0.87.1, docs/coder/research/pi-report.md §2),
+// What coder reads from `pi --mode rpc` (0.87.1),
 // checked on arrival: every line of the harness is external data. Checked against the
 // exchanges recorded in tests/fixtures/coder/pi/.
 

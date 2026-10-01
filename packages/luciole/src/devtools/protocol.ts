@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 /**
  * The DevTools wire protocol. A message is TanStack DevTools' event shape
  * (`@tanstack/devtools-event-client`: `{ type: "<pluginId>:<suffix>", pluginId, payload }`),
- * so their event bus can carry ours unchanged (probes/devtools-tanstack). Nothing here
+ * so their event bus can carry ours unchanged (checked against it). Nothing here
  * depends on TanStack: the shape is the whole contract.
  */
 export type Message = { type: string; pluginId: string; payload: unknown };

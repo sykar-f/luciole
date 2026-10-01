@@ -54,7 +54,7 @@ import {
 import type { Harness, HarnessContext, HarnessEvent, StartOptions, UserInput } from "./types";
 
 /**
- * Codex through `codex app-server` (docs/coder/research/codex-report.md): JSON-RPC on
+ * Codex through `codex app-server`: JSON-RPC on
  * stdio, one thread per session. Approvals and questions are Codex's own requests; coder
  * answers each one once. The protocol is experimental: the types coder sends were
  * generated from codex 0.156.1 (./codex-protocol) and a different version is reported.

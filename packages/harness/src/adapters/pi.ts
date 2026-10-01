@@ -46,7 +46,7 @@ import {
 import type { Harness, HarnessContext, HarnessEvent, StartOptions, UserInput } from "./types";
 
 /**
- * pi through `pi --mode rpc` (docs/coder/research/pi-report.md): JSON lines on stdio,
+ * pi through `pi --mode rpc`: JSON lines on stdio,
  * one process per session. pi asks nothing before running a tool: coder's gate
  * (../pi-gate.ts) does, through pi's extension dialogs. Anthropic's subscription login
  * is kept out (../anthropic-guard.ts): its tokens leave pi's environment, its models are
