@@ -2,7 +2,7 @@ import type { Request, Response } from "@luciole/harness/model";
 import { writable } from "./guard";
 
 /**
- * How studio answers the harness's requests itself (docs/studio/SPEC.md, 5.5, layer 1):
+ * How studio answers the harness's requests itself (examples/studio/DESIGN.md, 5.5, layer 1):
  * no command runs, a file change inside the app's folders is accepted, one outside is
  * refused before it happens. Questions and plans stay the user's.
  */

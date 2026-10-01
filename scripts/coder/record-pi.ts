@@ -79,7 +79,7 @@ async function record(name: string, scenario: Scenario) {
   const done = new Promise<void>((resolve) => (finished = resolve));
   let prompted = false;
   const env = { ...process.env };
-  // Never an Anthropic subscription token in pi (docs/CODER-HANDOFF.md §3.5).
+  // Never an Anthropic subscription token in pi (Anthropic reserves its subscription login for its own apps).
   delete env.ANTHROPIC_OAUTH_TOKEN;
   delete env.ANTHROPIC_AUTH_TOKEN;
   const pi = new LineProcess(

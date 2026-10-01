@@ -410,14 +410,14 @@ page soit encadrée ou non : les parcours `scripts/web/` lisent l'écran par ell
 
 ## 5. Plan
 
-| Étape | Contenu                                                           | Vérifié par                                            |
-| ----- | ----------------------------------------------------------------- | ------------------------------------------------------ |
-| 0     | Spikes R1 et R2, hors de `src/`, dans `probes/web/` — **fait**    | une `<box>` rendue ; un `await` qui garde son contexte |
-| 1     | W1 à W5 à comportement constant — **fait**                        | `bun run verify`, parcours PTY                         |
-| 2     | Runtime web + Client web servi par le Server — **fait**           | `examples/notes` ouvert dans Chrome, headless          |
-| 3     | W6, rôle `web-server`, W9, `luciole build --web-local` — **fait** | `bun run test:web:local` : Notes en site statique      |
-| 4     | Landing : `iframe` de notes dans `website/` — **fait**            | capture de la page                                     |
-| 5     | Shell hébergé ailleurs (CORS, signature, clé épinglée)            | —                                                      |
+| Étape | Contenu                                                               | Vérifié par                                            |
+| ----- | --------------------------------------------------------------------- | ------------------------------------------------------ |
+| 0     | Spikes R1 et R2, hors de `src/`, dans un prototype jetable — **fait** | une `<box>` rendue ; un `await` qui garde son contexte |
+| 1     | W1 à W5 à comportement constant — **fait**                            | `bun run verify`, parcours PTY                         |
+| 2     | Runtime web + Client web servi par le Server — **fait**               | `examples/notes` ouvert dans Chrome, headless          |
+| 3     | W6, rôle `web-server`, W9, `luciole build --web-local` — **fait**     | `bun run test:web:local` : Notes en site statique      |
+| 4     | Landing : `iframe` de notes dans `website/` — **fait**                | capture de la page                                     |
+| 5     | Shell hébergé ailleurs (CORS, signature, clé épinglée)                | —                                                      |
 
 Les tests navigateur suivent le modèle des parcours PTY : un script Bun qui pilote
 Chrome headless (CDP), tape, et lit l'écran par le buffer de l'émulateur plutôt que par
@@ -455,7 +455,7 @@ La sortie est déjà prête : un `stdout` autre que `process.stdout` passe par
 NativeSpanFeed, synchrone, vers `stdout.write` avec contre-pression ; `stdin` est un
 `Readable` quelconque ; `renderer.resize(w, h)` remplace SIGWINCH.
 
-**Levé** par le spike ([probes/web](../probes/web/README.md)) : un patch de 5 fichiers
+**Levé** par le spike (prototype jetable, retiré du dépôt) : un patch de 5 fichiers
 natifs (sans effet sur la dylib native, exports identiques), un backend `FfiBackend` WASM
 substitué au build, et les deux alias de mémoire native d'OpenTUI (cellules, compteurs de
 NativeSpanFeed) servis par des vues vivantes. Une app `@opentui/react` avec `<input>` et
@@ -473,7 +473,7 @@ le Worker d'OpenTUI (`parser.worker.ts`) en script classique, puisqu'OpenTUI le 
 Worker, `tree-sitter.wasm` et les parsers par défaut avec leurs requêtes (JavaScript,
 TypeScript, Markdown, Zig), chargés seulement quand un écran colore du code.
 
-**R2 — contexte asynchrone sans `AsyncLocalStorage`. Levé** ([probes/web](../probes/web/README.md)).
+**R2 — contexte asynchrone sans `AsyncLocalStorage`. Levé** (`packages/luciole/src/web/async-context/`).
 Chrome 153 n'a pas `AsyncContext`, et Bun ne polyfille pas `node:async_hooks` pour le
 navigateur. Le bundle `web-server` reçoit donc son propre `AsyncLocalStorage` (même API)
 et une transformation au build (API TypeScript, comme `"use cache"`) : chaque `await x`

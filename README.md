@@ -76,8 +76,7 @@ What runs where:
 ```
 
 _The Forge example after a merge, in a 140×40 terminal. This frame is captured from
-a real PTY by [`scripts/pty/forge.ts`](scripts/pty/forge.ts) and saved as
-[`docs/forge-pty-frame.txt`](docs/forge-pty-frame.txt)._
+a real PTY by [`scripts/pty/forge.ts`](scripts/pty/forge.ts)._
 
 ## Run the example locally
 
@@ -121,8 +120,6 @@ configured; see their READMEs in [`examples/`](examples/).
 
 The detailed documentation is in French for now.
 
-- [docs/README.fr.md](docs/README.fr.md): the full original README (starter, production
-  builds, compiled binaries, SSH connections, authentication, tests, limits).
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): repository layout and runtime roles.
 - [docs/API.md](docs/API.md): public API.
 - [docs/BOUNDARIES.md](docs/BOUNDARIES.md): what may run on the Client and on the Server.

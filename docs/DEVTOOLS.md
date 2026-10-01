@@ -100,8 +100,8 @@ détaillée au lieu d'être supprimé ; un message invalide est compté (« reje
 transport (`src/devtools/wire.ts`) est du JSON délimité par lignes sur socket Unix, ou un
 message par trame WebSocket.
 
-**Compatibilité TanStack** : la sonde [probes/devtools-tanstack](../probes/devtools-tanstack/README.md)
-fait passer une session complète par leur vrai `ServerEventBus` jusqu'à un shell simulé,
+**Compatibilité TanStack** : une sonde jetable (retirée du dépôt)
+faisait passer une session complète par leur vrai `ServerEventBus` jusqu'à un shell simulé,
 dans les deux sens. Un front web réutilisant leur shell est réaliste, par un pont dans le
 processus qui tient le bus ; notre conception n'en dépend pas.
 

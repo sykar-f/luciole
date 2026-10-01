@@ -1,6 +1,6 @@
 /**
  * What studio checks in the changes of a harness's turn before anything is built: where
- * it wrote, and what the code imports (docs/studio/SPEC.md, 5.5, layer 2). A first,
+ * it wrote, and what the code imports (examples/studio/DESIGN.md, 5.5, layer 2). A first,
  * readable refusal ("components/Chart.tsx imports lodash, not in the allowed packages")
  * the harness can act on; the preview's sandbox stays the real barrier, since a static
  * scan cannot see `require(name)` built at run time or `globalThis["Bun"]`.

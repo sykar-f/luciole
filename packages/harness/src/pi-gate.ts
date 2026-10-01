@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 /**
- * pi has no approvals: every tool runs unasked (docs/coder/research/pi-report.md §3). This
+ * pi has no approvals: every tool runs unasked. This
  * extension, loaded into pi with `-e`, stops each tool call that coder's permission mode
  * does not allow and asks through pi's extension dialogs, which reach coder as
  * `extension_ui_request`s. It is security code: whatever it cannot decide, it blocks.

@@ -1,5 +1,5 @@
 /**
- * When studio builds a draft of the app while the harness writes it (docs/studio/SPEC.md,
+ * When studio builds a draft of the app while the harness writes it (examples/studio/DESIGN.md,
  * 3.3): the writes of a moment make one draft, one draft runs at a time, and a newer write
  * supersedes the draft that runs, which stops at its next step and gives way to a new one.
  * The end of the turn cancels them: the revision takes over.

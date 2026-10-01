@@ -6,8 +6,8 @@
  *
  * The emulator is OpenTUI's EmbeddedTerminalRenderable (libghostty-vt inside libopentui):
  * parsing, the cell grid, key/mouse/paste/focus encoding and most query answers are
- * native, and the grid is composed straight into the frame (probes/vt-embed measured it
- * 12–20 times cheaper than drawing cells from React). gaps.ts fills what 0.5.12 misses.
+ * native, and the grid is composed straight into the frame (measured 12–20 times
+ * cheaper than drawing cells from React). gaps.ts fills what 0.5.12 misses.
  */
 import { useEffect, useLayoutEffect, useRef } from "react";
 import type { BoxRenderable, KeyEvent } from "@opentui/core";

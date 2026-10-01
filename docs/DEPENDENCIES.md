@@ -56,7 +56,7 @@ Schema et le Standard JSON Schema que zod 4 implémente déjà. commander, citty
 n'ont pas d'intégration de schéma, `util.parseArgs` ne sait pas exprimer une option à
 valeur facultative (`--resume [ID]`), clipanion est à l'abandon. Repli « acheter » :
 cleye 2.7.0 (Standard Schema natif) ; évolution si des complétions shell sont voulues :
-@optique/core. Comparatif : `docs/coder/research/cli-args-report.md`.
+@optique/core.
 
 `@anthropic-ai/claude-agent-sdk` (paquet `packages/harness`, utilisé par coder et studio) : sa licence n'est **pas** OSI
 (conditions commerciales d'Anthropic) ; l'exemple est personnel et non commercial. Le

@@ -249,8 +249,7 @@ import { Markdown } from "luciole/client";
   pendant le chargement et reste si l'image ne se charge pas. URL http(s) et `file:`,
   chemins absolus, chemins relatifs depuis `imageBase` (un dossier ou une URL). Une image
   distante est téléchargée par le Client : l'auteur du Markdown voit la requête.
-- Une réponse finie ressemble à `<markdown conceal>` ; les écarts et les mesures sont
-  dans `docs/streaming-markdown/STATUS.md`.
+- Une réponse finie ressemble à `<markdown conceal>` .
 
 ## Capacités médiées
 

@@ -123,8 +123,7 @@ Les réponses et les blocs « thinking » passent par `<Markdown>` (`luciole/cli
 aperçu puis depuis Tree-sitter, et la réponse clignote. Le composant découpe la réponse en
 blocs (`marked`), fige tous les blocs sauf le dernier, met le texte en forme sans
 Tree-sitter et ferme d'avance les marqueurs ouverts du dernier bloc ; le rendu d'une
-réponse finie est celui de `<markdown conceal>`. Décisions et mesures :
-`docs/streaming-markdown/STATUS.md`.
+réponse finie est celui de `<markdown conceal>`.
 
 Les adaptateurs traduisent chaque protocole en événements neutres (`turn.*`, `item.*`,
 `request.*`, `plan.updated`, `usage.updated`…). Les actions rendent la main tout de

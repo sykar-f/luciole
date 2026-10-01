@@ -1,3 +1,0 @@
-[install]
-# Peers (@opentui/core, react) resolve from the repository root: one OpenTUI and one React.
-peer = false

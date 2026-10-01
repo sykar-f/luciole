@@ -2,7 +2,8 @@ import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
-// The rules of docs/CODER-HANDOFF.md §3, checked on the harness adapters and on every
+// The rules coder keeps toward the harnesses' vendors (no credential read, the user's own
+// binary and login, an honest client name), checked on the harness adapters and on every
 // example that drives them: whatever a future change adds, these strings would say a
 // rule is broken. Paths are relative to the harness package's src/.
 const ROOT = resolve("packages/harness/src");

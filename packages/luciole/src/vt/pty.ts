@@ -7,7 +7,6 @@
  * reaches no foreground process group and `sleep 30` survives it. Detached, Bun calls
  * setsid() and makes the PTY the controlling terminal of the new session, as a terminal
  * emulator or tmux does; closing the PTY then hangs the whole session up
- * (probes/vt-embed).
  */
 import { fstatSync, readdirSync, realpathSync } from "node:fs";
 export type PtyOptions = {

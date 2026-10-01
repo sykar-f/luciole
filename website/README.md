@@ -11,8 +11,6 @@ Site statique en Astro 7 et TypeScript, en anglais (public open source) :
 | `/guide/`    | le guide, en français                                                               |
 | `/og/`       | l'image de partage, photographiée par `scripts/og.ts` dans `public/og.png`          |
 
-Ce que la landing v2 a retiré, et où le retrouver : [DOCS-BACKLOG.md](DOCS-BACKLOG.md).
-
 ## La documentation
 
 Une page par fichier MDX de `src/content/docs/` (collection `docs`, `src/content.config.ts`) ;

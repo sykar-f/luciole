@@ -9,7 +9,7 @@ import {
   withoutOAuth,
 } from "../packages/harness/src/anthropic-guard";
 
-// docs/CODER-HANDOFF.md §3.5: every way pi or opencode could use a Claude subscription is caught,
+// Anthropic reserves its subscription login for its own apps: every way pi or opencode could use a Claude subscription is caught,
 // and none of them reads a secret into coder.
 let dir: string, pi: string, agent: string;
 beforeAll(async () => {

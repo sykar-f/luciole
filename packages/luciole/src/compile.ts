@@ -1,7 +1,7 @@
 /**
  * Ships a built Client as one executable: no Bun and no node_modules on the terminal's
  * machine. The build identity is inside it; it connects to Servers of the same build only.
- * Validated by probes/compile (OpenTUI embeds its native library through `type: "file"`).
+ * Validated on a compiled binary (OpenTUI embeds its native library through `type: "file"`).
  */
 import { run, textOf } from "./subprocess";
 import { homedir } from "node:os";

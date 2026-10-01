@@ -198,8 +198,7 @@ compiler, pour un binaire destiné à d'autres machines. L'empreinte protège co
 archive tronquée ou modifiée en transit ; elle ne protège pas d'un registre compromis
 (les signatures npm ne sont pas vérifiées). `--sign <identité>` et `--notarize <profil>`
 (`src/sign.ts`) signent le binaire macOS (hardened runtime, entitlements minimaux de
-Bun) et le font notariser ; rien n'est exigé par défaut. Voir
-[probes/compile](../probes/compile/README.md).
+Bun) et le font notariser ; rien n'est exigé par défaut.
 
 Les Drafts et la reprise des opérations inconnues ne font plus partie du framework :
 comme dans Electron, Qt ou .NET, le runtime rapporte l'issue de chaque requête

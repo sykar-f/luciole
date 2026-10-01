@@ -3,7 +3,6 @@
  * that runs a Server whose code it does not trust: studio's preview, where a model wrote
  * the pages and Server Functions. The same generated profile, plus the right to listen on
  * one loopback port the host chose; no terminal; `net` through the host's egress proxy.
- * Measured by probes/studio-server-sandbox.
  *
  * macOS (Seatbelt) only for now: under luciole-sandbox the Server would listen inside its
  * network namespace and the host reach it through a reverse relay, not built yet. Other

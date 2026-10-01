@@ -1,7 +1,7 @@
 /**
  * What studio adds to the harness's own instructions (Claude Code: `systemPrompt.append`),
  * injected by the adapter rather than written in the
- * project, where the model could rewrite it (docs/studio/SPEC.md, 5.3). STUDIO.md in the
+ * project, where the model could rewrite it (examples/studio/DESIGN.md, 5.3). STUDIO.md in the
  * project says the same to the user.
  */
 export const INSTRUCTIONS = `You are writing a luciole application inside studio. The user sees the app running next to this conversation, and uses it while you write: studio shows a draft after each file you write, then builds, checks and restarts it as a revision after each of your turns.

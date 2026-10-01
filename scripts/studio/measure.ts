@@ -1,10 +1,10 @@
 /**
- * Step 6 of docs/studio/SPEC.md (plan C5b): how often a real harness's app builds and
+ * Step 6 of examples/studio/DESIGN.md (plan C5b): how often a real harness's app builds and
  * runs, at its first attempt and after studio's automatic corrections. Each prompt of the
  * generator's scenarios goes to a fresh project, through the same harness options,
  * policy and validation as studio (server/harness.ts, server/validate.ts).
  *
- * Every real prompt spends the user's quota (docs/CODER-HANDOFF.md §3): a real harness
+ * Every real prompt spends the user's quota: a real harness
  * runs only with --accept-quota, after the count of prompts it may send is printed. The
  * scripted generator (--harness fake) runs freely: it checks this script itself.
  *

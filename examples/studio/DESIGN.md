@@ -4,11 +4,10 @@ Statut : **C5b livré** sur `studio/local` (étapes 0 à 4, 6 sur Claude Code et
 section 8 ; l'étape 5, Linux, reste à faire ; Codex reporté), puis les **aperçus
 brouillons** pendant le tour et la continuité de l'état de l'app (`studio/live-preview`), voir
 [État de l'implémentation](#état-de-limplémentation-c5b). La conception (C5a) s'appuie sur
-trois probes exécutés le 27 septembre 2026 (macOS 26.6.2 arm64, Bun 1.4.2) :
-[studio-preview](../../probes/studio-preview/README.md),
-[studio-server-sandbox](../../probes/studio-server-sandbox/README.md),
-[studio-generate](../../probes/studio-generate/README.md). Les décisions sont en
-[section 11](#11-décisions).
+trois prototypes jetables exécutés le 27 septembre 2026 (macOS 26.6.2 arm64, Bun 1.4.2) :
+aperçu (`studio-preview`), Server confiné (`studio-server-sandbox`) et génération
+(`studio-generate`) ; leurs mesures sont reprises ci-dessous et leur code est devenu
+`examples/studio` et ses tests. Les décisions sont en [section 11](#11-décisions).
 
 Hors de ce document : la version hébergée « Try it » (étude C6a), la publication npm et la
 commande `npx luciolex studio` (C7, le nom `luciole` n'est pas définitif).
@@ -18,7 +17,7 @@ commande `npx luciolex studio` (C7, le nom `luciole` n'est pas définitif).
 Un nouvel exemple, `examples/studio` : à gauche une conversation avec un harness local
 (Claude Code, par les adaptateurs partagés avec `examples/coder`), à droite l'application
 luciole que ce harness écrit, **en fonctionnement**, embarquée par le widget VT
-(`<Terminal>`, [EMBEDDING.md](../EMBEDDING.md) section 4), montrée en brouillon après
+(`<Terminal>`, [EMBEDDING.md](../../docs/EMBEDDING.md) section 4), montrée en brouillon après
 chaque écriture et rechargée comme révision après chaque tour.
 
 | Question                         | Proposition                                                                                                                        | Appui                       |
@@ -32,7 +31,7 @@ chaque écriture et rechargée comme révision après chaque tour.
 
 ## État de l'implémentation (C5b)
 
-L'exemple est `examples/studio` ([README](../../examples/studio/README.md)) ; tout tourne
+L'exemple est `examples/studio` ([README](README.md)) ; tout tourne
 hors ligne sur le **générateur scripté** (`-H fake`), qui écrit vraiment le projet d'après
 les scénarios du probe studio-generate. Ce qui s'écarte de la conception ci-dessous :
 
@@ -45,10 +44,10 @@ les scénarios du probe studio-generate. Ce qui s'écarte de la conception ci-de
 | Options                 | `--dir`, `--project`, `--resume`, `--preview`, `--model` | plus `--fixes N` (décision 3 : réglable) ; sans `--dir` ni `--project`, un nouveau projet `app-<date>`                                                                                                                                                                                                                                                                                                                            |
 | Capacités               | demande du harness, accord de l'utilisateur              | `/allow HOST` et `/deny HOST` : studio écrit `luciole.capabilities.net` et committe lui-même, le garde-fou ne s'applique qu'au harness ; les autres capacités ne sont pas encore proposées                                                                                                                                                                                                                                        |
 | Sans sandbox            | refus au lancement                                       | l'écran s'ouvre et dit pourquoi ; aucun message n'est envoyé au harness tant que studio ne tourne pas avec `--preview process`                                                                                                                                                                                                                                                                                                    |
-| Codex                   | « mode sans exécution si le protocole le permet »        | **reporté** : son protocole n'a pas de mode sans commandes (`workspace-write` + `on-request` ne demande que pour sortir du projet ou le réseau, docs/coder/research/codex-report.md) ; studio n'accepte que `claude` et `fake`, demander `codex`, `pi` ou `opencode` échoue avec cette raison (décision de l'utilisateur, 27 septembre 2026)                                                                                      |
+| Codex                   | « mode sans exécution si le protocole le permet »        | **reporté** : son protocole n'a pas de mode sans commandes (`workspace-write` + `on-request` ne demande que pour sortir du projet ou le réseau) ; studio n'accepte que `claude` et `fake`, demander `codex`, `pi` ou `opencode` échoue avec cette raison (décision de l'utilisateur, 27 septembre 2026)                                                                                                                           |
 | Pendant le tour         | l'aperçu ne bouge pas (2.2, point 2)                     | **un brouillon par écriture** (décision 9) : les écritures de 300 ms regroupées, garde-fou, build à part, Server confiné, bascule ; ni révision, ni correction, ni message au harness. Un brouillon en échec garde le dernier écran valide (« draft · waiting for a build that works ») ; un seul à la fois, le plus récent l'emporte ; ce qui est construit doit être ce qui a été vérifié. La fin du tour annule les brouillons |
 | Champs de l'app         | —                                                        | les instructions demandent des champs nommés (`Input`/`Textarea` d'`luciole/client`), `useRestoredFields`, `useRestoredFocus`, `<ScrollBox name>` ; un champ sans `name` est un **conseil** du garde-fou (transcript, puis avec le message suivant au harness), jamais un refus ni une correction                                                                                                                                 |
-| Mesure réelle (étape 6) | fixtures enregistrées, taux de build                     | **faite sur Claude Code** (ci-dessous) ; Codex non mesuré (reporté) ; transcripts enregistrés hors du dépôt, résumé dans `docs/studio/measures/`                                                                                                                                                                                                                                                                                  |
+| Mesure réelle (étape 6) | fixtures enregistrées, taux de build                     | **faite sur Claude Code** (ci-dessous) ; Codex non mesuré (reporté) ; transcripts enregistrés hors du dépôt, résumé dans `examples/studio/measures/`                                                                                                                                                                                                                                                                              |
 
 Lacunes du framework comblées (section 7), chacune dans un commit à part, avec son test :
 G1 (`confineServer`, macOS), G2, G3, G4, G5, G6, G7 (`luciole/dev`). L'implémentation en a
@@ -174,7 +173,7 @@ dessous, un seul panneau visible à la fois (`Ctrl+O o` bascule).
 ```
 
 - **Barre haute** : projet, harness et modèle (texte « powered by … », pas de marque
-  usurpée, CODER-HANDOFF §3.6), révision affichée, état de la dernière validation.
+  usurpée : l'abonnement Claude n'est utilisé que par le binaire `claude` de l'utilisateur), révision affichée, état de la dernière validation.
 - **Conversation** : le transcript de coder (messages, outils, diffs repliés) plus des
   blocs propres à studio : validation (étapes et durées), révision créée, correction
   automatique en cours, garde-fou déclenché.
@@ -415,7 +414,7 @@ preset: "claude_code", append }` et `disallowedTools` ; Codex 0.156.1
 
 ### 4.4 Conformité
 
-Studio hérite des règles non négociables de CODER-HANDOFF §3 sans exception : binaire
+Studio hérite sans exception des règles de conformité de coder (`tests/coder-compliance.test.ts`) : binaire
 `claude` de l'utilisateur via l'Agent SDK, jamais le binaire embarqué ni `--bare`, zéro
 secret lu, login délégué, `clientInfo.name = "luciole-studio"` pour Codex, mention
 « powered by … », README qui rappelle que chaque génération consomme le quota de
@@ -426,7 +425,7 @@ l'utilisateur. La correction automatique consomme aussi du quota : elle est born
 
 ### 5.1 Template de départ
 
-Celui du probe ([probes/studio-preview/template](../../probes/studio-preview/template)),
+Celui du prototype d'aperçu (devenu `examples/studio/template`),
 à compléter :
 
 ```text
@@ -557,7 +556,7 @@ sandboxé démarre en 280–330 ms (mdreader, EMBEDDING.md).
 
 ### Le web en particulier
 
-Le Client web ([WEB.md](../WEB.md)) évalue un bundle d'app contre un runtime navigateur ;
+Le Client web ([WEB.md](../../docs/WEB.md)) évalue un bundle d'app contre un runtime navigateur ;
 le widget VT n'y existe pas (pas de PTY, pas de libghostty en WebAssembly, le runtime web
 remplace `<Terminal>` par un message). Un studio dans le navigateur ne peut donc pas
 reprendre l'architecture locale telle quelle. Options :
