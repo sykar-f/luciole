@@ -1,0 +1,11 @@
+# Delivery examples-readmes @ 7d83554cf7eb338af7a49a142e5150a8d698f904 (round 1)
+
+Status: DONE_WITH_CONCERNS
+Summary: 11/11 `examples/*/README.md` now exist (created forge, latency, notes; fixed the 8 others). Each says it runs from the monorepo root, gives the exact root command, prerequisites and what to expect. coder: `/home/ada/...` → `~/src/timers`, non-clone commands (`luciole ./examples/coder`, compiled `coder --help`) replaced by `bun run coder -- …`, mode `full` / inherited-environment warning. studio: same warning (studio runs mode `ask`, has no `--mode`; stated). chat: `CHAT_DEMO=1`, fake-openrouter kept. mux: build step added before the inline mdreader example.
+Deviations from the brief: none. Concern: agent needs `pi` + ChatGPT login, no scripted mode, so it was not launched (documented in its README).
+Verification: bun run check (25/25), bun run lint, bun run format:check all pass on the commit.
+Commands checked: every `bun run <script>` named in the READMEs was looked up in root package.json scripts (all exist); every `bun <file>.ts` path was tested with `[ -f ]` (all exist); examples/chat/scripts/fake-openrouter.ts, packages/luciole/src/cli.ts, scripts/pty/*.ts present.
+Launch results (no-key examples): forge, mdreader, mux, flow, chat: `bun run test:pty:<x>` pass. files: `build --app examples/files` then `test:pty:files` pass (the smoke needs the prior build, the README says so). coder (`--harness fake`), studio (`-H fake`), notes, latency (LUCIOLE_LATENCY_MS=500, "Server replied in 617 ms"): launched with the README command in a PTY, screen reached as described (notes: seeded notes list; coder: "Scripted demo" status line; studio: conversation + r0 preview). agent: not launched (needs pi + login). test:pty:coder and test:pty:studio themselves timed out on screen waits while host load average was ~550 (other sessions' tests), so I rely on the manual launches for those two; not a README matter, not re-verified under normal load. Ctrl+C quit of notes/coder took >10 s under that load.
+Tests: none — documentation only (READMEs); launches above are the proof
+Risks: README claims about env defaults were read from code (forge/notes env schemas), not rerun; forge:operator examples assume payments#1 exists in seed (it does).
+Merge notes: touches only examples/*/README.md; root README is another mission.

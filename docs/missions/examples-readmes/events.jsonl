@@ -1,0 +1,13 @@
+{"ts":"2026-10-01T18:45:11.603Z","mission":"examples-readmes","type":"prepared","by":"master-airtty","ref":"missions/examples-readmes/brief.v1.md"}
+{"ts":"2026-10-01T20:12:29.207Z","mission":"examples-readmes","type":"prepared","by":"master-airtty","ref":"missions/examples-readmes/brief.v2.md"}
+{"ts":"2026-10-01T20:13:53.385Z","mission":"examples-readmes","type":"dispatched","by":"master-airtty","sha":"f80912ea6c6237cac204f7299cea8e988a7a8ec4","ref":"missions/examples-readmes/brief.v2.md","note":"airtty-examples-readmes claude","role":"worker"}
+{"ts":"2026-10-01T20:13:58.537Z","mission":"examples-readmes","type":"acked","by":"airtty-examples-readmes"}
+{"ts":"2026-10-01T20:39:42.809Z","mission":"examples-readmes","type":"delivered","by":"airtty-examples-readmes","sha":"7d83554cf7eb338af7a49a142e5150a8d698f904","ref":"missions/examples-readmes/delivery.1.md"}
+{"ts":"2026-10-01T20:39:48.877Z","mission":"examples-readmes","type":"review","by":"master-airtty","sha":"7d83554cf7eb338af7a49a142e5150a8d698f904","ref":"missions/examples-readmes/reviews/1.prompt.md","note":"job 20261001T203948.792Z-46945-fe9e-reviewer-examples-readmes-codex"}
+{"ts":"2026-10-01T20:42:09.173Z","mission":"examples-readmes","type":"rejected","by":"master-airtty","sha":"7d83554cf7eb338af7a49a142e5150a8d698f904","ref":"missions/examples-readmes/reviews/1.triage.md"}
+{"ts":"2026-10-01T20:45:22.057Z","mission":"examples-readmes","type":"delivered","by":"airtty-examples-readmes","sha":"ac83a4a938a81499739c5ba998737b7e90d39d36","ref":"missions/examples-readmes/delivery.2.md"}
+{"ts":"2026-10-01T20:45:28.619Z","mission":"examples-readmes","type":"review","by":"master-airtty","sha":"ac83a4a938a81499739c5ba998737b7e90d39d36","ref":"missions/examples-readmes/reviews/2.prompt.md","note":"job 20261001T204528.603Z-69658-8341-reviewer-examples-readmes-codex"}
+{"ts":"2026-10-01T20:48:00.181Z","mission":"examples-readmes","type":"rejected","by":"master-airtty","sha":"ac83a4a938a81499739c5ba998737b7e90d39d36","ref":"missions/examples-readmes/reviews/2.triage.md"}
+{"ts":"2026-10-01T20:48:14.403Z","mission":"examples-readmes","type":"delivered","by":"airtty-examples-readmes","sha":"2343848d6e37a74ac2210bf99dbd3174cc1c488d","ref":"missions/examples-readmes/delivery.3.md"}
+{"ts":"2026-10-01T20:48:18.492Z","mission":"examples-readmes","type":"review","by":"master-airtty","sha":"2343848d6e37a74ac2210bf99dbd3174cc1c488d","ref":"missions/examples-readmes/reviews/3.prompt.md","note":"job 20261001T204818.471Z-80396-3b88-reviewer-examples-readmes-codex"}
+{"ts":"2026-10-01T20:49:25.797Z","mission":"examples-readmes","type":"reviewed","by":"master-airtty","sha":"2343848d6e37a74ac2210bf99dbd3174cc1c488d","ref":"missions/examples-readmes/reviews/3.triage.md"}
