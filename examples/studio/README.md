@@ -4,7 +4,7 @@ Décrire une application luciole à un agent de code et **s'en servir pendant qu
 À gauche la conversation avec le harness (Claude Code, ou un générateur scripté),
 à droite l'application générée, en marche, embarquée par le widget VT : un **brouillon**
 après chaque fichier écrit, une **révision** après chaque tour, sans perdre ce que vous
-faisiez dans l'app. Conception : [docs/studio/SPEC.md](../../docs/studio/SPEC.md).
+faisiez dans l'app. Conception : [DESIGN.md](DESIGN.md) (hébergement : [HOSTING.md](HOSTING.md)).
 
 ## Lancement
 
@@ -44,7 +44,7 @@ demander à studio échoue avec cette raison.
 
 Chaque génération consomme le quota de **votre** abonnement ou de votre clé : studio ne
 parle jamais à un modèle lui-même, il pilote le binaire officiel déjà installé et connecté
-(mêmes règles que coder, [CODER-HANDOFF.md](../../docs/CODER-HANDOFF.md) §3 ; la licence
+(mêmes règles que coder, aucun secret lu, le binaire de l'utilisateur, jamais l'abonnement d'un autre ; la licence
 de l'Agent SDK d'Anthropic n'est pas OSI : usage personnel et non commercial). Une
 correction automatique est un tour de plus.
 
@@ -154,7 +154,7 @@ par défaut du compte : `claude-opus-5-5`) : les 13 prompts des scénarios, chac
 projet neuf (les scénarios `guestbook` et `signatures` sont venus après), avec les
 instructions, les outils et la politique de studio
 (`scripts/studio/measure.ts --harness claude --accept-quota` ; résultats bruts :
-[docs/studio/measures/claude-2026-09-27.json](../../docs/studio/measures/claude-2026-09-27.json)).
+[measures/claude-2026-09-27.json](measures/claude-2026-09-27.json)).
 
 | Mesure                              | Résultat                                                  |
 | ----------------------------------- | --------------------------------------------------------- |

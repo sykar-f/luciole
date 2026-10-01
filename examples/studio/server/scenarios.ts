@@ -1,9 +1,9 @@
 /**
  * What the scripted generator (server/generator.ts) writes for a few prompts: a first
  * attempt, and for the attempts that fail, the correction a harness would make after
- * reading studio's diagnostics. Taken from probes/studio-generate: the faults are the
+ * reading studio's diagnostics. The faults are the
  * ones code models commonly make in a React/TypeScript codebase they do not know. No
- * model is called: every real prompt spends the user's quota (docs/CODER-HANDOFF.md §3).
+ * model is called: every real prompt spends the user's quota.
  */
 export type Turn = Record<string, string>;
 export type Scenario = {

@@ -1,5 +1,5 @@
 /**
- * The preview's Server side (docs/studio/SPEC.md, 3.3): each attempt is built apart
+ * The preview's Server side (examples/studio/DESIGN.md, 3.3): each attempt is built apart
  * (`.luciole-studio/builds/<id>`, signed with the project's own publisher key), its Server
  * started confined, and only then does the preview switch to it; the previous Server
  * stops once the switch is done. The Client of the preview runs in studio's Client

@@ -4,7 +4,7 @@ import { z } from "zod";
 /**
  * The harnesses studio drives: Claude Code and its scripted generator. Codex, pi and
  * opencode are coder's only: studio cannot keep them from running commands (Codex has no
- * mode without them, docs/studio/SPEC.md).
+ * mode without them, examples/studio/DESIGN.md).
  */
 export const STUDIO_HARNESSES = ["claude", "fake"] as const;
 const ONLY_THESE =

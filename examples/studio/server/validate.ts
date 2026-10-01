@@ -1,5 +1,5 @@
 /**
- * The first stages of a validation (docs/studio/SPEC.md, 5.4), shared by the studio and
+ * The first stages of a validation (examples/studio/DESIGN.md, 5.4), shared by the studio and
  * its tests: the guard on the changes of a turn (a refused turn is undone whole), then a
  * build of the working tree apart from the one the preview runs.
  */

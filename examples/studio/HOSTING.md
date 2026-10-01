@@ -2,7 +2,7 @@
 
 > **Statut : étude, rien n'est implémenté.** Branche `studio/hosting-study`, 2026-09-27.
 > Le studio lui-même (chat + harness qui génère une app luciole + aperçu live) est spécifié
-> ailleurs (`docs/studio/SPEC.md`, cluster C5a). Ce document ne traite que de sa version
+> ailleurs ([DESIGN.md](DESIGN.md), cluster C5a). Ce document ne traite que de sa version
 > **hébergée** : un visiteur du site génère sa première app TUI en ligne.
 > Les faits externes (prix, API, produits) renvoient à la [section Sources](#sources), toutes
 > consultées le **2026-09-27**. Les calculs de coût sont les nôtres, à partir de ces tarifs.
@@ -74,14 +74,14 @@
 | Harness pi                     | microVM de la session                     | il exécute du code choisi par un LLM piloté par un anonyme ; pi « does not include a built-in permission system » (README pi)                      |
 | Build (`luciole build`, `tsc`) | même microVM, via l'outil `build`         | le build évalue `app/args.ts` (`build.ts:155`) : construire, c'est exécuter                                                                        |
 | Server du studio               | même microVM                              | il pilote pi et le build en local ; une VM par session évite un Server multi-tenant (même choix que `"server": "per-launch"` de coder)             |
-| Client du studio               | navigateur, Client web (`--web`)          | forme existante : même origine pour shell et API, bearer en mémoire ([WEB.md § 3](../WEB.md#client-web--vrai-server))                              |
+| Client du studio               | navigateur, Client web (`--web`)          | forme existante : même origine pour shell et API, bearer en mémoire ([WEB.md § 3](../../docs/WEB.md#client-web--vrai-server))                      |
 | **App générée**                | **navigateur du visiteur**, `--web-local` | coût de calcul nul chez nous ; la frontière est le bac à sable du navigateur ; ~185 Ko gzip par app en plus du runtime partagé (mesure ci-dessous) |
 | Clés LLM, quotas, file         | Worker + Durable Object (hors VM)         | tout ce qui doit survivre à une VM compromise reste dehors                                                                                         |
 
 ### La lacune « pas de PTY dans le navigateur »
 
 En local, le studio affiche l'app générée dans un `<Terminal>` (PTY + émulateur,
-[EMBEDDING.md § 4](../EMBEDDING.md#4-modes-process-et-sandbox--widget-vt)). Le runtime web
+[EMBEDDING.md § 4](../../docs/EMBEDDING.md#4-modes-process-et-sandbox--widget-vt)). Le runtime web
 n'a ni PTY ni `<Terminal>` : il affiche « indisponible ici » ([WEB.md § 2, W9](../WEB.md)).
 Trois manières de montrer l'aperçu en ligne :
 
@@ -93,8 +93,8 @@ Trois manières de montrer l'aperçu en ligne :
 
 L'option A exige que le studio ait une **couture « aperçu »** : en local un `<Terminal>`,
 hébergé un événement « build prêt » (`{buildId, url}`) que la page hôte relaie à l'`iframe`
-d'aperçu, qu'elle recharge. C'est une exigence à reporter dans `docs/studio/SPEC.md` (C5a).
-Le protocole `postMessage` de [WEB.md § Page embarquée](../WEB.md#page-embarquée) (étapes
+d'aperçu, qu'elle recharge. C'est une exigence à reporter dans [DESIGN.md](DESIGN.md) (C5a).
+Le protocole `postMessage` de [WEB.md § Page embarquée](../../docs/WEB.md#page-embarquée) (étapes
 `stage`, `input`) ne vaut qu'entre même origine ; ici, la page hôte et l'aperçu ont des
 origines différentes par construction : la page hôte ne fait que changer l'URL de l'`iframe`.
 
@@ -254,7 +254,7 @@ avant l'ouverture (surtout pour un fournisseur dont les données partent hors UE
 modèles (pi a `openrouter` intégré, variable `OPENROUTER_API_KEY`). Cela règle aussi la
 conformité : une chaîne n'est acceptée que si `GET https://openrouter.ai/api/v1/key` répond
 200, ce qu'aucun jeton d'abonnement Claude ou ChatGPT ne fait. On respecte ainsi la règle de
-[CODER-HANDOFF.md § 3](../CODER-HANDOFF.md#3-conformité--garde-fous-non-négociables) sans
+la règle d'Anthropic (son login d'abonnement est réservé à ses propres applications) sans
 détecter de préfixes.
 
 ### Deux manières d'obtenir la clé
@@ -455,9 +455,8 @@ médian départage. Les tokens mesurés remplacent les hypothèses du § 5.
 
 Toutes consultées le 2026-09-27.
 
-**Dépôt luciole** : [README.md](../../README.md), [WEB.md](../WEB.md),
-[EMBEDDING.md](../EMBEDDING.md), [DISTRIBUTION.md](../DISTRIBUTION.md),
-[CODER-HANDOFF.md](../CODER-HANDOFF.md), [pi-report.md](../coder/research/pi-report.md),
+**Dépôt luciole** : [README.md](../../README.md), [WEB.md](../../docs/WEB.md),
+[EMBEDDING.md](../../docs/EMBEDDING.md), [DISTRIBUTION.md](../../docs/DISTRIBUTION.md),
 `packages/luciole/src/build.ts:155` (évaluation d'`app/args.ts`), mesures locales ci-dessus.
 
 **pi**

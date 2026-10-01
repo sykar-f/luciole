@@ -1,6 +1,6 @@
 /**
  * The studio of this Server (one per launch): a harness session writing a project, and
- * what happens after each of its turns (docs/studio/SPEC.md, 2.2 and 5.4). The changes
+ * what happens after each of its turns (examples/studio/DESIGN.md, 2.2 and 5.4). The changes
  * are guarded, built, started in the preview's (confined) Server and committed as a
  * revision; the types are checked beside it, the render reported by the preview itself.
  * A failure goes back to the harness as a `[studio]` message, a bounded number of times.

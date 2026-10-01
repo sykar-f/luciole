@@ -1,6 +1,6 @@
 /**
  * A studio project: the directory the harness writes, created from the template, and the
- * git repository studio keeps in it, one commit per revision (docs/studio/SPEC.md, 2.5).
+ * git repository studio keeps in it, one commit per revision (examples/studio/DESIGN.md, 2.5).
  * Git runs with an identity and settings of its own: never the user's name, hooks or
  * signing key. `.luciole-studio/` holds what studio keeps beside the code (builds, the
  * project's publisher key, the lock); it is ignored by git and closed to the harness.
