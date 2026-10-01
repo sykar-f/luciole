@@ -7,10 +7,18 @@ les événements de chaque réponse.
 
 ## Lancement
 
+Depuis la racine du monorepo (les dépendances sont `workspace:*` et `catalog:` : l'exemple
+ne se lance pas depuis son propre dossier). Prérequis : Bun 1.4.2 et `bun install
+--frozen-lockfile` une fois.
+
 ```sh
 export OPENROUTER_API_KEY=sk-or-…          # https://openrouter.ai/keys
-bun packages/luciole/src/cli.ts dev --app examples/chat
+bun run chat
+CHAT_DEMO=1 bun run chat                   # sans clé ni réseau : un modèle scripté répond
 ```
+
+`bun run chat` est `luciole dev --app examples/chat`. Attendez-vous à une conversation
+vide et à un champ de saisie ; sans clé ni `CHAT_DEMO`, l'écran dit qu'il manque la clé.
 
 | Variable              | Défaut                         | Rôle                                                |
 | --------------------- | ------------------------------ | --------------------------------------------------- |
@@ -32,7 +40,7 @@ aux tests et aux captures :
 ```sh
 bun examples/chat/scripts/fake-openrouter.ts     # affiche {"port": …}
 OPENROUTER_API_KEY=sk-or-fake OPENROUTER_BASE_URL=http://127.0.0.1:<port>/api/v1 \
-  bun packages/luciole/src/cli.ts dev --app examples/chat
+  bun run chat
 ```
 
 Il renvoie un écho Markdown du dernier message (précédé de reasoning), puis l'usage et le

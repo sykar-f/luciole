@@ -5,12 +5,32 @@ Une session d'agent de code dans un terminal, comme `claude`, `codex`, `pi` ou
 lancement. coder ne parle jamais à un modèle et ne lit aucun jeton : il pilote les
 binaires officiels déjà installés et connectés par l'utilisateur.
 
+## Lancement
+
+Depuis la racine du monorepo (les dépendances sont `workspace:*` et `catalog:` : l'exemple
+ne se lance pas depuis son propre dossier). Prérequis : Bun 1.4.2 et `bun install
+--frozen-lockfile` une fois. Le harness `fake` n'exige rien d'autre ; les autres
+harnesses demandent leur binaire officiel dans le `PATH`, déjà connecté (`claude`,
+`codex`, `pi` ou `opencode`) : coder ne lit aucune clé API, la connexion reste celle du
+harness.
+
 ```sh
 bun run coder -- --harness fake          # démo scriptée, hors ligne, sans quota
-bun run coder -- -H codex --mode edits   # développement (luciole dev … --)
-luciole ./examples/coder -H claude --resume
-coder --help                             # binaire compilé : aide générée depuis app/args.ts
+bun run coder -- -H codex --mode edits   # un vrai harness : consomme votre quota
+bun run coder -- -H claude --resume
+bun run coder -- --help                  # aide générée depuis app/args.ts
 ```
+
+`bun run coder` est `luciole dev --app examples/coder --` : tout ce qui suit `--` est la
+ligne de commande de coder. Avec `fake`, attendez-vous à l'écran de session, au prompt
+en bas et à la ligne d'état « Scripted demo · no model calls » ; écrivez-y n'importe quel
+prompt (le scénario complet est décrit plus bas).
+
+> **Attention : `--mode full` désactive le bac à sable de l'agent** (pour Codex :
+> `danger-full-access`, sans confirmation) et, comme dans tous les modes, l'agent
+> hérite de **tout l'environnement** de coder (variables, clés comprises) et agit avec
+> vos droits sur le dossier choisi. Gardez le défaut `ask`, ou `read`, hors d'un dossier
+> jetable.
 
 | Option                          | Effet                                                                   |
 | ------------------------------- | ----------------------------------------------------------------------- |
@@ -30,7 +50,7 @@ opencode, pi, sinon il dit ce qui manque. `CODER_HARNESS` et `CODER_CWD` tiennen
 Le site fait tourner coder dans la page (`luciole build --web-local`, docs/WEB.md) : le
 Server vit dans un Worker, sans processus ni réseau, donc sur le harness `fake` seul.
 `website/scripts/demo.ts` lui donne `CODER_HARNESS=fake` et un projet fictif
-(`CODER_CWD=/home/ada/src/timers`). Dans le Worker, `server/session.ts` importe
+(`CODER_CWD=~/src/timers`). Dans le Worker, `server/session.ts` importe
 `@luciole/harness/adapters`, que le `package.json` de `packages/harness` résout en
 `src/adapters/browser.ts` sous la condition `browser` : l'Agent SDK de Claude
 (`readline`, `net`) et les autres adaptateurs n'y entrent pas.

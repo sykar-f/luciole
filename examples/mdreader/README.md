@@ -6,11 +6,20 @@ sont lus côté Server ; le rendu est celui de `<markdown>` d'OpenTUI (marked +
 tree-sitter). Titres, emphase, listes et cases à cocher, citations, blocs de code
 colorés, tableaux et liens : aucun parseur n'est écrit ici.
 
+## Lancement
+
+Depuis la racine du monorepo (les dépendances sont `workspace:*` et `catalog:` : l'exemple
+ne se lance pas depuis son propre dossier). Prérequis : Bun 1.4.2 et `bun install
+--frozen-lockfile` une fois. Aucune clé API, aucun réseau.
+
 ```sh
-bun packages/luciole/src/cli.ts dev --app examples/mdreader                        # dossier courant
-MD_PATH=docs bun packages/luciole/src/cli.ts dev --app examples/mdreader           # un dossier
-MD_PATH=README.md bun packages/luciole/src/cli.ts dev --app examples/mdreader      # un seul fichier
+bun run mdreader                        # dossier courant (la racine du dépôt : tous ses .md)
+MD_PATH=docs bun run mdreader           # un dossier
+MD_PATH=README.md bun run mdreader      # un seul fichier
 ```
+
+`bun run mdreader` est `luciole dev --app examples/mdreader`. Attendez-vous à la liste des
+documents à gauche et à `README.md` rendu à droite.
 
 `MD_PATH` est résolu par le Server, depuis son répertoire courant. `/` affiche
 `README.md`, sinon `index.md`, sinon le premier document. Un fichier modifié, ajouté ou
