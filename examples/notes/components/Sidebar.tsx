@@ -63,9 +63,18 @@ export function Sidebar({ width }: { width: number }) {
       flexDirection="column"
       backgroundColor={color.sidebar}
     >
-      {/* ≡ search +, one block: the ≡ belongs to the window, which draws it over the
-          room left here, so that it stays put while the list slides (app/layout.tsx). */}
-      <box flexDirection="row" height={ICON_BUTTON_HEIGHT} flexShrink={0} marginX={1}>
+      {/* ≡ search +, one bar from edge to edge, on the buttons' own grey: the controls line
+          up with the notes below, the bar with the sidebar. The ≡ belongs to the window,
+          which draws it over the room left here, so that it stays put while the list
+          slides (app/layout.tsx). */}
+      <box
+        id="sidebar-bar"
+        flexDirection="row"
+        height={ICON_BUTTON_HEIGHT}
+        flexShrink={0}
+        paddingX={1}
+        backgroundColor={color.button}
+      >
         <box width={ICON_BUTTON_WIDTH} flexShrink={0} />
         <SearchBox
           query={query}
