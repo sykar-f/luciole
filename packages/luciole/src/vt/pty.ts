@@ -94,11 +94,11 @@ function newSlave(before: ReadonlySet<number>) {
 const live = new Map<number, Bun.Terminal>();
 let exitHooked = false;
 /**
- * What a terminal emulator does when its window closes, and no more: the program's
- * process group is killed (it is the group's leader, `setsid`, so its pid is the group's;
- * a program ignoring SIGHUP dies too, there is no time at exit to wait for it to save),
- * and the PTY's master closes, which hangs up the rest of the session. A job that
- * ignores SIGHUP and left the group (nohup, disown) survives, as it does a closed window.
+ * At exit: SIGKILL to the program's process group (it leads the group, `setsid`, so its
+ * pid is the group's; there is no time to wait for it to save, and one ignoring SIGHUP
+ * dies too), then the PTY's master closes, which hangs up the session leader and the
+ * foreground group. A job that left the group and ignores SIGHUP (nohup, disown)
+ * survives: nothing here signals every member of the session.
  */
 function killAll() {
   for (const [pid, terminal] of live) {
