@@ -99,14 +99,17 @@ async function launch(mode: keyof typeof WRITE_MS) {
     );
   }, SAMPLE_MS);
   sampler.unref();
-  const awaited = (waiting: Promise<unknown>, where = "") =>
-    waiting.catch((error: unknown) => {
+  // The wait's own stack ends in the driver's poll loop: the caller's says which step.
+  const awaited = (waiting: Promise<unknown>, where = "") => {
+    const site = new Error().stack?.split("\n").slice(1, 4).join("\n") ?? "";
+    return waiting.catch((error: unknown) => {
       const message = error instanceof Error ? error.message : String(error);
       throw new Error(
-        `${mode}: ${message}${where}\n--- conversation lines, in the order they first appeared\n${trail.join("\n")}`,
+        `${mode}: ${message}${where}\n${site}\n--- conversation lines, in the order they first appeared\n${trail.join("\n")}`,
         { cause: error },
       );
     });
+  };
   const wait = (needle: string | RegExp) => awaited(t.waitFor(needle, { timeout: TIMEOUT_MS }));
   const waitShown = (needle: string | RegExp) =>
     awaited(t.waitFor(inPreview(needle), { timeout: TIMEOUT_MS }), ` (${needle}, in the preview)`);
