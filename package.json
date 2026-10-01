@@ -98,6 +98,8 @@
     "test:web:coder": "bun scripts/web/coder.ts",
     "test:web:embed": "bun scripts/web/embed.ts",
     "test:web:landing": "bun scripts/web/landing.ts",
+    "bench:scroll": "bun scripts/pty/scroll-bench.ts",
+    "bench:scroll:web": "bun scripts/web/scroll-bench.ts",
     "test:linux": "bun scripts/linux-client.ts",
     "test:linux:sandbox": "bun scripts/linux-sandbox.ts",
     "build:sandbox": "bun scripts/build-sandbox.ts",
