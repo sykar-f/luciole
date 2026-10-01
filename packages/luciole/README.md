@@ -20,6 +20,10 @@ luciole dev --app my-app   # run it with live reload
 luciole build --app my-app # produce a build (see `luciole build --compile` for a binary)
 ```
 
+`luciole init` currently works only from a checkout of the luciole repository: it copies
+`examples/notes` and reads the root tooling configuration. It will be made to work from an
+installed package.
+
 `luciole` and `luciolex` are the two executables this package installs.
 
 See the [root README](../../README.md) for the project overview, and

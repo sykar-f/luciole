@@ -12,17 +12,6 @@
     "bun": ">=1.4.2"
   },
   "type": "module",
-  "sideEffects": [
-    "./src/grammars.ts",
-    "./src/web/setup.ts",
-    "./src/web/server/setup.ts",
-    "./src/web/node/process.ts",
-    "./src/web/runtime.tsx",
-    "./src/flight/client.ts",
-    "./src/sandbox/child.ts",
-    "./src/launcher/luciole/server/context.ts",
-    "./src/devtools/luciole-devtools/server/store.ts"
-  ],
   "files": [
     "src",
     "web",
