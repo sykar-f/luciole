@@ -8,7 +8,7 @@ import { createInterface } from "node:readline";
 import { z } from "zod";
 import { build } from "../packages/luciole/src/build";
 import { compileApp, hostTarget } from "../packages/luciole/src/compile";
-import { connect, socketDirectory } from "../packages/luciole/src/connect";
+import { connect, keepAlive, socketDirectory } from "../packages/luciole/src/connect";
 import { messageOf } from "../packages/luciole/src/guards";
 import { readBinaryIdentity, type BinaryIdentity } from "../packages/luciole/src/launcher/identity";
 import { serverId } from "../packages/luciole/src/launcher/managed";
@@ -302,9 +302,16 @@ test("--on: a lost Client finds its Server again; a cut tunnel comes back by its
     expect(messages).toContain("notes on host.example: back to its running Server");
     expect((await health(second.url)).pid).toBe(pid);
     // The network drops: the tunnel is killed under a living Client.
-    const client = await clientOf(second.url);
+    // The Client's pings, with no deadline on their answers: a cut tunnel refuses at once,
+    // so how long a live one takes on a loaded host never decides what is seen.
+    const { socket } = await connect(second.url);
+    const client = keepAlive(
+      (input, init) => fetch(input, { ...init, signal: undefined, unix: socket }),
+      "test",
+      100,
+    );
     const seen: boolean[] = [];
-    client.managed?.watch((reachable) => seen.push(reachable));
+    client.watch((reachable) => seen.push(reachable));
     const tunnels = (await sshCalls(host.log)).filter(({ args }) => args.includes("-N"));
     process.kill(tunnels.at(-1)?.pid ?? 0, "SIGKILL");
     await until(() => seen.includes(false), 5000);
@@ -312,7 +319,7 @@ test("--on: a lost Client finds its Server again; a cut tunnel comes back by its
     await until(() => seen.at(-1) === true, 10000);
     expect(seen).toEqual([false, true]);
     expect((await health(second.url)).pid).toBe(pid);
-    await client.managed?.leave();
+    await client.leave();
     await second.stop();
   } finally {
     await host.remove();
