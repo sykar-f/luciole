@@ -43,10 +43,13 @@ const openDescriptors = () => new Set(readdirSync("/dev/fd").map(Number));
 const SLAVE_PATH = /^\/dev\/(?:ttys\d+|pts\/\d+)$/;
 /**
  * The path of the terminal device a descriptor opened since `before` refers to: a PTY
- * slave `Bun.Terminal` just allocated. Bun does not say it, the descriptor does: the
- * kernel resolves it (F_GETPATH on macOS, /proc/self/fd on Linux), so nothing is looked
- * up in /dev by name and nothing waits on time. The master (/dev/ptmx) and other
- * descriptors the call opened do not match the slave pattern.
+ * slave `Bun.Terminal` just allocated. Bun does not say it, the descriptor does:
+ * `realpath` of /dev/fd/<n> asks the kernel, not a listing of /dev, so nothing waits on
+ * time. Verified on macOS only (F_GETPATH: 200 PTYs in a row, each path present and with
+ * the descriptor's device number). On Linux this is reasoning, not a run: /dev/fd is
+ * /proc/self/fd, whose entries are symlinks to /dev/pts/N. Why the old scan of /dev
+ * missed the entry under load is a hypothesis (a listing racing other processes' PTYs
+ * coming and going), not something measured. The master (/dev/ptmx) never matches.
  */
 function newSlave(before: ReadonlySet<number>) {
   for (const fd of openDescriptors()) {

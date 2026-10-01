@@ -16,31 +16,34 @@ test(
     const ptys: Pty[] = [];
     const paths = new Set<string>();
     const exits: Promise<void>[] = [];
-    for (let i = 0; i < PTYS; i++) {
-      let seen = "";
-      exits.push(
-        new Promise<void>((done) => {
-          ptys.push(
-            spawnPty({
-              command: (tty) => {
-                seen = tty;
-                return ["/bin/sleep", "30"];
-              },
-              cols: 80,
-              rows: 24,
-              onData: () => {},
-              onExit: () => done(),
-            }),
-          );
-        }),
-      );
-      expect(seen).toMatch(SLAVE_PATH);
-      expect(statSync(seen).isCharacterDevice()).toBe(true);
-      paths.add(seen);
+    try {
+      for (let i = 0; i < PTYS; i++) {
+        let seen = "";
+        exits.push(
+          new Promise<void>((done) => {
+            ptys.push(
+              spawnPty({
+                command: (tty) => {
+                  seen = tty;
+                  return ["/bin/sleep", "30"];
+                },
+                cols: 80,
+                rows: 24,
+                onData: () => {},
+                onExit: () => done(),
+              }),
+            );
+          }),
+        );
+        expect(seen).toMatch(SLAVE_PATH);
+        expect(statSync(seen).isCharacterDevice()).toBe(true);
+        paths.add(seen);
+      }
+      expect(paths.size).toBe(PTYS);
+    } finally {
+      for (const pty of ptys) pty.kill();
+      await Promise.all(exits);
     }
-    expect(paths.size).toBe(PTYS);
-    for (const pty of ptys) pty.kill();
-    await Promise.all(exits);
   },
   TEST_MS,
 );
