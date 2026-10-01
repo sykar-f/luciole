@@ -1,8 +1,8 @@
 /**
  * The web runtime framed by a page of its origin (docs/WEB.md, "Page embarquée"), as the
  * landing page frames its live demos: the page hears the start stage by stage, fixes the
- * grid, types into the terminal, and puts the round trip before the keys; a frame of
- * another origin types nothing. Builds
+ * grid, types into the terminal, puts the round trip before the keys, and asks whether the
+ * wheel still scrolls something under a point; a frame of another origin types nothing. Builds
  * examples/notes with `--web-local`.
  *   bun run test:web:embed
  */
@@ -22,6 +22,10 @@ const DRAW_TIMEOUT_MS = 6000;
 const POLL_MS = 150;
 /** Long enough for Return to put the cursor in the note before the next key arrives. */
 const EDIT_SETTLE_MS = 300;
+/** Cells of Notes, 0-based, with no note open: a row of the list, the toolbar, the note. */
+const LIST_CELL = { column: 5, row: 10 };
+const TOOLBAR_CELL = { column: 10, row: 1 };
+const NOTE_CELL = { column: 60, row: 15 };
 const frameShows = (text: string) =>
   `${FRAME_SCREEN}.map((row) => row.textContent).join("\\n").includes(${JSON.stringify(text)})`;
 
@@ -119,6 +123,30 @@ try {
   await reopen(`${look}&restore=off`);
   report.notRestored = !!(await browser.waitFor(frameShows("No note selected"), "no note open"));
 
+  // The wheel's room, as the page asks for it at a point of the frame: the list scrolls
+  // down from its top, the toolbar and the empty note scroll nothing; once the list has
+  // scrolled, it scrolls back up too.
+  const roomAt = (cell: { column: number; row: number }) =>
+    browser.evaluate(`(() => {
+      const frame = document.querySelector("iframe");
+      const box = frame.contentDocument.querySelector(".xterm-screen").getBoundingClientRect();
+      const x = box.left + ((${cell.column} + 0.5) * box.width) / ${COLUMNS};
+      const y = box.top + ((${cell.row} + 0.5) * box.height) / ${ROWS};
+      return JSON.stringify(frame.contentWindow.lucioleScrollRoom(x, y));
+    })()`);
+  report.roomOverList = await roomAt(LIST_CELL);
+  report.roomOverToolbar = await roomAt(TOOLBAR_CELL);
+  report.roomOverEmptyNote = await roomAt(NOTE_CELL);
+  await browser.evaluate(
+    `send({ type: "input", data: "\\u001b[<65;${LIST_CELL.column + 1};${LIST_CELL.row + 1}M" })`,
+  );
+  const scrolledBy = performance.now() + DRAW_TIMEOUT_MS;
+  report.roomOverScrolledList = await roomAt(LIST_CELL);
+  while (report.roomOverScrolledList === report.roomOverList && performance.now() < scrolledBy) {
+    await Bun.sleep(POLL_MS);
+    report.roomOverScrolledList = await roomAt(LIST_CELL);
+  }
+
   // Another origin frames Notes: it hears no stage, and what it types is ignored. Its
   // script cannot read the frame; the DevTools protocol reads through it.
   const framed = new URL(look, notes.url).href;
@@ -154,6 +182,10 @@ const expected = {
   typedHeard: true,
   restored: true,
   notRestored: true,
+  roomOverList: JSON.stringify({ up: false, down: true }),
+  roomOverToolbar: JSON.stringify({ up: false, down: false }),
+  roomOverEmptyNote: JSON.stringify({ up: false, down: false }),
+  roomOverScrolledList: JSON.stringify({ up: true, down: true }),
   otherOriginDrawn: true,
   otherOriginTyped: false,
   otherOriginHeard: 0,

@@ -367,6 +367,19 @@ export class MarkdownEditorRenderable extends Renderable {
     if (this.focused) this.ctx.setCursorPosition(0, 0, false);
   }
 
+  /**
+   * Whether the wheel still moves the text each way. The web runtime asks, as it asks
+   * OpenTUI's scrollers, to pass the wheel on to the page at the text's ends
+   * (luciole/src/web/wheel-room.ts): this renderable keeps every turn it gets.
+   */
+  wheelRoom() {
+    const layout = this.layout();
+    if (!layout) return { up: false, down: false };
+    const max = Math.max(0, layout.lines.length - this.height);
+    const at = Math.max(0, Math.min(max, this.scroll));
+    return { up: at > 0, down: at < max };
+  }
+
   private clampScroll(layout: Layout) {
     const max = Math.max(0, layout.lines.length - this.height);
     this.scroll = Math.max(0, Math.min(max, this.scroll));
