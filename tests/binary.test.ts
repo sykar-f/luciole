@@ -305,7 +305,6 @@ test("--on: a lost Client finds its Server again; a cut tunnel comes back by its
     const client = await clientOf(second.url);
     const seen: boolean[] = [];
     client.managed?.watch((reachable) => seen.push(reachable));
-    await Bun.sleep(300);
     const tunnels = (await sshCalls(host.log)).filter(({ args }) => args.includes("-N"));
     process.kill(tunnels.at(-1)?.pid ?? 0, "SIGKILL");
     await until(() => seen.includes(false), 5000);
