@@ -8,6 +8,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { build } from "../packages/luciole/src/build";
+import { TransportError, type Transport } from "../packages/luciole/src/client";
 import {
   BUILD_TEST_MS,
   launch,
@@ -382,15 +383,46 @@ test(
   BUILD_TEST_MS,
 );
 
+/**
+ * A Server slow to save, by the test's hand rather than the clock's: the requests that
+ * save a note or look a save up reach the Server only once `land()` is called, and the
+ * first save is given up on, as the transport does when its timeout passes, once
+ * `timeOut()` is. The states between are held for as long as the test needs to look at
+ * them, however loaded the host is.
+ */
+function slowSaves() {
+  const landing = Promise.withResolvers<void>();
+  const timedOut = Promise.withResolvers<void>();
+  let firstSave = true;
+  return {
+    land: () => landing.resolve(),
+    timeOut: () => timedOut.resolve(),
+    wrapTransport: (inner: Transport): Transport => ({
+      render: (...args) => inner.render(...args),
+      setToken: (token) => inner.setToken(token),
+      call(actionId, args, signal, context) {
+        const saving = actionId.endsWith("#saveNote");
+        if (!saving && !actionId.endsWith("#getOperation"))
+          return inner.call(actionId, args, signal, context);
+        const reached = landing.promise.then(() => inner.call(actionId, args, signal, context));
+        if (!saving || !firstSave) return reached;
+        firstSave = false;
+        return Promise.race([
+          reached,
+          timedOut.promise.then(() => {
+            throw new TransportError("The operation timed out.");
+          }),
+        ]);
+      },
+    }),
+  };
+}
+
 test(
   "a slow save is said to be slow, then unconfirmed, and settles once the Server has it",
   async () => {
-    // The Server takes 4 s to save; the Client waits 3.5 s for an answer.
-    const { app, ui, stop } = await start(
-      "notes-timeout",
-      { NOTES_DELAY_MS: "4000" },
-      { timeoutMs: 3500 },
-    );
+    const server = slowSaves();
+    const { app, ui, stop } = await start("notes-timeout", {}, server);
     try {
       await write(app, ui);
       await act(async () => {
@@ -401,8 +433,10 @@ test(
       await act(async () => {
         ui.mockInput.pressKey("s", { ctrl: true });
       });
+      // Held, the save is said to be slow once QUIET_MS have passed, and stays said.
       await eventually(() => status(ui) === "Still saving…", QUIET_MS * 2);
-      // Unanswered, the request reported the connection lost: that speaks first.
+      // No answer in time: the request reports the connection lost, and that speaks first.
+      server.timeOut();
       await act(async () => until(() => draft.unknown, QUIET_MS));
       await eventually(() => status(ui) === "○ Disconnected. Your text is kept here.", QUIET_MS);
       expect(await frame(ui)).toContain("Reconnect");
@@ -412,7 +446,8 @@ test(
           ui.mockInput.pressKey("s", { ctrl: true });
         });
       expect(draft.resolving || !draft.pending).toBe(true);
-      // The original save lands; the automatic check finds it.
+      // The original save lands; the check that waits for it finds it.
+      server.land();
       await act(async () => until(() => !draft.pending && !draft.dirty, QUIET_MS * 2));
       await frame(ui);
       expect(status(ui)).toBe("");
