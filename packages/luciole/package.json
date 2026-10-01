@@ -3,7 +3,33 @@
   "version": "0.1.0",
   "private": true,
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sykar-f/luciole.git",
+    "directory": "packages/luciole"
+  },
+  "engines": {
+    "bun": ">=1.4.2"
+  },
   "type": "module",
+  "sideEffects": [
+    "./src/grammars.ts",
+    "./src/web/setup.ts",
+    "./src/web/server/setup.ts",
+    "./src/web/node/process.ts",
+    "./src/web/runtime.tsx",
+    "./src/flight/client.ts",
+    "./src/sandbox/child.ts",
+    "./src/launcher/luciole/server/context.ts",
+    "./src/devtools/luciole-devtools/server/store.ts"
+  ],
+  "files": [
+    "src",
+    "web",
+    "native/luciole-sandbox/dist",
+    "tsconfig.base.json",
+    "types.d.ts"
+  ],
   "bin": {
     "luciole": "./src/cli.ts",
     "luciolex": "./src/luciolex.ts"
@@ -20,7 +46,8 @@
     "./metadata": "./src/app-metadata.ts",
     "./tsconfig": "./tsconfig.base.json",
     "./grammars": "./src/grammars.ts",
-    "./math": "./src/math.ts"
+    "./math": "./src/math.ts",
+    "./package.json": "./package.json"
   },
   "dependencies": {
     "@opentui/core": "0.5.12",
@@ -38,8 +65,6 @@
     "@xterm/xterm": "6.0.0",
     "marked": "17.0.1",
     "mathjax-full": "3.2.2",
-    "react": "19.3.0",
-    "react-dom": "19.3.0",
     "react-reconciler": "0.33.0",
     "react-server-dom-webpack": "19.3.0",
     "tree-sitter-bash": "0.25.1",
@@ -57,6 +82,10 @@
     "tree-sitter-typescript": "0.23.2",
     "typescript": "7.0.2",
     "zod": "4.6.5"
+  },
+  "peerDependencies": {
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
   },
   "devDependencies": {
     "@types/bun": "1.4.2",
