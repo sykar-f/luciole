@@ -153,3 +153,54 @@ signale comme « non livrées » :
 | ------------------------------ | --------------------------------------------- | -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | LGPL-3.0-or-later              | `@img/sharp-libvips-*` (libvips, via `sharp`) | `examples/files` et `devDependencies` du paquet racine (privé) | `sharp` n'est une dépendance d'aucun paquet livré ; un exemple ne se publie pas. À revoir si `sharp` entre un jour dans un paquet livré. |
 | propriétaire (« SEE LICENSE ») | `@anthropic-ai/claude-agent-sdk`              | `@luciole/harness` (privé), exemples                           | Le harnais est privé et n'est pas publié ; le SDK n'est redistribué avec aucun paquet livré.                                             |
+
+## Ce que `luciole` installe (`packages/luciole/package.json`)
+
+Installer `luciole` n'installe que ce que toute application utilise. Les plages publiées
+sont en `^` ; le catalogue du dépôt et les `devDependencies` gardent les versions exactes,
+pour que le dépôt reste reproductible.
+
+| Dépendance                             | Classe                  | Avant → après               | Raison                                                                                                                                             |
+| -------------------------------------- | ----------------------- | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| @opentui/core                          | toute application       | exact → `^`                 | Le moteur de rendu : chaque application l'utilise.                                                                                                 |
+| @opentui/keymap                        | toute application       | exact → `^`                 | Le moteur de rendu : chaque application l'utilise.                                                                                                 |
+| @opentui/react                         | toute application       | exact → `^`                 | Le moteur de rendu : chaque application l'utilise.                                                                                                 |
+| @tanstack/react-router                 | toute application       | exact → `^`                 | Routeur de chaque application.                                                                                                                     |
+| react-reconciler                       | toute application       | exact → `^`                 | Réconciliateur de chaque application.                                                                                                              |
+| react-server-dom-webpack               | toute application       | exact → `^`                 | Flight (RSC).                                                                                                                                      |
+| zod                                    | toute application       | exact → `^`                 | Schémas des actions et des arguments.                                                                                                              |
+| marked                                 | toute application       | exact → `^`                 | `<Markdown>` fait partie du client ; il n'est pas chargé à la demande.                                                                             |
+| @typescript/typescript6                | outil du build, runtime | exact → `^`                 | `luciole build` lit l'AST de l'application avec cette API (`build.ts`, cache, contexte asynchrone) : il lui faut à l'exécution.                    |
+| typescript (7)                         | outil de l'application  | dependency → devDependency  | Aucun module de `luciole` ne l'importe : seul `tsc --noEmit` l'utilise, et `luciole init` le range déjà dans les devDependencies de l'application. |
+| tree-sitter-bash                       | optionnelle             | dependency → peer optionnel | Sert à `luciole/grammars` seul, que l'application importe ou non.                                                                                  |
+| tree-sitter-c                          | optionnelle             | dependency → peer optionnel | Sert à `luciole/grammars` seul, que l'application importe ou non.                                                                                  |
+| tree-sitter-cpp                        | optionnelle             | dependency → peer optionnel | Sert à `luciole/grammars` seul, que l'application importe ou non.                                                                                  |
+| tree-sitter-css                        | optionnelle             | dependency → peer optionnel | Sert à `luciole/grammars` seul, que l'application importe ou non.                                                                                  |
+| tree-sitter-go                         | optionnelle             | dependency → peer optionnel | Sert à `luciole/grammars` seul, que l'application importe ou non.                                                                                  |
+| tree-sitter-html                       | optionnelle             | dependency → peer optionnel | Sert à `luciole/grammars` seul, que l'application importe ou non.                                                                                  |
+| tree-sitter-java                       | optionnelle             | dependency → peer optionnel | Sert à `luciole/grammars` seul, que l'application importe ou non.                                                                                  |
+| tree-sitter-json                       | optionnelle             | dependency → peer optionnel | Sert à `luciole/grammars` seul, que l'application importe ou non.                                                                                  |
+| tree-sitter-php                        | optionnelle             | dependency → peer optionnel | Sert à `luciole/grammars` seul, que l'application importe ou non.                                                                                  |
+| tree-sitter-python                     | optionnelle             | dependency → peer optionnel | Sert à `luciole/grammars` seul, que l'application importe ou non.                                                                                  |
+| tree-sitter-ruby                       | optionnelle             | dependency → peer optionnel | Sert à `luciole/grammars` seul, que l'application importe ou non.                                                                                  |
+| tree-sitter-rust                       | optionnelle             | dependency → peer optionnel | Sert à `luciole/grammars` seul, que l'application importe ou non.                                                                                  |
+| tree-sitter-typescript                 | optionnelle             | dependency → peer optionnel | Sert à `luciole/grammars` seul, que l'application importe ou non.                                                                                  |
+| @tree-sitter-grammars/tree-sitter-lua  | optionnelle             | dependency → peer optionnel | Sert à `luciole/grammars` seul, que l'application importe ou non.                                                                                  |
+| @tree-sitter-grammars/tree-sitter-toml | optionnelle             | dependency → peer optionnel | Sert à `luciole/grammars` seul, que l'application importe ou non.                                                                                  |
+| @tree-sitter-grammars/tree-sitter-yaml | optionnelle             | dependency → peer optionnel | Sert à `luciole/grammars` seul, que l'application importe ou non.                                                                                  |
+| mathjax-full                           | optionnelle             | dependency → peer optionnel | Sert à `luciole/math` seul (TeX en SVG).                                                                                                           |
+| @resvg/resvg-wasm                      | optionnelle             | dependency → peer optionnel | Sert à `luciole/math` seul (SVG en PNG, WebAssembly).                                                                                              |
+| @sqlite.org/sqlite-wasm                | optionnelle             | dependency → peer optionnel | Le Worker de la cible web (`--web=local`) l'embarque ; le cache serveur utilise `bun:sqlite` et n'en dépend pas.                                   |
+| @xterm/xterm                           | optionnelle             | dependency → peer optionnel | Le runtime de la cible web le bundle ; aucune autre cible n'y touche.                                                                              |
+| @xterm/addon-fit                       | optionnelle             | dependency → peer optionnel | Le runtime de la cible web le bundle ; aucune autre cible n'y touche.                                                                              |
+| @xterm/addon-webgl                     | optionnelle             | dependency → peer optionnel | Le runtime de la cible web le bundle ; aucune autre cible n'y touche.                                                                              |
+
+Une fonctionnalité optionnelle sans son paquet échoue avec un message qui le nomme
+(« luciole/math needs the optional package mathjax-full, which is not installed: run
+`bun add mathjax-full` ») : `src/optional.ts`. `luciole/math` charge ses paquets par
+`import()` dynamique, à la première formule. `luciole/grammars` reste synchrone (le bundle
+d'application est en CommonJS, sans `await` de module) : c'est le build qui vérifie ses
+seize paquets quand une application l'importe. Les builds web vérifient les leurs avant
+d'empaqueter. Le dépôt garde ces paquets en `devDependencies` de `luciole` pour que les
+exemples et les tests les trouvent ; `luciole init` les range dans les `devDependencies`
+de l'application créée.

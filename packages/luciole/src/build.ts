@@ -7,6 +7,7 @@ import { createHash } from "node:crypto";
 import { z } from "zod";
 import { bundleMessages, logMessages } from "./bundle-errors";
 import { nativePackage } from "./native";
+import { assertInstalled, GRAMMAR_PACKAGES } from "./optional";
 import { lucioleSources } from "./sources";
 import { governingLock, isLinkedSource, LINKED_SOURCES, linkedPackages } from "./lockfile";
 import { withLock } from "./launcher/lock";
@@ -945,6 +946,9 @@ async function buildUnlocked(
                 (a) => {
                   const entry = FRAMEWORK_ENTRIES.get(a.path.slice("luciole/".length));
                   if (!entry) throw new Error(`Unknown framework entry ${a.path}`);
+                  // Its packages are optional: name the missing one, not a bare resolution error.
+                  if (entry === "grammars.ts")
+                    assertInstalled("luciole/grammars", GRAMMAR_PACKAGES);
                   return { path: join(framework, entry) };
                 },
               );

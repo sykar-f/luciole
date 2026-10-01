@@ -10,6 +10,7 @@ import type { BunPlugin } from "bun";
 import { ABI_KEY } from "../abi";
 import { abiKeyLiteral } from "./abi-key";
 import { bundleMessages, logMessages } from "../bundle-errors";
+import { assertInstalled, WEB_RUNTIME_PACKAGES } from "../optional";
 import { browserNode } from "./node/plugin";
 import { opentuiWasm } from "./opentui/plugin";
 import { platformVariants } from "./platform";
@@ -89,6 +90,7 @@ export async function buildWebRuntime({
   wasm: string;
   outdir: string;
 }) {
+  assertInstalled("the web target", WEB_RUNTIME_PACKAGES);
   mkdirSync(outdir, { recursive: true });
   const failed = (messages: string) => new Error(`The web runtime failed to build:\n${messages}`);
   const result = await Bun.build({
