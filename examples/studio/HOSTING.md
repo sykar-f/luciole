@@ -11,7 +11,7 @@
 
 - **L'app générée ne tourne pas chez nous.** Elle est construite en `--web-local` dans un
   bac à sable, puis s'exécute dans le navigateur du visiteur (Client et Server dans la page
-  et un SharedWorker, [WEB.md](../WEB.md)). Elle est servie depuis une origine jetable, à part
+  et un SharedWorker, [WEB.md](../../docs/WEB.md)). Elle est servie depuis une origine jetable, à part
   du site. Cela contourne la lacune « pas de PTY dans le navigateur » : l'aperçu n'est plus un
   `<Terminal>` dans le studio, c'est un second `iframe` à côté du studio.
 - **Ce qui tourne chez nous, dans une microVM par session** : pi (en RPC), le build luciole et
@@ -82,7 +82,7 @@
 
 En local, le studio affiche l'app générée dans un `<Terminal>` (PTY + émulateur,
 [EMBEDDING.md § 4](../../docs/EMBEDDING.md#4-modes-process-et-sandbox--widget-vt)). Le runtime web
-n'a ni PTY ni `<Terminal>` : il affiche « indisponible ici » ([WEB.md § 2, W9](../WEB.md)).
+n'a ni PTY ni `<Terminal>` : il affiche « indisponible ici » ([WEB.md § 2, W9](../../docs/WEB.md)).
 Trois manières de montrer l'aperçu en ligne :
 
 | Option                                                               | Où tourne l'app générée           | Coût chez nous                | Apps couvertes                                                   | Verdict                                                                                         |
