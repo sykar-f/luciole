@@ -1,5 +1,5 @@
 import React from "react";
-import { serve } from "../packages/luciole/src/server";
+import { serve } from "../packages/core/src/server";
 // A Server built by hand for tests/devtools-server.test.ts: LUCIOLE_DEVTOOLS is its only
 // instrumentation. The page and the action log, to check logs carry their callId.
 serve({

@@ -2,8 +2,8 @@ import { afterAll, expect, test } from "bun:test";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ABI_KEY } from "../packages/luciole/src/abi";
-import { WebOrigin, webAccess, WEB_PATH } from "../packages/luciole/src/web-routes";
+import { ABI_KEY } from "../packages/core/src/abi";
+import { WebOrigin, webAccess, WEB_PATH } from "../packages/core/src/web-routes";
 
 const ORIGIN = "https://notes.example.com";
 const directory = mkdtempSync(join(tmpdir(), "luciole-web-"));

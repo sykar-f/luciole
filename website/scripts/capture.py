@@ -36,7 +36,7 @@ SITE = pathlib.Path(__file__).resolve().parents[1]
 ROOT = SITE.parent
 OUT = SITE / "src/frames"
 BUN = shutil.which("bun")
-CLI = str(ROOT / "packages/luciole/src/cli.ts")
+CLI = str(ROOT / "packages/core/src/cli.ts")
 # The seed's clock (examples/forge/server/seed.ts) plus 22 days, as in scripts/pty-forge.py:
 # the ages Forge shows do not depend on the day of the capture.
 FORGE_CLOCK = "2026-09-23T09:00:00Z"
@@ -319,7 +319,7 @@ def devtools(directory):
     # with no bus, so no socket for an application to join and no instructions to join it,
     # which `luciole devtools --demo` would show.
     term = Terminal(
-        [BUN, CLI, "dev", "--app", str(ROOT / "packages/luciole/src/devtools/luciole-devtools")],
+        [BUN, CLI, "dev", "--app", str(ROOT / "packages/core/src/devtools/luciole-devtools")],
         {**os.environ, "TERM": "xterm-256color", "COLORTERM": "truecolor", "XDG_STATE_HOME": directory + "/state", "LUCIOLE_DESKTOP": "1",
          "LUCIOLE_DEVTOOLS_LISTEN": "none", "LUCIOLE_DEVTOOLS_DEMO": "1"},
         140, 40,

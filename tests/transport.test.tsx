@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { Database } from "bun:sqlite";
 import { z } from "zod";
-import { build } from "../packages/luciole/src/build";
+import { build } from "../packages/core/src/build";
 import {
   launch,
   until,

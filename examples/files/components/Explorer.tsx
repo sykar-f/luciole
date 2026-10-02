@@ -11,7 +11,7 @@ import {
   useCanGoBack,
   useNavigate,
   useRouter,
-} from "luciole/client";
+} from "@luciole-sh/core/client";
 import { receiveDropped, uploadDropped } from "../actions/drop";
 import { preview as fetchPreview } from "../actions/files";
 import { copy } from "./clipboard";

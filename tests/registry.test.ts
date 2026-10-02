@@ -4,20 +4,20 @@ import { chmod, cp, mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { z } from "zod";
-import { hostTarget } from "../packages/luciole/src/compile";
-import { sandboxSupported } from "../packages/luciole/src/sandbox/runtime";
-import { messageOf } from "../packages/luciole/src/guards";
-import { launch, resolveTarget } from "../packages/luciole/src/launcher";
-import type { Directories } from "../packages/luciole/src/launcher/paths";
+import { hostTarget } from "../packages/core/src/compile";
+import { sandboxSupported } from "../packages/core/src/sandbox/runtime";
+import { messageOf } from "../packages/core/src/guards";
+import { launch, resolveTarget } from "../packages/core/src/launcher";
+import type { Directories } from "../packages/core/src/launcher/paths";
 import {
   findInstalled,
   install,
   listInstalled,
   remove,
   update,
-} from "../packages/luciole/src/registry/apps";
-import { npmRegistry } from "../packages/luciole/src/registry/npm";
-import { packApp } from "../packages/luciole/src/registry/pack";
+} from "../packages/core/src/registry/apps";
+import { npmRegistry } from "../packages/core/src/registry/npm";
+import { packApp } from "../packages/core/src/registry/pack";
 import { execute, rejectionOf } from "./helpers";
 
 let work: string, directories: Directories, server: ReturnType<typeof Bun.serve>;

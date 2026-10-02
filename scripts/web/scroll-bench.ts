@@ -187,7 +187,7 @@ function owner(source: string | undefined, url: string, functionName: string) {
   if (source.includes("@opentui/react")) return "opentui react";
   if (source.includes("@opentui")) return "opentui (js)";
   if (/react-reconciler|\/react\/|react-dom|scheduler/.test(source)) return "react";
-  if (source.includes("luciole/src")) return "luciole";
+  if (source.includes("packages/core/src")) return "luciole";
   if (source.includes("node_modules"))
     return source.split("node_modules/").pop()?.split("/")[0] ?? "deps";
   return "runtime (other)";

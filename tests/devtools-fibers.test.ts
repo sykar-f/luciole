@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { z } from "zod";
-import { PRIMITIVE_NODES } from "../packages/luciole/src/devtools/fibers";
+import { PRIMITIVE_NODES } from "../packages/core/src/devtools/fibers";
 
 const Output = z.object({
   owner: z.enum(["luciole", "react-devtools"]),
@@ -25,7 +25,7 @@ const Output = z.object({
 // The fixture runs in its own process, with the hook preloaded as docs/DEVTOOLS.md says.
 async function spawnFixture(fixture: string, env: Record<string, string> = {}) {
   const child = Bun.spawn(
-    [process.execPath, "--preload", "./packages/luciole/src/devtools/hook.ts", fixture],
+    [process.execPath, "--preload", "./packages/core/src/devtools/hook.ts", fixture],
     {
       env: { ...process.env, ...env },
       stdout: "pipe",

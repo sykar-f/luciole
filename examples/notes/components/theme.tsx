@@ -2,9 +2,9 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { SyntaxStyle } from "@opentui/core";
 import { useRenderer } from "@opentui/react";
-import { markdownStyle } from "luciole/client";
+import { markdownStyle } from "@luciole-sh/core/client";
 // Grammars beyond JavaScript, TypeScript and Markdown, for the code blocks of a note.
-import "luciole/grammars";
+import "@luciole-sh/core/grammars";
 
 // Two palettes, picked by the terminal's own theme (it reports dark or light, and when it
 // switches): the notebook follows the terminal instead of imposing its colors.

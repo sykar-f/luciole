@@ -5,7 +5,7 @@ import { testRender } from "@opentui/react/test-utils";
 import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { build } from "../packages/luciole/src/build";
+import { build } from "../packages/core/src/build";
 import { z } from "zod";
 import { launch, importClient, readManifest, destroy, type TestUI } from "./helpers";
 
@@ -16,7 +16,7 @@ const files: Record<string, string> = {
   "app/layout.tsx": `"use client";export default function Layout({children}){return <box flexDirection="column">{children}</box>}`,
   "app/page.tsx": `export default function Home(){return <text>HOME</text>}`,
   "app/live/page.tsx": `import {Ticker} from "../../components/Ticker";export default function Live(){return <Ticker/>}`,
-  "components/Ticker.tsx": `"use client";import {useLive} from "luciole/client";import {ticks} from "../actions/live";export function Ticker(){const {items,done,error}=useLive(ticks,["t"],{limit:3});return <text>TICKS {items.join(",")} {done?"DONE":""} {error?"ERROR "+String(error.outcome):""}</text>}`,
+  "components/Ticker.tsx": `"use client";import {useLive} from "@luciole-sh/core/client";import {ticks} from "../actions/live";export function Ticker(){const {items,done,error}=useLive(ticks,["t"],{limit:3});return <text>TICKS {items.join(",")} {done?"DONE":""} {error?"ERROR "+String(error.outcome):""}</text>}`,
   "actions/live.ts": `"use server";import {status} from "../server/status";export async function* ticks(prefix:string){status.open++;try{for(let i=0;;i++){yield prefix+i;await Bun.sleep(20)}}finally{status.closed++}}export async function stats(){return {...status}}`,
   "server/status.ts": `export const status={open:0,closed:0};`,
 };

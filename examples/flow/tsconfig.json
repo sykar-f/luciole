@@ -1,5 +1,5 @@
 {
-  "extends": "luciole/tsconfig",
+  "extends": "@luciole-sh/core/tsconfig",
   // Workspace packages export their sources under the `bun` condition, as Bun resolves
   // them at run and build time; TypeScript needs to be told.
   "compilerOptions": { "customConditions": ["bun"] },

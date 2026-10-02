@@ -2,15 +2,15 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { MouseEvent } from "@opentui/core";
 import { useRenderer } from "@opentui/react";
-import { MarkdownEditor, type MarkdownEditorRenderable } from "@luciole/editor";
-import { renderMath } from "luciole/math";
+import { MarkdownEditor, type MarkdownEditorRenderable } from "@luciole-sh/markdown-editor";
+import { renderMath } from "@luciole-sh/core/math";
 import {
   host,
   useBindings,
   useConnection,
   useRestoredField,
   useRestoredFields,
-} from "luciole/client";
+} from "@luciole-sh/core/client";
 import { renameNote } from "../actions/notes";
 import { titleOf, useCommands } from "./commands";
 import { useDraft, type Note, type SaveResult, type Snapshot } from "./draft";
@@ -40,7 +40,7 @@ const RETRY_LAST_MS = 15_000;
 
 /**
  * One note, the whole right side: Markdown shown as it reads, and written in place, as it
- * reads too (`@luciole/editor`): a click puts the cursor there.
+ * reads too (`@luciole-sh/markdown-editor`): a click puts the cursor there.
  * Its Draft outlives the page (components/draft.ts). Saving is automatic and silent: the
  * line above the title stays empty while saves succeed, and speaks only when one is slow,
  * failing or refused, or, with autosave off, while a change is not saved yet.

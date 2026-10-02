@@ -1,6 +1,6 @@
 import "server-only";
 import { Database } from "bun:sqlite";
-import { getSession } from "luciole/server";
+import { getSession } from "@luciole-sh/core/server";
 import { z } from "zod";
 import type { Note, SaveResult, Snapshot } from "../components/draft";
 import { StoredResult } from "./schemas";

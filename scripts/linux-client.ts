@@ -7,9 +7,9 @@ import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { z } from "zod";
-import { build } from "../packages/luciole/src/build";
-import { compileClient } from "../packages/luciole/src/compile";
-import { readJsonFile } from "../packages/luciole/src/package-json";
+import { build } from "../packages/core/src/build";
+import { compileClient } from "../packages/core/src/compile";
+import { readJsonFile } from "../packages/core/src/package-json";
 import { launch } from "../tests/helpers";
 
 const args = process.argv.slice(2);

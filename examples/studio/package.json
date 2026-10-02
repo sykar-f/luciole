@@ -9,8 +9,8 @@
     "grace": "15m"
   },
   "dependencies": {
-    "luciole": "workspace:*",
-    "@luciole/harness": "workspace:*",
+    "@luciole-sh/core": "workspace:*",
+    "@luciole-sh/harness": "workspace:*",
     "@opentui/core": "catalog:",
     "@opentui/keymap": "catalog:",
     "@opentui/react": "catalog:",

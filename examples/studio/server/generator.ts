@@ -8,14 +8,14 @@
 import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { z } from "zod";
-import { filePatch } from "@luciole/harness/diff";
+import { filePatch } from "@luciole-sh/harness/diff";
 import type {
   Harness,
   HarnessContext,
   StartOptions,
   UserInput,
-} from "@luciole/harness/adapters/types";
-import type { Capabilities, Item, Request, Response } from "@luciole/harness/model";
+} from "@luciole-sh/harness/adapters/types";
+import type { Capabilities, Item, Request, Response } from "@luciole-sh/harness/model";
 import { SCENARIOS, type Scenario } from "./scenarios";
 
 /** How studio's own messages to the harness begin (server/studio.ts). */

@@ -1,6 +1,6 @@
 "use client";
 import type { ReactNode } from "react";
-import { KeyHelp, useBindings, useMatchRoute, useNavigate } from "luciole/client";
+import { KeyHelp, useBindings, useMatchRoute, useNavigate } from "@luciole-sh/core/client";
 import { useEditing } from "./editing";
 import { Line } from "./frames";
 import { ReviewSessionProvider } from "./review-session";

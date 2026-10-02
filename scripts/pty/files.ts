@@ -7,7 +7,7 @@
  * dotfiles → binary hex dump → zoom → quit. Observes PTY output, not photons.
  * FILES_PTY_FRAME=<file> writes the screen after the symlink checks there.
  *
- * Build first: bun packages/luciole/src/cli.ts build --app examples/files
+ * Build first: bun packages/core/src/cli.ts build --app examples/files
  */
 import assert from "node:assert/strict";
 import {

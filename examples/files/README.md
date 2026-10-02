@@ -145,7 +145,7 @@ bloquait l'interface 30 √† 150 ms par image ; avec les vignettes, l'interface r√
 bun run check          # types de tout le monorepo
 bun run lint
 bun run format:check
-bun packages/luciole/src/cli.ts build --app examples/files
+bun packages/core/src/cli.ts build --app examples/files
 bun run test:pty:files
 ```
 

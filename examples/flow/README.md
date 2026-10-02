@@ -2,7 +2,7 @@
 
 Un éditeur de pipeline dans le terminal : les étapes d'une CI (checkout, install, lint,
 typecheck, test, build, e2e, déploiements) sur un canevas façon React Flow, dessiné par
-[`@luciole/flow`](../../packages/flow/README.md). On les déplace, on en ajoute, on les
+[`@luciole-sh/flow-graph`](../../packages/flow-graph/README.md). On les déplace, on en ajoute, on les
 relie, on les renomme, on les supprime, et on lance un run qui les allume l'une après
 l'autre.
 
@@ -20,9 +20,9 @@ FLOW_RUN_SCALE=0.3 bun run flow     # des runs trois fois plus courts
 Production, deux artefacts :
 
 ```sh
-bun packages/luciole/src/cli.ts build --app examples/flow
-bun packages/luciole/src/cli.ts start --role server --app examples/flow
-bun packages/luciole/src/cli.ts start --role client --app examples/flow --url http://127.0.0.1:3000
+bun packages/core/src/cli.ts build --app examples/flow
+bun packages/core/src/cli.ts start --role server --app examples/flow
+bun packages/core/src/cli.ts start --role client --app examples/flow --url http://127.0.0.1:3000
 ```
 
 Le canevas tient en entier à partir de ~160 colonnes ; en dessous, `fitView` choisit le

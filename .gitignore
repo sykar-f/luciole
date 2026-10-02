@@ -5,7 +5,7 @@ node_modules/
 __pycache__/
 .luciole-*/
 examples/chat/pty-frame.txt
-packages/luciole/native/luciole-sandbox/target/
+packages/core/native/luciole-sandbox/target/
 docs/pty-frame.txt
 docs/flow-pty-frame.txt
 docs/forge-pty-frame.txt

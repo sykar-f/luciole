@@ -1,6 +1,6 @@
 "use client";
 import { useCallback } from "react";
-import { useBindings, useNavigate } from "luciole/client";
+import { useBindings, useNavigate } from "@luciole-sh/core/client";
 import { useEditing } from "./editing";
 import { STATES, type StateFilter } from "./filters";
 import { Line } from "./frames";

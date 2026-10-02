@@ -7,7 +7,7 @@ import {
   useNavigate,
   useRestoredFields,
   useRestoredFocus,
-} from "luciole/client";
+} from "@luciole-sh/core/client";
 import { openPullRequest, resolveSave } from "../actions/pulls";
 import type { Note } from "./draft";
 import { useEditingWhile } from "./editing";

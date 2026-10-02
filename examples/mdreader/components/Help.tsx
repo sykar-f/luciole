@@ -1,5 +1,5 @@
 "use client";
-import { KeyHelp } from "luciole/client";
+import { KeyHelp } from "@luciole-sh/core/client";
 import { color } from "./theme";
 
 // A help line generated from the keymap layers mounted right now: the keys, and whether

@@ -9,15 +9,15 @@ import {
   LAUNCH_VARIABLE,
   planLaunch,
   remoteEnvironment,
-} from "../packages/luciole/src/launcher/launch-key";
+} from "../packages/core/src/launcher/launch-key";
 import {
   ensureServer,
   serverId,
   serverSocket,
   serverStatus,
   type EnsureOptions,
-} from "../packages/luciole/src/launcher/managed";
-import { argsFingerprint, encodeLaunchArgs } from "../packages/luciole/src/args";
+} from "../packages/core/src/launcher/managed";
+import { argsFingerprint, encodeLaunchArgs } from "../packages/core/src/args";
 import { leaveCrashedSession } from "./helpers";
 
 let work: string, runtime: string, env: NodeJS.ProcessEnv;

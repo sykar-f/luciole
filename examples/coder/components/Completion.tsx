@@ -1,5 +1,5 @@
 "use client";
-import { color } from "@luciole/harness/ui/theme";
+import { color } from "@luciole-sh/harness/ui/theme";
 
 export type Suggestion = { value: string; label: string; detail?: string };
 // Rows of the popup; more matches are reached by typing.

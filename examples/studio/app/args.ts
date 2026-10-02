@@ -1,4 +1,4 @@
-import { defineArgs } from "luciole/args";
+import { defineArgs } from "@luciole-sh/core/args";
 import { z } from "zod";
 
 /**

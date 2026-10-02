@@ -45,13 +45,13 @@ Un prototype d'hôte : une fenêtre [Electrobun](https://framework.blackboard.sh
 dont le processus principal est Bun (`build.mainProcess: "bun"`), et une vue xterm.js
 dans le webview du système. Electrobun 2 prend par défaut Cottontail, son propre runtime
 (JavaScriptCore, API Bun) : il a `Bun.Terminal` et un vrai PTY, mais pèse autant que Bun
-(~60 Mo) et `luciole/pty` n'a été éprouvé que sous Bun.
+(~60 Mo) et `@luciole-sh/core/pty` n'a été éprouvé que sous Bun.
 
 ```text
 fenêtre (webview système)          processus principal (Bun)            PTY
 ┌────────────────────────┐  RPC   ┌──────────────────────────┐        ┌──────────────┐
 │ xterm.js : rendu,      │ ─────▶ │ src/host/session.ts      │ ─────▶ │ bin/<app>    │
-│ clavier, souris, coller│ ◀───── │ spawnPty (luciole/pty),   │ ◀───── │ LUCIOLE_      │
+│ clavier, souris, coller│ ◀───── │ spawnPty (@luciole-sh/core/pty),   │ ◀───── │ LUCIOLE_      │
 └────────────────────────┘ output │ UTF-8 décodé, par tour   │        │ DESKTOP=1    │
                                   └──────────────────────────┘        └──────────────┘
 ```

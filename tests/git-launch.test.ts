@@ -3,14 +3,10 @@ import { existsSync } from "node:fs";
 import { mkdtemp, readFile, rename, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { build } from "../packages/luciole/src/build";
-import { messageOf } from "../packages/luciole/src/guards";
-import {
-  prepareGitApp,
-  repositoryName,
-  type GitOptions,
-} from "../packages/luciole/src/launcher/git";
-import { parseGitSource } from "../packages/luciole/src/launcher/git-source";
+import { build } from "../packages/core/src/build";
+import { messageOf } from "../packages/core/src/guards";
+import { prepareGitApp, repositoryName, type GitOptions } from "../packages/core/src/launcher/git";
+import { parseGitSource } from "../packages/core/src/launcher/git-source";
 import { execute, rejectionOf } from "./helpers";
 
 let work: string, remote: string;

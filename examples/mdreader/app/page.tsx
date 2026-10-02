@@ -1,4 +1,4 @@
-import { notFound } from "luciole/server";
+import { notFound } from "@luciole-sh/core/server";
 import { Column, DocFrame, Line } from "../components/frames";
 import { Help } from "../components/Help";
 import { Reader } from "../components/Reader";

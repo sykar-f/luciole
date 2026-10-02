@@ -13,7 +13,7 @@ ne se lance pas depuis son propre dossier) :
 
 ```sh
 bun install --frozen-lockfile    # une fois, Bun 1.4.2
-bun packages/luciole/src/cli.ts dev --app examples/notes
+bun packages/core/src/cli.ts dev --app examples/notes
 ```
 
 Il n'y a pas de script `bun run` pour cet exemple. Aucune clé API, aucun réseau. Au

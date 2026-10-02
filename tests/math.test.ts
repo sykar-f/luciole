@@ -1,6 +1,6 @@
-/** `luciole/math`: TeX to a PNG, for the editor's display math. */
+/** `@luciole-sh/core/math`: TeX to a PNG, for the editor's display math. */
 import { expect, test } from "bun:test";
-import { renderMath } from "luciole/math";
+import { renderMath } from "@luciole-sh/core/math";
 
 const PNG = [0x89, 0x50, 0x4e, 0x47];
 

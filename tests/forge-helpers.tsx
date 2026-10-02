@@ -4,7 +4,7 @@ import { testRender } from "@opentui/react/test-utils";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import type { Fetch } from "../packages/luciole/src/client";
+import type { Fetch } from "../packages/core/src/client";
 import { createForge } from "../examples/forge/server/forge";
 import { openDatabase } from "../examples/forge/server/schema";
 import { launch, until, importClient, metricsOf } from "./helpers";

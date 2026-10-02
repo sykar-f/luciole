@@ -10,7 +10,7 @@ import {
   useLocation,
   useNavigate,
   useRouter,
-} from "luciole/client";
+} from "@luciole-sh/core/client";
 import { listRepos, logout, whoami } from "../actions/account";
 import { drafts } from "./draft";
 import { EditingProvider } from "./editing";

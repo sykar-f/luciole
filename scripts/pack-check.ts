@@ -1,7 +1,7 @@
 /**
  * Proves a workspace package packs into a tarball a consumer can install and import.
  *
- *   bun scripts/pack-check.ts <package-dir>...      e.g. packages/flow packages/editor
+ *   bun scripts/pack-check.ts <package-dir>...      e.g. packages/flow-graph packages/markdown-editor
  *
  * For each directory: `bun pm pack` into a temporary directory (which runs `prepack`),
  * then fails unless

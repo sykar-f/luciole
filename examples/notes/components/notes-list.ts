@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useSyncExternalStore } from "react";
-import { TransportError, useInvalidation } from "luciole/client";
+import { TransportError, useInvalidation } from "@luciole-sh/core/client";
 import { listNotes } from "../actions/notes";
 import type { Note } from "./draft";
 

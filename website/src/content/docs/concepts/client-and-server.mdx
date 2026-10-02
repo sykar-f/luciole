@@ -4,9 +4,9 @@ description: One codebase, two programs. What the build puts on each side, how t
 sources:
   - docs/ARCHITECTURE.md
   - docs/BOUNDARIES.md
-  - packages/luciole/src/build.ts
-  - packages/luciole/src/transport.ts
-  - packages/luciole/src/server.ts
+  - packages/core/src/build.ts
+  - packages/core/src/transport.ts
+  - packages/core/src/server.ts
   - website/src/frames/flight.txt
 ---
 
@@ -99,13 +99,13 @@ Read it line by line:
 
 ## Where the pieces live
 
-| Concern                               | File                                             |
-| ------------------------------------- | ------------------------------------------------ |
-| Graphs, boundaries, manifests         | <Src path="packages/luciole/src/build.ts" />     |
-| Transport: build ID, bearer, outcomes | <Src path="packages/luciole/src/transport.ts" /> |
-| HTTP handler, sessions, actions       | <Src path="packages/luciole/src/server.ts" />    |
-| The Client in a terminal              | <Src path="packages/luciole/src/run.tsx" />      |
-| The Server as a process               | <Src path="packages/luciole/src/serve.ts" />     |
+| Concern                               | File                                          |
+| ------------------------------------- | --------------------------------------------- |
+| Graphs, boundaries, manifests         | <Src path="packages/core/src/build.ts" />     |
+| Transport: build ID, bearer, outcomes | <Src path="packages/core/src/transport.ts" /> |
+| HTTP handler, sessions, actions       | <Src path="packages/core/src/server.ts" />    |
+| The Client in a terminal              | <Src path="packages/core/src/run.tsx" />      |
+| The Server as a process               | <Src path="packages/core/src/serve.ts" />     |
 
 The guided tour's first chapters, [La carte](/guide/carte/) and [Le build](/guide/build/)
 (in French), follow the same split in more depth.

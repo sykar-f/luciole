@@ -2,9 +2,9 @@ import { test, expect } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { lucioleSources } from "../packages/luciole/src/sources";
+import { lucioleSources } from "../packages/core/src/sources";
 
-const SOURCES = resolve("packages/luciole/src");
+const SOURCES = resolve("packages/core/src");
 
 test("luciole's sources: the calling module's directory when it is them", () => {
   expect(lucioleSources(SOURCES)).toBe(SOURCES);

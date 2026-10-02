@@ -3,8 +3,8 @@ title: Authentication
 description: Pages and Server Functions require a session by default. The local single-user mode, server/auth.ts, public routes and setToken.
 sources:
   - docs/API.md
-  - packages/luciole/src/serve.ts
-  - packages/luciole/src/server.ts
+  - packages/core/src/serve.ts
+  - packages/core/src/server.ts
   - examples/forge/server/auth.ts
 ---
 
@@ -32,7 +32,7 @@ An app that replaces the local identity provides `server/auth.ts`. The build inc
 the Server's graph only.
 
 ```ts
-import type { AuthConfig } from "luciole/server";
+import type { AuthConfig } from "@luciole-sh/core/server";
 
 export default {
   unauthorizedPath: "/login",

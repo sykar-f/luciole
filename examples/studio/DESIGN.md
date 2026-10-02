@@ -46,16 +46,16 @@ les scénarios du probe studio-generate. Ce qui s'écarte de la conception ci-de
 | Sans sandbox            | refus au lancement                                       | l'écran s'ouvre et dit pourquoi ; aucun message n'est envoyé au harness tant que studio ne tourne pas avec `--preview process`                                                                                                                                                                                                                                                                                                    |
 | Codex                   | « mode sans exécution si le protocole le permet »        | **reporté** : son protocole n'a pas de mode sans commandes (`workspace-write` + `on-request` ne demande que pour sortir du projet ou le réseau) ; studio n'accepte que `claude` et `fake`, demander `codex`, `pi` ou `opencode` échoue avec cette raison (décision de l'utilisateur, 27 septembre 2026)                                                                                                                           |
 | Pendant le tour         | l'aperçu ne bouge pas (2.2, point 2)                     | **un brouillon par écriture** (décision 9) : les écritures de 300 ms regroupées, garde-fou, build à part, Server confiné, bascule ; ni révision, ni correction, ni message au harness. Un brouillon en échec garde le dernier écran valide (« draft · waiting for a build that works ») ; un seul à la fois, le plus récent l'emporte ; ce qui est construit doit être ce qui a été vérifié. La fin du tour annule les brouillons |
-| Champs de l'app         | —                                                        | les instructions demandent des champs nommés (`Input`/`Textarea` d'`luciole/client`), `useRestoredFields`, `useRestoredFocus`, `<ScrollBox name>` ; un champ sans `name` est un **conseil** du garde-fou (transcript, puis avec le message suivant au harness), jamais un refus ni une correction                                                                                                                                 |
+| Champs de l'app         | —                                                        | les instructions demandent des champs nommés (`Input`/`Textarea` d'`@luciole-sh/core/client`), `useRestoredFields`, `useRestoredFocus`, `<ScrollBox name>` ; un champ sans `name` est un **conseil** du garde-fou (transcript, puis avec le message suivant au harness), jamais un refus ni une correction                                                                                                                        |
 | Mesure réelle (étape 6) | fixtures enregistrées, taux de build                     | **faite sur Claude Code** (ci-dessous) ; Codex non mesuré (reporté) ; transcripts enregistrés hors du dépôt, résumé dans `examples/studio/measures/`                                                                                                                                                                                                                                                                              |
 
 Lacunes du framework comblées (section 7), chacune dans un commit à part, avec son test :
-G1 (`confineServer`, macOS), G2, G3, G4, G5, G6, G7 (`luciole/dev`). L'implémentation en a
+G1 (`confineServer`, macOS), G2, G3, G4, G5, G6, G7 (`@luciole-sh/core/dev`). L'implémentation en a
 trouvé quatre autres, corrigées de même : le profil Seatbelt ne suivait pas un lien
-`node_modules` lisible (le projet est hors du dépôt) ; `luciole/build` et `luciole/sandbox`
+`node_modules` lisible (le projet est hors du dépôt) ; `@luciole-sh/core/build` et `@luciole-sh/core/sandbox`
 cherchaient les sources de luciole par `import.meta` même une fois bundlés dans une
-application (`src/sources.ts`) ; `TerminalView` est exporté par `luciole/client` (pas par
-`luciole/sandbox`, que les Servers importent) ; `startAppServer` démarre une sortie de
+application (`src/sources.ts`) ; `TerminalView` est exporté par `@luciole-sh/core/client` (pas par
+`@luciole-sh/core/sandbox`, que les Servers importent) ; `startAppServer` démarre une sortie de
 build hors de `.luciole/`.
 
 **Mesure sur Claude Code** (27 septembre 2026, accord de l'utilisateur ; Claude Code
@@ -119,7 +119,7 @@ accident de l'`LUCIOLE_SESSION` du Client studio (sous `luciole dev`) et attenda
 (corrigé : id de session par projet, hello répondu) ; il survivait aussi à la sortie de studio
 (corrigé : tué à la sortie, comme en `sandbox`). Enfin, onze messages Markdown dans la
 conversation faisaient écrire à Node un `MaxListenersExceededWarning` par-dessus l'interface
-(corrigé dans `luciole/markdown`).
+(corrigé dans `<Markdown>`, de `@luciole-sh/core/client`).
 
 Mesures (générateur scripté, macOS 26.6.2, machine chargée par d'autres sessions) : le
 parcours de bout en bout (`tests/studio.test.tsx`, trois prompts, une erreur de build et
@@ -299,13 +299,13 @@ studio refuse `u`/`h` et le dit (point 11.5).
 
 ### 3.1 Où tourne quoi
 
-| Élément                      | Processus                                                   | Pourquoi                                                                                        |
-| ---------------------------- | ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| harness                      | enfant du **Server studio**, `cwd` = workspace              | comme coder : le Server possède la session, survit à un Client tué (grâce, `claimOrphan`)       |
-| workspace                    | dossier du projet, dépôt git                                | l'app reste une app luciole ordinaire, utilisable sans studio                                   |
-| build, `tsc`, rendu headless | **Server studio** (`luciole/build` est une entrée publique) | diagnostics structurés, build en fin de tour seulement ; lit les sources, hors sandbox          |
-| Server de l'app générée      | enfant du Server studio, **confiné**, port loopback         | il exécute du code écrit par un modèle ; confiné, il ne lit que son build (probe)               |
-| Client de l'app générée      | enfant du **Client studio**, sur un PTY                     | le PTY doit être dans le processus qui dessine ; en `sandbox`, lancé par `openSandbox` existant |
+| Élément                      | Processus                                                            | Pourquoi                                                                                        |
+| ---------------------------- | -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| harness                      | enfant du **Server studio**, `cwd` = workspace                       | comme coder : le Server possède la session, survit à un Client tué (grâce, `claimOrphan`)       |
+| workspace                    | dossier du projet, dépôt git                                         | l'app reste une app luciole ordinaire, utilisable sans studio                                   |
+| build, `tsc`, rendu headless | **Server studio** (`@luciole-sh/core/build` est une entrée publique) | diagnostics structurés, build en fin de tour seulement ; lit les sources, hors sandbox          |
+| Server de l'app générée      | enfant du Server studio, **confiné**, port loopback                  | il exécute du code écrit par un modèle ; confiné, il ne lit que son build (probe)               |
+| Client de l'app générée      | enfant du **Client studio**, sur un PTY                              | le PTY doit être dans le processus qui dessine ; en `sandbox`, lancé par `openSandbox` existant |
 
 Le Server studio publie l'état de l'aperçu par `useLive` : `{ revision, state, url,
 bundle, diagnostics }`. Le Client studio monte la vue du terminal **clé = révision** :
@@ -384,12 +384,12 @@ code généré a vos droits ».
 Importer `../coder/server/…` depuis `examples/studio` couplerait deux exemples par des
 chemins relatifs et dupliquerait les tests. Proposition (non faite) :
 
-- `packages/harness` (`@luciole/harness`, `private: true`, workspace) : adaptateurs,
+- `packages/harness` (`@luciole-sh/harness`, `private: true`, workspace) : adaptateurs,
   protocoles générés (Codex), jsonl, détection, garde de conformité, diff, modèle
   d'événements neutre (la partie non-UI de `components/model.ts`), et une `Session`
   paramétrable (hooks `onTurnCompleted`, messages synthétiques).
 - Les composants UI restent dans coder en C5b ; ils ne rejoignent un paquet
-  (`@luciole/harness-ui`) que si studio en réutilise vraiment l'essentiel.
+  (`@luciole-sh/harness-ui`) que si studio en réutilise vraiment l'essentiel.
 - Dépendances : l'Agent SDK passe du `package.json` de coder à celui du paquet ;
   `overrides` racine (`no-bundled-claude`) inchangés ; `docs/DEPENDENCIES.md` mis à jour.
 
@@ -446,7 +446,7 @@ Il démarre et s'affiche tout de suite : l'aperçu n'est jamais vide.
 
 - **Fichiers** : `app/`, `components/`, `server/`, `actions/`, `.ts`/`.tsx` ; pas
   `package.json`, pas `app/routeTree.gen.ts` (écrit par le build), rien hors du projet.
-- **Paquets** : `luciole/client`, `luciole/server`, `react`, `@opentui/core`,
+- **Paquets** : `@luciole-sh/core/client`, `@luciole-sh/core/server`, `react`, `@opentui/core`,
   `@opentui/react`, `@tanstack/react-router`, `zod` ; built-ins sans effet externe
   (`crypto`, `path`, `url`, `util`, `events`, `buffer`) et `bun:sqlite`. Le reste
   demande une capacité (section 5.5).

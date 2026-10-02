@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef } from "react";
-import { TransportError, useLive } from "luciole/client";
+import { TransportError, useLive } from "@luciole-sh/core/client";
 import { reply } from "../actions/chat";
 import { chats, type Assistant } from "./conversations";
 

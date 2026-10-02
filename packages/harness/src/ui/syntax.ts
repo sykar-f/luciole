@@ -1,11 +1,11 @@
 import { RGBA, SyntaxStyle } from "@opentui/core";
 // Grammars beyond JavaScript, TypeScript and Markdown, for replies and diffs alike.
-import "luciole/grammars";
+import "@luciole-sh/core/grammars";
 import { color } from "./theme";
 
 // Client-only: a SyntaxStyle is a native object and never crosses the Flight boundary.
 // Replies arrive as Markdown text; styling happens here. OpenTUI 0.5.12 highlights
-// JavaScript, TypeScript and Markdown itself, luciole/grammars adds the languages below;
+// JavaScript, TypeScript and Markdown itself, @luciole-sh/core/grammars adds the languages below;
 // any other renders as plain text (checked: not blank). No grammar is downloaded at run
 // time: they ship with the build.
 const hex = (value: string) => RGBA.fromHex(value);

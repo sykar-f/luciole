@@ -5,18 +5,18 @@ import { Renderable } from "@opentui/core";
 import { testRender } from "@opentui/react/test-utils";
 import { mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
-import { build } from "../packages/luciole/src/build";
+import { build } from "../packages/core/src/build";
 import { launch, importClient, destroy, renderable, temporaryApp, type TestUI } from "./helpers";
 
 // An application that shows its keys, as a terminal program does: a footer for the
-// layout's layer, a line for the page's. Inside the checkout so `luciole` resolves.
+// layout's layer, a line for the page's. Inside the checkout so `@luciole-sh/core` resolves.
 const FILES: Record<string, string> = {
   "tsconfig.json": JSON.stringify({
-    extends: "../packages/luciole/tsconfig.base.json",
+    extends: "../packages/core/tsconfig.base.json",
     include: ["app", "components"],
   }),
   "app/layout.tsx": `"use client";
-import { KeyHelp, useBindings, useConnection, type LayoutProps } from "luciole/client";
+import { KeyHelp, useBindings, useConnection, type LayoutProps } from "@luciole-sh/core/client";
 export default function Layout({ children }: LayoutProps) {
   const { refresh } = useConnection();
   useBindings(() => ({ bindings: [
@@ -34,7 +34,7 @@ export default function Layout({ children }: LayoutProps) {
   "app/items/[id]/page.tsx": `import { Editor } from "../../../components/Editor";
 export default function Page(){return <Editor />}`,
   "components/Editor.tsx": `"use client";
-import { KeyHelp, useBindings, useNavigate } from "luciole/client";
+import { KeyHelp, useBindings, useNavigate } from "@luciole-sh/core/client";
 export function Editor() {
   const navigate = useNavigate();
   useBindings(() => ({ bindings: [

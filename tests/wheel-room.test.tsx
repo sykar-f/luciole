@@ -8,8 +8,8 @@ import { afterEach, expect, test } from "bun:test";
 import { act } from "react";
 import { RGBA, SyntaxStyle } from "@opentui/core";
 import { testRender } from "@opentui/react/test-utils";
-import { MarkdownEditor } from "../packages/editor/src";
-import { wheelRoom } from "../packages/luciole/src/web/wheel-room";
+import { MarkdownEditor } from "../packages/markdown-editor/src";
+import { wheelRoom } from "../packages/core/src/web/wheel-room";
 
 const WIDTH = 40;
 const HEIGHT = 16;
@@ -104,7 +104,7 @@ test("a scroll box has room down from its top, both ways in between, up at its e
   expect(await turn(LIST_ROW, "down")).toBe(false);
 });
 
-test("the editor of @luciole/editor says its own room, past its last line by its tail", async () => {
+test("the editor of @luciole-sh/markdown-editor says its own room, past its last line by its tail", async () => {
   await screen();
   expect(room(EDITOR)).toEqual({ up: false, down: true });
   expect(await turn(EDITOR, "up")).toBe(false);

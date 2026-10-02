@@ -1,5 +1,5 @@
 "use server";
-import { getSession, invalidate } from "luciole/server";
+import { getSession, invalidate } from "@luciole-sh/core/server";
 import { z } from "zod";
 import { notesOf } from "../server/queries";
 import { create, operation, remove, rename, restore, save } from "../server/repository";

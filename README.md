@@ -24,7 +24,7 @@ What runs where:
 
 - **Development and the `luciole` CLI require [Bun](https://bun.sh) 1.4.2.** luciole
   uses `Bun.Terminal`, `Bun.serve`, `Bun.build` and `bun:sqlite`, among others.
-- **`@luciole/flow` and `@luciole/editor` have no Bun dependency.**
+- **`@luciole-sh/flow-graph` and `@luciole-sh/markdown-editor` have no Bun dependency.**
 - **A compiled Client runs without Bun.** CI tests it in Debian and Alpine containers
   ([`scripts/linux-client.ts`](scripts/linux-client.ts)).
 - **Operating systems:** CI covers macOS and Linux
@@ -103,15 +103,15 @@ LUCIOLE_LATENCY_MS=500 bun run forge
 
 Other examples, run from the repository root:
 
-| Command                     | Example                                                      |
-| --------------------------- | ------------------------------------------------------------ |
-| `bun run dev`               | Notes: Markdown notebook, by mouse, SQLite on the Server     |
-| `CHAT_DEMO=1 bun run chat`  | AI chat with a scripted offline model (no API key)           |
-| `bun run files`             | File explorer of the current directory                       |
-| `bun run mdreader`          | Markdown reader for the `.md` files of the current directory |
-| `bun run mux`               | Local programs side by side, each on its own PTY             |
-| `bun run studio -- -H fake` | Describe an app, watch it written and running (scripted)     |
-| `bun run flow`              | A CI pipeline on a node canvas (`@luciole/flow`), run live   |
+| Command                     | Example                                                             |
+| --------------------------- | ------------------------------------------------------------------- |
+| `bun run dev`               | Notes: Markdown notebook, by mouse, SQLite on the Server            |
+| `CHAT_DEMO=1 bun run chat`  | AI chat with a scripted offline model (no API key)                  |
+| `bun run files`             | File explorer of the current directory                              |
+| `bun run mdreader`          | Markdown reader for the `.md` files of the current directory        |
+| `bun run mux`               | Local programs side by side, each on its own PTY                    |
+| `bun run studio -- -H fake` | Describe an app, watch it written and running (scripted)            |
+| `bun run flow`              | A CI pipeline on a node canvas (`@luciole-sh/flow-graph`), run live |
 
 The `chat`, `agent`, `coder` and `studio` examples talk to real models or coding agents once
 configured; see their READMEs in [`examples/`](examples/).

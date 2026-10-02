@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { messageOf } from "../packages/luciole/src/guards";
+import { messageOf } from "../packages/core/src/guards";
 import { rejectionOf, until } from "./helpers";
 
 test("until: a timeout says so, with the state when there is one", async () => {

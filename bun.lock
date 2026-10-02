@@ -3,8 +3,9 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "luciole",
+      "name": "luciole-workspace",
       "devDependencies": {
+        "@luciole-sh/core": "workspace:*",
         "@opentui/core": "catalog:",
         "@opentui/keymap": "catalog:",
         "@opentui/react": "catalog:",
@@ -13,7 +14,6 @@
         "@types/react": "catalog:",
         "@types/react-dom": "catalog:",
         "@types/spdx-expression-parse": "catalog:",
-        "luciole": "workspace:*",
         "oxfmt": "catalog:",
         "oxlint": "catalog:",
         "oxlint-tsgolint": "catalog:",
@@ -26,10 +26,10 @@
     "examples/agent": {
       "name": "@luciole-examples/agent",
       "dependencies": {
+        "@luciole-sh/core": "workspace:*",
         "@opentui/core": "catalog:",
         "@opentui/react": "catalog:",
         "@tanstack/react-router": "catalog:",
-        "luciole": "workspace:*",
         "react": "catalog:",
         "zod": "catalog:",
       },
@@ -37,10 +37,10 @@
     "examples/chat": {
       "name": "@luciole-examples/chat",
       "dependencies": {
+        "@luciole-sh/core": "workspace:*",
         "@opentui/core": "catalog:",
         "@opentui/react": "catalog:",
         "@tanstack/react-router": "catalog:",
-        "luciole": "workspace:*",
         "react": "catalog:",
         "zod": "catalog:",
       },
@@ -48,12 +48,12 @@
     "examples/coder": {
       "name": "@luciole-examples/coder",
       "dependencies": {
-        "@luciole/harness": "workspace:*",
+        "@luciole-sh/core": "workspace:*",
+        "@luciole-sh/harness": "workspace:*",
         "@opentui/core": "catalog:",
         "@opentui/keymap": "catalog:",
         "@opentui/react": "catalog:",
         "@tanstack/react-router": "catalog:",
-        "luciole": "workspace:*",
         "react": "catalog:",
         "zod": "catalog:",
       },
@@ -61,10 +61,10 @@
     "examples/files": {
       "name": "@luciole-examples/files",
       "dependencies": {
+        "@luciole-sh/core": "workspace:*",
         "@opentui/core": "catalog:",
         "@opentui/react": "catalog:",
         "@tanstack/react-router": "catalog:",
-        "luciole": "workspace:*",
         "react": "catalog:",
         "sharp": "catalog:",
         "zod": "catalog:",
@@ -73,12 +73,12 @@
     "examples/flow": {
       "name": "@luciole-examples/flow",
       "dependencies": {
-        "@luciole/flow": "workspace:*",
+        "@luciole-sh/core": "workspace:*",
+        "@luciole-sh/flow-graph": "workspace:*",
         "@opentui/core": "catalog:",
         "@opentui/keymap": "catalog:",
         "@opentui/react": "catalog:",
         "@tanstack/react-router": "catalog:",
-        "luciole": "workspace:*",
         "react": "catalog:",
         "zod": "catalog:",
       },
@@ -86,11 +86,11 @@
     "examples/forge": {
       "name": "@luciole-examples/forge",
       "dependencies": {
+        "@luciole-sh/core": "workspace:*",
         "@opentui/core": "catalog:",
         "@opentui/react": "catalog:",
         "@tanstack/react-form": "catalog:",
         "@tanstack/react-router": "catalog:",
-        "luciole": "workspace:*",
         "react": "catalog:",
         "zod": "catalog:",
       },
@@ -98,18 +98,18 @@
     "examples/latency": {
       "name": "@luciole-examples/latency",
       "dependencies": {
+        "@luciole-sh/core": "workspace:*",
         "@tanstack/react-router": "catalog:",
-        "luciole": "workspace:*",
         "react": "catalog:",
       },
     },
     "examples/mdreader": {
       "name": "@luciole-examples/mdreader",
       "dependencies": {
+        "@luciole-sh/core": "workspace:*",
         "@opentui/core": "catalog:",
         "@opentui/react": "catalog:",
         "@tanstack/react-router": "catalog:",
-        "luciole": "workspace:*",
         "marked": "catalog:",
         "react": "catalog:",
         "zod": "catalog:",
@@ -118,8 +118,8 @@
     "examples/mux": {
       "name": "@luciole-examples/mux",
       "dependencies": {
+        "@luciole-sh/core": "workspace:*",
         "@tanstack/react-router": "catalog:",
-        "luciole": "workspace:*",
         "react": "catalog:",
         "zod": "catalog:",
       },
@@ -128,11 +128,11 @@
       "name": "@luciole-examples/notes",
       "version": "0.1.0",
       "dependencies": {
-        "@luciole/editor": "workspace:*",
+        "@luciole-sh/core": "workspace:*",
+        "@luciole-sh/markdown-editor": "workspace:*",
         "@opentui/core": "catalog:",
         "@opentui/react": "catalog:",
         "@tanstack/react-router": "catalog:",
-        "luciole": "workspace:*",
         "react": "catalog:",
         "zod": "catalog:",
       },
@@ -140,77 +140,18 @@
     "examples/studio": {
       "name": "@luciole-examples/studio",
       "dependencies": {
-        "@luciole/harness": "workspace:*",
+        "@luciole-sh/core": "workspace:*",
+        "@luciole-sh/harness": "workspace:*",
         "@opentui/core": "catalog:",
         "@opentui/keymap": "catalog:",
         "@opentui/react": "catalog:",
         "@tanstack/react-router": "catalog:",
-        "luciole": "workspace:*",
         "react": "catalog:",
         "zod": "catalog:",
       },
     },
-    "packages/desktop": {
-      "name": "luciole-desktop",
-      "dependencies": {
-        "@xterm/addon-fit": "catalog:",
-        "@xterm/addon-webgl": "catalog:",
-        "@xterm/xterm": "catalog:",
-        "luciole": "workspace:*",
-      },
-      "devDependencies": {
-        "electrobun": "catalog:",
-      },
-    },
-    "packages/editor": {
-      "name": "@luciole/editor",
-      "version": "0.1.0",
-      "dependencies": {
-        "marked": "catalog:",
-      },
-      "devDependencies": {
-        "@opentui/core": "catalog:",
-        "@opentui/react": "catalog:",
-        "@types/react": "catalog:",
-        "react": "catalog:",
-      },
-      "peerDependencies": {
-        "@opentui/core": "^0.5.12",
-        "@opentui/react": "^0.5.12",
-        "react": "^19.2.0",
-      },
-    },
-    "packages/flow": {
-      "name": "@luciole/flow",
-      "version": "0.1.0",
-      "devDependencies": {
-        "@opentui/core": "catalog:",
-        "@opentui/keymap": "catalog:",
-        "@opentui/react": "catalog:",
-        "@types/react": "catalog:",
-        "react": "catalog:",
-      },
-      "peerDependencies": {
-        "@opentui/core": "^0.5.12",
-        "@opentui/keymap": "^0.5.12",
-        "@opentui/react": "^0.5.12",
-        "react": "^19.2.0",
-      },
-    },
-    "packages/harness": {
-      "name": "@luciole/harness",
-      "version": "0.1.0",
-      "dependencies": {
-        "@anthropic-ai/claude-agent-sdk": "catalog:",
-        "@opentui/core": "catalog:",
-        "@opentui/react": "catalog:",
-        "luciole": "workspace:*",
-        "react": "catalog:",
-        "zod": "catalog:",
-      },
-    },
-    "packages/luciole": {
-      "name": "luciole",
+    "packages/core": {
+      "name": "@luciole-sh/core",
       "version": "0.1.0",
       "bin": {
         "luciole": "./src/cli.ts",
@@ -308,6 +249,65 @@
         "tree-sitter-rust",
         "tree-sitter-typescript",
       ],
+    },
+    "packages/desktop": {
+      "name": "@luciole-sh/desktop",
+      "dependencies": {
+        "@luciole-sh/core": "workspace:*",
+        "@xterm/addon-fit": "catalog:",
+        "@xterm/addon-webgl": "catalog:",
+        "@xterm/xterm": "catalog:",
+      },
+      "devDependencies": {
+        "electrobun": "catalog:",
+      },
+    },
+    "packages/flow-graph": {
+      "name": "@luciole-sh/flow-graph",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@opentui/core": "catalog:",
+        "@opentui/keymap": "catalog:",
+        "@opentui/react": "catalog:",
+        "@types/react": "catalog:",
+        "react": "catalog:",
+      },
+      "peerDependencies": {
+        "@opentui/core": "^0.5.12",
+        "@opentui/keymap": "^0.5.12",
+        "@opentui/react": "^0.5.12",
+        "react": "^19.2.0",
+      },
+    },
+    "packages/harness": {
+      "name": "@luciole-sh/harness",
+      "version": "0.1.0",
+      "dependencies": {
+        "@anthropic-ai/claude-agent-sdk": "catalog:",
+        "@luciole-sh/core": "workspace:*",
+        "@opentui/core": "catalog:",
+        "@opentui/react": "catalog:",
+        "react": "catalog:",
+        "zod": "catalog:",
+      },
+    },
+    "packages/markdown-editor": {
+      "name": "@luciole-sh/markdown-editor",
+      "version": "0.1.0",
+      "dependencies": {
+        "marked": "catalog:",
+      },
+      "devDependencies": {
+        "@opentui/core": "catalog:",
+        "@opentui/react": "catalog:",
+        "@types/react": "catalog:",
+        "react": "catalog:",
+      },
+      "peerDependencies": {
+        "@opentui/core": "^0.5.12",
+        "@opentui/react": "^0.5.12",
+        "react": "^19.2.0",
+      },
     },
   },
   "overrides": {
@@ -465,11 +465,15 @@
 
     "@luciole-examples/studio": ["@luciole-examples/studio@workspace:examples/studio"],
 
-    "@luciole/editor": ["@luciole/editor@workspace:packages/editor"],
+    "@luciole-sh/core": ["@luciole-sh/core@workspace:packages/core"],
 
-    "@luciole/flow": ["@luciole/flow@workspace:packages/flow"],
+    "@luciole-sh/desktop": ["@luciole-sh/desktop@workspace:packages/desktop"],
 
-    "@luciole/harness": ["@luciole/harness@workspace:packages/harness"],
+    "@luciole-sh/flow-graph": ["@luciole-sh/flow-graph@workspace:packages/flow-graph"],
+
+    "@luciole-sh/harness": ["@luciole-sh/harness@workspace:packages/harness"],
+
+    "@luciole-sh/markdown-editor": ["@luciole-sh/markdown-editor@workspace:packages/markdown-editor"],
 
     "@modelcontextprotocol/sdk": ["@modelcontextprotocol/sdk@1.30.1", "", { "dependencies": { "@hono/node-server": "^1.19.9 || ^2.0.5", "ajv": "^8.17.1", "ajv-formats": "^3.0.1", "content-type": "^1.0.5", "cors": "^2.8.5", "cross-spawn": "^7.0.5", "eventsource": "^3.0.2", "eventsource-parser": "^3.0.0", "express": "^5.2.1", "express-rate-limit": "^8.2.1", "hono": "^4.11.4", "jose": "^6.1.3", "json-schema-typed": "^8.0.2", "pkce-challenge": "^5.0.0", "raw-body": "^3.0.0", "zod": "^3.25 || ^4.0", "zod-to-json-schema": "^3.25.1" }, "peerDependencies": { "@cfworker/json-schema": "^4.1.1" }, "optionalPeers": ["@cfworker/json-schema"] }, "sha512-H2HxLvC3HDNybePJaLdSrU1hhUK5iQw+WvV1b01myFyI7sdVGe1u/IPTE5D9fGCiJDVtgMV/lmFkQXLmQyIFYA=="],
 
@@ -872,10 +876,6 @@
     "json-schema-traverse": ["json-schema-traverse@1.0.0", "", {}, "sha512-NM8/P9n3XjXhIZn1lLhkFaACTOURQXjWhV4BA/RnOv8xvgqtqpAX9IO4mRQxSx1Rlo4tqzeqb0sOlruaOy3dug=="],
 
     "json-schema-typed": ["json-schema-typed@8.0.2", "", {}, "sha512-fQhoXdcvc3V28x7C7BMs4P5+kNlgUURe2jmUT1T//oBRMDrqy1QPelJimwZGo7Hg9VPV3EQV5Bnq4hbFy2vetA=="],
-
-    "luciole": ["luciole@workspace:packages/luciole"],
-
-    "luciole-desktop": ["luciole-desktop@workspace:packages/desktop"],
 
     "marked": ["marked@17.0.1", "", { "bin": { "marked": "bin/marked.js" } }, "sha512-boeBdiS0ghpWcSwoNm/jJBwdpFaMnZWRzjA6SkUMYb40SVaN1x7mmfGKp0jvexGcx+7y2La5zRZsYFZI6Qpypg=="],
 

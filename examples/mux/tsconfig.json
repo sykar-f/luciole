@@ -1,5 +1,5 @@
 {
-  "extends": "luciole/tsconfig",
+  "extends": "@luciole-sh/core/tsconfig",
   "include": ["app", "components"],
   "exclude": ["**/node_modules", "**/.luciole"]
 }

@@ -1,6 +1,6 @@
 /** @jsxImportSource @opentui/react */
 import { beforeAll, expect, test } from "bun:test";
-import { build } from "../packages/luciole/src/build";
+import { build } from "../packages/core/src/build";
 import { SCRIPTED } from "../packages/harness/src/ui/StatusLine";
 import { DEMO_END, DEMO_PROMPT } from "../packages/harness/src/adapters/fake";
 import { coderDirectory, startCoder } from "./coder-helpers";

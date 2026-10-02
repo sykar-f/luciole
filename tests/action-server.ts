@@ -5,7 +5,7 @@ import {
   registerServerReference,
   renderToReadableStream,
   decodeReply,
-} from "../packages/luciole/src/flight/server";
+} from "../packages/core/src/flight/server";
 let saved = "";
 const Editor = registerClientReference((_props: { save: typeof save }) => null, "editor", "Editor");
 const save = registerServerReference(

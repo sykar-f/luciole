@@ -5,13 +5,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createRoute } from "@tanstack/react-router";
 import { createTestRenderer } from "@opentui/core/testing";
-import { createApplication } from "../packages/luciole/src/client";
-import { startClientAgent } from "../packages/luciole/src/devtools/client-agent";
-import { message, PLUGIN } from "../packages/luciole/src/devtools/protocol";
-import { parseEvent, type DevtoolsEvent } from "../packages/luciole/src/devtools/schema";
-import { listenBus, type Connection } from "../packages/luciole/src/devtools/wire";
-import { loadPage, pageRoute, rootRoute } from "../packages/luciole/src/route-tree";
-import type { Fetch } from "../packages/luciole/src/transport";
+import { createApplication } from "../packages/core/src/client";
+import { startClientAgent } from "../packages/core/src/devtools/client-agent";
+import { message, PLUGIN } from "../packages/core/src/devtools/protocol";
+import { parseEvent, type DevtoolsEvent } from "../packages/core/src/devtools/schema";
+import { listenBus, type Connection } from "../packages/core/src/devtools/wire";
+import { loadPage, pageRoute, rootRoute } from "../packages/core/src/route-tree";
+import type { Fetch } from "../packages/core/src/transport";
 import { present, renderBody, until } from "./helpers";
 
 // Answers every render with a string, as the page of the Server's `{ tree, tags }` model.

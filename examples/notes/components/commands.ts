@@ -1,6 +1,12 @@
 "use client";
 import { useRenderer } from "@opentui/react";
-import { CapabilityDenied, host, TransportError, useNavigate, useParams } from "luciole/client";
+import {
+  CapabilityDenied,
+  host,
+  TransportError,
+  useNavigate,
+  useParams,
+} from "@luciole-sh/core/client";
 import { createNote, deleteNote, restoreNote } from "../actions/notes";
 import { drafts, type Note } from "./draft";
 import { notesList } from "./notes-list";

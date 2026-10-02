@@ -5,17 +5,17 @@ sources:
   - docs/DISTRIBUTION.md
   - docs/WEB.md
   - docs/README.fr.md
-  - packages/luciole/src/launcher
-  - packages/luciole/src/connect.ts
-  - packages/luciole/src/commands/launch.ts
-  - packages/luciole/src/commands/start.ts
+  - packages/core/src/launcher
+  - packages/core/src/connect.ts
+  - packages/core/src/commands/launch.ts
+  - packages/core/src/commands/start.ts
 ---
 
 import Note from "../../../components/docs/Note.astro";
 
 One library, `src/launcher/`, opens an app wherever it comes from: `luciole <target>`,
 `luciolex <target>` and the binaries the build compiles all go through it. From a clone, write
-`bun packages/luciole/src/cli.ts` where this page writes `luciole`.
+`bun packages/core/src/cli.ts` where this page writes `luciole`.
 
 | Target                               | Example                                  | What happens                                                        |
 | ------------------------------------ | ---------------------------------------- | ------------------------------------------------------------------- |

@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "luciole": "workspace:*",
+    "@luciole-sh/core": "workspace:*",
     "@tanstack/react-router": "catalog:",
     "react": "catalog:",
     "zod": "catalog:"

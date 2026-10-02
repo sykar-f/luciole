@@ -3,7 +3,7 @@
 //
 //   bun examples/chat/scripts/fake-openrouter.ts            # prints {"port": …}
 //   OPENROUTER_API_KEY=sk-or-fake OPENROUTER_BASE_URL=http://127.0.0.1:<port>/api/v1 \
-//     bun packages/luciole/src/cli.ts dev --app examples/chat
+//     bun packages/core/src/cli.ts dev --app examples/chat
 //
 // The provider itself is server/fake-provider.ts, which the Server's demo mode also calls
 // in-process (CHAT_DEMO=1). GET /__stats reports requests, histories and aborted streams.

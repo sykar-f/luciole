@@ -13,7 +13,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { act } from "react";
 import { testRender } from "@opentui/react/test-utils";
-import { build } from "../packages/luciole/src/build";
+import { build } from "../packages/core/src/build";
 import { isolationProblem } from "../examples/studio/server/preview";
 import { execute, importClient, launch } from "./helpers";
 

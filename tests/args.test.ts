@@ -6,10 +6,10 @@ import {
   decodeLaunchArgs,
   defineArgs,
   encodeLaunchArgs,
-} from "../packages/luciole/src/args";
-import { splitArgs, runtimeHelp } from "../packages/luciole/src/launcher/app-args";
-import { BUILT_FLAGS, builtArgs } from "../packages/luciole/src/launcher";
-import { messageOf } from "../packages/luciole/src/guards";
+} from "../packages/core/src/args";
+import { splitArgs, runtimeHelp } from "../packages/core/src/launcher/app-args";
+import { BUILT_FLAGS, builtArgs } from "../packages/core/src/launcher";
+import { messageOf } from "../packages/core/src/guards";
 import { rejectionOf } from "./helpers";
 
 const cli = defineArgs({

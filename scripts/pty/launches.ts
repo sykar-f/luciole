@@ -15,7 +15,7 @@ import {
 } from "node:fs";
 import { dirname, join } from "node:path";
 import { z } from "zod";
-import { LifetimeStatus } from "../../packages/luciole/src/launcher/lifetime";
+import { LifetimeStatus } from "../../packages/core/src/launcher/lifetime";
 import { ctrl, drive, type Driver } from "./driver";
 import { BUN, CLI, ROOT, defer, eventually, report, temporaryDirectory } from "./harness";
 
@@ -33,12 +33,12 @@ const APP: Record<string, string> = {
     type: "module",
     luciole: { server: "per-launch", grace: "1m" },
   }),
-  "app/args.ts": `import { defineArgs } from "luciole/args";
+  "app/args.ts": `import { defineArgs } from "@luciole-sh/core/args";
 import { z } from "zod";
 export default defineArgs({ options: z.object({ label: z.string().default("plain") }).strict() });`,
   "app/layout.tsx": `"use client";
 import { useState } from "react";
-import { Input } from "luciole/client";
+import { Input } from "@luciole-sh/core/client";
 export default function Layout({ children }) {
   const [text, setText] = useState("");
   return (
@@ -48,7 +48,7 @@ export default function Layout({ children }) {
     </box>
   );
 }`,
-  "app/page.tsx": `import { getLaunch } from "luciole/server";
+  "app/page.tsx": `import { getLaunch } from "@luciole-sh/core/server";
 import cli from "./args";
 export default function Page() {
   const launch = getLaunch();

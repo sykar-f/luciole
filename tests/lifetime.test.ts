@@ -2,15 +2,15 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { connect, keepAlive } from "../packages/luciole/src/connect";
-import { messageOf } from "../packages/luciole/src/guards";
-import { parseDuration } from "../packages/luciole/src/launcher/lifetime";
+import { connect, keepAlive } from "../packages/core/src/connect";
+import { messageOf } from "../packages/core/src/guards";
+import { parseDuration } from "../packages/core/src/launcher/lifetime";
 import {
   ensureServer,
   serverId,
   serverStatus,
   type EnsureOptions,
-} from "../packages/luciole/src/launcher/managed";
+} from "../packages/core/src/launcher/managed";
 import { rejectionOf, until } from "./helpers";
 
 let work: string, runtime: string;

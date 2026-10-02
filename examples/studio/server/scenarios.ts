@@ -65,7 +65,7 @@ export async function toggleTodo(id: number) {
 `;
 const todoList = (body: string) => `"use client";
 import { useState } from "react";
-import { useBindings } from "luciole/client";
+import { useBindings } from "@luciole-sh/core/client";
 import type { Todo } from "../server/todos";
 
 export function TodoList({
@@ -146,7 +146,7 @@ export async function signGuestbook(name: string, message: string) {
 const guestbook = (title: string) => `"use client";
 import { useRef, useState } from "react";
 import type { ScrollBoxRenderable } from "@opentui/core";
-import { Input, ScrollBox, useBindings, useRestoredFields, useRestoredFocus } from "luciole/client";
+import { Input, ScrollBox, useBindings, useRestoredFields, useRestoredFocus } from "@luciole-sh/core/client";
 import type { Entry } from "../server/guestbook";
 
 const FIELDS = ["guestbook/name", "guestbook/message"] as const;
@@ -234,7 +234,7 @@ export default function GuestbookPage() {
 }
 `;
 const links = `"use client";
-import { useBindings, useNavigate } from "luciole/client";
+import { useBindings, useNavigate } from "@luciole-sh/core/client";
 
 export function Links() {
   const navigate = useNavigate();

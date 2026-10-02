@@ -1,5 +1,5 @@
 "use cache";
-import { cacheTag } from "luciole/server";
+import { cacheTag } from "@luciole-sh/core/server";
 import { findNote, listNotes } from "./repository";
 import { noteTag, notesTag } from "./tags";
 

@@ -2,8 +2,8 @@ import { expect, test } from "bun:test";
 import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { build } from "../packages/luciole/src/build";
-import { messageOf } from "../packages/luciole/src/guards";
+import { build } from "../packages/core/src/build";
+import { messageOf } from "../packages/core/src/guards";
 import { rejectionOf } from "./helpers";
 
 async function fixture(files: Record<string, string>, run: (dir: string) => Promise<void>) {

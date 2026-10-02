@@ -5,8 +5,8 @@ import { testRender } from "@opentui/react/test-utils";
 import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { build } from "../packages/luciole/src/build";
-import type { Transport } from "../packages/luciole/src/transport";
+import { build } from "../packages/core/src/build";
+import type { Transport } from "../packages/core/src/transport";
 import { BUILD_TEST_MS, importClient, destroy, type TestUI } from "./helpers";
 
 const files: Record<string, string> = {

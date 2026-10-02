@@ -70,8 +70,8 @@
       "files": [
         "examples/forge/server/ci.ts",
         "examples/forge/server/seed.ts",
-        "packages/luciole/src/devtools/fixtures.ts",
-        "packages/luciole/src/web/node/sha256.ts"
+        "packages/core/src/devtools/fixtures.ts",
+        "packages/core/src/web/node/sha256.ts"
       ],
       "rules": {
         "no-magic-numbers": "off"
@@ -81,7 +81,7 @@
   "ignorePatterns": [
     "**/node_modules/**",
     "**/.luciole/**",
-    "packages/flow/dist/**",
+    "packages/flow-graph/dist/**",
     "**/routeTree.gen.ts",
     "website/**",
     "packages/harness/src/adapters/codex-protocol/**"

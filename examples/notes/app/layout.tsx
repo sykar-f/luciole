@@ -1,7 +1,12 @@
 "use client";
 import { useState, type ReactNode } from "react";
 import { useTerminalDimensions } from "@opentui/react";
-import { DebugOverlay, useBindings, useConnection, type LayoutProps } from "luciole/client";
+import {
+  DebugOverlay,
+  useBindings,
+  useConnection,
+  type LayoutProps,
+} from "@luciole-sh/core/client";
 import { useCommands } from "../components/commands";
 import { Drawer } from "../components/Drawer";
 import { sidebarWidth } from "../components/format";

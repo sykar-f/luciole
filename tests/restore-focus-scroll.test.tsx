@@ -10,8 +10,8 @@ import {
   useRestoredFocus,
   type Application,
   type Session,
-} from "../packages/luciole/src/client";
-import { Runtime } from "../packages/luciole/src/runtime-context";
+} from "../packages/core/src/client";
+import { Runtime } from "../packages/core/src/runtime-context";
 import { destroy, renderable, type TestUI } from "./helpers";
 
 const ROWS = 40;

@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { useBindings } from "luciole/client";
+import { useBindings } from "@luciole-sh/core/client";
 
 export function Counter({
   initial,

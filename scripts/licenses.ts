@@ -262,7 +262,9 @@ if (import.meta.main) {
     else continue;
     i++;
   }
-  const shipped = ship.length ? ship : ["packages/luciole", "packages/flow", "packages/editor"];
+  const shipped = ship.length
+    ? ship
+    : ["packages/core", "packages/flow-graph", "packages/markdown-editor"];
   const others = other.length
     ? other
     : ["packages", "examples"].flatMap((group) =>

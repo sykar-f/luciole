@@ -17,9 +17,9 @@ import {
 } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve, sep } from "node:path";
-import { frameworkModules } from "luciole/dev";
-import { splitPatch } from "@luciole/harness/diff";
-import type { FilePatch } from "@luciole/harness/model";
+import { frameworkModules } from "@luciole-sh/core/dev";
+import { splitPatch } from "@luciole-sh/harness/diff";
+import type { FilePatch } from "@luciole-sh/harness/model";
 import { TEMPLATE } from "./template.gen";
 
 /** Beside the code, ignored by git, closed to the harness. */
@@ -52,7 +52,7 @@ export const projectsRoot = (env: NodeJS.ProcessEnv = process.env) =>
 
 /** The framework's packages, which a project resolves through its node_modules link. */
 function packages() {
-  return frameworkModules(dirname(Bun.resolveSync("luciole/client", import.meta.dir)));
+  return frameworkModules(dirname(Bun.resolveSync("@luciole-sh/core/client", import.meta.dir)));
 }
 
 // Asynchronous: Bun 1.4's spawnSync can lose a child's exit and spin forever at 100 % CPU

@@ -44,9 +44,7 @@ const CASES = [
 ] as const;
 
 const SKIPPED = 3;
-const launcher = resolve(
-  `packages/luciole/native/luciole-sandbox/dist/linux-${arch}/luciole-sandbox`,
-);
+const launcher = resolve(`packages/core/native/luciole-sandbox/dist/linux-${arch}/luciole-sandbox`);
 if (!existsSync(launcher)) throw new Error(`${launcher} is missing: bun scripts/build-sandbox.ts`);
 
 async function run(cmd: string[], stdin?: string) {
@@ -83,8 +81,8 @@ try {
     "mkdir -p ~/.ssh && echo 'Host secret' > ~/.ssh/config",
     // A mechanism this kernel does not allow (Landlock ABI < 6 for Landlock alone, say) is
     // skipped, and said so; the run fails if none ran at all.
-    `bun -e "import {sandboxAvailability as a} from './packages/luciole/src/sandbox/runtime';const r=a();if(!r.mechanism){console.log('skipped: '+r.reason);process.exit(${SKIPPED})}"`,
-    `echo "mechanism: $LUCIOLE_SANDBOX_MECHANISM, probe: $(${join("/src", "packages/luciole/native/luciole-sandbox/dist", `linux-${arch}`, "luciole-sandbox")} --probe)"`,
+    `bun -e "import {sandboxAvailability as a} from './packages/core/src/sandbox/runtime';const r=a();if(!r.mechanism){console.log('skipped: '+r.reason);process.exit(${SKIPPED})}"`,
+    `echo "mechanism: $LUCIOLE_SANDBOX_MECHANISM, probe: $(${join("/src", "packages/core/native/luciole-sandbox/dist", `linux-${arch}`, "luciole-sandbox")} --probe)"`,
     "bun test --timeout 60000 tests/sandbox.test.ts",
     "bun scripts/pty/sandbox.ts",
   ].join("\n");
@@ -122,7 +120,7 @@ try {
   }
   if (!only) {
     console.log(`\n=== cargo test (${arch})`);
-    const crate = resolve("packages/luciole/native/luciole-sandbox");
+    const crate = resolve("packages/core/native/luciole-sandbox");
     const code = await run([
       "docker",
       "run",

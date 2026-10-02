@@ -1,5 +1,5 @@
 // The GPU renderer for a terminal of the page, as the web runtime loads it for its own
-// (packages/luciole/src/web/platform/run.tsx, `drawOnGpu`): the capture that stands in for
+// (packages/core/src/web/platform/run.tsx, `drawOnGpu`): the capture that stands in for
 // a live demo must draw every cell as the runtime will, blocks and frames to the pixel,
 // or the one replacing the other would show. The same fallback: without WebGL2, or once
 // the browser takes the context back (it keeps about sixteen), the DOM renderer at once.

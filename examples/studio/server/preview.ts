@@ -14,15 +14,15 @@ import {
   generatePublisherKey,
   readPublisherKey,
   type PublisherKey,
-} from "luciole/build";
-import { startAppServer, type AppServer } from "luciole/dev";
+} from "@luciole-sh/core/build";
+import { startAppServer, type AppServer } from "@luciole-sh/core/dev";
 import {
   Capabilities,
   confineServer,
   sandboxAvailability,
   sandboxRuntime,
   type ServerSandbox,
-} from "luciole/sandbox";
+} from "@luciole-sh/core/sandbox";
 import type { Project } from "./project";
 
 export type PreviewMode = "sandbox" | "process";
@@ -99,7 +99,7 @@ export function isolationProblem(mode: PreviewMode): string | undefined {
   if (mode === "process") return undefined;
   const availability = sandboxAvailability();
   if (!availability.mechanism) return availability.reason;
-  // The confined Server listens only under Seatbelt for now (luciole/sandbox).
+  // The confined Server listens only under Seatbelt for now (@luciole-sh/core/sandbox).
   if (availability.mechanism.kind !== "seatbelt")
     return "the generated app's Server can be confined on macOS only for now";
   return undefined;

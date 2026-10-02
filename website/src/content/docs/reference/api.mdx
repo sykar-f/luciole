@@ -3,21 +3,21 @@ title: API
 description: What the package exports, entry by entry. luciole/client for Client Components, luciole/server for the Server, and the entries hosts, tools and tests use.
 sources:
   - docs/API.md
-  - packages/luciole/package.json
-  - packages/luciole/src/client.tsx
-  - packages/luciole/src/server.ts
-  - packages/luciole/src/transport.ts
-  - packages/luciole/src/host.ts
-  - packages/luciole/src/markdown
-  - packages/luciole/src/dev/supervisor.ts
-  - packages/luciole/src/run.tsx
+  - packages/core/package.json
+  - packages/core/src/client.tsx
+  - packages/core/src/server.ts
+  - packages/core/src/transport.ts
+  - packages/core/src/host.ts
+  - packages/core/src/markdown
+  - packages/core/src/dev/supervisor.ts
+  - packages/core/src/run.tsx
 ---
 
 import Excerpt from "../../../components/guide/Excerpt.astro";
 import Note from "../../../components/docs/Note.astro";
 
 <Excerpt
-  path="packages/luciole/package.json"
+  path="packages/core/package.json"
   find='"exports"'
   until="},"
   tone="neutral"
@@ -92,7 +92,7 @@ written.
 | `useHostMessage(fn)`, `useGlobalKey(key, fn)`, `useCapability(name)` | Messages from other tabs and global keys while mounted; a capability's `granted`, `denied` or `prompt`. |
 
 ```tsx
-import { CapabilityDenied, host, useCapability } from "luciole/client";
+import { CapabilityDenied, host, useCapability } from "@luciole-sh/core/client";
 
 await host.clipboard.write(path); // rejects with CapabilityDenied if the host refuses
 const state = useCapability("clipboard.write"); // "granted" | "denied" | "prompt"
@@ -180,7 +180,7 @@ characters. The error screen alone only tells a person; this tells the program t
 the Client which page failed and why.
 
 <Excerpt
-  path="packages/luciole/src/run.tsx"
+  path="packages/core/src/run.tsx"
   find="// Whoever started this Client over IPC"
   count={12}
   tone="client"
@@ -193,7 +193,7 @@ or decorated with `wrapTransport(inner)` (a cache, a recorder, a replay) without
 runtime:
 
 <Excerpt
-  path="packages/luciole/src/transport.ts"
+  path="packages/core/src/transport.ts"
   find="export interface Transport"
   until="^}"
   tone="wire"

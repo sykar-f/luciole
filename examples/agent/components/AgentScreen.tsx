@@ -8,7 +8,7 @@ import {
   useConnection,
   useLive,
   useRestoredFields,
-} from "luciole/client";
+} from "@luciole-sh/core/client";
 import { abort, feed, newSession, sendPrompt } from "../actions/agent";
 import { Frame } from "./Frame";
 import { Line } from "./Line";

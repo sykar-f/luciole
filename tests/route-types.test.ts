@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test";
 import { mkdir, readFile, rm } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import { build } from "../packages/luciole/src/build";
-import { ROUTE_TREE_FILE } from "../packages/luciole/src/route-graph";
+import { build } from "../packages/core/src/build";
+import { ROUTE_TREE_FILE } from "../packages/core/src/route-graph";
 import { temporaryApp } from "./helpers";
 
 test("generated route tree types navigation targets and params", async () => {
@@ -10,17 +10,17 @@ test("generated route tree types navigation targets and params", async () => {
   try {
     const files: Record<string, string> = {
       "tsconfig.json": JSON.stringify({
-        extends: resolve("packages/luciole/tsconfig.base.json"),
+        extends: resolve("packages/core/tsconfig.base.json"),
         include: ["app", "components"],
       }),
-      "app/layout.tsx": `"use client";import type {LayoutProps} from "luciole/client";export default function Layout({children}:LayoutProps){return <box>{children}</box>}`,
+      "app/layout.tsx": `"use client";import type {LayoutProps} from "@luciole-sh/core/client";export default function Layout({children}:LayoutProps){return <box>{children}</box>}`,
       "app/page.tsx": "export default function Page(){return <text>home</text>}",
       "app/notes/[id]/page.tsx": "export default function Page(){return <text>note</text>}",
-      "app/(g)/layout.tsx": `"use client";import {useParams,type LayoutProps} from "luciole/client";export default function G({children}:LayoutProps){const {section}=useParams({strict:false});return <box><text>{section??""}</text>{children}</box>}`,
+      "app/(g)/layout.tsx": `"use client";import {useParams,type LayoutProps} from "@luciole-sh/core/client";export default function G({children}:LayoutProps){const {section}=useParams({strict:false});return <box><text>{section??""}</text>{children}</box>}`,
       "app/(g)/settings/[section]/page.tsx":
         "export default function Page(){return <text>s</text>}",
       "components/Good.tsx": `"use client";
-import { useNavigate } from "luciole/client";
+import { useNavigate } from "@luciole-sh/core/client";
 export function Good() {
   const navigate = useNavigate();
   void navigate({ to: "/notes/$id", params: { id: "1" } });
@@ -29,7 +29,7 @@ export function Good() {
   return null;
 }`,
       "components/Bad.tsx": `"use client";
-import { useNavigate } from "luciole/client";
+import { useNavigate } from "@luciole-sh/core/client";
 export function Bad() {
   const navigate = useNavigate();
   void navigate({ to: "/missing" });
@@ -66,7 +66,7 @@ test("checked-in example route trees match the route graph", async () => {
     "examples/notes",
     "examples/latency",
     "examples/forge",
-    "packages/luciole/src/devtools/luciole-devtools",
+    "packages/core/src/devtools/luciole-devtools",
   ]) {
     const file = join(resolve(example), ROUTE_TREE_FILE);
     const committed = await readFile(file, "utf8");

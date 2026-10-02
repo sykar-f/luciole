@@ -1,7 +1,7 @@
 "use client";
 import { memo, type ReactNode, type Ref } from "react";
 import type { ScrollBoxRenderable } from "@opentui/core";
-import { Markdown } from "luciole/client";
+import { Markdown } from "@luciole-sh/core/client";
 import { Line } from "./Line";
 import type { FilePatch, Item, ItemStatus } from "../model";
 import { languageOf, muted, syntax } from "./syntax";

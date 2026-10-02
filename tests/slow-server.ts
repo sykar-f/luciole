@@ -1,5 +1,5 @@
 import React from "react";
-import { serve, type ServerFunction } from "../packages/luciole/src/server";
+import { serve, type ServerFunction } from "../packages/core/src/server";
 // A Server built by hand whose answers take longer than Bun's default idle timeout (10 s):
 // a page, a Server Function, and a stream that stays silent that long between values.
 const QUIET_MS = Number(process.env.SLOW_MS ?? 12_000);

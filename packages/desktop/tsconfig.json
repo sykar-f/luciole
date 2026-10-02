@@ -1,5 +1,5 @@
 {
-  "extends": "luciole/tsconfig",
+  "extends": "@luciole-sh/core/tsconfig",
   "compilerOptions": {
     "lib": ["ESNext", "DOM"],
     "types": ["bun"],

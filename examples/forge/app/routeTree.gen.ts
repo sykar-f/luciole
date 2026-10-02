@@ -6,7 +6,7 @@ import {
   pageRoute,
   rootRoute as createRootRoute,
   type TerminalRouter,
-} from "luciole/route-tree";
+} from "@luciole-sh/core/route-tree";
 import Layout0 from "./layout";
 import Layout1 from "./(app)/layout";
 import Layout2 from "./(app)/repos/[repo]/layout";

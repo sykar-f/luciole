@@ -7,7 +7,7 @@ import Src from "../../components/guide/Src.astro";
 import Callout from "../../components/guide/Callout.astro";
 import Quiz from "../../components/guide/Quiz.astro";
 
-const R = "packages/luciole/src/cache/runtime.ts";
+const R = "packages/core/src/cache/runtime.ts";
 
 // The loop a tag travels, clockwise: read on the Server, kept by the Client, invalidated by an
 // action, used by the Client to reload only what read it.
@@ -67,7 +67,7 @@ const H = 88;
   </Step>
 
   <Step n="2" tone="server" title="La clé : build ID, fonction, arguments">
-    <Excerpt path="packages/luciole/src/cache/codec.ts" find="export async function keyOf(" until="^}" tone="server" />
+    <Excerpt path="packages/core/src/cache/codec.ts" find="export async function keyOf(" until="^}" tone="server" />
     <p>Les arguments sont encodés avec le même format que ceux d'une Server Function. Pour <code>noteOf("local", "1")</code> sur le build <code>e0149…</code>, la clé vaut <code>6130e19d…987fed</code>. Un nouveau build change la clé : il ne lit jamais les entrées d'un autre.</p>
     <p>Quand l'app déclare des arguments (<code>app/args.ts</code>), le Server ajoute leur empreinte au build ID qu'il donne au cache : deux Servers lancés avec des arguments différents gardent leurs résultats à part, même dans un <code>sqliteCache</code> partagé.</p>
   </Step>
@@ -140,7 +140,7 @@ const H = 88;
       </tbody>
     </table>
   </div>
-  <p>Le stockage se choisit dans <code>server/cache.ts</code>, qui est facultatif. Par défaut, c'est <Src path="packages/luciole/src/cache/handler.ts" find="export function memoryCache" /> : une LRU en mémoire, perdue au redémarrage. <Src path="packages/luciole/src/cache/sqlite.ts" /> survit aux redémarrages ; il évince les entrées les plus anciennement créées, pas les moins utilisées.</p>
+  <p>Le stockage se choisit dans <code>server/cache.ts</code>, qui est facultatif. Par défaut, c'est <Src path="packages/core/src/cache/handler.ts" find="export function memoryCache" /> : une LRU en mémoire, perdue au redémarrage. <Src path="packages/core/src/cache/sqlite.ts" /> survit aux redémarrages ; il évince les entrées les plus anciennement créées, pas les moins utilisées.</p>
 
   <Callout kind="piege">
     <ul>

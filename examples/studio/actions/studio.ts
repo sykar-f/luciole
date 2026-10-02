@@ -1,6 +1,6 @@
 "use server";
 import { z } from "zod";
-import type { FilePatch, RequestState, Result, Update } from "@luciole/harness/model";
+import type { FilePatch, RequestState, Result, Update } from "@luciole-sh/harness/model";
 import type { StudioSnapshot } from "../components/model";
 import { studio } from "../server/studio";
 

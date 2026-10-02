@@ -2,16 +2,16 @@ import { test, expect } from "bun:test";
 import { mkdtemp, mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { loadAppBundle } from "../packages/luciole/src/app-bundle";
-import { build } from "../packages/luciole/src/build";
+import { loadAppBundle } from "../packages/core/src/app-bundle";
+import { build } from "../packages/core/src/build";
 import {
   CapabilityDenied,
   createApplication,
   host,
   type HostChannel,
-} from "../packages/luciole/src/client";
-import { directChannel, HostRequest } from "../packages/luciole/src/host";
-import { messageOf } from "../packages/luciole/src/guards";
+} from "../packages/core/src/client";
+import { directChannel, HostRequest } from "../packages/core/src/host";
+import { messageOf } from "../packages/core/src/guards";
 import { rejectionOf } from "./helpers";
 
 const isCall = (value: unknown): value is (text: string) => Promise<unknown> =>
@@ -56,7 +56,7 @@ test("each bundle evaluation asks through the Application it is bound to", async
     for (const [name, text] of Object.entries({
       "app/layout.tsx": `"use client";export default function Layout({children}){return children}`,
       "app/page.tsx": `import {Copy} from '../components/copy'; export default function Page(){return <Copy/>}`,
-      "components/copy.tsx": `"use client";import {host} from 'luciole/client';export function Copy(){return null}export const copy=(text:string)=>host.clipboard.write(text);export const secret=(name:string)=>host.secret(name);`,
+      "components/copy.tsx": `"use client";import {host} from '@luciole-sh/core/client';export function Copy(){return null}export const copy=(text:string)=>host.clipboard.write(text);export const secret=(name:string)=>host.secret(name);`,
     })) {
       await mkdir(join(dir, name, ".."), { recursive: true });
       await Bun.write(join(dir, name), text);

@@ -16,7 +16,7 @@ import {
   useConnection,
   useLive,
   useRestoredFields,
-} from "luciole/client";
+} from "@luciole-sh/core/client";
 import {
   compact,
   feed,
@@ -33,10 +33,10 @@ import {
   setModel,
 } from "../actions/session";
 import { Completion, COMPLETION_ROWS, type Suggestion } from "./Completion";
-import { Overlay, RequestDialog } from "@luciole/harness/ui/Dialogs";
+import { Overlay, RequestDialog } from "@luciole-sh/harness/ui/Dialogs";
 import { editText } from "./editor";
-import { Frame } from "@luciole/harness/ui/Frame";
-import { Line } from "@luciole/harness/ui/Line";
+import { Frame } from "@luciole-sh/harness/ui/Frame";
+import { Line } from "@luciole-sh/harness/ui/Line";
 import {
   HARNESS_NAMES,
   MODE_LABELS,
@@ -47,12 +47,12 @@ import {
   type Result,
   type SessionSummary,
   type Snapshot,
-} from "@luciole/harness/model";
-import { Picker, type PickerItem } from "@luciole/harness/ui/Picker";
-import { PlanBar, StatusLine } from "@luciole/harness/ui/StatusLine";
-import { FeedStore } from "@luciole/harness/ui/store";
-import { color } from "@luciole/harness/ui/theme";
-import { foldable, itemId, openByDefault, Transcript } from "@luciole/harness/ui/Transcript";
+} from "@luciole-sh/harness/model";
+import { Picker, type PickerItem } from "@luciole-sh/harness/ui/Picker";
+import { PlanBar, StatusLine } from "@luciole-sh/harness/ui/StatusLine";
+import { FeedStore } from "@luciole-sh/harness/ui/store";
+import { color } from "@luciole-sh/harness/ui/theme";
+import { foldable, itemId, openByDefault, Transcript } from "@luciole-sh/harness/ui/Transcript";
 
 const SPINNER = "◐◓◑◒";
 // Slow on purpose: every frame walks the whole tree (OpenTUI #1339).

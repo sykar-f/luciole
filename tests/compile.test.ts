@@ -2,9 +2,9 @@ import { expect, test } from "bun:test";
 import { copyFile, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { build } from "../packages/luciole/src/build";
-import { compileClient, hostTarget, runtimePortability } from "../packages/luciole/src/compile";
-import { messageOf } from "../packages/luciole/src/guards";
+import { build } from "../packages/core/src/build";
+import { compileClient, hostTarget, runtimePortability } from "../packages/core/src/compile";
+import { messageOf } from "../packages/core/src/guards";
 import { execute, launch, rejectionOf } from "./helpers";
 
 const root = resolve("examples/notes");
@@ -137,7 +137,7 @@ test("signing is only accepted where it can succeed", async () => {
 
 test("a publishing flag without its value is refused before any build", async () => {
   const cli = (...flags: string[]) =>
-    execute([process.execPath, "packages/luciole/src/cli.ts", "build", "--compile", ...flags]);
+    execute([process.execPath, "packages/core/src/cli.ts", "build", "--compile", ...flags]);
   // Last on the line, or followed by another flag: both used to mean "not requested".
   for (const flags of [
     ["--sign", "Developer ID Application: Acme", "--notarize"],

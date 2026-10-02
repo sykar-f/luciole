@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { Input, TransportError, useBindings, useLive } from "luciole/client";
+import { Input, TransportError, useBindings, useLive } from "@luciole-sh/core/client";
 import {
   Background,
   Controls,
@@ -13,7 +13,7 @@ import {
   type Edge,
   type EdgeChange,
   type NodeChange,
-} from "@luciole/flow";
+} from "@luciole-sh/flow-graph";
 import {
   addStep,
   connectSteps,

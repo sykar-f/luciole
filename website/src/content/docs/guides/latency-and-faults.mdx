@@ -2,8 +2,8 @@
 title: Latency and faults
 description: Slow the network down, lose requests and responses, cut streams, and check that the app says what it knows. LUCIOLE_LATENCY_MS, LUCIOLE_JITTER_MS, LUCIOLE_CHUNK_DELAY_MS, LUCIOLE_FAULT.
 sources:
-  - packages/luciole/src/transport.ts
-  - packages/luciole/src/run.tsx
+  - packages/core/src/transport.ts
+  - packages/core/src/run.tsx
   - tests/latency.test.tsx
   - examples/latency
   - docs/README.fr.md
@@ -57,7 +57,7 @@ The three faults, and the outcome the app receives for each:
 | `cut`    | The body fails before its first byte.                         | `unknown`  |
 
 <Excerpt
-  path="packages/luciole/src/transport.ts"
+  path="packages/core/src/transport.ts"
   find="export function networkFromEnv"
   until="^}"
   tone="wire"

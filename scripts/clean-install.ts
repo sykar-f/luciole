@@ -43,7 +43,7 @@ try {
   await run([process.execPath, "install", "--frozen-lockfile"], checkout);
   await run([process.execPath, "run", "check"], checkout);
   await run(
-    [process.execPath, "packages/luciole/src/cli.ts", "init", join(temp, "starter")],
+    [process.execPath, "packages/core/src/cli.ts", "init", join(temp, "starter")],
     checkout,
   );
   const starter = join(temp, "starter");

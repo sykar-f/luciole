@@ -1,5 +1,5 @@
 "use client";
-import { useRouterState } from "luciole/client";
+import { useRouterState } from "@luciole-sh/core/client";
 import { Line, Screen, SkeletonRows } from "../components/frames";
 import { Help } from "../components/Help";
 import { Pulse } from "../components/Pulse";

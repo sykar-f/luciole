@@ -1,14 +1,14 @@
 /** @jsxImportSource @opentui/react */
 import { expect, test } from "bun:test";
 import { createRoute } from "@tanstack/react-router";
-import { createApplication, type ApplicationEvent } from "../packages/luciole/src/client";
-import { loadPage, pageRoute, rootRoute } from "../packages/luciole/src/route-tree";
+import { createApplication, type ApplicationEvent } from "../packages/core/src/client";
+import { loadPage, pageRoute, rootRoute } from "../packages/core/src/route-tree";
 import {
   createHttpTransport,
   now,
   type Fetch,
   type TransportEvent,
-} from "../packages/luciole/src/transport";
+} from "../packages/core/src/transport";
 import { renderBody, until } from "./helpers";
 
 // One Flight model row: the root value, as JSON (see tests/http-transport.test.ts).

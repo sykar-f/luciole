@@ -34,11 +34,11 @@ const panels = [
   <Sample
     lang="sh"
     label="deux panneaux de terminal"
-    code={`bun packages/luciole/src/cli.ts devtools                  # panneau 1 : les DevTools
-eval "$(bun packages/luciole/src/cli.ts devtools --env)"   # panneau 2 : LUCIOLE_DEVTOOLS et le preload
+    code={`bun packages/core/src/cli.ts devtools                  # panneau 1 : les DevTools
+eval "$(bun packages/core/src/cli.ts devtools --env)"   # panneau 2 : LUCIOLE_DEVTOOLS et le preload
 bun run dev                                                #            puis l'app, comme d'habitude`}
   />
-  <p><code>--env</code> imprime deux variables. <code>LUCIOLE_DEVTOOLS</code> contient l'adresse du socket, en 0600 et par utilisateur. <code>BUN_OPTIONS</code> précharge <Src path="packages/luciole/src/devtools/hook.ts" />, indispensable au seul panneau Components. Autres modes : <code>--demo</code> (session simulée), <code>--replay fichier.json</code>, <code>--listen ws://…</code>.</p>
+  <p><code>--env</code> imprime deux variables. <code>LUCIOLE_DEVTOOLS</code> contient l'adresse du socket, en 0600 et par utilisateur. <code>BUN_OPTIONS</code> précharge <Src path="packages/core/src/devtools/hook.ts" />, indispensable au seul panneau Components. Autres modes : <code>--demo</code> (session simulée), <code>--replay fichier.json</code>, <code>--listen ws://…</code>.</p>
 
   <h2>Le parcours</h2>
   <Sequence
@@ -66,9 +66,9 @@ bun run dev                                                #            puis l'a
   <Step n="1–4" tone="neutral" where="Agents" title="Deux agents, branchés sur les points d'extension">
     <p>Aucun des deux agents ne modifie le cœur du framework. Ils utilisent les points d'extension présentés au chapitre 1.</p>
     <p><strong>Côté Client</strong>, <code>run()</code> importe l'agent seulement si la variable est posée. L'agent s'abonne à <code>app.onEvent</code>, à l'état du routeur, à la console, aux touches et aux commits React. Les conditions réseau passent par <code>wrapTransport</code> :</p>
-    <Excerpt path="packages/luciole/src/devtools/client-agent.ts" find="const wrapTransport = (inner: Transport): Transport => ({" count={11} tone="client" />
+    <Excerpt path="packages/core/src/devtools/client-agent.ts" find="const wrapTransport = (inner: Transport): Transport => ({" count={11} tone="client" />
     <p><strong>Côté Server</strong>, <code>createHandler</code> enveloppe l'<code>instrument</code> de l'app. Celui-ci reçoit exactement les mêmes événements, qu'il y ait des DevTools ou non :</p>
-    <Excerpt path="packages/luciole/src/devtools/server-agent.ts" find="onEvent(event: Observed) {" count={4} tone="server" />
+    <Excerpt path="packages/core/src/devtools/server-agent.ts" find="onEvent(event: Observed) {" count={4} tone="server" />
   </Step>
 
   <Step n="5–7" tone="neutral" where="Server DevTools" title="Un journal, lu par une Server Function live">
@@ -87,7 +87,7 @@ bun run dev                                                #            puis l'a
     </table>
   </div>
   <p>Le panneau Components explique chaque rendu en comparant la fibre à sa version précédente :</p>
-  <Excerpt path="packages/luciole/src/devtools/fibers.ts" find="function reasonOf(fiber: Fiber) {" until="^}" tone="client" mark={['{ reason: "parent", unnecessary: true }']} />
+  <Excerpt path="packages/core/src/devtools/fibers.ts" find="function reasonOf(fiber: Fiber) {" until="^}" tone="client" mark={['{ reason: "parent", unnecessary: true }']} />
   <p>Un rendu sans changement de props, d'état ni de contexte est marqué <strong>inutile</strong> : son parent l'a entraîné. <kbd>E</kbd> exporte le journal brut, plus un fichier HAR 1.2.</p>
 
   <h2>Le fil rouge : callId</h2>

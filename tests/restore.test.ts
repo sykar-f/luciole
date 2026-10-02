@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { createMemoryHistory } from "@tanstack/react-router";
-import { MAX_ENTRIES, Restoration } from "../packages/luciole/src/restore";
+import { MAX_ENTRIES, Restoration } from "../packages/core/src/restore";
 
 function session(entries = ["/"]) {
   const history = createMemoryHistory({ initialEntries: entries });

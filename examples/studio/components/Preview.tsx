@@ -1,9 +1,9 @@
 "use client";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { join } from "node:path";
-import { TerminalView } from "luciole/client";
-import { ClientFailure } from "luciole/dev";
-import { spawnPty } from "luciole/pty";
+import { TerminalView } from "@luciole-sh/core/client";
+import { ClientFailure } from "@luciole-sh/core/dev";
+import { spawnPty } from "@luciole-sh/core/pty";
 import {
   buildChild,
   Capabilities,
@@ -11,9 +11,9 @@ import {
   sandboxAvailability,
   sandboxRuntime,
   type Sandbox,
-} from "luciole/sandbox";
+} from "@luciole-sh/core/sandbox";
 import { z } from "zod";
-import { color } from "@luciole/harness/ui/theme";
+import { color } from "@luciole-sh/harness/ui/theme";
 import type { PreviewInfo } from "./model";
 
 export type PreviewProps = {
@@ -72,7 +72,7 @@ function ending(pid: number | undefined) {
  * The generated app, running: its Client on a PTY drawn by the VT widget, one per
  * revision or draft (a new one replaces it, once the previous Client has ended).
  * `sandbox`: under the OS sandbox, its bundle signed by the project's key and checked
- * against it (luciole/sandbox); `process`: with the user's rights, ended by SIGTERM
+ * against it (@luciole-sh/core/sandbox); `process`: with the user's rights, ended by SIGTERM
  * (<Terminal> would send SIGHUP).
  */
 export function Preview(props: PreviewProps) {

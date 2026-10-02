@@ -7,9 +7,9 @@ import { act, type ReactNode } from "react";
 import type { MouseButton } from "@opentui/core/testing";
 import type { testRender } from "@opentui/react/test-utils";
 import { z } from "zod";
-import type { Application, ApplicationOptions } from "../packages/luciole/src/client";
-import { messageOf } from "../packages/luciole/src/guards";
-import { readJsonFile } from "../packages/luciole/src/package-json";
+import type { Application, ApplicationOptions } from "../packages/core/src/client";
+import { messageOf } from "../packages/core/src/guards";
+import { readJsonFile } from "../packages/core/src/package-json";
 import type { DraftStore } from "../examples/notes/components/draft";
 
 /**
@@ -27,7 +27,7 @@ export function present<T>(value: T | null | undefined, what: string): T {
 
 /**
  * A fresh application directory under tmpdir, named after `prefix`, with the checkout's
- * node_modules linked in: `luciole`, React and its packages resolve as in an example,
+ * node_modules linked in: `@luciole-sh/core`, React and its packages resolve as in an example,
  * and a run killed midway leaves nothing in the checkout (format and lint read it).
  */
 export async function temporaryApp(prefix: string) {
@@ -80,7 +80,7 @@ export function renderable<T>(
 }
 
 /**
- * A `@luciole/editor` field by id, with its Markdown. The App's bundle carries its own
+ * A `@luciole-sh/markdown-editor` field by id, with its Markdown. The App's bundle carries its own
  * copy of the editor's class, so the renderable is recognized by its shape.
  */
 export function markdownEditor(ui: TestUI, id: string) {

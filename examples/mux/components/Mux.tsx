@@ -9,7 +9,7 @@ import {
   useBindings,
   usePendingSequence,
   type Application,
-} from "luciole/client";
+} from "@luciole-sh/core/client";
 
 /** A local program on a PTY, or another luciole application inline. */
 type Spec =

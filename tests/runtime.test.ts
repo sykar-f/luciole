@@ -2,9 +2,9 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import { mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { build } from "../packages/luciole/src/build";
-import { compileClient, fetchRuntime, hostTarget } from "../packages/luciole/src/compile";
-import { messageOf } from "../packages/luciole/src/guards";
+import { build } from "../packages/core/src/build";
+import { compileClient, fetchRuntime, hostTarget } from "../packages/core/src/compile";
+import { messageOf } from "../packages/core/src/guards";
 import { execute, rejectionOf } from "./helpers";
 
 // A registry serving a fake runtime package, the way npm publishes @oven/bun-<os>-<arch>.

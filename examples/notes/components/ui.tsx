@@ -2,7 +2,7 @@
 import { useState, type ReactNode } from "react";
 import type { MouseEvent } from "@opentui/core";
 import { useRenderer } from "@opentui/react";
-import { useBindings } from "luciole/client";
+import { useBindings } from "@luciole-sh/core/client";
 import { usePalette, type Palette } from "./theme";
 import { ui, useUi, type Menu } from "./ui-state";
 

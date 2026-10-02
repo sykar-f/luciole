@@ -1,5 +1,5 @@
 {
-  "name": "@luciole/harness",
+  "name": "@luciole-sh/harness",
   "version": "0.1.0",
   "license": "MIT",
   "private": true,
@@ -31,7 +31,7 @@
     "./ui/theme": "./src/ui/theme.ts"
   },
   "dependencies": {
-    "luciole": "workspace:*",
+    "@luciole-sh/core": "workspace:*",
     "@anthropic-ai/claude-agent-sdk": "catalog:",
     "@opentui/core": "catalog:",
     "@opentui/react": "catalog:",

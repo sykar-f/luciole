@@ -89,7 +89,7 @@ export const DEMOS: Record<string, { app: string; seed?: () => Promise<Seed> }> 
   },
   // `luciole devtools --demo` with no bus: a page has no socket to listen on.
   devtools: {
-    app: "packages/luciole/src/devtools/luciole-devtools",
+    app: "packages/core/src/devtools/luciole-devtools",
     seed: async () => ({
       env: { LUCIOLE_DEVTOOLS_LISTEN: "none", LUCIOLE_DEVTOOLS_DEMO: "1" },
     }),
@@ -104,7 +104,7 @@ for (const [name, { app, seed: seedOf }] of Object.entries(DEMOS)) {
   // Node's API, not Bun's: website/ has no Bun types, and Bun runs it the same.
   const build = spawnSync(
     "bun",
-    ["packages/luciole/src/cli.ts", "build", "--app", app, "--web-local"],
+    ["packages/core/src/cli.ts", "build", "--app", app, "--web-local"],
     { cwd: root, stdio: ["ignore", "inherit", "inherit"] },
   );
   if (build.status !== 0) process.exit(build.status ?? 1);

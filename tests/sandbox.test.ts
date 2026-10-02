@@ -24,36 +24,36 @@ import { join, resolve } from "node:path";
 import { connect as connectTcp } from "node:net";
 import { createTestRenderer } from "@opentui/core/testing";
 import { z } from "zod";
-import { build } from "../packages/luciole/src/build";
-import { Capabilities } from "../packages/luciole/src/capabilities";
-import { messageOf } from "../packages/luciole/src/guards";
-import { prepareOrigin, sandboxHeader } from "../packages/luciole/src/generic/prepare";
-import type { HostRequest } from "../packages/luciole/src/host";
-import { directories } from "../packages/luciole/src/launcher/paths";
-import { generatePublisherKey, readPublisherKey } from "../packages/luciole/src/publisher";
-import { confine, scratch as newScratch } from "../packages/luciole/src/sandbox/confine";
+import { build } from "../packages/core/src/build";
+import { Capabilities } from "../packages/core/src/capabilities";
+import { messageOf } from "../packages/core/src/guards";
+import { prepareOrigin, sandboxHeader } from "../packages/core/src/generic/prepare";
+import type { HostRequest } from "../packages/core/src/host";
+import { directories } from "../packages/core/src/launcher/paths";
+import { generatePublisherKey, readPublisherKey } from "../packages/core/src/publisher";
+import { confine, scratch as newScratch } from "../packages/core/src/sandbox/confine";
 import {
   beyond,
   enforcement,
   mergeCapabilities,
   parseAllowFlags,
   unenforceable,
-} from "../packages/luciole/src/sandbox/grants";
-import { answer } from "../packages/luciole/src/sandbox/ipc";
-import { launcherPolicy, linuxCommand } from "../packages/luciole/src/sandbox/linux";
-import type { LinuxMechanism, Mechanism } from "../packages/luciole/src/sandbox/mechanism";
-import { createPermissions, type Question } from "../packages/luciole/src/sandbox/permissions";
-import { hostAllowed, startProxy } from "../packages/luciole/src/sandbox/proxy";
+} from "../packages/core/src/sandbox/grants";
+import { answer } from "../packages/core/src/sandbox/ipc";
+import { launcherPolicy, linuxCommand } from "../packages/core/src/sandbox/linux";
+import type { LinuxMechanism, Mechanism } from "../packages/core/src/sandbox/mechanism";
+import { createPermissions, type Question } from "../packages/core/src/sandbox/permissions";
+import { hostAllowed, startProxy } from "../packages/core/src/sandbox/proxy";
 import {
   buildChild,
   sandboxAvailability,
   sandboxRuntime,
-} from "../packages/luciole/src/sandbox/runtime";
-import { openSandbox } from "../packages/luciole/src/sandbox/spawn";
-import { confineServer } from "../packages/luciole/src/sandbox/server";
-import { startAppServer } from "../packages/luciole/src/dev/supervisor";
-import { spawnPty } from "../packages/luciole/src/vt/pty";
-import { VtTerminalRenderable } from "../packages/luciole/src/vt/gaps";
+} from "../packages/core/src/sandbox/runtime";
+import { openSandbox } from "../packages/core/src/sandbox/spawn";
+import { confineServer } from "../packages/core/src/sandbox/server";
+import { startAppServer } from "../packages/core/src/dev/supervisor";
+import { spawnPty } from "../packages/core/src/vt/pty";
+import { VtTerminalRenderable } from "../packages/core/src/vt/gaps";
 import { launch, until } from "./helpers";
 
 const availability = sandboxAvailability();
@@ -66,7 +66,7 @@ const privateDevpts = mechanism?.kind === "userns" || mechanism?.kind === "bwrap
 const NONE = Capabilities.parse({});
 const caps = (value: unknown) => Capabilities.parse(value);
 const scratch = () => newScratch().path;
-const SRC = resolve("packages/luciole/src");
+const SRC = resolve("packages/core/src");
 /** Refusals, as each mechanism reports them: Seatbelt, Landlock, nothing mounted (bwrap). */
 const REFUSED = /^(EPERM|EACCES|ENOENT|EROFS|ECONNREFUSED|ENETUNREACH)$/;
 
@@ -649,7 +649,7 @@ const PROBE_APP = {
   "app/layout.tsx": `"use client";export default function Layout({children}){return children}`,
   "app/page.tsx": `import {Probe} from '../components/probe'; export default function Page(){return <Probe/>}`,
   "components/probe.tsx":
-    `"use client";import {useEffect,useState} from 'react';import {CapabilityDenied,host} from 'luciole/client';` +
+    `"use client";import {useEffect,useState} from 'react';import {CapabilityDenied,host} from '@luciole-sh/core/client';` +
     `export function Probe(){const [s,setS]=useState('asking');useEffect(()=>{` +
     `process.stdout.write('\\x1b]52;c;'+btoa('osc-from-sandbox')+'\\x07');` +
     `host.clipboard.write('ipc-from-sandbox').then(()=>'copied',e=>e instanceof CapabilityDenied?'denied '+e.capability:'failed '+e.message)` +

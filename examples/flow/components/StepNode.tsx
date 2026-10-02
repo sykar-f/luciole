@@ -1,5 +1,5 @@
 "use client";
-import { Handle, type Node, type NodeProps } from "@luciole/flow";
+import { Handle, type Node, type NodeProps } from "@luciole-sh/flow-graph";
 import { IDLE, STATUS_ICON, type StepKind, type StepRun } from "./model";
 import { color, statusColor } from "./theme";
 

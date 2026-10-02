@@ -1,7 +1,7 @@
 "use client";
 import { memo, useState, useSyncExternalStore } from "react";
 import { MouseButton, type MouseEvent } from "@opentui/core";
-import { useBindings, useParams } from "luciole/client";
+import { useBindings, useParams } from "@luciole-sh/core/client";
 import { titleOf, useCommands } from "./commands";
 import { drafts, type Note } from "./draft";
 import { notesList, useNotesList } from "./notes-list";

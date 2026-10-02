@@ -1,4 +1,4 @@
-import { getSession, notFound } from "luciole/server";
+import { getSession, notFound } from "@luciole-sh/core/server";
 import { z } from "zod";
 import { noteOf } from "../../../server/queries";
 import { saveNote, getOperation } from "../../../actions/notes";

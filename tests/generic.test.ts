@@ -3,25 +3,25 @@ import { existsSync, lstatSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { loadAppBundle } from "../packages/luciole/src/app-bundle";
-import { build } from "../packages/luciole/src/build";
-import { messageOf } from "../packages/luciole/src/guards";
-import { urlArgs } from "../packages/luciole/src/generic/launch";
+import { loadAppBundle } from "../packages/core/src/app-bundle";
+import { build } from "../packages/core/src/build";
+import { messageOf } from "../packages/core/src/guards";
+import { urlArgs } from "../packages/core/src/generic/launch";
 import {
   originDirectory,
   originOf,
   originSessions,
   pinPublisher,
   readOrigin,
-} from "../packages/luciole/src/generic/origin";
-import { INLINE_WARNING, prepareOrigin } from "../packages/luciole/src/generic/prepare";
-import { Capabilities } from "../packages/luciole/src/capabilities";
-import { directories } from "../packages/luciole/src/launcher/paths";
+} from "../packages/core/src/generic/origin";
+import { INLINE_WARNING, prepareOrigin } from "../packages/core/src/generic/prepare";
+import { Capabilities } from "../packages/core/src/capabilities";
+import { directories } from "../packages/core/src/launcher/paths";
 import {
   generatePublisherKey,
   publisherIdentity,
   readPublisherKey,
-} from "../packages/luciole/src/publisher";
+} from "../packages/core/src/publisher";
 import { launch, rejectionOf } from "./helpers";
 
 test("an origin is the URL the user gave, normalized", () => {

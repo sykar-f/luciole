@@ -1,4 +1,4 @@
-// The live terminal's cells, as the web runtime sizes them (packages/luciole/src/web/platform/
+// The live terminal's cells, as the web runtime sizes them (packages/core/src/web/platform/
 // run.tsx, `fitGrid`): its fonts, the largest size on its steps at which the grid fits, and
 // the cell xterm.js draws at that size. A page that shows a capture until the runtime draws
 // can give it the same size beforehand: nothing moves when one replaces the other.

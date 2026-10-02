@@ -3,7 +3,7 @@ import { beforeAll, expect, test } from "bun:test";
 import { act } from "react";
 import { InputRenderable, TextareaRenderable } from "@opentui/core";
 import { testRender } from "@opentui/react/test-utils";
-import { build } from "../packages/luciole/src/build";
+import { build } from "../packages/core/src/build";
 import { forgeDirectory, startForge, type ForgeHarness } from "./forge-helpers";
 import { destroy, draftsOf, importClient, present, renderable, until } from "./helpers";
 

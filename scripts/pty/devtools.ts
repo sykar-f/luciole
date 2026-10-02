@@ -35,7 +35,7 @@ await using app = await drive({
   env: {
     ...env,
     LUCIOLE_DEVTOOLS: socket,
-    BUN_OPTIONS: `--preload=${ROOT}/packages/luciole/src/devtools/hook.ts`,
+    BUN_OPTIONS: `--preload=${ROOT}/packages/core/src/devtools/hook.ts`,
     NOTES_DB: join(directory.path, "notes.sqlite"),
   },
 });

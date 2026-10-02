@@ -1,5 +1,5 @@
 "use client";
-import type { NotFoundProps } from "luciole/client";
+import type { NotFoundProps } from "@luciole-sh/core/client";
 import { NotFound } from "../../components/NotFound";
 
 // A missing repository or pull request: the page called notFound() on the Server.

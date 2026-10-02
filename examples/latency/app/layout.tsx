@@ -1,5 +1,5 @@
 "use client";
-import { useBindings, useConnection, type LayoutProps } from "luciole/client";
+import { useBindings, useConnection, type LayoutProps } from "@luciole-sh/core/client";
 
 export default function Layout({ children }: LayoutProps) {
   const { status, activity, refresh } = useConnection();

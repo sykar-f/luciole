@@ -24,7 +24,7 @@ import {
   useNavigate,
   useParams,
   useRouter,
-} from "luciole/client";
+} from "@luciole-sh/core/client";
 import { listDocs, watchLibrary } from "../actions/library";
 import { Line } from "./frames";
 import { Help } from "./Help";

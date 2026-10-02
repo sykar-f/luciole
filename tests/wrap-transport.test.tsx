@@ -6,8 +6,8 @@ import {
   TransportError,
   type ApplicationOptions,
   type Transport,
-} from "../packages/luciole/src/client";
-import type { Fetch } from "../packages/luciole/src/transport";
+} from "../packages/core/src/client";
+import type { Fetch } from "../packages/core/src/transport";
 import { rejectionOf } from "./helpers";
 
 const base = {

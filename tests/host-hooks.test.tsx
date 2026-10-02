@@ -13,8 +13,8 @@ import {
   type HostChannel,
   type HostEvent,
   type MediatedCapability,
-} from "../packages/luciole/src/client";
-import { Runtime } from "../packages/luciole/src/runtime-context";
+} from "../packages/core/src/client";
+import { Runtime } from "../packages/core/src/runtime-context";
 import { destroy, type TestUI } from "./helpers";
 
 /** A host whose events and capability states the test drives. */

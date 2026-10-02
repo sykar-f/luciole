@@ -4,7 +4,7 @@ import { join, resolve } from "node:path";
 import Guide from "../../layouts/Guide.astro";
 import { source } from "../../lib/links";
 
-// Every entry at the top of packages/luciole/src, with its role and the chapter that covers it.
+// Every entry at the top of packages/core/src, with its role and the chapter that covers it.
 // The list is read from the checkout: a new module without a line here fails the build.
 const modules: Record<string, [string, string]> = {
   "cli.ts": ["arguments et registre des sous-commandes", "demarrage"],
@@ -71,7 +71,7 @@ const modules: Record<string, [string, string]> = {
   devtools: ["agents, protocole, hook de fibers, app luciole devtools", "devtools"],
 };
 
-const src = resolve(process.cwd(), "..", "packages/luciole/src");
+const src = resolve(process.cwd(), "..", "packages/core/src");
 const present = readdirSync(src).filter((name) => !name.startsWith("."));
 const missing = present.filter((name) => !(name in modules));
 const stale = Object.keys(modules).filter((name) => !present.includes(name));
@@ -123,7 +123,7 @@ const title = (slug: string) => slug.replace(/-/g, " ");
   </dl>
 
   <h2>Tous les modules du framework</h2>
-  <p>Toutes les entrées de <code>packages/luciole/src/</code>, sans exception, triées par chapitre. Cette liste est vérifiée au build : un module ajouté ou supprimé sans mise à jour de cette page fait échouer la construction du site.</p>
+  <p>Toutes les entrées de <code>packages/core/src/</code>, sans exception, triées par chapitre. Cette liste est vérifiée au build : un module ajouté ou supprimé sans mise à jour de cette page fait échouer la construction du site.</p>
   <div class="table">
     <table>
       <thead><tr><th>Module</th><th>Rôle</th><th>Chapitre</th></tr></thead>
@@ -131,7 +131,7 @@ const title = (slug: string) => slug.replace(/-/g, " ");
         {
           rows.map((row) => (
             <tr>
-              <td><a href={source(`packages/luciole/src/${row.path}`)}><code>{row.name}</code></a></td>
+              <td><a href={source(`packages/core/src/${row.path}`)}><code>{row.name}</code></a></td>
               <td>{row.role}</td>
               <td><a href={`/guide/${row.chapter}/`}>{title(row.chapter)}</a></td>
             </tr>

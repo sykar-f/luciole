@@ -8,7 +8,7 @@ import Src from "../../components/guide/Src.astro";
 import Callout from "../../components/guide/Callout.astro";
 import Quiz from "../../components/guide/Quiz.astro";
 
-const T = "packages/luciole/src/transport.ts";
+const T = "packages/core/src/transport.ts";
 
 // The three outcomes, by when the failure happened.
 const zones = [
@@ -100,7 +100,7 @@ x-luciole-action: e01495558432a2514ca7203e/actions/notes.ts#saveNote
 
   <Step n="4–6" tone="server" title="Le Server trouve l'action dans une table générée">
     <p>Les mêmes contrôles que pour <code>/render</code> passent d'abord : auth, puis build ID. Ensuite, l'action est cherchée par son id dans une <code>Map</code> écrite au build. Aucune fonction non déclarée <code>"use server"</code> ne peut donc être appelée.</p>
-    <Excerpt path="packages/luciole/src/server.ts" find='const entry = config.actions.get(req.headers.get("x-luciole-action") ?? "");' count={15} tone="server" mark={["config.actions.get", 'entry.auth === "required" && !session', "await entry.fn(...args.data)", "await Promise.all(purges.values())"]} />
+    <Excerpt path="packages/core/src/server.ts" find='const entry = config.actions.get(req.headers.get("x-luciole-action") ?? "");' count={15} tone="server" mark={["config.actions.get", 'entry.auth === "required" && !session', "await entry.fn(...args.data)", "await Promise.all(purges.values())"]} />
     <p>Attention : les arguments arrivent <strong>non validés</strong>. C'est à l'action de les vérifier ; <code>saveNote</code> commence par <code>SnapshotInput.parse</code>.</p>
   </Step>
 

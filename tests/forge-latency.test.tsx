@@ -1,7 +1,7 @@
 /** @jsxImportSource @opentui/react */
 import { beforeAll, expect, test } from "bun:test";
-import { build } from "../packages/luciole/src/build";
-import type { Fetch } from "../packages/luciole/src/client";
+import { build } from "../packages/core/src/build";
+import type { Fetch } from "../packages/core/src/client";
 import { forgeDirectory, startForge } from "./forge-helpers";
 
 beforeAll(async () => {

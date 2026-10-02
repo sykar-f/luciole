@@ -1,5 +1,5 @@
 "use server";
-import { invalidate } from "luciole/server";
+import { invalidate } from "@luciole-sh/core/server";
 import { z } from "zod";
 import type { Fingerprint, ReceiveResult } from "../components/model";
 import { receive as move, store } from "../server/receive";
