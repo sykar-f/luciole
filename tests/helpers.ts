@@ -19,6 +19,14 @@ import type { DraftStore } from "../examples/notes/components/draft";
  */
 export const BUILD_TEST_MS = 60_000;
 
+/**
+ * How long a wait for an event lasts before it gives up: the guard against a hang, which
+ * says nothing of how fast the event should come. Under a loaded host a build, a request or
+ * a timer of the product lands late; a wait bounded by what it takes on an idle machine
+ * then fails on the machine, not on the code. Half of `BUILD_TEST_MS`.
+ */
+export const WAIT_MS = BUILD_TEST_MS / 2;
+
 /** `value`, which the test expects to exist: fails naming `what` when the domain has none. */
 export function present<T>(value: T | null | undefined, what: string): T {
   if (value === null || value === undefined) throw new Error(`Expected ${what}`);

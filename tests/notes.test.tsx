@@ -11,8 +11,9 @@ import { build } from "../packages/core/src/build";
 import { TransportError, type Transport } from "../packages/core/src/client";
 import {
   BUILD_TEST_MS,
+  WAIT_MS,
   launch,
-  until,
+  until as pollUntil,
   importClient,
   destroy,
   draftOf,
@@ -75,11 +76,12 @@ const status = (ui: TestUI) => {
 };
 /** How long a save stays unmentioned (NoteEditor's QUIET_MS). */
 const QUIET_MS = 3000;
+const until = (check: () => boolean, timeout = WAIT_MS) => pollUntil(check, timeout);
 /**
  * Waits for `check`, one short `act()` at a time: timers' state updates apply when an
  * `act()` ends, not within one.
  */
-async function eventually(check: () => boolean, timeout = 5000) {
+async function eventually(check: () => boolean, timeout = WAIT_MS) {
   const deadline = performance.now() + timeout;
   while (!check()) {
     if (performance.now() > deadline) throw new Error("Condition timed out");
@@ -121,211 +123,227 @@ const click = (ui: TestUI, text: string, button?: MouseButton) =>
     await Bun.sleep(30);
   });
 
-test("generated Notes: Flight action, preserved Draft, navigation and offline editing", async () => {
-  const { app, ui, server, stop } = await start("notes", { NOTES_DELAY_MS: "400" });
-  try {
-    expect(server.pid).not.toBe(process.pid);
-    // The list is read through a Server Function by the persistent layout.
-    await act(async () => until(() => ui.captureCharFrame().includes("Shopping list")));
-    await click(ui, "Welcome to Notes");
-    await act(async () => until(() => path(app) === "/notes/1"));
-    // Read as Markdown: headings without their markers, and nothing to type into.
-    expect(await frame(ui)).toContain("Getting around");
-    expect(await frame(ui)).not.toContain("## Getting around");
-    await writeAtEnd(ui);
-    const input = (id: string) => markdownEditor(ui, id);
-    const field = input("note-1");
-    const seed = field.value;
-    expect(seed).toContain("## Getting around");
-    await act(async () => {
-      await ui.mockInput.typeText("abc");
+test(
+  "generated Notes: Flight action, preserved Draft, navigation and offline editing",
+  async () => {
+    const { app, ui, server, stop } = await start("notes", {
+      NOTES_DELAY_MS: "400",
     });
-    // Without autosave, unsaved text is marked, with its way to save.
-    await eventually(() => status(ui) === "● Unsaved");
-    expect(await frame(ui)).toContain("Save");
-    const counts = () => metricsOf(server);
-    const before = await counts();
-    await act(async () => {
-      ui.mockInput.pressKey("s", { ctrl: true });
-    });
-    await act(async () => {
-      await ui.mockInput.typeText("d");
-    });
-    expect(field.value).toBe(`${seed}abcd`);
-    const draft = draftOf(app, "1");
-    expect(draft.pending?.value).toBe(`${seed}abc`);
-    // Saving says nothing while it is quick.
-    await frame(ui);
-    expect(status(ui)).toBe("");
-    await act(async () => {
-      await until(() => !draft.pending);
-      await Bun.sleep(50);
-    });
-    expect(draft.baseline).toBe(`${seed}abc`);
-    expect(draft.value).toBe(`${seed}abcd`);
-    expect(draft.dirty).toBe(true);
-    expect(draft.version).toBe(2);
-    expect(input("note-1").node).toBe(field.node);
-    await eventually(() => status(ui) === "● Unsaved");
-    // The save, then the list read again because the save invalidated it.
-    await act(async () => {
-      for (let i = 0; i < 50 && (await counts()).actions - before.actions < 2; i++)
-        await Bun.sleep(10);
-    });
-    expect((await counts()).actions - before.actions).toBe(2);
+    try {
+      expect(server.pid).not.toBe(process.pid);
+      // The list is read through a Server Function by the persistent layout.
+      await act(async () => until(() => ui.captureCharFrame().includes("Shopping list")));
+      await click(ui, "Welcome to Notes");
+      await act(async () => until(() => path(app) === "/notes/1"));
+      // Read as Markdown: headings without their markers, and nothing to type into.
+      expect(await frame(ui)).toContain("Getting around");
+      expect(await frame(ui)).not.toContain("## Getting around");
+      await writeAtEnd(ui);
+      const input = (id: string) => markdownEditor(ui, id);
+      const field = input("note-1");
+      const seed = field.value;
+      expect(seed).toContain("## Getting around");
+      await act(async () => {
+        await ui.mockInput.typeText("abc");
+      });
+      // Without autosave, unsaved text is marked, with its way to save.
+      await eventually(() => status(ui) === "● Unsaved");
+      expect(await frame(ui)).toContain("Save");
+      const counts = () => metricsOf(server);
+      const before = await counts();
+      await act(async () => {
+        ui.mockInput.pressKey("s", { ctrl: true });
+      });
+      await act(async () => {
+        await ui.mockInput.typeText("d");
+      });
+      expect(field.value).toBe(`${seed}abcd`);
+      const draft = draftOf(app, "1");
+      expect(draft.pending?.value).toBe(`${seed}abc`);
+      // Saving says nothing while it is quick.
+      await frame(ui);
+      expect(status(ui)).toBe("");
+      await act(async () => {
+        await until(() => !draft.pending);
+        await Bun.sleep(50);
+      });
+      expect(draft.baseline).toBe(`${seed}abc`);
+      expect(draft.value).toBe(`${seed}abcd`);
+      expect(draft.dirty).toBe(true);
+      expect(draft.version).toBe(2);
+      expect(input("note-1").node).toBe(field.node);
+      await eventually(() => status(ui) === "● Unsaved");
+      // The save, then the list read again because the save invalidated it.
+      await act(async () => {
+        for (let i = 0; i < 50 && (await counts()).actions - before.actions < 2; i++)
+          await Bun.sleep(10);
+      });
+      expect((await counts()).actions - before.actions).toBe(2);
 
-    // The layout, and the list in it, persist from one note to another.
-    const sidebar = ui.renderer.root.findDescendantById("sidebar");
-    await click(ui, "Shopping list");
-    await act(async () => until(() => path(app) === "/notes/2"));
-    expect(ui.renderer.root.findDescendantById("sidebar")).toBe(sidebar);
-    expect(input("note-2").value).toContain("Coffee beans");
-    // Unsaved work is marked in the list, whatever note is shown.
-    expect(await frame(ui)).toContain("●");
-    await click(ui, "Welcome to Notes");
-    await act(async () => until(() => path(app) === "/notes/1"));
-    expect(input("note-1").value).toBe(`${seed}abcd`);
+      // The layout, and the list in it, persist from one note to another.
+      const sidebar = ui.renderer.root.findDescendantById("sidebar");
+      await click(ui, "Shopping list");
+      await act(async () => until(() => path(app) === "/notes/2"));
+      expect(ui.renderer.root.findDescendantById("sidebar")).toBe(sidebar);
+      expect(input("note-2").value).toContain("Coffee beans");
+      // Unsaved work is marked in the list, whatever note is shown.
+      expect(await frame(ui)).toContain("●");
+      await click(ui, "Welcome to Notes");
+      await act(async () => until(() => path(app) === "/notes/1"));
+      expect(input("note-1").value).toBe(`${seed}abcd`);
 
-    const localBefore = await counts();
-    await writeAtEnd(ui);
-    await act(async () => {
-      await ui.mockInput.typeText("e");
-      ui.mockInput.pressArrow("left");
-      ui.mockInput.pressArrow("right");
-      const currentField = input("note-1");
-      currentField.node.blur();
-      currentField.node.focus();
-      await ui.mockMouse.scroll(currentField.node.x, currentField.node.y, "down");
-    });
-    expect(await counts()).toEqual(localBefore);
-    await server.stop();
-    await act(async () => {
-      await app.refresh();
-      await ui.mockInput.typeText("f");
-      // refresh() resolves once the router starts reloading, not once the request
-      // fails: on a loaded machine, the refused connection reports a little later.
-      await until(() => app.status === "Disconnected");
-    });
-    expect(input("note-1").value).toBe(`${seed}abcdef`);
-    // A lost connection is said once it lasts; it speaks before the page, and says what
-    // becomes of the unsaved text.
-    await eventually(() => status(ui) === "○ Disconnected. Your text is kept here.", 5000);
-    expect(await frame(ui)).toContain("Reconnect");
-  } finally {
-    await stop();
-  }
-});
+      const localBefore = await counts();
+      await writeAtEnd(ui);
+      await act(async () => {
+        await ui.mockInput.typeText("e");
+        ui.mockInput.pressArrow("left");
+        ui.mockInput.pressArrow("right");
+        const currentField = input("note-1");
+        currentField.node.blur();
+        currentField.node.focus();
+        await ui.mockMouse.scroll(currentField.node.x, currentField.node.y, "down");
+      });
+      expect(await counts()).toEqual(localBefore);
+      await server.stop();
+      await act(async () => {
+        await app.refresh();
+        await ui.mockInput.typeText("f");
+        // refresh() resolves once the router starts reloading, not once the request
+        // fails: on a loaded machine, the refused connection reports a little later.
+        await until(() => app.status === "Disconnected");
+      });
+      expect(input("note-1").value).toBe(`${seed}abcdef`);
+      // A lost connection is said once it lasts; it speaks before the page, and says what
+      // becomes of the unsaved text.
+      await eventually(() => status(ui) === "○ Disconnected. Your text is kept here.");
+      expect(await frame(ui)).toContain("Reconnect");
+    } finally {
+      await stop();
+    }
+  },
+  BUILD_TEST_MS,
+);
 
-test("every action is a click: new, rename, search, fold, delete and undo", async () => {
-  const { app, ui, server, stop } = await start("notes-pointer");
-  try {
-    await act(async () => until(() => ui.captureCharFrame().includes("Shopping list")));
-    expect(await frame(ui)).toContain("No note selected");
-    // The list's bar runs from one edge of the list to the other; the page's "+ New note"
-    // is a block, a row of air above and below its words.
-    const sidebar = renderable(ui, "sidebar", Renderable);
-    const bar = renderable(ui, "sidebar-bar", Renderable);
-    expect([bar.x, bar.width]).toEqual([sidebar.x, sidebar.width]);
-    expect(renderable(ui, "start-note", Renderable).height).toBe(3);
-    // No shortcut is ever written on screen.
-    expect(await frame(ui)).not.toMatch(/ctrl\+|Ctrl\+|Esc /);
+test(
+  "every action is a click: new, rename, search, fold, delete and undo",
+  async () => {
+    const { app, ui, server, stop } = await start("notes-pointer");
+    try {
+      await act(async () => until(() => ui.captureCharFrame().includes("Shopping list")));
+      expect(await frame(ui)).toContain("No note selected");
+      // The list's bar runs from one edge of the list to the other; the page's "+ New note"
+      // is a block, a row of air above and below its words.
+      const sidebar = renderable(ui, "sidebar", Renderable);
+      const bar = renderable(ui, "sidebar-bar", Renderable);
+      expect([bar.x, bar.width]).toEqual([sidebar.x, sidebar.width]);
+      expect(renderable(ui, "start-note", Renderable).height).toBe(3);
+      // No shortcut is ever written on screen.
+      expect(await frame(ui)).not.toMatch(/ctrl\+|Ctrl\+|Esc /);
 
-    // A new note opens with its title ready to type; Return moves on to the text.
-    await press(ui, "new-note");
-    await act(async () => until(() => /^\/notes\/[0-9a-f]{8}$/.test(path(app) ?? "")));
-    const id = path(app)?.split("/").at(-1) ?? "";
-    await act(async () => {
-      await ui.mockInput.typeText("Plans");
-      ui.mockInput.pressEnter();
-    });
-    await act(async () => {
-      await ui.mockInput.typeText("- **one**");
-    });
-    // Autosave is off here: the line above the title offers to save.
-    await act(async () => until(() => status(ui) === "● Unsaved"));
-    await click(ui, "Save");
-    await act(async () => until(() => !draftOf(app, id).dirty && !draftOf(app, id).pending));
-    const shown = await frame(ui);
-    // Saved, and nothing says so: no time, no "Saved".
-    expect(status(ui)).toBe("");
-    // Shown as it reads, and listed under its new title at the top.
-    expect(shown).toContain("• one");
-    expect(draftOf(app, id).value).toBe("- **one**");
-    expect(shown).not.toContain("**one**");
-    expect(shown.indexOf("Plans")).toBeLessThan(shown.indexOf("Welcome to Notes"));
+      // A new note opens with its title ready to type; Return moves on to the text.
+      await press(ui, "new-note");
+      await act(async () => until(() => /^\/notes\/[0-9a-f]{8}$/.test(path(app) ?? "")));
+      const id = path(app)?.split("/").at(-1) ?? "";
+      await act(async () => {
+        await ui.mockInput.typeText("Plans");
+        ui.mockInput.pressEnter();
+      });
+      await act(async () => {
+        await ui.mockInput.typeText("- **one**");
+      });
+      // Autosave is off here: the line above the title offers to save.
+      await act(async () => until(() => status(ui) === "● Unsaved"));
+      await click(ui, "Save");
+      await act(async () => until(() => !draftOf(app, id).dirty && !draftOf(app, id).pending));
+      const shown = await frame(ui);
+      // Saved, and nothing says so: no time, no "Saved".
+      expect(status(ui)).toBe("");
+      // Shown as it reads, and listed under its new title at the top.
+      expect(shown).toContain("• one");
+      expect(draftOf(app, id).value).toBe("- **one**");
+      expect(shown).not.toContain("**one**");
+      expect(shown.indexOf("Plans")).toBeLessThan(shown.indexOf("Welcome to Notes"));
 
-    // Search narrows the list; the ✕ in the box clears it.
-    await click(ui, "Search");
-    await act(async () => {
-      await ui.mockInput.typeText("coffee");
-    });
-    expect(await frame(ui)).toMatch(/\b1 of \d+ notes/);
-    expect(await frame(ui)).not.toContain("Welcome to Notes");
-    await click(ui, "✕");
-    expect(await frame(ui)).toContain("Welcome to Notes");
+      // Search narrows the list; the ✕ in the box clears it.
+      await click(ui, "Search");
+      await act(async () => {
+        await ui.mockInput.typeText("coffee");
+      });
+      expect(await frame(ui)).toMatch(/\b1 of \d+ notes/);
+      expect(await frame(ui)).not.toContain("Welcome to Notes");
+      await click(ui, "✕");
+      expect(await frame(ui)).toContain("Welcome to Notes");
 
-    // The list slides away to a rail and comes back; ≡ stays where it was all along.
-    const toggle = renderable(ui, "toggle-sidebar", Renderable);
-    const at = [toggle.x, toggle.y];
-    await press(ui, "toggle-sidebar");
-    await untilRendered(ui, () => !ui.renderer.root.findDescendantById("sidebar"));
-    expect(ui.renderer.root.findDescendantById("rail")).toBeDefined();
-    expect([toggle.x, toggle.y]).toEqual(at);
-    await press(ui, "toggle-sidebar");
-    expect(ui.renderer.root.findDescendantById("sidebar")).toBeDefined();
-    await untilRendered(ui, () => sidebarSlot(ui)?.width === SIDEBAR_WIDTH);
-    expect([toggle.x, toggle.y]).toEqual(at);
+      // The list slides away to a rail and comes back; ≡ stays where it was all along.
+      const toggle = renderable(ui, "toggle-sidebar", Renderable);
+      const at = [toggle.x, toggle.y];
+      await press(ui, "toggle-sidebar");
+      await untilRendered(ui, () => !ui.renderer.root.findDescendantById("sidebar"));
+      expect(ui.renderer.root.findDescendantById("rail")).toBeDefined();
+      expect([toggle.x, toggle.y]).toEqual(at);
+      await press(ui, "toggle-sidebar");
+      expect(ui.renderer.root.findDescendantById("sidebar")).toBeDefined();
+      await untilRendered(ui, () => sidebarSlot(ui)?.width === SIDEBAR_WIDTH);
+      expect([toggle.x, toggle.y]).toEqual(at);
 
-    // A right click on a note offers its menu; Rename… opens its title.
-    await click(ui, "Shopping list", MouseButtons.RIGHT);
-    expect(await frame(ui)).toContain("Rename…");
-    await click(ui, "Rename…");
-    await act(async () => until(() => path(app) === "/notes/2"));
-    await act(async () => until(() => !!ui.renderer.root.findDescendantById("title-field")));
-    await act(async () => {
-      await ui.mockInput.typeText(" (week)");
-      ui.mockInput.pressEnter();
-    });
-    await act(async () => until(() => ui.captureCharFrame().includes("Shopping list (week)")));
+      // A right click on a note offers its menu; Rename… opens its title.
+      await click(ui, "Shopping list", MouseButtons.RIGHT);
+      expect(await frame(ui)).toContain("Rename…");
+      await click(ui, "Rename…");
+      await act(async () => until(() => path(app) === "/notes/2"));
+      await act(async () => until(() => !!ui.renderer.root.findDescendantById("title-field")));
+      await act(async () => {
+        await ui.mockInput.typeText(" (week)");
+        ui.mockInput.pressEnter();
+      });
+      await act(async () => until(() => ui.captureCharFrame().includes("Shopping list (week)")));
 
-    // Saved elsewhere while this Client edits (Return left the title for the text): its
-    // text is kept, and "Keep mine" wins.
-    expect(Reflect.get(markdownEditor(ui, "note-2").node, "focused")).toBe(true);
-    await act(async () => {
-      await ui.mockInput.typeText("mine");
-    });
-    const draft = draftOf(app, "2");
-    await act(async () => {
-      await app.callServer(`${server.buildId}/actions/notes.ts#saveNote`, [
-        { id: "2", value: "theirs", version: 1, revision: 0, operationId: crypto.randomUUID() },
-      ]);
-      await until(() => ui.captureCharFrame().includes("Your text is kept here"));
-    });
-    expect(draft.value.endsWith("mine")).toBe(true);
-    await click(ui, "Keep mine");
-    await act(async () => until(() => !draft.pending && !draft.dirty));
-    expect(draft.version).toBe(3);
-    expect(draft.baseline.endsWith("mine")).toBe(true);
+      // Saved elsewhere while this Client edits (Return left the title for the text): its
+      // text is kept, and "Keep mine" wins.
+      expect(Reflect.get(markdownEditor(ui, "note-2").node, "focused")).toBe(true);
+      await act(async () => {
+        await ui.mockInput.typeText("mine");
+      });
+      const draft = draftOf(app, "2");
+      await act(async () => {
+        await app.callServer(`${server.buildId}/actions/notes.ts#saveNote`, [
+          {
+            id: "2",
+            value: "theirs",
+            version: 1,
+            revision: 0,
+            operationId: crypto.randomUUID(),
+          },
+        ]);
+        await until(() => ui.captureCharFrame().includes("Your text is kept here"));
+      });
+      expect(draft.value.endsWith("mine")).toBe(true);
+      await click(ui, "Keep mine");
+      await act(async () => until(() => !draft.pending && !draft.dirty));
+      expect(draft.version).toBe(3);
+      expect(draft.baseline.endsWith("mine")).toBe(true);
 
-    // Deleted at once, with an Undo that brings it back.
-    await click(ui, "Plans");
-    await act(async () => until(() => path(app) === `/notes/${id}`));
-    // However many notes the notebook is seeded with: one less, then as many again.
-    const count = Number(/(\d+) notes/.exec(await frame(ui))?.[1]);
-    // The note's own ⋯, at the end of its title: the same menu as its row's.
-    await press(ui, "note-menu");
-    expect(await frame(ui)).toContain("Copy as Markdown");
-    await click(ui, "Delete");
-    await act(async () => until(() => ui.captureCharFrame().includes("Deleted “Plans”")));
-    expect(path(app)).not.toBe(`/notes/${id}`);
-    expect(await frame(ui)).toContain(`${count - 1} notes`);
-    await click(ui, "Undo");
-    await act(async () => until(() => path(app) === `/notes/${id}`));
-    await act(async () => until(() => ui.captureCharFrame().includes(`${count} notes`)));
-  } finally {
-    await stop();
-  }
-});
+      // Deleted at once, with an Undo that brings it back.
+      await click(ui, "Plans");
+      await act(async () => until(() => path(app) === `/notes/${id}`));
+      // However many notes the notebook is seeded with: one less, then as many again.
+      const count = Number(/(\d+) notes/.exec(await frame(ui))?.[1]);
+      // The note's own ⋯, at the end of its title: the same menu as its row's.
+      await press(ui, "note-menu");
+      expect(await frame(ui)).toContain("Copy as Markdown");
+      await click(ui, "Delete");
+      await act(async () => until(() => ui.captureCharFrame().includes("Deleted “Plans”")));
+      expect(path(app)).not.toBe(`/notes/${id}`);
+      expect(await frame(ui)).toContain(`${count - 1} notes`);
+      await click(ui, "Undo");
+      await act(async () => until(() => path(app) === `/notes/${id}`));
+      await act(async () => until(() => ui.captureCharFrame().includes(`${count} notes`)));
+    } finally {
+      await stop();
+    }
+  },
+  BUILD_TEST_MS,
+);
 
 test(
   "a save that cannot reach the Server is retried quietly, then reported until it saves",
@@ -359,7 +377,7 @@ test(
       await act(async () => until(() => draft.failures >= 2));
       expect(app.status).toBe("Disconnected");
       expect(status(ui)).not.toContain("Disconnected");
-      await eventually(() => status(ui).includes("Disconnected"), QUIET_MS * 2);
+      await eventually(() => status(ui).includes("Disconnected"));
       expect(performance.now() - asked).toBeGreaterThanOrEqual(QUIET_MS - 100);
       // The connection speaks for the save it failed, with the way to try it again.
       expect(status(ui)).toBe("○ Disconnected. Your text is kept here.");
@@ -434,11 +452,11 @@ test(
         ui.mockInput.pressKey("s", { ctrl: true });
       });
       // Held, the save is said to be slow once QUIET_MS have passed, and stays said.
-      await eventually(() => status(ui) === "Still saving…", QUIET_MS * 2);
+      await eventually(() => status(ui) === "Still saving…");
       // No answer in time: the request reports the connection lost, and that speaks first.
       server.timeOut();
-      await act(async () => until(() => draft.unknown, QUIET_MS));
-      await eventually(() => status(ui) === "○ Disconnected. Your text is kept here.", QUIET_MS);
+      await act(async () => until(() => draft.unknown));
+      await eventually(() => status(ui) === "○ Disconnected. Your text is kept here.");
       expect(await frame(ui)).toContain("Reconnect");
       // Ctrl+S looks it up now, without waiting for the next automatic check.
       if (!draft.resolving)
@@ -448,7 +466,7 @@ test(
       expect(draft.resolving || !draft.pending).toBe(true);
       // The original save lands; the check that waits for it finds it.
       server.land();
-      await act(async () => until(() => !draft.pending && !draft.dirty, QUIET_MS * 2));
+      await act(async () => until(() => !draft.pending && !draft.dirty));
       await frame(ui);
       expect(status(ui)).toBe("");
       expect(draft.baseline).toBe(text);

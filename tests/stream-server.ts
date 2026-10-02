@@ -1,12 +1,12 @@
 import { renderPage } from "../packages/core/src/cache/render";
 import { renderToReadableStream } from "../packages/core/src/flight/server";
 // A root model (children: a title, then lines) whose async iterable outlives the Client's
-// request timeout.
+// request deadline: it holds its first line until the test writes to stdin, which the test
+// does after the root model has arrived and the deadline has been made to pass. Nothing waits
+// on a duration the host may stretch.
 async function* lines() {
-  for (let i = 1; i <= 4; i++) {
-    await Bun.sleep(100);
-    yield `line ${i}`;
-  }
+  await Bun.stdin.stream().getReader().read();
+  for (let i = 1; i <= 4; i++) yield `line ${i}`;
 }
 const server = Bun.serve({
   hostname: "127.0.0.1",
