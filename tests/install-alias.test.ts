@@ -37,3 +37,9 @@ test("the alias passes core's usage error and its non-zero exit code through", a
   expect(viaAlias).toEqual(direct);
   expect(viaAlias.stderr).toContain("Usage: luciole");
 });
+
+test("the alias runs core in its own process: nothing is spawned to forward signals to", async () => {
+  const source = await Bun.file(alias).text();
+  expect(source).not.toMatch(/spawn|child_process|Bun\.\$|execa/);
+  expect(source).toContain("./src/cli.ts");
+});
