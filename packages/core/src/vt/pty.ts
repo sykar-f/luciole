@@ -85,12 +85,20 @@ function newSlave(before: ReadonlyMap<number, string>) {
 const PTMX = 0x502;
 const DRAIN_BYTES = 65536;
 /**
+ * How far the exit reads: what a program leaves in the PTY is at most what the kernel
+ * buffers before its writer blocks (11.5 KiB measured on Linux 6.12), while a job it left
+ * behind may write on forever and the Client, reading synchronously, would do nothing
+ * else. A count, not a clock, so that a loaded machine reads the same.
+ */
+const DRAIN_LIMIT_BYTES = 262144;
+/**
  * On Linux `Bun.Terminal` keeps the slave open, so its stream never ends, and the
  * program's exit often comes before its last bytes are read (1 run in 7 for a
  * `printf` that exits at once): closing the PTY then loses them. Its writes are in the
  * kernel by then; poll() may not say so yet (they reach the master through a deferred
  * flush), but a read flushes them first. So the exit reads the master to the end,
- * synchronously, before closing it: in order, all of it (800 runs of 800 measured).
+ * synchronously, before closing it: in order, all of it (800 runs of 800 measured), up
+ * to a bound that a job still writing reaches instead.
  * On macOS the stream ends first, with the program's last bytes.
  */
 function masterOf(before: ReadonlyMap<number, string>) {
@@ -104,7 +112,7 @@ function masterOf(before: ReadonlyMap<number, string>) {
 }
 function drain(master: number, onData: (bytes: Uint8Array) => void) {
   const buffer = new Uint8Array(DRAIN_BYTES);
-  for (;;) {
+  for (let total = 0; total < DRAIN_LIMIT_BYTES;) {
     let read = 0;
     try {
       read = readSync(master, buffer);
@@ -113,6 +121,7 @@ function drain(master: number, onData: (bytes: Uint8Array) => void) {
       return;
     }
     if (read === 0) return;
+    total += read;
     onData(buffer.slice(0, read));
   }
 }
