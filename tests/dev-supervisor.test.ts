@@ -16,10 +16,11 @@ import {
 } from "../packages/luciole/src/dev/supervisor";
 import { messageOf } from "../packages/luciole/src/guards";
 import { spawnPty, type Pty } from "../packages/luciole/src/vt/pty";
-import { execute, rejectionOf, until } from "./helpers";
+import { BUILD_TEST_MS, execute, rejectionOf, until } from "./helpers";
 
 const CLI = resolve("packages/luciole/src/cli.ts");
-const STARTUP_MS = 15_000;
+// A startup waits inside its test's build budget, and leaves the exit waits their share.
+const STARTUP_MS = BUILD_TEST_MS / 2;
 const EXIT_MS = 5000;
 const COLUMNS = 80;
 const ROWS = 24;
@@ -67,53 +68,61 @@ const alive = (pid: number) => {
   }
 };
 
-test("a hangup of its terminal stops luciole dev's Server and Client too", async () => {
-  const dir = await app(
-    `export default function Page() {\n  return <text>dev fixture</text>;\n}\n`,
-  );
-  const run = dev(dir);
-  try {
-    // Nothing answers the Client's terminal queries here: its children are the signal.
-    const deadline = performance.now() + STARTUP_MS;
-    let children = await childrenOf(run.pty.pid);
-    while (children.length !== 2) {
-      if (performance.now() > deadline)
-        throw new Error(`Expected 2 children, found ${children.join(", ")}\n${run.state()}`);
-      await Bun.sleep(50);
-      children = await childrenOf(run.pty.pid);
-    }
-    // What <Terminal> does when it unmounts, and the kernel when a terminal closes.
-    run.pty.kill();
-    await until(() => run.ended.length > 0, EXIT_MS, run.state);
-    await until(
-      () => !children.some(alive),
-      EXIT_MS,
-      () => `still alive: ${children.filter(alive).join(", ")}\n${run.state()}`,
+test(
+  "a hangup of its terminal stops luciole dev's Server and Client too",
+  async () => {
+    const dir = await app(
+      `export default function Page() {\n  return <text>dev fixture</text>;\n}\n`,
     );
-  } finally {
-    run.pty.kill();
-    await rm(dir, { recursive: true, force: true });
-  }
-});
+    const run = dev(dir);
+    try {
+      // Nothing answers the Client's terminal queries here: its children are the signal.
+      const deadline = performance.now() + STARTUP_MS;
+      let children = await childrenOf(run.pty.pid);
+      while (children.length !== 2) {
+        if (performance.now() > deadline)
+          throw new Error(`Expected 2 children, found ${children.join(", ")}\n${run.state()}`);
+        await Bun.sleep(50);
+        children = await childrenOf(run.pty.pid);
+      }
+      // What <Terminal> does when it unmounts, and the kernel when a terminal closes.
+      run.pty.kill();
+      await until(() => run.ended.length > 0, EXIT_MS, run.state);
+      await until(
+        () => !children.some(alive),
+        EXIT_MS,
+        () => `still alive: ${children.filter(alive).join(", ")}\n${run.state()}`,
+      );
+    } finally {
+      run.pty.kill();
+      await rm(dir, { recursive: true, force: true });
+    }
+  },
+  BUILD_TEST_MS,
+);
 
-test("luciole dev ends with its Client's exit code: a crash is not a quit", async () => {
-  const CRASH_CODE = 3;
-  const dir = await app(
-    `import { Crash } from "../components/Crash";\nexport default function Page() {\n  return <Crash />;\n}\n`,
-  );
-  await Bun.write(
-    join(dir, "components/Crash.tsx"),
-    `"use client";\nimport { useEffect } from "react";\nexport function Crash() {\n  useEffect(() => process.exit(${CRASH_CODE}), []);\n  return <text>crashing</text>;\n}\n`,
-  );
-  const run = dev(dir);
-  try {
-    await until(() => run.ended.length > 0, STARTUP_MS, run.state);
-    expect(run.ended).toEqual([CRASH_CODE]);
-  } finally {
-    run.pty.kill();
-    await rm(dir, { recursive: true, force: true });
-  }
-});
+test(
+  "luciole dev ends with its Client's exit code: a crash is not a quit",
+  async () => {
+    const CRASH_CODE = 3;
+    const dir = await app(
+      `import { Crash } from "../components/Crash";\nexport default function Page() {\n  return <Crash />;\n}\n`,
+    );
+    await Bun.write(
+      join(dir, "components/Crash.tsx"),
+      `"use client";\nimport { useEffect } from "react";\nexport function Crash() {\n  useEffect(() => process.exit(${CRASH_CODE}), []);\n  return <text>crashing</text>;\n}\n`,
+    );
+    const run = dev(dir);
+    try {
+      await until(() => run.ended.length > 0, STARTUP_MS, run.state);
+      expect(run.ended).toEqual([CRASH_CODE]);
+    } finally {
+      run.pty.kill();
+      await rm(dir, { recursive: true, force: true });
+    }
+  },
+  BUILD_TEST_MS,
+);
 
 test("serialize: one run at a time, one more for any calls made during it", async () => {
   let runs = 0;
@@ -178,41 +187,45 @@ test("startAppServer: resolves with the port, or rejects with what the Server sa
   }
 });
 
-test("a Client started with an IPC channel reports the page that failed, and why", async () => {
-  const dir = await app(
-    `export default function Page() {\n  if (Date.now() > 0) throw new Error("generated page failed");\n  return <text>never</text>;\n}\n`,
-  );
-  let client: Pty | undefined;
-  try {
-    await build(dir);
-    await linkFrameworkModules(dir, resolve("packages/luciole"));
-    const server = await startAppServer({ directory: dir, env: { ...process.env, PORT: "0" } });
+test(
+  "a Client started with an IPC channel reports the page that failed, and why",
+  async () => {
+    const dir = await app(
+      `export default function Page() {\n  if (Date.now() > 0) throw new Error("generated page failed");\n  return <text>never</text>;\n}\n`,
+    );
+    let client: Pty | undefined;
     try {
-      const failures: ClientFailure[] = [];
-      client = spawnPty({
-        command: [
-          process.execPath,
-          join(dir, ".luciole/client/index.js"),
-          "--url",
-          `http://127.0.0.1:${server.port}`,
-        ],
-        cols: COLUMNS,
-        rows: ROWS,
-        onData: () => {},
-        onExit: () => {},
-        ipc: (message) => {
-          const failure = ClientFailure.safeParse(message);
-          if (failure.success) failures.push(failure.data);
-        },
-      });
-      await until(() => failures.length > 0, STARTUP_MS);
-      expect(failures[0]?.path).toBe("/");
-      expect(failures[0]?.message).toContain("generated page failed");
+      await build(dir);
+      await linkFrameworkModules(dir, resolve("packages/luciole"));
+      const server = await startAppServer({ directory: dir, env: { ...process.env, PORT: "0" } });
+      try {
+        const failures: ClientFailure[] = [];
+        client = spawnPty({
+          command: [
+            process.execPath,
+            join(dir, ".luciole/client/index.js"),
+            "--url",
+            `http://127.0.0.1:${server.port}`,
+          ],
+          cols: COLUMNS,
+          rows: ROWS,
+          onData: () => {},
+          onExit: () => {},
+          ipc: (message) => {
+            const failure = ClientFailure.safeParse(message);
+            if (failure.success) failures.push(failure.data);
+          },
+        });
+        await until(() => failures.length > 0, STARTUP_MS);
+        expect(failures[0]?.path).toBe("/");
+        expect(failures[0]?.message).toContain("generated page failed");
+      } finally {
+        client?.kill();
+        await server.stop();
+      }
     } finally {
-      client?.kill();
-      await server.stop();
+      await rm(dir, { recursive: true, force: true });
     }
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
-});
+  },
+  BUILD_TEST_MS,
+);
