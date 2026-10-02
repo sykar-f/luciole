@@ -20,9 +20,9 @@ luciole dev --app my-app   # run it with live reload
 luciole build --app my-app # produce a build (see `luciole build --compile` for a binary)
 ```
 
-`luciole init` currently works only from a checkout of the luciole repository: it copies
-`examples/notes` and reads the root tooling configuration. It will be made to work from an
-installed package.
+`luciole init` runs [`@luciole-sh/create`](https://www.npmjs.com/package/@luciole-sh/create) at
+this package's version, which writes the starter (the Notes example, with its tooling configured);
+`bunx @luciole-sh/create my-app` does the same without installing the framework first.
 
 `luciole` and `luciolex` are the two executables this package installs.
 
