@@ -1,14 +1,13 @@
 import { afterAll, expect, test } from "bun:test";
-import { cp, mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { cp, mkdir, readdir, rm } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { z } from "zod";
 import { messageOf } from "../packages/core/src/guards";
 import { stageStarter } from "../packages/create/scripts/starter";
-import { BUILD_TEST_MS, rejectionOf } from "./helpers";
+import { BUILD_TEST_MS, isolatedTemporary, rejectionOf } from "./helpers";
 
 const workspace = resolve(import.meta.dir, "..");
-const temp = await mkdtemp(join(tmpdir(), "luciole-create-test-"));
+const temp = await isolatedTemporary("luciole-create-test-");
 afterAll(() => rm(temp, { recursive: true, force: true }));
 
 const Starter = z.looseObject({
