@@ -230,6 +230,24 @@ voir les `draft.ts` de Notes et Forge), et le sens métier d'une opération dont
 est `unknown` (a-t-elle eu lieu ? faut-il la rejouer ?), que seul le domaine sait
 trancher, par exemple avec des identifiants d'opération idempotents.
 
+## Exemples
+
+Les exemples ne sont pas publiés sur npm : ils se lancent depuis le dépôt git, au tag
+de la version installée.
+
+```sh
+luciole example                 # liste les exemples de ce tag
+luciole example notes [--yes]   # = luciole github:sykar-f/luciole#v<version>/examples/notes
+```
+
+Le tag est `v<version>` (`releaseTag` dans `packages/core/src/commands/example.ts`, que
+le workflow de release suit) ; la liste vient d'un clone du tag sans contenu de fichier. Un nom inconnu est refusé avec la liste. Le reste est une source git
+ordinaire (section suivante) : confiance demandée au premier lancement, `bun install
+--frozen-lockfile` depuis le `bun.lock` de l'espace de travail, build en cache.
+`LUCIOLE_EXAMPLES_REPO=<url git>` pointe un fork ou, dans les tests, un clone local
+(`git+file://…`). Un nom nu (`luciole notes`) n'est jamais un exemple : il désigne le
+paquet npm de ce nom.
+
 ## Sources git
 
 `github:user/repo[#ref][/dir]`, `gitlab:…`, `https://github.com/user/repo[/tree/ref/dir]`,

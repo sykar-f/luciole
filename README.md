@@ -116,6 +116,21 @@ Other examples, run from the repository root:
 The `chat`, `agent`, `coder` and `studio` examples talk to real models or coding agents once
 configured; see their READMEs in [`examples/`](examples/).
 
+## Run an example
+
+The examples are not published on npm. They run from this repository, at the git tag of
+the installed release (`v<version>`), after the launcher asks you to trust the
+repository (`--yes` accepts):
+
+```sh
+luciole example           # lists the examples of this release
+luciole example notes     # Notes, cloned, installed from the lock, built and run
+```
+
+The examples are `agent`, `chat`, `coder`, `files`, `flow`, `forge`, `latency`, `mdreader`,
+`mux`, `notes` and `studio`. Only `luciole example <name>` expands to the repository: a
+bare `luciole notes` is an npm package name, and `notes` there is not ours.
+
 ## Documentation
 
 The detailed documentation is in French for now.
