@@ -1,7 +1,7 @@
 import { afterAll, expect, test } from "bun:test";
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join, relative, resolve } from "node:path";
 import { z } from "zod";
 import { createStarter, isInstalled } from "../packages/core/src/commands/init";
 
@@ -32,6 +32,8 @@ async function run(cmd: string[], cwd: string) {
 test("a framework root is installed when it lies inside node_modules", () => {
   expect(isInstalled("/app/node_modules/@luciole-sh/core")).toBe(true);
   expect(isInstalled("/home/me/node_modules_clone/packages/core")).toBe(false);
+  // A workspace checked out beneath a node_modules ancestor is still the workspace.
+  expect(isInstalled("/app/node_modules/clone/packages/core")).toBe(false);
   expect(isInstalled(workspaceFramework)).toBe(false);
 });
 
@@ -81,3 +83,51 @@ test("run from the workspace, a starter links the framework and installs the edi
     await Bun.file(join(starter, "node_modules/@luciole-sh/markdown-editor/src/index.ts")).exists(),
   ).toBe(true);
 }, 120_000);
+
+test("a workspace nested under a node_modules ancestor, or a test directory, is still vendored", async () => {
+  const nested = join(temp, "node_modules/test-work/luciole");
+  await cp(workspace, nested, {
+    recursive: true,
+    filter: (p) =>
+      !/(^|\/)(node_modules|\.git|\.luciole|website|\.orchestra)(\/|$)/.test(
+        relative(workspace, p),
+      ),
+  });
+  const starter = join(temp, "nested-starter");
+  await createStarter({
+    target: starter,
+    framework: join(nested, "packages/core"),
+    workspace: nested,
+  });
+  const dependencies = await dependenciesOf(starter);
+  expect(dependencies["@luciole-sh/core"]).toBe(`file:${join(nested, "packages/core")}`);
+  expect(dependencies["@luciole-sh/markdown-editor"]).toBe("file:./vendor/markdown-editor");
+  expect(await Bun.file(join(starter, "vendor/markdown-editor/src/index.ts")).exists()).toBe(true);
+});
+
+test("installed, a workspace package the tree does not hold takes the framework's version", async () => {
+  const framework = join(temp, "bare/node_modules/@luciole-sh/core");
+  await mkdir(framework, { recursive: true });
+  await Bun.write(
+    join(framework, "package.json"),
+    JSON.stringify({ name: "@luciole-sh/core", version: "7.8.9" }),
+  );
+  // A tree with the Notes example and its configuration, but no packages/ directory.
+  const bare = join(temp, "bare/tree");
+  await mkdir(bare, { recursive: true });
+  for (const name of [
+    "examples/notes",
+    "package.json",
+    ".oxlintrc.json",
+    ".oxfmtrc.json",
+    ".vscode",
+    ".gitignore",
+    ".bun-version",
+  ])
+    await cp(join(workspace, name), join(bare, name), { recursive: true });
+  const starter = join(temp, "bare-starter");
+  await createStarter({ target: starter, framework, workspace: bare });
+  const dependencies = await dependenciesOf(starter);
+  expect(dependencies["@luciole-sh/core"]).toBe("^7.8.9");
+  expect(dependencies["@luciole-sh/markdown-editor"]).toBe("^7.8.9");
+});

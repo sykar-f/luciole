@@ -1,4 +1,4 @@
-import { basename, join, resolve, sep } from "node:path";
+import { basename, dirname, join, relative, resolve, sep } from "node:path";
 import { cp, mkdir, readdir } from "node:fs/promises";
 import { z } from "zod";
 import { readJsonFile, readPackageJson } from "../package-json";
@@ -23,12 +23,14 @@ const VENDOR_DIR = "vendor";
 
 /**
  * Whether the framework runs from an installed package or from the workspace.
- * Installed: the framework root lies inside a `node_modules` directory, which is where a package
- * manager puts a dependency. Anywhere else (the clone `packages/core` is checked out in) it is
- * the workspace, whose packages are linked from disk.
+ * Installed: the root has the layout a package manager gives a scoped dependency,
+ * `<...>/node_modules/@luciole-sh/core` (the parent is the scope, the grandparent `node_modules`).
+ * Any `node_modules` further up proves nothing: a workspace can be checked out beneath one, and
+ * its `packages/core` then has the workspace's own layout, whose packages are linked from disk.
  */
 export function isInstalled(root: string): boolean {
-  return root.split(sep).includes("node_modules");
+  const scope = dirname(root);
+  return basename(scope) === "@luciole-sh" && basename(dirname(scope)) === "node_modules";
 }
 
 /** The workspace packages by name: their directory and version (`packages/*`). */
@@ -92,7 +94,11 @@ export async function createStarter(options: {
     const copy = join(target, VENDOR_DIR, name.replace(/^@[^/]+\//, ""));
     await cp(workspacePackage.directory, copy, {
       recursive: true,
-      filter: (p) => !p.includes("node_modules") && !p.includes("/test"),
+      // Whole path segments below the package's root: a parent directory's name is not its content.
+      filter: (p) =>
+        !["node_modules", "test"].includes(
+          relative(workspacePackage.directory, p).split(sep)[0] ?? "",
+        ),
     });
     const manifest = await readJsonFile(join(copy, "package.json"), VendoredManifest);
     // No build on install (`prepack`), no development tooling: `src` is what the `bun` export reads.
