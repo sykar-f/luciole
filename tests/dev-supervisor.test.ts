@@ -23,6 +23,7 @@ const STARTUP_MS = 15_000;
 const EXIT_MS = 5000;
 const COLUMNS = 80;
 const ROWS = 24;
+const STATE_CHARS = 2000;
 
 async function app(page: string) {
   const dir = await mkdtemp(join(tmpdir(), "luciole-dev-supervisor-"));
@@ -46,7 +47,10 @@ function dev(dir: string) {
     onData: (bytes) => (screen += new TextDecoder().decode(bytes)),
     onExit: (code) => ended.push(code),
   });
-  return { pty, screen: () => screen, ended };
+  /** What a failed wait reports: whether it ended, its children, and what it wrote. */
+  const state = () =>
+    `ended: ${JSON.stringify(ended)}, pid ${pty.pid}\nscreen:\n${screen.slice(-STATE_CHARS)}`;
+  return { pty, screen: () => screen, ended, state };
 }
 const childrenOf = async (pid: number) =>
   (await execute(["pgrep", "-P", String(pid)])).stdout
@@ -74,14 +78,18 @@ test("a hangup of its terminal stops luciole dev's Server and Client too", async
     let children = await childrenOf(run.pty.pid);
     while (children.length !== 2) {
       if (performance.now() > deadline)
-        throw new Error(`Expected 2 children, found ${children.join(", ")}`);
+        throw new Error(`Expected 2 children, found ${children.join(", ")}\n${run.state()}`);
       await Bun.sleep(50);
       children = await childrenOf(run.pty.pid);
     }
     // What <Terminal> does when it unmounts, and the kernel when a terminal closes.
     run.pty.kill();
-    await until(() => run.ended.length > 0, EXIT_MS);
-    await until(() => !children.some(alive), EXIT_MS);
+    await until(() => run.ended.length > 0, EXIT_MS, run.state);
+    await until(
+      () => !children.some(alive),
+      EXIT_MS,
+      () => `still alive: ${children.filter(alive).join(", ")}\n${run.state()}`,
+    );
   } finally {
     run.pty.kill();
     await rm(dir, { recursive: true, force: true });
@@ -99,7 +107,7 @@ test("luciole dev ends with its Client's exit code: a crash is not a quit", asyn
   );
   const run = dev(dir);
   try {
-    await until(() => run.ended.length > 0, STARTUP_MS);
+    await until(() => run.ended.length > 0, STARTUP_MS, run.state);
     expect(run.ended).toEqual([CRASH_CODE]);
   } finally {
     run.pty.kill();

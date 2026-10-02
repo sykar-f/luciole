@@ -143,10 +143,12 @@ export async function launch(file: string, env: Record<string, string> = {}) {
       }),
   };
 }
-export async function until(check: () => boolean, timeout = 5000) {
+/** Polls `check` until it holds; a failure prints `state()`: what the process and its screen showed. */
+export async function until(check: () => boolean, timeout = 5000, state?: () => string) {
   const start = performance.now();
   while (!check()) {
-    if (performance.now() - start > timeout) throw new Error("Condition timed out");
+    if (performance.now() - start > timeout)
+      throw new Error(state ? `Condition timed out. State:\n${state()}` : "Condition timed out");
     await Bun.sleep(10);
   }
 }
