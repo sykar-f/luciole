@@ -8,7 +8,7 @@ import { createDefaultOpenTuiKeymap } from "@opentui/keymap/opentui";
 import { KeymapProvider, useBindings } from "@opentui/keymap/react";
 import { Terminal } from "../packages/core/src/client";
 import { legacyKey, queryResponder } from "../packages/core/src/vt/gaps";
-import { destroy, until, type TestUI } from "./helpers";
+import { destroy, execute, until, type TestUI } from "./helpers";
 
 const key = (name: string, mods: Partial<{ ctrl: boolean; meta: boolean; shift: boolean }> = {}) =>
   new KeyEvent({
@@ -100,7 +100,11 @@ test("<Terminal> runs a shell: keys, host prefix, Ctrl+C, resize, exit", async (
   };
   const shows = (text: string) =>
     act(async () => {
-      await until(() => frame().includes(text), 10_000);
+      await until(
+        () => frame().includes(text),
+        10_000,
+        () => `waiting for ${text}:\n${frame()}`,
+      );
     });
   const type = (text: string) =>
     act(async () => {
@@ -127,17 +131,34 @@ test("<Terminal> runs a shell: keys, host prefix, Ctrl+C, resize, exit", async (
       ui?.mockInput.pressKey("o");
     });
     expect(hits.prefix).toBe(1);
-    // Ctrl+C interrupts the program's foreground job and reaches no quit binding.
-    await type("sleep 30");
+    // Ctrl+C interrupts the program's foreground job and reaches no quit binding. The key
+    // goes once `sleep` runs in the shell's session (its pid): a process takes that name
+    // when it execs, after the shell made its group the terminal's foreground one.
+    await type("printf 'p%s\\n' $$");
+    let session = "";
     await act(async () => {
-      await Bun.sleep(200);
+      await until(() => {
+        session = /^p(\d+)\s*$/m.exec(frame())?.[1] ?? "";
+        return session !== "";
+      }, 10_000);
+    });
+    await type("sleep 30");
+    const sleeping = async () =>
+      (await execute(["pgrep", "-x", "-s", session, "sleep"])).stdout.toString().trim() !== "";
+    await act(async () => {
+      const deadline = performance.now() + 10_000;
+      while (!(await sleeping()) && performance.now() < deadline) await Bun.sleep(20);
       ui?.mockInput.pressKey("c", { ctrl: true });
     });
     await type("printf 's%s\\n' $?");
     await shows("s130");
     expect(hits.quit).toBeUndefined();
-    // The program follows the pane's size.
-    await act(async () => ui?.resize(80, 16));
+    // The program follows the pane's size, which the layout gives the PTY: rendered once
+    // before the program is asked, not whenever the next frame comes.
+    await act(async () => {
+      ui?.resize(80, 16);
+      await ui?.renderOnce();
+    });
     await type("stty size");
     await shows("16 80");
     // Inactive, the keys are the application's again.

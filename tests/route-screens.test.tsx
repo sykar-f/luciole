@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { build } from "../packages/core/src/build";
 import { compileRouteGraph } from "../packages/core/src/route-graph";
-import { launch, importClient, readManifest, destroy, type TestUI } from "./helpers";
+import { BUILD_TEST_MS, launch, importClient, readManifest, destroy, type TestUI } from "./helpers";
 
 /** The layout's mount stamp: unchanged while the layout stays mounted. */
 const layoutOf = (frame: string) => /LAYOUT (\d+)/.exec(frame)?.[1];
@@ -24,92 +24,96 @@ const files: Record<string, string> = {
   "app/docs/[section]/page.tsx": `export default function Section({params}){return <text>SECTION {params.section}</text>}`,
 };
 
-test("error.tsx, notFound() and catch-all routes render inside the persistent layout", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "luciole-screens-"));
-  let server: Awaited<ReturnType<typeof launch>> | undefined, rendered: TestUI | undefined;
-  try {
-    for (const [name, text] of Object.entries(files)) {
-      await mkdir(join(directory, name, ".."), { recursive: true });
-      await Bun.write(join(directory, name), text);
-    }
-    await symlink(resolve("node_modules"), join(directory, "node_modules"), "dir");
-    await build(directory);
-    const manifest = await readManifest(directory);
-    expect(manifest.routes.find((r: { id: string }) => r.id === "/items/[id]")).toMatchObject({
-      error: "app/error.tsx",
-      notFound: "app/items/not-found.tsx",
-    });
-    // Production Flight sends a Server exception without its message or stack.
-    const production = await launch(join(directory, ".luciole/server/index.js"), {
-      NODE_ENV: "production",
-    });
+test(
+  "error.tsx, notFound() and catch-all routes render inside the persistent layout",
+  async () => {
+    const directory = await mkdtemp(join(tmpdir(), "luciole-screens-"));
+    let server: Awaited<ReturnType<typeof launch>> | undefined, rendered: TestUI | undefined;
     try {
-      const body = await (
-        await fetch(`${production.url}/render?route=%2Fboom&params=%7B%7D`, {
-          headers: { "x-luciole-build": manifest.buildId },
-        })
-      ).text();
-      expect(body).toContain("Server render failed");
-      expect(body).not.toContain("secret detail");
-    } finally {
-      await production.stop();
-    }
-    const running = await launch(join(directory, ".luciole/server/index.js"));
-    server = running;
-    const { createApp, Shell } = await importClient(directory);
-    const app = createApp({ url: running.url });
-    await app.router.load();
-    const ui = await testRender(<Shell app={app} />, { width: 80, height: 10 });
-    rendered = ui;
-    const frame = async () => {
-      await ui.renderOnce();
-      return ui.captureCharFrame();
-    };
-    const go = (href: string) =>
-      act(async () => {
-        await app.router.navigate({ href });
-        await Bun.sleep(30);
+      for (const [name, text] of Object.entries(files)) {
+        await mkdir(join(directory, name, ".."), { recursive: true });
+        await Bun.write(join(directory, name), text);
+      }
+      await symlink(resolve("node_modules"), join(directory, "node_modules"), "dir");
+      await build(directory);
+      const manifest = await readManifest(directory);
+      expect(manifest.routes.find((r: { id: string }) => r.id === "/items/[id]")).toMatchObject({
+        error: "app/error.tsx",
+        notFound: "app/items/not-found.tsx",
       });
-    const layout = layoutOf(await frame());
-    expect(layout).toBeDefined();
+      // Production Flight sends a Server exception without its message or stack.
+      const production = await launch(join(directory, ".luciole/server/index.js"), {
+        NODE_ENV: "production",
+      });
+      try {
+        const body = await (
+          await fetch(`${production.url}/render?route=%2Fboom&params=%7B%7D`, {
+            headers: { "x-luciole-build": manifest.buildId },
+          })
+        ).text();
+        expect(body).toContain("Server render failed");
+        expect(body).not.toContain("secret detail");
+      } finally {
+        await production.stop();
+      }
+      const running = await launch(join(directory, ".luciole/server/index.js"));
+      server = running;
+      const { createApp, Shell } = await importClient(directory);
+      const app = createApp({ url: running.url });
+      await app.router.load();
+      const ui = await testRender(<Shell app={app} />, { width: 80, height: 10 });
+      rendered = ui;
+      const frame = async () => {
+        await ui.renderOnce();
+        return ui.captureCharFrame();
+      };
+      const go = (href: string) =>
+        act(async () => {
+          await app.router.navigate({ href });
+          await Bun.sleep(30);
+        });
+      const layout = layoutOf(await frame());
+      expect(layout).toBeDefined();
 
-    await go("/items/9");
-    expect(await frame()).toContain("MISSING Item 9 (id 9)");
-    expect(app.status).toBe("Connected");
-    await go("/items/3");
-    expect(await frame()).toContain("ITEM 3");
+      await go("/items/9");
+      expect(await frame()).toContain("MISSING Item 9 (id 9)");
+      expect(app.status).toBe("Connected");
+      await go("/items/3");
+      expect(await frame()).toContain("ITEM 3");
 
-    // A Server exception reaches error.tsx (development keeps its message); retry()
-    // loads the page again.
-    await go("/boom");
-    expect(await frame()).toContain("FAILED secret detail [undefined]");
-    await act(async () => {
-      await ui.mockInput.typeText("r");
-      await Bun.sleep(50);
-    });
-    expect(await frame()).toContain("RECOVERED 2");
+      // A Server exception reaches error.tsx (development keeps its message); retry()
+      // loads the page again.
+      await go("/boom");
+      expect(await frame()).toContain("FAILED secret detail [undefined]");
+      await act(async () => {
+        await ui.mockInput.typeText("r");
+        await Bun.sleep(50);
+      });
+      expect(await frame()).toContain("RECOVERED 2");
 
-    // The catch-all takes one or more segments; a single parameter ranks first.
-    await go("/docs/guide/install/linux");
-    expect(await frame()).toContain("DOC guide/install/linux");
-    await go("/docs/intro");
-    expect(await frame()).toContain("SECTION intro");
+      // The catch-all takes one or more segments; a single parameter ranks first.
+      await go("/docs/guide/install/linux");
+      expect(await frame()).toContain("DOC guide/install/linux");
+      await go("/docs/intro");
+      expect(await frame()).toContain("SECTION intro");
 
-    await go("/nowhere/at/all");
-    expect(await frame()).toContain("NO ROUTE /nowhere/at/all");
-    expect(layoutOf(await frame())).toBe(layout);
+      await go("/nowhere/at/all");
+      expect(await frame()).toContain("NO ROUTE /nowhere/at/all");
+      expect(layoutOf(await frame())).toBe(layout);
 
-    // A transport failure reaches error.tsx with its outcome.
-    await running.stop();
-    await go("/items/4");
-    expect(await frame()).toContain("[not-sent]");
-    expect(layoutOf(await frame())).toBe(layout);
-  } finally {
-    await destroy(rendered);
-    if (server) await server.stop();
-    await rm(directory, { recursive: true, force: true });
-  }
-});
+      // A transport failure reaches error.tsx with its outcome.
+      await running.stop();
+      await go("/items/4");
+      expect(await frame()).toContain("[not-sent]");
+      expect(layoutOf(await frame())).toBe(layout);
+    } finally {
+      await destroy(rendered);
+      if (server) await server.stop();
+      await rm(directory, { recursive: true, force: true });
+    }
+  },
+  BUILD_TEST_MS,
+);
 
 test("catch-all segments are last, hold no layout and keep their own collision key", () => {
   const graph = compileRouteGraph([

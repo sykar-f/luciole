@@ -169,7 +169,11 @@ test("a long TMPDIR still yields a socket path that fits", async () => {
   const long = join(work, "t".repeat(120));
   await mkdir(long);
   const saved = process.env.TMPDIR;
+  // socketDirectory tries $XDG_RUNTIME_DIR first, which Linux sessions and GitHub's
+  // Ubuntu runner set: without it, the long TMPDIR is the only candidate left.
+  const runtime = process.env.XDG_RUNTIME_DIR;
   process.env.TMPDIR = long;
+  delete process.env.XDG_RUNTIME_DIR;
   try {
     const tunnel = await openTunnel(`ssh://server.example/${server.port}`, { ssh: fakeSsh });
     const call = await lastCall();
@@ -179,6 +183,7 @@ test("a long TMPDIR still yields a socket path that fits", async () => {
   } finally {
     if (saved === undefined) delete process.env.TMPDIR;
     else process.env.TMPDIR = saved;
+    if (runtime !== undefined) process.env.XDG_RUNTIME_DIR = runtime;
   }
 });
 

@@ -3,7 +3,7 @@
  * a valid rebuild reopens the page with its named fields; shutdown reaps both children.
  */
 import assert from "node:assert/strict";
-import { cpSync, existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, readdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { ctrl, drive } from "./driver";
 import {
@@ -14,6 +14,7 @@ import {
   eventually,
   example,
   report,
+  ROOT,
   temporaryDirectory,
 } from "./harness";
 
@@ -21,6 +22,9 @@ import {
 const KEY_SETTLE_MS = 150;
 
 const TIMEOUT_MS = 20_000;
+// A step that builds Notes, a full build: 16 s on 16 idle cores, so not within the
+// 20 s of a step that only draws, on a CI runner's four.
+const BUILD_TIMEOUT_MS = 60_000;
 
 using directory = temporaryDirectory("luciole-dev-");
 const app = join(directory.path, "app-source");
@@ -28,6 +32,9 @@ cpSync(example("notes"), app, {
   recursive: true,
   filter: (source) => basename(source) !== ".luciole" && !basename(source).includes(".sqlite"),
 });
+// Outside the workspace the copy resolves nothing: Notes imports workspace packages
+// (@luciole-sh/markdown-editor, @luciole-sh/core/math) that only its node_modules link.
+symlinkSync(join(ROOT, "node_modules"), join(app, "node_modules"), "dir");
 const sessions = join(directory.path, "state/luciole/app-source/sessions");
 await using t = await drive({
   command: [BUN, CLI, "dev", "--app", app],
@@ -46,9 +53,9 @@ const children = () =>
     .split(/\s+/)
     .filter(Boolean)
     .map(Number);
-const wait = (text: string) => t.waitFor(text, { timeout: TIMEOUT_MS });
+const wait = (text: string, timeout = TIMEOUT_MS) => t.waitFor(text, { timeout });
 
-await wait("Welcome to Notes");
+await wait("Welcome to Notes", BUILD_TIMEOUT_MS);
 await t.click("Welcome to Notes");
 await wait("Getting around");
 // Ctrl+E: the cursor at the end of the text.
@@ -61,7 +68,7 @@ assert.equal(first.length, 2, `dev runs a Server and a Client: ${first.join()}`)
 const page = join(app, "app/page.tsx");
 const original = readFileSync(page, "utf8");
 writeFileSync(page, 'export default async function Page(){"use server";return <text>bad</text>}');
-await wait("Build failed:");
+await wait("Build failed:", BUILD_TIMEOUT_MS);
 t.write("!");
 await wait("keep!");
 // The restarted Client reopens the note, and the text typed in its named field.
@@ -72,7 +79,7 @@ assert.ok(
   await eventually(() => {
     second = children();
     return second.length === 2 && !second.some((pid) => first.includes(pid));
-  }, TIMEOUT_MS),
+  }, BUILD_TIMEOUT_MS),
   "the rebuild never restarted both children",
 );
 // Only the new Client draws from here on: the note and its typed text come back.

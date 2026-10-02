@@ -41,68 +41,76 @@ async function fixture(files: Record<string, string>, run: (dir: string) => Prom
 const manifestOf = (dir: string) =>
   readJsonFile(join(dir, ".luciole/app/manifest.json"), z.unknown());
 
-test("the application bundle leaves the runtime to the ABI and audits Node built-ins", async () => {
-  await fixture(
-    {
-      "package.json": JSON.stringify({
-        name: "disk",
-        luciole: { capabilities: { net: ["api.example.com"] } },
-      }),
-      "app/page.tsx": `import {Disk} from '../components/disk'; export default function Page(){return <Disk/>}`,
-      "components/disk.tsx": `"use client";import {readFileSync} from 'node:fs';import {useState} from 'react';import {save} from '../actions/save';export function Disk(){const [v]=useState(()=>readFileSync('/dev/null','utf8'));return <text onMouseDown={()=>save(v)}>{v}</text>}`,
-      "actions/save.ts": `"use server";export async function save(x:string){return x}`,
-    },
-    async (dir) => {
-      const warn = spyOn(console, "warn").mockImplementation(() => {});
-      try {
-        await build(dir);
-        const manifest = AppManifest.parse(await manifestOf(dir));
-        expect(manifest.abi).toBe(ABI_KEY);
-        expect(manifest.builtins).toEqual(["fs"]);
-        expect(manifest.capabilities?.net).toEqual(["api.example.com"]);
-        // Declared net, uses fs: reported, not refused.
-        expect(warn.mock.calls.map(([m]) => String(m)).join("\n")).toContain(
-          "requires fs but luciole.capabilities does not declare fs.read/fs.write",
-        );
-        const code = await Bun.file(join(dir, ".luciole/app/index.cjs")).text();
-        for (const runtime of ["createRouter", "KeymapProvider", "createServerReference"])
-          expect(code).not.toContain(runtime);
-        const loaded = await loadAppBundle(join(dir, ".luciole/app"));
-        expect(loaded.buildId).toBe(manifest.buildId);
-        expect([...loaded.modules.keys()]).toContain(`${manifest.buildId}/components/disk.tsx`);
-      } finally {
-        warn.mockRestore();
-      }
-    },
-  );
-});
+test(
+  "the application bundle leaves the runtime to the ABI and audits Node built-ins",
+  async () => {
+    await fixture(
+      {
+        "package.json": JSON.stringify({
+          name: "disk",
+          luciole: { capabilities: { net: ["api.example.com"] } },
+        }),
+        "app/page.tsx": `import {Disk} from '../components/disk'; export default function Page(){return <Disk/>}`,
+        "components/disk.tsx": `"use client";import {readFileSync} from 'node:fs';import {useState} from 'react';import {save} from '../actions/save';export function Disk(){const [v]=useState(()=>readFileSync('/dev/null','utf8'));return <text onMouseDown={()=>save(v)}>{v}</text>}`,
+        "actions/save.ts": `"use server";export async function save(x:string){return x}`,
+      },
+      async (dir) => {
+        const warn = spyOn(console, "warn").mockImplementation(() => {});
+        try {
+          await build(dir);
+          const manifest = AppManifest.parse(await manifestOf(dir));
+          expect(manifest.abi).toBe(ABI_KEY);
+          expect(manifest.builtins).toEqual(["fs"]);
+          expect(manifest.capabilities?.net).toEqual(["api.example.com"]);
+          // Declared net, uses fs: reported, not refused.
+          expect(warn.mock.calls.map(([m]) => String(m)).join("\n")).toContain(
+            "requires fs but luciole.capabilities does not declare fs.read/fs.write",
+          );
+          const code = await Bun.file(join(dir, ".luciole/app/index.cjs")).text();
+          for (const runtime of ["createRouter", "KeymapProvider", "createServerReference"])
+            expect(code).not.toContain(runtime);
+          const loaded = await loadAppBundle(join(dir, ".luciole/app"));
+          expect(loaded.buildId).toBe(manifest.buildId);
+          expect([...loaded.modules.keys()]).toContain(`${manifest.buildId}/components/disk.tsx`);
+        } finally {
+          warn.mockRestore();
+        }
+      },
+    );
+  },
+  BUILD_TEST_MS,
+);
 
-test("a bundle is refused for another ABI, altered bytes or an undeclared built-in", async () => {
-  await fixture(
-    {
-      "app/page.tsx": `import {Plain} from '../components/plain'; export default function Page(){return <Plain/>}`,
-      "components/plain.tsx": `"use client";import {join} from 'node:path';export function Plain(){return <text>{join('a','b')}</text>}`,
-    },
-    async (dir) => {
-      await build(dir);
-      const app = join(dir, ".luciole/app");
-      const file = join(app, "manifest.json");
-      const manifest = AppManifest.parse(await manifestOf(dir));
-      const write = (next: Partial<AppManifest>) =>
-        Bun.write(file, JSON.stringify({ ...manifest, ...next }));
-      await write({ abi: "0-0000000000000000" });
-      expect(messageOf(await rejectionOf(loadAppBundle(app)))).toContain("runtime ABI 0-");
-      await write({ sha256: "0".repeat(64) });
-      expect(messageOf(await rejectionOf(loadAppBundle(app)))).toContain("does not match");
-      await write({ builtins: [] });
-      expect(messageOf(await rejectionOf(loadAppBundle(app)))).toContain(
-        "requires path, outside the runtime ABI",
-      );
-      await write({});
-      expect((await loadAppBundle(app)).buildId).toBe(manifest.buildId);
-    },
-  );
-});
+test(
+  "a bundle is refused for another ABI, altered bytes or an undeclared built-in",
+  async () => {
+    await fixture(
+      {
+        "app/page.tsx": `import {Plain} from '../components/plain'; export default function Page(){return <Plain/>}`,
+        "components/plain.tsx": `"use client";import {join} from 'node:path';export function Plain(){return <text>{join('a','b')}</text>}`,
+      },
+      async (dir) => {
+        await build(dir);
+        const app = join(dir, ".luciole/app");
+        const file = join(app, "manifest.json");
+        const manifest = AppManifest.parse(await manifestOf(dir));
+        const write = (next: Partial<AppManifest>) =>
+          Bun.write(file, JSON.stringify({ ...manifest, ...next }));
+        await write({ abi: "0-0000000000000000" });
+        expect(messageOf(await rejectionOf(loadAppBundle(app)))).toContain("runtime ABI 0-");
+        await write({ sha256: "0".repeat(64) });
+        expect(messageOf(await rejectionOf(loadAppBundle(app)))).toContain("does not match");
+        await write({ builtins: [] });
+        expect(messageOf(await rejectionOf(loadAppBundle(app)))).toContain(
+          "requires path, outside the runtime ABI",
+        );
+        await write({});
+        expect((await loadAppBundle(app)).buildId).toBe(manifest.buildId);
+      },
+    );
+  },
+  BUILD_TEST_MS,
+);
 
 test(
   "top-level await in Client code: the app builds, is not embeddable, and says where",
@@ -139,21 +147,29 @@ test(
   BUILD_TEST_MS,
 );
 
-test("the examples build their application bundle", async () => {
-  const dir = resolve("examples/latency");
-  await build(dir);
-  const manifest = AppManifest.parse(await manifestOf(dir));
-  expect(manifest.name).toBe("latency");
-  expect((await loadAppBundle(join(dir, ".luciole/app"))).buildId).toBe(manifest.buildId);
-});
+test(
+  "the examples build their application bundle",
+  async () => {
+    const dir = resolve("examples/latency");
+    await build(dir);
+    const manifest = AppManifest.parse(await manifestOf(dir));
+    expect(manifest.name).toBe("latency");
+    expect((await loadAppBundle(join(dir, ".luciole/app"))).buildId).toBe(manifest.buildId);
+  },
+  BUILD_TEST_MS,
+);
 
-test("the Notes application, which draws code with @luciole-sh/core/grammars, builds a bundle that loads", async () => {
-  const dir = resolve("examples/notes");
-  await build(dir, undefined, { appBundle: "required" });
-  const manifest = AppManifest.parse(await manifestOf(dir));
-  expect(manifest.name).toBe("notes");
-  expect((await loadAppBundle(join(dir, ".luciole/app"))).buildId).toBe(manifest.buildId);
-});
+test(
+  "the Notes application, which draws code with @luciole-sh/core/grammars, builds a bundle that loads",
+  async () => {
+    const dir = resolve("examples/notes");
+    await build(dir, undefined, { appBundle: "required" });
+    const manifest = AppManifest.parse(await manifestOf(dir));
+    expect(manifest.name).toBe("notes");
+    expect((await loadAppBundle(join(dir, ".luciole/app"))).buildId).toBe(manifest.buildId);
+  },
+  BUILD_TEST_MS,
+);
 
 test(
   "an app that imports @luciole-sh/core/grammars without one of its packages is told which to install",

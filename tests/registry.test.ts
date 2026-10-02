@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { z } from "zod";
 import { hostTarget } from "../packages/core/src/compile";
-import { sandboxSupported } from "../packages/core/src/sandbox/runtime";
+import { sandboxAvailability } from "../packages/core/src/sandbox/runtime";
 import { messageOf } from "../packages/core/src/guards";
 import { launch, resolveTarget } from "../packages/core/src/launcher";
 import type { Directories } from "../packages/core/src/launcher/paths";
@@ -293,12 +293,19 @@ test("targets resolve in order: path, installed app, npm spec, git source, Serve
     kind: "url",
     url: "https://notes.example.com",
   });
-  // Without the sandbox mode and not chosen inline: refused before any request reaches
-  // the Server. With it (macOS), sandboxed by default: the Server is asked for its manifest.
+  // Sandboxed by default where the sandbox confines the network by host (macOS, Linux
+  // namespaces): the Server is asked for its manifest. Elsewhere refused before any
+  // request reaches the Server: with Landlock alone the sandbox is offered by choice,
+  // without a sandbox only inline is.
   const refusal = messageOf(
     await rejectionOf(launch("https://notes.example.com", { directories })),
   );
-  if (sandboxSupported()) expect(refusal).not.toContain("--inline");
-  else expect(refusal).toContain("luciole https://notes.example.com --inline");
+  const availability = sandboxAvailability();
+  if (availability.mechanism && availability.byDefault) expect(refusal).not.toContain("--inline");
+  else {
+    expect(refusal).toContain("luciole https://notes.example.com --inline");
+    if (availability.mechanism)
+      expect(refusal).toContain("luciole https://notes.example.com --sandbox");
+  }
   expect(() => resolveTarget("examples/notes", at)).toThrow("start it with ./");
 });
