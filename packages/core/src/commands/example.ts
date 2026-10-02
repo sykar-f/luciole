@@ -1,6 +1,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { messageOf } from "../guards";
 import { launch as launchTarget } from "../launcher";
 import { acceptAll } from "../launcher/prompt";
 import { readPackageJson } from "../package-json";
@@ -55,27 +56,58 @@ async function git(cwd: string, ...args: string[]) {
 export async function listExamples(repository: string, tag: string) {
   const work = await mkdtemp(join(tmpdir(), "luciole-examples-"));
   try {
-    await git(
-      work,
-      "clone",
-      "--quiet",
-      "--depth",
-      "1",
-      "--filter=blob:none",
-      "--no-checkout",
-      "--branch",
-      tag,
-      cloneUrl(repository),
-      ".",
+    return await listTree(work, repository, tag);
+  } catch (error: unknown) {
+    throw new Error(
+      `Cannot list the examples at ${tag} of ${repository}: ${messageOf(error)}\n` +
+        "The examples come from the git tag of the running release; a development or " +
+        "unreleased version has none. LUCIOLE_EXAMPLES_REPO points to another repository.",
+      { cause: error },
     );
-    const tree = await git(work, "ls-tree", "-d", "--name-only", "HEAD", `${EXAMPLES_DIRECTORY}/`);
-    return tree
-      .split("\n")
-      .filter(Boolean)
-      .map((path) => path.slice(EXAMPLES_DIRECTORY.length + 1));
   } finally {
     await rm(work, { recursive: true, force: true });
   }
+}
+
+async function listTree(work: string, repository: string, tag: string) {
+  await git(
+    work,
+    "clone",
+    "--quiet",
+    "--depth",
+    "1",
+    "--filter=blob:none",
+    "--no-checkout",
+    "--branch",
+    tag,
+    cloneUrl(repository),
+    ".",
+  );
+  const tree = await git(work, "ls-tree", "-d", "--name-only", "HEAD", `${EXAMPLES_DIRECTORY}/`);
+  return tree
+    .split("\n")
+    .filter(Boolean)
+    .map((path) => path.slice(EXAMPLES_DIRECTORY.length + 1));
+}
+
+/**
+ * The git source to launch for `name`. The listing gates only what it can settle: an
+ * unknown name when it succeeded. When it fails (offline, say) the launcher decides: it
+ * may hold the app cached, and has its own errors for the rest.
+ */
+export async function resolveExample(
+  name: string,
+  repository: string,
+  version: string,
+  list: typeof listExamples = listExamples,
+) {
+  let available: readonly string[];
+  try {
+    available = await list(repository, releaseTag(version));
+  } catch {
+    return `${repository}#${releaseTag(version)}/${EXAMPLES_DIRECTORY}/${name}`;
+  }
+  return exampleTarget(name, available, version, repository);
 }
 
 /**
@@ -90,14 +122,14 @@ export const example: Command = {
     const { version } = await readPackageJson(join(frameworkRoot, "package.json"));
     if (!version) throw new Error("The framework's package.json has no version");
     const repository = process.env.LUCIOLE_EXAMPLES_REPO ?? EXAMPLES_REPOSITORY;
-    const available = await listExamples(repository, releaseTag(version));
     if (!name) {
+      const available = await listExamples(repository, releaseTag(version));
       console.log(
         `Examples at ${releaseTag(version)}:\n${available.map((n) => `  ${n}`).join("\n")}`,
       );
       return;
     }
-    const target = exampleTarget(name, available, version, repository);
+    const target = await resolveExample(name, repository, version);
     const confirm = rest.includes("--yes") ? { confirm: acceptAll } : {};
     process.exitCode = await launchTarget(target, {
       args: rest.filter((arg) => arg !== "--yes"),

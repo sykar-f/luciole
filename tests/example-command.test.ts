@@ -6,8 +6,10 @@ import {
   EXAMPLES_REPOSITORY,
   exampleTarget,
   listExamples,
+  resolveExample,
   releaseTag,
 } from "../packages/core/src/commands/example";
+import { messageOf } from "../packages/core/src/guards";
 import { prepareGitApp } from "../packages/core/src/launcher/git";
 import { parseGitSource } from "../packages/core/src/launcher/git-source";
 import { acceptAll } from "../packages/core/src/launcher/prompt";
@@ -68,6 +70,38 @@ test("the examples of a tag are listed from git", async () => {
   expect(names).toContain("notes");
   expect(names).toContain("latency");
   expect(await rejectionOf(listExamples(`git+file://${clone}`, "v0.0.0-none"))).toBeDefined();
+});
+
+test("a listing that fails explains the tag; a named launch still reaches the launcher", async () => {
+  const repository = `git+file://${join(work, "absent")}`;
+  const message = messageOf(await rejectionOf(listExamples(repository, releaseTag(version))));
+  expect(message).toContain(`Cannot list the examples at v${version} of ${repository}`);
+  expect(message).toContain("git tag of the running release");
+  expect(message).toContain("LUCIOLE_EXAMPLES_REPO");
+  // Unreachable repository: no verdict on the name, the launcher resolves (cache, errors).
+  expect(await resolveExample("notes", repository, version)).toBe(
+    `${repository}#v${version}/examples/notes`,
+  );
+  // A listing that succeeds still refuses an unknown name.
+  const list = () => Promise.resolve(AVAILABLE);
+  expect(await rejectionOf(resolveExample("nope", repository, version, list))).toBeDefined();
+});
+
+test("the CLI refuses an unknown example and lists the available ones", async () => {
+  const cli = join(import.meta.dir, "../packages/core/src/cli.ts");
+  const env = { ...process.env, LUCIOLE_EXAMPLES_REPO: `git+file://${clone}` };
+  const unknown = await execute([process.execPath, cli, "example", "nope"], { env });
+  expect(unknown.exitCode).not.toBe(0);
+  expect(unknown.stderr.toString()).toContain(`No example named "nope" at v${version}`);
+  expect(unknown.stderr.toString()).toMatch(/Available: .*latency/);
+  const listing = await execute([process.execPath, cli, "example"], { env });
+  expect(listing.exitCode).toBe(0);
+  expect(listing.stdout.toString()).toContain("latency");
+  const missing = await execute([process.execPath, cli, "example"], {
+    env: { ...env, LUCIOLE_EXAMPLES_REPO: `git+file://${join(work, "absent")}` },
+  });
+  expect(missing.exitCode).not.toBe(0);
+  expect(missing.stderr.toString()).toContain("git tag of the running release");
 });
 
 test(
