@@ -21,6 +21,8 @@ import { BUILD_TEST_MS, execute, rejectionOf, until } from "./helpers";
 const CLI = resolve("packages/luciole/src/cli.ts");
 // A startup waits inside its test's build budget, and leaves the exit waits their share.
 const STARTUP_MS = BUILD_TEST_MS / 2;
+// A built Client with its Server up: what it reports once it starts.
+const CLIENT_MS = 15_000;
 const EXIT_MS = 5000;
 const COLUMNS = 80;
 const ROWS = 24;
@@ -200,6 +202,8 @@ test(
       const server = await startAppServer({ directory: dir, env: { ...process.env, PORT: "0" } });
       try {
         const failures: ClientFailure[] = [];
+        let screen = "";
+        const ended: (number | null)[] = [];
         client = spawnPty({
           command: [
             process.execPath,
@@ -209,14 +213,19 @@ test(
           ],
           cols: COLUMNS,
           rows: ROWS,
-          onData: () => {},
-          onExit: () => {},
+          onData: (bytes) => (screen += new TextDecoder().decode(bytes)),
+          onExit: (code) => ended.push(code),
           ipc: (message) => {
             const failure = ClientFailure.safeParse(message);
             if (failure.success) failures.push(failure.data);
           },
         });
-        await until(() => failures.length > 0, STARTUP_MS);
+        await until(
+          () => failures.length > 0,
+          CLIENT_MS,
+          () =>
+            `ended: ${JSON.stringify(ended)}, failures: ${failures.length}\nscreen:\n${screen.slice(-STATE_CHARS)}`,
+        );
         expect(failures[0]?.path).toBe("/");
         expect(failures[0]?.message).toContain("generated page failed");
       } finally {
