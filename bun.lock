@@ -250,6 +250,18 @@
         "tree-sitter-typescript",
       ],
     },
+    "packages/create": {
+      "name": "@luciole-sh/create",
+      "version": "0.1.0",
+      "bin": {
+        "create-luciole": "./bin.ts",
+      },
+      "devDependencies": {
+        "@types/bun": "catalog:",
+        "oxfmt": "catalog:",
+        "zod": "catalog:",
+      },
+    },
     "packages/desktop": {
       "name": "@luciole-sh/desktop",
       "dependencies": {
@@ -476,6 +488,8 @@
     "@luciole-examples/studio": ["@luciole-examples/studio@workspace:examples/studio"],
 
     "@luciole-sh/core": ["@luciole-sh/core@workspace:packages/core"],
+
+    "@luciole-sh/create": ["@luciole-sh/create@workspace:packages/create"],
 
     "@luciole-sh/desktop": ["@luciole-sh/desktop@workspace:packages/desktop"],
 

@@ -1,0 +1,44 @@
+{
+  "name": "@luciole-sh/create",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Scaffolds a luciole starter application: bunx @luciole-sh/create my-app, npm init @luciole-sh my-app.",
+  "keywords": [
+    "luciole",
+    "tui",
+    "terminal",
+    "react",
+    "rsc",
+    "scaffold",
+    "starter"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sykar-f/luciole.git",
+    "directory": "packages/create"
+  },
+  "engines": {
+    "bun": ">=1.4.2"
+  },
+  "type": "module",
+  "bin": {
+    "create-luciole": "./bin.ts"
+  },
+  "files": [
+    "bin.ts",
+    "src",
+    "template",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "stage": "bun scripts/stage.ts",
+    "prepack": "bun scripts/stage.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:",
+    "oxfmt": "catalog:",
+    "zod": "catalog:"
+  }
+}

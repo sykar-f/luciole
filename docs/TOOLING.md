@@ -115,12 +115,17 @@ configurations via les outils CLI/LSP. Sources :
 
 ## Starters
 
-`luciole init` génère une application depuis l'exemple Notes, avec les dépendances que
-Notes déclare (versions du catalogue résolues), une dépendance locale `file:` vers
-`packages/core`, sa configuration TypeScript héritée de `@luciole-sh/core/tsconfig`,
-les configurations Oxc, les réglages VS Code et les commandes check/lint/format.
-Après `bun install`, ces commandes fonctionnent depuis le starter. Les deux
-fichiers JSON générés sont formatés par Oxfmt dès la création.
+`luciole init <dir>` crée un starter en lançant `@luciole-sh/create` à la version de
+`@luciole-sh/core` installé (`bunx @luciole-sh/create@<version> <dir>`) ; `bunx @luciole-sh/create`,
+`npm init @luciole-sh` et `bun create @luciole-sh` y mènent aussi. Le paquet embarque un modèle
+autonome, produit à l'empaquetage (`prepack`, `packages/create/scripts/stage.ts`) depuis
+l'exemple Notes : les versions `catalog:` et `workspace:` y sont résolues (core et l'éditeur
+Markdown en `^<version>`, publiés ensemble), les configurations Oxc, les réglages VS Code et les
+commandes check/lint/format y sont recopiés, et les `devDependencies` sont une liste choisie
+(TypeScript, Oxlint, Oxfmt, types), pas celle de core. Rien n'est lu dans un dépôt ni formaté
+au moment où l'utilisateur lance la commande. Depuis un dépôt, `luciole init` lance le même
+script de staging en mode `--workspace` : le starter y lie `packages/core` par `file:` et copie
+l'éditeur dans `vendor/`. Après `bun install`, les commandes fonctionnent depuis le starter.
 
 `scripts/clean-install.ts` vérifie depuis des dossiers temporaires une installation
 neuve du framework et du starter, les types, le lint et le format du starter,
