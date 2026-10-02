@@ -62,6 +62,7 @@ export class Generator implements Harness {
   private turn = 0;
   private next = 0;
   private interrupted = false;
+  private closed = false;
   private readonly pending = new Map<string, (response: Response) => void>();
 
   constructor(context: HarnessContext) {
@@ -124,7 +125,7 @@ export class Generator implements Harness {
     for (const draft of correction ? [] : (scenario.drafts ?? [])) {
       written.push(...this.write(draft));
       await this.afterDraft();
-      if (this.interrupted) return "interrupted";
+      if (this.interrupted || this.closed) return "interrupted";
     }
     written.push(...this.write(files));
     await this.say(`Wrote ${[...new Set(written)].join(", ")}.`);
@@ -136,7 +137,7 @@ export class Generator implements Harness {
     if (!this.gate) return Bun.sleep(this.writeDelay);
     const release = join(this.gate, `draft-${this.drafted++}`);
     while (!existsSync(release)) {
-      if (this.interrupted) return;
+      if (this.interrupted || this.closed) return;
       await Bun.sleep(GATE_POLL_MS);
     }
     unlinkSync(release);
@@ -218,5 +219,7 @@ export class Generator implements Harness {
   async commands() {
     return [];
   }
-  async close() {}
+  async close() {
+    this.closed = true;
+  }
 }
