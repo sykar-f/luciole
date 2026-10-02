@@ -291,6 +291,16 @@
         "zod": "catalog:",
       },
     },
+    "packages/luciole.sh": {
+      "name": "luciole.sh",
+      "version": "0.1.0",
+      "bin": {
+        "luciole": "./bin.ts",
+      },
+      "dependencies": {
+        "@luciole-sh/core": "workspace:*",
+      },
+    },
     "packages/markdown-editor": {
       "name": "@luciole-sh/markdown-editor",
       "version": "0.1.0",
@@ -876,6 +886,8 @@
     "json-schema-traverse": ["json-schema-traverse@1.0.0", "", {}, "sha512-NM8/P9n3XjXhIZn1lLhkFaACTOURQXjWhV4BA/RnOv8xvgqtqpAX9IO4mRQxSx1Rlo4tqzeqb0sOlruaOy3dug=="],
 
     "json-schema-typed": ["json-schema-typed@8.0.2", "", {}, "sha512-fQhoXdcvc3V28x7C7BMs4P5+kNlgUURe2jmUT1T//oBRMDrqy1QPelJimwZGo7Hg9VPV3EQV5Bnq4hbFy2vetA=="],
+
+    "luciole.sh": ["luciole.sh@workspace:packages/luciole.sh"],
 
     "marked": ["marked@17.0.1", "", { "bin": { "marked": "bin/marked.js" } }, "sha512-boeBdiS0ghpWcSwoNm/jJBwdpFaMnZWRzjA6SkUMYb40SVaN1x7mmfGKp0jvexGcx+7y2La5zRZsYFZI6Qpypg=="],
 
