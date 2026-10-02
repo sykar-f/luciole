@@ -25,6 +25,7 @@ const BOOT_TIMEOUT_MS = 60_000;
 const TIMEOUT_MS = 15_000;
 const EXIT_TIMEOUT_MS = 10_000;
 const SERVER_EXIT_TIMEOUT_MS = 5000;
+const SAMPLE_MS = 100;
 const SHIFT_TAB = "\x1b[Z";
 
 using directory = temporaryDirectory("luciole-coder-");
@@ -51,14 +52,45 @@ const frame = async (name: string) => {
   mkdirSync(FRAMES, { recursive: true });
   await Bun.write(join(FRAMES, `${name}.txt`), await t.snapshot());
 };
+// What a failed wait leaves to read: where in the script, how long the run lasted, the
+// Servers then running, and every line the screen showed, in the order it first did.
+const launched = performance.now();
+const trail: string[] = [];
+const seen = new Set<string>();
+const sampler = setInterval(() => {
+  t.text().then(
+    (text) => {
+      for (const line of text.split("\n")) {
+        const shown = line.trimEnd();
+        if (shown && !seen.has(shown)) {
+          seen.add(shown);
+          trail.push(`${Math.round(performance.now() - launched)} ms  ${shown}`);
+        }
+      }
+    },
+    () => undefined,
+  );
+}, SAMPLE_MS);
+sampler.unref();
+const waiting = (waited: Promise<unknown>) => {
+  // The wait's own stack ends in the driver's poll loop: the caller's says which step.
+  const site = new Error().stack?.split("\n").slice(2, 5).join("\n") ?? "";
+  return waited.catch((error: unknown) => {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `${message}\n${site}\n--- after ${Math.round(performance.now() - launched)} ms, ${servers().length} coder Server(s) in the project\n--- screen lines, in the order they first appeared (ms since launch)\n${trail.join("\n") || "(none: the screen stayed blank)"}`,
+      { cause: error },
+    );
+  });
+};
 const wait = (needle: string | RegExp, absent = false) =>
-  t.waitFor(needle, { timeout: TIMEOUT_MS, absent });
+  waiting(t.waitFor(needle, { timeout: TIMEOUT_MS, absent }));
 const prompt = async (text: string) => {
   await t.type(text);
   await t.type(Keys.enter);
 };
 
-await t.waitFor("scripted demo is ready", { timeout: BOOT_TIMEOUT_MS });
+await waiting(t.waitFor("scripted demo is ready", { timeout: BOOT_TIMEOUT_MS }));
 // The Server is found by its directory: the check at the end is not vacuous.
 assert.equal(servers().length, 1, "one coder Server runs in the project");
 assert.ok((await t.text()).includes(project), "the project directory is shown");
