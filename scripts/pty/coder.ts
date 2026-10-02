@@ -13,6 +13,7 @@ import {
   BUN,
   CLI,
   commandOutput,
+  defer,
   eventually,
   example,
   report,
@@ -53,12 +54,13 @@ const frame = async (name: string) => {
   await Bun.write(join(FRAMES, `${name}.txt`), await t.snapshot());
 };
 // What a failed wait leaves to read: where in the script, how long the run lasted, the
-// Servers then running, and every line the screen showed, in the order it first did.
+// Servers then running, and every line the screen showed, in the order it was first sampled.
 const launched = performance.now();
 const trail: string[] = [];
 const seen = new Set<string>();
+let sampling: Promise<void> = Promise.resolve();
 const sampler = setInterval(() => {
-  t.text().then(
+  sampling = t.text().then(
     (text) => {
       for (const line of text.split("\n")) {
         const shown = line.trimEnd();
@@ -71,14 +73,18 @@ const sampler = setInterval(() => {
     () => undefined,
   );
 }, SAMPLE_MS);
-sampler.unref();
+// Declared after `t`, so disposed before it: no sample reads a screen already freed.
+await using _sampler = defer(async () => {
+  clearInterval(sampler);
+  await sampling;
+});
 const waiting = (waited: Promise<unknown>) => {
   // The wait's own stack ends in the driver's poll loop: the caller's says which step.
   const site = new Error().stack?.split("\n").slice(2, 5).join("\n") ?? "";
   return waited.catch((error: unknown) => {
     const message = error instanceof Error ? error.message : String(error);
     throw new Error(
-      `${message}\n${site}\n--- after ${Math.round(performance.now() - launched)} ms, ${servers().length} coder Server(s) in the project\n--- screen lines, in the order they first appeared (ms since launch)\n${trail.join("\n") || "(none: the screen stayed blank)"}`,
+      `${message}\n${site}\n--- after ${Math.round(performance.now() - launched)} ms, ${servers().length} coder Server(s) in the project\n--- screen lines, in the order they were first sampled (ms since launch)\n${trail.join("\n") || "(no non-blank line was sampled)"}`,
       { cause: error },
     );
   });
@@ -135,10 +141,11 @@ await wait("waiting 1");
 await t.type("i");
 await frame("6-browsed");
 
-await t.quit(ctrl("c"), EXIT_TIMEOUT_MS);
-assert.ok(
-  await eventually(() => servers().length === 0, SERVER_EXIT_TIMEOUT_MS),
-  "the coder Server outlived the Client",
+await waiting(t.quit(ctrl("c"), EXIT_TIMEOUT_MS));
+await waiting(
+  eventually(() => servers().length === 0, SERVER_EXIT_TIMEOUT_MS).then((gone) =>
+    assert.ok(gone, "the coder Server outlived the Client"),
+  ),
 );
 report({
   coderPTY: true,
