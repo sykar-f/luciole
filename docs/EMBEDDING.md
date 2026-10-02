@@ -323,10 +323,12 @@ macOS, Seatbelt (probe : 38/38 assertions) :
 
 - profil **généré** depuis les capacités, `deny default`, puis le minimum mesuré par
   bissection pour que Bun démarre : `sysctl-read` (sans elle, crash au démarrage),
-  lecture de `/`, `/usr/lib`, du cache dyld, du binaire et des bibliothèques Nix, liste du
-  répertoire contenant `node_modules` (sans elle : « bun is unable to write files:
-  EPERM », trompeur), liens `/etc` et `/var` et données de fuseau (sans eux : UTC
-  silencieux). Aucun service mach, rien de `/System`, pas de règle JIT ;
+  lecture de `/`, `/usr/lib`, du cache dyld, du binaire et des bibliothèques Nix, des
+  données ICU de `/usr/share/icu` (sans elles, avec le Bun officiel : « failed to
+  initialize Segmenter »), liste du répertoire contenant `node_modules` (sans elle : « bun
+  is unable to write files: EPERM », trompeur), liens `/etc` et `/var` et données de
+  fuseau (sans eux : UTC silencieux). Aucun service mach, rien de `/System`, pas de
+  règle JIT ;
 - React + le renderer natif OpenTUI démarrent sous le profil ;
 - le profil est hérité par les sous-processus (un enfant autorisé ne lit toujours pas
   `~/.ssh`) ; `pbcopy`/`pbpaste`, `security`, `open` échouent même quand leur binaire est
