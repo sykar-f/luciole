@@ -3,7 +3,7 @@
  * a valid rebuild reopens the page with its named fields; shutdown reaps both children.
  */
 import assert from "node:assert/strict";
-import { cpSync, existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, readdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { ctrl, drive } from "./driver";
 import {
@@ -14,6 +14,7 @@ import {
   eventually,
   example,
   report,
+  ROOT,
   temporaryDirectory,
 } from "./harness";
 
@@ -28,6 +29,9 @@ cpSync(example("notes"), app, {
   recursive: true,
   filter: (source) => basename(source) !== ".luciole" && !basename(source).includes(".sqlite"),
 });
+// Outside the workspace the copy resolves nothing: Notes imports workspace packages
+// (@luciole-sh/markdown-editor, @luciole-sh/core/math) that only its node_modules link.
+symlinkSync(join(ROOT, "node_modules"), join(app, "node_modules"), "dir");
 const sessions = join(directory.path, "state/luciole/app-source/sessions");
 await using t = await drive({
   command: [BUN, CLI, "dev", "--app", app],
