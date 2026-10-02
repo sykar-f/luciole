@@ -8,6 +8,7 @@ import type { MouseButton } from "@opentui/core/testing";
 import type { testRender } from "@opentui/react/test-utils";
 import { z } from "zod";
 import type { Application, ApplicationOptions } from "../packages/luciole/src/client";
+import { messageOf } from "../packages/luciole/src/guards";
 import { readJsonFile } from "../packages/luciole/src/package-json";
 import type { DraftStore } from "../examples/notes/components/draft";
 
@@ -143,10 +144,20 @@ export async function launch(file: string, env: Record<string, string> = {}) {
       }),
   };
 }
-export async function until(check: () => boolean, timeout = 5000) {
+/** "Condition timed out", then the state when there is one; a state that throws says so after it. */
+function timedOut(state?: () => string) {
+  if (!state) return "Condition timed out";
+  try {
+    return `Condition timed out. State:\n${state()}`;
+  } catch (error: unknown) {
+    return `Condition timed out. State unavailable: ${messageOf(error)}`;
+  }
+}
+/** Polls `check` until it holds; a failure prints `state()`: what the process and its screen showed. */
+export async function until(check: () => boolean, timeout = 5000, state?: () => string) {
   const start = performance.now();
   while (!check()) {
-    if (performance.now() - start > timeout) throw new Error("Condition timed out");
+    if (performance.now() - start > timeout) throw new Error(timedOut(state));
     await Bun.sleep(10);
   }
 }

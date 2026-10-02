@@ -10,7 +10,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { build } from "../packages/luciole/src/build";
 import { ctrl, drive } from "../scripts/pty/driver";
-import { launch } from "./helpers";
+import { BUILD_TEST_MS, launch } from "./helpers";
 
 const root = resolve("examples/notes");
 // Long enough for a Ctrl+C that quits to have ended the Client.
@@ -26,7 +26,7 @@ beforeAll(async () => {
     NOTES_DB: join(dir, "notes.sqlite"),
     NODE_ENV: "production",
   });
-});
+}, BUILD_TEST_MS);
 afterAll(async () => {
   await server.stop();
   await rm(dir, { recursive: true, force: true });

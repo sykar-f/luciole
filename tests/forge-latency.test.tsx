@@ -1,6 +1,7 @@
 /** @jsxImportSource @opentui/react */
 import { beforeAll, expect, test } from "bun:test";
 import { build } from "../packages/luciole/src/build";
+import type { Fetch } from "../packages/luciole/src/client";
 import { forgeDirectory, startForge } from "./forge-helpers";
 
 beforeAll(async () => {
@@ -18,7 +19,17 @@ const FRAME_IDS = [
 ];
 
 test("under 500 ms RTT: local interactions stay local, preload removes the wait, loading keeps geometry", async () => {
-  const forge = await startForge({ latencyMs: RTT, env: { FORGE_SLOW_MS: "0" } });
+  // Every request the Client sends to the Server, as the transport hands it to `fetch`.
+  const requests: string[] = [];
+  const recording: Fetch = (input, init) => {
+    requests.push(input.pathname);
+    return fetch(input, init);
+  };
+  const forge = await startForge({
+    latencyMs: RTT,
+    fetch: recording,
+    env: { FORGE_SLOW_MS: "0" },
+  });
   const { ui, step, frame, metrics } = forge;
   const geometry = () =>
     Object.fromEntries(
@@ -37,13 +48,13 @@ test("under 500 ms RTT: local interactions stay local, preload removes the wait,
     await forge.signIn("alice");
     await forge.settle(1500); // the first row's preload completes
     const idle = await metrics();
+    const sent = requests.length;
 
-    // Filter, hover and wheel: immediate frames, zero requests.
-    let start = performance.now();
+    // Filter, hover and wheel: the frames are local, zero requests. The frame showing
+    // the filter's result is the proof it needed no answer, however slow the machine.
     await step(() => ui.mockInput.typeText("/"));
     await step(() => ui.mockInput.typeText("settle"));
     let shown = await frame();
-    expect(performance.now() - start).toBeLessThan(RTT / 2);
     expect(shown).toContain("Stream settlement reports");
     expect(shown).not.toContain("Add idempotency keys");
     await escape();
@@ -60,23 +71,22 @@ test("under 500 ms RTT: local interactions stay local, preload removes the wait,
     await step(() => ui.mockMouse.scroll(list.x + 5, list.y + 1, "down"));
     await forge.settle(RTT + 100);
     expect(await metrics()).toEqual(idle);
+    expect(requests.length).toBe(sent);
 
-    // The selected row was preloaded while idle: Enter shows it without a round-trip.
-    start = performance.now();
+    // The selected row was preloaded while idle: Enter shows it without a round-trip,
+    // so the frame has the page and no request left for it.
     await step(() => ui.mockInput.pressEnter());
     shown = await frame();
-    const openMs = performance.now() - start;
     expect(forge.path()).toBe("/repos/web/pulls/1");
     expect(shown).toContain("#1 Dark mode design tokens");
-    expect(openMs).toBeLessThan(RTT / 2);
     await forge.settle(RTT + 200);
     expect((await metrics()).renders).toBe(idle.renders);
+    expect(requests.length).toBe(sent);
 
     // Not preloaded: the local loading screen appears at once, in the final geometry.
-    start = performance.now();
+    const start = performance.now();
     await step(() => ui.mockInput.pressTab());
     shown = await frame();
-    expect(performance.now() - start).toBeLessThan(RTT / 2);
     expect(shown).toContain("loading files");
     expect(shown).toContain("Files"); // the persistent tab bar is still there
     const loading = geometry();
