@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "luciole",
+      "name": "luciole-workspace",
       "devDependencies": {
         "@luciole-sh/core": "workspace:*",
         "@opentui/core": "catalog:",

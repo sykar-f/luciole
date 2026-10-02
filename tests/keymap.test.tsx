@@ -9,7 +9,7 @@ import { build } from "../packages/core/src/build";
 import { launch, importClient, destroy, renderable, temporaryApp, type TestUI } from "./helpers";
 
 // An application that shows its keys, as a terminal program does: a footer for the
-// layout's layer, a line for the page's. Inside the checkout so `luciole` resolves.
+// layout's layer, a line for the page's. Inside the checkout so `@luciole-sh/core` resolves.
 const FILES: Record<string, string> = {
   "tsconfig.json": JSON.stringify({
     extends: "../packages/core/tsconfig.base.json",

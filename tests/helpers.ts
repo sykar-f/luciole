@@ -27,7 +27,7 @@ export function present<T>(value: T | null | undefined, what: string): T {
 
 /**
  * A fresh application directory under tmpdir, named after `prefix`, with the checkout's
- * node_modules linked in: `luciole`, React and its packages resolve as in an example,
+ * node_modules linked in: `@luciole-sh/core`, React and its packages resolve as in an example,
  * and a run killed midway leaves nothing in the checkout (format and lint read it).
  */
 export async function temporaryApp(prefix: string) {

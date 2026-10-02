@@ -10,12 +10,12 @@ l'espace de travail, encore privé (non publié), utilisé par
 ## Installation
 
 ```sh
-bun add @luciole-sh/markdown-editor luciole @opentui/core @opentui/react react
-# ou : npm install @luciole-sh/markdown-editor luciole @opentui/core @opentui/react react
+bun add @luciole-sh/markdown-editor @luciole-sh/core @opentui/core @opentui/react react
+# ou : npm install @luciole-sh/markdown-editor @luciole-sh/core @opentui/core @opentui/react react
 ```
 
 `react`, `@opentui/core` et `@opentui/react` sont des pairs : une seule copie, celle de
-l'application. `luciole` n'est pas une dépendance de l'éditeur : l'exemple ci-dessous en
+l'application. `@luciole-sh/core` n'est pas une dépendance de l'éditeur : l'exemple ci-dessous en
 tire `markdownStyle`, l'application l'a déjà. Le paquet est de l'ESM pur, avec ses déclarations ; il s'importe sous Bun
 et sous Node.
 

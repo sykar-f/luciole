@@ -129,7 +129,7 @@ Le workflow macOS/Linux s’exécute sur GitHub Actions à chaque push et pull r
 ## Licences
 
 `bun run licenses` (`scripts/licenses.ts`) lit les `package.json` installés et vérifie
-l'arbre de production (dépendances, optionnelles, pairs résolus) de `luciole`,
+l'arbre de production (dépendances, optionnelles, pairs résolus) de `@luciole-sh/core`,
 `@luciole-sh/flow-graph` et `@luciole-sh/markdown-editor`. Il échoue dès qu'un paquet livré porte une licence
 bloquante (GPL, AGPL, SSPL, absente, « SEE LICENSE IN »). Les espaces de travail privés
 (`harness`, `desktop`, `examples/*`) sont listés à part et n'échouent jamais.
@@ -137,9 +137,9 @@ bloquante (GPL, AGPL, SSPL, absente, « SEE LICENSE IN »). Les espaces de trava
 Résultat du 1er octobre 2026 : 137, 23 et 22 paquets, tous permissifs (MIT, Apache-2.0,
 BSD-3-Clause, Unlicense), sauf une licence non permissive dans l'arbre livré :
 
-| Licence | Paquet              | Livré par | Pourquoi c'est acceptable                                                                                                                                                                                                                                  |
-| ------- | ------------------- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| MPL-2.0 | `@resvg/resvg-wasm` | `luciole` | Copyleft faible, au niveau du fichier : le paquet est utilisé tel quel, sans modification, et n'impose rien au code MIT de luciole. L'obligation (avis de licence et accès au source) est remplie par [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md). |
+| Licence | Paquet              | Livré par          | Pourquoi c'est acceptable                                                                                                                                                                                                                                  |
+| ------- | ------------------- | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| MPL-2.0 | `@resvg/resvg-wasm` | `@luciole-sh/core` | Copyleft faible, au niveau du fichier : le paquet est utilisé tel quel, sans modification, et n'impose rien au code MIT de luciole. L'obligation (avis de licence et accès au source) est remplie par [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md). |
 
 Le script ne lit que ce qui est installé : les dépendances optionnelles d'autres plateformes
 (binaires `@opentui/core-linux-*`, `@typescript/typescript-*`) sont listées comme absentes et
@@ -154,46 +154,46 @@ signale comme « non livrées » :
 | LGPL-3.0-or-later              | `@img/sharp-libvips-*` (libvips, via `sharp`) | `examples/files` et `devDependencies` du paquet racine (privé) | `sharp` n'est une dépendance d'aucun paquet livré ; un exemple ne se publie pas. À revoir si `sharp` entre un jour dans un paquet livré. |
 | propriétaire (« SEE LICENSE ») | `@anthropic-ai/claude-agent-sdk`              | `@luciole-sh/harness` (privé), exemples                        | Le harnais est privé et n'est pas publié ; le SDK n'est redistribué avec aucun paquet livré.                                             |
 
-## Ce que `luciole` installe (`packages/core/package.json`)
+## Ce que `@luciole-sh/core` installe (`packages/core/package.json`)
 
-Installer `luciole` n'installe que ce que toute application utilise. Les plages publiées
+Installer `@luciole-sh/core` n'installe que ce que toute application utilise. Les plages publiées
 sont en `^` ; le catalogue du dépôt et les `devDependencies` gardent les versions exactes,
 pour que le dépôt reste reproductible.
 
-| Dépendance                             | Classe                  | Avant → après               | Raison                                                                                                                                             |
-| -------------------------------------- | ----------------------- | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| @opentui/core                          | toute application       | exact → `^`                 | Le moteur de rendu : chaque application l'utilise.                                                                                                 |
-| @opentui/keymap                        | toute application       | exact → `^`                 | Le moteur de rendu : chaque application l'utilise.                                                                                                 |
-| @opentui/react                         | toute application       | exact → `^`                 | Le moteur de rendu : chaque application l'utilise.                                                                                                 |
-| @tanstack/react-router                 | toute application       | exact → `^`                 | Routeur de chaque application.                                                                                                                     |
-| react-reconciler                       | toute application       | exact → `^`                 | Réconciliateur de chaque application.                                                                                                              |
-| react-server-dom-webpack               | toute application       | exact → `^`                 | Flight (RSC).                                                                                                                                      |
-| zod                                    | toute application       | exact → `^`                 | Schémas des actions et des arguments.                                                                                                              |
-| marked                                 | toute application       | exact → `^`                 | `<Markdown>` fait partie du client ; il n'est pas chargé à la demande.                                                                             |
-| @typescript/typescript6                | outil du build, runtime | exact → `^`                 | `luciole build` lit l'AST de l'application avec cette API (`build.ts`, cache, contexte asynchrone) : il lui faut à l'exécution.                    |
-| typescript (7)                         | outil de l'application  | dependency → devDependency  | Aucun module de `luciole` ne l'importe : seul `tsc --noEmit` l'utilise, et `luciole init` le range déjà dans les devDependencies de l'application. |
-| tree-sitter-bash                       | optionnelle             | dependency → peer optionnel | Sert à `@luciole-sh/core/grammars` seul, que l'application importe ou non.                                                                         |
-| tree-sitter-c                          | optionnelle             | dependency → peer optionnel | Sert à `@luciole-sh/core/grammars` seul, que l'application importe ou non.                                                                         |
-| tree-sitter-cpp                        | optionnelle             | dependency → peer optionnel | Sert à `@luciole-sh/core/grammars` seul, que l'application importe ou non.                                                                         |
-| tree-sitter-css                        | optionnelle             | dependency → peer optionnel | Sert à `@luciole-sh/core/grammars` seul, que l'application importe ou non.                                                                         |
-| tree-sitter-go                         | optionnelle             | dependency → peer optionnel | Sert à `@luciole-sh/core/grammars` seul, que l'application importe ou non.                                                                         |
-| tree-sitter-html                       | optionnelle             | dependency → peer optionnel | Sert à `@luciole-sh/core/grammars` seul, que l'application importe ou non.                                                                         |
-| tree-sitter-java                       | optionnelle             | dependency → peer optionnel | Sert à `@luciole-sh/core/grammars` seul, que l'application importe ou non.                                                                         |
-| tree-sitter-json                       | optionnelle             | dependency → peer optionnel | Sert à `@luciole-sh/core/grammars` seul, que l'application importe ou non.                                                                         |
-| tree-sitter-php                        | optionnelle             | dependency → peer optionnel | Sert à `@luciole-sh/core/grammars` seul, que l'application importe ou non.                                                                         |
-| tree-sitter-python                     | optionnelle             | dependency → peer optionnel | Sert à `@luciole-sh/core/grammars` seul, que l'application importe ou non.                                                                         |
-| tree-sitter-ruby                       | optionnelle             | dependency → peer optionnel | Sert à `@luciole-sh/core/grammars` seul, que l'application importe ou non.                                                                         |
-| tree-sitter-rust                       | optionnelle             | dependency → peer optionnel | Sert à `@luciole-sh/core/grammars` seul, que l'application importe ou non.                                                                         |
-| tree-sitter-typescript                 | optionnelle             | dependency → peer optionnel | Sert à `@luciole-sh/core/grammars` seul, que l'application importe ou non.                                                                         |
-| @tree-sitter-grammars/tree-sitter-lua  | optionnelle             | dependency → peer optionnel | Sert à `@luciole-sh/core/grammars` seul, que l'application importe ou non.                                                                         |
-| @tree-sitter-grammars/tree-sitter-toml | optionnelle             | dependency → peer optionnel | Sert à `@luciole-sh/core/grammars` seul, que l'application importe ou non.                                                                         |
-| @tree-sitter-grammars/tree-sitter-yaml | optionnelle             | dependency → peer optionnel | Sert à `@luciole-sh/core/grammars` seul, que l'application importe ou non.                                                                         |
-| mathjax-full                           | optionnelle             | dependency → peer optionnel | Sert à `@luciole-sh/core/math` seul (TeX en SVG).                                                                                                  |
-| @resvg/resvg-wasm                      | optionnelle             | dependency → peer optionnel | Sert à `@luciole-sh/core/math` seul (SVG en PNG, WebAssembly).                                                                                     |
-| @sqlite.org/sqlite-wasm                | optionnelle             | dependency → peer optionnel | Le Worker de la cible web (`--web=local`) l'embarque ; le cache serveur utilise `bun:sqlite` et n'en dépend pas.                                   |
-| @xterm/xterm                           | optionnelle             | dependency → peer optionnel | Le runtime de la cible web le bundle ; aucune autre cible n'y touche.                                                                              |
-| @xterm/addon-fit                       | optionnelle             | dependency → peer optionnel | Le runtime de la cible web le bundle ; aucune autre cible n'y touche.                                                                              |
-| @xterm/addon-webgl                     | optionnelle             | dependency → peer optionnel | Le runtime de la cible web le bundle ; aucune autre cible n'y touche.                                                                              |
+| Dépendance                             | Classe                  | Avant → après               | Raison                                                                                                                                                      |
+| -------------------------------------- | ----------------------- | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| @opentui/core                          | toute application       | exact → `^`                 | Le moteur de rendu : chaque application l'utilise.                                                                                                          |
+| @opentui/keymap                        | toute application       | exact → `^`                 | Le moteur de rendu : chaque application l'utilise.                                                                                                          |
+| @opentui/react                         | toute application       | exact → `^`                 | Le moteur de rendu : chaque application l'utilise.                                                                                                          |
+| @tanstack/react-router                 | toute application       | exact → `^`                 | Routeur de chaque application.                                                                                                                              |
+| react-reconciler                       | toute application       | exact → `^`                 | Réconciliateur de chaque application.                                                                                                                       |
+| react-server-dom-webpack               | toute application       | exact → `^`                 | Flight (RSC).                                                                                                                                               |
+| zod                                    | toute application       | exact → `^`                 | Schémas des actions et des arguments.                                                                                                                       |
+| marked                                 | toute application       | exact → `^`                 | `<Markdown>` fait partie du client ; il n'est pas chargé à la demande.                                                                                      |
+| @typescript/typescript6                | outil du build, runtime | exact → `^`                 | `luciole build` lit l'AST de l'application avec cette API (`build.ts`, cache, contexte asynchrone) : il lui faut à l'exécution.                             |
+| typescript (7)                         | outil de l'application  | dependency → devDependency  | Aucun module de `@luciole-sh/core` ne l'importe : seul `tsc --noEmit` l'utilise, et `luciole init` le range déjà dans les devDependencies de l'application. |
+| tree-sitter-bash                       | optionnelle             | dependency → peer optionnel | Sert à `@luciole-sh/core/grammars` seul, que l'application importe ou non.                                                                                  |
+| tree-sitter-c                          | optionnelle             | dependency → peer optionnel | Sert à `@luciole-sh/core/grammars` seul, que l'application importe ou non.                                                                                  |
+| tree-sitter-cpp                        | optionnelle             | dependency → peer optionnel | Sert à `@luciole-sh/core/grammars` seul, que l'application importe ou non.                                                                                  |
+| tree-sitter-css                        | optionnelle             | dependency → peer optionnel | Sert à `@luciole-sh/core/grammars` seul, que l'application importe ou non.                                                                                  |
+| tree-sitter-go                         | optionnelle             | dependency → peer optionnel | Sert à `@luciole-sh/core/grammars` seul, que l'application importe ou non.                                                                                  |
+| tree-sitter-html                       | optionnelle             | dependency → peer optionnel | Sert à `@luciole-sh/core/grammars` seul, que l'application importe ou non.                                                                                  |
+| tree-sitter-java                       | optionnelle             | dependency → peer optionnel | Sert à `@luciole-sh/core/grammars` seul, que l'application importe ou non.                                                                                  |
+| tree-sitter-json                       | optionnelle             | dependency → peer optionnel | Sert à `@luciole-sh/core/grammars` seul, que l'application importe ou non.                                                                                  |
+| tree-sitter-php                        | optionnelle             | dependency → peer optionnel | Sert à `@luciole-sh/core/grammars` seul, que l'application importe ou non.                                                                                  |
+| tree-sitter-python                     | optionnelle             | dependency → peer optionnel | Sert à `@luciole-sh/core/grammars` seul, que l'application importe ou non.                                                                                  |
+| tree-sitter-ruby                       | optionnelle             | dependency → peer optionnel | Sert à `@luciole-sh/core/grammars` seul, que l'application importe ou non.                                                                                  |
+| tree-sitter-rust                       | optionnelle             | dependency → peer optionnel | Sert à `@luciole-sh/core/grammars` seul, que l'application importe ou non.                                                                                  |
+| tree-sitter-typescript                 | optionnelle             | dependency → peer optionnel | Sert à `@luciole-sh/core/grammars` seul, que l'application importe ou non.                                                                                  |
+| @tree-sitter-grammars/tree-sitter-lua  | optionnelle             | dependency → peer optionnel | Sert à `@luciole-sh/core/grammars` seul, que l'application importe ou non.                                                                                  |
+| @tree-sitter-grammars/tree-sitter-toml | optionnelle             | dependency → peer optionnel | Sert à `@luciole-sh/core/grammars` seul, que l'application importe ou non.                                                                                  |
+| @tree-sitter-grammars/tree-sitter-yaml | optionnelle             | dependency → peer optionnel | Sert à `@luciole-sh/core/grammars` seul, que l'application importe ou non.                                                                                  |
+| mathjax-full                           | optionnelle             | dependency → peer optionnel | Sert à `@luciole-sh/core/math` seul (TeX en SVG).                                                                                                           |
+| @resvg/resvg-wasm                      | optionnelle             | dependency → peer optionnel | Sert à `@luciole-sh/core/math` seul (SVG en PNG, WebAssembly).                                                                                              |
+| @sqlite.org/sqlite-wasm                | optionnelle             | dependency → peer optionnel | Le Worker de la cible web (`--web=local`) l'embarque ; le cache serveur utilise `bun:sqlite` et n'en dépend pas.                                            |
+| @xterm/xterm                           | optionnelle             | dependency → peer optionnel | Le runtime de la cible web le bundle ; aucune autre cible n'y touche.                                                                                       |
+| @xterm/addon-fit                       | optionnelle             | dependency → peer optionnel | Le runtime de la cible web le bundle ; aucune autre cible n'y touche.                                                                                       |
+| @xterm/addon-webgl                     | optionnelle             | dependency → peer optionnel | Le runtime de la cible web le bundle ; aucune autre cible n'y touche.                                                                                       |
 
 Une fonctionnalité optionnelle sans son paquet échoue avec un message qui le nomme
 (« @luciole-sh/core/math needs the optional package mathjax-full, which is not installed: run
@@ -201,6 +201,6 @@ Une fonctionnalité optionnelle sans son paquet échoue avec un message qui le n
 `import()` dynamique, à la première formule. `@luciole-sh/core/grammars` reste synchrone (le bundle
 d'application est en CommonJS, sans `await` de module) : c'est le build qui vérifie ses
 seize paquets quand une application l'importe. Les builds web vérifient les leurs avant
-d'empaqueter. Le dépôt garde ces paquets en `devDependencies` de `luciole` pour que les
+d'empaqueter. Le dépôt garde ces paquets en `devDependencies` de `@luciole-sh/core` pour que les
 exemples et les tests les trouvent ; `luciole init` les range dans les `devDependencies`
 de l'application créée.

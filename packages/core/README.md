@@ -1,4 +1,4 @@
-# luciole
+# @luciole-sh/core
 
 The luciole framework: React Server Components rendered in the terminal, with the same
 components available on the web.

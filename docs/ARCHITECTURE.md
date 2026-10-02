@@ -2,20 +2,20 @@
 
 Le dépôt est un espace de travail Bun (`workspaces` du `package.json` racine) :
 
-| Répertoire             | Contenu                                                                                                                                                                                                   |
-| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `packages/core/`       | Le framework, package `luciole` : `src/`, `tsconfig.base.json` (exporté `@luciole-sh/core/tsconfig`), `types.d.ts`, `native/luciole-sandbox` (Rust), `web/` (patch OpenTUI du runtime navigateur).        |
-| `packages/desktop/`    | Prototype d'app desktop (Electrobun, xterm.js) : le binaire d'une app sur un PTY, dans une fenêtre ([DESKTOP](DESKTOP.md)).                                                                               |
-| `packages/harness/`    | Paquet privé `@luciole-sh/harness` : adaptateurs des agents de code (Claude Code, Codex, pi, opencode, scripté), modèle neutre, `HarnessSession`, composants du transcript ; partagé par coder et studio. |
-| `packages/flow-graph/` | Paquet privé `@luciole-sh/flow-graph` : graphes de nœuds façon React Flow (nœuds, arêtes en caractères de boîte et braille, minimap, clavier) ; voir son [README](../packages/flow-graph/README.md).      |
-| `examples/<app>/`      | Une application par dossier, chacune un package qui déclare `luciole` (`workspace:*`) et les paquets qu'elle importe (`catalog:`).                                                                        |
-| `tests/`               | Tests d'intégration du framework, qui construisent et lancent les exemples.                                                                                                                               |
-| `scripts/`             | Parcours PTY, installation neuve, conteneurs Linux, build du sandbox, parcours navigateur (`scripts/web/`).                                                                                               |
-| `probes/`              | Sondes historiques, hors espace de travail ; celles qui ont des dépendances gardent leur propre lockfile.                                                                                                 |
-| `website/`             | Page de présentation (Astro), hors espace de travail, avec son propre lockfile ; écrans capturés des exemples.                                                                                            |
+| Répertoire             | Contenu                                                                                                                                                                                                     |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/core/`       | Le framework, package `@luciole-sh/core` : `src/`, `tsconfig.base.json` (exporté `@luciole-sh/core/tsconfig`), `types.d.ts`, `native/luciole-sandbox` (Rust), `web/` (patch OpenTUI du runtime navigateur). |
+| `packages/desktop/`    | Prototype d'app desktop (Electrobun, xterm.js) : le binaire d'une app sur un PTY, dans une fenêtre ([DESKTOP](DESKTOP.md)).                                                                                 |
+| `packages/harness/`    | Paquet privé `@luciole-sh/harness` : adaptateurs des agents de code (Claude Code, Codex, pi, opencode, scripté), modèle neutre, `HarnessSession`, composants du transcript ; partagé par coder et studio.   |
+| `packages/flow-graph/` | Paquet privé `@luciole-sh/flow-graph` : graphes de nœuds façon React Flow (nœuds, arêtes en caractères de boîte et braille, minimap, clavier) ; voir son [README](../packages/flow-graph/README.md).        |
+| `examples/<app>/`      | Une application par dossier, chacune un package qui déclare `@luciole-sh/core` (`workspace:*`) et les paquets qu'elle importe (`catalog:`).                                                                 |
+| `tests/`               | Tests d'intégration du framework, qui construisent et lancent les exemples.                                                                                                                                 |
+| `scripts/`             | Parcours PTY, installation neuve, conteneurs Linux, build du sandbox, parcours navigateur (`scripts/web/`).                                                                                                 |
+| `probes/`              | Sondes historiques, hors espace de travail ; celles qui ont des dépendances gardent leur propre lockfile.                                                                                                   |
+| `website/`             | Page de présentation (Astro), hors espace de travail, avec son propre lockfile ; écrans capturés des exemples.                                                                                              |
 
 Le catalogue (`workspaces.catalog`) fixe une version par paquet pour la racine et les
-exemples. `luciole` garde des versions exactes plutôt que `catalog:` : un starter hors de
+exemples. `@luciole-sh/core` garde des versions exactes plutôt que `catalog:` : un starter hors de
 l'espace de travail l'installe par `file:`, où le catalogue n'existe pas ;
 `tests/dependencies.test.ts` vérifie que les deux sources donnent les mêmes versions. Le
 linker reste `hoisted` (`bunfig.toml`) : un seul `node_modules`, à la racine.
@@ -129,7 +129,7 @@ SQLite reste côté Server. La navigation est décrite dans [ROUTER.md](ROUTER.m
 
 ## Deux formes de distribution
 
-**Pour l’auteur d’application**, le produit est le package `luciole` :
+**Pour l’auteur d’application**, le produit est le package `@luciole-sh/core` :
 CLI `luciole` et `luciolex`, entrées `/client`, `/server`, `/route-tree`, `/args`, `/build`,
 `/pty`, `/metadata` et configuration `/tsconfig`.
 Aujourd’hui il est privé et local ; le starter utilise une dépendance `file:` vers
@@ -174,7 +174,7 @@ source (`luciole git+…`), installée depuis son `bun.lock` et buildée sur pla
 L’identifiant de build inclut le `bun.lock` qui gouverne l’installation
 (`src/lockfile.ts` : le plus proche au-dessus du framework, puis de l’application,
 sans dépasser le checkout git) : le checkout du framework, la racine d’un espace de
-travail, ou l’application qui a installé `luciole`. Ce fichier liste les paquets de
+travail, ou l’application qui a installé `@luciole-sh/core`. Ce fichier liste les paquets de
 toutes les plateformes, contrairement à `node_modules` : un Server Linux et un Client
 macOS compilés depuis les mêmes sources partagent le même identifiant, ce que `--on`
 exige.
