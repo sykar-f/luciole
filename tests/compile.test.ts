@@ -5,7 +5,7 @@ import { join, resolve } from "node:path";
 import { build } from "../packages/core/src/build";
 import { compileClient, hostTarget, runtimePortability } from "../packages/core/src/compile";
 import { messageOf } from "../packages/core/src/guards";
-import { execute, launch, rejectionOf } from "./helpers";
+import { BUILD_TEST_MS, execute, launch, rejectionOf } from "./helpers";
 
 const root = resolve("examples/notes");
 
@@ -117,23 +117,27 @@ test.if(portability !== undefined)(
   60000,
 );
 
-test("signing is only accepted where it can succeed", async () => {
-  const { output } = await build(root);
-  const compile = (options: Parameters<typeof compileClient>[1]) =>
-    compileClient(output, { outfile: join(tmpdir(), "never"), ...options });
-  const refused = async (options: Parameters<typeof compileClient>[1]) =>
-    messageOf(await rejectionOf(compile(options)));
-  expect(await refused({ name: "notes", target: "bun-linux-x64", sign: "-" })).toContain(
-    "apply to macOS targets",
-  );
-  if (process.platform !== "darwin") return;
-  expect(await refused({ name: "notes", notarize: "profile" })).toContain(
-    "--notarize needs --sign",
-  );
-  expect(await refused({ name: "notes", sign: "-", notarize: "profile" })).toContain(
-    "does not notarize ad hoc signatures",
-  );
-});
+test(
+  "signing is only accepted where it can succeed",
+  async () => {
+    const { output } = await build(root);
+    const compile = (options: Parameters<typeof compileClient>[1]) =>
+      compileClient(output, { outfile: join(tmpdir(), "never"), ...options });
+    const refused = async (options: Parameters<typeof compileClient>[1]) =>
+      messageOf(await rejectionOf(compile(options)));
+    expect(await refused({ name: "notes", target: "bun-linux-x64", sign: "-" })).toContain(
+      "apply to macOS targets",
+    );
+    if (process.platform !== "darwin") return;
+    expect(await refused({ name: "notes", notarize: "profile" })).toContain(
+      "--notarize needs --sign",
+    );
+    expect(await refused({ name: "notes", sign: "-", notarize: "profile" })).toContain(
+      "does not notarize ad hoc signatures",
+    );
+  },
+  BUILD_TEST_MS,
+);
 
 test("a publishing flag without its value is refused before any build", async () => {
   const cli = (...flags: string[]) =>
