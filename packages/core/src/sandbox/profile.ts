@@ -1,9 +1,10 @@
 /**
  * The Seatbelt (SBPL) profile of one sandboxed child, generated from the capabilities
  * the user granted its origin (docs/EMBEDDING.md, section 5). Deny by default; the base
- * rules are the minimum Bun and OpenTUI need to start, measured by bisection
- * on macOS 26.6 / Bun 1.4.2: removing one makes the child abort, or
- * silently change behavior (the time zone). Sub-processes inherit the profile.
+ * rules are the minimum Bun and OpenTUI need to start, measured by bisection on macOS
+ * 26.6 / Bun 1.4.2, the official build and Nix's (which carries its own ICU): removing
+ * one makes the child abort, throw, or silently change behavior (the time zone).
+ * Sub-processes inherit the profile.
  *
  * Every capability the profile opens has a line in `enforcement` (src/sandbox/grants.ts)
  * naming who applies it: the profile is the "OS" of those lines.
@@ -102,6 +103,10 @@ export function seatbeltProfile(plan: ChildPlan): string {
     // dyld stats "/" and maps the shared cache; system libraries are in /usr/lib.
     `(allow file-read* (literal "/") (subpath "/usr/lib") (subpath "/private/var/db/dyld"))`,
     `(allow file-read* (literal ${str(runtime.bun)}) ${subpaths(runtime.libraries)})`,
+    // The official Bun links the system's libicucore, which maps its data from here:
+    // without it `Intl.Segmenter` (string-width, hence OpenTUI) throws "failed to
+    // initialize Segmenter". A Nix Bun carries its own ICU and data in `libraries`.
+    `(allow file-read* (subpath "/usr/share/icu"))`,
     `(allow file-read* (literal "/dev/urandom") (literal "/dev/random") (literal "/dev/null"))`,
     `(allow file-write-data (literal "/dev/null"))`,
     // Without the /etc and /var links themselves, Bun silently falls back to UTC.
