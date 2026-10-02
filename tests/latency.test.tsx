@@ -5,6 +5,7 @@ import { testRender } from "@opentui/react/test-utils";
 import { BoxRenderable, InputRenderable, ScrollBoxRenderable } from "@opentui/core";
 import { join, resolve } from "node:path";
 import { build } from "../packages/core/src/build";
+import type { Fetch } from "../packages/core/src/client";
 import {
   launch,
   until,
@@ -20,7 +21,22 @@ test("500 ms RTT delays Flight and actions while input, hover and scroll stay lo
   await build(directory);
   const server = await launch(join(directory, ".luciole/server/index.js"));
   const { createApp, Shell } = await importClient(directory, "latency");
-  const app = createApp({ url: server.url, latencyMs: 500 });
+  // Holds the armed request at the Client's `fetch`, after its one-way latency and before
+  // the Server sees it: while it is held, nothing can have been answered, however slow
+  // the machine is.
+  let armed = false;
+  let held: { enteredAt: number; release: () => void } | undefined;
+  const holding: Fetch = (input, init) => {
+    if (!armed) return fetch(input, init);
+    armed = false;
+    return new Promise((resolve, reject) => {
+      held = {
+        enteredAt: performance.now(),
+        release: () => fetch(input, init).then(resolve, reject),
+      };
+    });
+  };
+  const app = createApp({ url: server.url, latencyMs: 500, fetch: holding });
   let rendered: TestUI | undefined;
   const counts = () => metricsOf(server);
   try {
@@ -36,6 +52,7 @@ test("500 ms RTT delays Flight and actions while input, hover and scroll stay lo
     const field = renderable(ui, "latency-input", InputRenderable);
     const top = scroll.scrollTop;
     const actionStart = performance.now();
+    armed = true;
     await act(async () => {
       ui.mockInput.pressEnter();
     });
@@ -43,28 +60,37 @@ test("500 ms RTT delays Flight and actions while input, hover and scroll stay lo
       await ui.mockInput.typeText("abc");
       await ui.mockMouse.moveTo(hover.x + 2, hover.y + 1);
       await ui.mockMouse.scroll(scroll.x + 2, scroll.y + 2, "down");
-      await Bun.sleep(30);
     });
+    await until(() => held !== undefined);
+    const request = held;
+    if (!request) throw new Error("the action never reached fetch");
+    // The one-way latency is applied before the request is sent.
+    expect(request.enteredAt - actionStart).toBeGreaterThanOrEqual(240);
     await ui.renderOnce();
-    // Local results are on screen while the Server has not answered yet.
+    // Input, hover and scroll are on screen while the action is unanswered and unsent.
     expect(field.value).toBe("abc");
     expect(scroll.scrollTop).toBeGreaterThan(top);
-    expect(ui.captureCharFrame()).toContain("Waiting for Server");
-    expect(ui.captureCharFrame()).not.toContain("Server replied in");
+    let frame = ui.captureCharFrame();
+    expect(frame).toContain("Waiting for Server");
+    expect(frame).not.toContain("Server replied in");
     expect(await counts()).toEqual(before);
     // Hover must produce a visible local frame, independently of the subsequent wheel event.
     await act(async () => {
       await ui.mockMouse.moveTo(hover.x + 2, hover.y + 1);
     });
     await ui.renderOnce();
-    expect(ui.captureCharFrame()).toContain("Hover active (local)");
+    frame = ui.captureCharFrame();
+    expect(frame).toContain("Hover active (local)");
+    expect(frame).toContain("Waiting for Server");
     // A read-only Server Function does not refresh the page.
-    await act(async () => {
-      await Bun.sleep(600);
+    const released = performance.now();
+    request.release();
+    await until(() => {
+      void ui.renderOnce();
+      return ui.captureCharFrame().includes("Server replied in");
     });
-    await ui.renderOnce();
-    expect(ui.captureCharFrame()).toContain("Server replied in");
-    expect(performance.now() - actionStart).toBeGreaterThanOrEqual(480);
+    // The one-way latency is applied again on the way back.
+    expect(performance.now() - released).toBeGreaterThanOrEqual(240);
     expect(await counts()).toEqual({ renders: before.renders, actions: before.actions + 1 });
     // An explicit refresh is delayed too, and keeps the mounted input.
     const refreshStart = performance.now();
