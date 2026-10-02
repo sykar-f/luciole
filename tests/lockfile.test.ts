@@ -15,10 +15,12 @@ test("a workspace member and a package installed below an app share the enclosin
   const root = join(work, "workspace");
   await mkdir(join(root, ".git"), { recursive: true });
   await mkdir(join(root, "examples/notes/app"), { recursive: true });
-  await mkdir(join(root, "node_modules/luciole/src"), { recursive: true });
+  await mkdir(join(root, "node_modules/@luciole-sh/core/src"), { recursive: true });
   await Bun.write(join(root, "bun.lock"), "{}");
   expect(governingLock(join(root, "examples/notes"))).toBe(join(root, "bun.lock"));
-  expect(governingLock(join(root, "node_modules/luciole/src"))).toBe(join(root, "bun.lock"));
+  expect(governingLock(join(root, "node_modules/@luciole-sh/core/src"))).toBe(
+    join(root, "bun.lock"),
+  );
 });
 
 test("the nearest lock wins, and none is taken from above the git checkout", async () => {
@@ -45,17 +47,17 @@ test("the workspace packages an app links are found; installed ones and luciole 
       JSON.stringify({
         dependencies: {
           "@luciole-sh/markdown-editor": "workspace:*",
-          luciole: "workspace:*",
+          "@luciole-sh/core": "workspace:*",
           installed: "1.0.0",
         },
       }),
     );
-    await mkdir(join(app, "node_modules/@luciole"), { recursive: true });
+    await mkdir(join(app, "node_modules/@luciole-sh"), { recursive: true });
     await symlink(
       join(root, "packages/markdown-editor"),
       join(app, "node_modules/@luciole-sh/markdown-editor"),
     );
-    await symlink(join(root, "packages/core"), join(app, "node_modules/luciole"));
+    await symlink(join(root, "packages/core"), join(app, "node_modules/@luciole-sh/core"));
     expect(linkedPackages(app)).toEqual([await realpath(join(root, "packages/markdown-editor"))]);
     expect(isLinkedSource("src/index.ts")).toBe(true);
     expect(isLinkedSource("node_modules/x/index.ts")).toBe(false);
@@ -66,5 +68,7 @@ test("the workspace packages an app links are found; installed ones and luciole 
 });
 
 test("Notes links its editor", () => {
-  expect(linkedPackages(resolve("examples/notes")).map((dir) => basename(dir))).toEqual(["editor"]);
+  expect(linkedPackages(resolve("examples/notes")).map((dir) => basename(dir))).toEqual([
+    "markdown-editor",
+  ]);
 });

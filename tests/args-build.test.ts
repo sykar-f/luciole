@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
+import { createInterface } from "node:readline";
 import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -8,7 +8,7 @@ import { build } from "../packages/core/src/build";
 import { compileApp } from "../packages/core/src/compile";
 import { AppMetadata } from "../packages/core/src/app-metadata";
 import { messageOf } from "../packages/core/src/guards";
-import { execute, launch, readManifest, rejectionOf, until } from "./helpers";
+import { execute, launch, readManifest, rejectionOf } from "./helpers";
 
 const cli = resolve("packages/core/src/cli.ts");
 const ARGS = `import { defineArgs } from "@luciole-sh/core/args";
@@ -178,7 +178,13 @@ test("an app binary parses them too: its --help, serve -- options, and none with
     stdio: ["ignore", "pipe", "inherit"],
   });
   try {
-    await until(() => existsSync(socket), 20000);
+    // The socket file exists once bound, before the Server accepts: its `ready` line is the signal.
+    await new Promise<void>((done, fail) => {
+      server.once("exit", () => fail(new Error("Server exited")));
+      createInterface({ input: server.stdout }).on("line", (line) => {
+        if (line.startsWith('{"ready":true')) done();
+      });
+    });
     const manifest = await readManifest(dir);
     const body = await fetch("http://localhost/render?route=%2F&params=%7B%7D", {
       unix: socket,
