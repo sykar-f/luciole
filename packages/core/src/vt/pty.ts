@@ -15,7 +15,7 @@
  *   would then fork, and the pid would no longer be the program's. Without `setsid`
  *   the program still runs, without job control.
  */
-import { fstatSync, readdirSync, realpathSync } from "node:fs";
+import { fstatSync, readdirSync, readSync, realpathSync } from "node:fs";
 export type PtyOptions = {
   /**
    * The program and its arguments; a function receives the exact path of the PTY's
@@ -81,6 +81,41 @@ function newSlave(before: ReadonlyMap<number, string>) {
   }
   throw new Error("The new PTY's device path could not be found");
 }
+/** The master side of every PTY on Linux: /dev/ptmx (or devpts' own), major 5, minor 2. */
+const PTMX = 0x502;
+const DRAIN_BYTES = 65536;
+/**
+ * On Linux `Bun.Terminal` keeps the slave open, so its stream never ends, and the
+ * program's exit often comes before its last bytes are read (1 run in 7 for a
+ * `printf` that exits at once): closing the PTY then loses them. Its writes are in the
+ * kernel by then; poll() may not say so yet (they reach the master through a deferred
+ * flush), but a read flushes them first. So the exit reads the master to the end,
+ * synchronously, before closing it: in order, all of it (800 runs of 800 measured).
+ * On macOS the stream ends first, with the program's last bytes.
+ */
+function masterOf(before: ReadonlyMap<number, string>) {
+  for (const [fd, identity] of openDescriptors()) {
+    if (before.get(fd) === identity) continue;
+    try {
+      if (fstatSync(fd).rdev === PTMX) return fd;
+    } catch {}
+  }
+  return undefined;
+}
+function drain(master: number, onData: (bytes: Uint8Array) => void) {
+  const buffer = new Uint8Array(DRAIN_BYTES);
+  for (;;) {
+    let read = 0;
+    try {
+      read = readSync(master, buffer);
+    } catch {
+      // EAGAIN: nothing left; EIO: the slave is gone with what it wrote.
+      return;
+    }
+    if (read === 0) return;
+    onData(buffer.slice(0, read));
+  }
+}
 /** Linux's way to give the program its terminal (see the header); the host's PATH. */
 const SETSID = process.platform === "linux" ? Bun.which("setsid") : null;
 /**
@@ -106,13 +141,15 @@ function killAll() {
   live.clear();
 }
 export function spawnPty(options: PtyOptions): Pty {
-  const before = typeof options.command === "function" ? openDescriptors() : undefined;
+  const linux = process.platform === "linux";
+  const before = typeof options.command === "function" || linux ? openDescriptors() : undefined;
   const terminal = new Bun.Terminal({
     cols: options.cols,
     rows: options.rows,
     name: "xterm-256color",
     data: (_terminal, bytes) => options.onData(bytes),
   });
+  const master = linux && before ? masterOf(before) : undefined;
   let command: readonly string[];
   try {
     command =
@@ -138,6 +175,7 @@ export function spawnPty(options: PtyOptions): Pty {
     }),
     onExit: (child, code) => {
       live.delete(child.pid);
+      if (master !== undefined && !terminal.closed) drain(master, options.onData);
       terminal.close();
       options.onExit(code);
     },
