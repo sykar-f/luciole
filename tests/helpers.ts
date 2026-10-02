@@ -1,7 +1,8 @@
 import { spawn } from "node:child_process";
-import { mkdtemp, symlink } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { mkdtemp, realpath, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { act, type ReactNode } from "react";
 import type { MouseButton } from "@opentui/core/testing";
@@ -42,6 +43,28 @@ export async function temporaryApp(prefix: string) {
   const directory = await mkdtemp(join(tmpdir(), `luciole-${prefix}-`));
   await symlink(resolve("node_modules"), join(directory, "node_modules"), "dir");
   return directory;
+}
+
+/** The directory holding a `package.json` or a `.git` that is `directory` or above it, if any. */
+function projectAbove(directory: string): string | undefined {
+  for (let at = directory; ; at = dirname(at)) {
+    if (existsSync(join(at, "package.json")) || existsSync(join(at, ".git"))) return at;
+    if (dirname(at) === at) return undefined;
+  }
+}
+
+/**
+ * A fresh directory with no project above it: no `package.json` nor `.git` in it or in any
+ * ancestor, so `bun add` installs where it runs and nothing resolves to a checkout. `tmpdir()`
+ * is not that when TMPDIR points into a checkout (the sweep's does), hence the fallback to
+ * `/tmp`; with no such place the call fails rather than let a test pass on a false premise.
+ */
+export async function isolatedTemporary(prefix: string) {
+  for (const candidate of [tmpdir(), "/tmp"]) {
+    const root = await realpath(candidate).catch(() => undefined);
+    if (root !== undefined && projectAbove(root) === undefined) return mkdtemp(join(root, prefix));
+  }
+  throw new Error(`No temporary directory free of a project above it (tmpdir: ${tmpdir()})`);
 }
 
 /**

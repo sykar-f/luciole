@@ -1,16 +1,15 @@
 import { afterAll, expect, test } from "bun:test";
-import { cp, mkdir, mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { cp, mkdir, rm } from "node:fs/promises";
 import { join, relative, resolve } from "node:path";
 import { z } from "zod";
 import { createStarter, isInstalled } from "../packages/core/src/commands/init";
 import { messageOf } from "../packages/core/src/guards";
 import { stageStarter } from "../packages/create/scripts/starter";
-import { BUILD_TEST_MS, rejectionOf } from "./helpers";
+import { BUILD_TEST_MS, execute, isolatedTemporary, rejectionOf } from "./helpers";
 
 const workspace = resolve(import.meta.dir, "..");
 const workspaceFramework = join(workspace, "packages/core");
-const temp = await mkdtemp(join(tmpdir(), "luciole-init-test-"));
+const temp = await isolatedTemporary("luciole-init-test-");
 afterAll(() => rm(temp, { recursive: true, force: true }));
 
 const Starter = z.object({ dependencies: z.record(z.string(), z.string()) });
@@ -19,6 +18,12 @@ const Vendored = z.looseObject({
   scripts: z.unknown().optional(),
   exports: z.looseObject({ ".": z.looseObject({ types: z.string(), default: z.string() }) }),
 });
+/** `a/b/c` and each directory above it: `a`, `a/b`, `a/b/c`, and the workspace root (""). */
+const ancestry = (file: string) =>
+  file
+    .split("/")
+    .map((_, index, parts) => parts.slice(0, index + 1).join("/"))
+    .concat("");
 const dependenciesOf = async (starter: string) =>
   Starter.parse(await Bun.file(join(starter, "package.json")).json()).dependencies;
 
@@ -135,12 +140,18 @@ test(
 
 test("a workspace nested under a node_modules ancestor, or a test directory, is still vendored", async () => {
   const nested = join(temp, "node_modules/test-work/luciole");
+  // What the repository tracks: the checkout also holds untracked, live directories (the
+  // sweep's `.sweep/tmp`, which other test files fill and empty while this one copies).
+  const listed = await execute(["git", "ls-files", "-z"], { cwd: workspace });
+  expect(listed.exitCode, listed.stderr.toString()).toBe(0);
+  const files = listed.stdout.toString().split("\0").filter(Boolean);
+  const tracked = new Set(files.flatMap((file) => ancestry(file)));
   await cp(workspace, nested, {
     recursive: true,
     filter: (p) =>
       !/(^|\/)(node_modules|\.git|\.luciole|website|\.orchestra|template)(\/|$)/.test(
         relative(workspace, p),
-      ),
+      ) && tracked.has(relative(workspace, p)),
   });
   const framework = join(nested, "packages/core");
   expect(isInstalled(framework)).toBe(false);
