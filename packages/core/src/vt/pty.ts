@@ -1,12 +1,19 @@
 /**
- * A program on a pseudo-terminal, with Bun's own PTY (`Bun.Terminal`): no native addon,
- * no helper binary. POSIX only; Bun has no PTY on Windows.
+ * A program on a pseudo-terminal, with Bun's own PTY (`Bun.Terminal`): no native addon.
+ * POSIX only; Bun has no PTY on Windows.
  *
- * `detached: true` is not optional. Without it the child shares the Client's session and
- * the PTY never becomes its controlling terminal: a shell warns "no job control", Ctrl+C
- * reaches no foreground process group and `sleep 30` survives it. Detached, Bun calls
- * setsid() and makes the PTY the controlling terminal of the new session, as a terminal
- * emulator or tmux does; closing the PTY then hangs the whole session up
+ * The program must lead a session of its own whose controlling terminal is the PTY.
+ * Otherwise a shell warns "job control turned off", Ctrl+C reaches no foreground process
+ * group and `sleep 30` survives it. A terminal emulator or tmux does the same; closing
+ * the PTY then hangs the whole session up.
+ * - macOS: `detached: true` is enough. Bun calls setsid() and the PTY becomes the
+ *   controlling terminal of the new session.
+ * - Linux: Bun 1.4.2 calls setsid() too but never TIOCSCTTY, so the session has no
+ *   terminal (`ps` shows TPGID -1). `setsid -c` (util-linux, busybox) does both and
+ *   then execs the program, which keeps the pid Bun returns. It is spawned in the
+ *   Client's group, not detached, because setsid() fails for a group leader: `setsid`
+ *   would then fork, and the pid would no longer be the program's. Without `setsid`
+ *   the program still runs, without job control.
  */
 import { fstatSync, readdirSync, realpathSync } from "node:fs";
 export type PtyOptions = {
@@ -74,6 +81,8 @@ function newSlave(before: ReadonlyMap<number, string>) {
   }
   throw new Error("The new PTY's device path could not be found");
 }
+/** Linux's way to give the program its terminal (see the header); the host's PATH. */
+const SETSID = process.platform === "linux" ? Bun.which("setsid") : null;
 /**
  * The programs still running, by pid, with the PTY each one holds. A host that quits
  * through `process.exit` (a signal, a quit) unmounts nothing, so nothing else ends them.
@@ -116,9 +125,9 @@ export function spawnPty(options: PtyOptions): Pty {
     throw error;
   }
   const own = options.environment === "replace" ? {} : process.env;
-  const child = Bun.spawn([...command], {
+  const child = Bun.spawn(SETSID ? [SETSID, "-c", ...command] : [...command], {
     terminal,
-    detached: true,
+    detached: !SETSID,
     cwd: options.cwd,
     // TERM names what the emulator answers to (terminfo, DA); COLORTERM advertises the
     // truecolor it renders.
