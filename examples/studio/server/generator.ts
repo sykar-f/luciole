@@ -5,7 +5,7 @@
  * STUDIO_PREFIX) plays the scenario's next turn. No process, no model, no quota: tests,
  * demos and a first look at studio run on it.
  */
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { z } from "zod";
 import { filePatch } from "@luciole/harness/diff";
@@ -28,7 +28,12 @@ const Environment = z.object({
   STUDIO_FAKE_DELAY_MS: z.coerce.number().int().min(0).default(DEFAULT_DELAY_MS),
   // Pause after each write of a scenario's drafts, for studio to show them.
   STUDIO_FAKE_WRITE_MS: z.coerce.number().int().min(0).default(DEFAULT_WRITE_MS),
+  // A directory that paces the drafts on what the observer sees instead: after its nth
+  // write (from 0, over the whole run) the generator waits for the file `draft-<n>` there,
+  // which the observer creates once it has seen that draft, then removes it. Tests use it.
+  STUDIO_FAKE_GATE_DIR: z.string().optional(),
 });
+const GATE_POLL_MS = 20;
 const CAPABILITIES: Capabilities = {
   steer: false,
   models: false,
@@ -50,11 +55,14 @@ export class Generator implements Harness {
   private readonly context: HarnessContext;
   private readonly delay: number;
   private readonly writeDelay: number;
+  private readonly gate: string | undefined;
+  private drafted = 0;
   private cwd = "";
   private scenario: Scenario | undefined;
   private turn = 0;
   private next = 0;
   private interrupted = false;
+  private closed = false;
   private readonly pending = new Map<string, (response: Response) => void>();
 
   constructor(context: HarnessContext) {
@@ -62,6 +70,7 @@ export class Generator implements Harness {
     const env = Environment.parse(context.env);
     this.delay = env.STUDIO_FAKE_DELAY_MS;
     this.writeDelay = env.STUDIO_FAKE_WRITE_MS;
+    this.gate = env.STUDIO_FAKE_GATE_DIR;
   }
   private id_(prefix: string) {
     return `${prefix}-${++this.next}`;
@@ -115,12 +124,23 @@ export class Generator implements Harness {
     const written: string[] = [];
     for (const draft of correction ? [] : (scenario.drafts ?? [])) {
       written.push(...this.write(draft));
-      await Bun.sleep(this.writeDelay);
-      if (this.interrupted) return "interrupted";
+      await this.afterDraft();
+      if (this.interrupted || this.closed) return "interrupted";
     }
     written.push(...this.write(files));
     await this.say(`Wrote ${[...new Set(written)].join(", ")}.`);
     return "completed";
+  }
+
+  /** The pause after a draft: a fixed one, or until the observer says it saw the draft. */
+  private async afterDraft() {
+    if (!this.gate) return Bun.sleep(this.writeDelay);
+    const release = join(this.gate, `draft-${this.drafted++}`);
+    while (!existsSync(release)) {
+      if (this.interrupted || this.closed) return;
+      await Bun.sleep(GATE_POLL_MS);
+    }
+    unlinkSync(release);
   }
 
   /** Writes `files` in the project, as one tool call of an agent; their paths. */
@@ -199,5 +219,7 @@ export class Generator implements Harness {
   async commands() {
     return [];
   }
-  async close() {}
+  async close() {
+    this.closed = true;
+  }
 }
