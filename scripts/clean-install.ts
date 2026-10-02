@@ -90,6 +90,8 @@ try {
         PORT: "0",
         NOTES_DB: join(temp, "notes.sqlite"),
         NOTES_DELAY_MS: "700",
+        // The smoke expects the unsaved mark and the Save button, which autosave would hide.
+        NOTES_AUTOSAVE_MS: "0",
       },
       stdout: "pipe",
       stderr: "inherit",
