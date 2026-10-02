@@ -4,9 +4,9 @@
 // locked dependencies, no path of this machine in the binary; `--check` rebuilds and
 // compares with the committed SHA256SUMS instead of replacing them.
 //   bun scripts/build-sandbox.ts [--arch x64|arm64] [--check]
-// Needs a Docker engine (OrbStack, Docker Desktop or Linux); the other architecture runs
-// emulated. The binaries are committed: users of luciole install nothing.
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+// Needs a Docker engine (OrbStack, Docker Desktop, Linux, or a remote one through
+// DOCKER_HOST); the other architecture runs emulated. The binaries are committed: users of luciole install nothing.
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -24,6 +24,8 @@ const ARCHS = {
 } as const;
 const crate = resolve("packages/core/native/luciole-sandbox");
 const dist = join(crate, "dist");
+// Build products and the output: not sources.
+const SKIPPED = ["dist", "target"];
 
 const args = process.argv.slice(2);
 const check = args.includes("--check");
@@ -35,6 +37,12 @@ async function run(cmd: string[]) {
   const child = Bun.spawn(cmd, { stdout: "inherit", stderr: "inherit" });
   if ((await child.exited) !== 0) throw new Error(`Failed: ${cmd.join(" ")}`);
 }
+async function capture(cmd: string[]) {
+  const child = Bun.spawn(cmd, { stdout: "pipe", stderr: "inherit" });
+  const text = await new Response(child.stdout).text();
+  if ((await child.exited) !== 0) throw new Error(`Failed: ${cmd.join(" ")}`);
+  return text;
+}
 const sha256 = async (file: string) =>
   new Bun.CryptoHasher("sha256").update(await Bun.file(file).bytes()).digest("hex");
 
@@ -45,30 +53,42 @@ try {
     const { platform, image } = ARCHS[arch];
     const target = join(out, `linux-${arch}`);
     await mkdir(target, { recursive: true });
-    // The sources read-only; cargo's registry and target directory inside the container.
+    // `docker create` + `docker cp` rather than bind mounts: a mount of a local path does not
+    // reach a remote engine (DOCKER_HOST=ssh://...), copies work the same everywhere.
     // --remap-path-prefix keeps the container's paths out of panic messages.
-    await run([
-      "docker",
-      "run",
-      "--rm",
-      "--platform",
-      platform,
-      "-v",
-      `${crate}:/src:ro`,
-      "-v",
-      `${target}:/out`,
-      "-e",
-      "CARGO_TARGET_DIR=/tmp/target",
-      "-e",
-      "RUSTFLAGS=--remap-path-prefix=/src=luciole-sandbox --remap-path-prefix=/usr/local/cargo=cargo",
-      "-w",
-      "/src",
-      image,
-      "sh",
-      "-c",
-      // Static, or refused: the binary must run on glibc and musl systems alike.
-      "cargo build --locked --release && ! ldd /tmp/target/release/luciole-sandbox 2>/dev/null | grep -q '=>' && cp /tmp/target/release/luciole-sandbox /out/ && chmod 755 /out/luciole-sandbox",
-    ]);
+    const id = (
+      await capture([
+        "docker",
+        "create",
+        "--platform",
+        platform,
+        "-e",
+        "CARGO_TARGET_DIR=/tmp/target",
+        "-e",
+        "RUSTFLAGS=--remap-path-prefix=/src=luciole-sandbox --remap-path-prefix=/usr/local/cargo=cargo",
+        "-w",
+        "/src",
+        image,
+        "sh",
+        "-c",
+        // Static, or refused: the binary must run on glibc and musl systems alike.
+        "cargo build --locked --release && ! ldd /tmp/target/release/luciole-sandbox 2>/dev/null | grep -q '=>'",
+      ])
+    ).trim();
+    try {
+      for (const entry of await readdir(crate))
+        if (!SKIPPED.includes(entry))
+          await run(["docker", "cp", join(crate, entry), `${id}:/src/`]);
+      await run(["docker", "start", "-a", id]);
+      await run([
+        "docker",
+        "cp",
+        `${id}:/tmp/target/release/luciole-sandbox`,
+        join(target, "luciole-sandbox"),
+      ]);
+    } finally {
+      await run(["docker", "rm", "-f", id]);
+    }
     sums.push(`${await sha256(join(target, "luciole-sandbox"))}  linux-${arch}/luciole-sandbox`);
   }
   if (check) {
