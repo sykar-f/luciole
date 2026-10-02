@@ -6,7 +6,7 @@ import {
   pageRoute,
   rootRoute as createRootRoute,
   type TerminalRouter,
-} from "luciole/route-tree";
+} from "@luciole-sh/core/route-tree";
 import Layout0 from "./layout";
 import Error1 from "./error";
 import Loading2 from "./notes/[id]/loading";

@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { Sha256Hasher, sha256 } from "../packages/luciole/src/web/node/sha256";
+import { Sha256Hasher, sha256 } from "../packages/core/src/web/node/sha256";
 
 const bun = (data: Uint8Array | string) =>
   new Bun.CryptoHasher("sha256").update(data).digest("hex");

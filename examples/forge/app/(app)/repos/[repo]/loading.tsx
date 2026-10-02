@@ -1,5 +1,5 @@
 "use client";
-import type { LoadingProps } from "luciole/client";
+import type { LoadingProps } from "@luciole-sh/core/client";
 import { Screen, SkeletonRows } from "../../../../components/frames";
 import { Help } from "../../../../components/Help";
 import { Pulse } from "../../../../components/Pulse";

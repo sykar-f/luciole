@@ -15,7 +15,7 @@ import {
   type QueryOptions,
 } from "../packages/harness/src/adapters/claude";
 import type { HarnessEvent } from "../packages/harness/src/adapters/types";
-import { messageOf } from "../packages/luciole/src/guards";
+import { messageOf } from "../packages/core/src/guards";
 import { rejectionOf } from "./helpers";
 
 // Streams recorded on the real claude 2.1.283 by scripts/coder/record-claude.ts, replayed

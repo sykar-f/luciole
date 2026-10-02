@@ -1,6 +1,6 @@
 "use client";
-import { KeyHelp, useConnection, type LayoutProps } from "luciole/client";
-import { color } from "@luciole/harness/ui/theme";
+import { KeyHelp, useConnection, type LayoutProps } from "@luciole-sh/core/client";
+import { color } from "@luciole-sh/harness/ui/theme";
 
 export default function RootLayout({ children }: LayoutProps) {
   const { error, buildError } = useConnection();

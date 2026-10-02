@@ -2,13 +2,13 @@ import { afterAll, expect, test } from "bun:test";
 import { mkdir, mkdtemp, realpath, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
-import { governingLock, isLinkedSource, linkedPackages } from "../packages/luciole/src/lockfile";
+import { governingLock, isLinkedSource, linkedPackages } from "../packages/core/src/lockfile";
 
 const work = await mkdtemp(join(tmpdir(), "luciole-lockfile-"));
 afterAll(() => rm(work, { recursive: true, force: true }));
 
 test("the framework of this checkout is governed by its root lock", () => {
-  expect(governingLock(resolve("packages/luciole/src"))).toBe(resolve("bun.lock"));
+  expect(governingLock(resolve("packages/core/src"))).toBe(resolve("bun.lock"));
 });
 
 test("a workspace member and a package installed below an app share the enclosing lock", async () => {
@@ -37,23 +37,26 @@ test("the workspace packages an app links are found; installed ones and luciole 
   try {
     const app = join(root, "apps/notes");
     await mkdir(join(app, "node_modules"), { recursive: true });
-    await mkdir(join(root, "packages/editor"), { recursive: true });
-    await mkdir(join(root, "packages/luciole"), { recursive: true });
+    await mkdir(join(root, "packages/markdown-editor"), { recursive: true });
+    await mkdir(join(root, "packages/core"), { recursive: true });
     await mkdir(join(app, "node_modules/installed"), { recursive: true });
     await Bun.write(
       join(app, "package.json"),
       JSON.stringify({
         dependencies: {
-          "@luciole/editor": "workspace:*",
+          "@luciole-sh/markdown-editor": "workspace:*",
           luciole: "workspace:*",
           installed: "1.0.0",
         },
       }),
     );
     await mkdir(join(app, "node_modules/@luciole"), { recursive: true });
-    await symlink(join(root, "packages/editor"), join(app, "node_modules/@luciole/editor"));
-    await symlink(join(root, "packages/luciole"), join(app, "node_modules/luciole"));
-    expect(linkedPackages(app)).toEqual([await realpath(join(root, "packages/editor"))]);
+    await symlink(
+      join(root, "packages/markdown-editor"),
+      join(app, "node_modules/@luciole-sh/markdown-editor"),
+    );
+    await symlink(join(root, "packages/core"), join(app, "node_modules/luciole"));
+    expect(linkedPackages(app)).toEqual([await realpath(join(root, "packages/markdown-editor"))]);
     expect(isLinkedSource("src/index.ts")).toBe(true);
     expect(isLinkedSource("node_modules/x/index.ts")).toBe(false);
     expect(isLinkedSource("dist/index.js")).toBe(false);

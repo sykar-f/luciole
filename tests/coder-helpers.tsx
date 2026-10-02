@@ -4,8 +4,8 @@ import { testRender } from "@opentui/react/test-utils";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import type { Session } from "../packages/luciole/src/client";
-import type { NetworkConditions } from "../packages/luciole/src/transport";
+import type { Session } from "../packages/core/src/client";
+import type { NetworkConditions } from "../packages/core/src/transport";
 import { launch, importClient } from "./helpers";
 
 export const coderDirectory = resolve("examples/coder");

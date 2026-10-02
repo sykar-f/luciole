@@ -3,12 +3,12 @@ import { mkdtemp, mkdir, rm } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { z } from "zod";
-import { ABI_KEY, ABI_PACKAGES, ABI_SPECIFIERS, AppManifest } from "../packages/luciole/src/abi";
-import { loadAppBundle, runtimeSpecifiers } from "../packages/luciole/src/app-bundle";
-import { build } from "../packages/luciole/src/build";
-import * as optional from "../packages/luciole/src/optional";
-import { messageOf } from "../packages/luciole/src/guards";
-import { readJsonFile } from "../packages/luciole/src/package-json";
+import { ABI_KEY, ABI_PACKAGES, ABI_SPECIFIERS, AppManifest } from "../packages/core/src/abi";
+import { loadAppBundle, runtimeSpecifiers } from "../packages/core/src/app-bundle";
+import { build } from "../packages/core/src/build";
+import * as optional from "../packages/core/src/optional";
+import { messageOf } from "../packages/core/src/guards";
+import { readJsonFile } from "../packages/core/src/package-json";
 import { BUILD_TEST_MS, rejectionOf } from "./helpers";
 
 test("the ABI names the installed versions and the runtime provides every specifier", async () => {
@@ -147,7 +147,7 @@ test("the examples build their application bundle", async () => {
   expect((await loadAppBundle(join(dir, ".luciole/app"))).buildId).toBe(manifest.buildId);
 });
 
-test("the Notes application, which draws code with luciole/grammars, builds a bundle that loads", async () => {
+test("the Notes application, which draws code with @luciole-sh/core/grammars, builds a bundle that loads", async () => {
   const dir = resolve("examples/notes");
   await build(dir, undefined, { appBundle: "required" });
   const manifest = AppManifest.parse(await manifestOf(dir));
@@ -156,11 +156,11 @@ test("the Notes application, which draws code with luciole/grammars, builds a bu
 });
 
 test(
-  "an app that imports luciole/grammars without one of its packages is told which to install",
+  "an app that imports @luciole-sh/core/grammars without one of its packages is told which to install",
   async () => {
     await fixture(
       {
-        "app/page.tsx": `import "luciole/grammars"; export default function Page(){return <text>x</text>}`,
+        "app/page.tsx": `import "@luciole-sh/core/grammars"; export default function Page(){return <text>x</text>}`,
       },
       async (dir) => {
         // The workspace has every grammar: ask for one that no registry has.
@@ -173,7 +173,7 @@ test(
         );
         try {
           const error = messageOf(await rejectionOf(build(dir)));
-          expect(error).toContain("luciole/grammars needs the optional package");
+          expect(error).toContain("@luciole-sh/core/grammars needs the optional package");
           expect(error).toContain("bun add tree-sitter-rust-absent");
           expect(guard).toHaveBeenCalled();
         } finally {

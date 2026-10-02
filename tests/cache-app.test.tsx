@@ -5,8 +5,8 @@ import { testRender } from "@opentui/react/test-utils";
 import { mkdir, mkdtemp, readFile, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { build } from "../packages/luciole/src/build";
-import type { ApplicationEvent } from "../packages/luciole/src/client";
+import { build } from "../packages/core/src/build";
+import type { ApplicationEvent } from "../packages/core/src/client";
 import { BUILD_TEST_MS, destroy, importClient, launch, until, type TestUI } from "./helpers";
 
 // Two cached reads with their own tag, an action that invalidates one tag, a page with a
@@ -18,12 +18,12 @@ const files: Record<string, string> = {
   "app/b/page.tsx": `import {readB} from "../../server/queries";export default async function B(){const b=await readB();return <text>B {b.value} runs {b.runs}</text>}`,
   "app/c/page.tsx": `export const staleTime = 60;export default function C(){return <text>C page</text>}`,
   "components/Bump.tsx": `"use client";import {useKeyboard} from "@opentui/react";import {bumpA} from "../actions/data";export function Bump(){useKeyboard(k=>{if(k.name==="b")void bumpA()});return <text>press b</text>}`,
-  "actions/data.ts": `"use server";import {invalidate} from "luciole/server";import {write} from "../server/store";export async function bumpA(){write("a");await invalidate({tag:"a"});return "done"}export async function bumpD(){write("d");await invalidate({tag:"d"});return "done"}`,
+  "actions/data.ts": `"use server";import {invalidate} from "@luciole-sh/core/server";import {write} from "../server/store";export async function bumpA(){write("a");await invalidate({tag:"a"});return "done"}export async function bumpD(){write("d");await invalidate({tag:"d"});return "done"}`,
   "app/d/page.tsx": `import {Suspense} from "react";import {BumpD} from "../../components/BumpD";import {readD} from "../../server/queries";export const staleTime=60;async function Late(){await Bun.sleep(200);const d=await readD();return <text>D late {d.value}</text>}export default function D(){return <box flexDirection="column"><text>D shell</text><Suspense fallback={<text>D waiting</text>}><Late/></Suspense><BumpD/></box>}`,
   "components/BumpD.tsx": `"use client";import {useKeyboard} from "@opentui/react";import {bumpD} from "../actions/data";export function BumpD(){useKeyboard(k=>{if(k.name==="d")void bumpD()});return <text>press d</text>}`,
   "server/store.ts": `const values={a:0,b:0,d:0},runs={a:0,b:0,d:0};export const read=(k)=>values[k];export function write(k){values[k]++}export function ran(k){return ++runs[k]}`,
-  "server/queries.ts": `"use cache";import {cacheTag} from "luciole/server";import {read,ran} from "./store";export async function readA(){cacheTag("a");return {value:read("a"),runs:ran("a")}}export async function readB(){cacheTag("b");return {value:read("b"),runs:ran("b")}}export async function readD(){cacheTag("d");return {value:read("d"),runs:ran("d")}}`,
-  "server/cache.ts": `import {sqliteCache} from "luciole/server";export default sqliteCache({path:process.env.CACHE_DB??"cache.sqlite"});`,
+  "server/queries.ts": `"use cache";import {cacheTag} from "@luciole-sh/core/server";import {read,ran} from "./store";export async function readA(){cacheTag("a");return {value:read("a"),runs:ran("a")}}export async function readB(){cacheTag("b");return {value:read("b"),runs:ran("b")}}export async function readD(){cacheTag("d");return {value:read("d"),runs:ran("d")}}`,
+  "server/cache.ts": `import {sqliteCache} from "@luciole-sh/core/server";export default sqliteCache({path:process.env.CACHE_DB??"cache.sqlite"});`,
 };
 
 test(

@@ -3,7 +3,7 @@ import { createRequire } from "node:module";
 import { readFileSync } from "node:fs";
 import { z } from "zod";
 import { workspaces } from "../package.json";
-import framework from "../packages/luciole/package.json";
+import framework from "../packages/core/package.json";
 
 // Verify the renderer's real resolution: a stale nested reconciler can hide a failed upgrade.
 test("OpenTUI uses the pinned reconciler and shares the application's React and Core", () => {

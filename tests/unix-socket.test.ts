@@ -5,8 +5,8 @@ import { rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { createInterface } from "node:readline";
 import { z } from "zod";
-import { connect, socketDirectory } from "../packages/luciole/src/connect";
-import { createHttpTransport } from "../packages/luciole/src/transport";
+import { connect, socketDirectory } from "../packages/core/src/connect";
+import { createHttpTransport } from "../packages/core/src/transport";
 
 const Ready = z.object({ ready: z.literal(true), socket: z.string(), buildId: z.string() });
 

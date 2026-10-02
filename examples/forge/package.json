@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "luciole": "workspace:*",
+    "@luciole-sh/core": "workspace:*",
     "@opentui/core": "catalog:",
     "@opentui/react": "catalog:",
     "@tanstack/react-form": "catalog:",

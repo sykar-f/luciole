@@ -1,5 +1,5 @@
 "use client";
-import type { LayoutProps } from "luciole/client";
+import type { LayoutProps } from "@luciole-sh/core/client";
 import { AppChrome } from "../../components/AppChrome";
 
 // Persistent for every signed-in screen: sidebar, identity, Drafts and keymap survive

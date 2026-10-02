@@ -11,9 +11,9 @@ import {
   openTunnel,
   serverUrl,
   socketDirectory,
-} from "../packages/luciole/src/connect";
-import { messageOf } from "../packages/luciole/src/guards";
-import type { Fetch } from "../packages/luciole/src/transport";
+} from "../packages/core/src/connect";
+import { messageOf } from "../packages/core/src/guards";
+import type { Fetch } from "../packages/core/src/transport";
 import { rejectionOf, until } from "./helpers";
 
 let work: string, fakeSsh: string, server: ReturnType<typeof Bun.serve>;
@@ -187,7 +187,7 @@ test("a signal while ssh authenticates stops ssh and removes the socket director
   const script = join(work, "waiting-client.ts");
   await Bun.write(
     script,
-    `import { openTunnel } from ${JSON.stringify(resolve("packages/luciole/src/connect.ts"))};
+    `import { openTunnel } from ${JSON.stringify(resolve("packages/core/src/connect.ts"))};
 await openTunnel("ssh://silent.example", { ssh: ${JSON.stringify(fakeSsh)} });`,
   );
   const calls = () => readFileSync(join(work, "calls.jsonl"), "utf8").length;

@@ -1,5 +1,5 @@
 import "server-only";
-import { getCallId, getSession, notFound } from "luciole/server";
+import { getCallId, getSession, notFound } from "@luciole-sh/core/server";
 import { z } from "zod";
 import type { Role } from "../components/model";
 import { createForge, type Actor } from "./forge";

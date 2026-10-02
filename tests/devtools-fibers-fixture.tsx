@@ -4,7 +4,7 @@
 // sharing its process with others cannot guarantee. Prints one JSON line.
 import { act, createContext, memo, useContext, useEffect, useState, type ReactNode } from "react";
 import { testRender } from "@opentui/react/test-utils";
-import { createComponentTracker, fiberChannel } from "../packages/luciole/src/devtools/fibers";
+import { createComponentTracker, fiberChannel } from "../packages/core/src/devtools/fibers";
 
 const Theme = createContext("dark");
 const handle: { bump?: () => void; theme?: (t: string) => void } = {};

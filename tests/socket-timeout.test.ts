@@ -3,9 +3,9 @@ import { spawn } from "node:child_process";
 import { rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { createInterface } from "node:readline";
-import { connect, socketDirectory } from "../packages/luciole/src/connect";
-import { isAsyncIterable } from "../packages/luciole/src/guards";
-import { createHttpTransport } from "../packages/luciole/src/transport";
+import { connect, socketDirectory } from "../packages/core/src/connect";
+import { isAsyncIterable } from "../packages/core/src/guards";
+import { createHttpTransport } from "../packages/core/src/transport";
 
 // Bun applies its default idle timeout (10 s) on a Unix socket, where serve() cannot set
 // its own: a slow page, a slow Server Function and a stream quiet for 12 s must still

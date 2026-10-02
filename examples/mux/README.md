@@ -1,7 +1,7 @@
 # mux : multiplexeur local
 
 Des programmes locaux côte à côte, chacun sur son PTY, dans une application luciole :
-un petit tmux construit avec `<Terminal>` (`luciole/client`). C'est le mode `process` de
+un petit tmux construit avec `<Terminal>` (`@luciole-sh/core/client`). C'est le mode `process` de
 [EMBEDDING.md](../../docs/EMBEDDING.md) : aucune isolation, les programmes ont vos droits.
 
 ## Lancement
@@ -23,7 +23,7 @@ son Server déjà lancé : son bundle d'application (`.luciole/app`, sans runtim
 contre le runtime du multiplexeur.
 
 ```sh
-bun packages/luciole/src/cli.ts build --app examples/mdreader               # produit .luciole/
+bun packages/core/src/cli.ts build --app examples/mdreader               # produit .luciole/
 bun --conditions=react-server examples/mdreader/.luciole/server/index.js &   # PORT=3000
 MUX_APPS='[{"name":"docs","bundle":"examples/mdreader/.luciole/app","url":"http://127.0.0.1:3000"}]' bun run mux
 ```

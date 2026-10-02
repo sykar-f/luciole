@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { frameworkFiles } from "../packages/luciole/src/framework-hash";
+import { frameworkFiles } from "../packages/core/src/framework-hash";
 
 // A cached web runtime or git build is redone only if its sources change the hash.
 test("the framework hash covers its sources, the web page and the OpenTUI patch", () => {

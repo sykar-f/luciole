@@ -2,14 +2,14 @@ import { afterEach, beforeEach, expect, test } from "bun:test";
 import { mkdtemp, readdir, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { Session } from "../packages/luciole/src/restore";
+import type { Session } from "../packages/core/src/restore";
 import { execute } from "./helpers";
 import {
   ORPHAN_RETENTION_MS,
   SAVE_DELAY_MS,
   openSession,
   sessionDirectory,
-} from "../packages/luciole/src/session";
+} from "../packages/core/src/session";
 
 let state: string;
 beforeEach(async () => {

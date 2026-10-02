@@ -1,4 +1,4 @@
-import type { Request, Response } from "@luciole/harness/model";
+import type { Request, Response } from "@luciole-sh/harness/model";
 import { writable } from "./guard";
 
 /**

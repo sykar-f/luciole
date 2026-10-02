@@ -29,7 +29,7 @@ d'OpenTUI passe en WebAssembly.
 │ page                                                                      │
 │  ┌─────────────┐  ANSI   ┌────────────────────────────────────────────┐   │
 │  │  xterm.js   │ ◀────── │ runtime web (build du framework, par ABI)  │   │
-│  │             │ ──────▶ │  React, TanStack, keymap, luciole/client    │   │
+│  │             │ ──────▶ │  React, TanStack, keymap, @luciole-sh/core/client    │   │
 │  └─────────────┘ touches │  @opentui/core + FfiBackend WASM           │   │
 │                          │  bundle d'app évalué (.luciole/app)         │   │
 │                          └──────────────┬─────────────────────────────┘   │
@@ -139,7 +139,7 @@ sont neutres.
 `client.tsx` importait `connect`, `session`, lisait `process.env`, écoutait les signaux
 et `process.on("message")`, créait le renderer sur le TTY.
 
-**Fait** : `run()` vit dans `src/run.tsx` (réexporté par `luciole/client`) ; `client.tsx`
+**Fait** : `run()` vit dans `src/run.tsx` (réexporté par `@luciole-sh/core/client`) ; `client.tsx`
 n'importe plus rien de Node. Sa variante `src/web/platform/run.tsx` exporte le même
 `run()`, qui monte xterm.js sur `#luciole`, et `runInPage(create, { element, server,
 fetch, name, sessionKey })` pour une page qui choisit son élément et son `fetch`.
@@ -355,7 +355,7 @@ Une page **de la même origine** qui place le runtime dans un `iframe` le pilote
 `lucioleScrollRoom` suit le chemin d'OpenTUI pour un événement `scroll` : le renderable
 sous la cellule (ou celui qui a le focus), puis chacun de ses parents. Les `ScrollBox`,
 textes et zones de saisie disent ce qu'il leur reste de chaque côté ; un renderable qui
-défile lui-même le dit par `wheelRoom()` (l'éditeur de `@luciole/editor`, l'espace de
+défile lui-même le dit par `wheelRoom()` (l'éditeur de `@luciole-sh/markdown-editor`, l'espace de
 fin au-delà de sa dernière ligne compris : la page ne reprend la molette qu'une fois cet
 espace parcouru) ; un autre qui écoute la molette sans le dire (`onMouseScroll`, un
 terminal embarqué) la garde. La réponse
@@ -401,7 +401,7 @@ page soit encadrée ou non : les parcours `scripts/web/` lisent l'écran par ell
   sans écran vide. La landing charge le même moteur sur le terminal qui tient lieu de
   capture (`website/src/lib/gpu.ts`) et calcule la grille comme lui (`lib/cells.ts`) : au
   pire cas de la page d'accueil, deux `iframe` du duel, six terminaux de capture et une
-  démo vive, neuf contextes. Les octants des titres de `@luciole/editor` (U+1CD00–1CDE5)
+  démo vive, neuf contextes. Les octants des titres de `@luciole-sh/markdown-editor` (U+1CD00–1CDE5)
   ne font pas partie des glyphes dessinés par xterm.js : ils viennent de la police.
 - Plus tard, un renderer qui peint directement le buffer de cellules d'OpenTUI sur un
   canvas supprimerait l'aller-retour ANSI ; ce n'est pas nécessaire pour commencer.
@@ -473,7 +473,7 @@ le Worker d'OpenTUI (`parser.worker.ts`) en script classique, puisqu'OpenTUI le 
 Worker, `tree-sitter.wasm` et les parsers par défaut avec leurs requêtes (JavaScript,
 TypeScript, Markdown, Zig), chargés seulement quand un écran colore du code.
 
-**R2 — contexte asynchrone sans `AsyncLocalStorage`. Levé** (`packages/luciole/src/web/async-context/`).
+**R2 — contexte asynchrone sans `AsyncLocalStorage`. Levé** (`packages/core/src/web/async-context/`).
 Chrome 153 n'a pas `AsyncContext`, et Bun ne polyfille pas `node:async_hooks` pour le
 navigateur. Le bundle `web-server` reçoit donc son propre `AsyncLocalStorage` (même API)
 et une transformation au build (API TypeScript, comme `"use cache"`) : chaque `await x`

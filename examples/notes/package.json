@@ -10,8 +10,8 @@
     "icon": "assets/icon.png"
   },
   "dependencies": {
-    "luciole": "workspace:*",
-    "@luciole/editor": "workspace:*",
+    "@luciole-sh/core": "workspace:*",
+    "@luciole-sh/markdown-editor": "workspace:*",
     "@opentui/core": "catalog:",
     "@opentui/react": "catalog:",
     "@tanstack/react-router": "catalog:",

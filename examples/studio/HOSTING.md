@@ -16,7 +16,7 @@
   `<Terminal>` dans le studio, c'est un second `iframe` à côté du studio.
 - **Ce qui tourne chez nous, dans une microVM par session** : pi (en RPC), le build luciole et
   le Server du studio. Construire exécute déjà du code généré (`app/args.ts` est évalué par le
-  build, `packages/luciole/src/build.ts:155`), et pi n'a aucun système de permissions. Il faut
+  build, `packages/core/src/build.ts:155`), et pi n'a aucun système de permissions. Il faut
   donc une vraie isolation, quel que soit le réglage des outils.
 - **La clé LLM n'entre jamais dans le bac à sable.** pi appelle OpenRouter avec une clé
   factice. Un proxy de sortie tenu par nous (ou le handler `outbound` de Cloudflare Sandbox)
@@ -457,7 +457,7 @@ Toutes consultées le 2026-09-27.
 
 **Dépôt luciole** : [README.md](../../README.md), [WEB.md](../../docs/WEB.md),
 [EMBEDDING.md](../../docs/EMBEDDING.md), [DISTRIBUTION.md](../../docs/DISTRIBUTION.md),
-`packages/luciole/src/build.ts:155` (évaluation d'`app/args.ts`), mesures locales ci-dessus.
+`packages/core/src/build.ts:155` (évaluation d'`app/args.ts`), mesures locales ci-dessus.
 
 **pi**
 

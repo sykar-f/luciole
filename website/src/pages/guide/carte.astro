@@ -93,7 +93,7 @@ const areas: { name: string; tone: string; chapter: string; files: [string, stri
   outcomes={[
     "nommer les trois programmes de luciole et dire où chacun tourne ;",
     "dire d'un fichier de Notes s'il s'exécute sur le Client ou le Server, et pourquoi ;",
-    "retrouver le dossier de <code>packages/luciole/src</code> qui porte une responsabilité donnée.",
+    "retrouver le dossier de <code>packages/core/src</code> qui porte une responsabilité donnée.",
   ]}
 >
   <h2>En une phrase</h2>
@@ -171,7 +171,7 @@ const areas: { name: string; tone: string; chapter: string; files: [string, stri
     <table>
       <thead><tr><th>Dossier</th><th>Rôle</th></tr></thead>
       <tbody>
-        <tr><td><code>packages/luciole/</code></td><td>le framework : CLI, build, runtimes Client et Server. Plus un sandbox en Rust dans <code>native/</code>.</td></tr>
+        <tr><td><code>packages/core/</code></td><td>le framework : CLI, build, runtimes Client et Server. Plus un sandbox en Rust dans <code>native/</code>.</td></tr>
         <tr><td><code>packages/desktop/</code></td><td>prototype d'app desktop (Electrobun, xterm.js)</td></tr>
         <tr><td><code>examples/</code></td><td>huit apps, chacune un package : notes, forge, chat, files, mux…</td></tr>
         <tr><td><code>tests/</code> · <code>scripts/</code></td><td>tests d'intégration qui construisent et lancent les exemples ; parcours PTY</td></tr>
@@ -181,7 +181,7 @@ const areas: { name: string; tone: string; chapter: string; files: [string, stri
   </div>
 
   <h2>Où vit quoi dans le framework</h2>
-  <p>Les chemins sont relatifs à <code>packages/luciole/src/</code>. La couleur dit où tourne le code, et chaque bloc renvoie au chapitre qui le traverse.</p>
+  <p>Les chemins sont relatifs à <code>packages/core/src/</code>. La couleur dit où tourne le code, et chaque bloc renvoie au chapitre qui le traverse.</p>
   <div class="areas">
     {
       areas.map((area) => (
@@ -200,7 +200,7 @@ const areas: { name: string; tone: string; chapter: string; files: [string, stri
     }
   </div>
 
-  <p>Le framework s'étend sans toucher à ses fichiers centraux (<Src path="packages/luciole/src/client.tsx" />, <Src path="packages/luciole/src/transport.ts" />, <Src path="packages/luciole/src/server.ts" />). Pour cela, il offre des points d'extension : décorer le Transport (<code>wrapTransport</code>), écouter les événements (<code>onEvent</code>, <code>serve(&#123; instrument &#125;)</code>), ajouter une sous-commande dans <code>commands/</code>. Les DevTools et le cache s'y branchent.</p>
+  <p>Le framework s'étend sans toucher à ses fichiers centraux (<Src path="packages/core/src/client.tsx" />, <Src path="packages/core/src/transport.ts" />, <Src path="packages/core/src/server.ts" />). Pour cela, il offre des points d'extension : décorer le Transport (<code>wrapTransport</code>), écouter les événements (<code>onEvent</code>, <code>serve(&#123; instrument &#125;)</code>), ajouter une sous-commande dans <code>commands/</code>. Les DevTools et le cache s'y branchent.</p>
 
   <Callout kind="retenir">
     <ul>

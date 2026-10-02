@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { useApplication, useBindings, useLive } from "luciole/client";
+import { useApplication, useBindings, useLive } from "@luciole-sh/core/client";
 import { checkLog, rerunChecks, resolveOperation } from "../actions/pulls";
 import { useEditing } from "./editing";
 import { Line } from "./frames";

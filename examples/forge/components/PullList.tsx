@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { useBindings, useNavigate, useRouter } from "luciole/client";
+import { useBindings, useNavigate, useRouter } from "@luciole-sh/core/client";
 import { useEditing, useEditingWhile } from "./editing";
 import { Line } from "./frames";
 import type { PullSummary } from "./model";

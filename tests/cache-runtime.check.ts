@@ -3,7 +3,7 @@ import React from "react";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { memoryCache, type CacheHandler } from "../packages/luciole/src/cache/handler";
+import { memoryCache, type CacheHandler } from "../packages/core/src/cache/handler";
 import {
   cacheLife,
   cacheTag,
@@ -11,10 +11,10 @@ import {
   configureCache,
   invalidateTags,
   type CacheEvent,
-} from "../packages/luciole/src/cache/runtime";
-import { sqliteCache } from "../packages/luciole/src/cache/sqlite";
-import { messageOf } from "../packages/luciole/src/guards";
-import { getOptionalSession, getSession, invalidate } from "../packages/luciole/src/server";
+} from "../packages/core/src/cache/runtime";
+import { sqliteCache } from "../packages/core/src/cache/sqlite";
+import { messageOf } from "../packages/core/src/guards";
+import { getOptionalSession, getSession, invalidate } from "../packages/core/src/server";
 
 // Run by tests/cache.test.ts under the `react-server` condition, like the Server itself:
 // `bun test` alone resolves React's Client build. tests/helpers.ts imports `act`, which

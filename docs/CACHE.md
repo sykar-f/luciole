@@ -8,7 +8,7 @@ ces tags.
 ```ts
 // server/queries.ts
 "use cache";
-import { cacheLife, cacheTag } from "luciole/server";
+import { cacheLife, cacheTag } from "@luciole-sh/core/server";
 import { listNotes } from "./repository";
 
 export async function notesOf(owner: string) {
@@ -21,7 +21,7 @@ export async function notesOf(owner: string) {
 ```ts
 // actions/notes.ts
 "use server";
-import { getSession, invalidate } from "luciole/server";
+import { getSession, invalidate } from "@luciole-sh/core/server";
 
 export async function saveNote(snapshot: Snapshot) {
   const result = save(snapshot);
@@ -137,7 +137,7 @@ défaut à `serve({ cache })`.
 
 ```ts
 // server/cache.ts
-import { sqliteCache } from "luciole/server";
+import { sqliteCache } from "@luciole-sh/core/server";
 export default sqliteCache({ path: process.env.CACHE_DB ?? "cache.sqlite" });
 ```
 
@@ -192,7 +192,7 @@ ne peut l'entendre.
 **Agent DevTools Server** (`src/devtools/server-agent.ts`, dans le processus Server) :
 il n'importe pas `src/server.ts`, ce qui fermerait un cycle d'imports. `createHandler`
 lui passe `invalidateTag`, qui appelle `invalidate({ tag })` et rejette si le handler
-échoue. Une application appelle directement `invalidate` d'`luciole/server`.
+échoue. Une application appelle directement `invalidate` d'`@luciole-sh/core/server`.
 
 Le bundle Server ne contient qu'une copie du runtime : l'agent purge le même cache que
 les pages. Un tag invalide (virgule, espace, non-ASCII, > 256 caractères) lève tout de

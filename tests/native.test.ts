@@ -6,17 +6,17 @@ import { join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import sharp from "sharp";
 import { z } from "zod";
-import { build } from "../packages/luciole/src/build";
-import { compileApp, hostTarget } from "../packages/luciole/src/compile";
-import { connect } from "../packages/luciole/src/connect";
-import { messageOf } from "../packages/luciole/src/guards";
-import { isNativeDirectory, layOutNative, nativePackage } from "../packages/luciole/src/native";
-import { createHttpTransport } from "../packages/luciole/src/transport";
-import { checksums, packBundle } from "../packages/luciole/src/launcher/bundle";
-import { readBinaryIdentity } from "../packages/luciole/src/launcher/identity";
-import { install } from "../packages/luciole/src/registry/apps";
-import { packApp } from "../packages/luciole/src/registry/pack";
-import type { Registry } from "../packages/luciole/src/registry/registry";
+import { build } from "../packages/core/src/build";
+import { compileApp, hostTarget } from "../packages/core/src/compile";
+import { connect } from "../packages/core/src/connect";
+import { messageOf } from "../packages/core/src/guards";
+import { isNativeDirectory, layOutNative, nativePackage } from "../packages/core/src/native";
+import { createHttpTransport } from "../packages/core/src/transport";
+import { checksums, packBundle } from "../packages/core/src/launcher/bundle";
+import { readBinaryIdentity } from "../packages/core/src/launcher/identity";
+import { install } from "../packages/core/src/registry/apps";
+import { packApp } from "../packages/core/src/registry/pack";
+import type { Registry } from "../packages/core/src/registry/registry";
 import { execute, rejectionOf } from "./helpers";
 
 // examples/files makes thumbnails with sharp, whose addon links libvips next to it.

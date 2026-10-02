@@ -1,5 +1,5 @@
 "use client";
-import type { LayoutProps } from "luciole/client";
+import type { LayoutProps } from "@luciole-sh/core/client";
 import { PullChrome } from "../../../../../../components/PullChrome";
 
 export default function PullLayout({ children, params }: LayoutProps) {

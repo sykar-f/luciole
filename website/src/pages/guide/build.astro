@@ -8,7 +8,7 @@ import Src from "../../components/guide/Src.astro";
 import Callout from "../../components/guide/Callout.astro";
 import Quiz from "../../components/guide/Quiz.astro";
 
-const B = "packages/luciole/src/build.ts";
+const B = "packages/core/src/build.ts";
 
 // The two graphs of Notes, as the build computes them (clientGraph and serverGraph of manifest.json).
 type Node = { id: string; label: string; x: number; y: number; tone: "server" | "client" | "shared"; tag?: string };
@@ -88,11 +88,11 @@ const edges: Edge[] = [
   />
 
   <Step n="1" tone="neutral" where="CLI" title="La commande lit ses options, puis délègue">
-    <p><Src path="packages/luciole/src/cli.ts" /> trouve la sous-commande dans le registre <Src path="packages/luciole/src/commands/index.ts" />. <Src path="packages/luciole/src/commands/build.ts" /> lit tous les drapeaux d'abord (<code>--compile</code>, <code>--sign-bundle</code>, <code>--web</code>), puis appelle <code>build()</code>. Sans <code>--app</code>, le dossier par défaut est <code>examples/notes</code>.</p>
+    <p><Src path="packages/core/src/cli.ts" /> trouve la sous-commande dans le registre <Src path="packages/core/src/commands/index.ts" />. <Src path="packages/core/src/commands/build.ts" /> lit tous les drapeaux d'abord (<code>--compile</code>, <code>--sign-bundle</code>, <code>--web</code>), puis appelle <code>build()</code>. Sans <code>--app</code>, le dossier par défaut est <code>examples/notes</code>.</p>
   </Step>
 
   <Step n="2" tone="build" title="app/ devient un route graph">
-    <p>Le build parcourt <code>app/</code> et ne garde que les fichiers de convention : <code>page</code>, <code>layout</code>, <code>loading</code>, <code>error</code>, <code>not-found</code>. <Src path="packages/luciole/src/route-graph.ts" find="export function compileRouteGraph" /> les transforme en une structure pure : segments, <code>[param]</code>, <code>[...splat]</code>, <code>(groupe)</code>. Un layout racine est obligatoire et les collisions sont refusées.</p>
+    <p>Le build parcourt <code>app/</code> et ne garde que les fichiers de convention : <code>page</code>, <code>layout</code>, <code>loading</code>, <code>error</code>, <code>not-found</code>. <Src path="packages/core/src/route-graph.ts" find="export function compileRouteGraph" /> les transforme en une structure pure : segments, <code>[param]</code>, <code>[...splat]</code>, <code>(groupe)</code>. Un layout racine est obligatoire et les collisions sont refusées.</p>
   </Step>
 
   <Step n="3" tone="build" title="Chaque source est lue par l'API TypeScript">
@@ -127,7 +127,7 @@ const edges: Edge[] = [
       <li><strong>client</strong> : crée l'application avec une table <code>resolveModule</code> des composants Client ;</li>
       <li><strong>app</strong> : le Client sans runtime, pour qu'un hôte l'ouvre (chapitre 8).</li>
     </ul>
-    <p>Deux autres s'ajoutent selon l'app et les options : <strong>web-server</strong>, le Server bundlé pour le navigateur, avec <code>--web-local</code> (chapitre 9), et <strong>args</strong>, la seule définition de <code>app/args.ts</code>, que le lanceur importe pour vérifier les arguments avant de démarrer quoi que ce soit. Dans ce cas, l'entrée <strong>server</strong> commence par <Src path="packages/luciole/src/args-server.ts" /> et analyse les arguments avant de servir : un module de l'app peut lire <code>cli.get()</code> dès son chargement.</p>
+    <p>Deux autres s'ajoutent selon l'app et les options : <strong>web-server</strong>, le Server bundlé pour le navigateur, avec <code>--web-local</code> (chapitre 9), et <strong>args</strong>, la seule définition de <code>app/args.ts</code>, que le lanceur importe pour vérifier les arguments avant de démarrer quoi que ce soit. Dans ce cas, l'entrée <strong>server</strong> commence par <Src path="packages/core/src/args-server.ts" /> et analyse les arguments avant de servir : un module de l'app peut lire <code>cli.get()</code> dès son chargement.</p>
   </Step>
 
   <Step n="8" tone="build" title="Le plugin remplace le code de l'autre côté par des références">
@@ -241,7 +241,7 @@ app/page.tsx:1:19: useState is Client-only React: a Server Component cannot use 
     <ul>
       <li><code>luciole build</code> écrit dans tes sources : <code>app/routeTree.gen.ts</code> est versionné.</li>
       <li>Le build remplace <em>tout</em> <code>.luciole/</code> : un dossier <code>web/</code> produit par un <code>--web</code> précédent disparaît au build suivant sans <code>--web</code>.</li>
-      <li><Src path="packages/luciole/src/framework-hash.ts" /> n'entre pas dans le build ID. Il sert aux caches du lanceur git et du runtime web ; le build ID refait sa propre empreinte du framework.</li>
+      <li><Src path="packages/core/src/framework-hash.ts" /> n'entre pas dans le build ID. Il sert aux caches du lanceur git et du runtime web ; le build ID refait sa propre empreinte du framework.</li>
     </ul>
   </Callout>
 
@@ -255,7 +255,7 @@ app/page.tsx:1:19: useState is Client-only React: a Server Component cannot use 
   </Callout>
 
   <Callout kind="essaie">
-    <p>Dans une copie de Notes, importe <code>../server/repository</code> depuis <code>components/NoteEditor.tsx</code>, puis lance <code>bun packages/luciole/src/cli.ts build --app &lt;copie&gt;</code>. Avant de lancer, prédis le message et sa chaîne <code>via</code>.</p>
+    <p>Dans une copie de Notes, importe <code>../server/repository</code> depuis <code>components/NoteEditor.tsx</code>, puis lance <code>bun packages/core/src/cli.ts build --app &lt;copie&gt;</code>. Avant de lancer, prédis le message et sa chaîne <code>via</code>.</p>
   </Callout>
 
   <Quiz

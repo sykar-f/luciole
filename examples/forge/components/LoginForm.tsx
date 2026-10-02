@@ -1,6 +1,6 @@
 "use client";
 import { useRef, useState } from "react";
-import { KeyHelp, useApplication, useBindings, useNavigate } from "luciole/client";
+import { KeyHelp, useApplication, useBindings, useNavigate } from "@luciole-sh/core/client";
 import { login } from "../actions/session";
 import { Line } from "./frames";
 import { drafts } from "./draft";

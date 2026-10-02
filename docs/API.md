@@ -1,30 +1,30 @@
 # API applicative minimale
 
-Entrée `luciole/client` (Client Components uniquement) :
+Entrée `@luciole-sh/core/client` (Client Components uniquement) :
 
-| API                                                                                                                                    | Contrat                                                                                                                                           |
-| -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `useNavigate()`, `useRouter()`, `useRouterState()`, `useParams()`, `useSearch()`, `useLocation()`, `useMatchRoute()`, `useCanGoBack()` | Primitives TanStack Router réexportées telles quelles ; TanStack est l'unique état de navigation.                                                 |
-| `useApplication()`                                                                                                                     | `{ setToken(token?), refresh(), invalidate(paths?), cancel(), withSignal(signal, call), onEvent(listener), status, error }` du runtime terminal.  |
-| `<Input name? value onInput />`, `<Textarea name? value onChange />`                                                                   | `input` et `textarea` d'OpenTUI, contrôlés ; un `name` rend leur texte restaurable (voir « Champs restaurables »).                                |
-| `useRestoredFields(group)`                                                                                                             | `{ submit(action, { failed? }?), clear() }` des champs `group/…` de l'entrée d'historique courante.                                               |
-| `useRestoredFocus(names)`                                                                                                              | `[focus, setFocus]` : lequel de `names` a le focus, gardé par entrée d'historique.                                                                |
-| `<ScrollBox name? …>`                                                                                                                  | `scrollbox` d'OpenTUI ; un `name` garde sa position de défilement par entrée.                                                                     |
-| `useConnection()`                                                                                                                      | `{ status, error, buildError, activity, refresh }` pour le chrome de l'application ; `activity` vaut `connect`, `navigate`, `refresh` ou `idle`.  |
-| `useInvalidation(listener)`                                                                                                            | Appelé à chaque invalidation (Server ou Client) avec les chemins et les tags : pour les données lues hors des loaders de routes.                  |
-| `useLive(source, args, { limit }?)`                                                                                                    | `{ items, done, error }` d'une Server Function génératrice, abonnée tant que le composant est monté.                                              |
-| `useBindings()`, `useActiveKeys()`, `useKeymap()`, `usePendingSequence()`                                                              | Keymap OpenTUI réexportée : couches de raccourcis liées au cycle de vie des composants.                                                           |
-| `<KeyHelp groups? inline? />`                                                                                                          | Aide générée depuis les raccourcis actifs qui déclarent un `desc` (filtrés par `group`).                                                          |
-| `<Embed app name active prefix? />`, `openApplication({ bundle, url, instance? })`                                                     | Une autre application luciole dans un pane de celle-ci ; voir « Applications embarquées ».                                                        |
-| `<Markdown content streaming syntaxStyle onLink? imageBase? />`                                                                        | Markdown rendu par blocs : pendant que `content` s'écrit (`streaming`), le texte affiché ne bouge plus ; voir « Markdown en streaming ».          |
-| `<Terminal command active prefix? cwd? env? onExit? />`                                                                                | Un programme local (shell, vim, un Client luciole) sur un PTY, rendu dans l'arbre ; voir « Terminaux embarqués ».                                 |
-| `<TerminalView program label spawn active prefix? onExit? />`                                                                          | Comme `<Terminal>`, mais l'hôte démarre lui-même le programme (`spawn(io)` : un Client confiné par `luciole/sandbox`, un arrêt autre que SIGHUP). |
-| `host`, `CapabilityDenied`                                                                                                             | Ce que l'application demande à son hôte (presse-papiers, notification, URL, secret, onglets) ; voir « Capacités médiées ».                        |
-| `useHostMessage(fn)`, `useGlobalKey(key, fn)`, `useCapability(name)`                                                                   | Messages des autres onglets et touches globales tant que le composant est monté ; état `granted`, `denied` ou `prompt` d'une capacité.            |
-| `<DebugOverlay limit? />`                                                                                                              | Requêtes, requêtes ouvertes, octets, dernier RTT et derniers événements depuis son montage.                                                       |
-| `instrumentTracing(app, tracer)`                                                                                                       | Un span par requête vers un `Tracer` OpenTelemetry (ou compatible) ; renvoie la fonction d'arrêt.                                                 |
-| `TransportError`, `BuildMismatch`, `AuthenticationRequired`                                                                            | Échecs de transport typés ; `outcome` vaut `not-sent`, `rejected` ou `unknown`.                                                                   |
-| `LayoutProps`, `LoadingProps`, `ErrorProps`, `NotFoundProps`                                                                           | Props des fichiers `layout.tsx`, `loading.tsx`, `error.tsx` et `not-found.tsx` (voir plus bas).                                                   |
+| API                                                                                                                                    | Contrat                                                                                                                                                    |
+| -------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `useNavigate()`, `useRouter()`, `useRouterState()`, `useParams()`, `useSearch()`, `useLocation()`, `useMatchRoute()`, `useCanGoBack()` | Primitives TanStack Router réexportées telles quelles ; TanStack est l'unique état de navigation.                                                          |
+| `useApplication()`                                                                                                                     | `{ setToken(token?), refresh(), invalidate(paths?), cancel(), withSignal(signal, call), onEvent(listener), status, error }` du runtime terminal.           |
+| `<Input name? value onInput />`, `<Textarea name? value onChange />`                                                                   | `input` et `textarea` d'OpenTUI, contrôlés ; un `name` rend leur texte restaurable (voir « Champs restaurables »).                                         |
+| `useRestoredFields(group)`                                                                                                             | `{ submit(action, { failed? }?), clear() }` des champs `group/…` de l'entrée d'historique courante.                                                        |
+| `useRestoredFocus(names)`                                                                                                              | `[focus, setFocus]` : lequel de `names` a le focus, gardé par entrée d'historique.                                                                         |
+| `<ScrollBox name? …>`                                                                                                                  | `scrollbox` d'OpenTUI ; un `name` garde sa position de défilement par entrée.                                                                              |
+| `useConnection()`                                                                                                                      | `{ status, error, buildError, activity, refresh }` pour le chrome de l'application ; `activity` vaut `connect`, `navigate`, `refresh` ou `idle`.           |
+| `useInvalidation(listener)`                                                                                                            | Appelé à chaque invalidation (Server ou Client) avec les chemins et les tags : pour les données lues hors des loaders de routes.                           |
+| `useLive(source, args, { limit }?)`                                                                                                    | `{ items, done, error }` d'une Server Function génératrice, abonnée tant que le composant est monté.                                                       |
+| `useBindings()`, `useActiveKeys()`, `useKeymap()`, `usePendingSequence()`                                                              | Keymap OpenTUI réexportée : couches de raccourcis liées au cycle de vie des composants.                                                                    |
+| `<KeyHelp groups? inline? />`                                                                                                          | Aide générée depuis les raccourcis actifs qui déclarent un `desc` (filtrés par `group`).                                                                   |
+| `<Embed app name active prefix? />`, `openApplication({ bundle, url, instance? })`                                                     | Une autre application luciole dans un pane de celle-ci ; voir « Applications embarquées ».                                                                 |
+| `<Markdown content streaming syntaxStyle onLink? imageBase? />`                                                                        | Markdown rendu par blocs : pendant que `content` s'écrit (`streaming`), le texte affiché ne bouge plus ; voir « Markdown en streaming ».                   |
+| `<Terminal command active prefix? cwd? env? onExit? />`                                                                                | Un programme local (shell, vim, un Client luciole) sur un PTY, rendu dans l'arbre ; voir « Terminaux embarqués ».                                          |
+| `<TerminalView program label spawn active prefix? onExit? />`                                                                          | Comme `<Terminal>`, mais l'hôte démarre lui-même le programme (`spawn(io)` : un Client confiné par `@luciole-sh/core/sandbox`, un arrêt autre que SIGHUP). |
+| `host`, `CapabilityDenied`                                                                                                             | Ce que l'application demande à son hôte (presse-papiers, notification, URL, secret, onglets) ; voir « Capacités médiées ».                                 |
+| `useHostMessage(fn)`, `useGlobalKey(key, fn)`, `useCapability(name)`                                                                   | Messages des autres onglets et touches globales tant que le composant est monté ; état `granted`, `denied` ou `prompt` d'une capacité.                     |
+| `<DebugOverlay limit? />`                                                                                                              | Requêtes, requêtes ouvertes, octets, dernier RTT et derniers événements depuis son montage.                                                                |
+| `instrumentTracing(app, tracer)`                                                                                                       | Un span par requête vers un `Tracer` OpenTelemetry (ou compatible) ; renvoie la fonction d'arrêt.                                                          |
+| `TransportError`, `BuildMismatch`, `AuthenticationRequired`                                                                            | Échecs de transport typés ; `outcome` vaut `not-sent`, `rejected` ou `unknown`.                                                                            |
+| `LayoutProps`, `LoadingProps`, `ErrorProps`, `NotFoundProps`                                                                           | Props des fichiers `layout.tsx`, `loading.tsx`, `error.tsx` et `not-found.tsx` (voir plus bas).                                                            |
 
 Le framework ne possède aucun état métier : ni Draft, ni opération en attente, ni
 politique de reprise. Il rapporte ce qui est arrivé à chaque requête ; l'application
@@ -78,7 +78,7 @@ sans attendre ni échouer avec ce refresh :
 
 ```ts
 "use server";
-import { invalidate } from "luciole/server";
+import { invalidate } from "@luciole-sh/core/server";
 
 export async function merge(target: Target) {
   const result = forge.merge(actor(), target);
@@ -201,7 +201,7 @@ redessine son dernier bloc depuis un aperçu puis depuis Tree-sitter à chaque c
 la réponse bascule entre texte brut et mis en forme.
 
 ```tsx
-import { Markdown } from "luciole/client";
+import { Markdown } from "@luciole-sh/core/client";
 
 <Markdown
   content={reply.text}
@@ -231,7 +231,7 @@ import { Markdown } from "luciole/client";
 - Blocs de code : sur le fond de `markup.raw.block` (`bg`), avec une marge intérieure et le
   langage discret en haut à droite ; sans ce `bg`, le code reste sans fond. Colorés par
   Tree-sitter une fois la clôture arrivée : OpenTUI 0.5.12 connaît JavaScript, TypeScript,
-  Markdown et Zig ; `import "luciole/grammars"` (une fois, côté Client) ajoute Bash, C, C++,
+  Markdown et Zig ; `import "@luciole-sh/core/grammars"` (une fois, côté Client) ajoute Bash, C, C++,
   CSS, Go, HTML, Java, JSON, PHP, Python, Ruby, Rust, TOML et YAML, pour `<code>` et
   `<diff>` aussi. L'import est facultatif : le build copie chaque grammaire à côté du
   bundle (environ 11 Mo en tout). Les groupes de style sont ceux des requêtes Tree-sitter
@@ -255,11 +255,11 @@ import { Markdown } from "luciole/client";
 
 Ce que l'OS ne sait pas accorder à la pièce (presse-papiers, notifications, ouvrir une
 URL, secrets, messages entre onglets, touches tapées ailleurs) passe par `host`, importé
-d'`luciole/client`. Le build en donne un **par bundle**, lié à l'Application du pane comme
+d'`@luciole-sh/core/client`. Le build en donne un **par bundle**, lié à l'Application du pane comme
 ses Server Functions : deux panes demandent chacun avec leur origine et leurs capacités.
 
 ```tsx
-import { CapabilityDenied, host, useCapability } from "luciole/client";
+import { CapabilityDenied, host, useCapability } from "@luciole-sh/core/client";
 
 await host.clipboard.write(path); // rejet CapabilityDenied si l'hôte refuse
 const state = useCapability("clipboard.write"); // "granted" | "denied" | "prompt"
@@ -286,12 +286,12 @@ const state = useCapability("clipboard.write"); // "granted" | "denied" | "promp
 ## Arguments de l'application
 
 Une application déclare ses options de ligne de commande dans `app/args.ts` (facultatif),
-avec `defineArgs` de `luciole/args` et un schéma zod 4 — plus généralement tout Standard
+avec `defineArgs` de `@luciole-sh/core/args` et un schéma zod 4 — plus généralement tout Standard
 Schema qui implémente aussi Standard JSON Schema :
 
 ```ts
 // app/args.ts
-import { defineArgs } from "luciole/args";
+import { defineArgs } from "@luciole-sh/core/args";
 import { z } from "zod";
 
 export default defineArgs({
@@ -338,7 +338,7 @@ import cli from "../app/args";
 export const config = cli.get(); // { harness?: "claude" | "codex"; mode: "read" | "ask"; … }
 ```
 
-`getArgs()` (`luciole/server`) rend la même valeur, non typée, et `getLaunch()` le
+`getArgs()` (`@luciole-sh/core/server`) rend la même valeur, non typée, et `getLaunch()` le
 lancement : `{ scope, id?, cwd }`, où `scope` est `luciole.server` du `package.json`
 (`shared`, `per-directory` ou `per-launch`, voir
 [DISTRIBUTION.md](DISTRIBUTION.md#qui-partage-un-server--lucioleserver)). Le Server fait autorité : il
@@ -389,7 +389,7 @@ de `capabilities` :
 Le build vérifie la déclaration avant de construire (une icône absente, trop petite ou
 hors du répertoire l'arrête aussitôt) et écrit `.luciole/metadata.json`, valeurs par
 défaut appliquées, avec `.luciole/icon.png` à côté. Un hôte lit cette sortie, jamais les
-sources : `AppMetadata` (`luciole/metadata`, `src/app-metadata.ts`) en est le schéma.
+sources : `AppMetadata` (`@luciole-sh/core/metadata`, `src/app-metadata.ts`) en est le schéma.
 `name` reste le nom du répertoire, qui nomme binaires, sessions et sockets ; seul
 `displayName` est fait pour être lu.
 
@@ -424,7 +424,7 @@ voir [CACHE.md](CACHE.md).
 
 Un Client lancé avec un canal IPC (`luciole dev`, un hôte `sandbox`, studio) envoie chaque
 `failure` à son parent : `{ type: "failure", path, message }` (message coupé à
-2000 caractères). `onClientFailure(child, listener)` d'`luciole/dev` le lit, `openSandbox`
+2000 caractères). `onClientFailure(child, listener)` d'`@luciole-sh/core/dev` le lit, `openSandbox`
 le passe à `onFailure`. Une page introuvable (`notFound()`) n'est pas un échec.
 
 En développement, `LUCIOLE_DEVTOOLS=<adresse>` envoie ces événements, ceux du Server, les
@@ -496,7 +496,7 @@ request de Forge, `components/NewPullForm.tsx`) :
 ```tsx
 "use client";
 import { useField, useForm } from "@tanstack/react-form";
-import { Input, Textarea, useRestoredFields } from "luciole/client";
+import { Input, Textarea, useRestoredFields } from "@luciole-sh/core/client";
 import { publish } from "../actions/posts";
 
 export function NewPost() {
@@ -533,7 +533,7 @@ jamais ses composants `<Form>` et `<Field>`, qui rendent du HTML.
 
 ## Serveur et intégration
 
-Entrée `luciole/server` :
+Entrée `@luciole-sh/core/server` :
 
 - `getSession()` : `{ userId }` dans le contexte async du rendu ou de l'action.
 - `getOptionalSession()` : la même session, ou `null` dans une page/action publique.
@@ -629,17 +629,17 @@ l'application : il doit laisser passer les `TransportError` et leur `outcome`.
 
 Pour le CLI, les hôtes, le code généré et les tests ; une application n'en a pas besoin.
 
-| Entrée               | API                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `luciole/client`     | `Application` (construite par `createApplication(options)`), `ApplicationOptions`, `ApplicationEvent` (ce que reçoit `onEvent`), `Shell({ app })`, `run(create, { name?, sessionKey? })` et `RunOptions`, `createActions()` (Server Functions et `host` d'une évaluation de bundle, émis par le build). Types `LiveState`, `TracerLike`, `Session` (`{ index, entries }`), `SessionEntry` (`{ href, fields }`), `OpenApplicationOptions`, `PublisherCheck` (`{ required?, trust?(fingerprint, manifest) }`), ceux du transport et de `host`.         |
-| `luciole/server`     | `createHandler(config, options)` : le Server comme fonction d'une `Request`, sans écoute ; `serve(config)` l'installe sur `Bun.serve`. `ServerConfig` : `buildId`, `manifest`, `actions`, `routes` (`ServerRoute`), `auth?`, `instrument?` (`ServerInstrument`, `{ onEvent }`), `cache?`, `appBundle?`, `web?`. `HandlerOptions` : `auth`, `devtools?`, `testing?`, `web?`, `keepAlive?`, `dropAfterCommit?`. Types `RouteAuth` (`"public" \| "required"`), `Session`, `ServerFunction`, `ServerEvent`.                                              |
-| `luciole/route-tree` | Ce qu'appelle `app/routeTree.gen.ts` : `rootRoute(Layout, NotFound?)`, `layoutRoute(Layout, params)`, `pageRoute(params, { loading?, error?, notFound?, splat? }?)`, `loadPage(ctx, routeId, params, splat?)`, `validateSearch(raw)` ; types `TerminalRouterContext`, `TerminalRouter` et les props des fichiers de routes.                                                                                                                                                                                                                          |
-| `luciole/build`      | `build(directory, output?, { appBundle?, signBundle?, webServer? }?)` → `{ buildId, output }` (`output` vaut `<directory>/.luciole` par défaut) ; `BuildOptions`. Clés d'éditeur pour `signBundle` : `generatePublisherKey(env?)`, `readPublisherKey(env?)` (fichier `LUCIOLE_PUBLISHER_KEY`), `fingerprintOf(publicKey)`.                                                                                                                                                                                                                           |
-| `luciole/dev`        | Superviser une app en développement, quel que soit le déclencheur du rebuild (`luciole dev`, studio) : `startAppServer({ directory, output?, env, command?, onOutput?, stderr?, timeoutMs? })` → `{ port, child, stop }` (rejette avec le stderr quand il est capté) ; `bearerRelay()` ; `serialize(task)` → `{ run, busy }` (jamais deux rebuilds à la fois, un de plus s'il en est demandé pendant) ; `linkFrameworkModules(directory, from)` ; `stopChild(child)`.                                                                                |
-| `luciole/sandbox`    | Le mode `sandbox` pour un hôte hors du framework ([EMBEDDING.md](EMBEDDING.md)) : `openSandbox(origin, options)` → `Sandbox` (`spawn(io)` pour `TerminalView`, `permissions`, `deliver`, `close`), `onFailure` pour les pages en échec ; `confineServer(options)` → `ServerSandbox` (`port`, `env`, `command`, `close`), macOS seulement ; `sandboxAvailability()`, `sandboxRuntime()`, `buildChild()` ; `enforcement`, `ENFORCERS`, `mechanismName` ; `Capabilities`. Le widget qui montre le Client confiné est `TerminalView` d'`luciole/client`. |
-| `luciole/pty`        | `spawnPty({ command, cols, rows, env?, environment?, cwd?, ipc?, onData, onExit })` → `Pty` (`write`, `resize`, `kill`, `send`, `pid`) : `Bun.Terminal`, POSIX seulement. `<Terminal>`, le sandbox et l'hôte desktop s'en servent.                                                                                                                                                                                                                                                                                                                   |
-| `luciole/metadata`   | `AppMetadata` (schéma de `.luciole/metadata.json`), `readAppDeclaration(root)`, `writeAppMetadata(output, declaration)`, `APP_METADATA`, `APP_ICON`.                                                                                                                                                                                                                                                                                                                                                                                                 |
-| `luciole/tsconfig`   | La configuration TypeScript que chaque application étend ([TOOLING.md](TOOLING.md)).                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| Entrée                        | API                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@luciole-sh/core/client`     | `Application` (construite par `createApplication(options)`), `ApplicationOptions`, `ApplicationEvent` (ce que reçoit `onEvent`), `Shell({ app })`, `run(create, { name?, sessionKey? })` et `RunOptions`, `createActions()` (Server Functions et `host` d'une évaluation de bundle, émis par le build). Types `LiveState`, `TracerLike`, `Session` (`{ index, entries }`), `SessionEntry` (`{ href, fields }`), `OpenApplicationOptions`, `PublisherCheck` (`{ required?, trust?(fingerprint, manifest) }`), ceux du transport et de `host`.                  |
+| `@luciole-sh/core/server`     | `createHandler(config, options)` : le Server comme fonction d'une `Request`, sans écoute ; `serve(config)` l'installe sur `Bun.serve`. `ServerConfig` : `buildId`, `manifest`, `actions`, `routes` (`ServerRoute`), `auth?`, `instrument?` (`ServerInstrument`, `{ onEvent }`), `cache?`, `appBundle?`, `web?`. `HandlerOptions` : `auth`, `devtools?`, `testing?`, `web?`, `keepAlive?`, `dropAfterCommit?`. Types `RouteAuth` (`"public" \| "required"`), `Session`, `ServerFunction`, `ServerEvent`.                                                       |
+| `@luciole-sh/core/route-tree` | Ce qu'appelle `app/routeTree.gen.ts` : `rootRoute(Layout, NotFound?)`, `layoutRoute(Layout, params)`, `pageRoute(params, { loading?, error?, notFound?, splat? }?)`, `loadPage(ctx, routeId, params, splat?)`, `validateSearch(raw)` ; types `TerminalRouterContext`, `TerminalRouter` et les props des fichiers de routes.                                                                                                                                                                                                                                   |
+| `@luciole-sh/core/build`      | `build(directory, output?, { appBundle?, signBundle?, webServer? }?)` → `{ buildId, output }` (`output` vaut `<directory>/.luciole` par défaut) ; `BuildOptions`. Clés d'éditeur pour `signBundle` : `generatePublisherKey(env?)`, `readPublisherKey(env?)` (fichier `LUCIOLE_PUBLISHER_KEY`), `fingerprintOf(publicKey)`.                                                                                                                                                                                                                                    |
+| `@luciole-sh/core/dev`        | Superviser une app en développement, quel que soit le déclencheur du rebuild (`luciole dev`, studio) : `startAppServer({ directory, output?, env, command?, onOutput?, stderr?, timeoutMs? })` → `{ port, child, stop }` (rejette avec le stderr quand il est capté) ; `bearerRelay()` ; `serialize(task)` → `{ run, busy }` (jamais deux rebuilds à la fois, un de plus s'il en est demandé pendant) ; `linkFrameworkModules(directory, from)` ; `stopChild(child)`.                                                                                         |
+| `@luciole-sh/core/sandbox`    | Le mode `sandbox` pour un hôte hors du framework ([EMBEDDING.md](EMBEDDING.md)) : `openSandbox(origin, options)` → `Sandbox` (`spawn(io)` pour `TerminalView`, `permissions`, `deliver`, `close`), `onFailure` pour les pages en échec ; `confineServer(options)` → `ServerSandbox` (`port`, `env`, `command`, `close`), macOS seulement ; `sandboxAvailability()`, `sandboxRuntime()`, `buildChild()` ; `enforcement`, `ENFORCERS`, `mechanismName` ; `Capabilities`. Le widget qui montre le Client confiné est `TerminalView` d'`@luciole-sh/core/client`. |
+| `@luciole-sh/core/pty`        | `spawnPty({ command, cols, rows, env?, environment?, cwd?, ipc?, onData, onExit })` → `Pty` (`write`, `resize`, `kill`, `send`, `pid`) : `Bun.Terminal`, POSIX seulement. `<Terminal>`, le sandbox et l'hôte desktop s'en servent.                                                                                                                                                                                                                                                                                                                            |
+| `@luciole-sh/core/metadata`   | `AppMetadata` (schéma de `.luciole/metadata.json`), `readAppDeclaration(root)`, `writeAppMetadata(output, declaration)`, `APP_METADATA`, `APP_ICON`.                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `@luciole-sh/core/tsconfig`   | La configuration TypeScript que chaque application étend ([TOOLING.md](TOOLING.md)).                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 
 ## Authentification des routes et actions
 
@@ -657,7 +657,7 @@ export default function LoginPage() {
 Une application qui remplace l'identité locale fournit `server/auth.ts` :
 
 ```ts
-import type { AuthConfig } from "luciole/server";
+import type { AuthConfig } from "@luciole-sh/core/server";
 
 export default {
   unauthorizedPath: "/login",
@@ -769,7 +769,7 @@ erreur TypeScript. Navigation depuis un Client Component, sans `<Link>` DOM :
 
 ```tsx
 "use client";
-import { useNavigate } from "luciole/client";
+import { useNavigate } from "@luciole-sh/core/client";
 const navigate = useNavigate();
 void navigate({ to: "/notes/$id", params: { id: "1" } });
 ```

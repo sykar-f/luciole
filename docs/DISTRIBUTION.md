@@ -85,7 +85,7 @@ jeu d'arguments**, jamais hérité d'un autre lancement. Elle est absente pour u
 n'en déclare pas (clés inchangées). `GET /lifetime/status` la rend (`args`), avec l'id du
 lancement (`launch`) : un Server d'un autre jeu d'arguments n'est jamais rattaché. Le
 Server tourne dans le répertoire où la commande a été tapée ; `getLaunch()`
-(`luciole/server`) rend `{ scope, id?, cwd }`.
+(`@luciole-sh/core/server`) rend `{ scope, id?, cwd }`.
 
 `per-launch` donne à chaque lancement son Server. Quand un Client meurt (crash, terminal
 fermé), son Server attend en grâce ; le lancement suivant dans le même répertoire, avec

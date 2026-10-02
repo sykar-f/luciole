@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { Input, useBindings } from "luciole/client";
+import { Input, useBindings } from "@luciole-sh/core/client";
 import { Overlay } from "./Dialogs";
 import { Line } from "./Line";
 import { color } from "./theme";

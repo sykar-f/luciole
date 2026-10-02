@@ -1,5 +1,5 @@
 import type { CliRenderer } from "@opentui/core";
-import { CapabilityDenied, host } from "luciole/client";
+import { CapabilityDenied, host } from "@luciole-sh/core/client";
 
 /**
  * Copies `text`; `false` when nothing accepted it. The host first: the Client itself

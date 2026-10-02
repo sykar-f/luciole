@@ -1,5 +1,5 @@
 "use client";
-import { KeyHelp, useConnection, type LayoutProps } from "luciole/client";
+import { KeyHelp, useConnection, type LayoutProps } from "@luciole-sh/core/client";
 import { color } from "../components/theme";
 
 export default function RootLayout({ children }: LayoutProps) {

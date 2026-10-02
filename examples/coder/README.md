@@ -51,7 +51,7 @@ Le site fait tourner coder dans la page (`luciole build --web-local`, docs/WEB.m
 Server vit dans un Worker, sans processus ni réseau, donc sur le harness `fake` seul.
 `website/scripts/demo.ts` lui donne `CODER_HARNESS=fake` et un projet fictif
 (`CODER_CWD`, par exemple `~/src/timers`). Dans le Worker, `server/session.ts` importe
-`@luciole/harness/adapters`, que le `package.json` de `packages/harness` résout en
+`@luciole-sh/harness/adapters`, que le `package.json` de `packages/harness` résout en
 `src/adapters/browser.ts` sous la condition `browser` : l'Agent SDK de Claude
 (`readline`, `net`) et les autres adaptateurs n'y entrent pas.
 
@@ -68,19 +68,19 @@ textes et mêmes durées affichées à chaque fois ; environ 12 s une fois le pr
 
 coder est aussi la vitrine de luciole ; chaque capacité du framework y sert :
 
-| Capacité                               | Ici                                                                                             |
-| -------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| Server / Client séparés                | le Server possède la session : le Client peut crasher ou être rebuildé, l'agent continue        |
-| `app/args.ts` (`luciole/args`)         | vraie ligne de commande, `--help` et erreurs générés, lue par le Server (`cli.get()`)           |
-| `"server": "per-launch"`               | deux `coder` dans le même dossier = deux sessions ; un Client tué retrouve la sienne            |
-| `useLive`                              | un snapshot puis des patchs (`{seq, items, removed, fields}`), pas un snapshot toutes les 50 ms |
-| issues `not-sent / rejected / unknown` | une approbation n'est jamais rejouée : une issue inconnue est consultée (`requestState`)        |
-| champs nommés restaurés                | le prompt en cours survit à un crash ou à un rebuild                                            |
-| `useBindings` + `<KeyHelp>`            | modes clavier (prompt, parcours, dialogue, sélecteur) et barre d'aide générée                   |
-| `host.notify`                          | notification quand une requête attend et que le terminal n'a pas le focus                       |
-| `renderer.suspend()`                   | Ctrl+G : écrire le prompt dans `$EDITOR`                                                        |
-| `<Markdown>`                           | réponses et « thinking » stables pendant le streaming                                           |
-| OpenTUI                                | `<diff>` par fichier, `<code>`, textarea, overlays, sélection + OSC 52                          |
+| Capacité                                | Ici                                                                                             |
+| --------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Server / Client séparés                 | le Server possède la session : le Client peut crasher ou être rebuildé, l'agent continue        |
+| `app/args.ts` (`@luciole-sh/core/args`) | vraie ligne de commande, `--help` et erreurs générés, lue par le Server (`cli.get()`)           |
+| `"server": "per-launch"`                | deux `coder` dans le même dossier = deux sessions ; un Client tué retrouve la sienne            |
+| `useLive`                               | un snapshot puis des patchs (`{seq, items, removed, fields}`), pas un snapshot toutes les 50 ms |
+| issues `not-sent / rejected / unknown`  | une approbation n'est jamais rejouée : une issue inconnue est consultée (`requestState`)        |
+| champs nommés restaurés                 | le prompt en cours survit à un crash ou à un rebuild                                            |
+| `useBindings` + `<KeyHelp>`             | modes clavier (prompt, parcours, dialogue, sélecteur) et barre d'aide générée                   |
+| `host.notify`                           | notification quand une requête attend et que le terminal n'a pas le focus                       |
+| `renderer.suspend()`                    | Ctrl+G : écrire le prompt dans `$EDITOR`                                                        |
+| `<Markdown>`                            | réponses et « thinking » stables pendant le streaming                                           |
+| OpenTUI                                 | `<diff>` par fichier, `<code>`, textarea, overlays, sélection + OSC 52                          |
 
 ## Clavier
 
@@ -106,7 +106,7 @@ server/session.ts     la session de ce lancement, sur la HarnessSession du paque
 server/config.ts      arguments et lancement ; launches.ts : session reprise après un rebuild
 ```
 
-Le reste est partagé avec studio dans `packages/harness` (`@luciole/harness`, paquet privé
+Le reste est partagé avec studio dans `packages/harness` (`@luciole-sh/harness`, paquet privé
 du workspace) :
 
 ```
@@ -118,7 +118,7 @@ src/model.ts          le vocabulaire neutre, commun au Server et au Client
 src/ui/               Client : Transcript, Dialogs, Picker, StatusLine, store du flux…
 ```
 
-Les réponses et les blocs « thinking » passent par `<Markdown>` (`luciole/client`), pas par le
+Les réponses et les blocs « thinking » passent par `<Markdown>` (`@luciole-sh/core/client`), pas par le
 `<markdown>` d'OpenTUI : pendant le streaming, celui-ci redessine le dernier bloc depuis un
 aperçu puis depuis Tree-sitter, et la réponse clignote. Le composant découpe la réponse en
 blocs (`marked`), fige tous les blocs sauf le dernier, met le texte en forme sans

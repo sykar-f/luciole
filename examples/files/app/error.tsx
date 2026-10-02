@@ -1,5 +1,5 @@
 "use client";
-import { TransportError, type ErrorProps } from "luciole/client";
+import { TransportError, type ErrorProps } from "@luciole-sh/core/client";
 import { Screen } from "../components/frames";
 import { Help } from "../components/Help";
 import { color } from "../components/theme";

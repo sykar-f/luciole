@@ -6,7 +6,7 @@
   "ignorePatterns": [
     "**/node_modules/**",
     "**/.luciole/**",
-    "packages/flow/dist/**",
+    "packages/flow-graph/dist/**",
     "**/routeTree.gen.ts",
     "bun.lock",
     "**/bun.lock",
@@ -23,6 +23,6 @@
     "examples/studio/server/template.gen.ts",
     "website/design/mascot/luciole-data.js",
     "website/design/mascot/luciole-small.js",
-    "packages/luciole/src/mascot-sprite.gen.ts"
+    "packages/core/src/mascot-sprite.gen.ts"
   ]
 }

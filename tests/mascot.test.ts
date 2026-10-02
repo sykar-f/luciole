@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { canGreet, mascotArt } from "../packages/luciole/src/mascot";
+import { canGreet, mascotArt } from "../packages/core/src/mascot";
 
 const ANSI = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, "g");
 const TTY = { isTTY: true };

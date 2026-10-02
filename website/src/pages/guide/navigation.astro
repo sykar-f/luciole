@@ -97,12 +97,12 @@ const rows: Row[] = lines.map((text) => {
   </Step>
 
   <Step n="4" tone="client" title="Le loader généré appelle l'application">
-    <Excerpt path="packages/luciole/src/route-tree.tsx" find="export function loadPage(" until="^}" tone="client" />
+    <Excerpt path="packages/core/src/route-tree.tsx" find="export function loadPage(" until="^}" tone="client" />
     <p>Le signal d'annulation de TanStack est transmis jusqu'à la requête. Si l'utilisateur quitte la page avant la réponse, la requête est abandonnée.</p>
   </Step>
 
   <Step n="5" tone="wire" title="Une requête GET, avec quatre en-têtes">
-    <Excerpt path="packages/luciole/src/transport.ts" find="const headers = new Headers(init.headers);" count={12} tone="wire" mark={["x-luciole-build", "x-luciole-call", "DEFAULT_TIMEOUT_MS"]} />
+    <Excerpt path="packages/core/src/transport.ts" find="const headers = new Headers(init.headers);" count={12} tone="wire" mark={["x-luciole-build", "x-luciole-call", "DEFAULT_TIMEOUT_MS"]} />
     <Sample
       lang="http"
       label="la requête envoyée"
@@ -125,13 +125,13 @@ x-luciole-instance: <clé>             seulement pour une app dans un pane (chap
   </Step>
 
   <Step n="8" tone="server" title="La page est rendue en Flight, dans une enveloppe">
-    <Excerpt path="packages/luciole/src/server.ts" find='if (route.auth === "required" && !session) return unauthorized();' count={11} tone="server" mark={["renderPage(tree, (model) => renderToReadableStream(model, manifest))"]} />
+    <Excerpt path="packages/core/src/server.ts" find='if (route.auth === "required" && !session) return unauthorized();' count={11} tone="server" mark={["renderPage(tree, (model) => renderToReadableStream(model, manifest))"]} />
     <p>La réponse part <em>en streaming</em>, avec un statut 200 envoyé dès le début. C'est pourquoi une erreur survenue pendant le rendu ne peut plus changer le code HTTP : elle voyage dans le flux (voir « Quand ça casse »).</p>
   </Step>
 
   <Step n="9" tone="wire" title="Le Client décode, et résout les composants chez lui">
     <p>Le Transport décode l'enveloppe, puis le flux de la page. Pour chaque composant Client référencé, React Flight appelle un <code>__webpack_require__</code> que le framework remplace :</p>
-    <Excerpt path="packages/luciole/src/flight/client.ts" find="const loader = Object.assign(" count={10} tone="client" />
+    <Excerpt path="packages/core/src/flight/client.ts" find="const loader = Object.assign(" count={10} tone="client" />
     <p>L'id <code>&lt;buildId&gt;/components/NoteEditor.tsx</code> est cherché dans la table <code>resolveModule</code> du bundle Client. <strong>Aucun code n'est téléchargé</strong> : <code>chunks</code> est toujours vide.</p>
   </Step>
 
@@ -180,7 +180,7 @@ x-luciole-instance: <clé>             seulement pour une app dans un pane (chap
         <tr><td>route ou params invalides</td><td>404 ou 400 : issue <code>rejected</code></td><td><code>error.tsx</code></td></tr>
         <tr><td>exception pendant le rendu</td><td>HTTP <strong>200</strong>, erreur dans le flux avec un digest opaque</td><td><code>error.tsx</code>, statut « Disconnected »</td></tr>
         <tr><td><code>notFound()</code> dans la page</td><td>digest <code>luciole:not-found:…</code> conservé</td><td><code>not-found.tsx</code>, testé avant <code>error.tsx</code></td></tr>
-        <tr><td>Échap pendant le chargement</td><td><Src path="packages/luciole/src/client.tsx" find="cancel = () => {" /></td><td>retour à la page d'avant, <strong>sans requête</strong></td></tr>
+        <tr><td>Échap pendant le chargement</td><td><Src path="packages/core/src/client.tsx" find="cancel = () => {" /></td><td>retour à la page d'avant, <strong>sans requête</strong></td></tr>
       </tbody>
     </table>
   </div>

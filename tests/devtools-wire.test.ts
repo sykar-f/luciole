@@ -8,14 +8,10 @@ import {
   PLUGIN,
   PROTOCOL_VERSION,
   type Address,
-} from "../packages/luciole/src/devtools/protocol";
-import {
-  parseCommand,
-  parseEvent,
-  type DevtoolsEvent,
-} from "../packages/luciole/src/devtools/schema";
-import { connectAgent, listenBus, type Connection } from "../packages/luciole/src/devtools/wire";
-import { messageOf } from "../packages/luciole/src/guards";
+} from "../packages/core/src/devtools/protocol";
+import { parseCommand, parseEvent, type DevtoolsEvent } from "../packages/core/src/devtools/schema";
+import { connectAgent, listenBus, type Connection } from "../packages/core/src/devtools/wire";
+import { messageOf } from "../packages/core/src/guards";
 import { rejectionOf, until } from "./helpers";
 
 const hello = { protocol: PROTOCOL_VERSION, role: "client" as const, pid: process.pid };

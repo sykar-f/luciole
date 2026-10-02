@@ -10,10 +10,10 @@
 import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
-import { serialize } from "luciole/dev";
-import { Capabilities } from "luciole/sandbox";
-import type { Result } from "@luciole/harness/model";
-import { HarnessSession } from "@luciole/harness/session";
+import { serialize } from "@luciole-sh/core/dev";
+import { Capabilities } from "@luciole-sh/core/sandbox";
+import type { Result } from "@luciole-sh/harness/model";
+import { HarnessSession } from "@luciole-sh/harness/session";
 import type {
   Diagnostic,
   DraftState,
@@ -407,7 +407,7 @@ class Studio {
     );
   }
 
-  /** The preview's Client reported a failed page (G6, luciole/sandbox `onFailure`). */
+  /** The preview's Client reported a failed page (G6, @luciole-sh/core/sandbox `onFailure`). */
   reportFailure(revision: number, path: string, message: string) {
     // A draft is half a turn: the revision at its end is checked, and corrected.
     if (this.preview?.draft) return;

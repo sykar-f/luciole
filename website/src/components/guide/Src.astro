@@ -12,7 +12,7 @@ interface Props {
 
 const { path, find, after } = Astro.props;
 const line = find === undefined ? undefined : locate(path, find, after);
-const name = path.replace(/^packages\/luciole\//, "");
+const name = path.replace(/^packages\/core\//, "");
 const href = line ? `${source(path)}#L${line}` : source(path);
 ---
 

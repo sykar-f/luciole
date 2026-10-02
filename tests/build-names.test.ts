@@ -1,9 +1,9 @@
 import { expect, test } from "bun:test";
 import { mkdir, rm } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import { build } from "../packages/luciole/src/build";
-import { annotateNames, routeComponentName } from "../packages/luciole/src/build-names";
-import { sourceLocation } from "../packages/luciole/src/devtools/luciole-devtools/components/editor";
+import { build } from "../packages/core/src/build";
+import { annotateNames, routeComponentName } from "../packages/core/src/build-names";
+import { sourceLocation } from "../packages/core/src/devtools/luciole-devtools/components/editor";
 import { importClient, temporaryApp } from "./helpers";
 
 const runtime = "/fw/devtools/annotate.ts";
@@ -72,7 +72,7 @@ test("a built Client names its components and records their source and hooks", a
   const dir = await temporaryApp("build-names");
   try {
     const files: Record<string, string> = {
-      "app/layout.tsx": `"use client";\nimport type { LayoutProps } from "luciole/client";\nexport default function Layout({ children }: LayoutProps) {\n  return <box>{children}</box>;\n}\n`,
+      "app/layout.tsx": `"use client";\nimport type { LayoutProps } from "@luciole-sh/core/client";\nexport default function Layout({ children }: LayoutProps) {\n  return <box>{children}</box>;\n}\n`,
       "app/page.tsx": `import { Boom } from "../components/Boom";\nexport default function Page() {\n  return <Boom />;\n}\n`,
       "components/Boom.tsx": `"use client";\nimport { useState } from "react";\n\ntype Props = { label?: string };\n\nexport function Boom(_props: Props) {\n  const [count] = useState(0);\n  return <text>{count}</text>;\n}\nexport function explode(): never {\n  throw new Error("boom");\n}\n`,
     };
@@ -95,22 +95,22 @@ test("a built Client names its components and records their source and hooks", a
   }
 }, 60_000);
 
-test("framework components read luciole/<file>, and open at their real path", () => {
-  const framework = resolve("packages/luciole/src");
+test("framework components read @luciole-sh/core/<file>, and open at their real path", () => {
+  const framework = resolve("packages/core/src");
   const out = annotateNames("export function Input() { return null }\n", {
     path: join(framework, "fields.tsx"),
     relative: "../../src/fields.tsx",
     runtime,
   });
   expect(calls(out)).toEqual([
-    `Input,"Input","luciole/fields.tsx:1",[],${JSON.stringify(join(framework, "fields.tsx"))}`,
+    `Input,"Input","@luciole-sh/core/fields.tsx:1",[],${JSON.stringify(join(framework, "fields.tsx"))}`,
   ]);
   // An application file keeps its relative source and no absolute path.
   expect(calls(annotated("export function A() { return null }\n"))).toEqual([
     'A,"A","components/X.tsx:1",[],null',
   ]);
-  expect(sourceLocation("/app", "luciole/fields.tsx:76", "/fw/src/fields.tsx")).toEqual({
-    path: "luciole/fields.tsx",
+  expect(sourceLocation("/app", "@luciole-sh/core/fields.tsx:76", "/fw/src/fields.tsx")).toEqual({
+    path: "@luciole-sh/core/fields.tsx",
     file: "/fw/src/fields.tsx",
     line: "76",
   });

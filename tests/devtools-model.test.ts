@@ -1,11 +1,11 @@
 import { expect, test } from "bun:test";
-import { fixtureSession, FIXTURE_START } from "../packages/luciole/src/devtools/fixtures";
-import { message, PLUGIN } from "../packages/luciole/src/devtools/protocol";
-import { parseEvent } from "../packages/luciole/src/devtools/schema";
-import type { Stored } from "../packages/luciole/src/devtools/model/session";
-import { toHar } from "../packages/luciole/src/devtools/model/har";
-import { cacheBadge, phases, rowStatus } from "../packages/luciole/src/devtools/model/network";
-import { createSession } from "../packages/luciole/src/devtools/model/session";
+import { fixtureSession, FIXTURE_START } from "../packages/core/src/devtools/fixtures";
+import { message, PLUGIN } from "../packages/core/src/devtools/protocol";
+import { parseEvent } from "../packages/core/src/devtools/schema";
+import type { Stored } from "../packages/core/src/devtools/model/session";
+import { toHar } from "../packages/core/src/devtools/model/har";
+import { cacheBadge, phases, rowStatus } from "../packages/core/src/devtools/model/network";
+import { createSession } from "../packages/core/src/devtools/model/session";
 
 const loaded = (events = fixtureSession()) => {
   const session = createSession();

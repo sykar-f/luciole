@@ -1,0 +1,22 @@
+{
+  // Standalone (no `@luciole-sh/core/tsconfig`): the package ships its sources, and Bun reads this
+  // file to compile them (JSX for OpenTUI) wherever the package is installed.
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "jsxImportSource": "@opentui/react",
+    "strict": true,
+    "erasableSyntaxOnly": true,
+    "verbatimModuleSyntax": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "types": [],
+    "moduleDetection": "force",
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["src"],
+  "exclude": ["**/node_modules", "dist"]
+}

@@ -7,8 +7,8 @@ import { MouseButtons, type MouseButton } from "@opentui/core/testing";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { build } from "../packages/luciole/src/build";
-import { TransportError, type Transport } from "../packages/luciole/src/client";
+import { build } from "../packages/core/src/build";
+import { TransportError, type Transport } from "../packages/core/src/client";
 import {
   BUILD_TEST_MS,
   launch,

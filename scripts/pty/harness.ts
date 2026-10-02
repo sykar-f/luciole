@@ -12,7 +12,7 @@ import { z } from "zod";
 export const ROOT = resolve(import.meta.dir, "../..");
 /** The Bun running this journey: the one every program under test runs on too. */
 export const BUN = process.execPath;
-export const CLI = join(ROOT, "packages/luciole/src/cli.ts");
+export const CLI = join(ROOT, "packages/core/src/cli.ts");
 export const example = (name: string) => join(ROOT, "examples", name);
 const STOP_TIMEOUT_MS = 5000;
 

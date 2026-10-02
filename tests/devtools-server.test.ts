@@ -2,11 +2,11 @@ import { expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { parseEvent, type DevtoolsEvent } from "../packages/luciole/src/devtools/schema";
-import { devtoolsInstrument } from "../packages/luciole/src/devtools/server-agent";
-import { message, PLUGIN } from "../packages/luciole/src/devtools/protocol";
-import { listenBus, type Connection } from "../packages/luciole/src/devtools/wire";
-import { createHttpTransport, type TransportEvent } from "../packages/luciole/src/transport";
+import { parseEvent, type DevtoolsEvent } from "../packages/core/src/devtools/schema";
+import { devtoolsInstrument } from "../packages/core/src/devtools/server-agent";
+import { message, PLUGIN } from "../packages/core/src/devtools/protocol";
+import { listenBus, type Connection } from "../packages/core/src/devtools/wire";
+import { createHttpTransport, type TransportEvent } from "../packages/core/src/transport";
 import { launch, until } from "./helpers";
 
 test("LUCIOLE_DEVTOOLS streams the Server's events and logs under the Client's callId", async () => {

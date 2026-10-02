@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import type { MouseEvent } from "@opentui/core";
-import { useBindings } from "luciole/client";
+import { useBindings } from "@luciole-sh/core/client";
 import { color } from "./theme";
 
 export type MenuItem = { label: string; hint?: string; run: () => void } | "separator";

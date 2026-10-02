@@ -61,7 +61,7 @@ const hosts = [
   />
 
   <Step n="1–3" tone="client" title="Une page, deux façons de joindre le Server">
-    <Excerpt path="packages/luciole/src/web/runtime.tsx" find='const inPage = element.dataset.server === "worker";' count={10} tone="client" mark={["connectServer(", ": undefined;"]} />
+    <Excerpt path="packages/core/src/web/runtime.tsx" find='const inPage = element.dataset.server === "worker";' count={10} tone="client" mark={["connectServer(", ": undefined;"]} />
     <ul>
       <li><strong><code>--web</code></strong> : <code>fetch</code> est celui du navigateur, vers le vrai Server Bun, qui sert aussi la page. Il faut déclarer l'origine avec <code>LUCIOLE_WEB_ORIGIN</code> ; le Server vérifie alors <code>Origin</code> et <code>Host</code>, et refuse de démarrer si le runtime web manque.</li>
       <li><strong><code>--web-local</code></strong> : un site statique. Le Server de l'app, bundlé pour le navigateur, tourne dans un <strong>SharedWorker</strong>, et <code>fetch</code> passe par un <code>MessagePort</code>. C'est ainsi que tournent les démos live de la page d'accueil, Notes deux fois dans le hero.</li>
@@ -70,13 +70,13 @@ const hosts = [
 
   <Step n="5–6" tone="server" title="Un Server dans le navigateur">
     <p>Dans le Worker, SQLite tourne en WebAssembly et <code>AsyncLocalStorage</code> est reconstruit en transformant chaque <code>await</code> au build. Chaque <code>/action</code> est rendue durable <strong>avant</strong> sa réponse :</p>
-    <Excerpt path="packages/luciole/src/web/platform/serve.ts" find="export function serve(config: ServerConfig) {" until="^}" tone="server" mark={['if (new URL(request.url).pathname === "/action") await persist();']} />
+    <Excerpt path="packages/core/src/web/platform/serve.ts" find="export function serve(config: ServerConfig) {" until="^}" tone="server" mark={['if (new URL(request.url).pathname === "/action") await persist();']} />
     <p>L'instantané de la base est écrit dans l'OPFS de l'origine. Les réponses remontent en messages <code>head</code>, <code>chunk</code> (buffer transféré), <code>end</code> ou <code>error</code>.</p>
   </Step>
 
   <Step n="7–8" tone="client" title="OpenTUI sans bun:ffi">
     <p>OpenTUI est natif (Zig) et parle à Bun par <code>bun:ffi</code>. Pour le navigateur, le framework le compile en <code>wasm32-wasi</code> et fournit un backend FFI qui imite <code>bun:ffi</code> : les buffers sont copiés dans la mémoire du module, et les callbacks passent par de petits modules WASM « trampolines ». Chaque substitution dans les sources d'OpenTUI échoue au build si la source attendue a changé.</p>
-    <p>Six modules du framework ont une variante navigateur dans <code>src/web/platform/</code> (<code>run.tsx</code>, <code>serve.ts</code>, <code>flight/server.ts</code>…). Le plugin <Src path="packages/luciole/src/web/platform.ts" find="export const platformVariants" /> les substitue par chemin, au build.</p>
+    <p>Six modules du framework ont une variante navigateur dans <code>src/web/platform/</code> (<code>run.tsx</code>, <code>serve.ts</code>, <code>flight/server.ts</code>…). Le plugin <Src path="packages/core/src/web/platform.ts" find="export const platformVariants" /> les substitue par chemin, au build.</p>
   </Step>
 
   <Sample
@@ -112,8 +112,8 @@ web-runtime.json              {"abi":"1-e2931d7662791000"}`}
     ]}
   />
   <Excerpt path="packages/desktop/src/host/session.ts" find="pty = spawnPty({" count={12} tone="neutral" mark={['LUCIOLE_DESKTOP: "1"', "setImmediate(flush);"]} />
-  <p>Le seul contrat entre l'hôte et l'app est <code>LUCIOLE_DESKTOP=1</code>, qui change deux choses dans <Src path="packages/luciole/src/run.tsx" /> :</p>
-  <Excerpt path="packages/luciole/src/run.tsx" find="// SIGHUP: the terminal closed" count={6} tone="client" mark={['process.on("SIGHUP", desktop ? quit : interrupted);']} />
+  <p>Le seul contrat entre l'hôte et l'app est <code>LUCIOLE_DESKTOP=1</code>, qui change deux choses dans <Src path="packages/core/src/run.tsx" /> :</p>
+  <Excerpt path="packages/core/src/run.tsx" find="// SIGHUP: the terminal closed" count={6} tone="client" mark={['process.on("SIGHUP", desktop ? quit : interrupted);']} />
   <ul>
     <li><strong>Ctrl+C</strong> devient une touche de l'app : le framework ne l'intercepte plus (<code>quitOnCtrlC: false</code>).</li>
     <li><strong>Fermer la fenêtre</strong> raccroche le PTY (SIGHUP), ce qui vaut un <em>quit</em> : la session est supprimée (chapitre 7) et le Server géré, prévenu par <code>/lifetime/leave</code>, s'arrête.</li>
@@ -124,7 +124,7 @@ web-runtime.json              {"abi":"1-e2931d7662791000"}`}
     <ul>
       <li>OpenTUI remplace <code>requestAnimationFrame</code>, dont xterm.js a besoin : la page le sauvegarde et le restaure, sinon l'écran se fige après une perte de focus.</li>
       <li>La cible web n'est pas instrumentée : aucune DevTools dans <code>src/web/</code>.</li>
-      <li><code>&lt;Terminal&gt;</code> (<Src path="packages/luciole/src/vt/terminal.tsx" />) utilise le même <code>spawnPty</code> pour un programme local <em>dans</em> une app luciole. Dans un navigateur, il affiche « cannot run here ».</li>
+      <li><code>&lt;Terminal&gt;</code> (<Src path="packages/core/src/vt/terminal.tsx" />) utilise le même <code>spawnPty</code> pour un programme local <em>dans</em> une app luciole. Dans un navigateur, il affiche « cannot run here ».</li>
       <li>Sans SharedWorker, la page retombe sur un Worker dédié sous un verrou : l'app ne s'ouvre alors que dans un seul onglet.</li>
     </ul>
   </Callout>

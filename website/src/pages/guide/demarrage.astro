@@ -18,7 +18,7 @@ import Quiz from "../../components/guide/Quiz.astro";
   ]}
 >
   <h2>En une phrase</h2>
-  <p><code>luciole dev</code> est un <strong>superviseur</strong> : il construit, lance le Server, attend qu'il annonce son port, lance le Client pointé dessus, puis recommence tout à chaque fichier modifié. Ses pièces génériques (démarrer le Server, relayer le bearer, ne jamais lancer deux rebuilds à la fois) vivent dans <Src path="packages/luciole/src/dev/supervisor.ts" />, exporté en <code>luciole/dev</code> pour les hôtes qui décident eux-mêmes du rebuild. <code>start</code> et <code>connect</code> lancent un seul programme déjà construit, sans rien surveiller.</p>
+  <p><code>luciole dev</code> est un <strong>superviseur</strong> : il construit, lance le Server, attend qu'il annonce son port, lance le Client pointé dessus, puis recommence tout à chaque fichier modifié. Ses pièces génériques (démarrer le Server, relayer le bearer, ne jamais lancer deux rebuilds à la fois) vivent dans <Src path="packages/core/src/dev/supervisor.ts" />, exporté en <code>luciole/dev</code> pour les hôtes qui décident eux-mêmes du rebuild. <code>start</code> et <code>connect</code> lancent un seul programme déjà construit, sans rien surveiller.</p>
 
   <h2>Le parcours de luciole dev</h2>
   <Sequence
@@ -49,16 +49,16 @@ import Quiz from "../../components/guide/Quiz.astro";
 
   <Step n="1–2" tone="neutral" where="Superviseur" title="Construire, puis lancer le Server sur un port libre">
     <p>Le superviseur construit (chapitre 2), puis vérifie les arguments de l'application, ceux qui suivent <code>--</code>, avec l'<code>app/args.ts</code> que ce build vient de produire : le schéma a pu changer. Au premier build, <code>--help</code> affiche l'aide générée et s'arrête, et un refus termine <code>luciole dev</code> (code 2 pour une erreur d'usage). Aux builds suivants, un refus devient une erreur de build comme une autre.</p>
-    <Excerpt path="packages/luciole/src/commands/dev.ts" find="const { buildId } = await build(directory);" until="first = false;" mark={["await build(directory);", "args = await checkArgs(definition, rest, { cwd, name });"]} />
+    <Excerpt path="packages/core/src/commands/dev.ts" find="const { buildId } = await build(directory);" until="first = false;" mark={["await build(directory);", "args = await checkArgs(definition, rest, { cwd, name });"]} />
     <p>Il lie ensuite <code>.luciole/node_modules</code> aux dépendances du framework, et seulement alors arrête les anciens processus. Le Server est lancé avec la condition <code>react-server</code> et <code>PORT=0</code> : le système choisit le port. Son environnement porte aussi les arguments vérifiés (<code>LUCIOLE_ARGS</code>, que le Server relit et analyse à nouveau) et <code>LUCIOLE_LAUNCH</code>, qui lui dit qu'il sert ce seul lancement, avec l'identifiant de session comme id.</p>
-    <Excerpt path="packages/luciole/src/commands/dev.ts" find="await linkFrameworkModules(directory, frameworkRoot);" until='PORT: process.env.PORT ?? "0"' mark={["await Promise.all([stop(client), server?.stop()]);", "server = await startAppServer({", 'PORT: process.env.PORT ?? "0"']} />
+    <Excerpt path="packages/core/src/commands/dev.ts" find="await linkFrameworkModules(directory, frameworkRoot);" until='PORT: process.env.PORT ?? "0"' mark={["await Promise.all([stop(client), server?.stop()]);", "server = await startAppServer({", 'PORT: process.env.PORT ?? "0"']} />
     <p>L'ordre compte : <code>stop()</code> vient <em>après</em> <code>build()</code>. Si le build échoue, l'exception saute l'arrêt et l'ancien couple Server et Client continue de tourner.</p>
   </Step>
 
   <Step n="3" tone="server" title="Le Server annonce qu'il écoute">
-    <p><Src path="packages/luciole/src/serve.ts" /> valide l'environnement, refuse une écoute exposée au réseau sans authentification, puis imprime une ligne JSON sur stdout. <code>startAppServer</code> attend cette ligne, au plus 10 secondes ; les autres lignes de stdout vont à <code>onOutput</code>, que <code>luciole dev</code> affiche. Un Server qui meurt ou tarde est arrêté, et la promesse est rejetée avec la fin de son stderr quand l'hôte le capte.</p>
-    <Excerpt path="packages/luciole/src/dev/supervisor.ts" find="const ready = await new Promise" until="return { port: ready.port, child, stop: () => stopChild(child) };" tone="neutral" mark={["const parsed = ServerReady.safeParse(message);"]} />
-    <Excerpt path="packages/luciole/src/serve.ts" find="// A socket is reachable by whoever may open its file" until="} satisfies AuthConfig);" tone="server" mark={["Remote binding requires LUCIOLE_TOKEN"]} />
+    <p><Src path="packages/core/src/serve.ts" /> valide l'environnement, refuse une écoute exposée au réseau sans authentification, puis imprime une ligne JSON sur stdout. <code>startAppServer</code> attend cette ligne, au plus 10 secondes ; les autres lignes de stdout vont à <code>onOutput</code>, que <code>luciole dev</code> affiche. Un Server qui meurt ou tarde est arrêté, et la promesse est rejetée avec la fin de son stderr quand l'hôte le capte.</p>
+    <Excerpt path="packages/core/src/dev/supervisor.ts" find="const ready = await new Promise" until="return { port: ready.port, child, stop: () => stopChild(child) };" tone="neutral" mark={["const parsed = ServerReady.safeParse(message);"]} />
+    <Excerpt path="packages/core/src/serve.ts" find="// A socket is reachable by whoever may open its file" until="} satisfies AuthConfig);" tone="server" mark={["Remote binding requires LUCIOLE_TOKEN"]} />
     <p>Sans <code>server/auth.ts</code>, l'authentification par défaut compare le bearer à <code>LUCIOLE_TOKEN</code>. Si ce token n'est pas défini, toute requête reçoit l'utilisateur <code>LUCIOLE_USER</code>, <code>"local"</code> par défaut. C'est le cas de Notes.</p>
   </Step>
 
@@ -68,14 +68,14 @@ import Quiz from "../../components/guide/Quiz.astro";
 
   <Step n="5–6" tone="client" title="Le bearer passe par le superviseur, jamais par le disque">
     <p>Au démarrage, le Client dit <code>hello</code> et attend au plus une seconde le token du Client précédent. Le superviseur le garde en mémoire : après un rebuild, l'utilisateur n'a pas à se reconnecter.</p>
-    <Excerpt path="packages/luciole/src/dev/supervisor.ts" find="export function bearerRelay()" until="^}" tone="neutral" mark={['client.send({ type: "bearer", token: bearer })']} />
-    <p>Le build raté est géré par le <code>catch</code> de <Src path="packages/luciole/src/commands/dev.ts" /> : le message part au Client vivant, qui l'affiche en bandeau orange au-dessus de son layout. Il est positionné : une erreur de syntaxe donne sa ligne et sa colonne, un import introuvable la ligne de l'import (chapitre 2).</p>
-    <Excerpt path="packages/luciole/src/commands/dev.ts" find="} catch (error) {" after="bearer.attach(activeClient);" until="else console.error(message);" mark={['client.send({ type: "build-error", message })']} />
+    <Excerpt path="packages/core/src/dev/supervisor.ts" find="export function bearerRelay()" until="^}" tone="neutral" mark={['client.send({ type: "bearer", token: bearer })']} />
+    <p>Le build raté est géré par le <code>catch</code> de <Src path="packages/core/src/commands/dev.ts" /> : le message part au Client vivant, qui l'affiche en bandeau orange au-dessus de son layout. Il est positionné : une erreur de syntaxe donne sa ligne et sa colonne, un import introuvable la ligne de l'import (chapitre 2).</p>
+    <Excerpt path="packages/core/src/commands/dev.ts" find="} catch (error) {" after="bearer.attach(activeClient);" until="else console.error(message);" mark={['client.send({ type: "build-error", message })']} />
   </Step>
 
   <Step n="7" tone="wire" title="Chaque requête porte le build ID">
     <p>Le Transport du Client pose <code>x-luciole-build</code> sur chaque requête. Le Server le compare au sien <strong>avant tout code applicatif</strong> :</p>
-    <Excerpt path="packages/luciole/src/server.ts" find="const session = await auth.authenticate(req);" count={9} tone="server" mark={['req.headers.get("x-luciole-build") !== config.buildId']} />
+    <Excerpt path="packages/core/src/server.ts" find="const session = await auth.authenticate(req);" count={9} tone="server" mark={['req.headers.get("x-luciole-build") !== config.buildId']} />
     <p><code>/health</code> échappe à ce contrôle : c'est le moyen de connaître le build ID d'un Server. Côté Client, le 409 devient une erreur <code>BuildMismatch</code> : le statut affiche « Incompatible build » et le Client reste ouvert.</p>
   </Step>
 
@@ -85,9 +85,9 @@ import Quiz from "../../components/guide/Quiz.astro";
 
   <Step n="12" tone="neutral" where="Superviseur" title="La fin : quitter, raccrocher, planter">
     <p>Le Client qui se termine termine <code>luciole dev</code>, avec <strong>son</strong> code de sortie : 0 quand l'utilisateur quitte, le code du Client s'il plante, 1 s'il est tué par un signal. Un hôte qui lance <code>luciole dev</code> distingue ainsi un plantage d'une sortie voulue. Un Client qui meurt pendant un rebuild ne termine rien.</p>
-    <Excerpt path="packages/luciole/src/commands/dev.ts" find='activeClient.once("exit"' count={4} mark={["shutdown(code ?? (signal ? SIGNALLED_EXIT_CODE : 0))"]} />
+    <Excerpt path="packages/core/src/commands/dev.ts" find='activeClient.once("exit"' count={4} mark={["shutdown(code ?? (signal ? SIGNALLED_EXIT_CODE : 0))"]} />
     <p>SIGINT, SIGTERM et <strong>SIGHUP</strong> arrêtent proprement le Server et le Client, puis sortent avec 0. SIGHUP est ce qu'envoie un terminal fermé, ou un <code>&lt;Terminal&gt;</code> qu'on démonte : sans lui, le Server et le Client survivraient à leur parent.</p>
-    <Excerpt path="packages/luciole/src/commands/dev.ts" find="// SIGHUP too" count={4} mark={['["SIGINT", "SIGTERM", "SIGHUP"]']} />
+    <Excerpt path="packages/core/src/commands/dev.ts" find="// SIGHUP too" count={4} mark={['["SIGINT", "SIGTERM", "SIGHUP"]']} />
   </Step>
 
   <h2>Qui supervise qui</h2>
@@ -118,8 +118,8 @@ import Quiz from "../../components/guide/Quiz.astro";
     <li>le fichier <code>$XDG_CONFIG_HOME/luciole/&lt;app&gt;.json</code> ;</li>
     <li><code>http://127.0.0.1:3000</code>, le port par défaut du Server hors dev.</li>
   </ol>
-  <Excerpt path="packages/luciole/src/connect.ts" find='const flag = argv.indexOf("--url");' until="return DEFAULT_URL;" tone="client" />
-  <p>Ensuite, <Src path="packages/luciole/src/connect.ts" /> interprète l'URL. <code>ssh://hôte</code> ouvre un tunnel <code>ssh -N -L</code> vers un socket local, dans un dossier en 0700, et ce tunnel meurt avec le Client. <code>unix:/chemin/absolu</code> parle à un socket Unix. Tout le reste est utilisé tel quel.</p>
+  <Excerpt path="packages/core/src/connect.ts" find='const flag = argv.indexOf("--url");' until="return DEFAULT_URL;" tone="client" />
+  <p>Ensuite, <Src path="packages/core/src/connect.ts" /> interprète l'URL. <code>ssh://hôte</code> ouvre un tunnel <code>ssh -N -L</code> vers un socket local, dans un dossier en 0700, et ce tunnel meurt avec le Client. <code>unix:/chemin/absolu</code> parle à un socket Unix. Tout le reste est utilisé tel quel.</p>
 
   <h2>start et connect</h2>
   <p>Ces deux commandes supposent le build fait. Elles lancent un seul processus en <code>NODE_ENV=production</code>, lui relaient les signaux et reprennent son code de sortie.</p>
@@ -155,7 +155,7 @@ import Quiz from "../../components/guide/Quiz.astro";
     <ul>
       <li>Modifier <code>package.json</code>, <code>luciole.json</code> ou l'icône ne déclenche pas de rebuild.</li>
       <li>Quitter le Client arrête tout <code>luciole dev</code>, Server compris, avec le code de sortie du Client. Mais un Client qui meurt <em>pendant</em> un rebuild ne l'arrête pas.</li>
-      <li><Src path="packages/luciole/src/host.ts" /> n'a rien à voir avec la connexion : ce sont les capacités que l'app demande à son hôte, comme le presse-papier ou les notifications.</li>
+      <li><Src path="packages/core/src/host.ts" /> n'a rien à voir avec la connexion : ce sont les capacités que l'app demande à son hôte, comme le presse-papier ou les notifications.</li>
     </ul>
   </Callout>
 

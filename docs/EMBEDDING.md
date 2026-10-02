@@ -3,7 +3,7 @@
 Statut : étapes 1 à 8 livrées (voir [Avancement](#avancement)) ; la conception ci-dessous
 s'appuie sur quatre prototypes jetables exécutés le 24 septembre 2026 (macOS 26.6.2 arm64,
 Bun 1.4.2) : inline, generic-client, vt-embed et sandbox (retirés du dépôt ; leurs mesures
-sont reprises ci-dessous et leur code vit dans `packages/luciole/src`).
+sont reprises ci-dessous et leur code vit dans `packages/core/src`).
 
 Objectif : un Client luciole capable d'ouvrir plusieurs applications à la fois, comme un
 navigateur à onglets ou un multiplexeur local (tmux, herdr) : applications luciole
@@ -46,7 +46,7 @@ jamais. `inline` est un choix explicite de l'utilisateur pour une origine de con
 `luciole.capabilities` du `package.json` de l'application (décision 3), lisible avant
 toute exécution ; le lanceur définit déjà le champ `luciole` (`name`, `buildId`,
 `binaries`), `capabilities` s'y ajoute avec le schéma Zod défini dans
-`packages/luciole/src/capabilities.ts`. Le build recopie ce champ dans le manifeste signé
+`packages/core/src/capabilities.ts`. Le build recopie ce champ dans le manifeste signé
 (section 2) : une origine URL les annonce sans que le Client lise le `package.json`, et
 une application installée les donne par son `package.json`. Le build compare ce champ à
 l'audit des built-ins Node du bundle Client (`fs/*` → `fs.*`, `child_process` → `exec`,
@@ -101,10 +101,10 @@ paquet dont le `package.json` porte déjà `luciole` (`name`, `buildId`, `binari
   `"use server"`, les dépendances propres à l'application. Tout le reste est un
   `require` résolu par l'hôte (probe : mdreader 20 Ko, 7,5 Ko gzip ; files 29 Ko).
 - **ABI de runtime** : la liste fermée des spécifiers que le bundle peut importer
-  (`luciole/client`, `luciole/route-tree`, `@tanstack/react-router`, `react`,
+  (`@luciole-sh/core/client`, `@luciole-sh/core/route-tree`, `@tanstack/react-router`, `react`,
   `react/jsx-runtime`, `@opentui/core`, `@opentui/react`, `@opentui/react/jsx-runtime`,
   `@opentui/keymap`, `@opentui/keymap/react`, `zod`, `zod/mini`), une version entière
-  incrémentée à la main quand un export d'`luciole/client` change de façon incompatible, et
+  incrémentée à la main quand un export d'`@luciole-sh/core/client` change de façon incompatible, et
   les versions exactes des paquets. Clé : `<version>-<sha256 court>`, écrite dans le
   manifeste, comparée **avant** le téléchargement.
 - **Format** : `bun-cjs`, `(function (exports, require, module, …) {…})`. L'hôte passe
@@ -213,7 +213,7 @@ sont pas concernées : elles utilisent le `callServer` de leur réponse. Mesuré
 
 **Refactor** (`src/client.tsx`, ≈ 20 lignes) : les ids d'action ne portent pas la clé
 d'instance, l'aiguillage par préfixe est donc exclu ici. Chaque pane évalue son bundle
-avec sa propre table `require` : son `luciole/client` a un `actionReference` lié à
+avec sa propre table `require` : son `@luciole-sh/core/client` a un `actionReference` lié à
 l'Application du pane (c'est ce que fait le probe). `current` disparaît au profit de
 cette liaison ; le Client actuel, un seul pane, lie l'unique Application, et ne change
 pas de comportement.
@@ -240,7 +240,7 @@ Le focus OpenTUI est global au renderer. Un `<input focused>` d'un embed inactif
 recevrait encore la frappe (le renderer route la touche au renderable focalisé, hors
 keymap). `<Embed>` met donc le focus de côté à la bascule et le rend au retour (étape 2).
 
-API publique (décision 1) : un nouvel export `<Embed>` dans `luciole/client`, `Shell`
+API publique (décision 1) : un nouvel export `<Embed>` dans `@luciole-sh/core/client`, `Shell`
 reste inchangé. Forme proposée, celle du probe (`EmbedShell`) :
 `<Embed app={Application} name={string} active={boolean} />`, qui porte le keymap du
 pane, sa boundary et le rendu du focus à la bascule.
@@ -297,7 +297,7 @@ application OpenTUI enfant prête ≈ 91 ms, `seq 1..100000` à 16 Mo/s (limité
 et le PTY). Taille du PTY = boîte intérieure ; le redimensionnement atteint le programme
 (`stty size`).
 
-Trous d'OpenTUI 0.5.12, à remonter en amont, comblés dans `packages/luciole/src/vt/gaps.ts` :
+Trous d'OpenTUI 0.5.12, à remonter en amont, comblés dans `packages/core/src/vt/gaps.ts` :
 sans protocole clavier kitty, F1–F12, `Alt+x` et Backspace n'envoient rien ; DA1, DA2 et
 OSC 10/11 restent sans réponse ; OSC 8 (hyperliens) n'apparaît pas dans le rendu (non
 comblé).
@@ -481,7 +481,7 @@ actuelles (tests à plusieurs Applications, boundary).
     par l'hôte, ou proxy pour un Server distant) ; `net` par hôte via le proxy de l'hôte,
     lancé avant l'enfant et tenu jusqu'à sa fin, qui résout les noms et n'ouvre qu'un
     hôte par connexion (`Connection: close`) ; `net: *` par l'OS.
-  - **Capacités médiées** : `host` dans `luciole/client`, un par bundle (lié comme
+  - **Capacités médiées** : `host` dans `@luciole-sh/core/client`, un par bundle (lié comme
     `luciole:actions`), et les hooks `useHostMessage`, `useGlobalKey`, `useCapability`.
     L'enfant demande par l'IPC de Bun (socketpair hérité) ; l'hôte valide (Zod), vérifie
     la capacité, demande à l'utilisateur si elle n'est pas décidée (`Ctrl+O y`/`n`, réponse
@@ -571,14 +571,14 @@ bundle, url })` évalue ce bundle contre le runtime de l'hôte (`src/app-bundle.
   dans l'enveloppe ; `registerModules(key, resolver)` remplace `installResolver`, dans un
   registre partagé par toutes les copies du runtime (`globalThis`). `let current` est
   supprimé : le build émet par bundle un module `luciole:actions` (`createActions()` de
-  `luciole/client`) que les stubs `"use server"` importent et que `createApp` lie à
+  `@luciole-sh/core/client`) que les stubs `"use server"` importent et que `createApp` lie à
   l'Application qu'il crée. Écart : cette liaison par bundle touche `src/build.ts`
   (≈ 15 lignes) ; elle sert telle quelle aux bundles du Client générique (étape 3), sans
   table `require` à surcharger. Deux panes d'un même build = deux évaluations du bundle.
 
 - **Étape 6 (mode `process`)** : livrée sur `feat/embed-process`, avant l'étape 1 (use-cache
   et distribution modifiaient alors `server.ts`, `transport.ts` et `client.tsx`).
-  `<Terminal>` dans `luciole/client` (`src/vt/`), exemple `examples/mux`, smoke
+  `<Terminal>` dans `@luciole-sh/core/client` (`src/vt/`), exemple `examples/mux`, smoke
   `test:pty:mux`. Écarts : la touche préfixe est une prop du terminal (le keymap passe
   avant le renderable focalisé, le terminal doit savoir laquelle laisser) ; `run()` ne
   quitte plus sur un `Ctrl+C` déjà traité (sinon `Ctrl+C` dans un shell quitterait le

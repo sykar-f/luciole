@@ -3,11 +3,11 @@
  * measurement of real harnesses (scripts/studio/measure.ts): which adapter, which one
  * when none is asked for, and what every start receives.
  */
-import { createHarness } from "@luciole/harness/adapters";
-import type { Harness, HarnessContext, HarnessStatus } from "@luciole/harness/adapters/types";
-import { detect } from "@luciole/harness/detect";
-import { HARNESS_NAMES, type HarnessId } from "@luciole/harness/model";
-import type { HarnessSessionOptions } from "@luciole/harness/session";
+import { createHarness } from "@luciole-sh/harness/adapters";
+import type { Harness, HarnessContext, HarnessStatus } from "@luciole-sh/harness/adapters/types";
+import { detect } from "@luciole-sh/harness/detect";
+import { HARNESS_NAMES, type HarnessId } from "@luciole-sh/harness/model";
+import type { HarnessSessionOptions } from "@luciole-sh/harness/session";
 import { Generator } from "./generator";
 import { INSTRUCTIONS } from "./instructions";
 

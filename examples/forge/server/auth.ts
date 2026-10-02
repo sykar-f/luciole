@@ -1,4 +1,4 @@
-import type { AuthConfig } from "luciole/server";
+import type { AuthConfig } from "@luciole-sh/core/server";
 import { forge } from "./instance";
 
 // Opaque bearer → session in SQLite. Pages and Server Functions are protected by

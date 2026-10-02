@@ -12,7 +12,7 @@ ne se lance pas depuis son propre dossier) :
 
 ```sh
 bun install --frozen-lockfile    # une fois, Bun 1.4.2
-LUCIOLE_LATENCY_MS=500 bun packages/luciole/src/cli.ts dev --app examples/latency
+LUCIOLE_LATENCY_MS=500 bun packages/core/src/cli.ts dev --app examples/latency
 ```
 
 Il n'y a pas de script `bun run` pour cet exemple. Aucune clé API, aucun réseau. Sans

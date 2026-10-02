@@ -10,15 +10,15 @@ import { createRootRoute } from "@tanstack/react-router";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { build } from "../packages/luciole/src/build";
+import { build } from "../packages/core/src/build";
 import {
   Application,
   Embed,
   openApplication,
   type ApplicationEvent,
   type ApplicationOptions,
-} from "../packages/luciole/src/client";
-import { ApplicationView } from "../packages/luciole/src/embed";
+} from "../packages/core/src/client";
+import { ApplicationView } from "../packages/core/src/embed";
 import { destroy, launch, rejectionOf, until, type TestUI } from "./helpers";
 
 const mdreader = resolve("examples/mdreader");

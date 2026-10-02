@@ -21,7 +21,7 @@ de démonstration s'accompagnent de l'historique git réel du clone, importé co
 `luciole`. Pour s'en passer :
 
 ```sh
-bun packages/luciole/src/cli.ts dev --app examples/forge
+bun packages/core/src/cli.ts dev --app examples/forge
 ```
 
 Aucune clé API, aucun réseau. Au premier affichage, la page de connexion attend un

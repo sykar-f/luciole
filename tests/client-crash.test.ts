@@ -8,9 +8,9 @@ import { mkdtemp, mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { z } from "zod";
-import { build } from "../packages/luciole/src/build";
-import { linkFrameworkModules, startAppServer } from "../packages/luciole/src/dev/supervisor";
-import { spawnPty, type Pty } from "../packages/luciole/src/vt/pty";
+import { build } from "../packages/core/src/build";
+import { linkFrameworkModules, startAppServer } from "../packages/core/src/dev/supervisor";
+import { spawnPty, type Pty } from "../packages/core/src/vt/pty";
 import { BUILD_TEST_MS, until } from "./helpers";
 
 const STARTUP_MS = 20_000;
@@ -41,7 +41,7 @@ const alive = (pid: number) => {
  */
 const PAGE = `"use client";
 import { useKeyboard } from "@opentui/react";
-import { Terminal } from "luciole/client";
+import { Terminal } from "@luciole-sh/core/client";
 export default function Page() {
   useKeyboard((key) => {
     if (key.name === "p") process.send?.({ type: "pong" });
@@ -70,7 +70,7 @@ beforeAll(async () => {
     await Bun.write(join(directory, name), text);
   }
   await build(directory);
-  await linkFrameworkModules(directory, resolve("packages/luciole"));
+  await linkFrameworkModules(directory, resolve("packages/core"));
   server = await startAppServer({ directory, env: { ...process.env, PORT: "0" } });
 }, BUILD_TEST_MS);
 afterAll(async () => {

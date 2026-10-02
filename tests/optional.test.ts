@@ -10,26 +10,26 @@ import {
   loadOptional,
   WEB_RUNTIME_PACKAGES,
   WEB_SERVER_PACKAGES,
-} from "../packages/luciole/src/optional";
+} from "../packages/core/src/optional";
 
-const source = join(import.meta.dir, "../packages/luciole/src");
+const source = join(import.meta.dir, "../packages/core/src");
 
 describe("optional dependencies", () => {
   test("a missing package is reported with the command that installs it", async () => {
     const missing = "luciole-test-not-installed";
-    const error = await loadOptional("luciole/math", missing, () =>
+    const error = await loadOptional("@luciole-sh/core/math", missing, () =>
       import(missing).then((module: unknown) => module),
     ).catch((thrown: unknown) => thrown);
     if (!(error instanceof Error)) throw new Error("loadOptional did not throw");
-    expect(error.message).toContain(`luciole/math needs the optional package ${missing}`);
+    expect(error.message).toContain(`@luciole-sh/core/math needs the optional package ${missing}`);
     expect(error.message).toContain(`bun add ${missing}`);
   });
 
   test("another failure is not taken for a missing package", async () => {
     const failure = new Error("boom");
-    const error = await loadOptional("luciole/math", "zod", () => Promise.reject(failure)).catch(
-      (thrown: unknown) => thrown,
-    );
+    const error = await loadOptional("@luciole-sh/core/math", "zod", () =>
+      Promise.reject(failure),
+    ).catch((thrown: unknown) => thrown);
     expect(error).toBe(failure);
   });
 
@@ -111,10 +111,10 @@ await renderMath("x", { display: false, color: "#000", scale: 4 }).catch((error:
     return { stdout, code };
   }
 
-  test("importing luciole/math is fine until a formula is drawn, then names the package", async () => {
+  test("importing @luciole-sh/core/math is fine until a formula is drawn, then names the package", async () => {
     const { stdout, code } = await run("math-run.ts");
     expect(code).toBe(0);
-    expect(stdout).toContain("luciole/math needs the optional package @resvg/resvg-wasm");
+    expect(stdout).toContain("@luciole-sh/core/math needs the optional package @resvg/resvg-wasm");
     expect(stdout).toContain("bun add @resvg/resvg-wasm");
   });
 

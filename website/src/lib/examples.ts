@@ -114,10 +114,10 @@ export const examples: Record<ExampleKey, Example> = {
   },
   devtools: {
     name: "DevTools",
-    source: "packages/luciole/src/devtools/luciole-devtools",
+    source: "packages/core/src/devtools/luciole-devtools",
     frame: "devtools-network",
     demo: "devtools",
-    run: "bun packages/luciole/src/cli.ts devtools --demo",
+    run: "bun packages/core/src/cli.ts devtools --demo",
     about:
       "Both processes in one waterfall, with the cache that answered, component trees and logs, on a recorded session. The DevTools are a luciole app too.",
   },

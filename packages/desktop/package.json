@@ -1,5 +1,5 @@
 {
-  "name": "luciole-desktop",
+  "name": "@luciole-sh/desktop",
   "private": true,
   "license": "MIT",
   "type": "module",
@@ -11,7 +11,7 @@
     "smoke": "bun scripts/smoke.ts"
   },
   "dependencies": {
-    "luciole": "workspace:*",
+    "@luciole-sh/core": "workspace:*",
     "@xterm/addon-fit": "catalog:",
     "@xterm/addon-webgl": "catalog:",
     "@xterm/xterm": "catalog:"

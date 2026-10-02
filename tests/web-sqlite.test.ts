@@ -4,7 +4,7 @@ import {
   Database as PageDatabase,
   configureDatabases,
   databaseImages,
-} from "../packages/luciole/src/web/node/bun-sqlite";
+} from "../packages/core/src/web/node/bun-sqlite";
 
 /** The part of bun:sqlite luciole's applications use: both databases must offer it. */
 type Statement = {

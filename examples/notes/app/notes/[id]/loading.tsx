@@ -1,5 +1,5 @@
 "use client";
-import type { LoadingProps } from "luciole/client";
+import type { LoadingProps } from "@luciole-sh/core/client";
 import { titleOf } from "../../../components/commands";
 import { NotePane } from "../../../components/NoteFrame";
 import { useKnownNotes } from "../../../components/notes-list";

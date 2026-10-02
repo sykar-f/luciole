@@ -10,7 +10,7 @@
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import sharp from "sharp";
-import { MASCOT_PALETTE, MASCOT_PIXELS } from "../../packages/luciole/src/mascot-sprite.gen";
+import { MASCOT_PALETTE, MASCOT_PIXELS } from "../../packages/core/src/mascot-sprite.gen";
 
 const PUBLIC = join(import.meta.dirname, "../public");
 const PIXEL_KEYS = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";

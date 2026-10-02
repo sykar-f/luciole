@@ -8,7 +8,7 @@
  * Never under `BUN_BE_BUN`: in a single-runtime bundle (scripts/single-runtime.ts) the
  * host is the app binary acting as Bun, and the app it starts must be itself again.
  */
-import { spawnPty, type Pty } from "luciole/pty";
+import { spawnPty, type Pty } from "@luciole-sh/core/pty";
 
 export type Size = { cols: number; rows: number };
 

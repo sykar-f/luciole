@@ -1,6 +1,6 @@
 import React, { Suspense } from "react";
-import { cached } from "../packages/luciole/src/cache/runtime";
-import { cacheTag, invalidate, serve, type ServerFunction } from "../packages/luciole/src/server";
+import { cached } from "../packages/core/src/cache/runtime";
+import { cacheTag, invalidate, serve, type ServerFunction } from "../packages/core/src/server";
 // A Server built by hand, like tests/instrument-server.ts: a page reading a cached
 // function, actions invalidating its tag, and every ServerEvent printed as a JSON line.
 let runs = 0;

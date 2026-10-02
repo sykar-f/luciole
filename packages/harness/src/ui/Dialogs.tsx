@@ -1,7 +1,7 @@
 "use client";
 import { useState, type ReactNode } from "react";
 import { useTerminalDimensions } from "@opentui/react";
-import { Input, useBindings } from "luciole/client";
+import { Input, useBindings } from "@luciole-sh/core/client";
 import { Line } from "./Line";
 import type { Decision, Request, Response } from "../model";
 import { syntax } from "./syntax";

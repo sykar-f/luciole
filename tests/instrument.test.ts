@@ -5,7 +5,7 @@ import {
   createHttpTransport,
   TransportError,
   type TransportEvent,
-} from "../packages/luciole/src/transport";
+} from "../packages/core/src/transport";
 import { launch, rejectionOf, until } from "./helpers";
 
 // What tests/instrument-server.ts prints for each ServerEvent (src/server.ts).

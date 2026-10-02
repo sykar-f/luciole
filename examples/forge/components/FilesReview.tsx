@@ -2,7 +2,7 @@
 import { Suspense, use, useEffect, useMemo, useRef, useState } from "react";
 import { useRenderer, useTerminalDimensions } from "@opentui/react";
 import type { DiffRenderable, ScrollBoxRenderable } from "@opentui/core";
-import { TransportError, useBindings } from "luciole/client";
+import { TransportError, useBindings } from "@luciole-sh/core/client";
 import { fileSource, publish, resolveSave } from "../actions/pulls";
 import { drafts } from "./draft";
 import { DraftEditor } from "./DraftEditor";

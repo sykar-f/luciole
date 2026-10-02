@@ -8,7 +8,7 @@ import { testRender } from "@opentui/react/test-utils";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { build } from "../packages/luciole/src/build";
+import { build } from "../packages/core/src/build";
 import { createRootRoute } from "@tanstack/react-router";
 import {
   Embed,
@@ -18,9 +18,9 @@ import {
   type Application,
   type ApplicationEvent,
   type Transport,
-} from "../packages/luciole/src/client";
-import { registerModules, splitInstance } from "../packages/luciole/src/flight/client";
-import { instanceManifests } from "../packages/luciole/src/instance";
+} from "../packages/core/src/client";
+import { registerModules, splitInstance } from "../packages/core/src/flight/client";
+import { instanceManifests } from "../packages/core/src/instance";
 import { destroy, importClient, launch, readManifest, until, type TestUI } from "./helpers";
 
 test("an instance key is read before the build ID's slash only", () => {

@@ -1,6 +1,6 @@
 "use client";
 import { useState, type ReactNode } from "react";
-import { useParams } from "luciole/client";
+import { useParams } from "@luciole-sh/core/client";
 import { Line } from "./frames";
 import { color } from "./theme";
 

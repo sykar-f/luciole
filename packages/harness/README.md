@@ -1,4 +1,4 @@
-# @luciole/harness
+# @luciole-sh/harness
 
 Coding-agent harnesses behind one neutral model, for the luciole examples:
 Claude Code, Codex, pi, opencode and a scripted one (`fake`). Each harness is

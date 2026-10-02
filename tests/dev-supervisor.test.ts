@@ -7,18 +7,18 @@ import { test, expect } from "bun:test";
 import { mkdtemp, mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { build } from "../packages/luciole/src/build";
+import { build } from "../packages/core/src/build";
 import {
   ClientFailure,
   linkFrameworkModules,
   serialize,
   startAppServer,
-} from "../packages/luciole/src/dev/supervisor";
-import { messageOf } from "../packages/luciole/src/guards";
-import { spawnPty, type Pty } from "../packages/luciole/src/vt/pty";
+} from "../packages/core/src/dev/supervisor";
+import { messageOf } from "../packages/core/src/guards";
+import { spawnPty, type Pty } from "../packages/core/src/vt/pty";
 import { BUILD_TEST_MS, execute, rejectionOf, until } from "./helpers";
 
-const CLI = resolve("packages/luciole/src/cli.ts");
+const CLI = resolve("packages/core/src/cli.ts");
 // A startup waits inside its test's build budget, and leaves the exit waits their share.
 const STARTUP_MS = BUILD_TEST_MS / 2;
 // A built Client with its Server up: what it reports once it starts.
@@ -198,7 +198,7 @@ test(
     let client: Pty | undefined;
     try {
       await build(dir);
-      await linkFrameworkModules(dir, resolve("packages/luciole"));
+      await linkFrameworkModules(dir, resolve("packages/core"));
       const server = await startAppServer({ directory: dir, env: { ...process.env, PORT: "0" } });
       try {
         const failures: ClientFailure[] = [];

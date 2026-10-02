@@ -5,7 +5,7 @@ import {
   createHttpTransport,
   TransportError,
   type TransportEvent,
-} from "../packages/luciole/src/transport";
+} from "../packages/core/src/transport";
 import { launch, rejectionOf, until } from "./helpers";
 
 // The cache's ServerEvent (src/cache/runtime.ts), as tests/cache-server.ts prints it.

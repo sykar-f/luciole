@@ -1,13 +1,13 @@
-/** `luciole/sandbox` and the publisher keys of `luciole/build`, as a host outside the framework imports them. */
+/** `@luciole-sh/core/sandbox` and the publisher keys of `@luciole-sh/core/build`, as a host outside the framework imports them. */
 import { test, expect } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import * as build from "luciole/build";
-import * as sandbox from "luciole/sandbox";
-import { TerminalView } from "luciole/client";
+import * as build from "@luciole-sh/core/build";
+import * as sandbox from "@luciole-sh/core/sandbox";
+import { TerminalView } from "@luciole-sh/core/client";
 
-test("luciole/sandbox exports what a host needs to confine a Client and a Server", () => {
+test("@luciole-sh/core/sandbox exports what a host needs to confine a Client and a Server", () => {
   for (const name of [
     "openSandbox",
     "confineServer",
@@ -24,7 +24,7 @@ test("luciole/sandbox exports what a host needs to confine a Client and a Server
   expect(typeof TerminalView).toBe("function");
 });
 
-test("luciole/build makes and reads a publisher key where LUCIOLE_PUBLISHER_KEY says", () => {
+test("@luciole-sh/core/build makes and reads a publisher key where LUCIOLE_PUBLISHER_KEY says", () => {
   const dir = mkdtempSync(join(tmpdir(), "luciole-key-"));
   try {
     const env = { LUCIOLE_PUBLISHER_KEY: join(dir, "keys/project.pem") };

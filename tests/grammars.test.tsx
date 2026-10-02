@@ -2,7 +2,7 @@
 import { afterEach, expect, test } from "bun:test";
 import { act } from "react";
 import { testRender } from "@opentui/react/test-utils";
-import { GRAMMARS } from "../packages/luciole/src/grammars";
+import { GRAMMARS } from "../packages/core/src/grammars";
 import { syntax } from "../packages/harness/src/ui/syntax";
 
 // A line of each language: enough tokens for several highlight groups.

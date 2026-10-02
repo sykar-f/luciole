@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { TransportError } from "luciole/client";
+import { TransportError } from "@luciole-sh/core/client";
 import type { OperationResult } from "./model";
 
 // Unknown outcomes for operations that are not documents (review, merge, rerun).

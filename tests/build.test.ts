@@ -2,8 +2,8 @@ import { test, expect } from "bun:test";
 import { mkdtemp, mkdir, rm, stat, symlink } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
-import { build } from "../packages/luciole/src/build";
-import { messageOf } from "../packages/luciole/src/guards";
+import { build } from "../packages/core/src/build";
+import { messageOf } from "../packages/core/src/guards";
 import { BUILD_TEST_MS, readManifest, rejectionOf } from "./helpers";
 async function fixture(files: Record<string, string>, run: (dir: string) => Promise<void>) {
   const dir = await mkdtemp(join(tmpdir(), "luciole-build-"));
@@ -142,7 +142,7 @@ for (const [file, source] of [
   ["app/layout.tsx", '"use client";export function Layout({children}){return children}'],
   [
     "app/(group)/layout.tsx",
-    '"use client";import {getSession} from "luciole/server";export default function Layout({children}){return <text>{getSession().userId}</text>}',
+    '"use client";import {getSession} from "@luciole-sh/core/server";export default function Layout({children}){return <text>{getSession().userId}</text>}',
   ],
 ] as const)
   test(`reject ${file}: ${source.slice(0, 48)}`, async () => {
@@ -216,7 +216,7 @@ const packages: Record<string, string> = {
   "node_modules/server-only/package.json": `{"name":"server-only","version":"0.0.1","main":"index.js"}`,
   "node_modules/server-only/index.js": ``,
   "node_modules/leaky-sdk/package.json": `{"name":"leaky-sdk","version":"0.1.0","main":"index.js"}`,
-  "node_modules/leaky-sdk/index.js": `import {getSession} from "luciole/server";export const who=()=>getSession();`,
+  "node_modules/leaky-sdk/index.js": `import {getSession} from "@luciole-sh/core/server";export const who=()=>getSession();`,
 };
 const clientUsing = (specifier: string, name: string) => ({
   "app/page.tsx": `import {Widget} from '../components/widget';export default function Page(){return <Widget/>}`,
@@ -247,7 +247,7 @@ test(
     });
     await fixture({ ...packages, ...clientUsing("leaky-sdk", "who") }, async (dir) => {
       expect(messageOf(await rejectionOf(build(dir)))).toContain(
-        "Client package leaky-sdk imports luciole/server: it is Server-only",
+        "Client package leaky-sdk imports @luciole-sh/core/server: it is Server-only",
       );
     });
     // The same package stays usable from Server code.

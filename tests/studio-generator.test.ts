@@ -7,7 +7,7 @@ import { afterEach, beforeEach, expect, test } from "bun:test";
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { HarnessEvent } from "@luciole/harness/adapters/types";
+import type { HarnessEvent } from "@luciole-sh/harness/adapters/types";
 import { Generator } from "../examples/studio/server/generator";
 import { SCENARIOS } from "../examples/studio/server/scenarios";
 

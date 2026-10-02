@@ -29,7 +29,7 @@ test("the browser's Buffer encodes and decodes base64url as Bun's does", async (
     await Bun.write(
       entry,
       `import { Buffer } from "node:buffer";
-import ${JSON.stringify(join(import.meta.dir, "../packages/luciole/src/web/node/buffer-base64url.ts"))};
+import ${JSON.stringify(join(import.meta.dir, "../packages/core/src/web/node/buffer-base64url.ts"))};
 const cases = ${JSON.stringify(LENGTHS.map(bytesOf))}.map((bytes) => {
   const encoded = Buffer.from(bytes).toString("base64url");
   return {

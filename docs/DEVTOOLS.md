@@ -11,10 +11,10 @@ Deux panneaux de terminal :
 
 ```sh
 # panneau 1 : les DevTools
-bun packages/luciole/src/cli.ts devtools            # luciole devtools, une fois le package installé
+bun packages/core/src/cli.ts devtools            # luciole devtools, une fois le package installé
 
 # panneau 2 : l'application inspectée
-eval "$(bun packages/luciole/src/cli.ts devtools --env)"
+eval "$(bun packages/core/src/cli.ts devtools --env)"
 bun run dev                        # ou n'importe quel `luciole dev --app …`
 ```
 

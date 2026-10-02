@@ -1,4 +1,4 @@
-import { notFound } from "luciole/server";
+import { notFound } from "@luciole-sh/core/server";
 import { Reader } from "../../../components/Reader";
 import { readDoc } from "../../../server/library";
 

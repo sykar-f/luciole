@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { getLaunch } from "luciole/server";
+import { getLaunch } from "@luciole-sh/core/server";
 import cli from "../app/args";
 import { projectsRoot } from "./project";
 

@@ -2,9 +2,9 @@
 title: CLI
 description: Every luciole subcommand and its options, as src/cli.ts and src/commands/ define them.
 sources:
-  - packages/luciole/src/cli.ts
-  - packages/luciole/src/commands
-  - packages/luciole/src/luciolex.ts
+  - packages/core/src/cli.ts
+  - packages/core/src/commands
+  - packages/core/src/luciolex.ts
 ---
 
 import Excerpt from "../../../components/guide/Excerpt.astro";
@@ -28,7 +28,7 @@ The CLI's own flags come before `--`; what follows `--` belongs to the app
 refused. A usage error exits with code 2, any other error with 1.
 
 <Excerpt
-  path="packages/luciole/src/commands/index.ts"
+  path="packages/core/src/commands/index.ts"
   find="export const commands"
   until="]);"
   tone="neutral"

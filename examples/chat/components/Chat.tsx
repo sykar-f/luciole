@@ -2,7 +2,7 @@
 import { useRef, useState } from "react";
 import type { ScrollBoxRenderable, TextareaRenderable } from "@opentui/core";
 import { useTerminalDimensions } from "@opentui/react";
-import { KeyHelp, Textarea, useBindings, useRestoredFields } from "luciole/client";
+import { KeyHelp, Textarea, useBindings, useRestoredFields } from "@luciole-sh/core/client";
 import { chats, streamingIn, totals, useChats, type Conversation } from "./conversations";
 import { ChatFrame, Line } from "./frames";
 import type { Setup } from "./model";

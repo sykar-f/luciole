@@ -24,9 +24,9 @@ ce checkout, qui devient le dépôt `luciole` : la démo revoit le code du frame
 Production, deux artefacts :
 
 ```sh
-bun packages/luciole/src/cli.ts build --app examples/forge
-FORGE_DB=/tmp/forge.sqlite bun packages/luciole/src/cli.ts start --role server --app examples/forge
-bun packages/luciole/src/cli.ts start --role client --app examples/forge --url http://127.0.0.1:3000
+bun packages/core/src/cli.ts build --app examples/forge
+FORGE_DB=/tmp/forge.sqlite bun packages/core/src/cli.ts start --role server --app examples/forge
+bun packages/core/src/cli.ts start --role client --app examples/forge --url http://127.0.0.1:3000
 ```
 
 Réglages Server : `FORGE_SLOW_MS` (travail simulé, défaut 250 ms, rend le streaming
@@ -174,7 +174,7 @@ Chaque point est parti d'un besoin réel de Forge et d'un test qui échouait.
 | Travail non sauvegardé invisible pour l'application.                                                                              | `DraftStore.unsaved()`, `size`, `clear()` dans `components/draft.ts` de Forge.                          | `draft.test.ts`                          |
 | **Formulaire perdu** : un rebuild ou un crash effaçait le texte tapé ; après un rebuild, Forge redemandait même la connexion.     | Champs nommés restaurés par entrée d'historique, session sur disque, bearer transmis en mémoire en dev. | `restore*.test.ts*`, `session.test.ts`   |
 | Titre « TERMINAL / NOTES » codé en dur dans le chrome.                                                                            | Titre dérivé du répertoire de l'application.                                                            | captures PTY                             |
-| `import "client-only"` refusé par `tsc` dans une application (TS2882) : seul le programme du framework déclarait `server-only`.   | `src/markers.d.ts`, inclus par `luciole/tsconfig` : les deux marqueurs, sans package.                   | `bun run check` (Forge)                  |
+| `import "client-only"` refusé par `tsc` dans une application (TS2882) : seul le programme du framework déclarait `server-only`.   | `src/markers.d.ts`, inclus par `@luciole-sh/core/tsconfig` : les deux marqueurs, sans package.          | `bun run check` (Forge)                  |
 | `node:*` et `bun:*` refusés dans tout module Client applicatif, même `client-only` : l'éditeur contournait avec les globaux Bun.  | Heuristique supprimée : seuls les marqueurs de côté décident, comme pour les packages.                  | `build.test.ts`                          |
 
 Vérifié sans changement : `router.preloadRoute` fonctionne tel quel et TanStack

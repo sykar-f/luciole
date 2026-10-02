@@ -5,8 +5,8 @@ import { testRender } from "@opentui/react/test-utils";
 import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { build } from "../packages/luciole/src/build";
-import type { Application } from "../packages/luciole/src/client";
+import { build } from "../packages/core/src/build";
+import type { Application } from "../packages/core/src/client";
 import {
   BUILD_TEST_MS,
   launch,
@@ -36,7 +36,7 @@ test(
       );
       await Bun.write(
         join(directory, "app/page.tsx"),
-        `import {getSession} from "luciole/server";import {Actions} from "../components/Actions";export default function Page(){return <box flexDirection="column"><text>PRIVATE {getSession().userId}</text><Actions/></box>}`,
+        `import {getSession} from "@luciole-sh/core/server";import {Actions} from "../components/Actions";export default function Page(){return <box flexDirection="column"><text>PRIVATE {getSession().userId}</text><Actions/></box>}`,
       );
       await Bun.write(
         join(directory, "app/login/page.tsx"),
@@ -44,7 +44,7 @@ test(
       );
       await Bun.write(
         join(directory, "app/public/page.tsx"),
-        `import {getOptionalSession} from "luciole/server";export const auth="public" as const;export default function Page(){return <text>PUBLIC {getOptionalSession()?.userId??"guest"}</text>}`,
+        `import {getOptionalSession} from "@luciole-sh/core/server";export const auth="public" as const;export default function Page(){return <text>PUBLIC {getOptionalSession()?.userId??"guest"}</text>}`,
       );
       await Bun.write(
         join(directory, "components/Actions.tsx"),
@@ -52,15 +52,15 @@ test(
       );
       await Bun.write(
         join(directory, "actions/private.ts"),
-        `"use server";import {getSession} from "luciole/server";export async function privateAction(){return getSession().userId}`,
+        `"use server";import {getSession} from "@luciole-sh/core/server";export async function privateAction(){return getSession().userId}`,
       );
       await Bun.write(
         join(directory, "actions/public.ts"),
-        `"use server";import {getOptionalSession} from "luciole/server";export const auth="public" as const;export async function publicAction(){return getOptionalSession()?.userId??"guest"}`,
+        `"use server";import {getOptionalSession} from "@luciole-sh/core/server";export const auth="public" as const;export async function publicAction(){return getOptionalSession()?.userId??"guest"}`,
       );
       await Bun.write(
         join(directory, "server/auth.ts"),
-        `import type {AuthConfig} from "luciole/server";const users={"Bearer valid":"alice","Bearer other":"bob"};export default {unauthorizedPath:"/login",authenticate(request){const userId=users[request.headers.get("authorization")];return userId?{userId,role:"admin"}:null}} satisfies AuthConfig`,
+        `import type {AuthConfig} from "@luciole-sh/core/server";const users={"Bearer valid":"alice","Bearer other":"bob"};export default {unauthorizedPath:"/login",authenticate(request){const userId=users[request.headers.get("authorization")];return userId?{userId,role:"admin"}:null}} satisfies AuthConfig`,
       );
       await build(directory);
       server = await launch(join(directory, ".luciole/server/index.js"));
@@ -138,7 +138,7 @@ test(
       );
       await Bun.write(
         join(directory, "app/page.tsx"),
-        `import {getSession} from "luciole/server";export default function Page(){return <text>PRIVATE of {getSession().userId}</text>}`,
+        `import {getSession} from "@luciole-sh/core/server";export default function Page(){return <text>PRIVATE of {getSession().userId}</text>}`,
       );
       await Bun.write(
         join(directory, "app/login/page.tsx"),
@@ -146,7 +146,7 @@ test(
       );
       await Bun.write(
         join(directory, "server/auth.ts"),
-        `import type {AuthConfig} from "luciole/server";const users={"Bearer valid":"alice","Bearer other":"bob"};export default {unauthorizedPath:"/login",authenticate(request){const userId=users[request.headers.get("authorization")];return userId?{userId}:null}} satisfies AuthConfig`,
+        `import type {AuthConfig} from "@luciole-sh/core/server";const users={"Bearer valid":"alice","Bearer other":"bob"};export default {unauthorizedPath:"/login",authenticate(request){const userId=users[request.headers.get("authorization")];return userId?{userId}:null}} satisfies AuthConfig`,
       );
       await build(directory);
       server = await launch(join(directory, ".luciole/server/index.js"));
@@ -223,7 +223,7 @@ test(
       );
       await Bun.write(
         join(directory, "app/private/page.tsx"),
-        `import {getSession} from "luciole/server";export default function Page(){return <text>PRIVATE of {getSession().userId}</text>}`,
+        `import {getSession} from "@luciole-sh/core/server";export default function Page(){return <text>PRIVATE of {getSession().userId}</text>}`,
       );
       await Bun.write(
         join(directory, "app/login/page.tsx"),
@@ -231,7 +231,7 @@ test(
       );
       await Bun.write(
         join(directory, "server/auth.ts"),
-        `import type {AuthConfig} from "luciole/server";const users={"Bearer valid":"alice","Bearer other":"bob"};export default {unauthorizedPath:"/login",authenticate(request){const userId=users[request.headers.get("authorization")];return userId?{userId}:null}} satisfies AuthConfig`,
+        `import type {AuthConfig} from "@luciole-sh/core/server";const users={"Bearer valid":"alice","Bearer other":"bob"};export default {unauthorizedPath:"/login",authenticate(request){const userId=users[request.headers.get("authorization")];return userId?{userId}:null}} satisfies AuthConfig`,
       );
       await build(directory);
       server = await launch(join(directory, ".luciole/server/index.js"));

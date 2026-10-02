@@ -6,7 +6,7 @@
  */
 import { test, expect } from "bun:test";
 import { closeSync, openSync, statSync } from "node:fs";
-import { spawnPty } from "../packages/luciole/src/vt/pty";
+import { spawnPty } from "../packages/core/src/vt/pty";
 
 const IN_A_ROW = 200;
 const HELD = 8;

@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
-import { LifetimeStatus } from "../../packages/luciole/src/launcher/lifetime";
+import { LifetimeStatus } from "../../packages/core/src/launcher/lifetime";
 import { ctrl, drive, type Driver } from "./driver";
 import { BUN, CLI, defer, eventually, example, report, temporaryDirectory } from "./harness";
 

@@ -3,18 +3,18 @@ import { createHash } from "node:crypto";
 import { chmod, mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { AppManifest } from "../packages/luciole/src/abi";
-import { loadAppBundle } from "../packages/luciole/src/app-bundle";
-import { appRoutes } from "../packages/luciole/src/app-routes";
-import { build } from "../packages/luciole/src/build";
-import { Capabilities } from "../packages/luciole/src/capabilities";
-import { messageOf } from "../packages/luciole/src/guards";
+import { AppManifest } from "../packages/core/src/abi";
+import { loadAppBundle } from "../packages/core/src/app-bundle";
+import { appRoutes } from "../packages/core/src/app-routes";
+import { build } from "../packages/core/src/build";
+import { Capabilities } from "../packages/core/src/capabilities";
+import { messageOf } from "../packages/core/src/guards";
 import {
   generatePublisherKey,
   publisherIdentity,
   readPublisherKey,
   verifyManifest,
-} from "../packages/luciole/src/publisher";
+} from "../packages/core/src/publisher";
 import { launch, rejectionOf } from "./helpers";
 
 const PERMISSIONS = 0o777;

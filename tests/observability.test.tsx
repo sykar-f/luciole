@@ -6,8 +6,8 @@ import { testRender } from "@opentui/react/test-utils";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { build } from "../packages/luciole/src/build";
-import { instrumentTracing } from "../packages/luciole/src/client";
+import { build } from "../packages/core/src/build";
+import { instrumentTracing } from "../packages/core/src/client";
 import {
   BUILD_TEST_MS,
   launch,

@@ -19,7 +19,7 @@ First public preview. Nothing is published to a registry yet.
 - Navigation with TanStack Router.
 - The `luciole` CLI (Bun 1.4.2) to develop, build and run apps, including compiled
   Client binaries that run without Bun.
-- `@luciole/flow`, a node-canvas library, and `@luciole/editor`, an editor library,
+- `@luciole-sh/flow-graph`, a node-canvas library, and `@luciole-sh/markdown-editor`, an editor library,
   both without a Bun dependency.
 - Examples run from the monorepo root: Forge, Notes, chat, files, mdreader, mux,
   studio and flow.

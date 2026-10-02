@@ -5,8 +5,8 @@ import {
   TransportError,
   createHttpTransport,
   type Fetch,
-} from "../packages/luciole/src/transport";
-import { messageOf } from "../packages/luciole/src/guards";
+} from "../packages/core/src/transport";
+import { messageOf } from "../packages/core/src/guards";
 import { rejectionOf, renderBody } from "./helpers";
 
 const base = {

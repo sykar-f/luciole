@@ -12,7 +12,7 @@ import {
   AppMetadata,
   readAppDeclaration,
   writeAppMetadata,
-} from "../packages/luciole/src/app-metadata";
+} from "../packages/core/src/app-metadata";
 import { rejectionOf } from "./helpers";
 
 const work = await mkdtemp(join(tmpdir(), "luciole-metadata-"));

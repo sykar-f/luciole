@@ -10,7 +10,7 @@
  */
 import { copyFile, mkdir, rm } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
-import { APP_METADATA } from "luciole/metadata";
+import { APP_METADATA } from "@luciole-sh/core/metadata";
 import { ICON_PNG, ICONSET, METADATA, STAGE, readMetadata } from "../src/staged";
 
 // Sizes of a macOS iconset, in points: each at 1x and 2x, up to 1024 pixels.

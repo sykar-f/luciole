@@ -47,12 +47,12 @@ import Quiz from "../../components/guide/Quiz.astro";
 
   <Step n="1–2" tone="client" title="Seule la frappe crée un champ gardé">
     <p>Un <code>&lt;Textarea name="note/text"&gt;</code> enregistre son texte dans l'entrée d'historique où il est apparu. Une valeur posée par le code de l'app ne crée jamais de champ gardé : seule une frappe de l'utilisateur en crée un.</p>
-    <Excerpt path="packages/luciole/src/restore.ts" find="save(place: Place, name: string, value: string" count={13} tone="client" mark={["if (typed) this.sent.delete(key);", "else if (this.sent.has(key)"]} />
+    <Excerpt path="packages/core/src/restore.ts" find="save(place: Place, name: string, value: string" count={13} tone="client" mark={["if (typed) this.sent.delete(key);", "else if (this.sent.has(key)"]} />
     <p>Le fichier est réécrit 200 ms après le dernier changement, par écriture dans un fichier temporaire puis <code>rename</code>, en mode 0600. Un texte vide ou de plus de 100 000 caractères n'est pas gardé, et l'historique est plafonné à 50 entrées.</p>
   </Step>
 
   <Step n="3–4" tone="client" title="Interrompu ou quitté : deux fins différentes">
-    <Excerpt path="packages/luciole/src/run.tsx" find="// A signal is not the user's choice" count={11} tone="client" mark={["session.flush(app.restoration.snapshot())", "session.remove()"]} />
+    <Excerpt path="packages/core/src/run.tsx" find="// A signal is not the user's choice" count={11} tone="client" mark={["session.flush(app.restoration.snapshot())", "session.remove()"]} />
     <div class="table">
       <table>
         <thead><tr><th>Ce qui arrive</th><th>Session</th></tr></thead>
@@ -68,12 +68,12 @@ import Quiz from "../../components/guide/Quiz.astro";
   </Step>
 
   <Step n="5–7" tone="client" title="Le Client suivant reprend l'orphelin, atomiquement">
-    <p>Au démarrage, <Src path="packages/luciole/src/session.ts" /> parcourt les fichiers de l'app. Il ignore ceux dont le processus vit encore et supprime ceux de plus de 7 jours. Parmi les orphelins de la même <strong>clé de Server</strong>, il prend le plus récent :</p>
-    <Excerpt path="packages/luciole/src/session.ts" find="let restored = id ? read(path) : undefined;" count={2} tone="client" mark={["if (!id) restored = claim(left, path, write);"]} />
-    <Excerpt path="packages/luciole/src/session.ts" find="function claim(" until="^}" tone="client" mark={["renameSync(candidate.file, path);", "write(candidate.data);"]} />
+    <p>Au démarrage, <Src path="packages/core/src/session.ts" /> parcourt les fichiers de l'app. Il ignore ceux dont le processus vit encore et supprime ceux de plus de 7 jours. Parmi les orphelins de la même <strong>clé de Server</strong>, il prend le plus récent :</p>
+    <Excerpt path="packages/core/src/session.ts" find="let restored = id ? read(path) : undefined;" count={2} tone="client" mark={["if (!id) restored = claim(left, path, write);"]} />
+    <Excerpt path="packages/core/src/session.ts" find="function claim(" until="^}" tone="client" mark={["renameSync(candidate.file, path);", "write(candidate.data);"]} />
     <p>Si deux Clients démarrent en même temps, un seul <code>rename</code> réussit ; l'autre passe à l'orphelin suivant. Le gagnant réécrit aussitôt le fichier avec son propre pid pour le réclamer.</p>
     <p>Pour une app en <code>per-launch</code> (chapitre 8), c'est le lanceur qui réclame l'orphelin, par <code>claimOrphan</code>, avant de lancer quoi que ce soit. Il ne retient qu'un orphelin dont le Server répond encore, avec le même build, et y retrouve l'id du lancement planté, donc ce Server en grâce ; il passe la session au nouveau Client par <code>LUCIOLE_SESSION</code>. L'option <code>--new</code> saute cette reprise.</p>
-    <p>La clé n'est pas l'URL du socket, qui change d'un lancement à l'autre. C'est un identifiant stable fourni par le lanceur : <code>local:&lt;dossier&gt;</code>, <code>git:&lt;url&gt;</code>, <code>local:&lt;app&gt;</code> pour un binaire, ou <code>ssh:&lt;hôte&gt;/&lt;app&gt;</code>. Selon la portée du Server et les arguments de l'app, le lanceur y ajoute le dossier courant, l'empreinte des arguments et l'id du lancement (<Src path="packages/luciole/src/launcher/launch-key.ts" />).</p>
+    <p>La clé n'est pas l'URL du socket, qui change d'un lancement à l'autre. C'est un identifiant stable fourni par le lanceur : <code>local:&lt;dossier&gt;</code>, <code>git:&lt;url&gt;</code>, <code>local:&lt;app&gt;</code> pour un binaire, ou <code>ssh:&lt;hôte&gt;/&lt;app&gt;</code>. Selon la portée du Server et les arguments de l'app, le lanceur y ajoute le dossier courant, l'empreinte des arguments et l'id du lancement (<Src path="packages/core/src/launcher/launch-key.ts" />).</p>
   </Step>
 
   <Step n="8" tone="client" title="Le champ se remplit au montage">
@@ -82,7 +82,7 @@ import Quiz from "../../components/guide/Quiz.astro";
 
   <h2>Oublier à l'envoi</h2>
   <p>Un piège guette tout brouillon restauré. L'utilisateur envoie, le Client crashe pendant la requête, puis revient : faut-il reproposer le texte ? Si l'envoi a abouti, le reproposer inviterait à l'envoyer deux fois. <code>useRestoredFields(group).submit</code> tranche :</p>
-  <Excerpt path="packages/luciole/src/fields.tsx" find="async submit<T>(action: () => Promise<T>" count={12} tone="client" mark={["restoration.take(place, group)", 'e.outcome !== "unknown"']} />
+  <Excerpt path="packages/core/src/fields.tsx" find="async submit<T>(action: () => Promise<T>" count={12} tone="client" mark={["restoration.take(place, group)", 'e.outcome !== "unknown"']} />
   <ol>
     <li>Le texte du groupe est <strong>retiré</strong> de la session avant l'envoi.</li>
     <li>Il est <strong>remis</strong> si l'action répond un échec métier (<code>failed(result)</code>), ou si la requête n'a certainement pas eu lieu (<code>not-sent</code>, <code>rejected</code>).</li>
@@ -95,7 +95,7 @@ import Quiz from "../../components/guide/Quiz.astro";
   <p>Un navigateur rend le focus au champ quitté et fait défiler la page là où elle était. Une app de terminal décide elle-même de son focus (<code>focused=&#123;…&#125;</code>) et fait défiler des boîtes, pas une page : les deux se demandent donc, par un nom. <code>useRestoredFocus(noms)</code> est l'état de focus de l'app, gardé par entrée ; Forge l'emploie pour son formulaire, où Tab passe d'un champ à l'autre :</p>
   <Excerpt path="examples/forge/components/NewPullForm.tsx" find="const [field, setField] = useRestoredFocus" count={1} tone="client" />
   <p><code>&lt;ScrollBox name&gt;</code> garde la position d'une <code>scrollbox</code>. Au montage, le contenu n'est souvent pas encore là (une liste chargée ensuite) : la position est réappliquée pendant un moment, jusqu'à être atteinte, et un défilement de l'utilisateur entre-temps l'emporte.</p>
-  <Excerpt path="packages/luciole/src/fields.tsx" find="// Every change of position" count={5} tone="client" mark={["if (applying) return;", "restoring = false;"]} />
+  <Excerpt path="packages/core/src/fields.tsx" find="// Every change of position" count={5} tone="client" mark={["if (applying) return;", "restoring = false;"]} />
 
   <h2>Le fichier</h2>
   <Sample

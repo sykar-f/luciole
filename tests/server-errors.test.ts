@@ -2,8 +2,8 @@ import { expect, test } from "bun:test";
 import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { build } from "../packages/luciole/src/build";
-import { messageOf } from "../packages/luciole/src/guards";
+import { build } from "../packages/core/src/build";
+import { messageOf } from "../packages/core/src/guards";
 import { launch, importClient, readManifest } from "./helpers";
 
 // An exception in a Server Function is an unknown outcome for the Client, and must
