@@ -7,6 +7,10 @@ Client ne reçoit que des chemins relatifs à la racine.
 
 ## Lancement
 
+Sans cloner le dépôt : `luciole example files` lance cet exemple depuis le tag git de la
+version de luciole installée ([docs/DISTRIBUTION.md](../../docs/DISTRIBUTION.md#exemples)).
+Les variables d'environnement et les clés ci-dessous s'appliquent de la même façon.
+
 Depuis la racine du monorepo (les dépendances sont `workspace:*` et `catalog:` : l'exemple
 ne se lance pas depuis son propre dossier). Prérequis : Bun 1.4.2 et `bun install
 --frozen-lockfile` une fois. Aucune clé API, aucun réseau.

@@ -8,6 +8,10 @@ actions dont la réponse peut se perdre, flux live.
 
 ## Lancement
 
+Sans cloner le dépôt : `luciole example forge` lance cet exemple depuis le tag git de la
+version de luciole installée ([docs/DISTRIBUTION.md](../../docs/DISTRIBUTION.md#exemples)).
+Les variables d'environnement et les clés ci-dessous s'appliquent de la même façon.
+
 Depuis la racine du monorepo (les dépendances sont `workspace:*` et `catalog:` : l'exemple
 ne se lance pas depuis son propre dossier) :
 

@@ -3,6 +3,7 @@ import { install, list, remove, search, update } from "./apps";
 import { build } from "./build";
 import { dev } from "./dev";
 import { devtools } from "./devtools";
+import { example } from "./example";
 import { init } from "./init";
 import { keys } from "./keys";
 import { launch } from "./launch";
@@ -32,6 +33,7 @@ export const commands: ReadonlyMap<string, Command> = new Map([
   ["list", list],
   ["remove", remove],
   ["pack", pack],
+  ["example", example],
 ]);
 /** What `luciole <target>` runs when `<target>` is no subcommand (src/launcher). */
 export const fallback: Command = launch;
