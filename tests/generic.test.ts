@@ -98,6 +98,8 @@ test("prepareOrigin without a sandbox: signature, first-use pin, explicit inline
     return publisherIdentity(key).fingerprint;
   };
   const server = join(latency, ".luciole/server/index.js");
+  // Its own build first: another file's may not have run yet, nor at all in a fresh checkout.
+  await build(latency);
   let running = await launch(server);
   try {
     // Restarted on its port: one origin across rebuilds, as a deployed Server keeps its URL.
