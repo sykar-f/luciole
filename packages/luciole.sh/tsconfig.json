@@ -1,0 +1,5 @@
+{
+  "extends": "@luciole-sh/core/tsconfig",
+  "include": ["bin.ts"],
+  "exclude": ["**/node_modules"]
+}

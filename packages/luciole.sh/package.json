@@ -1,0 +1,33 @@
+{
+  "name": "luciole.sh",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Install name of luciole: `bunx luciole.sh init` starts a project. The framework is @luciole-sh/core.",
+  "keywords": [
+    "luciole",
+    "tui",
+    "terminal",
+    "react",
+    "rsc",
+    "cli"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sykar-f/luciole.git",
+    "directory": "packages/luciole.sh"
+  },
+  "engines": {
+    "bun": ">=1.4.2"
+  },
+  "type": "module",
+  "bin": {
+    "luciole": "./bin.ts"
+  },
+  "files": [
+    "bin.ts"
+  ],
+  "dependencies": {
+    "@luciole-sh/core": "workspace:*"
+  }
+}

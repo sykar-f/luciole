@@ -14,6 +14,7 @@ const projects = [
   "packages/core/src/generic/browser",
   "packages/core/src/web",
   "packages/harness",
+  "packages/luciole.sh",
   "packages/flow-graph",
   "packages/flow-graph/scripts",
   "packages/flow-graph/test",
