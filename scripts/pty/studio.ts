@@ -12,7 +12,7 @@
  * STUDIO_PTY_FRAMES=<dir> writes each screen there.
  */
 import assert from "node:assert/strict";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { ctrl, drive, Keys, type Needle } from "./driver";
 import {
@@ -30,9 +30,6 @@ const BOOT_TIMEOUT_MS = 90_000;
 const TIMEOUT_MS = 60_000;
 const EXIT_TIMEOUT_MS = 10_000;
 const PROCESS_EXIT_TIMEOUT_MS = 8000;
-// Room for each draft to build and draw before the next write: a Client in `process` mode
-// takes 1.4–1.6 s to draw its first screen, one in the sandbox a few hundred ms.
-const WRITE_MS = { sandbox: 3000, process: 6000 } as const;
 // A Client that just drew its first screen, given a moment before it is sent keys.
 const FIRST_KEYS_MS = 500;
 // A restored scroll position waits for the list's rows: a moment after the page shows.
@@ -44,9 +41,14 @@ const PREVIEW_COLUMN = 80;
 const SAMPLE_MS = 100;
 
 /** studio on its scripted generator, in a project of its own. */
-async function launch(mode: keyof typeof WRITE_MS) {
+async function launch(mode: "sandbox" | "process") {
   const directory = temporaryDirectory("luciole-studio-");
   const project = join(directory.path, "demo");
+  // The generator holds each draft until the script has seen it on the screen (a draft
+  // takes as long to build and draw as the host lets it), then writes the next.
+  const gate = join(directory.path, "gate");
+  mkdirSync(gate);
+  let released = 0;
   const t = await drive({
     command: [
       BUN,
@@ -69,7 +71,7 @@ async function launch(mode: keyof typeof WRITE_MS) {
       XDG_STATE_HOME: join(directory.path, "state"),
       XDG_DATA_HOME: join(directory.path, "data"),
       STUDIO_FAKE_DELAY_MS: "5",
-      STUDIO_FAKE_WRITE_MS: String(WRITE_MS[mode]),
+      STUDIO_FAKE_GATE_DIR: gate,
     },
     settle: 300,
   });
@@ -100,8 +102,7 @@ async function launch(mode: keyof typeof WRITE_MS) {
   }, SAMPLE_MS);
   sampler.unref();
   // The wait's own stack ends in the driver's poll loop: the caller's says which step.
-  const awaited = (waiting: Promise<unknown>, where = "") => {
-    const site = new Error().stack?.split("\n").slice(1, 4).join("\n") ?? "";
+  const awaited = (waiting: Promise<unknown>, where: string, site: string) => {
     return waiting.catch((error: unknown) => {
       const message = error instanceof Error ? error.message : String(error);
       throw new Error(
@@ -110,10 +111,21 @@ async function launch(mode: keyof typeof WRITE_MS) {
       );
     });
   };
+  // The stack is taken before the wrapper: `waitShown` goes through `wait`, which would
+  // push the journey's step out of the lines kept.
+  const callers = () => new Error().stack?.split("\n").slice(3, 6).join("\n") ?? "";
   const wait = (needle: Needle, timeout = TIMEOUT_MS, where = "") =>
-    awaited(t.waitFor(needle, { timeout }), where);
+    awaited(t.waitFor(needle, { timeout }), where, callers());
   const waitShown = (needle: string | RegExp) =>
-    wait(inPreview(needle), TIMEOUT_MS, ` (${needle}, in the preview)`);
+    awaited(
+      t.waitFor(inPreview(needle), { timeout: TIMEOUT_MS }),
+      ` (${needle}, in the preview)`,
+      callers(),
+    );
+  /** Lets the generator write its next `count` drafts: the ones before were seen. */
+  const release = (count: number) => {
+    for (let i = 0; i < count; i++) writeFileSync(join(gate, `draft-${released++}`), "");
+  };
   const prompt = async (text: string) => {
     await t.type(text);
     await t.type(Keys.enter);
@@ -129,6 +141,7 @@ async function launch(mode: keyof typeof WRITE_MS) {
     frame,
     wait,
     waitShown,
+    release,
     prompt,
     keys,
     /** Ctrl+C quits studio: nothing it started outlives it, its Server included. */
@@ -168,13 +181,13 @@ const inPreview = (needle: string | RegExp) => (text: string) =>
   typeof needle === "string" ? shown(text).includes(needle) : needle.test(shown(text));
 
 /**
- * A turn of four writes followed as drafts, then, in the app's guestbook, a name, a
- * message and the list scrolled: all of it survives the drafts and the revision of the
+ * A turn of writes followed as drafts (the generator holds each until it is seen), then,
+ * in the app's guestbook, a name, a message and the list scrolled: all of it survives the drafts and the revision of the
  * next turn. `base` is the revision shown before. The times from each prompt to its first
  * draft shown (the generator writes within a few ms of the prompt).
  */
 async function guestbook(studio: Studio, base: number) {
-  const { t, wait, waitShown, prompt, keys, frame } = studio;
+  const { t, wait, waitShown, release, prompt, keys, frame } = studio;
   const added = `r${base + 1}`;
   const counted = `r${base + 2}`;
   let asked = performance.now();
@@ -187,6 +200,7 @@ async function guestbook(studio: Studio, base: number) {
     "the first write is shown while the turn goes on",
   );
   await frame("draft");
+  release(3);
   await wait(`Revision ${added} built and running.`);
   await wait(new RegExp(` ${added} · (sandbox|process) `));
   await waitShown("g: the guestbook");
@@ -233,6 +247,7 @@ async function guestbook(studio: Studio, base: number) {
   const secondDraftMs = performance.now() - asked;
   await wait(/ draft · (sandbox|process)/);
   await kept("after a draft");
+  release(1);
   await wait(`Revision ${counted} built and running.`);
   await waitShown("30 signatures");
   await wait(new RegExp(` ${counted} · (sandbox|process) `));

@@ -90,7 +90,8 @@ longues) pour trancher.
 8–9 ; `bun run test:pty:studio`). Deux scénarios l'exercent : `guestbook` (quatre écritures :
 une annonce sur l'accueil, un store et une action, la page, le lien) et `signatures`, qui le
 prolonge (`after`) ; le générateur espace les écritures d'un scénario (`STUDIO_FAKE_WRITE_MS`,
-1,5 s par défaut). Le test vérifie que la première écriture s'affiche pendant le tour, puis
+1,5 s par défaut, ou, avec `STUDIO_FAKE_GATE_DIR`, jusqu'à ce que le test ait vu le brouillon
+à l'écran). Le test vérifie que la première écriture s'affiche pendant le tour, puis
 qu'un nom, un message tapés et la liste défilée d'une page survivent à un brouillon puis à une
 révision, focus compris, en `sandbox` puis en `process`, sans processus restant (écritures
 espacées de 3 s en `sandbox`, 6 s en `process`, où un Client neuf dessine plus lentement). Sur
