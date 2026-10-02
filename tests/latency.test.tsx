@@ -46,10 +46,12 @@ test("500 ms RTT delays Flight and actions while input, hover and scroll stay lo
       await Bun.sleep(30);
     });
     await ui.renderOnce();
-    expect(performance.now() - actionStart).toBeLessThan(450);
+    // Local results are on screen while the Server has not answered yet.
     expect(field.value).toBe("abc");
     expect(scroll.scrollTop).toBeGreaterThan(top);
     expect(ui.captureCharFrame()).toContain("Waiting for Server");
+    expect(ui.captureCharFrame()).not.toContain("Server replied in");
+    expect(await counts()).toEqual(before);
     // Hover must produce a visible local frame, independently of the subsequent wheel event.
     await act(async () => {
       await ui.mockMouse.moveTo(hover.x + 2, hover.y + 1);
