@@ -330,11 +330,8 @@ function prefixEnds(content: string) {
   for (const mark of content.matchAll(/[*_`~#[(!]/g)) ends.add(mark.index + 1);
   return [...ends].sort((x, y) => x - y);
 }
-/** Where the paragraph that follows a table and its `---` starts, and one character in. */
-const afterRule = (content: string) => {
-  const start = content.indexOf("\n---\n\n") + "\n---\n\n".length;
-  return [start, start + 1] as const;
-};
+/** Where the paragraph that follows a table and its `---` starts. */
+const afterRule = (content: string) => content.indexOf("\n---\n\n") + "\n---\n\n".length;
 const heightOf = (setup: Setup) =>
   setup
     .captureCharFrame()
@@ -354,11 +351,7 @@ test("while it streams, the reply only grows and never shows a marker it will hi
   const setup = await render(<Streamed />, 100, 400);
   const height = (rows: readonly string[]) => rows.findLastIndex((row) => row.trim() !== "") + 1;
   let previous = 0;
-  // The first character of the paragraph after the rule can shorten the reply: a known
-  // defect, held by the skipped test below, so this one goes on past it.
-  const [, shrinks] = afterRule(content);
   for (const end of prefixEnds(content)) {
-    if (end === shrinks) continue;
     await act(async () => {
       show({ content: content.slice(0, end), streaming: true });
       await setup.renderOnce();
@@ -375,12 +368,18 @@ test("while it streams, the reply only grows and never shows a marker it will hi
   expect(await settled(setup)).toBe(streamed);
 });
 
-// Known defect, spun off (inbox/markdown-stream-shrink): streamed character by character, the
-// first characters of a paragraph after a table and a `---` make the reply two rows shorter
-// for a step. It depends on what the highlighter has delivered when the frame is drawn: 4
-// runs in 6 shrink, so neither a plain test nor test.failing can hold it. The fix turns this
-// into a plain test; the main test above skips the prefix where the shrink was seen.
-test.skip("a paragraph streamed after a table and a rule never shortens the reply", async () => {
+// A rule is a finished block once its line ends, even when the blank line that follows is
+// the lexer's space token and not part of the rule: it must not vanish for one prefix.
+test("a rule keeps showing when the blank line after it arrives", () => {
+  const stream = new MarkdownStream(palette());
+  const kinds = (content: string) =>
+    stream.update(content, true).flatMap((block) => block.nodes.map((node) => node.kind));
+  expect(kinds("Above.\n\n---\n")).toEqual(["text", "rule"]);
+  expect(kinds("Above.\n\n---\n\n")).toEqual(["text", "rule"]);
+  expect(kinds("Above.\n\n---\n\nB")).toEqual(["text", "rule", "text"]);
+});
+
+test("a paragraph streamed after a table and a rule never shortens the reply", async () => {
   const content = MARKDOWN_REPLY;
   let show: (props: { content: string; streaming: boolean }) => void = () => undefined;
   function Streamed() {
@@ -391,7 +390,7 @@ test.skip("a paragraph streamed after a table and a rule never shortens the repl
     return <Markdown {...props} syntaxStyle={syntax} />;
   }
   const setup = await render(<Streamed />, 100, 400);
-  const [before] = afterRule(content);
+  const before = afterRule(content);
   // Character by character, from the table's rows to the first characters after the rule.
   const ends = Array.from({ length: before + 4 - 4900 }, (_, i) => 4900 + i);
   let previous = 0;

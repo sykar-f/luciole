@@ -47,6 +47,12 @@ export class MarkdownStream {
     this.content = content;
     this.streaming = streaming;
     const entries = this.tokens.filter((token) => token.type !== "space");
+    // What follows the last block: if it holds a newline, the block's last line is complete.
+    const lastIndex = this.tokens.findLastIndex((token) => token.type !== "space");
+    const after = this.tokens
+      .slice(lastIndex + 1)
+      .map((token) => token.raw)
+      .join("");
     const blocks: Block[] = [];
     const rendered: Rendered[] = [];
     let previous: Token | undefined;
@@ -59,12 +65,16 @@ export class MarkdownStream {
         continue;
       }
       const tail = streaming && token === entries.at(-1);
+      // The tail is cached with its newlines: "---" and "---\n\n" are the same token for the
+      // lexer (the blank line is a space token) but not for `closeTail`, for which only the
+      // second is a finished line.
+      const source = tail ? token.raw + after : token.raw;
       const cached = this.rendered[index];
       const nodes =
-        cached && cached.raw === token.raw && cached.tail === tail
+        cached && cached.raw === source && cached.tail === tail
           ? cached.nodes
-          : this.render(token, tail);
-      rendered.push({ raw: token.raw, tail, nodes });
+          : this.render(token, tail, source);
+      rendered.push({ raw: source, tail, nodes });
       const marginTop = previous ? spacing(previous, token, gap, lastHeading) : 0;
       lastHeading = headingLevel(token) || lastHeading;
       const reused = this.blocks[index];
@@ -84,12 +94,12 @@ export class MarkdownStream {
     return blocks;
   }
 
-  private render(token: Token, tail: boolean): readonly Node[] {
+  private render(token: Token, tail: boolean, source: string): readonly Node[] {
     if (!known(token)) return [];
     if (!tail || token.type === "code") return renderBlock(token, this.palette);
     if (token.type === "paragraph" && TABLE_ROWS.test(token.raw)) return [];
-    const closed = closeTail(token.raw);
-    if (closed === token.raw) return renderBlock(token, this.palette);
+    const closed = closeTail(source);
+    if (closed === source) return renderBlock(token, this.palette);
     // The closed text may lex differently (a hidden line, a completed span): lex it alone.
     const lexer = new Lexer(OPTIONS);
     Object.assign(lexer.tokens.links, this.links);
