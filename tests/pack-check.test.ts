@@ -125,6 +125,44 @@ test("an import that fails under one runtime only is reported with that runtime"
   expect(problems[0]).toContain("under node");
 });
 
+test("a null export exclusion is applied before wildcard imports are scheduled", async () => {
+  const dir = fixture(
+    {
+      ...good,
+      name: "fixture-null",
+      exports: { "./x/*": "./dist/x/*.js", "./x/internal/*": null },
+      files: ["dist"],
+    },
+    { "dist/x/a.js": "export const a = 1;\n", "dist/x/internal/secret.js": "export {};\n" },
+  );
+  const logs: string[] = [];
+  expect(await checkPackage(dir, (line) => logs.push(line))).toEqual([]);
+  expect(logs).toContain("fixture-null: import fixture-null/x/a under node ok");
+  expect(logs.filter((line) => line.includes("internal"))).toEqual([]);
+  const entries = ["dist/x/a.js", "dist/x/internal/secret.js"];
+  const exports = { "./x/*": "./dist/x/*.js", "./x/internal/*": null, "./x/b": null };
+  expect([...resolveExports({ exports }, entries).subpaths.keys()]).toEqual(["./x/a"]);
+});
+
+test("a more specific mapping wins over a wildcard that also matches", () => {
+  const entries = ["dist/x/a.js", "dist/x/b.js", "dist/special.js"];
+  const { subpaths } = resolveExports(
+    { exports: { "./x/*": "./dist/x/*.js", "./x/b": "./dist/special.js" } },
+    entries,
+  );
+  expect(subpaths.get("./x/a")).toEqual(["dist/x/a.js"]);
+  expect(subpaths.get("./x/b")).toEqual(["dist/special.js"]);
+});
+
+test("a file packed outside files (a bin target) fails with outside files:", async () => {
+  const dir = fixture(
+    { ...good, name: "fixture-outside", bin: { outside: "./lib/cli.js" } },
+    { "dist/index.js": "export {};\n", "lib/cli.js": "#!/usr/bin/env node\n" },
+  );
+  const problems = await checkPackage(dir, () => {});
+  expect(problems).toEqual(["outside files: lib/cli.js"]);
+});
+
 test("files accepts paths, directories, globs and exclusions", () => {
   expect(inFiles("dist/a.js", ["dist"])).toBe(true);
   expect(inFiles("dist/a/b.js", ["./dist/"])).toBe(true);

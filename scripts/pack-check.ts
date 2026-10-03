@@ -6,8 +6,8 @@
  * For each directory: `bun pm pack` into a temporary directory (which runs `prepack`),
  * then fails unless
  *   - the tarball's package.json holds no `workspace:` or `catalog:` spec;
- *   - every target of `exports` (`*` patterns expanded; one matching nothing fails), `types`,
- *     `main` and `bin` exists in the tarball;
+ *   - every target of `exports` (`*` patterns expanded, `null` exclusions applied; one
+ *     matching nothing fails), `types`, `main` and `bin` exists in the tarball;
  *   - the tarball holds no test and nothing outside `files` (paths, directories, globs and
  *     `!` exclusions; package.json, README and LICENSE aside);
  *   - the tarball installs in a temporary project (with the peers) and every export
@@ -95,9 +95,39 @@ export type ExportMap = {
   problems: string[];
 };
 
+/** Whether the `exports` key `key` (a subpath or a `*` pattern) covers the subpath `sub`. */
+function keyMatches(key: string, sub: string): boolean {
+  if (!key.includes("*")) return key === sub;
+  const star = key.indexOf("*");
+  const prefix = key.slice(0, star);
+  const suffix = key.slice(star + 1);
+  return sub.length >= key.length && sub.startsWith(prefix) && sub.endsWith(suffix);
+}
+
+/**
+ * The key Node resolves `sub` with: the exact key if there is one, else the matching
+ * pattern with the longest prefix (then the longest key). A `null` target on that key
+ * excludes the subpath, whatever less specific pattern would map it.
+ */
+function governingKey(keys: readonly string[], sub: string): string | undefined {
+  if (keys.includes(sub)) return sub;
+  let best: string | undefined;
+  for (const key of keys) {
+    if (!key.includes("*") || !keyMatches(key, sub)) continue;
+    const better =
+      best === undefined ||
+      key.indexOf("*") > best.indexOf("*") ||
+      (key.indexOf("*") === best.indexOf("*") && key.length > best.length);
+    if (better) best = key;
+  }
+  return best;
+}
+
 /**
  * The public subpaths of `exports` and their target files, with each `*` pattern expanded
- * against the tarball's `entries`; a target that matches nothing is a problem.
+ * against the tarball's `entries`; a target that matches nothing is a problem. A subpath
+ * that a more specific key (a `null` exclusion above all) governs is not expanded from the
+ * pattern, since Node would not resolve it through that pattern.
  */
 export function resolveExports(manifest: Json, entries: readonly string[]): ExportMap {
   const subpaths = new Map<string, string[]>();
@@ -116,6 +146,7 @@ export function resolveExports(manifest: Json, entries: readonly string[]): Expo
         : {}
       : { ".": raw };
   const present = new Set(entries.map((entry) => normalize(entry)));
+  const keys = Object.keys(map);
   for (const [key, value] of Object.entries(map)) {
     for (const leaf of leaves(value)) {
       const target = normalize(leaf);
@@ -137,6 +168,7 @@ export function resolveExports(manifest: Json, entries: readonly string[]): Expo
         if (!hit) continue;
         matched = true;
         const sub = key.split("*").join(hit[1] ?? "");
+        if (governingKey(keys, sub) !== key) continue;
         subpaths.set(sub, [...(subpaths.get(sub) ?? []), entry]);
       }
       if (!matched) problems.push(`pattern ${leaf} (${key}) matches nothing in the tarball`);
