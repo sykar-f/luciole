@@ -61,8 +61,12 @@ Par le propriétaire, sur GitHub et npm ; aucune session de développement ne le
    - ou la _trusted publishing_ de npm (OIDC, sans jeton) : sur npmjs.com, par paquet,
      Settings → Trusted Publisher → GitHub Actions, dépôt `sykar-f/luciole`, workflow
      `release.yml`, environnement `npm`. Elle demande npm ≥ 11.5.1, que le workflow installe
-     déjà. Une fois configurée, retirer `NPM_TOKEN` et la ligne `NODE_AUTH_TOKEN` du
-     workflow.
+     déjà. Une fois configurée, retirer le secret `NPM_TOKEN` et, dans l'étape
+     « Publish in dependency order » de `release.yml`, **les deux** endroits qui le portent :
+     le bloc `env:` (`NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}`) et la ligne `echo` qui écrit
+     `//registry.npmjs.org/:_authToken=…` dans `$HOME/.npmrc`. Retirer le seul `env:` laisserait
+     un `.npmrc` au jeton vide, qui fait échouer la publication en 401 au lieu de laisser
+     npm passer par OIDC.
 3. Les paquets sont publiés `--access public` avec la provenance npm (`id-token: write`,
    npm ≥ 9.5). Bun 1.4.2 n'a pas d'option de provenance : `bun pm pack` fabrique le tarball
    que `pack-check` a éprouvé, `npm publish <tarball> --provenance` le publie.
