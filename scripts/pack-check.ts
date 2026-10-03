@@ -6,21 +6,34 @@
  * For each directory: `bun pm pack` into a temporary directory (which runs `prepack`),
  * then fails unless
  *   - the tarball's package.json holds no `workspace:` or `catalog:` spec;
- *   - every target of `exports` (`*` patterns expanded; one matching nothing fails), `types`,
- *     `main` and `bin` exists in the tarball;
+ *   - every target of `exports` (`*` patterns expanded, `null` exclusions applied; one
+ *     matching nothing fails), `types`, `main` and `bin` exists in the tarball;
  *   - the tarball holds no test and nothing outside `files` (paths, directories, globs and
  *     `!` exclusions; package.json, README and LICENSE aside);
- *   - the tarball installs in a temporary project (with the peers) and every export
- *     imports, once under `node` and once under `bun`, every public subpath (JSON ones with
- *     import attributes); an export no import can load fails rather than being skipped.
+ *   - the tarball installs in a temporary project (with the peers, and the tarballs of the
+ *     workspace packages it depends on, which no registry holds before their release) and
+ *     every export imports, once under `node` and once under `bun`, every public subpath
+ *     (JSON ones with import attributes); an export no import can load fails rather than
+ *     being skipped. A package whose `engines` names bun and not node (it ships TypeScript
+ *     sources) is imported under bun only; an export that needs the `react-server`
+ *     condition is imported with it.
  * Prints one line per check and exits 0 when every package passes, 1 otherwise.
  * Installing reaches the npm registry for the package's own dependencies.
  *
  * `checkPackage` is exported so a test (or another script) can call it.
  */
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
-import { join, normalize, resolve } from "node:path";
+import { dirname, join, normalize, resolve } from "node:path";
 import { z } from "zod";
 
 const Specs = z.record(z.string(), z.string()).optional();
@@ -31,6 +44,7 @@ const Fields = z.looseObject({
   devDependencies: Specs,
   peerDependencies: Specs,
   optionalDependencies: Specs,
+  engines: Specs,
 });
 const Manifest = Fields.extend({ name: z.string() });
 type Json = z.infer<typeof Fields>;
@@ -77,6 +91,9 @@ export function fieldTargets(manifest: Json): string[] {
   return targets;
 }
 
+// What React throws on a Server Components module imported without the condition.
+const REACT_SERVER = /"react-server" condition must be enabled/;
+
 // What `import()` can load: scripts and JSON. A declaration file is not one.
 const IMPORTABLE = /(?<!\.d)\.(m?[jt]sx?|c[jt]s|json)$/;
 
@@ -95,9 +112,39 @@ export type ExportMap = {
   problems: string[];
 };
 
+/** Whether the `exports` key `key` (a subpath or a `*` pattern) covers the subpath `sub`. */
+function keyMatches(key: string, sub: string): boolean {
+  if (!key.includes("*")) return key === sub;
+  const star = key.indexOf("*");
+  const prefix = key.slice(0, star);
+  const suffix = key.slice(star + 1);
+  return sub.length >= key.length && sub.startsWith(prefix) && sub.endsWith(suffix);
+}
+
+/**
+ * The key Node resolves `sub` with: the exact key if there is one, else the matching
+ * pattern with the longest prefix (then the longest key). A `null` target on that key
+ * excludes the subpath, whatever less specific pattern would map it.
+ */
+function governingKey(keys: readonly string[], sub: string): string | undefined {
+  if (keys.includes(sub)) return sub;
+  let best: string | undefined;
+  for (const key of keys) {
+    if (!key.includes("*") || !keyMatches(key, sub)) continue;
+    const better =
+      best === undefined ||
+      key.indexOf("*") > best.indexOf("*") ||
+      (key.indexOf("*") === best.indexOf("*") && key.length > best.length);
+    if (better) best = key;
+  }
+  return best;
+}
+
 /**
  * The public subpaths of `exports` and their target files, with each `*` pattern expanded
- * against the tarball's `entries`; a target that matches nothing is a problem.
+ * against the tarball's `entries`; a target that matches nothing is a problem. A subpath
+ * that a more specific key (a `null` exclusion above all) governs is not expanded from the
+ * pattern, since Node would not resolve it through that pattern.
  */
 export function resolveExports(manifest: Json, entries: readonly string[]): ExportMap {
   const subpaths = new Map<string, string[]>();
@@ -116,6 +163,7 @@ export function resolveExports(manifest: Json, entries: readonly string[]): Expo
         : {}
       : { ".": raw };
   const present = new Set(entries.map((entry) => normalize(entry)));
+  const keys = Object.keys(map);
   for (const [key, value] of Object.entries(map)) {
     for (const leaf of leaves(value)) {
       const target = normalize(leaf);
@@ -137,6 +185,7 @@ export function resolveExports(manifest: Json, entries: readonly string[]): Expo
         if (!hit) continue;
         matched = true;
         const sub = key.split("*").join(hit[1] ?? "");
+        if (governingKey(keys, sub) !== key) continue;
         subpaths.set(sub, [...(subpaths.get(sub) ?? []), entry]);
       }
       if (!matched) problems.push(`pattern ${leaf} (${key}) matches nothing in the tarball`);
@@ -165,15 +214,59 @@ export function inFiles(entry: string, files: readonly string[]): boolean {
   );
 }
 
+/** `bun pm pack` of `dir` into `destination`: the tarball's path, or the failure's output. */
+async function pack(
+  dir: string,
+  destination: string,
+): Promise<{ tarball: string } | { out: string }> {
+  mkdirSync(destination, { recursive: true });
+  const packed = await run(["bun", "pm", "pack", "--destination", destination, "--quiet"], dir);
+  const name = readdirSync(destination).find((entry) => entry.endsWith(".tgz"));
+  return packed.code === 0 && name ? { tarball: join(destination, name) } : { out: packed.out };
+}
+
+/** The package directory `name` resolves to from `from`, through `node_modules`. */
+function workspaceDir(name: string, from: string): string | undefined {
+  for (let dir = from; ; dir = dirname(dir)) {
+    const candidate = join(dir, "node_modules", name);
+    if (existsSync(join(candidate, "package.json"))) return realpathSync(candidate);
+    if (dirname(dir) === dir) return undefined;
+  }
+}
+
+/**
+ * Tarballs of the workspace packages `dir` depends on (`workspace:` specs), by name,
+ * transitively: the tarball's manifest asks for their released version, which npm does not
+ * have yet.
+ */
+async function workspaceTarballs(
+  dir: string,
+  temp: string,
+  found: Map<string, string> = new Map(),
+): Promise<Map<string, string>> {
+  const source = Fields.parse(JSON.parse(readFileSync(join(dir, "package.json"), "utf8")));
+  for (const field of ["dependencies", "optionalDependencies", "peerDependencies"] as const) {
+    for (const [name, spec] of Object.entries(source[field] ?? {})) {
+      const home = spec.startsWith("workspace:") ? workspaceDir(name, dir) : undefined;
+      if (!home || found.has(name)) continue;
+      const packed = await pack(home, join(temp, "workspace", String(found.size)));
+      if ("out" in packed) throw new Error(`bun pm pack of ${name} failed: ${packed.out}`);
+      found.set(name, packed.tarball);
+      await workspaceTarballs(home, temp, found);
+    }
+  }
+  return found;
+}
+
 /** What is wrong with the package at `dir`; empty when it packs, installs and imports. */
 export async function checkPackage(dir: string, log: (line: string) => void): Promise<string[]> {
   const problems: string[] = [];
   const temp = mkdtempSync(join(tmpdir(), "pack-check-"));
   try {
-    const packed = await run(["bun", "pm", "pack", "--destination", temp, "--quiet"], resolve(dir));
-    const tarball = readdirSync(temp).find((name) => name.endsWith(".tgz"));
-    if (packed.code !== 0 || !tarball) return [`bun pm pack failed: ${packed.out}`];
-    const tarPath = join(temp, tarball);
+    const packed = await pack(resolve(dir), join(temp, "self"));
+    if ("out" in packed) return [`bun pm pack failed: ${packed.out}`];
+    const tarPath = packed.tarball;
+    const tarball = tarPath.slice(tarPath.lastIndexOf("/") + 1);
     const listing = await run(["tar", "-tzf", tarPath], temp);
     const entries = listing.out
       .split("\n")
@@ -214,16 +307,26 @@ export async function checkPackage(dir: string, log: (line: string) => void): Pr
     const consumer = join(temp, "consumer");
     mkdirSync(consumer);
     const peers = manifest.peerDependencies ?? {};
+    const local = Object.fromEntries(
+      [...(await workspaceTarballs(resolve(dir), temp))].map(([dep, path]) => [
+        dep,
+        `file:${path}`,
+      ]),
+    );
     writeFileSync(
       join(consumer, "package.json"),
       JSON.stringify({
         name: "consumer",
         private: true,
-        dependencies: { ...peers, [name]: `file:${tarPath}` },
+        dependencies: { ...peers, ...local, [name]: `file:${tarPath}` },
+        overrides: local,
       }),
     );
     const installed = await run(["bun", "install"], consumer);
     if (installed.code !== 0) return [`install failed: ${installed.out}`];
+    // `engines` naming bun and not node: TypeScript sources only bun loads.
+    const nodeAllowed =
+      !manifest.engines || "node" in manifest.engines || !("bun" in manifest.engines);
     for (const [sub, targets] of exported.subpaths) {
       const importable = targets.filter((target) => IMPORTABLE.test(target));
       if (importable.length === 0) {
@@ -233,10 +336,12 @@ export async function checkPackage(dir: string, log: (line: string) => void): Pr
       const specifier = sub === "." ? name : `${name}/${sub.slice(2)}`;
       const json = importable.every((target) => target.endsWith(".json"));
       const code = `await import(${JSON.stringify(specifier)}${json ? ', { with: { type: "json" } }' : ""})`;
-      for (const runtime of ["node", "bun"]) {
+      for (const runtime of nodeAllowed ? ["node", "bun"] : ["bun"]) {
         const args =
           runtime === "node" ? ["node", "--input-type=module", "-e", code] : ["bun", "-e", code];
-        const imported = await run(args, consumer);
+        let imported = await run(args, consumer);
+        if (runtime === "bun" && imported.code !== 0 && REACT_SERVER.test(imported.out))
+          imported = await run(["bun", "--conditions=react-server", "-e", code], consumer);
         if (imported.code !== 0)
           problems.push(`import ${specifier} under ${runtime}: ${imported.out}`);
         else log(`${name}: import ${specifier} under ${runtime} ok`);

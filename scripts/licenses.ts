@@ -96,7 +96,9 @@ function kindOfLicense(id: string): Kind {
 const rank: Record<Kind, number> = { permissive: 0, notice: 1, blocking: 2 };
 
 function kindOfExpression(tree: Expression): Kind {
-  if ("license" in tree) return tree.plus ? "blocking" : kindOfLicense(tree.license);
+  // `+` ("or later") widens the versions, not the family: LGPL-2.1+ is as notice-bearing as
+  // LGPL-2.1, GPL-2.0+ as blocking as GPL-2.0.
+  if ("license" in tree) return kindOfLicense(tree.license);
   const left = kindOfExpression(tree.left);
   const right = kindOfExpression(tree.right);
   // OR: one acceptable branch is enough, the licensee picks it. AND: every branch applies.
@@ -134,8 +136,12 @@ export function scanPackage(dir: string): Report {
   const unresolved = new Set<string>();
   const seen = new Set<string>([start]);
   const visit = (pkgDir: string, manifest: Manifest): void => {
+    const optional = manifest.optionalDependencies ?? {};
     const edges: [string, "required" | "optional"][] = [
-      ...Object.keys(manifest.dependencies ?? {}).map((n): [string, "required"] => [n, "required"]),
+      // Listed in both, a dependency is optional (npm: optionalDependencies wins).
+      ...Object.keys(manifest.dependencies ?? {})
+        .filter((n) => !(n in optional))
+        .map((n): [string, "required"] => [n, "required"]),
       ...Object.keys(manifest.optionalDependencies ?? {}).map((n): [string, "optional"] => [
         n,
         "optional",
@@ -264,7 +270,13 @@ if (import.meta.main) {
   }
   const shipped = ship.length
     ? ship
-    : ["packages/core", "packages/flow-graph", "packages/markdown-editor"];
+    : [
+        "packages/core",
+        "packages/create",
+        "packages/flow-graph",
+        "packages/markdown-editor",
+        "packages/luciole.sh",
+      ];
   const others = other.length
     ? other
     : ["packages", "examples"].flatMap((group) =>

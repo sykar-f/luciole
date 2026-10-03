@@ -1,7 +1,7 @@
 {
   "name": "luciole.sh",
   "version": "0.1.0",
-  "private": true,
+  "private": false,
   "description": "Install name of luciole: `bunx luciole.sh init` starts a project. The framework is @luciole-sh/core.",
   "keywords": [
     "luciole",
@@ -12,6 +12,9 @@
     "cli"
   ],
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/sykar-f/luciole.git",

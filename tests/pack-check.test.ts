@@ -125,6 +125,116 @@ test("an import that fails under one runtime only is reported with that runtime"
   expect(problems[0]).toContain("under node");
 });
 
+test("a null export exclusion is applied before wildcard imports are scheduled", async () => {
+  const dir = fixture(
+    {
+      ...good,
+      name: "fixture-null",
+      exports: { "./x/*": "./dist/x/*.js", "./x/internal/*": null },
+      files: ["dist"],
+    },
+    { "dist/x/a.js": "export const a = 1;\n", "dist/x/internal/secret.js": "export {};\n" },
+  );
+  const logs: string[] = [];
+  expect(await checkPackage(dir, (line) => logs.push(line))).toEqual([]);
+  expect(logs).toContain("fixture-null: import fixture-null/x/a under node ok");
+  expect(logs.filter((line) => line.includes("internal"))).toEqual([]);
+  const entries = ["dist/x/a.js", "dist/x/internal/secret.js"];
+  const exports = { "./x/*": "./dist/x/*.js", "./x/internal/*": null, "./x/b": null };
+  expect([...resolveExports({ exports }, entries).subpaths.keys()]).toEqual(["./x/a"]);
+});
+
+test("a more specific mapping wins over a wildcard that also matches", () => {
+  const entries = ["dist/x/a.js", "dist/x/b.js", "dist/special.js"];
+  const { subpaths } = resolveExports(
+    { exports: { "./x/*": "./dist/x/*.js", "./x/b": "./dist/special.js" } },
+    entries,
+  );
+  expect(subpaths.get("./x/a")).toEqual(["dist/x/a.js"]);
+  expect(subpaths.get("./x/b")).toEqual(["dist/special.js"]);
+});
+
+test("a file packed outside files (a bin target) fails with outside files:", async () => {
+  const dir = fixture(
+    { ...good, name: "fixture-outside", bin: { outside: "./lib/cli.js" } },
+    { "dist/index.js": "export {};\n", "lib/cli.js": "#!/usr/bin/env node\n" },
+  );
+  const problems = await checkPackage(dir, () => {});
+  expect(problems).toEqual(["outside files: lib/cli.js"]);
+});
+
+test("a package whose engines name bun and not node is imported under bun only", async () => {
+  const sources = { "dist/index.ts": "export const answer: number = 42;\n" };
+  const dir = fixture(
+    {
+      ...good,
+      name: "fixture-bun-only",
+      exports: { ".": "./dist/index.ts" },
+      engines: { bun: ">=1" },
+    },
+    sources,
+  );
+  const logs: string[] = [];
+  expect(await checkPackage(dir, (line) => logs.push(line))).toEqual([]);
+  expect(logs).toContain("fixture-bun-only: import fixture-bun-only under bun ok");
+  expect(logs.filter((line) => line.includes("under node"))).toEqual([]);
+  const open = fixture(
+    { ...good, name: "fixture-ts-node", exports: { ".": "./dist/index.ts" } },
+    sources,
+  );
+  expect((await checkPackage(open, () => {})).join("\n")).toContain("under node");
+});
+
+test("an export that needs the react-server condition is imported with it", async () => {
+  const dir = fixture(
+    {
+      ...good,
+      name: "fixture-rsc",
+      exports: { ".": { "react-server": "./dist/rs.js", default: "./dist/plain.js" } },
+      engines: { bun: ">=1" },
+    },
+    {
+      "dist/rs.js": "export {};\n",
+      "dist/plain.js":
+        'throw new Error(\'The "react" package is not configured correctly. The "react-server" condition must be enabled\');\n',
+    },
+  );
+  expect(await checkPackage(dir, () => {})).toEqual([]);
+});
+
+test("a workspace dependency installs from its own tarball, not from the registry", async () => {
+  const root = mkdtempSync(join(tmpdir(), "pack-workspace-"));
+  temps.push(root);
+  const write = (path: string, content: unknown) => {
+    mkdirSync(dirname(join(root, path)), { recursive: true });
+    writeFileSync(join(root, path), JSON.stringify(content));
+  };
+  write("package.json", { name: "ws-root", private: true, workspaces: ["packages/*"] });
+  write("packages/dep/package.json", {
+    name: "pack-check-fixture-dep-zz9",
+    version: "1.0.0",
+    type: "module",
+    exports: { ".": "./index.js" },
+    files: ["index.js"],
+  });
+  writeFileSync(join(root, "packages/dep/index.js"), "export const dep = 1;\n");
+  write("packages/app/package.json", {
+    name: "pack-check-fixture-app-zz9",
+    version: "1.0.0",
+    type: "module",
+    exports: { ".": "./index.js" },
+    files: ["index.js"],
+    dependencies: { "pack-check-fixture-dep-zz9": "workspace:*" },
+  });
+  writeFileSync(
+    join(root, "packages/app/index.js"),
+    'export { dep } from "pack-check-fixture-dep-zz9";\n',
+  );
+  const install = Bun.spawn(["bun", "install"], { cwd: root, stdout: "ignore", stderr: "ignore" });
+  expect(await install.exited).toBe(0);
+  expect(await checkPackage(join(root, "packages/app"), () => {})).toEqual([]);
+});
+
 test("files accepts paths, directories, globs and exclusions", () => {
   expect(inFiles("dist/a.js", ["dist"])).toBe(true);
   expect(inFiles("dist/a/b.js", ["./dist/"])).toBe(true);

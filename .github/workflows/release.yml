@@ -1,0 +1,123 @@
+name: Release
+# Publishes the five packages of docs/RELEASING.md to npm. Nothing runs on a push to a branch:
+# the triggers are a pushed tag `v<version>` and a manual dispatch, and a dispatch is a dry
+# run unless its input says otherwise.
+#
+# The `verify` job proves the tag, the packages and their tarballs, and dry-runs the publish.
+# The `publish` job runs only on a tag, only after `verify`, and only once a reviewer of the
+# GitHub environment `npm` approves it (the owner sets the required reviewers there).
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: Run the gates and `bun publish --dry-run` only; publish nothing
+        type: boolean
+        default: true
+permissions:
+  contents: read
+env:
+  # Dependency order: luciole.sh depends on @luciole-sh/core, so core goes first. The same
+  # list is in ci.yml (job `publishable`).
+  PACKAGES: packages/core packages/flow-graph packages/markdown-editor packages/create packages/luciole.sh
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: oven-sh/setup-bun@v2.2.0
+        with:
+          bun-version: 1.4.2
+      - run: bun install --frozen-lockfile
+      # Lockstep: the tag `v<version>` and every publishable package.json agree on one
+      # version, or nothing is published. A dispatch from a branch has no tag, so it takes
+      # the version of packages/core and still checks that the others match it.
+      - name: Tag matches every publishable version
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            expected="${GITHUB_REF_NAME#v}"
+            if ! [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+              echo "::error::tag $GITHUB_REF_NAME is not v<major>.<minor>.<patch>[-prerelease]"
+              exit 1
+            fi
+          else
+            expected="$(jq -r .version packages/core/package.json)"
+          fi
+          failed=0
+          for dir in $PACKAGES; do
+            version="$(jq -r .version "$dir/package.json")"
+            private="$(jq -r '.private // false' "$dir/package.json")"
+            if [ "$version" != "$expected" ]; then
+              echo "::error::$dir is at $version, the release is $expected"
+              failed=1
+            fi
+            if [ "$private" = true ]; then
+              echo "::error::$dir is private: it cannot be published"
+              failed=1
+            fi
+          done
+          exit "$failed"
+      - run: bun scripts/pack-check.ts $PACKAGES
+      - run: bun run licenses
+      # The placeholder token only gets bun past its "missing authentication" check; a dry
+      # run stops before the registry.
+      - name: bun publish --dry-run
+        env:
+          NPM_CONFIG_TOKEN: dry-run-placeholder
+        run: |
+          set -euo pipefail
+          for dir in $PACKAGES; do
+            (cd "$dir" && bun publish --dry-run)
+          done
+  publish:
+    needs: verify
+    # Never from a branch, and never from a dispatch that left `dry-run` on.
+    if: github.ref_type == 'tag' && !(github.event_name == 'workflow_dispatch' && inputs.dry-run)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Required reviewers on this environment are what stops a tag from publishing by itself.
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: oven-sh/setup-bun@v2.2.0
+        with:
+          bun-version: 1.4.2
+      - run: bun install --frozen-lockfile
+      # Provenance needs npm >= 9.5 and trusted publishing (docs/RELEASING.md) npm >= 11.5.1:
+      # the runner's default npm is not relied on.
+      - name: Pin npm
+        run: |
+          set -euo pipefail
+          npm install --global npm@11.5.1
+          test "$(npm --version)" = 11.5.1
+      # bun packs (it resolves `workspace:` and `catalog:` specs and runs `prepack`, as
+      # pack-check proved), npm publishes the tarball with provenance, which bun cannot do.
+      # A package already on the registry is skipped, so a failed run can be re-run.
+      - name: Publish in dependency order
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          echo "//registry.npmjs.org/:_authToken=\${NODE_AUTH_TOKEN}" > "$HOME/.npmrc"
+          version="${GITHUB_REF_NAME#v}"
+          tag=latest
+          case "$version" in *-*) tag=next ;; esac
+          out="$RUNNER_TEMP/tarballs"
+          mkdir -p "$out"
+          for dir in $PACKAGES; do
+            name="$(jq -r .name "$dir/package.json")"
+            if npm view "$name@$version" version >/dev/null 2>&1; then
+              echo "$name@$version is already published, skipped"
+              continue
+            fi
+            (cd "$dir" && bun pm pack --destination "$out" --quiet)
+            tarball="$(ls "$out"/*.tgz | head -n 1)"
+            npm publish "$tarball" --provenance --access public --tag "$tag"
+            rm -f "$out"/*.tgz
+          done
