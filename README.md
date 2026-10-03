@@ -20,6 +20,11 @@ simulated latency). Navigation uses TanStack Router.
 > **Status: experimental.** No package is published to a registry yet, APIs change
 > without notice, and the name is not final.
 
+Once a release is out, a project starts with `bunx luciole.sh init` (or
+`bunx @luciole-sh/create my-app`), and the libraries install with
+`bun add @luciole-sh/flow-graph` or `bun add @luciole-sh/markdown-editor`. Until then
+none of this works: how a release is cut is in [docs/RELEASING.md](docs/RELEASING.md).
+
 What runs where:
 
 - **Development and the `luciole` CLI require [Bun](https://bun.sh) 1.4.2.** luciole
