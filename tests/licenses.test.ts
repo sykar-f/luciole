@@ -118,6 +118,21 @@ test("an absent optional dependency is reported, not failed", async () => {
   await ship({});
 });
 
+test("a dependency listed in both dependencies and optionalDependencies is optional", async () => {
+  await ship({
+    dependencies: { fine: "1.0.0", "other-platform": "1.0.0" },
+    optionalDependencies: { "other-platform": "1.0.0" },
+  });
+  const run = await check();
+  expect(run.exitCode).toBe(0);
+  expect(run.stdout.toString()).toContain("absent optional, from shipped: other-platform");
+  expect(run.stdout.toString()).not.toContain("unresolved");
+  await install("other-platform", "GPL-3.0-only");
+  expect((await check()).exitCode).toBe(1);
+  await rm(join(work, "node_modules", "other-platform"), { recursive: true });
+  await ship({});
+});
+
 test("a workspace dependency is followed and checked", async () => {
   await install("sibling", "GPL-3.0-only");
   await ship({ dependencies: { fine: "1.0.0", sibling: "workspace:*" } });
@@ -142,6 +157,10 @@ test("classify reads SPDX expressions", () => {
   expect(classify("(MIT OR GPL-3.0-only) AND ISC")).toBe("permissive");
   expect(classify("MPL-2.0")).toBe("notice");
   expect(classify("LGPL-3.0-or-later")).toBe("notice");
+  expect(classify("LGPL-2.1+")).toBe("notice");
+  expect(classify("GPL-2.0+")).toBe("blocking");
+  expect(classify("(MIT OR GPL-2.0+)")).toBe("permissive");
+  expect(classify("Apache-2.0+ AND GPL-2.0+")).toBe("blocking");
   expect(classify("SEE LICENSE IN README.md")).toBe("blocking");
   expect(classify("")).toBe("blocking");
   expect(licenseOf({ licenses: [{ type: "MIT" }, { type: "Apache-2.0" }] })).toBe(
