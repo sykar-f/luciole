@@ -1,7 +1,7 @@
 {
   "name": "@luciole-sh/core",
   "version": "0.1.0",
-  "private": true,
+  "private": false,
   "description": "luciole: React Server Components for the terminal. The framework, its luciole and luciolex CLIs, and its runtime.",
   "keywords": [
     "luciole",
@@ -14,6 +14,9 @@
     "framework"
   ],
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/sykar-f/luciole.git",
