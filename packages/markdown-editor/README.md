@@ -124,6 +124,19 @@ The editor reads its colours from a `SyntaxStyle`, with the group names of Markd
 headings have no band. If you build apps with `@luciole-sh/core`, its `markdownStyle(palette)` builds a complete
 style that `<Markdown>` shares with the editor.
 
+### Run the example from a clone
+
+The same program is in the repository, in `packages/markdown-editor/example/`. From the root of
+a clone, run:
+
+```sh
+bun install
+bun packages/markdown-editor/example/index.tsx
+```
+
+`bun run check` type-checks that program, and `tests/readme-examples.test.ts` fails when this
+page and the file differ. The same test type-checks every other example of this page.
+
 ## Type Markdown, get the result
 
 The editor turns Markdown into what it means as you type it.
@@ -190,11 +203,29 @@ The React component. It takes every OpenTUI layout prop (`flexGrow`, `width`, `h
 | `math`               | `MathRenderer`                  | none                                         | Draws display math (`$$…$$`) as a picture in terminals that show pictures. Without it, display math shows its TeX.            |
 | `ref`                | `Ref<MarkdownEditorRenderable>` | none                                         | The renderable, whose `controller` edits from outside.                                                                        |
 
+`MarkdownEditorProps` is the type of these props. It is `MarkdownEditorOptions` with `value` required, plus
+`focused` and `ref`. The component must render under OpenTUI's `createRoot`, which it reads the renderer from.
+
+```ts
+import type { MarkdownEditorProps } from "@luciole-sh/markdown-editor";
+
+// What a notes screen sets once, whatever note it shows.
+export const noteEditor: Omit<MarkdownEditorProps, "value"> = {
+  placeholder: "Write a note…",
+  readingWidth: 80,
+  scrollbar: false,
+};
+```
+
+`math` takes a `MathRenderer`: `(tex, { display, color, scale }) => Promise<Uint8Array>`. It returns a PNG of
+the formula in `color`, a `#rrggbb` string, at `scale` pixels per TeX `ex`. When the promise rejects, the formula
+keeps showing its TeX.
+
 ### `MarkdownEditorRenderable`
 
 The OpenTUI renderable behind the component, for programs that do not use React. Create it with
-`new MarkdownEditorRenderable(ctx, options)`. Its `options` are the props above, except `ref` and `focused`: call
-`focus()` on the renderable instead.
+`new MarkdownEditorRenderable(ctx, options)`. Its options are a `MarkdownEditorOptions`: the props above, except
+`ref` and `focused`. Call `focus()` on the renderable instead of `focused`.
 
 | Member        | What it gives                                                                                                               |
 | ------------- | --------------------------------------------------------------------------------------------------------------------------- |
@@ -204,26 +235,141 @@ The OpenTUI renderable behind the component, for programs that do not use React.
 
 ### `EditorController`
 
-The editing engine, usable without a screen. A toolbar reaches it through `ref.current.controller`.
+The editing engine, usable without a screen. A toolbar reaches it through `ref.current.controller`. No member
+raises an error: an edit that does not apply leaves the document as it is.
 
-| Member                                                    | What it does                                                                                                                                      |
-| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `new EditorController(markdown?)`                         | Creates a controller on a Markdown document.                                                                                                      |
-| `markdown`                                                | The document as Markdown, as last reported.                                                                                                       |
-| `subscribe(listener)`                                     | Calls `listener({ markdown, edited })` on each change, and returns a function that unsubscribes. `edited` is `false` for a load or a cursor move. |
-| `load(markdown)`                                          | Replaces the document.                                                                                                                            |
-| `toggleMark("bold")`                                      | Toggles a mark on the selection: `bold`, `italic`, `strike`, `code`.                                                                              |
-| `setBlock({ type: "heading", level: 2 })`                 | Turns the selected blocks into a `BlockKind`: paragraph, heading, quote, list item or code.                                                       |
-| `indent(1)`, `indent(-1)`                                 | Indents or outdents the selected list items.                                                                                                      |
-| `undo()`, `redo()`, `end()`                               | Undo, redo, and move the cursor to the end.                                                                                                       |
-| `activeMarks`, `block`                                    | The marks and the block under the cursor.                                                                                                         |
-| `type(text)`, `enter()`, `backspace()`, `paste(markdown)` | The edits a key press makes.                                                                                                                      |
+| Member                                                                          | What it does                                                                                                     |
+| ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `new EditorController(markdown?)`                                               | Creates a controller on a Markdown document, empty by default.                                                   |
+| `markdown`                                                                      | The document as Markdown, as last reported.                                                                      |
+| `subscribe(listener)`                                                           | Calls `listener(change)` with an `EditorChange` on each change, and returns a function that unsubscribes.        |
+| `load(markdown)`                                                                | Replaces the document and clears the undo history. The cursor stays where it was when it still fits.             |
+| `toggleMark(mark)`                                                              | Toggles a `MarkName` on the selection: `bold`, `italic`, `strike` or `code`.                                     |
+| `setBlock(kind)`                                                                | Turns the selected blocks into a `BlockKind`. A block already of that kind becomes a paragraph.                  |
+| `indent(1)`, `indent(-1)`                                                       | Indents or outdents the selected list items.                                                                     |
+| `editLink()`                                                                    | Makes a link of the selection, or writes out the link at the cursor to edit it.                                  |
+| `toggleTask(block)`                                                             | Ticks or unticks the task at block index `block`.                                                                |
+| `undo()`, `redo()`, `canUndo`, `canRedo`                                        | Undo and redo, and whether there is a step to take.                                                              |
+| `select(selection)`, `moveTo(pos, { extend? })`                                 | Sets the `Selection`, or moves the cursor to a `Pos`. With `extend: true`, the selection keeps its anchor.       |
+| `selectAll()`, `end()`                                                          | Selects the whole document, or puts the cursor at its end.                                                       |
+| `activeMarks`, `block`                                                          | The `Marks` of the selection or of the text typed next, and the `Block` the cursor is in.                        |
+| `selectedMarkdown()`, `cut()`                                                   | The selection as Markdown. `cut()` removes it too.                                                               |
+| `type(text)`, `enter()`, `backspace()`, `paste(markdown)`                       | The edits a key press makes.                                                                                     |
+| `lineBreak()`, `deleteForward()`, `deleteWordBackward()`, `deleteWordForward()` | The other editing keys.                                                                                          |
+| `settle()`                                                                      | Decides the delimiters still waiting for a key, as when the focus leaves.                                        |
+| `leaveLast()`                                                                   | Adds a paragraph after a last block of code, table or rule, with the cursor in it. Returns whether it added one. |
 
-### Markdown in and out
+The table lists what an app calls. The class has two more public members: `state`, which the renderable reads,
+and `apply(edit)`, which the members above call. Both work on an `EditorState`, a type the package does not
+export, so an app edits through the members above.
 
-`parseMarkdown(markdown)` returns the editor's document, and `serializeMarkdown(doc)` writes it back. Neither
-needs a terminal. The document types are exported too, and so are `EditorChange`, `BlockKind`,
-`MarkdownEditorOptions` and `MathRenderer`.
+`EditorChange` is `{ markdown, edited }`. `edited` is `false` for a load or a cursor move. `BlockKind` is one of:
+
+- `{ type: "paragraph" }`
+- `{ type: "heading", level }`, with a `HeadingLevel`. A heading holds plain text, so its marks are dropped.
+- `{ type: "quote" }`, which adds a quote around the blocks, or removes it
+- `{ type: "item", list }`, with a `ListKind`
+- `{ type: "code" }`
+
+This toolbar logic makes a word bold, then reads which buttons show as pressed:
+
+```ts
+import { EditorController, type MarkName, type Selection } from "@luciole-sh/markdown-editor";
+
+const editor = new EditorController("Pack the charger\n");
+const charger: Selection = { anchor: { block: 0, offset: 9 }, head: { block: 0, offset: 16 } };
+editor.select(charger);
+editor.toggleMark("bold");
+editor.markdown; // "Pack the **charger**"
+
+const buttons: MarkName[] = ["bold", "italic", "strike", "code"];
+export const pressed = buttons.filter((mark) => editor.activeMarks[mark]); // ["bold"]
+```
+
+## Read and write the document
+
+`parseMarkdown(markdown)` returns the editor's document, a `Doc`, and `serializeMarkdown(doc)` writes it back as
+Markdown. Neither needs a terminal, and neither raises an error. Markdown the editor does not model is kept as a
+`raw` block, character for character.
+
+```ts
+import { parseMarkdown, serializeMarkdown } from "@luciole-sh/markdown-editor";
+
+const doc = parseMarkdown("# Trip\n\n- [x] tickets\n");
+doc[1]; // { type: "item", list: "task", indent: 0, checked: true, marker: "-", content: [{ text: "tickets", marks: {} }] }
+serializeMarkdown(doc); // "# Trip\n\n- [x] tickets"
+```
+
+### The document types
+
+The document is immutable. An edit builds new blocks and keeps the others, so a block you do not edit is written
+back exactly as it was read.
+
+| Type           | Shape                                                                    | Meaning                                                                                  |
+| -------------- | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
+| `Doc`          | `readonly Block[]`                                                       | The document. It is never empty: an empty document is one empty paragraph.               |
+| `Block`        | `TextBlock \| LinesBlock \| RuleBlock`                                   | One block. Each has the fields of `Place`.                                               |
+| `TextBlock`    | `paragraph`, `heading` or `item`, with `content: Inline`                 | A block of marked text. A `heading` has a `level`. An `item` has the fields below.       |
+| `LinesBlock`   | `{ type: "code", lang, text }` or `{ type: "raw", text }`                | Plain lines: code, or Markdown kept as written, such as a table or HTML.                 |
+| `RuleBlock`    | `{ type: "rule" }`                                                       | A thematic break, `---`.                                                                 |
+| `Place`        | `{ quote?, break?, depth?, source? }`                                    | Where a block sits. See the next table.                                                  |
+| `HeadingLevel` | `1` to `6`                                                               | A heading's level.                                                                       |
+| `Inline`       | `readonly Span[]`                                                        | A block's text. It has no empty span, and no two neighbours with equal marks.            |
+| `Span`         | `{ text, marks }`                                                        | A run of text that shares its `Marks`. A `"\n"` in `text` is a line break.               |
+| `Marks`        | `{ bold?, italic?, strike?, code?, link?, title?, verbatim?, escaped? }` | Inline formatting. An absent mark is off.                                                |
+| `MarkName`     | `"bold" \| "italic" \| "strike" \| "code"`                               | The marks `toggleMark` takes.                                                            |
+| `ListKind`     | `"bullet" \| "ordered" \| "task"`                                        | The kind of a list item.                                                                 |
+| `ListMarker`   | `"-" \| "*" \| "+" \| "." \| ")"`                                        | The character of an item's marker. `.` and `)` follow a number.                          |
+| `Pos`          | `{ block, offset }`                                                      | A place between two characters. `offset` counts UTF-16 code units into the block's text. |
+| `Selection`    | `{ anchor, head }`                                                       | Two `Pos`. `anchor` stays where the selection started, and `head` is the cursor.         |
+
+An `item` has `list`, a `ListKind`, and `indent`, its list's level from 0 at the margin. It may have:
+
+- `checked`, for a task
+- `start`, the number of an ordered list's first item when it is not 1
+- `marker`, a `ListMarker`. Two neighbouring lists with different markers are two lists.
+- `loose: true`, for the items of a list whose items are a blank line apart
+
+In `Marks`, `bold`, `italic`, `strike` and `code` are `true` when set. `link` is the target and `title` its
+title. `verbatim` marks source the editor shows and writes back as it is, such as an image or inline HTML. `escaped`
+marks punctuation meant as itself, such as `\*`, which is written back with its backslash.
+
+| `Place` field | Type     | Meaning                                                                                               |
+| ------------- | -------- | ----------------------------------------------------------------------------------------------------- |
+| `quote`       | `number` | How many quotes the block is in. `> > text` is 2. Absent means 0.                                     |
+| `break`       | `true`   | The block starts a quote of its own, apart from the quoted block above it.                            |
+| `depth`       | `number` | For a block other than an item, how many list levels it is inside. At 1, it continues the item above. |
+| `source`      | `string` | The block's Markdown as it was read. An edited block has none, and is written anew.                   |
+
+This document, built by hand, shows most of the types:
+
+```ts
+import { serializeMarkdown, type Doc, type Span } from "@luciole-sh/markdown-editor";
+
+const tickets: Span = { text: "tickets", marks: { bold: true } };
+const doc: Doc = [
+  { type: "heading", level: 2, content: [{ text: "Trip", marks: {} }] },
+  { type: "item", list: "task", indent: 0, checked: true, content: [tickets] },
+  {
+    type: "item",
+    list: "task",
+    indent: 0,
+    checked: false,
+    content: [{ text: "charger", marks: {} }],
+  },
+  { type: "rule" },
+  {
+    type: "paragraph",
+    quote: 1,
+    content: [
+      { text: "See ", marks: {} },
+      { text: "the list", marks: { link: "https://example.com" } },
+    ],
+  },
+];
+serializeMarkdown(doc);
+// "## Trip\n\n- [x] **tickets**\n- [ ] charger\n\n---\n\n> See [the list](https://example.com)"
+```
 
 ## How it is built
 
