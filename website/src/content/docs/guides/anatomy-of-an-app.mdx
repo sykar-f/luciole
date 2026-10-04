@@ -1,51 +1,60 @@
 ---
 title: Anatomy of an app
-description: The files of Notes, the starter every new app copies, one by one, with the side each runs on and what a save goes through.
+description: The files of Notes, the starter every new app copies, with the side each one runs on and the path a save takes from a key to SQLite.
 sources:
   - examples/notes
+  - examples/notes/components/NoteEditor.tsx
+  - examples/notes/components/draft.ts
+  - packages/create/scripts/starter.ts
+  - packages/core/src/restore.ts
   - docs/ARCHITECTURE.md
 ---
 
 import Excerpt from "../../../components/guide/Excerpt.astro";
 import Note from "../../../components/docs/Note.astro";
 
-`luciole init` copies Notes, so this is what a new app starts from: a list of notes, an
-editor, SQLite on the Server. Each file sits on one side; the directory it is in and its
-first line say which.
+A luciole app is a directory of files, and each file runs on one side: the Client or the
+Server. This page goes through Notes, the starter that `luciole init` copies, so you know what
+each file of a new app is for. Notes is a list of notes, an editor, and SQLite on the Server.
 
-## The files
+A file's directory and its first line say which side runs it.
 
-| File                           | Side   | What it does                                                                         |
-| ------------------------------ | ------ | ------------------------------------------------------------------------------------ |
-| `app/layout.tsx`               | Client | The persistent window: the sidebar, its search and the rail it folds into.           |
-| `app/page.tsx`                 | Server | No note chosen yet: what to do next.                                                 |
-| `app/notes/[id]/page.tsx`      | Server | Loads a note and hands the save and lookup actions to the editor as props.           |
-| `app/notes/[id]/loading.tsx`   | Client | Shown the moment a note is clicked, while the page travels.                          |
-| `app/notes/[id]/not-found.tsx` | Client | A deleted note, or one that never was.                                               |
-| `app/error.tsx`                | Client | A page that failed to load: why, and a button to try again.                          |
-| `app/routeTree.gen.ts`         | —      | The typed route tree, written by the build. Committed, never edited.                 |
-| `components/Sidebar.tsx`       | Client | Search, selection and navigation, handled in the terminal.                           |
-| `components/notes-list.ts`     | Client | The sidebar's notes, read through a Server Function and again after each change.     |
-| `components/NoteEditor.tsx`    | Client | Every keystroke, the Markdown view, autosave, the restorable field.                  |
-| `components/NoteFrame.tsx`     | Client | No directive: shared by the editor and the loading screen, it follows its importers. |
-| `components/StatusLine.tsx`    | Client | The line above the title: connection, save, router, one message at a time.           |
-| `components/draft.ts`          | Client | Notes' own policy: Drafts in memory, saves whose outcome is unknown.                 |
-| `actions/notes.ts`             | Server | Server Functions, `"use server"`: `saveNote`, `getOperation`, `listNotes` and more.  |
-| `server/repository.ts`         | Server | SQLite, ownership checks and transactions.                                           |
-| `server/schemas.ts`            | Server | Zod schemas for the arguments the Server receives.                                   |
-| `server/queries.ts`            | Server | Reads cached with `"use cache"`, tagged.                                             |
-| `server/tags.ts`               | Server | The cache tags of those reads.                                                       |
+## Which side runs each file?
 
-Two optional files are absent from Notes: `server/auth.ts`, an identity adapter
-([authentication](/docs/concepts/authentication/)), and `server/cache.ts`, the cache handler
-([caching](/docs/concepts/cache/#where-entries-live)). `app/args.ts` declares command-line
-options ([app arguments](/docs/reference/app-arguments/)).
+| File                           | Side   | What it does                                                                           |
+| ------------------------------ | ------ | -------------------------------------------------------------------------------------- |
+| `app/layout.tsx`               | Client | The persistent window: the sidebar, its search and the rail it folds into.             |
+| `app/page.tsx`                 | Server | The screen before you choose a note: what to do next.                                  |
+| `app/notes/[id]/page.tsx`      | Server | Loads a note, and passes the save and lookup Server Functions to the editor as props.  |
+| `app/notes/[id]/loading.tsx`   | Client | Shown as soon as you click a note, until the page arrives.                             |
+| `app/notes/[id]/not-found.tsx` | Client | A deleted note, or one that never existed.                                             |
+| `app/error.tsx`                | Client | A page that failed to load: why, and a button to try again.                            |
+| `app/routeTree.gen.ts`         | —      | The typed route tree, written by the build. Committed, never edited.                   |
+| `components/Sidebar.tsx`       | Client | Search, selection and navigation, handled in the Client.                               |
+| `components/notes-list.ts`     | Client | The sidebar's notes, read through a Server Function and again after each change.       |
+| `components/NoteEditor.tsx`    | Client | Every keystroke, the Markdown view, autosave, the restored text.                       |
+| `components/NoteFrame.tsx`     | Client | No directive: it runs on the side of its importers, the editor and the loading screen. |
+| `components/StatusLine.tsx`    | Client | The line above the title: connection, save, router, one message at a time.             |
+| `components/draft.ts`          | Client | Notes' own policy: unsaved text in memory, and saves whose outcome is unknown.         |
+| `actions/notes.ts`             | Server | Server Functions, `"use server"`: `saveNote`, `getOperation`, `listNotes` and more.    |
+| `server/repository.ts`         | Server | SQLite, ownership checks and transactions.                                             |
+| `server/schemas.ts`            | Server | Zod schemas for the arguments the Server receives.                                     |
+| `server/queries.ts`            | Server | Reads cached with `"use cache"`, tagged.                                               |
+| `server/tags.ts`               | Server | The cache tags of those reads.                                                         |
 
-You write no RPC protocol, module registry, Flight manifest or OpenTUI bootstrap.
+Three optional files are absent from Notes:
 
-## A save, from the key to SQLite
+- `server/auth.ts`, an identity adapter: see [authentication](/docs/concepts/authentication/).
+- `server/cache.ts`, the cache handler: see [caching](/docs/concepts/cache/#where-entries-live).
+- `app/args.ts`, which declares command-line options: see
+  [app arguments](/docs/reference/app-arguments/).
 
-1. The page of a note, on the Server, reads the note and passes `saveNote` to the editor:
+You write no RPC protocol, no module registry and no OpenTUI bootstrap: the build and the
+framework provide them.
+
+## What happens when you save a note?
+
+1. The note's page runs on the Server. It reads the note, and passes `saveNote` to the editor:
 
 <Excerpt
   path="examples/notes/app/notes/[id]/page.tsx"
@@ -53,11 +62,11 @@ You write no RPC protocol, module registry, Flight manifest or OpenTUI bootstrap
   until="/>"
   mark={["saveAction={saveNote}"]}
   tone="server"
+  caption="The page passes saveNote to the editor as a prop. The Client receives a reference to it."
 />
 
-2. The editor handles each key locally. About a second after typing stops (or on **Save**
-   when autosave is off), it calls `send`, which calls the reference through Notes' Draft
-   store and the restored-field group:
+2. The editor handles each key in the Client. About a second after you stop typing, it calls
+   `send`. With autosave off, **Save** calls it.
 
 <Excerpt
   path="examples/notes/components/NoteEditor.tsx"
@@ -65,10 +74,19 @@ You write no RPC protocol, module registry, Flight manifest or OpenTUI bootstrap
   count={2}
   mark={["saveAction(snapshot)"]}
   tone="client"
+  caption="send calls the saveNote reference through two pieces of code, described below."
 />
 
-3. The framework encodes the call with Flight and sends `POST /action`. On the Server,
-   `saveNote` validates its argument, saves, and declares what changed:
+`send` goes through two pieces of code before the request leaves:
+
+- `save`, from Notes' draft store in `components/draft.ts`, keeps the unsaved text in memory
+  until the Server confirms the save.
+- `fields.submit`, from the framework, forgets the note's restored text before the request
+  leaves. A Client killed during the save does not send it twice: see
+  [send a form without sending it twice](/docs/concepts/session-restore/#send-a-form-without-sending-it-twice).
+
+3. The framework sends the call as `POST /action`. On the Server, `saveNote` validates its
+   argument, saves, and declares what changed:
 
 <Excerpt
   path="examples/notes/actions/notes.ts"
@@ -76,30 +94,34 @@ You write no RPC protocol, module registry, Flight manifest or OpenTUI bootstrap
   until="^}"
   mark={["SnapshotInput.parse", "await changed"]}
   tone="server"
+  caption="saveNote checks its argument with Zod, saves, then invalidates the tags of what changed."
 />
 
-4. The repository writes the note and the operation's result in one SQLite transaction:
-   that is what lets the **Check again** button look up a save whose response was lost.
+4. The repository writes the note and the operation's result in one SQLite transaction. That
+   transaction lets the **Check again** button look up a save whose response was lost.
 
-5. The response carries the result and the invalidated tags. The Client revalidates the
-   routes that read them; the editor confirms its Draft.
+5. The response carries the result and the invalidated tags. The Client reloads the routes that
+   read those tags, and the editor marks the text as saved.
 
-<Note>
-  The atomic save and the lookup of a lost result are Notes' own code, not a framework guarantee of
-  exactly-once delivery. The framework never retries. Notes looks the operation up; if the Server
-  has no result, Notes sends it again with the same ID, which the repository applies at most once.
-  If that fails too, the save stays unknown.
-</Note>
+[What happens during a call](/docs/concepts/server-functions/#what-happens-during-a-call)
+draws this save as a sequence of messages.
 
-## Run it
+## What the framework does not do for you
 
-<Excerpt
-  path="package.json"
-  find='"dev": "bun packages/core/src/cli.ts dev --app examples/notes"'
-  count={1}
-  tone="neutral"
-  caption="From the repository's root, bun run dev builds and starts Notes."
-/>
+The atomic save and the lookup of a lost result are Notes' own code. The framework does not
+guarantee that a save runs exactly once, and it never retries a call.
 
-The guided tour follows this same save in detail, in French:
-[Une Server Function](/guide/server-functions/).
+When a save's outcome is unknown, Notes looks the operation up on the Server:
+
+- If the Server has the result, the save is settled.
+- If the Server has no result, Notes sends the save again with the same ID. The repository
+  applies an ID at most once.
+- If that fails too, the save stays unknown.
+
+## See also
+
+- [Getting started](/docs/getting-started/): run Notes, then change it.
+- [Client and Server](/docs/concepts/client-and-server/): what travels between the two sides.
+- [Client Components](/docs/concepts/client-components/): where the boundary falls.
+- [When a call fails](/docs/concepts/server-functions/#when-a-call-fails): the outcomes a
+  Server Function can have.

@@ -20,6 +20,8 @@ export const sections: readonly Section[] = [
     summary: "What an app is made of, and which side runs each part.",
     pages: [
       "concepts/client-and-server",
+      // An explanation of the starter's files: its URL stays under guides/.
+      "guides/anatomy-of-an-app",
       "concepts/routing",
       "concepts/server-components",
       "concepts/client-components",
@@ -32,9 +34,8 @@ export const sections: readonly Section[] = [
   },
   {
     title: "Guides",
-    summary: "One task each, from the first file to a machine you do not own.",
+    summary: "One task each, from a slow network to a machine you do not own.",
     pages: [
-      "guides/anatomy-of-an-app",
       "guides/latency-and-faults",
       "guides/devtools",
       "guides/opening-an-app",

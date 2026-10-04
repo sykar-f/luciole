@@ -17,7 +17,6 @@
   "packages/luciole.sh/README.md": 1,
   "packages/markdown-editor/README.md": 5,
   "website/src/components/Hero.astro": 1,
-  "website/src/content/docs/guides/anatomy-of-an-app.mdx": 5,
   "website/src/content/docs/guides/devtools.mdx": 12,
   "website/src/content/docs/guides/latency-and-faults.mdx": 9,
   "website/src/content/docs/guides/opening-an-app.mdx": 14,
