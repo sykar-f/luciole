@@ -277,7 +277,7 @@ def notes(directory):
         term.send(b"\r")
         term.wait_for("Getting around", 30)
         term.idle(1)
-        save(term, "notes", "Notes: a Server 500 ms away")
+        save(term, "notes", "Notes: the first note open")
     finally:
         term.stop()
 
