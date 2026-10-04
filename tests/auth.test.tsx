@@ -297,7 +297,7 @@ test(
 );
 
 test(
-  "without unauthorizedPath a refused navigation shows the error and a refusal keeps the tree",
+  "without unauthorizedPath a refused navigation or refresh shows the error in the page slot",
   async () => {
     const directory = await mkdtemp(join(tmpdir(), "luciole-auth-nologin-"));
     let server: Awaited<ReturnType<typeof launch>> | undefined, rendered: TestUI | undefined;
@@ -348,16 +348,19 @@ test(
       await ui.renderOnce();
       expect(ui.captureCharFrame()).toContain("PRIVATE of alice");
 
-      // A refused refresh keeps the mounted tree, as any failed refresh does: signing out
-      // leaves the page on screen until the app navigates (concepts/authentication.mdx).
+      // A refused refresh drops the mounted tree, unlike a network failure: signing out
+      // takes the private page off screen, and its slot shows the refusal.
       await act(async () => {
         app.setToken(undefined);
         await until(() => app.status === "Authentication required");
+        await until(() => app.router.state.status === "idle");
       });
       await ui.renderOnce();
       expect(app.status).toBe("Authentication required");
       expect(app.router.state.resolvedLocation?.pathname).toBe("/private");
-      expect(ui.captureCharFrame()).toContain("PRIVATE of alice");
+      expect(ui.captureCharFrame()).not.toContain("PRIVATE");
+      expect(ui.captureCharFrame()).toContain("LAYOUT");
+      expect(ui.captureCharFrame()).toContain("Authentication required");
     } finally {
       await destroy(rendered);
       if (server) await server.stop();
