@@ -25,13 +25,16 @@ move an app to a new one.
 
 The current release is **{version}**, published on npm under the dist-tag <code>{distTag}</code>.
 
-Five packages share that one version, so an app never mixes two releases:
+Each release publishes five packages at that same version:
 
 - `luciole.sh`, the install name: <code>{commands.fromNpm} init my-app</code> creates an app
 - `@luciole-sh/core`, the framework and the `luciole` command
 - `@luciole-sh/create`, the scaffolder `init` runs
 - `@luciole-sh/flow-graph`
 - `@luciole-sh/markdown-editor`
+
+An app lists only the packages it uses, and npm does not keep them at one version. Update them
+together when you upgrade.
 
 A tag with a suffix, such as `v1.0.0-rc.1`, is a preview. It is published under `next`, so
 `latest` never points to it.
@@ -69,11 +72,15 @@ Each break is listed in the CHANGELOG, under **Changed** or **Removed**, and mar
 
 Upgrade from the app's directory.
 
-1. Update the two packages together:
+1. Update the luciole packages the app's `package.json` lists. A starter lists
+   `@luciole-sh/core`, and `@luciole-sh/flow-graph` or `@luciole-sh/markdown-editor` when the
+   app uses them:
 
    ```sh
-   bun update @luciole-sh/core luciole.sh
+   bun update @luciole-sh/core
    ```
+
+   Add the other packages to the command. Add `luciole.sh` only if the app lists it.
 
 2. Read the [CHANGELOG](https://github.com/sykar-f/luciole/blob/main/CHANGELOG.md) for every
    release between your version and the new one. Look for the entries marked **Breaking**,
@@ -91,9 +98,9 @@ Upgrade from the app's directory.
 A patch needs steps 1 and 3. For a minor, do step 2 before step 3.
 
 <Note kind="warning">
-  Upgrade `@luciole-sh/core` and `luciole.sh` to the same version. `luciole.sh` depends on
-  `@luciole-sh/core`, and a mismatch can leave the `luciole` command on a different release than
-  your app's framework.
+  Keep every luciole package of the app at one version. Each release is tested with its five
+  packages together, and a mix of versions is not. `bunx luciole.sh` fetches the latest release each
+  time it runs, so it can run a newer scaffolder than your app's `@luciole-sh/core`.
 </Note>
 
 ## Changelog
