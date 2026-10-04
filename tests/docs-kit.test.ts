@@ -1,309 +1,144 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { afterAll, describe, expect, test } from "bun:test";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, relative } from "node:path";
+import { dirname, join, resolve } from "node:path";
+import { kitProblems } from "../website/scripts/check-kit.ts";
 
-// The contracts of the docs' visual kit (website/README.md, "Les composants des docs"), on
-// the site as built: every screen captioned and transcribed, every sequence captioned and
-// listed as text, every excerpt with a side naming it in words, every annotated capture
-// with a note per mark, and no demo of a RunHere loaded before the reader's click. The
-// site is built afresh into a temporary directory: a stale dist/ proves nothing.
-const root = join(import.meta.dir, "..");
-const website = join(root, "website");
-const astro = join(website, "node_modules/.bin/astro");
+// The contracts of the docs' figure kit (website/scripts/check-kit.ts), on pages written
+// here: each rule red on a page that breaks it, and the build's check (check-html.ts, run
+// after `astro build`) failing on such a page.
+const root = resolve(import.meta.dir, "..");
+const site = "https://luciole.sh";
+const directories: string[] = [];
+afterAll(() => directories.forEach((directory) => rmSync(directory, { recursive: true })));
 
-type Figure = {
-  kind: string;
-  tone?: string;
-  caption: string;
-  describedBy: string[];
-  transcripts: { id: string; text: string }[];
-  side: string;
-  items: number;
-  lists: number;
-  marks: number;
-  boot: string[];
-};
+const problems = async (html: string, page = "/docs/a/") =>
+  (await kitProblems(html, page)).problems;
 
-const SIDES: Record<string, string> = {
-  client: "Client",
-  server: "Server",
-  wire: "Wire",
-  build: "Build",
-};
-const SIDES_FR: Record<string, string> = { ...SIDES, wire: "Réseau" };
+const screen = (caption: string, transcript: string) => `
+  <figure data-figure="screen">
+    <div class="screen" role="img" aria-label="Notes" aria-describedby="s1"></div>
+    <figcaption>${caption}</figcaption>
+    <details><summary>Transcript</summary><pre id="s1" data-transcript>${transcript}</pre></details>
+  </figure>`;
 
-/** What a page's HTML breaks of the kit's contracts, one line each; none when it holds. */
-export async function kitProblems(html: string, page: string) {
-  const figures: Figure[] = [];
-  const open: Figure[] = [];
-  const ids = new Map<string, number>();
-  const demo: string[] = [];
-  let text: ((chunk: string) => void) | undefined;
-  const inner = () => open.at(-1);
-  const count = (what: "lists" | "items" | "marks") => {
-    const figure = inner();
-    if (figure) figure[what] += 1;
-  };
-  // Text read into the innermost figure while `read` is open.
-  const read = (into: (figure: Figure, chunk: string) => void) => ({
-    element(element: HTMLRewriterTypes.Element) {
-      const figure = inner();
-      if (!figure) return;
-      text = (chunk) => into(figure, chunk);
-      element.onEndTag(() => {
-        text = undefined;
-      });
-    },
-    text(chunk: HTMLRewriterTypes.Text) {
-      text?.(chunk.text);
-    },
+const sequence = (steps: string) => `
+  <figure data-figure="sequence"><svg role="img" aria-describedby="q"></svg>
+    <figcaption>A click</figcaption><details><div id="q">${steps}</div></details></figure>`;
+
+const run = (extra: string) => `<div data-figure="run-here"><div data-live data-boot="manual"
+  data-src="/demo/notes/index.html"></div></div>${extra}`;
+
+describe("the figure kit's contracts", () => {
+  test("hold on a captioned, transcribed screen and a listed sequence", async () => {
+    const html =
+      screen("Notes, open", " ╭──╮ Welcome") + sequence("<ol><li>Client → Server</li></ol>");
+    expect(await kitProblems(html, "/docs/a/")).toEqual({ problems: [], figures: 2 });
   });
 
-  new HTMLRewriter()
-    .on("[data-figure]", {
-      element(element) {
-        const figure: Figure = {
-          kind: element.getAttribute("data-figure") ?? "",
-          tone: element.getAttribute("data-tone") ?? undefined,
-          caption: "",
-          describedBy: [],
-          transcripts: [],
-          side: "",
-          items: 0,
-          lists: 0,
-          marks: 0,
-          boot: [],
-        };
-        figures.push(figure);
-        open.push(figure);
-        element.onEndTag(() => {
-          open.pop();
-        });
-      },
-    })
-    .on(
-      "figcaption",
-      read((figure, chunk) => (figure.caption += chunk)),
-    )
-    .on(
-      ".side",
-      read((figure, chunk) => (figure.side += chunk)),
-    )
-    .on("[data-transcript]", {
-      element(element) {
-        const figure = inner();
-        if (!figure) return;
-        const transcript = { id: element.getAttribute("id") ?? "", text: "" };
-        figure.transcripts.push(transcript);
-        text = (chunk) => (transcript.text += chunk);
-        element.onEndTag(() => {
-          text = undefined;
-        });
-      },
-      text(chunk) {
-        text?.(chunk.text);
-      },
-    })
-    .on("[aria-describedby]", {
-      element(element) {
-        inner()?.describedBy.push(element.getAttribute("aria-describedby") ?? "");
-      },
-    })
-    .on("ol", { element: () => count("lists") })
-    .on("li", { element: () => count("items") })
-    .on("mark[data-n]", { element: () => count("marks") })
-    .on("[data-boot]", {
-      element(element) {
-        inner()?.boot.push(element.getAttribute("data-boot") ?? "");
-      },
-    })
-    .on("[id]", {
-      element(element) {
-        const id = element.getAttribute("id") ?? "";
-        ids.set(id, (ids.get(id) ?? 0) + 1);
-      },
-    })
-    // What would fetch a demo with the page: a frame or script source, a hint to fetch it.
-    .on("[src]", {
-      element(element) {
-        const src = element.getAttribute("src") ?? "";
-        if (src.includes("/demo/")) demo.push(`<${element.tagName} src="${src}">`);
-      },
-    })
-    .on("link[rel]", {
-      element(element) {
-        const rel = element.getAttribute("rel") ?? "";
-        const href = element.getAttribute("href") ?? "";
-        if (/preload|prefetch|prerender/.test(rel) && href.includes("/demo/"))
-          demo.push(`<link rel="${rel}" href="${href}">`);
-      },
-    })
-    .on("iframe", { element: () => void demo.push("<iframe>") })
-    .on('script[type="speculationrules"]', {
-      text(chunk) {
-        if (chunk.text.includes("/demo/")) demo.push("speculation rules naming /demo/");
-      },
-    })
-    .transform(html);
+  test("a screen without a caption or a transcript", async () => {
+    expect(await problems(screen(" ", "Welcome"))).toEqual(['/docs/a/: screen "": no caption']);
+    expect(await problems(screen("Notes", ""))).toEqual([
+      '/docs/a/: screen "Notes": no transcript',
+    ]);
+  });
 
-  const french = page.startsWith("guide/");
-  const problems: string[] = [];
-  const say = (figure: Figure, what: string) =>
-    problems.push(
-      `${page}: ${figure.kind} ${JSON.stringify(figure.caption.trim().slice(0, 50))}: ${what}`,
+  test("a screen described by something else, or by an id two elements share", async () => {
+    const elsewhere = screen("Notes", "Welcome").replace(
+      'aria-describedby="s1"',
+      'aria-describedby="s2"',
     );
-  /** Each description points to one element of the page, as transcripts and lists need. */
-  const described = (figure: Figure) => {
-    if (figure.describedBy.length === 0) say(figure, "no aria-describedby");
-    for (const id of figure.describedBy)
-      if (ids.get(id) !== 1)
-        say(figure, `aria-describedby="${id}" names ${ids.get(id) ?? 0} elements`);
-  };
-  for (const figure of figures) {
-    const captioned = figure.caption.trim().length > 0;
-    if (figure.kind === "screen") {
-      if (!captioned) say(figure, "no caption");
-      described(figure);
-      const transcript = figure.transcripts[0];
-      if (!transcript?.text.trim()) say(figure, "no transcript");
-      else if (!figure.describedBy.includes(transcript.id))
-        say(figure, "its description is not its transcript");
-    }
-    if (figure.kind === "sequence") {
-      if (!captioned) say(figure, "no caption");
-      described(figure);
-      if (figure.lists === 0 || figure.items === 0) say(figure, "no ordered list of its steps");
-    }
-    if (figure.kind === "excerpt" && figure.tone && figure.tone !== "neutral") {
-      const expected = (french ? SIDES_FR : SIDES)[figure.tone];
-      if (figure.side.trim() !== expected)
-        say(figure, `its side reads ${JSON.stringify(figure.side.trim())}, not ${expected}`);
-    }
-    if (figure.kind === "capture") {
-      if (!captioned) say(figure, "no caption");
-      if (figure.marks === 0 || figure.marks !== figure.items)
-        say(figure, `${figure.marks} marks for ${figure.items} notes`);
-    }
-    if (figure.kind === "code-and-screen" && !captioned) say(figure, "no caption");
-    if (figure.kind === "run-here") {
-      if (!figure.boot.every((boot) => boot === "manual") || figure.boot.length === 0)
-        say(figure, "its demo does not wait for a click");
-      for (const fetch of demo) say(figure, `the page fetches a demo before the click: ${fetch}`);
-    }
-  }
-  return problems;
-}
-
-const pages = (dir: string): string[] =>
-  readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-    const path = join(dir, entry.name);
-    if (entry.isDirectory()) return pages(path);
-    return entry.name.endsWith(".html") ? [path] : [];
-  });
-
-describe("the kit's check", () => {
-  const screen = (caption: string, transcript: string) => `
-    <figure data-figure="screen">
-      <div class="screen" role="img" aria-label="Notes" aria-describedby="s1"></div>
-      <figcaption>${caption}</figcaption>
-      <details><summary>Transcript</summary><pre id="s1" data-transcript>${transcript}</pre></details>
-    </figure>`;
-
-  test("passes a captioned, transcribed screen", async () => {
-    expect(await kitProblems(screen("Notes, open", " ╭──╮ Welcome"), "docs/a/index.html")).toEqual(
-      [],
-    );
-  });
-
-  test("fails a screen without a caption or a transcript", async () => {
-    expect(await kitProblems(screen(" ", "Welcome"), "docs/a/index.html")).toEqual([
-      'docs/a/index.html: screen "": no caption',
+    expect(await problems(`${elsewhere}<p id="s2"></p>`)).toEqual([
+      '/docs/a/: screen "Notes": its description is not its transcript',
     ]);
-    expect(await kitProblems(screen("Notes", ""), "docs/a/index.html")).toEqual([
-      'docs/a/index.html: screen "Notes": no transcript',
+    expect(await problems(screen("Notes", "Welcome").repeat(2))).toEqual([
+      '/docs/a/: screen "Notes": aria-describedby="s1" names 2 elements',
+      '/docs/a/: screen "Notes": aria-describedby="s1" names 2 elements',
     ]);
   });
 
-  test("fails a sequence without its list, and an excerpt whose side is colour only", async () => {
-    const sequence = `<figure data-figure="sequence"><svg role="img" aria-describedby="q"></svg>
-      <figcaption>A click</figcaption><details><div id="q"></div></details></figure>`;
-    expect(await kitProblems(sequence, "docs/a/index.html")).toEqual([
-      'docs/a/index.html: sequence "A click": no ordered list of its steps',
-    ]);
-    const excerpt = `<figure data-figure="excerpt" data-tone="server"><div class="bar"><a>page.tsx</a></div></figure>`;
-    expect(await kitProblems(excerpt, "docs/a/index.html")).toEqual([
-      'docs/a/index.html: excerpt "": its side reads "", not Server',
+  test("a sequence without the list of its steps", async () => {
+    expect(await problems(sequence(""))).toEqual([
+      '/docs/a/: sequence "A click": no ordered list of its steps',
     ]);
   });
 
-  test("fails a RunHere whose page loads its demo before the click", async () => {
-    const run = (extra: string) => `<div data-figure="run-here"><div data-live data-boot="manual"
-      data-src="/demo/notes/index.html"></div></div>${extra}`;
-    expect(await kitProblems(run(""), "docs/a/index.html")).toEqual([]);
-    expect(
-      await kitProblems(
-        run('<link rel="prefetch" href="/demo/notes/index.html">'),
-        "docs/a/index.html",
-      ),
-    ).toEqual([
-      'docs/a/index.html: run-here "": the page fetches a demo before the click: <link rel="prefetch" href="/demo/notes/index.html">',
+  test("an excerpt whose side is colour only, in the docs and in the French guide", async () => {
+    const excerpt = (side: string) =>
+      `<figure data-figure="excerpt" data-tone="wire"><div class="bar"><a>page.tsx</a>${side}</div></figure>`;
+    expect(await problems(excerpt(""))).toEqual([
+      '/docs/a/: excerpt "": its side reads "", not Wire',
     ]);
-    expect(
-      await kitProblems(run('<iframe src="/demo/notes/index.html"></iframe>'), "docs/a/index.html"),
-    ).toHaveLength(2);
+    expect(await problems(excerpt('<span class="side">Wire</span>'))).toEqual([]);
+    expect(await problems(excerpt('<span class="side">Réseau</span>'), "/guide/a/")).toEqual([]);
+  });
+
+  test("an annotated capture whose marks and notes disagree", async () => {
+    const capture = `<figure data-figure="capture"><pre><code><mark data-n="1">1:R</mark></code></pre>
+      <figcaption>The answer.</figcaption><ol><li>one</li><li>two</li></ol></figure>`;
+    expect(await problems(capture)).toEqual([
+      '/docs/a/: capture "The answer.": 1 marks for 2 notes',
+    ]);
+  });
+
+  test("a RunHere page that fetches its demo before the click", async () => {
+    expect(await problems(run(""))).toEqual([]);
+    expect(await problems(run('<link rel="prefetch" href="/demo/notes/index.html">'))).toEqual([
+      '/docs/a/: run-here "": the page fetches a demo before the click: <link rel="prefetch" href="/demo/notes/index.html">',
+    ]);
+    expect(await problems(run('<iframe src="/demo/notes/index.html"></iframe>'))).toEqual([
+      '/docs/a/: run-here "": the page fetches a demo before the click: <iframe src="/demo/notes/index.html">',
+      '/docs/a/: run-here "": the page fetches a demo before the click: <iframe>',
+    ]);
+    expect(await problems(run("").replace('data-boot="manual"', 'data-boot="visible"'))).toEqual([
+      '/docs/a/: run-here "": its demo does not wait for a click',
+    ]);
   });
 });
 
-describe.skipIf(!existsSync(astro))("the site as built", () => {
-  const out = mkdtempSync(join(tmpdir(), "luciole-site-"));
-  let built: { path: string; html: string }[] = [];
-
-  beforeAll(() => {
-    const build = Bun.spawnSync([astro, "build", "--outDir", out], {
-      cwd: website,
+describe("the build's check", () => {
+  /** A one-page build that holds check-html's own rules, with `figures` in its main. */
+  async function build(figures: string) {
+    const dist = mkdtempSync(join(tmpdir(), "docs-kit-"));
+    directories.push(dist);
+    const write = (file: string, content: string) => {
+      mkdirSync(dirname(join(dist, file)), { recursive: true });
+      writeFileSync(join(dist, file), content);
+    };
+    write(
+      "docs/index.html",
+      `<!doctype html><html lang="en"><head><title>t</title><link rel="canonical" href="${site}/docs/"><meta property="og:url" content="${site}/docs/"><meta property="og:image" content="${site}/og.png"></head><body><a class="skip" href="#main">Skip to content</a><main id="main"><h1>Docs</h1>${figures}</main></body></html>`,
+    );
+    write("og.png", "");
+    write(
+      "sitemap-index.xml",
+      `<sitemapindex><sitemap><loc>${site}/sitemap-0.xml</loc></sitemap></sitemapindex>`,
+    );
+    write("sitemap-0.xml", `<urlset><url><loc>${site}/docs/</loc></url></urlset>`);
+    const child = Bun.spawn([process.execPath, "website/scripts/check-html.ts", dist, site], {
+      cwd: root,
       stdout: "pipe",
       stderr: "pipe",
     });
-    if (build.exitCode !== 0) throw new Error(`astro build failed:\n${build.stderr.toString()}`);
-    built = pages(out).map((path) => ({
-      path: relative(out, path),
-      html: readFileSync(path, "utf8"),
-    }));
-  }, 180_000);
-
-  afterAll(() => rmSync(out, { recursive: true, force: true }));
-
-  test("every page holds the kit's contracts", async () => {
-    const problems = (
-      await Promise.all(built.map(({ path, html }) => kitProblems(html, path)))
-    ).flat();
-    expect(problems).toEqual([]);
-  });
-
-  test("the kit is on the site: each component at least once", () => {
-    const kinds = new Set(
-      built.flatMap(({ html }) =>
-        [...html.matchAll(/data-figure="([a-z-]+)"/g)].map(([, kind]) => kind),
-      ),
-    );
-    expect([...kinds].toSorted()).toEqual([
-      "capture",
-      "code-and-screen",
-      "excerpt",
-      "run-here",
-      "screen",
-      "sequence",
+    const [code, out, err] = await Promise.all([
+      child.exited,
+      new Response(child.stdout).text(),
+      new Response(child.stderr).text(),
     ]);
+    return { code, out, err };
+  }
+
+  test("passes a page whose figures hold, and says how many it checked", async () => {
+    const { code, out } = await build(screen("Notes, open", "Welcome"));
+    expect(out).toContain(
+      "check-html: 1 figures of the kit (scripts/check-kit.ts) hold their contracts.",
+    );
+    expect(code).toBe(0);
   });
 
-  test("a RunHere page asks for nothing under /demo/ before the click", async () => {
-    const page = built.find(({ path }) => path === "docs/concepts/client-and-server/index.html");
-    expect(page?.html).toContain('data-figure="run-here"');
-    expect(page?.html).not.toMatch(/\ssrc="[^"]*\/demo\//);
-    expect(page?.html).not.toMatch(
-      /<link[^>]*rel="[^"]*(preload|prefetch|prerender)[^"]*"[^>]*\/demo\//,
-    );
-    expect(page?.html).not.toContain("<iframe");
+  test("fails a page with a screen that has no caption", async () => {
+    const { code, err } = await build(screen("", "Welcome"));
+    expect(err).toContain('/docs/: screen "": no caption');
+    expect(code).toBe(1);
   });
 });

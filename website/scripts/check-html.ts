@@ -11,6 +11,9 @@
  * domain (`site` of astro.config.mjs, unless the second argument gives it), the first two being the page's own address, and a place
  * in the sitemap.
  *
+ * And every figure of the docs' kit keeps its contracts (scripts/check-kit.ts): a caption, a
+ * transcript or a list of steps, a side in words, no demo fetched before a click.
+ *
  * Two things are set aside, each by name below: the cards photographed into a picture, which
  * are not documents, and the links into what `bun run demo` builds apart from the site.
  *
@@ -23,6 +26,7 @@
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { z } from "zod";
+import { kitProblems } from "./check-kit";
 
 /**
  * The site's origin: the second argument, or `site` of astro.config.mjs. The config is imported
@@ -200,15 +204,22 @@ if (!existsSync(dist)) {
 const files = htmlFiles(dist);
 const pages = new Map<string, Page>();
 const pageOf = new Map<string, string>();
+// The figure kit's contracts (scripts/check-kit.ts), page by page.
+const kit: string[] = [];
+let figures = 0;
 await Promise.all(
   files.map(async (file) => {
-    const page = await read(file, readFileSync(join(dist, file), "utf8"));
+    const html = readFileSync(join(dist, file), "utf8");
+    const page = await read(file, html);
     pages.set(page.path, page);
     pageOf.set(file, page.path);
+    const found = await kitProblems(html, page.path);
+    kit.push(...found.problems);
+    figures += found.figures;
   }),
 );
 
-const problems: string[] = [];
+const problems: string[] = [...kit.sort()];
 const report = (page: Page, message: string) => problems.push(`${page.path}: ${message}`);
 
 /** The page a path is served from: the directory's index, the file itself, or `path.html`. */
@@ -313,3 +324,6 @@ if (problems.length > 0) {
 }
 const note = skipped > 0 ? ` (${skipped} links into ${BUILT_APART} skipped: not built)` : "";
 console.log(`check-html: ${pages.size} pages, no problem${note}.`);
+console.log(
+  `check-html: ${figures} figures of the kit (scripts/check-kit.ts) hold their contracts.`,
+);
