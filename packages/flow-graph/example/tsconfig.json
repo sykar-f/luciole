@@ -1,0 +1,23 @@
+{
+  // What a project that uses the package needs: JSX compiled for OpenTUI. Inside this
+  // repository, `customConditions` resolves `@luciole-sh/flow-graph` to its sources, which
+  // import each other with `.ts` extensions. An install from npm resolves it to `dist/`
+  // and needs neither `customConditions` nor `allowImportingTsExtensions`.
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "jsxImportSource": "@opentui/react",
+    "customConditions": ["bun"],
+    "allowImportingTsExtensions": true,
+    "strict": true,
+    "erasableSyntaxOnly": true,
+    "verbatimModuleSyntax": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "types": [],
+    "moduleDetection": "force"
+  },
+  "include": ["."]
+}
