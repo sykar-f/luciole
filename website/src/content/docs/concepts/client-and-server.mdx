@@ -117,7 +117,7 @@ carried inside it as bytes.
     { match: "1:R", note: "announces that row 1 will be a stream: the page's." },
     {
       match: '0:{"tree":"$1","tags":"$@2"}',
-      note: "is the envelope: `tree` is the stream of row 1, and `tags` a promise that row 2 fulfils ([caching](/docs/concepts/cache/#what-a-render-read)).",
+      note: "is the envelope: `tree` is the stream of row 1, and `tags` a promise that row 2 fulfils ([caching](/docs/concepts/cache/#how-a-tag-travels-from-a-read-to-a-reload)).",
     },
     {
       match: "1:o",
