@@ -32,7 +32,8 @@ Every subcommand reads its flags by the same rules:
 - `--app dir` names the app for `dev`, `build`, `start` and `connect`. Without it, they work
   on the current directory.
 - A flag that needs a value and gets none is refused, naming the flag: `luciole build --app`
-  prints `--app needs a value`.
+  prints `--app needs a value`
+  ([fix it](/docs/reference/troubleshooting/#a-flag-is-missing-its-value)).
 - A flag the subcommand does not read is refused, naming the closest one:
   `luciole build --wbe` prints `Unknown flag --wbe for luciole build (did you mean --web?)`.
 - `luciole <target>` and `luciole example` refuse no flag themselves. Each word they do not

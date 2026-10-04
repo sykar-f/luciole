@@ -225,6 +225,9 @@ Two tests check this:
 - `tests/transport.test.tsx`: the Server answers an old build ID with a `409`. The status then
   reads "Incompatible build", and an open editor keeps its text.
 
+When the status reads "Incompatible build",
+[Troubleshooting](/docs/reference/troubleshooting/#the-server-answers-409) gives the fix.
+
 The hash includes `bun.lock`, which lists the packages of every platform. A Linux Server and a
 macOS Client compiled from the same sources therefore share one build ID.
 [`--on`](/docs/guides/opening-an-app/#start-the-server-on-another-machine) relies on that.
