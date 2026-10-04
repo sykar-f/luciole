@@ -19,11 +19,16 @@ import { spawnPty, type Pty } from "../packages/core/src/vt/pty";
 import { BUILD_TEST_MS, eventually, execute, rejectionOf, until } from "./helpers";
 
 const CLI = resolve("packages/core/src/cli.ts");
-// A startup waits inside its test's build budget, and leaves the exit waits their share.
+// A test that builds has BUILD_TEST_MS: the build or the startup takes up to half of it,
+// and the waits after it share the other half. Each bound guards against a hang only: a
+// loaded machine makes a wait longer, never a failure.
 const STARTUP_MS = BUILD_TEST_MS / 2;
-// A built Client with its Server up: what it reports once it starts.
-const CLIENT_MS = 15_000;
-const EXIT_MS = 5000;
+const AFTER_STARTUP_MS = BUILD_TEST_MS - STARTUP_MS;
+// A built Client with its Server up: what it reports once it starts, the one wait after
+// the build.
+const CLIENT_MS = AFTER_STARTUP_MS;
+// After a hangup, two waits: luciole dev's exit, then its children's.
+const EXIT_MS = AFTER_STARTUP_MS / 2;
 const COLUMNS = 80;
 const ROWS = 24;
 const STATE_CHARS = 2000;
