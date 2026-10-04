@@ -1,11 +1,14 @@
 ---
 title: Session restore
-description: Like a browser, the Client keeps the history, the text of named fields, the focus and the scroll positions. What comes back after a crash, a closed terminal or a rebuild, and what never does.
+description: Like a browser, the Client keeps the history, the text of named fields, the focus and the scroll positions. What comes back after a crash or a rebuild, and what never does.
 sources:
   - docs/API.md
   - packages/core/src/restore.ts
   - packages/core/src/fields.tsx
   - packages/core/src/session.ts
+  - packages/core/src/client.tsx
+  - packages/core/src/run.tsx
+  - examples/chat/components/Chat.tsx
   - examples/notes/components/NoteEditor.tsx
   - examples/forge/components/NewPullForm.tsx
   - examples/forge/components/Conversation.tsx
@@ -15,16 +18,56 @@ sources:
 import Excerpt from "../../../components/guide/Excerpt.astro";
 import Note from "../../../components/docs/Note.astro";
 
-The Client plays the browser's part, so it keeps what a browser keeps of a session: **the
-history and, for each entry, the text typed into its named fields, which one had the focus
-and how far its named scroll boxes were scrolled**. Nothing else. Page data
-comes back from the Server by navigating; the bearer token stays with the app; a field
-without a `name` is never written (a PIN, a password).
+The Client keeps a restored session, as a browser does, so a crash or a rebuild does not lose
+what the user typed. For each history entry, it keeps:
 
-## Naming a field
+- the text typed into named fields
+- which named field had the focus
+- how far named scroll boxes were scrolled
+
+Nothing else is kept:
+
+- Page data comes back from the Server when the Client opens the page again.
+- The bearer token, the string the Client sends with each request to prove who signed in, stays
+  with your app.
+- A field without a `name`, such as a PIN or a password, is never written.
+
+## What happens to my text?
+
+| Event                                                  | What is kept                                                               | Where                                                   | What the user sees                                          |
+| ------------------------------------------------------ | -------------------------------------------------------------------------- | ------------------------------------------------------- | ----------------------------------------------------------- |
+| Going back to a history entry                          | That entry's field text, focus and scroll positions                        | The Client's memory and the restored session's file     | The fields as the user left them                            |
+| A refresh, with `refresh()`                            | The whole page, which stays mounted                                        | On screen                                               | The same fields, with their focus and text                  |
+| A rebuild under `luciole dev`                          | The page, the history, each entry's state and the token                    | The restored session's file, and `luciole dev`'s memory | The same screen, running the new code                       |
+| A crash, `kill -9`, a closed terminal or an SSH cut    | The page, the history and each entry's state                               | The restored session's file, read at the next launch    | The next Client opens on the same page, its fields filled   |
+| SIGTERM at shutdown, in a desktop window too           | The page, the history and each entry's state                               | The restored session's file, read at the next launch    | The next Client opens on the same page, its fields filled   |
+| A sign-out or another account, with `setToken`         | The focus and scroll positions, but no field text                          | The restored session's file                             | Empty fields                                                |
+| A Client's first sign-in                               | Everything                                                                 | The restored session's file                             | The text restored after a crash, after the sign-in it asked |
+| Sending a group with `submit`                          | Nothing of the group's text, unless the request did not run or was refused | Removed from the file at once                           | A next Client without the sent text                         |
+| <kbd>Ctrl+C</kbd> or `app.quit()`, quitting on purpose | Nothing                                                                    | The file is deleted, as for a browser closed on purpose | A next launch with no restored text                         |
+| Closing a desktop window, which quits the app          | Nothing                                                                    | The file is deleted                                     | A next launch with no restored text                         |
+
+Three rules decide which entry holds the text:
+
+- **Text is kept per history entry**, as in a browser. Opening the same page again from a link
+  creates a new, empty entry. To keep text per document whatever the path, your app stores it
+  itself, as Notes and Forge do with their drafts.
+- **A field belongs to the entry where it was mounted.** A field in a persistent layout keeps
+  writing to the entry where it appeared.
+- **Restoring is retyping.** On mount, a field whose entry holds text calls `onInput` or
+  `onChange` once with it. Your app's state, or its form library's, receives it as typing, as
+  unsaved text. Only typed text is kept. A value your app sets, such as a reset, only follows
+  text already kept.
+
+<Note kind="warning">
+  Unsaved text that your app holds only in memory is lost on every exit and on every rebuild. There
+  is no Fast Refresh.
+</Note>
+
+## Name a field to keep its text
 
 `<Input>` and `<Textarea>` from `@luciole-sh/core/client` are OpenTUI's `input` and `textarea`,
-controlled. A `name` makes their text restorable:
+made controlled: `value` in, `onChange` out. A `name` makes their text restorable:
 
 <Excerpt
   path="examples/chat/components/Chat.tsx"
@@ -35,16 +78,14 @@ controlled. A `name` makes their text restorable:
   tone="client"
 />
 
-`Textarea` makes OpenTUI's `textarea` controlled, which it is not by itself: `value` in,
-`onChange` out, like the input. A value set from outside replaces the content and puts the
-cursor at the end.
+A value your app sets from outside replaces the content and puts the cursor at the end.
 
-## A field of your own
+## Keep the text of a field of your own
 
-A field that is neither (an editor, a canvas) gets the same keeping from
-`useRestoredField(name, value, onChange)`: the kept text comes back once through
-`onChange` when the field mounts, and the function it returns takes every text the user
-types. Notes keeps its WYSIWYG editor's Markdown this way:
+For a field of your own, such as an editor or a canvas, call
+`useRestoredField(name, value, onChange)` to restore its text. When the field mounts, the kept
+text comes back once through `onChange`. Pass each text the user types to the function it
+returns. Notes keeps the Markdown of its WYSIWYG editor this way:
 
 <Excerpt
   path="examples/notes/components/NoteEditor.tsx"
@@ -54,18 +95,18 @@ types. Notes keeps its WYSIWYG editor's Markdown this way:
   tone="client"
 />
 
-## The focus and the scroll boxes
+## Keep the focus and the scroll position
 
-A browser gives the focus back to the field the user left and scrolls the page to where it
-was. A terminal app decides its focus itself (`focused={…}`) and scrolls boxes, not a
-page, so the two are opt-in, by name:
+A browser gives the focus back to the field the user left, and scrolls the page back. A
+terminal app decides its focus itself, with `focused={…}`, and scrolls boxes rather than a
+page. So both are opt-in, by name:
 
-- `useRestoredFocus(names)` is the app's focus state, kept per entry: `[focus, setFocus]`,
-  the first name until the user moves it. A kept name that is no longer among `names` (a
-  field removed since) gives the first one.
-- `<ScrollBox name>` is OpenTUI's `scrollbox` whose position is kept per entry. The kept
-  position waits for the content to be tall enough (a list the page loads, a live feed),
-  for a moment after mounting; scrolling by the user in the meantime wins.
+- `useRestoredFocus(names)` returns `[focus, setFocus]`, your app's focus state, kept per entry.
+  The focus starts on the first name until the user moves it. If the kept name is no longer in
+  `names`, because the field was removed, the focus returns to the first name.
+- `<ScrollBox name>` is OpenTUI's `scrollbox` with its position kept per entry. For a moment
+  after mounting, the kept position waits for the content to be tall enough, such as a list the
+  page loads or a live feed. If the user scrolls in the meantime, the user's scroll wins.
 
 <Excerpt
   path="examples/forge/components/NewPullForm.tsx"
@@ -83,33 +124,7 @@ page, so the two are opt-in, by name:
   tone="client"
 />
 
-## What comes back
-
-| When                                                   | What comes back                                                   |
-| ------------------------------------------------------ | ----------------------------------------------------------------- |
-| Back to a history entry (`u`, back)                    | That entry's named fields, focus and scroll positions             |
-| A rebuild under `luciole dev`                          | The page, the history, the entries' state and the bearer (memory) |
-| Crash, `kill -9`, closed terminal, SSH cut (SIGHUP)    | The page, the history and the entries' state, at the next launch  |
-| SIGTERM (machine shutdown), desktop window included    | The page, the history and the entries' state, at the next launch  |
-| <kbd>Ctrl+C</kbd> or `app.quit()`: quitting on purpose | Nothing: the session is deleted, like a browser closed on purpose |
-| Desktop window closed (SIGHUP under `LUCIOLE_DESKTOP`) | Nothing: closing the window quits the app                         |
-
-- **Per history entry**, as in a browser: opening the same page again from a link creates a
-  new, empty entry. Keeping text per document whatever the path (Notes' and Forge's Drafts)
-  is the app's policy.
-- **A field belongs to the entry where it was mounted**: a field in a persistent layout keeps
-  writing to the entry where it appeared.
-- **Restoring is retyping**: on mount, a field whose entry holds text calls `onInput` (or
-  `onChange`) once with it. The app's state, or its form library's, receives it the way it
-  receives typing, as unsaved work. Only typed text is kept; a value the app sets (a reset)
-  only follows text already kept.
-
-<Note kind="warning">
-  Anything held only in memory, Drafts included, is lost on every exit and on every rebuild. There
-  is no Fast Refresh.
-</Note>
-
-## Sending without sending twice
+## Send a form without sending it twice
 
 A group gathers the fields named `group/field`. `useRestoredFields("group").submit(action)`
 forgets their text **before** the request leaves, on disk too. A Client killed while sending
@@ -131,27 +146,39 @@ The text is kept again, unless the user typed something newer meanwhile, when:
   tone="client"
 />
 
-## With a form library
+## Use a form library
 
-The framework neither validates nor sends forms. Libraries that drive a field by value and
-callback work as they are, through their "React Native" path. TanStack Form is the one the
-examples follow (Forge's new pull request form, `components/NewPullForm.tsx`): fields go
-through `useField` rather than `<form.Field>`, and a key binding calls `form.handleSubmit()`,
-since a terminal has no `<form>`. React Hook Form works with `useController`; Formik with
-`useFormik` and `handleChange("field")`, never its `<Form>` and `<Field>` components, which
-render HTML.
+The framework neither validates nor sends forms. A library that drives a field by value and
+callback works as it is, through its "React Native" path. A terminal has no `<form>`, so a key
+binding submits the form.
 
-## Storage
+| Library         | Use                                                      | Avoid                                     |
+| --------------- | -------------------------------------------------------- | ----------------------------------------- |
+| TanStack Form   | `useField`, and `form.handleSubmit()` from a key binding | `<form.Field>`                            |
+| React Hook Form | `useController`                                          | Nothing                                   |
+| Formik          | `useFormik` and `handleChange("field")`                  | `<Form>` and `<Field>`, which render HTML |
 
-- One file per Client (like a tab), mode `0600`, in
-  `$XDG_STATE_HOME/luciole/<app>/sessions/` (`~/.local/state/…`), written 200 ms after the
-  last change and before exiting on a signal.
-- After a crash, the next Client takes over the most recent session left by a dead Client
-  for the same Server address, never one of a living Client.
-- At most 50 entries; a field longer than 100,000 characters is not kept; an orphaned
-  session is deleted after 7 days. **The text is not encrypted.**
-- Replacing a bearer (`setToken`, a sign-out or another account) forgets every field's text
-  (the focus and scroll positions stay: they hold nothing the user typed); a
-  Client's first sign-in keeps them, so text restored after a crash survives the sign-in it
-  asks for. Another account that signs in first after a crash finds the previous one's text: the
-  session belongs to the system user, like a browser profile.
+The examples follow TanStack Form, in Forge's new pull request form
+(`components/NewPullForm.tsx`).
+
+## Where is the text stored?
+
+- Each Client has its own file, like a browser tab, with mode `0600`. The files are in
+  `$XDG_STATE_HOME/luciole/<app>/sessions/`, which defaults to `~/.local/state/…`.
+- The Client writes its file 200 ms after the last change, and before it exits on a signal. A
+  send writes it at once.
+- A `kill -9` cannot be caught. Text typed in the last 200 ms before one is lost.
+- After a crash, the next Client takes over the newest restored session a dead Client left for
+  the same Server address. It never takes the file of a living Client.
+- A file holds at most 50 history entries. A field longer than 100,000 characters is not kept.
+- A file left by a dead Client is deleted after 7 days.
+
+<Note kind="warning">
+  The text of named fields is written to disk unencrypted. Leave a password or a PIN without a
+  `name`, so that it is never written.
+</Note>
+
+<Note kind="warning">
+  The restored session belongs to the system user, like a browser profile. After a crash, an account
+  that signs in first sees the text the previous account typed.
+</Note>
