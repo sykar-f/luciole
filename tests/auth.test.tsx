@@ -9,12 +9,15 @@ import { build } from "../packages/core/src/build";
 import type { Application } from "../packages/core/src/client";
 import {
   BUILD_TEST_MS,
+  WAIT_MS,
   launch,
   importClient,
   readManifest,
   rejectionOf,
   destroy,
   until,
+  untilFrame,
+  wire,
   type TestUI,
 } from "./helpers";
 
@@ -134,7 +137,9 @@ test(
   "logout and bearer changes purge cached private trees before any protected render",
   async () => {
     const directory = await mkdtemp(join(tmpdir(), "luciole-auth-cache-"));
-    let server: Awaited<ReturnType<typeof launch>> | undefined, rendered: TestUI | undefined;
+    let server: Awaited<ReturnType<typeof launch>> | undefined,
+      rendered: TestUI | undefined,
+      requests: ReturnType<typeof wire> | undefined;
     try {
       await authFixture(directory);
       await Bun.write(
@@ -156,17 +161,23 @@ test(
       await build(directory);
       server = await launch(join(directory, ".luciole/server/index.js"));
       const { createApp, Shell } = await importClient(directory);
+      // Holds the next request; `reached` counts the requests it has held.
       let gate: PromiseWithResolvers<void> | undefined;
+      let reached = 0;
       const app = createApp({
         url: server.url,
         token: "valid",
         fetch: async (url: URL, init: RequestInit) => {
           const held = gate;
           gate = undefined;
-          if (held) await held.promise;
+          if (held) {
+            reached++;
+            await held.promise;
+          }
           return fetch(url, init);
         },
       });
+      requests = wire(app);
       await app.router.load();
       const ui = await testRender(<Shell app={app} />, { width: 60, height: 10 });
       rendered = ui;
@@ -184,19 +195,19 @@ test(
         gate = Promise.withResolvers<void>();
         const held = gate;
         let navigation: Promise<void> | undefined;
+        const before = reached;
         await act(async () => {
           navigation = app.router.navigate({ to: "/" });
-          await Bun.sleep(20);
+          // The request is held: the navigation is pending, whatever the cache holds.
+          await until(() => reached > before, WAIT_MS);
         });
         await ui.renderOnce();
         expect(ui.captureCharFrame()).not.toContain("PRIVATE of alice");
         await act(async () => {
           held.resolve();
           await navigation;
-          await Bun.sleep(50);
+          await untilFrame(ui, expected);
         });
-        await ui.renderOnce();
-        expect(ui.captureCharFrame()).toContain(expected);
         expect(ui.captureCharFrame()).not.toContain("PRIVATE of alice");
         if (token) {
           await act(async () => {
@@ -206,6 +217,7 @@ test(
       }
       expect(app.router.state.resolvedLocation?.pathname).toBe("/login");
     } finally {
+      await act(async () => requests?.settled().catch(() => {}));
       await destroy(rendered);
       if (server) await server.stop();
       await rm(directory, { recursive: true, force: true });
@@ -218,7 +230,9 @@ test(
   "a navigation still in flight when the bearer changes never shows the previous identity",
   async () => {
     const directory = await mkdtemp(join(tmpdir(), "luciole-auth-late-"));
-    let server: Awaited<ReturnType<typeof launch>> | undefined, rendered: TestUI | undefined;
+    let server: Awaited<ReturnType<typeof launch>> | undefined,
+      rendered: TestUI | undefined,
+      requests: ReturnType<typeof wire> | undefined;
     try {
       await authFixture(directory);
       await mkdir(join(directory, "app/private"), { recursive: true });
@@ -241,8 +255,10 @@ test(
       await build(directory);
       server = await launch(join(directory, ".luciole/server/index.js"));
       const { createApp, Shell } = await importClient(directory);
-      // Holds the next request after its headers (alice's bearer) are set, before it leaves.
+      // Holds the next request after its headers (alice's bearer) are set, before it leaves;
+      // `reached` counts the requests it has held.
       let gate: PromiseWithResolvers<void> | undefined;
+      let reached = 0;
       const app = createApp({
         url: server.url,
         token: "valid",
@@ -250,10 +266,14 @@ test(
         fetch: async (url: URL, init: RequestInit) => {
           const held = gate;
           gate = undefined;
-          if (held) await held.promise;
+          if (held) {
+            reached++;
+            await held.promise;
+          }
           return fetch(url, init);
         },
       });
+      requests = wire(app);
       await app.router.load();
       const ui = await testRender(<Shell app={app} />, { width: 60, height: 10 });
       rendered = ui;
@@ -272,22 +292,23 @@ test(
         const held = Promise.withResolvers<void>();
         gate = held;
         let navigation: Promise<void> | undefined;
+        const before = reached;
+        const heldAtGate = () => until(() => reached > before, WAIT_MS);
         await act(async () => {
           navigation = app.router.navigate({ to: "/private" });
-          if (sentFirst) await Bun.sleep(20);
+          if (sentFirst) await heldAtGate();
           app.setToken(token);
-          await Bun.sleep(20);
+          await heldAtGate();
         });
         await act(async () => {
           held.resolve();
           await navigation;
-          await Bun.sleep(50);
+          await untilFrame(ui, expected);
         });
-        await ui.renderOnce();
         expect(ui.captureCharFrame()).not.toContain(previous);
-        expect(ui.captureCharFrame()).toContain(expected);
       }
     } finally {
+      await act(async () => requests?.settled().catch(() => {}));
       await destroy(rendered);
       if (server) await server.stop();
       await rm(directory, { recursive: true, force: true });
@@ -300,7 +321,9 @@ test(
   "without unauthorizedPath a refused navigation or refresh shows the error in the page slot",
   async () => {
     const directory = await mkdtemp(join(tmpdir(), "luciole-auth-nologin-"));
-    let server: Awaited<ReturnType<typeof launch>> | undefined, rendered: TestUI | undefined;
+    let server: Awaited<ReturnType<typeof launch>> | undefined,
+      rendered: TestUI | undefined,
+      requests: ReturnType<typeof wire> | undefined;
     try {
       await authFixture(directory);
       await mkdir(join(directory, "app/private"), { recursive: true });
@@ -324,6 +347,7 @@ test(
       server = await launch(join(directory, ".luciole/server/index.js"));
       const { createApp, Shell } = await importClient(directory);
       const app = createApp({ url: server.url });
+      requests = wire(app);
       await app.router.load();
       const ui = await testRender(<Shell app={app} />, { width: 60, height: 10 });
       rendered = ui;
@@ -362,6 +386,7 @@ test(
       expect(ui.captureCharFrame()).toContain("LAYOUT");
       expect(ui.captureCharFrame()).toContain("Authentication required");
     } finally {
+      await act(async () => requests?.settled().catch(() => {}));
       await destroy(rendered);
       if (server) await server.stop();
       await rm(directory, { recursive: true, force: true });
