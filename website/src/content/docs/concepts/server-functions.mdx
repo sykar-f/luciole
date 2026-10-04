@@ -11,6 +11,7 @@ sources:
   - examples/notes/app/notes/[id]/page.tsx
   - examples/notes/components/draft.ts
   - examples/notes/components/notes-list.ts
+  - tests/http-transport.test.ts
 ---
 
 import Excerpt from "../../../components/guide/Excerpt.astro";
@@ -107,8 +108,10 @@ done:
 run: the Server calls `authenticate` from `server/auth.ts` before it checks the build.
 
 A thrown argument check is `unknown`, because the framework cannot tell what ran before the
-throw. The transport reports `unknown` for every failure it does not recognise, and it
-**never retries**. Your app decides what comes next:
+throw. The transport reports `unknown` for every failure it does not recognise.
+
+The transport **never retries** a call. `tests/http-transport.test.ts` checks that a failed
+call sends one request, whatever its outcome. Your app decides what comes next:
 
 - retry;
 - look the operation up;

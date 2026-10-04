@@ -172,6 +172,66 @@ test("an action still running when the timeout passes is unknown, and the Server
   expect(saved).toBe(true);
 });
 
+// The transport never retries: a failed call sends one request, whatever its outcome, and
+// the application decides what comes next.
+test("a failed call sends one request, whatever its outcome", async () => {
+  const hang: Fetch = (_url, init) =>
+    new Promise<Response>((_resolve, reject) => {
+      const signal = init.signal;
+      signal?.addEventListener("abort", () => reject(signal.reason));
+    });
+  const failures: readonly { name: string; outcome: string; fetch: Fetch }[] = [
+    {
+      name: "refused connection",
+      outcome: "not-sent",
+      fetch: () => Promise.reject(Object.assign(new Error("refused"), { code: "ECONNREFUSED" })),
+    },
+    {
+      name: "lost connection",
+      outcome: "unknown",
+      fetch: () => Promise.reject(new Error("socket closed")),
+    },
+    { name: "timeout", outcome: "unknown", fetch: hang },
+    {
+      name: "bad request",
+      outcome: "rejected",
+      fetch: stub(() => new Response("Bad", { status: 400 })),
+    },
+    {
+      name: "another build",
+      outcome: "rejected",
+      fetch: stub(() => new Response("Incompatible build", { status: 409 })),
+    },
+    {
+      name: "Server error",
+      outcome: "unknown",
+      fetch: stub(() => new Response("Failed", { status: 500 })),
+    },
+    {
+      name: "invalid response",
+      outcome: "unknown",
+      fetch: stub(() => new Response(`0:${JSON.stringify({ kind: "other" })}\n`)),
+    },
+  ];
+  for (const failure of failures) {
+    let sent = 0;
+    const transport = createHttpTransport({
+      ...base,
+      timeoutMs: 20,
+      fetch: (url, init) => {
+        sent++;
+        return failure.fetch(url, init);
+      },
+    });
+    const error = await rejectionOf(transport.call("actions/a.ts#run", []));
+    expect({
+      name: failure.name,
+      outcome: error instanceof TransportError ? error.outcome : error,
+      sent,
+    }).toEqual({ name: failure.name, outcome: failure.outcome, sent: 1 });
+  }
+});
+
 // A Server Function's answer is checked before its value is used: the envelope the
 // Server writes (src/server.ts), for this call, with string paths only.
 test("an action response outside the envelope schema is a TransportError", async () => {

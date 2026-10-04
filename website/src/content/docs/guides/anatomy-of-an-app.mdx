@@ -111,9 +111,12 @@ draws this save as a sequence of messages.
 ## What the framework does not do for you
 
 The atomic save and the lookup of a lost result are Notes' own code. The framework does not
-guarantee that a save runs exactly once. A call whose response is lost fails as `unknown`, and
-Notes decides what comes next. `tests/http-transport.test.ts` checks that outcome for a call
-that runs past its timeout while the Server finishes it.
+guarantee that a save runs exactly once, and the transport never retries a call. A call whose
+response is lost fails as `unknown`, and Notes decides what comes next. `tests/http-transport.test.ts`
+checks both:
+
+- A failed call sends one request, whatever its outcome.
+- A call that runs past its timeout fails as `unknown`, while the Server finishes it.
 
 When a save's outcome is unknown, Notes looks the operation up on the Server:
 

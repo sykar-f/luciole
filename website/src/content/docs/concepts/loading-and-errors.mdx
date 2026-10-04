@@ -13,6 +13,7 @@ sources:
   - packages/core/src/client.tsx
   - packages/core/src/run.tsx
   - website/scripts/capture.py
+  - tests/transport.test.tsx
 ---
 
 import CodeAndScreen from "../../../components/docs/CodeAndScreen.astro";
@@ -155,7 +156,8 @@ while all goes well, and does not flash after every save.
 - A `401` sends the user to the app's `unauthorizedPath`, if it declares one, without rendering
   protected content. See [authentication](/docs/concepts/authentication/).
 - A `409` means the Server runs another build and refused the request before decoding it. The
-  Client empties the router's cache.
+  Client empties the router's cache. `tests/transport.test.tsx` checks the order: a body the
+  Server cannot decode still gets a `409` from another build.
 
 <Note>
   Loading screens are Client Components on purpose, so that they show without the network. A loading
