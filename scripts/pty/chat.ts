@@ -13,7 +13,6 @@ import { ctrl, drive, Keys } from "./driver";
 import { BUN, CLI, eventually, example, listening, report, temporaryDirectory } from "./harness";
 
 const APP = example("chat");
-const TIMEOUT_MS = 30_000;
 
 // The journey sets its own key and endpoint: none of the user's reaches the app.
 const withoutOpenRouter = Object.fromEntries(
@@ -47,10 +46,10 @@ const results: Record<string, unknown> = {};
 {
   // 1. No key: a clear message, and Enter sends nothing.
   await using t = await launch({ OPENROUTER_BASE_URL: endpoint });
-  await t.waitFor("OPENROUTER_API_KEY is not set on the Server.", { timeout: TIMEOUT_MS });
-  await t.waitFor("$0.10/M in · $0.50/M out", { timeout: TIMEOUT_MS });
+  await t.waitFor("OPENROUTER_API_KEY is not set on the Server.");
+  await t.waitFor("$0.10/M in · $0.50/M out");
   await t.type("hi\r");
-  await t.waitFor("export it and restart", { timeout: TIMEOUT_MS });
+  await t.waitFor("export it and restart");
   assert.equal((await stats()).requests, 0, JSON.stringify(await stats()));
   results.missingKeyMessage = true;
   await t.quit();
@@ -58,7 +57,7 @@ const results: Record<string, unknown> = {};
 
 // 2. With a key: the full journey.
 await using t = await launch({ OPENROUTER_BASE_URL: endpoint, OPENROUTER_API_KEY: "sk-or-fake" });
-const wait = (text: string) => t.waitFor(text, { timeout: TIMEOUT_MS });
+const wait = (text: string) => t.waitFor(text);
 /** Until no reply is streaming: the composer is back to its normal title. */
 const idle = () => wait("─ message ─");
 await wait("Ask anything");

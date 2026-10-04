@@ -16,7 +16,6 @@ const APP = example("flow");
 const ESC = "\x1b";
 const COLS = 160;
 const ROWS = 40;
-const RUN_TIMEOUT_MS = 30_000;
 
 build(APP);
 using directory = temporaryDirectory("flow-pty-");
@@ -107,7 +106,7 @@ await t.type("r");
 await t.waitFor("run #1 · running");
 await t.waitFor((text) => /[━┃]/.test(text) || /[╌╎]/.test(text));
 results.animatedEdges = true;
-await t.waitFor("run #1 · failed", { timeout: RUN_TIMEOUT_MS });
+await t.waitFor("run #1 · failed");
 await t.waitFor("✗ failed");
 await t.waitFor("– skipped");
 await Bun.write(join(ROOT, "docs/flow-pty-frame.txt"), await t.snapshot());

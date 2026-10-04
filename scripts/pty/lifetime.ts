@@ -24,7 +24,6 @@ import {
 /** Lets a key's effect (Ctrl+E focusing the text) land before the next keys arrive. */
 const KEY_SETTLE_MS = 150;
 
-const TIMEOUT_MS = 30_000;
 // The session file is written 200 ms after the last change.
 const SESSION_WRITTEN_MS = 600;
 
@@ -77,7 +76,7 @@ const start = () =>
       LUCIOLE_PING_MS: "500",
     },
   });
-const wait = (t: Driver, text: string) => t.waitFor(text, { timeout: TIMEOUT_MS });
+const wait = (t: Driver, text: string) => t.waitFor(text);
 
 let first: z.infer<typeof LifetimeStatus> | undefined;
 {
@@ -118,7 +117,7 @@ assert.ok(
   await wait(t, "Disconnected");
   process.kill(first.pid, "SIGCONT");
   // Connected again: the status line says nothing when the connection works.
-  await t.waitFor("Disconnected", { timeout: TIMEOUT_MS, absent: true });
+  await t.waitFor("Disconnected", { absent: true });
   assert.ok((await t.text()).includes("unsaved words"), await t.text());
   // Quitting on purpose stops the Server.
   t.write(ctrl("c"));
