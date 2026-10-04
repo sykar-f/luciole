@@ -85,6 +85,7 @@ start = performance.now();
 t.write("S");
 const typed = Math.round((await t.waitFor("Unsaved Draft")) - start);
 results.typingToPTYOutputMs = typed;
+// The claim: typing in the editor is drawn before one simulated round trip.
 assert.ok(typed < LATENCY_MS, JSON.stringify(results));
 await t.type("hip it");
 await t.type(ctrl("s")); // publishes; typing continues meanwhile

@@ -19,6 +19,7 @@ export const example = (name: string) => join(ROOT, "examples", name);
  * of how fast the program should be. The driver's own HANG_MS (driver.ts).
  */
 export const HANG_MS = 30_000;
+/** How long a process has to end on SIGTERM at the end of its scope, before SIGKILL. */
 const STOP_TIMEOUT_MS = 5000;
 
 /** A fresh directory, removed with its content at the end of the scope. */

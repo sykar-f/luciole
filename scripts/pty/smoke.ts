@@ -60,6 +60,7 @@ let loadingMs: number | undefined;
 let loadingRows: number[] | undefined;
 if (latency >= VISIBLE_LOADING_RTT_MS) {
   loadingMs = (await t.waitFor("Loading the note…")) - navigationStart;
+  // The claim: the loading state shows before one round trip ends, not after it.
   assert.ok(loadingMs < latency * 0.8, `loading shown after ${loadingMs} ms`);
   loadingRows = await layoutRows();
 }
@@ -76,6 +77,7 @@ await t.waitFor("● Unsaved", { absent: true });
 const start = performance.now();
 t.write("d");
 const localMs = (await t.waitFor("abcd")) - start;
+// The claim: a keystroke shows while the save (NOTES_DELAY_MS) is still in flight.
 assert.ok(localMs < 500, `typing reached the PTY after ${localMs} ms`);
 // Saved "abc"; the "d" typed meanwhile is the Draft's, still to save.
 await t.waitFor("● Unsaved");
@@ -92,6 +94,7 @@ if (server) {
   const lost = performance.now();
   // Said once it lasts, over the page's own words, and about the text not yet saved.
   lossShownMs = (await t.waitFor("Disconnected")) - lost;
+  // The claim: a short loss goes unmentioned; load can only make it later.
   assert.ok(lossShownMs >= QUIET_MS - 100, `lost connection said after ${lossShownMs} ms`);
   await t.waitFor("Reconnect");
   await t.type(ctrl("e"), KEY_SETTLE_MS);
