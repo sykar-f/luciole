@@ -282,7 +282,7 @@ test("CI logs stream live through Flight, then the rerun unblocks the merge", as
     // Lines arrive one by one while the page stays interactive. The log and the check's
     // row each read their own stream: both have their first line, and the gate holds the
     // rest, so neither can end while the state is read.
-    await waitFor("$ bun test", 8000);
+    await waitFor("$ bun test");
     const partial = await waitFor("◐ test");
     expect(partial).toContain("$ bun test");
     expect(partial).toContain("streaming…");
@@ -292,9 +292,9 @@ test("CI logs stream live through Flight, then the rerun unblocks the merge", as
     await step(() => ui.mockInput.typeText("j"));
     expect((await forge.metrics()).renders).toBe(before.renders);
     await rm(gate);
-    await waitFor("✓ passed (attempt 2)", 15000);
+    await waitFor("✓ passed (attempt 2)");
     // The component that watched a running check invalidates once it ends.
-    await waitFor("✓ test", 5000);
+    await waitFor("✓ test");
     await step(() => ui.mockInput.pressTab());
     await waitFor("Ready to merge");
   } finally {

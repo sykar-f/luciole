@@ -88,7 +88,7 @@ test("under 500 ms RTT: local interactions stay local, preload removes the wait,
     expect(shown).toContain("loading files");
     expect(shown).toContain("Files"); // the persistent tab bar is still there
     const loading = geometry();
-    await forge.waitFor("src/theme.ts", 3000);
+    await forge.waitFor("src/theme.ts");
     expect(performance.now() - start).toBeGreaterThanOrEqual(RTT * 0.9);
     expect(geometry()).toEqual(loading);
   } finally {
