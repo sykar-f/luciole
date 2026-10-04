@@ -1,27 +1,35 @@
-# flow — un pipeline CI sur un canevas de nœuds
+# flow — a CI pipeline on a node canvas
 
-Un éditeur de pipeline dans le terminal : les étapes d'une CI (checkout, install, lint,
-typecheck, test, build, e2e, déploiements) sur un canevas façon React Flow, dessiné par
-[`@luciole-sh/flow-graph`](../../packages/flow-graph/README.md). On les déplace, on en ajoute, on les
-relie, on les renomme, on les supprime, et on lance un run qui les allume l'une après
-l'autre.
+A pipeline editor in your terminal. The steps of a CI (checkout, install, lint, typecheck, test,
+build, e2e, deploys) sit on a canvas like React Flow's, drawn by
+[`@luciole-sh/flow-graph`](../../packages/flow-graph/README.md). You move, add, connect, rename
+and delete steps, then start a run that lights them up one after the other.
 
-## Lancer
+It shows a Server that owns the data, Server Functions that validate every change, and a live
+Server Function that streams a run to every Client.
 
-Sans cloner le dépôt : `luciole example flow` lance cet exemple depuis le tag git de la
-version de luciole installée ([docs/DISTRIBUTION.md](../../docs/DISTRIBUTION.md#exemples)).
-Les variables d'environnement et les clés ci-dessous s'appliquent de la même façon.
+## Run it
 
-Depuis la racine du monorepo (les dépendances sont `workspace:*` et `catalog:` : l'exemple
-ne se lance pas depuis son propre dossier). Prérequis : Bun 1.4.2 et `bun install
---frozen-lockfile` une fois. Aucune clé API, aucun réseau.
+Run the example from a release of luciole, with no clone:
 
 ```sh
-bun run flow                        # dev
-FLOW_RUN_SCALE=0.3 bun run flow     # des runs trois fois plus courts
+bunx luciole.sh example flow
+FLOW_RUN_SCALE=0.3 bunx luciole.sh example flow   # runs three times shorter
 ```
 
-Production, deux artefacts :
+Or from a clone of the repository, at its root. The example depends on workspace packages, so
+it does not start from its own folder. You need Bun 1.4.2, and `bun install --frozen-lockfile`
+once. It needs no API key and no network.
+
+```sh
+bun run flow
+FLOW_RUN_SCALE=0.3 bun run flow
+```
+
+`bun run flow` is `luciole dev --app examples/flow`. You should see the pipeline `web · main`,
+with `never run` in the top line.
+
+To run the production build, a Server and a Client, from the root of the clone:
 
 ```sh
 bun packages/core/src/cli.ts build --app examples/flow
@@ -29,51 +37,78 @@ bun packages/core/src/cli.ts start --role server --app examples/flow
 bun packages/core/src/cli.ts start --role client --app examples/flow --url http://127.0.0.1:3000
 ```
 
-Le canevas tient en entier à partir de ~160 colonnes ; en dessous, `fitView` choisit le
-niveau de zoom `compact` (labels seuls), et `=` revient au détail complet.
+The first `start` prints `{"ready":true,"port":3000,…}`. Run the second in another terminal.
 
-## Ce qui tourne où
+The whole canvas fits from about 160 columns. Below that, `fitView` picks the `compact` zoom
+level, which shows labels only. Press `=` to get the full detail back.
 
-| Où     | Quoi                                                                                                                                                       |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Server | Le pipeline (`server/pipeline.ts`, en mémoire : il repart de zéro à chaque démarrage) et les runs simulés. La page le rend au premier affichage.           |
-| Client | Pan, zoom, drag, sélection, navigation au clavier, inspecteur : aucun aller-retour.                                                                        |
-| Aller  | Server Functions de `actions/pipeline.ts`, arguments validés par Zod : `moveSteps`, `addStep`, `renameStep`, `removeElements`, `connectSteps`, `startRun`. |
-| Retour | `watchRun`, Server Function génératrice lue par `useLive` : chaque avancée du run, pour tous les Clients.                                                  |
+## What to try
 
-Les déplacements partent quand ils se posent : à la fin d'un drag, ou 250 ms après une
-rafale de `H J K L`. Un lien qui fermerait un cycle, un doublon ou une suppression
-pendant un run sont refusés par le Server ; le Client affiche la raison et recharge le
-pipeline tel que le Server le garde (`loadPipeline`), sans rien deviner.
+Press `r` to start a run. Each step starts when all its upstream steps have passed, and the
+steps after a failure are skipped. `e2e` is flaky on purpose: it fails on odd runs, so the
+first run shows a failure and `production` is skipped. Run again and it passes.
 
-Un run démarre chaque étape quand toutes ses étapes amont ont réussi ; après un échec,
-l'aval est sauté. `e2e` est instable exprès : elle échoue aux runs impairs, pour montrer
-un échec. Les arêtes qui mènent à une étape en cours sont animées, celles qui partent
-d'une étape réussie vertes, d'une étape en échec rouges.
+Edges into a running step are animated. Edges out of a passed step are green, and out of a
+failed step red.
 
-## Touches
+| Keys                 | Action                                                 |
+| -------------------- | ------------------------------------------------------ |
+| `tab`, `Shift+tab`   | Next, previous step                                    |
+| `]`, `[`, `}`, `{`   | Downstream, upstream, siblings                         |
+| `h j k l`, `H J K L` | Move the view, move the step                           |
+| `a`                  | Add a step after the selection, linked to it, or alone |
+| `n`                  | Rename the step (`Enter` saves, `Esc` cancels)         |
+| `c`, `tab`…, `Enter` | Connect the step to the proposed target                |
+| `e`, `x`             | Select the step's links, delete the selection          |
+| `r`                  | Start a run                                            |
+| `-`, `=`, `0`        | Zoom out (labels, then dots), zoom in, fit everything  |
 
-| Touches               | Action                                                    |
-| --------------------- | --------------------------------------------------------- |
-| `tab`, `Maj+tab`      | Étape suivante, précédente                                |
-| `]`, `[`, `}`, `{`    | Aval, amont, frères                                       |
-| `h j k l`, `H J K L`  | Déplacer la vue, déplacer l'étape                         |
-| `a`                   | Ajouter une étape après la sélection (reliée), ou seule   |
-| `n`                   | Renommer l'étape (`Entrée` enregistre, `Échap` annule)    |
-| `c`, `tab`…, `Entrée` | Relier l'étape à la cible proposée                        |
-| `e`, `x`              | Sélectionner les liens de l'étape, supprimer la sélection |
-| `r`                   | Lancer un run                                             |
-| `-`, `=`, `0`         | Dézoomer (labels, puis points), zoomer, tout voir         |
+With the mouse:
 
-À la souris : clic pour sélectionner, glisser une étape ou le fond, glisser depuis le
-`●` de l'étape sélectionnée jusqu'à une autre pour les relier, molette pour la vue
-(Ctrl : zoom), clic dans la minimap pour y aller.
+- click to select
+- drag a step or the background
+- drag from the `●` of the selected step to another step to connect them
+- use the wheel to move the view, and Ctrl+wheel to zoom
+- click in the minimap to go there
 
-## Vérification
+## How it is built
 
-`bun run test:pty:flow` ([`scripts/pty/flow.ts`](../../scripts/pty/flow.ts)) construit
-l'exemple, lance Server et Client de production sur un vrai PTY de 160×40 et parcourt :
-tab et `]` → ajout, renommage, suppression → liaison au clavier → clic et drag → run en
-direct (arêtes animées, `e2e` échoue, `production` sautée) → zoom sémantique. Un second
-Client relit ensuite le pipeline : le lien et le déplacement sont bien sur le Server. La
-frame finale est écrite dans `docs/flow-pty-frame.txt` (non versionné).
+Open these files first:
+
+- `server/pipeline.ts` holds the pipeline in memory, so it starts from scratch at each start,
+  and simulates the runs.
+- `actions/pipeline.ts` exposes the Server Functions, with arguments validated by Zod:
+  `loadPipeline`, `moveSteps`, `addStep`, `renameStep`, `removeElements`, `connectSteps`,
+  `startRun`, and the live `watchRun`.
+- `components/PipelineEditor.tsx` wires the canvas to those functions and reads `watchRun` with
+  `useLive`. It is also where the editing keys `a`, `n` and `r` live.
+- `components/StepNode.tsx` draws one step.
+- `app/page.tsx` renders the pipeline on the first display.
+
+Pan, zoom, drag, selection, keyboard navigation and the inspector all stay in the Client, with no
+round trip. Moves are sent when they settle, at the end of a drag or 250 ms after a burst of
+`H J K L`.
+
+The Server refuses a link that would close a cycle, a duplicate, and a deletion during a run.
+The Client then shows the reason and reloads the pipeline as the Server keeps it
+(`loadPipeline`), without guessing.
+
+To check the example, run `bun run test:pty:flow`. [`scripts/pty/flow.ts`](../../scripts/pty/flow.ts)
+builds the example, starts a production Server and Client in a 160×40 PTY, and goes through
+the whole journey above. A second Client then reads the pipeline back, which proves the link and
+the move reached the Server. The last screen goes to `docs/flow-pty-frame.txt`, which git
+ignores.
+
+## Environment variables
+
+The Server reads one.
+
+| Variable         | Default | Role                                                                             |
+| ---------------- | ------- | -------------------------------------------------------------------------------- |
+| `FLOW_RUN_SCALE` | `1`     | Multiplies the duration of a run. Below 1 it is shorter, with a floor of `0.01`. |
+
+## Limits
+
+- The pipeline lives in the Server's memory. Restarting the Server resets it.
+- The runs are simulated: a step takes a time that grows with the length of its name, and runs no command.
+- A pipeline holds at most 60 steps, and a name at most 24 characters.
