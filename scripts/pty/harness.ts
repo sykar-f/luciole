@@ -4,7 +4,7 @@
  * JSON report each journey prints. Every resource is `await using`-disposable, so that a
  * failed assertion still stops the processes it started.
  */
-import { mkdtempSync, realpathSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { z } from "zod";
@@ -158,6 +158,31 @@ export async function eventually(
     if (performance.now() > deadline) return false;
     await Bun.sleep(POLL_MS);
   }
+}
+
+const SessionFields = z
+  .object({ entries: z.array(z.object({ fields: z.record(z.string(), z.string()) }).loose()) })
+  .loose();
+/**
+ * Whether a Client's session file in `directory` keeps `text` in a named field. A Client
+ * writes it a moment after the last change (SAVE_DELAY_MS, packages/core/src/session.ts):
+ * a journey that needs it on disk waits for this, not for a time.
+ */
+export function sessionKeeps(directory: string, text: string) {
+  if (!existsSync(directory)) return false;
+  return readdirSync(directory)
+    .filter((name) => name.endsWith(".json"))
+    .some((name) => {
+      try {
+        const file = SessionFields.parse(JSON.parse(readFileSync(join(directory, name), "utf8")));
+        return file.entries.some((entry) =>
+          Object.values(entry.fields).some((value) => value.includes(text)),
+        );
+      } catch {
+        // Claimed or deleted between the listing and the read.
+        return false;
+      }
+    });
 }
 
 /** Runs `cleanup` at the end of the scope, as a `finally` block would. */

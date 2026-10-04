@@ -18,9 +18,6 @@ import {
   temporaryDirectory,
 } from "./harness";
 
-/** Lets a key's effect (Ctrl+E focusing the text) land before the next keys arrive. */
-const KEY_SETTLE_MS = 150;
-
 // A step that builds Notes, a full build: 16 s on 16 idle cores, so not within the
 // driver's hang guard on a CI runner's four.
 const BUILD_TIMEOUT_MS = 60_000;
@@ -57,8 +54,9 @@ const wait = (text: string, timeout?: number) => t.waitFor(text, { timeout });
 await wait("Welcome to Notes", BUILD_TIMEOUT_MS);
 await t.click("Welcome to Notes");
 await wait("Getting around");
-// Ctrl+E: the cursor at the end of the text.
-await t.type(ctrl("e"), KEY_SETTLE_MS);
+// Ctrl+E: the cursor at the end of the text, shown once editing started.
+t.write(ctrl("e"));
+await t.until(async () => (await t.cursor()).visible, "Ctrl+E never showed the cursor");
 // On a line of its own: the end of the note would wrap it.
 t.write("\rkeep");
 await wait("keep");

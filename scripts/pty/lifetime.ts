@@ -18,14 +18,9 @@ import {
   example,
   HANG_MS,
   report,
+  sessionKeeps,
   temporaryDirectory,
 } from "./harness";
-
-/** Lets a key's effect (Ctrl+E focusing the text) land before the next keys arrive. */
-const KEY_SETTLE_MS = 150;
-
-// The session file is written 200 ms after the last change.
-const SESSION_WRITTEN_MS = 600;
 
 const Session = z.object({ pid: z.number().int() }).loose();
 
@@ -84,12 +79,14 @@ let first: z.infer<typeof LifetimeStatus> | undefined;
   await wait(t, "Welcome to Notes");
   await t.click("Welcome to Notes");
   await wait(t, "Getting around");
-  // Ctrl+E: the cursor at the end of the text.
-  await t.type(ctrl("e"), KEY_SETTLE_MS);
+  // Ctrl+E: the cursor at the end of the text, shown once editing started.
+  t.write(ctrl("e"));
+  await t.until(async () => (await t.cursor()).visible, "Ctrl+E never showed the cursor");
   // On a line of their own: the end of the note would wrap them.
   t.write("\runsaved words");
   await wait(t, "unsaved words");
-  await t.pause(SESSION_WRITTEN_MS);
+  // What comes back after the crash is what reached the session file.
+  await t.until(() => sessionKeeps(sessions, "unsaved words"), "the session never kept the words");
   first = await status(serverSocket());
   assert.ok(first && first.clients === 1, JSON.stringify(first));
   // The Client crashes: its Server waits in grace instead of going with it.
@@ -111,7 +108,7 @@ assert.ok(
   await wait(t, "● Unsaved");
   // The note opens at its top, taller than the pane: Ctrl+E brings its end, where the
   // words were typed, into view.
-  await t.type(ctrl("e"), KEY_SETTLE_MS);
+  t.write(ctrl("e"));
   await wait(t, "unsaved words");
   const again = await status(path);
   assert.ok(again?.pid === first.pid && again.graceUntil === undefined, JSON.stringify(again));
