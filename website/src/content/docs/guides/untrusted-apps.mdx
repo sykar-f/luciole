@@ -61,40 +61,62 @@ the network (user namespaces or bubblewrap). Elsewhere nothing opens without an 
 
 ## Capabilities
 
-An app declares what it may do in the `luciole.capabilities` field of its `package.json`,
-readable before anything runs; the build copies it into the signed manifest and warns about
-Node built-ins the Client bundle uses without declaring them.
+An app declares what it may do in the `luciole.capabilities` field of its `package.json`. The
+field is readable before anything runs. The build copies it into the signed manifest, and warns
+about Node built-ins the Client bundle uses without declaring them.
 
-| Capability                          | Grants                                                                    |
-| ----------------------------------- | ------------------------------------------------------------------------- |
-| `fs.read`, `fs.write`               | files, by path                                                            |
-| `net`                               | outgoing connections, by host, or `*`                                     |
-| `exec`                              | running programs, by binary                                               |
-| `pty`                               | pseudo-terminals                                                          |
-| `clipboard.read`, `clipboard.write` | the clipboard                                                             |
-| `notify`, `open-url`, `secrets`     | notifications, opening an http(s) URL, the keychain entries of the origin |
-| `input.global`, `tabs.message`      | keys typed in other tabs, messages between tabs                           |
+```json
+{
+  "luciole": {
+    "capabilities": {
+      "fs": { "read": ["/home/me/notes"] },
+      "net": ["api.example.com"],
+      "openUrl": true
+    }
+  }
+}
+```
 
-The capabilities an app declares are accepted once per origin; flags add to them:
-`--allow-read=…`, `--allow-write=…`, `--allow-net=…`, `--allow-exec[=…]`,
-`--allow-secrets=…`, `--allow-clipboard-read`, `--allow-clipboard-write`, `--allow-notify`,
-`--allow-open-url`, `--allow-input-global`, `--allow-tabs-message`. Everything is remembered
-in the origin's `origin.json`.
+The table gives each key with the flag that grants the same thing. `fs.read` is the `read` key
+of `fs`, and `clipboard.read` is the `read` key of `clipboard`. Every key defaults to nothing.
+
+<Note kind="warning">
+  The runtime ignores a key that is not in this table, without a warning. A misspelled key, such as
+  `open-url` in place of `openUrl`, grants nothing.
+</Note>
+
+| Key               | Flag                        | What it grants                                                       |
+| ----------------- | --------------------------- | -------------------------------------------------------------------- |
+| `fs.read`         | `--allow-read=<paths>`      | reading files under absolute paths                                   |
+| `fs.write`        | `--allow-write=<paths>`     | writing files under absolute paths                                   |
+| `net`             | `--allow-net=<hosts>`       | outgoing connections to `host`, `*.host` or `host:port`, or `*`      |
+| `exec`            | `--allow-exec[=<binaries>]` | running programs: `true` for any, or a list of absolute binary paths |
+| `pty`             | `--allow-pty`               | pseudo-terminals                                                     |
+| `clipboard.read`  | `--allow-clipboard-read`    | reading the clipboard                                                |
+| `clipboard.write` | `--allow-clipboard-write`   | writing the clipboard                                                |
+| `notify`          | `--allow-notify`            | desktop notifications                                                |
+| `openUrl`         | `--allow-open-url`          | opening an http(s) URL                                               |
+| `secrets`         | `--allow-secrets=<names>`   | the keychain entries of the origin, by name                          |
+| `inputGlobal`     | `--allow-input-global`      | keys typed in other tabs                                             |
+| `tabsMessage`     | `--allow-tabs-message`      | messages between tabs                                                |
+
+You accept the capabilities an app declares once per origin. Pass the flags when you open the
+URL to add to them. `luciole` remembers everything in the origin's `origin.json`.
 
 **Declaring is not enforcing.** Only the `sandbox` mode enforces capabilities. A capability
 is shown as enforced only if something enforces it.
 
 ## Who enforces what
 
-| Capability                                     | macOS                                                         | Linux                                                                  |
-| ---------------------------------------------- | ------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| `fs.read`, `fs.write`                          | the OS (Seatbelt, by path)                                    | Landlock (plus bubblewrap's mounts under bubblewrap)                   |
-| `net` by host                                  | a proxy held by the host; the OS limits the child to its port | the proxy; a network namespace; refused with Landlock alone            |
-| `net: *`                                       | the OS                                                        | the OS                                                                 |
-| `exec`                                         | the OS                                                        | Landlock; refused under bubblewrap without Landlock                    |
-| `pty`                                          | **refused**: the rule would open the user's other terminals   | a private devpts (namespaces, bubblewrap); refused with Landlock alone |
-| `clipboard.*`, `notify`, `open-url`, `secrets` | the host: the direct way is blocked by the OS                 | the host: seccomp refuses Unix sockets (D-Bus, Wayland, X11)           |
-| `input.global`, `tabs.message`                 | the host (IPC)                                                | the host (IPC)                                                         |
+| Capability                                    | macOS                                                         | Linux                                                                  |
+| --------------------------------------------- | ------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `fs.read`, `fs.write`                         | the OS (Seatbelt, by path)                                    | Landlock (plus bubblewrap's mounts under bubblewrap)                   |
+| `net` by host                                 | a proxy held by the host; the OS limits the child to its port | the proxy; a network namespace; refused with Landlock alone            |
+| `net: *`                                      | the OS                                                        | the OS                                                                 |
+| `exec`                                        | the OS                                                        | Landlock; refused under bubblewrap without Landlock                    |
+| `pty`                                         | **refused**: the rule would open the user's other terminals   | a private devpts (namespaces, bubblewrap); refused with Landlock alone |
+| `clipboard.*`, `notify`, `openUrl`, `secrets` | the host: the direct way is blocked by the OS                 | the host: seccomp refuses Unix sockets (D-Bus, Wayland, X11)           |
+| `inputGlobal`, `tabsMessage`                  | the host (IPC)                                                | the host (IPC)                                                         |
 
 The capabilities the host mediates reach it through `host` from `@luciole-sh/core/client`
 (`host.clipboard.write(text)`, `host.notify(…)`, `host.openUrl(url)`, `host.secret(name)`…),
