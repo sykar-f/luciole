@@ -10,6 +10,7 @@ sources:
 import CopyCommand from "../../../components/CopyCommand.astro";
 import Note from "../../../components/docs/Note.astro";
 import Screen from "../../../components/Screen.astro";
+import Sequence from "../../../components/guide/Sequence.astro";
 import { commands } from "../../../lib/product";
 
 The DevTools show what a running luciole app does, as Chrome DevTools and React DevTools do
@@ -180,6 +181,50 @@ probabilities while the app runs. The variables of
 [Latency and faults](/docs/guides/latency-and-faults/) set the same conditions, at startup
 only. The DevTools add their latency before a request is sent, so Network shows it as
 waiting.
+
+## How the events reach the panels
+
+The DevTools are a luciole app themselves. The app you inspect gains two agents, one in its
+Client and one in its Server. Both send what happens to the DevTools' Server, which keeps it and
+streams it to the panels:
+
+<Sequence
+  title="From events to panels"
+  lanes={[
+    { id: "client", label: "Inspected Client", sub: "its agent", tone: "client" },
+    { id: "server", label: "Inspected Server", sub: "its agent", tone: "server" },
+    { id: "bus", label: "DevTools Server", sub: "the event log", tone: "neutral" },
+    { id: "ui", label: "DevTools Client", sub: "the 7 panels", tone: "neutral" },
+  ]}
+  messages={[
+    { phase: "The app starts" },
+    { from: "client", to: "bus", label: "hello: role, process ID, app", n: 1 },
+    { from: "server", to: "bus", label: "hello", n: 2 },
+    { phase: "The app runs" },
+    { from: "client", to: "bus", label: "requests, renders, keys, logs", n: 3 },
+    { from: "server", to: "bus", label: "requests, cache reads, logs", n: 4 },
+    { from: "bus", to: "bus", label: "checks each event, keeps 100,000", n: 5 },
+    { from: "ui", to: "bus", label: "subscribe, a live Server Function", n: 6, back: true },
+    { from: "bus", to: "ui", label: "the events, in batches", n: 7 },
+    { phase: "A panel acts" },
+    { from: "ui", to: "bus", label: "a command: refresh, invalidate…", n: 8, back: true },
+    { from: "bus", to: "client", label: "the command, to the Client's agent", n: 9, back: true },
+  ]}
+  caption="Every request carries a call ID, in the Client's events and in the Server's. The Network panel joins them on it, so one line holds the key, the request, the cache reads and the Server's logs."
+/>
+
+What the agents change in the app you inspect:
+
+- **Nothing in what your Server's `instrument` sees.** `serve({ instrument })` receives the same
+  events, with or without the DevTools.
+- **Nothing in its speed.** While no DevTools listen, an agent keeps the last 2,000 events and
+  sends them once the DevTools connect. When the DevTools read too slowly, the agent drops
+  events and then reports how many.
+- **Nothing in the DevTools themselves.** They start without `LUCIOLE_DEVTOOLS` and without the
+  preload, so they never inspect their own process.
+
+The DevTools' Server checks each event it receives. The status line counts the ones it refuses
+as `rejected`.
 
 ## Export a recording and replay it
 
