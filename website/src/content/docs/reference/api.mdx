@@ -1430,12 +1430,10 @@ cache, a recorder or a replay is a decorator.
 import { createApplication, TransportError } from "@luciole-sh/core/client";
 ```
 
-| Option                  | Contract                                                                                   | Default                  |
-| ----------------------- | ------------------------------------------------------------------------------------------ | ------------------------ |
-| `transport?`            | Replaces the default transport.                                                            | the HTTP transport below |
-| `wrapTransport?(inner)` | Receives the transport in use, `transport` or the default one, and returns the one to use. | none                     |
-
-A transport implements three methods:
+`transport` and `wrapTransport` are options of `createApplication`. The
+[table of its options](#find-what-hosts-and-generated-code-use) gives their types and defaults.
+`wrapTransport(inner)` receives the transport in use, `transport` or the default one, and
+returns the one to use. A transport implements three methods:
 
 <Excerpt
   path="packages/core/src/transport.ts"
@@ -1444,38 +1442,20 @@ A transport implements three methods:
   tone="wire"
 />
 
-| Method                                               | Contract                                                                                                 |
-| ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `render(routeId, params, signal, search?, context?)` | Resolves with the root of the page's Flight model. Suspense content and async iterables stream after it. |
-| `call(actionId, args, signal?, context?)`            | Resolves with the Server Function's value.                                                               |
-| `setToken(token?)`                                   | Sets the token sent with each later request, or removes it.                                              |
+`setToken(token?)` sets the token sent with each later request, or removes it.
 
-`context` carries the request's `cause`, which the events report. Its `onTags` receives the
-`"use cache"` tags the page read, once its render has ended.
+### What the default HTTP transport adds
 
-### The default HTTP transport
+When `transport` is absent, `createApplication` builds the HTTP transport from `url`,
+`buildId`, `token`, `timeoutMs`, `latencyMs`, `network` and `fetch`. The HTTP transport itself
+is not exported. Besides sending each request, it:
 
-When `transport` is absent, `createApplication` builds the HTTP transport from these options.
-The HTTP transport itself is not exported.
+- sends the build ID, and the token as `Authorization: Bearer <token>`
+- hands the app the paths and tags a Server Function invalidated
+- reports each request's events to `useApplication().onEvent`
 
-| Option       | Contract                                                                                           | Default            |
-| ------------ | -------------------------------------------------------------------------------------------------- | ------------------ |
-| `url`        | The Server's URL.                                                                                  | required           |
-| `buildId`    | Sent with each request. A Server of another build answers 409.                                     | required           |
-| `token?`     | The token, sent as `Authorization: Bearer <token>`.                                                | none               |
-| `timeoutMs?` | How long to wait for the root of an answer, in milliseconds. The stream behind it may last longer. | `10000`            |
-| `latencyMs?` | A simulated round-trip latency added to each request, in milliseconds.                             | `0`                |
-| `network?`   | Simulated jitter, slow chunks and faults ([latency and faults](/docs/guides/latency-and-faults/)). | none               |
-| `fetch?`     | The function that sends each request.                                                              | the global `fetch` |
-
-The HTTP transport also hands the app the paths and tags a Server Function invalidated, and
-reports each request's events to `useApplication().onEvent`.
-
-`createApplication` throws `latencyMs must be a finite non-negative number` for a negative or
-infinite `latencyMs`. The same message names `jitterMs` or `chunkDelayMs` of `network`.
-
-A failed request rejects with a `TransportError`, whose `outcome` says whether the Server ran
-anything:
+A failed request rejects with a `TransportError`. Its `outcome` follows from what the Server
+answered ([what each outcome means](#reach-the-app-and-its-connection)):
 
 | What happened                                              | Error                                                      | `outcome`  |
 | ---------------------------------------------------------- | ---------------------------------------------------------- | ---------- |
