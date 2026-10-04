@@ -208,10 +208,11 @@ function described(headline: string, state?: () => string) {
 const timedOut = (state?: () => string) => described("Condition timed out", state);
 
 /**
- * The waits of `until` and `eventually` still polling. bun's timeout for a test that sets
- * none (20 s in `bun run test`) ends it before `WAIT_MS` ends its wait, and reports it
- * without what the wait would have said. After each test, a wait still polling prints its
- * state under that test, then stops where it stands: the abandoned test runs no further.
+ * The waits of `until`, `eventually`, `untilFrame` and `untilDrawn` still polling. bun's
+ * timeout for a test that sets none (20 s in `bun run test`) ends it before `WAIT_MS` ends
+ * its wait, and reports it without what the wait would have said. After each test, a wait
+ * still polling prints its state under that test, then stops where it stands: the
+ * abandoned test runs no further.
  */
 type Wait = { start: number; state?: () => string; ended: boolean };
 const waiting = new Set<Wait>();
@@ -294,15 +295,21 @@ export async function exited(child: { exited: Promise<number>; kill(): void }, t
  * machine only makes the wait longer.
  */
 export async function untilFrame(ui: TestUI, text: string, timeout = WAIT_MS) {
-  const start = performance.now();
-  for (;;) {
-    await act(async () => {
-      await ui.renderOnce();
-    });
-    const frame = ui.captureCharFrame();
-    if (frame.includes(text)) return frame;
-    if (performance.now() - start > timeout) throw new Error(timedOut(() => frame));
-    await Bun.sleep(10);
+  let frame = "";
+  const wait = watched(() => frame);
+  try {
+    for (;;) {
+      if (wait.ended) return abandoned();
+      await act(async () => {
+        await ui.renderOnce();
+      });
+      frame = ui.captureCharFrame();
+      if (frame.includes(text)) return frame;
+      if (performance.now() - wait.start > timeout) throw new Error(timedOut(() => frame));
+      await Bun.sleep(10);
+    }
+  } finally {
+    waiting.delete(wait);
   }
 }
 
@@ -321,28 +328,36 @@ function answering(node: Renderable): Promise<unknown>[] {
  * It waits on those answers, not on time; WAIT_MS only guards against a hang.
  */
 export async function untilDrawn(ui: TestUI, text = "") {
-  const deadline = performance.now() + WAIT_MS;
+  let frame = "";
+  let pending: Promise<unknown>[] = [];
+  const wait = watched(() => `${pending.length} still answering, frame:\n${frame}`);
+  const deadline = wait.start + WAIT_MS;
   let drawn: string | undefined;
-  for (;;) {
-    await act(async () => {
-      await ui.renderOnce();
-    });
-    const pending = answering(ui.renderer.root);
-    const frame = ui.captureCharFrame();
-    if (!pending.length && frame === drawn) return frame;
-    drawn = pending.length || !frame.includes(text) ? undefined : frame;
-    const left = deadline - performance.now();
-    if (left < 0) throw new Error(timedOut(() => frame));
-    if (!pending.length) {
-      // A turn of the event loop, not a delay: what is due (a timer, I/O) runs first.
-      await act(() => new Promise<void>((done) => setImmediate(done)));
-      continue;
+  try {
+    for (;;) {
+      if (wait.ended) return abandoned();
+      await act(async () => {
+        await ui.renderOnce();
+      });
+      pending = answering(ui.renderer.root);
+      frame = ui.captureCharFrame();
+      if (!pending.length && frame === drawn) return frame;
+      drawn = pending.length || !frame.includes(text) ? undefined : frame;
+      const left = deadline - performance.now();
+      if (left < 0) throw new Error(timedOut(() => frame));
+      if (!pending.length) {
+        // A turn of the event loop, not a delay: what is due (a timer, I/O) runs first.
+        await act(() => new Promise<void>((done) => setImmediate(done)));
+        continue;
+      }
+      // The hang guard, not a wait: it only ends the wait when an answer never comes.
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const hang = new Promise<void>((done) => (timer = setTimeout(done, left)));
+      await act(() => Promise.race([Promise.allSettled(pending), hang]));
+      clearTimeout(timer);
     }
-    // The hang guard, not a wait: it only ends the wait when an answer never comes.
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const hang = new Promise<void>((done) => (timer = setTimeout(done, left)));
-    await act(() => Promise.race([Promise.allSettled(pending), hang]));
-    clearTimeout(timer);
+  } finally {
+    waiting.delete(wait);
   }
 }
 

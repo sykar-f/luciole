@@ -1,4 +1,5 @@
 import React from "react";
+import { createInterface } from "node:readline";
 import { z } from "zod";
 import {
   registerClientReference,
@@ -7,11 +8,13 @@ import {
   decodeReply,
 } from "../packages/core/src/flight/server";
 let saved = "";
+// The test releases each save with a line on stdin: the save stays in flight for as long as
+// the test types, however slow the host.
+const releases = createInterface({ input: process.stdin })[Symbol.asyncIterator]();
 const Editor = registerClientReference((_props: { save: typeof save }) => null, "editor", "Editor");
 const save = registerServerReference(
   async (value: string) => {
-    // Simulated time, not a wait: a slow save, still in flight while the test types.
-    await Bun.sleep(400);
+    await releases.next();
     saved = value;
     return { value, pid: process.pid };
   },
