@@ -53,6 +53,9 @@ const card = Astro.site && !Astro.site.hostname.endsWith("github.com") ? new URL
       ]}
     />
     <Font cssVariable="--font-jetbrains-mono" preload={[{ subset: "latin" }]} />
+    {/* The box, block and arrow glyphs of JetBrains Mono: same family, own unicode-range, so it is
+        fetched only by the pages that draw one, and never preloaded. */}
+    <Font cssVariable="--font-jetbrains-symbols" />
     <title>{title}</title>
     <script is:inline define:vars={{ dev, palettes }}>
       // Before the first paint: the colours asked for in the address (?tint=, ?dominant=,
