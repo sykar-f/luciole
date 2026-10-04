@@ -45,7 +45,7 @@ The Server outlives the Client for a grace period (15 minutes by default, `--gra
 `0` stops at once): a Client that crashes and comes back finds the same Server, its
 state, its route and its named fields. Quitting with <kbd>Ctrl+C</kbd> stops it at once when
 it was the last Client. How launches share a Server is the app's choice
-([`luciole.server`](/docs/reference/package-json/#server-and-grace)).
+([`luciole.server`](/docs/reference/package-json/#choose-which-launches-share-a-server)).
 
 During development, `luciole dev --app <dir>` builds, starts both processes, and rebuilds on
 every change; the Client reopens the same page ([session restore](/docs/concepts/session-restore/)).

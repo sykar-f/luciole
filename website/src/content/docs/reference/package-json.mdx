@@ -14,29 +14,34 @@ sources:
 import Excerpt from "../../../components/guide/Excerpt.astro";
 import Note from "../../../components/docs/Note.astro";
 
-What an app says about itself, for the places that show it or launch it without running it,
-lives in the `luciole` field of its `package.json`. Every field is optional.
+This page lists the fields of the `luciole` object in an app's `package.json`. They tell hosts
+and the launcher what the app is, without running it. Every field is optional.
 
 <Excerpt path="examples/notes/package.json" find='"version"' until='"icon"' tone="neutral" />
 
-The build reads the field **before** building, so a wrong value stops it at once, and writes
-`.luciole/metadata.json` with defaults applied, plus `.luciole/icon.png`. A host reads that
-output, never the app's sources; `AppMetadata` in `@luciole-sh/core/metadata` is its schema.
+The build reads the field **before** building, so a wrong value stops it at once. Then it
+writes two files:
+
+- `.luciole/metadata.json`, with the defaults applied
+- `.luciole/icon.png`, when the app declares an icon
+
+A host reads that output, never the app's sources. `AppMetadata` in
+`@luciole-sh/core/metadata` is its schema.
 
 ## What hosts show
 
-| Field                 | Value                                                                                                        |
-| --------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `luciole.displayName` | The name people read: a window's title, a menu, the Dock. 1 to 64 characters. Default: the directory's name. |
-| `luciole.identifier`  | Reverse DNS (`com.example.notes`): the macOS bundle identifier.                                              |
-| `luciole.icon`        | A square PNG of 512 pixels or more (1024 for Retina), relative to the app's directory.                       |
-| `version`             | The package's own field: the version of a desktop bundle.                                                    |
-| `description`         | The package's own field.                                                                                     |
+| Field                 | Value                                                                               | Default              |
+| --------------------- | ----------------------------------------------------------------------------------- | -------------------- |
+| `luciole.displayName` | The name people read: a window's title, a menu, the Dock. 1 to 64 characters.       | the directory's name |
+| `luciole.identifier`  | Reverse DNS, such as `com.example.notes`: the macOS bundle identifier.              | none                 |
+| `luciole.icon`        | A square PNG, relative to the app's directory. 512 pixels or more, 1024 for Retina. | none                 |
+| `version`             | The package's own field: the version of a desktop bundle.                           | none                 |
+| `description`         | The package's own field.                                                            | none                 |
 
-The app's **name** is not declared: it is its directory's name, which names binaries,
-sessions and sockets. Only `displayName` is meant to be read.
+The app's **name** is not declared. It is its directory's name, which names binaries,
+restored sessions and sockets. Only `displayName` is meant to be read.
 
-## Server and grace
+## Choose which launches share a Server
 
 ```jsonc
 { "luciole": { "server": "per-launch", "grace": "10m" } }
@@ -48,19 +53,25 @@ sessions and sockets. Only `displayName` is meant to be read.
 | `per-directory`    | launches from the same directory | an app that writes where it is launched  |
 | `per-launch`       | none: each launch has its own    | coder: one agent session per launch      |
 
-With `per-launch`, a Client that died leaves its Server in its grace period, and the next
-launch from the same directory with the same arguments reclaims it (and the session the
-Client left); `--new` always starts afresh. In every case, launches with different
-[arguments](/docs/reference/app-arguments/) never share a Server.
+With `per-launch`, a Client that died leaves its Server in its grace period. The next launch
+from the same directory with the same arguments reclaims that Server, and the restored session
+the Client left. `--new` always starts afresh.
 
-`luciole.grace` is how long a Server waits for a lost Client before stopping: a duration such
-as `15m`, `30s`, `1h`, or `0` to stop at once. The default is 15 minutes; `--grace` on the
-command line wins.
+In every case, launches with different [arguments](/docs/reference/app-arguments/) never share
+a Server.
 
-## Capabilities
+## Set how long a Server waits for a lost Client
+
+`luciole.grace` is how long a Server waits for a lost Client before it stops.
+
+- Value: a duration such as `15m`, `30s` or `1h`, or `0` to stop at once.
+- Default: `15m`.
+- `--grace` on the command line wins over the field.
+
+## Declare what the app may do
 
 `luciole.capabilities` declares what the app may do, for the generic Client's `sandbox` mode
-([apps you did not write](/docs/guides/untrusted-apps/)). Every field defaults to nothing.
+([apps you did not write](/docs/guides/untrusted-apps/)).
 
 ```jsonc
 {
@@ -81,35 +92,61 @@ command line wins.
 }
 ```
 
-The build copies the field into the app bundle's manifest, and compares it with the Node
-built-ins the Client bundle requires (`fs` implies `fs.read`/`fs.write`, `child_process`
-implies `exec`, `net`, `http`, `tls`… imply `net`): it warns about what is used without being
-declared. **Declaring is not enforcing**: only the `sandbox` mode applies capabilities.
+| Field             | Value                                                               | Default |
+| ----------------- | ------------------------------------------------------------------- | ------- |
+| `fs.read`         | Absolute paths the app may read.                                    | `[]`    |
+| `fs.write`        | Absolute paths the app may write.                                   | `[]`    |
+| `net`             | Hosts the app may reach, with `*.` wildcards and ports, or `["*"]`. | `[]`    |
+| `exec`            | `true`, or the absolute paths of the programs the app may run.      | `false` |
+| `pty`             | `true`: the app may open a PTY.                                     | `false` |
+| `clipboard.read`  | `true`: the app may read the clipboard.                             | `false` |
+| `clipboard.write` | `true`: the app may write the clipboard.                            | `false` |
+| `notify`          | `true`: the app may show notifications.                             | `false` |
+| `openUrl`         | `true`: the app may open URLs in the browser.                       | `false` |
+| `secrets`         | The names of the secrets the host may hand the app.                 | `[]`    |
+| `inputGlobal`     | `true`: the app may receive global keys.                            | `false` |
+| `tabsMessage`     | `true`: the app may send messages to its other tabs.                | `false` |
 
-## Published apps
+The build copies the field into the app bundle's manifest. It also compares the field with the
+Node built-ins the Client bundle requires, and warns about what is used without being declared:
 
-An app published to npm adds, to its main package, what the launcher installs from:
+| Built-in                              | Implies                 |
+| ------------------------------------- | ----------------------- |
+| `fs`, `fs/promises`                   | `fs.read` or `fs.write` |
+| `child_process`                       | `exec`                  |
+| `net`, `http`, `https`, `tls`, `dns`… | `net`                   |
 
-| Field              | Value                                                             |
-| ------------------ | ----------------------------------------------------------------- |
-| `luciole.name`     | The command and installation directory                            |
-| `luciole.buildId`  | The build every platform binary comes from                        |
-| `luciole.binaries` | The package of each target (`bun-darwin-arm64`, `bun-linux-x64`…) |
+<Note kind="warning">
+  Declaring is not enforcing. Only the `sandbox` mode applies capabilities: an app opened another
+  way runs with your rights, whatever it declares.
+</Note>
+
+## Add the fields of a published app
+
+An app published to npm adds these fields to its main package. The launcher installs the app
+from them.
+
+| Field              | Value                                                                      |
+| ------------------ | -------------------------------------------------------------------------- |
+| `luciole.name`     | The command and the installation directory.                                |
+| `luciole.buildId`  | The build every platform binary comes from.                                |
+| `luciole.binaries` | The package of each target, such as `bun-darwin-arm64` or `bun-linux-x64`. |
 
 `luciole pack` writes these packages from compiled binaries
 ([build and distribution](/docs/reference/build-and-distribution/#publishing-to-npm)).
 
-## `luciole.json`
+## Keep packages on the Server with `luciole.json`
 
-An optional file next to `package.json`, for one setting: third-party packages that must stay
-on the Server although they do not say so themselves.
+`luciole.json` is an optional file next to `package.json`, with one setting. `serverPackages`
+lists the third-party packages that must stay on the Server although they do not say so
+themselves.
 
 ```json
 { "serverPackages": ["@prisma/client", "bcrypt"] }
 ```
 
 <Note>
-  `app/args.ts` is not a `package.json` field, but the build writes its JSON Schema into
-  `.luciole/metadata.json` as `args`, next to these fields: a host can list an app's options without
-  running it.
+  `app/args.ts` is not a `package.json` field. The build still writes its JSON Schema into
+  `.luciole/metadata.json` as `args`, next to these fields, so a host can list an app's options
+  without running it.
 </Note>
