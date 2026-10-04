@@ -48,29 +48,33 @@ export const build: Command = {
       compiled?: Awaited<ReturnType<typeof compileClient>>;
       outside?: { outfile: string; staged: string };
     } = {};
+    const stage = async (directory: string) => {
+      staging.directory = directory;
+      if (web) staging.web = await installWebRuntime(directory, { local });
+      if (!compile) return;
+      if (compile.outfile) {
+        const outfile = resolve(compile.outfile);
+        staging.outside = { outfile, staged: stagingName(outfile) };
+      }
+      // The app binary holds the Server too (src/launcher/binary.ts); --client-only keeps
+      // it out of what the terminal's machine receives.
+      staging.compiled = await (clientOnly ? compileClient : compileApp)(directory, {
+        ...compile,
+        outfile: staging.outside?.staged,
+      });
+    };
     try {
       const result = await buildApplication(directory, undefined, {
         appBundle: flag("--app-bundle") || web ? "required" : "auto",
         signBundle,
         webServer: local,
-        stage: async (temp) => {
-          staging.directory = temp;
-          if (web) staging.web = await installWebRuntime(temp, { local });
-          if (!compile) return;
-          if (compile.outfile) {
-            const outfile = resolve(compile.outfile);
-            staging.outside = { outfile, staged: stagingName(outfile) };
-          }
-          // The app binary holds the Server too (src/launcher/binary.ts); --client-only keeps
-          // it out of what the terminal's machine receives.
-          staging.compiled = await (clientOnly ? compileClient : compileApp)(temp, {
-            ...compile,
-            outfile: staging.outside?.staged,
-          });
-        },
+        stage,
       });
+      // An up-to-date build returns before it stages anything: --web and --compile then
+      // act on the output already there, as they do on every repeated build.
+      if (!staging.directory) await stage(result.output);
       const { directory: staged, compiled, outside } = staging;
-      if (!staged) throw new Error("the build published without staging");
+      if (!staged) throw new Error("the build staged nothing");
       if (outside) await moveStaged(outside.staged, outside.outfile);
       // Where a staged file ended up: the staging directory became `result.output`.
       const published = (file: string) => join(result.output, relative(staged, file));
@@ -95,7 +99,10 @@ export const build: Command = {
             "connect to your Server, build with --client-only.",
         );
     } finally {
-      if (staging.outside) await rm(staging.outside.staged, { force: true });
+      if (staging.outside) {
+        await rm(staging.outside.staged, { force: true });
+        await rm(`${staging.outside.staged}.exe`, { force: true });
+      }
     }
   },
 };

@@ -4,6 +4,8 @@ import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { build, publish } from "../packages/core/src/build";
 import { readBuildId } from "../packages/core/src/compile";
+import { webRuntimeDirectory } from "../packages/core/src/web-runtime";
+import { TREE_SITTER_DIRECTORY, WEB_RUNTIME_FILES } from "../packages/core/src/web/build";
 import { messageOf } from "../packages/core/src/guards";
 import { BUILD_TEST_MS, execute, readManifest, rejectionOf, temporaryApp } from "./helpers";
 async function fixture(files: Record<string, string>, run: (dir: string) => Promise<void>) {
@@ -210,6 +212,54 @@ test(
       expect((await readdir(join(dir, ".luciole/bin"))).length).toBe(1);
     } finally {
       await rm(dir, { recursive: true, force: true });
+    }
+  },
+  BUILD_TEST_MS * 3,
+);
+test(
+  "a repeated identical build succeeds, plain, with --web and with --compile",
+  async () => {
+    const dir = await temporaryApp("repeat-build");
+    const cache = await mkdtemp(join(tmpdir(), "luciole-web-cache-"));
+    try {
+      await mkdir(join(dir, "app"));
+      await Bun.write(
+        join(dir, "app/layout.tsx"),
+        `"use client";export default function Layout({children}){return children}`,
+      );
+      await Bun.write(
+        join(dir, "app/page.tsx"),
+        "export default function Page(){return <text>ok</text>}",
+      );
+      // A web runtime already prepared in the cache: no network, no Zig.
+      const runtime = await webRuntimeDirectory(join(cache, "luciole"));
+      await mkdir(join(runtime, TREE_SITTER_DIRECTORY), { recursive: true });
+      for (const name of [...WEB_RUNTIME_FILES, "runtime.js.map", "web-runtime.json"])
+        await Bun.write(join(runtime, name), name);
+      const cli = (...flags: string[]) =>
+        execute([process.execPath, resolve("packages/core/src/cli.ts"), "build", ...flags], {
+          cwd: dir,
+          env: { ...process.env, XDG_CACHE_HOME: cache },
+        });
+      const cases: { flags: string[]; artefact?: string }[] = [
+        { flags: [] },
+        { flags: ["--web"], artefact: "web/index.html" },
+        { flags: ["--compile", "--runtime", "host"], artefact: "bin" },
+      ];
+      for (const { flags, artefact } of cases) {
+        const first = await cli(...flags);
+        expect(first.stderr.toString().replace(/^Warning: .*\n?/gm, "")).toBe("");
+        expect(first.exitCode).toBe(0);
+        const { buildId } = await readManifest(dir);
+        const again = await cli(...flags);
+        expect(again.stderr.toString().replace(/^Warning: .*\n?/gm, "")).toBe("");
+        expect(again.exitCode).toBe(0);
+        expect((await readManifest(dir)).buildId).toBe(buildId);
+        if (artefact) expect(await stat(join(dir, ".luciole", artefact))).toBeDefined();
+      }
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+      await rm(cache, { recursive: true, force: true });
     }
   },
   BUILD_TEST_MS * 3,
