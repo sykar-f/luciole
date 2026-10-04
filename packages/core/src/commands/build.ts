@@ -7,17 +7,17 @@ import { publisherIdentity, readPublisherKey } from "../publisher";
 import { installWebRuntime } from "../web-runtime";
 import type { Command } from "./command";
 // What only `--compile` reads: given without it, they would be dropped in silence.
-const COMPILE_FLAGS = [
-  "--name",
-  "--client-only",
-  "--target",
-  "--runtime",
-  "--portable",
-  "--native-dir",
-  "--outfile",
-  "--sign",
-  "--notarize",
-];
+const COMPILE_FLAGS = {
+  "--name": "value",
+  "--client-only": "switch",
+  "--target": "value",
+  "--runtime": "value",
+  "--portable": "switch",
+  "--native-dir": "value",
+  "--outfile": "value",
+  "--sign": "value",
+  "--notarize": "value",
+} as const;
 /** Where a binary bound for `outfile` is staged: beside it, so the last move is a rename. */
 const stagingName = (outfile: string) =>
   join(dirname(outfile), `.staging-${crypto.randomUUID()}-${basename(outfile)}`);
@@ -28,11 +28,20 @@ async function moveStaged(staged: string, outfile: string) {
 }
 export const build: Command = {
   usage:
-    "build [--app-bundle] [--sign-bundle] [--web | --web-local] [--compile [--name n] [--client-only] [--target t] [--runtime official|host|<bun>] [--portable] [--native-dir dir] [--outfile f] [--sign identity [--notarize profile]]]",
+    "build [--app dir] [--app-bundle] [--sign-bundle] [--web | --web-local] [--compile [--name n] [--client-only] [--target t] [--runtime official|host|<bun>] [--portable] [--native-dir dir] [--outfile f] [--sign identity [--notarize profile]]]",
+  flags: {
+    "--app": "value",
+    "--app-bundle": "switch",
+    "--sign-bundle": "switch",
+    "--web": "switch",
+    "--web-local": "switch",
+    "--compile": "switch",
+    ...COMPILE_FLAGS,
+  },
   async run({ flag, optional, directory }) {
     // Every flag is read first: a missing value fails before a long build.
     if (!flag("--compile")) {
-      const stray = COMPILE_FLAGS.find(flag);
+      const stray = Object.keys(COMPILE_FLAGS).find(flag);
       if (stray) throw new ArgsError(`${stray} only applies with --compile`);
     }
     const compile = flag("--compile")

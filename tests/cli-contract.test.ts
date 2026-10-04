@@ -2,29 +2,47 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { readFlags } from "../packages/core/src/commands/command";
-import { execute } from "./helpers";
+import { type Command, declared, readFlags } from "../packages/core/src/commands/command";
+import { messageOf } from "../packages/core/src/guards";
+import { execute, rejectionOf } from "./helpers";
 
 const cli = resolve("packages/core/src/cli.ts");
 const luciolex = resolve("packages/core/src/luciolex.ts");
 const luciole = (args: string[], cwd?: string) =>
   execute([process.execPath, cli, ...args], { cwd });
 
-let dir: string;
-beforeAll(async () => {
-  dir = await mkdtemp(join(tmpdir(), "luciole-cli-"));
-  await mkdir(join(dir, "app"), { recursive: true });
+let dir: string, withArgs: string;
+/** An app in `directory`, with `app/args.ts` when `args` is given. */
+async function writeApp(directory: string, args?: string) {
+  await mkdir(join(directory, "app"), { recursive: true });
   await Bun.write(
-    join(dir, "app/layout.tsx"),
+    join(directory, "app/layout.tsx"),
     `"use client";export default function Layout({children}){return children}`,
   );
   await Bun.write(
-    join(dir, "app/page.tsx"),
+    join(directory, "app/page.tsx"),
     `export default function Page(){return <text>hi</text>}`,
   );
-  await symlink(resolve("node_modules"), join(dir, "node_modules"), "dir");
+  if (args) await Bun.write(join(directory, "app/args.ts"), args);
+  await symlink(resolve("node_modules"), join(directory, "node_modules"), "dir");
+}
+beforeAll(async () => {
+  dir = await mkdtemp(join(tmpdir(), "luciole-cli-"));
+  withArgs = await mkdtemp(join(tmpdir(), "luciole-cli-args-"));
+  await writeApp(dir);
+  await writeApp(
+    withArgs,
+    `import { defineArgs } from "@luciole-sh/core/args";
+import { z } from "zod";
+export default defineArgs({
+  summary: "Reads or asks",
+  options: z.object({ mode: z.enum(["read", "ask"]).default("read") }).strict(),
+});`,
+  );
 });
-afterAll(() => rm(dir, { recursive: true, force: true }));
+afterAll(() =>
+  Promise.all([dir, withArgs].map((each) => rm(each, { recursive: true, force: true }))),
+);
 
 test("a flag that needs a value and gets none is a usage error naming it", async () => {
   for (const [args, flag] of [
@@ -74,6 +92,70 @@ test("the flags of --compile are refused without it, before any build", async ()
   }
   expect(await Bun.file(join(dir, ".luciole/server/index.js")).exists()).toBe(false);
 });
+
+test("a flag the command does not declare is a usage error naming it, before it runs", async () => {
+  for (const [args, message] of [
+    [["build", "--wbe"], "Unknown flag --wbe for luciole build (did you mean --web?)"],
+    [["dev", "--ap", "."], "Unknown flag --ap for luciole dev (did you mean --app?)"],
+    [["install", "--yse", "x"], "Unknown flag --yse for luciole install (did you mean --yes?)"],
+    [["keys", "--force"], "Unknown flag --force for luciole keys"],
+    [["start", "--verbose", "--", "--verbose"], "Unknown flag --verbose for luciole start"],
+  ] as const) {
+    const run = await luciole([...args], dir);
+    expect(run.exitCode).toBe(2);
+    expect(run.stderr.toString()).toContain(message);
+    expect(run.stderr.toString()).toContain(`Usage: luciole ${args[0]}`);
+  }
+  expect(await Bun.file(join(dir, ".luciole/server/index.js")).exists()).toBe(false);
+});
+
+test("a declared command reads its own flags, skips their values and leaves -- alone", async () => {
+  const seen: string[] = [];
+  const raw: Command = {
+    usage: "probe [--name n] [--dry]",
+    flags: { "--name": "value", "--dry": "switch" },
+    run: ({ optional, flag, rest }) => {
+      seen.push(`${optional("--name")} ${flag("--dry")} ${rest.join(" ")}`);
+      return Promise.resolve();
+    },
+  };
+  const run = (args: string[], command: Command) =>
+    declared("probe", command).run({ ...readFlags(args), args, directory: "." });
+  await run(["probe", "--name", "-x", "--dry", "--", "--other"], raw);
+  expect(seen).toEqual(["-x true --other"]);
+  expect(() => run(["probe", "--nmae", "x"], raw)).toThrow("(did you mean --name?)");
+  // A command that hands the other words to the application refuses none of them.
+  await run(["probe", "--other"], { ...raw, forwards: true });
+  // Reading a flag it does not declare, or a switch as a value, is the command's bug.
+  const reading = (read: (context: Parameters<Command["run"]>[0]) => unknown) =>
+    run(["probe"], { ...raw, run: async (context) => void read(context) });
+  expect(messageOf(await rejectionOf(reading(({ flag }) => flag("--other"))))).toContain(
+    "reads --other without",
+  );
+  expect(messageOf(await rejectionOf(reading(({ optional }) => optional("--dry"))))).toContain(
+    "reads --dry as a value without",
+  );
+  expect(messageOf(await rejectionOf(reading(({ directory }) => directory)))).toContain(
+    "reads --app as a value without",
+  );
+});
+
+test("an app's arguments still reach it, before -- for luciole <target>, after it for dev", async () => {
+  // luciole <target> refuses no flag itself: the app's parser does, with its own message.
+  const unknown = await luciole([dir, "--wbe"]);
+  expect(unknown.exitCode).toBe(2);
+  expect(unknown.stderr.toString()).toContain("Unknown argument --wbe");
+  expect(unknown.stderr.toString()).toContain("declares no arguments (app/args.ts)");
+  const declaredBefore = await luciole([withArgs, "--mode", "wrong"]);
+  expect(declaredBefore.exitCode).toBe(2);
+  expect(declaredBefore.stderr.toString()).toContain("--mode");
+  const help = await luciole([withArgs, "--help"]);
+  expect(help.exitCode).toBe(0);
+  expect(help.stdout.toString()).toContain("--mode");
+  const afterDashes = await luciole(["dev", "--app", withArgs, "--", "--mode", "wrong"]);
+  expect(afterDashes.exitCode).toBe(2);
+  expect(afterDashes.stderr.toString()).toContain("--mode");
+}, 60000);
 
 test("luciole's own flags stop at --", () => {
   const { flag, optional, rest } = readFlags(["build", "--web", "--", "--web-local", "--app", "x"]);

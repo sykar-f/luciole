@@ -117,6 +117,8 @@ export async function resolveExample(
  */
 export const example: Command = {
   usage: "example [<name> [--yes] [app arguments]]",
+  flags: { "--yes": "switch" },
+  forwards: true,
   async run({ args }) {
     const [, name, ...rest] = args;
     const { version } = await readPackageJson(join(frameworkRoot, "package.json"));

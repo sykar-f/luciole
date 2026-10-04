@@ -7,6 +7,7 @@ import type { Command } from "./command";
  */
 export const keys: Command = {
   usage: "keys [generate]",
+  flags: {},
   run({ args }) {
     const identity =
       args[1] === "generate" ? generatePublisherKey() : publisherIdentity(readPublisherKey());

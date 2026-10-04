@@ -29,6 +29,7 @@ const withoutHook = (options = "") =>
 
 export const devtools: Command = {
   usage: "devtools [--listen 1|<socket>|ws://host:port] [--demo] [--replay file.json] [--env]",
+  flags: { "--listen": "value", "--demo": "switch", "--replay": "value", "--env": "switch" },
   async run({ flag, optional }) {
     // The shell's LUCIOLE_DEVTOOLS, exported for the application, is where to listen.
     const listen = optional("--listen") ?? process.env.LUCIOLE_DEVTOOLS ?? "1";

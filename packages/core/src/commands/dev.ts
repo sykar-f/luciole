@@ -23,6 +23,7 @@ const SIGNALLED_EXIT_CODE = 1;
 const DEV_USAGE = "dev [--app dir] [-- app arguments]";
 export const dev: Command = {
   usage: DEV_USAGE,
+  flags: { "--app": "value" },
   async run({ directory, rest }) {
     // The application's arguments (after `--`), checked after each build: its schema may
     // have changed. The first build's refusal ends the run, a later one is a build error.

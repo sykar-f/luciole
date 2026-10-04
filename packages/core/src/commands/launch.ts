@@ -1,7 +1,7 @@
-import { launch as launchTarget } from "../launcher";
+import { BUILT_FLAGS, launch as launchTarget } from "../launcher";
 import { openLauncher } from "../launcher/home";
 import { acceptAll } from "../launcher/prompt";
-import { type Command, readFlags } from "./command";
+import { type Command, type FlagKind, readFlags } from "./command";
 
 const YES = "--yes";
 /**
@@ -26,6 +26,20 @@ export function takeYes(args: readonly string[]) {
 export const launch: Command = {
   usage:
     "[<path | app | npm spec | git source> [--yes] [--url url] | <server url…> [--inline | --sandbox] [--allow-…] [--yes]]",
+  // The flags the launcher reads (src/launcher, src/generic); `--allow-…` stands for the
+  // capabilities a Server URL is granted (src/sandbox/grants.ts).
+  flags: {
+    ...Object.fromEntries(
+      BUILT_FLAGS.flatMap(({ name, short, value }) => [
+        [`--${name}`, value ? "value" : "switch"] as const,
+        ...(short ? [[`-${short}`, "switch"] as const] : []),
+      ]),
+    ),
+    "--inline": "switch",
+    "--sandbox": "switch",
+    "--allow-…": "switch",
+  } satisfies Record<string, FlagKind>,
+  forwards: true,
   async run({ args }) {
     const [target, ...rest] = args;
     const { args: appArgs, confirm } = takeYes(rest);
