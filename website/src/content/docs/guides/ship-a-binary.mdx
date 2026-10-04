@@ -1,0 +1,190 @@
+---
+title: Ship a binary
+description: Compile an app into one executable, run it on a machine without Bun, then update it or roll it back.
+sources:
+  - docs/DISTRIBUTION.md
+  - packages/core/src/build.ts
+  - packages/core/src/commands/build.ts
+  - packages/core/src/compile.ts
+  - packages/core/src/native.ts
+  - packages/core/src/launcher/binary.ts
+  - packages/core/src/launcher/managed.ts
+  - packages/core/src/registry/apps.ts
+  - packages/core/src/commands/apps.ts
+  - tests/registry.test.ts
+  - tests/lifetime.test.ts
+---
+
+import Note from "../../../components/docs/Note.astro";
+import Sequence from "../../../components/guide/Sequence.astro";
+
+This guide turns your app into one executable that you hand to someone. Their machine needs
+neither Bun nor the app's `node_modules`. Follow it when you ship a release, when you ship the
+next one, and when you must go back to the previous one.
+
+Run every `luciole` command from the app's directory.
+
+## Compile the binary
+
+```sh
+luciole build --compile
+# → .luciole/bin/<os>-<arch>/notes  (+ native/)
+```
+
+The build prints the binary's path and its
+[build ID](/docs/reference/build-and-distribution/#how-the-build-id-is-made), which the Client
+and the Server must share. The binary holds the Bun runtime, OpenTUI's native library, the
+Client and the Server.
+
+<Note kind="warning">
+  Whoever receives the binary can read its Server code, your business code included. The build warns
+  you each time. For users who only connect to your Server, build with `--client-only`.
+</Note>
+
+## Choose a target for each machine
+
+Without `--target`, the binary runs on machines like yours. For another machine, run `uname -sm`
+there and pick its target:
+
+| `uname -sm` on that machine          | `--target`             |
+| ------------------------------------ | ---------------------- |
+| `Darwin arm64`                       | `bun-darwin-arm64`     |
+| `Darwin x86_64`                      | `bun-darwin-x64`       |
+| `Linux x86_64` on Debian, Fedora, …  | `bun-linux-x64`        |
+| `Linux aarch64` on Debian, Fedora, … | `bun-linux-arm64`      |
+| `Linux x86_64` on Alpine             | `bun-linux-x64-musl`   |
+| `Linux aarch64` on Alpine            | `bun-linux-arm64-musl` |
+
+Another target also needs its platform's packages, OpenTUI's included. Install them from the
+app's lockfile in a directory of their own, then pass that directory with `--native-dir`:
+
+```sh
+mkdir -p ../notes-linux && cp package.json bun.lock ../notes-linux/
+(cd ../notes-linux && bun install --frozen-lockfile --os=linux --cpu=x64)
+luciole build --compile --target bun-linux-x64 --native-dir ../notes-linux
+```
+
+Each target lands in its own `.luciole/bin/<os>-<arch>/`. Runtimes, signing and the requirements
+of each Linux binary are in
+[compile a single binary](/docs/reference/build-and-distribution/#compile-a-single-binary).
+
+## Hand over the binary and `native/`
+
+Copy the binary out of `.luciole/` into a directory named after the release. Take `native/` too
+when the build wrote one beside the binary:
+
+```text
+releases/1.2.0/linux-x64/
+├── notes
+└── native/        only when the app uses a native package, such as sharp
+```
+
+Keep that directory after you hand it over. The next build replaces `.luciole/`, and you need
+the previous release to [roll back](#roll-back-to-the-previous-binary).
+
+Send the directory as it is: `scp -r`, a `.tar.gz` or a download link. `native/` must stay next
+to the binary.
+
+A Mac blocks a binary downloaded in a browser until it is notarized:
+[macOS blocks a downloaded binary](/docs/reference/troubleshooting/#macos-blocks-a-downloaded-binary)
+gives the message and the fix.
+
+## Run it on a machine without Bun
+
+On the receiving machine:
+
+```sh
+chmod +x ./notes
+./notes --version
+./notes
+```
+
+`--version` prints the app, the build ID and the target. The build ID must match the one your
+build printed. `./notes` starts the Server on a private socket and the Client in this terminal
+window. The binary's other commands are in
+[opening an app](/docs/guides/opening-an-app/#hand-someone-a-single-binary).
+
+Two Linux cases need one more step:
+
+- On Alpine, run `apk add libstdc++` once.
+- When `/tmp` is mounted `noexec`, set `TMPDIR` to a directory that allows executables.
+
+## Update the binary
+
+Build the new release, copy it into its own directory, and hand it over as above. On the
+receiving machine:
+
+1. Quit every running copy of the old binary.
+2. Replace `notes`, and `native/` when there is one, with the new release's files.
+3. Run `./notes --version` and check the new build ID.
+
+<Note>
+  A copy of the old binary left open can show "Incompatible build". The new binary replaced its
+  Server, and a Server refuses a Client of another build. Quit that copy and start the new binary
+  ([the Server answers `409`](/docs/reference/troubleshooting/#the-server-answers-409)).
+</Note>
+
+When the receiving machine has `luciole`, you can
+[publish the app to npm](/docs/reference/build-and-distribution/#publish-an-app-to-npm) instead.
+The user installs it once, then updates it with one command:
+
+```sh
+luciole install @ada/notes
+luciole update notes
+```
+
+`luciole update` keeps the old binary until the new one is in place:
+
+<Sequence
+  title="luciole update notes"
+  lanes={[
+    { id: "update", label: "luciole update", tone: "neutral" },
+    { id: "new", label: "<new build>/notes", sub: "the new binary", tone: "build" },
+    { id: "record", label: "installed.json", sub: "the version in use", tone: "neutral" },
+    { id: "old", label: "<old build>/", sub: "the previous binary", tone: "build" },
+  ]}
+  messages={[
+    { from: "update", to: "new", label: "download, check, write", n: 1 },
+    { from: "update", to: "record", label: "switch to the new build", n: 2 },
+    { from: "update", to: "old", label: "remove", n: 3 },
+  ]}
+  caption="The app's directory is $XDG_DATA_HOME/luciole/apps/notes/. A failure in step 1 leaves the previous binary in use. A copy of the old binary that is already running keeps working after step 3."
+/>
+
+## Roll back to the previous binary
+
+For a binary you handed over, give back the previous release:
+
+1. Quit every running copy of the new binary.
+2. Put back `notes`, and `native/` when there is one, from the previous release's directory.
+3. Run `./notes --version` and check the previous build ID.
+
+For an app installed from npm, install the previous version by its number:
+
+```sh
+luciole install @ada/notes@1.1.0
+```
+
+`luciole update` follows the version or range you installed, so it then stays on `1.1.0`. To
+follow new releases again, run `luciole install @ada/notes@latest`.
+
+<Note kind="warning">
+  Rolling back changes the binary, not the app's data. If the new version changed the format of what
+  the app stores, the previous binary may not read it. Before you ship such a version, keep a copy
+  of the data or make the previous version able to read the new format.
+</Note>
+
+## Check that it worked
+
+- `./notes --version` prints the build ID of the release you meant to run.
+- For an app installed from npm, `luciole list` prints the version and the build in use.
+- `./notes` opens the app, with no "Incompatible build" message.
+
+See also:
+
+- [Build and distribution](/docs/reference/build-and-distribution/): every option of
+  `luciole build`, signing for macOS, and the npm packages.
+- [Opening an app](/docs/guides/opening-an-app/#start-the-server-on-another-machine): run the
+  binary's Server on another machine with `--on`.
+- [Troubleshooting](/docs/reference/troubleshooting/#shipping-a-binary): what a machine prints
+  when it refuses a binary.
