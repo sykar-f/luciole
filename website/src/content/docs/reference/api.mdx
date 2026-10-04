@@ -16,6 +16,14 @@ sources:
   - packages/core/src/vt/terminal.tsx
   - packages/core/src/markdown
   - packages/core/src/dev/supervisor.ts
+  - packages/core/src/vt/pty.ts
+  - packages/core/src/vt/terminal.tsx
+  - packages/core/src/sandbox
+  - packages/core/src/app-metadata.ts
+  - packages/core/src/route-tree.tsx
+  - packages/core/src/devtools/client-agent.ts
+  - examples/studio/server/preview.ts
+  - examples/studio/components/Preview.tsx
   - packages/core/src/run.tsx
   - packages/core/src/grammars.ts
   - packages/core/src/math.ts
@@ -883,21 +891,18 @@ response is wrapped.
 
 ## Find the other entries
 
-| Entry                         | For                                                                                                                                     |
-| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `@luciole-sh/core/args`       | `defineArgs`, for `app/args.ts`.                                                                                                        |
-| `@luciole-sh/core/route-tree` | What `app/routeTree.gen.ts` calls: `rootRoute`, `layoutRoute`, `pageRoute`, `loadPage`, `validateSearch`.                               |
-| `@luciole-sh/core/build`      | `build(directory, output?, { appBundle?, signBundle?, webServer? }?)` → `{ buildId, output }`, and the publisher keys for `signBundle`. |
-| `@luciole-sh/core/dev`        | Supervising an app under development ([below](#supervising-an-app-luciole-shcoredev)).                                                  |
-| `@luciole-sh/core/sandbox`    | The `sandbox` mode for a host: `openSandbox`, `confineServer`, `sandboxAvailability`.                                                   |
-| `@luciole-sh/core/pty`        | `spawnPty({ command, cols, rows, env?, cwd?, onData, onExit, … })` → `{ write, resize, kill, send, pid }`. POSIX only.                  |
-| `@luciole-sh/core/metadata`   | `AppMetadata`, the schema of `.luciole/metadata.json`, and the functions that read and write it.                                        |
-| `@luciole-sh/core/grammars`   | Registers the extra Tree-sitter grammars when imported, and exports them as `GRAMMARS`.                                                 |
-| `@luciole-sh/core/math`       | `renderMath`, a PNG of a formula ([below](#render-display-math-with-luciole-shcoremath)).                                               |
-| `@luciole-sh/core/tsconfig`   | The TypeScript configuration every app extends.                                                                                         |
-
-`openSandbox` starts a confined Client for `<TerminalView>`. `spawnPty` runs on
-`Bun.Terminal`.
+| Entry                         | For                                                                                                       | Reference                                                                                                  |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `@luciole-sh/core/args`       | `defineArgs`, for `app/args.ts`, and the checks a host runs on an app's options.                          | [App arguments](/docs/reference/app-arguments/#check-a-command-line-from-a-host-or-a-tool)                 |
+| `@luciole-sh/core/route-tree` | What `app/routeTree.gen.ts` calls: `rootRoute`, `layoutRoute`, `pageRoute`, `loadPage`, `validateSearch`. | [Type the router](#type-the-router-luciole-shcoreroute-tree)                                               |
+| `@luciole-sh/core/build`      | `build()`, and the publisher keys that sign a bundle.                                                     | [Build and distribution](/docs/reference/build-and-distribution/#build-from-code-with-luciole-shcorebuild) |
+| `@luciole-sh/core/dev`        | Supervising an app under development.                                                                     | [Supervising an app](#supervising-an-app-luciole-shcoredev)                                                |
+| `@luciole-sh/core/pty`        | A program on a pseudo-terminal. POSIX only.                                                               | [Run a program on a PTY](#run-a-program-on-a-pty-luciole-shcorepty)                                        |
+| `@luciole-sh/core/sandbox`    | The `sandbox` mode for a host: a confined Client, a confined Server.                                      | [Confine an app](#confine-an-app-luciole-shcoresandbox)                                                    |
+| `@luciole-sh/core/metadata`   | `.luciole/metadata.json`: its schema, and the function that reads it.                                     | [Read a build's metadata](#read-a-builds-metadata-luciole-shcoremetadata)                                  |
+| `@luciole-sh/core/grammars`   | Registers the extra Tree-sitter grammars when imported, and exports them as `GRAMMARS`.                   | [Show other apps, terminals and Markdown](#show-other-apps-terminals-and-markdown)                         |
+| `@luciole-sh/core/math`       | `renderMath`, a PNG of a formula.                                                                         | [Render display math](#render-display-math-with-luciole-shcoremath)                                        |
+| `@luciole-sh/core/tsconfig`   | The TypeScript configuration every app extends.                                                           | none: it holds no export                                                                                   |
 
 ## Render display math with `@luciole-sh/core/math`
 
@@ -927,17 +932,23 @@ formula.
 These exports are what `luciole dev` is made of. A host uses them to supervise an app while it
 decides itself when to rebuild, as studio does at the end of a model's turn.
 
-| Export                                  | Contract                                                                                             |
-| --------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `startAppServer(options)`               | Starts a built app's Server. Resolves `{ port, child, stop }` once the Server prints its ready line. |
-| `bearerRelay()`                         | Returns `{ attach(client) }`, which hands the token from one Client to the next in memory.           |
-| `serialize(task)`                       | Returns `{ run, busy }`, which never runs `task` twice at once.                                      |
-| `onClientFailure(client, listener)`     | Calls `listener` with each `ClientFailure` a Client sends its parent.                                |
-| `ClientFailure`                         | The schema of `{ type: "failure", path, message }`.                                                  |
-| `linkFrameworkModules(directory, from)` | Links `.luciole/node_modules` to the framework's packages.                                           |
-| `stopChild(child)`                      | Stops a child with SIGTERM, then SIGKILL after 1.5 s.                                                |
+```ts
+import { serialize, startAppServer, stopChild } from "@luciole-sh/core/dev";
+```
 
-`startAppServer` takes these options:
+| Export                                  | Contract                                                                                                    |
+| --------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `startAppServer(options)`               | Starts a built app's Server. Resolves with an `AppServer` once the Server prints its ready line.            |
+| `AppServer`                             | `{ port, child, stop() }`: the port the Server listens on, its `ChildProcess`, and `stopChild(child)`.      |
+| `bearerRelay()`                         | Returns `{ attach(client) }`, which hands the token from one Client to the next in memory.                  |
+| `serialize(task)`                       | Returns `{ run, busy }`, which never runs `task` twice at once.                                             |
+| `onClientFailure(client, listener)`     | Calls `listener` with each `ClientFailure` a Client sends its parent.                                       |
+| `ClientFailure`                         | The schema of `{ type: "failure", path, message }`.                                                         |
+| `frameworkModules(from)`                | Returns the `node_modules` directory the framework's packages resolve from, seen from the directory `from`. |
+| `linkFrameworkModules(directory, from)` | Links `<directory>/.luciole/node_modules` to `frameworkModules(from)`. An existing link stays.              |
+| `stopChild(child?)`                     | Stops a child with SIGTERM, then SIGKILL after 1.5 s. Resolves at once when the child has already exited.   |
+
+`startAppServer` takes `AppServerOptions`:
 
 | Option       | Contract                                                                        |
 | ------------ | ------------------------------------------------------------------------------- |
@@ -949,11 +960,34 @@ decides itself when to rebuild, as studio does at the end of a model's turn.
 | `stderr?`    | `inherit`, or a function that receives the Server's stderr. Default: `inherit`. |
 | `timeoutMs?` | How long to wait for the ready line. Default: `10000` ms.                       |
 
-`startAppServer` rejects with `Server exited before ready` or `Server startup timeout`. When
-`stderr` is a function, the message ends with the last lines of the Server's stderr.
+`startAppServer` rejects with `Server exited before ready` or `Server startup timeout`, and
+stops the child first. When `stderr` is a function, the message ends with the last 4,000
+characters of the Server's stderr. A `command` that returns an empty argv throws `A Server needs
+a command`.
+
+Studio starts each attempt's Server confined, and keeps its stderr for the model:
+
+<Excerpt
+  path="examples/studio/server/preview.ts"
+  find="const server = await startAppServer({"
+  until="});"
+  tone="build"
+/>
+
+`frameworkModules` takes React as the sign of the framework's packages. It throws Bun's
+resolution error when React does not resolve from `from`. Studio links each generated project
+to the framework this way:
+
+<Excerpt
+  path="examples/studio/server/project.ts"
+  find="function packages()"
+  until="^}"
+  tone="build"
+/>
 
 A rebuild keeps the user signed in: `bearerRelay` passes the token on, never through a file.
-With `serialize`, calls made during a run ask for one more run after it.
+With `serialize`, calls made during a run ask for one more run after it. `run()` resolves once
+the runs it caused are done.
 
 A Client started with an IPC channel sends its parent every page failure:
 `{ type: "failure", path, message }`. `luciole dev`, a `sandbox` host and studio start it that
@@ -967,12 +1001,346 @@ tells the program that started the Client which page failed and why.
   tone="client"
 />
 
+## Run a program on a PTY: `@luciole-sh/core/pty`
+
+`spawnPty(options)` starts a program on a pseudo-terminal and returns a `Pty`. `<Terminal>`
+draws what it writes. It runs on `Bun.Terminal`, with no native addon. It is POSIX only,
+because Bun has no PTY on Windows.
+
+```ts
+import { spawnPty, type Pty, type PtyOptions } from "@luciole-sh/core/pty";
+```
+
+| `PtyOptions` field | Contract                                                                                   | Default        |
+| ------------------ | ------------------------------------------------------------------------------------------ | -------------- |
+| `command`          | The argv, or a function that receives the path of the PTY's device and returns the argv.   | required       |
+| `cols`, `rows`     | The PTY's size, in cells.                                                                  | required       |
+| `env?`             | Variables set over the environment, after `TERM=xterm-256color` and `COLORTERM=truecolor`. | none           |
+| `environment?`     | `inherit` starts from this process's environment. `replace` starts from nothing but `env`. | `inherit`      |
+| `cwd?`             | The program's directory.                                                                   | this process's |
+| `ipc?`             | Opens Bun's JSON IPC channel to the program, and receives each message it sends.           | no channel     |
+| `onData(bytes)`    | Receives what the program writes, to feed a terminal emulator.                             | required       |
+| `onExit(code)`     | Called once the program ends, with its exit code, or `null` after a signal.                | required       |
+
+A sandbox profile grants one device, so a confined program needs the device's path before it
+starts. That is why `command` can be a function.
+
+| `Pty` member         | Contract                                                                             |
+| -------------------- | ------------------------------------------------------------------------------------ |
+| `write(data)`        | Writes a string or bytes to the program's input. Ignored once the PTY is closed.     |
+| `resize(cols, rows)` | Resizes the PTY. The kernel sends SIGWINCH to the foreground process group.          |
+| `kill()`             | Sends SIGHUP, as a closed terminal window does. Ignored once the program has exited. |
+| `send(message)`      | Sends a message over the IPC channel. Ignored without `ipc`, or after the exit.      |
+| `pid`                | The program's process ID.                                                            |
+
+How the program runs:
+
+- It leads a terminal session of its own, whose controlling terminal is the PTY. <kbd>Ctrl+C</kbd> then
+  reaches its foreground process group.
+- On Linux, that needs `setsid` from util-linux or busybox on the `PATH`. Without it, the
+  program runs without job control.
+- When this process exits, each program still running receives SIGKILL on its process group,
+  then its PTY closes.
+
+`spawnPty` throws `A terminal needs a command` when the argv is empty. A `command` function
+throws `The new PTY's device path could not be found` when the device cannot be found.
+
+`<Terminal>` is `<TerminalView>` with `spawnPty` as its way to start the program:
+
+<Excerpt
+  path="packages/core/src/vt/terminal.tsx"
+  find="export function Terminal(props"
+  until="^}"
+  tone="client"
+/>
+
+## Confine an app: `@luciole-sh/core/sandbox`
+
+This entry gives a host outside the framework the `sandbox` mode: a Client that the OS
+confines, drawn by `<TerminalView>`, with the capabilities the host mediates over IPC. It also
+confines a Server. [Apps you did not write](/docs/guides/untrusted-apps/) explains the mode, and
+the generic Client uses the same functions.
+
+```ts
+import {
+  buildChild,
+  openSandbox,
+  sandboxAvailability,
+  sandboxRuntime,
+} from "@luciole-sh/core/sandbox";
+```
+
+### Find what confines a Client here
+
+| Export                      | Contract                                                                                                                                |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `sandboxAvailability(env?)` | Returns an `Availability`, found once per process. `env` defaults to `process.env`.                                                     |
+| `Availability`              | `{ mechanism, byDefault }`, or `{ mechanism: undefined, reason }` when nothing can confine a Client here.                               |
+| `Mechanism`                 | `{ kind: "seatbelt" }` on macOS. On Linux, `{ kind, landlockAbi, launcher, bwrap? }`, with `kind` one of `userns`, `bwrap`, `landlock`. |
+| `mechanismName(mechanism)`  | Returns the mechanism's label on the capabilities screen and the status line.                                                           |
+| `sandboxRuntime()`          | Resolves with what a confined child must read to run: Bun, its libraries, luciole's sources and their packages. Found once.             |
+| `buildChild()`              | Builds the confined Client's entry, and resolves with its path. Rejects with `The sandbox child did not build:` and Bun's logs.         |
+
+The mechanisms, strongest first:
+
+1. `seatbelt` on macOS: `sandbox-exec` and a generated profile.
+2. `userns` on Linux: `luciole-sandbox` enters its own namespaces, then applies Landlock and
+   seccomp.
+3. `bwrap`: bubblewrap makes the namespaces when the system forbids `luciole-sandbox` to.
+4. `landlock`: Landlock alone. It filters TCP by port, not by host, so `byDefault` is `false`.
+
+`reason` says why nothing confines, such as `/usr/bin/sandbox-exec is missing`, `no sandbox on
+win32`, or `<launcher> does not match its SHA256SUMS`. Two variables change the choice:
+`LUCIOLE_SANDBOX_MECHANISM` and `LUCIOLE_SANDBOX_LAUNCHER`
+([environment](/docs/reference/environment/)).
+
+`mechanismName` returns `Seatbelt`, `Landlock + espaces de noms`, `bubblewrap + Landlock`,
+`bubblewrap` or `Landlock seul`. These labels are in French, as the rest of the capabilities
+screen is today.
+
+### Open a confined Client
+
+`openSandbox(origin, options)` resolves with a `Sandbox`. It connects to the Server, and prepares a
+private scratch directory and the egress proxy. The child starts later, with `spawn`.
+
+| `SandboxOrigin` field | Contract                                                                                   |
+| --------------------- | ------------------------------------------------------------------------------------------ |
+| `origin`              | The origin's name, which keys what the user granted.                                       |
+| `url`                 | The Server's URL, as the user gave it.                                                     |
+| `app`                 | The directory of the app bundle: its `manifest.json` and the bundle it points to.          |
+| `fingerprint`         | The publisher key pinned for the origin. The child refuses a bundle signed by another key. |
+| `sessions`            | The name the origin's restored sessions are kept under.                                    |
+| `granted`             | The `Capabilities` granted to the origin.                                                  |
+| `denied?`             | What the user refused: capability names, and `secrets:<name>`.                             |
+| `runtime`             | The result of `sandboxRuntime()`.                                                          |
+| `child`               | The path `buildChild()` resolves with.                                                     |
+| `mechanism`           | The `mechanism` of `sandboxAvailability()`.                                                |
+
+| `SandboxOptions` field   | Contract                                                                                                     |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| `perform(request)`       | Performs a request the user granted, and resolves with its answer.                                           |
+| `env?`                   | The environment whose `XDG_STATE_HOME` holds the restored sessions. Default: `process.env`.                  |
+| `ask?(question)`         | Asks the user about a capability that is neither granted nor refused. Without it, such a request is refused. |
+| `onChange?(change)`      | Receives each decision the user made, `{ capability, state }`, to remember it.                               |
+| `onFailure?(failure)`    | Receives each `ClientFailure` the child reports.                                                             |
+| `resolve?`, `onProfile?` | For tests: they map a proxied host to the address dialled, and receive the generated profile.                |
+
+| `Sandbox` member | Contract                                                                                         |
+| ---------------- | ------------------------------------------------------------------------------------------------ |
+| `spawn(io)`      | Starts the child on a PTY, and returns its `Pty`. `<TerminalView>` calls it with a `TerminalIo`. |
+| `deliver(event)` | Sends the child an event, when its grants let it hear that event.                                |
+| `permissions`    | Where each mediated capability stands, as the user decides.                                      |
+| `proxy`          | The egress proxy, or `undefined` when the child needs none.                                      |
+| `close()`        | Stops the child, the proxy and the connection, and removes the scratch directory.                |
+
+`TerminalIo` is `{ cols, rows, onData, onExit }`: what `<TerminalView>` hands the function that
+starts its program. A child still running when the host process exits is killed.
+
+`openSandbox` rejects when it cannot reach the Server, such as `<url>: no port to reach`, or
+an `ssh` error for a URL over SSH. It closes what it opened first.
+
+Studio opens the preview of a generated app this way, with no host capability granted:
+
+<Excerpt
+  path="examples/studio/components/Preview.tsx"
+  find="void Promise.all([leaving, buildChild(), sandboxRuntime()])"
+  until="        ),"
+  tone="client"
+/>
+
+### Confine a Server
+
+`confineServer(options)` resolves with a `ServerSandbox`, for a host that runs a Server whose
+code it does not trust. It uses the same generated profile as a Client, plus one loopback port
+to listen on. It runs on macOS only for now.
+
+| `ServerSandboxOptions` field | Contract                                                        |
+| ---------------------------- | --------------------------------------------------------------- |
+| `mechanism`                  | Must be `{ kind: "seatbelt" }`.                                 |
+| `runtime`                    | The result of `sandboxRuntime()`.                               |
+| `granted`                    | The `Capabilities` the Server gets.                             |
+| `readable`                   | What the Server reads: its build output and its `package.json`. |
+| `writable`                   | Where the Server writes: its data directory.                    |
+| `resolve?`, `onProfile?`     | For tests, as in `SandboxOptions`.                              |
+
+| `ServerSandbox` member | Contract                                                                                                    |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `port`                 | The loopback port the Server may listen on.                                                                 |
+| `env`                  | The Server's whole environment: `PORT`, `LUCIOLE_HOST=127.0.0.1`, a private `HOME` and `TMPDIR`, the proxy. |
+| `command(argv)`        | Returns the argv that runs `argv` confined. Pass it to `startAppServer` as `command`.                       |
+| `proxy`                | The egress proxy, when `granted.net` lists hosts and not `*`.                                               |
+| `close()`              | Stops the proxy and removes the scratch directory.                                                          |
+
+`freeLoopbackPort()` resolves with a loopback port that is free now. The Server takes it a
+moment later, so the host retries when another process takes it first.
+
+| Error                                                                                               | Raised by          |
+| --------------------------------------------------------------------------------------------------- | ------------------ |
+| `A confined Server needs Seatbelt (macOS) for now; <kind> cannot confine a Server that listens yet` | `confineServer`    |
+| `No loopback port available`                                                                        | `freeLoopbackPort` |
+
+<Excerpt
+  path="examples/studio/server/preview.ts"
+  find="? await confineServer({"
+  until=": undefined;"
+  tone="build"
+/>
+
+### Show who enforces each grant
+
+`enforcement(caps, mechanism)` returns one line per granted capability:
+`{ capability, by, how }`. `by` is who applies the grant:
+
+- `os`: the kernel's sandbox
+- `proxy`: the host's egress proxy
+- `host`: the host, which checks each request over IPC
+
+`ENFORCERS` maps `by` to its label: `OS`, `proxy` and `hôte`. `how` is a sentence in French,
+as the rest of the capabilities screen. `Capabilities` is the schema of
+[`luciole.capabilities`](/docs/reference/package-json/#declare-what-the-app-may-do).
+
+<Excerpt
+  path="packages/core/src/generic/prepare.ts"
+  find="export function describeSandbox"
+  until="^}"
+  tone="client"
+/>
+
+## Answer the app's `host` requests
+
+`createApplication({ host })` takes a host channel: who answers the app's
+[`host` calls](#ask-the-host-for-a-capability). Without it, the Client answers itself, with the
+user's rights, and every capability is `granted`. A `sandbox` child answers through its host
+over IPC.
+
+```ts
+import type {
+  HostChannel,
+  HostEvent,
+  HostRequest,
+  MediatedCapability,
+} from "@luciole-sh/core/client";
+```
+
+<Excerpt
+  path="packages/core/src/host.ts"
+  find="export type HostChannel"
+  until="^};"
+  tone="client"
+/>
+
+| `HostChannel` member | Contract                                                                                              |
+| -------------------- | ----------------------------------------------------------------------------------------------------- |
+| `request(request)`   | Performs a `HostRequest`. Rejects with `CapabilityDenied` when the user did not grant its capability. |
+| `state(capability)`  | Returns where a `MediatedCapability` stands: `granted`, `denied` or `prompt`.                         |
+| `listen(listener)`   | Calls `listener` with each `HostEvent`. Returns the function that unsubscribes.                       |
+
+`MediatedCapability` is one of `clipboard.read`, `clipboard.write`, `notify`, `open-url`,
+`secrets`, `tabs.message` and `input.global`.
+
+| `HostRequest` `type` | Fields                                                   | Capability        |
+| -------------------- | -------------------------------------------------------- | ----------------- |
+| `clipboard.read`     | none                                                     | `clipboard.read`  |
+| `clipboard.write`    | `text`, at most 1,048,576 characters                     | `clipboard.write` |
+| `notify`             | `title`, at most 256 characters. `body?`, at most 4,096. | `notify`          |
+| `open-url`           | `url`: `http` or `https`, at most 2,048 characters       | `open-url`        |
+| `secret`             | `name`: 1 to 64 letters, digits, `_`, `.` or `-`         | `secrets`         |
+| `tabs.post`          | `message`: a JSON value of at most 65,536 characters     | `tabs.message`    |
+
+| `HostEvent` `type` | Fields                                         |
+| ------------------ | ---------------------------------------------- |
+| `tabs.message`     | `from`, the sender's origin, and `message`     |
+| `input.key`        | `key`: `{ name, sequence, ctrl, meta, shift }` |
+| `capability`       | `capability` and its new `state`               |
+
+Each request and event is checked against these schemas where it crosses a process. The
+default channel rejects a request outside them with zod's error:
+
+<Excerpt
+  path="packages/core/src/host.ts"
+  find="export function directChannel"
+  until="^}"
+  tone="client"
+/>
+
+## Read a build's metadata: `@luciole-sh/core/metadata`
+
+A host reads what an app says of itself from its build output, never from its sources.
+
+```ts
+import { readAppMetadata } from "@luciole-sh/core/metadata";
+```
+
+| Export                    | Contract                                                                                 |
+| ------------------------- | ---------------------------------------------------------------------------------------- |
+| `readAppMetadata(output)` | Resolves with the `AppMetadata` of `<output>/metadata.json`, checked against its schema. |
+| `AppMetadata`             | The schema of that file, and its type.                                                   |
+| `AppArgs`                 | The type of its `args` field: `{ summary?, examples?, schema }`.                         |
+| `APP_METADATA`            | `"metadata.json"`, the file's name in the output.                                        |
+| `APP_ICON`                | `"icon.png"`, the icon's name next to it.                                                |
+
+| `AppMetadata` field | Contract                                                                              |
+| ------------------- | ------------------------------------------------------------------------------------- |
+| `format`            | `1`.                                                                                  |
+| `name`              | The app directory's name.                                                             |
+| `displayName`       | `luciole.displayName`, or `name`.                                                     |
+| `identifier?`       | `luciole.identifier`, in reverse DNS.                                                 |
+| `version?`          | The `version` of `package.json`.                                                      |
+| `description?`      | The `description` of `package.json`.                                                  |
+| `icon?`             | `"icon.png"`, when the app declares an icon.                                          |
+| `server?`           | `shared`, `per-directory` or `per-launch`. A reader takes `shared` when it is absent. |
+| `grace?`            | A duration such as `15m`, or `0`.                                                     |
+| `args?`             | `summary?`, `examples?`, and `schema`: the options' JSON Schema, draft 2020-12.       |
+
+[`package.json`](/docs/reference/package-json/#what-hosts-show) says where each declared field
+comes from.
+
+`readAppMetadata` rejects with `<output>/metadata.json:` and what the schema refused, or with
+the file system's error when the file is missing. The launcher reads the scope of the Server
+this way:
+
+<Excerpt
+  path="packages/core/src/launcher/index.ts"
+  find="const metadata = await readAppMetadata(output);"
+  count={6}
+  tone="neutral"
+/>
+
+## Type the router: `@luciole-sh/core/route-tree`
+
+The generated `app/routeTree.gen.ts` calls this entry's functions. Two types come with them:
+
+| Export                       | Contract                                                                                               |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `TerminalRouterContext`      | `{ app: Application }`, the context of every route. `loadPage` renders the page through `context.app`. |
+| `TerminalRouter<TRouteTree>` | TanStack's `Router` for a route tree. Registering it types `to`, the params and the loader data.       |
+
+They are types: they raise nothing at run time. The generated file registers the router:
+
+<Excerpt
+  path="examples/notes/app/routeTree.gen.ts"
+  find='declare module "@tanstack/react-router"'
+  until="^}"
+  tone="build"
+/>
+
 ## Replace or wrap the transport
 
-The transport is a replaceable interface. Inject one with `createApplication({ transport })`,
-or decorate the default one with `createApplication({ wrapTransport })`, without touching the
-runtime. `wrapTransport(inner)` returns the transport to use. A cache, a recorder or a replay
-is a decorator.
+The transport is how the Client reaches the Server: every page render and every Server
+Function call goes through it. Inject one with `createApplication({ transport })`, or decorate
+the one in use with `createApplication({ wrapTransport })`, without touching the runtime. A
+cache, a recorder or a replay is a decorator.
+
+```ts
+import { createApplication, TransportError } from "@luciole-sh/core/client";
+```
+
+| Option                  | Contract                                                                                   | Default                  |
+| ----------------------- | ------------------------------------------------------------------------------------------ | ------------------------ |
+| `transport?`            | Replaces the default transport.                                                            | the HTTP transport below |
+| `wrapTransport?(inner)` | Receives the transport in use, `transport` or the default one, and returns the one to use. | none                     |
+
+A transport implements three methods:
 
 <Excerpt
   path="packages/core/src/transport.ts"
@@ -981,16 +1349,60 @@ is a decorator.
   tone="wire"
 />
 
-The default adapter, `createHttpTransport`, carries:
+| Method                                               | Contract                                                                                                 |
+| ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `render(routeId, params, signal, search?, context?)` | Resolves with the root of the page's Flight model. Suspense content and async iterables stream after it. |
+| `call(actionId, args, signal?, context?)`            | Resolves with the Server Function's value.                                                               |
+| `setToken(token?)`                                   | Sets the token sent with each later request, or removes it.                                              |
 
-- the build header and the token
-- the timeout, which bounds the wait for the root of an answer. Default: `10000` ms.
-- the simulated latency
-- typed errors and events
-- invalidation and progressive Flight decoding
+`context` carries the request's `cause`, which the events report. Its `onTags` receives the
+`"use cache"` tags the page read, once its render has ended.
+
+### The default HTTP transport
+
+When `transport` is absent, `createApplication` builds the HTTP transport from these options.
+The HTTP transport itself is not exported.
+
+| Option       | Contract                                                                                           | Default            |
+| ------------ | -------------------------------------------------------------------------------------------------- | ------------------ |
+| `url`        | The Server's URL.                                                                                  | required           |
+| `buildId`    | Sent with each request. A Server of another build answers 409.                                     | required           |
+| `token?`     | The token, sent as `Authorization: Bearer <token>`.                                                | none               |
+| `timeoutMs?` | How long to wait for the root of an answer, in milliseconds. The stream behind it may last longer. | `10000`            |
+| `latencyMs?` | A simulated round-trip latency added to each request, in milliseconds.                             | `0`                |
+| `network?`   | Simulated jitter, slow chunks and faults ([latency and faults](/docs/guides/latency-and-faults/)). | none               |
+| `fetch?`     | The function that sends each request.                                                              | the global `fetch` |
+
+The HTTP transport also hands the app the paths and tags a Server Function invalidated, and
+reports each request's events to `useApplication().onEvent`.
+
+`createApplication` throws `latencyMs must be a finite non-negative number` for a negative or
+infinite `latencyMs`. The same message names `jitterMs` or `chunkDelayMs` of `network`.
+
+A failed request rejects with a `TransportError`, whose `outcome` says whether the Server ran
+anything:
+
+| What happened                                              | Error                                                      | `outcome`  |
+| ---------------------------------------------------------- | ---------------------------------------------------------- | ---------- |
+| No connection, or the request was cancelled before it left | `TransportError`                                           | `not-sent` |
+| The Server answered 409                                    | `BuildMismatch`, with the Server's message                 | `rejected` |
+| The Server answered 401                                    | `AuthenticationRequired`, with `loginPath` from the Server | `rejected` |
+| The Server answered another 4xx                            | `TransportError`: `HTTP <status>: <body>`                  | `rejected` |
+| The Server answered 5xx                                    | `TransportError`: `HTTP <status>: <body>`                  | `unknown`  |
+| The timeout ended, or the response was lost or cut         | `TransportError`                                           | `unknown`  |
+
+### Write a decorator
 
 A decorator sees every `render` and `call`. What it throws reaches the app as it is, so it
-must let each `TransportError` and its `outcome` through.
+must let each `TransportError` and its `outcome` through. DevTools adds its live latency with
+a decorator:
+
+<Excerpt
+  path="packages/core/src/devtools/client-agent.ts"
+  find="const wrapTransport = (inner: Transport): Transport => ({"
+  until="^  });"
+  tone="client"
+/>
 
 <Note>
   The packages are published on npm, at version 0.x. A patch release does not break the API, and a
