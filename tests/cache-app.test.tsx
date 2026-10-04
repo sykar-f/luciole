@@ -7,11 +7,21 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { build } from "../packages/core/src/build";
 import type { ApplicationEvent } from "../packages/core/src/client";
-import { BUILD_TEST_MS, destroy, importClient, launch, until, type TestUI } from "./helpers";
+import {
+  BUILD_TEST_MS,
+  WAIT_MS,
+  destroy,
+  importClient,
+  launch,
+  until,
+  untilFrame,
+  type TestUI,
+} from "./helpers";
 
 // Two cached reads with their own tag, an action that invalidates one tag, a page with a
 // router staleTime, a page reading its cached data below Suspense (/d), and the SQLite
-// handler chosen by server/cache.ts.
+// handler chosen by server/cache.ts. /d's `Bun.sleep(200)` simulates a slow read below
+// Suspense on purpose: it is the fixture's latency, no test waits on it for time.
 const files: Record<string, string> = {
   "app/layout.tsx": `"use client";export default function Layout({children}){return <box flexDirection="column">{children}</box>}`,
   "app/a/page.tsx": `import {Bump} from "../../components/Bump";import {readA} from "../../server/queries";export default async function A(){const a=await readA();return <box flexDirection="column"><text>A {a.value} runs {a.runs}</text><Bump/></box>}`,
@@ -31,6 +41,12 @@ test(
   async () => {
     const directory = await mkdtemp(join(tmpdir(), "luciole-cache-"));
     let server: Awaited<ReturnType<typeof launch>> | undefined, rendered: TestUI | undefined;
+    // The requests on the wire (Server Function calls and renders) and the loaders running.
+    // `settled` ends when none is left: what the test asserts is then final, and the
+    // teardown does not stop the Server under a call still in flight.
+    const open = new Set<number>();
+    let loading = 0;
+    const settled = () => until(() => open.size === 0 && loading === 0, WAIT_MS);
     try {
       for (const [name, text] of Object.entries(files)) {
         await mkdir(join(directory, name, ".."), { recursive: true });
@@ -57,7 +73,28 @@ test(
           return fetch(input, init);
         },
       });
-      app.onEvent((event) => events.push(event));
+      app.onEvent((event) => {
+        events.push(event);
+        if (event.type === "loader") {
+          if (event.phase === "start") loading++;
+          else if (event.source === "network") loading--;
+        }
+        if (event.type === "request") open.add(event.id);
+        if (event.type === "end" || event.type === "error") open.delete(event.id);
+      });
+      // The network load of `route` ended, since `events` was last emptied.
+      const loaded = (route: string) =>
+        until(
+          () =>
+            events.some(
+              (e) =>
+                e.type === "loader" &&
+                e.routeId === route &&
+                e.phase === "end" &&
+                e.source === "network",
+            ),
+          WAIT_MS,
+        );
       await app.router.load();
       const ui = await testRender(<Shell app={app} />, { width: 60, height: 8 });
       rendered = ui;
@@ -65,11 +102,14 @@ test(
         await ui.renderOnce();
         return ui.captureCharFrame();
       };
-      // Suspense content is revealed between act() scopes, not inside a pending one.
-      const shows = async (text: string, timeout = 5000) => {
+      // Waits for the frame to show `text`, as untilFrame does, but polls with the pause inside
+      // act(): Suspense content is revealed between act() scopes, not inside a pending one,
+      // and untilFrame's pause outside one made React warn of the reveal. The 10 ms is the
+      // polling interval, not a wait: the bound is WAIT_MS, a guard against a hang.
+      const shows = async (text: string) => {
         const start = performance.now();
         while (!(await frame()).includes(text)) {
-          if (performance.now() - start > timeout) throw new Error(`Frame never showed ${text}`);
+          if (performance.now() - start > WAIT_MS) throw new Error(`Frame never showed ${text}`);
           await act(() => Bun.sleep(10));
         }
       };
@@ -79,7 +119,9 @@ test(
         await app.router.navigate({ to: "/d" });
       });
       await shows("D late 0");
-      await act(() => Bun.sleep(50));
+      // The tags row is the last of the page's stream: no request is open once the stream
+      // ended, and the Client has read the tags by then.
+      await settled();
       // Invalidating that tag refetches the route. It is fresh (staleTime 60): only a
       // precise invalidation reloads it, where any invalidation reloads a stale mounted page.
       renders.length = 0;
@@ -87,17 +129,20 @@ test(
         await ui.mockInput.typeText("d");
       });
       await shows("D late 1");
+      await settled();
       expect(renders).toEqual(["/d"]);
       await act(async () => {
         await app.router.navigate({ to: "/a" });
       });
       expect(await frame()).toContain("A 0 runs 1");
       // Rendered again (staleTime 0): the Server answers from its cache, the function never runs.
+      events.length = 0;
       await act(async () => {
         await app.router.navigate({ to: "/b" });
         await app.router.navigate({ to: "/a" });
+        await loaded("/a");
+        await settled();
       });
-      await act(() => Bun.sleep(50));
       expect(renders.filter((r) => r === "/a").length).toBeGreaterThan(1);
       expect(await frame()).toContain("A 0 runs 1");
 
@@ -105,8 +150,9 @@ test(
       events.length = 0;
       await act(async () => {
         await ui.mockInput.typeText("b");
-        await until(() => renders.length > 0);
-        await Bun.sleep(80);
+        // The frame shows the revalidated /a: the render it waited for has happened.
+        await untilFrame(ui, "A 1 runs 2");
+        await settled();
       });
       expect(await frame()).toContain("A 1 runs 2");
       // /b and /d are in the router's cache but read only tags "b" and "d": never refetched.
@@ -118,11 +164,13 @@ test(
       });
 
       // A page within its staleTime is shown from the router's cache, without a request.
+      events.length = 0;
       await act(async () => {
         await app.router.navigate({ to: "/c" });
         await app.router.navigate({ to: "/a" });
         // /a revalidates in the background (staleTime 0): let it end before counting.
-        await until(() => !app.router.state.matches.some((m) => m.isFetching));
+        await loaded("/a");
+        await settled();
       });
       renders.length = 0;
       events.length = 0;
@@ -139,12 +187,14 @@ test(
       events.length = 0;
       await act(async () => {
         await app.router.navigate({ to: "/a" });
+        await loaded("/a");
+        await settled();
       });
-      await act(() => Bun.sleep(50));
       expect(
         events.find((e) => e.type === "loader" && e.routeId === "/a" && e.phase === "end"),
       ).toMatchObject({ source: "network", result: "ok" });
     } finally {
+      await settled().catch(() => {});
       await destroy(rendered);
       if (server) await server.stop();
       await rm(directory, { recursive: true, force: true });
