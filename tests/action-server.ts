@@ -10,6 +10,7 @@ let saved = "";
 const Editor = registerClientReference((_props: { save: typeof save }) => null, "editor", "Editor");
 const save = registerServerReference(
   async (value: string) => {
+    // Simulated time, not a wait: a slow save, still in flight while the test types.
     await Bun.sleep(400);
     saved = value;
     return { value, pid: process.pid };
