@@ -39,11 +39,15 @@ From elsewhere, pass `--app <dir>`. The output is then `<dir>/.luciole/`.
   rules written in Client Components, such as when to retry a save, are in it.
 - Each bundle has a linked source map: Bun applies it to stack traces at run time, in
   development as in production.
-- The app build is assembled in a temporary directory. It replaces the previous build only
-  once all of it succeeded, so a failure while building it leaves the last good build in
-  place. The app build is everything in the tree above except `web/`.
-- `--web` installs its runtime, and `--compile` its binary, after that replacement. If either
-  fails, `.luciole/` holds the new build without them.
+- A failed build leaves the previous build in `.luciole/`, whichever step fails, with one
+  exception named below. The app build, the runtime that `--web` installs and the binary that
+  `--compile` writes are all assembled in a temporary directory. They replace the previous
+  build together, once every step succeeded. The app build is everything in the tree above
+  except `web/`.
+- A binary written outside `.luciole/` with `--outfile` is built beside its destination. It
+  replaces the previous binary only when the build is published, so a failed `--compile`
+  leaves the previous binary. It can still have updated the `native/` directory beside it.
+  If the move of that binary fails, `.luciole/` already holds the new build.
 - `luciole build` without `--compile` or `--web` does not touch the network.
 - `.luciole/app/` needs Client code without top-level `await` (CommonJS cannot express it):
   without it the build succeeds without the app bundle and says where; `--app-bundle` makes
@@ -201,7 +205,5 @@ its `package.json` is refused.
 - A compiled binary does not embed `.luciole/app/`: it cannot be opened by URL.
 - A compiled Client is rebuilt from `index.js` without its source map: its stack traces stay
   in the bundle's coordinates.
-- The build swaps the previous build out with two renames: `.luciole/` to
-  `.luciole-previous/`, then the new build to `.luciole/`. If the second rename fails,
-  `.luciole/` is missing. The previous build stays in `.luciole-previous/`, and the build does
-  not move it back.
+- If the build process is killed while it publishes, `.luciole/` can be missing. The previous
+  build is then in `.luciole-previous/`, and the next build does not move it back.

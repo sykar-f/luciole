@@ -1,10 +1,13 @@
 import { test, expect } from "bun:test";
-import { mkdtemp, mkdir, rm, stat, symlink } from "node:fs/promises";
+import { mkdtemp, mkdir, readdir, rename, rm, stat, symlink } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
-import { build } from "../packages/core/src/build";
+import { build, publish } from "../packages/core/src/build";
+import { readBuildId } from "../packages/core/src/compile";
+import { webRuntimeDirectory } from "../packages/core/src/web-runtime";
+import { TREE_SITTER_DIRECTORY, WEB_RUNTIME_FILES } from "../packages/core/src/web/build";
 import { messageOf } from "../packages/core/src/guards";
-import { BUILD_TEST_MS, readManifest, rejectionOf } from "./helpers";
+import { BUILD_TEST_MS, execute, readManifest, rejectionOf, temporaryApp } from "./helpers";
 async function fixture(files: Record<string, string>, run: (dir: string) => Promise<void>) {
   const dir = await mkdtemp(join(tmpdir(), "luciole-build-"));
   try {
@@ -104,6 +107,163 @@ test("failed rebuild retains prior artefacts", async () => {
   );
 });
 
+test("a failed publication puts the previous build back", async () => {
+  const work = await mkdtemp(join(tmpdir(), "luciole-publish-"));
+  try {
+    const output = join(work, ".luciole");
+    const next = join(work, "next");
+    await mkdir(output);
+    await mkdir(next);
+    await Bun.write(join(output, "manifest.json"), '{"buildId":"previous"}');
+    await Bun.write(join(next, "manifest.json"), '{"buildId":"next"}');
+    // The second move (the new build into place) fails; the first and the restore work.
+    let moves = 0;
+    const failing: typeof rename = async (from, to) => {
+      if (++moves === 2) throw new Error("injected rename failure");
+      await rename(from, to);
+    };
+    expect(messageOf(await rejectionOf(publish(next, output, failing)))).toBe(
+      "injected rename failure",
+    );
+    expect(await Bun.file(join(output, "manifest.json")).json()).toEqual({ buildId: "previous" });
+    expect(await Bun.file(`${output}-previous/manifest.json`).exists()).toBe(false);
+  } finally {
+    await rm(work, { recursive: true, force: true });
+  }
+});
+test("a step staged with the build that fails leaves the previous build", async () => {
+  await fixture(
+    { "app/page.tsx": "export default function Page(){return <text>ok</text>}" },
+    async (dir) => {
+      const first = await build(dir);
+      await Bun.write(
+        join(dir, "app/page.tsx"),
+        "export default function Page(){return <text>NEW_PAGE_SENTINEL</text>}",
+      );
+      const staged: string[] = [];
+      // What `--web` does once the app is built: a failing runtime install.
+      const failure = await rejectionOf(
+        build(dir, undefined, {
+          stage: async (temp) => {
+            staged.push(temp);
+            expect(await readBuildId(temp)).not.toBe(first.buildId);
+            throw new Error("web runtime unavailable");
+          },
+        }),
+      );
+      expect(messageOf(failure)).toBe("web runtime unavailable");
+      expect((await readManifest(dir)).buildId).toBe(first.buildId);
+      expect(await Bun.file(join(dir, ".luciole/server/index.js")).text()).not.toContain(
+        "NEW_PAGE_SENTINEL",
+      );
+      expect(await stat(staged[0]).catch(() => undefined)).toBeUndefined();
+      expect(await readdir(dir)).not.toContain(".luciole-previous");
+    },
+  );
+});
+test(
+  "a failed --compile leaves the previous build and the previous binary",
+  async () => {
+    // The CLI runs in its own process: the application needs its node_modules link.
+    const dir = await temporaryApp("compile-rollback");
+    try {
+      await mkdir(join(dir, "app"));
+      await Bun.write(
+        join(dir, "app/layout.tsx"),
+        `"use client";export default function Layout({children}){return children}`,
+      );
+      await Bun.write(
+        join(dir, "app/page.tsx"),
+        "export default function Page(){return <text>ok</text>}",
+      );
+      const cli = (...flags: string[]) =>
+        execute([process.execPath, resolve("packages/core/src/cli.ts"), "build", ...flags], {
+          cwd: dir,
+        });
+      const outfile = join(dir, "dist/app-binary");
+      const first = await cli("--compile", "--runtime", "host", "--outfile", outfile);
+      expect(first.exitCode).toBe(0);
+      const previous = await Bun.file(outfile).bytes();
+      const { buildId } = await readManifest(dir);
+      await Bun.write(
+        join(dir, "app/page.tsx"),
+        "export default function Page(){return <text>changed</text>}",
+      );
+      // The runtime is looked up once the Server is bundled: after the app build.
+      const failed = await cli(
+        "--compile",
+        "--runtime",
+        join(dir, "no-such-bun"),
+        "--outfile",
+        outfile,
+      );
+      expect(failed.exitCode).not.toBe(0);
+      expect((await readManifest(dir)).buildId).toBe(buildId);
+      expect(await Bun.file(outfile).bytes()).toEqual(previous);
+      expect(await readdir(join(dir, "dist"))).toEqual(["app-binary"]);
+      // Without --outfile the binary is part of the build, and so is its failure.
+      const inside = await cli("--compile", "--runtime", join(dir, "no-such-bun"));
+      expect(inside.exitCode).not.toBe(0);
+      expect((await readManifest(dir)).buildId).toBe(buildId);
+      // A successful rebuild publishes the binary with the build.
+      const rebuilt = await cli("--compile", "--runtime", "host");
+      expect(rebuilt.exitCode).toBe(0);
+      expect((await readManifest(dir)).buildId).not.toBe(buildId);
+      expect((await readdir(join(dir, ".luciole/bin"))).length).toBe(1);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  },
+  BUILD_TEST_MS * 3,
+);
+test(
+  "a repeated identical build succeeds, plain, with --web and with --compile",
+  async () => {
+    const dir = await temporaryApp("repeat-build");
+    const cache = await mkdtemp(join(tmpdir(), "luciole-web-cache-"));
+    try {
+      await mkdir(join(dir, "app"));
+      await Bun.write(
+        join(dir, "app/layout.tsx"),
+        `"use client";export default function Layout({children}){return children}`,
+      );
+      await Bun.write(
+        join(dir, "app/page.tsx"),
+        "export default function Page(){return <text>ok</text>}",
+      );
+      // A web runtime already prepared in the cache: no network, no Zig.
+      const runtime = await webRuntimeDirectory(join(cache, "luciole"));
+      await mkdir(join(runtime, TREE_SITTER_DIRECTORY), { recursive: true });
+      for (const name of [...WEB_RUNTIME_FILES, "runtime.js.map", "web-runtime.json"])
+        await Bun.write(join(runtime, name), name);
+      const cli = (...flags: string[]) =>
+        execute([process.execPath, resolve("packages/core/src/cli.ts"), "build", ...flags], {
+          cwd: dir,
+          env: { ...process.env, XDG_CACHE_HOME: cache },
+        });
+      const cases: { flags: string[]; artefact?: string }[] = [
+        { flags: [] },
+        { flags: ["--web"], artefact: "web/index.html" },
+        { flags: ["--compile", "--runtime", "host"], artefact: "bin" },
+      ];
+      for (const { flags, artefact } of cases) {
+        const first = await cli(...flags);
+        expect(first.stderr.toString().replace(/^Warning: .*\n?/gm, "")).toBe("");
+        expect(first.exitCode).toBe(0);
+        const { buildId } = await readManifest(dir);
+        const again = await cli(...flags);
+        expect(again.stderr.toString().replace(/^Warning: .*\n?/gm, "")).toBe("");
+        expect(again.exitCode).toBe(0);
+        expect((await readManifest(dir)).buildId).toBe(buildId);
+        if (artefact) expect(await stat(join(dir, ".luciole", artefact))).toBeDefined();
+      }
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+      await rm(cache, { recursive: true, force: true });
+    }
+  },
+  BUILD_TEST_MS * 3,
+);
 test("route auth metadata is secure by default and validated", async () => {
   await fixture(
     {
