@@ -101,24 +101,15 @@ two programs see it:
       back: true,
       tone: "wire",
     },
-    {
-      from: "client",
-      to: "server",
-      label: "GET /render, listNotes again",
-      n: 13,
-      tone: "wire",
-    },
+    { from: "client", to: "client", label: "useInvalidation fires", n: 13 },
+    { from: "client", to: "server", label: "POST /action listNotes", n: 14, tone: "wire" },
+    { from: "client", to: "server", label: "GET /render, route /notes/[id]", n: 15, tone: "wire" },
     { phase: "Refresh" },
-    { from: "you", to: "client", label: "Ctrl+R", n: 14 },
-    {
-      from: "client",
-      to: "server",
-      label: "GET /render, listNotes again",
-      n: 15,
-      tone: "wire",
-    },
+    { from: "you", to: "client", label: "Ctrl+R", n: 16 },
+    { from: "client", to: "server", label: "POST /action listNotes", n: 17, tone: "wire" },
+    { from: "client", to: "server", label: "GET /render, route /notes/[id]", n: 18, tone: "wire" },
   ]}
-  caption="Keys (9) stay in the Client. After a save (12), the Client reloads only what read the invalidated tags (13). Ctrl+R reloads what is on screen (15)."
+  caption="Keys (9) stay in the Client. After a save (12), useInvalidation reloads the sidebar (13, 14), and the Client reloads only the route that read the tags (15). Ctrl+R reloads both (17, 18)."
 />
 
 Every request also carries the build ID, which

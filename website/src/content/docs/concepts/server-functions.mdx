@@ -61,11 +61,13 @@ Notes saves a note one second after the last key. This is that call, from the ed
       tone: "wire",
     },
     { phase: "Back in the Client" },
-    { from: "client", to: "client", label: "revalidates what read the tags", n: 9 },
-    { from: "client", to: "server", label: "GET /render, listNotes", n: 10, tone: "wire" },
-    { from: "client", to: "client", label: "NoteEditor gets the SaveResult", n: 11 },
+    { from: "client", to: "client", label: "useInvalidation listeners run", n: 9 },
+    { from: "client", to: "server", label: "POST /action listNotes", n: 10, tone: "wire" },
+    { from: "client", to: "client", label: "revalidates what read the tags", n: 11 },
+    { from: "client", to: "server", label: "GET /render /notes/[id]", n: 12, tone: "wire" },
+    { from: "client", to: "client", label: "NoteEditor gets the SaveResult", n: 13 },
   ]}
-  caption="The Server answers (8) once the cache purges are done (7), so the reload (10) reads the new note. The call resolves (11) without waiting for that reload to answer."
+  caption="The Server answers (8) once the cache purges are done (7), so both reloads (10, 12) read the new note. The call resolves (13) without waiting for them to answer."
 />
 
 ## What a `"use server"` module may export
@@ -135,8 +137,8 @@ The framework refreshes nothing by itself after a Server Function, so a read cos
 render. A function that changes data calls `invalidate()` from `@luciole-sh/core/server`:
 
 - the paths and tags travel back in the response's envelope (step 8 above);
-- the Client revalidates the routes concerned (steps 9 and 10);
-- the call resolves without waiting for those routes (step 11).
+- the Client revalidates the routes concerned (steps 11 and 12);
+- the call resolves without waiting for those routes (step 13).
 
 | Call                       | Effect                                                                                                 |
 | -------------------------- | ------------------------------------------------------------------------------------------------------ |
@@ -148,7 +150,8 @@ A lost response invalidates nothing in the Client. Two hooks cover what route lo
 reload:
 
 - `useInvalidation(listener)` runs after each invalidation, for data read outside route
-  loaders, such as a counter in a layout. Notes reloads its sidebar's list this way.
+  loaders, such as a counter in a layout. Notes reloads its sidebar's list this way
+  (steps 9 and 10).
 - `useApplication().invalidate(paths?)` lets Client code revalidate after a change it
   observed itself.
 
