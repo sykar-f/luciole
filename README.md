@@ -71,6 +71,8 @@ captured from a real PTY by [`scripts/pty/notes-frame.ts`](scripts/pty/notes-fra
 
 You need [Bun](https://bun.sh) 1.4.2 or newer, on macOS or Linux.
 
+### Create an app
+
 ```sh
 bunx luciole.sh init my-app
 cd my-app
@@ -84,6 +86,34 @@ terminal. Ctrl+C quits and restores the terminal. The same steps, explained, are
 
 The two libraries install on their own: `bun add @luciole-sh/flow-graph` and
 `bun add @luciole-sh/markdown-editor`.
+
+### Try it without creating anything
+
+Clone the repository to run Notes, with no login and no API key:
+
+```sh
+git clone https://github.com/sykar-f/luciole.git
+cd luciole
+bun install --frozen-lockfile
+bun run dev
+```
+
+`bun run dev` runs Notes from `examples/notes`.
+
+- It creates `notes.sqlite` in the current directory, with sample notes.
+- It opens on "No note selected". Click "Welcome to Notes" in the list, then click in
+  the note and write.
+- Ctrl+C quits and restores the terminal.
+
+To feel what stays local, add a simulated round trip of 500 ms to every request:
+
+```sh
+LUCIOLE_LATENCY_MS=500 bun run dev
+```
+
+Search, typing, scrolling and hover stay instant. Opening another note waits for the
+Server and shows a loading state. Saves are silent: Notes mentions a save only when it
+takes more than 3 s, so typing alone shows no delay.
 
 ## Your first app
 
@@ -231,31 +261,8 @@ Then, by topic:
 
 ## Work on luciole from a clone
 
-To work on luciole itself, run it from a clone:
-
-```sh
-git clone https://github.com/sykar-f/luciole.git
-cd luciole
-bun install --frozen-lockfile
-bun run dev
-```
-
-`bun run dev` runs Notes from `examples/notes`. It needs no login and no API key.
-
-- It creates `notes.sqlite` in the current directory, with sample notes.
-- It opens on "No note selected". Click "Welcome to Notes" in the list, then click in
-  the note and write.
-- Ctrl+C quits and restores the terminal.
-
-To feel what stays local, add a simulated round trip of 500 ms to every request:
-
-```sh
-LUCIOLE_LATENCY_MS=500 bun run dev
-```
-
-Search, typing, scrolling and hover stay instant. Opening another note waits for the
-Server and shows a loading state. Saves are silent: Notes mentions a save only when it
-takes more than 3 s, so typing alone shows no delay.
+To work on luciole itself, run it from a clone. The steps to clone it and run Notes are in
+[Try it without creating anything](#try-it-without-creating-anything).
 
 To create an app that links your clone's packages:
 
