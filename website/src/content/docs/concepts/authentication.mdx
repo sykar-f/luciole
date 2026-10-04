@@ -1,56 +1,86 @@
 ---
 title: Authentication
-description: Pages and Server Functions require a session by default. The local single-user mode, server/auth.ts, public routes and setToken.
+description: Every page and Server Function requires a sign-in session unless it opts out. Sign in with server/auth.ts, open a page to everyone, and change the token on sign-in and sign-out.
 sources:
   - docs/API.md
   - packages/core/src/serve.ts
   - packages/core/src/server.ts
+  - packages/core/src/transport.ts
+  - packages/core/src/client.tsx
   - examples/forge/server/auth.ts
+  - examples/forge/server/forge.ts
+  - examples/forge/actions/session.ts
+  - examples/forge/components/LoginForm.tsx
+  - examples/forge/components/AppChrome.tsx
 ---
 
 import Note from "../../../components/docs/Note.astro";
+import Excerpt from "../../../components/guide/Excerpt.astro";
+import Sequence from "../../../components/guide/Sequence.astro";
 
-Every page and every `"use server"` module requires a session unless it says otherwise. The
-framework carries the session; signing in, storing the token, renewing it and business
-permissions stay with the app.
+Every page and every `"use server"` module requires a **sign-in session** unless it opts out.
+A sign-in session is who signed in, as the Server's `authenticate` returns it. luciole checks
+it on the Server for each request, and your app handles the rest:
 
-## Without `server/auth.ts`: one local user
+- signing in and storing the token
+- renewing the token
+- business permissions
 
-An app without `server/auth.ts` has a **single-user** session: every request is the user
-`LUCIOLE_USER` (`local` by default). `LUCIOLE_TOKEN`, set on both sides, protects it: the
-Client sends it as `Authorization: Bearer …`, and a request without it has no session. Its
-protected pages and Server Functions are refused; public ones still answer
-([what answers without a session](/docs/reference/environment/#server)).
+## Use one local user without `server/auth.ts`
 
-The Server listens on loopback by default. It refuses to listen elsewhere (`LUCIOLE_HOST`)
-unless `LUCIOLE_TOKEN` or `server/auth.ts` is set. Before any public exposure, put it behind a
-TLS reverse proxy and restrict network access to it; use an HTTPS URL so the token never
-travels in clear. For a private connection, keep the loopback listener and connect over
-[SSH](/docs/guides/opening-an-app/#over-ssh).
+An app without `server/auth.ts` has a **single user**. Every request comes from
+`LUCIOLE_USER`, which is `local` by default.
 
-## With `server/auth.ts`
+To protect that user, set `LUCIOLE_TOKEN` on both sides. It is the **bearer token**, the
+string the Client sends with each request to prove who signed in. The Client sends it as
+`Authorization: Bearer …`.
 
-An app that replaces the local identity provides `server/auth.ts`. The build includes it in
-the Server's graph only.
+A request without the token has no sign-in session. Protected pages and Server Functions
+refuse that request, and public ones still answer
+([what answers without a sign-in session](/docs/reference/environment/#server)).
 
-```ts
-import type { AuthConfig } from "@luciole-sh/core/server";
+The Server listens on loopback by default. It refuses any other address (`LUCIOLE_HOST`)
+unless `LUCIOLE_TOKEN` or `server/auth.ts` is set.
 
-export default {
-  unauthorizedPath: "/login",
-  async authenticate(request) {
-    const token = request.headers.get("authorization")?.replace(/^Bearer /, "");
-    return token ? await sessions.fromToken(token) : null;
-  },
-} satisfies AuthConfig;
-```
+<Note kind="warning">
+  Before you expose the Server, put it behind a TLS reverse proxy and restrict network access to it.
+  Use an HTTPS URL, so the token never travels in clear. For a private connection, keep the loopback
+  address and connect over [SSH](/docs/guides/opening-an-app/#over-ssh).
+</Note>
 
-`authenticate` returns the session or `null`. Pages, actions and repositories read it with
-`getSession()` (`{ userId }`), or `getOptionalSession()`. That one returns the request's
-session, or `null` for an anonymous request. A public page or Server Function still gets the
-session of a signed-in user. Forge is the example in the repository that provides one.
+## Sign users in with `server/auth.ts`
 
-## Public pages and actions
+To replace the single user, add `server/auth.ts`. The build puts it in the Server only. Its
+default export has two fields:
+
+- `authenticate(request)` returns the sign-in session, `{ userId }` and any fields you add,
+  or `null`.
+- `unauthorizedPath`, optional, names the public route where a refused page load goes. The
+  Server does not start when that route is missing or protected.
+
+Forge, the code review example, keeps its tokens in SQLite:
+
+<Excerpt
+  path="examples/forge/server/auth.ts"
+  find="export default"
+  until="^} satisfies"
+  mark={["unauthorizedPath", "forge.authenticate(token)"]}
+  tone="server"
+  caption="Forge's server/auth.ts. forge.authenticate looks the token up among the sign-ins that are neither expired nor revoked. A refused navigation goes to /login."
+/>
+
+Pages, Server Functions and repositories read the sign-in session in two ways:
+
+- `getSession()` returns it, and throws `Authentication required` for an anonymous request.
+- `getOptionalSession()` returns it, or `null` for an anonymous request.
+
+A public page or Server Function still gets the sign-in session of a user who signed in.
+Neither function works inside `"use cache"`. Pass the identity to the cached function as an
+argument.
+
+## Make a page or a Server Function public
+
+A page opts out with `export const auth = "public"`:
 
 ```tsx
 export const auth = "public" as const;
@@ -60,57 +90,155 @@ export default function LoginPage() {
 }
 ```
 
-An action is protected independently of the page that hands out its reference. To allow a
-Server Function without a session, put public actions in their own module; every function of
-a module shares its policy:
+A Server Function keeps its own policy, whatever the page that passes it. All functions of a
+module share one policy, so put public Server Functions in a module of their own:
 
 ```ts
 "use server";
 export const auth = "public" as const;
 
-export async function beginLogin() {
-  // Validate the arguments even without a session.
+export async function login(user: string, pin: string) {
+  // Check the arguments: anyone can call this function.
 }
 ```
 
-## What happens without a session
+## Follow a sign-in and a sign-out
 
-- A navigation to a protected route gets a `401`, then goes locally to `unauthorizedPath`,
-  which must name an existing public route. So does a refresh of the current route.
-- Without `unauthorizedPath`, a navigation still moves to the protected route. Its page slot
-  shows the error, through the nearest `error.tsx`, inside the layouts that stay. The status
-  is `Authentication required`.
-- Without `unauthorizedPath`, a refresh that gets a `401` takes the page off the screen. Its
-  page slot shows the error, as after a refused navigation. A refresh that fails for another
-  reason, such as a lost connection, keeps the page and its unsaved text.
-- A refused Server Function never navigates: the error reaches its caller, and
-  `AuthenticationRequired.loginPath` says where to sign in.
+Your app calls `useApplication().setToken(token)` after a sign-in, and `setToken(undefined)`
+to sign out. Here is a sign-in, then a sign-out on a protected page:
 
-## Signing in and out
+<Sequence
+  title="A sign-in, then a sign-out"
+  lanes={[
+    { id: "you", label: "You", sub: "at the keyboard", tone: "neutral" },
+    { id: "client", label: "Client", sub: "holds the token", tone: "client" },
+    { id: "server", label: "Server", sub: "runs authenticate", tone: "server" },
+  ]}
+  messages={[
+    { phase: "Sign in" },
+    { from: "you", to: "client", label: "submit the sign-in form", n: 1 },
+    {
+      from: "client",
+      to: "server",
+      label: "POST /action login, a public Server Function",
+      n: 2,
+      tone: "wire",
+    },
+    { from: "server", to: "client", label: "the token", n: 3, back: true, tone: "wire" },
+    { from: "client", to: "client", label: "setToken(token), then navigate to /", n: 4 },
+    {
+      from: "client",
+      to: "server",
+      label: "GET /render /, Authorization: Bearer <token>",
+      n: 5,
+      tone: "wire",
+    },
+    { from: "server", to: "server", label: "authenticate returns { userId }", n: 6 },
+    {
+      from: "server",
+      to: "client",
+      label: "Flight: the protected page",
+      n: 7,
+      back: true,
+      tone: "wire",
+    },
+    { phase: "Sign out on that page" },
+    { from: "you", to: "client", label: "sign out", n: 8 },
+    {
+      from: "client",
+      to: "client",
+      label: "setToken(undefined): drops cached private pages",
+      n: 9,
+    },
+    { from: "client", to: "server", label: "GET /render /, no token", n: 10, tone: "wire" },
+    { from: "server", to: "server", label: "authenticate returns null", n: 11 },
+    {
+      from: "server",
+      to: "client",
+      label: "401 Authentication required",
+      n: 12,
+      back: true,
+      tone: "wire",
+    },
+    { phase: "With unauthorizedPath: /login" },
+    { from: "client", to: "client", label: "redirect to /login", n: 13 },
+    { from: "client", to: "server", label: "GET /render /login", n: 14, tone: "wire" },
+    {
+      from: "server",
+      to: "client",
+      label: "Flight: the public sign-in page",
+      n: 15,
+      back: true,
+      tone: "wire",
+    },
+    { phase: "Without unauthorizedPath" },
+    {
+      from: "client",
+      to: "client",
+      label: "drops the page, error.tsx fills its slot",
+      n: 16,
+    },
+  ]}
+  caption="The token travels with every request after setToken (5), and authenticate reads it on the Server (6). After a sign-out, the reload of the protected page is refused (12). The Client then goes to unauthorizedPath (13), or shows the error in place of the page (16). The reload that setToken(token) starts on /login is left out of step 4."
+/>
 
-`useApplication().setToken(token?)` replaces the token of the following requests. It purges
-TanStack's route cache, and again at the end of a navigation in progress. A private page
-cached under one token is never shown under another. Then it reloads the current routes
-with the new token. After signing in or out, your app navigates where it wants.
+`setToken` does four things, in this order:
 
-Signing out on a protected page takes that page off the screen. The reload gets a `401`, and
-the Client goes to `unauthorizedPath`. Without `unauthorizedPath`, the page slot shows the error,
-inside the layouts that stay.
+1. When it replaces a token, it forgets the text of restorable fields
+   ([session restore](/docs/concepts/session-restore/)). The first sign-in of a Client keeps
+   that text, so text restored after a crash survives the sign-in it needs.
+2. It sets the token of the following requests, or removes it.
+3. It drops every cached private page, and again when a navigation in progress ends. A page
+   loaded under one token never shows under another.
+4. It reloads the current routes with the new token.
+
+`setToken` does not navigate and touches no state of your app. After a sign-in or a
+sign-out, your app navigates where it wants. When the user changes, your app also clears its
+own unsaved text.
 
 <Note kind="warning">
-  The page leaves the screen with the unsaved text its components held. The Client does not keep
-  that text, because keeping the page would leave the previous account's data on screen.
+  Signing out on a protected page takes the page off the screen, with the unsaved text its
+  components held. The Client does not keep that page, because it would leave the previous account's
+  data on screen.
 </Note>
 
-Replacing a token also forgets the text of restorable fields
-([session restore](/docs/concepts/session-restore/)). It touches no app state: an app that
-changes identity clears its own unsaved text.
+## What does the user see when a request is refused?
+
+A refused request gets a `401`. What the user sees depends on the request and on
+`unauthorizedPath`. The last column is `useConnection().status`, which a status line shows.
+
+| Request                                                            | With `unauthorizedPath`                                                                             | Without `unauthorizedPath`                                                                    | Status                                     |
+| ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| A navigation to a protected route                                  | The Client goes to `unauthorizedPath`.                                                              | The Client moves to the route. Its page slot shows the error through the nearest `error.tsx`. | `Authentication required`                  |
+| A refresh of the current route, such as after `setToken`           | The Client goes to `unauthorizedPath`.                                                              | The page leaves the screen. Its page slot shows the error, as after a refused navigation.     | `Authentication required`                  |
+| A Server Function call                                             | Nothing moves. The caller gets `AuthenticationRequired`, and its `loginPath` is `unauthorizedPath`. | Nothing moves. The caller gets `AuthenticationRequired`, and its `loginPath` is `undefined`.  | `Authentication required`                  |
+| A refresh that fails for another reason, such as a lost connection | The page stays, with its unsaved text.                                                              | The page stays, with its unsaved text.                                                        | `Disconnected`, with the reason in `error` |
+
+The status lasts until a request succeeds. After a redirect, the `unauthorizedPath` page loads
+without error, so the status soon reads `Connected`.
+
+When the page slot shows the error, the layouts stay on screen around it
+([loading and errors](/docs/concepts/loading-and-errors/)).
+
+## Keep permission checks on the Server
 
 <Note kind="warning">
-  Layouts are Client Components: they cannot call `getSession()`. Public session data the chrome
-  needs (a display name, a role) comes from a page, or from a Client context the app provides; it
-  never replaces the check on the Server. A Flight reference grants no right by itself, and a
-  protected route never replaces the permission checks in the action or the repository.
+  A protected route or a Server Function reference grants no right by itself. Check permissions in
+  the Server Function or the repository that reads the data.
 </Note>
 
-Never put a secret in the Client's sources or in a prop: both reach the terminal.
+Layouts are Client Components, so they cannot call `getSession()`. A layout that shows a
+display name or a role gets it from a page, or from a Client context your app provides. That
+copy never replaces the check on the Server.
+
+Secrets stay on the Server: see
+[what a page cannot do](/docs/concepts/server-components/#what-a-page-cannot-do).
+
+## See also
+
+- [Environment variables](/docs/reference/environment/#server): `LUCIOLE_TOKEN`,
+  `LUCIOLE_USER` and `LUCIOLE_HOST`
+- [Loading and errors](/docs/concepts/loading-and-errors/): `error.tsx` and the connection
+  status
+- [Session restore](/docs/concepts/session-restore/): the text a token change forgets
+- [API](/docs/reference/api/): `AuthConfig`, `getSession` and `useApplication`

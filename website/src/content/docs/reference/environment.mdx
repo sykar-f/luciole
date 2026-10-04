@@ -49,7 +49,7 @@ process with a message that names the variable.
 A request without a session gets a `401` on a protected page or Server Function, and on
 `GET /health`. These routes answer without a session:
 
-- public pages and Server Functions ([authentication](/docs/concepts/authentication/#public-pages-and-actions))
+- public pages and Server Functions ([authentication](/docs/concepts/authentication/#make-a-page-or-a-server-function-public))
 - `GET /manifest` and `GET /bundle/<sha256>`, how a host learns the build
 - the web page under `/_luciole/web/`, with `LUCIOLE_WEB_ORIGIN`
 - the launcher's `/lifetime/*` routes, on a managed Server's socket
