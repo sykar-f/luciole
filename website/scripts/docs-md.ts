@@ -19,6 +19,7 @@ const values: Record<string, string> = {
   repo,
   clone: repo.split("/").at(-1) ?? "",
   envPrefix,
+  "commands.fromNpm": commands.fromNpm,
   "commands.fromClone": commands.fromClone,
   "commands.cli": commands.cli,
   "commands.runner": commands.runner,
