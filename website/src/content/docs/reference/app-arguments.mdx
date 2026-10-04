@@ -5,16 +5,23 @@ sources:
   - docs/API.md
   - packages/core/src/args.ts
   - packages/core/src/launcher/app-args.ts
+  - packages/core/src/server.ts
   - examples/coder/app/args.ts
 ---
 
 import Excerpt from "../../../components/guide/Excerpt.astro";
 import Note from "../../../components/docs/Note.astro";
 
-An app that takes command-line options declares them in `app/args.ts` (optional), with
-`defineArgs` from `@luciole-sh/core/args` and a zod 4 schema, or any Standard Schema that also
-implements Standard JSON Schema. The framework parses them the same way everywhere,
-generates `--help`, and hands them to the Server, which reads them typed.
+This page lists how an app declares its command-line options, and how they reach its Server.
+The app declares them in `app/args.ts`, which is optional, with `defineArgs` from
+`@luciole-sh/core/args`.
+
+The schema is a zod 4 schema, or any Standard Schema that also implements Standard JSON
+Schema. The framework then does three things:
+
+- It parses the options the same way at every entry point.
+- It generates `--help`.
+- It hands the options to the Server, which reads them typed.
 
 <Excerpt
   path="examples/coder/app/args.ts"
@@ -24,28 +31,53 @@ generates `--help`, and hands them to the Server, which reads them typed.
   caption="The options of the coder example."
 />
 
-## Grammar
+## How the command line reads each option
 
-The grammar comes from the options' JSON Schema; a camelCase property becomes `--kebab-case`.
+The grammar comes from the options' JSON Schema. A camelCase property becomes `--kebab-case`.
 
-| Schema               | Command line                                                    |
-| -------------------- | --------------------------------------------------------------- |
-| boolean              | `--flag`, `--no-flag`                                           |
-| string, enum, number | `--flag v`, `--flag=v` (numbers converted before validation)    |
-| `true \| string`     | `--flag` alone, or `--flag v` if the next word is not an option |
-| array of scalars     | repeatable: `--flag a --flag b`                                 |
+| Schema           | Command line                                                    |
+| ---------------- | --------------------------------------------------------------- |
+| boolean          | `--flag`, `--no-flag`                                           |
+| string           | `--flag v`, `--flag=v`                                          |
+| enum             | `--flag v`, `--flag=v`                                          |
+| number           | `--flag v`, `--flag=v`, converted to a number before validation |
+| `true \| string` | `--flag` alone, or `--flag v` if the next word is not an option |
+| array of scalars | repeatable: `--flag a --flag b`                                 |
 
-`.meta()` adds `short` (one letter; `-abc` groups booleans), `placeholder`, `description`,
-`kind: "path"` (resolved against the directory the command was typed in) and `env` (a
-variable read when the option is absent: command line, then variable, then default). A
-nested object or another kind of union is refused at build time. A usage error names the
-option, suggests the closest one ("did you mean") and exits with code 2. `--help` lists the
-app's options, then the runtime's, then the examples.
+The build refuses a nested object or any other kind of union.
 
-The runtime's options are reserved: the build refuses an app that declares `--url`, `--on`,
-`--target`, `--grace`, `--yes`, `--help`, `-h`, `--version` or `--new`.
+### Describe an option with `.meta()`
 
-## Reading them on the Server
+| Key            | Effect                                                             |
+| -------------- | ------------------------------------------------------------------ |
+| `short`        | A one-letter alias. `-abc` groups three boolean aliases.           |
+| `placeholder`  | The name of the value in `--help`.                                 |
+| `description`  | The option's line in `--help`.                                     |
+| `kind: "path"` | Resolves the value against the directory the command was typed in. |
+| `env`          | A variable read when the option is absent from the command line.   |
+
+An option with `env` takes the first value it finds: the command line, then the variable, then
+the default. A boolean option reads `1`, `true`, `0` or `false` from its variable.
+
+### Read a usage error and `--help`
+
+A usage error does three things:
+
+- It names the option.
+- It suggests the closest one, with "did you mean".
+- It exits with code 2.
+
+`--help` lists the app's options, then the runtime's, then the examples.
+
+### Avoid the runtime's options
+
+The build refuses an app that declares one of the runtime's options:
+
+- `--url`, `--on`, `--target`
+- `--grace`, `--yes`, `--new`
+- `--help`, `-h`, `--version`
+
+## Read them on the Server
 
 The value is typed by the import, with no code generation:
 
@@ -55,37 +87,46 @@ import cli from "../app/args";
 export const config = cli.get(); // { harness?: "claude" | "codex"; mode: "read" | "ask"; … }
 ```
 
-`getArgs()` from `@luciole-sh/core/server` returns the same value, untyped, and `getLaunch()` the
-launch: `{ scope, id?, cwd }`. The Server is the authority: it parses the line it receives
-again before serving, and a refused line stops it (code 2, the message in its log).
+| Call                                         | Returns                                                                 |
+| -------------------------------------------- | ----------------------------------------------------------------------- |
+| `cli.get()`                                  | The parsed options, typed by the schema.                                |
+| `getArgs()` from `@luciole-sh/core/server`   | The same value, untyped. `undefined` when the app has no `app/args.ts`. |
+| `getLaunch()` from `@luciole-sh/core/server` | The launch: `{ scope, id?, cwd }`.                                      |
 
-**One Server, one set of arguments**: `get()` is a constant of the process, safe at module
-level, in a singleton or under `"use cache"`. There is no Client API: `get()` throws in the
-Client, and the page passes the UI what it needs as props. `app/args.ts` runs in the
-launcher, the binary and the Server, so it may import neither `server-only`, `client-only`,
-`server/` nor OpenTUI.
+The Server is the authority. It parses the line it receives again before serving. A refused
+line stops it with code 2, and the message goes to its log.
+
+### Know where `get()` works
+
+One Server has one set of arguments:
+
+- `get()` returns a constant of the process. It is safe at module level, in a singleton or
+  under `"use cache"`.
+- `get()` throws in the Client. The page passes the UI what it needs as props.
+- `app/args.ts` runs in the launcher, the binary and the Server. It may import neither
+  `server-only`, `client-only`, `server/` nor OpenTUI.
 
 ## How each entry point passes them
 
-Every entry point that starts a Server accepts the options, checks them before starting it,
-and passes them in the `LUCIOLE_ARGS` variable, never on its command line, which `ps` shows
-to other users.
+Every entry point that starts a Server accepts the options and checks them before it starts the
+Server. It passes them in the `LUCIOLE_ARGS` variable, never on the Server's command line,
+because `ps` shows a command line to other users.
 
-| Entry point                                       | The app's options                                                              |
-| ------------------------------------------------- | ------------------------------------------------------------------------------ |
-| `luciole dev --app d -- <options>`                | after `--`; checked again at every rebuild                                     |
-| `luciole ./app <options>`, a git source           | everything that is not `--url`, `--grace`, `--yes`, `-h`                       |
-| a binary: `app <options>`                         | everything that is not a runtime option                                        |
-| `app serve [--http … \| --socket …] -- <options>` | after `--`                                                                     |
-| `app --on host <options>`                         | sent on the standard input of the remote `serve --detach`; paths resolve there |
-| `luciole start --role server -- <options>`        | after `--`                                                                     |
-| `--url`, `luciole connect`, the generic Client    | refused: this Client joins a Server that already runs                          |
+| Entry point                                       | The app's options                                                                               |
+| ------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `luciole dev --app d -- <options>`                | After `--`. They are checked again at every rebuild.                                            |
+| `luciole ./app <options>`, a git source           | Every word but `--url`, `--grace`, `--yes` and `-h`.                                            |
+| a binary: `app <options>`                         | Every word that is not a runtime option.                                                        |
+| `app serve [--http … \| --socket …] -- <options>` | After `--`.                                                                                     |
+| `app --on host <options>`                         | Sent on the standard input of the remote `serve --detach`. Paths resolve on the remote machine. |
+| `luciole start --role server -- <options>`        | After `--`.                                                                                     |
+| `--url`, `luciole connect`, the generic Client    | Refused: this Client joins a Server that already runs.                                          |
 
-The build bundles `app/args.ts` into `.luciole/args/` and writes its JSON Schema into
-`.luciole/metadata.json` (`args`), which a host reads without running the app.
+The build bundles `app/args.ts` into `.luciole/args/`. It writes the options' JSON Schema into
+`.luciole/metadata.json`, under `args`, where a host reads it without running the app.
 
 <Note>
-  Two launches with different arguments never share a Server: the arguments' fingerprint is part of
-  the key that decides which Server a launch joins, and of every `"use cache"` key. In the browser
-  (`--web-local`), the Server has no command line and takes the schema's defaults.
+  Two launches with different arguments never share a Server. The arguments' fingerprint is part of
+  the key that decides which Server a launch joins, and part of every `"use cache"` key. In the
+  browser (`--web-local`), the Server has no command line and takes the schema's defaults.
 </Note>
