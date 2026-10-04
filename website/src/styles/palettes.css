@@ -27,6 +27,7 @@
   --panel: #070604;
   --code-bg: #070604;
   --code-comment: #8a8472;
+  --code-dimmed: #8a8472;
   --fault: #ff4d3d;
   --wire: #a9b8ff;
   --build: #c9a8ff;
@@ -57,6 +58,7 @@
   --panel: #050608;
   --code-bg: #050608;
   --code-comment: #7d8495;
+  --code-dimmed: #7d8495;
   --fault: #ff4d3d;
   --wire: #a9b8ff;
   --build: #c9a8ff;
@@ -87,6 +89,7 @@
   --panel: #040706;
   --code-bg: #040706;
   --code-comment: #738a85;
+  --code-dimmed: #738a85;
   --fault: #ff4d3d;
   --wire: #a9b8ff;
   --build: #c9a8ff;
@@ -117,6 +120,7 @@
   --panel: #060608;
   --code-bg: #060608;
   --code-comment: #848294;
+  --code-dimmed: #848294;
   --fault: #ff4d3d;
   --wire: #a9b8ff;
   --build: #c9a8ff;
