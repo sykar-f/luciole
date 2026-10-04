@@ -11,6 +11,10 @@
  * domain (`site` of astro.config.mjs, unless the second argument gives it), the first two being the page's own address, and a place
  * in the sitemap.
  *
+ * And no file of the site, page or not, names a file of the repository on `main`
+ * (`blob/main/`, `tree/main/`) unless src/lib/links.ts lists it as LIVE: every other link
+ * names the commit the site was built from, so a page and the code it cites stay in step.
+ *
  * And every figure of the docs' kit keeps its contracts (scripts/check-kit.ts): a caption, a
  * transcript or a list of steps, a side in words, no demo fetched before a click.
  *
@@ -26,6 +30,7 @@
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { z } from "zod";
+import { LIVE, repo } from "../src/lib/links";
 import { kitProblems } from "./check-kit";
 
 /**
@@ -66,6 +71,13 @@ const CARDS = new Set(["/og/", "/lab/mascot-og/"]);
  */
 const BUILT_APART = "/demo/";
 
+/** A link to a file of the repository on `main`, the path it names in group 1. */
+const escaped = repo.replace(/^https:\/\//, "").replace(/[.*+?^$()|[\]\\{}]/g, "\\$&");
+const ON_MAIN = new RegExp(`${escaped}/(?:blob|tree)/main/([^"'\\s<>#?)\\]]+)`, "g");
+
+/** The files of the build that can carry a link as text. */
+const TEXT = /\.(?:html|md|txt|xml|json|js|mjs|css|svg)$/;
+
 interface Page {
   /** The address the page answers at, on the site: `/docs/`, `/404.html`. */
   path: string;
@@ -80,13 +92,13 @@ interface Page {
   ogImages: string[];
 }
 
-/** The pages' files, relative to the build directory, in a stable order. */
-function htmlFiles(dir: string, base = dir): string[] {
+/** The files of the build whose name matches `kind`, relative to it, in a stable order. */
+function filesOf(dir: string, kind: RegExp, base = dir): string[] {
   return readdirSync(dir, { withFileTypes: true })
     .flatMap((entry) =>
       entry.isDirectory()
-        ? htmlFiles(join(dir, entry.name), base)
-        : entry.name.endsWith(".html")
+        ? filesOf(join(dir, entry.name), kind, base)
+        : kind.test(entry.name)
           ? [relative(base, join(dir, entry.name))]
           : [],
     )
@@ -201,7 +213,7 @@ if (!existsSync(dist)) {
   process.exit(1);
 }
 
-const files = htmlFiles(dist);
+const files = filesOf(dist, /\.html$/);
 const pages = new Map<string, Page>();
 const pageOf = new Map<string, string>();
 // The figure kit's contracts (scripts/check-kit.ts), page by page.
@@ -220,6 +232,19 @@ await Promise.all(
 );
 
 const problems: string[] = [...kit.sort()];
+
+// The repository's files on `main`, outside LIVE, in any file of the build.
+for (const file of filesOf(dist, TEXT)) {
+  const paths = [...readFileSync(join(dist, file), "utf8").matchAll(ON_MAIN)].map(
+    (match) => match[1] ?? "",
+  );
+  for (const path of new Set(paths)) {
+    if (!Object.hasOwn(LIVE, path))
+      problems.push(
+        `/${file}: links to ${path} on main, not at the build's commit (src/lib/links.ts: source, or LIVE with its reason)`,
+      );
+  }
+}
 const report = (page: Page, message: string) => problems.push(`${page.path}: ${message}`);
 
 /** The page a path is served from: the directory's index, the file itself, or `path.html`. */

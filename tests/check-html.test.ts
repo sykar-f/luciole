@@ -172,3 +172,34 @@ describe("what is not a document of the site", () => {
     expect(code).toBe(0);
   });
 });
+
+describe("links to the repository name the build's commit", () => {
+  const repo = "https://github.com/sykar-f/luciole";
+  const sha = "1a5ce4bd07816007b66c4b7b51d3ab0b47540df7";
+  const linking = (href: string) => page("/x/", { body: `<h1>A</h1><a href="${href}">source</a>` });
+
+  test("a link at a commit, and a LIVE file on main, pass", async () => {
+    const { code, out } = await check({
+      ...good,
+      "/x/": linking(`${repo}/blob/${sha}/packages/core/src/cli.ts`),
+      "/y/": page("/y/", {
+        body: `<h1>B</h1><a href="${repo}/blob/main/CHANGELOG.md">c</a>`,
+      }),
+    });
+    expect(out).toContain("no problem");
+    expect(code).toBe(0);
+  });
+
+  test("any other file on main fails, as a link or as text", async () => {
+    const red = await check({
+      ...good,
+      "/x/": linking(`${repo}/blob/main/packages/core/src/cli.ts#L3`),
+      "/y/": page("/y/", {
+        body: `<h1>B</h1><p>${repo}/tree/main/examples/notes</p>`,
+      }),
+    });
+    expect(red.err).toContain("/x/index.html: links to packages/core/src/cli.ts on main");
+    expect(red.err).toContain("/y/index.html: links to examples/notes on main");
+    expect(red.code).toBe(1);
+  });
+});
