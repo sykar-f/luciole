@@ -79,17 +79,24 @@ the page of note 1 in Notes, captured by `website/scripts/capture.py`:
 
 <Code code={flight.trim()} lang="text" theme={night} />
 
-Read it line by line:
+Read it line by line. The answer holds two Flight streams: the envelope, and the page
+carried inside it as bytes.
 
-- `0:{"tree":…,"tags":…}` is the envelope: the page's tree in its own Flight stream, and the
-  cache tags the render read ([caching](/docs/concepts/cache/#what-a-render-read)).
-- `I[…,"NoteEditor"]` is a **Client Component**. Its code is already in the terminal; only
-  its module ID, prefixed with the build ID, travels.
-- `{"id":"…#saveNote"}` is a **Server Function**: a reference the Client can call, never
-  its code.
-- `["$","box",…]` is the page itself: OpenTUI elements (`box`, `text`), rendered next to
-  the database.
-- `["note:local:1"]` are the cache tags: what a save of this note refreshes.
+- `1:R` announces that row 1 will be a stream: the page's.
+- `0:{"tree":"$1","tags":"$@2"}` is the envelope: `tree` is the stream of row 1, `tags` a
+  promise that row 2 fulfils ([caching](/docs/concepts/cache/#what-a-render-read)).
+- `1:o…,` opens that stream: the bytes after the comma are the page, itself in Flight.
+- `1:"…/components/NoteEditor.tsx"` and `2:I["$1",[],"NoteEditor"]` import a **Client
+  Component**. Its code is already in the terminal; only its module ID, prefixed with the
+  build ID, travels.
+- `3:{"id":"…#saveNote",…}` and `4:{"id":"…#getOperation",…}` are **Server Functions**:
+  references the Client can call, never their code.
+- `0:[["$","$L2","1",{…}]]` is the page itself. It renders one element, `$L2`: NoteEditor,
+  with its props in JSON, the note included. `$h3` and `$h4` are the two Server Functions
+  it receives.
+- `1:C` closes the page's stream.
+- `2:["note:local:1"]` are the cache tags the render read: what a save of this note
+  refreshes.
 
 <Note>
   The Client and the Server both run on Bun. A module that reads a file or starts a process works on
