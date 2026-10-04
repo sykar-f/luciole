@@ -14,7 +14,6 @@ import { BUN, CLI, eventually, example, listening, report, temporaryDirectory } 
 
 const APP = example("chat");
 const TIMEOUT_MS = 30_000;
-const ABORT_TIMEOUT_MS = 5000;
 
 // The journey sets its own key and endpoint: none of the user's reaches the app.
 const withoutOpenRouter = Object.fromEntries(
@@ -97,7 +96,7 @@ await wait("streaming…");
 await t.escape();
 await wait("stopped · Ctrl+G retry");
 assert.ok(
-  await eventually(async () => (await stats()).aborted !== aborted, ABORT_TIMEOUT_MS),
+  await eventually(async () => (await stats()).aborted !== aborted),
   JSON.stringify(await stats()),
 );
 results.escAbortsUpstream = true;

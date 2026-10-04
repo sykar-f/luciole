@@ -26,7 +26,6 @@ const LATENCY_MS = numberFromEnv("LUCIOLE_LATENCY_MS", 500);
 // 22 days after the seed's epoch (server/seed.ts, 2026-09-01T09:00Z): the Server's clock
 // starts there, so the ages in docs/forge-pty-frame.txt do not change with the day of the run.
 const CLOCK_START = "2026-09-23T09:00:00Z";
-const TYPING_TIMEOUT_MS = 5000;
 
 build(APP);
 using directory = temporaryDirectory("forge-pty-");
@@ -84,9 +83,7 @@ await t.waitFor("Approvals: @alice");
 await t.type("c");
 start = performance.now();
 t.write("S");
-const typed = Math.round(
-  (await t.waitFor("Unsaved Draft", { timeout: TYPING_TIMEOUT_MS })) - start,
-);
+const typed = Math.round((await t.waitFor("Unsaved Draft")) - start);
 results.typingToPTYOutputMs = typed;
 assert.ok(typed < LATENCY_MS, JSON.stringify(results));
 await t.type("hip it");

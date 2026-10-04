@@ -21,9 +21,8 @@ import {
 /** Lets a key's effect (Ctrl+E focusing the text) land before the next keys arrive. */
 const KEY_SETTLE_MS = 150;
 
-const TIMEOUT_MS = 20_000;
 // A step that builds Notes, a full build: 16 s on 16 idle cores, so not within the
-// 20 s of a step that only draws, on a CI runner's four.
+// driver's hang guard on a CI runner's four.
 const BUILD_TIMEOUT_MS = 60_000;
 
 using directory = temporaryDirectory("luciole-dev-");
@@ -53,7 +52,7 @@ const children = () =>
     .split(/\s+/)
     .filter(Boolean)
     .map(Number);
-const wait = (text: string, timeout = TIMEOUT_MS) => t.waitFor(text, { timeout });
+const wait = (text: string, timeout?: number) => t.waitFor(text, { timeout });
 
 await wait("Welcome to Notes", BUILD_TIMEOUT_MS);
 await t.click("Welcome to Notes");

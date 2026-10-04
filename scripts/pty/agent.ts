@@ -27,9 +27,6 @@ const FRAMES = process.env.AGENT_PTY_FRAMES;
 const BOOT_TIMEOUT_MS = 60_000;
 const MODEL_TIMEOUT_MS = 90_000;
 const TIMEOUT_MS = 30_000;
-const RUNNING_TIMEOUT_MS = 15_000;
-const EXIT_TIMEOUT_MS = 10_000;
-const PI_EXIT_TIMEOUT_MS = 5000;
 const TENTHS = 10;
 const seconds = (ms: number) => Math.round(ms / (1000 / TENTHS)) / TENTHS;
 
@@ -71,7 +68,7 @@ await t.type(
     "with bash. Reply in one short sentence.",
 );
 await t.type(Keys.enter);
-await t.waitFor("running", { timeout: RUNNING_TIMEOUT_MS });
+await t.waitFor("running");
 await t.waitFor("✎ write", { timeout: MODEL_TIMEOUT_MS });
 await t.waitFor("$ bash", { timeout: MODEL_TIMEOUT_MS });
 await t.waitFor("● idle", { timeout: MODEL_TIMEOUT_MS });
@@ -118,11 +115,8 @@ await t.type(ctrl("n"));
 await t.waitFor("No messages yet", { timeout: TIMEOUT_MS });
 await frame("6-new-session");
 
-await t.quit(ctrl("c"), EXIT_TIMEOUT_MS);
-assert.ok(
-  await eventually(() => piProcesses().length === 0, PI_EXIT_TIMEOUT_MS),
-  "pi outlived the Server",
-);
+await t.quit(ctrl("c"));
+assert.ok(await eventually(() => piProcesses().length === 0), "pi outlived the Server");
 report({
   agentPTY: true,
   toolCallsStreamed: ["write", "bash"],

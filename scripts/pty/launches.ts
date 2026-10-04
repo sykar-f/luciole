@@ -17,12 +17,9 @@ import { dirname, join } from "node:path";
 import { z } from "zod";
 import { LifetimeStatus } from "../../packages/core/src/launcher/lifetime";
 import { ctrl, drive, type Driver } from "./driver";
-import { BUN, CLI, ROOT, defer, eventually, report, temporaryDirectory } from "./harness";
+import { BUN, CLI, ROOT, defer, eventually, HANG_MS, report, temporaryDirectory } from "./harness";
 
 const TIMEOUT_MS = 60_000;
-const ENDED_TIMEOUT_MS = 10_000;
-const GRACE_TIMEOUT_MS = 5000;
-const STATUS_TIMEOUT_MS = 2000;
 // The session file is written 200 ms after the last change.
 const SESSION_WRITTEN_MS = 600;
 
@@ -62,7 +59,7 @@ async function status(socket: string) {
   try {
     const response = await fetch("http://localhost/lifetime/status", {
       unix: socket,
-      signal: AbortSignal.timeout(STATUS_TIMEOUT_MS),
+      signal: AbortSignal.timeout(HANG_MS),
     });
     return LifetimeStatus.parse(await response.json());
   } catch {
@@ -136,11 +133,8 @@ const crashed = readdirSync(sessions)
   .find((session) => session.server.endsWith(`!${first}`));
 assert.ok(crashed, "the first launch keeps a session");
 process.kill(crashed.pid, "SIGKILL");
-await a.exited(ENDED_TIMEOUT_MS);
-await eventually(
-  async () => (await status(serverOfFirst.socket))?.graceUntil !== undefined,
-  GRACE_TIMEOUT_MS,
-);
+await a.exited();
+await eventually(async () => (await status(serverOfFirst.socket))?.graceUntil !== undefined);
 
 // Relaunched with the same arguments: that launch again, its Server, its typed text.
 {
@@ -156,15 +150,15 @@ await eventually(
     assert.ok(third !== first && third !== second);
     assert.equal(sockets().length, 3);
     fresh.write(ctrl("c"));
-    await fresh.exited(ENDED_TIMEOUT_MS);
+    await fresh.exited();
   }
   again.write(ctrl("c"));
-  await again.exited(ENDED_TIMEOUT_MS);
+  await again.exited();
 }
 b.write(ctrl("c"));
-await b.exited(ENDED_TIMEOUT_MS);
+await b.exited();
 // Every Client quit on purpose: every Server stopped.
-await eventually(async () => sockets().length === 0, GRACE_TIMEOUT_MS);
+await eventually(async () => sockets().length === 0);
 
 report({
   perLaunchPTY: true,

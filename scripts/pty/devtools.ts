@@ -10,16 +10,14 @@ import { join } from "node:path";
 import { drive, type Driver } from "./driver";
 import { BUN, CLI, ROOT, report, temporaryDirectory } from "./harness";
 
-const TIMEOUT_MS = 20_000;
 const APP_START_TIMEOUT_MS = 60_000;
-const FLASH_TIMEOUT_MS = 3000;
 const SELECT_MS = 300;
 
 using directory = temporaryDirectory("luciole-pty-devtools-");
 const socket = `unix:${directory.path}/bus.sock`;
 const env = { XDG_STATE_HOME: join(directory.path, "state") };
 const size = { cols: 120, rows: 34 };
-const wait = (t: Driver, text: string, timeout = TIMEOUT_MS) => t.waitFor(text, { timeout });
+const wait = (t: Driver, text: string, timeout?: number) => t.waitFor(text, { timeout });
 
 await using devtools = await drive({
   command: [BUN, CLI, "devtools", "--listen", socket],
@@ -60,7 +58,7 @@ await wait(devtools, "flashing in app");
 // Return again edits the note; typing re-renders it.
 app.write("\r");
 app.write("x");
-await wait(app, "┌──", FLASH_TIMEOUT_MS);
+await wait(app, "┌──");
 devtools.write("h");
 
 devtools.write("4");

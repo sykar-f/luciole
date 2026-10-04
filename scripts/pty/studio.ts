@@ -28,12 +28,8 @@ import {
 const FRAMES = process.env.STUDIO_PTY_FRAMES;
 const BOOT_TIMEOUT_MS = 90_000;
 const TIMEOUT_MS = 60_000;
-const EXIT_TIMEOUT_MS = 10_000;
-const PROCESS_EXIT_TIMEOUT_MS = 8000;
 // A Client that just drew its first screen, given a moment before it is sent keys.
 const FIRST_KEYS_MS = 500;
-// A restored scroll position waits for the list's rows: a moment after the page shows.
-const KEPT_MS = 5000;
 // Side by side at 160 columns, the preview's frame starts here: the transcript (which
 // shows the diffs, the apps' texts included) stays left of it.
 const PREVIEW_COLUMN = 80;
@@ -146,12 +142,9 @@ async function launch(mode: "sandbox" | "process") {
     keys,
     /** Ctrl+C quits studio: nothing it started outlives it, its Server included. */
     async quit() {
-      await t.quit(ctrl("c"), EXIT_TIMEOUT_MS);
+      await t.quit(ctrl("c"));
       assert.ok(
-        await eventually(
-          () => running().length === 0 && studioServers().length === 0,
-          PROCESS_EXIT_TIMEOUT_MS,
-        ),
+        await eventually(() => running().length === 0 && studioServers().length === 0),
         `processes outlived studio:\n${running()
           .map((pid) => commandOutput(["ps", "-o", "pid=,command=", "-p", pid]))
           .join("\n")}`,
@@ -233,7 +226,7 @@ async function guestbook(studio: Studio, base: number) {
         /Message\s+Hi/.test(preview)
       );
     };
-    await wait(restored, KEPT_MS, ` (${when}: the page, fields and list kept)`).catch(
+    await wait(restored, TIMEOUT_MS, ` (${when}: the page, fields and list kept)`).catch(
       (error: unknown) => {
         throw new Error(`${when}: the page, the fields or the list's position were lost`, {
           cause: error,

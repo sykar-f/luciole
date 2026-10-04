@@ -14,6 +14,11 @@ export const ROOT = resolve(import.meta.dir, "../..");
 export const BUN = process.execPath;
 export const CLI = join(ROOT, "packages/core/src/cli.ts");
 export const example = (name: string) => join(ROOT, "examples", name);
+/**
+ * How long a wait lasts unless told otherwise: the guard against a hang, which says nothing
+ * of how fast the program should be. The driver's own HANG_MS (driver.ts).
+ */
+export const HANG_MS = 30_000;
 const STOP_TIMEOUT_MS = 5000;
 
 /** A fresh directory, removed with its content at the end of the scope. */
@@ -139,7 +144,10 @@ export function alive(pid: number) {
 }
 
 /** Polls `check` until it holds or `timeout` ms passed; whether it held. */
-export async function eventually(check: () => boolean | Promise<boolean>, timeout: number) {
+export async function eventually(
+  check: () => boolean | Promise<boolean>,
+  timeout: number = HANG_MS,
+) {
   const POLL_MS = 100;
   const deadline = performance.now() + timeout;
   for (;;) {

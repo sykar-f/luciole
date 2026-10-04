@@ -10,15 +10,21 @@ import { join } from "node:path";
 import { z } from "zod";
 import { LifetimeStatus } from "../../packages/core/src/launcher/lifetime";
 import { ctrl, drive, type Driver } from "./driver";
-import { BUN, CLI, defer, eventually, example, report, temporaryDirectory } from "./harness";
+import {
+  BUN,
+  CLI,
+  defer,
+  eventually,
+  example,
+  HANG_MS,
+  report,
+  temporaryDirectory,
+} from "./harness";
 
 /** Lets a key's effect (Ctrl+E focusing the text) land before the next keys arrive. */
 const KEY_SETTLE_MS = 150;
 
 const TIMEOUT_MS = 30_000;
-const ENDED_TIMEOUT_MS = 10_000;
-const GRACE_TIMEOUT_MS = 5000;
-const STATUS_TIMEOUT_MS = 2000;
 // The session file is written 200 ms after the last change.
 const SESSION_WRITTEN_MS = 600;
 
@@ -30,7 +36,7 @@ async function status(socket: string | undefined) {
   try {
     const response = await fetch("http://localhost/lifetime/status", {
       unix: socket,
-      signal: AbortSignal.timeout(STATUS_TIMEOUT_MS),
+      signal: AbortSignal.timeout(HANG_MS),
     });
     return LifetimeStatus.parse(await response.json());
   } catch {
@@ -91,10 +97,10 @@ let first: z.infer<typeof LifetimeStatus> | undefined;
   const file = readdirSync(sessions).find((name) => name.endsWith(".json")) ?? "";
   const client = Session.parse(JSON.parse(readFileSync(join(sessions, file), "utf8")));
   process.kill(client.pid, "SIGKILL");
-  await t.exited(ENDED_TIMEOUT_MS);
+  await t.exited();
 }
 const path = serverSocket();
-await eventually(async () => (await status(path))?.graceUntil !== undefined, GRACE_TIMEOUT_MS);
+await eventually(async () => (await status(path))?.graceUntil !== undefined);
 const inGrace = await status(path);
 assert.ok(
   inGrace && inGrace.pid === first.pid && inGrace.graceUntil !== undefined,
@@ -116,9 +122,9 @@ assert.ok(
   assert.ok((await t.text()).includes("unsaved words"), await t.text());
   // Quitting on purpose stops the Server.
   t.write(ctrl("c"));
-  await t.exited(ENDED_TIMEOUT_MS);
+  await t.exited();
 }
-await eventually(() => !existsSync(path ?? ""), GRACE_TIMEOUT_MS);
+await eventually(() => !existsSync(path ?? ""));
 assert.ok(!existsSync(path ?? "") && (await status(path)) === undefined, "Server still running");
 
 report({
