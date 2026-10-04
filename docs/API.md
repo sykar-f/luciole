@@ -682,10 +682,13 @@ rafraîchissement de la route courante qui reçoit un `401` y va aussi. Sans
 `unauthorizedPath`, une navigation atteint quand même la route protégée : son
 emplacement de page montre l'erreur `AuthenticationRequired` (via le `error.tsx` le
 plus proche), dans les layouts qui restent, et le statut vaut `Authentication
-required`. Un rafraîchissement refusé garde l'arbre monté, comme tout rafraîchissement
-qui échoue : un logout (`setToken()`) sur une page protégée la laisse donc à l'écran,
-et l'application navigue ailleurs elle-même. Une Server Function refusée ne navigue
-jamais : l'erreur remonte à son appelant.
+required`. Un rafraîchissement refusé retire l'arbre monté, alors qu'un
+rafraîchissement qui échoue pour une autre raison (réseau, erreur Server, build
+incompatible) le garde : après un logout (`setToken()`) sur une page protégée,
+l'emplacement de page montre l'erreur, dans les layouts qui restent. Le texte non
+sauvegardé que tenaient les composants de la page part avec elle : le garder
+laisserait à l'écran les données du compte précédent. Une Server Function refusée ne
+navigue jamais : l'erreur remonte à son appelant.
 
 Les layouts sont des Client Components : ils ne peuvent pas appeler
 `getOptionalSession()` ni `getSession()`, réservés aux pages Server, actions et
@@ -700,8 +703,8 @@ répondent `400`, une page protégée sans session répond `401`.
 
 `useApplication().setToken()` purge le cache de routes TanStack (et le purge de
 nouveau à la fin d'une navigation en cours) : un arbre privé mis en cache sous un
-bearer n'est jamais réaffiché sous un autre, ni après logout ; seul l'arbre déjà
-monté reste, sans `unauthorizedPath` (voir plus haut). Il recharge aussi les
+bearer n'est jamais réaffiché sous un autre, ni après logout, et l'arbre déjà monté
+part dès que son rechargement reçoit un `401` (voir plus haut). Il recharge aussi les
 routes courantes sous le nouveau bearer : une navigation ou une revalidation encore
 en vol, partie avec l'ancien, est remplacée et sa réponse n'est jamais affichée.
 Après login/logout, l'application navigue toujours vers la route voulue.
@@ -798,7 +801,8 @@ Comportement observable :
 - `refresh()` invalide la destination en cours ou la route montée ; l'application le
   lie à la touche de son choix (Ctrl+R dans les exemples). Pendant un refresh, l'arbre
   reste monté (`activity === "refresh"`) : champ, focus et saisie restent actifs. Un
-  refresh échoué garde l'arbre monté et expose l'erreur dans `useConnection().error`.
+  refresh échoué garde l'arbre monté et expose l'erreur dans `useConnection().error`,
+  sauf un refresh refusé (`401`), qui le retire.
 - Une navigation échouée affiche `error.tsx` à la place de la page, layouts montés.
 - Un `401` redirige vers `unauthorizedPath` sans rendre de contenu protégé. Un
   `409` (build mismatch) est refusé avant décodage et purge le cache.
