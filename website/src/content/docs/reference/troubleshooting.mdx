@@ -201,7 +201,7 @@ ssh <host>: no tunnel after <ms> ms
 - **Cause:** `<error>` is OpenSSH's own message, such as `Could not resolve hostname`. The
   second line means `ssh` started but the Server's port never answered.
 - **Fix:** run `ssh <host>` alone until it logs in, then check that the Server runs there
-  ([over SSH](/docs/guides/opening-an-app/#over-ssh)).
+  ([over SSH](/docs/guides/opening-an-app/#join-a-server-over-ssh)).
 - **Check:** `luciole connect` opens the Client, and its status reads "Connected".
 
 ### The status reads "Disconnected"
@@ -262,5 +262,5 @@ Apple could not verify “<binary>” is free of malware that may harm your Mac 
   changes with the version of macOS.
 - **Fix:** for a binary you built, run `xattr -d com.apple.quarantine ./<binary>`. For one
   you ship, sign and notarize it
-  ([macOS signing](/docs/reference/build-and-distribution/#signing-and-notarization-for-macos)).
+  ([macOS signing](/docs/reference/build-and-distribution/#sign-and-notarize-for-macos)).
 - **Check:** `./<binary>` starts without the dialog.

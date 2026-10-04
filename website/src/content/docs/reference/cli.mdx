@@ -178,7 +178,7 @@ Like `luciole <target>`, but the target is never read as a subcommand, like `npx
 
 Runs a built role in production (`NODE_ENV=production`): the Server (the default role), or
 the Client joining `--url`. Without `--url`, the Client looks for its Server as
-[usual](/docs/guides/opening-an-app/#joining-a-server-that-already-runs). The app's
+[usual](/docs/guides/opening-an-app/#join-a-server-that-already-runs). The app's
 arguments go to the Server only.
 
 ### `luciole connect <url | ssh://[user@]host[/port]> [--app dir] [--artifact dir]`
@@ -204,5 +204,5 @@ Apps installed from the npm registry live in `$XDG_DATA_HOME/luciole/apps/`.
 
 <Note>
   A compiled app binary has its own commands (`serve`, `--url`, `--on`, `--new`, `--version`): see
-  [opening an app](/docs/guides/opening-an-app/#as-a-single-binary).
+  [opening an app](/docs/guides/opening-an-app/#hand-someone-a-single-binary).
 </Note>

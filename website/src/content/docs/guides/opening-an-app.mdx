@@ -1,20 +1,35 @@
 ---
 title: Opening an app
-description: Run an app here, join a Server elsewhere, start one over SSH, open one by URL or in a browser, or hand someone a single binary.
+description: Run an app on this machine, join a Server that runs elsewhere, start one over SSH, open one by URL or in a browser, or ship a single binary.
 sources:
   - docs/DISTRIBUTION.md
   - docs/WEB.md
+  - docs/VALIDATION.md
   - packages/core/src/launcher
+  - packages/core/src/launcher/target.ts
+  - packages/core/src/launcher/managed.ts
+  - packages/core/src/launcher/remote.ts
+  - packages/core/src/launcher/lifetime.ts
+  - packages/core/src/launcher/git.ts
+  - packages/core/src/launcher/binary.ts
   - packages/core/src/connect.ts
+  - packages/core/src/run.tsx
+  - packages/core/src/web-runtime.ts
+  - packages/core/src/web-routes.ts
+  - packages/core/src/web/server/page.ts
+  - packages/core/src/web/node/fs.ts
   - packages/core/src/commands/launch.ts
   - packages/core/src/commands/start.ts
+  - packages/core/src/commands/dev.ts
 ---
 
 import Note from "../../../components/docs/Note.astro";
+import Sequence from "../../../components/guide/Sequence.astro";
 
-One library, `src/launcher/`, opens an app wherever it comes from: `luciole <target>`,
-`luciolex <target>` and the binaries the build compiles all go through it. From a clone, write
-`bun packages/core/src/cli.ts` where this page writes `luciole`.
+`luciole <target>` opens an app from wherever it comes: a directory, an installed app, an npm
+package, a git repository or a Server URL. Find the section that matches where the app is and
+where you are. From a clone of the repository, write `bun packages/core/src/cli.ts` where this
+page writes `luciole`.
 
 | Target                               | Example                                  | What happens                                                        |
 | ------------------------------------ | ---------------------------------------- | ------------------------------------------------------------------- |
@@ -24,47 +39,72 @@ One library, `src/launcher/`, opens an app wherever it comes from: `luciole <tar
 | a git source                         | `luciole github:ada/tools#v1/apps/notes` | fetch, trust, install, build (cached), local launch                 |
 | a Server URL                         | `luciole https://notes.example.com`      | the generic Client: signed bundle, pinned key, `sandbox` by default |
 
-A bare word (`notes`) is an installed app if there is one, else an npm spec. A relative path
-without `./` is refused with that hint rather than guessed. `luciole` alone opens the
-launcher, an app that lists installed apps and searches the registry. `luciolex build`
-launches the app named `build`: `luciolex` never reads its target as a subcommand.
+How `luciole` reads a target:
 
-## On this machine
+- A bare word such as `notes` is an installed app if there is one, else an npm spec.
+- A relative path without `./` is refused, with a hint to add it.
+- `luciole` alone opens the app list: the installed apps, and a search of the registry.
+- `luciolex build` launches the app named `build`. `luciolex` never reads its target as a
+  subcommand.
+
+Each task below places the Client and the Server on a machine:
+
+| Task                                                                        | The Client runs             | The Server runs                         | Between them             |
+| --------------------------------------------------------------------------- | --------------------------- | --------------------------------------- | ------------------------ |
+| [Open an app on this machine](#open-an-app-on-this-machine)                 | here                        | here                                    | a private Unix socket    |
+| [Join a Server that already runs](#join-a-server-that-already-runs)         | here                        | wherever it was started                 | HTTP, or your SSH tunnel |
+| [Start the Server on another machine](#start-the-server-on-another-machine) | here                        | on the remote machine                   | an SSH tunnel            |
+| [Open a Server URL](#open-a-server-url-in-the-generic-client)               | here, in the generic Client | at that URL                             | HTTPS                    |
+| [Open an app in a browser](#open-an-app-in-a-browser)                       | in a browser tab            | on your Server, or in the tab's browser | HTTP, or nothing         |
+
+## Open an app on this machine
 
 ```sh
 luciole ./my-app
 ```
 
-The launcher builds the directory and starts its Server on a **Unix socket** (mode `0600`,
-in a `0700` directory of the user), not a port: no port conflict, and no one else can
-connect. Two launches of the same target share one Server, by default. The Server runs in
-the directory the command was typed in, so Notes creates `notes.sqlite` there; what it
-writes goes to `$XDG_STATE_HOME/luciole/<app>/server.log`, never to the Client's screen.
+The app opens in your terminal window. Behind it, the launcher builds the directory and starts
+its Server:
 
-The Server outlives the Client for a grace period (15 minutes by default, `--grace <duration>`,
-`0` stops at once): a Client that crashes and comes back finds the same Server, its
-state, its route and its named fields. Quitting with <kbd>Ctrl+C</kbd> stops it at once when
-it was the last Client. How launches share a Server is the app's choice
-([`luciole.server`](/docs/reference/package-json/#choose-which-launches-share-a-server)).
+- The Server listens on a **Unix socket** in a private directory, not on a port. No port can
+  conflict, and no other user can connect.
+- The Server runs in the directory you typed the command in. Notes creates `notes.sqlite`
+  there.
+- Its output goes to `$XDG_STATE_HOME/luciole/<app>/server.log`, not to your screen.
+- Two launches of the same target share one Server, unless the app
+  [chooses otherwise](/docs/reference/package-json/#choose-which-launches-share-a-server).
 
-During development, `luciole dev --app <dir>` builds, starts both processes, and rebuilds on
-every change; the Client reopens the same page ([session restore](/docs/concepts/session-restore/)).
-It ends when the Client does, with the Client's exit code, and stops both processes on SIGINT,
-SIGTERM or SIGHUP ([CLI](/docs/reference/cli/#luciole-dev---app-dir----app-arguments)).
+When the Client exits, the Server stays up for a **grace period**: 15 minutes by default. A
+Client that crashes and comes back in time finds the same Server, state, route and named
+fields. Set the period with `--grace <duration>`, where `0` stops the Server at once.
 
-## Joining a Server that already runs
+<kbd>Ctrl+C</kbd> stops it at once when you quit the last Client.
 
-A Client finds its Server in this order: `--url`, then `LUCIOLE_URL`, then the user's file
-`$XDG_CONFIG_HOME/luciole/<app>.json` (`~/.config/luciole/notes.json` for Notes), then
-`http://127.0.0.1:3000`. The file holds only the URL; an unreadable file, or one without
-`url`, stops the Client with a message rather than being ignored.
+While you work on the app, use `luciole dev --app <dir>` instead. It rebuilds on every change,
+and the Client reopens the same page ([session restore](/docs/concepts/session-restore/)). See
+[`luciole dev`](/docs/reference/cli/#luciole-dev---app-dir----app-arguments) for its exit code
+and signals.
+
+## Join a Server that already runs
+
+A Client takes the first Server URL it finds, in this order:
+
+1. `--url <url>` on the command line
+2. the `LUCIOLE_URL` environment variable
+3. your file `$XDG_CONFIG_HOME/luciole/<app>.json`, such as `~/.config/luciole/notes.json`
+4. `http://127.0.0.1:3000`
+
+The file holds only the URL:
 
 ```json
 { "url": "ssh://alice@notes.example.com" }
 ```
 
-With built artifacts, the two roles start separately. Run these commands from the app's
-directory, since `--app` defaults to `.`. From elsewhere, add `--app <dir>`:
+The Client stops with a message when that file cannot be read, or has no `url`.
+
+### Start the Client and the Server separately
+
+Run these commands from the app's directory, or add `--app <dir>`:
 
 ```sh
 luciole build
@@ -72,9 +112,11 @@ luciole start --role server
 luciole start --role client --url http://127.0.0.1:3000   # in another terminal
 ```
 
-### Over SSH
+The Server runs until you stop it. A Client can quit and join it again.
 
-An `ssh://` URL opens the tunnel itself; the Server keeps listening on loopback.
+### Join a Server over SSH
+
+An `ssh://` URL opens an SSH tunnel to a Server that only listens on loopback:
 
 ```sh
 luciole connect ssh://alice@notes.example.com            # Server on 127.0.0.1:3000 there
@@ -82,48 +124,107 @@ luciole connect ssh://alice@notes.example.com:2222/4000  # ssh on 2222, Server o
 luciole connect ssh://alice@bastion/10.0.0.5:3000        # Server reached from the ssh host
 ```
 
-The form is `ssh://[user@]host[:ssh-port][/[remote-host:]remote-port]`. Before taking the
-terminal, the Client runs `ssh -N -o ExitOnForwardFailure=yes -L <socket>:127.0.0.1:3000 …`:
-keys, agent, `~/.ssh/config`, `ProxyJump` and host key checking stay OpenSSH's, and a
-passphrase is typed as usual. The tunnel ends on a Unix socket in a private temporary
-directory, not a local port, and closes when the Client quits.
+The form is `ssh://[user@]host[:ssh-port][/[remote-host:]remote-port]`. What to expect:
 
-A connection failure shows `ssh`'s message and stops the Client. A later cut is a network
-error like any other (`not-sent` or `unknown`); this tunnel does not reconnect by itself.
-`ssh` (OpenSSH) must be in the terminal machine's `PATH`, and a Client killed with SIGKILL
-leaves its `ssh` process behind.
+- luciole runs your OpenSSH `ssh`, which must be in your `PATH`. Your keys, agent,
+  `~/.ssh/config`, `ProxyJump` and host key checks apply as usual.
+- A passphrase prompt shows before the app takes the screen.
+- The tunnel ends on a private Unix socket on your machine, not on a local port. It closes
+  when the Client quits.
+- If `ssh` fails to connect, the Client prints `ssh`'s message and stops.
+
+<Note kind="warning">
+  This tunnel does not reconnect. A later cut is a network error like any other, with the outcome
+  `not-sent` or `unknown`. A Client killed with SIGKILL leaves its `ssh` process behind.
+</Note>
 
 [Troubleshooting](/docs/reference/troubleshooting/#the-ssh-tunnel-fails) explains each `ssh` failure and its fix.
 
-## On another machine, over SSH
+## Start the Server on another machine
 
-A compiled binary starts its Server on a host and its Client here:
+A compiled binary starts its Server on a remote machine and its Client here:
 
 ```sh
 notes --on build-box
 ```
 
-1. One master ssh connection authenticates once; the probe, the upload and the Server
-   reuse it (`LUCIOLE_SSH` replaces `ssh`).
-2. The host reports its OS, architecture and libc, and whether this build is already
-   installed under `~/.local/share/luciole/apps/<app>/<buildId>/`.
-3. If not, or if it no longer matches its `SHA256SUMS`, the binary uploads itself when the
-   host's platform is its own, or the one given with `--target`, whose identity must be the
-   same app, the same build and the host's platform. The archive is checked, then swapped
-   in whole. A tampered build is refused, never started.
-4. `<app> serve --detach` finds the managed Server of this launch on the host, or starts
-   one detached from ssh. The app's options reach it on standard input, never on a command
-   line other users could read with `ps`.
-5. A tunnel `ssh -N -L <local socket>:<remote socket>` joins it to the Client.
+You log in once, then the app opens here. The first launch on that machine uploads the binary,
+so it takes longer.
 
-**If the connection drops** while the Client lives, its pings fail and it shows
-"Disconnected". The tunnel is relaunched after 1 s, 2 s, 4 s… up to 30 s, on the same local
-socket and without prompting (`BatchMode`); when it holds again the Client shows "Connected",
-with the same Server, route and state. Conditions: key or agent authentication (a
-password-only login cannot come back by itself, relaunch the Client), and the Server still in
-its grace period.
+<Sequence
+  title="notes --on build-box"
+  lanes={[
+    { id: "here", label: "Your machine", sub: "the Client", tone: "client" },
+    { id: "there", label: "build-box", sub: "the Server", tone: "server" },
+  ]}
+  messages={[
+    { phase: "Log in" },
+    { from: "here", to: "there", label: "one ssh login, reused below", n: 1, tone: "wire" },
+    {
+      from: "here",
+      to: "there",
+      label: "which platform? this build installed?",
+      n: 2,
+      tone: "wire",
+    },
+    {
+      from: "there",
+      to: "here",
+      label: "OS, architecture, libc, installed or not",
+      n: 3,
+      back: true,
+      tone: "wire",
+    },
+    { phase: "Install, when missing" },
+    {
+      from: "here",
+      to: "there",
+      label: "upload the binary, native/ and SHA256SUMS",
+      n: 4,
+      tone: "wire",
+    },
+    { from: "there", to: "there", label: "check the sums, swap the build in whole", n: 5 },
+    { phase: "Start" },
+    {
+      from: "here",
+      to: "there",
+      label: "notes serve --detach, options on stdin",
+      n: 6,
+      tone: "wire",
+    },
+    { from: "there", to: "there", label: "find this launch's Server, or start it", n: 7 },
+    {
+      from: "here",
+      to: "there",
+      label: "ssh tunnel: local socket to the Server's",
+      n: 8,
+      tone: "wire",
+    },
+    { phase: "Use" },
+    { from: "here", to: "there", label: "requests, through the tunnel", n: 9, tone: "wire" },
+    { from: "there", to: "here", label: "pages and answers", n: 10, back: true, tone: "wire" },
+  ]}
+  caption="One ssh login (1) carries every step. The binary is uploaded only when the remote machine lacks this build (4). The Client then talks to the Server through the tunnel (8 to 10)."
+/>
 
-## From a git source
+`LUCIOLE_SSH` replaces the `ssh` command. What each step checks, and where the build lands on
+the remote machine:
+[what `--on` does](/docs/reference/build-and-distribution/#what---on-does-on-the-remote-machine).
+
+### Reconnect after the connection drops
+
+The Client reconnects by itself when both hold:
+
+- `ssh` logs in with a key or an agent.
+- The Server is still in its grace period.
+
+When the connection drops, the Client shows "Disconnected". It relaunches the tunnel after 1 s,
+then 2 s, 4 s, and up to 30 s between tries. Once the tunnel holds, the Client shows
+"Connected", with the same Server, route and state.
+
+A relaunched tunnel never prompts. After a password-only login, quit and relaunch the Client.
+
+## Open an app from a git repository
 
 ```sh
 luciole github:ada/tools#v1/apps/notes
@@ -131,36 +232,48 @@ luciole github:ada/tools#v1/apps/notes
 
 Accepted forms: `github:user/repo[#ref][/dir]`, `gitlab:…`,
 `https://github.com/user/repo[/tree/ref/dir]`, `git+https://…`, `git+ssh://…`, `git+file://…`.
-A repository is arbitrary code, its Server included: at the first launch the launcher shows
-the URL and the commit (sha, subject, author, date) and asks for confirmation **before**
-installing and building. A new commit of an accepted repository launches after a short
-summary of the new commits. A `package.json` without `bun.lock` is refused rather than
-resolved on the day. Dependencies' lifecycle scripts do not run unless the app lists them
-in `trustedDependencies`, as Bun does by default.
 
-## By URL, in the generic Client
+A repository is arbitrary code, its Server included, so the launcher asks first:
+
+- At the first launch, it shows the URL and the commit: sha, subject, author and date. It asks
+  you to confirm **before** it installs and builds.
+- When an accepted repository has new commits, it shows a short summary of them, then
+  launches.
+- It refuses a `package.json` without `bun.lock`, rather than resolve versions on the day.
+- Dependencies' lifecycle scripts run only when the app lists them in `trustedDependencies`,
+  as Bun does by default.
+
+## Open a Server URL in the generic Client
 
 ```sh
 luciole https://notes.example.com
 ```
 
-The Server publishes a signed bundle of its Client code (`GET /manifest`,
-`GET /bundle/<sha256>`); the generic Client checks the signature, pins the publisher's key
-on first use, and opens the app in a tab, **sandboxed** by default where the sandbox also
-confines the network. Several URLs open several tabs. What the modes mean and what they
-enforce: [apps you did not write](/docs/guides/untrusted-apps/).
+The app opens in a tab of the generic Client, a Client that runs any app's code it downloads.
+What happens on the way:
 
-## In a browser
+- The Server publishes a signed bundle of its Client code.
+- The generic Client checks the signature, and remembers the publisher's key at the first
+  visit.
+- The tab is **sandboxed** by default, and the sandbox also confines the network.
 
-The browser is one more host: it evaluates the same app bundle against a web runtime,
-OpenTUI compiled to WebAssembly and drawn by xterm.js.
+Several URLs open several tabs. What each mode allows, and how to choose it:
+[apps you did not write](/docs/guides/untrusted-apps/).
 
-| Build                       | Server                                       | For                                   |
+## Open an app in a browser
+
+A browser runs the same app bundle, drawn in the page by xterm.js. Two builds exist:
+
+| Build                       | Where the Server runs                        | For                                   |
 | --------------------------- | -------------------------------------------- | ------------------------------------- |
 | `luciole build --web`       | the usual Server, which also serves the page | opening a hosted app from a link      |
-| `luciole build --web-local` | the same handler, in a browser Worker        | a static site, a demo, an offline app |
+| `luciole build --web-local` | the same Server code, in a browser Worker    | a static site, a demo, an offline app |
 
-**`--web`**: the Server serves the page under `/_luciole/web/` to **one declared origin**.
+The first build prepares the web runtime. It needs the network, `git` and Zig 0.16.0, on your
+`PATH` or in `ZIG`. To prepare it ahead of time, run `luciole web-runtime`.
+
+### Serve the app from your Server
+
 From the app's directory:
 
 ```sh
@@ -168,31 +281,37 @@ luciole build --web
 LUCIOLE_WEB_ORIGIN=https://notes.example.com PORT=3000 bun --conditions=react-server .luciole/server/index.js
 ```
 
-The first build prepares the web runtime once per framework version (it clones OpenTUI and
-compiles it with Zig 0.16.0; `luciole web-runtime` does it ahead of time). Without
-`LUCIOLE_WEB_ORIGIN` there is no web route, and the Server keeps refusing any request that
-carries a browser `Origin`. Authentication is unchanged; the bearer stays in memory.
+Open `https://notes.example.com/_luciole/web/` in a browser. The Server serves the page to one
+origin only, the one `LUCIOLE_WEB_ORIGIN` names.
 
-**`--web-local`** writes a static site into `.luciole/web/`, to serve from any static host
-(`application/wasm` for `.wasm` files). The site's own demos are built this way.
+- Without `LUCIOLE_WEB_ORIGIN`, the Server has no web route. It refuses every request that
+  carries a browser `Origin`.
+- Sign-in works as in a terminal Client. The page keeps the bearer token, the string the
+  Client sends with each request to prove who signed in, in memory only.
+
+### Publish a static site
+
+`luciole build --web-local` writes a static site into `.luciole/web/`. Serve it from any static
+host, with `application/wasm` for `.wasm` files. The site's own demos are built this way.
 
 The Server runs in a SharedWorker, shared by every tab of the origin that runs this build. A
-browser without SharedWorker runs the Server in a dedicated Worker instead. There, only one tab
-at a time can open the app. SQLite databases live in memory, and the Server writes them to
-OPFS before each Server Function answers.
+browser without SharedWorker runs the Server in a dedicated Worker, and then only one tab at a
+time can open the app.
 
-The Server code can use `bun:sqlite` (a subset), `Bun.sleep`, `crypto` and same-origin
-`fetch`. Other APIs behave as follows:
+What the Server code can do there:
 
-- `fs` reads a read-only snapshot: the files listed in the site's `server-seed.json`, or none.
-- Writing a file, making a directory or removing one does nothing.
-- `rename`, `copyFile`, `symlink`, `mkdtemp` and opening a file to write fail with `EROFS`.
-- `child_process`, `Bun.spawn` and `Bun.Terminal` fail with a message.
-- `<Terminal>` shows an "unavailable here" screen.
+| Works                                         | Does nothing                   | Fails                                                                        |
+| --------------------------------------------- | ------------------------------ | ---------------------------------------------------------------------------- |
+| `bun:sqlite` (a subset), in memory            | writing a file                 | `rename`, `copyFile`, `symlink`, `mkdtemp`, opening a file to write: `EROFS` |
+| `Bun.sleep`, `crypto`, same-origin `fetch`    | making or removing a directory | `child_process`, `Bun.spawn`, `Bun.Terminal`, with a message                 |
+| `fs` reads of the files in `server-seed.json` |                                |                                                                              |
+
+SQLite databases live in memory. The Server saves them to the browser's storage (OPFS) before
+each Server Function answers. A `<Terminal>` shows an "unavailable here" screen.
 
 An app that needs a process, a terminal or a real disk keeps `--web`.
 
-## As a single binary
+## Hand someone a single binary
 
 From the app's directory:
 
@@ -200,23 +319,27 @@ From the app's directory:
 luciole build --compile
 ```
 
-One executable per OS and architecture, with the Bun runtime, OpenTUI's native library and
-the build ID inside: the machine that runs it needs neither Bun nor `node_modules`. By
-default it holds the Client **and** the Server, business code included, and the build warns
-that whoever receives it can read that code; `--client-only` keeps the Server out, for
-users who only connect to yours.
+You get one executable per OS and architecture. It holds the Bun runtime, OpenTUI's native
+library and the build ID. The machine that runs it needs neither Bun nor the app's
+`node_modules`.
 
-| Command                                          | Role                                              |
-| ------------------------------------------------ | ------------------------------------------------- |
-| `notes [options]`                                | both, here; the Server on a private socket        |
-| `notes serve [--http [host]:port \| --socket p]` | the Server alone                                  |
-| `notes --url <url>`                              | the Client alone                                  |
-| `notes --on [user@]host[:port]`                  | the Server on the host, the Client here, over ssh |
-| `notes --new`                                    | a fresh launch, without reclaiming a session      |
-| `notes --version`                                | the app, the build ID and the target              |
+<Note kind="warning">
+  By default the binary holds the Client **and** the Server, business code included. Whoever
+  receives it can read that code, and the build warns you each time. Build with `--client-only` for
+  users who only connect to your Server.
+</Note>
 
-Targets, runtimes, signing and notarization for macOS, glibc and musl:
-[build and distribution](/docs/reference/build-and-distribution/).
+| Command                                          | What it runs                                       |
+| ------------------------------------------------ | -------------------------------------------------- |
+| `notes [options]`                                | both here, the Server on a private socket          |
+| `notes serve [--http [host]:port \| --socket p]` | the Server alone                                   |
+| `notes --url <url>`                              | the Client alone                                   |
+| `notes --on [user@]host[:port]`                  | the Server on the remote machine, the Client here  |
+| `notes --new`                                    | a new launch, instead of reattaching a crashed one |
+| `notes --version`                                | prints the app, the build ID and the target        |
+
+Targets, runtimes, native packages and macOS signing:
+[compile a binary](/docs/reference/build-and-distribution/#compile-a-single-binary).
 
 <Note>
   Whatever the way in, the app's own options (`app/args.ts`) configure its Server. They are refused

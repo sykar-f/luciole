@@ -1,61 +1,171 @@
 ---
 title: Build and distribution
-description: What luciole build writes and how its build ID is made; compiled binaries, runtimes, targets and native modules; signing for macOS; the Server's lifetime; publishing to npm.
+description: What luciole build writes and takes, how a build is published and identified, and how an app ships as a binary or an npm package.
 sources:
   - docs/ARCHITECTURE.md
   - docs/DISTRIBUTION.md
+  - docs/VALIDATION.md
   - packages/core/src/build.ts
+  - packages/core/src/commands/build.ts
   - packages/core/src/compile.ts
   - packages/core/src/sign.ts
   - packages/core/src/native.ts
+  - packages/core/src/app-metadata.ts
+  - packages/core/src/app-routes.ts
+  - packages/core/src/launcher/index.ts
+  - packages/core/src/launcher/remote.ts
+  - packages/core/src/launcher/bundle.ts
+  - packages/core/src/launcher/binary.ts
   - packages/core/src/launcher/lifetime.ts
   - packages/core/src/registry
+  - website/scripts/capture.py
 ---
 
 import Note from "../../../components/docs/Note.astro";
+import AnnotatedCapture from "../../../components/docs/AnnotatedCapture.astro";
+import Sequence from "../../../components/guide/Sequence.astro";
 
-## `luciole build`
+This page lists what `luciole build` writes, the options it takes, and how a build becomes a
+binary, an npm package or a Server on another machine. Run every command from the app's
+directory, or pass `--app <dir>`: the output is then `<dir>/.luciole/`.
 
-Run every command on this page from the app's directory, since `--app` defaults to `.`.
-From elsewhere, pass `--app <dir>`. The output is then `<dir>/.luciole/`.
+## What `luciole build` writes
 
-```text
-.luciole/
-  manifest.json   build ID, graphs, route graph and Client References
-  metadata.json   display name, identifier, icon, arguments (from package.json and app/args.ts)
-  client/         index.js (+ index.js.map)
-  server/         index.js (+ index.js.map)
-  app/            index.cjs and manifest.json: the app bundle for a host
-  args/           app/args.ts, bundled for the launcher and the binary
-  web/            with --web or --web-local
-  web-server/     with --web-local
-```
+<AnnotatedCapture
+  path="website/src/frames/build-tree.txt"
+  caption="Notes' .luciole/ after luciole build --compile. Each number marks an entry, and its note says what the entry holds and what reads it."
+  notes={[
+    { match: "icon.png", note: "is the app's icon, copied from `luciole.icon` in `package.json`." },
+    {
+      match: "manifest.json",
+      note: "holds the build ID, the routes and the Client References. The launcher reads it, and so does the next build to know if it is up to date.",
+    },
+    {
+      match: "metadata.json",
+      note: "holds the name, version, icon, Server scope, grace period and the arguments' schema. The launcher reads it to start the Server, and `--compile` bakes the scope and grace period into the binary.",
+    },
+    {
+      match: "app/",
+      note: "is the app bundle for a host. The Server serves it to the [generic Client](/docs/guides/opening-an-app/#open-a-server-url-in-the-generic-client). It is missing when Client code uses top-level `await`.",
+    },
+    {
+      match: "bin/",
+      note: "holds the binary `--compile` writes, for this platform or the one `--target` names. It also holds `native/` when the app has native packages.",
+    },
+    {
+      match: "client/",
+      note: "is the Client bundle. The launcher, `luciole dev` and `luciole start --role client` run it. A `--client-only` binary lands here too, as `notes-<os>-<arch>`.",
+    },
+    {
+      match: "server/",
+      note: "is the Server bundle. The launcher runs it with `--conditions=react-server`.",
+    },
+    {
+      match: "<asset>-<hash>",
+      note: "are files the bundle loads at run time, such as the tree-sitter grammars OpenTUI highlights code with.",
+    },
+  ]}
+/>
 
-- The Client bundle holds the terminal runtime and this app's Client Components. The Server
-  bundle holds the HTTP runtime, routes, Server Functions and business code, and does not
-  import OpenTUI.
-- The Client bundle holds no Server implementation. It has no Server page, no Server
-  Function's code, no `server-only` module and nothing under a `server/` directory. Business
-  rules written in Client Components, such as when to retry a save, are in it.
-- Each bundle has a linked source map: Bun applies it to stack traces at run time, in
-  development as in production.
-- A failed build leaves the previous build in `.luciole/`, whichever step fails, with one
-  exception named below. The app build, the runtime that `--web` installs and the binary that
-  `--compile` writes are all assembled in a temporary directory. They replace the previous
-  build together, once every step succeeded. The app build is everything in the tree above
-  except `web/`.
-- A binary written outside `.luciole/` with `--outfile` is built beside its destination. It
-  replaces the previous binary only when the build is published, so a failed `--compile`
-  leaves the previous binary. It can still have updated the `native/` directory beside it.
-  If the move of that binary fails, `.luciole/` already holds the new build.
+Three more entries appear when the build needs them:
+
+- `args/`: `app/args.ts`, bundled for the launcher and the binary, when the app has arguments.
+- `web/`: the web runtime and its page, with `--web` or `--web-local`.
+- `web-server/`: the Server's code for a browser Worker, with `--web-local`.
+
+What each bundle holds:
+
+- The Client bundle holds the runtime that draws in a terminal window, and this app's Client
+  Components.
+- The Client bundle holds no Server code. It has no Server page, no Server Function's code, no
+  `server-only` module and nothing under a `server/` directory.
+- Business rules written in Client Components, such as when to retry a save, are in the Client
+  bundle.
+- The Server bundle holds the HTTP runtime, routes, Server Functions and business code. It does
+  not import OpenTUI.
+- Each bundle has a linked source map. Bun applies it to stack traces at run time, in
+  development and in production.
+
+`.luciole/client` and `.luciole/server` are not a delivery format. They carry no manifest or
+lockfile to install elsewhere. Give a machine of known platform a
+[compiled binary](#compile-a-single-binary). On an unknown one, open the app from its source
+(`luciole git+…`), which installs it from its `bun.lock` and builds it there.
+
+## Which options `luciole build` takes
+
+| Option                             | What it does                                                                   | Default                           |
+| ---------------------------------- | ------------------------------------------------------------------------------ | --------------------------------- |
+| `--app <dir>`                      | builds the app in `<dir>`, into `<dir>/.luciole/`                              | `.`                               |
+| `--app-bundle`                     | fails the build when `.luciole/app/` cannot be written                         | the build warns and goes on       |
+| `--sign-bundle`                    | signs `app/manifest.json` with your publisher key, and implies `--app-bundle`  | unsigned                          |
+| `--web`                            | adds the web runtime in `.luciole/web/`, and implies `--app-bundle`            | no web build                      |
+| `--web-local`                      | writes a static site where the Server runs in the browser, and implies `--web` | no web build                      |
+| `--compile`                        | writes a [single binary](#compile-a-single-binary)                             | no binary                         |
+| `--name <name>`                    | names the binary and the app                                                   | the app directory's name          |
+| `--client-only`                    | leaves the Server out of the binary                                            | Client and Server                 |
+| `--target <target>`                | builds for [another platform](#build-for-another-platform)                     | this machine's platform           |
+| `--runtime official\|host\|<path>` | chooses the [Bun runtime](#choose-the-bun-runtime-the-binary-embeds) to embed  | `official`                        |
+| `--portable`                       | turns the runtime's portability warning into an error                          | a warning                         |
+| `--native-dir <dir>`               | takes [native packages](#ship-native-server-packages) from `<dir>`             | the app's `node_modules`          |
+| `--outfile <file>`                 | writes the binary to `<file>`                                                  | `.luciole/bin/<os>-<arch>/<name>` |
+| `--sign <identity>`                | [signs the macOS binary](#sign-and-notarize-for-macos), ad hoc with `-`        | the linker's ad hoc signature     |
+| `--notarize <profile>`             | sends the signed binary to Apple's notary service                              | not notarized                     |
+
+The options from `--name` to `--notarize` apply only with `--compile`. Without it, the build
+refuses them.
+
+Other behaviours:
+
 - `luciole build` without `--compile` or `--web` does not touch the network.
-- `.luciole/app/` needs Client code without top-level `await` (CommonJS cannot express it):
-  without it the build succeeds without the app bundle and says where; `--app-bundle` makes
-  that a failure.
+- `.luciole/app/` is written in CommonJS, which cannot express a top-level `await`. When Client
+  code uses one, the build succeeds without the app bundle, and says which module.
 
-### The build ID
+## What a failed build leaves
 
-A hash of what the build reads:
+When the app changed since the last build, a failed build leaves the previous build in
+`.luciole/`. The build assembles everything in a temporary directory, then publishes it with
+one rename:
+
+<Sequence
+  title="Publishing a build"
+  lanes={[
+    { id: "build", label: "luciole build", tone: "build" },
+    { id: "temp", label: ".luciole-<id>/", sub: "temporary", tone: "neutral" },
+    { id: "out", label: ".luciole/", sub: "the build in use", tone: "neutral" },
+  ]}
+  messages={[
+    { phase: "Assemble" },
+    { from: "build", to: "temp", label: "bundle each role", n: 1 },
+    { from: "build", to: "temp", label: "write manifest and metadata", n: 2 },
+    { from: "build", to: "temp", label: "stage --web, then --compile", n: 3 },
+    { phase: "Publish" },
+    { from: "out", to: "out", label: "rename to .luciole-previous/", n: 4 },
+    { from: "temp", to: "out", label: "rename to .luciole/", n: 5 },
+    { from: "out", to: "out", label: "remove .luciole-previous/", n: 6 },
+  ]}
+  caption="A failure in steps 1 to 3 removes the temporary directory and leaves .luciole/ as it was. If the rename (5) fails, .luciole-previous/ goes back to .luciole/."
+/>
+
+Two cases do not follow this sequence:
+
+- **The app has not changed** since the last build. `--web` and `--compile` then work in
+  `.luciole/` itself. A failure there can leave `web/` incomplete, or a new binary that is not
+  signed.
+- **`--outfile` writes the binary outside `.luciole/`.** The binary is built beside its
+  destination, and replaces the previous one after step 6. A failed build leaves the previous
+  binary, but it can have updated the `native/` directory beside it.
+
+If the last move of an `--outfile` binary fails, `.luciole/` already holds the new build.
+
+A build that does not use `--compile` publishes a `.luciole/` without `bin/`. It removes the
+binary a previous `--compile` wrote there.
+
+## How the build ID is made
+
+Both roles must come from the same build. The Client sends its build ID with each request, and
+a Server of another build refuses the request before decoding it.
+
+The build ID is a hash of what the build reads:
 
 - the app's modules in both graphs, every layout, loading and error screen included
 - every `.ts` and `.tsx` source of the framework
@@ -68,56 +178,72 @@ A hash of what the build reads:
 The build takes the nearest `bun.lock` above the framework, and above the app. It never looks
 past the git checkout.
 
-The lockfile lists the packages of every platform, unlike `node_modules`, so binaries of each
-target of one version keep the same ID. The Client sends it with each request; a Server of
-another build refuses before decoding. Both roles must come from the same build.
+The lockfile lists the packages of every platform, unlike `node_modules`. Binaries of each
+target of one version therefore keep the same ID.
 
-`.luciole/client` and `.luciole/server` are not a delivery format: they carry no manifest or
-lockfile to install elsewhere. A machine of known platform gets a compiled binary; an unknown
-one starts from the source (`luciole git+…`), installed from its `bun.lock` and built there.
-
-## Compiled binaries
+## Compile a single binary
 
 ```sh
 luciole build --compile [--name notes] [--target t] [--client-only]
 # → .luciole/bin/<os>-<arch>/notes  (+ native/)
+# → .luciole/client/notes-<os>-<arch>  with --client-only
 ```
 
-One executable with the Bun runtime, OpenTUI's native library and the build ID inside. By
-default it holds the Client **and** the Server, business code included, and the build warns
-about it every time; `--client-only` produces the Client alone. Its identity is written as a
-literal the launcher reads without running it; `notes --version` prints it.
+The binary holds the Bun runtime, OpenTUI's native library and the build ID. By default it
+holds the Client **and** the Server, business code included, and the build warns about it every
+time.
 
-### Runtimes
+`--client-only` writes the Client alone. Only the full binary carries its identity, which the
+launcher reads without running it. `notes --version` prints that identity.
 
-By default the binary embeds the official Bun runtime of the target, from npm
-(`@oven/bun-<os>-<arch>`, the build's Bun version): downloaded **once**, checked against the
-registry's published `integrity` (SHA-512), then reused from `$XDG_CACHE_HOME/luciole/runtime/`
-without the network. `luciole runtime [--target …]` fills that cache ahead of time; offline
-and without a cache, the build fails and says so. The checksum protects against a truncated
-or altered download, not against a compromised registry: npm signatures are not checked.
+### Choose the Bun runtime the binary embeds
 
-`--runtime host` embeds the Bun running the build (the build warns if it depends on
-libraries outside the system, as with Nix or Homebrew: the binary would not start
-elsewhere); `--portable` turns that warning into an error. `--runtime <path>` embeds a chosen
-Bun executable.
+| `--runtime` | What the binary embeds                                                                         |
+| ----------- | ---------------------------------------------------------------------------------------------- |
+| `official`  | the official Bun of the target, from npm (`@oven/bun-<os>-<arch>`), at the build's Bun version |
+| `host`      | the Bun running the build. It only builds for this machine's platform.                         |
+| `<path>`    | the Bun executable at that path                                                                |
 
-### Targets
+The official runtime is downloaded **once** and checked against the registry's published
+`integrity` (SHA-512). Later builds reuse it from `$XDG_CACHE_HOME/luciole/runtime/` without
+the network. `luciole runtime [--target …]` fills that cache ahead of time. Offline and without
+a cache, the build fails and says so.
 
-`--target bun-linux-x64` (and `bun-darwin-arm64`, `bun-linux-x64-musl`…) builds for another
-platform. On Linux, the glibc binary starts on a minimal Debian; the musl binary needs
-`libstdc++` and `libgcc`, which Bun's musl runtime links (`apk add libstdc++` on Alpine). At
-launch Bun extracts OpenTUI's library into `$TMPDIR` (`/tmp` by default): if it is mounted
-`noexec`, set `TMPDIR` to an executable directory. `bun run test:linux` (Docker needed) runs
-these variants in containers without Bun.
+<Note kind="warning">
+  The checksum protects against a truncated or altered download. It does not protect against a
+  compromised registry: npm signatures are not checked.
+</Note>
 
-### Native Server packages
+On macOS, the build warns when the runtime links libraries outside the system, as a Bun from
+Nix or Homebrew does. Such a binary would not start on another Mac. `--portable` turns that
+warning into an error.
 
-A package with native code (a `.node` addon and the libraries it links, such as sharp) does
-not fit in a single file. The build keeps it external on the Server, and `--compile` puts it
-next to the binary in `native/node_modules/`, with only the target's platform packages. For
-another platform, install the app's packages for that target **from its lockfile**, then pass
-that directory with `--native-dir`:
+### Build for another platform
+
+`--target` takes one of these platforms:
+
+- `bun-darwin-arm64`, `bun-darwin-x64`
+- `bun-linux-x64`, `bun-linux-arm64`
+- `bun-linux-x64-musl`, `bun-linux-arm64-musl`
+
+What each Linux binary needs:
+
+- The glibc binary starts on a minimal Debian.
+- The musl binary needs `libstdc++` and `libgcc`, which Bun's musl runtime links. On Alpine,
+  run `apk add libstdc++`.
+- At launch, Bun extracts OpenTUI's library into `$TMPDIR`, which is `/tmp` by default. If that
+  directory is mounted `noexec`, set `TMPDIR` to an executable directory.
+
+`bun run test:linux` runs these variants in containers without Bun. It needs Docker.
+
+### Ship native Server packages
+
+A package with native code, such as sharp, does not fit in a single file: it holds a `.node`
+addon and the libraries it links. The build keeps it external on the Server. `--compile` puts
+it next to the binary in `native/node_modules/`, with only the target's platform packages.
+
+To build for another platform, install the app's packages for that target **from its
+lockfile**, then pass that directory with `--native-dir`:
 
 ```sh
 bun install --frozen-lockfile --os=linux --cpu=x64
@@ -126,11 +252,11 @@ bun install --frozen-lockfile --os=linux --cpu=x64
 `native/` travels with the binary: in the `--on` archive, in the npm platform package, and in
 the installation directory.
 
-## Signing and notarization for macOS
+## Sign and notarize for macOS
 
-Without options, the macOS binary carries the linker's ad hoc signature: it runs on the
-machine that built it, or when copied with `scp` or `curl`, but Gatekeeper blocks a file a
-browser downloaded.
+Without options, the macOS binary carries the linker's ad hoc signature. It runs on the machine
+that built it, or when copied with `scp` or `curl`. Gatekeeper blocks it when a browser
+downloaded it.
 
 ```sh
 # once: App Store Connect credentials in the keychain
@@ -139,50 +265,83 @@ luciole build --compile \
   --sign "Developer ID Application: Example Ltd (TEAMID1234)" --notarize luciole-notary
 ```
 
-`--sign` signs with the hardened runtime, a secure timestamp and two entitlements
-(`allow-jit`, without which Bun stops and `bun:ffi`, which loads OpenTUI, refuses to start;
-`disable-library-validation`, because OpenTUI's library is extracted at launch and not signed
-by your team), then verifies the signature. `--sign -` makes the same signature ad hoc, to
-test locally. `--notarize <profile>` requires a Developer ID: it sends the zipped binary to
-`notarytool`, waits for the verdict and prints Apple's log on refusal. A bare executable
-cannot have a ticket stapled: Gatekeeper checks it online at first launch; for an offline
-first launch, ship the binary in a signed, notarized and stapled `.dmg` or `.pkg`. These
-options apply to macOS targets, from macOS.
+`--sign <identity>` signs with the hardened runtime, a secure timestamp and two entitlements,
+then verifies the signature:
 
+- `allow-jit`: without it, Bun stops, and `bun:ffi` refuses to load OpenTUI.
+- `disable-library-validation`: OpenTUI's library is extracted at launch, and your team did not
+  sign it.
+
+`--sign -` makes the same signature ad hoc, without the timestamp, to test locally.
+
+`--notarize <profile>` requires a Developer ID. It sends the zipped binary to `notarytool` and
+waits for the verdict. On refusal, it prints Apple's log.
+
+A bare executable cannot have a ticket stapled, so Gatekeeper checks it online at first launch.
+For an offline first launch, ship the binary in a signed, notarized and stapled `.dmg` or
+`.pkg`.
+
+These options apply to macOS targets, from macOS.
 [Troubleshooting](/docs/reference/troubleshooting/#macos-blocks-a-downloaded-binary) shows what macOS prints when it blocks a binary.
 
 <Note kind="warning">
   Notarization has not been run end to end in this repository, for lack of a Developer ID.
 </Note>
 
-## The Server's lifetime
+## What `--on` does on the remote machine
 
-A Server the launcher starts, locally or with `--on`, is detached (its own session, its
-output in its log) and lives as long as its Clients need it:
+`notes --on [user@]host[:port]` starts the Server on a remote machine and the Client here
+([the task, step by step](/docs/guides/opening-an-app/#start-the-server-on-another-machine)):
 
-| Event                                               | Effect                                                             |
-| --------------------------------------------------- | ------------------------------------------------------------------ |
-| A Client runs                                       | it pings `POST /lifetime/ping` every 10 s (any request counts too) |
-| <kbd>Ctrl+C</kbd>, `app.quit` (quitting on purpose) | `POST /lifetime/leave`; the last Client gone, the Server stops     |
-| No request or ping for 30 s                         | that Client is lost                                                |
-| The Server's standard input ends without a leave    | the launcher's Client is lost (crash, closed terminal)             |
-| The last Client lost                                | grace: 15 min by default, `--grace <duration>`, `0` stops at once  |
-| A Client comes back during the grace period         | it is attached again, the grace stops                              |
-| The grace period ends                               | the Server stops                                                   |
+1. One master ssh connection authenticates once. The probe, the upload, the Server and the
+   tunnel reuse it. `LUCIOLE_SSH` replaces `ssh`.
+2. The remote machine reports its OS, architecture and libc. It also reports whether this build
+   is installed under `~/.local/share/luciole/apps/<app>/<buildId>/` and matches its
+   `SHA256SUMS`.
+3. When the build is missing or fails that check, a binary is uploaded:
+   - this binary, when the remote machine has its platform
+   - otherwise the one `--target` gives, which must be the same app, the same build and the
+     remote machine's platform
+4. The remote machine checks the archive, then swaps it in whole. It refuses a tampered build,
+   and never starts it.
+5. `<app> serve --detach` finds the managed Server of this launch, or starts one detached from
+   ssh. The app's options reach it on standard input. A command line would show them to other
+   users through `ps`.
+6. A tunnel `ssh -N -L <local socket>:<remote socket>` joins it to the Client.
 
-A new launch of the same target finds the Server at its socket and checks it
-(`GET /lifetime/status`): same build and same arguments, it attaches; otherwise it stops that
-Server (`POST /lifetime/stop`) and starts a new one.
+When the tunnel drops, the Client relaunches it after 1 s, 2 s, 4 s, up to 30 s, on the same
+local socket. A relaunched tunnel runs with `BatchMode`, so it never prompts.
 
-**The framework guarantees** a Server that survives the loss of its Client during the grace
-period, with its in-memory data; the tunnel re-established; the route and the named fields
-restored. **The app keeps** every other in-memory state of the Client, and the business
-meaning of an operation whose outcome is `unknown`.
+## How long a Server lives
 
-## Publishing to npm
+A Server the launcher starts, locally or with `--on`, is detached. It runs in its own process
+group, writes to its log, and lives as long as its Clients need it:
 
-An app is published the way esbuild is: one package per platform with the binary, and a main
-package that lists them in `optionalDependencies` and in `luciole.binaries`.
+| Event                                               | Effect                                                                    |
+| --------------------------------------------------- | ------------------------------------------------------------------------- |
+| A Client runs                                       | it pings `POST /lifetime/ping` every 10 s, and any request counts too     |
+| <kbd>Ctrl+C</kbd> or `app.quit`, to quit on purpose | `POST /lifetime/leave`. When the last Client leaves, the Server stops     |
+| No request or ping for 30 s                         | that Client is lost                                                       |
+| The Server's standard input ends without a leave    | the launcher's Client is lost, after a crash or a closed terminal window  |
+| The last Client is lost                             | the grace period starts: 15 min by default, set with `--grace <duration>` |
+| A Client comes back during the grace period         | it is attached again, and the grace period stops                          |
+| The grace period ends                               | the Server stops                                                          |
+
+A new launch of the same target finds the Server at its socket and checks it with
+`GET /lifetime/status`. With the same build and the same arguments, the launch attaches to it.
+Otherwise it stops that Server with `POST /lifetime/stop` and starts a new one.
+
+What survives a lost Client:
+
+- **The framework keeps** the Server and its in-memory data during the grace period. It
+  re-establishes the tunnel, and restores the route and the named fields.
+- **The app is responsible for** every other in-memory state of the Client. It also decides
+  what an operation whose outcome is `unknown` means for its business.
+
+## Publish an app to npm
+
+An app is published the way esbuild is. Each platform gets a package with its binary. A main
+package lists them in `optionalDependencies` and in `luciole.binaries`.
 
 ```sh
 luciole build --compile --name notes --target bun-darwin-arm64
@@ -190,22 +349,28 @@ luciole build --compile --name notes --target bun-linux-x64 --native-dir …
 luciole pack --package @ada/notes --version 1.2.0 .luciole/bin/*/notes
 ```
 
-`luciole pack` prints the order to publish in, platforms first. The registry is only read: the
-launcher uses its public read API (package documents, tarballs, search), compares each tarball
-with its published `integrity`, and records what it installed locally, in
-`$XDG_DATA_HOME/luciole/apps/<app>/`. An update writes the new binary next to the old one,
-switches `installed.json`, then removes the old one; a binary whose identity does not match
-its `package.json` is refused.
+`luciole pack` prints the order to publish in, platforms first.
 
-## Known limits
+How the launcher installs a published app:
 
-- `--on` does not clean up old builds on the remote host.
-- The relaunched tunnel never prompts: a password-only login does not come back by itself.
-- A private npm registry (with a token) is not supported; `update` does not apply to git
-  sources.
-- `install` does not detect musl: on Alpine it would pick the glibc binary.
-- A compiled binary does not embed `.luciole/app/`: it cannot be opened by URL.
-- A compiled Client is rebuilt from `index.js` without its source map: its stack traces stay
-  in the bundle's coordinates.
+- It only reads the registry, through its public read API: package documents, tarballs and
+  search.
+- It compares each tarball with its published `integrity`.
+- It records what it installed in `$XDG_DATA_HOME/luciole/apps/<app>/`.
+- An update writes the new binary next to the old one, switches `installed.json`, then removes
+  the old one.
+- It refuses a binary whose identity does not match its `package.json`.
+
+## What the build and the launcher do not do yet
+
+- `--on` does not clean up old builds on the remote machine.
+- The relaunched tunnel never prompts, so a password-only login does not come back by itself.
+- A private npm registry, with a token, is not supported.
+- `update` does not apply to git sources.
+- `install` does not detect musl. On Alpine it would pick the glibc binary.
+- A compiled binary does not embed `.luciole/app/`, so it cannot be opened by URL.
+- A compiled Client is rebuilt from `index.js` without its source map. Its stack traces stay in
+  the bundle's coordinates.
 - If the build process is killed while it publishes, `.luciole/` can be missing. The previous
-  build is then in `.luciole-previous/`, and the next build does not move it back.
+  build is then in `.luciole-previous/`. Move it back by hand before you build again: the next
+  build deletes it.
