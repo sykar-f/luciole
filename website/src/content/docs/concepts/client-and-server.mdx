@@ -60,11 +60,13 @@ installation: React, React Server DOM and OpenTUI stay external and resolve in i
 
 ## The same build on both sides
 
-Both programs must come from **the same build**. The build ID is a hash of the reachable
-sources, the runtime's files and the `bun.lock` that governs the installation. The Client
-sends it with every request (`x-luciole-build`); a Server of another build refuses the
-request before decoding it (`409`), without resetting the state already mounted in the
-Client.
+Both programs must come from **the same build**. The build ID is a hash of what the build
+reads: the app's reachable sources, the framework's sources, the `bun.lock` of the framework's
+installation and of the app's, the sources of the workspace packages the app links, and the
+app's `package.json`, `luciole.json` and icon
+([the full list](/docs/reference/build-and-distribution/#the-build-id)). The Client sends it
+with every request (`x-luciole-build`); a Server of another build refuses the request before
+decoding it (`409`), without resetting the state already mounted in the Client.
 
 The lockfile is in the hash because it lists the packages of every platform: a Linux Server
 and a macOS Client compiled from the same sources share one build ID, which is what
