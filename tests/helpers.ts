@@ -1,4 +1,4 @@
-import { afterAll } from "bun:test";
+import { afterAll, afterEach } from "bun:test";
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdtemp, realpath, rm, symlink } from "node:fs/promises";
@@ -196,24 +196,61 @@ export async function launch(file: string, env: Record<string, string> = {}) {
       }),
   };
 }
-/** "Condition timed out", then the state when there is one; a state that throws says so after it. */
-function timedOut(state?: () => string) {
-  if (!state) return "Condition timed out";
+/** `headline`, then the state when there is one; a state that throws says so after it. */
+function described(headline: string, state?: () => string) {
+  if (!state) return headline;
   try {
-    return `Condition timed out. State:\n${state()}`;
+    return `${headline}. State:\n${state()}`;
   } catch (error: unknown) {
-    return `Condition timed out. State unavailable: ${messageOf(error)}`;
+    return `${headline}. State unavailable: ${messageOf(error)}`;
   }
 }
+const timedOut = (state?: () => string) => described("Condition timed out", state);
+
+/**
+ * The waits of `until` and `eventually` still polling. bun's timeout for a test that sets
+ * none (20 s in `bun run test`) ends it before `WAIT_MS` ends its wait, and reports it
+ * without what the wait would have said. After each test, a wait still polling prints its
+ * state under that test, then stops where it stands: the abandoned test runs no further.
+ */
+type Wait = { start: number; state?: () => string; ended: boolean };
+const waiting = new Set<Wait>();
+try {
+  afterEach(() => {
+    for (const wait of waiting) {
+      wait.ended = true;
+      const ms = Math.round(performance.now() - wait.start);
+      console.error(
+        described(`The test ended while a wait still polled, after ${ms} ms`, wait.state),
+      );
+    }
+    waiting.clear();
+  });
+} catch {
+  // Outside bun test (scripts/linux-client.ts imports `launch`): no test ends a wait.
+}
+function watched(state?: () => string): Wait {
+  const wait = { start: performance.now(), state, ended: false };
+  waiting.add(wait);
+  return wait;
+}
+/** Never settles: what an abandoned test would run after its wait never runs. */
+const abandoned = () => new Promise<never>(() => {});
 /**
  * Polls `check` until it holds; a failure prints `state()`: what the process and its screen
- * showed. The guard against a hang is `WAIT_MS`, as for `untilFrame`.
+ * showed. The guard against a hang is `WAIT_MS`, as for `untilFrame`; a test that bun's
+ * timeout ends first still prints the state.
  */
 export async function until(check: () => boolean, timeout = WAIT_MS, state?: () => string) {
-  const start = performance.now();
-  while (!check()) {
-    if (performance.now() - start > timeout) throw new Error(timedOut(state));
-    await Bun.sleep(10);
+  const wait = watched(state);
+  try {
+    while (!check()) {
+      if (wait.ended) return abandoned();
+      if (performance.now() - wait.start > timeout) throw new Error(timedOut(state));
+      await Bun.sleep(10);
+    }
+  } finally {
+    waiting.delete(wait);
   }
 }
 /**
@@ -225,10 +262,15 @@ export async function eventually(
   timeout = WAIT_MS,
   state?: () => string,
 ) {
-  const start = performance.now();
-  while (!(await check())) {
-    if (performance.now() - start > timeout) throw new Error(timedOut(state));
-    await Bun.sleep(10);
+  const wait = watched(state);
+  try {
+    while (!(await check())) {
+      if (wait.ended) return abandoned();
+      if (performance.now() - wait.start > timeout) throw new Error(timedOut(state));
+      await Bun.sleep(10);
+    }
+  } finally {
+    waiting.delete(wait);
   }
 }
 /**
