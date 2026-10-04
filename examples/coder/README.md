@@ -1,175 +1,195 @@
 # coder
 
-Une session d'agent de code dans un terminal, comme `claude`, `codex`, `pi` ou
-`opencode` — **une session, un dossier, un agent** — mais avec le harness choisi au
-lancement. coder ne parle jamais à un modèle et ne lit aucun jeton : il pilote les
-binaires officiels déjà installés et connectés par l'utilisateur.
+coder runs one coding-agent session in your terminal, on the agent you choose at launch:
+Claude Code, Codex, pi or opencode. It drives the official binaries you installed and
+signed in to. coder never talks to a model and never reads a credential.
 
-## Lancement
+It is also luciole's showcase. It uses a per-launch Server, app arguments, live Server
+Functions, restored fields, key bindings and `<Markdown>` together.
 
-Sans cloner le dépôt : `luciole example coder` lance cet exemple depuis le tag git de la
-version de luciole installée ([docs/DISTRIBUTION.md](../../docs/DISTRIBUTION.md#exemples)).
-Les variables d'environnement et les clés ci-dessous s'appliquent de la même façon.
+```
+ ● fake · /home/ada/src/timers · New session                       ← header
 
-Depuis la racine du monorepo (les dépendances sont `workspace:*` et `catalog:` : l'exemple
-ne se lance pas depuis son propre dossier). Prérequis : Bun 1.4.2 et `bun install
---frozen-lockfile` une fois. Le harness `fake` n'exige rien d'autre ; les autres
-harnesses demandent leur binaire officiel dans le `PATH`, déjà connecté (`claude`,
-`codex`, `pi` ou `opencode`) : coder ne lit aucune clé API, la connexion reste celle du
-harness.
+   › parseDuration("abc") returns NaN: make it throw a clear error, then run its tests
+
+  ▸ thinking A bare word matches nothing and the destructuring hides it…
+  ▸ ⚙ read src/duration.ts                                            ✓ 0.2 s
+  ▾ ✎ src/duration.ts                                                  +4 −1
+     5 -   const [, n, unit] = FORMAT.exec(text) ?? [];
+     5 +   const match = FORMAT.exec(text);
+     6 +   if (!match)
+     7 +     throw new RangeError(`Not a duration: ${text}`);
+  ▸ $ bun test tests/duration.test.ts                         ✓ exit 0 · 1.8 s
+
+  Your turn: ask for the next change.                              ← transcript
+
+ ╭─────────────────────────────────────────────────────────────────────────╮
+ │ › Message… (/ commands, @ files)                                        │ ← prompt
+ ╰─────────────────────────────────────────────────────────────────────────╯
+  fake-large · medium · ✋ ask │ ctx ░░░░░░ 1 % │ $0.00   Scripted demo · no model calls
+  pageup scroll · shift+tab mode · ctrl+g editor · ctrl+o browse    ← key help
+```
+
+The screen above is the `fake` harness after its demo prompt, trimmed from the site's
+capture. The line above the key help is the status line.
+
+## Run it
+
+With luciole installed, run the scripted demo:
 
 ```sh
-bun run coder -- --harness fake          # démo scriptée, hors ligne, sans quota
-bun run coder -- -H codex --mode edits   # un vrai harness : consomme votre quota
+bunx luciole.sh example coder -- --harness fake
+```
+
+From a clone of the repository, run it from the root:
+
+```sh
+git clone https://github.com/sykar-f/luciole && cd luciole
+bun install --frozen-lockfile
+bun run coder -- --harness fake
+```
+
+The clone needs Bun 1.4.2. The `fake` harness needs nothing else: it runs offline and
+spends no quota. Every other harness needs its official binary on your `PATH`, already
+signed in: `claude`, `codex`, `pi` or `opencode`.
+
+```sh
+bun run coder -- -H codex --mode edits   # a real harness: spends your quota
 bun run coder -- -H claude --resume
-bun run coder -- --help                  # aide générée depuis app/args.ts
+bun run coder -- --help                  # the help generated from app/args.ts
 ```
 
-`bun run coder` est `luciole dev --app examples/coder --` : tout ce qui suit `--` est la
-ligne de commande de coder. Avec `fake`, attendez-vous à l'écran de session, au prompt
-en bas et à la ligne d'état « Scripted demo · no model calls » ; écrivez-y n'importe quel
-prompt (le scénario complet est décrit plus bas).
+Everything after `--` is coder's own command line:
 
-> **Attention : `--mode full` désactive le bac à sable de l'agent** (pour Codex :
-> `danger-full-access`, sans confirmation) et, comme dans tous les modes, l'agent
-> hérite de **tout l'environnement** de coder (variables, clés comprises) et agit avec
-> vos droits sur le dossier choisi. Gardez le défaut `ask`, ou `read`, hors d'un dossier
-> jetable.
+| Option                          | Effect                                                                        |
+| ------------------------------- | ----------------------------------------------------------------------------- |
+| `-H, --harness`                 | `claude`, `codex`, `pi`, `opencode`, or `fake` for the scripted demo          |
+| `-C, --cwd DIR`                 | The project directory. Default: where you typed the command.                  |
+| `-m, --model`, `-e, --effort`   | The model and its reasoning effort, as the harness names them                 |
+| `--mode read\|ask\|edits\|full` | The permission mode. Default: `ask`, which asks before each write or command. |
+| `-r, --resume [ID]`             | Resume the latest agent session of the project, or the one with this ID       |
+| `--new`                         | Start a new agent session instead of reattaching an interrupted launch        |
 
-| Option                          | Effet                                                                   |
-| ------------------------------- | ----------------------------------------------------------------------- |
-| `-H, --harness`                 | `claude`, `codex`, `pi`, `opencode`, ou `fake` (démo scriptée)          |
-| `-C, --cwd DIR`                 | dossier du projet (défaut : là où la commande est tapée)                |
-| `-m, --model`, `-e, --effort`   | modèle et effort de raisonnement, tels que le harness les nomme         |
-| `--mode read\|ask\|edits\|full` | permissions (défaut `ask` : chaque écriture ou commande est demandée)   |
-| `-r, --resume [ID]`             | reprend la dernière session du dossier, ou celle-ci                     |
-| `--new`                         | nouvelle session au lieu de rattacher un lancement interrompu (runtime) |
+Without `--harness`, coder picks the first harness that is ready, in this order: `claude`,
+`codex`, `opencode`, `pi`. When none is ready, it says what is missing. `--new` belongs to
+luciole, not to coder, so `--help` does not list it.
 
-Sans `--harness`, coder prend le premier harness prêt dans l'ordre claude, codex,
-opencode, pi, sinon il dit ce qui manque. `CODER_HARNESS` et `CODER_CWD` tiennent lieu de
-`--harness` et `--cwd` quand la ligne de commande ne les donne pas.
+> **Warning:** `--mode full` turns off the agent's sandbox. With Codex, it runs with
+> `danger-full-access` and asks nothing. In every mode, the agent inherits coder's whole
+> environment, keys included, and acts with your rights on the project. Keep `ask` or
+> `read` outside a throwaway directory.
 
-## Démo web
+## Try it
 
-Le site fait tourner coder dans la page (`luciole build --web-local`, docs/WEB.md) : le
-Server vit dans un Worker, sans processus ni réseau, donc sur le harness `fake` seul.
-`website/scripts/demo.ts` lui donne `CODER_HARNESS=fake` et un projet fictif
-(`CODER_CWD`, par exemple `~/src/timers`). Dans le Worker, `server/session.ts` importe
-`@luciole-sh/harness/adapters`, que le `package.json` de `packages/harness` résout en
-`src/adapters/browser.ts` sous la condition `browser` : l'Agent SDK de Claude
-(`readline`, `net`) et les autres adaptateurs n'y entrent pas.
+With `--harness fake`, the words of your prompt pick a scripted scene:
 
-Avec le harness `fake`, la ligne d'état affiche **« Scripted demo · no model calls »** à
-la place de « powered by … » (`SCRIPTED` dans `packages/harness/src/ui/StatusLine.tsx`), au terminal
-comme dans la page : aucun drapeau à ajouter côté site.
+- `parseDuration`: the site's demo. It reads `src/duration.ts`, proposes a diff, waits for
+  `y` and runs `bun test`. It plays at a model's pace, so you can follow it in about twenty
+  seconds.
+- `fix` or `edit`: a file change to approve first.
+- `test` or `run`: a command with streamed output.
+- `plan`, `question`, `agent`, `search` or `markdown`: a plan to review, a question, a
+  subagent, a tool call, or a long Markdown reply.
+- `slow`: a long command. Press Esc to interrupt it.
+- `fail`: a failed turn.
 
-Le scénario du site se joue avec le prompt `DEMO_PROMPT` (`packages/harness/src/adapters/fake.ts`) :
-raisonnement, lecture de `src/duration.ts` (appel d'outil), réponse en streaming, diff à
-approuver (`y` en mode `ask`), `bun test` puis la main rendue sur `DEMO_END`. Mêmes
-textes et mêmes durées affichées à chaque fois ; environ 12 s une fois le prompt envoyé.
+Then try these keys:
 
-## Ce que montre l'exemple
+| Where      | Keys                                                                                                                            |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Prompt     | Enter sends · Alt+Enter queues after the turn · Shift+Enter or Ctrl+J adds a line · Esc interrupts · Shift+Tab changes the mode |
+| Prompt     | Ctrl+G opens `$EDITOR` · Ctrl+O browses the transcript · `/` lists commands · `@` completes a file                              |
+| Browsing   | `j`/`k` select a block · Enter or Space folds it · `a` folds all · `y` copies it · `g`/`G` top or bottom · `i` or Esc returns   |
+| Dialog     | `y` once · `s` for this agent session · `a` always · `n` denies · Esc denies and stops the turn                                 |
+| Everywhere | PgUp/PgDn scroll · End follows · Ctrl+R reopens the live feed · Ctrl+C quits and stops the harness                              |
 
-coder est aussi la vitrine de luciole ; chaque capacité du framework y sert :
+While a turn runs, Enter injects your message into it. A harness that cannot inject
+queues the message instead.
 
-| Capacité                                | Ici                                                                                             |
-| --------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| Server / Client séparés                 | le Server possède la session : le Client peut crasher ou être rebuildé, l'agent continue        |
-| `app/args.ts` (`@luciole-sh/core/args`) | vraie ligne de commande, `--help` et erreurs générés, lue par le Server (`cli.get()`)           |
-| `"server": "per-launch"`                | deux `coder` dans le même dossier = deux sessions ; un Client tué retrouve la sienne            |
-| `useLive`                               | un snapshot puis des patchs (`{seq, items, removed, fields}`), pas un snapshot toutes les 50 ms |
-| issues `not-sent / rejected / unknown`  | une approbation n'est jamais rejouée : une issue inconnue est consultée (`requestState`)        |
-| champs nommés restaurés                 | le prompt en cours survit à un crash ou à un rebuild                                            |
-| `useBindings` + `<KeyHelp>`             | modes clavier (prompt, parcours, dialogue, sélecteur) et barre d'aide générée                   |
-| `host.notify`                           | notification quand une requête attend et que le terminal n'a pas le focus                       |
-| `renderer.suspend()`                    | Ctrl+G : écrire le prompt dans `$EDITOR`                                                        |
-| `<Markdown>`                            | réponses et « thinking » stables pendant le streaming                                           |
-| OpenTUI                                 | `<diff>` par fichier, `<code>`, textarea, overlays, sélection + OSC 52                          |
+The app's commands are `/new`, `/resume`, `/model`, `/effort`, `/mode`, `/plan`,
+`/compact`, `/status` and `/help`. The harness adds its own, such as skills and prompts. A
+command the harness cannot run does not appear.
 
-## Clavier
+## How it is built
 
-| Mode     | Touches                                                                                                                                                                                                                                              |
-| -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Prompt   | ⏎ envoyer (pendant un tour : injecter, ou mettre en file si le harness ne sait pas) · ⌥⏎ mettre en file · Maj+⏎ / Ctrl+J nouvelle ligne · Échap interrompre · Maj+Tab mode suivant · Ctrl+G éditeur · Ctrl+O parcours · `/` commandes · `@` fichiers |
-| Parcours | `j`/`k` bloc · ⏎/Espace plier · `a` tout plier · `y` copier le bloc · `g`/`G` haut/bas · `i` ou Échap retour                                                                                                                                         |
-| Dialogue | `y` une fois · `s` pour la session · `a` toujours · `n` refuser · chiffres pour les options · Échap refuser et interrompre                                                                                                                           |
-| Partout  | PgUp/PgDn défiler · Fin suivre · Ctrl+R rouvrir le flux · Ctrl+C quitter (le harness est arrêté)                                                                                                                                                     |
+Open these files first:
 
-Commandes de l'app : `/new`, `/resume`, `/model`, `/effort`, `/mode`, `/plan`, `/compact`,
-`/status`, `/help` ; celles du harness (skills, prompts, plugins) s'ajoutent telles qu'il
-les expose. Une commande que le harness ne sait pas faire n'apparaît pas.
+- `app/args.ts`: the command line, in Zod. The launcher reads it, and so does the Server.
+- `app/page.tsx`: the Server page. It starts the agent session and renders its first
+  snapshot.
+- `components/SessionScreen.tsx`: the Client screen, with its key bindings and commands.
+- `actions/session.ts`: the Server Functions, such as `send`, `interrupt`, `respond` and
+  the live `feed`.
+- `server/session.ts`: this launch's agent session, on `HarnessSession` from
+  `@luciole-sh/harness`.
+- `server/launches.ts`: which agent session each launch drives, so that a rebuild resumes
+  it.
 
-## Architecture
+The adapters, the agent session model and the transcript UI are shared with studio in
+[`packages/harness`](../../packages/harness/README.md). Each adapter turns its agent's
+protocol into neutral events, such as `turn.*`, `item.*` and `request.*`.
 
-```
-app/args.ts           options (zod) : lues par le lanceur et par le Server
-app/page.tsx          Server : démarre la session, rend le premier snapshot
-components/           Client : SessionScreen, Completion, éditeur externe
-actions/session.ts    "use server" : send, interrupt, respond, setModel, setMode, feed…
-server/session.ts     la session de ce lancement, sur la HarnessSession du paquet harness
-server/config.ts      arguments et lancement ; launches.ts : session reprise après un rebuild
-```
+What each luciole feature does here:
 
-Le reste est partagé avec studio dans `packages/harness` (`@luciole-sh/harness`, paquet privé
-du workspace) :
+| Feature                       | In coder                                                                                               |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `"server": "per-launch"`      | Two `coder` in the same directory are two agent sessions. A killed Client finds its own.               |
+| `"grace": "15m"`              | The Server waits 15 minutes for a lost Client before it stops. The agent works meanwhile.              |
+| `@luciole-sh/core/args`       | A real command line, with `--help` and errors generated from `app/args.ts`.                            |
+| `useLive`                     | The screen gets one snapshot, then patches, rather than a new snapshot every 50 ms.                    |
+| Transport outcomes            | An approval is never sent twice. When its outcome is `unknown`, the Client asks the Server.            |
+| Restored fields               | The prompt you are typing survives a crash or a rebuild of the Client.                                 |
+| `useBindings` and `<KeyHelp>` | Each mode has its own keys, and the help line lists them.                                              |
+| `host.notify`                 | A notification tells you that the agent waits for you while your terminal is not focused.              |
+| `renderer.suspend()`          | Ctrl+G hands your terminal to `$EDITOR`, then takes it back.                                           |
+| `<Markdown>`                  | Replies and thinking stay stable while they stream.                                                    |
+| OpenTUI                       | A `<diff>` per file, `<code>`, overlays, and a mouse selection copied to your clipboard, over SSH too. |
 
-```
-src/session.ts        HarnessSession : état, items, requêtes, journal de révisions → patchs
-src/adapters/         un adaptateur par harness, vers un vocabulaire neutre (types.ts)
-src/detect.ts         harness installé, version, connecté ? — sans requête au modèle
-src/jsonl.ts          lecteur JSON-lines (LF seulement) et client JSON-RPC
-src/model.ts          le vocabulaire neutre, commun au Server et au Client
-src/ui/               Client : Transcript, Dialogs, Picker, StatusLine, store du flux…
-```
-
-Les réponses et les blocs « thinking » passent par `<Markdown>` (`@luciole-sh/core/client`), pas par le
-`<markdown>` d'OpenTUI : pendant le streaming, celui-ci redessine le dernier bloc depuis un
-aperçu puis depuis Tree-sitter, et la réponse clignote. Le composant découpe la réponse en
-blocs (`marked`), fige tous les blocs sauf le dernier, met le texte en forme sans
-Tree-sitter et ferme d'avance les marqueurs ouverts du dernier bloc ; le rendu d'une
-réponse finie est celui de `<markdown conceal>`.
-
-Les adaptateurs traduisent chaque protocole en événements neutres (`turn.*`, `item.*`,
-`request.*`, `plan.updated`, `usage.updated`…). Les actions rendent la main tout de
-suite (délai de 10 s des actions luciole) ; la progression passe par le flux.
-
-## Conformité
-
-- **Claude Code** : piloté par l'Agent SDK avec le binaire `claude` de l'utilisateur, non
-  modifié et connecté par lui ; jamais le binaire embarqué du SDK, jamais `--bare`, aucun
-  appel aux endpoints OAuth, aucun user-agent emprunté. La licence de l'Agent SDK
-  Anthropic n'est **pas** une licence OSI : cet exemple est destiné à un usage personnel,
-  non commercial.
-- **Aucun secret n'est lu** : ni `~/.claude/.credentials.json`, ni le trousseau, ni
-  `~/.codex/auth.json`, ni les valeurs des `auth.json` de pi et d'opencode. La connexion
-  est toujours déléguée au harness (`claude auth login`, `codex login`, `/login` dans pi,
-  `opencode auth login`).
-- **Pas d'OAuth Anthropic dans pi ni dans opencode** : les modèles Anthropic y sont
-  bloqués quand la connexion est un abonnement Claude ; utilisez `--harness claude`.
-- **opencode** : un `opencode serve` par session, sur 127.0.0.1, derrière un mot de passe
-  tiré au hasard à chaque lancement ; le partage public des sessions est désactivé.
-- **Codex** se voit présenter coder sous son nom (`clientInfo.name = "luciole-coder"`).
-- Chaque harness consomme **le quota de l'utilisateur**. Le harness `fake` n'en consomme
-  aucun : tests, démo web et découverte de l'interface.
-- « powered by … » en texte seulement : aucune marque n'est reprise.
-
-## Tests
+### Run the tests
 
 ```sh
-bun test tests/coder.test.tsx tests/coder-store.test.ts   # vrai Server + Client rendu, harness factice
-bun run test:pty:coder                                    # parcours PTY complet, harness factice
-bun run test:web:coder                                    # la démo web dans Chrome headless
-bun test tests/markdown*.test.ts*                         # <Markdown> : blocs figés, fermeture, parité
-bun run test:pty:markdown                                 # 0 oscillation en streaming (mot-clé `markdown`)
+bun test tests/coder.test.tsx tests/coder-store.test.ts   # real Server and Client, fake harness
+bun run test:pty:coder                                    # the whole journey in a PTY, fake harness
+bun run test:web:coder                                    # the web demo in headless Chrome
+bun test tests/markdown*.test.ts*                         # <Markdown>: settled blocks, closing, parity
+bun run test:pty:markdown                                 # no flicker while a Markdown reply streams
 ```
 
-Les parcours sur les vrais harnesses sont manuels : ils consomment un peu de quota.
+The adapters replay exchanges recorded once on the real binaries, in
+`tests/coder-{claude,codex,pi,opencode}.test.ts`. `scripts/coder/record-*.ts` records them
+again. Journeys on the real harnesses spend a little quota, so you run them by hand:
 
 ```sh
-bun scripts/pty/coder-real.ts claude|codex|pi|opencode [modèle]
-bun scripts/pty/markdown-stability.ts claude|codex|pi|opencode   # une réponse Markdown réelle
+bun scripts/pty/coder-real.ts claude          # or codex, pi, opencode; a model may follow
+bun scripts/pty/markdown-stability.ts claude  # one real Markdown reply; or codex, pi, opencode
 ```
 
-Les adaptateurs sont testés sur des échanges enregistrés une fois sur les vrais binaires
-(`scripts/coder/record-*.ts` → `tests/fixtures/coder/`), rejoués pas à pas
-(`tests/coder-{claude,codex,pi,opencode}.test.ts`).
+## Environment variables
+
+| Variable              | Default                                   | Role                                                                    |
+| --------------------- | ----------------------------------------- | ----------------------------------------------------------------------- |
+| `CODER_HARNESS`       | The first harness that is ready           | Same as `--harness`. The command line wins.                             |
+| `CODER_CWD`           | The directory where you typed the command | Same as `--cwd`. The command line wins.                                 |
+| `VISUAL`, `EDITOR`    | `vi`                                      | The editor that Ctrl+G opens. `VISUAL` wins over `EDITOR`.              |
+| `XDG_STATE_HOME`      | `~/.local/state`                          | Where coder records each launch's agent session, under `luciole/coder/` |
+| `CODER_FAKE_DELAY_MS` | `25`                                      | The pause between streamed chunks of the `fake` harness, in ms          |
+
+The adapters also pass on each agent's own variables, such as `PI_CODING_AGENT_DIR`.
+
+## Limits
+
+- **Quota.** Every harness but `fake` spends your own quota.
+- **Accounts.** coder reads no secret: no `~/.claude/.credentials.json`, no keychain, no
+  `~/.codex/auth.json`. Each harness signs you in itself, as with `claude auth login` or
+  `codex login`.
+- **Claude Code.** coder drives your own `claude` binary through the Agent SDK. The Agent
+  SDK's license is not an OSI license, so this example is for personal, non-commercial
+  use.
+- **Claude subscriptions.** pi and opencode refuse Anthropic models signed in with a
+  Claude subscription. Use `--harness claude` for those.
+- **opencode.** Each agent session starts its own `opencode serve` on 127.0.0.1, behind a
+  random password. Public sharing is turned off.
+- **Names.** Codex and Claude Code see coder as `luciole-coder`. The status line writes
+  "powered by …" in plain text, with no brand.
+- **The web demo.** On the site, the Server runs in a Web Worker with no process or
+  network. Only the `fake` harness runs there.
