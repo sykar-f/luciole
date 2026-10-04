@@ -41,8 +41,10 @@ bun run check      # astro check : types des composants et scripts
 Chaque visuel d'une page de `src/content/docs/` passe par un de ces composants : il a une
 légende obligatoire et une version texte, et l'export Markdown (`scripts/docs-md.ts`, lu par
 la démo mdreader) sait l'écrire. Un composant que l'export ne connaît pas l'arrête :
-lui donner sa forme Markdown d'abord. `tests/docs-kit.test.ts` construit le site et vérifie
-ces contrats dans le HTML ; `tests/docs-md.test.ts` vérifie l'export.
+lui donner sa forme Markdown d'abord. `scripts/check-kit.ts` vérifie ces contrats dans le
+HTML de chaque page, appelé par `scripts/check-html.ts` après `astro build` : une page qui
+en casse un fait échouer `bun run build`. `tests/docs-kit.test.ts` les éprouve sur des pages
+écrites à la main ; `tests/docs-md.test.ts` vérifie l'export.
 
 | Composant                        | Props                                                                                               | Ce que la page montre                                                                                                           |
 | -------------------------------- | --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
@@ -58,7 +60,17 @@ import AnnotatedCapture from "../../../components/docs/AnnotatedCapture.astro";
 import CodeAndScreen from "../../../components/docs/CodeAndScreen.astro";
 import RunHere from "../../../components/docs/RunHere.astro";
 import Screen from "../../../components/Screen.astro";
+import Excerpt from "../../../components/guide/Excerpt.astro";
 import Sequence from "../../../components/guide/Sequence.astro";
+
+<Excerpt
+  path="examples/notes/app/error.tsx"
+  find="export default function"
+  until="^}"
+  mark={["retry"]}
+  tone="client"
+  caption="The error screen is a Client Component: its button calls retry."
+/>
 
 <Screen frame="devtools-network" caption="The Network panel, both processes' requests." wide />
 
