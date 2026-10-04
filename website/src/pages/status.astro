@@ -11,7 +11,7 @@ const CHECKED = { date: "4 October 2026", revision: "02fb6a2" };
 
 <Page
   title="Project status"
-  description="luciole is experimental and published on npm: tested on macOS and Linux. What is tested, what is not, the pinned versions and how breaking changes are announced."
+  description="luciole is experimental and published on npm: tested on macOS and Linux. What is tested, what is not, the tested versions and how breaking changes are announced."
 >
   <h1>Project status</h1>
   <p class="meta">
@@ -33,7 +33,8 @@ const CHECKED = { date: "4 October 2026", revision: "02fb6a2" };
       <code>@luciole-sh/markdown-editor</code>.
     </li>
     <li>
-      <strong>Bun 1.4.2 or newer</strong>, as the <code>engines</code> field says. CI runs 1.4.2,
+      <strong>Bun <span data-version-of="engines:bun">1.4.2</span> or newer</strong>, as the
+      <code>engines</code> field says. CI runs <span data-version-of="bun-version">1.4.2</span>,
       pinned in <code>.bun-version</code>. It runs on <strong>macOS and Linux</strong>; no other
       system is tested, Windows included.
     </li>
@@ -112,16 +113,62 @@ const CHECKED = { date: "4 October 2026", revision: "02fb6a2" };
     </li>
   </ul>
 
-  <h2>Pinned versions</h2>
+  <h2>Tested versions and accepted ranges</h2>
+  <p>
+    The repository tests one version of each dependency, and a new starter pins most of them.
+    The published <code>@luciole-sh/core</code> accepts a range, so an app can install a newer
+    version, which is not tested.
+  </p>
   <dl>
-    <dt>React, React Flight</dt>
-    <dd>19.3.0, exactly</dd>
-    <dt>OpenTUI</dt>
-    <dd>0.5.12, exactly, with react-reconciler 0.33.0 (OpenTUI's range)</dd>
+    <dt>React</dt>
+    <dd>
+      The repository and new starters pin <span data-version-of="catalog:react abi:react"
+        >19.3.0</span
+      >. <code>@luciole-sh/core</code> accepts <span data-version-of="core:react">^19.3.0</span>,
+      as a peer dependency.
+    </dd>
+    <dt>React Flight (<code>react-server-dom-webpack</code>)</dt>
+    <dd>
+      The repository pins <span
+        data-version-of="catalog:react-server-dom-webpack abi:react-server-dom-webpack"
+        >19.3.0</span
+      >. A starter does not list it: it installs a version in the range of
+      <code>@luciole-sh/core</code>, <span data-version-of="core:react-server-dom-webpack"
+        >^19.3.0</span
+      >.
+    </dd>
+    <dt>OpenTUI (<code>core</code>, <code>react</code>, <code>keymap</code>)</dt>
+    <dd>
+      The repository and new starters pin <span
+        data-version-of="catalog:@opentui/core catalog:@opentui/react catalog:@opentui/keymap abi:@opentui/core abi:@opentui/react abi:@opentui/keymap"
+        >0.5.12</span
+      >. <code>@luciole-sh/core</code> accepts <span
+        data-version-of="core:@opentui/core core:@opentui/react core:@opentui/keymap"
+        >^0.5.12</span
+      >.
+    </dd>
+    <dt>react-reconciler</dt>
+    <dd>
+      The repository pins <span data-version-of="catalog:react-reconciler">0.33.0</span>. A
+      starter does not list it: it installs a version in the range of
+      <code>@luciole-sh/core</code>, <span data-version-of="core:react-reconciler">^0.33.0</span>.
+    </dd>
     <dt>TanStack Router</dt>
-    <dd>1.170.38</dd>
+    <dd>
+      The repository and new starters pin <span
+        data-version-of="catalog:@tanstack/react-router abi:@tanstack/react-router"
+        >1.170.38</span
+      >. <code>@luciole-sh/core</code> accepts <span data-version-of="core:@tanstack/react-router"
+        >^1.170.38</span
+      >.
+    </dd>
     <dt>Bun</dt>
-    <dd>1.4.2 in CI; 1.4.2 or newer to use luciole</dd>
+    <dd>
+      CI runs <span data-version-of="bun-version">1.4.2</span>, pinned in
+      <code>.bun-version</code>, and a new starter copies that file. luciole needs
+      <span data-version-of="engines:bun">1.4.2</span> or newer, as the <code>engines</code> field
+      of <code>@luciole-sh/core</code> says.
+    </dd>
   </dl>
   <p>
     The React Flight adapter is isolated in <code>packages/core/src/flight/</code>; any upgrade of
