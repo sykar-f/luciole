@@ -331,10 +331,11 @@ const html = frame.cells
       0 0 calc(var(--glow-blur) * 3) color-mix(in srgb, var(--screen-client) 30%, transparent);
   }
 
-  /* Outlined, not inset: the Server's edge can be dashed (the encoding's --server-line). */
+  /* Outlined, not inset, so its edge can be dashed: the Server's side reads without its
+     colour in every encoding, the classic one too, where colour alone tells it elsewhere. */
   .region.server {
     background: var(--screen-server-soft);
-    outline: 1px var(--server-line) var(--screen-server);
+    outline: 1px dashed var(--screen-server);
     outline-offset: -1px;
     box-shadow: 0 0 calc(var(--glow-blur) * 3) color-mix(in srgb, var(--screen-server) 30%, transparent);
   }
@@ -346,8 +347,8 @@ const html = frame.cells
   /* Marked: every region outlined, over the glass, and numbered on blank cells beside it
      (lib/marks.ts), so a number never hides the screen's text. The number is drawn, not
      text: copying the screen copies the screen, and the legend says it in words. Dark on
-     the side's colour: palettes.py holds each side at 4.5:1 or more on --night in every
-     palette. */
+     the Client's colour, or the Server's on the screen: palettes.py holds each side at
+     4.5:1 or more on --night and on --screen in every palette. */
   .marks .region {
     z-index: 2;
     opacity: 1;
@@ -374,8 +375,12 @@ const html = frame.cells
     font: 700 0.95em / 1 var(--mono);
   }
 
+  /* Hollow, as its region is dashed: the side without the colour. The number takes the
+     side's colour on the screen, held at 4.5:1 there too. */
   .badge.server {
-    background: var(--screen-server);
+    background: var(--screen);
+    box-shadow: inset 0 0 0 1px var(--screen-server);
+    color: var(--screen-server);
   }
 
   .legend {

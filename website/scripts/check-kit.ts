@@ -1,13 +1,13 @@
 /**
  * The contracts of the docs' figure kit (README.md, « Les composants des docs »), on a page
  * of the built site: every screen captioned and described by its transcript, each capture
- * shown once on a docs page, a marked screen with a legend that numbers its marks and each
- * number drawn beside its region, every sequence captioned and described by the ordered list
- * of its steps, every excerpt that has a side naming it in words, every annotated capture
- * with a note per mark, no demo of a RunHere fetched before the reader's click, and a
- * round-trip slider in a RunHere exactly when it is given a `latency`, labelled and naming
- * its unit. scripts/check-html.ts runs it on each page of dist/, so a page that breaks one
- * fails `bun run build`.
+ * shown once on a docs page, a marked screen with a legend that numbers its marks, each item
+ * naming its region's side when it has one, and each number drawn beside its region, every
+ * sequence captioned and described by the ordered list of its steps, every excerpt that has
+ * a side naming it in words, every annotated capture with a note per mark, no demo of a
+ * RunHere fetched before the reader's click, and a round-trip slider in a RunHere exactly when
+ * it is given a `latency`, labelled and naming its unit. scripts/check-html.ts runs it on each
+ * page of dist/, so a page that breaks one fails `bun run build`.
  */
 /// <reference types="bun" />
 
@@ -27,9 +27,13 @@ type Figure = {
   regions: string[];
   /** Its numbers with no blank cells to sit on (`data-unplaced`), which Screen leaves out. */
   unplaced: string[];
+  /** Each region's side, Client or Server, by its number (`.region[data-region]`). */
+  sides: Map<string, string>;
   /** The ordered lists of its legend (`[data-legend]`), and their items, not nested ones. */
   legends: number;
   legendItems: number;
+  /** The words of each of those items, nested lists included. */
+  legendTexts: string[];
   boot: string[];
   /** A RunHere's starting round trip (`data-latency`), in ms. */
   latency?: string;
@@ -70,7 +74,7 @@ export async function kitProblems(html: string, page: string) {
   let output: number | undefined;
   let text: ((chunk: string) => void) | undefined;
   const inner = () => open.at(-1);
-  const count = (what: "lists" | "items" | "marks" | "legends" | "legendItems") => {
+  const count = (what: "lists" | "items" | "marks" | "legends") => {
     const figure = inner();
     if (figure) figure[what] += 1;
   };
@@ -105,8 +109,10 @@ export async function kitProblems(html: string, page: string) {
           marks: 0,
           regions: (element.getAttribute("data-marks") ?? "").split(" ").filter(Boolean),
           unplaced: (element.getAttribute("data-unplaced") ?? "").split(" ").filter(Boolean),
+          sides: new Map(),
           legends: 0,
           legendItems: 0,
+          legendTexts: [],
           boot: [],
           latency: element.getAttribute("data-latency") ?? undefined,
           ranges: [],
@@ -156,7 +162,25 @@ export async function kitProblems(html: string, page: string) {
     .on("li", { element: () => count("items") })
     .on("mark[data-n]", { element: () => count("marks") })
     .on("[data-legend] > ol", { element: () => count("legends") })
-    .on("[data-legend] > ol > li", { element: () => count("legendItems") })
+    .on("[data-legend] > ol > li", {
+      element() {
+        const figure = inner();
+        if (figure) figure.legendItems = figure.legendTexts.push("");
+      },
+      text(chunk) {
+        const figure = inner();
+        if (figure && figure.legendItems > 0)
+          figure.legendTexts[figure.legendItems - 1] += chunk.text;
+      },
+    })
+    .on(".region[data-region]", {
+      element(element) {
+        const side = (element.getAttribute("class") ?? "")
+          .split(/\s+/)
+          .find((name) => name === "client" || name === "server");
+        if (side) inner()?.sides.set(element.getAttribute("data-region") ?? "", side);
+      },
+    })
     .on("[data-boot]", {
       element(element) {
         inner()?.boot.push(element.getAttribute("data-boot") ?? "");
@@ -266,6 +290,7 @@ export async function kitProblems(html: string, page: string) {
           say(figure, `${figure.regions.length} marks for ${figure.legendItems} legend items`);
         for (const n of figure.unplaced)
           say(figure, `mark ${n} has no blank cells beside its region: it would hide the screen`);
+        legendSides(figure);
       }
     }
     if (figure.kind === "sequence") {
@@ -292,6 +317,23 @@ export async function kitProblems(html: string, page: string) {
     }
   }
   return { problems, figures: figures.length };
+
+  /**
+   * Each legend item of a Client or a Server region names that side in words, and before
+   * the other side: the outline and the badge tell it too, but not to every reader. In
+   * English only: no page of the French guide marks a screen.
+   */
+  function legendSides(figure: Figure) {
+    figure.legendTexts.forEach((words, i) => {
+      const side = figure.sides.get(String(i + 1));
+      if (!side) return;
+      const own = SIDES[side];
+      const first = /\b(Client|Server)\b/.exec(words)?.[1];
+      if (!first) say(figure, `legend item ${i + 1} names no side: its region is the ${own}'s`);
+      else if (first !== own)
+        say(figure, `legend item ${i + 1} names the ${first} first: its region is the ${own}'s`);
+    });
+  }
 
   /**
    * A RunHere's slider: there exactly when the page gives it a `latency`, named by the words

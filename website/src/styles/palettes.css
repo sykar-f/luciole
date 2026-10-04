@@ -250,7 +250,6 @@
   --server: #ffa000;
   --client-glyph: "";
   --server-glyph: "";
-  --server-line: solid;
   --server-dash: none;
   --server-fill: var(--server);
   --hue-word: inline;
@@ -263,7 +262,6 @@
   --server: color-mix(in srgb, var(--dominant) var(--deep), #000);
   --client-glyph: "◆\00a0";
   --server-glyph: "◇\00a0";
-  --server-line: dashed;
   --server-dash: 4 3;
   --server-fill: transparent;
   --hue-word: none;
@@ -276,7 +274,6 @@
   --server: color-mix(in srgb, hsl(from var(--dominant) calc(h + 40) s max(l, 62)) var(--deep-turned), #000);
   --client-glyph: "◆\00a0";
   --server-glyph: "◇\00a0";
-  --server-line: dashed;
   --server-dash: 4 3;
   --server-fill: transparent;
   --hue-word: none;
@@ -289,7 +286,6 @@
   --server: #999185;
   --client-glyph: "◆\00a0";
   --server-glyph: "◇\00a0";
-  --server-line: dashed;
   --server-dash: 4 3;
   --server-fill: transparent;
   --hue-word: none;
@@ -302,7 +298,6 @@
   --server: color-mix(in srgb, var(--dominant) var(--deep), #000);
   --client-glyph: "◆\00a0";
   --server-glyph: "◇\00a0";
-  --server-line: dashed;
   --server-dash: 4 3;
   --server-fill: transparent;
   --hue-word: none;

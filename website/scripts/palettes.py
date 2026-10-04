@@ -390,7 +390,6 @@ def css():
             lines += [
                 '  --client-glyph: "◆\\00a0";',
                 '  --server-glyph: "◇\\00a0";',
-                "  --server-line: dashed;",
                 "  --server-dash: 4 3;",
                 "  --server-fill: transparent;",
                 "  --hue-word: none;",
@@ -400,7 +399,6 @@ def css():
             lines += [
                 '  --client-glyph: "";',
                 '  --server-glyph: "";',
-                "  --server-line: solid;",
                 "  --server-dash: none;",
                 "  --server-fill: var(--server);",
                 "  --hue-word: inline;",

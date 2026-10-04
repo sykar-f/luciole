@@ -38,6 +38,14 @@ const marked = (legend: string, marks = "1 2 3") =>
     .replace('data-figure="screen">', `data-figure="screen" data-marks="${marks}">`)
     .replace("</figcaption>", `</figcaption><div class="legend" data-legend>${legend}</div>`);
 const legend = "<ol><li>The list</li><li>The note</li><li>The status</li></ol>";
+/** The same screen, its regions drawn on `sides`: one Client or Server per mark, in order. */
+const sided = (legend: string, sides = ["client", "server", "client"]) =>
+  marked(legend).replace(
+    '<div class="screen" role="img" aria-label="Notes" aria-describedby="s1">',
+    `$&${sides.map((side, i) => `<span class="region ${side}" data-region="${i + 1}"></span>`).join("")}`,
+  );
+const said =
+  "<ol><li>The Client's list</li><li>The note, from the <b>Server</b></li><li>The status, on the Client, not the Server</li></ol>";
 
 const sequence = (steps: string) => `
   <figure data-figure="sequence"><svg role="img" aria-describedby="q"></svg>
@@ -112,6 +120,22 @@ describe("the figure kit's contracts", () => {
   test("a legend item may hold a list of its own: only the legend's items count", async () => {
     const nested = legend.replace("<li>The note", "<li>The note<ol><li>its title</li></ol>");
     expect(await problems(marked(nested))).toEqual([]);
+  });
+
+  test("a legend item that names no side, or the other one first", async () => {
+    expect(await problems(sided(said))).toEqual([]);
+    expect(await problems(sided(said, ["client", "server", "server"]))).toEqual([
+      `/docs/a/: screen "Notes, marked": legend item 3 names the Client first: its region is the Server's`,
+    ]);
+    expect(await problems(sided(legend))).toEqual([
+      `/docs/a/: screen "Notes, marked": legend item 1 names no side: its region is the Client's`,
+      `/docs/a/: screen "Notes, marked": legend item 2 names no side: its region is the Server's`,
+      `/docs/a/: screen "Notes, marked": legend item 3 names no side: its region is the Client's`,
+    ]);
+    // A word, not a part of one: `client notes 4101` on the screen is not the side.
+    expect(await problems(sided(said.replace("The Client's list", "The clients' list")))).toEqual([
+      `/docs/a/: screen "Notes, marked": legend item 1 names no side: its region is the Client's`,
+    ]);
   });
 
   test("a mark with no blank cells beside its region", async () => {
@@ -252,6 +276,14 @@ describe("the build's check", () => {
     const { code, err } = await build(marked(""));
     expect(err).toContain(
       '/docs/: screen "Notes, marked": no legend: an ordered list of its marks',
+    );
+    expect(code).toBe(1);
+  });
+
+  test("fails a page with a marked screen whose legend names no side", async () => {
+    const { code, err } = await build(sided(legend));
+    expect(err).toContain(
+      `/docs/: screen "Notes, marked": legend item 2 names no side: its region is the Server's`,
     );
     expect(code).toBe(1);
   });
