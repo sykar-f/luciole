@@ -70,7 +70,7 @@ catalogue price and prefixes it with `≈`.
 
 ## Environment variables
 
-The Server reads all of them. Only the first four matter when you run the chat.
+The app's Server reads the first four. The script `scripts/fake-openrouter.ts` reads the last two.
 
 | Variable              | Default                        | Role                                                      |
 | --------------------- | ------------------------------ | --------------------------------------------------------- |
@@ -81,7 +81,7 @@ The Server reads all of them. Only the first four matter when you run the chat.
 | `FAKE_PORT`           | `0` (any free port)            | Port of `scripts/fake-openrouter.ts`.                     |
 | `FAKE_DELAY_MS`       | `35`                           | Pause between two streamed chunks of that script.         |
 
-An invalid variable, such as a `OPENROUTER_BASE_URL` that is not an http(s) URL, is named on
+An invalid variable, such as an `OPENROUTER_BASE_URL` that is not an http(s) URL, is named on
 the screen. The default model is the newest DeepSeek "flash" listed by OpenRouter on
 2026-09-23: $0.10 per million input tokens, $0.50 per million output tokens.
 

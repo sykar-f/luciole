@@ -79,8 +79,8 @@ like a pager.
 
 Open these files first:
 
-- `server/library.ts` resolves `MD_PATH`, walks the folder, reads files (a path from the
-  Client must name a `.md` file under the root) and watches the disk with `fs.watch`.
+- `server/library.ts` resolves `MD_PATH`, walks the folder, reads files, and watches the disk
+  with `fs.watch`. A path from the Client must name a `.md` file under the root.
 - `server/reflow.ts` joins the soft line breaks of paragraphs and lists before the text
   reaches the Client. OpenTUI draws prose as colored source, so a paragraph would otherwise
   keep the file's line breaks. Hard breaks (two spaces, or `\`) stay.
