@@ -198,6 +198,11 @@ class Screen {
     const { lines } = this.vt.screen();
     return Array.from({ length: this.rows }, (_, row) => (lines[row] ?? "").padEnd(this.cols));
   }
+  /** Where the terminal's cursor stands, 0-based, and whether the program shows it. */
+  cursor() {
+    const { x, y, visible } = this.vt.screen().cursor;
+    return { row: y, column: x, visible };
+  }
   spans(): Span[][] {
     return this.setup.captureSpans().lines.map((line) =>
       line.spans.map((span) => ({
@@ -340,6 +345,11 @@ export class Driver implements AsyncDisposable {
     await this.screen.refresh();
     return this.screen.spans();
   }
+  /** Where the cursor stands (0-based row and column), and whether the program shows it. */
+  async cursor() {
+    await this.screen.refresh();
+    return this.screen.cursor();
+  }
   /** The colors at `column` (an index into the row's text) of `row`. */
   async styleAt(row: number, column: number) {
     let start = 0;
@@ -387,15 +397,29 @@ export class Driver implements AsyncDisposable {
    * a complete frame drawn after the last input. Returns when it did, from
    * performance.now().
    */
-  async waitFor(needle: Needle, options: WaitOptions = {}) {
+  waitFor(needle: Needle, options: WaitOptions = {}) {
+    return this.until(
+      async () => matches(needle, await this.text()) !== Boolean(options.absent),
+      `${options.absent ? "the screen kept" : "the screen never showed"} ${describe(needle)}`,
+      options,
+    );
+  }
+  /**
+   * Waits until `check` holds at the end of a complete frame drawn after the last input: an
+   * effect the screen's text does not show (the cursor, a color, a file the program
+   * writes). `what` is the failure's message. Returns when it held, from performance.now().
+   */
+  async until(
+    check: () => boolean | Promise<boolean>,
+    what: string,
+    options: { timeout?: number } = {},
+  ) {
     const deadline = performance.now() + (options.timeout ?? this.timeout);
-    const what = `${options.absent ? "the screen kept" : "the screen never showed"} ${describe(needle)}`;
     const wait = watched(() => this.failure(what).message);
     try {
       for (;;) {
         const now = performance.now();
-        if (this.frameComplete() && matches(needle, await this.text()) !== Boolean(options.absent))
-          return now;
+        if (this.frameComplete() && (await check())) return now;
         if (now > deadline) throw this.failure(what, await this.text());
         if ((await Promise.race([Bun.sleep(POLL_MS), wait.parked])) === "parked")
           return abandoned();
