@@ -55,6 +55,7 @@ export async function createStarter(options: {
 
 export const init: Command = {
   usage: "init <dir>",
+  flags: {},
   async run({ args }) {
     await createStarter({
       target: resolve(args[1] ?? "my-luciole-app"),

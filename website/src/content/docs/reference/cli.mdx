@@ -33,12 +33,16 @@ Every subcommand reads its flags by the same rules:
   on the current directory.
 - A flag that needs a value and gets none is refused, naming the flag: `luciole build --app`
   prints `--app needs a value`.
+- A flag the subcommand does not read is refused, naming the closest one:
+  `luciole build --wbe` prints `Unknown flag --wbe for luciole build (did you mean --web?)`.
+- `luciole <target>` and `luciole example` refuse no flag themselves. Each word they do not
+  read goes to the app, whose own options decide.
 - A usage error exits with code 2, any other error with 1.
 
 <Excerpt
   path="packages/core/src/commands/index.ts"
   find="export const commands"
-  until="]);"
+  until="^);"
   tone="neutral"
   caption="The subcommands, in the order of the usage line."
 />
@@ -146,12 +150,22 @@ luciole [<path | app | npm spec | git source> [--yes] [--url url]
        | <server url…> [--inline | --sandbox] [--allow-…] [--yes]]
 ```
 
-Resolves the target and launches it ([opening an app](/docs/guides/opening-an-app/)). A built
-directory (a path or a git source) also takes `--grace <duration>`, and the app's own
-options. `--yes` accepts installs and new repositories without asking. URLs take the
-sandbox flags of [apps you did not write](/docs/guides/untrusted-apps/#declare-and-grant-capabilities).
+Resolves the target and launches it ([opening an app](/docs/guides/opening-an-app/)).
+`--yes` accepts installs and new repositories without asking.
 
-### `luciole example [name] [--yes] [-- app arguments]`
+A built directory (a path or a git source) also takes these flags, then the app's own options:
+
+| Flag                 | Effect                                                                     |
+| -------------------- | -------------------------------------------------------------------------- |
+| `--url url`          | Join a Server that already runs. The app's options are refused with it.    |
+| `--grace <duration>` | Keep the Server this long after its terminal goes.                         |
+| `--new`              | Start a new launch instead of reattaching a crashed one (per-launch apps). |
+| `--help`, `-h`       | Print the app's options, then these.                                       |
+
+URLs take the sandbox flags of
+[apps you did not write](/docs/guides/untrusted-apps/#declare-and-grant-capabilities).
+
+### `luciole example [name] [--yes] [app arguments]`
 
 Runs an example app of this release, taken from the git tag `v<version>` of the luciole
 repository. It needs git and the network:
@@ -160,7 +174,7 @@ repository. It needs git and the network:
 - With a name, it launches `examples/<name>` at that tag as a git source
   ([opening an app](/docs/guides/opening-an-app/)). An unknown name is refused with the list.
 - The launcher asks before running a repository. `--yes` accepts.
-- What follows `--` goes to the app, a `--yes` there included.
+- Every other word goes to the app. After `--`, a `--yes` goes to the app too.
 
 `LUCIOLE_EXAMPLES_REPO`, a git URL, takes the examples from another repository, such as a
 fork. A development version has no tag, so it has no examples to list.
@@ -198,7 +212,7 @@ Apps installed from the npm registry live in `$XDG_DATA_HOME/luciole/apps/`.
 | --------------------------------- | ---------------------------------------------- |
 | `luciole search [text]`           | Apps (keyword `luciole-app`) matching the text |
 | `luciole install <spec>… [--yes]` | Installs, or switches to the version given     |
-| `luciole update [app…]`           | Each app to the latest version of its range    |
+| `luciole update [app…] [--yes]`   | Each app to the latest version of its range    |
 | `luciole list`                    | Installed apps                                 |
 | `luciole remove <app>…`           | Removes the app and its binaries               |
 

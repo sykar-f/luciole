@@ -8,6 +8,7 @@ import type { Command } from "./command";
  */
 export const trust: Command = {
   usage: "trust <server url> <SHA256:fingerprint>",
+  flags: {},
   run({ args }) {
     const [, url, fingerprint] = args;
     if (!url || !fingerprint) throw new ArgsError("Usage: luciole trust <server url> <SHA256:…>");

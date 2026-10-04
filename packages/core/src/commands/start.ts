@@ -44,9 +44,11 @@ async function launch({ args, rest, option, optional, directory }: CommandContex
 }
 export const start: Command = {
   usage: "start --role server|client [--app dir] [--url URL] [--artifact dir] [-- app arguments]",
+  flags: { "--role": "value", "--app": "value", "--url": "value", "--artifact": "value" },
   run: launch,
 };
 export const connect: Command = {
   usage: "connect <url | ssh://[user@]host[/port]> [--app dir] [--artifact dir]",
+  flags: { "--app": "value", "--artifact": "value" },
   run: launch,
 };

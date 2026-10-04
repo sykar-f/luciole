@@ -24,6 +24,7 @@ const options = (context: CommandContext) => ({
 
 export const search: Command = {
   usage: "search [text]",
+  flags: {},
   async run(context) {
     const found = await npmRegistry().search(operands(context).join(" "));
     if (!found.length) console.log("No app found.");
@@ -34,6 +35,7 @@ export const search: Command = {
 
 export const install: Command = {
   usage: "install <npm spec>… [--yes]",
+  flags: { "--yes": "switch" },
   async run(context) {
     const specs = operands(context);
     if (!specs.length) throw new ArgsError("Usage: luciole install <npm spec>… [--yes]");
@@ -50,7 +52,8 @@ export const install: Command = {
 };
 
 export const update: Command = {
-  usage: "update [app…]",
+  usage: "update [app…] [--yes]",
+  flags: { "--yes": "switch" },
   async run(context) {
     const results = await updateApps(operands(context), options(context));
     if (!results.length) console.log("No app installed.");
@@ -63,6 +66,7 @@ export const update: Command = {
 
 export const list: Command = {
   usage: "list",
+  flags: {},
   async run() {
     const all = await listInstalled(directories());
     if (!all.length) console.log("No app installed.");
@@ -76,6 +80,7 @@ export const list: Command = {
 
 export const remove: Command = {
   usage: "remove <app>…",
+  flags: {},
   async run(context) {
     const names = operands(context);
     if (!names.length) throw new ArgsError("Usage: luciole remove <app>…");
