@@ -214,6 +214,19 @@ test("out-of-order navigation, incompatible build preserves mounted editor, refr
       headers: { "x-luciole-build": "old" },
     });
     expect(bad.status).toBe(409);
+    // A body the Server cannot decode: with the current build it fails at decoding, with
+    // an old one the build check refuses it first.
+    const undecodable = (build: string) =>
+      fetch(server.url + "/action", {
+        method: "POST",
+        headers: {
+          "x-luciole-build": build,
+          "x-luciole-action": `${server.buildId}/actions/notes.ts#saveNote`,
+        },
+        body: "{not flight",
+      });
+    expect((await undecodable(server.buildId)).status).toBe(500);
+    expect((await undecodable("old")).status).toBe(409);
   } finally {
     await act(() => requests.settled().catch(() => {}));
     await destroy(rendered);
