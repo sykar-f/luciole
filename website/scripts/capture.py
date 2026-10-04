@@ -90,6 +90,13 @@ class Terminal:
             self.pump()
         raise AssertionError(f"never showed {needle!r}\n{self.text()}")
 
+    def erase_line(self, needle):
+        """Blank the row where a process wrote `needle` to the terminal on its own (stderr),
+        outside the interface the application draws: the frame keeps the interface only."""
+        for y, row in enumerate(self.screen.display):
+            if needle in row:
+                self.stream.feed(f"\x1b[{y + 1};1H\x1b[2K".encode())
+
     def idle(self, seconds):
         end = time.monotonic() + seconds
         while time.monotonic() < end:
@@ -179,10 +186,36 @@ def anonymous(rows, extra=()):
     return rows
 
 
-def save(term, name, title, replace=()):
-    """`replace`: (text, shown instead) pairs of this scene, before the private paths."""
+def find(term, needle, after=0):
+    """(row, column) of the first `needle` on the screen at or below row `after`."""
+    for row, text in enumerate(term.screen.display):
+        if row >= after and needle in text:
+            return row, text.index(needle)
+    raise AssertionError(f"{needle!r} is not on the screen\n{term.text()}")
+
+
+def span(term, needle, after=0):
+    """The rectangle of a piece of text, located on the screen so a new recording moves it."""
+    row, col = find(term, needle, after)
+    return {"row": row, "col": col, "rows": 1, "cols": len(needle)}
+
+
+def band(term, first, last, col=0, cols=None):
+    """The rectangle from the row of `first` to the row of `last` (both included)."""
+    top, _ = find(term, first)
+    bottom, _ = find(term, last, top)
+    return {"row": top, "col": col, "rows": bottom - top + 1, "cols": cols or term.screen.columns - col}
+
+
+def save(term, name, title, replace=(), regions=None):
+    """`replace`: (text, shown instead) pairs of this scene, before the private paths.
+
+    `regions`: numbered callouts, [{id, side, rects}] in cells, as `Screen.astro` draws them.
+    """
     OUT.mkdir(parents=True, exist_ok=True)
     frame = {"title": title, "cols": term.screen.columns, "rows": term.screen.lines, "cells": anonymous(cells(term.screen), replace)}
+    if regions:
+        frame["regions"] = regions
     (OUT / f"{name}.json").write_text(json.dumps(frame, ensure_ascii=False, separators=(",", ":")) + "\n")
     print(f"captured {name}", flush=True)
     if PRINT:
@@ -191,7 +224,7 @@ def save(term, name, title, replace=()):
 
 def dev(app, env, directory, cols, rows, cwd=ROOT):
     return Terminal(
-        [BUN, CLI, "dev", "--app", str(ROOT / "examples" / app)],
+        [BUN, CLI, "dev", "--app", str(app) if isinstance(app, pathlib.Path) else str(ROOT / "examples" / app)],
         # LUCIOLE_DESKTOP: Ctrl+C belongs to the application, as in a page, so the key help
         # the capture shows is the one the live demo it stands in for draws.
         {**os.environ, "TERM": "xterm-256color", "COLORTERM": "truecolor", "XDG_STATE_HOME": directory + "/state", "LUCIOLE_DESKTOP": "1", **env},
@@ -246,18 +279,136 @@ def notes(directory):
         term.stop()
 
 
-def files(directory):
-    term = dev("files", {"FILES_ROOT": str(ROOT)}, directory, 140, 40)
+NOTES_SIZE = (84, 24)
+
+
+def notes_term(directory, env=None, app="notes"):
+    """Notes with a fresh database, started until the list shows (no note open)."""
+    term = dev(app, {"NOTES_DB": directory + "/notes.sqlite", **(env or {})}, directory, *NOTES_SIZE)
+    term.wait_for("Welcome to Notes", 120)
+    term.idle(1)
+    return term
+
+
+def stop_server(term):
+    """Kill the Server `luciole dev` started, and leave the Client running."""
+    listing = subprocess.run(["ps", "-axo", "pid=,ppid=,command="], capture_output=True, text=True, check=True).stdout
+    pids = []
+    for line in listing.splitlines():
+        pid, parent, command = line.split(None, 2)
+        # This capture's Server: a child of its `luciole dev`, running the built server.
+        if int(parent) == term.process.pid and ".luciole/server/index.js" in command:
+            pids.append(int(pid))
+    assert pids, "no Server to stop\n" + listing
+    for pid in pids:
+        os.kill(pid, signal.SIGKILL)
+
+
+def notes_empty(directory):
+    term = notes_term(directory)
     try:
-        term.wait_for("README.md", 120)
+        term.wait_for("No note selected", 30)
+        save(term, "notes-empty", "Notes: started, no note open")
+    finally:
+        term.stop()
+
+
+def notes_pick(directory):
+    # The first change of Getting started (docs/getting-started.mdx, step 2): the heading of
+    # components/NoNoteShown.tsx. The copy lives under the checkout, whose node_modules
+    # resolve the packages, in a directory .gitignore knows (.luciole-*/).
+    app = pathlib.Path(tempfile.mkdtemp(prefix=".luciole-capture-notes-", dir=ROOT))
+    try:
+        shutil.copytree(ROOT / "examples/notes", app, dirs_exist_ok=True, ignore=shutil.ignore_patterns(".luciole", "node_modules"))
+        heading = app / "components/NoNoteShown.tsx"
+        source = heading.read_text()
+        assert "No note selected" in source
+        heading.write_text(source.replace("No note selected", "Pick a note"))
+        term = notes_term(directory, app=app)
+        try:
+            term.wait_for("Pick a note", 30)
+            save(term, "notes-pick", "Notes: the heading after the first change")
+        finally:
+            term.stop()
+    finally:
+        shutil.rmtree(app, ignore_errors=True)
+
+
+def notes_loading(directory):
+    # LUCIOLE_LATENCY_MS: every request takes a second and a half, so the navigation shows
+    # app/notes/[id]/loading.tsx in the page's slot, the layouts around it still drawn.
+    term = notes_term(directory, {"LUCIOLE_LATENCY_MS": "3000"})
+    try:
+        term.send(b"\r")
+        term.wait_for("Loading the note", 30)
+        term.idle(0.5)
+        save(term, "notes-loading", "Notes: a navigation under latency")
+    finally:
+        term.stop()
+
+
+def notes_error(directory):
+    # With the Server gone, opening a note cannot reach it: the navigation fails with a
+    # TransportError, and app/error.tsx replaces the page only.
+    term = notes_term(directory)
+    try:
+        stop_server(term)
         term.idle(1)
-        for key in b"jjjjjj":
-            term.send(bytes([key]), 0.1)
+        term.send(b"\r")
+        term.wait_for("Try again", 30)
+        term.idle(1)
+        save(term, "notes-error", "Notes: error.tsx in the page's slot")
+    finally:
+        term.stop()
+
+
+def notes_disconnected(directory):
+    # LUCIOLE_PING_MS: the Client pings its Server every half second, not every ten, so it
+    # notices the loss at once; the status line then waits its own 3 s before saying it.
+    term = notes_term(directory, {"LUCIOLE_PING_MS": "500"})
+    try:
+        # The status line belongs to a note's pane: open the first note, as `notes` does.
+        term.send(b"\r")
+        term.wait_for("Getting around", 30)
+        term.idle(1)
+        stop_server(term)
+        term.idle(1)
+        term.send(b"\x12")  # Ctrl+R: a refresh nobody can answer
+        term.wait_for("Reconnect", 60)
+        term.idle(1)
+        term.erase_line("Unable to connect")
+        save(term, "notes-disconnected", "Notes: the Server gone")
+    finally:
+        term.stop()
+
+
+def files(directory):
+    # A tree of its own, made of this checkout's files: the capture does not depend on the
+    # checkout's name or location, on what it holds besides these files, or on the day (each
+    # file is dated eight hours before the capture, as the first one was seen).
+    project = pathlib.Path(directory) / "luciole"
+    project.mkdir()
+    for name in ("README.md", "CHANGELOG.md", "CONTRIBUTING.md", "LICENSE", "bunfig.toml", "package.json"):
+        shutil.copy(ROOT / name, project / name)
+    shutil.copytree(ROOT / "docs", project / "docs", ignore=shutil.ignore_patterns("*.txt", "missions"))
+    (project / "tests").mkdir()
+    for test in sorted((ROOT / "tests").iterdir()):
+        if test.is_file() and test.suffix in (".ts", ".tsx"):
+            shutil.copy(test, project / "tests" / test.name)
+    when = time.time() - 8 * 3600
+    for path in (*project.rglob("*"), project):
+        os.utime(path, (when, when))
+    term = dev("files", {"FILES_ROOT": str(project), "TZ": "UTC", "LANG": "en_US.UTF-8"}, directory, 140, 40)
+    try:
+        term.wait_for("docs/", 120)
+        term.idle(1)
+        # docs/ comes first, then tests/: open it, and go down to the second file.
+        term.send(b"j", 0.1)
         term.send(b"\r")
         term.idle(1)
         term.send(b"jj")
         term.idle(1.5)
-        save(term, "files", "Files: an explorer with previews")
+        save(term, "files", "Files: an explorer with previews", replace=[(str(project.resolve()), "/home/ada/src/luciole")])
     finally:
         term.stop()
 
@@ -322,15 +473,32 @@ def devtools(directory):
         [BUN, CLI, "dev", "--app", str(ROOT / "packages/core/src/devtools/luciole-devtools")],
         {**os.environ, "TERM": "xterm-256color", "COLORTERM": "truecolor", "XDG_STATE_HOME": directory + "/state", "LUCIOLE_DESKTOP": "1",
          "LUCIOLE_DEVTOOLS_LISTEN": "none", "LUCIOLE_DEVTOOLS_DEMO": "1"},
-        140, 40,
+        100, 30,
     )
     try:
         term.wait_for("Network", 120)
         term.idle(4)
-        save(term, "devtools-network", "DevTools: requests of both processes")
+        # Numbered in reading order, from the top: the two processes, the requests, and the
+        # Server's own timing of the selected request (the stream `watch`).
+        save(term, "devtools-network", "DevTools: requests of both processes", regions=[
+            {"id": "1", "side": "client", "rects": [span(term, "client notes 4101")]},
+            {"id": "2", "side": "server", "rects": [span(term, "server notes 4100")]},
+            {"id": "3", "side": "client", "rects": [band(term, "name", "ƒ watch")]},
+            {"id": "4", "side": "server", "rects": [span(term, "Server: request +2ms · headers +4ms · end –")]},
+        ])
         term.send(b"2")
+        term.wait_for("components", 30)
         term.idle(2)
-        save(term, "devtools-components", "DevTools: Client and Server components")
+        # The tree, with the one component that runs on the Server; the flag; the detail.
+        server = span(term, "NotePage Server")
+        top = band(term, "Layout ×1", "NotesLayout ×1")
+        below = band(term, "NoteEditor", "KeyHelp")
+        save(term, "devtools-components", "DevTools: Client and Server components", regions=[
+            {"id": "1", "side": "client", "rects": [top, below]},
+            {"id": "2", "side": "server", "rects": [server]},
+            {"id": "3", "side": "client", "rects": [span(term, "⚠ unnecessary")]},
+            {"id": "4", "side": "client", "rects": [band(term, "Layout · 1 renders", "state:")]},
+        ])
     finally:
         term.stop()
 
@@ -387,7 +555,7 @@ def flight(directory):
         server.terminate()
 
 
-SCENES = {"forge": forge, "notes": notes, "chat": chat, "coder": coder, "files": files, "mdreader": mdreader, "devtools": devtools, "mux": mux, "flight": flight}
+SCENES = {"forge": forge, "notes": notes, "notes-empty": notes_empty, "notes-pick": notes_pick, "notes-loading": notes_loading, "notes-error": notes_error, "notes-disconnected": notes_disconnected, "chat": chat, "coder": coder, "files": files, "mdreader": mdreader, "devtools": devtools, "mux": mux, "flight": flight}
 
 
 def main():

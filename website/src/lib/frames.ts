@@ -1,6 +1,18 @@
 // Screens captured from the example applications by scripts/capture.py.
 export type Run = [text: string, fg: string | null, bg: string | null, flags: string];
-export type Frame = { title: string; cols: number; rows: number; cells: Run[][] };
+/** Numbered callouts the capture located on its screen: the cells of one piece of the interface. */
+export type FrameRegion = {
+  id: string;
+  side: "client" | "server";
+  rects: { row: number; col: number; rows: number; cols: number }[];
+};
+export type Frame = {
+  title: string;
+  cols: number;
+  rows: number;
+  cells: Run[][];
+  regions?: FrameRegion[];
+};
 
 const files = import.meta.glob<Frame>("../frames/*.json", { eager: true, import: "default" });
 
