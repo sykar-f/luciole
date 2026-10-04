@@ -23,9 +23,6 @@ import {
 
 const FRAMES = process.env.CODER_PTY_FRAMES;
 const BOOT_TIMEOUT_MS = 60_000;
-const TIMEOUT_MS = 15_000;
-const EXIT_TIMEOUT_MS = 10_000;
-const SERVER_EXIT_TIMEOUT_MS = 5000;
 const SAMPLE_MS = 100;
 const SHIFT_TAB = "\x1b[Z";
 
@@ -89,8 +86,7 @@ const waiting = (waited: Promise<unknown>) => {
     );
   });
 };
-const wait = (needle: string | RegExp, absent = false) =>
-  waiting(t.waitFor(needle, { timeout: TIMEOUT_MS, absent }));
+const wait = (needle: string | RegExp, absent = false) => waiting(t.waitFor(needle, { absent }));
 const prompt = async (text: string) => {
   await t.type(text);
   await t.type(Keys.enter);
@@ -141,9 +137,9 @@ await wait("waiting 1");
 await t.type("i");
 await frame("6-browsed");
 
-await waiting(t.quit(ctrl("c"), EXIT_TIMEOUT_MS));
+await waiting(t.quit(ctrl("c")));
 await waiting(
-  eventually(() => servers().length === 0, SERVER_EXIT_TIMEOUT_MS).then((gone) =>
+  eventually(() => servers().length === 0).then((gone) =>
     assert.ok(gone, "the coder Server outlived the Client"),
   ),
 );

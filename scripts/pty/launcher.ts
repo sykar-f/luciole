@@ -9,7 +9,6 @@ import { join } from "node:path";
 import { drive, Keys } from "./driver";
 import { BUN, CLI, report, temporaryDirectory } from "./harness";
 
-const TIMEOUT_MS = 30_000;
 const FOCUS_MS = 300;
 const UNREACHABLE = "http://127.0.0.1:1";
 
@@ -50,7 +49,7 @@ await using t = await drive({
     LUCIOLE_REGISTRY: UNREACHABLE,
   },
 });
-const wait = (text: string) => t.waitFor(text, { timeout: TIMEOUT_MS });
+const wait = (text: string) => t.waitFor(text);
 
 await wait("INSTALLED (1)");
 await wait("@ada/demo@1.0.0");

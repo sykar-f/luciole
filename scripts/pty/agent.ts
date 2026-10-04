@@ -26,10 +26,6 @@ import {
 const FRAMES = process.env.AGENT_PTY_FRAMES;
 const BOOT_TIMEOUT_MS = 60_000;
 const MODEL_TIMEOUT_MS = 90_000;
-const TIMEOUT_MS = 30_000;
-const RUNNING_TIMEOUT_MS = 15_000;
-const EXIT_TIMEOUT_MS = 10_000;
-const PI_EXIT_TIMEOUT_MS = 5000;
 const TENTHS = 10;
 const seconds = (ms: number) => Math.round(ms / (1000 / TENTHS)) / TENTHS;
 
@@ -60,7 +56,7 @@ const frame = async (name: string) => {
 const timings: Record<string, number> = {};
 
 await t.waitFor("No messages yet", { timeout: BOOT_TIMEOUT_MS });
-await t.waitFor("● idle", { timeout: TIMEOUT_MS });
+await t.waitFor("● idle");
 assert.ok((await t.text()).includes(sandbox), "the working directory is shown");
 assert.ok(piProcesses().length > 0, "pi runs");
 await frame("1-idle");
@@ -71,7 +67,7 @@ await t.type(
     "with bash. Reply in one short sentence.",
 );
 await t.type(Keys.enter);
-await t.waitFor("running", { timeout: RUNNING_TIMEOUT_MS });
+await t.waitFor("running");
 await t.waitFor("✎ write", { timeout: MODEL_TIMEOUT_MS });
 await t.waitFor("$ bash", { timeout: MODEL_TIMEOUT_MS });
 await t.waitFor("● idle", { timeout: MODEL_TIMEOUT_MS });
@@ -86,17 +82,17 @@ await frame("2-answered");
 
 // Browse: Esc selects the last call (bash); Enter unfolds its output.
 await t.type(Keys.escape);
-await t.waitFor("fold all", { timeout: TIMEOUT_MS });
+await t.waitFor("fold all");
 await t.type(Keys.enter);
-await t.waitFor("▾ $ bash", { timeout: TIMEOUT_MS });
+await t.waitFor("▾ $ bash");
 assert.match(await t.text(), /│\s+\d+ notes\.txt/, "the bash output is unfolded");
 await t.type("a", 500);
-await t.waitFor("+ luciole", { timeout: TIMEOUT_MS });
+await t.waitFor("+ luciole");
 await frame("3-unfolded");
 await t.type("a");
-await t.waitFor("+ luciole", { timeout: TIMEOUT_MS, absent: true });
+await t.waitFor("+ luciole", { absent: true });
 await t.type("i");
-await t.waitFor("browse tools", { timeout: TIMEOUT_MS });
+await t.waitFor("browse tools");
 
 // Interrupt a long call; the transcript records it and pi settles.
 await t.type("Run `sleep 30` with bash, then say done.");
@@ -106,23 +102,20 @@ await t.waitFor(/\$ bash sleep 30 +running \d/, { timeout: MODEL_TIMEOUT_MS });
 await frame("4-running");
 start = performance.now();
 await t.type(ctrl("x"));
-await t.waitFor("Interrupted", { timeout: TIMEOUT_MS });
-await t.waitFor("● idle", { timeout: TIMEOUT_MS });
+await t.waitFor("Interrupted");
+await t.waitFor("● idle");
 timings.interruptSeconds = seconds(performance.now() - start);
 await frame("5-interrupted");
 
 // New session: asks for confirmation, then empties the transcript.
 await t.type(ctrl("n"));
-await t.waitFor("Ctrl+N again", { timeout: TIMEOUT_MS });
+await t.waitFor("Ctrl+N again");
 await t.type(ctrl("n"));
-await t.waitFor("No messages yet", { timeout: TIMEOUT_MS });
+await t.waitFor("No messages yet");
 await frame("6-new-session");
 
-await t.quit(ctrl("c"), EXIT_TIMEOUT_MS);
-assert.ok(
-  await eventually(() => piProcesses().length === 0, PI_EXIT_TIMEOUT_MS),
-  "pi outlived the Server",
-);
+await t.quit(ctrl("c"));
+assert.ok(await eventually(() => piProcesses().length === 0), "pi outlived the Server");
 report({
   agentPTY: true,
   toolCallsStreamed: ["write", "bash"],

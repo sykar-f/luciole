@@ -10,7 +10,6 @@ import { BUN, CLI, luciole, build, example, startServer } from "./harness";
 
 export const MDREADER = example("mdreader");
 const OPEN_TIMEOUT_MS = 40_000;
-const QUIT_TIMEOUT_MS = 10_000;
 
 /**
  * HOME and every XDG directory under `base`, and two documents whose text says which
@@ -66,5 +65,4 @@ export const openByUrl = (
     env,
     settle: 200,
     timeout: OPEN_TIMEOUT_MS,
-    exitTimeout: QUIT_TIMEOUT_MS,
   });

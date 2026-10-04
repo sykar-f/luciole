@@ -33,7 +33,6 @@ const ROWS = 30;
 const PREFIX = ctrl("o");
 const SHELL_MS = 400;
 const RESIZE_MS = 500;
-const SHELL_EXIT_TIMEOUT_MS = 3000;
 // The multiplexer's frame around a pane: its title row and borders.
 const PANE_CHROME_ROWS = 3;
 const PANE_CHROME_COLS = 2;
@@ -118,7 +117,7 @@ const right = VIM ? [VIM, "-u", "NONE", "-N"] : ["/bin/sh"];
   // Quit through the prefix: the terminal comes back, no pane program survives.
   await quitMux(t);
   assert.ok(
-    await eventually(() => !alive(shellPid), SHELL_EXIT_TIMEOUT_MS),
+    await eventually(() => !alive(shellPid)),
     `pane shell ${shellPid} survived the multiplexer`,
   );
 }

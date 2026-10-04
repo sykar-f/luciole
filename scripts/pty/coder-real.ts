@@ -26,8 +26,6 @@ const [harness = "claude", model] = process.argv.slice(2);
 const FRAMES = process.env.CODER_PTY_FRAMES;
 const BOOT_TIMEOUT_MS = 90_000;
 const MODEL_TIMEOUT_MS = 120_000;
-const EXIT_TIMEOUT_MS = 15_000;
-const CHILD_EXIT_TIMEOUT_MS = 10_000;
 
 using directory = temporaryDirectory("luciole-coder-real-");
 const project = join(directory.path, "project");
@@ -83,11 +81,8 @@ assert.ok(
 );
 await frame("5-written");
 
-await t.quit(ctrl("c"), EXIT_TIMEOUT_MS);
-assert.ok(
-  await eventually(() => inProject().length === 0, CHILD_EXIT_TIMEOUT_MS),
-  `${harness} outlived coder`,
-);
+await t.quit(ctrl("c"));
+assert.ok(await eventually(() => inProject().length === 0), `${harness} outlived coder`);
 report({
   harness,
   realPTY: true,
