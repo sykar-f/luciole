@@ -43,8 +43,6 @@ interface Props {
    * The screen switches on first. A counter under it says how many cells each wrote.
    */
   intro?: Frame[];
-  /** Once live, make each cell the application rewrites glow a moment. */
-  afterglow?: boolean;
 }
 
 const {
@@ -55,7 +53,6 @@ const {
   restore = false,
   printed = false,
   intro = [],
-  afterglow = false,
 } = Astro.props;
 
 // The screen's colours (--screen, --screen-fg) are the palette's: added when it starts.
@@ -100,11 +97,9 @@ const stand = JSON.stringify({
   data-src={src}
   data-boot={boot}
   data-script={JSON.stringify(script)}
-  data-afterglow={afterglow ? "" : undefined}
 >
   <Screen frame={frame} printed={printed} poweron={intro.length > 0}>
     <div slot="live" class="layer">
-      <div class="glows" data-glows aria-hidden="true"></div>
       <span class="take" data-take hidden>Live · click to use the keyboard</span>
     </div>
   </Screen>
@@ -136,7 +131,6 @@ const stand = JSON.stringify({
 
 <script>
   import * as z from "zod/mini";
-  import { glowWrites } from "../lib/glow";
   import { overscroll } from "../lib/overscroll";
   import { recolor, screenColours } from "../lib/recolor";
   // As the runtime sets up its terminal: the same fonts, and the largest size at which the
@@ -384,30 +378,11 @@ const stand = JSON.stringify({
   }
 
   /**
-   * The live application's wheel and what it rewrites. Held, the wheel goes to the app
-   * while it has something to scroll under the pointer, and on to the page once it has not
-   * (lib/overscroll.ts). With the afterglow, each cell it rewrites glows a moment, as in
-   * the intro (lib/glow.ts), and the counter under the screen says how many cells each
-   * change wrote.
+   * The live application's wheel. Held, it goes to the app while it has something to
+   * scroll under the pointer, and on to the page once it has not (lib/overscroll.ts).
    */
-  function watch(root: HTMLElement, frame: HTMLIFrameElement, signal: AbortSignal) {
-    const layer = root.querySelector<HTMLElement>("[data-glows]");
-    const stand = standOf(root).data;
-    if (!layer || !stand) return;
-    const { columns, rows, total } = stand;
-    const glowing = root.dataset.afterglow !== undefined && !still();
-    if (glowing) hud(root, "live", count(0, total));
+  function watch(frame: HTMLIFrameElement, signal: AbortSignal) {
     overscroll({ frame, signal });
-    glowWrites({
-      frame,
-      layer: glowing ? layer : document.createElement("div"),
-      columns,
-      rows,
-      signal,
-      onWritten: (cells) => {
-        if (glowing) hud(root, "live", count(cells, total));
-      },
-    });
   }
 
   const type = (frame: HTMLIFrameElement, data: string) =>
@@ -445,7 +420,7 @@ const stand = JSON.stringify({
       await introduced.get(root);
       if (signal.aborted) return;
       root.classList.add("on");
-      watch(root, frame, signal);
+      watch(frame, signal);
       take.hidden = false;
       layer.setAttribute("role", "button");
       layer.setAttribute("aria-label", "Use the live application with the keyboard");
@@ -632,39 +607,6 @@ const stand = JSON.stringify({
     pointer-events: none;
   }
 
-  /* Over the application: the cells it just rewrote, glowing out. Drawn by the script. */
-  .glows {
-    position: absolute;
-    inset: 0;
-    z-index: 1;
-    overflow: hidden;
-    pointer-events: none;
-  }
-
-  .glows :global(i) {
-    position: absolute;
-    background: color-mix(in srgb, var(--afterglow) 40%, transparent);
-    box-shadow: 0 0 calc(var(--glow-blur) * 1.6) color-mix(in srgb, var(--afterglow) 50%, transparent);
-    mix-blend-mode: screen;
-    opacity: var(--glow, 1);
-    animation: afterglow var(--glow-ms, 0.45s) forwards;
-  }
-
-  /* A firefly's flash: lit almost at once, then a slow fade, darkest last. */
-  @keyframes afterglow {
-    from {
-      opacity: calc(var(--glow, 1) * 0.6);
-      animation-timing-function: ease-out;
-    }
-    8% {
-      opacity: var(--glow, 1);
-      animation-timing-function: cubic-bezier(0.25, 0, 0.55, 1);
-    }
-    to {
-      opacity: 0;
-    }
-  }
-
   .take {
     position: absolute;
     top: 10px;
@@ -706,10 +648,6 @@ const stand = JSON.stringify({
   @media (prefers-reduced-motion: reduce) {
     .layer :global(iframe) {
       transition: none;
-    }
-
-    .glows {
-      display: none;
     }
   }
 </style>
