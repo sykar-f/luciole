@@ -247,7 +247,7 @@ async function compileEntry(
     if (missing)
       throw new Error(
         `${missing} is not installed for ${target}: install the app's packages for that ` +
-          `platform from its lock (bun install --frozen-lockfile --os=${os} --cpu=* next to ` +
+          `platform from its lock (bun install --frozen-lockfile --os=${os} --cpu='*' next to ` +
           `a copy of its package.json and bun.lock) and pass that directory as --native-dir`,
       );
     throw new Error(messages);
