@@ -13,12 +13,32 @@ import { BUN, CLI, ROOT, report, temporaryDirectory } from "./harness";
 
 const APP_START_TIMEOUT_MS = 60_000;
 const SELECT_MS = 300;
+/**
+ * Paint flashing's outlines, bright then fading, for each heat (overlay.ts, COLOR): drawn
+ * only by a flash. The selection's own outline, always there, has another color.
+ */
+const FLASH_COLORS = new Set([
+  "#ff5f5f",
+  "#8a3a3a",
+  "#67d9bc",
+  "#2f6b5c",
+  "#f0c060",
+  "#7a6431",
+  "#ff8c42",
+  "#7f4822",
+]);
+const OUTLINE = /[┌┐└┘─│]/;
 
 using directory = temporaryDirectory("luciole-pty-devtools-");
 const socket = `unix:${directory.path}/bus.sock`;
 const env = { XDG_STATE_HOME: join(directory.path, "state") };
 const size = { cols: 120, rows: 34 };
 const wait = (t: Driver, text: string, timeout?: number) => t.waitFor(text, { timeout });
+/** Whether a flash's outline is on the screen. */
+const flashed = async (t: Driver) =>
+  (await t.spans()).some((line) =>
+    line.some((span) => FLASH_COLORS.has(span.fg) && OUTLINE.test(span.text)),
+  );
 
 await using devtools = await drive({
   command: [BUN, CLI, "devtools", "--listen", socket],
@@ -68,7 +88,7 @@ await wait(devtools, "flashing in app");
 // Return again edits the note; typing re-renders it.
 app.write("\r");
 app.write("x");
-await wait(app, "┌──");
+await app.until(() => flashed(app), "no paint flashing outline in the application");
 devtools.write("h");
 
 devtools.write("4");
