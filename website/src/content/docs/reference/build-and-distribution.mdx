@@ -9,6 +9,8 @@ sources:
   - packages/core/src/commands/build.ts
   - packages/core/src/compile.ts
   - packages/core/src/sign.ts
+  - packages/core/src/publisher.ts
+  - examples/studio/server/preview.ts
   - packages/core/src/native.ts
   - packages/core/src/app-metadata.ts
   - packages/core/src/app-routes.ts
@@ -26,6 +28,7 @@ sources:
 import Note from "../../../components/docs/Note.astro";
 import AnnotatedCapture from "../../../components/docs/AnnotatedCapture.astro";
 import Sequence from "../../../components/guide/Sequence.astro";
+import Excerpt from "../../../components/guide/Excerpt.astro";
 
 This page lists what `luciole build` writes, the options it takes, and how a build becomes a
 binary, an npm package or a Server on another machine. Run every command from the app's
@@ -396,6 +399,94 @@ How the launcher installs a published app:
 - An update writes the new binary next to the old one, switches `installed.json`, then removes
   the old one.
 - It refuses a binary whose identity does not match its `package.json`.
+
+## Build from code with `@luciole-sh/core/build`
+
+A host that builds apps itself calls `build()` rather than `luciole build`. Studio does, for
+each attempt a model writes. `--compile`, `--web` and `--target` stay options of the command.
+
+```ts
+import { build, generatePublisherKey, readPublisherKey } from "@luciole-sh/core/build";
+```
+
+### `build(directory, output?, options?)`
+
+| Parameter   | Contract                         | Default                |
+| ----------- | -------------------------------- | ---------------------- |
+| `directory` | The app's directory.             | none: it is required   |
+| `output`    | The directory the build goes to. | `<directory>/.luciole` |
+| `options`   | `BuildOptions`, below.           | `{}`                   |
+
+It resolves with `{ buildId, output }`: the [build ID](#how-the-build-id-is-made) and the
+output directory.
+
+| `BuildOptions` field | Contract                                                                                                                              | Default  |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| `appBundle?`         | `"auto"` skips `app/`, with a warning, when Client code uses a top-level `await`. `"required"` fails instead, as `--app-bundle` does. | `"auto"` |
+| `signBundle?`        | A `PublisherKey` that signs `app/manifest.json`, as `--sign-bundle` does. It implies `appBundle: "required"`.                         | unsigned |
+| `webServer?`         | Also builds the Server for the browser into `web-server/`, as `--web-local` does.                                                     | `false`  |
+| `stage?`             | `async (staged) => void`, called with the temporary directory before it is published. If it throws, nothing is published.             | none     |
+
+What `build()` does besides building:
+
+- Two builds of one output take turns on the directory `<output>-lock`. The second one prints
+  `luciole build: waiting for another build of <output>` on stderr.
+- After 10 minutes of waiting, it rejects with `<output>-lock is locked by process <pid>`. A lock
+  whose process has died is removed at once.
+- An output that is up to date and was built with the same options stays as it is. `stage` then
+  runs on a copy. A signed build is always made again.
+- A failed build leaves the previous output in place ([what a failed build leaves](#what-a-failed-build-leaves)).
+
+It rejects with an `Error` whose message says what to fix:
+
+- `<file>:<line>:<column>: <message>` for a source the build refuses, followed by the chain of
+  imports that reached it, such as `Server-only import in Client graph: <name>`
+- `No bun.lock governs the luciole installation at <directory>: install it with Bun`
+- `luciole.json: invalid JSON`, or `luciole.json:` and what the schema refused
+- `<file>: top-level await in Client code: …`, when `appBundle` is `"required"`
+- `luciole.icon: …` and `package.json` errors, for what `luciole` in `package.json` declares
+- the [configuration errors](/docs/reference/app-arguments/#configuration-errors) of
+  `app/args.ts`
+
+[Troubleshooting](/docs/reference/troubleshooting/) gives the fix for the common ones. Studio
+builds each attempt into a directory of its own, and turns the message into diagnostics for
+the model:
+
+<Excerpt
+  path="examples/studio/server/preview.ts"
+  find="async build(id: string)"
+  until="^  }"
+  tone="build"
+/>
+
+### Sign bundles with a publisher key
+
+| Export                       | Contract                                                                                                        |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `generatePublisherKey(env?)` | Creates the Ed25519 key, mode 0600 in a 0700 directory. Returns `{ file, publicKey, fingerprint }`.             |
+| `readPublisherKey(env?)`     | Reads the key, and returns a `PublisherKey`.                                                                    |
+| `fingerprintOf(publicKey)`   | Returns `SHA256:<base64>` of the public key, as `luciole keys` prints it.                                       |
+| `PublisherKey`               | `{ file, privateKey, publicKey }`: the key's path, its Node `KeyObject`, and the public key in base64 SPKI DER. |
+
+Both functions read the key's path from `env`, which defaults to `process.env`. The path is
+`LUCIOLE_PUBLISHER_KEY`, or `$XDG_CONFIG_HOME/luciole/keys/publisher.pem`
+([environment](/docs/reference/environment/)).
+
+| Error                                                                                                 | Raised by              |
+| ----------------------------------------------------------------------------------------------------- | ---------------------- |
+| `<file> exists: replacing it would make hosts that trust it refuse your bundles. Move it away first.` | `generatePublisherKey` |
+| `` No publisher key at <file>: create one with `luciole keys generate` ``                             | `readPublisherKey`     |
+| `<file> is readable by others: chmod 600 it (a publisher key is a secret)`                            | `readPublisherKey`     |
+| `<file> is not an Ed25519 key`                                                                        | `readPublisherKey`     |
+
+Studio gives each project a key of its own, so that the user's key never signs generated code:
+
+<Excerpt
+  path="examples/studio/server/preview.ts"
+  find="private publisher()"
+  until="^  }"
+  tone="build"
+/>
 
 ## What the build and the launcher do not do yet
 
