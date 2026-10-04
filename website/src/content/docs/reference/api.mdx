@@ -407,7 +407,7 @@ It answers these errors as text:
 | 409    | `Incompatible build: install matching Client and Server`                                                      | `x-luciole-build` differs from `buildId`.                                       |
 | 400    | `Invalid instance key`, `Invalid route parameters`, `Invalid search parameters`, `Arguments must be an array` | A header, the parameters, the search or the arguments fail their check.         |
 | 401    | `Unauthorized`, `Authentication required`                                                                     | A `required` route or Server Function, or `/health`, without a sign-in session. |
-| 404    | `Route not found`, `Unknown action`, `Not found`                                                              | The route ID, the Server Function ID or the path is unknown.                    |
+| 404    | `Route not found`, `Unknown action`, `Unknown bundle`, `Not found`                                            | The route ID, the Server Function ID, the bundle's hash or the path is unknown. |
 | 500    | `Server request failed`                                                                                       | `authenticate` or the Server Function threw. The Server logs the call ID.       |
 
 A 401 from a page or a Server Function carries `x-luciole-login: <unauthorizedPath>` when
