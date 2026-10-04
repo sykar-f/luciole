@@ -3,9 +3,10 @@
 // builds under public/demo/; without one, the app needs a real terminal and the page
 // shows its capture (scripts/capture.py).
 import type { Step } from "../components/LiveTerminal.astro";
+import { runCommands, type RunCommands } from "./example-commands";
 import fakeHarness from "../../../packages/harness/src/adapters/fake.ts?raw";
 
-export interface Example {
+export interface Example extends RunCommands {
   name: string;
   /** Where its code is, from the root of the repository. */
   source: string;
@@ -14,7 +15,6 @@ export interface Example {
   demo?: string;
   /** Keys played once the demo has drawn, to reach the capture's screen. */
   script?: Step[];
-  run: string;
   /** What it demonstrates, in two lines at most. */
   about: string;
   /** Why it does not run in a page. */
@@ -80,7 +80,7 @@ export const examples: Record<ExampleKey, Example> = {
     frame: "forge-files",
     demo: "forge",
     script: toDiff,
-    run: "bun run forge",
+    ...runCommands.forge,
     about:
       "Code review in a terminal: pull requests, coloured diffs, line comments, live CI logs and merge. It puts every part of the framework to work at once.",
   },
@@ -89,7 +89,7 @@ export const examples: Record<ExampleKey, Example> = {
     source: "examples/notes",
     frame: "notes",
     demo: "notes",
-    run: "bun run dev",
+    ...runCommands.notes,
     about:
       "The reference app: a server page reads SQLite, the editor keeps what you type while a save travels, and a save whose answer was lost is looked up, then sent again under the same ID.",
   },
@@ -99,7 +99,7 @@ export const examples: Record<ExampleKey, Example> = {
     frame: "chat",
     demo: "chat",
     script: ask,
-    run: "OPENROUTER_API_KEY=… bun run chat",
+    ...runCommands.chat,
     about:
       "Answers stream token by token from a Server Function; the key never leaves the server. Here a scripted model answers, since no key can live in a page.",
   },
@@ -108,7 +108,7 @@ export const examples: Record<ExampleKey, Example> = {
     source: "examples/mdreader",
     frame: "mdreader",
     demo: "mdreader",
-    run: "MD_PATH=docs bun run mdreader",
+    ...runCommands.mdreader,
     about:
       "A folder of Markdown in two panes, with tables, code and outlines: here, the documentation of this site. On disk, it reloads when a file changes and keeps your place.",
   },
@@ -117,7 +117,7 @@ export const examples: Record<ExampleKey, Example> = {
     source: "packages/core/src/devtools/luciole-devtools",
     frame: "devtools-network",
     demo: "devtools",
-    run: "bun packages/core/src/cli.ts devtools --demo",
+    ...runCommands.devtools,
     about:
       "Both processes in one waterfall, with the cache that answered, component trees and logs, on a recorded session. The DevTools are a luciole app too.",
   },
@@ -128,7 +128,7 @@ export const examples: Record<ExampleKey, Example> = {
     demo: "coder",
     script: session,
     scripted: "Scripted demo · no model calls",
-    run: "bun run coder -- --harness fake",
+    ...runCommands.coder,
     about:
       "One coding-agent session on Claude Code, Codex, pi or opencode, driving the binaries you installed. The session lives on the server: the client can crash, the agent carries on.",
   },
@@ -136,7 +136,7 @@ export const examples: Record<ExampleKey, Example> = {
     name: "Files",
     source: "examples/files",
     frame: "files",
-    run: "bun run files",
+    ...runCommands.files,
     about: "A file explorer with previews, images included.",
     terminal: "Previews images through a native library, and browses your disk.",
   },
@@ -144,7 +144,7 @@ export const examples: Record<ExampleKey, Example> = {
     name: "mux",
     source: "examples/mux",
     frame: "mux",
-    run: "bun run mux",
+    ...runCommands.mux,
     about: "A small tmux: your shell and vim side by side, with another luciole app in a pane.",
     terminal: "Runs your shell and vim on real PTYs.",
   },
