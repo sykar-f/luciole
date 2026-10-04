@@ -4,12 +4,13 @@ import { act } from "react";
 import { testRender } from "@opentui/react/test-utils";
 import { mkdtemp, rm, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { Database } from "bun:sqlite";
 import { z } from "zod";
 import { build } from "../packages/core/src/build";
 import {
   launch,
+  privateBuild,
   until,
   importClient,
   destroy,
@@ -18,7 +19,7 @@ import {
   temporaryApp,
   type TestUI,
 } from "./helpers";
-const root = resolve("examples/notes");
+const built = await privateBuild("examples/notes");
 // What Notes' `saveNote` answers (examples/notes/components/draft.ts): nothing more.
 const SaveResult = z.discriminatedUnion("ok", [
   z.strictObject({
@@ -42,15 +43,14 @@ const SaveResult = z.discriminatedUnion("ok", [
 const count = (db: Database) =>
   db.query<{ n: number }, []>("SELECT COUNT(*) AS n FROM operations").get()?.n;
 test("lost commit: durable outcome recovery, no mutation replay, reconnect refresh", async () => {
-  await build(root);
   const dir = await mkdtemp(join(tmpdir(), "luciole-loss-"));
   const dbPath = join(dir, "notes.sqlite");
-  let server = await launch(join(root, ".luciole/server/index.js"), {
+  let server = await launch(join(built.output, "server/index.js"), {
     NOTES_DB: dbPath,
     LUCIOLE_TEST_DROP_ONCE: "1",
     NOTES_AUTOSAVE_MS: "0",
   });
-  const { createApp, Shell } = await importClient(root, "loss");
+  const { createApp, Shell } = await importClient(built.directory, "loss");
   const app = createApp({ url: server.url, initialPath: "/notes/1" });
   let rendered: TestUI | undefined;
   try {
@@ -75,7 +75,7 @@ test("lost commit: durable outcome recovery, no mutation replay, reconnect refre
     const operationId = draft.pending?.operationId;
     await until(() => server.child.exitCode !== null);
     const previousPid = server.pid;
-    server = await launch(join(root, ".luciole/server/index.js"), {
+    server = await launch(join(built.output, "server/index.js"), {
       NOTES_DB: dbPath,
       PORT: String(server.port),
       NOTES_AUTOSAVE_MS: "0",
@@ -122,13 +122,12 @@ test("lost commit: durable outcome recovery, no mutation replay, reconnect refre
   }
 });
 test("out-of-order navigation, incompatible build preserves mounted editor, refresh failure after save", async () => {
-  await build(root);
   const dir = await mkdtemp(join(tmpdir(), "luciole-network-"));
-  const server = await launch(join(root, ".luciole/server/index.js"), {
+  const server = await launch(join(built.output, "server/index.js"), {
     NOTES_DB: join(dir, "notes.sqlite"),
     NOTES_AUTOSAVE_MS: "0",
   });
-  const { createApp, Shell } = await importClient(root, "network");
+  const { createApp, Shell } = await importClient(built.directory, "network");
   let slow = false,
     block = false,
     incompatible = false;
@@ -248,13 +247,12 @@ test("progressive Flight Suspense renders fallback before delayed content", asyn
   }
 });
 test("Notes validation, normalization, version conflict, durable deduplication and authentication", async () => {
-  await build(root);
   const dir = await mkdtemp(join(tmpdir(), "luciole-business-"));
-  const server = await launch(join(root, ".luciole/server/index.js"), {
+  const server = await launch(join(built.output, "server/index.js"), {
     NOTES_DB: join(dir, "notes.sqlite"),
     LUCIOLE_TOKEN: "test-session-token",
   });
-  const { createApp } = await importClient(root, "business");
+  const { createApp } = await importClient(built.directory, "business");
   const app = createApp({ url: server.url, token: "test-session-token" });
   try {
     expect((await fetch(server.url + "/health")).status).toBe(401);

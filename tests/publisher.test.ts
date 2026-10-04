@@ -15,11 +15,12 @@ import {
   readPublisherKey,
   verifyManifest,
 } from "../packages/core/src/publisher";
-import { launch, rejectionOf } from "./helpers";
+import { launch, privateBuild, rejectionOf } from "./helpers";
 
 const PERMISSIONS = 0o777;
 const latency = resolve("examples/latency");
-const bundleDir = join(latency, ".luciole/app");
+const built = await privateBuild("examples/latency");
+const bundleDir = join(built.output, "app");
 const manifestFile = join(bundleDir, "manifest.json");
 const readManifestFile = async () =>
   AppManifest.parse(JSON.parse(await readFile(manifestFile, "utf8")));
@@ -55,7 +56,7 @@ test("a signed bundle verifies whatever its JSON looks like, and any altered fie
   await withKeys(async (env) => {
     generatePublisherKey(env);
     const key = readPublisherKey(env);
-    await build(latency, undefined, { signBundle: key });
+    await build(latency, built.output, { signBundle: key });
     const manifest = await readManifestFile();
     const { fingerprint } = publisherIdentity(key);
     expect(verifyManifest(manifest)).toBe(fingerprint);
@@ -103,7 +104,7 @@ test("a signed bundle verifies whatever its JSON looks like, and any altered fie
     expect(messageOf(refused)).toBe("publisher key changed");
   });
   // Unsigned: accepted by default, refused when a signature is required.
-  await build(latency);
+  await build(latency, built.output);
   expect((await loadAppBundle(bundleDir)).publisher).toBeUndefined();
   expect(
     messageOf(await rejectionOf(loadAppBundle(bundleDir, { publisher: { required: true } }))),
@@ -113,12 +114,12 @@ test("a signed bundle verifies whatever its JSON looks like, and any altered fie
 test("the Server serves its manifest and its bundle by hash, with no session or build", async () => {
   await withKeys(async (env) => {
     generatePublisherKey(env);
-    await build(latency, undefined, { signBundle: readPublisherKey(env) });
+    await build(latency, built.output, { signBundle: readPublisherKey(env) });
   });
   const written = await readFile(manifestFile, "utf8");
   const { sha256 } = AppManifest.parse(JSON.parse(written));
   // A token makes every application route require the bearer: these two stay public.
-  const server = await launch(join(latency, ".luciole/server/index.js"), {
+  const server = await launch(join(built.output, "server/index.js"), {
     LUCIOLE_TOKEN: "secret",
   });
   try {

@@ -1,13 +1,12 @@
 import { expect, test } from "bun:test";
 import { copyFile, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
-import { build } from "../packages/core/src/build";
+import { join } from "node:path";
 import { compileClient, hostTarget, runtimePortability } from "../packages/core/src/compile";
 import { messageOf } from "../packages/core/src/guards";
-import { BUILD_TEST_MS, execute, launch, rejectionOf } from "./helpers";
+import { BUILD_TEST_MS, execute, launch, privateBuild, rejectionOf } from "./helpers";
 
-const root = resolve("examples/notes");
+const built = await privateBuild("examples/notes");
 
 // macOS and util-linux spell script(1) differently (busybox lacks -e); util-linux must
 // flush the log the test reads while the Client runs. Its input must be a real pipe (not
@@ -21,9 +20,9 @@ const inPty = (log: string, command: string) => {
 };
 
 test("the compiled Client runs alone: no Bun, no node_modules, same build as its Server", async () => {
-  const { output, buildId } = await build(root);
+  const { output, buildId } = built;
   const work = await mkdtemp(join(tmpdir(), "luciole-compile-"));
-  const server = await launch(join(root, ".luciole/server/index.js"), {
+  const server = await launch(join(built.output, "server/index.js"), {
     NOTES_DB: join(work, "notes.sqlite"),
   });
   try {
@@ -83,7 +82,7 @@ test("the compiled Client runs alone: no Bun, no node_modules, same build as its
 }, 60000);
 
 test("unsupported targets and missing native packages are explained", async () => {
-  const { output } = await build(root);
+  const { output } = built;
   expect(
     messageOf(
       await rejectionOf(compileClient(output, { name: "notes", target: "bun-windows-x64" })),
@@ -106,7 +105,7 @@ const portability = await runtimePortability(process.execPath);
 test.if(portability !== undefined)(
   "--portable refuses a runtime other machines could not start, before compiling",
   async () => {
-    const { output } = await build(root);
+    const { output } = built;
     const outfile = join(tmpdir(), "luciole-never-portable");
     const refused = await rejectionOf(
       compileClient(output, { name: "notes", outfile, runtime: "host", portable: true }),
@@ -120,7 +119,7 @@ test.if(portability !== undefined)(
 test(
   "signing is only accepted where it can succeed",
   async () => {
-    const { output } = await build(root);
+    const { output } = built;
     const compile = (options: Parameters<typeof compileClient>[1]) =>
       compileClient(output, { outfile: join(tmpdir(), "never"), ...options });
     const refused = async (options: Parameters<typeof compileClient>[1]) =>

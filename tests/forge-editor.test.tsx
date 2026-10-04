@@ -1,16 +1,14 @@
 /** @jsxImportSource @opentui/react */
-import { beforeAll, expect, test } from "bun:test";
+import { expect, test } from "bun:test";
 import { chmod, mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { build } from "../packages/core/src/build";
 import { messageOf } from "../packages/core/src/guards";
 import { forgeDirectory, startForge } from "./forge-helpers";
-import { present, rejectionOf } from "./helpers";
+import { present, privateBuild, rejectionOf } from "./helpers";
 
-beforeAll(async () => {
-  await build(forgeDirectory);
-}, 60000);
+const built = await privateBuild("examples/forge");
 
 const editorModule = join(forgeDirectory, "components/editor.ts");
 
@@ -36,8 +34,8 @@ test("a Server page importing Forge's editor launcher does not build", async () 
     await rm(dir, { recursive: true, force: true });
   }
   // In Forge it sits behind FilesReview's "use client" boundary: Client bundle only.
-  const client = await Bun.file(join(forgeDirectory, ".luciole/client/index.js")).text();
-  const server = await Bun.file(join(forgeDirectory, ".luciole/server/index.js")).text();
+  const client = await Bun.file(join(built.output, "client/index.js")).text();
+  const server = await Bun.file(join(built.output, "server/index.js")).text();
   expect(client).toContain("emacsclient");
   expect(server).not.toContain("emacsclient");
 }, 30000);
@@ -65,7 +63,7 @@ if [ -n "$FAKE_EDIT" ]; then chmod u+w "$last"; echo "local change" >> "$last"; 
 `,
   );
   await chmod(editor, 0o755);
-  const forge = await startForge();
+  const forge = await startForge(built);
   const { ui, step, waitFor, operator } = forge;
   const saved = { ...process.env };
   // The Client runs in this process: its environment is the reviewer's terminal.

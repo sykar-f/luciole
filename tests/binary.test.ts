@@ -6,16 +6,16 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { z } from "zod";
-import { build } from "../packages/core/src/build";
 import { compileApp, hostTarget } from "../packages/core/src/compile";
 import { connect, keepAlive, socketDirectory } from "../packages/core/src/connect";
 import { messageOf } from "../packages/core/src/guards";
 import { readBinaryIdentity, type BinaryIdentity } from "../packages/core/src/launcher/identity";
 import { serverId } from "../packages/core/src/launcher/managed";
 import { runOn } from "../packages/core/src/launcher/remote";
-import { execute, leaveCrashedSession, rejectionOf, until } from "./helpers";
+import { execute, leaveCrashedSession, privateBuild, rejectionOf, until } from "./helpers";
 
 const root = resolve("examples/notes");
+const built = await privateBuild("examples/notes");
 let work: string, binary: string, identity: BinaryIdentity;
 
 // Stands for OpenSSH on a host that is this machine with its own HOME and runtime
@@ -62,7 +62,7 @@ else {
 
 beforeAll(async () => {
   work = await mkdtemp(join(tmpdir(), "luciole-binary-"));
-  const { output } = await build(root);
+  const { output } = built;
   const compiled = await compileApp(output, {
     name: "notes",
     outfile: join(work, "notes"),

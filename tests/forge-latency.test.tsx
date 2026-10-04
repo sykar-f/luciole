@@ -1,12 +1,10 @@
 /** @jsxImportSource @opentui/react */
-import { beforeAll, expect, test } from "bun:test";
-import { build } from "../packages/core/src/build";
+import { expect, test } from "bun:test";
 import type { Fetch } from "../packages/core/src/client";
-import { forgeDirectory, startForge } from "./forge-helpers";
+import { startForge } from "./forge-helpers";
+import { privateBuild } from "./helpers";
 
-beforeAll(async () => {
-  await build(forgeDirectory);
-}, 60000);
+const built = await privateBuild("examples/forge");
 
 const RTT = 500;
 const FRAME_IDS = [
@@ -25,7 +23,7 @@ test("under 500 ms RTT: local interactions stay local, preload removes the wait,
     requests.push(input.pathname);
     return fetch(input, init);
   };
-  const forge = await startForge({
+  const forge = await startForge(built, {
     latencyMs: RTT,
     fetch: recording,
     env: { FORGE_SLOW_MS: "0" },

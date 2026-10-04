@@ -1,16 +1,14 @@
 /** @jsxImportSource @opentui/react */
-import { beforeAll, expect, test } from "bun:test";
-import { build } from "../packages/core/src/build";
+import { expect, test } from "bun:test";
 import { SCRIPTED } from "../packages/harness/src/ui/StatusLine";
 import { DEMO_END, DEMO_PROMPT } from "../packages/harness/src/adapters/fake";
-import { coderDirectory, startCoder } from "./coder-helpers";
+import { startCoder } from "./coder-helpers";
+import { privateBuild } from "./helpers";
 
-beforeAll(async () => {
-  await build(coderDirectory);
-}, 60000);
+const built = await privateBuild("examples/coder");
 
 test("a prompt streams a Markdown reply; the status line tells model, mode and harness", async () => {
-  const coder = await startCoder();
+  const coder = await startCoder(built);
   try {
     await coder.waitFor("scripted demo is ready");
     const ready = await coder.frame();
@@ -34,7 +32,7 @@ test("a prompt streams a Markdown reply; the status line tells model, mode and h
 
 test("the website's demo: harness and project from the environment, one scripted session", async () => {
   // As the in-browser Server gets them (website/scripts/demo.ts): no command line.
-  const coder = await startCoder({
+  const coder = await startCoder(built, {
     argv: [],
     env: { CODER_HARNESS: "fake", CODER_CWD: "/home/ada/src/timers" },
   });
@@ -59,7 +57,7 @@ test("the website's demo: harness and project from the environment, one scripted
 }, 30000);
 
 test("a command streams its output; browsing folds and unfolds it", async () => {
-  const coder = await startCoder();
+  const coder = await startCoder(built);
   try {
     await coder.waitFor("scripted demo is ready");
     await coder.prompt("run the tests");
@@ -81,7 +79,7 @@ test("a command streams its output; browsing folds and unfolds it", async () => 
 }, 30000);
 
 test("an edit waits for approval in ask mode; y applies it and shows the diff", async () => {
-  const coder = await startCoder();
+  const coder = await startCoder(built);
   try {
     await coder.waitFor("scripted demo is ready");
     await coder.prompt("edit greet");
@@ -101,7 +99,7 @@ test("an edit waits for approval in ask mode; y applies it and shows the diff", 
 
 test("a lost answer is looked up, never sent twice", async () => {
   let dropped = 0;
-  const coder = await startCoder({
+  const coder = await startCoder(built, {
     network: {
       // The first answer reaches the Server, its response is lost: the outcome is unknown.
       fault: (request) =>
@@ -127,7 +125,7 @@ test("a lost answer is looked up, never sent twice", async () => {
 }, 30000);
 
 test("deny, questions and plan review answer the scripted harness", async () => {
-  const coder = await startCoder();
+  const coder = await startCoder(built);
   try {
     await coder.waitFor("scripted demo is ready");
     await coder.prompt("fix greet");
@@ -152,7 +150,7 @@ test("deny, questions and plan review answer the scripted harness", async () => 
 }, 30000);
 
 test("Esc interrupts a running turn; Shift+Tab walks the modes; slash commands open pickers", async () => {
-  const coder = await startCoder();
+  const coder = await startCoder(built);
   try {
     await coder.waitFor("scripted demo is ready");
     await coder.prompt("slow please");
@@ -186,7 +184,7 @@ test("Esc interrupts a running turn; Shift+Tab walks the modes; slash commands o
 
 test("a cut feed comes back with Ctrl+R, a turn started meanwhile still running", async () => {
   let feeds = 0;
-  const coder = await startCoder({
+  const coder = await startCoder(built, {
     network: {
       fault: (request) =>
         request.kind === "action" && request.target.endsWith("#feed") && feeds++ === 0
@@ -210,7 +208,7 @@ test("a cut feed comes back with Ctrl+R, a turn started meanwhile still running"
 }, 30000);
 
 test("a crashed Client's unsent prompt comes back; a sent one does not", async () => {
-  const coder = await startCoder();
+  const coder = await startCoder(built);
   let second: Awaited<ReturnType<typeof coder.client>> | undefined;
   try {
     await coder.waitFor("scripted demo is ready");

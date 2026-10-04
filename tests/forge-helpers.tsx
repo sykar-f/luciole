@@ -7,7 +7,7 @@ import { join, resolve } from "node:path";
 import type { Fetch } from "../packages/core/src/client";
 import { createForge } from "../examples/forge/server/forge";
 import { openDatabase } from "../examples/forge/server/schema";
-import { launch, until, importClient, metricsOf } from "./helpers";
+import { launch, until, importClient, metricsOf, type PrivateBuild } from "./helpers";
 
 export const forgeDirectory = resolve("examples/forge");
 
@@ -24,16 +24,16 @@ type Options = {
  * OpenTUI's test renderer. `operator` opens the same database as a second process
  * would: it pushes revisions, edits descriptions and arms lost responses.
  */
-export async function startForge(options: Options = {}) {
+export async function startForge(built: PrivateBuild, options: Options = {}) {
   const temp = await mkdtemp(join(tmpdir(), "forge-"));
   const database = join(temp, "forge.sqlite");
-  const server = await launch(join(forgeDirectory, ".luciole/server/index.js"), {
+  const server = await launch(join(built.output, "server/index.js"), {
     FORGE_DB: database,
     FORGE_SLOW_MS: "20",
     FORGE_CI_SCALE: "0.1",
     ...options.env,
   });
-  const { createApp, Shell } = await importClient(forgeDirectory);
+  const { createApp, Shell } = await importClient(built.directory);
   const app = createApp({
     url: server.url,
     latencyMs: options.latencyMs ?? 0,

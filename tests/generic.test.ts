@@ -22,7 +22,7 @@ import {
   publisherIdentity,
   readPublisherKey,
 } from "../packages/core/src/publisher";
-import { launch, rejectionOf } from "./helpers";
+import { launch, privateBuild, rejectionOf } from "./helpers";
 
 test("an origin is the URL the user gave, normalized", () => {
   expect(originOf("http://127.0.0.1:4000/some/path?q=1")).toBe("http://127.0.0.1:4000");
@@ -61,6 +61,7 @@ test("a URL launch takes more URLs as tabs, a mode and --allow-* flags, nothing 
 });
 
 const latency = resolve("examples/latency");
+const built = await privateBuild("examples/latency");
 async function temporary(prefix: string) {
   return mkdtemp(join(tmpdir(), prefix));
 }
@@ -94,12 +95,10 @@ test("prepareOrigin without a sandbox: signature, first-use pin, explicit inline
     const keyEnv = { ...env, XDG_CONFIG_HOME: keysHome };
     if (!existsSync(join(keysHome, "luciole/keys/publisher.pem"))) generatePublisherKey(keyEnv);
     const key = readPublisherKey(keyEnv);
-    await build(latency, undefined, { signBundle: key });
+    await build(latency, built.output, { signBundle: key });
     return publisherIdentity(key).fingerprint;
   };
-  const server = join(latency, ".luciole/server/index.js");
-  // Its own build first: another file's may not have run yet, nor at all in a fresh checkout.
-  await build(latency);
+  const server = join(built.output, "server/index.js");
   let running = await launch(server);
   try {
     // Restarted on its port: one origin across rebuilds, as a deployed Server keeps its URL.
@@ -170,14 +169,13 @@ test("prepareOrigin without a sandbox: signature, first-use pin, explicit inline
     expect(() => pinPublisher(origin, "not-a-fingerprint", env)).toThrow("SHA256");
 
     // An unsigned bundle is never opened by URL.
-    await build(latency);
+    await build(latency, built.output);
     await restart();
     expect(messageOf(await rejectionOf(prepareOrigin(url, options(true))))).toContain(
       "not signed by its publisher",
     );
   } finally {
     await running.stop();
-    await build(latency);
     await rm(home, { recursive: true, force: true });
   }
 }, 120_000);

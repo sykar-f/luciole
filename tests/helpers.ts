@@ -1,13 +1,15 @@
+import { afterAll } from "bun:test";
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdtemp, realpath, symlink } from "node:fs/promises";
+import { mkdtemp, realpath, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { act, type ReactNode } from "react";
 import type { MouseButton } from "@opentui/core/testing";
 import type { testRender } from "@opentui/react/test-utils";
 import { z } from "zod";
+import { build, type BuildOptions } from "../packages/core/src/build";
 import type { Application, ApplicationOptions } from "../packages/core/src/client";
 import { messageOf } from "../packages/core/src/guards";
 import { readJsonFile } from "../packages/core/src/package-json";
@@ -44,6 +46,24 @@ export async function temporaryApp(prefix: string) {
   await symlink(resolve("node_modules"), join(directory, "node_modules"), "dir");
   return directory;
 }
+
+/**
+ * An example of the checkout (`examples/notes`…) built for this test file alone, while
+ * the file loads: before its tests and hooks, outside every timeout. The output is a
+ * temporary application directory's `.luciole`, beside a node_modules link where the
+ * bundles' external packages resolve; its Server runs from `output`, its Client imports
+ * from `directory` (`importClient`). Built in place, `examples/<name>/.luciole` was one
+ * output for every file of a parallel run: a test's time included waiting on its lock for
+ * another file's build, and a signed or bundled rebuild replaced the directory another
+ * file's Server was running from. Called at a test file's top level; removed after it.
+ */
+export async function privateBuild(example: string, options?: BuildOptions) {
+  const directory = await temporaryApp(`build-${basename(example)}`);
+  afterAll(() => rm(directory, { recursive: true, force: true }));
+  const { buildId, output } = await build(resolve(example), join(directory, ".luciole"), options);
+  return { directory, output, buildId };
+}
+export type PrivateBuild = Awaited<ReturnType<typeof privateBuild>>;
 
 /** The directory holding a `package.json` or a `.git` that is `directory` or above it, if any. */
 function projectAbove(directory: string): string | undefined {

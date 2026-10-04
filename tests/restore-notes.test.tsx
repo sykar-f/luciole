@@ -4,34 +4,33 @@ import { act } from "react";
 import { testRender } from "@opentui/react/test-utils";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import type { Application, Session } from "../packages/core/src/client";
-import { build } from "../packages/core/src/build";
 import {
   destroy,
   draftOf,
   importClient,
   launch,
   markdownEditor,
+  privateBuild,
   until,
   type TestUI,
 } from "./helpers";
 
-const appDir = resolve("examples/notes");
+const built = await privateBuild("examples/notes");
 const fieldsAt = (app: Application, href: string) =>
   app.restoration.snapshot().entries.find((e) => e.href === href)?.fields;
 
 test("a named field comes back after a restart, is forgotten once sent, kept if never sent", async () => {
-  await build(appDir);
   const folder = await mkdtemp(join(tmpdir(), "luciole-restore-"));
-  const server = await launch(join(appDir, ".luciole/server/index.js"), {
+  const server = await launch(join(built.output, "server/index.js"), {
     NOTES_DB: join(folder, "notes.sqlite"),
     // Saves only when asked: what is kept or forgotten follows the test's own saves.
     NOTES_AUTOSAVE_MS: "0",
   });
   let refuse = false;
   const open = async (tag: string, session?: Session) => {
-    const { createApp, Shell } = await importClient(appDir, tag);
+    const { createApp, Shell } = await importClient(built.directory, tag);
     const app = createApp({
       url: server.url,
       session,

@@ -9,8 +9,7 @@ import { KeymapProvider, useBindings } from "@opentui/keymap/react";
 import { createRootRoute } from "@tanstack/react-router";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
-import { build } from "../packages/core/src/build";
+import { join } from "node:path";
 import {
   Application,
   Embed,
@@ -19,10 +18,10 @@ import {
   type ApplicationOptions,
 } from "../packages/core/src/client";
 import { ApplicationView } from "../packages/core/src/embed";
-import { destroy, launch, rejectionOf, until, type TestUI } from "./helpers";
+import { destroy, launch, privateBuild, rejectionOf, until, type TestUI } from "./helpers";
 
-const mdreader = resolve("examples/mdreader");
-const files = resolve("examples/files");
+const mdBuilt = await privateBuild("examples/mdreader");
+const filesBuilt = await privateBuild("examples/files");
 const bundleOf = (app: string) => join(app, ".luciole/app");
 
 /** The host's keymap, as a Shell provides it, and its prefix sequence. */
@@ -54,18 +53,16 @@ const options = (): ApplicationOptions => ({
 });
 
 test("<Embed>: two applications, keys to the active pane, focus set aside, crash contained, dispose", async () => {
-  await build(mdreader);
-  await build(files);
   const docs = await mkdtemp(join(tmpdir(), "luciole-embed-"));
   await Bun.write(join(docs, "README.md"), "# Readme\n\nThe first document.\n");
   await Bun.write(join(docs, "guide.md"), "# Guide\n\nThe second document.\n");
-  const md = await launch(join(mdreader, ".luciole/server/index.js"), { MD_PATH: docs });
-  const fx = await launch(join(files, ".luciole/server/index.js"), { FILES_ROOT: docs });
+  const md = await launch(join(mdBuilt.output, "server/index.js"), { MD_PATH: docs });
+  const fx = await launch(join(filesBuilt.output, "server/index.js"), { FILES_ROOT: docs });
   let ui: TestUI | undefined;
   const apps: Application[] = [];
   try {
-    const mdApp = await openApplication({ bundle: bundleOf(mdreader), url: md.url });
-    const fxApp = await openApplication({ bundle: bundleOf(files), url: fx.url });
+    const mdApp = await openApplication({ bundle: bundleOf(mdBuilt.directory), url: md.url });
+    const fxApp = await openApplication({ bundle: bundleOf(filesBuilt.directory), url: fx.url });
     apps.push(mdApp, fxApp);
     expect(mdApp.options.instance).not.toBe(fxApp.options.instance);
     // One runtime for every pane: the host's view, hence the host's contexts.
