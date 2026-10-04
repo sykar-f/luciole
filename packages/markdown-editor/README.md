@@ -259,6 +259,10 @@ raises an error: an edit that does not apply leaves the document as it is.
 | `settle()`                                                                      | Decides the delimiters still waiting for a key, as when the focus leaves.                                        |
 | `leaveLast()`                                                                   | Adds a paragraph after a last block of code, table or rule, with the cursor in it. Returns whether it added one. |
 
+The table lists what an app calls. The class has two more public members: `state`, which the renderable reads,
+and `apply(edit)`, which the members above call. Both work on an `EditorState`, a type the package does not
+export, so an app edits through the members above.
+
 `EditorChange` is `{ markdown, edited }`. `edited` is `false` for a load or a cursor move. `BlockKind` is one of:
 
 - `{ type: "paragraph" }`
