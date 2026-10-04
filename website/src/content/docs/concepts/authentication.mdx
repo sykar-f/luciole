@@ -184,13 +184,13 @@ to sign out. Here is a sign-in, then a sign-out on a protected page:
 
 `setToken` does four things, in this order:
 
-1. It sets the token of the following requests, or removes it.
-2. It drops every cached private page, and again when a navigation in progress ends. A page
-   loaded under one token never shows under another.
-3. It reloads the current routes with the new token.
-4. When it replaces a token, it forgets the text of restorable fields
+1. When it replaces a token, it forgets the text of restorable fields
    ([session restore](/docs/concepts/session-restore/)). The first sign-in of a Client keeps
    that text, so text restored after a crash survives the sign-in it needs.
+2. It sets the token of the following requests, or removes it.
+3. It drops every cached private page, and again when a navigation in progress ends. A page
+   loaded under one token never shows under another.
+4. It reloads the current routes with the new token.
 
 `setToken` does not navigate and touches no state of your app. After a sign-in or a
 sign-out, your app navigates where it wants. When the user changes, your app also clears its
