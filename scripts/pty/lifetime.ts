@@ -108,8 +108,11 @@ assert.ok(
 {
   // Launched again: same Server, same page, the text as it was typed.
   await using t = await start();
+  await wait(t, "● Unsaved");
+  // The note opens at its top, taller than the pane: Ctrl+E brings its end, where the
+  // words were typed, into view.
+  await t.type(ctrl("e"), KEY_SETTLE_MS);
   await wait(t, "unsaved words");
-  assert.ok((await t.text()).includes("● Unsaved"), await t.text());
   const again = await status(path);
   assert.ok(again?.pid === first.pid && again.graceUntil === undefined, JSON.stringify(again));
   // The Server stops answering, then answers again: the Client follows, state kept.
