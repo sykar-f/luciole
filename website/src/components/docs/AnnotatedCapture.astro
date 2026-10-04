@@ -1,0 +1,151 @@
+---
+// A text captured from a running app (a Flight answer first), read as it is, with notes on
+// its parts: each note's `match` is marked in the capture and numbered, and the notes follow
+// in that order. The capture is read from the checkout at build time, and a `match` it no
+// longer holds fails the build, as an Excerpt's missing mark does.
+import { escape } from "../../lib/frames";
+import { whole } from "../../lib/guide/source";
+import { source } from "../../lib/links";
+import { locate, type Annotation } from "../../lib/transcripts";
+
+interface Props {
+  /** The capture, from the repository's root (website/src/frames/flight.txt). */
+  path: string;
+  /** In reading order. `note` takes inline Markdown: `code`, **bold** and [links](/docs/). */
+  notes: Annotation[];
+  /** What the capture is, in a sentence. */
+  caption: string;
+}
+
+const { path, notes, caption } = Astro.props;
+if (!caption?.trim()) throw new Error(`AnnotatedCapture ${path}: a caption is required.`);
+const capture = whole(path);
+const { annotations, ordered } = locate(capture, notes, path);
+
+let html = "";
+let at = 0;
+for (const { n, start, end } of ordered) {
+  html += `${escape(capture.slice(at, start))}<mark data-n="${n}">${escape(capture.slice(start, end))}</mark>`;
+  at = end;
+}
+html += escape(capture.slice(at));
+
+/** A note's inline Markdown, escaped first: code spans, then bold and links outside them. */
+const inline = (markdown: string) =>
+  markdown
+    .split(/(`[^`]+`)/)
+    .map((part) =>
+      part.startsWith("`") && part.endsWith("`") && part.length > 1
+        ? `<code>${escape(part.slice(1, -1))}</code>`
+        : escape(part)
+            .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+            .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, '<a href="$2">$1</a>'),
+    )
+    .join("");
+---
+
+<figure class="capture" data-figure="capture">
+  <div class="bar">
+    <a href={source(path)}>{path.split("/").at(-1)}</a>
+    <span>{annotations.length} notes</span>
+  </div>
+  <pre tabindex="0" aria-label={`The capture, ${path.split("/").at(-1)}`}><code set:html={html} /></pre>
+  <figcaption>{caption}</figcaption>
+  <ol class="notes">
+    {
+      annotations.map(({ match, note }) => (
+        <li>
+          <code>{match}</code> <span set:html={inline(note)} />
+        </li>
+      ))
+    }
+  </ol>
+</figure>
+
+<style>
+  .capture {
+    margin: 1.6em 0;
+  }
+
+  .bar {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 7px 14px;
+    border: 1px solid var(--rule);
+    border-bottom: 0;
+    border-radius: 4px 4px 0 0;
+    background: color-mix(in srgb, var(--paper) 3%, transparent);
+    color: var(--dim);
+    font: 400 0.75rem / 1.5 var(--mono);
+    box-shadow: inset 3px 0 0 var(--wire);
+  }
+
+  .bar a {
+    color: var(--mist);
+    text-decoration: none;
+  }
+
+  .bar a:hover {
+    color: var(--paper);
+  }
+
+  pre {
+    margin: 0;
+    padding: 12px 16px;
+    border: 1px solid var(--rule);
+    border-radius: 0 0 4px 4px;
+    background: var(--code-bg);
+    color: var(--paper);
+    overflow-x: auto;
+    font: 400 0.8rem / 1.9 var(--term);
+    font-variant-ligatures: none;
+    scrollbar-width: thin;
+  }
+
+  /* A marked part: underlined in the wire's colour, its number before it. The number is
+     drawn, not text: copying the capture copies the capture. Written by set:html, so
+     outside the scoped styles. */
+  pre :global(mark) {
+    padding: 1px 0;
+    background: color-mix(in srgb, var(--wire) 14%, transparent);
+    color: inherit;
+    border-bottom: 1px solid var(--wire);
+  }
+
+  pre :global(mark)::before {
+    content: attr(data-n) / "";
+    margin-right: 0.4ch;
+    padding: 0 0.5ch;
+    border-radius: 2px;
+    background: var(--wire);
+    color: var(--night);
+    font: 600 0.7rem / 1 var(--mono);
+    vertical-align: 0.1em;
+  }
+
+  figcaption {
+    margin-top: 10px;
+    color: var(--dim);
+    font: 400 0.8rem / 1.5 var(--sans);
+  }
+
+  .notes {
+    margin: 12px 0 0;
+    padding-left: 2.2em;
+  }
+
+  .notes li + li {
+    margin-top: 0.35em;
+  }
+
+  .notes li::marker {
+    color: var(--wire);
+    font: 600 0.8rem var(--mono);
+  }
+
+  .notes > li > code {
+    color: var(--paper);
+    overflow-wrap: anywhere;
+  }
+</style>

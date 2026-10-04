@@ -7,15 +7,16 @@ sources:
   - packages/core/src/build.ts
   - packages/core/src/transport.ts
   - packages/core/src/server.ts
+  - examples/notes/app/notes/[id]/page.tsx
   - website/src/frames/flight.txt
 ---
 
+import AnnotatedCapture from "../../../components/docs/AnnotatedCapture.astro";
+import CodeAndScreen from "../../../components/docs/CodeAndScreen.astro";
 import Note from "../../../components/docs/Note.astro";
-import { Code } from "astro:components";
+import RunHere from "../../../components/docs/RunHere.astro";
+import Sequence from "../../../components/guide/Sequence.astro";
 import Src from "../../../components/guide/Src.astro";
-import { night } from "../../../lib/codeTheme";
-// What the Server really sent for /notes/1, captured by website/scripts/capture.py.
-import flight from "../../../frames/flight.txt?raw";
 
 luciole is a React Server Components framework for the terminal. You write one app; its
 build produces two programs:
@@ -73,30 +74,93 @@ macOS Client compiled from the same sources therefore share one build ID.
 ## What travels between them
 
 The Client asks for a page with `GET /render` and calls Server Functions with
-`POST /action`; the Server answers in [React Flight](https://react.dev/reference/rsc/server-components),
-React's serialization of a rendered tree. This is the complete answer the Server sent for
-the page of note 1 in Notes, captured by `website/scripts/capture.py`:
+`POST /action`. The Server answers in [React Flight](https://react.dev/reference/rsc/server-components),
+React's serialization of a rendered tree.
 
-<Code code={flight.trim()} lang="text" theme={night} />
+<Sequence
+  title="A page, then a Server Function"
+  lanes={[
+    { id: "client", label: "Client", sub: "in the terminal", tone: "client" },
+    { id: "server", label: "Server", sub: "renders, keeps the data", tone: "server" },
+  ]}
+  messages={[
+    { phase: "Open a page" },
+    { from: "client", to: "server", label: "GET /render, with the build ID", n: 1 },
+    { from: "server", to: "client", label: "Flight: the page", n: 2, back: true },
+    { phase: "Call a Server Function" },
+    { from: "client", to: "server", label: "POST /action, with the build ID", n: 3 },
+    { from: "server", to: "client", label: "Flight: the result", n: 4, back: true },
+  ]}
+  caption="Every request carries the build ID: a Server of another build answers 409 and decodes nothing."
+/>
 
-Read it line by line. The answer holds two Flight streams: the envelope, and the page
+The page of note 1 in Notes is a Server Component. The Client draws its answer:
+
+<CodeAndScreen
+  path="examples/notes/app/notes/[id]/page.tsx"
+  find="export default async function Page"
+  until="^}"
+  mark={["<NoteEditor", "saveAction={saveNote}", "resolveAction={getOperation}"]}
+  tone="server"
+  frame="notes"
+  caption="The page hands NoteEditor, a Client Component, the note and two Server Functions. The note opens on the right of the screen."
+/>
+
+This is the complete answer the Server sent for that page, captured by
+`website/scripts/capture.py`. It holds two Flight streams: the envelope, and the page
 carried inside it as bytes.
 
-- `1:R` announces that row 1 will be a stream: the page's.
-- `0:{"tree":"$1","tags":"$@2"}` is the envelope: `tree` is the stream of row 1, `tags` a
-  promise that row 2 fulfils ([caching](/docs/concepts/cache/#what-a-render-read)).
-- `1:o…,` opens that stream: the bytes after the comma are the page, itself in Flight.
-- `1:"…/components/NoteEditor.tsx"` and `2:I["$1",[],"NoteEditor"]` import a **Client
-  Component**. Its code is already in the terminal; only its module ID, prefixed with the
-  build ID, travels.
-- `3:{"id":"…#saveNote",…}` and `4:{"id":"…#getOperation",…}` are **Server Functions**:
-  references the Client can call, never their code.
-- `0:[["$","$L2","1",{…}]]` is the page itself. It renders one element, `$L2`: NoteEditor,
-  with its props in JSON, the note included. `$h3` and `$h4` are the two Server Functions
-  it receives.
-- `1:C` closes the page's stream.
-- `2:["note:local:1"]` are the cache tags the render read: what a save of this note
-  refreshes.
+<AnnotatedCapture
+  path="website/src/frames/flight.txt"
+  caption="The answer to GET /render for note 1, as the Server sent it. Each number marks the part its note explains."
+  notes={[
+    { match: "1:R", note: "announces that row 1 will be a stream: the page's." },
+    {
+      match: '0:{"tree":"$1","tags":"$@2"}',
+      note: "is the envelope: `tree` is the stream of row 1, and `tags` a promise that row 2 fulfils ([caching](/docs/concepts/cache/#what-a-render-read)).",
+    },
+    {
+      match: "1:o",
+      note: "opens that stream: the bytes after the comma are the page, itself in Flight.",
+    },
+    {
+      match: '/components/NoteEditor.tsx"',
+      note: "is the module ID of a **Client Component**, prefixed with the build ID.",
+    },
+    {
+      match: '2:I["$1",[],"NoteEditor"]',
+      note: "imports that Client Component. Its code is already in the terminal: only its module ID travels.",
+    },
+    {
+      match: '#saveNote"',
+      note: "is a **Server Function**: a reference the Client can call, never its code.",
+    },
+    { match: '#getOperation"', note: "is a second Server Function." },
+    {
+      match: '"$L2"',
+      note: "is the page itself: one element, NoteEditor, with its props in JSON, the note included.",
+    },
+    {
+      match: '"saveAction":"$h3"',
+      note: "hands NoteEditor the Server Function of row 3, `saveNote`.",
+    },
+    { match: '"resolveAction":"$h4"', note: "hands it the one of row 4, `getOperation`." },
+    { match: "1:C", note: "closes the page's stream." },
+    {
+      match: '2:["note:local:1"]',
+      note: "are the cache tags the render read: what a save of this note refreshes.",
+    },
+  ]}
+/>
+
+Notes runs in this page too, its Client and its Server both in your browser:
+
+<RunHere
+  demo="notes"
+  frame="notes"
+  name="Notes"
+  caption="Notes with note 1 open: the list of notes on the left, the note on the right."
+/>
 
 <Note>
   The Client and the Server both run on Bun. A module that reads a file or starts a process works on
