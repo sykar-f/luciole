@@ -10,6 +10,7 @@ sources:
 ---
 
 import CopyCommand from "../../components/CopyCommand.astro";
+import Screen from "../../components/Screen.astro";
 import { repo } from "../../lib/links";
 import { commands, envPrefix } from "../../lib/product";
 
@@ -19,7 +20,7 @@ You will create an app of your own, change what it draws and slow its network do
 starts as a copy of Notes, the example of the home page. Both programs, the Client and the
 Server, run on your machine.
 
-## What you need
+## What do you need first?
 
 - macOS or Linux.
 - **Bun 1.4.2**, the version a new app pins in `.bun-version`:
@@ -41,9 +42,14 @@ What each command does:
 3. `bun run dev` builds both programs and starts them: the Server, with a SQLite database in
    `notes.sqlite`, and the Client in your terminal.
 
-What you should see: the Client fills the terminal. The list of notes is on the left, with a
+What you should see: the Client fills your terminal. The list of notes is on the left, with a
 few sample notes. No note is open, so the right side reads **No note selected**, above a
 **+ New note** button. Leave it running.
+
+<Screen
+  frame="notes-empty"
+  caption="Step 1, after bun run dev. On the right, look for No note selected and the + New note button. The list on the left holds the sample notes."
+/>
 
 If a command stops with an error, look its message up in [troubleshooting](/docs/reference/troubleshooting/).
 
@@ -57,8 +63,15 @@ shown while no note is open. Change its heading:
 +        Pick a note
 ```
 
-Save the file. What you should see: `bun run dev` rebuilds the app and restarts both processes.
-In a couple of seconds the Client reopens the same screen, with **Pick a note** on the right.
+Save the file. `bun run dev` rebuilds the app and restarts both processes. In a couple of
+seconds the Client reopens the same screen.
+
+What you should see: **Pick a note** on the right, where **No note selected** was.
+
+<Screen
+  frame="notes-pick"
+  caption="Step 2, after you save NoNoteShown.tsx. Only the heading on the right changed: it reads Pick a note, and the rest of the screen is the same."
+/>
 
 A rebuild brings back the route, the history and the text of named fields. State held only in
 memory does not come back: there is no Fast Refresh
@@ -66,15 +79,21 @@ memory does not come back: there is no Fast Refresh
 
 ## 3. Open a note
 
-Everything is done with the mouse:
+You do everything with the mouse:
 
 - Click a note in the list on the left to open it.
 - Click in the note to write where you clicked. Changes save on their own.
 - Click **+** beside the search for a new note.
 - Click **≡** to fold the list away.
 
-What you should see: the note replaces **Pick a note** on the right. <kbd>Ctrl+C</kbd> quits
-and restores the terminal.
+What you should see: the note replaces **Pick a note** on the right.
+
+<Screen
+  frame="notes"
+  caption="Step 3, after you click the first note. The note fills the right side, and the list stays on the left."
+/>
+
+Press <kbd>Ctrl+C</kbd> to quit. It restores your terminal.
 
 ## 4. Slow the network down
 
@@ -83,20 +102,27 @@ Quit with <kbd>Ctrl+C</kbd>, then start again with half a second added to every 
 <CopyCommand lines={[`${envPrefix}_LATENCY_MS=500 bun run dev`]} />
 
 Open a note. What you should see: a loading screen at once, drawn by the Client, while the page
-travels. Edit the note, pause for a second so that it saves, and keep typing. The keys are
-handled in the terminal while the save waits for the Server.
+travels.
+
+<Screen
+  frame="notes-loading"
+  caption="Step 4, right after you click a note. The note's page has not arrived, so the Client draws Loading the note… in its place. This capture adds 3 seconds, to keep the screen up long enough to read."
+/>
+
+Edit the note, pause for a second so that it saves, and keep typing. The Client handles each key
+itself, while the save waits for the Server.
 
 The delay is simulated per request, not a network emulation
 ([latency and faults](/docs/guides/latency-and-faults/)).
 
-## What the app holds
+## What is in the app you created?
 
 The app is a copy of Notes to reshape, in one codebase. Its `@luciole-sh/core` dependency is a
 range on the release that created it (`^<version>`).
 
 | Directory     | What goes there                                                                                               |
 | ------------- | ------------------------------------------------------------------------------------------------------------- |
-| `app/`        | Routes as files: `page.tsx` pages render on the Server; `layout.tsx` and `loading.tsx` are Client Components. |
+| `app/`        | Routes as files. `page.tsx` pages render on the Server. `layout.tsx` and `loading.tsx` are Client Components. |
 | `components/` | Client Components, marked `"use client"`: they handle the mouse and the keyboard.                             |
 | `actions/`    | Server Functions, marked `"use server"`: the Client calls them like functions.                                |
 | `server/`     | Code that only the Server runs: the database, queries, checks.                                                |
@@ -111,15 +137,15 @@ Its scripts call the installed `luciole`, which works on the current directory:
 
 The [CLI reference](/docs/reference/cli/) lists every command.
 
-## Next
+## Where next?
 
-- [Client and server](/docs/concepts/client-and-server/): what each program contains, and
+- [Client and Server](/docs/concepts/client-and-server/): what each program contains, and
   what travels between them.
 - [Anatomy of an app](/docs/guides/anatomy-of-an-app/): the files of Notes, one by one.
 - [The examples](/examples/): `luciole example <name>` runs one, and `luciole example` lists
   them. In a clone, `bun run <script>` does the same.
 
-## From a clone of the repository
+## How do you run luciole from a clone?
 
 This path is for contributing to luciole itself. You need git as well:
 
