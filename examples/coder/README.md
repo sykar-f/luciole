@@ -84,7 +84,8 @@ luciole, not to coder, so `--help` does not list it.
 With `--harness fake`, the words of your prompt pick a scripted scene:
 
 - `parseDuration`: the site's demo. It reads `src/duration.ts`, proposes a diff, waits for
-  `y`, runs `bun test` and ends in about 12 seconds.
+  `y` and runs `bun test`. It plays at a model's pace, so you can follow it in about twenty
+  seconds.
 - `fix` or `edit`: a file change to approve first.
 - `test` or `run`: a command with streamed output.
 - `plan`, `question`, `agent`, `search` or `markdown`: a plan to review, a question, a
@@ -130,18 +131,19 @@ protocol into neutral events, such as `turn.*`, `item.*` and `request.*`.
 
 What each luciole feature does here:
 
-| Feature                       | In coder                                                                                    |
-| ----------------------------- | ------------------------------------------------------------------------------------------- |
-| `"server": "per-launch"`      | Two `coder` in the same directory are two agent sessions. A killed Client finds its own.    |
-| `"grace": "15m"`              | The Server waits 15 minutes for a lost Client before it stops. The agent works meanwhile.   |
-| `@luciole-sh/core/args`       | A real command line, with `--help` and errors generated from `app/args.ts`.                 |
-| `useLive`                     | The screen gets one snapshot, then patches, rather than a new snapshot every 50 ms.         |
-| Transport outcomes            | An approval is never sent twice. When its outcome is `unknown`, the Client asks the Server. |
-| Restored fields               | The prompt you are typing survives a crash or a rebuild of the Client.                      |
-| `useBindings` and `<KeyHelp>` | Each mode has its own keys, and the help line lists them.                                   |
-| `host.notify`                 | A notification tells you that the agent waits for you while your terminal is not focused.   |
-| `renderer.suspend()`          | Ctrl+G hands your terminal to `$EDITOR`, then takes it back.                                |
-| `<Markdown>`                  | Replies and thinking stay stable while they stream.                                         |
+| Feature                       | In coder                                                                                               |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `"server": "per-launch"`      | Two `coder` in the same directory are two agent sessions. A killed Client finds its own.               |
+| `"grace": "15m"`              | The Server waits 15 minutes for a lost Client before it stops. The agent works meanwhile.              |
+| `@luciole-sh/core/args`       | A real command line, with `--help` and errors generated from `app/args.ts`.                            |
+| `useLive`                     | The screen gets one snapshot, then patches, rather than a new snapshot every 50 ms.                    |
+| Transport outcomes            | An approval is never sent twice. When its outcome is `unknown`, the Client asks the Server.            |
+| Restored fields               | The prompt you are typing survives a crash or a rebuild of the Client.                                 |
+| `useBindings` and `<KeyHelp>` | Each mode has its own keys, and the help line lists them.                                              |
+| `host.notify`                 | A notification tells you that the agent waits for you while your terminal is not focused.              |
+| `renderer.suspend()`          | Ctrl+G hands your terminal to `$EDITOR`, then takes it back.                                           |
+| `<Markdown>`                  | Replies and thinking stay stable while they stream.                                                    |
+| OpenTUI                       | A `<diff>` per file, `<code>`, overlays, and a mouse selection copied to your clipboard, over SSH too. |
 
 ### Run the tests
 
@@ -149,6 +151,8 @@ What each luciole feature does here:
 bun test tests/coder.test.tsx tests/coder-store.test.ts   # real Server and Client, fake harness
 bun run test:pty:coder                                    # the whole journey in a PTY, fake harness
 bun run test:web:coder                                    # the web demo in headless Chrome
+bun test tests/markdown*.test.ts*                         # <Markdown>: settled blocks, closing, parity
+bun run test:pty:markdown                                 # no flicker while a Markdown reply streams
 ```
 
 The adapters replay exchanges recorded once on the real binaries, in
@@ -156,7 +160,8 @@ The adapters replay exchanges recorded once on the real binaries, in
 again. Journeys on the real harnesses spend a little quota, so you run them by hand:
 
 ```sh
-bun scripts/pty/coder-real.ts claude   # or codex, pi, opencode; a model may follow
+bun scripts/pty/coder-real.ts claude          # or codex, pi, opencode; a model may follow
+bun scripts/pty/markdown-stability.ts claude  # one real Markdown reply; or codex, pi, opencode
 ```
 
 ## Environment variables
