@@ -8,6 +8,7 @@ sources:
   - packages/core/src/launcher/target.ts
   - packages/core/src/commands/dev.ts
   - packages/core/src/build.ts
+  - packages/core/src/optional.ts
   - packages/core/src/serve.ts
   - packages/core/src/run.tsx
   - packages/core/src/connect.ts
@@ -50,7 +51,9 @@ Cannot resolve <name>
 
 - **Cause:** `<name>` is misspelled, or it is a package that the app's `package.json` does
   not list. The line starts with the file, line and column of the import.
-- **Fix:** correct the import, or add the package with `bun add <name>`.
+- **Fix:** correct the import, or add the package with `bun add <name>`. For grammars, math
+  or the web target, install the whole set that
+  [Optional packages](/docs/reference/optional-packages/) lists.
 - **Check:** `bun run build` succeeds.
 
 ### The build finds no `bun.lock`
@@ -97,6 +100,21 @@ prints:
 - **Check:** `echo $?` after the command prints `0`, not `2`.
 
 ## Building
+
+### A feature needs an optional package
+
+You use grammars, math or the web target without the packages that feature needs, and luciole
+prints:
+
+```text
+<feature> needs the optional package <name>, which is not installed
+```
+
+- **Cause:** `@luciole-sh/core` declares these packages as optional, so the app installs those
+  of the features it uses. The message names only the first missing package of the set.
+- **Fix:** run the feature's `bun add` command from
+  [Optional packages](/docs/reference/optional-packages/), which installs the whole set.
+- **Check:** `bun run build` succeeds. With math, the app draws its first formula.
 
 ### A save breaks the build during `luciole dev`
 
