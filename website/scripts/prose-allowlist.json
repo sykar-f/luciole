@@ -19,7 +19,6 @@
   "website/src/components/Hero.astro": 1,
   "website/src/content/docs/concepts/client-components.mdx": 6,
   "website/src/content/docs/guides/anatomy-of-an-app.mdx": 5,
-  "website/src/content/docs/guides/latency-and-faults.mdx": 9,
   "website/src/content/docs/guides/opening-an-app.mdx": 14,
   "website/src/content/docs/guides/terminals-and-panes.mdx": 3,
   "website/src/content/docs/guides/testing.mdx": 2,

@@ -30,7 +30,7 @@ describe("the export of the docs", async () => {
       "*Type, check that the session file is written with mode 0600, then crash with SIGKILL.*",
     );
     expect(all).toContain(
-      "*The faults are checked in the order given; a fault without a probability always happens.*",
+      "*The faults are tried in the order given. A fault without a probability always happens.*",
     );
   });
 
