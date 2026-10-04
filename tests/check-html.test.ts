@@ -147,6 +147,17 @@ describe("what is not a document of the site", () => {
     expect(code).toBe(0);
   });
 
+  test("a redirect needs no structure, and its target is checked", async () => {
+    const redirect = (to: string) =>
+      `<!doctype html><title>Redirecting to: ${to}</title><meta http-equiv="refresh" content="0;url=${to}"><meta name="robots" content="noindex"><body><a href="${to}">Redirecting</a></body>`;
+    const green = await check({ ...good, "/old/": redirect("/docs/#start") });
+    expect(green.out).toContain("no problem");
+    expect(green.code).toBe(0);
+    const red = await check({ ...good, "/old/": redirect("/docs/#gone") });
+    expect(red.err).toContain("/old/: link to /docs/#gone: no #gone on /docs/");
+    expect(red.code).toBe(1);
+  });
+
   test("a demo application is exempt, and the links into it are checked", async () => {
     const link = (href: string) => page("/", { body: `<h1>Home</h1><a href="${href}">demo</a>` });
     const green = await check({
