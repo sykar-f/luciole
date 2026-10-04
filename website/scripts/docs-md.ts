@@ -434,17 +434,23 @@ export function toMarkdown(mdx: string, page = "a page") {
         out.push(...quoted(["```sh", ...strings(list), "```"]));
         continue;
       }
-      // A Screen that is not self-closing holds its legend, up to its closing tag.
+      // A Screen that is not self-closing holds its legend, up to its closing tag, which
+      // may sit on a line of its own or end the legend's last line.
       const body: string[] = [];
       if (tag === "Screen" && !/\/>\s*$/.test(whole)) {
-        const close = lines.findIndex((line, j) => j > i && /^\s*<\/Screen>\s*$/.test(line));
+        const opened = (lines[i] ?? "").slice((whole.split("\n").at(-1) ?? "").length);
+        const rest = [opened, ...lines.slice(i + 1)].join("\n");
+        const close = rest.indexOf("</Screen>");
         if (close < 0) throw new Error(`docs-md: a <Screen> in ${page} never closes.`);
-        const held = lines.slice(i + 1, close);
+        const after = rest.slice(close + "</Screen>".length).split("\n")[0] ?? "";
+        if (after.trim())
+          throw new Error(`docs-md: text after </Screen> on its line in ${page}: ${after.trim()}`);
+        const held = rest.slice(0, close).split("\n");
+        i += held.length - 1;
         const indent = Math.min(
           ...held.filter((line) => line.trim()).map((line) => /^\s*/.exec(line)?.[0].length ?? 0),
         );
         body.push(...held.map((line) => prose(line.slice(indent)).trimEnd()));
-        i = close;
       }
       const markdown = figure(tag, attributes(whole), body);
       if (!markdown) {

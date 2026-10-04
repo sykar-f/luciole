@@ -109,6 +109,22 @@ describe("a figure in Markdown", () => {
     ).toThrow("a <Screen> in a.mdx never closes");
   });
 
+  test("a legend whose last line, or whose Screen's line, holds the closing tag", () => {
+    const closing = toMarkdown(
+      page(
+        `<Screen frame="notes" caption="Notes." marks>\n\n1. The list.\n2. The note.</Screen>\n\nAfter.`,
+      ),
+    );
+    expect(closing).toContain("*Notes.*\n\n1. The list.\n2. The note.\n\nAfter.");
+    const one = toMarkdown(
+      page(`<Screen frame="notes" caption="Notes." marks>1. The list.</Screen>`),
+    );
+    expect(one).toContain("*Notes.*\n\n1. The list.\n");
+    expect(() =>
+      toMarkdown(page(`<Screen frame="notes" caption="Notes." marks>1. A.</Screen> more`), "a.mdx"),
+    ).toThrow("text after </Screen> on its line in a.mdx: more");
+  });
+
   test("a sequence: its steps, numbered under their phases, and its caption", () => {
     const markdown = toMarkdown(
       page(`<Sequence
