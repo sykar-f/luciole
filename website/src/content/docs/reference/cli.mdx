@@ -7,14 +7,15 @@ sources:
   - packages/core/src/luciolex.ts
 ---
 
+import CopyCommand from "../../../components/CopyCommand.astro";
 import Excerpt from "../../../components/guide/Excerpt.astro";
 import Note from "../../../components/docs/Note.astro";
 import { commands } from "../../../lib/product";
 
-The package declares two commands: `luciole` and `luciolex`. In a clone of the repository,
-
-<code>{commands.fromClone}</code> runs the same CLI without installing anything; a starter calls the
-installed `luciole` from its scripts.
+`@luciole-sh/core` declares two commands: `luciole` and `luciolex`. The install package,
+`luciole.sh`, declares only `luciole`: <code>{commands.fromNpm}</code> runs it without installing
+it. In a clone of the repository, <code>{commands.fromClone}</code> runs the same CLI from its
+sources. An app made by `init` calls the installed `luciole` from its scripts.
 
 ```text
 luciole <subcommand> [options] [-- app arguments]
@@ -23,9 +24,16 @@ luciole                         open the launcher
 ```
 
 A first argument that is no subcommand and does not start with `-` is a target to launch.
-The CLI's own flags come before `--`; what follows `--` belongs to the app
-([app arguments](/docs/reference/app-arguments/)). A flag that needs a value and gets none is
-refused. A usage error exits with code 2, any other error with 1.
+
+Every subcommand reads its flags by the same rules:
+
+- The CLI's own flags come before `--`. What follows `--` belongs to the app
+  ([app arguments](/docs/reference/app-arguments/)), even a word that looks like a CLI flag.
+- `--app dir` names the app for `dev`, `build`, `start` and `connect`. Without it, they work
+  on the current directory.
+- A flag that needs a value and gets none is refused, naming the flag: `luciole build --app`
+  prints `--app needs a value`.
+- A usage error exits with code 2, any other error with 1.
 
 <Excerpt
   path="packages/core/src/commands/index.ts"
@@ -37,12 +45,21 @@ refused. A usage error exits with code 2, any other error with 1.
 
 ## Develop
 
-### `luciole init <dir>`
+### `luciole init [dir]`
 
-Creates a starter in `<dir>` (default `my-luciole-app`), which must be empty: a copy of Notes,
-a `package.json` whose `@luciole-sh/core` dependency points at this checkout (`file:`), a
-`tsconfig.json` extending `@luciole-sh/core/tsconfig`, Oxlint, Oxfmt and VS Code settings. Then
+Creates an app in `dir` (default `my-luciole-app`), which must be absent or empty. The app is
+a copy of Notes with its own `package.json`, a `tsconfig.json` extending
+`@luciole-sh/core/tsconfig`, Oxlint, Oxfmt and VS Code settings, and `.bun-version`. Then run
 `bun install` and `bun run dev` in it.
+
+How `init` makes the app depends on where `luciole` runs from:
+
+| `luciole` runs from                                           | `init` runs                                                   | The app's `@luciole-sh/core`                                                          |
+| ------------------------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| An installed package (<code>{commands.fromNpm}</code> too)    | `bunx @luciole-sh/create@<version>`, at the CLI's own version | `^<version>`, from npm                                                                |
+| A clone of the repository (<code>{commands.fromClone}</code>) | `packages/create/scripts/stage.ts --workspace`                | `file:` the clone's `packages/core`; other workspace packages are copied to `vendor/` |
+
+A `file:` dependency ties the app to the clone, which has to stay where it is.
 
 ### `luciole dev [--app dir] [-- app arguments]`
 
@@ -50,8 +67,7 @@ Builds the app, starts its Server and Client, and rebuilds on every change to a 
 `.tsx`, `.js` or `.jsx` file (not `.luciole/`, `node_modules/` or `routeTree.gen.ts`). A
 build error shows in the running Client and leaves it usable; a good rebuild restarts both
 processes, and the Client reopens the same page with its history, named fields and bearer.
-`--app` defaults to `examples/notes`. The app's arguments are checked after every build;
-`-- --help` prints them.
+The app's arguments are checked after every build; `-- --help` prints them.
 
 The run ends with the Client: quitting it stops the Server too, and `luciole dev` exits with the
 Client's own exit code (1 if a signal killed it), so a host that runs it can tell a crash from a
@@ -70,7 +86,7 @@ app's shell needs instead.
 
 | Option                                  | Effect                                                                                                    |
 | --------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| `--app dir`                             | The app to build (default `examples/notes`).                                                              |
+| `--app dir`                             | The app to build (default: the current directory).                                                        |
 | `--app-bundle`                          | Fail if the app bundle (`.luciole/app/`) cannot be produced, instead of warning.                          |
 | `--sign-bundle`                         | Sign the app bundle's manifest with the publisher key (`luciole keys`); implies `--app-bundle`.           |
 | `--web`                                 | Add `.luciole/web/`, the browser runtime served by the Server.                                            |
@@ -120,6 +136,24 @@ Resolves the target and launches it ([opening an app](/docs/guides/opening-an-ap
 directory (a path or a git source) also takes `--grace <duration>`, and the app's own
 options. `--yes` accepts installs and new repositories without asking. URLs take the
 sandbox flags of [apps you did not write](/docs/guides/untrusted-apps/#capabilities).
+
+### `luciole example [name] [--yes] [-- app arguments]`
+
+Runs an example app of this release, taken from the git tag `v<version>` of the luciole
+repository. It needs git and the network:
+
+- Without a name, it lists the examples that tag holds.
+- With a name, it launches `examples/<name>` at that tag as a git source
+  ([opening an app](/docs/guides/opening-an-app/)). An unknown name is refused with the list.
+- The launcher asks before running a repository; `--yes` accepts.
+- What follows `--` goes to the app.
+
+`LUCIOLE_EXAMPLES_REPO`, a git URL, takes the examples from another repository, such as a
+fork. A development version has no tag, so it has no examples to list.
+
+To run Notes without installing luciole:
+
+<CopyCommand lines={[`${commands.fromNpm} example notes`]} />
 
 ### `luciolex <target>`
 
