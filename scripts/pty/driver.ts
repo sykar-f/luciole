@@ -11,6 +11,7 @@
  * startup are answered, waits only succeed on a complete synchronized-output frame, and a
  * failed wait reports what the screen showed.
  */
+import { afterEach } from "bun:test";
 import { createTestRenderer, type TestRendererSetup } from "@opentui/core/testing";
 import { VtTerminalRenderable } from "../../packages/core/src/vt/gaps";
 import { environment } from "./harness";
@@ -31,8 +32,15 @@ const QUERIES: ReadonlyArray<readonly [string, string]> = [
 ];
 const LONGEST_QUERY = Math.max(...QUERIES.map(([query]) => query.length));
 const POLL_MS = 20;
-const DEFAULT_TIMEOUT_MS = 15_000;
-const EXIT_TIMEOUT_MS = 5000;
+/**
+ * How long a wait for the screen, or for the program to end, lasts unless told otherwise:
+ * the guard against a hang, which says nothing of how fast the program should be. Under a
+ * loaded host a startup, a request or an exit lands late; a bound taken on an idle machine
+ * would then fail the machine, not the program. The suite's WAIT_MS (tests/helpers.ts).
+ */
+const HANG_MS = 30_000;
+/** How long the program has to end on SIGTERM when the journey is done, before SIGKILL. */
+const TERM_GRACE_MS = 5000;
 /** How long a lone ESC waits before the next key, not to be read as Alt+key. */
 const LONE_ESCAPE_MS = 300;
 const FAILURE_OUTPUT_TAIL = 3000;
@@ -104,6 +112,37 @@ const hex = (ints: readonly number[]) =>
     .slice(0, 3)
     .map((value) => value.toString(HEX).padStart(2, "0"))
     .join("");
+
+/**
+ * The driver's waits still running. A test (tests/desktop.test.ts) that bun's timeout ends
+ * before HANG_MS would leave its wait running, to throw later between other tests. After
+ * each test, a wait still running prints what it would have reported under that test, then
+ * stops where it stands, as `until` does in tests/helpers.ts.
+ */
+type Wait = { start: number; report: () => string; park: () => void };
+const waiting = new Set<Wait>();
+try {
+  afterEach(() => {
+    for (const wait of waiting) {
+      const ms = Math.round(performance.now() - wait.start);
+      console.error(`The test ended while a PTY wait still ran, after ${ms} ms: ${wait.report()}`);
+      wait.park();
+    }
+    waiting.clear();
+  });
+} catch {
+  // Outside bun test (bun scripts/pty/*.ts): no test ends a wait.
+}
+/** A wait to watch; `parked` resolves once the test that started it has ended. */
+function watched(report: () => string) {
+  let park = () => {};
+  const parked = new Promise<"parked">((done) => (park = () => done("parked")));
+  const wait = { start: performance.now(), report, park };
+  waiting.add(wait);
+  return { parked, done: () => waiting.delete(wait) };
+}
+/** Never settles: what an abandoned test would run after its wait never runs. */
+const abandoned = () => new Promise<never>(() => {});
 
 /** The screen a terminal shows for the bytes it was given. */
 class Screen {
@@ -202,8 +241,8 @@ export class Driver implements AsyncDisposable {
       before: this.before,
     } = parts);
     this.settle = options.settle ?? 0;
-    this.timeout = options.timeout ?? DEFAULT_TIMEOUT_MS;
-    this.exitTimeout = options.exitTimeout ?? EXIT_TIMEOUT_MS;
+    this.timeout = options.timeout ?? HANG_MS;
+    this.exitTimeout = options.exitTimeout ?? HANG_MS;
     this.drained = this.child.exited.then(async () => {
       while (performance.now() - this.lastOutput < DRAIN_QUIET_MS) await Bun.sleep(POLL_MS);
     });
@@ -348,16 +387,19 @@ export class Driver implements AsyncDisposable {
    */
   async waitFor(needle: Needle, options: WaitOptions = {}) {
     const deadline = performance.now() + (options.timeout ?? this.timeout);
-    for (;;) {
-      const now = performance.now();
-      if (this.frameComplete() && matches(needle, await this.text()) !== Boolean(options.absent))
-        return now;
-      if (now > deadline)
-        throw this.failure(
-          `${options.absent ? "the screen kept" : "the screen never showed"} ${describe(needle)}`,
-          await this.text(),
-        );
-      await Bun.sleep(POLL_MS);
+    const what = `${options.absent ? "the screen kept" : "the screen never showed"} ${describe(needle)}`;
+    const wait = watched(() => this.failure(what).message);
+    try {
+      for (;;) {
+        const now = performance.now();
+        if (this.frameComplete() && matches(needle, await this.text()) !== Boolean(options.absent))
+          return now;
+        if (now > deadline) throw this.failure(what, await this.text());
+        if ((await Promise.race([Bun.sleep(POLL_MS), wait.parked])) === "parked")
+          return abandoned();
+      }
+    } finally {
+      wait.done();
     }
   }
   /** Lets the program run for `ms`, its output still read and answered. */
@@ -396,12 +438,22 @@ export class Driver implements AsyncDisposable {
   }
   /** Waits for the program to end and its output to be read; its exit status (null for a signal). */
   async exited(timeout = this.exitTimeout) {
-    const done = await Promise.race([
-      this.drained.then(() => true),
-      Bun.sleep(timeout).then(() => false),
-    ]);
-    if (!done) throw this.failure(`the program is still running after ${timeout} ms`);
-    return this.child.exitCode;
+    const wait = watched(() => this.failure("the program is still running").message);
+    // Cleared once the wait ends: a pending guard would keep a finished journey alive.
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const done = await Promise.race([
+        this.drained.then(() => true),
+        new Promise<false>((late) => (timer = setTimeout(() => late(false), timeout))),
+        wait.parked,
+      ]);
+      if (done === "parked") return abandoned();
+      if (!done) throw this.failure(`the program is still running after ${timeout} ms`);
+      return this.child.exitCode;
+    } finally {
+      clearTimeout(timer);
+      wait.done();
+    }
   }
   /** Fails unless the termios flags are those the PTY had before the program started. */
   assertRestored() {
@@ -424,7 +476,7 @@ export class Driver implements AsyncDisposable {
   async [Symbol.asyncDispose]() {
     if (this.running) {
       this.signalGroup("SIGTERM");
-      if (!(await Promise.race([this.child.exited.then(() => true), Bun.sleep(EXIT_TIMEOUT_MS)])))
+      if (!(await Promise.race([this.child.exited.then(() => true), Bun.sleep(TERM_GRACE_MS)])))
         this.signalGroup("SIGKILL");
       await this.child.exited;
     }
