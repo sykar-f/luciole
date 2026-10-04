@@ -12,8 +12,6 @@ import { ctrl, drive } from "../scripts/pty/driver";
 import { BUILD_TEST_MS, launch, privateBuild } from "./helpers";
 
 const built = await privateBuild("examples/notes");
-// Long enough for a Ctrl+C that quits to have ended the Client.
-const QUIT_WINDOW_MS = 500;
 let dir: string;
 let server: Awaited<ReturnType<typeof launch>>;
 
@@ -49,8 +47,10 @@ async function openWindow(state: string) {
 test("Ctrl+C reaches the application instead of quitting", async () => {
   const state = join(dir, "ctrl-c");
   await using window = await openWindow(state);
-  window.write(ctrl("c"));
-  await Bun.sleep(QUIT_WINDOW_MS);
+  // Keys are read in order: once the Ctrl+T after it has shown Notes' debug overlay, the
+  // Ctrl+C was handled. A quit would have deleted the session file then, synchronously.
+  window.write(ctrl("c") + ctrl("t"));
+  await window.waitFor(/requests \d+ · open/);
   expect(window.running).toBe(true);
   expect(await sessions(state)).toHaveLength(1);
 });
