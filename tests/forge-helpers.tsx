@@ -146,6 +146,9 @@ export async function startForge(built: PrivateBuild, options: Options = {}) {
   }
   async function stop() {
     await act(async () => ui.renderer.destroy());
+    // The calls still on the wire end before the Server they talk to stops. After the
+    // unmount: it aborts the live streams (useLive), which would hold the wire open.
+    await requests.settled().catch(() => {});
     await server.stop();
     db.close();
     await rm(temp, { recursive: true, force: true });
