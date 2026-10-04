@@ -22,6 +22,7 @@ const projects = [
   "packages/markdown-editor",
   "packages/markdown-editor/scripts",
   "packages/markdown-editor/test",
+  "packages/markdown-editor/example",
   "examples/notes",
   "examples/latency",
   "examples/forge",
