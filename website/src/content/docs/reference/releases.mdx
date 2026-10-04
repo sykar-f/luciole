@@ -70,17 +70,32 @@ Each break is listed in the CHANGELOG, under **Changed** or **Removed**, and mar
 
 ## Upgrade an app
 
-Upgrade from the app's directory.
+Upgrade from the app's directory. A patch and a minor take different commands:
+
+- A starter asks for a range of each luciole package, such as `^0.1.0`. Before 1.0, that range
+  accepts the 0.1.x patches and no 0.2 release.
+- `bun update` stays inside the range. `bun update --latest` moves the range to the newest
+  release.
 
 1. Update the luciole packages the app's `package.json` lists. A starter lists
-   `@luciole-sh/core`, and `@luciole-sh/flow-graph` or `@luciole-sh/markdown-editor` when the
-   app uses them:
+   `@luciole-sh/core` and `@luciole-sh/markdown-editor`. Add `@luciole-sh/flow-graph` and
+   `luciole.sh` to the command when the app lists them.
+
+   For a patch, such as 0.1.0 → 0.1.1:
 
    ```sh
-   bun update @luciole-sh/core
+   bun update @luciole-sh/core @luciole-sh/markdown-editor
    ```
 
-   Add the other packages to the command. Add `luciole.sh` only if the app lists it.
+   For a minor, such as 0.1.x → 0.2.0:
+
+   ```sh
+   bun update --latest @luciole-sh/core @luciole-sh/markdown-editor
+   ```
+
+   `--latest` rewrites each range, `^0.1.0` to `^0.2.0` for instance. To stop at one minor
+   when a newer one exists, name it: `bun add @luciole-sh/core@^0.2.0`, and the same for each
+   package.
 
 2. Read the [CHANGELOG](https://github.com/sykar-f/luciole/blob/main/CHANGELOG.md) for every
    release between your version and the new one. Look for the entries marked **Breaking**,
