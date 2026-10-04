@@ -1,4 +1,4 @@
-import { afterAll, beforeEach, expect, test } from "bun:test";
+import { afterAll, afterEach, beforeEach, expect, setSystemTime, test } from "bun:test";
 import React from "react";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -28,6 +28,18 @@ async function rejectionOf(promise: Promise<unknown>): Promise<unknown> {
   throw new Error("Expected a rejection, the promise resolved");
 }
 
+// Where the guard against a hang ends a wait: below the 20 s of the test timeout, so that
+// the failure says what was awaited. How soon the event comes says nothing of the code.
+const WAIT_MS = 10_000;
+// tests/helpers.ts `until`, which this file cannot import (see above).
+async function until(check: () => boolean, timeout = WAIT_MS) {
+  const start = performance.now();
+  while (!check()) {
+    if (performance.now() - start > timeout) throw new Error("Condition timed out");
+    await Bun.sleep(1); // the polling interval of this wait, not a wait of its own
+  }
+}
+
 // The runtime keeps one configuration per process, as `serve()` sets it: each test starts
 // with a fresh handler, and the events it caused.
 let events: CacheEvent[] = [];
@@ -41,6 +53,8 @@ const use = (handler: CacheHandler = memoryCache()) => {
   });
 };
 beforeEach(() => use());
+// A test that moved the clock (`setSystemTime`) gives it back to the next.
+afterEach(() => setSystemTime());
 const ops = () => events.map((e) => e.op);
 
 test("a result is computed once per arguments, then served from the cache", async () => {
@@ -89,15 +103,20 @@ test("an entry is served stale after revalidate, refreshed behind, and dropped a
     cacheLife({ revalidate: 0.05, expire: 0.5 });
     return ++runs;
   }, "server/q.ts#life");
+  // An entry's age is read from `Date.now()`: the test moves that clock, where a sleep
+  // would make it depend on the machine (a stall of 430 ms between two reads expires the
+  // entry before it is served stale).
+  const start = Date.now();
+  setSystemTime(start);
   expect(await read()).toBe(1);
-  await Bun.sleep(70);
+  setSystemTime(start + 70);
   // Stale: the old value at once, a new one computed behind it.
   expect(await read()).toBe(1);
   expect(ops()).toEqual(["write", "miss", "stale"]);
-  while (ops().length < 4) await Bun.sleep(1);
+  await until(() => ops().length >= 4);
   expect(ops()[3]).toBe("write");
   expect(await read()).toBe(2);
-  await Bun.sleep(550);
+  setSystemTime(start + 70 + 550);
   expect(await read()).toBe(3);
   expect(ops().slice(-2)).toEqual(["write", "miss"]);
 });
@@ -200,7 +219,7 @@ test("streams, elements and functions are not cacheable", async () => {
 test("concurrent calls share one computation; an invalidation starts a new one", async () => {
   let runs = 0;
   let release = () => {};
-  const gate = new Promise<void>((resolve) => (release = resolve));
+  let gate = new Promise<void>((resolve) => (release = resolve));
   const slow = cached(async () => {
     cacheTag("slow");
     runs++;
@@ -208,17 +227,31 @@ test("concurrent calls share one computation; an invalidation starts a new one",
     return runs;
   }, "server/q.ts#slow");
   const first = slow();
+  // The computation runs, held at the gate: it is the one the next callers join.
+  await until(() => runs === 1);
   const second = slow();
-  await Bun.sleep(5);
-  // Invalidated while computing: later callers do not join, and the old result is not kept.
-  await invalidateTags(["slow"]);
-  const third = slow();
-  await Bun.sleep(5);
+  // The second caller joins it, or reads its result once the gate opened: either way it
+  // does not compute, and no event tells which, so the gate opens at once.
   release();
-  expect(await Promise.all([first, second, third])).toEqual([2, 2, 2]);
-  expect(runs).toBe(2);
+  expect(await Promise.all([first, second])).toEqual([1, 1]);
+  expect(runs).toBe(1);
   expect(ops().filter((op) => op === "write")).toHaveLength(1);
   expect(ops()).toContain("hit");
+
+  // Invalidated while computing: later callers do not join, and the old result is not kept.
+  use();
+  runs = 0;
+  gate = new Promise<void>((resolve) => (release = resolve));
+  const early = slow();
+  await until(() => runs === 1);
+  await invalidateTags(["slow"]);
+  const late = slow();
+  // The new computation started: it did not join the invalidated one.
+  await until(() => runs === 2);
+  release();
+  expect(await Promise.all([early, late])).toEqual([2, 2]);
+  expect(runs).toBe(2);
+  expect(ops().filter((op) => op === "write")).toHaveLength(1);
 });
 
 test("nested cached calls pass their tags and life to the caller", async () => {
