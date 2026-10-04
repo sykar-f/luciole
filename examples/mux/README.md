@@ -1,57 +1,86 @@
-# mux : multiplexeur local
+# mux: a local multiplexer
 
-Des programmes locaux côte à côte, chacun sur son PTY, dans une application luciole :
-un petit tmux construit avec `<Terminal>` (`@luciole-sh/core/client`). C'est le mode `process` de
-[EMBEDDING.md](../../docs/EMBEDDING.md) : aucune isolation, les programmes ont vos droits.
+mux puts local programs side by side, each in its own pane on a pseudo-terminal. It is a small tmux built with `<Terminal>` from `@luciole-sh/core/client`. A pane can also hold another luciole app, shown inline with `<Embed>`.
 
-## Lancement
+The programs run with your rights and without isolation. This is the `process` mode of [docs/EMBEDDING.md](../../docs/EMBEDDING.md).
 
-Sans cloner le dépôt : `luciole example mux` lance cet exemple depuis le tag git de la
-version de luciole installée ([docs/DISTRIBUTION.md](../../docs/DISTRIBUTION.md#exemples)).
-Les variables d'environnement et les clés ci-dessous s'appliquent de la même façon.
+## How do you run it?
 
-Depuis la racine du monorepo (les dépendances sont `workspace:*` et `catalog:` : l'exemple
-ne se lance pas depuis son propre dossier). Prérequis : Bun 1.4.2 et `bun install
---frozen-lockfile` une fois. Aucune clé API, aucun réseau ;
-les programmes des panes (`$SHELL`, `vim`, `htop`…) doivent être installés.
+You need Bun and the programs of the panes installed, such as `$SHELL`, `vim` or `htop`.
 
 ```sh
-bun run mux                                              # votre shell, et vim s'il est installé
+bunx luciole.sh example mux
+```
+
+From a clone of the repository, run this from its root:
+
+```sh
+bun install --frozen-lockfile
+bun run mux
+```
+
+`bun run mux` is `luciole dev --app examples/mux`. No API key and no network are needed.
+
+It opens your `$SHELL` and, when `vim` is installed, `vim`. To choose the programs, pass a JSON list of commands:
+
+```sh
 MUX_PANES='[["htop"],["vim","README.md"]]' bun run mux
 ```
 
-`bun run mux` est `luciole dev --app examples/mux`.
+## What can you try?
 
-Un pane peut aussi être une autre application luciole, affichée inline (`<Embed>`) avec
-son Server déjà lancé : son bundle d'application (`.luciole/app`, sans runtime) est évalué
-contre le runtime du multiplexeur.
+Ctrl+O is the only key mux keeps. Press it, then one of these keys:
+
+| Keys              | Action                         |
+| ----------------- | ------------------------------ |
+| `Ctrl+O` then `o` | go to the next pane            |
+| `Ctrl+O` then `c` | open a new shell               |
+| `Ctrl+O` then `v` | open vim, when it is installed |
+| `Ctrl+O` then `x` | close the active pane          |
+| `Ctrl+O` then `q` | quit                           |
+| click             | give the keys to that pane     |
+
+Every other key goes to the active pane, Ctrl+C included. A pane closes when its program exits, and mux quits when the last pane closes.
+
+### Put a luciole app in a pane
+
+Build the app, start its Server, then list it in `MUX_APPS`. This example uses `mdreader`:
 
 ```sh
-bun packages/core/src/cli.ts build --app examples/mdreader               # produit .luciole/
-bun --conditions=react-server examples/mdreader/.luciole/server/index.js &   # PORT=3000
+bun packages/core/src/cli.ts build --app examples/mdreader
+bun --conditions=react-server examples/mdreader/.luciole/server/index.js &
 MUX_APPS='[{"name":"docs","bundle":"examples/mdreader/.luciole/app","url":"http://127.0.0.1:3000"}]' bun run mux
 ```
 
-Mêmes touches, même préfixe : `Ctrl+O` passe d'un terminal à l'application et
-inversement ; dans l'application, `Ctrl+C` ferme son pane. `inline` = confiance totale :
-l'application tourne dans le processus du multiplexeur.
+The Server of `mdreader` listens on port 3000 unless `PORT` says otherwise. The app pane takes the same keys: Ctrl+O moves between panes, and Ctrl+C inside the app closes its pane.
 
-Au départ : votre `$SHELL` et, si vim est installé, vim. Un pane dont le programme se
-termine se ferme ; le dernier ferme le multiplexeur.
+## How is it built?
 
-| Touches           | Action                                       |
-| ----------------- | -------------------------------------------- |
-| `Ctrl+O` puis `o` | pane suivant                                 |
-| `Ctrl+O` puis `c` | nouveau shell                                |
-| `Ctrl+O` puis `v` | vim (s'il est installé)                      |
-| `Ctrl+O` puis `x` | fermer le pane actif                         |
-| `Ctrl+O` puis `q` | quitter                                      |
-| clic              | donner les touches au pane                   |
-| tout le reste     | au programme du pane actif, `Ctrl+C` compris |
+Open these first:
 
-Les panes vivent dans le layout racine (`components/Mux.tsx`) : ils persistent quelle
-que soit la page. La ligne d'aide est la page, rendue par le Server.
+- `components/Mux.tsx`: the panes, the Ctrl+O keys and the `MUX_PANES` and `MUX_APPS` parsing.
+- `app/layout.tsx`: mounts `<Mux>` as the root layout, so the panes stay alive whatever the page shows.
+- `app/page.tsx`: the help line, rendered by the Server.
 
-Smoke PTY : `bun run test:pty:mux` (shell et vim, `Ctrl+C` vers le shell, préfixe,
-fermeture d'un pane, redimensionnement, sortie sans programme orphelin ; puis mdreader
-inline à côté d'un shell).
+## Which environment variables does it read?
+
+| Variable    | Default             | Effect                                                                                                  |
+| ----------- | ------------------- | ------------------------------------------------------------------------------------------------------- |
+| `MUX_PANES` | `$SHELL`, and `vim` | JSON list of commands, one per pane. Each command is a list of strings.                                 |
+| `MUX_APPS`  | none                | JSON list of luciole apps. Each has a `name`, the built `bundle` directory and the `url` of its Server. |
+| `SHELL`     | `/bin/sh`           | Program of the first pane and of each new shell.                                                        |
+
+## What are its limits?
+
+- Panes have no isolation. A pane's program can do whatever you can.
+- An app pane runs inside the multiplexer's process, so it has full trust.
+- An app pane needs its Server already running. mux does not start it.
+- `MUX_PANES` and `MUX_APPS` must be valid JSON of the shape above. An invalid value throws at startup and does not fall back to the defaults.
+
+## How do you test it?
+
+```sh
+bun run test:pty:mux
+```
+
+It runs a shell and vim side by side, sends Ctrl+C to the shell, uses the prefix, closes a pane, resizes the window and checks that no program stays behind. Then it runs `mdreader` inline beside a shell.
