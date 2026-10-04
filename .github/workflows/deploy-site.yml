@@ -1,0 +1,77 @@
+name: Deploy site
+# Publishes website/ to luciole.sh (Cloudflare Workers static assets, website/wrangler.jsonc).
+# It runs once CI has finished on a push to main, and deploys only when that run succeeded
+# and its commit is still the tip of main: a CI run that ends after a newer push's run does
+# not put an older site back. A pull request's CI run never deploys, nor does any other branch.
+# The owner's one-time setup (the token, the two secrets, the first deploy): website/README.md.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+permissions:
+  contents: read
+# One deploy at a time; a newer one waits for the one in progress instead of cutting its
+# upload short.
+concurrency:
+  group: deploy-site
+  cancel-in-progress: false
+jobs:
+  tip:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      current: ${{ steps.tip.outputs.current }}
+    steps:
+      - name: The commit CI passed is still the tip of main
+        id: tip
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          tip=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq .object.sha)
+          if [ "$tip" = "$SHA" ]; then
+            echo "current=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::main is at $tip, past $SHA: the run for $tip deploys it."
+            echo "current=false" >> "$GITHUB_OUTPUT"
+          fi
+  deploy:
+    needs: tip
+    if: needs.tip.outputs.current == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+      - uses: oven-sh/setup-bun@v2.2.0
+        with:
+          bun-version: 1.4.2
+      # A fresh runner has no web runtime in its cache: `bun run demo` prepares it, which
+      # builds OpenTUI's core with Zig 0.16.0, exactly (packages/core/src/web-runtime.ts).
+      - name: Zig 0.16.0
+        env:
+          ZIG_TARBALL: https://ziglang.org/download/0.16.0/zig-x86_64-linux-0.16.0.tar.xz
+          ZIG_SHA256: 70e49664a74374b48b51e6f3fdfbf437f6395d42509050588bd49abe52ba3d00
+        run: |
+          set -euo pipefail
+          curl -fsSLo "$RUNNER_TEMP/zig.tar.xz" "$ZIG_TARBALL"
+          echo "$ZIG_SHA256  $RUNNER_TEMP/zig.tar.xz" | sha256sum -c -
+          tar -xJf "$RUNNER_TEMP/zig.tar.xz" -C "$RUNNER_TEMP"
+          echo "ZIG=$RUNNER_TEMP/zig-x86_64-linux-0.16.0/zig" >> "$GITHUB_ENV"
+      # The demos are built by the framework's CLI from the checkout: the root's packages too.
+      - run: bun install --frozen-lockfile
+      - run: bun install --frozen-lockfile
+        working-directory: website
+      - run: bun run deploy
+        working-directory: website
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

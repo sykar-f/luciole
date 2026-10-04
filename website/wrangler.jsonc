@@ -1,0 +1,21 @@
+// The site on Cloudflare: a Worker with static assets and no script of its own, serving
+// dist/ (`bun run deploy` builds the demos into public/demo/, then dist/, then uploads it).
+// The owner's first deploy and its credentials: README.md, « Le déploiement ».
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "luciole-website",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "./dist",
+    // Astro writes each page as <page>/index.html: /docs/x answers with a redirect to
+    // /docs/x/, the URL the sitemap and the canonical links name.
+    "html_handling": "auto-trailing-slash",
+    // An unknown URL gets dist/404.html (src/pages/404.astro) with a 404 status.
+    "not_found_handling": "404-page",
+  },
+  // luciole.sh only: no <name>.<subdomain>.workers.dev and no preview URL to index twice.
+  "workers_dev": false,
+  "preview_urls": false,
+  // A Custom Domain: the deploy attaches it and creates its DNS record and certificate.
+  "routes": [{ "pattern": "luciole.sh", "custom_domain": true }],
+}
