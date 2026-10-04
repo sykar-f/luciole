@@ -1,0 +1,19 @@
+.luciole/
+  icon.png
+  manifest.json
+  metadata.json
+  app/
+    index.cjs
+    index.cjs.map
+    manifest.json
+    <asset>-<hash>.scm, .wasm
+  bin/
+    <os>-<arch>/
+      notes
+  client/
+    index.js
+    index.js.map
+    <asset>-<hash>.scm, .wasm
+  server/
+    index.js
+    index.js.map
