@@ -8,6 +8,8 @@ sources:
   - packages/create/scripts/starter.ts
   - packages/core/src/restore.ts
   - docs/ARCHITECTURE.md
+  - tests/transport.test.tsx
+  - tests/http-transport.test.ts
 ---
 
 import Excerpt from "../../../components/guide/Excerpt.astro";
@@ -109,7 +111,9 @@ draws this save as a sequence of messages.
 ## What the framework does not do for you
 
 The atomic save and the lookup of a lost result are Notes' own code. The framework does not
-guarantee that a save runs exactly once, and it never retries a call.
+guarantee that a save runs exactly once. A call whose response is lost fails as `unknown`, and
+Notes decides what comes next. `tests/http-transport.test.ts` checks that outcome for a call
+that runs past its timeout while the Server finishes it.
 
 When a save's outcome is unknown, Notes looks the operation up on the Server:
 
@@ -117,6 +121,12 @@ When a save's outcome is unknown, Notes looks the operation up on the Server:
 - If the Server has no result, Notes sends the save again with the same ID. The repository
   applies an ID at most once.
 - If that fails too, the save stays unknown.
+
+`tests/transport.test.tsx` checks this lookup on Notes:
+
+- It stops the Server right after a save commits. Notes then looks the save up, and SQLite
+  holds the operation once.
+- It sends one save twice with the same ID, and gets the first result back.
 
 ## See also
 

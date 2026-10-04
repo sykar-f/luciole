@@ -12,6 +12,7 @@ sources:
   - examples/forge/actions/session.ts
   - examples/forge/components/LoginForm.tsx
   - examples/forge/components/AppChrome.tsx
+  - tests/auth.test.tsx
 ---
 
 import Note from "../../../components/docs/Note.astro";
@@ -192,6 +193,9 @@ to sign out. Here is a sign-in, then a sign-out on a protected page:
    loaded under one token never shows under another.
 4. It reloads the current routes with the new token.
 
+`tests/auth.test.tsx` checks step 3 twice: with a token changed before a navigation, and with
+one changed while a navigation waits for its answer. The previous user's page never shows.
+
 `setToken` does not navigate and touches no state of your app. After a sign-in or a
 sign-out, your app navigates where it wants. When the user changes, your app also clears its
 own unsaved text.
@@ -204,8 +208,11 @@ own unsaved text.
 
 ## What does the user see when a request is refused?
 
-A refused request gets a `401`. What the user sees depends on the request and on
-`unauthorizedPath`. The last column is `useConnection().status`, which a status line shows.
+A refused request gets a `401`. `tests/auth.test.tsx` sends a request straight to the Server,
+without the token, and gets that `401`.
+
+What the user sees depends on the request and on `unauthorizedPath`. The last column is
+`useConnection().status`, which a status line shows.
 
 | Request                                                            | With `unauthorizedPath`                                                                             | Without `unauthorizedPath`                                                                    | Status                                     |
 | ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------ |
@@ -213,6 +220,9 @@ A refused request gets a `401`. What the user sees depends on the request and on
 | A refresh of the current route, such as after `setToken`           | The Client goes to `unauthorizedPath`.                                                              | The page leaves the screen. Its page slot shows the error, as after a refused navigation.     | `Authentication required`                  |
 | A Server Function call                                             | Nothing moves. The caller gets `AuthenticationRequired`, and its `loginPath` is `unauthorizedPath`. | Nothing moves. The caller gets `AuthenticationRequired`, and its `loginPath` is `undefined`.  | `Authentication required`                  |
 | A refresh that fails for another reason, such as a lost connection | The page stays, with its unsaved text.                                                              | The page stays, with its unsaved text.                                                        | `Disconnected`, with the reason in `error` |
+
+`tests/auth.test.tsx` checks the first three rows with `unauthorizedPath`, and the first two
+without it.
 
 The status lasts until a request succeeds. After a redirect, the `unauthorizedPath` page loads
 without error, so the status soon reads `Connected`.
