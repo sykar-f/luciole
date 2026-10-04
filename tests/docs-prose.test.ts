@@ -2,7 +2,13 @@ import { describe, expect, test } from "bun:test";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { type Finding, lintSource, ratchet, run } from "../website/scripts/prose-lint.ts";
+import {
+  type Finding,
+  lintSource,
+  ratchet,
+  readAllowlist,
+  run,
+} from "../website/scripts/prose-lint.ts";
 
 // The prose lint of website/STYLE.md. The docs must hold the ratchet of
 // website/scripts/prose-allowlist.json; the other tests pin each rule on text quoted from
@@ -12,20 +18,38 @@ const root = resolve(import.meta.dir, "..");
 const rulesOf = (source: string) =>
   lintSource("page.mdx", source).map(({ line, rule }) => `${line} ${rule}`);
 
-test("the docs and the README hold the allowlist's ratchet", () => {
-  const { files, errors } = run();
-  expect(files).toContain("README.md");
-  expect(files).toContain("website/src/content/docs/getting-started.mdx");
-  expect(errors).toEqual([]);
+describe("the docs and the README", () => {
+  const { files, findings, errors } = run();
+
+  test("hold the allowlist's ratchet", () => {
+    expect(files).toContain("README.md");
+    expect(files).toContain("website/src/content/docs/getting-started.mdx");
+    expect(errors).toEqual([]);
+  });
+
+  test("fail when a page's count drops and its entry does not", () => {
+    // The first listed page, as if a mission had fixed one finding and kept its entry.
+    const [path, count] = Object.entries(readAllowlist())[0] ?? ["", 0];
+    const found = findings.filter((finding) => finding.path === path).length;
+    expect(found).toBe(count);
+    expect(run([], { ...readAllowlist(), [path]: count + 1 }).errors).toEqual([
+      `${path}: ${count} findings, lower its count from ${count + 1} to ${count}`,
+    ]);
+  });
 });
 
 describe("the ratchet", () => {
   const finding = (path: string): Finding => ({ path, line: 1, rule: "long-sentence", detail: "" });
   const checked = ["a.mdx", "b.mdx"];
 
-  test("passes listed files at or under their count, and clean files off the list", () => {
+  test("passes listed files at their count, and clean files off the list", () => {
     expect(ratchet([finding("a.mdx"), finding("a.mdx")], { "a.mdx": 2 }, checked)).toEqual([]);
-    expect(ratchet([finding("a.mdx")], { "a.mdx": 2 }, checked)).toEqual([]);
+  });
+
+  test("refuses a listed file whose count drops: the entry follows it down", () => {
+    expect(ratchet([finding("a.mdx")], { "a.mdx": 2 }, checked)).toEqual([
+      "a.mdx: 1 findings, lower its count from 2 to 1",
+    ]);
   });
 
   test("refuses a finding in a file that is not on the list", () => {

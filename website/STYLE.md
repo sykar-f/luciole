@@ -254,6 +254,8 @@ count of findings. The list can only shrink. The test fails when:
 
 - a page that is not listed has a finding
 - a listed page has more findings than its count
+- a listed page has fewer findings than its count, so its count must come down and lock the
+  gain
 - a listed page has no finding left, so it must leave the list
 
 A mission that rewrites a page removes it from the list, or lowers its count.

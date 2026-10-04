@@ -6,8 +6,8 @@
  *
  * It prints one `path:line rule` per finding, then applies the ratchet of
  * prose-allowlist.json to the files it read: a file that is not listed must have no
- * finding, a listed file must not have more than its count, and a listed file with no
- * finding left must leave the list. The exit code is 1 when the ratchet fails.
+ * finding, and a listed file must have exactly its count, so that a file that improves
+ * locks its gain. The exit code is 1 when the ratchet fails.
  *
  * A finding can be silenced, with its reason, by a comment on the line before it:
  *   {/* prose-lint: allow long-sentence — a command's flags read as one unit *\/}
@@ -293,6 +293,8 @@ export function ratchet(findings: Finding[], allowlist: Allowlist, checked: stri
       errors.push(`${path}: no finding left, remove it from the allowlist`);
     } else if (count > allowed) {
       errors.push(`${path}: ${count} findings, the allowlist allows ${allowed}`);
+    } else if (count < allowed) {
+      errors.push(`${path}: ${count} findings, lower its count from ${allowed} to ${count}`);
     }
   }
   return errors;
