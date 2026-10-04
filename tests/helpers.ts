@@ -10,7 +10,7 @@ import type { MouseButton } from "@opentui/core/testing";
 import type { testRender } from "@opentui/react/test-utils";
 import { z } from "zod";
 import { build, type BuildOptions } from "../packages/core/src/build";
-import type { Application, ApplicationOptions } from "../packages/core/src/client";
+import type { Application, ApplicationOptions, TransportEvent } from "../packages/core/src/client";
 import { messageOf } from "../packages/core/src/guards";
 import { readJsonFile } from "../packages/core/src/package-json";
 import type { DraftStore } from "../examples/notes/components/draft";
@@ -229,6 +229,24 @@ export async function untilFrame(ui: TestUI, text: string, timeout = WAIT_MS) {
     if (performance.now() - start > timeout) throw new Error(timedOut(() => frame));
     await Bun.sleep(10);
   }
+}
+
+/**
+ * The requests `app` has on the wire, read from its transport events, and those that have
+ * finished (`end` or `error`), in order. A teardown awaits `settled()` before it stops the
+ * Server: a call left in flight, unawaited by the application or abandoned by a failed
+ * assertion, would otherwise be cut into an unhandled TransportError.
+ */
+export function wire(app: Pick<Application, "onEvent">) {
+  const open = new Set<number>();
+  const finished: Extract<TransportEvent, { type: "end" | "error" }>[] = [];
+  app.onEvent((event) => {
+    if (event.type === "request") open.add(event.id);
+    if (event.type !== "end" && event.type !== "error") return;
+    open.delete(event.id);
+    finished.push(event);
+  });
+  return { open, finished, settled: () => until(() => open.size === 0, WAIT_MS) };
 }
 
 /** What a generated Client's `createApp` takes: the build provides the rest. */
