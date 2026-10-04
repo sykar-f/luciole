@@ -1,12 +1,13 @@
 ---
 // Real lines of the checkout, found by anchors at build time. `mark` highlights the lines that
-// carry the point, so the eye goes there first.
+// carry the point, so the eye goes there first. A tone other than neutral names its side in
+// the bar, in words: the colour only repeats it.
 import { Code } from "astro:components";
 import type { BundledLanguage, ShikiTransformer } from "shiki";
 import { night } from "../../lib/codeTheme";
 import { excerpt, whole } from "../../lib/guide/source";
 import { source } from "../../lib/links";
-import type { Tone } from "../../lib/guide/tones";
+import { toneLabel, type Tone } from "../../lib/guide/tones";
 
 interface Props {
   path: string;
@@ -21,6 +22,9 @@ interface Props {
 }
 
 const { path, find, until, count, after, mark = [], tone = "neutral", caption } = Astro.props;
+// The French guide's pages say it in French.
+const sides: Record<Tone, string> = { client: "Client", server: "Server", wire: "Wire", build: "Build", neutral: "" };
+const side = Astro.url.pathname.startsWith("/guide/") ? toneLabel[tone] : sides[tone];
 const lang: BundledLanguage =
   Astro.props.lang ?? (path.endsWith(".rs") ? "rust" : path.endsWith(".json") ? "json" : "tsx");
 const picked = find === undefined ? { code: whole(path), start: 1, end: whole(path).split("\n").length } : excerpt(path, { find, until, count, after });
@@ -41,9 +45,10 @@ const transformers: ShikiTransformer[] = [
 ];
 ---
 
-<figure class={`excerpt tone-${tone}`}>
+<figure class={`excerpt tone-${tone}`} data-figure="excerpt" data-tone={tone}>
   <div class="bar">
     <a href={`${source(path)}#L${picked.start}${picked.end > picked.start ? `-L${picked.end}` : ""}`}>{name}<span>:{lines}</span></a>
+    {tone !== "neutral" && <span class="side" data-side={tone}>{side}</span>}
   </div>
   <Code code={picked.code} lang={lang} theme={night} transformers={transformers} />
   {caption && <figcaption>{caption}</figcaption>}
@@ -55,6 +60,10 @@ const transformers: ShikiTransformer[] = [
   }
 
   .bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
     padding: 7px 14px;
     border: 1px solid var(--rule);
     border-bottom: 0;
@@ -73,8 +82,16 @@ const transformers: ShikiTransformer[] = [
     color: var(--paper);
   }
 
-  .bar span {
+  .bar a span {
     color: var(--dim);
+  }
+
+  .side {
+    flex-shrink: 0;
+    color: var(--tone);
+    font-size: 0.7rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
   }
 
   .tone-client { --tone: var(--client); }
@@ -107,9 +124,11 @@ const transformers: ShikiTransformer[] = [
     padding: 0 16px;
   }
 
-  /* With marked lines, the rest steps back. */
-  .excerpt:has(:global(.marked)) :global(.line:not(.marked)) {
-    opacity: 0.55;
+  /* With marked lines, the rest steps back: one quiet colour, still read at 4.5:1
+     (--code-dimmed, checked by scripts/palettes.py), never a fade. */
+  .excerpt:has(:global(.marked)) :global(.line:not(.marked)),
+  .excerpt:has(:global(.marked)) :global(.line:not(.marked) span) {
+    color: var(--code-dimmed) !important;
   }
 
   .excerpt :global(.marked) {

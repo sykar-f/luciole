@@ -1,27 +1,24 @@
 ---
 // A sequence diagram laid out from its own labels: every gap between two lanes is as wide as
 // the longest label that crosses it, so no label overflows and none has to be placed by hand.
+// Its messages are also an ordered list, under the drawing: the same sequence as text, which
+// describes the drawing to a screen reader. Its styles are its own, so it reads the same in
+// the guide and in the docs (MDX).
+import { steps, uniqueId, type Lane, type Message } from "../../lib/transcripts";
 import type { Tone } from "../../lib/guide/tones";
-
-interface Lane {
-  id: string;
-  label: string;
-  sub?: string;
-  tone: Tone;
-}
-
-type Message =
-  | { from: string; to: string; label: string; n?: number; back?: boolean; tone?: Tone }
-  | { phase: string };
 
 interface Props {
   title: string;
   lanes: Lane[];
   messages: Message[];
-  caption?: string;
+  /** What the sequence shows, in a sentence or two. */
+  caption: string;
 }
 
 const { title, lanes, messages, caption } = Astro.props;
+if (!caption?.trim()) throw new Error(`Sequence « ${title} »: a caption is required.`);
+// The French guide's pages say it in French.
+const french = Astro.url.pathname.startsWith("/guide/");
 
 const CHAR = 6.9; // 11.5px IBM Plex Mono: 0.6em a character
 const HEAD_CHAR = 7.6;
@@ -83,7 +80,9 @@ for (const gap of gaps) xs.push(xs[xs.length - 1] + gap);
 const width = xs[xs.length - 1] + lastHead / 2 + PAD;
 const top = HEAD + FIRST_ROW;
 const height = top + messages.length * ROW + BOTTOM;
-const id = title.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+const id = uniqueId(Astro.locals, title.toLowerCase().replace(/[^a-z0-9]+/g, "-"));
+
+const groups = steps(title, lanes, messages);
 
 const tones: Tone[] = ["client", "server", "wire", "build", "neutral"];
 const rows = messages.map((message, i) => {
@@ -114,9 +113,15 @@ const rows = messages.map((message, i) => {
 });
 ---
 
-<figure>
+<figure data-figure="sequence">
   <div class="diagram">
-    <svg viewBox={`0 0 ${Math.ceil(width)} ${height}`} role="img" aria-label={title} style={`min-width: ${Math.min(Math.ceil(width), 600)}px`}>
+    <svg
+      viewBox={`0 0 ${Math.ceil(width)} ${height}`}
+      role="img"
+      aria-label={title}
+      aria-describedby={`${id}-steps`}
+      style={`min-width: ${Math.min(Math.ceil(width), 600)}px`}
+    >
       <defs>
         {
           tones.map((tone) => (
@@ -174,10 +179,83 @@ const rows = messages.map((message, i) => {
       }
     </svg>
   </div>
-  {caption && <figcaption>{caption}</figcaption>}
+  <figcaption>{caption}</figcaption>
+  <details class="steps">
+    <summary>{french ? "Les étapes, en texte" : "The steps as text"}</summary>
+    <div id={`${id}-steps`}>
+      {
+        groups.map((group) => (
+          <>
+            {group.phase && <p class="phase-name">{group.phase}</p>}
+            <ol start={group.steps[0]?.n}>
+              {group.steps.map((step) => (
+                <li value={step.n}>{step.text}</li>
+              ))}
+            </ol>
+          </>
+        ))
+      }
+    </div>
+  </details>
 </figure>
 
 <style>
+  /* Diagrams scroll inside their frame on a phone, never the page. */
+  figure {
+    margin: 1.8em 0;
+  }
+
+  .diagram {
+    overflow-x: auto;
+    padding: 18px 14px;
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    background: linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--paper) 2.5%, transparent),
+      color-mix(in srgb, var(--paper) 0.5%, transparent)
+    );
+    scrollbar-width: thin;
+  }
+
+  .diagram svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    font-family: var(--mono);
+  }
+
+  figcaption {
+    margin-top: 10px;
+    color: var(--dim);
+    font: 400 0.8rem / 1.5 var(--sans);
+  }
+
+  .steps {
+    margin-top: 6px;
+    color: var(--mist);
+    font: 400 0.8rem / 1.55 var(--sans);
+  }
+
+  .steps summary {
+    width: fit-content;
+    font: 400 0.75rem / 1.5 var(--mono);
+    cursor: pointer;
+  }
+
+  .steps ol {
+    margin: 6px 0 0;
+    padding-left: 2.4em;
+  }
+
+  .steps .phase-name {
+    margin: 10px 0 0;
+    color: var(--paper);
+    font: 600 0.72rem / 1.5 var(--mono);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
   svg {
     --t-client: var(--client);
     --t-server: var(--server);
@@ -261,4 +339,11 @@ const rows = messages.map((message, i) => {
   .tone-wire { stroke: var(--t-wire); fill: color-mix(in srgb, var(--wire) 9%, transparent); }
   .tone-build { stroke: var(--t-build); fill: color-mix(in srgb, var(--build) 9%, transparent); }
   .tone-neutral { stroke: var(--t-neutral); fill: color-mix(in srgb, var(--mist) 7%, transparent); }
+
+  /* Where Client and Server share a hue (the palette's encoding), a cue that is not colour:
+     the Server's boxes and arrows are drawn dashed. */
+  .tone-server,
+  .arrow.stroke-server:not(.back) {
+    stroke-dasharray: var(--server-dash);
+  }
 </style>

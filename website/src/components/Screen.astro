@@ -1,29 +1,54 @@
 ---
 // A captured terminal screen, drawn as text: every cell is the character and colours the
-// application sent, so it stays sharp at any size and can be selected.
-import { escape, style, type Frame } from "../lib/frames";
+// application sent, so it stays sharp at any size and can be selected. Always a figure: a
+// caption says what the screen shows, and its transcript, the rows as text, describes it
+// to a screen reader and opens under it.
+import { escape, frame as load, style, text, type Frame } from "../lib/frames";
+import { uniqueId } from "../lib/transcripts";
 
 /** The cells of the screen a piece of code drew, in rectangles of rows and columns. */
 export type Rect = { row: number; col: number; rows: number; cols: number };
 export type Region = { id: string; side: "client" | "server"; rects: Rect[] };
 
 interface Props {
-  frame: Frame;
+  /** The capture, or its name in src/frames/ (scripts/capture.py). */
+  frame: Frame | string;
+  /** What the screen shows, in a sentence. */
+  caption: string;
   regions?: Region[];
   /** Print the rows one after the other, once, like a teletype. */
   printed?: boolean;
   /** Start dark and switch on like a tube: a line that opens to the whole screen. */
   poweron?: boolean;
+  /**
+   * Wider than the column, for a capture of many columns: in the docs, the screen takes
+   * the room of the page's table of contents, so 140 columns keep 10px cells at 1280px.
+   */
+  wide?: boolean;
+  /**
+   * `poster`: the screen stands in for something drawn over it (a live demo). Its caption
+   * and transcript stay for screen readers and take no room.
+   * `paired`: a figure around it captions it with something else (CodeAndScreen). Its
+   * caption stays for screen readers; its transcript still opens under it.
+   */
   class?: string;
 }
 
 const {
-  frame,
+  caption,
   regions = [],
   printed = false,
   poweron = false,
+  wide = false,
   class: className,
 } = Astro.props;
+const frame = typeof Astro.props.frame === "string" ? load(Astro.props.frame) : Astro.props.frame;
+if (!caption?.trim()) throw new Error(`Screen « ${frame.title} »: a caption is required.`);
+const transcript = text(frame);
+
+// The id the screen's description points to: from the capture's title, so the same on
+// every build, and numbered on a page that shows one capture twice.
+const id = uniqueId(Astro.locals, `screen-${frame.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`);
 
 // Built as a string: whitespace inside <pre> is content, and templates add some.
 const html = frame.cells
@@ -33,13 +58,13 @@ const html = frame.cells
       const text = escape(run[0]);
       return css ? `<span style="${css}">${text}</span>` : text;
     });
-    return `<span class="row" style="--i:${i}">${cells.join("") || " "}</span>`;
+    return `<span class="row" style="--i:${i}">${cells.join("") || " "}</span>`;
   })
   .join("");
 ---
 
-<div class:list={["stage", className]}>
-  <figure class:list={["term", { printed, poweron }]} style={`--cols:${frame.cols}`}>
+<figure class:list={["stage", className, { wide }]} data-figure="screen">
+  <div class:list={["term", { printed, poweron }]} style={`--cols:${frame.cols}`}>
     <div class="bar" aria-hidden="true">
       <span class="title"><b>┤</b> {frame.title} <b>├</b></span>
       <span class="size"><b>┤</b> {frame.cols}×{frame.rows} <b>├</b></span>
@@ -48,6 +73,7 @@ const html = frame.cells
       class="screen"
       role="img"
       aria-label={`${frame.title}, a ${frame.cols} by ${frame.rows} terminal screen`}
+      aria-describedby={id}
     >
       <div class="grid">
         <pre aria-hidden="true" set:html={html} />
@@ -65,12 +91,76 @@ const html = frame.cells
       </div>
       <slot name="live" />
     </div>
-  </figure>
-</div>
+  </div>
+  <figcaption class="caption">{caption}</figcaption>
+  <details class="transcript">
+    <summary>Transcript</summary>
+    <pre id={id} data-transcript>{transcript}</pre>
+  </details>
+</figure>
 
 <style>
   .stage {
     position: relative;
+    margin: 0;
+  }
+
+  :global(.prose) > .stage {
+    margin-block: 1.6em;
+  }
+
+  .caption {
+    margin-top: 10px;
+    color: var(--dim);
+    font: 400 0.8rem / 1.5 var(--sans);
+  }
+
+  .transcript {
+    margin-top: 6px;
+    color: var(--mist);
+    font: 400 0.75rem / 1.5 var(--mono);
+  }
+
+  .transcript summary {
+    width: fit-content;
+    cursor: pointer;
+  }
+
+  .transcript pre {
+    margin: 8px 0 0;
+    padding: 10px 12px;
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    background: var(--code-bg);
+    color: var(--paper);
+    overflow-x: auto;
+    font: 400 0.75rem / 1.4 var(--term);
+    scrollbar-width: thin;
+  }
+
+  /* Drawn over by a live demo, or captioned by the figure around it: the words stay for
+     screen readers only. */
+  .poster > .caption,
+  .paired > .caption {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .poster > .transcript {
+    display: none;
+  }
+
+  /* Wide, in the docs: over the table of contents' column and the gap before it (the
+     grid of styles/docs.css), where there is one; above it as it scrolls by. */
+  @media (min-width: 1181px) {
+    :global(.docs) .wide > .term {
+      z-index: 3;
+      margin-right: calc(-1 * (var(--toc) + clamp(28px, 4vw, 56px)));
+    }
   }
 
   /* A terminal, not a window: a ruled box with its title set into the top edge. */

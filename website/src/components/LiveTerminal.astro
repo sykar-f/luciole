@@ -24,6 +24,8 @@ interface Props {
   demo: string;
   /** Its captured screen: the poster, and the grid the live terminal keeps. */
   frame: Frame;
+  /** What the captured screen shows (Screen.astro). */
+  caption: string;
   script?: Step[];
   /**
    * `eager` starts with the page; `visible`, when the window comes near the viewport;
@@ -48,6 +50,7 @@ interface Props {
 const {
   demo,
   frame,
+  caption,
   script = [],
   boot = "visible",
   restore = false,
@@ -98,7 +101,7 @@ const stand = JSON.stringify({
   data-boot={boot}
   data-script={JSON.stringify(script)}
 >
-  <Screen frame={frame} printed={printed} poweron={intro.length > 0}>
+  <Screen frame={frame} caption={caption} printed={printed} poweron={intro.length > 0}>
     <div slot="live" class="layer">
       <span class="take" data-take hidden>Live · click to use the keyboard</span>
     </div>

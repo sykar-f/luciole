@@ -10,7 +10,8 @@ A palette is three independent choices, each an attribute on the root element:
 
 The CSS derives the combinations; this script writes the per-axis values, computes every
 combination as a browser would, and checks it: every text colour at 4.5:1 or more on the
-page and on raised panels, the main button's text on the dominant at 4.5:1, and Client and
+page and on raised panels, every code colour on the code background (an excerpt's dimmed
+lines too), the main button's text on the dominant at 4.5:1, and Client and
 Server at least 1.5x apart in luminance, so they part without hue too. A failing dominant
 is fixed by moving its OKLCH lightness, not dropped; a failing tint or encoding stops the
 script, which then writes nothing.
@@ -224,6 +225,8 @@ def tint(name):
         L, C, H = oklch(tokens["dim"])
         tokens["dim"] = from_oklch(L + 0.01, C, H)[0]
     tokens["code-comment"] = tokens["dim"]
+    # An excerpt's lines outside its marks (Excerpt.astro): one quiet colour, no opacity.
+    tokens["code-dimmed"] = tokens["dim"]
     return tokens
 
 
@@ -296,7 +299,7 @@ def combination(t, d, e):
 def measure(tokens, dom, client, server):
     page, raised, screen = tokens["night"], tokens["night-raised"], tokens["screen"]
     texts = ["paper", "prose", "mist", "dim", "fault", "wire", "build"]
-    codes = [k for k in tokens if k.startswith("code-") and k != "code-bg"]
+    codes = [k for k in tokens if k.startswith("code-") and k not in ("code-bg", "code-dimmed")]
     return {
         "text min": min(min(ratio(tokens[k], page), ratio(tokens[k], raised)) for k in texts),
         "dominant": ratio(dom, page),
@@ -305,6 +308,7 @@ def measure(tokens, dom, client, server):
         "server": min(ratio(server, page), ratio(server, screen)),
         "C/S apart": ratio(client, server),
         "code min": min(ratio(tokens[k], tokens["code-bg"]) for k in codes),
+        "code dimmed": ratio(tokens["code-dimmed"], tokens["code-bg"]),
     }
 
 
@@ -425,11 +429,11 @@ def main():
         print(f"  FAIL {t}/{d}/{e}: " + ", ".join(f"{k} {m[k]:.2f}" for k in failing(m)))
     print()
     columns = list(measure(*combination("warm", "neutral", "classic")[:4]))
-    print(f"{'suggestion':14}" + "".join(f"{c:>11}" for c in columns) + "   client   server  dominant")
+    print(f"{'suggestion':14}" + "".join(f"{c:>12}" for c in columns) + "   client   server  dominant")
     for name, s in SUGGESTIONS.items():
         tokens, dom, client, server, _ = combination(s["tint"], s["dominant"], s["encoding"])
         m = measure(tokens, dom, client, server)
-        print(f"{name:14}" + "".join(f"{m[c]:>11.2f}" for c in columns) + f"  {client}  {server}  {dom}")
+        print(f"{name:14}" + "".join(f"{m[c]:>12.2f}" for c in columns) + f"  {client}  {server}  {dom}")
     if failed:
         sys.exit("Some combinations fail their checks: nothing written.")
     if check:

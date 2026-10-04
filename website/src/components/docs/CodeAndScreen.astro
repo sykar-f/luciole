@@ -1,0 +1,79 @@
+---
+// A piece of code and the screen it draws, side by side where the page is wide enough (code
+// left, screen right) and one above the other below that, under one caption. In the docs it
+// takes the room of the table of contents too, as a wide Screen does.
+import type { BundledLanguage } from "shiki";
+import Excerpt from "../guide/Excerpt.astro";
+import Screen, { type Region } from "../Screen.astro";
+import { frame as load, type Frame } from "../../lib/frames";
+import type { Tone } from "../../lib/guide/tones";
+
+interface Props {
+  /** The excerpt, as Excerpt takes it: the file, its anchors, its marks and its side. */
+  path: string;
+  find?: string;
+  until?: string;
+  count?: number;
+  after?: string;
+  mark?: string[];
+  tone?: Tone;
+  lang?: BundledLanguage;
+  /** The screen that code draws, or its name in src/frames/. */
+  frame: Frame | string;
+  regions?: Region[];
+  /** What the pair shows, in a sentence. */
+  caption: string;
+}
+
+const { frame: given, regions, caption, ...code } = Astro.props;
+if (!caption?.trim()) throw new Error(`CodeAndScreen ${code.path}: a caption is required.`);
+const frame = typeof given === "string" ? load(given) : given;
+---
+
+<figure class="pair" data-figure="code-and-screen">
+  <div class="cols">
+    <Excerpt {...code} />
+    <Screen frame={frame} regions={regions} caption={`${frame.title}, the screen this code draws.`} class="paired" />
+  </div>
+  <figcaption>{caption}</figcaption>
+</figure>
+
+<style>
+  .pair {
+    margin: 1.6em 0;
+    container-type: inline-size;
+  }
+
+  .cols {
+    display: grid;
+    gap: 16px;
+  }
+
+  .cols > :global(.excerpt) {
+    margin: 0;
+  }
+
+  /* Side by side once each half has room: the screen takes the larger share, its cells
+     being the smaller text. */
+  @container (min-width: 880px) {
+    .cols {
+      grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+      align-items: start;
+    }
+  }
+
+  @media (min-width: 1181px) {
+    :global(.docs) .pair {
+      position: relative;
+      z-index: 3;
+      margin-right: calc(-1 * (var(--toc) + clamp(28px, 4vw, 56px)));
+      background: var(--night);
+    }
+  }
+
+  figcaption {
+    margin-top: 10px;
+    color: var(--dim);
+    font: 400 0.8rem / 1.5 var(--sans);
+  }
+</style>

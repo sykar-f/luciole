@@ -1,0 +1,67 @@
+---
+// An example running in the page, but only once the reader asks: until the click, the page
+// shows the captured screen and a button, and loads nothing of the demo (no frame, no
+// request to /demo/). Without scripts, below 760px or with data saving on, the capture stays,
+// as LiveTerminal leaves it.
+import LiveTerminal, { type Step } from "../LiveTerminal.astro";
+import { frame as load } from "../../lib/frames";
+
+interface Props {
+  /** The demo's directory under public/demo/ (scripts/demo.ts). */
+  demo: string;
+  /** Its captured screen, by name in src/frames/: what the page shows until the click. */
+  frame: string;
+  /** What the captured screen shows, in a sentence. */
+  caption: string;
+  /** The app's name, on the button. */
+  name: string;
+  /** Keys to type once it runs, as LiveTerminal takes them. */
+  script?: Step[];
+}
+
+const { demo, frame, caption, name, script } = Astro.props;
+---
+
+<div class="run" data-figure="run-here" data-run-here>
+  <LiveTerminal demo={demo} frame={load(frame)} caption={caption} script={script} boot="manual" />
+  <p class="start">
+    <button type="button" class="button" data-start hidden>Run {name} in this page</button>
+    <span data-started tabindex="-1" hidden>
+      {name} is starting. Once it runs, click the screen to type in it.
+    </span>
+  </p>
+</div>
+
+<script>
+  // Shown only where LiveTerminal will start (it marks those `standing` before the first
+  // paint): the click starts it (`live:start`), nothing before.
+  for (const root of document.querySelectorAll<HTMLElement>("[data-run-here]")) {
+    const live = root.querySelector<HTMLElement>("[data-live]");
+    const button = root.querySelector<HTMLButtonElement>("[data-start]");
+    const started = root.querySelector<HTMLElement>("[data-started]");
+    if (!live || !button || !started || !live.classList.contains("standing")) continue;
+    button.hidden = false;
+    button.addEventListener(
+      "click",
+      () => {
+        live.dispatchEvent(new Event("live:start"));
+        button.hidden = true;
+        started.hidden = false;
+        started.focus();
+      },
+      { once: true },
+    );
+  }
+</script>
+
+<style>
+  .run {
+    margin: 1.6em 0;
+  }
+
+  .start {
+    margin-top: 12px;
+    color: var(--mist);
+    font: 400 0.85rem / 1.5 var(--sans);
+  }
+</style>
