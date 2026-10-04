@@ -1,3 +1,4 @@
+import { unlinkSync } from "node:fs";
 import { chmod, unlink } from "node:fs/promises";
 import type { Socket } from "bun";
 import { message, PLUGIN, type Address, type Hello, type Message } from "./protocol";
@@ -247,7 +248,11 @@ export async function listenBus(options: BusOptions): Promise<Bus> {
       address: options.address,
       close() {
         listener.stop(true);
-        void unlink(path).catch(() => {});
+        // Bun removed the socket in `stop`; a removal still in flight once `close` returns
+        // would delete the socket of the next DevTools on this path.
+        try {
+          unlinkSync(path);
+        } catch {}
       },
     };
   }
