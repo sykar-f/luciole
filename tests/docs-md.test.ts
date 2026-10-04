@@ -131,6 +131,21 @@ describe("a figure in Markdown", () => {
     expect(markdown).toContain("> ```text");
   });
 
+  test("a titled Note leads its quote with the title, and keeps its kind", () => {
+    const titled = toMarkdown(
+      page(`<Note title="Where this number comes from">\n  Read this.\n</Note>`),
+    );
+    expect(titled).toContain("> **Where this number comes from**\n>\n> Read this.");
+    const warning = toMarkdown(
+      page(`<Note title="Careful" kind="warning">\n  Read this.\n</Note>`),
+    );
+    expect(warning).toContain("> **Warning:** **Careful**\n>\n> Read this.");
+    const reversed = toMarkdown(
+      page(`<Note kind='warning' title='Careful'>\n  Read this.\n</Note>`),
+    );
+    expect(reversed).toContain("> **Warning:** **Careful**");
+  });
+
   test("a component the export has no Markdown for stops it, named", () => {
     expect(() => toMarkdown(page(`<Mystery size={3} />`), "concepts/x.mdx")).toThrow(
       "<Mystery> in concepts/x.mdx has no Markdown form",
