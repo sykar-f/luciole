@@ -1,11 +1,13 @@
 ---
 title: Apps you did not write
-description: Opening an app by URL or from a package you do not control. The inline, process and sandbox modes, declared capabilities, and who enforces each one on macOS and Linux.
+description: Open an app by URL or from a package you do not control, and limit what its code can touch. The inline, process and sandbox modes, capabilities, and who enforces each one.
 sources:
   - packages/core/src/sandbox/server.ts
   - docs/EMBEDDING.md
   - docs/DISTRIBUTION.md
   - packages/core/src/generic
+  - packages/core/src/generic/prepare.ts
+  - packages/core/src/generic/origin.ts
   - packages/core/src/sandbox
   - packages/core/src/capabilities.ts
   - packages/core/src/publisher.ts
@@ -13,14 +15,20 @@ sources:
 ---
 
 import Note from "../../../components/docs/Note.astro";
+import Sequence from "../../../components/guide/Sequence.astro";
 
-A luciole Client runs code: the app's Client Components, with the rights of the process that
-runs them. When the app comes from someone else, a URL or an unsigned package, the question
-is what that code may touch on your machine. The generic Client answers per **origin**: the
-Server's URL as you typed it (scheme, host, port, never a tunnel's local address), an
-installed package, or a local command.
+Open an app that someone else wrote, and choose what its code may touch on your machine. You
+need this guide when the app comes from a URL or from a package that is not signed.
 
-## Three modes
+The app's Client Components run with the rights of the process that runs them. The generic
+Client, the `luciole` command that opens an app by URL, sets the limits per **origin**. An
+origin is one of:
+
+- the Server's URL as you typed it: scheme, host and port, not a tunnel's local address
+- an installed package
+- a local command
+
+## Choose a mode
 
 | Mode      | Where the app runs                                  | Isolation                                       | For                                            |
 | --------- | --------------------------------------------------- | ----------------------------------------------- | ---------------------------------------------- |
@@ -28,42 +36,82 @@ installed package, or a local command.
 | `process` | a child process on its own PTY, no sandbox          | crashes only                                    | a local multiplexer: shells, vim, luciole apps |
 | `sandbox` | a child process under the OS sandbox                | crashes, and the granted capabilities, enforced | a remote URL, an unsigned package              |
 
-`process` adds **no** security layer: it is tmux, not a browser. `inline` is an explicit
-choice for a trusted origin, and the launcher says so before opening it: full trust, the
-declared capabilities are not enforced. The user chooses the mode, remembered per origin,
-or by flag; the app never does.
+You choose the mode, with a flag or once per origin. The app cannot choose it.
 
-## Opening a URL
+- `process` adds **no** security layer. It is tmux, not a browser.
+- `inline` is full trust: the declared capabilities are not enforced. The generic Client says so
+  before it opens the app.
+- `sandbox` is the only mode where something checks the app's reads, writes and requests.
+
+<Sequence
+  title="Who checks what, in each mode"
+  lanes={[
+    { id: "host", label: "Host", sub: "the Client that opens it", tone: "client" },
+    { id: "app", label: "App's code", sub: "its Client Components" },
+    { id: "os", label: "OS sandbox", sub: "Seatbelt or Landlock" },
+  ]}
+  messages={[
+    { phase: "inline: full trust" },
+    { from: "host", to: "host", label: "runs the app in its own process", n: 1 },
+    { from: "host", to: "host", label: "nothing checks a read or a write", n: 2 },
+    { phase: "process: crashes only" },
+    { from: "host", to: "app", label: "starts it on its own PTY", n: 3 },
+    { from: "app", to: "app", label: "acts with your rights", n: 4 },
+    { phase: "sandbox: the OS and the host check" },
+    { from: "host", to: "app", label: "starts it under the OS sandbox", n: 5 },
+    { from: "app", to: "os", label: "open ~/notes/a.md", n: 6 },
+    { from: "os", to: "app", label: "allowed by fs.read", n: 7, back: true },
+    { from: "app", to: "os", label: "open ~/.ssh/id_ed25519", n: 8 },
+    { from: "os", to: "app", label: "denied", n: 9, back: true },
+    { from: "app", to: "host", label: "host.clipboard.write(text)", n: 10, tone: "wire" },
+    { from: "host", to: "host", label: "checks it, asks you if undecided", n: 11 },
+    { from: "app", to: "host", label: "connect api.example.com", n: 12, tone: "wire" },
+    { from: "host", to: "host", label: "its proxy lets net hosts through", n: 13 },
+  ]}
+  caption="Inline and process modes check nothing (1 to 4). In the sandbox, the OS checks files and programs (6 to 9). The host checks the clipboard, notifications and hosts by name (10 to 13)."
+/>
+
+## Open an app by URL
 
 ```sh
 luciole https://notes.example.com
 ```
 
-1. The launcher fetches `GET /manifest`, which binds the build ID, the bundle's SHA-256 and
-   size, the runtime ABI key, the Node built-ins the bundle needs, and the publisher's
-   Ed25519 public key. The signature covers a canonical encoding of these fields, never the
-   JSON as received.
-2. It checks the signature, and **pins the key on first use** for that origin, like SSH's
-   `known_hosts`: the fingerprint is shown and you are asked. A different key later is
-   refused; `luciole trust <url> <SHA256:…>` pins a new one out of band, when its publisher
-   confirms it.
-3. It compares the ABI key, then reads the bundle from its cache by hash, or downloads
-   `GET /bundle/<sha256>` and checks the hash.
-4. Before anything runs, the **capabilities screen** lists the Server's route and each
-   capability granted with who enforces it, plus a "refused" line for what cannot be.
+1. The generic Client fetches `GET /manifest` and checks the publisher's signature.
+2. On first use, it **pins the publisher's key** for that origin, like SSH's `known_hosts`. It
+   shows the key's fingerprint and asks you.
+3. It reads the bundle from its cache by hash, or downloads `GET /bundle/<sha256>`. Either way,
+   it checks the bundle's SHA-256.
+4. Before anything runs, the **capabilities screen** lists the Server's route and each granted
+   capability with who enforces it. A "refused" line names what this system cannot enforce.
 
-A publisher signs with `luciole keys generate` once, then `luciole build --sign-bundle`. This
+A different key on a later visit is refused. When the publisher confirms a new key out of band,
+pin it with `luciole trust <url> <SHA256:…>`.
+
+<details>
+<summary>What the manifest binds, and what the signature covers</summary>
+
+The manifest binds the build ID, the bundle's SHA-256 and size, the runtime ABI key, the Node
+built-ins the bundle needs, and the publisher's Ed25519 public key. The signature covers a
+canonical encoding of these fields, not the JSON as received. The generic Client also compares
+the ABI key with its own before it reads the bundle.
+
+</details>
+
+A publisher signs with `luciole keys generate`, once, then `luciole build --sign-bundle`. This
 key has nothing to do with Apple's Developer ID.
 
-**Default mode for a URL**: `sandbox` on macOS, and on Linux where the sandbox also confines
-the network (user namespaces or bubblewrap). Elsewhere nothing opens without an explicit
-`--sandbox` or `--inline`, remembered per origin.
+The default mode for a URL depends on the system:
 
-## Capabilities
+- `sandbox` on macOS
+- `sandbox` on Linux, where the sandbox also confines the network: user namespaces or bubblewrap
+- elsewhere, nothing opens without an explicit `--sandbox` or `--inline`, remembered per origin
 
-An app declares what it may do in the `luciole.capabilities` field of its `package.json`. The
-field is readable before anything runs. The build copies it into the signed manifest, and warns
-about Node built-ins the Client bundle uses without declaring them.
+## Declare and grant capabilities
+
+An app declares what it may do in the `luciole.capabilities` field of its `package.json`. You
+can read the field before anything runs. The build copies it into the signed manifest. The
+build also warns about the Node built-ins the Client bundle uses without declaring them.
 
 ```json
 {
@@ -103,68 +151,102 @@ of `fs`, and `clipboard.read` is the `read` key of `clipboard`. Every key defaul
 You accept the capabilities an app declares once per origin. Pass the flags when you open the
 URL to add to them. `luciole` remembers everything in the origin's `origin.json`.
 
-**Declaring is not enforcing.** Only the `sandbox` mode enforces capabilities. A capability
-is shown as enforced only if something enforces it.
+**Declaring is not enforcing.** Only the `sandbox` mode enforces capabilities. The capabilities
+screen shows a capability as enforced only if something enforces it.
 
 ## Who enforces what
 
-| Capability                                    | macOS                                                         | Linux                                                                  |
-| --------------------------------------------- | ------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| `fs.read`, `fs.write`                         | the OS (Seatbelt, by path)                                    | Landlock (plus bubblewrap's mounts under bubblewrap)                   |
-| `net` by host                                 | a proxy held by the host; the OS limits the child to its port | the proxy; a network namespace; refused with Landlock alone            |
-| `net: *`                                      | the OS                                                        | the OS                                                                 |
-| `exec`                                        | the OS                                                        | Landlock; refused under bubblewrap without Landlock                    |
-| `pty`                                         | **refused**: the rule would open the user's other terminals   | a private devpts (namespaces, bubblewrap); refused with Landlock alone |
-| `clipboard.*`, `notify`, `openUrl`, `secrets` | the host: the direct way is blocked by the OS                 | the host: seccomp refuses Unix sockets (D-Bus, Wayland, X11)           |
-| `inputGlobal`, `tabsMessage`                  | the host (IPC)                                                | the host (IPC)                                                         |
+| Capability                                    | macOS                                                       | Linux                                                                        |
+| --------------------------------------------- | ----------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `fs.read`, `fs.write`                         | the OS: Seatbelt, by path                                   | Landlock, plus bubblewrap's mounts under bubblewrap                          |
+| `net` by host                                 | a proxy the host holds. The OS limits the child to its port | the proxy, in a network namespace. Refused with Landlock alone               |
+| `net: *`                                      | the OS                                                      | the OS                                                                       |
+| `exec`                                        | the OS                                                      | Landlock. Refused under bubblewrap without Landlock                          |
+| `pty`                                         | **refused**: the rule would open the user's other terminals | a private devpts, with namespaces or bubblewrap. Refused with Landlock alone |
+| `clipboard.*`, `notify`, `openUrl`, `secrets` | the host. The OS blocks the direct way                      | the host. seccomp refuses Unix sockets: D-Bus, Wayland, X11                  |
+| `inputGlobal`, `tabsMessage`                  | the host, over IPC                                          | the host, over IPC                                                           |
 
-The capabilities the host mediates reach it through `host` from `@luciole-sh/core/client`
-(`host.clipboard.write(text)`, `host.notify(…)`, `host.openUrl(url)`, `host.secret(name)`…),
-over an inherited IPC channel whose messages are validated with Zod. The host checks the
-capability, asks the user if it is undecided, then acts. An OSC 52 sequence written by a
-sandboxed app never reaches the clipboard: only the `host` path is checked.
+The capabilities the host checks reach it through `host`, from `@luciole-sh/core/client`:
 
-### The mechanisms
+```ts
+await host.clipboard.write(text);
+await host.notify({ title: "Saved", body: "notes/a.md" });
+await host.openUrl("https://luciole.sh");
+const token = await host.secret("api-token");
+```
 
-- **macOS**: Seatbelt through `sandbox-exec`, with a profile generated from the capabilities
-  on `deny default`. Without `/usr/bin/sandbox-exec` the mode is refused, never simulated.
-- **Linux**: `luciole-sandbox`, a native launcher in Rust shipped compiled with luciole,
-  applies namespaces, Landlock and seccomp just before running the child. It picks the
-  strongest mechanism available: its own **user namespaces**, else **bubblewrap** (where
-  AppArmor refuses namespaces to the launcher, Ubuntu 23.10 and later), else **Landlock
-  alone**, which does not confine the network by host and is never the default. With none,
-  the mode is refused with the reason.
+Each call travels over an inherited IPC channel, and the host validates each message with Zod.
+The host checks the capability, asks the user if it is undecided, then acts. An OSC 52 sequence
+that a sandboxed app writes never reaches the clipboard: the host checks only the `host` path.
+
+### Which sandbox runs on each system
+
+- **macOS**: Seatbelt, through `sandbox-exec`. The profile is generated from the capabilities,
+  on `deny default`. Without `/usr/bin/sandbox-exec`, the mode is refused.
+- **Linux**: `luciole-sandbox`, a native launcher in Rust that ships compiled with luciole. It
+  applies namespaces, Landlock and seccomp just before it runs the child.
+
+On Linux, `luciole-sandbox` picks the strongest mechanism the system allows, in this order:
+
+1. its own **user namespaces**
+2. **bubblewrap**, where AppArmor refuses namespaces to the launcher, as on Ubuntu 23.10 and
+   later
+3. **Landlock alone**, which does not confine the network by host and is never the default
+
+With none of them, the mode is refused, and the error gives the reason.
 
 <Note kind="warning">
-  Landlock alone confines files, execution and signals, but not the network by host: a URL opens
-  with it only with an explicit `--sandbox`, a `net` by host is refused, and the capabilities screen
-  says the network is **not** confined.
+  Landlock alone confines files, programs and signals, but not the network by host. A URL opens with
+  it only with an explicit `--sandbox`, and a `net` by host is refused. The capabilities screen says
+  that the network is **not** confined.
 </Note>
 
-## A confined Server
+## Confine the Server of an untrusted app
 
 The modes above confine a Client. A host that also runs the **Server** of an app it does not
-trust, as studio's preview does for pages and Server Functions a model wrote, can start it
-under the same generated Seatbelt profile with `confineServer` (`src/sandbox/server.ts`): no
-terminal, one loopback port the host picks to bind and accept on, reads limited to the build,
-writes to its data directory, and `net` by host through the host's egress proxy.
+trust can confine that Server too, on macOS. The studio example does this for its preview: a
+coding agent writes the app's pages and Server Functions while you use it.
 
-It is macOS only for now. Under `luciole-sandbox` the Server would listen inside its own network
-namespace, and the host would need a reverse relay to reach it, which is not built: other
-mechanisms are refused with the reason, never simulated. A host imports `confineServer` from
-`@luciole-sh/core/sandbox` and passes its `command` and `env` to `startAppServer` from
+`confineServer`, from `@luciole-sh/core/sandbox`, starts the Server under the same generated
+Seatbelt profile. The Server gets:
+
+- no terminal
+- one loopback port, which the host picks, to listen on
+- reads limited to its build
+- writes limited to its data directory
+- `net` by host, through the host's egress proxy
+
+The host passes the `command` and `env` that `confineServer` returns to `startAppServer`, from
 [`@luciole-sh/core/dev`](/docs/reference/api/#supervising-an-app-luciole-shcoredev).
 
-## Apps inside your app
+On Linux, `confineServer` refuses to start, with the reason. Under `luciole-sandbox`, the Server
+would listen inside its own network namespace. The host would then need a reverse relay to
+reach it, and that relay is not built.
 
-The same modes exist inside an app: `<Embed>` runs another luciole app `inline`, in a pane;
-`<Terminal>` runs a local program in `process` mode. See
-[terminals and panes](/docs/guides/terminals-and-panes/).
+## Run other apps inside your app
 
-## Limits
+The same modes exist inside an app:
 
-- The pinning is per origin: a Server that changes host or port is a new origin, a new
-  question and a new pinned key.
+- `<Embed>` runs another luciole app `inline`, in a pane.
+- `<Terminal>` runs a local program in `process` mode.
+
+See [terminals and panes](/docs/guides/terminals-and-panes/).
+
+## Check what an origin was granted
+
+The capabilities screen shows, before the app runs, what it is granted and who enforces each
+capability. Later, read the origin's `origin.json`, under
+`~/.local/state/luciole/origins/<sha256 of the origin>/`, or under `$XDG_STATE_HOME` when it is
+set. It holds the pinned key, the mode you
+chose, the capabilities the app declared and those you granted.
+
+## What is not covered yet
+
+- The pinning is per origin. A Server that changes host or port is a new origin: a new question
+  and a new pinned key.
 - Key rotation is not designed yet.
-- A compiled binary does not embed the app bundle: its Server answers `404` to `/manifest`
-  and cannot be opened by URL.
+- A compiled binary does not embed the app bundle. Its Server answers `404` to `/manifest`, so
+  you cannot open it by URL.
+
+See also the [CLI reference](/docs/reference/cli/) for `luciole trust` and `luciole keys`, and
+[opening an app](/docs/guides/opening-an-app/) for the other ways to reach a Server.
