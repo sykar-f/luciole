@@ -1,33 +1,53 @@
-# Latency — saisie locale, serveur lent
+# Latency: local typing, slow Server
 
-Un terrain de jeu minuscule pour sentir l'effet de la latence : un champ de saisie, une
-zone survolable et une liste défilante restent **locaux** (aucune requête), pendant qu'une
-Server Function (`ping`) répond après le délai simulé. Tant que le Server n'a pas répondu,
-on peut continuer à taper, défiler et survoler sans à-coup.
+Latency is a tiny playground for feeling what a slow Server does to the Client. An input, a hoverable box and a scrolling list stay local, with no request. A Server Function, `ping`, answers only after the simulated delay.
 
-## Lancement
+While the Server has not answered, you can keep typing, scrolling and hovering without a stutter.
 
-Sans cloner le dépôt : `luciole example latency` lance cet exemple depuis le tag git de la
-version de luciole installée ([docs/DISTRIBUTION.md](../../docs/DISTRIBUTION.md#exemples)).
-Les variables d'environnement et les clés ci-dessous s'appliquent de la même façon.
-
-Depuis la racine du monorepo (les dépendances sont `workspace:*` et `catalog:` : l'exemple
-ne se lance pas depuis son propre dossier) :
+## How do you run it?
 
 ```sh
-bun install --frozen-lockfile    # une fois, Bun 1.4.2
+LUCIOLE_LATENCY_MS=500 bunx luciole.sh example latency
+```
+
+From a clone of the repository, run this from its root:
+
+```sh
+bun install --frozen-lockfile
 LUCIOLE_LATENCY_MS=500 bun packages/core/src/cli.ts dev --app examples/latency
 ```
 
-Il n'y a pas de script `bun run` pour cet exemple. Aucune clé API, aucun réseau. Sans
-`LUCIOLE_LATENCY_MS` (défaut `0`), la réponse est immédiate : le réglage est le but.
+The example has no `bun run` script. No API key and no network are needed.
 
-## Ce qu'on voit
+Without `LUCIOLE_LATENCY_MS`, the answer is immediate and there is nothing to feel. The setting is the point.
 
-- Un champ « Type here; Enter calls the Server » : Entrée envoie la requête, la ligne
-  dessous affiche « Waiting for Server… » puis « Server replied in N ms » (N ≈ la latence
-  choisie, aller-retour compris).
-- Le texte tapé est repris en bas (`Input: …`) sans attendre le Server.
-- Un cadre qui s'allume au survol et une liste de 100 lignes qui défile à la molette.
+## What can you try?
 
-`Ctrl+C` quitte.
+- Type in the input. The line `Input: …` at the bottom shows your text at once.
+- Press Enter. The line under the input reads "Waiting for Server…", then "Server replied in N ms". N is close to `LUCIOLE_LATENCY_MS`.
+- Move the mouse over the framed box. It lights up without waiting.
+- Scroll the list of 100 rows with the mouse wheel.
+- Press Ctrl+R to refresh the page. The heading shows "Refreshing…" while the Server answers.
+- Press Ctrl+C to quit.
+
+## How is it built?
+
+Open these first:
+
+- `components/Playground.tsx`: the input, the hover box, the list and the call to `ping`. All of it is local except that call.
+- `actions/ping.ts`: the Server Function. It returns the text "Server replied".
+- `app/page.tsx`: the Server page that hands `ping` to the playground.
+- `app/layout.tsx`: the heading with the connection status, and the Ctrl+R binding.
+
+## Which environment variables does it read?
+
+| Variable             | Default | Effect                                                      |
+| -------------------- | ------- | ----------------------------------------------------------- |
+| `LUCIOLE_LATENCY_MS` | `0`     | Simulated round trip added to every request, half each way. |
+
+The example's own code reads no other variable.
+
+## What are its limits?
+
+- The delay is simulated, not measured on a network. Real latency also varies from request to request.
+- `ping` returns a fixed text and does no work, so N shows the delay and nothing else.
