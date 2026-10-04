@@ -1,97 +1,113 @@
 ---
 title: Getting started
-description: Run the Notes example, make a first visible change, slow the network down and create an app of your own.
+description: Create an app from npm, make a first visible change, slow the network down, and run luciole from a clone.
 sources:
-  - examples/notes
+  - packages/luciole.sh/package.json
   - packages/core/src/commands/init.ts
+  - packages/create
+  - examples/notes
   - packages/core/src/commands/dev.ts
 ---
 
 import CopyCommand from "../../components/CopyCommand.astro";
-import Note from "../../components/docs/Note.astro";
-import Src from "../../components/guide/Src.astro";
 import { repo } from "../../lib/links";
 import { commands, envPrefix } from "../../lib/product";
 
 export const clone = repo.split("/").at(-1);
 
-You will run Notes, the example app of the home page, change what it draws, and create an
-app of your own. Both sides, client and server, run on your machine. Every command on this
-page was run as written.
+You will create an app of your own, change what it draws and slow its network down. The app
+starts as a copy of Notes, the example of the home page. Both programs, the Client and the
+Server, run on your machine.
 
 ## What you need
 
-- macOS or Linux, and git.
-- **Bun 1.4.2**, the version the repository pins:
+- macOS or Linux.
+- **Bun 1.4.2**, the version a new app pins in `.bun-version`:
 
 <CopyCommand lines={["curl -fsSL https://bun.sh/install | bash -s bun-v1.4.2"]} />
 
-Nothing is published on a registry yet: you work from a clone of the repository.
-
-## 1. Run Notes
+## 1. Create the app
 
 <CopyCommand
-  lines={[`git clone ${repo} && cd ${clone}`, "bun install --frozen-lockfile", "bun run dev"]}
+  lines={[`${commands.fromNpm} init my-app`, "cd my-app", "bun install", "bun run dev"]}
 />
 
-One command builds both programs and starts them: the server, with a SQLite database
-created as `notes.sqlite` in the current directory, and the terminal client. Everything is
-done with the mouse: click a note in the list on the left to open it, click in it to write
-where you clicked, **+** beside the search for a new one, **≡** to fold the list away;
-changes save on their own. <kbd>Ctrl+C</kbd> quits and restores the terminal.
+What each command does:
+
+1. `bunx luciole.sh init my-app` fetches the `luciole.sh` package and runs its `luciole init`.
+   That runs the scaffolder, `@luciole-sh/create`, at the same version. It writes the app
+   into `my-app` and prints `Starter created:` with the next commands.
+2. `bun install` installs the app's dependencies from npm, `@luciole-sh/core` among them.
+3. `bun run dev` builds both programs and starts them: the Server, with a SQLite database in
+   `notes.sqlite`, and the Client in your terminal.
+
+What you should see: the Client fills the terminal. The list of notes is on the left, with a
+few sample notes. No note is open, so the right side reads **No note selected**, above a
+**+ New note** button. Leave it running.
 
 ## 2. Make a first change
 
-Leave it running and open <Src path="examples/notes/components/NoNoteShown.tsx" />, the
-client component shown while no note is open. Change its heading:
+Open `components/NoNoteShown.tsx` in `my-app`. It draws the right side you are looking at,
+shown while no note is open. Change its heading:
 
 ```diff
 -        No note selected
 +        Pick a note
 ```
 
-Save the file. The dev server rebuilds and restarts both processes, and the client reopens
-the same screen, with the new heading, in a couple of seconds. The route, the history and
-the text of named fields come back; state held only in memory does not: there is no Fast
-Refresh ([session restore](/docs/concepts/session-restore/)).
+Save the file. What you should see: `bun run dev` rebuilds the app and restarts both processes.
+In a couple of seconds the Client reopens the same screen, with **Pick a note** on the right.
 
-## 3. Slow the network down
+A rebuild brings back the route, the history and the text of named fields. State held only in
+memory does not come back: there is no Fast Refresh
+([session restore](/docs/concepts/session-restore/)).
+
+## 3. Open a note
+
+Everything is done with the mouse:
+
+- Click a note in the list on the left to open it.
+- Click in the note to write where you clicked. Changes save on their own.
+- Click **+** beside the search for a new note.
+- Click **≡** to fold the list away.
+
+What you should see: the note replaces **Pick a note** on the right. <kbd>Ctrl+C</kbd> quits
+and restores the terminal.
+
+## 4. Slow the network down
 
 Quit with <kbd>Ctrl+C</kbd>, then start again with half a second added to every request:
 
 <CopyCommand lines={[`${envPrefix}_LATENCY_MS=500 bun run dev`]} />
 
-Open a note: a loading screen shows at once, drawn by the client, while the page travels.
-Edit it, pause for a second so that it saves, and keep typing: the keys are handled in the
-terminal while the save waits for the server. The delay is simulated per request, not a network
-emulation ([latency and faults](/docs/guides/latency-and-faults/)).
+Open a note. What you should see: a loading screen at once, drawn by the Client, while the page
+travels. Edit the note, pause for a second so that it saves, and keep typing. The keys are
+handled in the terminal while the save waits for the Server.
 
-## 4. Create your own app
+The delay is simulated per request, not a network emulation
+([latency and faults](/docs/guides/latency-and-faults/)).
 
-From the root of the clone:
+## What the app holds
 
-<CopyCommand
-  lines={[`${commands.fromClone} init ../my-app`, "cd ../my-app", "bun install", "bun run dev"]}
-/>
-
-The starter is a copy of Notes to reshape, in one codebase. Its `@luciole-sh/core` dependency points
-at your clone (`file:`), which has to stay where it is.
+The app is a copy of Notes to reshape, in one codebase. Its `@luciole-sh/core` dependency is a
+range on the release that created it (`^<version>`).
 
 | Directory     | What goes there                                                                                               |
 | ------------- | ------------------------------------------------------------------------------------------------------------- |
-| `app/`        | Routes as files: `page.tsx` pages render on the server; `layout.tsx` and `loading.tsx` are client components. |
-| `components/` | Client components, marked `"use client"`: they handle the mouse and the keyboard.                             |
-| `actions/`    | Server Functions, marked `"use server"`: the client calls them like functions.                                |
-| `server/`     | Code that only the server runs: the database, queries, checks.                                                |
+| `app/`        | Routes as files: `page.tsx` pages render on the Server; `layout.tsx` and `loading.tsx` are Client Components. |
+| `components/` | Client Components, marked `"use client"`: they handle the mouse and the keyboard.                             |
+| `actions/`    | Server Functions, marked `"use server"`: the Client calls them like functions.                                |
+| `server/`     | Code that only the Server runs: the database, queries, checks.                                                |
 
-The starter's scripts call the installed CLI: `bun run dev` is `luciole dev --app .`,
-`bun run build` is `luciole build --app .`, `bun run check` type-checks and `bun run verify`
-runs the checks, lint, format and build together.
+Its scripts call the installed `luciole`, which works on the current directory:
 
-<Note>
-  In the clone, <code>{commands.fromClone}</code> runs the same commands as `luciole` without
-  installing anything. The [CLI reference](/docs/reference/cli/) lists them all.
-</Note>
+- `bun run dev` is `luciole dev`: build, run, and rebuild on every save.
+- `bun run build` is `luciole build`.
+- `bun run check` type-checks.
+- `bun run lint` and `bun run format` run Oxlint and Oxfmt.
+- `bun run verify` runs the type-check, lint, format check and build together.
+
+The [CLI reference](/docs/reference/cli/) lists every command.
 
 ## Next
 
@@ -99,3 +115,21 @@ runs the checks, lint, format and build together.
   what travels between them.
 - [Anatomy of an app](/docs/guides/anatomy-of-an-app/): the files of Notes, one by one.
 - [The examples](/examples/), each one command away.
+
+## From a clone of the repository
+
+This path is for contributing to luciole itself. You need git as well:
+
+<CopyCommand
+  lines={[`git clone ${repo} && cd ${clone}`, "bun install --frozen-lockfile", "bun run dev"]}
+/>
+
+`bun run dev` at the root runs Notes from `examples/notes`. In the clone, the CLI runs from its
+sources, without installing anything. Its `init` makes an app that links your clone:
+
+<CopyCommand
+  lines={[`${commands.fromClone} init ../my-app`, "cd ../my-app", "bun install", "bun run dev"]}
+/>
+
+That app's `@luciole-sh/core` dependency points at the clone (`file:`), which has to stay where
+it is.
