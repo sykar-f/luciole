@@ -23,6 +23,9 @@ type Figure = {
   regions: string[];
   /** Its numbers with no blank cells to sit on (`data-unplaced`), which Screen leaves out. */
   unplaced: string[];
+  /** The ordered lists of its legend (`[data-legend]`), and their items, not nested ones. */
+  legends: number;
+  legendItems: number;
   boot: string[];
 };
 
@@ -48,7 +51,7 @@ export async function kitProblems(html: string, page: string) {
   const demo: string[] = [];
   let text: ((chunk: string) => void) | undefined;
   const inner = () => open.at(-1);
-  const count = (what: "lists" | "items" | "marks") => {
+  const count = (what: "lists" | "items" | "marks" | "legends" | "legendItems") => {
     const figure = inner();
     if (figure) figure[what] += 1;
   };
@@ -82,6 +85,8 @@ export async function kitProblems(html: string, page: string) {
           marks: 0,
           regions: (element.getAttribute("data-marks") ?? "").split(" ").filter(Boolean),
           unplaced: (element.getAttribute("data-unplaced") ?? "").split(" ").filter(Boolean),
+          legends: 0,
+          legendItems: 0,
           boot: [],
         };
         figures.push(figure);
@@ -122,6 +127,8 @@ export async function kitProblems(html: string, page: string) {
     .on("ol", { element: () => count("lists") })
     .on("li", { element: () => count("items") })
     .on("mark[data-n]", { element: () => count("marks") })
+    .on("[data-legend] > ol", { element: () => count("legends") })
+    .on("[data-legend] > ol > li", { element: () => count("legendItems") })
     .on("[data-boot]", {
       element(element) {
         inner()?.boot.push(element.getAttribute("data-boot") ?? "");
@@ -182,9 +189,9 @@ export async function kitProblems(html: string, page: string) {
         const numbers = figure.regions.map(Number).sort((a, b) => a - b);
         if (numbers.some((n, i) => n !== i + 1))
           say(figure, `its marks ${figure.regions.join(" ")} are not numbered from 1`);
-        if (figure.lists === 0) say(figure, "no legend: an ordered list of its marks");
-        else if (figure.items !== figure.regions.length)
-          say(figure, `${figure.regions.length} marks for ${figure.items} legend items`);
+        if (figure.legends === 0) say(figure, "no legend: an ordered list of its marks");
+        else if (figure.legendItems !== figure.regions.length)
+          say(figure, `${figure.regions.length} marks for ${figure.legendItems} legend items`);
         for (const n of figure.unplaced)
           say(figure, `mark ${n} has no blank cells beside its region: it would hide the screen`);
       }
