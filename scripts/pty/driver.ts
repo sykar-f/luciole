@@ -15,7 +15,7 @@ import { afterEach } from "bun:test";
 import { createTestRenderer, type TestRendererSetup } from "@opentui/core/testing";
 import { messageOf } from "../../packages/core/src/guards";
 import { VtTerminalRenderable } from "../../packages/core/src/vt/gaps";
-import { environment } from "./harness";
+import { environment, HANG_MS } from "./harness";
 
 const ESC = "\x1b";
 /** Synchronized output (mode 2026): a frame starts with BEGIN and is complete at END. */
@@ -33,13 +33,6 @@ const QUERIES: ReadonlyArray<readonly [string, string]> = [
 ];
 const LONGEST_QUERY = Math.max(...QUERIES.map(([query]) => query.length));
 const POLL_MS = 20;
-/**
- * How long a wait for the screen, or for the program to end, lasts unless told otherwise:
- * the guard against a hang, which says nothing of how fast the program should be. Under a
- * loaded host a startup, a request or an exit lands late; a bound taken on an idle machine
- * would then fail the machine, not the program. The suite's WAIT_MS (tests/helpers.ts).
- */
-const HANG_MS = 30_000;
 /** How long the program has to end on SIGTERM when the journey is done, before SIGKILL. */
 const TERM_GRACE_MS = 5000;
 /** How long a lone ESC waits before the next key, not to be read as Alt+key. */
@@ -84,7 +77,7 @@ export type DriveOptions = {
   cwd?: string;
   /** How long `type` waits after writing unless told otherwise, in ms. */
   settle?: number;
-  /** How long a wait lasts unless told otherwise, in ms. */
+  /** How long a wait lasts unless told otherwise, in ms (HANG_MS, harness.ts). */
   timeout?: number;
   /** How long the program has to end once asked to, in ms. */
   exitTimeout?: number;

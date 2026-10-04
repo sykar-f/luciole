@@ -15,8 +15,10 @@ export const BUN = process.execPath;
 export const CLI = join(ROOT, "packages/core/src/cli.ts");
 export const example = (name: string) => join(ROOT, "examples", name);
 /**
- * How long a wait lasts unless told otherwise: the guard against a hang, which says nothing
- * of how fast the program should be. The driver's own HANG_MS (driver.ts).
+ * How long a wait, for the screen (driver.ts) or anything else, lasts unless told otherwise:
+ * the guard against a hang, which says nothing of how fast the program should be. Under a
+ * loaded host a startup, a request or an exit lands late; a bound taken on an idle machine
+ * would then fail the machine, not the program. The suite's WAIT_MS (tests/helpers.ts).
  */
 export const HANG_MS = 30_000;
 /** How long a process has to end on SIGTERM at the end of its scope, before SIGKILL. */
