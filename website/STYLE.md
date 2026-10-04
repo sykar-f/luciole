@@ -1,8 +1,14 @@
 # Style guide for the docs
 
-This guide is the standard for every page under `website/src/content/docs/` and for the
-`README.md`. A rewrite follows it, and a review judges against it. Each rule has a bad example
-quoted from a page, with its `path:line`, and the same text rewritten. Paths are relative to
+This guide is the standard for the public corpus:
+
+- every page under `website/src/content/docs/`
+- the `README.md` of the repository, of each package and of each example
+- the text of the site's public pages: the landing, `/examples/`, `/status/`, the docs
+  overview, and the components and modules that hold their text
+
+A rewrite follows it, and a review judges against it. Each rule has a bad example quoted from a
+page, with its `path:line`, and the same text rewritten. Paths are relative to
 `website/src/content/docs/`, and line numbers are those of 2026-10-04.
 
 The rules marked **lint** are checked by `bun website/scripts/prose-lint.ts`, which the test
@@ -217,6 +223,31 @@ One name per concept. The "Avoid" column lists the forms found in the pages on 2
 | The machine `--on` reaches over SSH       | **remote machine**                                                                                                          | "host"                                                 | It keeps "host" for one meaning.                                                                                    |
 | The library that opens an app             | **launcher**                                                                                                                | "launcher" for the app that bare `luciole` opens       | One name per thing. Call that app "the app list", as it lists installed apps.                                       |
 
+**lint:** `avoid-term` reports each form below in prose. Code spans, `<code>`, expressions,
+URLs and the `"use client"` directives are not prose, so `saveAction`, `/action` and
+`` `client` `` pass. Each line names the rows it checks. `(reviewer)` marks a row whose form
+depends on meaning, which the reviewer checks, as with any form inside code. The lint refuses
+a row without a line.
+
+```avoid-term
+/(?<![\w\/.@-]|\b[A-Z][A-Z0-9]+[ -]|\bweb )(client|server)s?(?![\w\/]|\.\w)/ luciole's two programs
+/\b[Tt]he terminal\b/ luciole's two programs
+/(?<![\w\/]|GitHub )(public )?actions?(?![\w\/])/ A function the Client calls on the Server
+/\bServer (Actions?|References?)\b/ A function the Client calls on the Server
+/\b[Bb]earer\b(?! token)/ The credential sent with each request
+/(?<!\b(sign-in|restored|agent|coding-agent|shell|terminal|tmux|recorded|SSH) )\b[Ss]essions?\b(?! restore)/ What `authenticate` returns + What the Client keeps across restarts
+/\bDrafts?\b/ Text typed but not saved yet (not in examples/notes/)
+/\bchrome\b/ The persistent part of an app's screen
+/\bthe luciole dependency\b/ The framework package
+/(?<![\w@.\/-])luciole\/[a-z]/ Its entries
+/@luciole\// Its entries + The libraries
+/\bbunx luciole(?![.\w])/ Installing
+/\bluciole CLI tool\b/ The command line
+/\bLuciole\b/ The product
+(reviewer) The program that embeds an app + The machine `--on` reaches over SSH
+(reviewer) The library that opens an app
+```
+
 ## Page shapes
 
 Each page does one of the four [Diátaxis](https://diataxis.fr/) jobs, and its opening and
@@ -234,10 +265,18 @@ In a Reference entry, give the exact import or command, the signature or flags, 
 
 ## The prose lint
 
-`bun website/scripts/prose-lint.ts [paths]` lints the given files or directories, or every
-page and the `README.md` when no path is given. Each finding prints as `path:line rule`. It
-skips front matter, imports, fenced code, tables, headings, HTML blocks and component tags.
-It lints the Markdown inside a component, such as a Note's text.
+`bun website/scripts/prose-lint.ts [paths]` lints the given files or directories, or the
+public corpus when no path is given. `corpus()` in the script lists it. Each finding prints as
+`path:line rule`.
+
+- In Markdown, it skips front matter, imports, fenced code, HTML blocks and component tags. It
+  lints the front matter's `description`, each table cell as a paragraph, and the Markdown
+  inside a component, such as a Note's text. Headings are checked for terms only.
+- In an Astro file, the markup's text is prose, and each block element is a paragraph. Code,
+  expressions and inline elements are words of their sentence. It also lints the code's
+  string literals that read as prose, and the attributes a reader sees or hears (`alt`,
+  `title`, `aria-label`…) with the pages' `description`.
+- In a `.ts` module, it lints the string literals that read as prose.
 
 A finding that the rule should not apply to takes an exception, with its reason, on the line
 just before it:
@@ -246,14 +285,17 @@ just before it:
 {/* prose-lint: allow long-sentence — the flags read as one unit */}
 ```
 
-In a `.md` file, write `<!-- prose-lint: allow long-sentence — <reason> -->`. An exception
-without a reason, or that silences nothing, is a finding itself.
+In a `.md` file or Astro markup, write `<!-- prose-lint: allow long-sentence — <reason> -->`,
+and in code `// prose-lint: allow long-sentence — <reason>`. An exception without a reason, or
+that silences nothing, is a finding itself.
 
 `website/scripts/prose-allowlist.json` lists the pages that do not pass yet, each with its
 count of findings. The list can only shrink. The test fails when:
 
 - a page that is not listed has a finding
 - a listed page has more findings than its count
+- a listed page has fewer findings than its count, so its count must come down and lock the
+  gain
 - a listed page has no finding left, so it must leave the list
 
 A mission that rewrites a page removes it from the list, or lowers its count.
