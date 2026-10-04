@@ -50,13 +50,14 @@ second run to check that unsent text is kept:
   tone="neutral"
 />
 
-On the Server, `createHandler(config, options)` from `luciole/server` is the Server as a
-function of a `Request`, without listening. `luciole/build` builds an app from a test.
+On the Server, `createHandler(config, options)` from `@luciole-sh/core/server` is the Server as a
+function of a `Request`, without listening. `@luciole-sh/core/build` builds an app from a test.
 
 <Note kind="warning">
-  These entries are public (`luciole/client`, `luciole/server`, `luciole/build`), but the helpers
-  the repository's tests build on them (`tests/helpers.ts`: importing a built Client, launching a
-  Server) are not exported. An app outside the repository writes its own.
+  These entries are public (`@luciole-sh/core/client`, `@luciole-sh/core/server`,
+  `@luciole-sh/core/build`), but the helpers the repository's tests build on them
+  (`tests/helpers.ts`: importing a built Client, launching a Server) are not exported. An app
+  outside the repository writes its own.
 </Note>
 
 ## Under a bad network

@@ -96,7 +96,7 @@ is shown as enforced only if something enforces it.
 | `clipboard.*`, `notify`, `open-url`, `secrets` | the host: the direct way is blocked by the OS                 | the host: seccomp refuses Unix sockets (D-Bus, Wayland, X11)           |
 | `input.global`, `tabs.message`                 | the host (IPC)                                                | the host (IPC)                                                         |
 
-The capabilities the host mediates reach it through `host` from `luciole/client`
+The capabilities the host mediates reach it through `host` from `@luciole-sh/core/client`
 (`host.clipboard.write(text)`, `host.notify(…)`, `host.openUrl(url)`, `host.secret(name)`…),
 over an inherited IPC channel whose messages are validated with Zod. The host checks the
 capability, asks the user if it is undecided, then acts. An OSC 52 sequence written by a
@@ -130,8 +130,8 @@ writes to its data directory, and `net` by host through the host's egress proxy.
 It is macOS only for now. Under `luciole-sandbox` the Server would listen inside its own network
 namespace, and the host would need a reverse relay to reach it, which is not built: other
 mechanisms are refused with the reason, never simulated. A host imports `confineServer` from
-`luciole/sandbox` and passes its `command` and `env` to `startAppServer` from
-[`luciole/dev`](/docs/reference/api/#supervising-an-app-lucioledev).
+`@luciole-sh/core/sandbox` and passes its `command` and `env` to `startAppServer` from
+[`@luciole-sh/core/dev`](/docs/reference/api/#supervising-an-app-luciole-shcoredev).
 
 ## Apps inside your app
 

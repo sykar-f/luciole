@@ -80,7 +80,7 @@ outcome on purpose.
 ## Declaring what changed
 
 The framework refreshes nothing by itself after a Server Function: a read costs no page
-render. A function that changes data says so with `invalidate()` from `luciole/server`; the
+render. A function that changes data says so with `invalidate()` from `@luciole-sh/core/server`; the
 paths and tags travel back in the response's envelope, and the Client revalidates the
 routes concerned without waiting for them.
 
