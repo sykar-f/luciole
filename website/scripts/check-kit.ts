@@ -320,14 +320,14 @@ export async function kitProblems(html: string, page: string) {
 
   /**
    * Each legend item of a Client or a Server region names that side in words, and before
-   * the other side: the outline and the badge tell it too, but not to every reader.
+   * the other side: the outline and the badge tell it too, but not to every reader. In
+   * English only: no page of the French guide marks a screen.
    */
   function legendSides(figure: Figure) {
-    const names = french ? SIDES_FR : SIDES;
     figure.legendTexts.forEach((words, i) => {
       const side = figure.sides.get(String(i + 1));
       if (!side) return;
-      const own = names[side];
+      const own = SIDES[side];
       const first = /\b(Client|Server)\b/.exec(words)?.[1];
       if (!first) say(figure, `legend item ${i + 1} names no side: its region is the ${own}'s`);
       else if (first !== own)
