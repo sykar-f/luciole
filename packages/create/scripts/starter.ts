@@ -234,8 +234,8 @@ export async function stageStarter(options: {
         dependencies,
         devDependencies,
         scripts: {
-          dev: "luciole dev --app .",
-          build: "luciole build --app .",
+          dev: "luciole dev",
+          build: "luciole build",
           // Not a bare `tsc`: `.bin/tsc` is TypeScript 6's, from `@typescript/old`.
           check: "bun node_modules/typescript/bin/tsc --noEmit",
           lint: "oxlint --deny-warnings .",

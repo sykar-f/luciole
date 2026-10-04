@@ -18,7 +18,7 @@ const options = (context: CommandContext) => ({
   registry: npmRegistry(),
   directories: directories(),
   log: (message: string) => console.error(message),
-  confirm: context.args.includes("--yes") ? acceptAll : askTerminal,
+  confirm: context.flag("--yes") ? acceptAll : askTerminal,
 });
 
 export const search: Command = {

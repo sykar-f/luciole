@@ -147,7 +147,7 @@ test("a publishing flag without its value is refused before any build", async ()
     ["--notarize", "--sign", "Developer ID Application: Acme"],
   ]) {
     const run = await cli(...flags);
-    expect(run.exitCode).toBe(1);
+    expect(run.exitCode).toBe(2);
     expect(run.stderr.toString()).toContain("--notarize needs a value");
     expect(run.stdout.toString()).not.toContain("buildId");
   }

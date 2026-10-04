@@ -29,11 +29,11 @@ const withoutHook = (options = "") =>
 
 export const devtools: Command = {
   usage: "devtools [--listen 1|<socket>|ws://host:port] [--demo] [--replay file.json] [--env]",
-  async run({ args, optional }) {
+  async run({ flag, optional }) {
     // The shell's LUCIOLE_DEVTOOLS, exported for the application, is where to listen.
     const listen = optional("--listen") ?? process.env.LUCIOLE_DEVTOOLS ?? "1";
     const address = formatAddress(parseAddress(listen));
-    if (args.includes("--env")) {
+    if (flag("--env")) {
       console.log(`export LUCIOLE_DEVTOOLS=${quote(listen === "1" ? address : listen)}`);
       console.log(`export BUN_OPTIONS=${quote(withHook(process.env.BUN_OPTIONS))}`);
       return;
@@ -52,7 +52,7 @@ export const devtools: Command = {
           PORT: "0",
           LUCIOLE_DEVTOOLS_LISTEN: listen,
           LUCIOLE_DEVTOOLS_HOOK: HOOK,
-          ...(args.includes("--demo") ? { LUCIOLE_DEVTOOLS_DEMO: "1" } : {}),
+          ...(flag("--demo") ? { LUCIOLE_DEVTOOLS_DEMO: "1" } : {}),
           ...(replay ? { LUCIOLE_DEVTOOLS_REPLAY: resolve(replay) } : {}),
         },
       },
