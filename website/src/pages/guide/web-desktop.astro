@@ -110,6 +110,7 @@ web-runtime.json              {"abi":"1-e2931d7662791000"}`}
       { from: "pty", to: "host", label: "onData, décodé en flux", n: 7, back: true },
       { from: "host", to: "view", label: "RPC output, un par tour", n: 8, back: true },
     ]}
+    caption="L'hôte ne fait que relayer : la vue envoie les touches (3), l'app répond en ANSI par le PTY (6 à 8), comme dans un vrai terminal."
   />
   <Excerpt path="packages/desktop/src/host/session.ts" find="pty = spawnPty({" count={12} tone="neutral" mark={['LUCIOLE_DESKTOP: "1"', "setImmediate(flush);"]} />
   <p>Le seul contrat entre l'hôte et l'app est <code>LUCIOLE_DESKTOP=1</code>, qui change deux choses dans <Src path="packages/core/src/run.tsx" /> :</p>
