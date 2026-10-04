@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 """Capture real screens of the example applications for the website.
 
-Each scene starts an application with `luciole dev` in a PTY, plays keys, and writes the
-screen pyte decoded (text, colours, attributes) to src/frames/<name>.json. The site
+A scene starts a program in a PTY, plays keys, and writes the screen pyte decoded (text,
+colours, attributes) to src/frames/<name>.json. Most scenes start an example with
+`luciole dev`; `flow-graph` runs its package's example with Bun alone, as its README does,
+and `flight` writes the Server's bytes to src/frames/flight.txt, with no PTY. The site
 renders those cells as HTML: what it shows is what the terminal received, not a mock-up.
 
   python3 website/scripts/capture.py              # every scene
   python3 website/scripts/capture.py forge files  # some scenes
   python3 website/scripts/capture.py --print forge  # also print the text of each frame
 
-Needs pyte (scripts/requirements-pty.txt) and a checkout where `bun install` ran.
+Needs pyte (`pip install pyte`, in a virtual environment) and a checkout where
+`bun install` ran.
 """
 import datetime
 import fcntl
@@ -382,6 +385,23 @@ def notes_disconnected(directory):
         term.stop()
 
 
+def latency(directory):
+    # LUCIOLE_LATENCY_MS: the round trip of guides/latency-and-faults.mdx, long enough that
+    # the typing below lands while `ping` waits, and the screen says so.
+    term = dev("latency", {"LUCIOLE_LATENCY_MS": "2000"}, directory, 84, 24)
+    try:
+        term.wait_for("Enter sends a request", 120)
+        term.idle(1)
+        save(term, "latency", "Latency: a playground with a slow Server")
+        term.send(b"\r", pause=0.1)
+        term.send(b"still typing", pause=0.1)
+        term.wait_for("Input: still typing", 1)
+        assert "Waiting for Server" in term.text(), term.text()
+        save(term, "latency-waiting", "Latency: typing while the Server answers")
+    finally:
+        term.stop()
+
+
 def files(directory):
     # A tree of its own, made of this checkout's files: the capture does not depend on the
     # checkout's name or location, on what it holds besides these files, or on the day (each
@@ -589,7 +609,7 @@ def flow_graph(directory):
         term.stop()
 
 
-SCENES = {"forge": forge, "notes": notes, "notes-empty": notes_empty, "notes-pick": notes_pick, "notes-loading": notes_loading, "notes-error": notes_error, "notes-disconnected": notes_disconnected, "chat": chat, "coder": coder, "files": files, "mdreader": mdreader, "markdown-editor": markdown_editor, "devtools": devtools, "mux": mux, "flight": flight, "flow-graph": flow_graph}
+SCENES = {"forge": forge, "notes": notes, "notes-empty": notes_empty, "notes-pick": notes_pick, "notes-loading": notes_loading, "notes-error": notes_error, "notes-disconnected": notes_disconnected, "latency": latency, "chat": chat, "coder": coder, "files": files, "mdreader": mdreader, "markdown-editor": markdown_editor, "devtools": devtools, "mux": mux, "flight": flight, "flow-graph": flow_graph}
 
 
 def main():

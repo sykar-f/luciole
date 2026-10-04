@@ -130,7 +130,7 @@ pyte (caractères, couleurs, attributs) dans `src/frames/<nom>.json`. `Screen.as
 redessine cellule par cellule en HTML : net à toute taille, sélectionnable.
 
 ```sh
-python3 -m venv /tmp/luciole-pty && /tmp/luciole-pty/bin/pip install -r scripts/requirements-pty.txt
+python3 -m venv /tmp/luciole-pty && /tmp/luciole-pty/bin/pip install pyte
 /tmp/luciole-pty/bin/python website/scripts/capture.py            # toutes les scènes, depuis la racine
 /tmp/luciole-pty/bin/python website/scripts/capture.py --print mux # une scène, texte affiché
 ```
@@ -143,7 +143,7 @@ pas du jour de la capture. Après un changement visible d'un exemple, relancer l
 
 Le hero fait tourner Notes dans la page : `luciole build --web-local` de `examples/notes`,
 Client et Server dans l'onglet (voir `docs/WEB.md`). `scripts/demo.ts` refait ce build
-pour chaque démo (`forge`, `notes`, `mdreader`, `chat`, `coder`, `devtools`) et copie `.luciole/web/`
+pour chaque démo (`forge`, `notes`, `mdreader`, `chat`, `coder`, `latency`, `devtools`) et copie `.luciole/web/`
 sans les source maps dans
 `public/demo/<app>/`, que Git ignore. Le runtime web, commun à toutes les applications, est
 publié une fois dans `public/demo/runtime/` : la première démo lancée met en cache les plus

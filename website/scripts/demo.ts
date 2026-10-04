@@ -87,6 +87,9 @@ export const DEMOS: Record<string, { app: string; seed?: () => Promise<Seed> }> 
       env: { CODER_HARNESS: "fake", CODER_CWD: "/home/ada/src/timers" },
     }),
   },
+  // guides/latency-and-faults.mdx runs it on a click. No LUCIOLE_LATENCY_MS: the seed reaches
+  // the Server, and the page's Client takes its latency from the embed's `network` message.
+  latency: { app: "examples/latency" },
   // `luciole devtools --demo` with no bus: a page has no socket to listen on.
   devtools: {
     app: "packages/core/src/devtools/luciole-devtools",

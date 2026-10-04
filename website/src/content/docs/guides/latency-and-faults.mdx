@@ -1,45 +1,76 @@
 ---
 title: Latency and faults
-description: Slow the network down, lose requests and responses, cut streams, and check that the app says what it knows. LUCIOLE_LATENCY_MS, LUCIOLE_JITTER_MS, LUCIOLE_CHUNK_DELAY_MS, LUCIOLE_FAULT.
+description: Slow the network down, lose requests and responses, and cut streams, to check that your app says what it knows before your users meet a slow or broken network.
 sources:
   - packages/core/src/transport.ts
   - packages/core/src/run.tsx
-  - tests/latency.test.tsx
+  - packages/core/src/web/embed.ts
   - examples/latency
+  - examples/notes/components/NoteEditor.tsx
+  - examples/notes/components/StatusLine.tsx
 ---
 
 import CopyCommand from "../../../components/CopyCommand.astro";
 import Excerpt from "../../../components/guide/Excerpt.astro";
 import Note from "../../../components/docs/Note.astro";
+import RunHere from "../../../components/docs/RunHere.astro";
+import Screen from "../../../components/Screen.astro";
 import { commands, envPrefix } from "../../../lib/product";
 
-On your machine the Server answers in a millisecond, and an app that mishandles a slow or
-lost request looks fine. The Client's transport can simulate what a real network does, so
-you see the loading screens, the pending states and the error handling before your users do.
+luciole can slow down and break the network between your Client and your Server. You then
+see the loading screens, the pending states and the error handling before your users do. On
+your machine the Server answers in a millisecond, and an app that mishandles a slow or lost
+request still looks fine.
 
-## Add a round trip
+## Add a round trip to every request
 
 <CopyCommand lines={[`${envPrefix}_LATENCY_MS=500 bun run dev`]} />
 
-`LUCIOLE_LATENCY_MS` adds a round trip to **every app request** (page render, navigation,
-Server Function, refresh, lookup): for 500, 250 ms before sending and 250 ms before
-delivering the response. The waits are asynchronous, count against the timeout, and are
-independent between requests. Real latency adds to it. By default nothing is added.
+`LUCIOLE_LATENCY_MS` adds a round trip to every app request: page renders, navigations,
+Server Functions, refreshes and lookups.
 
-Keys, scrolling and hover do not go through the transport, so they do not slow down. A
-dedicated bench shows it:
+- A value of `500` waits 250 ms before sending and 250 ms before delivering the response.
+- Each request waits on its own, and the wait counts against the request's timeout.
+- Real latency comes on top of it.
+- Default: `0`.
+
+## Try the latency playground in this page
+
+Keys, scrolling and hover never go through the network, so a slow Server does not slow them
+down. The latency playground, `examples/latency`, lets you feel it:
+
+<RunHere
+  demo="latency"
+  frame="latency"
+  name="Latency"
+  caption="The latency playground at rest: an input, a hover area and 100 lines to scroll."
+/>
+
+In this page, the playground adds no latency. Its Server runs in your browser, so a round trip
+takes a few milliseconds. To feel 500 ms, run it on your machine:
 
 <CopyCommand
   lines={[`${envPrefix}_LATENCY_MS=500 ${commands.fromClone} dev --app examples/latency`]}
 />
 
-<kbd>Enter</kbd> calls the Server. While it waits, keep typing, scroll the 100 lines with the wheel
-and hover the coloured area; the result shows the observed round trip.
-<kbd>Ctrl+R</kbd> tests a slow refresh with the interface kept mounted. The terminal must send mouse
-events for scrolling and hover. `tests/latency.test.tsx` checks the delays, typing, scrolling,
-hover, that these interactions send no request, and that the component survives a refresh.
+Then try each of these while the Server answers:
 
-## Make it worse
+1. Press <kbd>Enter</kbd> to call the Server.
+2. Keep typing, scroll the 100 lines with the wheel, and hover the framed area. Nothing lags.
+   Scrolling and hover need a terminal that sends mouse events.
+3. Read the result line: it shows the round trip the Client measured.
+4. Press <kbd>Ctrl+R</kbd> for a slow refresh. The input stays mounted and keeps its text.
+
+Under a 2-second round trip, the text you type shows up while the Server has not answered:
+
+<Screen
+  frame="latency-waiting"
+  caption="The playground under LUCIOLE_LATENCY_MS=2000: the Server has not answered yet, and the typed text is already on screen."
+/>
+
+[Testing](/docs/guides/testing/) shows the test that checks this under 500 ms.
+
+## Add jitter, slow streams and faults
 
 | Variable                 | Effect                                                                                          |
 | ------------------------ | ----------------------------------------------------------------------------------------------- |
@@ -60,52 +91,62 @@ The three faults, and the outcome the app receives for each:
   find="export function networkFromEnv"
   until="^}"
   tone="wire"
-  caption="The faults are checked in the order given; a fault without a probability always happens."
+  caption="The faults are tried in the order given. A fault without a probability always happens."
 />
+
+## What does Notes show when a save fails?
+
+Run Notes with lost responses:
 
 <CopyCommand lines={[`${envPrefix}_LATENCY_MS=300 ${envPrefix}_FAULT=drop:0.3 bun run dev`]} />
 
-With a lost response, the Server may have written the note. Notes says nothing at first:
-a second later it asks the Server what happened to that operation, and sends the same
-operation again only if the Server has no trace of it
-([Server Functions](/docs/concepts/server-functions/#when-a-call-fails)). A save still not
-settled after 3 seconds shows "Save not confirmed. Your text is kept here." above the title,
-with **Check again**; one that could not be sent shows "Could not reach the Server", with
-**Retry**. When the failure also cost the connection, which is the usual case, the line says
-so instead ("○ Disconnected. Your text is kept here.", with **Reconnect**): a lost
-connection speaks before anything else on that line. Retries go on by themselves, less and
-less often, and the message leaves once one succeeds. Open the requests panel
-(<kbd>Ctrl+T</kbd>) to watch them.
+With a lost response, the Server may have written the note. Notes says nothing at first. A
+second later, it asks the Server what happened to that save. It sends the save again only if
+the Server has no trace of it
+([Server Functions](/docs/concepts/server-functions/#when-a-call-fails)).
+
+If the save is still not settled after 3 seconds, the line above the title says so:
+
+| Situation                      | Message                                               | Button          |
+| ------------------------------ | ----------------------------------------------------- | --------------- |
+| The outcome is unknown         | "Save not confirmed. Your text is kept here."         | **Check again** |
+| The save could not be sent     | "Could not reach the Server. Your text is kept here." | **Retry**       |
+| The connection is lost as well | "○ Disconnected. Your text is kept here."             | **Reconnect**   |
+
+A lost connection is the usual case, and its message replaces the other two. Notes keeps
+retrying by itself, at longer and longer intervals. The message goes away once a retry
+succeeds. Press <kbd>Ctrl+T</kbd> to watch the requests.
 
 ## What the app should do with each outcome
 
 - `not-sent` and `rejected`: nothing ran on the Server. It is safe to say "not saved" and
   let the user try again.
-- `unknown`: the action may have run. Replaying it may do it twice. Look it up, or let the
-  user decide; an idempotent operation ID, stored with the result, makes the lookup possible.
+- `unknown`: the Server Function may have run, and running it again may do it twice. Look it
+  up, or let the user decide. An idempotent operation ID, stored with the result, makes the
+  lookup possible.
 
-The framework never retries: it reports what it knows, the app decides.
+The framework never retries: it reports what it knows, and the app decides.
 
 ## See the requests
 
-- Notes binds <kbd>Ctrl+T</kbd> to `<DebugOverlay />`: requests, open requests, bytes, last
-  round trip and the latest events.
+- Notes binds <kbd>Ctrl+T</kbd> to `<DebugOverlay />`. It shows the requests, the open
+  requests, the bytes, the last round trip and the latest events.
 - The [DevTools](/docs/guides/devtools/) draw a waterfall of the Client's and the Server's
-  requests, and change latency, jitter, chunk delay and fault probabilities **while the app
-  runs** (panel 7, Conditions); the variables only set them at startup.
-- `useApplication().onEvent(listener)` receives each transport event (`request`,
-  `response`, `chunk`, `end`, `error` with its outcome) for your own logs.
+  requests. Their Conditions panel changes latency, jitter, chunk delay and faults while the
+  app runs. The variables set them at startup only.
+- `useApplication().onEvent(listener)` receives each transport event for your own logs:
+  `request`, `response`, `chunk`, `end`, and `error` with its outcome.
 
 <Note kind="warning">
   This is a simulation per request, not a TCP emulation: no bandwidth, no packet loss. It assumes
-  the Client runs locally; running the Client itself through SSH adds the terminal's latency to
-  every interaction, which this does not model.
+  the Client runs on your machine. Running the Client itself over SSH adds a round trip to every
+  key, which this does not model.
 </Note>
 
-## In a web page
+## Set the latency from a web page
 
 A page that embeds the web runtime in an `iframe` of its own origin can set the round trip
-and the next request's fault by message; the landing page's Notes demo does:
+and the next request's fault by message. The landing page's Notes demo does:
 
 ```ts
 iframe.contentWindow.postMessage(
@@ -114,5 +155,6 @@ iframe.contentWindow.postMessage(
 );
 ```
 
-The runtime answers with the transport's events (`{ source: "luciole", type: "event", event }`),
-which is how a page draws a request timeline. See [opening an app](/docs/guides/opening-an-app/#in-a-browser).
+The runtime answers with the transport's events, as `{ source: "luciole", type: "event",
+event }`. A page draws a request timeline from them. See
+[opening an app](/docs/guides/opening-an-app/#in-a-browser).
