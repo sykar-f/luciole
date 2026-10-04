@@ -12,10 +12,12 @@
 
   /* Plex Mono speaks for the machine (titles, labels, code), Plex Sans for the reader.
      Captured cells keep JetBrains Mono: it draws every box and block glyph the apps send,
-     which the Plex subsets leave out; it also backs Plex Mono for those glyphs. */
-  --mono: "IBM Plex Mono", "JetBrains Mono Variable", ui-monospace, monospace;
-  --sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
-  --term: "JetBrains Mono Variable", ui-monospace, monospace;
+     which the Plex subsets leave out; it also backs Plex Mono for those glyphs. The families,
+     their metric-matched fallbacks and the system fonts after them come from the Fonts API
+     (astro.config.mjs); Plex Mono names none of its own, so JetBrains Mono's follow it. */
+  --mono: var(--font-plex-mono), var(--font-jetbrains-mono);
+  --sans: var(--font-plex-sans);
+  --term: var(--font-jetbrains-mono);
 
   --step--1: 0.82rem;
   --step-0: 1rem;

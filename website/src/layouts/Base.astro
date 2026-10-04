@@ -1,12 +1,5 @@
 ---
-import "@fontsource/ibm-plex-mono/400.css";
-import "@fontsource/ibm-plex-mono/500.css";
-import "@fontsource/ibm-plex-mono/600.css";
-import "@fontsource/ibm-plex-mono/700.css";
-import "@fontsource/ibm-plex-sans/400.css";
-import "@fontsource/ibm-plex-sans/400-italic.css";
-import "@fontsource/ibm-plex-sans/600.css";
-import "@fontsource-variable/jetbrains-mono/wght.css";
+import { Font } from "astro:assets";
 import "../styles/palettes.css";
 import "../styles/global.css";
 import PaletteSwitch from "../components/PaletteSwitch.astro";
@@ -46,6 +39,20 @@ const card = Astro.site && !Astro.site.hostname.endsWith("github.com") ? new URL
     {hidden && <meta name="robots" content="noindex" />}
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <meta name="theme-color" />
+    {/* What every page paints at first sight: the Latin faces its chrome and body use, and the
+        dotless i of the logo (Latin Extended, 700). Anything rarer loads when it is used. */}
+    <Font
+      cssVariable="--font-plex-mono"
+      preload={[{ subset: "latin" }, { weight: 700, subset: "latin-ext" }]}
+    />
+    <Font
+      cssVariable="--font-plex-sans"
+      preload={[
+        { weight: 400, style: "normal", subset: "latin" },
+        { weight: 600, style: "normal", subset: "latin" },
+      ]}
+    />
+    <Font cssVariable="--font-jetbrains-mono" preload={[{ subset: "latin" }]} />
     <title>{title}</title>
     <script is:inline define:vars={{ dev, palettes }}>
       // Before the first paint: the colours asked for in the address (?tint=, ?dominant=,
