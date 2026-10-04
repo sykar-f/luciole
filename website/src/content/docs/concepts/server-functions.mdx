@@ -38,27 +38,20 @@ Notes saves a note one second after the last key. This is that call, from the ed
 <Sequence
   title="Saving a note"
   lanes={[
-    { id: "editor", label: "NoteEditor", sub: "Client Component", tone: "client" },
-    { id: "client", label: "Client", sub: "transport, router", tone: "client" },
+    { id: "client", label: "Client", sub: "NoteEditor, transport", tone: "client" },
     { id: "server", label: "Server", sub: "HTTP handler", tone: "server" },
     { id: "fn", label: "saveNote", sub: '"use server"', tone: "server" },
   ]}
   messages={[
     { phase: "In the Client" },
-    { from: "editor", to: "client", label: "saveAction(snapshot)", n: 1 },
-    {
-      from: "client",
-      to: "server",
-      label: "POST /action: the ID, build ID, arguments",
-      n: 2,
-      tone: "wire",
-    },
+    { from: "client", to: "client", label: "NoteEditor: saveAction(snapshot)", n: 1 },
+    { from: "client", to: "server", label: "POST /action, the arguments", n: 2, tone: "wire" },
     { phase: "On the Server" },
-    { from: "server", to: "server", label: "sign-in, build, known function?", n: 3 },
+    { from: "server", to: "server", label: "sign-in, build, known name?", n: 3 },
     { from: "server", to: "fn", label: "saveNote(...args)", n: 4 },
-    { from: "fn", to: "fn", label: "parse, save, invalidate({ tag })", n: 5 },
+    { from: "fn", to: "fn", label: "saves, invalidate({ tag })", n: 5 },
     { from: "fn", to: "server", label: "SaveResult", n: 6, back: true },
-    { from: "server", to: "server", label: "waits for the cache purges", n: 7 },
+    { from: "server", to: "server", label: "waits for the purges", n: 7 },
     {
       from: "server",
       to: "client",
@@ -69,16 +62,10 @@ Notes saves a note one second after the last key. This is that call, from the ed
     },
     { phase: "Back in the Client" },
     { from: "client", to: "client", label: "revalidates what read the tags", n: 9 },
-    {
-      from: "client",
-      to: "server",
-      label: "GET /render /notes/[id], POST /action listNotes",
-      n: 10,
-      tone: "wire",
-    },
-    { from: "client", to: "editor", label: "SaveResult", n: 11, back: true },
+    { from: "client", to: "server", label: "GET /render, listNotes", n: 10, tone: "wire" },
+    { from: "client", to: "client", label: "NoteEditor gets the SaveResult", n: 11 },
   ]}
-  caption="The Server answers (8) once the purges are done (7), so the reload (10) reads the new note. The call resolves (11) without waiting for that reload to answer."
+  caption="The Server answers (8) once the cache purges are done (7), so the reload (10) reads the new note. The call resolves (11) without waiting for that reload to answer."
 />
 
 ## What a `"use server"` module may export

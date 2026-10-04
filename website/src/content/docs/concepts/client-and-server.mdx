@@ -66,7 +66,7 @@ two programs see it:
     {
       from: "client",
       to: "server",
-      label: "POST /action listNotes, for the sidebar",
+      label: "POST /action listNotes: the sidebar",
       n: 3,
       tone: "wire",
     },
@@ -78,17 +78,17 @@ two programs see it:
     {
       from: "server",
       to: "client",
-      label: "Flight: the page, then the tags it read",
+      label: "Flight: the page, then its tags",
       n: 8,
       back: true,
       tone: "wire",
     },
-    { phase: "Type, then save" },
-    { from: "you", to: "client", label: "keys, drawn without the Server", n: 9 },
+    { phase: "Type, then pause for 1 s" },
+    { from: "you", to: "client", label: "keys, drawn locally", n: 9 },
     {
       from: "client",
       to: "server",
-      label: "1 s after the last key: POST /action saveNote",
+      label: "POST /action saveNote",
       n: 10,
       tone: "wire",
     },
@@ -104,7 +104,7 @@ two programs see it:
     {
       from: "client",
       to: "server",
-      label: "GET /render /notes/[id], POST /action listNotes",
+      label: "GET /render, listNotes again",
       n: 13,
       tone: "wire",
     },
@@ -113,7 +113,7 @@ two programs see it:
     {
       from: "client",
       to: "server",
-      label: "GET /render /notes/[id], POST /action listNotes",
+      label: "GET /render, listNotes again",
       n: 15,
       tone: "wire",
     },
