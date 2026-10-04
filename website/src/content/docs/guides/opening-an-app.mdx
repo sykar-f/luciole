@@ -313,21 +313,11 @@ An app that needs a process, a terminal or a real disk keeps `--web`.
 
 ## Hand someone a single binary
 
-From the app's directory:
+`luciole build --compile` writes the app as one executable, which runs on a machine without Bun.
+To compile it, hand it over, update it and roll it back, follow
+[ship a binary](/docs/guides/ship-a-binary/).
 
-```sh
-luciole build --compile
-```
-
-You get one executable per OS and architecture. It holds the Bun runtime, OpenTUI's native
-library and the build ID. The machine that runs it needs neither Bun nor the app's
-`node_modules`.
-
-<Note kind="warning">
-  By default the binary holds the Client **and** the Server, business code included. Whoever
-  receives it can read that code, and the build warns you each time. Build with `--client-only` for
-  users who only connect to your Server.
-</Note>
+A binary opens the app in these ways:
 
 | Command                                          | What it runs                                       |
 | ------------------------------------------------ | -------------------------------------------------- |
@@ -337,9 +327,6 @@ library and the build ID. The machine that runs it needs neither Bun nor the app
 | `notes --on [user@]host[:port]`                  | the Server on the remote machine, the Client here  |
 | `notes --new`                                    | a new launch, instead of reattaching a crashed one |
 | `notes --version`                                | prints the app, the build ID and the target        |
-
-Targets, runtimes, native packages and macOS signing:
-[compile a binary](/docs/reference/build-and-distribution/#compile-a-single-binary).
 
 <Note>
   Whatever the way in, the app's own options (`app/args.ts`) configure its Server. They are refused
