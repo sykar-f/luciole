@@ -12,7 +12,7 @@ import Excerpt from "../../../components/guide/Excerpt.astro";
 import Note from "../../../components/docs/Note.astro";
 
 An app that takes command-line options declares them in `app/args.ts` (optional), with
-`defineArgs` from `luciole/args` and a zod 4 schema, or any Standard Schema that also
+`defineArgs` from `@luciole-sh/core/args` and a zod 4 schema, or any Standard Schema that also
 implements Standard JSON Schema. The framework parses them the same way everywhere,
 generates `--help`, and hands them to the Server, which reads them typed.
 
@@ -55,7 +55,7 @@ import cli from "../app/args";
 export const config = cli.get(); // { harness?: "claude" | "codex"; mode: "read" | "ask"; … }
 ```
 
-`getArgs()` from `luciole/server` returns the same value, untyped, and `getLaunch()` the
+`getArgs()` from `@luciole-sh/core/server` returns the same value, untyped, and `getLaunch()` the
 launch: `{ scope, id?, cwd }`. The Server is the authority: it parses the line it receives
 again before serving, and a refused line stops it (code 2, the message in its log).
 

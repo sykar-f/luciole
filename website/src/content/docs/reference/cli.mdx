@@ -40,8 +40,8 @@ refused. A usage error exits with code 2, any other error with 1.
 ### `luciole init <dir>`
 
 Creates a starter in `<dir>` (default `my-luciole-app`), which must be empty: a copy of Notes,
-a `package.json` whose `luciole` dependency points at this checkout (`file:`), a
-`tsconfig.json` extending `luciole/tsconfig`, Oxlint, Oxfmt and VS Code settings. Then
+a `package.json` whose `@luciole-sh/core` dependency points at this checkout (`file:`), a
+`tsconfig.json` extending `@luciole-sh/core/tsconfig`, Oxlint, Oxfmt and VS Code settings. Then
 `bun install` and `bun run dev` in it.
 
 ### `luciole dev [--app dir] [-- app arguments]`
@@ -57,7 +57,7 @@ The run ends with the Client: quitting it stops the Server too, and `luciole dev
 Client's own exit code (1 if a signal killed it), so a host that runs it can tell a crash from a
 quit. A Client that exits during a rebuild ends nothing. SIGINT, SIGTERM and SIGHUP (a closed
 terminal, an unmounted `<Terminal>`) stop both processes and exit with 0. The pieces of this
-supervision are public as [`luciole/dev`](/docs/reference/api/#supervising-an-app-lucioledev).
+supervision are public as [`@luciole-sh/core/dev`](/docs/reference/api/#supervising-an-app-luciole-shcoredev).
 
 ### `luciole devtools [--listen 1|<socket>|ws://host:port] [--demo] [--replay file.json] [--env]`
 

@@ -41,8 +41,8 @@ regular expression rewrites it.
 The framework declares only <kbd>Ctrl+C</kbd> (quit) and, during a navigation,
 
 <kbd>Esc</kbd> (cancel), in the `luciole` group. Every other key belongs to the app, through
-OpenTUI's keymap re-exported by `luciole/client`. Notes is driven by the pointer; its editor adds
-optional shortcuts that the screen never lists:
+OpenTUI's keymap re-exported by `@luciole-sh/core/client`. Notes is driven by the pointer; its
+editor adds optional shortcuts that the screen never lists:
 
 <Excerpt
   path="examples/notes/components/NoteEditor.tsx"
@@ -80,17 +80,17 @@ Forge's editor launcher is the example in the repository:
 />
 
 The markers need no package: the build resolves them to empty modules, and
-`luciole/tsconfig` declares them so `tsc` accepts the import. There is no `*.server.*` or
+`@luciole-sh/core/tsconfig` declares them so `tsc` accepts the import. There is no `*.server.*` or
 `*.client.*` suffix.
 
 The Client's graph refuses modules under `server/`, anything that imports `server-only`,
-`luciole/server`, and `require()` or dynamic `import()` in the app's sources.
+`@luciole-sh/core/server`, and `require()` or dynamic `import()` in the app's sources.
 
 ## Packages
 
 A Client Component imports any installed package without declaring it; the bundler takes it
 with its dependencies. The markers work for packages too: a package that imports
-`server-only` or `luciole/server` and reaches the Client, or `client-only` and reaches the
+`server-only` or `@luciole-sh/core/server` and reaches the Client, or `client-only` and reaches the
 Server, fails the build. A third-party package that declares nothing can be put on the
 Server's side in an optional `luciole.json`:
 

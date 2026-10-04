@@ -1,6 +1,6 @@
 ---
 title: API
-description: What the package exports, entry by entry. luciole/client for Client Components, luciole/server for the Server, and the entries hosts, tools and tests use.
+description: What the package exports, entry by entry. @luciole-sh/core/client for Client Components, @luciole-sh/core/server for the Server, and the entries hosts, tools and tests use.
 sources:
   - docs/API.md
   - packages/core/package.json
@@ -27,7 +27,7 @@ import Note from "../../../components/docs/Note.astro";
 The framework holds no business state: no Draft, no pending operation, no retry policy. It
 reports what happened to each request; the app decides.
 
-## `luciole/client`
+## `@luciole-sh/core/client`
 
 For Client Components only.
 
@@ -74,14 +74,14 @@ For Client Components only.
 finished blocks render once, the last block is closed ahead of time (`**bold` shows bold), and
 text is styled without Tree-sitter so the streaming and final renders match. Code is coloured
 once its fence closes; `diff` blocks are coloured line by line from the start. OpenTUI knows
-JavaScript, TypeScript, Markdown and Zig; `import "luciole/grammars"` (once, in the Client)
+JavaScript, TypeScript, Markdown and Zig; `import "@luciole-sh/core/grammars"` (once, in the Client)
 adds Bash, C, C++, CSS, Go, HTML, Java, JSON, PHP, Python, Ruby, Rust, TOML and YAML. A click
 on a link calls `onLink(url)`; images are drawn with kitty, sixel or half blocks.
 
 `markdownStyle({ text, muted, faint, accent, onBand, band, bandQuiet, code, panel, link,
 danger, ok })` derives every group `<Markdown>` reads from those colors: H1 and H2 on
 `band`, H3 on `bandQuiet`, code blocks on `panel`, and the Tree-sitter groups of the
-grammars above. `@luciole/editor` reads the same groups, so a note looks the same read and
+grammars above. `@luciole-sh/markdown-editor` reads the same groups, so a note looks the same read and
 written.
 
 ### Asking the host
@@ -127,7 +127,7 @@ Client or an `inline` pane acts itself, with the user's rights (`pbcopy`, `osasc
 and the types `LiveState`, `TracerLike`, `Session`, `SessionEntry`,
 `OpenApplicationOptions`, `PublisherCheck`. An app does not need them.
 
-## `luciole/server`
+## `@luciole-sh/core/server`
 
 | Export                                                                | Contract                                                                                                                               |
 | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
@@ -149,19 +149,19 @@ wrapped. `/action` answers with `Server-Timing: total;dur=…`.
 
 ## Other entries
 
-| Entry                | For                                                                                                                                    |
-| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `luciole/args`       | `defineArgs`, for `app/args.ts`.                                                                                                       |
-| `luciole/route-tree` | What `app/routeTree.gen.ts` calls: `rootRoute`, `layoutRoute`, `pageRoute`, `loadPage`, `validateSearch`.                              |
-| `luciole/build`      | `build(directory, output?, { appBundle?, signBundle?, webServer? }?)` → `{ buildId, output }`; publisher keys for `signBundle`.        |
-| `luciole/dev`        | Supervising an app under development (below).                                                                                          |
-| `luciole/sandbox`    | The `sandbox` mode for a host: `openSandbox` (a confined Client for `<TerminalView>`), `confineServer`, `sandboxAvailability`.         |
-| `luciole/pty`        | `spawnPty({ command, cols, rows, env?, cwd?, onData, onExit, … })` → `{ write, resize, kill, send, pid }`: `Bun.Terminal`, POSIX only. |
-| `luciole/metadata`   | `AppMetadata`, the schema of `.luciole/metadata.json`, and the functions that read and write it.                                       |
-| `luciole/grammars`   | Side effect only: registers the extra Tree-sitter grammars.                                                                            |
-| `luciole/tsconfig`   | The TypeScript configuration every app extends.                                                                                        |
+| Entry                         | For                                                                                                                                    |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `@luciole-sh/core/args`       | `defineArgs`, for `app/args.ts`.                                                                                                       |
+| `@luciole-sh/core/route-tree` | What `app/routeTree.gen.ts` calls: `rootRoute`, `layoutRoute`, `pageRoute`, `loadPage`, `validateSearch`.                              |
+| `@luciole-sh/core/build`      | `build(directory, output?, { appBundle?, signBundle?, webServer? }?)` → `{ buildId, output }`; publisher keys for `signBundle`.        |
+| `@luciole-sh/core/dev`        | Supervising an app under development (below).                                                                                          |
+| `@luciole-sh/core/sandbox`    | The `sandbox` mode for a host: `openSandbox` (a confined Client for `<TerminalView>`), `confineServer`, `sandboxAvailability`.         |
+| `@luciole-sh/core/pty`        | `spawnPty({ command, cols, rows, env?, cwd?, onData, onExit, … })` → `{ write, resize, kill, send, pid }`: `Bun.Terminal`, POSIX only. |
+| `@luciole-sh/core/metadata`   | `AppMetadata`, the schema of `.luciole/metadata.json`, and the functions that read and write it.                                       |
+| `@luciole-sh/core/grammars`   | Side effect only: registers the extra Tree-sitter grammars.                                                                            |
+| `@luciole-sh/core/tsconfig`   | The TypeScript configuration every app extends.                                                                                        |
 
-## Supervising an app: `luciole/dev`
+## Supervising an app: `@luciole-sh/core/dev`
 
 What `luciole dev` is made of, for a host that supervises an app but decides itself when to
 rebuild (studio, at the end of a model's turn):
