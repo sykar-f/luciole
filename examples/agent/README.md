@@ -1,114 +1,135 @@
-# Agent : une UI d'agent de code dans le terminal
+# agent
 
-Interface minimale pour [pi](https://github.com/earendil-works/pi) : conversation,
-texte streamé, appels d'outils (`read`, `bash`, `edit`, `write`) avec arguments et
-résultats repliables, état en cours/idle, interruption et nouvelle session.
+agent is a small terminal UI for the [pi](https://github.com/earendil-works/pi) coding
+agent. It shows the conversation as it streams, and each tool call with its arguments and
+result. You can interrupt the agent and start a new agent session.
 
-## Lancement
+It shows how a luciole Server drives one long-lived process and streams its state to the
+Client with `useLive`. The prompt is a restored field, and the keys come from
+`useBindings`.
 
-Sans cloner le dépôt : `luciole example agent` lance cet exemple depuis le tag git de la
-version de luciole installée ([docs/DISTRIBUTION.md](../../docs/DISTRIBUTION.md#exemples)).
-Les variables d'environnement et les clés ci-dessous s'appliquent de la même façon.
+```
+   Client                       Server                          pi --mode rpc
+ ┌────────────────┐  sendPrompt  ┌─────────────────────┐  JSON lines  ┌──────────────┐
+ │ transcript     │ ───────────▶ │ server/agent.ts     │ ───────────▶ │ read  bash   │
+ │ tool calls     │              │ server/transcript.ts│              │ edit  write  │
+ │ prompt         │ ◀─────────── │                     │ ◀─────────── │              │
+ └────────────────┘  feed:       └─────────────────────┘  events      └──────────────┘
+                     snapshots                                         in AGENT_CWD
+```
 
-Depuis la racine du monorepo (les dépendances sont `workspace:*` et `catalog:` : l'exemple
-ne se lance pas depuis son propre dossier). Prérequis : Bun 1.4.2 et `bun install
---frozen-lockfile` une fois.
+## Run it
+
+agent needs the `pi` CLI on your `PATH`, with its `openai-codex` provider signed in
+through a ChatGPT subscription. Each prompt spends that quota. There is no scripted mode:
+without a signed-in `pi`, the example does not work end to end.
+
+With luciole installed:
 
 ```sh
+bunx luciole.sh example agent
+```
+
+From a clone of the repository, with Bun 1.4.2, run it from the root:
+
+```sh
+git clone https://github.com/sykar-f/luciole && cd luciole
+bun install --frozen-lockfile
 bun run agent
 ```
 
-`bun run agent` est `luciole dev --app examples/agent`. Attendez-vous à une conversation
-vide avec le prompt en bas ; envoyez un message et la réponse arrive en streaming.
+The screen opens on an empty conversation, with the prompt at the bottom. While pi starts,
+the conversation reads "Starting pi…".
 
-Prérequis : le CLI `pi` (v0.85) dans le `PATH` et le provider `openai-codex` connecté
-(`~/.pi/agent/auth.json`, abonnement ChatGPT). Chaque prompt consomme ce quota. Il n'existe pas de mode scripté : sans `pi` connecté, cet
-exemple ne se lance pas de bout en bout.
+## Try it
 
-## Clavier
+Send a prompt that makes the agent use its tools, such as "write hello.txt, then cat it".
+The reply streams in, and each tool call appears as a block you can fold.
 
-| Touche             | Effet                                                                          |
-| ------------------ | ------------------------------------------------------------------------------ |
-| Entrée             | Envoie le prompt ; pendant un travail, l'envoie en _steering_ (tour suivant)   |
-| Ctrl+X             | Interrompt l'agent (vide aussi les messages en attente)                        |
-| Ctrl+N (deux fois) | Nouvelle session ; l'ancienne reste dans l'historique de pi                    |
-| Échap              | Parcourt les appels d'outils et réflexions (le prompt perd le focus)           |
-| `j` `k` / ↑ ↓      | Sélectionne un appel ; Entrée ou Espace le plie/déplie, `a` plie/déplie tout   |
-| `i` ou Échap       | Revient au prompt                                                              |
-| Page ↑ / Page ↓    | Fait défiler la conversation (la molette aussi) ; un clic sur un appel le plie |
-| Ctrl+R             | Rafraîchit ; rouvre le flux live s'il a été coupé                              |
-| Ctrl+C             | Quitte                                                                         |
+| Key            | Effect                                                                                     |
+| -------------- | ------------------------------------------------------------------------------------------ |
+| Enter          | Sends the prompt. While the agent works, the prompt steers it after the current tool call. |
+| Ctrl+X         | Interrupts the agent and drops the queued prompts                                          |
+| Ctrl+N, twice  | Starts a new agent session. The previous one stays in pi's history.                        |
+| Esc            | Browses the tool calls and thinking blocks. The prompt loses the focus.                    |
+| `j`/`k` or ↑/↓ | Selects a block while you browse                                                           |
+| Enter or Space | Folds or unfolds the selected block. `a` folds or unfolds them all.                        |
+| `i` or Esc     | Returns to the prompt                                                                      |
+| PgUp/PgDn      | Scrolls the conversation. The mouse wheel does too, and a click folds a block.             |
+| Ctrl+R         | Refreshes, and reopens the live feed if it closed                                          |
+| Ctrl+C         | Quits                                                                                      |
 
-Comme dans Forge, les lettres appartiennent au texte tant que le prompt a le focus :
-elles ne deviennent des commandes qu'en mode parcours. L'aide en bas de l'écran est
-générée depuis les raccourcis actifs.
+Letters type into the prompt while it has the focus. They become commands only while you
+browse. The help line at the bottom lists the keys that work at that moment.
 
-## Configuration
+## How it is built
 
-| Variable         | Défaut                                      | Rôle                                                             |
-| ---------------- | ------------------------------------------- | ---------------------------------------------------------------- |
-| `AGENT_MODEL`    | `openai-codex/gpt-5.6-terra`                | Modèle pi ; sans `provider/`, `openai-codex/` est ajouté         |
-| `AGENT_THINKING` | `low`                                       | `off` … `max`                                                    |
-| `AGENT_CWD`      | `$TMPDIR/luciole-agent-sandbox`             | Répertoire de travail de l'agent (créé au besoin), pas le dépôt  |
-| `AGENT_PI`       | `pi`                                        | Exécutable pi                                                    |
-| sessions pi      | `$XDG_STATE_HOME/luciole/agent/pi-sessions` | Historique des conversations, repris au démarrage (`--continue`) |
+Open these files first:
 
-**Pourquoi Terra.** Des trois variantes de GPT-5.6, Sol est la plus grande et la plus
-lente, Luna la plus petite (tarifs API indicatifs : Sol 4/20 $, Terra 2/12 $, Luna
-0,2/1,2 $ par million de tokens en entrée/sortie). Un agent de code enchaîne des
-appels d'outils sur plusieurs tours : Terra les suit de façon fiable, reste réactive
-et, sur l'abonnement, consomme moins de quota que Sol. Avec `low`, un tour court
-répond en quelques secondes. `AGENT_MODEL=gpt-5.6-sol` pour les tâches difficiles,
-`gpt-5.6-luna` pour des essais rapides.
+- `server/agent.ts`: the Server's one agent. It starts pi, restarts it when needed, and
+  publishes a snapshot after each change, at most one every 50 ms.
+- `server/pi.ts`: one `pi --mode rpc` process, with JSON lines on stdin and stdout.
+  Responses match their command by `id`.
+- `server/protocol.ts`: the part of pi's protocol that agent reads. Zod checks each line.
+- `server/transcript.ts`: turns pi's events into the blocks the screen shows.
+- `actions/agent.ts`: the Server Functions `sendPrompt`, `abort`, `newSession` and the live
+  `feed`.
+- `components/AgentScreen.tsx`: the Client screen, its keys and the prompt.
 
-## Fonctionnement
+At start, pi continues the latest agent session of `AGENT_CWD`. The Server rebuilds the
+conversation from pi's messages, so a rebuild in `luciole dev` keeps it.
 
-- `server/pi.ts` lance `pi --mode rpc` dans `AGENT_CWD` (JSON par ligne sur
-  stdin/stdout, réponses corrélées par `id`) ; `server/protocol.ts` valide chaque ligne
-  avec Zod. Extensions, skills et prompt templates sont désactivés ; seuls les quatre
-  outils de base sont actifs. Une demande de dialogue d'extension est refusée.
-- `server/transcript.ts` réduit les événements (`message_update`, `tool_execution_*`…)
-  en blocs ; `server/agent.ts` tient l'unique agent du Server, le (re)démarre au
-  besoin et publie un instantané à chaque changement (au plus un toutes les 50 ms).
-- `actions/agent.ts` expose `sendPrompt`, `abort`, `newSession` et `feed`, un flux live
-  lu par `useLive` : l'écran reçoit l'instantané courant puis chaque mise à jour.
-  `feed` renvoie un itérateur écrit à la main plutôt qu'un générateur : quand le Client
-  part, Flight appelle `throw()` pendant que l'abonné attend un changement qui peut ne
-  jamais venir, et seul un itérateur peut interrompre cette attente.
-- Au démarrage, pi reprend la dernière session de `AGENT_CWD` et la conversation est
-  reconstruite depuis `get_messages` : un rebuild de `luciole dev` la conserve.
-- Le prompt est un champ nommé (`agent/prompt`) : un texte tapé revient après un crash
-  du Client ; il est oublié pendant l'envoi et remis dans le champ si l'envoi échoue.
+pi runs with its four core tools only: `read`, `bash`, `edit` and `write`. Extensions,
+skills and prompt templates are turned off. agent declines any dialog an extension asks
+for.
 
-## Vérification
+The prompt is the restored field `agent/prompt`. Text you typed comes back after a crash
+of the Client. While a prompt is being sent, the field is empty. If the send fails, the
+text goes back into the field.
+
+`feed` returns an async iterator written by hand, not an `async function*` generator. When
+the Client leaves, only a hand-written iterator can stop a wait for a change that may
+never come.
+
+### Check your changes
 
 ```sh
-bun run check          # types de tout le monorepo
+bun run check
 bun run lint
 bun run format:check
-bun run test:pty:agent   # vrai pi, vrai modèle : consomme un peu de quota
+bun run test:pty:agent   # the real pi and a real model: spends a little quota
 ```
 
-Le parcours PTY lance `luciole dev` avec un sandbox et un état temporaires, envoie un
-prompt qui appelle `write` puis `bash`, vérifie le fichier créé, déplie les appels,
-interrompt un `sleep 30` en cours, démarre une nouvelle session, quitte, et contrôle
-que le terminal est restauré et qu'aucun processus pi ne survit.
+`test:pty:agent` runs `luciole dev` with a temporary sandbox and state. It sends a prompt
+that calls `write` and then `bash`, and checks the file the agent wrote. Then it unfolds
+the calls and interrupts a `sleep 30`. Last, it starts a new agent session and quits. It
+checks that your terminal is restored and that no pi process is left.
 
-## Limites
+## Environment variables
 
-- **`AGENT_CWD` n'est pas un bac à sable** : `bash` peut lire et écrire hors de ce
-  répertoire, avec les droits de l'utilisateur. Aucune confirmation avant une commande.
-- Un seul agent par Server : plusieurs Clients voient et pilotent la même conversation.
-- Chaque instantané contient toute la conversation (400 derniers blocs, sorties d'outil
-  tronquées au milieu au-delà de 12 000 caractères) : simple et robuste à une
-  reconnexion, mais coûteux pour de très longues sessions.
-- Texte brut : pas de rendu Markdown (le composant `<markdown>` d'OpenTUI dépend de
-  tree-sitter, non essayé ici). Prompt sur une ligne, pas d'images.
-- Une nouvelle session sans réponse du modèle n'est pas écrite par pi : après un
-  redémarrage du Server, `--continue` rouvre la session précédente.
-- Le coût affiché par pi est un tarif API ; sur l'abonnement, seuls les tokens sont
-  montrés.
-- Framework : aucun blocage rencontré. À noter (lu dans le code de Flight, non mesuré) :
-  un générateur `async function*` qui attend sans fin ne se ferme pas au départ du
-  Client, car le `throw()` de Flight reste en file jusqu'au prochain `yield` ; d'où
-  l'itérateur manuel.
+| Variable         | Default                         | Role                                                                        |
+| ---------------- | ------------------------------- | --------------------------------------------------------------------------- |
+| `AGENT_MODEL`    | `openai-codex/gpt-5.6-terra`    | The pi model. Without a `provider/` prefix, agent adds `openai-codex/`.     |
+| `AGENT_THINKING` | `low`                           | `off`, `minimal`, `low`, `medium`, `high`, `xhigh` or `max`                 |
+| `AGENT_CWD`      | `$TMPDIR/luciole-agent-sandbox` | The agent's working directory, created if needed. It is not the repository. |
+| `AGENT_PI`       | `pi`                            | The pi executable                                                           |
+| `XDG_STATE_HOME` | `~/.local/state`                | pi's conversations go under `luciole/agent/pi-sessions` there.              |
+
+The default is Terra, the middle one of the three GPT-5.6 variants. It follows multi-step
+tool use reliably and spends less quota than Sol. With `low` thinking, a short turn
+answers in a few seconds. Set `AGENT_MODEL=gpt-5.6-sol` for hard tasks, or `gpt-5.6-luna`
+for quick tries.
+
+## Limits
+
+> **Warning:** `AGENT_CWD` is not a sandbox. The `bash` tool can read and write outside
+> it, with your rights, and agent asks nothing before a command runs.
+
+- **One agent per Server.** Several Clients see and drive the same conversation.
+- **Whole snapshots.** Each snapshot holds the whole conversation, up to its last 400
+  blocks. A tool output over 12,000 characters loses its middle. A snapshot survives a
+  reconnection, but a very long conversation makes each one heavy.
+- **Plain text.** Replies show as plain text, with no Markdown. The prompt is one line,
+  with no images.
+- **A new agent session with no reply.** pi does not write an agent session that has no reply
+  yet. After the Server restarts, pi continues the previous agent session instead.
