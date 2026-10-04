@@ -275,6 +275,18 @@
   color: inherit;
 }
 
+/* A term linked to the glossary (lib/docs/markdown.ts): the text's own colour and a dotted
+   underline, quieter than a link, in every palette. */
+.docs .prose a.glossary-term {
+  color: inherit;
+  text-decoration-style: dotted;
+  text-decoration-color: var(--dim);
+}
+
+.docs .prose a.glossary-term:hover {
+  text-decoration-color: currentColor;
+}
+
 /* The glossary: each term, then its definition; the term a link points to stands out. */
 .docs .prose .glossary dt {
   margin-top: 1.3em;

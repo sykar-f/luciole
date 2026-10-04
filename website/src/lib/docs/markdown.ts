@@ -1,6 +1,7 @@
 import Slugger from "github-slugger";
 import type { SatteriProcessorOptions } from "@astrojs/markdown-satteri";
 import { name, writtenAs } from "../product";
+import { linkTerms } from "./glossary";
 
 // Hast plugins of the documentation's Markdown (astro.config.mjs). They run before
 // Astro's own heading ids, which keep an id already set.
@@ -47,3 +48,10 @@ export const renameProduct: HastPluginEntry = () =>
       if (renamed !== node.value) ctx.replaceNode(node, { type: "text", value: renamed });
     },
   };
+
+/**
+ * The first occurrence of each glossary term on a docs page, linked to its entry in the
+ * glossary. The linking lives in glossary.ts, next to the terms, and its tests run it
+ * without this file's dependencies.
+ */
+export const glossaryLinks: HastPluginEntry = linkTerms;

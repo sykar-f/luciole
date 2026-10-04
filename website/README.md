@@ -22,6 +22,9 @@ dépôt par `Excerpt` (`src/components/guide/`), trouvé par repères comme dans
 Le nom du produit et les commandes viennent de `src/lib/product.ts` : les pages s'écrivent
 avec le nom actuel, et un plugin de `src/lib/docs/markdown.ts` le réécrit partout si ce
 fichier change (les props des composants, du JavaScript, lisent `product.ts` elles-mêmes).
+Le glossaire (`reference/glossary.mdx`) est rendu depuis `src/lib/docs/glossary.ts`, et le
+même module lie, au build, la première occurrence de chaque terme d'une page à son entrée :
+on ajoute un terme là, jamais dans les pages.
 La recherche est Pagefind : `bun run build` indexe `dist/` après Astro (le seul
 `data-pagefind-body` est celui des pages de documentation) ; `bun run dev` n'a pas d'index et
 le dit.

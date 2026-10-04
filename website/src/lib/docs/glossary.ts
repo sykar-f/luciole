@@ -1,4 +1,5 @@
-// The terms the docs define, one entry each, which reference/glossary.mdx lists.
+// The terms the docs define, one entry each. reference/glossary.mdx lists them, and the
+// glossaryLinks plugin (markdown.ts) links the first occurrence of each on every other page.
 
 export interface Term {
   /** The name the glossary lists, as the prose writes it. */
@@ -300,3 +301,148 @@ export const alphabetical = [...glossary].sort((a, b) =>
 export const partsOf = (definition: string) =>
   definition.split("`").map((text, index) => ({ text, code: index % 2 === 1 }));
 
+// ── Linking each term's first occurrence ─────────────────────────────────────
+
+/** Elements whose text stays plain: code, headings, links, figures and their captions. */
+const PLAIN = new Set([
+  "a",
+  "button",
+  "code",
+  "figcaption",
+  "figure",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+  "kbd",
+  "pre",
+  "samp",
+  "script",
+  "style",
+  "summary",
+  "svg",
+  "th",
+]);
+/** The components whose children are prose; any other one is a figure or a name in code. */
+const PROSE_COMPONENTS = new Set(["Note", "details"]);
+
+/** A phrase as a pattern, its spaces matching any run of white space, a line break included. */
+const pattern = (phrase: string) =>
+  phrase
+    .split(" ")
+    .map((word) => word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    .join("\\s+");
+
+/** Each form of each term, a lowercase one with its capitalised twin, to its term. */
+const termOf = new Map<string, Term>(
+  glossary.flatMap((term) =>
+    term.forms.flatMap((form) => {
+      const capital = `${form.charAt(0).toUpperCase()}${form.slice(1)}`;
+      return [...new Set([form, capital])].map((variant): [string, Term] => [variant, term]);
+    }),
+  ),
+);
+// Whole words only, the longest form first: "Server Components" before "Server".
+const occurrence = new RegExp(
+  `(?<![\\p{L}\\p{N}_/@.-])(?:${[...termOf.keys()]
+    .sort((a, b) => b.length - a.length)
+    .map(pattern)
+    .join("|")})(?![\\p{L}\\p{N}_-])`,
+  "gu",
+);
+
+/** Each term's phrases where a form means something else, as patterns. */
+const otherSenses = new Map(
+  glossary.map((term) => [
+    term,
+    (term.not ?? []).map((phrase) => new RegExp(pattern(phrase), "gi")),
+  ]),
+);
+
+/** Whether the match from `start` to `end` of `text` sits inside a phrase of another sense. */
+const otherSense = (term: Term, text: string, start: number, end: number) =>
+  (otherSenses.get(term) ?? []).some((phrase) =>
+    [...text.matchAll(phrase)].some(
+      (found) => found.index <= start && found.index + found[0].length >= end,
+    ),
+  );
+
+/** A node of the tree, as much of it as the linking reads. */
+interface TreeNode {
+  type: string;
+  tagName?: string;
+  name?: string | null;
+}
+
+/** What a text node becomes: its text, cut around the links to its terms. */
+export type Linked =
+  | { type: "text"; value: string }
+  | {
+      type: "element";
+      tagName: "a";
+      properties: { className: string[]; href: string };
+      children: [{ type: "text"; value: string }];
+    };
+
+/** What the linking asks of the Markdown processor: a node's parent, and a replacement. */
+export interface LinkContext {
+  parent(node: Readonly<TreeNode>): Readonly<TreeNode> | undefined;
+  replaceNode(node: Readonly<{ type: "text"; value: string }>, parts: Linked[]): void;
+}
+
+/** Whether a node sits in code, a heading, a link, a figure or a component but a Note. */
+function plain(node: Readonly<TreeNode>, ctx: LinkContext) {
+  for (let parent = ctx.parent(node); parent; parent = ctx.parent(parent)) {
+    if (parent.type === "element" && PLAIN.has(parent.tagName ?? "")) return true;
+    const component = parent.type === "mdxJsxFlowElement" || parent.type === "mdxJsxTextElement";
+    if (component && !PROSE_COMPONENTS.has(parent.name ?? "")) return true;
+  }
+  return false;
+}
+
+/**
+ * The hast plugin that links the first occurrence of each term on a docs page to its entry in
+ * the glossary (markdown.ts registers it). An occurrence in code, a heading, a link, a figure
+ * or a component other than a Note neither links nor counts. The glossary page itself, and
+ * anything outside the docs, stays as written. Each document gets its own plugin, so its
+ * own record of the terms already linked.
+ */
+export function linkTerms({ fileURL }: { fileURL: URL | undefined }) {
+  const path = fileURL?.pathname ?? "";
+  if (!path.includes("/src/content/docs/") || path.endsWith(`/${glossaryPage}.mdx`)) return false;
+  const linked = new Set<Term>();
+  return {
+    name: "glossary-links",
+    text(node: Readonly<{ type: "text"; value: string }>, ctx: LinkContext) {
+      if (plain(node, ctx)) return;
+      const text = node.value;
+      const parts: Linked[] = [];
+      let done = 0;
+      for (const match of text.matchAll(occurrence)) {
+        const term = termOf.get(match[0].replace(/\s+/g, " "));
+        const start = match.index;
+        const end = start + match[0].length;
+        if (!term || linked.has(term) || otherSense(term, text, start, end)) continue;
+        linked.add(term);
+        parts.push(
+          { type: "text", value: text.slice(done, start) },
+          {
+            type: "element",
+            tagName: "a",
+            properties: { className: ["glossary-term"], href: glossaryHref(term) },
+            children: [{ type: "text", value: match[0] }],
+          },
+        );
+        done = end;
+      }
+      if (done === 0) return;
+      parts.push({ type: "text", value: text.slice(done) });
+      ctx.replaceNode(
+        node,
+        parts.filter((part) => part.type !== "text" || part.value !== ""),
+      );
+    },
+  };
+}
