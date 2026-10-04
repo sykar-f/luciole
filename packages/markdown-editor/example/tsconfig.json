@@ -1,0 +1,17 @@
+{
+  // The README's tsconfig.json, plus the two options this workspace needs: the package
+  // resolves to its sources, as Bun does at run time, and they import each other with `.ts`.
+  // A project that installs the package from npm leaves both out.
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "jsxImportSource": "@opentui/react",
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "customConditions": ["bun"],
+    "allowImportingTsExtensions": true
+  }
+}

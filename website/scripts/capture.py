@@ -432,6 +432,24 @@ def mdreader(directory):
         term.stop()
 
 
+def markdown_editor(directory):
+    # The program of packages/markdown-editor/README.md, run as a reader runs it: Bun on the
+    # file, no Luciole app around it.
+    term = Terminal(
+        [BUN, str(ROOT / "packages/markdown-editor/example/index.tsx")],
+        # TERM_PROGRAM: heading bands take octant ends only in terminals that draw them (Ghostty,
+        # kitty, WezTerm); the frame shows the square ones, which every font has.
+        {**os.environ, "TERM": "xterm-256color", "COLORTERM": "truecolor", "TERM_PROGRAM": "xterm"},
+        72, 13,
+    )
+    try:
+        term.wait_for("Packing list", 60)
+        term.idle(1.5)
+        save(term, "markdown-editor", "@luciole-sh/markdown-editor: a note, as it reads")
+    finally:
+        term.stop()
+
+
 def chat(directory):
     # CHAT_DEMO: the scripted model the page's live demo answers with, in the Server.
     term = dev("chat", {"CHAT_DEMO": "1"}, directory, 140, 40)
@@ -571,7 +589,7 @@ def flow_graph(directory):
         term.stop()
 
 
-SCENES = {"forge": forge, "notes": notes, "notes-empty": notes_empty, "notes-pick": notes_pick, "notes-loading": notes_loading, "notes-error": notes_error, "notes-disconnected": notes_disconnected, "chat": chat, "coder": coder, "files": files, "mdreader": mdreader, "devtools": devtools, "mux": mux, "flight": flight, "flow-graph": flow_graph}
+SCENES = {"forge": forge, "notes": notes, "notes-empty": notes_empty, "notes-pick": notes_pick, "notes-loading": notes_loading, "notes-error": notes_error, "notes-disconnected": notes_disconnected, "chat": chat, "coder": coder, "files": files, "mdreader": mdreader, "markdown-editor": markdown_editor, "devtools": devtools, "mux": mux, "flight": flight, "flow-graph": flow_graph}
 
 
 def main():
