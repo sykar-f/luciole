@@ -4,7 +4,7 @@ import mdx from "@astrojs/mdx";
 import sitemap from "@astrojs/sitemap";
 import { satteri } from "@astrojs/markdown-satteri";
 import { night } from "./src/lib/codeTheme.ts";
-import { headingAnchors, renameProduct } from "./src/lib/docs/markdown.ts";
+import { glossaryLinks, headingAnchors, renameProduct } from "./src/lib/docs/markdown.ts";
 
 // What src/assets/fonts/jetbrains-mono-symbols.woff2 draws (the last line subset.sh prints), so a
 // page needs the file only when it holds one of these.
@@ -136,6 +136,6 @@ export default defineConfig({
   ],
   markdown: {
     shikiConfig: { theme: night },
-    processor: satteri({ hastPlugins: [headingAnchors, renameProduct] }),
+    processor: satteri({ hastPlugins: [headingAnchors, renameProduct, glossaryLinks] }),
   },
 });

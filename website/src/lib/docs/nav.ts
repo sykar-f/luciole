@@ -56,6 +56,7 @@ export const sections: readonly Section[] = [
       "reference/build-and-distribution",
       "reference/troubleshooting",
       "reference/releases",
+      "reference/glossary",
     ],
   },
 ];
