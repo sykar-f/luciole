@@ -171,10 +171,10 @@ export function Textarea({ name, value, onChange, ref, ...props }: FieldTextarea
 
 export type RestoredFields = {
   /**
-   * Sends the group: its kept text is forgotten before `action` runs, so a crash
-   * during the request never offers it again (no double send). If the request provably
-   * did not run (`not-sent`, `rejected`), or `failed(result)` says the Server refused
-   * it, the text is kept again, unless the user typed newer text meanwhile.
+   * Sends the group: its kept text is forgotten, on disk too, before `action` runs, so a
+   * Client killed during the request never offers it again (no double send). If the
+   * request provably did not run (`not-sent`, `rejected`), or `failed(result)` says the
+   * Server refused it, the text is kept again, unless the user typed newer text meanwhile.
    */
   submit<T>(action: () => Promise<T>, options?: { failed?: (result: T) => boolean }): Promise<T>;
   /** Forgets the group's kept text (an explicit discard). The fields keep their value. */

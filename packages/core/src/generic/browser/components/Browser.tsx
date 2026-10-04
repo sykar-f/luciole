@@ -130,8 +130,7 @@ function OriginTab({ tab, id, hub, active, onClose }: TabProps) {
       (created) => {
         if (closed) return created.dispose();
         opened = created;
-        session.flush(created.restoration.snapshot());
-        created.restoration.subscribe(() => session.schedule(created.restoration.snapshot()));
+        created.restoration.persistTo(session);
         created.quit = () => {
           forget();
           close.current();

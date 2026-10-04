@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { createMemoryHistory } from "@tanstack/react-router";
-import { MAX_ENTRIES, Restoration } from "../packages/core/src/restore";
+import { MAX_ENTRIES, Restoration, type Session } from "../packages/core/src/restore";
 
 function session(entries = ["/"]) {
   const history = createMemoryHistory({ initialEntries: entries });
@@ -78,6 +78,27 @@ test("a submit takes the group's text; only the user can bring it back, or a res
   restoration.restore(here(), taken);
   expect(restoration.get(here(), "pr/title")).toBe("Retry");
   expect(restoration.get(here(), "pr/body")).toBe("Backoff and jitter");
+});
+
+test("typing is written later; what a submit takes or gives back is written at once", () => {
+  const { restoration, here } = session();
+  const writes: string[] = [];
+  const fields = (s: Session) => JSON.stringify(s.entries[0].fields);
+  restoration.persistTo({
+    schedule: (s) => writes.push(`later ${fields(s)}`),
+    flush: (s) => writes.push(`now ${fields(s)}`),
+  });
+  restoration.save(here(), "pr/title", "Retry", typed);
+  const taken = restoration.take(here(), "pr");
+  restoration.restore(here(), taken);
+  expect(writes).toEqual([
+    // Claimed when it starts: another Client must not take this session.
+    "now {}",
+    'later {"pr/title":"Retry"}',
+    // Written before the request leaves: a crash while sending finds nothing to offer.
+    "now {}",
+    'now {"pr/title":"Retry"}',
+  ]);
 });
 
 test("clear forgets every field but keeps the history", () => {
