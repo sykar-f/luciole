@@ -2,23 +2,20 @@
 /**
  * `luciolex <target> [app arguments]`: resolves, installs if needed and runs, like npx.
  * Unlike `luciole <target>`, the target is never read as a subcommand: `luciolex build`
- * launches an app named build.
+ * launches an app named build. `--yes` is luciolex's own only before `--`, as for luciole.
  */
 import { isUsageError, USAGE_EXIT_CODE } from "./args";
 import { messageOf } from "./guards";
+import { takeYes } from "./commands/launch";
 import { launch } from "./launcher";
-import { acceptAll } from "./launcher/prompt";
 
 const [target, ...rest] = process.argv.slice(2);
-const YES = "--yes";
 if (!target || target.startsWith("-")) {
-  console.error("Usage: luciolex <path | app | npm spec | git source> [--yes] [app arguments]");
+  console.error("Usage: luciolex <path | app | npm spec | git source> [--yes] [-- app arguments]");
   process.exit(USAGE_EXIT_CODE);
 }
-launch(target, {
-  args: rest.filter((arg) => arg !== YES),
-  ...(rest.includes(YES) ? { confirm: acceptAll } : {}),
-}).then(
+const { args, confirm } = takeYes(rest);
+launch(target, { args, ...confirm }).then(
   (code) => (process.exitCode = code),
   (error: unknown) => {
     console.error(messageOf(error));
