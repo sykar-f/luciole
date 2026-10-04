@@ -406,7 +406,14 @@ A host that builds apps itself calls `build()` rather than `luciole build`. Stud
 each attempt a model writes. `--compile`, `--web` and `--target` stay options of the command.
 
 ```ts
-import { build, generatePublisherKey, readPublisherKey } from "@luciole-sh/core/build";
+import {
+  build,
+  fingerprintOf,
+  generatePublisherKey,
+  readPublisherKey,
+  type BuildOptions,
+  type PublisherKey,
+} from "@luciole-sh/core/build";
 ```
 
 ### `build(directory, output?, options?)`

@@ -933,7 +933,18 @@ These exports are what `luciole dev` is made of. A host uses them to supervise a
 decides itself when to rebuild, as studio does at the end of a model's turn.
 
 ```ts
-import { serialize, startAppServer, stopChild } from "@luciole-sh/core/dev";
+import {
+  bearerRelay,
+  ClientFailure,
+  frameworkModules,
+  linkFrameworkModules,
+  onClientFailure,
+  serialize,
+  startAppServer,
+  stopChild,
+  type AppServer,
+  type AppServerOptions,
+} from "@luciole-sh/core/dev";
 ```
 
 | Export                                  | Contract                                                                                                    |
@@ -985,9 +996,40 @@ to the framework this way:
   tone="build"
 />
 
+`linkFrameworkModules` throws the file system's error when the link fails for another reason
+than an existing link. `luciole dev` links each build before it starts the Server.
+
 A rebuild keeps the user signed in: `bearerRelay` passes the token on, never through a file.
-With `serialize`, calls made during a run ask for one more run after it. `run()` resolves once
-the runs it caused are done.
+A Client started with an IPC channel says `{ type: "hello" }`, and `attach` answers with the
+token the previous Client held. `luciole dev` attaches each Client it starts:
+
+<Excerpt
+  path="packages/core/src/commands/dev.ts"
+  find="client = spawn("
+  until="bearer.attach(activeClient);"
+  tone="build"
+/>
+
+With `serialize`, calls made during a run ask for one more run after it, however many came in.
+`run()` resolves once the runs it caused are done, and rejects with what `task` threw. `busy`
+is `true` while a run goes on. `luciole dev` rebuilds this way after each burst of file changes:
+
+<Excerpt
+  path="packages/core/src/commands/dev.ts"
+  find="const rebuilds = serialize(once);"
+  until="debounce = setTimeout("
+  tone="build"
+/>
+
+`stopChild` never rejects. `luciole dev` stops the Client and the Server this way before each
+rebuild and when it quits. `stop` is `stopChild`, re-exported by `commands/command.ts`:
+
+<Excerpt
+  path="packages/core/src/commands/dev.ts"
+  find="const shutdown = async"
+  until="    };"
+  tone="build"
+/>
 
 A Client started with an IPC channel sends its parent every page failure:
 `{ type: "failure", path, message }`. `luciole dev`, a `sandbox` host and studio start it that
@@ -1000,6 +1042,24 @@ tells the program that started the Client which page failed and why.
   count={12}
   tone="client"
 />
+
+`ClientFailure` is a zod schema. A host that already reads the channel for other messages
+parses each message with it, as studio's preview does:
+
+<Excerpt
+  path="examples/studio/components/Preview.tsx"
+  find="const failure = ClientFailure.safeParse(message);"
+  count={7}
+  tone="client"
+/>
+
+No compiled code calls `onClientFailure(client, listener)`, so this fragment shows it. It
+ignores every message that is not a failure, and returns nothing.
+
+```ts
+// Fragment, not compiled: a host that started `client` with an "ipc" channel
+onClientFailure(client, ({ path, message }) => console.error(`${path} failed: ${message}`));
+```
 
 ## Run a program on a PTY: `@luciole-sh/core/pty`
 
@@ -1064,9 +1124,23 @@ the generic Client uses the same functions.
 ```ts
 import {
   buildChild,
+  Capabilities,
+  confineServer,
+  enforcement,
+  ENFORCERS,
+  freeLoopbackPort,
+  mechanismName,
   openSandbox,
   sandboxAvailability,
   sandboxRuntime,
+  type Availability,
+  type Mechanism,
+  type Sandbox,
+  type SandboxOptions,
+  type SandboxOrigin,
+  type ServerSandbox,
+  type ServerSandboxOptions,
+  type TerminalIo,
 } from "@luciole-sh/core/sandbox";
 ```
 
@@ -1270,7 +1344,13 @@ default channel rejects a request outside them with zod's error:
 A host reads what an app says of itself from its build output, never from its sources.
 
 ```ts
-import { readAppMetadata } from "@luciole-sh/core/metadata";
+import {
+  APP_ICON,
+  APP_METADATA,
+  AppMetadata,
+  readAppMetadata,
+  type AppArgs,
+} from "@luciole-sh/core/metadata";
 ```
 
 | Export                    | Contract                                                                                 |
@@ -1310,7 +1390,20 @@ this way:
 
 ## Type the router: `@luciole-sh/core/route-tree`
 
-The generated `app/routeTree.gen.ts` calls this entry's functions. Two types come with them:
+The generated `app/routeTree.gen.ts` calls this entry's functions, and two types come with
+them.
+
+```ts
+import {
+  layoutRoute,
+  loadPage,
+  pageRoute,
+  rootRoute,
+  validateSearch,
+  type TerminalRouter,
+  type TerminalRouterContext,
+} from "@luciole-sh/core/route-tree";
+```
 
 | Export                       | Contract                                                                                               |
 | ---------------------------- | ------------------------------------------------------------------------------------------------------ |

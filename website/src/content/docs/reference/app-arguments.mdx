@@ -141,7 +141,21 @@ The build bundles `app/args.ts` into `.luciole/args/`. It writes the options' JS
 starts the Server, as the launcher does, uses the rest of `@luciole-sh/core/args`:
 
 ```ts
-import { defineArgs, isUsageError, USAGE_EXIT_CODE } from "@luciole-sh/core/args";
+import {
+  ArgsError,
+  defineArgs,
+  isUsageError,
+  RESERVED_FLAGS,
+  RESERVED_SHORTS,
+  USAGE_EXIT_CODE,
+  type ArgsDefinition,
+  type ArgsSchema,
+  type ArgsSpec,
+  type HelpOptions,
+  type ParseContext,
+  type StandardJsonSchema,
+  type StandardSchema,
+} from "@luciole-sh/core/args";
 ```
 
 ### `defineArgs(spec)`
