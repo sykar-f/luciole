@@ -197,3 +197,62 @@ terminal : une bibliothèque d'images native pour l'un, des PTY pour l'autre.
 La page lit aussi les sources de `examples/notes` à la compilation (`?raw`) : le code
 montré dans « React components. A server side. » est celui du dépôt, découpé par motifs ;
 un motif qui ne correspond plus fait échouer le build.
+
+## Le déploiement
+
+Le site est servi par Cloudflare depuis luciole.sh : un Worker sans script, rien que les
+fichiers de `dist/` (static assets), décrit par `wrangler.jsonc`. Une adresse inconnue reçoit
+`dist/404.html` avec un statut 404 ; le Worker n'a ni adresse `*.workers.dev` ni URL de
+preview. `bun run deploy` construit les démos (`bun run demo`), puis le site
+(`bun run build`), puis publie `dist/` (`wrangler deploy`). Ensuite, chaque push sur `main`
+publie le site tout seul : `.github/workflows/deploy-site.yml` attend que CI réussisse sur ce
+commit, vérifie qu'il est encore le dernier de `main`, puis lance `bun run deploy`, avec
+`CLOUDFLARE_API_TOKEN` et `CLOUDFLARE_ACCOUNT_ID`, ses deux seuls secrets. Le runner installe
+Zig 0.16.0 : il n'a pas de runtime web en cache, et `bun run demo` le reconstruit.
+
+Les limites des static assets : 20 000 fichiers par version avec le plan Workers Free
+(100 000 avec Paid) et 25 MiB par fichier. Le 4 octobre 2026, avec les démos, `dist/`
+compte 203 fichiers (27,4 MiB) ; le plus gros, `demo/notes/app/index.cjs`, pèse 2,7 MiB.
+
+Ce que le propriétaire fait une fois, dans l'ordre :
+
+1. **Le token.** Dans le tableau de bord Cloudflare, My Profile > API Tokens > Create Token,
+   partir du modèle « Edit Cloudflare Workers ». Garder ces permissions :
+   - Account · Workers Scripts · Edit : publier le Worker, ses fichiers et son domaine ;
+   - Account · Account Settings · Read, User · User Details · Read et User · Memberships ·
+     Read : ce que wrangler lit du compte et de l'utilisateur qui porte le token ;
+   - Zone · Workers Routes · Edit : des versions de wrangler lisent les routes de la zone
+     même pour un Custom Domain (cloudflare/workers-sdk#15863).
+
+   Retirer les trois autres lignes du modèle (Workers KV Storage, Workers R2 Storage,
+   Workers Tail) : le site n'en utilise aucune. Dans Account Resources, ne garder que le
+   compte qui porte luciole.sh ; dans Zone Resources, choisir Specific zone > luciole.sh.
+   Copier le token, que Cloudflare ne montre qu'une fois.
+
+2. **L'identifiant du compte.** Workers & Pages, section Account Details : Account ID.
+3. **Les deux secrets.** Dans le dépôt GitHub, Settings > Secrets and variables > Actions >
+   New repository secret : `CLOUDFLARE_API_TOKEN` (le token), puis `CLOUDFLARE_ACCOUNT_ID`.
+   Ou, depuis le checkout, `gh secret set CLOUDFLARE_API_TOKEN` et
+   `gh secret set CLOUDFLARE_ACCOUNT_ID`, qui demandent la valeur sans l'afficher.
+4. **Le domaine.** La zone luciole.sh doit être active dans ce compte (DNS > Records).
+   Le premier déploiement attache luciole.sh au Worker comme Custom Domain : Cloudflare crée
+   lui-même l'enregistrement DNS et le certificat. Un enregistrement déjà posé sur
+   luciole.sh (A, AAAA ou CNAME) entre en conflit avec lui : le supprimer, ou le noter
+   avant de laisser wrangler le remplacer.
+5. **Le premier déploiement**, depuis la machine du propriétaire. Dans un terminal, wrangler
+   demande une confirmation avant de remplacer un enregistrement DNS ; en CI, il remplace
+   sans demander. Lancer les commandes depuis la racine du checkout :
+
+   ```sh
+   bun install --frozen-lockfile   # les démos se construisent avec le CLI du framework
+   cd website
+   bun install --frozen-lockfile
+   bunx wrangler login     # OAuth dans le navigateur, ou CLOUDFLARE_API_TOKEN et CLOUDFLARE_ACCOUNT_ID dans l'environnement
+   bun run deploy          # sans runtime web en cache, demande Zig 0.16.0 : dans le PATH ou dans ZIG
+   bunx wrangler logout    # facultatif : la CI a son propre token
+   ```
+
+   Le certificat peut prendre quelques minutes. Ensuite, `curl -I https://luciole.sh/`
+   répond 200, et `curl -I https://luciole.sh/inconnue` répond 404.
+
+`bunx wrangler deploy --dry-run` vérifie la configuration et `dist/` sans compte ni token.
