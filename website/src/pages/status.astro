@@ -4,7 +4,7 @@
 // again and move the date and the revision. Cutting a release includes this step
 // (docs/RELEASING.md).
 import Page from "../layouts/Page.astro";
-import { doc, repo } from "../lib/links";
+import { doc, repo, source } from "../lib/links";
 
 const CHECKED = { date: "4 October 2026", revision: "02fb6a2" };
 ---
@@ -48,12 +48,12 @@ const CHECKED = { date: "4 October 2026", revision: "02fb6a2" };
     <li>Patch releases (0.1.x) do not break the API.</li>
     <li>
       A minor release (0.x) may break it. Each break is listed in the <a
-        href={`${repo}/blob/main/CHANGELOG.md`}>changelog</a
+        href={source("CHANGELOG.md")}>changelog</a
       >, marked <strong>Breaking</strong>.
     </li>
     <li>
       Only the latest release gets security fixes. See the <a
-        href={`${repo}/blob/main/SECURITY.md`}>security policy</a
+        href={source("SECURITY.md")}>security policy</a
       >.
     </li>
     <li>
@@ -196,6 +196,6 @@ const CHECKED = { date: "4 October 2026", revision: "02fb6a2" };
     Evidence. The design notes are in French: <a href={doc("VALIDATION.md")}>VALIDATION.md</a> (what
     is tested, and the known limits), <a href={doc("DISTRIBUTION.md")}>DISTRIBUTION.md</a> (builds
     and signing). In English: <a href={`${repo}#what-runs-where`}>what runs where, in the README</a>
-    and the <a href={`${repo}/blob/main/.github/workflows/ci.yml`}>CI workflow</a>.
+    and the <a href={source(".github/workflows/ci.yml")}>CI workflow</a>.
   </p>
 </Page>
