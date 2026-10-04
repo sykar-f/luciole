@@ -12,7 +12,7 @@ import Excerpt from "../../../components/guide/Excerpt.astro";
 import Note from "../../../components/docs/Note.astro";
 import { commands } from "../../../lib/product";
 
-`@luciole-sh/core` declares two commands: `luciole` and `luciolex`. The install package,
+This page lists every `luciole` subcommand and its flags. `@luciole-sh/core` declares two commands: `luciole` and `luciolex`. The install package,
 `luciole.sh`, declares only `luciole`: <code>{commands.fromNpm}</code> runs it without installing
 it. In a clone of the repository, <code>{commands.fromClone}</code> runs the same CLI from its
 sources. An app made by `init` calls the installed `luciole` from its scripts.
@@ -47,7 +47,7 @@ Every subcommand reads its flags by the same rules:
 
 ### `luciole init [dir]`
 
-Creates an app in `dir` (default `my-luciole-app`), which must be absent or empty. The app is
+Creates an app in `dir`, which must be absent or empty. Default: `my-luciole-app`. The app is
 a copy of Notes with its own `package.json`, a `tsconfig.json` extending
 `@luciole-sh/core/tsconfig`, Oxlint, Oxfmt and VS Code settings, and `.bun-version`. Then run
 `bun install` and `bun run dev` in it.
@@ -63,17 +63,28 @@ A `file:` dependency ties the app to the clone, which has to stay where it is.
 
 ### `luciole dev [--app dir] [-- app arguments]`
 
-Builds the app, starts its Server and Client, and rebuilds on every change to a `.ts`,
-`.tsx`, `.js` or `.jsx` file (not `.luciole/`, `node_modules/` or `routeTree.gen.ts`). A
-build error shows in the running Client and leaves it usable; a good rebuild restarts both
-processes, and the Client reopens the same page with its history, named fields and bearer.
-The app's arguments are checked after every build; `-- --help` prints them.
+Builds the app, starts its Server and Client, and rebuilds when you save a `.ts`, `.tsx`,
+`.js` or `.jsx` file. Saves under `.luciole/` and `node_modules/`, and to `routeTree.gen.ts`, do
+not count.
 
-The run ends with the Client: quitting it stops the Server too, and `luciole dev` exits with the
-Client's own exit code (1 if a signal killed it), so a host that runs it can tell a crash from a
-quit. A Client that exits during a rebuild ends nothing. SIGINT, SIGTERM and SIGHUP (a closed
-terminal, an unmounted `<Terminal>`) stop both processes and exit with 0. The pieces of this
-supervision are public as [`@luciole-sh/core/dev`](/docs/reference/api/#supervising-an-app-luciole-shcoredev).
+After each save:
+
+- A build error shows in the running Client, which stays usable.
+- A good rebuild restarts both processes. The Client reopens the same page with its history,
+  its named fields and its token, the string it sends to prove who signed in.
+- The app's arguments are checked again. `-- --help` prints them.
+
+The run ends with the Client:
+
+- Quitting the Client stops the Server too.
+- `luciole dev` exits with the Client's exit code, or with 1 if a signal killed the Client. A
+  host that runs it can tell a crash from a quit.
+- A Client that exits during a rebuild ends nothing.
+- SIGINT, SIGTERM and SIGHUP stop both processes, and `luciole dev` exits with 0. A closed
+  terminal or an unmounted `<Terminal>` sends SIGHUP.
+
+The pieces of this supervision are public as
+[`@luciole-sh/core/dev`](/docs/reference/api/#supervising-an-app-luciole-shcoredev).
 
 ### `luciole devtools [--listen 1|<socket>|ws://host:port] [--demo] [--replay file.json] [--env]`
 
@@ -145,8 +156,8 @@ repository. It needs git and the network:
 - Without a name, it lists the examples that tag holds.
 - With a name, it launches `examples/<name>` at that tag as a git source
   ([opening an app](/docs/guides/opening-an-app/)). An unknown name is refused with the list.
-- The launcher asks before running a repository; `--yes` accepts.
-- What follows `--` goes to the app.
+- The launcher asks before running a repository. `--yes` accepts.
+- What follows `--` goes to the app, a `--yes` there included.
 
 `LUCIOLE_EXAMPLES_REPO`, a git URL, takes the examples from another repository, such as a
 fork. A development version has no tag, so it has no examples to list.

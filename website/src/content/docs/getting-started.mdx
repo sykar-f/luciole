@@ -16,8 +16,8 @@ import { commands, envPrefix } from "../../lib/product";
 export const clone = repo.split("/").at(-1);
 
 You will create an app of your own, change what it draws and slow its network down. The app
-starts as a copy of Notes, the example of the home page. Both sides, client and server, run on
-your machine.
+starts as a copy of Notes, the example of the home page. Both programs, the Client and the
+Server, run on your machine.
 
 ## What you need
 
@@ -38,10 +38,10 @@ What each command does:
    That runs the scaffolder, `@luciole-sh/create`, at the same version. It writes the app
    into `my-app` and prints `Starter created:` with the next commands.
 2. `bun install` installs the app's dependencies from npm, `@luciole-sh/core` among them.
-3. `bun run dev` builds both programs and starts them: the server, with a SQLite database in
-   `notes.sqlite`, and the terminal client.
+3. `bun run dev` builds both programs and starts them: the Server, with a SQLite database in
+   `notes.sqlite`, and the Client in your terminal.
 
-What you should see: the client fills the terminal. The list of notes is on the left, with a
+What you should see: the Client fills the terminal. The list of notes is on the left, with a
 few sample notes. No note is open, so the right side reads **No note selected**, above a
 **+ New note** button. Leave it running.
 
@@ -55,8 +55,8 @@ shown while no note is open. Change its heading:
 +        Pick a note
 ```
 
-Save the file. What you should see: the dev server rebuilds and restarts both processes. In a
-couple of seconds the client reopens the same screen, with **Pick a note** on the right.
+Save the file. What you should see: `bun run dev` rebuilds the app and restarts both processes.
+In a couple of seconds the Client reopens the same screen, with **Pick a note** on the right.
 
 A rebuild brings back the route, the history and the text of named fields. State held only in
 memory does not come back: there is no Fast Refresh
@@ -80,9 +80,9 @@ Quit with <kbd>Ctrl+C</kbd>, then start again with half a second added to every 
 
 <CopyCommand lines={[`${envPrefix}_LATENCY_MS=500 bun run dev`]} />
 
-Open a note. What you should see: a loading screen at once, drawn by the client, while the page
+Open a note. What you should see: a loading screen at once, drawn by the Client, while the page
 travels. Edit the note, pause for a second so that it saves, and keep typing. The keys are
-handled in the terminal while the save waits for the server.
+handled in the terminal while the save waits for the Server.
 
 The delay is simulated per request, not a network emulation
 ([latency and faults](/docs/guides/latency-and-faults/)).
@@ -94,10 +94,10 @@ range on the release that created it (`^<version>`).
 
 | Directory     | What goes there                                                                                               |
 | ------------- | ------------------------------------------------------------------------------------------------------------- |
-| `app/`        | Routes as files: `page.tsx` pages render on the server; `layout.tsx` and `loading.tsx` are client components. |
-| `components/` | Client components, marked `"use client"`: they handle the mouse and the keyboard.                             |
-| `actions/`    | Server Functions, marked `"use server"`: the client calls them like functions.                                |
-| `server/`     | Code that only the server runs: the database, queries, checks.                                                |
+| `app/`        | Routes as files: `page.tsx` pages render on the Server; `layout.tsx` and `loading.tsx` are Client Components. |
+| `components/` | Client Components, marked `"use client"`: they handle the mouse and the keyboard.                             |
+| `actions/`    | Server Functions, marked `"use server"`: the Client calls them like functions.                                |
+| `server/`     | Code that only the Server runs: the database, queries, checks.                                                |
 
 Its scripts call the installed `luciole`, which works on the current directory:
 
