@@ -1,102 +1,163 @@
 ---
 title: Loading and errors
-description: What the terminal shows while a page travels, when it fails, and when it does not exist. loading.tsx, error.tsx, not-found.tsx and the connection status.
+description: What your app shows while a page loads, fails or does not exist, and when the Server is out of reach. loading.tsx, error.tsx, not-found.tsx and the connection status.
 sources:
   - docs/API.md
   - docs/ROUTER.md
   - examples/notes/app/notes/[id]/loading.tsx
   - examples/notes/app/error.tsx
   - examples/notes/app/layout.tsx
+  - examples/notes/components/NoteFrame.tsx
+  - examples/notes/components/StatusLine.tsx
   - packages/core/src/route-tree.tsx
+  - packages/core/src/client.tsx
+  - packages/core/src/run.tsx
+  - website/scripts/capture.py
 ---
 
-import Excerpt from "../../../components/guide/Excerpt.astro";
+import CodeAndScreen from "../../../components/docs/CodeAndScreen.astro";
 import Note from "../../../components/docs/Note.astro";
 
-A navigation shows a screen at once, drawn by the Client, while the page travels: the
-loading screen replaces **only** the page, and the layouts around it stay mounted.
+While a page loads, when it fails and when it does not exist, the Client shows a screen of
+yours in the page's place. Only the page is replaced. The layouts around it stay mounted, with
+their lists, fields and focus. A status in your layout tells the user when the Server is out
+of reach.
 
-## `loading.tsx`
+## Show a screen while the page loads
 
-A `loading.tsx` becomes the pending screen of every page below its directory; a page takes
-the nearest one among its parents. It receives the destination's `params`. Without one,
-the framework shows "Connecting…" before the first answer, then "Loading…".
+A `loading.tsx` is the pending screen of every page below its directory. A page takes the
+nearest one among its parents. The Client draws it at once, without waiting for the Server.
+It receives the destination's `params`.
 
-<Excerpt
+Without a `loading.tsx`, the Client shows "Connecting…" until the Server's first answer, then
+"Loading…".
+
+<CodeAndScreen
   path="examples/notes/app/notes/[id]/loading.tsx"
   find="export default function Loading"
   until="^}"
   mark={["NotePane", "known ? titleOf(known)"]}
   tone="client"
+  frame="notes-loading"
+  caption="loading.tsx replaces only the note's pane, on the right: its status line says “Opening…” with Cancel, and the title comes from the list. The layout on the left stays mounted: the search, the + button and the list of notes."
 />
 
-The loading screen and the page it stands for should share their layout rules, or the page
-jumps when it arrives. Notes draws both with `components/NoteFrame.tsx`: same frame, a
-status line, the title on one line, the note below; the title is already known, from the
-list the layout holds. The framework cannot know the size of a Server page it has not
-received yet: that stability is the app's contract. An animation should change colours or constant-width glyphs only; Notes pulses
-the skeleton's opacity with OpenTUI's `useTimeline` and stops it on unmount.
+Give the loading screen the same layout as the page, or the page jumps when it arrives. The
+framework cannot know the size of a Server page before it arrives, so this is your app's job.
+Notes draws both with `components/NoteFrame.tsx`, in the same order:
 
-## `error.tsx`
+- the status line
+- the title, on one line, already known from the list the layout holds
+- the note, or its placeholder
 
-An `error.tsx`, inherited the same way, replaces the page when its loading or rendering
-fails. It receives `{ error, path, params, retry }`: `error` is a `TransportError` with its
-`outcome`, or a Server render error (opaque in production); `retry()` loads the page again.
-Without one, the message is shown.
+If the loading screen animates, change only colours or constant-width glyphs. Notes pulses the
+placeholder's opacity with OpenTUI's `useTimeline` and stops it on unmount.
 
-<Excerpt path="examples/notes/app/error.tsx" tone="client" />
+## Replace the page when it fails
 
-The page's error screen, yours or the default one, also emits a `failure` event (`path`,
-`message`) through `useApplication().onEvent`. A Client started with an IPC channel, by
-`luciole dev` or a sandbox host, forwards it to its parent, which learns which page failed and
-why ([`@luciole-sh/core/dev`](/docs/reference/api/#supervising-an-app-luciole-shcoredev)). A page that calls
-`notFound()` emits none: a missing page is an answer, not a failure.
+An `error.tsx` replaces the page when loading or rendering it fails. A page takes the nearest
+one among its parents, as for `loading.tsx`. Without one, the Client shows the error's message
+in the page's place.
 
-A failed navigation shows `error.tsx` in the page's place with the layouts still mounted.
-A failed **refresh** keeps the current tree mounted instead, and exposes the error in
-`useConnection().error`. A refresh refused with a `401` is the exception: see
+An `error.tsx` receives `{ error, path, params, retry }`:
+
+- `error` is a `TransportError` with its `outcome`, or a Server render error. In production, the
+  Client gets a generic error in place of the Server's message.
+- `path` and `params` name the page that failed.
+- `retry()` loads the page again.
+
+<CodeAndScreen
+  path="examples/notes/app/error.tsx"
+  find="export default function PageError"
+  until="^}"
+  mark={["Server unreachable", "retry()"]}
+  tone="client"
+  frame="notes-error"
+  caption="With the Server stopped, opening a note fails. error.tsx replaces only the note's pane with “Server unreachable” and Try again. The layout on the left stays mounted: the search, the + button and the list of notes."
+/>
+
+What stays on screen depends on what failed:
+
+| What failed                    | What the user sees                                                        |
+| ------------------------------ | ------------------------------------------------------------------------- |
+| A navigation                   | `error.tsx` in the page's place, with the layouts still mounted           |
+| A refresh                      | The current page, still mounted, and the reason in `useConnection()`      |
+| A refresh refused with a `401` | Not the current page, dropped as it shows what the user may no longer see |
+
+A refresh refused with a `401` follows the rules of
 [authentication](/docs/concepts/authentication/#what-happens-without-a-session).
 
-## `not-found.tsx`
+Each error screen, yours or the default one, also emits a `failure` event. The event carries
+the page's `path` and the error's `message`, and you receive it through
+`useApplication().onEvent`. A Client started by `luciole dev` or by a host forwards it to that
+parent, which learns which page failed and why. See
+[`@luciole-sh/core/dev`](/docs/reference/api/#supervising-an-app-luciole-shcoredev).
 
-A page calls `notFound(what?)` from `@luciole-sh/core/server` to end its render with the nearest
-`not-found.tsx`, which receives `{ path, params, what }`. `app/not-found.tsx` also answers a
-URL that no page matches. The status stays "Connected": a missing page is an answer, not an
-outage.
+## Answer a page that does not exist
 
-## The connection, in the app's chrome
+A page calls `notFound(what?)` from `@luciole-sh/core/server` to end its render. The Client then
+shows the nearest `not-found.tsx`, which receives `{ path, params, what }`. `app/not-found.tsx`
+also answers a URL that no page matches.
 
-The framework draws no header or footer. `useConnection()` gives the chrome what it needs:
-`status`, `error`, `buildError` (a failed rebuild under `luciole dev`), `refresh`, and
-`activity`, one of `connect`, `navigate`, `refresh` or `idle`. Notes has no toolbar: it
-says all of it on the line above the note's title, the one its save uses, one message at a
-time. A lost connection comes first, then the page's own words, then what the router is
-doing; each waits a moment before it speaks, so that a line which says nothing while all
-goes well does not flash after every save:
+A missing page is an answer, not a failure. The status stays "Connected", and the Client emits
+no `failure` event.
 
-<Excerpt
+## Show the connection in your layout
+
+The framework draws no header and no status bar. `useConnection()` gives your layout what it
+needs:
+
+- `status`, one of the five values below
+- `error`, why the last refresh failed, cleared by the next success
+- `buildError`, a failed rebuild under `luciole dev`
+- `refresh`, which reloads the page
+- `activity`, one of `connect`, `navigate`, `refresh` or `idle`
+
+| `status`                  | When                                                                   |
+| ------------------------- | ---------------------------------------------------------------------- |
+| "Connecting"              | Before the Server's first answer                                       |
+| "Connected"               | The last request got an answer, a missing page included                |
+| "Disconnected"            | The last request failed, most often because the Server is out of reach |
+| "Incompatible build"      | The Server runs another build and refused the request with a `409`     |
+| "Authentication required" | The Server refused the request with a `401`                            |
+
+[Troubleshooting](/docs/reference/troubleshooting/#connecting-the-client) gives the cause and the
+fix of each status.
+
+Notes shows one message at a time, on the status line above the note's title, the line its save
+uses too. The messages come in this order:
+
+1. a lost connection, with a **Reconnect** button
+2. the page's own message, such as a save in trouble
+3. what the router is doing: "Opening…" with **Cancel**, "Connecting…" or "Syncing…"
+
+A lost connection and a refresh each appear only after a short delay. The line stays still
+while all goes well, and does not flash after every save.
+
+<CodeAndScreen
   path="examples/notes/components/StatusLine.tsx"
   find="const message ="
   until="    ) : null;"
   mark={["app.cancel", "refresh()"]}
   tone="client"
+  frame="notes-disconnected"
+  caption="The Server stopped, then a refresh with Ctrl+R failed. The status line says “○ Disconnected” with Reconnect, and the note stays mounted with its text. The layout keeps the list, whose footer reports its own failed load: “Server unreachable” with Retry."
 />
 
-[Troubleshooting](/docs/reference/troubleshooting/#connecting-the-client) gives the cause and the fix of each status.
+## Cancel or refresh a navigation
 
-## Cancelling and refreshing
-
-- <kbd>Esc</kbd> during a navigation, or `useApplication().cancel()` (Notes' **Cancel** button),
-  goes back to the last resolved route locally, without reloading it.
-- `refresh()` reloads the destination in progress or the mounted route. During a refresh
-  the tree stays mounted (`activity === "refresh"`): fields keep their focus and text. The
-  examples bind it to <kbd>Ctrl+R</kbd>, and Notes to a **Reconnect** button while offline:
-  the key and the control are the app's choice.
-- A `401` redirects to the app's `unauthorizedPath`, if it declares one, without rendering
-  protected content ([authentication](/docs/concepts/authentication/)).
-- A `409` (another build) is refused before decoding and purges the router's cache.
+- <kbd>Esc</kbd> during a navigation goes back to the last resolved route, without reloading it.
+  `useApplication().cancel()` does the same, as Notes' **Cancel** button does.
+- `refresh()` reloads the destination in progress, or the mounted route. During a refresh the
+  tree stays mounted, and `activity` is `refresh`. Fields keep their focus and text.
+- The key and the control for `refresh()` are your app's choice. The examples bind it to
+  <kbd>Ctrl+R</kbd>, and Notes to a **Reconnect** button while offline.
+- A `401` sends the user to the app's `unauthorizedPath`, if it declares one, without rendering
+  protected content. See [authentication](/docs/concepts/authentication/).
+- A `409` means the Server runs another build and refused the request before decoding it. The
+  Client empties the router's cache.
 
 <Note>
-  Loading screens are Client Components on purpose: they must show without the network. A loading
-  screen that needs data from the Server is a page, and would wait for it.
+  Loading screens are Client Components on purpose, so that they show without the network. A loading
+  screen that needs data from the Server is a page, and would wait for that data.
 </Note>
