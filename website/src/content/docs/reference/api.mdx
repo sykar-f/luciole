@@ -10,6 +10,10 @@ sources:
   - packages/core/src/host.ts
   - packages/core/src/host-direct.ts
   - packages/core/src/host-hooks.ts
+  - packages/core/src/fields.tsx
+  - packages/core/src/embed.tsx
+  - packages/core/src/app-bundle.ts
+  - packages/core/src/vt/terminal.tsx
   - packages/core/src/markdown
   - packages/core/src/dev/supervisor.ts
   - packages/core/src/run.tsx
@@ -18,6 +22,7 @@ sources:
 ---
 
 import Excerpt from "../../../components/guide/Excerpt.astro";
+import Src from "../../../components/guide/Src.astro";
 import Note from "../../../components/docs/Note.astro";
 
 This page lists what `@luciole-sh/core` exports, one export per row, under the import that
@@ -36,12 +41,29 @@ retry policy. It reports what happened to each request, and the app decides what
 
 ## Use `@luciole-sh/core/client` in Client Components
 
-Import this entry from Client Components only.
+Import every name of this section from `@luciole-sh/core/client`, in Client Components only.
+
+Each entry gives its signature or props, its defaults, the errors it raises and an excerpt of
+code that uses it. The excerpts come from the examples and the tests, which the project
+type-checks. Where no compiled code uses an entry, a short fragment stands in, labelled as one.
+
+luciole's own hooks read the running app, so they work only inside its tree. Outside it, they
+throw `Missing terminal shell`. The field hooks and components throw a message that names the
+field.
 
 ### Navigate between pages
 
 These hooks are TanStack Router's own, re-exported as they are
-([routing](/docs/concepts/routing/)).
+([routing](/docs/concepts/routing/)). Their signatures, defaults and errors are TanStack's:
+see the [TanStack Router API reference](https://tanstack.com/router/latest/docs/framework/react/api/router).
+
+<Excerpt
+  path="examples/mdreader/components/Library.tsx"
+  find="export function LibraryChrome"
+  until="const splat"
+  tone="client"
+  caption="The reader's layout reads the router, the location and the path params."
+/>
 
 | Export             | Contract                                                                |
 | ------------------ | ----------------------------------------------------------------------- |
@@ -53,37 +75,109 @@ These hooks are TanStack Router's own, re-exported as they are
 | `useLocation()`    | Returns the current location: its `pathname`, `search` and `hash`.      |
 | `useMatchRoute()`  | Returns a function that tells whether a route matches the current page. |
 | `useCanGoBack()`   | Returns `true` when the history holds an entry before the current one.  |
-| `LayoutProps`      | The props of `layout.tsx`.                                              |
-| `LoadingProps`     | The props of `loading.tsx`.                                             |
-| `ErrorProps`       | The props of `error.tsx`.                                               |
-| `NotFoundProps`    | The props of `not-found.tsx`.                                           |
+
+luciole does not re-export TanStack's `<Link>`, because `<Link>` renders a DOM anchor.
+
+<Excerpt
+  path="examples/forge/components/PullChrome.tsx"
+  find="const matchRoute = useMatchRoute();"
+  until="  );"
+  tone="client"
+  caption="Forge highlights the tab whose route matches, the pending one first during a switch."
+/>
+
+No compiled code calls `useSearch()`, so this fragment shows it. The Files example reads the
+same param with `useRouterState` in <Src path="examples/files/app/loading.tsx" find="useRouterState({" />.
+
+```tsx
+// Fragment, not compiled: a page opened at /?dir=src
+const { dir } = useSearch({ strict: false }); // "src", or undefined without the param
+```
+
+The params and the props of the special files have these types:
+
+| Export          | Type                             | Contract                                                                                                       |
+| --------------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `RouteParams`   | `Record<string, string>`         | The path params of a page.                                                                                     |
+| `RouteSearch`   | `Record<string, string>`         | The search params of a page. Values stay strings: `"42"` is not read as `42`. The Server validates them again. |
+| `LayoutProps`   | `{ children, params }`           | The props of `layout.tsx`.                                                                                     |
+| `LoadingProps`  | `{ path, params }`               | The props of `loading.tsx`.                                                                                    |
+| `ErrorProps`    | `{ error, path, params, retry }` | The props of `error.tsx`. A failed request gives a `TransportError`. `retry()` loads the page again.           |
+| `NotFoundProps` | `{ path, params, what? }`        | The props of `not-found.tsx`. `what` is the argument the page gave `notFound()`.                               |
+
+<Excerpt
+  path="examples/files/app/loading.tsx"
+  find="export default function DirectoryLoading"
+  count={2}
+  tone="client"
+  caption="A loading screen reads the search param it is waiting for."
+/>
+
+<Excerpt
+  path="examples/mdreader/app/error.tsx"
+  tone="client"
+  caption="An error page tells an unreachable Server from a failed render."
+/>
+
+<Excerpt path="examples/mdreader/app/not-found.tsx" tone="client" />
 
 ### Reach the app and its connection
 
-| Export                              | Contract                                                                                                                                         |
-| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `useApplication()`                  | Returns the running app (members below). It throws `Missing terminal shell` outside the app's tree.                                              |
-| `useConnection()`                   | Returns `{ status, error, buildError, activity, refresh }` (members below), and renders again when one of them changes.                          |
-| `useInvalidation(listener)`         | Calls `listener(paths, tags)` at every invalidation, from the Server or the Client. Use it for data read outside route loaders.                  |
-| `useLive(source, args, { limit }?)` | Returns `{ items, done, error }` of a generator Server Function. The subscription lasts while the component is mounted.                          |
-| `TransportError`                    | A failed request. Its `outcome` is `not-sent`, `rejected` or `unknown` ([Server Functions](/docs/concepts/server-functions/#when-a-call-fails)). |
-| `BuildMismatch`                     | A `TransportError` with the outcome `rejected`: the Server runs another build.                                                                   |
-| `AuthenticationRequired`            | A `TransportError` with the outcome `rejected`: the request needs a signed-in user. `loginPath` is the page to sign in on, if the app has one.   |
+| Export                              | Contract                                                                                                                              |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `useApplication()`                  | Returns the running `Application` (members below).                                                                                    |
+| `useConnection()`                   | Returns `{ status, error, buildError, activity, refresh }` (members below), and renders again when one of them changes.               |
+| `useInvalidation(listener)`         | Calls `listener(paths, tags)` at every invalidation, from the Server or the Client. Both arguments are `readonly string[]`.           |
+| `useLive(source, args, { limit }?)` | Returns `{ items, done, error }` of a generator Server Function. `limit` bounds `items`. Default: `1000` values.                      |
+| `TransportError`                    | A failed request: `new TransportError(message, outcome?)`. Its `outcome` is an `Outcome`. Default: `unknown`.                         |
+| `BuildMismatch`                     | A `TransportError` with the outcome `rejected`. The Server answered `409`: it runs another build.                                     |
+| `AuthenticationRequired`            | A `TransportError` with the outcome `rejected`. The Server answered `401`. `loginPath` is the page to sign in on, if the app has one. |
+| `Outcome`                           | `"not-sent" \| "rejected" \| "unknown"`: what a failed request says about its effect on the Server (below).                           |
 
-`useLive` keeps the latest `limit` values in `items`. Default: `1000` values.
+`Outcome` tells you whether retrying is safe
+([Server Functions](/docs/concepts/server-functions/#when-a-call-fails)):
+
+| Outcome    | When                                                                                     | Did app code run? |
+| ---------- | ---------------------------------------------------------------------------------------- | ----------------- |
+| `not-sent` | The connection was refused or never opened, or the request was cancelled before it left. | No                |
+| `rejected` | The Server answered with a `4xx` status, `401` and `409` included.                       | No                |
+| `unknown`  | The answer timed out, was lost or was cut, or the Server answered with a `5xx` status.   | Maybe             |
+
+`useLive(source, args, { limit }?)` opens its request on mount, and again when `args` change.
+It compares `args` as JSON. Unmounting cancels the request and stops the Server's generator.
+Nothing reconnects by itself: `error` says why the stream stopped, and `done` turns `true`.
+
+<Excerpt
+  path="examples/chat/components/ReplyStream.tsx"
+  find="function describe(error: unknown)"
+  until="chats.finish"
+  tone="client"
+  caption="The chat streams a reply with useLive, and names the outcome when the stream stops."
+/>
+
+`useInvalidation(listener)` serves data that a component reads through a Server Function, which
+no route loader reloads:
+
+<Excerpt
+  path="examples/mdreader/components/Library.tsx"
+  find="const load = () => void listDocs()"
+  count={3}
+  tone="client"
+/>
 
 `useApplication()` returns an object with these members:
 
-| Member                     | Contract                                                                                                                               |
-| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `setToken(token?)`         | Replaces the token for later requests and reloads the current routes. It drops cached pages, and named fields after the first sign-in. |
-| `refresh()`                | Reloads the current routes. On a failure, the page on screen stays.                                                                    |
-| `invalidate(paths?)`       | Reloads the routes under `paths` and calls the `useInvalidation` listeners. Default: `["/"]`, every route.                             |
-| `cancel()`                 | Goes back to the last loaded page while a navigation is pending, without a request.                                                    |
-| `withSignal(signal, call)` | Runs `call`. Aborting `signal` cancels the Server Function that `call` starts, and its stream.                                         |
-| `onEvent(listener)`        | Calls `listener` with each event ([events below](#observe-requests-and-navigations)). Returns the function that unsubscribes.          |
-| `status`                   | The last known state of the connection (values below).                                                                                 |
-| `error`                    | Why the current route could not reload. The next success clears it.                                                                    |
+| Member                             | Contract                                                                                                                                          |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `setToken(token?)`                 | Replaces the token for later requests and reloads the current routes. It drops cached pages, and named fields after the first sign-in.            |
+| `refresh()`                        | Reloads the current routes and returns a promise. On a failure, the page on screen stays.                                                         |
+| `invalidate(paths?)`               | Reloads the routes under `paths` and calls the `useInvalidation` listeners. Default: `["/"]`, every route.                                        |
+| `cancel()`                         | Goes back to the last loaded page while a navigation is pending, without a request.                                                               |
+| `withSignal(signal, call, cause?)` | Runs `call` and returns its result. Aborting `signal` cancels the Server Function that `call` starts, and its stream. `cause` labels its request. |
+| `onEvent(listener)`                | Calls `listener` with each event ([events below](#observe-requests-and-navigations)). Returns the function that unsubscribes.                     |
+| `dispose()`                        | Closes a pane's app: its requests and streams stop, and its listeners are dropped. A Client with one app never needs it.                          |
+| `status`                           | The last known state of the connection (values below).                                                                                            |
+| `error`                            | Why the current route could not reload. The next success clears it.                                                                               |
 
 The first sign-in of a Client keeps the named fields, so text restored after a crash survives
 it. Later calls to `setToken` clear them.
@@ -98,32 +192,188 @@ it. Later calls to `setToken` clear them.
 | `activity`   | `connect` before the first page, `navigate` during a navigation, `refresh` during a reload, else `idle`. |
 | `refresh`    | The same function as `useApplication().refresh`.                                                         |
 
+<Excerpt
+  path="examples/chat/app/layout.tsx"
+  find="export default function RootLayout"
+  until="KeyHelp inline"
+  tone="client"
+  caption="The chat's layout shows the connection, binds two keys, and lists them in its footer."
+/>
+
 ### Restore fields and bind keys
 
-| Export                                    | Contract                                                                                                                                                        |
-| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `<Input name? value onInput />`           | OpenTUI's `input`, controlled. A `name` makes its text restorable.                                                                                              |
-| `<Textarea name? value onChange />`       | OpenTUI's `textarea`, controlled. A `name` makes its text restorable.                                                                                           |
-| `<ScrollBox name? …>`                     | OpenTUI's `scrollbox`. A `name` keeps its scroll position per history entry.                                                                                    |
-| `useRestoredFields(group)`                | Returns `{ submit(action, { failed? }?), clear() }` for the `group/…` fields of the current history entry ([session restore](/docs/concepts/session-restore/)). |
-| `useRestoredField(name, value, onChange)` | Makes a field of your own restorable. Returns the function to call with every text typed.                                                                       |
-| `useRestoredFocus(names)`                 | Returns `[focus, setFocus]`: which of `names` has the focus, kept per history entry.                                                                            |
-| `useBindings()`                           | OpenTUI's keymap, re-exported: adds a layer of bindings for the component's lifetime.                                                                           |
-| `useActiveKeys()`                         | OpenTUI's keymap, re-exported: the bindings active now.                                                                                                         |
-| `useKeymap()`                             | OpenTUI's keymap, re-exported: the keymap itself.                                                                                                               |
-| `usePendingSequence()`                    | OpenTUI's keymap, re-exported: the keys typed so far of a sequence that is not complete.                                                                        |
-| `<KeyHelp groups? inline? />`             | Help drawn from the active bindings that declare a `desc`, filtered by `group`.                                                                                 |
+Name a field to keep its text for the current history entry: the text comes back after going
+back to the entry, a crash or a rebuild
+([session restore](/docs/concepts/session-restore/)). A name `group/field` joins the group
+`group`. Without a name, each component is OpenTUI's own.
+
+| Export                                    | Contract                                                                                                                             |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `<Input name? value onInput />`           | OpenTUI's `input`, controlled. Its props are `FieldInputProps`: OpenTUI's `input` props, with the three below.                       |
+| `<Textarea name? value onChange />`       | OpenTUI's `textarea`, controlled. Its props are `FieldTextareaProps`: OpenTUI's `textarea` props, with the three below and `ref`.    |
+| `<ScrollBox name? …>`                     | OpenTUI's `scrollbox`. Its props are `FieldScrollBoxProps`: OpenTUI's `scrollbox` props and `name`, which keeps the scroll position. |
+| `useRestoredFields(group)`                | Returns the `RestoredFields` of the `group/…` fields of the current history entry (below).                                           |
+| `useRestoredField(name, value, onChange)` | Makes a field of your own restorable. Returns the function to call with every text typed.                                            |
+| `useRestoredFocus(names)`                 | Returns `[focus, setFocus]`: which of `names` has the focus, kept per history entry. Default: the first name.                        |
+
+The props that `<Input>` and `<Textarea>` add:
+
+| Prop                                               | Type                      | Default  | Contract                                                                      |
+| -------------------------------------------------- | ------------------------- | -------- | ----------------------------------------------------------------------------- |
+| `name`                                             | `string`                  | none     | Keeps the text per history entry.                                             |
+| `value`                                            | `string`                  | required | The text shown. A new value replaces the text of a `<Textarea>`, cursor last. |
+| `onInput` on `<Input>`, `onChange` on `<Textarea>` | `(value: string) => void` | none     | Called with each change typed, and once with the restored text on mount.      |
+
+`<ScrollBox name>` applies its kept position once the content is tall enough. It tries every
+50 ms, for 1,500 ms after mounting, and scrolling by the user wins.
+
+`RestoredFields` has two members:
+
+- `submit(action, { failed? }?)` forgets the group's kept text, on disk too, then runs
+  `action` and returns its result. The text is kept again when `action` throws a
+  `TransportError` whose outcome is `not-sent` or `rejected`, or when `failed(result)`
+  returns `true`. Text typed in the meantime wins.
+- `clear()` forgets the group's kept text. The fields keep their value.
+
+A named field outside the app's tree throws an error that names it:
+
+| Call                                                  | Error                                                       |
+| ----------------------------------------------------- | ----------------------------------------------------------- |
+| `<Input name>`, `<Textarea name>`, `useRestoredField` | `Field "<name>" is outside the terminal shell`              |
+| `<ScrollBox name>`                                    | `Scroll box "<name>" is outside the terminal shell`         |
+| `useRestoredFields(group)`                            | `Fields "<group>" are outside the terminal shell`           |
+| `useRestoredFocus(names)`                             | `The focus of "<first name>" is outside the terminal shell` |
+
+<Excerpt
+  path="examples/forge/components/NewPullForm.tsx"
+  find="await fields.submit("
+  until="{ failed: (result) => !result.ok }"
+  tone="client"
+  caption="Forge sends its form: a refused request keeps the text the user typed."
+/>
+
+<Excerpt path="examples/forge/components/NewPullForm.tsx" find="<Input" until="/>" tone="client" />
+
+The keymap hooks are OpenTUI's, re-exported so that every layer shares the Shell's keymap:
+
+| Export                                    | Contract                                                                                                            |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `useBindings(createLayer, deps?)`         | Adds the layer `createLayer()` returns for the component's lifetime: `{ bindings: [{ key, cmd, desc?, group? }] }`. |
+| `useActiveKeys(options?)`                 | Returns the bindings active now.                                                                                    |
+| `useKeymap()`                             | Returns the keymap itself.                                                                                          |
+| `usePendingSequence()`                    | Returns the keys typed so far of a sequence that is not complete.                                                   |
+| `<KeyHelp groups? inline? fg? accent? />` | Help drawn from the active bindings that declare a `desc` (props below).                                            |
+
+| Prop of `<KeyHelp>` | Type                | Default                     | Contract                                         |
+| ------------------- | ------------------- | --------------------------- | ------------------------------------------------ |
+| `groups`            | `readonly string[]` | every binding with a `desc` | Shows only the bindings whose `group` is listed. |
+| `inline`            | `boolean`           | `false`                     | One line, `key desc · key desc`.                 |
+| `fg`                | `string`            | `"#8b98a5"`                 | The color of the descriptions.                   |
+| `accent`            | `string`            | `"#67d9bc"`                 | The color of the keys.                           |
+
+The [chat's layout above](#reach-the-app-and-its-connection) binds keys with `useBindings` and
+lists them with `<KeyHelp inline />`.
 
 ### Show other apps, terminals and Markdown
 
-| Export                                                          | Contract                                                                                  |
-| --------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `<Embed app name active prefix? />`                             | Another luciole app in a pane ([terminals and panes](/docs/guides/terminals-and-panes/)). |
-| `openApplication({ bundle, url, instance? })`                   | Loads the app that `<Embed app>` takes.                                                   |
-| `<Terminal command active prefix? cwd? env? onExit? />`         | A local program on a PTY, drawn in the tree.                                              |
-| `<TerminalView program label spawn active prefix? onExit? />`   | The same widget, with the host starting the program, such as a sandboxed Client.          |
-| `<Markdown content streaming syntaxStyle onLink? imageBase? />` | Markdown rendered by blocks. While `content` streams, the text already shown never moves. |
-| `markdownStyle(palette)`                                        | Returns a complete `SyntaxStyle` from a dozen colors (below).                             |
+A host shows other luciole apps and local programs in panes
+([terminals and panes](/docs/guides/terminals-and-panes/)).
+
+| Export                                                          | Contract                                                                                |
+| --------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `<Embed app name active prefix? />`                             | Another luciole app in a pane. Its props are `EmbedProps`.                              |
+| `openApplication({ bundle, url, instance? })`                   | Loads the app that `<Embed app>` takes. Its options are `OpenApplicationOptions`.       |
+| `<Terminal command active prefix? cwd? env? onExit? />`         | A local program on a PTY, drawn in the tree. Its props are `TerminalProps`.             |
+| `<TerminalView program label spawn active prefix? onExit? />`   | The same widget, with the host starting the program. Its props are `TerminalViewProps`. |
+| `<Markdown content streaming syntaxStyle onLink? imageBase? />` | Markdown rendered by blocks. Its props are `MarkdownProps`.                             |
+| `markdownStyle(palette)`                                        | Returns a complete `SyntaxStyle` from a `MarkdownPalette` of 12 colors.                 |
+
+#### Embed another app
+
+`openApplication(options)` returns a promise of an `Application`, connected to its Server.
+Disposing that `Application` closes the connection.
+
+| Option of `OpenApplicationOptions` | Type             | Default          | Contract                                                                     |
+| ---------------------------------- | ---------------- | ---------------- | ---------------------------------------------------------------------------- |
+| `bundle`                           | `string`         | required         | The app bundle the build writes: `<app>/.luciole/app`.                       |
+| `url`                              | `string`         | required         | Its Server: `http(s)://…`, `unix:/path` or `ssh://…`.                        |
+| `instance`                         | `string`         | a new random key | The pane's key, which matches `[a-z0-9-]{1,32}`.                             |
+| `publisher`                        | `PublisherCheck` | none             | What the bundle's signature must satisfy (below).                            |
+| any other                          |                  |                  | The options of `createApplication`, but `fetch` and the ones the build sets. |
+
+`PublisherCheck` is `{ required?, trust? }`:
+
+- `required: true` refuses an unsigned bundle. Default: `false`.
+- `trust(fingerprint, manifest)` runs before a signed bundle runs. It receives the
+  fingerprint of the key that signed it. Throw to refuse the bundle.
+
+`openApplication` rejects when:
+
+- the instance key does not match `[a-z0-9-]{1,32}`
+- the directory holds no bundle: `<directory> has no application bundle: build the application with luciole build …`
+- `required` is set and the bundle is unsigned: `<directory>: the manifest is not signed by its publisher`
+- `trust` throws
+- the bundle was built for another runtime: `<directory>: built for runtime ABI …`
+- the Server cannot be reached
+
+| Prop of `EmbedProps`          | Type                                       | Default  | Contract                                                                              |
+| ----------------------------- | ------------------------------------------ | -------- | ------------------------------------------------------------------------------------- |
+| `app`                         | `Application`                              | required | The pane's app, from `openApplication`.                                               |
+| `name`                        | `string`                                   | required | Names the pane. Its box has the ID `embed-<name>`.                                    |
+| `active`                      | `boolean`                                  | required | Whether the pane has the keys. The host decides.                                      |
+| `prefix`                      | `string`                                   | none     | The host's key, such as `"ctrl+o"`. It and the sequence it starts stay with the host. |
+| `flexGrow`, `width`, `height` | `number`, or `` `${number}%` `` for a size | none     | The pane's box.                                                                       |
+
+An error in the pane replaces the pane with `<name> crashed: <message>`. The rest of the host
+keeps running. An inactive pane holds no focus: the element that had it gets it back when the
+pane becomes active again.
+
+<Excerpt
+  path="examples/mux/components/Mux.tsx"
+  find="  useEffect(() => {"
+  after="function AppPane"
+  until="return <Embed"
+  tone="client"
+  caption="Mux opens an app for each pane, closes it with the pane, and shows it with Embed."
+/>
+
+#### Run a program in a pane
+
+| Prop of `TerminalProps`             | Type                                  | Default       | Contract                                                                                          |
+| ----------------------------------- | ------------------------------------- | ------------- | ------------------------------------------------------------------------------------------------- |
+| `command`                           | `readonly string[]`                   | required      | The program and its arguments. It starts at the first layout, at the pane's size.                 |
+| `active`                            | `boolean`                             | required      | Whether the program has the keys. It then gets every key but `prefix`, Ctrl+C included.           |
+| `prefix`                            | `string`                              | none          | The host's key. Without it, only `active` or a click gives the keys back.                         |
+| `cwd`                               | `string`                              | the Client's  | The program's directory.                                                                          |
+| `env`                               | `Record<string, string \| undefined>` | none          | Added to the Client's environment, after `TERM=xterm-256color` and `COLORTERM=truecolor`.         |
+| `onExit`                            | `(code: number \| null) => void`      | none          | The program ended. `null` means a signal killed it, or it could not start. Its last screen stays. |
+| `scrollback`                        | `number`                              | `10000` lines | The lines kept above the screen.                                                                  |
+| `id`, `flexGrow`, `width`, `height` |                                       | none          | The pane's box.                                                                                   |
+
+`TerminalViewProps` takes the same props, except `command`, `cwd` and `env`, and adds three:
+
+| Prop      | Type          | Contract                                                              |
+| --------- | ------------- | --------------------------------------------------------------------- |
+| `program` | `string`      | Identifies the program. A new value replaces the running program.     |
+| `spawn`   | `(io) => Pty` | Starts the program. `io` holds `cols`, `rows`, `onData` and `onExit`. |
+| `label`   | `string`      | The program's name in an error line.                                  |
+
+A program that cannot start raises nothing in your code. The pane prints
+`<label>: <message>`, then `onExit(null)` runs. For `<Terminal>`, the label is the command.
+An empty `command` prints `A terminal needs a command`. Unmounting the pane, or changing
+`command`, sends the program a hangup (`SIGHUP`).
+
+<Excerpt path="examples/mux/components/Mux.tsx" find="  <Terminal" until="/>" tone="client" />
+
+<Excerpt
+  path="examples/studio/components/Preview.tsx"
+  find="<TerminalView"
+  until="/>"
+  tone="client"
+  caption="Studio starts the preview in a sandbox, and gives TerminalView the PTY it opened."
+/>
+
+#### Render Markdown that streams
 
 `<Markdown>` shows text that arrives in pieces, typically a model's answer, without flicker:
 
@@ -134,44 +384,96 @@ it. Later calls to `setToken` clear them.
 - A click on a link calls `onLink(url)`.
 - Images are drawn with kitty, sixel or half blocks.
 
+| Prop of `MarkdownProps` | Type                    | Default  | Contract                                                                                        |
+| ----------------------- | ----------------------- | -------- | ----------------------------------------------------------------------------------------------- |
+| `content`               | `string`                | required | The Markdown to show.                                                                           |
+| `streaming`             | `boolean`               | required | Whether `content` is still being written. While `true`, the last block is closed ahead of time. |
+| `syntaxStyle`           | `SyntaxStyle`           | required | The colors, typically from `markdownStyle`.                                                     |
+| `onLink`                | `(url: string) => void` | none     | Called when a link is clicked. Without it, a click on a link does nothing.                      |
+| `imageBase`             | `string`                | none     | The directory or URL that relative image paths start from. Without it, they show as text.       |
+
+<Excerpt
+  path="tests/markdown.test.tsx"
+  find='test("a click on a link opens it'
+  until="expect(opened).toEqual"
+  caption="A test renders a link, clicks it, and checks that onLink received its URL."
+/>
+
 OpenTUI colours JavaScript, TypeScript, Markdown and Zig. Import `@luciole-sh/core/grammars`
 once, in the Client, to add Bash, C, C++, CSS, Go, HTML, Java, JSON, Lua, PHP, Python, Ruby,
 Rust, TOML and YAML. That import also replaces OpenTUI's TypeScript grammar, and gives TSX a
 grammar of its own.
 
-`markdownStyle({ text, muted, faint, accent, onBand, band, bandQuiet, code, panel, link,
-danger, ok })` derives every group `<Markdown>` reads from those colors:
+`markdownStyle(palette)` derives every group that `<Markdown>` reads from the 12 colors of a
+`MarkdownPalette`. It runs in the Client only, since a `SyntaxStyle` is a native object. Each
+color is a hex string: `#rgb`, `#rgba`, `#rrggbb` or `#rrggbbaa`. OpenTUI shows an invalid
+color as magenta, with a warning on the console.
 
-- H1 and H2 on `band`, H3 on `bandQuiet`
-- code blocks on `panel`
-- the Tree-sitter groups of the grammars above
+| Key         | Colors                                    |
+| ----------- | ----------------------------------------- |
+| `text`      | Body text                                 |
+| `muted`     | Quotes, comments, labels                  |
+| `faint`     | Rules, quote bars, markers that step back |
+| `accent`    | Headings, list bullets, function names    |
+| `onBand`    | The text of H1 and H2                     |
+| `band`      | The band behind H1 and H2                 |
+| `bandQuiet` | The band behind H3                        |
+| `code`      | Inline code and strings                   |
+| `panel`     | The panel behind code blocks              |
+| `link`      | Links, numbers, constants                 |
+| `danger`    | Keywords, removed lines                   |
+| `ok`        | Types, tags, added lines                  |
 
 `@luciole-sh/markdown-editor` reads the same groups, so a note looks the same read and
 written.
 
+<Excerpt
+  path="examples/notes/components/theme.tsx"
+  find="const style = markdownStyle({"
+  until="});"
+  tone="client"
+/>
+
 ### Ask the host for a capability
 
-```tsx
-import { CapabilityDenied, host, useCapability } from "@luciole-sh/core/client";
+`host` asks whoever hosts the app for what the app cannot do by itself. Its type is `Host`.
 
-await host.clipboard.write(path); // rejects with CapabilityDenied if the host refuses
-const state = useCapability("clipboard.write"); // "granted" | "denied" | "prompt"
-```
+| Export                          | Contract                                                                                  | Capability        |
+| ------------------------------- | ----------------------------------------------------------------------------------------- | ----------------- |
+| `host.clipboard.read()`         | Resolves with the clipboard's text.                                                       | `clipboard.read`  |
+| `host.clipboard.write(text)`    | Writes `text`, at most 1,048,576 characters, to the clipboard.                            | `clipboard.write` |
+| `host.notify({ title, body? })` | Shows a system notification. `title` holds at most 256 characters, `body` 4,096.          | `notify`          |
+| `host.openUrl(url)`             | Opens `url` in the browser. It takes `http` and `https` URLs of at most 2,048 characters. | `open-url`        |
+| `host.secret(name)`             | Resolves with the origin's keychain entry `name`, or `undefined` when it is absent.       | `secrets`         |
+| `host.tabs.post(message)`       | Sends a JSON value, at most 65,536 characters once serialized, to the app's other tabs.   | `tabs.message`    |
+| `host.tabs.onMessage(fn)`       | Calls `fn(message, from)` for each message from another tab. Returns the unsubscribe.     | `tabs.message`    |
+| `host.input.onGlobalKey(fn)`    | Calls `fn(key)` for each global key. Returns the unsubscribe.                             | `input.global`    |
 
-| Export                          | Contract                                                                              |
-| ------------------------------- | ------------------------------------------------------------------------------------- |
-| `host.clipboard.read()`         | Resolves with the clipboard's text.                                                   |
-| `host.clipboard.write(text)`    | Writes `text` to the clipboard.                                                       |
-| `host.notify({ title, body? })` | Shows a system notification.                                                          |
-| `host.openUrl(url)`             | Opens `url` in the browser. Only `http` and `https` URLs are accepted.                |
-| `host.secret(name)`             | Resolves with the origin's keychain entry `name`, or `undefined` when it is absent.   |
-| `host.tabs.post(message)`       | Sends `message` to the app's other tabs.                                              |
-| `host.tabs.onMessage(fn)`       | Calls `fn(message, from)` for each message from another tab. Returns the unsubscribe. |
-| `host.input.onGlobalKey(fn)`    | Calls `fn` for each global key. Returns the unsubscribe.                              |
-| `CapabilityDenied`              | The error each `host` call rejects with when the host refuses.                        |
-| `useHostMessage(fn)`            | `host.tabs.onMessage(fn)` while the component is mounted.                             |
-| `useGlobalKey(key, fn)`         | Calls `fn` on the global key `key` while the component is mounted.                    |
-| `useCapability(name)`           | Returns the capability's state: `granted`, `denied` or `prompt`.                      |
+A secret's `name` matches `[\w.-]{1,64}`. A standalone Client has no other tab, so
+`host.tabs.post` reaches nobody there.
+
+| Export                  | Contract                                                                                                |
+| ----------------------- | ------------------------------------------------------------------------------------------------------- |
+| `CapabilityDenied`      | The error each `host` call rejects with when the host refuses. Its `capability` names what was refused. |
+| `useHostMessage(fn)`    | `host.tabs.onMessage(fn)` while the component is mounted.                                               |
+| `useGlobalKey(key, fn)` | Calls `fn` on the global key `key` while the component is mounted.                                      |
+| `useCapability(name)`   | Returns the capability's state, a `CapabilityState`. The component renders again when it changes.       |
+| `CapabilityState`       | `granted`, `denied` by the user, or `prompt`: the host asks the user at the first request.              |
+| `GlobalKey`             | `{ name, sequence, ctrl, meta, shift }`: a key typed while another pane has the focus.                  |
+
+`useGlobalKey` takes a key such as `"ctrl+s"` or `"f5"`. Its modifiers are `ctrl`, `shift` and
+`meta`, and `alt` counts as `meta`. A key matches when its name and all of its modifiers are the
+same, whatever their case.
+
+<Excerpt
+  path="examples/files/components/clipboard.ts"
+  find="export async function copy"
+  until="^}"
+  tone="client"
+  caption="Files copies through the host first, and falls back to OSC 52 unless the host refused."
+/>
+
+<Excerpt path="tests/host-hooks.test.tsx" find="function Listener()" count={5} />
 
 Who answers depends on how the Client runs:
 
@@ -181,15 +483,40 @@ Who answers depends on how the Client runs:
 - A `sandbox` Client asks its host
   ([apps you did not write](/docs/guides/untrusted-apps/#who-enforces-what)).
 
+A `host` call rejects with:
+
+| Error                                                          | When                                                         |
+| -------------------------------------------------------------- | ------------------------------------------------------------ |
+| `CapabilityDenied`: `Capability <name> not granted`            | A `sandbox` host refused the capability.                     |
+| a validation error                                             | A value is past its limit, or `openUrl` gets another scheme. |
+| `None of <tools> is installed`                                 | A Client that acts itself finds none of the system's tools.  |
+| `<what> failed (<code>)`                                       | The system's tool exited with another code than `0`.         |
+| `host is bound per bundle to its Application; none is mounted` | No app of this bundle exists yet.                            |
+
 ### Observe requests and navigations
 
 | Export                           | Contract                                                                                                                       |
 | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
 | `<DebugOverlay limit? />`        | Shows requests, open requests, bytes, the last round trip and the latest `limit` events since it mounted. Default: `6` events. |
-| `instrumentTracing(app, tracer)` | Opens one span per request on an OpenTelemetry `Tracer`, or a compatible one. Returns the function that stops.                 |
+| `instrumentTracing(app, tracer)` | Opens one span per request on an OpenTelemetry `Tracer`, or a compatible `TracerLike`. Returns the function that stops.        |
 
-`useApplication().onEvent(listener)` receives these events. Every event carries `at`, in
-epoch milliseconds.
+`instrumentTracing` names each span `luciole.render` or `luciole.action`. A span ends with the
+request's body, or with its failure. It carries these attributes:
+
+- `luciole.kind` and `luciole.target`, from the start
+- `http.response.status_code`, once the status arrives
+- `luciole.bytes`, and `luciole.cancelled` when the body was cancelled
+- `luciole.outcome` on a failure, which also sets the span's status to error
+
+<Excerpt
+  path="tests/observability.test.tsx"
+  find="const stop = instrumentTracing(app, {"
+  until="});"
+  caption="A test traces the Notes example with a fake tracer."
+/>
+
+`useApplication().onEvent(listener)` receives these events, of the type `ApplicationEvent`.
+Every event carries `at`, in epoch milliseconds.
 
 | `type`       | When                                        | Fields                                                 |
 | ------------ | ------------------------------------------- | ------------------------------------------------------ |
@@ -199,30 +526,152 @@ epoch milliseconds.
 | `end`        | The body ends or is cancelled.              | `callId`, `kind`, `target`, `ms`, `bytes`, `cancelled` |
 | `error`      | The request fails.                          | `callId`, `kind`, `target`, `ms`, `outcome`, `message` |
 | `navigation` | A navigation resolves.                      | `path`                                                 |
-| `invalidate` | The Server or the Client declares a change. | `paths`, `tags`, `origin`                              |
+| `invalidate` | The Server or the Client declares a change. | `paths`, `origin`, and `tags` when cache tags changed  |
 | `loader`     | A page loader starts or ends.               | `phase`, `routeId`, `href`, `cause`, `source`          |
 | `failure`    | A page fails to load or render.             | `path`, `message`                                      |
 
+- The first five are the transport's events, of the type `TransportEvent`. They also carry
+  `id`, which numbers the requests of this Client.
 - `callId` is the ID the Server reads with `getCallId()`.
-- `cause` is `navigation`, `preload`, `refresh`, `invalidation`, `action`, `live` or
-  `unknown`.
+- `kind` is `render` for a page and `action` for a Server Function.
+- `ms` counts milliseconds since the request left, and `bytes` counts the body's bytes.
+- `cause` is a `RequestCause`: `navigation`, `preload`, `refresh`, `invalidation`,
+  `action`, `live` or `unknown`.
+- `origin` is `server` or `client`.
+- A `loader` that ends also carries `ms` and `result`: `ok`, `error` or `aborted`. Its
+  `source` is `router-cache` when the router showed the page from its cache, without a
+  request.
 - `notFound()` does not emit a `failure`.
 - Listeners run on the hot path. Keep them light, and never let them throw.
 
+<Excerpt
+  path="tests/events.test.tsx"
+  find="const events: ApplicationEvent[] = [];"
+  count={4}
+  caption="A test records the events and lists each request with its cause."
+/>
+
 ### Find what hosts and generated code use
 
-An app does not need these exports.
+An app does not need these exports. A host, a test or a tool uses them to create and drive an
+app.
 
 | Export                                     | Contract                                                                                           |
 | ------------------------------------------ | -------------------------------------------------------------------------------------------------- |
-| `createApplication(options)`               | Returns an `Application`, configured by `ApplicationOptions`.                                      |
+| `createApplication(options)`               | Returns an `Application`, configured by `ApplicationOptions` (below).                              |
 | `Shell({ app })`                           | Renders an `Application`.                                                                          |
-| `run(create, { name?, sessionKey? })`      | Starts a Client in the current process. Its options are `RunOptions`.                              |
+| `run(create, { name?, sessionKey? })`      | Starts a Client in the current process. `create` receives `RunOptions` and returns the app.        |
 | `createActions()`                          | Binds one bundle's Server Function references and `host` to its `Application`. The build calls it. |
 | `ApplicationEvent`                         | The type of the events above.                                                                      |
 | `LiveState`, `TracerLike`                  | The types of `useLive`'s result and of `instrumentTracing`'s tracer.                               |
 | `Session`, `SessionEntry`                  | The types of a restored session and its history entries.                                           |
 | `OpenApplicationOptions`, `PublisherCheck` | The types of `openApplication`'s options and its signature check.                                  |
+
+| Option of `ApplicationOptions`                   | Type                   | Default            | Contract                                                                                  |
+| ------------------------------------------------ | ---------------------- | ------------------ | ----------------------------------------------------------------------------------------- |
+| `url`                                            | `string`               | required           | The Server's URL.                                                                         |
+| `routeTree`, `buildId`, `resolveModule`, `title` |                        | set by the build   | The generated entry passes them.                                                          |
+| `token`                                          | `string`               | none               | The token of the first request.                                                           |
+| `timeoutMs`                                      | `number`               | `10000` ms         | Bounds the wait for the root of an answer, not the stream behind it.                      |
+| `latencyMs`                                      | `number`               | `0` ms             | Simulated round trip, half before the request and half after the answer.                  |
+| `network`                                        | `NetworkConditions`    | none               | Simulated jitter, slow chunks and faults (below).                                         |
+| `fetch`                                          | `Fetch`                | the global `fetch` | What the transport calls to send a request.                                               |
+| `transport`                                      | `Transport`            | the HTTP transport | Replaces the transport ([replace or wrap the transport](#replace-or-wrap-the-transport)). |
+| `wrapTransport`                                  | `(inner) => Transport` | none               | Returns the transport to use, built around `inner`.                                       |
+| `initialPath`                                    | `string`               | `"/"`              | The first page.                                                                           |
+| `session`                                        | `Session`              | none               | The history and named fields to restore. It replaces `initialPath`.                       |
+| `instance`                                       | `string`               | none               | A pane's key, which matches `[a-z0-9-]{1,32}`. A host sets it.                            |
+| `host`                                           | the host's channel     | the Client itself  | Who answers `host` calls. A `sandbox` host passes its own.                                |
+| `quitOnCtrlC`                                    | `boolean`              | `true`             | Ctrl+C quits. A desktop window passes `false`, so the key reaches the app.                |
+
+`timeoutMs`, `latencyMs`, `network` and `fetch` configure the HTTP transport, so a `transport`
+of your own ignores them.
+
+`createApplication` throws when:
+
+- `latencyMs` is negative or not finite: `latencyMs must be a finite non-negative number`
+- `network.jitterMs` or `network.chunkDelayMs` is negative or not finite:
+  `jitterMs must be a finite non-negative number`, and the same for `chunkDelayMs`
+- `instance` does not match `[a-z0-9-]{1,32}`
+
+<Excerpt
+  path="tests/events.test.tsx"
+  find="const app = createApplication({"
+  until="});"
+  caption="A test creates an app with a fetch of its own, which plays the Server."
+/>
+
+The other types describe the transport:
+
+| Export              | Contract                                                                                                                                             |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Transport`         | `{ render(routeId, params, signal, search?, context?), call(actionId, args, signal?, context?), setToken(token?) }`. Failures are `TransportError`s. |
+| `RequestContext`    | `{ cause?, onTags? }`: why the request leaves, and the function that receives the cache tags a page read, once its render ends.                      |
+| `Fetch`             | `(input: URL, init: RequestInit) => Promise<Response>`, the shape of `fetch`.                                                                        |
+| `NetworkConditions` | `{ jitterMs?, chunkDelayMs?, fault? }`, in development only (below).                                                                                 |
+| `Fault`             | `refuse`, `drop` or `cut`: the fault to simulate on one request (below).                                                                             |
+
+`render` resolves with the root of the page, and `call` with the Server Function's value. The
+timeout and the `signal` apply until that root arrives.
+
+<Excerpt
+  path="tests/notes.test.tsx"
+  find="wrapTransport: (inner: Transport): Transport => ({"
+  count={17}
+  caption="A test wraps the transport to hold back the saves of the Notes example."
+/>
+
+`NetworkConditions` adds to `latencyMs`. It does not emulate TCP.
+
+| Field            | Default | Contract                                                                          |
+| ---------------- | ------- | --------------------------------------------------------------------------------- |
+| `jitterMs`       | `0` ms  | A random delay, from 0 to `jitterMs`, added to each direction of each request.    |
+| `chunkDelayMs`   | `0` ms  | A delay before each chunk of the body reaches the decoder.                        |
+| `fault(request)` | none    | Returns the `Fault` to simulate on `request`, `{ kind, target }`, or `undefined`. |
+
+| `Fault`  | What happens                                | Outcome    | Message                        |
+| -------- | ------------------------------------------- | ---------- | ------------------------------ |
+| `refuse` | The request is never sent.                  | `not-sent` | `Simulated refused connection` |
+| `drop`   | The Server answers, and the answer is lost. | `unknown`  | `Simulated lost response`      |
+| `cut`    | The body fails before its first byte.       | `unknown`  | `Simulated cut connection`     |
+
+`run()` reads these conditions from `LUCIOLE_JITTER_MS`, `LUCIOLE_CHUNK_DELAY_MS` and
+`LUCIOLE_FAULT` ([environment](/docs/reference/environment/)).
+
+<Excerpt
+  path="tests/coder.test.tsx"
+  find="network: {"
+  count={7}
+  caption="A test loses the first answer of one Server Function, to check that the Coder example never sends it twice."
+/>
+
+`run(create, { name?, sessionKey? })` connects to the Server, reopens the restored session and
+renders the app in your terminal. Its options:
+
+- `name` names the Client in its messages and its restored sessions. Default: `"luciole"`.
+- `sessionKey` keys the restored sessions in place of the Server's URL.
+
+`create` receives `RunOptions`:
+
+- `url` and `fetch`, of the connection `run()` opened
+- `token`, from `LUCIOLE_TOKEN`, or from `luciole dev` after a rebuild
+- `latencyMs`, from `LUCIOLE_LATENCY_MS`. Default: `0` ms.
+- `network`, from the variables above
+- `session`, the restored session
+- `quitOnCtrlC`, `false` in a desktop window
+- `wrapTransport`, when `luciole devtools` is attached
+
+`run()` throws `Invalid Client environment: …` when a variable is invalid. When the Server's
+address is invalid, or its connection cannot open, `run()` prints the reason and exits with
+code `1`.
+
+<Excerpt
+  path="packages/core/src/build.ts"
+  find="const clientSource ="
+  count={4}
+  tone="build"
+  caption="The build writes the Client's entry: createApp wraps createApplication, and run starts it."
+/>
 
 ## Use `@luciole-sh/core/server` on the Server
 
