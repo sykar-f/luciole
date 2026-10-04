@@ -35,7 +35,7 @@ const targets: Target[] = [
   {
     id: "local",
     name: "Local",
-    label: "The client and the server on your machine, joined by a unix socket",
+    label: "The Client and the Server on your machine, joined by a unix socket",
     views: [
       {
         command: "luciole ./notes",
@@ -49,7 +49,7 @@ const targets: Target[] = [
   {
     id: "binary",
     name: "One executable",
-    label: "The client and the server in one executable, one file per OS and architecture",
+    label: "The Client and the Server in one executable, one file per OS and architecture",
     views: [
       {
         command: "luciole build --compile",
@@ -62,11 +62,11 @@ const targets: Target[] = [
   {
     id: "ssh",
     name: "Over SSH",
-    label: "The client on your machine, the server on build-box, joined over SSH",
+    label: "The Client on your machine, the Server on build-box, joined over SSH",
     views: [
       {
         command: "notes --on build-box",
-        what: "the server next to the data, every key answered here",
+        what: "the Server next to the data, every key answered here",
         frame: "machine",
         host: "build-box",
         link: { name: "ssh", remote: true },
@@ -77,11 +77,11 @@ const targets: Target[] = [
   {
     id: "url",
     name: "From a URL",
-    label: "The client on your machine, the server at notes.example.com, joined over HTTPS",
+    label: "The Client on your machine, the Server at notes.example.com, joined over HTTPS",
     views: [
       {
         command: "luciole https://notes.example.com",
-        what: "the generic client fetches the app over HTTPS",
+        what: "the generic Client fetches the app over HTTPS",
         frame: "machine",
         host: "notes.example.com",
         link: { name: "https", remote: true },
@@ -94,22 +94,22 @@ const targets: Target[] = [
     id: "web",
     name: "In a web page",
     label:
-      "The client in a browser tab, the server either in the same tab, joined by postMessage, or at notes.example.com, joined over HTTPS",
+      "The Client in a browser tab, the Server either in the same tab, joined by postMessage, or at notes.example.com, joined over HTTPS",
     views: [
       {
         command: "luciole build --web-local",
-        what: "a static site, the server in a Web Worker",
+        what: "a static site, the Server in a Web Worker",
         frame: "browser",
         link: { name: "postMessage" },
         note: "static files, data kept in the browser",
       },
       {
         command: "luciole build --web",
-        what: "or the page calls your server over HTTPS",
+        what: "or the page calls your Server over HTTPS",
         frame: "browser",
         host: "notes.example.com",
         link: { name: "https", remote: true },
-        note: "the server serves the page too",
+        note: "the Server serves the page too",
       },
     ],
   },
@@ -135,8 +135,8 @@ const slide = (target: Target) => (target.views.length > 1 ? "--slide: 9s" : und
       <p class="label">run</p>
       <h2 id="anywhere-title">One source. Five places to run it.</h2>
       <p class="lede">
-        The same <code>app/</code> folder builds into a local app, a single executable, a client for a
-        server you reach over SSH or HTTPS, and a static web page. Your code does not change: only
+        The same <code>app/</code> folder builds into a local app, a single executable, a Client for a
+        Server you reach over SSH or HTTPS, and a static web page. Your code does not change: only
         where each side runs.
       </p>
     </div>
@@ -286,11 +286,11 @@ const slide = (target: Target) => (target.views.length > 1 ? "--slide: 9s" : und
                   <path class="c faint" d="M46 186 H150 M46 199 H126 M46 212 H140" />
                   <path class="c" d="M46 224 l5 4.5 -5 4.5" />
                   <rect class="cursor" x="58" y="224" width="7" height="10" rx="1" />
-                  <text class="tc" x="104" y="264" text-anchor="middle">client</text>
+                  <text class="tc" x="104" y="264" text-anchor="middle">Client</text>
 
                   <ellipse class="s" cx="312" cy="150" rx="38" ry="10" />
                   <path class="s" d="M274 150 V230 a38 10 0 0 0 76 0 V150 M274 190 a38 10 0 0 0 76 0" />
-                  <text class="ts" x="312" y="264" text-anchor="middle">server</text>
+                  <text class="ts" x="312" y="264" text-anchor="middle">Server</text>
                 </g>
               </svg>
             </div>

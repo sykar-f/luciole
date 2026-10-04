@@ -91,7 +91,7 @@ export const examples: Record<ExampleKey, Example> = {
     demo: "notes",
     ...runCommands.notes,
     about:
-      "The reference app: a server page reads SQLite, the editor keeps what you type while a save travels, and a save whose answer was lost is looked up, then sent again under the same ID.",
+      "The reference app: a page reads SQLite on the Server. The editor keeps what you type while a save travels. A save whose answer was lost is looked up, then sent again under the same ID.",
   },
   chat: {
     name: "Chat",
@@ -101,7 +101,7 @@ export const examples: Record<ExampleKey, Example> = {
     script: ask,
     ...runCommands.chat,
     about:
-      "Answers stream token by token from a Server Function; the key never leaves the server. Here a scripted model answers, since no key can live in a page.",
+      "Answers stream token by token from a Server Function; the key never leaves the Server. Here a scripted model answers, since no key can live in a page.",
   },
   mdreader: {
     name: "mdreader",
@@ -130,7 +130,7 @@ export const examples: Record<ExampleKey, Example> = {
     scripted: "Scripted demo · no model calls",
     ...runCommands.coder,
     about:
-      "One coding-agent session on Claude Code, Codex, pi or opencode, driving the binaries you installed. The session lives on the server: the client can crash, the agent carries on.",
+      "One coding-agent session on Claude Code, Codex, pi or opencode, driving the binaries you installed. The coding-agent session lives on the Server: the Client can crash, the agent carries on.",
   },
   files: {
     name: "Files",
