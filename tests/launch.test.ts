@@ -1,11 +1,19 @@
 import { expect, test } from "bun:test";
-import { existsSync, readdirSync } from "node:fs";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { z } from "zod";
 import { serverStatus } from "../packages/core/src/launcher/managed";
-import { execute, leaveCrashedSession } from "./helpers";
+import {
+  BUILD_TEST_MS,
+  eventually,
+  execute,
+  exited,
+  leaveCrashedSession,
+  until,
+  WAIT_MS,
+} from "./helpers";
 
 const cli = resolve("packages/core/src/cli.ts");
 
@@ -44,22 +52,24 @@ test("`luciole ./app` builds it, runs its Server on a socket and its Client here
       stderr: "ignore",
     });
     let screen = "";
-    // Includes building Notes: a loaded machine (a full `verify`) can take a while.
-    const deadline = performance.now() + 60000;
-    while (performance.now() < deadline && !screen.includes("Getting around")) {
-      await Bun.sleep(100);
-      screen = Bun.stripANSI(await readFile(log, "utf8").catch(() => ""));
-    }
+    const shown = () => {
+      screen = existsSync(log) ? Bun.stripANSI(readFileSync(log, "utf8")) : "";
+      return screen.includes("Getting around");
+    };
+    // Includes building Notes: the guard against a hang is a build test's whole budget.
+    await until(shown, BUILD_TEST_MS, () => screen);
     const sockets = () =>
       readdirSync(join(temporary, "luciole")).filter((entry) => entry.endsWith(".sock"));
     expect(sockets()).toHaveLength(1);
     await Bun.write(join(run, "stop"), "");
-    await Promise.race([child.exited, Bun.sleep(5000).then(() => child.kill())]);
-    expect(screen).toContain("Getting around");
+    // Ctrl+C quits the Client on purpose, which stops its Server and removes the socket.
+    await exited(child);
     expect(existsSync(join(run, "state/luciole/notes/server.log"))).toBe(true);
-    const gone = performance.now() + 3000;
-    while (sockets().length && performance.now() < gone) await Bun.sleep(50);
-    expect(sockets()).toEqual([]);
+    await until(
+      () => sockets().length === 0,
+      WAIT_MS,
+      () => sockets().join("\n"),
+    );
   } finally {
     await rm(run, { recursive: true, force: true });
     await rm(temporary, { recursive: true, force: true });
@@ -111,14 +121,10 @@ setInterval(() => {}, 1000);`,
       const status = await serverStatus(kept.socket);
       return status?.pid === kept.pid && status.graceUntil !== undefined;
     };
-    const deadline = performance.now() + 5000;
-    while (!(await inGrace()) && performance.now() < deadline) await Bun.sleep(50);
-    expect(await inGrace()).toBe(true);
+    await eventually(inGrace);
     await fetch("http://localhost/lifetime/stop", { method: "POST", unix: kept.socket });
     const stopped = await launcher(0);
-    const gone = performance.now() + 5000;
-    while (existsSync(stopped.socket) && performance.now() < gone) await Bun.sleep(50);
-    expect(existsSync(stopped.socket)).toBe(false);
+    await until(() => !existsSync(stopped.socket), WAIT_MS);
   } finally {
     await rm(work, { recursive: true, force: true });
     await rm(runtime, { recursive: true, force: true });
