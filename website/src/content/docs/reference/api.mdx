@@ -1238,14 +1238,14 @@ import type {
 `MediatedCapability` is one of `clipboard.read`, `clipboard.write`, `notify`, `open-url`,
 `secrets`, `tabs.message` and `input.global`.
 
-| `HostRequest` `type` | Fields                                                   | Capability        |
-| -------------------- | -------------------------------------------------------- | ----------------- |
-| `clipboard.read`     | none                                                     | `clipboard.read`  |
-| `clipboard.write`    | `text`, at most 1,048,576 characters                     | `clipboard.write` |
-| `notify`             | `title`, at most 256 characters. `body?`, at most 4,096. | `notify`          |
-| `open-url`           | `url`: `http` or `https`, at most 2,048 characters       | `open-url`        |
-| `secret`             | `name`: 1 to 64 letters, digits, `_`, `.` or `-`         | `secrets`         |
-| `tabs.post`          | `message`: a JSON value of at most 65,536 characters     | `tabs.message`    |
+| `HostRequest` `type` | Fields                                                          | Capability        |
+| -------------------- | --------------------------------------------------------------- | ----------------- |
+| `clipboard.read`     | none                                                            | `clipboard.read`  |
+| `clipboard.write`    | `text`, at most 1,048,576 characters                            | `clipboard.write` |
+| `notify`             | `title`, at most 256 characters. `body?`, at most 4,096.        | `notify`          |
+| `open-url`           | `url`: `http` or `https`, at most 2,048 characters              | `open-url`        |
+| `secret`             | `name`: 1 to 64 letters, digits, `_`, `.` or `-`                | `secrets`         |
+| `tabs.post`          | `message`: a JSON value whose text is at most 65,536 characters | `tabs.message`    |
 
 | `HostEvent` `type` | Fields                                         |
 | ------------------ | ---------------------------------------------- |
@@ -1253,7 +1253,9 @@ import type {
 | `input.key`        | `key`: `{ name, sequence, ctrl, meta, shift }` |
 | `capability`       | `capability` and its new `state`               |
 
-Each request and event is checked against these schemas where it crosses a process. The
+Each request and event is checked against these schemas where it crosses a process. A
+`message` over that bound fails with `a JSON value of at most 65536 bytes`, although the check
+counts the characters of its JSON text. The
 default channel rejects a request outside them with zod's error:
 
 <Excerpt

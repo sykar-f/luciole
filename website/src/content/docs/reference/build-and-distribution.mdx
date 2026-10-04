@@ -441,7 +441,9 @@ It rejects with an `Error` whose message says what to fix:
 
 - `<file>:<line>:<column>: <message>` for a source the build refuses, followed by the chain of
   imports that reached it, such as `Server-only import in Client graph: <name>`
-- `No bun.lock governs the luciole installation at <directory>: install it with Bun`
+- `No bun.lock governs the luciole installation at <luciole's src directory>: install it with Bun`,
+  when no `bun.lock` sits above luciole's own installation, which the build hashes. The path
+  is luciole's `src/`, not your app's directory.
 - `luciole.json: invalid JSON`, or `luciole.json:` and what the schema refused
 - `<file>: top-level await in Client code: …`, when `appBundle` is `"required"`
 - `luciole.icon: …` and `package.json` errors, for what `luciole` in `package.json` declares
