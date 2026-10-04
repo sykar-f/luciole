@@ -1,122 +1,138 @@
-# mdreader : lecteur Markdown
+# mdreader — a Markdown reader
 
-Lit un fichier `.md` unique ou tous les `.md` d'un dossier (récursif, sans
-`node_modules` ni `.git`) : la liste à gauche, le document rendu à droite. Les fichiers
-sont lus côté Server ; le rendu est celui de `<markdown>` d'OpenTUI (marked +
-tree-sitter). Titres, emphase, listes et cases à cocher, citations, blocs de code
-colorés, tableaux et liens : aucun parseur n'est écrit ici.
+A reader for one `.md` file or for every `.md` file in a folder: the list on the left, the
+rendered document on the right. It shows a Server that reads files and watches the disk, a
+live Server Function that reloads the Client, and OpenTUI's `<markdown>` element, so the
+example writes no parser.
 
-## Lancement
+Headings, emphasis, lists with checkboxes, quotes, colored code blocks, tables and links all
+render. Folders are scanned recursively, without `node_modules` and `.git`.
 
-Sans cloner le dépôt : `luciole example mdreader` lance cet exemple depuis le tag git de la
-version de luciole installée ([docs/DISTRIBUTION.md](../../docs/DISTRIBUTION.md#exemples)).
-Les variables d'environnement et les clés ci-dessous s'appliquent de la même façon.
+## Run it
 
-Depuis la racine du monorepo (les dépendances sont `workspace:*` et `catalog:` : l'exemple
-ne se lance pas depuis son propre dossier). Prérequis : Bun 1.4.2 et `bun install
---frozen-lockfile` une fois. Aucune clé API, aucun réseau.
+Run the example from a release of luciole, with no clone:
 
 ```sh
-bun run mdreader                        # dossier courant (la racine du dépôt : tous ses .md)
-MD_PATH=docs bun run mdreader           # un dossier
-MD_PATH=README.md bun run mdreader      # un seul fichier
+bunx luciole.sh example mdreader                  # the current folder
+MD_PATH=docs bunx luciole.sh example mdreader     # one folder
+MD_PATH=README.md bunx luciole.sh example mdreader  # one file
 ```
 
-`bun run mdreader` est `luciole dev --app examples/mdreader`. Attendez-vous à la liste des
-documents à gauche et à `README.md` rendu à droite.
+Or from a clone of the repository, at its root. The example depends on workspace packages, so
+it does not start from its own folder. You need Bun 1.4.2, and `bun install --frozen-lockfile`
+once. It needs no API key and no network.
 
-`MD_PATH` est résolu par le Server, depuis son répertoire courant. `/` affiche
-`README.md`, sinon `index.md`, sinon le premier document. Un fichier modifié, ajouté ou
-supprimé sur le disque recharge la liste et le document ouvert, qui garde sa position.
+```sh
+bun run mdreader                       # the current folder: all the .md files of the repository
+MD_PATH=docs bun run mdreader          # one folder
+MD_PATH=README.md bun run mdreader     # one file
+```
 
-OpenTUI dessine la prose comme du source coloré : un paragraphe garde les retours à la
-ligne du fichier. `server/reflow.ts` rejoint donc les retours souples des paragraphes et
-des listes (avec le lexer `marked` qu'utilise OpenTUI), pour que le texte se replie à la
-largeur du panneau ; les retours durs (deux espaces, `\`) restent.
+`bun run mdreader` is `luciole dev --app examples/mdreader`. You should see the list of
+documents on the left and `README.md` rendered on the right.
 
-## Clavier
+The Server resolves `MD_PATH` from its working directory. The home page `/` shows `README.md`,
+else `index.md`, else the first document. When a file changes, appears or disappears on disk,
+the list and the open document reload, and the document keeps its scroll position.
 
-Comme un visualiseur à deux panneaux, l'un des deux a les touches. Au lancement, c'est
-la liste : les flèches y choisissent un document, qui s'ouvre dès qu'elles s'arrêtent,
-en remplaçant l'entrée d'historique (`u` ramène là où le parcours a commencé). Entrée
-donne les touches au document, Tab ou `h` les rend à la liste ; un clic donne les touches
-au panneau cliqué. La sélection est vive quand la liste a les touches, atténuée sinon.
+## What to try
 
-| Liste (bordure accentuée) | Action                                         |
-| ------------------------- | ---------------------------------------------- |
-| `j` `k`, `↓` `↑`          | Document suivant / précédent, ouvert à l'arrêt |
-| `g`, `Home` / `G`, `End`  | Premier / dernier document                     |
-| Entrée, `→`, `l`, Tab     | Lire le document                               |
+One of the two panes has the keys. At launch it is the list. Arrow keys choose a document, which
+opens when they stop and replaces the history entry. `u` returns to where the browsing began.
 
-| Document                     | Action                                                                                     |
-| ---------------------------- | ------------------------------------------------------------------------------------------ |
-| `j` `k`, `↓` `↑`, molette    | Défiler d'une ligne                                                                        |
-| Espace, `PgDn` / `b`, `PgUp` | Page suivante / précédente                                                                 |
-| `d`, `Ctrl+D` / `Ctrl+U`     | Demi-page                                                                                  |
-| `g`, `Home` / `G`, `End`     | Début / fin                                                                                |
-| `}` / `{`                    | Titre suivant / précédent                                                                  |
-| `t`                          | Plan du document : `j` `k` y déplacent la lecture, Entrée garde la position, Échap revient |
-| Tab, `h`, `←`                | Revenir à la liste                                                                         |
+Enter gives the keys to the document, and Tab or `h` gives them back. A click gives the keys to
+the pane you click. The selection is bright when the list has the keys, and dim otherwise.
 
-| Partout                  | Action                                                           |
-| ------------------------ | ---------------------------------------------------------------- |
-| `]` / `[` (ou `J` / `K`) | Document suivant / précédent (préchargés), sans changer de focus |
-| `/`                      | Chercher un document par nom ou chemin ; `↑` `↓`, Entrée, Échap  |
-| `u`                      | Retour dans l'historique                                         |
-| `?`                      | Tous les raccourcis actifs                                       |
-| `Ctrl+R`                 | Recharger (et relancer la surveillance si elle s'est arrêtée)    |
-| `Ctrl+C`                 | Quitter                                                          |
+| In the list              | Action                                      |
+| ------------------------ | ------------------------------------------- |
+| `j` `k`, `↓` `↑`         | Next / previous document, opened on a pause |
+| `g`, `Home` / `G`, `End` | First / last document                       |
+| Enter, `→`, `l`, Tab     | Read the document                           |
 
-Le texte est une colonne de lecture de 92 caractères au plus, centrée dans le panneau
-comme sur le web. Avec un seul fichier (`MD_PATH=fichier.md`), il n'y a ni liste ni
-recherche : le document prend tout l'écran et garde les touches. Sous 96 colonnes, la
-liste n'apparaît que lorsqu'elle a les touches (parcours, recherche). La ligne d'état
-indique la section lue (`§`) et la position (`Top`, `Bot`, `All` ou un pourcentage),
-comme un pager.
+| In the document             | Action                                                           |
+| --------------------------- | ---------------------------------------------------------------- |
+| `j` `k`, `↓` `↑`, wheel     | Scroll one line                                                  |
+| Space, `PgDn` / `b`, `PgUp` | Next / previous page                                             |
+| `d`, `Ctrl+D` / `Ctrl+U`    | Half a page                                                      |
+| `g`, `Home` / `G`, `End`    | Top / bottom                                                     |
+| `}` / `{`                   | Next / previous heading                                          |
+| `t`                         | Outline: `j` `k` move the reading, Enter keeps it, Esc goes back |
+| Tab, `h`, `←`               | Back to the list                                                 |
 
-## Organisation
+| Everywhere              | Action                                                       |
+| ----------------------- | ------------------------------------------------------------ |
+| `]` / `[`, or `J` / `K` | Next / previous document, preloaded, without moving the keys |
+| `/`                     | Find a document by name or path; `↑` `↓`, Enter, Esc         |
+| `u`                     | Back in the history                                          |
+| `?`                     | All the active keys                                          |
+| `Ctrl+R`                | Reload, and restart the watch if it stopped                  |
+| `Ctrl+C`                | Quit                                                         |
 
-- `server/library.ts` : résolution de `MD_PATH`, parcours, lecture validée (un chemin
-  venu du Client doit désigner un `.md` sous la racine), surveillance `fs.watch`.
-- `server/reflow.ts` : retours à la ligne souples rejoints avant l'envoi au Client.
-- `actions/library.ts` : `listDocs()` pour la liste, `watchLibrary()` en live.
-- `app/layout.tsx` → `components/Library.tsx` : chrome persistant (liste, recherche,
-  préchargement des voisins, surveillance). Seul le panneau du document attend le Server.
-- `app/page.tsx`, `app/doc/[...path]/page.tsx` : le document, rendu par
-  `components/Reader.tsx` (défilement, plan, position mémorisée par document).
-- `app/loading.tsx`, `not-found.tsx`, `error.tsx` : même cadre (`components/frames.tsx`).
+The text is a reading column of at most 92 characters, centered in the pane. With a single
+file there is no list and no search: the document fills the screen and keeps the keys. Below
+96 columns, the list shows only while it has the keys.
 
-Vérification : `bun run test:pty:mdreader` (`scripts/pty/mdreader.ts`) construit
-l'application et parcourt une bibliothèque temporaire dans un vrai PTY.
+The status line gives the section (`§`) and the position (`Top`, `Bot`, `All` or a percentage),
+like a pager.
 
-## Limites
+## How it is built
 
-- Coloration du code : OpenTUI 0.5.12 n'embarque que les grammaires JavaScript,
-  TypeScript, Markdown et Zig ; les autres langages s'affichent sans couleur.
-- Le plan et `{` `}` ne connaissent que les titres de premier niveau du document (pas
-  ceux d'une liste ou d'une citation). Leur position vient de l'état interne de
-  `MarkdownRenderable` (`_parseState`, `_blockStates`, typés publics mais préfixés) :
-  à revérifier à chaque mise à jour d'OpenTUI.
-- Les liens sont affichés (texte souligné, URL entre parenthèses) mais pas suivis, y
-  compris vers un autre `.md` de la bibliothèque.
-- Au plus 2 000 documents et 16 niveaux ; un fichier de plus de 2 Mio est tronqué ; un
-  lien symbolique vers un dossier n'est pas suivi.
-- La surveillance utilise `fs.watch` récursif (vérifiée sous macOS seulement). Rien ne
-  se reconnecte seul : après une coupure, `Ctrl+R` la relance.
-- La position de lecture par document vit en mémoire du Client : perdue en quittant.
-- Les citations ne sont pas reformatées, ni une liste qui contient un bloc de code.
-- `marked` (17.0.1) est importé côté Server sans être déclaré dans `package.json` : c'est
-  une dépendance d'`@opentui/core`, installée avec elle. À déclarer si l'exemple reste.
+Open these files first:
 
-## Note pour le framework
+- `server/library.ts` resolves `MD_PATH`, walks the folder, reads files (a path from the
+  Client must name a `.md` file under the root) and watches the disk with `fs.watch`.
+- `server/reflow.ts` joins the soft line breaks of paragraphs and lists before the text
+  reaches the Client. OpenTUI draws prose as colored source, so a paragraph would otherwise
+  keep the file's line breaks. Hard breaks (two spaces, or `\`) stay.
+- `actions/library.ts` exposes `listDocs()` for the list and `watchLibrary()` as a live Server
+  Function.
+- `app/layout.tsx` and `components/Library.tsx` form the layout that stays on screen: the list,
+  the search, the preloading of neighbours and the watch. Only the document pane waits for the
+  Server.
+- `app/page.tsx` and `app/doc/[...path]/page.tsx` show the document through
+  `components/Reader.tsx`, which handles scroll, outline and the position kept per document.
+- `app/loading.tsx`, `not-found.tsx` and `error.tsx` share one frame, `components/frames.tsx`.
 
-Une Server Function live **silencieuse** ne voit pas son Client partir : le runtime ne
-constate la fermeture de la connexion qu'en écrivant. Sans écriture, Flight n'appelle
-jamais `throw()` sur l'itérateur, et le `finally` d'un `async function*` (ou la
-fermeture d'un watcher) n'a pas lieu, ni après `Ctrl+C` ni après un kill du Client
-(vérifié en instrumentant la fermeture). API.md dit pourtant que le Server arrête le
-générateur au démontage. Contournement ici : `libraryChanges()` renvoie toutes les
-10 s la version courante (que le Client ignore), et c'est un itérateur écrit à la main,
-car un `async function*` en attente d'un événement ne traiterait `throw()` qu'après cet
-événement. Le framework pourrait relier l'abandon de la requête (`req.signal`) au
-`signal` de `renderToReadableStream`.
+To check the example, run `bun run test:pty:mdreader`. `scripts/pty/mdreader.ts` builds the app
+and browses a temporary library in a real PTY.
+
+## Environment variables
+
+The Server reads both.
+
+| Variable                | Default                     | Role                                                           |
+| ----------------------- | --------------------------- | -------------------------------------------------------------- |
+| `MD_PATH`               | the Server's working folder | A `.md` file or a folder. An empty value means the default.    |
+| `MDREADER_HEARTBEAT_MS` | `10000`                     | Pause between two repeats of the library version; a test knob. |
+
+## Limits
+
+- Code highlighting: OpenTUI 0.5.12 bundles only the JavaScript, TypeScript, Markdown and Zig
+  grammars. Other languages show without color.
+- The outline and `{` `}` know only the top-level headings of a document, not those inside a
+  list or a quote. They read the internal state of `MarkdownRenderable` (`_parseState`,
+  `_blockStates`), which is typed public but prefixed. Check it at each OpenTUI upgrade.
+- Links show, with underlined text and the URL in parentheses, but they do not open. That
+  includes links to another `.md` file of the library.
+- A library holds at most 2,000 documents and 16 levels of folders. A file over 2 MiB is
+  truncated. A symbolic link to a folder is not followed.
+- The watch uses a recursive `fs.watch`, verified on macOS only. Nothing reconnects it by
+  itself: after a failure, press `Ctrl+R`.
+- The reading position of each document lives in the Client's memory, and quitting loses it.
+- Quotes are not reflowed, and neither is a list that contains a code block.
+
+### Framework finding
+
+A silent live Server Function does not see its Client leave. The runtime notices a closed
+connection only when it writes. Without a write, Flight never calls `throw()` on the iterator.
+
+Then the `finally` of an `async function*`, or the closing of a watcher, never runs, whether
+the Client quit with `Ctrl+C` or was killed. This was verified by instrumenting the close.
+
+The [Server Functions page](https://luciole.sh/docs/concepts/server-functions/) says the Server
+stops the generator on unmount.
+
+The example works around it. `libraryChanges()` sends the current version every 10 seconds,
+which the Client ignores. It is a hand-written iterator, because an `async function*` waiting
+for an event would handle `throw()` only after that event. The framework could connect the
+abort of the request (`req.signal`) to the `signal` of `renderToReadableStream`.

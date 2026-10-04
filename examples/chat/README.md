@@ -1,124 +1,130 @@
-# Chat — démo IA via OpenRouter
+# Chat — an AI chat over OpenRouter
 
-Un chat IA dans le terminal : réponses streamées token par token, rendu Markdown léger,
-historique, plusieurs conversations, compteur de tokens et de coût. La clé et tous les
-appels réseau restent côté Server ; le Client ne reçoit que la description du modèle et
-les événements de chaque réponse.
+A chat in your terminal that streams each reply token by token. It shows a Server Function
+that yields events, and `useLive` reading them in the Client. The key never leaves the Server.
+The Client receives the model's description and the events of each reply, never the key.
 
-## Lancement
+It also has light Markdown rendering, several conversations, and a counter of tokens and cost.
 
-Sans cloner le dépôt : `luciole example chat` lance cet exemple depuis le tag git de la
-version de luciole installée ([docs/DISTRIBUTION.md](../../docs/DISTRIBUTION.md#exemples)).
-Les variables d'environnement et les clés ci-dessous s'appliquent de la même façon.
+## Run it
 
-Depuis la racine du monorepo (les dépendances sont `workspace:*` et `catalog:` : l'exemple
-ne se lance pas depuis son propre dossier). Prérequis : Bun 1.4.2 et `bun install
---frozen-lockfile` une fois.
+Run the example from a release of luciole, with no clone:
 
 ```sh
-export OPENROUTER_API_KEY=sk-or-…          # https://openrouter.ai/keys
-bun run chat
-CHAT_DEMO=1 bun run chat                   # sans clé ni réseau : un modèle scripté répond
+OPENROUTER_API_KEY=sk-or-… bunx luciole.sh example chat   # key from https://openrouter.ai/keys
+CHAT_DEMO=1 bunx luciole.sh example chat                  # no key, no network: a scripted model answers
 ```
 
-`bun run chat` est `luciole dev --app examples/chat`. Attendez-vous à une conversation
-vide et à un champ de saisie ; sans clé ni `CHAT_DEMO`, l'écran dit qu'il manque la clé.
-
-| Variable              | Défaut                         | Rôle                                                |
-| --------------------- | ------------------------------ | --------------------------------------------------- |
-| `OPENROUTER_API_KEY`  | —                              | Clé OpenRouter, lue uniquement par le Server.       |
-| `OPENROUTER_MODEL`    | `deepseek/deepseek-v4.1-flash` | Tout identifiant de `GET /api/v1/models`.           |
-| `OPENROUTER_BASE_URL` | `https://openrouter.ai/api/v1` | Autre endpoint compatible OpenAI (faux serveur).    |
-| `CHAT_DEMO`           | —                              | `1` : un modèle scripté répond, sans clé ni réseau. |
-
-Le modèle par défaut est le « flash » DeepSeek le plus récent listé par
-`GET https://openrouter.ai/api/v1/models` au 23/09/2026 (0,10 $/M tokens en entrée,
-0,50 $/M en sortie, 1M de contexte). Sans clé, l'écran l'indique et Entrée n'envoie rien ;
-une variable invalide (`OPENROUTER_BASE_URL` qui n'est pas une URL http(s)) est nommée.
-
-Sans clé ni réseau, `CHAT_DEMO=1` fait répondre le faux fournisseur
-(`server/fake-provider.ts`) dans le Server même : la démo live de la landing, dont le Server
-tourne dans la page, où aucune clé ne peut vivre. Le même fournisseur, servi en HTTP, sert
-aux tests et aux captures :
+Or from a clone of the repository, at its root. The example depends on workspace packages, so
+it does not start from its own folder. You need Bun 1.4.2, and `bun install --frozen-lockfile`
+once.
 
 ```sh
-bun examples/chat/scripts/fake-openrouter.ts     # affiche {"port": …}
-OPENROUTER_API_KEY=sk-or-fake OPENROUTER_BASE_URL=http://127.0.0.1:<port>/api/v1 \
-  bun run chat
+OPENROUTER_API_KEY=sk-or-… bun run chat
+CHAT_DEMO=1 bun run chat
 ```
 
-Il renvoie un écho Markdown du dernier message (précédé de reasoning), puis l'usage et le
-coût. La clé `sk-or-bad` est refusée (401) ; un message contenant « fail » coupe le flux.
+`bun run chat` is `luciole dev --app examples/chat`. You should see an empty conversation and
+a text field. Without a key and without `CHAT_DEMO`, the screen says the key is missing, and
+Enter sends nothing.
 
-## Clavier
+## What to try
 
-| Touche                    | Action                                                            |
-| ------------------------- | ----------------------------------------------------------------- |
-| Entrée                    | Envoyer                                                           |
-| Alt+Entrée, Ctrl+J        | Nouvelle ligne (Maj+Entrée sur les terminaux qui la transmettent) |
-| Échap                     | Arrêter la réponse en cours (le texte reçu reste)                 |
-| Ctrl+G                    | Relancer une réponse arrêtée ou en erreur                         |
-| Ctrl+N                    | Nouvelle conversation                                             |
-| Ctrl+↑ / Ctrl+↓ (ou clic) | Conversation plus récente / plus ancienne                         |
-| PgUp / PgDn, molette      | Faire défiler la conversation                                     |
-| Ctrl+R · Ctrl+T · Ctrl+C  | Rafraîchir · requêtes (DebugOverlay) · quitter                    |
+| Keys                        | Action                                                       |
+| --------------------------- | ------------------------------------------------------------ |
+| Enter                       | Send the message                                             |
+| Alt+Enter, Ctrl+J           | New line (Shift+Enter on terminals that report it)           |
+| Esc                         | Stop the reply; the text received so far stays               |
+| Ctrl+G                      | Ask again after a stopped or failed reply                    |
+| Ctrl+N                      | Start a new conversation                                     |
+| Ctrl+↑ / Ctrl+↓, or a click | Newer / older conversation (the list shows from 100 columns) |
+| PgUp / PgDn, mouse wheel    | Scroll the conversation                                      |
+| Ctrl+R, Ctrl+T, Ctrl+C      | Refresh, show the requests (`DebugOverlay`), quit            |
 
-L'aide en bas d'écran est générée depuis les raccourcis actifs, comme dans Forge.
+Start a reply, then press Ctrl+N and send in the new conversation. The first reply keeps
+streaming in the background. The help line at the bottom lists the keys that are active.
 
-## Fonctionnement
+To see the failures without a key, use the fake provider (see [Try it without a key](#try-it-without-a-key)).
 
-- `app/page.tsx` (Server) décrit la configuration : modèle, prix et contexte lus dans
-  `/models` (mis en cache), présence de la clé — jamais sa valeur. `app/loading.tsx`
-  garde la même géométrie pendant cette recherche.
-- `actions/chat.ts` expose `reply(history)`, une Server Function génératrice validée par
-  Zod. `server/openrouter.ts` appelle `/chat/completions` en `stream: true`, lit le SSE et
-  produit des `ChatEvent` (`start`, `reasoning`, `text`, `usage`, `error`), regroupés par
-  lecture réseau. Aucune erreur n'est levée : un 401, 402, 429, une coupure en cours de
-  flux ou un endpoint injoignable devient un message lisible.
-- Côté Client, `components/ReplyStream.tsx` s'abonne avec `useLive` (comme les logs CI de
-  Forge) et verse les événements dans `components/conversations.ts`, un store au-dessus
-  des routes. Échap démonte l'abonnement : le générateur Server se ferme et interrompt la
-  requête OpenRouter. Une réponse continue de streamer si l'on change de conversation.
-- Le coût vient de `usage.cost` d'OpenRouter ; à défaut il est estimé depuis le prix
-  catalogue et préfixé de `≈`.
-- Le champ de saisie est nommé (`chat/prompt`) : un texte non envoyé doit revenir après
-  un crash ou un rebuild (mécanisme du framework, non rejoué par le script PTY) ; il est
-  oublié dès l'envoi.
+## How it is built
 
-## Vérification
+Open these files first:
+
+- `app/page.tsx` describes the setup on the Server: model, price and context size read from
+  `/models` (cached), and whether a key exists. It never sends the key. `app/loading.tsx` keeps
+  the same layout while that lookup runs.
+- `actions/chat.ts` exposes `reply(history)`, a Server Function that yields events. Zod
+  validates the history before any request.
+- `server/openrouter.ts` calls `/chat/completions` with `stream: true`, reads the SSE stream
+  and yields `ChatEvent`s: `start`, `reasoning`, `text`, `usage` and `error`. It throws
+  nothing. A 401, 402, 429, an endpoint that is down, or a stream cut halfway becomes a
+  readable message.
+- `components/ReplyStream.tsx` subscribes with `useLive` and pours the events into
+  `components/conversations.ts`, a store above the routes. Esc unmounts the subscription,
+  which closes the Server's generator and aborts the OpenRouter request.
+- `components/Chat.tsx` holds the composer. Its field is named `chat/prompt`, so unsaved text
+  comes back after a crash or a rebuild, and is forgotten once sent.
+
+The cost is `usage.cost` from OpenRouter. When it is missing, the Client estimates it from the
+catalogue price and prefixes it with `≈`.
+
+## Environment variables
+
+The Server reads all of them. Only the first four matter when you run the chat.
+
+| Variable              | Default                        | Role                                                      |
+| --------------------- | ------------------------------ | --------------------------------------------------------- |
+| `OPENROUTER_API_KEY`  | none                           | OpenRouter key, read by the Server only.                  |
+| `OPENROUTER_MODEL`    | `deepseek/deepseek-v4.1-flash` | Any id from `GET /api/v1/models`.                         |
+| `OPENROUTER_BASE_URL` | `https://openrouter.ai/api/v1` | Another OpenAI-compatible endpoint, an http(s) URL.       |
+| `CHAT_DEMO`           | none                           | `1`: a scripted model answers in the Server, with no key. |
+| `FAKE_PORT`           | `0` (any free port)            | Port of `scripts/fake-openrouter.ts`.                     |
+| `FAKE_DELAY_MS`       | `35`                           | Pause between two streamed chunks of that script.         |
+
+An invalid variable, such as a `OPENROUTER_BASE_URL` that is not an http(s) URL, is named on
+the screen. The default model is the newest DeepSeek "flash" listed by OpenRouter on
+2026-09-23: $0.10 per million input tokens, $0.50 per million output tokens.
+
+## Try it without a key
+
+`CHAT_DEMO=1` runs a fake provider, `server/fake-provider.ts`, inside the Server. The live demo
+of the landing page uses it, because no key can live in a web page.
+
+The same provider also runs as a local HTTP server, which the tests and the screenshots use.
+From a clone, in two terminals:
 
 ```sh
-bun run check && bun run lint && bun run format:check
-bun run test:pty:chat
+bun examples/chat/scripts/fake-openrouter.ts   # prints {"port": …}
+OPENROUTER_API_KEY=sk-or-fake OPENROUTER_BASE_URL=http://127.0.0.1:<port>/api/v1 bun run chat
 ```
 
-`scripts/pty/chat.ts` lance `luciole dev` dans un PTY contre le faux serveur : message sans
-clé, réponse streamée et rendue en Markdown, usage et coût, historique renvoyé au modèle,
-Échap qui interrompt la requête amont, Ctrl+G, erreur en cours de flux, Ctrl+N et
-Ctrl+↓, sortie propre du terminal. Il écrit le dernier écran dans `pty-frame.txt`.
+It echoes your last message in Markdown, after some reasoning, then reports usage and cost.
+The key `sk-or-bad` is refused with a 401, and a message containing `fail` cuts the stream.
 
-## Limites
+To check the example, run `bun run test:pty:chat`. It drives `luciole dev` in a PTY against the
+fake provider: the missing-key message, a streamed reply, Esc, Ctrl+G, a stream that fails,
+Ctrl+N and Ctrl+↓. It writes the last screen to `pty-frame.txt`.
 
-- Le flux réel d'OpenRouter n'a pas été exercé faute de clé : seuls `/models` et le refus
-  d'une clé invalide (401) ont été vérifiés contre l'API réelle, le reste contre le faux
-  serveur qui suit le format OpenAI/OpenRouter.
-- Les conversations vivent en mémoire du Client : Ctrl+C, un crash ou un rebuild de
-  `luciole dev` les perdent (seul le texte en cours de saisie est restauré).
-- Pas de copie presse-papiers, d'édition d'un message envoyé ni de choix du modèle depuis
-  l'interface. Le reasoning n'est montré (en gris, une ligne) que tant qu'aucun texte n'est
-  arrivé.
-- Une annulation n'atteint OpenRouter qu'au chunk suivant : un générateur async ne peut
-  pas être interrompu pendant un `await` réseau.
-- La hauteur du champ de saisie estime les retours à la ligne ; au-delà de six lignes il
-  défile.
+## Limits
 
-### Points relevés sur le framework
+- The real OpenRouter stream was not exercised for lack of a key. Only `/models` and the
+  refusal of an invalid key (401) were checked against the real API. The rest ran against the
+  fake provider, which follows the OpenAI and OpenRouter format.
+- Conversations live in the Client's memory. Ctrl+C, a crash or a rebuild of `luciole dev`
+  loses them. Only the text being typed is restored.
+- There is no clipboard copy, no edit of a sent message and no model picker.
+- Reasoning shows as one gray line, and only until the first text arrives.
+- Stopping a reply reaches OpenRouter at the next chunk, because an async generator cannot be
+  interrupted during a network `await`.
+- The composer estimates its wrapped lines and scrolls past six.
 
-- Le `textarea` d'OpenTUI émet son changement de contenu **après** `onSubmit` quand
-  Entrée arrive dans la même lecture que la frappe (frappe rapide, collage) : l'état
-  contrôlé de `<Textarea>` est alors en retard. L'exemple lit `plainText` du renderable au
-  submit et le vide directement (`components/Chat.tsx`). Un helper du framework pour ce
-  cas éviterait de le redécouvrir.
-- Pendant un rebuild de `luciole dev`, un répertoire de staging `examples/<app>/.luciole-<uuid>/`
-  existe brièvement ; ni `.gitignore` ni `oxlint` ne l'ignorent, donc un `oxlint` lancé à
-  ce moment échoue sur le bundle généré.
+### Framework findings
+
+- OpenTUI's `textarea` reports its new content _after_ `onSubmit` when Enter arrives in the
+  same read as the typing, as with fast typing or a paste. The state of a controlled
+  `<Textarea>` then lags. The example reads `plainText` from the renderable on submit and
+  clears the field itself (`components/Chat.tsx`). A framework helper would save the next
+  author from rediscovering it.
+- During a rebuild, `luciole dev` briefly creates a staging folder, `examples/<app>/.luciole-<uuid>/`.
+  Neither `.gitignore` nor `oxlint` ignores it, so an `oxlint` run at that moment fails on the
+  generated bundle.
