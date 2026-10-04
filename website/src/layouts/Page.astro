@@ -15,7 +15,7 @@ const { title, description } = Astro.props;
 
 <Base title={`${title} · luciole`} description={description}>
   <Header />
-  <main id="main" class="wrap page">
+  <main id="main" class="wrap page" data-pagefind-body>
     <article class="prose">
       <slot />
     </article>
