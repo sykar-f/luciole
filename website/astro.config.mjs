@@ -27,6 +27,7 @@ const SYMBOLS_RANGE = `
 // there refetches them), so `astro build` makes no request for fonts. Same bytes and same
 // unicode-ranges as the Fontsource provider gave, and each face carries its `subset`, which
 // the preloads of Base.astro select on (the local provider cannot name one).
+/** @type {Record<string, string>} */
 const FONT_SUBSET_RANGES = {
   latin: `U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308,
     U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD`,
@@ -35,7 +36,10 @@ const FONT_SUBSET_RANGES = {
     U+2C60-2C7F, U+A720-A7FF`,
 };
 
-/** Files are `<dir>/<subset>-<weight>-<style>.woff2`; `wght` stands for the variable axis. */
+/**
+ * Files are `<dir>/<subset>-<weight>-<style>.woff2`; `wght` stands for the variable axis.
+ * @type {import("astro").FontProvider<{ dir: string }>}
+ */
 const vendoredFonts = {
   name: "vendored",
   resolveFont({ familyName, weights, styles, subsets, options }) {
