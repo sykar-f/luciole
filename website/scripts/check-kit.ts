@@ -53,7 +53,6 @@ const SIDES: Record<string, string> = {
   wire: "Wire",
   build: "Build",
 };
-const SIDES_FR: Record<string, string> = { ...SIDES, wire: "Réseau" };
 
 /** The round trip the embed's `network` command takes (packages/core/src/web/embed.ts). */
 const MAX_LATENCY_MS = 10_000;
@@ -250,7 +249,6 @@ export async function kitProblems(html: string, page: string) {
     })
     .transform(html);
 
-  const french = page.startsWith("/guide/");
   // The landing's duel shows one capture under each of its two terminals, on purpose: the
   // rule holds on the docs, where a second copy tells the reader nothing new.
   const docs = page.startsWith("/docs/");
@@ -299,7 +297,7 @@ export async function kitProblems(html: string, page: string) {
       if (figure.lists === 0 || figure.items === 0) say(figure, "no ordered list of its steps");
     }
     if (figure.kind === "excerpt" && figure.tone && figure.tone !== "neutral") {
-      const expected = (french ? SIDES_FR : SIDES)[figure.tone];
+      const expected = SIDES[figure.tone];
       if (figure.side.trim() !== expected)
         say(figure, `its side reads ${JSON.stringify(figure.side.trim())}, not ${expected}`);
     }
@@ -320,8 +318,7 @@ export async function kitProblems(html: string, page: string) {
 
   /**
    * Each legend item of a Client or a Server region names that side in words, and before
-   * the other side: the outline and the badge tell it too, but not to every reader. In
-   * English only: no page of the French guide marks a screen.
+   * the other side: the outline and the badge tell it too, but not to every reader.
    */
   function legendSides(figure: Figure) {
     figure.legendTexts.forEach((words, i) => {

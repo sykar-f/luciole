@@ -59,8 +59,8 @@ describe("the public corpus", () => {
       expect(files).toContain(file);
   });
 
-  test("leaves out the French guide, the lab and the Open Graph picture", () => {
-    expect(files.filter((file) => /\/(guide|lab)\/|Guide\.astro|og\.astro/.test(file))).toEqual([]);
+  test("leaves out the lab and the Open Graph picture", () => {
+    expect(files.filter((file) => /\/lab\/|og\.astro/.test(file))).toEqual([]);
   });
 
   test("fails when a page's count drops and its entry does not", () => {
