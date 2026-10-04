@@ -1,6 +1,6 @@
 # Security policy
 
-luciole is experimental and no package is published yet. Security reports are still
+luciole is experimental (version 0.x) and published on npm. Security reports are
 welcome and taken seriously.
 
 ## Reporting a vulnerability
@@ -29,4 +29,13 @@ documented limit ([docs/DESKTOP.md](docs/DESKTOP.md)).
 
 ## Supported versions
 
-Nothing is released yet: only the `main` branch is supported.
+Only the latest published release gets security fixes. Until 1.0, that is the latest
+0.x minor release.
+
+| Version | Supported                         |
+| ------- | --------------------------------- |
+| 0.1.x   | Yes, the first published release  |
+| `main`  | Fixes land here first, unreleased |
+
+The five published packages share one version. A fix ships as a patch release of all
+five, and is listed in the [CHANGELOG](CHANGELOG.md).

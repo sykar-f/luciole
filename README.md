@@ -17,26 +17,54 @@ handled on the Client, without a round trip to the Server
 ([`tests/latency.test.tsx`](tests/latency.test.tsx) checks this under 500 ms of
 simulated latency). Navigation uses TanStack Router.
 
-> **Status: experimental.** No package is published to a registry yet, APIs change
-> without notice, and the name is not final.
+> **Status: experimental, version 0.x.** luciole is published on npm. Its documentation
+> is at **<https://luciole.sh/docs/>**. Until 1.0, a minor release may break the API. Each
+> break is listed in the [CHANGELOG](CHANGELOG.md) and marked **Breaking**. What is tested
+> and what is not: <https://luciole.sh/status/>.
 
-Once a release is out, a project starts with `bunx luciole.sh init` (or
-`bunx @luciole-sh/create my-app`), and the libraries install with
-`bun add @luciole-sh/flow-graph` or `bun add @luciole-sh/markdown-editor`. Until then
-none of this works: how a release is cut is in [docs/RELEASING.md](docs/RELEASING.md).
+## Get started
 
-What runs where:
+You need [Bun](https://bun.sh) 1.4.2 or newer, on macOS or Linux.
 
-- **Development and the `luciole` CLI require [Bun](https://bun.sh) 1.4.2.** luciole
-  uses `Bun.Terminal`, `Bun.serve`, `Bun.build` and `bun:sqlite`, among others.
+```sh
+bunx luciole.sh init my-app
+cd my-app
+bun install
+bun run dev
+```
+
+`bun run dev` builds the Server and the Client, starts both and opens the app in your
+terminal. Ctrl+C quits and restores the terminal. The same steps, explained, are in
+[Getting started](https://luciole.sh/docs/getting-started/).
+
+The two libraries install on their own: `bun add @luciole-sh/flow-graph` and
+`bun add @luciole-sh/markdown-editor`.
+
+## From a clone (contributors)
+
+To work on luciole itself, run it from a clone:
+
+```sh
+git clone https://github.com/sykar-f/luciole.git
+cd luciole
+bun install --frozen-lockfile
+bun packages/core/src/cli.ts init ../my-app
+```
+
+[CONTRIBUTING.md](CONTRIBUTING.md) has the checks and the commit rules.
+
+## What runs where
+
+- **The `luciole` CLI and development require [Bun](https://bun.sh)** 1.4.2 or newer
+  (`engines` in `packages/core/package.json`; CI runs 1.4.2). luciole uses
+  `Bun.Terminal`, `Bun.serve`, `Bun.build` and `bun:sqlite`, among others.
 - **`@luciole-sh/flow-graph` and `@luciole-sh/markdown-editor` have no Bun dependency.**
 - **A compiled Client runs without Bun.** CI tests it in Debian and Alpine containers
   ([`scripts/linux-client.ts`](scripts/linux-client.ts)).
 - **Operating systems:** CI covers macOS and Linux
   ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)). Windows is untested.
 - **Desktop app:** `packages/desktop` is an experimental prototype for macOS arm64
-  only, and it is unsigned (see [docs/DESKTOP.md](docs/DESKTOP.md)).
-- **Examples** run from the monorepo root (`bun run forge`, below).
+  only. It is unsigned and not published (see [docs/DESKTOP.md](docs/DESKTOP.md)).
 
 ```text
 
@@ -83,14 +111,26 @@ What runs where:
 _The Forge example after a merge, in a 140×40 terminal. This frame is captured from
 a real PTY by [`scripts/pty/forge.ts`](scripts/pty/forge.ts)._
 
-## Run the example locally
+## Run an example
 
-Requires [Bun](https://bun.sh) 1.4.2 (the version pinned in `package.json`).
+The examples are not published on npm. They live in this repository, at the git tag of
+the installed release (`v<version>`).
+
+From an installed release, the launcher asks you to trust the repository (`--yes`
+accepts):
 
 ```sh
-git clone https://github.com/sykar-f/luciole.git
-cd luciole
-bun install --frozen-lockfile
+bunx luciole.sh example           # lists the examples of this release
+bunx luciole.sh example notes     # Notes: cloned, installed from the lock, built and run
+```
+
+The examples are `agent`, `chat`, `coder`, `files`, `flow`, `forge`, `latency`, `mdreader`,
+`mux`, `notes` and `studio`. Only `example <name>` expands to the repository: a bare
+`luciole notes` is an npm package name, and `notes` there is not ours.
+
+From a clone, run Forge, the example shown above:
+
+```sh
 bun run forge
 ```
 
@@ -106,7 +146,7 @@ To see the difference between local and remote work, add a simulated round trip 
 LUCIOLE_LATENCY_MS=500 bun run forge
 ```
 
-Other examples, run from the repository root:
+Other examples, run from the root of the clone:
 
 | Command                     | Example                                                             |
 | --------------------------- | ------------------------------------------------------------------- |
@@ -121,24 +161,12 @@ Other examples, run from the repository root:
 The `chat`, `agent`, `coder` and `studio` examples talk to real models or coding agents once
 configured; see their READMEs in [`examples/`](examples/).
 
-## Run an example
-
-The examples are not published on npm. They run from this repository, at the git tag of
-the installed release (`v<version>`), after the launcher asks you to trust the
-repository (`--yes` accepts):
-
-```sh
-luciole example           # lists the examples of this release
-luciole example notes     # Notes, cloned, installed from the lock, built and run
-```
-
-The examples are `agent`, `chat`, `coder`, `files`, `flow`, `forge`, `latency`, `mdreader`,
-`mux`, `notes` and `studio`. Only `luciole example <name>` expands to the repository: a
-bare `luciole notes` is an npm package name, and `notes` there is not ours.
-
 ## Documentation
 
-The detailed documentation is in French for now.
+The documentation is at **<https://luciole.sh/docs/>**, in English.
+
+The `docs/` folder holds the maintainers' design notes. They are in French and record
+why the code is the way it is:
 
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): repository layout and runtime roles.
 - [docs/API.md](docs/API.md): public API.
@@ -152,6 +180,8 @@ The detailed documentation is in French for now.
 ```sh
 bun run verify    # types, lint, format, tests and build
 ```
+
+Cutting a release is described in [docs/RELEASING.md](docs/RELEASING.md) (French).
 
 ## License
 

@@ -1,35 +1,59 @@
 ---
-// What can be relied on today, each line from the README and docs/ as they read at the
-// revision below. Checked by hand: when either changes, check this page again and move
-// the date and the revision.
+// What can be relied on today, each line checked against the repository at the revision
+// below. Checked by hand: when the code, the CI or the release changes, check this page
+// again and move the date and the revision. Cutting a release includes this step
+// (docs/RELEASING.md).
 import Page from "../layouts/Page.astro";
 import { doc, repo } from "../lib/links";
 
-const CHECKED = { date: "27 September 2026", revision: "e157896" };
+const CHECKED = { date: "4 October 2026", revision: "02fb6a2" };
 ---
 
 <Page
   title="Project status"
-  description="luciole is experimental: installed from its repository, tested on macOS and Linux. What is tested, what is not, the pinned versions and what is not published yet."
+  description="luciole is experimental and published on npm: tested on macOS and Linux. What is tested, what is not, the pinned versions and how breaking changes are announced."
 >
   <h1>Project status</h1>
   <p class="meta">
-    Checked on {CHECKED.date} against the README and docs/ at revision <a
+    Checked on {CHECKED.date} against the repository at revision <a
       href={`${repo}/tree/${CHECKED.revision}`}><code>{CHECKED.revision}</code></a
     >.
   </p>
 
   <h2>Before you try it</h2>
   <ul>
-    <li><strong>Experimental.</strong> An experiment run in the open; its API may still change.</li>
     <li>
-      <strong>Installed from the repository.</strong> No package is published on a registry yet. You
-      clone the repository; an app made with <code>init</code> depends on that checkout, which has to
-      stay in place.
+      <strong>Experimental, version 0.x.</strong> An experiment run in the open. Until 1.0, a minor
+      release may break the API.
     </li>
     <li>
-      <strong>Bun 1.4.2</strong>, pinned in <code>.bun-version</code>. CI runs on{" "}
-      <strong>macOS and Linux</strong>; no other system is tested.
+      <strong>Published on npm.</strong> Start with <code>bunx luciole.sh init my-app</code>. Five
+      packages share one version: <code>luciole.sh</code>, <code>@luciole-sh/core</code>,
+      <code>@luciole-sh/create</code>, <code>@luciole-sh/flow-graph</code> and
+      <code>@luciole-sh/markdown-editor</code>.
+    </li>
+    <li>
+      <strong>Bun 1.4.2 or newer</strong>, as the <code>engines</code> field says. CI runs 1.4.2,
+      pinned in <code>.bun-version</code>. It runs on <strong>macOS and Linux</strong>; no other
+      system is tested, Windows included.
+    </li>
+    <li>
+      <strong>Desktop app: a prototype.</strong> macOS arm64 only, unsigned, not published.
+    </li>
+  </ul>
+
+  <h2>Changes and versions</h2>
+  <ul>
+    <li>Patch releases (0.1.x) do not break the API.</li>
+    <li>
+      A minor release (0.x) may break it. Each break is listed in the <a
+        href={`${repo}/blob/main/CHANGELOG.md`}>changelog</a
+      >, marked <strong>Breaking</strong>.
+    </li>
+    <li>
+      Only the latest release gets security fixes. See the <a
+        href={`${repo}/blob/main/SECURITY.md`}>security policy</a
+      >.
     </li>
   </ul>
 
@@ -39,6 +63,11 @@ const CHECKED = { date: "27 September 2026", revision: "e157896" };
       On every push and pull request, GitHub Actions on macOS and Linux: types, lint, format,
       integration tests and build, a production journey in a real PTY, the dev server's rebuild
       journey, and a clean install that creates a starter and drives its client in a PTY.
+    </li>
+    <li>
+      On Linux in CI, each of the five packages is packed, installed in an empty project and
+      imported, and its licences are checked. The release workflow runs the same checks before it
+      publishes.
     </li>
     <li>
       On Linux in CI, the compiled client in Debian (glibc) and Alpine (musl) containers without
@@ -86,7 +115,7 @@ const CHECKED = { date: "27 September 2026", revision: "e157896" };
     <dt>TanStack Router</dt>
     <dd>1.170.38</dd>
     <dt>Bun</dt>
-    <dd>1.4.2</dd>
+    <dd>1.4.2 in CI; 1.4.2 or newer to use luciole</dd>
   </dl>
   <p>
     The React Flight adapter is isolated in <code>packages/core/src/flight/</code>; any upgrade of
@@ -96,8 +125,8 @@ const CHECKED = { date: "27 September 2026", revision: "e157896" };
   <h2>Distribution and signing</h2>
   <ul>
     <li>
-      Nothing is published: no package, no app on a registry. The launcher and the registry code
-      exist and are tested from the repository.
+      The five packages are published with npm provenance. The examples are not packages: they
+      run from git, at the tag of the release (<code>luciole example &lt;name&gt;</code>).
     </li>
     <li>
       A compiled macOS binary carries an ad hoc signature: it runs where it was built or copied
@@ -105,13 +134,15 @@ const CHECKED = { date: "27 September 2026", revision: "e157896" };
     </li>
     <li>
       Signing and notarization for macOS are implemented (<code>--sign</code>,
-      <code>--notarize</code>) but notarization has never run: no Developer ID was available.
+      <code>--notarize</code>) but notarization has never run end to end: no Developer ID was
+      available. Publishing on npm does not change this.
     </li>
   </ul>
 
   <p class="meta">
-    Evidence, in French: <a href={doc("VALIDATION.md")}>VALIDATION.md</a> · <a
-      href={`${repo}#contrat-et-limites`}>the contract and limits in the README</a
-    > · <a href={doc("DISTRIBUTION.md")}>DISTRIBUTION.md</a>
+    Evidence. The design notes are in French: <a href={doc("VALIDATION.md")}>VALIDATION.md</a> (what
+    is tested, and the known limits), <a href={doc("DISTRIBUTION.md")}>DISTRIBUTION.md</a> (builds
+    and signing). In English: <a href={`${repo}#what-runs-where`}>what runs where, in the README</a>
+    and the <a href={`${repo}/blob/main/.github/workflows/ci.yml`}>CI workflow</a>.
   </p>
 </Page>
