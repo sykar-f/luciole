@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
-// The guide quotes the checkout, never a copy: every excerpt and every file:line is found by
+// The docs quote the checkout, never a copy: every excerpt and every file:line is found by
 // an anchor at build time, and a missing anchor fails the build instead of drifting silently.
 const root = resolve(process.cwd(), existsSync(join(process.cwd(), "packages")) ? "." : "..");
 const cache = new Map<string, string[]>();
@@ -10,7 +10,7 @@ function lines(path: string): string[] {
   const known = cache.get(path);
   if (known) return known;
   const file = join(root, path);
-  if (!existsSync(file)) throw new Error(`Guide : le fichier ${path} n'existe plus.`);
+  if (!existsSync(file)) throw new Error(`Docs: the file ${path} no longer exists.`);
   const read = readFileSync(file, "utf8").split("\n");
   cache.set(path, read);
   return read;
@@ -23,7 +23,7 @@ export function locate(path: string, find: string, after?: string): number {
   const index = all.findIndex((line, i) => i >= start && line.includes(find));
   if (index === -1) {
     throw new Error(
-      `Guide : repère ${JSON.stringify(find)} introuvable dans ${path}. Le code a changé : mettre le guide à jour.`,
+      `Docs: anchor ${JSON.stringify(find)} not found in ${path}. The code changed: update the page.`,
     );
   }
   return index + 1;
@@ -52,7 +52,7 @@ export function excerpt(path: string, range: Range): { code: string; start: numb
     const offset = all.slice(start - 1).findIndex(ends);
     if (offset === -1) {
       throw new Error(
-        `Guide : fin ${JSON.stringify(range.until)} introuvable dans ${path} après la ligne ${start}.`,
+        `Docs: end ${JSON.stringify(range.until)} not found in ${path} after line ${start}.`,
       );
     }
     end = start + offset;

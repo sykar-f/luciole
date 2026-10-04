@@ -812,11 +812,9 @@ function readmes(directory: string) {
 
 /**
  * The site's sources that are not public: the lab and the Open Graph picture are out of the
- * sitemap (astro.config.mjs), and the docs' kit still lives in the French guide's folder.
+ * sitemap (astro.config.mjs).
  */
-const NOT_PUBLIC = ["pages/lab", "pages/og.astro", "components/guide"].map((path) =>
-  join(site, path),
-);
+const NOT_PUBLIC = ["pages/lab", "pages/og.astro"].map((path) => join(site, path));
 
 /**
  * The public corpus, what a run reads by default: every docs page, the READMEs of the

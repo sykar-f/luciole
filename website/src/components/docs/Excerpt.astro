@@ -5,9 +5,9 @@
 import { Code } from "astro:components";
 import type { BundledLanguage, ShikiTransformer } from "shiki";
 import { night } from "../../lib/codeTheme";
-import { excerpt, whole } from "../../lib/guide/source";
+import { excerpt, whole } from "../../lib/docs/source";
 import { source } from "../../lib/links";
-import type { Tone } from "../../lib/guide/tones";
+import type { Tone } from "../../lib/docs/tones";
 
 interface Props {
   path: string;
@@ -31,11 +31,11 @@ const name = path.replace(/^packages\/core\//, "");
 const lines = picked.start === picked.end ? `${picked.start}` : `${picked.start}–${picked.end}`;
 
 for (const text of mark) {
-  if (!picked.code.includes(text)) throw new Error(`Guide : ${JSON.stringify(text)} n'est pas dans l'extrait de ${path}:${lines}`);
+  if (!picked.code.includes(text)) throw new Error(`Docs: ${JSON.stringify(text)} is not in the excerpt of ${path}:${lines}`);
 }
 const transformers: ShikiTransformer[] = [
   {
-    name: "guide-mark",
+    name: "excerpt-mark",
     line(node, line) {
       const text = this.source.split("\n")[line - 1] ?? "";
       if (mark.some((m) => text.includes(m))) this.addClassToHast(node, "marked");

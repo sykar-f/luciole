@@ -3,10 +3,10 @@
 // left, screen right) and one above the other below that, under one caption. In the docs it
 // takes the room of the table of contents too, as a wide Screen does.
 import type { BundledLanguage } from "shiki";
-import Excerpt from "../guide/Excerpt.astro";
+import Excerpt from "./Excerpt.astro";
 import Screen, { type Region } from "../Screen.astro";
 import { frame as load, type Frame } from "../../lib/frames";
-import type { Tone } from "../../lib/guide/tones";
+import type { Tone } from "../../lib/docs/tones";
 
 interface Props {
   /** The excerpt, as Excerpt takes it: the file, its anchors, its marks and its side. */
