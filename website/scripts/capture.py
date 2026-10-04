@@ -555,7 +555,23 @@ def flight(directory):
         server.terminate()
 
 
-SCENES = {"forge": forge, "notes": notes, "notes-empty": notes_empty, "notes-pick": notes_pick, "notes-loading": notes_loading, "notes-error": notes_error, "notes-disconnected": notes_disconnected, "chat": chat, "coder": coder, "files": files, "mdreader": mdreader, "devtools": devtools, "mux": mux, "flight": flight}
+def flow_graph(directory):
+    # The minimal program of packages/flow-graph/README.md, run as a reader runs it: no
+    # luciole, only Bun, React and OpenTUI. `fitView` makes the first frame the one shown.
+    term = Terminal(
+        [BUN, str(ROOT / "packages/flow-graph/example/main.tsx")],
+        {**os.environ, "TERM": "xterm-256color", "COLORTERM": "truecolor"},
+        72, 20, ROOT / "packages/flow-graph/example",
+    )
+    try:
+        term.wait_for("checkout", 60)
+        term.idle(1.5)
+        save(term, "flow-graph", "@luciole-sh/flow-graph: a node graph in the terminal")
+    finally:
+        term.stop()
+
+
+SCENES = {"forge": forge, "notes": notes, "notes-empty": notes_empty, "notes-pick": notes_pick, "notes-loading": notes_loading, "notes-error": notes_error, "notes-disconnected": notes_disconnected, "chat": chat, "coder": coder, "files": files, "mdreader": mdreader, "devtools": devtools, "mux": mux, "flight": flight, "flow-graph": flow_graph}
 
 
 def main():
