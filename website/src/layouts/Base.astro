@@ -89,6 +89,8 @@ const canonical = new URL(Astro.url.pathname, Astro.site).href;
     </script>
   </head>
   <body>
+    {/* The first stop of the Tab key, so a keyboard reader can skip the header (WCAG 2.4.1). */}
+    <a class="skip" href="#main">{lang === "fr" ? "Aller au contenu" : "Skip to content"}</a>
     <slot />
     <PaletteSwitch />
   </body>

@@ -47,48 +47,54 @@ const number = (i: number) => String(i + 1).padStart(2, "0");
         </details>
       </nav>
 
-      <article>
-        <header class="head">
-          <p class="kicker">Chapitre {number(index)} · {chapter.part}</p>
-          <h1>{chapter.title}</h1>
-          <p class="question">{chapter.question}</p>
-          <div class="after">
-            <p>À la fin de ce chapitre, tu sauras :</p>
-            <ul>{outcomes.map((outcome) => <li set:html={outcome} />)}</ul>
-            <p class="minutes">{chapter.minutes} min de lecture</p>
-          </div>
-        </header>
+      <main id="main">
+        <article>
+          <header class="head">
+            <p class="kicker">Chapitre {number(index)} · {chapter.part}</p>
+            <h1>{chapter.title}</h1>
+            <p class="question">{chapter.question}</p>
+            <div class="after">
+              <p>À la fin de ce chapitre, tu sauras :</p>
+              <ul>{outcomes.map((outcome) => <li set:html={outcome} />)}</ul>
+              <p class="minutes">{chapter.minutes} min de lecture</p>
+            </div>
+          </header>
 
-        <slot />
+          <slot />
 
-        <nav class="pager" aria-label="Chapitre précédent et suivant">
-          {
-            previous ? (
-              <a class="prev" href={`/guide/${previous.slug}/`}>
-                <span>← Précédent</span>
-                {previous.title}
-              </a>
-            ) : (
-              <a class="prev" href="/guide/">
-                <span>← Sommaire</span>Le guide
-              </a>
-            )
-          }
-          {
-            next && (
-              <a class="next" href={`/guide/${next.slug}/`}>
-                <span>Suivant →</span>
-                {next.title}
-              </a>
-            )
-          }
-        </nav>
-      </article>
+          <nav class="pager" aria-label="Chapitre précédent et suivant">
+            {
+              previous ? (
+                <a class="prev" href={`/guide/${previous.slug}/`}>
+                  <span>← Précédent</span>
+                  {previous.title}
+                </a>
+              ) : (
+                <a class="prev" href="/guide/">
+                  <span>← Sommaire</span>Le guide
+                </a>
+              )
+            }
+            {
+              next && (
+                <a class="next" href={`/guide/${next.slug}/`}>
+                  <span>Suivant →</span>
+                  {next.title}
+                </a>
+              )
+            }
+          </nav>
+        </article>
+      </main>
     </div>
   </div>
 </Base>
 
 <style>
+  main {
+    min-width: 0;
+  }
+
   .top {
     position: sticky;
     top: 0;

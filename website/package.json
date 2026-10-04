@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "astro dev",
-    "build": "astro build && pagefind --site dist",
+    "build": "astro build && bun scripts/check-html.ts && pagefind --site dist",
     "preview": "astro preview",
     "check": "astro check",
     "lint": "../node_modules/.bin/oxlint --deny-warnings -c oxlint.website.json .",
