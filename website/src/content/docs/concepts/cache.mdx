@@ -146,7 +146,7 @@ The answer names the tag, and the Client reloads two kinds of routes:
     { phase: "A render reads a cached value" },
     { from: "client", to: "server", label: "GET /render, note 1", n: 1 },
     { from: "server", to: "cache", label: 'noteOf("local", "1")', n: 2 },
-    { from: "cache", to: "server", label: "the note, tag note:local:1", n: 3, back: true },
+    { from: "cache", to: "server", label: "hit: the note, tag note:local:1", n: 3, back: true },
     { from: "server", to: "client", label: "Flight: the page, then its tags", n: 4, back: true },
     { from: "client", to: "client", label: "note 1 read note:local:1", n: 5 },
     { phase: "A Server Function invalidates the tag" },
@@ -165,7 +165,7 @@ The answer names the tag, and the Client reloads two kinds of routes:
     { from: "client", to: "server", label: "GET /render, note 1", n: 11 },
     { from: "server", to: "cache", label: "noteOf: miss, read again", n: 12 },
   ]}
-  caption="A hit records its tag too (3): a page served from the cache still reloads when the tag is invalidated. The note of another owner keeps its entry."
+  caption="A hit records its tag too (3). A page served from the cache still reloads when its tag is invalidated (7 to 12)."
 />
 
 With `staleTime` 0, the default, TanStack reloads every **mounted** route on any
