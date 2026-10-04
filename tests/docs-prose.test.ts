@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import {
@@ -12,27 +12,57 @@ import {
   stylePath,
 } from "../website/scripts/prose-lint.ts";
 
-// The prose lint of website/STYLE.md. The docs must hold the ratchet of
+// The prose lint of website/STYLE.md. The public corpus must hold the ratchet of
 // website/scripts/prose-allowlist.json; the other tests pin each rule on text quoted from
 // the pages, so that a page rewrite does not take a rule's proof with it.
 const root = resolve(import.meta.dir, "..");
 
-const rulesOf = (source: string) =>
-  lintSource("page.mdx", source).map(({ line, rule }) => `${line} ${rule}`);
+const rulesOf = (source: string, path = "page.mdx") =>
+  lintSource(path, source).map(({ line, rule }) => `${line} ${rule}`);
 
 const findingsOf = (source: string, path = "page.mdx") =>
   lintSource(path, source).map(({ line, rule, detail }) => `${line} ${rule} ${detail}`);
 
-describe("the docs and the README", () => {
+describe("the public corpus", () => {
   const { files, findings, errors } = run();
 
-  test("hold the allowlist's ratchet", () => {
-    expect(files).toContain("README.md");
-    expect(files).toContain("website/src/content/docs/getting-started.mdx");
+  test("holds the allowlist's ratchet", () => {
     expect(errors).toEqual([]);
   });
 
-  test("fail when a page's count drops and its entry does not", () => {
+  test("has every README of a package and of an example", () => {
+    const readmes = ["packages", "examples"].flatMap((directory) =>
+      readdirSync(join(root, directory))
+        .map((name) => `${directory}/${name}/README.md`)
+        .filter((path) => existsSync(join(root, path))),
+    );
+    expect(readmes.length).toBeGreaterThan(10);
+    for (const readme of readmes) expect(files).toContain(readme);
+  });
+
+  test("has the docs, the README, and the site's public pages and the text they show", () => {
+    for (const file of [
+      "README.md",
+      "website/src/content/docs/getting-started.mdx",
+      "website/src/pages/index.astro",
+      "website/src/pages/status.astro",
+      "website/src/pages/examples/index.astro",
+      "website/src/pages/docs/index.astro",
+      "website/src/components/Hero.astro",
+      "website/src/components/Anywhere.astro",
+      "website/src/components/ServerSide.astro",
+      "website/src/components/Start.astro",
+      "website/src/lib/examples.ts",
+      "website/src/lib/docs/nav.ts",
+    ])
+      expect(files).toContain(file);
+  });
+
+  test("leaves out the French guide, the lab and the Open Graph picture", () => {
+    expect(files.filter((file) => /\/(guide|lab)\/|Guide\.astro|og\.astro/.test(file))).toEqual([]);
+  });
+
+  test("fails when a page's count drops and its entry does not", () => {
     // The first listed page, as if a mission had fixed one finding and kept its entry.
     const [path, count] = Object.entries(readAllowlist())[0] ?? ["", 0];
     const found = findings.filter((finding) => finding.path === path).length;
@@ -182,11 +212,11 @@ describe("lengths and clauses", () => {
 });
 
 describe("what is not prose", () => {
-  test("front matter, imports, fences, tables, headings and component tags are skipped", () => {
+  test("front matter but its description, imports, fences, headings and tags are skipped", () => {
     const long = Array.from({ length: 40 }, () => "word").join(" ");
     const page = [
       "---",
-      `description: ${long}; one: two; three.`,
+      `title: ${long}; one: two; three.`,
       "---",
       "",
       'import Note from "../Note.astro";',
@@ -200,8 +230,6 @@ describe("what is not prose", () => {
       `// ${long}; a; b: c`,
       "```",
       "",
-      `| ${long}; a; b | c |`,
-      "",
       "<Excerpt",
       `  path="${long}"`,
       "/>",
@@ -211,6 +239,25 @@ describe("what is not prose", () => {
       "</p>",
     ].join("\n");
     expect(rulesOf(page)).toEqual([]);
+  });
+
+  test("the description of the front matter is prose", () => {
+    const page = ["---", "title: A page", "description: 'One; two; it''s three.'", "---"].join(
+      "\n",
+    );
+    expect(rulesOf(page)).toEqual(["3 chained-clauses"]);
+  });
+
+  test("each table cell is a paragraph, with the same limits", () => {
+    const long = `${Array.from({ length: 31 }, () => "word").join(" ")}.`;
+    const page = [
+      "| Column | Other |",
+      "| :----- | ----- |",
+      `| ${long} | short |`,
+      "| `a | b; c; d` | One; two; three. |",
+      "| lowercase start | goes on |",
+    ].join("\n");
+    expect(rulesOf(page)).toEqual(["3 long-sentence", "4 chained-clauses"]);
   });
 
   test("the text inside a Note is prose", () => {
@@ -268,8 +315,12 @@ describe("avoid-term", () => {
     ]);
   });
 
-  test("checks headings, and reports the line of the form", () => {
+  test("checks headings and table cells, and reports the line of the form", () => {
     expect(terms("## The connection, in the app's chrome")).toEqual(['1 avoid-term "chrome"']);
+    expect(terms("| Transport | build ID, bearer |\n| - | - |\n| Luciole | x |")).toEqual([
+      '1 avoid-term "bearer"',
+      '3 avoid-term "Luciole"',
+    ]);
     expect(terms("One line.\nThen the dev server")).toEqual(['2 avoid-term "server"']);
   });
 
@@ -291,6 +342,112 @@ describe("avoid-term", () => {
     const unknown = style.replace("/\\bchrome\\b/ The persistent", "/\\bchrome\\b/ The chrome");
     expect(() => readAvoidTerms(unknown)).toThrow(
       `names "The chrome part of an app's screen", not a row of the table`,
+    );
+  });
+});
+
+describe("Astro pages and TypeScript modules", () => {
+  const astro = (source: string) => rulesOf(source, "page.astro");
+  const long = Array.from({ length: 31 }, () => "word").join(" ");
+
+  test("the markup's text is prose, one paragraph per block element", () => {
+    const page = [
+      "<section>",
+      "  <p>",
+      `    ${long.slice(0, 50)}`,
+      `    ${long.slice(50)}.`,
+      "  </p>",
+      "  <p>One; two; three.</p>",
+      "</section>",
+    ].join("\n");
+    expect(astro(page)).toEqual(["3 long-sentence", "6 chained-clauses"]);
+  });
+
+  test("inline elements, code and expressions sit in the sentence as words", () => {
+    const words = (count: number) => Array.from({ length: count }, () => "word").join(" ");
+    const sentence = (count: number) =>
+      `<p>Run <code>a b c; d: e</code> <strong>now</strong> with {commands.cli}${'{" "}'}${words(count)}.</p>`;
+    expect(astro(sentence(25))).toEqual([]);
+    expect(astro(sentence(26))).toEqual(["1 long-sentence"]);
+  });
+
+  test("the front matter's prose literals and the attributes a reader sees are prose", () => {
+    const page = [
+      "---",
+      'import Page from "../layouts/Page.astro";',
+      'const steps = ["bun run dev", "cd my-app", "both sides on your machine; one; two"];',
+      "---",
+      '<Page title="Project status" description="One; two; three." class="a b">',
+      '  <img src="/a.png" alt="the client draws it" />',
+      "</Page>",
+    ].join("\n");
+    expect(findingsOf(page, "page.astro")).toEqual([
+      "3 chained-clauses 2 semicolons, 0 colons",
+      "5 chained-clauses 2 semicolons, 0 colons",
+      '6 avoid-term "client": luciole\'s two programs',
+    ]);
+  });
+
+  test("the elements an expression holds are read, its code is not", () => {
+    const page = [
+      "<ul>",
+      "  {items.map((item) => (",
+      '    <li data-x={item.id > 2 ? "a" : "b"}>',
+      "      {item.name} keeps the session",
+      "    </li>",
+      "  ))}",
+      "</ul>",
+    ].join("\n");
+    expect(findingsOf(page, "page.astro")).toEqual([
+      '4 avoid-term "session": What `authenticate` returns, What the Client keeps across restarts',
+    ]);
+  });
+
+  test("headings are checked for terms only; scripts and styles are not prose", () => {
+    const page = [
+      `<h2>${long}; the chrome</h2>`,
+      "<script>",
+      `  const a = "${long}; the client";`,
+      "</script>",
+      "<style>",
+      "  p { color: red; }",
+      "</style>",
+    ].join("\n");
+    expect(astro(page)).toEqual(["1 avoid-term"]);
+  });
+
+  test("an allow comment in the markup or the code silences one finding", () => {
+    expect(
+      astro("<!-- prose-lint: allow chained-clauses — a list -->\n<p>One; two; three.</p>"),
+    ).toEqual([]);
+    expect(
+      rulesOf(
+        '// prose-lint: allow chained-clauses — a list\nconst a = "one; two; three";',
+        "a.ts",
+      ),
+    ).toEqual([]);
+  });
+
+  test("a module gives its prose literals, not its keys, paths or commands", () => {
+    const module = [
+      "export const examples = {",
+      '  forge: { run: "bun run forge", source: "examples/forge", frame: "forge-files",',
+      "    about:",
+      '      "Answers stream from a Server Function; the key never leaves the server.",',
+      "  },",
+      "};",
+      'const pattern = /"[a-z]+"/g;',
+      "const text = `Notes, ${name}: the client`;",
+    ].join("\n");
+    expect(findingsOf(module, "a.ts")).toEqual([
+      '4 avoid-term "server": luciole\'s two programs',
+      '8 avoid-term "client": luciole\'s two programs',
+    ]);
+  });
+
+  test("a source the scanner cannot read fails with its path and line", () => {
+    expect(() => lintSource("page.astro", "<section>\n  <p>text\n</section>")).toThrow(
+      "page.astro: line 3: </section> closes <p>",
     );
   });
 });

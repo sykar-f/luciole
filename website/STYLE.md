@@ -1,8 +1,14 @@
 # Style guide for the docs
 
-This guide is the standard for every page under `website/src/content/docs/` and for the
-`README.md`. A rewrite follows it, and a review judges against it. Each rule has a bad example
-quoted from a page, with its `path:line`, and the same text rewritten. Paths are relative to
+This guide is the standard for the public corpus:
+
+- every page under `website/src/content/docs/`
+- the `README.md` of the repository, of each package and of each example
+- the text of the site's public pages: the landing, `/examples/`, `/status/`, the docs
+  overview, and the components and modules that hold their text
+
+A rewrite follows it, and a review judges against it. Each rule has a bad example quoted from a
+page, with its `path:line`, and the same text rewritten. Paths are relative to
 `website/src/content/docs/`, and line numbers are those of 2026-10-04.
 
 The rules marked **lint** are checked by `bun website/scripts/prose-lint.ts`, which the test
@@ -259,10 +265,18 @@ In a Reference entry, give the exact import or command, the signature or flags, 
 
 ## The prose lint
 
-`bun website/scripts/prose-lint.ts [paths]` lints the given files or directories, or every
-page and the `README.md` when no path is given. Each finding prints as `path:line rule`. It
-skips front matter, imports, fenced code, tables, HTML blocks and component tags. It lints
-the Markdown inside a component, such as a Note's text. Headings are checked for terms only.
+`bun website/scripts/prose-lint.ts [paths]` lints the given files or directories, or the
+public corpus when no path is given. `corpus()` in the script lists it. Each finding prints as
+`path:line rule`.
+
+- In Markdown, it skips front matter, imports, fenced code, HTML blocks and component tags. It
+  lints the front matter's `description`, each table cell as a paragraph, and the Markdown
+  inside a component, such as a Note's text. Headings are checked for terms only.
+- In an Astro file, the markup's text is prose, and each block element is a paragraph. Code,
+  expressions and inline elements are words of their sentence. It also lints the code's
+  string literals that read as prose, and the attributes a reader sees or hears (`alt`,
+  `title`, `aria-label`…) with the pages' `description`.
+- In a `.ts` module, it lints the string literals that read as prose.
 
 A finding that the rule should not apply to takes an exception, with its reason, on the line
 just before it:
@@ -271,8 +285,9 @@ just before it:
 {/* prose-lint: allow long-sentence — the flags read as one unit */}
 ```
 
-In a `.md` file, write `<!-- prose-lint: allow long-sentence — <reason> -->`. An exception
-without a reason, or that silences nothing, is a finding itself.
+In a `.md` file or Astro markup, write `<!-- prose-lint: allow long-sentence — <reason> -->`,
+and in code `// prose-lint: allow long-sentence — <reason>`. An exception without a reason, or
+that silences nothing, is a finding itself.
 
 `website/scripts/prose-allowlist.json` lists the pages that do not pass yet, each with its
 count of findings. The list can only shrink. The test fails when:
