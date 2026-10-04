@@ -1,18 +1,7 @@
 // Screens captured from the example applications by scripts/capture.py.
-export type Run = [text: string, fg: string | null, bg: string | null, flags: string];
-/** Numbered callouts the capture located on its screen: the cells of one piece of the interface. */
-export type FrameRegion = {
-  id: string;
-  side: "client" | "server";
-  rects: { row: number; col: number; rows: number; cols: number }[];
-};
-export type Frame = {
-  title: string;
-  cols: number;
-  rows: number;
-  cells: Run[][];
-  regions?: FrameRegion[];
-};
+import type { Frame, Run } from "./transcripts";
+
+export { lines, text, type Frame, type FrameRegion, type Run } from "./transcripts";
 
 const files = import.meta.glob<Frame>("../frames/*.json", { eager: true, import: "default" });
 
@@ -54,20 +43,6 @@ export function style([, fg, bg, flags]: Run) {
   if (flags.includes("i")) rules.push("font-style:italic");
   if (flags.includes("u")) rules.push("text-decoration:underline");
   return rules.join(";");
-}
-
-/** The text of each row, without its trailing blanks. */
-export const lines = (frame: Frame) =>
-  frame.cells.map((runs) =>
-    runs
-      .map(([t]) => t)
-      .join("")
-      .trimEnd(),
-  );
-
-// The text of a frame, for screen readers and search engines.
-export function text(frame: Frame) {
-  return lines(frame).join("\n").trim();
 }
 
 export function escape(text: string) {
