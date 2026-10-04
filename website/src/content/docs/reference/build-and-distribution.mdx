@@ -122,9 +122,8 @@ Other behaviours:
 
 ## What a failed build leaves
 
-When the app changed since the last build, a failed build leaves the previous build in
-`.luciole/`. The build assembles everything in a temporary directory, then publishes it with
-one rename:
+A failed build leaves the previous build in `.luciole/`. The build assembles everything in a
+temporary directory, then publishes it with one rename:
 
 <Sequence
   title="Publishing a build"
@@ -146,14 +145,18 @@ one rename:
   caption="A failure in steps 1 to 3 removes the temporary directory and leaves .luciole/ as it was. If the rename (5) fails, .luciole-previous/ goes back to .luciole/."
 />
 
-Two cases do not follow this sequence:
+When the app has not changed since the last build, steps 1 and 2 are a copy of `.luciole/`.
+`--web` and `--compile` work on that copy, which is published the same way. A build without
+them leaves `.luciole/` as it is.
 
-- **The app has not changed** since the last build. `--web` and `--compile` then work in
-  `.luciole/` itself. A failure there can leave `web/` incomplete, or a new binary that is not
-  signed.
-- **`--outfile` writes the binary outside `.luciole/`.** The binary is built beside its
-  destination, and replaces the previous one after step 6. A failed build leaves the previous
-  binary, but it can have updated the `native/` directory beside it.
+A build killed between steps 4 and 5 leaves no `.luciole/`, and the previous build in
+`.luciole-previous/`. The next build that reaches step 4 moves it back to `.luciole/` first:
+it then replaces it, or puts it back if the rename (5) fails.
+
+One case does not follow this sequence: **`--outfile` writes the binary outside
+`.luciole/`.** The binary is built beside its destination, and replaces the previous one after
+step 6. A failed build leaves the previous binary, but it can have updated the `native/`
+directory beside it.
 
 If the last move of an `--outfile` binary fails, `.luciole/` already holds the new build.
 
@@ -391,6 +394,3 @@ How the launcher installs a published app:
 - A compiled binary does not embed `.luciole/app/`, so it cannot be opened by URL.
 - A compiled Client is rebuilt from `index.js` without its source map. Its stack traces stay in
   the bundle's coordinates.
-- If the build process is killed while it publishes, `.luciole/` can be missing. The previous
-  build is then in `.luciole-previous/`. Move it back by hand before you build again: the next
-  build deletes it.
