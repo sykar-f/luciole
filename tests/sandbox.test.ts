@@ -369,9 +369,11 @@ onLinux("UDP never leaves without a network namespace, nor inside one", async ()
   expect(run.ok).toBe(false);
 });
 
+// The echo's exit can come before its output is read: the script waits for the output.
 const PTY_ECHO = attempt(
-  `let out="";const t=new Bun.Terminal({cols:20,rows:5,data:(_t,d)=>{out+=new TextDecoder().decode(d)}});` +
-    `const c=Bun.spawn(["/bin/echo","own-pty"],{terminal:t});await c.exited;await Bun.sleep(100);t.close();return out.trim()`,
+  `let out="",shown;const echoed=new Promise((done)=>(shown=done));` +
+    `const t=new Bun.Terminal({cols:20,rows:5,data:(_t,d)=>{out+=new TextDecoder().decode(d);if(out.includes("own-pty"))shown()}});` +
+    `const c=Bun.spawn(["/bin/echo","own-pty"],{terminal:t});await c.exited;await echoed;t.close();return out.trim()`,
 );
 test.skipIf(!privateDevpts)(
   "pty: the child's own terminals in a private devpts, none of the user's",

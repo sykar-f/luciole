@@ -95,8 +95,19 @@ test("a live DevTools keeps its socket; a dead one's socket is reused, owner-onl
     );
     expect((await stat(join(dir, "bus.sock"))).mode & 0o777).toBe(0o600);
     first.close();
-    await Bun.sleep(20);
-    const second = await listenBus({ address, onMessage: () => {} });
+    // A DevTools that died: killed while it listened, it left its socket and no listener.
+    // Its own path: `close()` above unlinks in the background, and on this one could
+    // remove the socket the next listener made.
+    const dead = join(dir, "dead.sock");
+    const killed = Bun.spawn([
+      process.execPath,
+      "-e",
+      `Bun.listen({ unix: ${JSON.stringify(dead)}, socket: { data() {} } }); process.kill(process.pid, "SIGKILL")`,
+    ]);
+    expect(await killed.exited).not.toBe(0);
+    expect((await stat(dead)).isSocket()).toBe(true);
+    const second = await listenBus({ address: { kind: "unix", path: dead }, onMessage: () => {} });
+    expect((await stat(dead)).mode & 0o777).toBe(0o600);
     second.close();
   } finally {
     await rm(dir, { recursive: true, force: true });

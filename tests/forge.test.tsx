@@ -167,7 +167,7 @@ test("a merge whose response is lost is resolved from the ledger, never replayed
     expect(present(operator.pull("payments", 1), "pull request").state).toBe("merged");
     // A second attempt is blocked locally while the outcome is unknown.
     await step(() => ui.mockInput.typeText("m"));
-    await forge.settle(200);
+    await forge.settle();
     expect(
       operator.activity(50).filter((a) => a.action === "merge" && a.target === "payments#1"),
     ).toHaveLength(1);
@@ -456,7 +456,7 @@ test("help lines are generated from the key layers mounted right now", async () 
     );
     expect(await forge.frame()).not.toContain("tab next tab");
     await step(() => ui.mockInput.pressEscape());
-    await forge.settle(80);
+    await forge.settle();
     expect(await shownIn(forge, "screen-help")).toBe(reviewing);
   } finally {
     await forge.stop();
@@ -494,7 +494,7 @@ test("while a field is edited, keys bound to commands are text", async () => {
     expect(await forge.frame()).not.toContain("description-editor");
     // Escape leaves the field: letters are commands again, the Draft stays.
     await step(() => ui.mockInput.pressEscape());
-    await forge.settle(80);
+    await forge.settle();
     await step(() => ui.mockInput.typeText("i"));
     await step(() => until(() => forge.path() === "/"));
     expect(draftsOf(forge.app).unsaved()).toHaveLength(1);

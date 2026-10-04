@@ -20,6 +20,7 @@ test.if(process.platform === "linux")(
         cols: 80,
         rows: 24,
         // A Client's emulator takes time with each chunk: `yes` writes faster than this.
+        // Simulated time, not a wait: a slow reader, which the PTY must not wait out.
         onData: (data) => {
           bytes += data.length;
           Bun.sleepSync(1);

@@ -40,11 +40,11 @@ test("under 500 ms RTT: local interactions stay local, preload removes the wait,
   // once by "/" is Alt+/.
   const escape = async () => {
     await step(() => ui.mockInput.pressEscape());
-    await forge.settle(80);
+    await forge.settle();
   };
   try {
     await forge.signIn("alice");
-    await forge.settle(1500); // the first row's preload completes
+    await forge.preloaded(); // the first row's preload completes
     const idle = await metrics();
     const sent = requests.length;
 
@@ -67,7 +67,7 @@ test("under 500 ms RTT: local interactions stay local, preload removes the wait,
     const list = ui.renderer.root.findDescendantById("pull-list");
     if (!list) throw new Error("pull request list missing");
     await step(() => ui.mockMouse.scroll(list.x + 5, list.y + 1, "down"));
-    await forge.settle(RTT + 100);
+    await forge.quietFor(RTT + 100);
     expect(await metrics()).toEqual(idle);
     expect(requests.length).toBe(sent);
 
@@ -77,7 +77,7 @@ test("under 500 ms RTT: local interactions stay local, preload removes the wait,
     shown = await frame();
     expect(forge.path()).toBe("/repos/web/pulls/1");
     expect(shown).toContain("#1 Dark mode design tokens");
-    await forge.settle(RTT + 200);
+    await forge.settle();
     expect((await metrics()).renders).toBe(idle.renders);
     expect(requests.length).toBe(sent);
 

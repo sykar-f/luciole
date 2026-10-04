@@ -16,7 +16,7 @@ import {
 } from "../packages/core/src/dev/supervisor";
 import { messageOf } from "../packages/core/src/guards";
 import { spawnPty, type Pty } from "../packages/core/src/vt/pty";
-import { BUILD_TEST_MS, execute, rejectionOf, until } from "./helpers";
+import { BUILD_TEST_MS, eventually, execute, rejectionOf, until } from "./helpers";
 
 const CLI = resolve("packages/core/src/cli.ts");
 // A startup waits inside its test's build budget, and leaves the exit waits their share.
@@ -79,14 +79,12 @@ test(
     const run = dev(dir);
     try {
       // Nothing answers the Client's terminal queries here: its children are the signal.
-      const deadline = performance.now() + STARTUP_MS;
-      let children = await childrenOf(run.pty.pid);
-      while (children.length !== 2) {
-        if (performance.now() > deadline)
-          throw new Error(`Expected 2 children, found ${children.join(", ")}\n${run.state()}`);
-        await Bun.sleep(50);
-        children = await childrenOf(run.pty.pid);
-      }
+      let children: number[] = [];
+      await eventually(
+        async () => (children = await childrenOf(run.pty.pid)).length === 2,
+        STARTUP_MS,
+        () => `Expected 2 children, found ${children.join(", ")}\n${run.state()}`,
+      );
       // What <Terminal> does when it unmounts, and the kernel when a terminal closes.
       run.pty.kill();
       await until(() => run.ended.length > 0, EXIT_MS, run.state);

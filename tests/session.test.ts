@@ -3,13 +3,8 @@ import { mkdtemp, readdir, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Session } from "../packages/core/src/restore";
-import { execute } from "./helpers";
-import {
-  ORPHAN_RETENTION_MS,
-  SAVE_DELAY_MS,
-  openSession,
-  sessionDirectory,
-} from "../packages/core/src/session";
+import { eventually, execute } from "./helpers";
+import { ORPHAN_RETENTION_MS, openSession, sessionDirectory } from "../packages/core/src/session";
 
 let state: string;
 beforeEach(async () => {
@@ -91,7 +86,8 @@ test("quitting on purpose deletes the session; writes wait for a pause", async (
   const session = openSession({ name: "notes", server, id: "quit", env: env() });
   session.schedule(typed);
   expect(await files()).toEqual([]);
-  await Bun.sleep(SAVE_DELAY_MS + 50);
+  // Written after SAVE_DELAY_MS: the file itself, renamed in place whole, says it landed.
+  await eventually(async () => (await files()).length > 0);
   expect(await files()).toEqual(["quit.json"]);
   session.remove();
   expect(await files()).toEqual([]);
