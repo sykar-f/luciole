@@ -10,6 +10,7 @@ sources:
 import CopyCommand from "../../../components/CopyCommand.astro";
 import Excerpt from "../../../components/docs/Excerpt.astro";
 import Note from "../../../components/docs/Note.astro";
+import Sequence from "../../../components/docs/Sequence.astro";
 import { commands } from "../../../lib/product";
 
 This page lists every `luciole` subcommand and its flags. `@luciole-sh/core` declares two commands: `luciole` and `luciolex`. The install package,
@@ -71,6 +72,38 @@ A `file:` dependency ties the app to the clone, which has to stay where it is.
 Builds the app, starts its Server and Client, and rebuilds when you save a `.ts`, `.tsx`,
 `.js` or `.jsx` file. Saves under `.luciole/` and `node_modules/`, and to `routeTree.gen.ts`, do
 not count.
+
+A run, from the start to a good rebuild:
+
+<Sequence
+  title="luciole dev, a start and a save"
+  lanes={[
+    { id: "dev", label: "luciole dev", sub: "the supervisor", tone: "build" },
+    { id: "server", label: "Server", sub: "127.0.0.1, a free port", tone: "server" },
+    { id: "client", label: "Client", sub: "with an IPC channel", tone: "client" },
+  ]}
+  messages={[
+    { phase: "Start" },
+    { from: "dev", to: "dev", label: "build the app", n: 1 },
+    { from: "dev", to: "server", label: "start it, PORT=0 unless set", n: 2 },
+    { from: "server", to: "dev", label: "ready, on port <port>", n: 3, back: true },
+    { from: "dev", to: "client", label: "start it with --url http://127.0.0.1:<port>", n: 4 },
+    { from: "client", to: "dev", label: "hello, over IPC", n: 5, back: true, tone: "wire" },
+    { from: "dev", to: "client", label: "the token it holds, if any", n: 6, tone: "wire" },
+    {
+      from: "client",
+      to: "dev",
+      label: "each token change",
+      n: 7,
+      back: true,
+      tone: "wire",
+    },
+    { phase: "A save" },
+    { from: "dev", to: "dev", label: "rebuild, 150 ms after the last save", n: 8 },
+    { from: "dev", to: "dev", label: "stop both, then steps 2 to 6", n: 9 },
+  ]}
+  caption="The token passes from each Client to the next through the supervisor's memory, never on disk (6, 7), so a rebuild does not sign the user out. A failed rebuild skips step 9 and shows its error in the running Client."
+/>
 
 After each save:
 

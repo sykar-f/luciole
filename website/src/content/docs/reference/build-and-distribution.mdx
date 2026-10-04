@@ -370,6 +370,40 @@ A new launch of the same target finds the Server at its socket and checks it wit
 `GET /lifetime/status`. With the same build and the same arguments, the launch attaches to it.
 Otherwise it stops that Server with `POST /lifetime/stop` and starts a new one.
 
+A local launch, then its two endings:
+
+<Sequence
+  title="A managed Server, from the launch to its end"
+  lanes={[
+    { id: "launcher", label: "Launcher", sub: "luciole <target>", tone: "build" },
+    { id: "server", label: "Server", sub: "<runtime>/<id>.sock", tone: "server" },
+    { id: "client", label: "Client", sub: "this launch's", tone: "client" },
+  ]}
+  messages={[
+    { phase: "Launch" },
+    { from: "launcher", to: "server", label: "GET /lifetime/status", n: 1, tone: "wire" },
+    {
+      from: "server",
+      to: "launcher",
+      label: "its build ID and arguments",
+      n: 2,
+      back: true,
+      tone: "wire",
+    },
+    { from: "launcher", to: "launcher", label: "same: attach. Else: stop it, start one", n: 3 },
+    { from: "launcher", to: "client", label: "start it with --url unix:<socket>", n: 4 },
+    { phase: "Run" },
+    { from: "client", to: "server", label: "POST /lifetime/ping, every 10 s", n: 5, tone: "wire" },
+    { phase: "The Client quits" },
+    { from: "client", to: "server", label: "POST /lifetime/leave", n: 6, tone: "wire" },
+    { from: "server", to: "server", label: "the last Client left: stop", n: 7 },
+    { phase: "Or the Client is lost" },
+    { from: "server", to: "server", label: "silent for 30 s: 15 min of grace", n: 8 },
+    { from: "server", to: "server", label: "no Client back by then: stop", n: 9 },
+  ]}
+  caption="The socket's path comes from the session key, so the next launch of the same target finds this Server (1). A crashed Client never sends step 6. A Client that comes back during the grace period ends it."
+/>
+
 What survives a lost Client:
 
 - **The framework keeps** the Server and its in-memory data during the grace period. It
