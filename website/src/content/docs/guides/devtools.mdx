@@ -87,14 +87,15 @@ The bottom line of each panel lists its own keys, then these.
 
 <Screen
   frame="devtools-network"
-  caption="The Network panel of `luciole devtools --demo`, on a scripted run of Notes, with the watch stream selected."
+  caption="The Network panel of the DevTools demo, on a scripted run of Notes, with the watch stream selected."
   regions={[
     { id: "1", side: "client", rects: [{ row: 1, col: 3, rows: 1, cols: 17 }] },
     { id: "2", side: "server", rects: [{ row: 1, col: 24, rows: 1, cols: 17 }] },
     { id: "3", side: "client", rects: [{ row: 3, col: 0, rows: 11, cols: 100 }] },
     { id: "4", side: "server", rects: [{ row: 23, col: 1, rows: 1, cols: 43 }] },
   ]}
-/>
+  marks
+>
 
 1. `client notes 4101`: the inspected Client, with its app and process ID. `●` marks a
    connected process. The demo shows `○`, because no app is connected.
@@ -110,6 +111,8 @@ The bottom line of each panel lists its own keys, then these.
 4. `Server: request +2ms · headers +4ms · end –`: the Server's own timing of the selected
    request. `watch` is a live stream, so it has no end yet.
 
+</Screen>
+
 The panel flags two patterns in the first column:
 
 - `↳` marks a **sequential waterfall**. The request left less than 25 ms after another
@@ -124,7 +127,7 @@ or 2 s. <kbd>o</kbd> opens the console, filtered on the selected request.
 
 <Screen
   frame="devtools-components"
-  caption="The Components panel of `luciole devtools --demo`, with the Layout component selected."
+  caption="The Components panel of the DevTools demo, with the Layout component selected."
   regions={[
     {
       id: "1",
@@ -138,7 +141,8 @@ or 2 s. <kbd>o</kbd> opens the console, filtered on the selected request.
     { id: "3", side: "client", rects: [{ row: 8, col: 14, rows: 1, cols: 13 }] },
     { id: "4", side: "client", rects: [{ row: 19, col: 0, rows: 5, cols: 100 }] },
   ]}
-/>
+  marks
+>
 
 1. The Client's component tree, from `Layout` to `KeyHelp`. `×3` counts the renders, and
    `props: note` names what changed at the last one.
@@ -148,6 +152,8 @@ or 2 s. <kbd>o</kbd> opens the console, filtered on the selected request.
    equal, as `memo()` compares them, so the component rendered only because its parent did.
 4. The selected component: its render count, the reason of its last render, its size and
    position, its props and its hooks.
+
+</Screen>
 
 In this panel, these keys act on the components:
 
