@@ -1,6 +1,6 @@
 # @luciole-sh/markdown-editor
 
-A WYSIWYG Markdown editor for the terminal. Headings, bold, lists and code show as they read, with no Markdown
+A WYSIWYG Markdown editor for your terminal. Headings, bold, lists and code show as they read, with no Markdown
 mark on screen, and Markdown goes in through `value` and comes out through `onChange`.
 
 The package is published on npm as `@luciole-sh/markdown-editor`, under the MIT licence. It is at version 0.x, so a
@@ -155,7 +155,7 @@ math. The block holding the cursor shows its Markdown, and the others show what 
 | Keys                           | Action                                                            |
 | ------------------------------ | ----------------------------------------------------------------- |
 | Ctrl+B, Alt+B                  | Bold                                                              |
-| Ctrl+I, Alt+I                  | Italic (Ctrl+I only where the terminal tells it from Tab)         |
+| Ctrl+I, Alt+I                  | Italic (Ctrl+I only where your terminal tells it from Tab)        |
 | Alt+S, Alt+E                   | Strikethrough, inline code                                        |
 | Ctrl+K, Alt+K                  | Make or edit a link                                               |
 | Alt+0 to Alt+6                 | Paragraph, or a heading of level 1 to 6                           |
@@ -173,22 +173,22 @@ handler took it.
 
 The React component. It takes every OpenTUI layout prop (`flexGrow`, `width`, `height` and so on) and these:
 
-| Prop                 | Type                            | Default                                     | What it does                                                                                                                  |
-| -------------------- | ------------------------------- | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `value`              | `string`                        | required                                    | The document, as Markdown. It is controlled, like an input's `value`.                                                         |
-| `onChange`           | `(markdown: string) => void`    | none                                        | Called after each edit with the Markdown. It does not fire for a `value` you set from outside.                                |
-| `focused`            | `boolean`                       | `false`                                     | The editor receives keys and pastes while it has the focus.                                                                   |
-| `syntaxStyle`        | `SyntaxStyle`                   | none                                        | The colours of the document. See the first editor above.                                                                      |
-| `placeholder`        | `string`                        | none                                        | Faint text shown while the document is empty.                                                                                 |
-| `selectionColor`     | `ColorInput`                    | the code panel's colour                     | The background of selected text.                                                                                              |
-| `readingWidth`       | `number`                        | the editor's width                          | The widest the page runs, in cells. A narrower page is centred, and heading bands and code panels reach into its left margin. |
-| `scrollbar`          | `boolean`                       | `true`                                      | A scrollbar down the right edge while the document is taller than the editor.                                                 |
-| `terminalBackground` | `RGBA`                          | asked from the terminal                     | The terminal's background, which heading bands fade into.                                                                     |
-| `onLink`             | `(url: string) => void`         | none                                        | A link was clicked: a plain click while the editor is not focused, Ctrl or Alt+click while editing.                           |
-| `onCopy`             | `(markdown: string) => void`    | copies to the terminal's clipboard (OSC 52) | The selection was copied or cut, as Markdown.                                                                                 |
-| `onFocusRequest`     | `() => void`                    | the editor takes the focus                  | The editor was clicked while not focused. Set `focused` to grant it.                                                          |
-| `math`               | `MathRenderer`                  | none                                        | Draws display math (`$$…$$`) as a picture in terminals that show pictures. Without it, display math shows its TeX.            |
-| `ref`                | `Ref<MarkdownEditorRenderable>` | none                                        | The renderable, whose `controller` edits from outside.                                                                        |
+| Prop                 | Type                            | Default                                      | What it does                                                                                                                  |
+| -------------------- | ------------------------------- | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `value`              | `string`                        | required                                     | The document, as Markdown. It is controlled, like an input's `value`.                                                         |
+| `onChange`           | `(markdown: string) => void`    | none                                         | Called after each edit with the Markdown. It does not fire for a `value` you set from outside.                                |
+| `focused`            | `boolean`                       | `false`                                      | The editor receives keys and pastes while it has the focus.                                                                   |
+| `syntaxStyle`        | `SyntaxStyle`                   | none                                         | The colours of the document. See the first editor above.                                                                      |
+| `placeholder`        | `string`                        | none                                         | Faint text shown while the document is empty.                                                                                 |
+| `selectionColor`     | `ColorInput`                    | the code panel's colour                      | The background of selected text.                                                                                              |
+| `readingWidth`       | `number`                        | the editor's width                           | The widest the page runs, in cells. A narrower page is centred, and heading bands and code panels reach into its left margin. |
+| `scrollbar`          | `boolean`                       | `true`                                       | A scrollbar down the right edge while the document is taller than the editor.                                                 |
+| `terminalBackground` | `RGBA`                          | asked from your terminal                     | Your terminal's background, which heading bands fade into.                                                                    |
+| `onLink`             | `(url: string) => void`         | none                                         | A link was clicked: a plain click while the editor is not focused, Ctrl or Alt+click while editing.                           |
+| `onCopy`             | `(markdown: string) => void`    | copies to your terminal's clipboard (OSC 52) | The selection was copied or cut, as Markdown.                                                                                 |
+| `onFocusRequest`     | `() => void`                    | the editor takes the focus                   | The editor was clicked while not focused. Set `focused` to grant it.                                                          |
+| `math`               | `MathRenderer`                  | none                                         | Draws display math (`$$…$$`) as a picture in terminals that show pictures. Without it, display math shows its TeX.            |
+| `ref`                | `Ref<MarkdownEditorRenderable>` | none                                         | The renderable, whose `controller` edits from outside.                                                                        |
 
 ### `MarkdownEditorRenderable`
 

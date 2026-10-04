@@ -1,6 +1,6 @@
 # @luciole-sh/core
 
-The luciole framework: React Server Components rendered in the terminal, with the same
+The luciole framework: React Server Components rendered in your terminal, with the same
 components available on the web.
 
 This package publishes TypeScript sources and relies on Bun APIs (`Bun.Terminal`,

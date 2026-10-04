@@ -1,6 +1,6 @@
 # luciole.sh
 
-The install name of [luciole](https://luciole.sh): React Server Components for the terminal.
+The install name of [luciole](https://luciole.sh): React Server Components in your terminal.
 
 ```sh
 bunx luciole.sh init
