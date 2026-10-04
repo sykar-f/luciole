@@ -1,11 +1,15 @@
 ---
 title: Testing an app
-description: What checks an app today, from the build's own boundary checks to a real terminal. The patterns the repository uses, and which of them are public API.
+description: Check an app at four levels, from the build's own boundary checks to a real terminal. The patterns the repository uses, and which of them are public API.
 sources:
   - tests/restore-notes.test.tsx
   - tests/latency.test.tsx
   - scripts/pty/driver.ts
   - scripts/pty/restore.ts
+  - packages/core/src/build.ts
+  - packages/core/src/cache/transform.ts
+  - packages/create/scripts/starter.ts
+  - package.json
   - docs/API.md
   - docs/VALIDATION.md
 ---
@@ -14,33 +18,51 @@ import CopyCommand from "../../../components/CopyCommand.astro";
 import Excerpt from "../../../components/guide/Excerpt.astro";
 import Note from "../../../components/docs/Note.astro";
 
-The framework does not ship a testing library yet. What exists is what the repository uses
-to test itself and its examples: the build's checks, `bun test` with OpenTUI's test renderer,
-and scripted journeys on a real PTY. This page says which of them an app can rely on.
+Check that your app works, from the build to a real terminal. luciole ships no testing library
+yet. This page gives the four levels the repository tests itself with, and which of them your
+app can use:
 
-## The build is a test
+| Level           | Tool                                          | What it catches                               | Can your app use it?                           |
+| --------------- | --------------------------------------------- | --------------------------------------------- | ---------------------------------------------- |
+| The build       | `luciole build`, `bun run verify`             | code on the wrong side, bad routes, bad types | yes                                            |
+| In-process      | `bun test`, `createApplication`, `testRender` | screens, restores, failed requests            | yes. The repository's helpers are not exported |
+| A bad network   | `LUCIOLE_LATENCY_MS` and the other variables  | work that waits on the network                | yes                                            |
+| A real terminal | the journeys of `scripts/pty/`                | what a user sees and types                    | only inside the repository                     |
 
-`luciole build` refuses, with the file and line, what would be wrong at run time: a module
-that crosses the Client–Server boundary, a Server Function that is not a named async
-declaration, two routes with the same URL, a `"use cache"` closure, a React Client hook in a
-page. Errors are positioned where they are: a syntax error at the parser's line and column, an
-import that names no file at that import, relative to the app
-(`app/page.tsx:2:1: Cannot resolve ../components/Header`). A starter's
-`bun run verify` runs the type check, lint, format check and build together:
+## Let the build catch boundary errors
+
+`luciole build` refuses what would be wrong at run time, and names the file and line. It fails
+on:
+
+- a module that crosses the boundary between Client and Server
+- a Server Function that is not a named async declaration
+- two routes with the same URL
+- a `"use cache"` closure
+- a React Client hook in a page
+
+Each error points where the mistake is, relative to the app. A syntax error gives the parser's
+line and column. An import that names no file points at that import:
+`app/page.tsx:2:1: Cannot resolve ../components/Header`.
+
+In a starter, `bun run verify` runs the type check, lint, format check and build together:
 
 <CopyCommand lines={["bun run verify"]} />
 
-The type check covers navigation too: `app/routeTree.gen.ts` makes a link to a route that
-does not exist, or a missing param, a TypeScript error.
+The type check covers navigation too. `app/routeTree.gen.ts` makes a link to a route that does
+not exist a TypeScript error, and so is a missing param.
 
-## In-process, with `bun test`
+## Drive the Client in-process with `bun test`
 
-The Client is an ordinary object you can drive without a terminal. `createApplication`
-takes a `transport` or a `fetch` to stand between the Client and the Server,
-`app.restoration.snapshot()` returns the session a restart would restore, and
-`createApplication({ session })` restores one. OpenTUI's `testRender` draws the `Shell` in
-memory and types into it. The repository restarts Notes this way, refusing saves on the
-second run to check that unsent text is kept:
+The Client is an ordinary object that a test drives without a terminal:
+
+- `createApplication` takes a `transport` or a `fetch`, which stands between the Client and the
+  Server.
+- `app.restoration.snapshot()` returns the restored session that a restart would reopen.
+  `createApplication({ session })` restores one.
+- OpenTUI's `testRender` draws the `Shell` in memory and types into it.
+
+The repository restarts Notes this way. The second run refuses saves, to check that unsent
+text is kept:
 
 <Excerpt
   path="tests/restore-notes.test.tsx"
@@ -48,31 +70,36 @@ second run to check that unsent text is kept:
   until="return { app, ui };"
   mark={["createApp({", "fetch: async"]}
   tone="neutral"
+  caption="Each run builds a Client with its own fetch, which can refuse saves, then draws it with testRender."
 />
 
-On the Server, `createHandler(config, options)` from `@luciole-sh/core/server` is the Server as a
-function of a `Request`, without listening. `@luciole-sh/core/build` builds an app from a test.
+On the Server, `createHandler(config, options)` from `@luciole-sh/core/server` is the Server as
+a function of a `Request`, without listening. `@luciole-sh/core/build` builds an app from a
+test.
 
 <Note kind="warning">
-  These entries are public (`@luciole-sh/core/client`, `@luciole-sh/core/server`,
-  `@luciole-sh/core/build`), but the helpers the repository's tests build on them
-  (`tests/helpers.ts`: importing a built Client, launching a Server) are not exported. An app
-  outside the repository writes its own.
+  These entries are public: `@luciole-sh/core/client`, `@luciole-sh/core/server` and
+  `@luciole-sh/core/build`. The helpers that the repository's tests build on them are not exported.
+  `tests/helpers.ts` imports a built Client and launches a Server, for instance. An app outside the
+  repository writes its own.
 </Note>
 
-## Under a bad network
+## Test under a bad network
 
-Every test that drives a real Client can set the transport's conditions:
-`LUCIOLE_LATENCY_MS`, `LUCIOLE_JITTER_MS`, `LUCIOLE_CHUNK_DELAY_MS` and `LUCIOLE_FAULT`
-([latency and faults](/docs/guides/latency-and-faults/)). `tests/latency.test.tsx` checks
-that typing, scrolling and hover send no request under 500 ms of simulated latency.
+Every test that drives a real Client can set the transport's conditions, with
+`LUCIOLE_LATENCY_MS`, `LUCIOLE_JITTER_MS`, `LUCIOLE_CHUNK_DELAY_MS` and `LUCIOLE_FAULT`. See
+[latency and faults](/docs/guides/latency-and-faults/).
 
-## In a real terminal
+`tests/latency.test.tsx` adds 500 ms of latency. It checks that typing, scrolling and hover
+still send no request.
 
-The repository's journeys run a production Client on a real pseudo-terminal
-(`Bun.Terminal`), rebuild the screen with OpenTUI's terminal emulator, answer the terminal
-queries a Client sends at startup, and only read complete synchronized frames. One journey
-per example:
+## Script a journey in a real terminal
+
+A **journey** is a script of what a user does, played against the real app. The repository's journeys run a production Client on
+a real pseudo-terminal, `Bun.Terminal`, and rebuild the screen with OpenTUI's terminal
+emulator. They answer the queries a Client sends at startup, and read only complete frames.
+
+Most examples have a journey. Three of them:
 
 <CopyCommand lines={["bun run test:pty", "bun run test:pty:restore", "bun run test:pty:forge"]} />
 
@@ -87,14 +114,19 @@ A journey reads like what a user does: wait for a text, press keys, send a signa
 />
 
 <Note>
-  The driver (`scripts/pty/driver.ts`) belongs to the repository's scripts, not to the package: an
-  app in this repository can add a journey next to the others; an app outside it cannot import the
-  driver.
+  The journey driver, `scripts/pty/driver.ts`, belongs to the repository's scripts, not to the
+  package. An app in this repository can add a journey next to the others. An app outside it cannot
+  import the driver.
 </Note>
 
 ## What the repository proves, and what it does not
 
-`bun run verify` at the root runs types, lint, format, tests and the build. CI runs on macOS
-and Linux at every push, plus the Linux sandbox in containers. `docs/VALIDATION.md` (in
-French) lists what each test proves and the known limits; the [status page](/status/)
-summarises them.
+`bun run verify` at the root runs types, lint, format, tests and the build. CI runs on macOS and
+Linux at every push, and runs the Linux sandbox in containers.
+
+`docs/VALIDATION.md`, in French, lists what each test proves and its known limits. The
+[status page](/status/) summarises them.
+
+See also [latency and faults](/docs/guides/latency-and-faults/),
+[session restore](/docs/concepts/session-restore/) and the
+[API reference](/docs/reference/api/).

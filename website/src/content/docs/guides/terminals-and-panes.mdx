@@ -1,84 +1,139 @@
 ---
 title: Terminals and panes
-description: Run a shell or vim on a PTY inside your app with <Terminal>, or another luciole app in a pane with <Embed>, each with its own keys and focus.
+description: Run a shell or vim on a pseudo-terminal inside your app with <Terminal>, or another luciole app in a pane with <Embed>, each with its own keys and focus.
 sources:
   - docs/API.md
   - docs/EMBEDDING.md
   - packages/core/src/vt
+  - packages/core/src/vt/terminal.tsx
+  - packages/core/src/vt/pty.ts
+  - packages/core/src/web/platform/vt/terminal.tsx
   - packages/core/src/embed.tsx
+  - packages/core/src/app-bundle.ts
   - examples/mux
+  - scripts/pty/mux.ts
 ---
 
 import CopyCommand from "../../../components/CopyCommand.astro";
 import Note from "../../../components/docs/Note.astro";
+import Screen from "../../../components/Screen.astro";
 
-Two components put something else on part of your app's screen. `examples/mux` uses both:
-local programs side by side, each on its own PTY, and luciole apps in panes.
+Show another program on part of your app's screen. Two components do it:
+
+- `<Terminal>` runs a local program, such as a shell or vim, on a pseudo-terminal. A
+  pseudo-terminal, or PTY, is the device a terminal program reads its keys from and draws on.
+- `<Embed>` runs another luciole app in a pane.
+
+`examples/mux` is a small tmux built on both. From the repository's root:
 
 <CopyCommand lines={["bun run mux"]} />
 
-## `<Terminal>`: a local program
+<Screen
+  frame="mux"
+  caption="examples/mux with three panes: a shell and vim, each a <Terminal> on its own PTY, then mdreader in an <Embed>. The shell has the keys. Ctrl+O then O gives them to the next pane."
+  wide
+/>
 
-`<Terminal>` starts a local program on a pseudo-terminal (`Bun.Terminal`, POSIX only) and
-draws it in the app's tree, with OpenTUI's embedded terminal emulator (libghostty-vt).
-Keyboard, mouse, paste, focus reports and resizing follow the modes the program asks for.
+## Run a local program with `<Terminal>`
+
+`<Terminal>` starts a local program on a PTY and draws it in the app's tree, with OpenTUI's
+embedded terminal emulator. Keyboard, mouse, paste, focus reports and resizing follow the modes
+the program asks for.
 
 ```tsx
 <Terminal command={["vim", file]} active={pane === "editor"} prefix="ctrl+o" flexGrow={1} />
 ```
 
-- `command` starts at the first layout, at the pane's size; changing it restarts the
-  program. `onExit(code)` reports its end (`null`: killed by a signal, or not found, and the
-  message shows in the pane). Unmounting hangs the program up (`SIGHUP`), and so does
-  quitting the Client.
-- `active` gives it the keys. While active it receives **all** of them, <kbd>Ctrl+C</kbd>
-  included, before the app's bindings: only `prefix` and the sequence it opens stay with
-  the app. The keymap writes a sequence by juxtaposition: `"ctrl+oo"` is <kbd>Ctrl+O</kbd>
-  then <kbd>O</kbd>.
-- `scrollback` sets the lines kept above the screen; `cwd` and `env` start the program
-  where and how you want; `id`, `flexGrow`, `width` and `height` place the pane.
-- The host decides how to switch panes (a prefix key, a click).
+| Prop                                | What it does                                                            |
+| ----------------------------------- | ----------------------------------------------------------------------- |
+| `command`                           | the program and its arguments. Changing it restarts the program         |
+| `active`                            | gives the program the keys. The host decides when                       |
+| `prefix`                            | the host's key, such as `"ctrl+o"`, which stays with the app's bindings |
+| `onExit(code)`                      | reports the end of the program                                          |
+| `scrollback`                        | the number of lines kept above the screen                               |
+| `cwd`, `env`                        | where the program starts, and the variables added to the Client's       |
+| `id`, `flexGrow`, `width`, `height` | place the pane                                                          |
+
+The program's life follows the component:
+
+- It starts at the first layout, at the pane's size.
+- When it ends, `onExit` receives its exit code. The code is `null` when a signal killed the
+  program, or when the program was not found. A program not found shows its error in the pane.
+- Unmounting `<Terminal>` sends the program `SIGHUP`.
+- Quitting the Client kills the program's process group with `SIGKILL`.
+
+`<Terminal>` only draws the program. Your app decides how to switch panes: a prefix key, a
+click.
 
 <Note kind="warning">
   No isolation: the program has the user's rights, as in tmux. This is the `process` mode of [apps
   you did not write](/docs/guides/untrusted-apps/).
 </Note>
 
-## `<Embed>`: another luciole app
+## Show another luciole app with `<Embed>`
 
-`<Embed>` shows another luciole app in a pane, in the same process and the same React tree:
-the `inline` mode, full trust.
+`<Embed>` shows another luciole app in a pane, in the same process and the same React tree. This
+is the `inline` mode: full trust.
 
 ```tsx
 const app = await openApplication({ bundle: "…/mdreader/.luciole/app", url });
 <Embed app={app} name="docs" active={pane === "docs"} prefix="ctrl+o" flexGrow={1} />;
 ```
 
-- `openApplication` reads the **app bundle** (`.luciole/app/`, written by `luciole build`):
-  its Client Components, route tree and Server Function stubs, without a runtime. It checks
-  its ABI key and hash, then evaluates it **once per pane** against the host's runtime. It
-  gives the pane an instance key and opens its connection (`http`, `unix:`, `ssh://`, like
-  `--url`). A signed manifest is checked; `publisher: { required?, trust? }` requires a
-  signature and receives the key's fingerprint before any evaluation.
-- `active`: only the active pane hears the keys. An inactive pane keeps nothing focused;
-  what had the focus gets it back when the pane becomes active again.
-- `prefix`: as for `<Terminal>`, the host's key and its sequence stay with the host, even if
+`openApplication` prepares one pane's app in three steps:
+
+1. It reads the **app bundle**, the `.luciole/app/` directory that `luciole build` writes. The
+   bundle holds the app's Client Components, its route tree and its Server Function stubs,
+   without a runtime.
+2. It checks the bundle's ABI key and hash, then evaluates the bundle against the host's runtime,
+   once per pane.
+3. It gives the pane an instance key, and opens its connection to the Server. `url` takes the
+   same forms as `--url`: `http`, `unix:` or `ssh://`.
+
+A signed manifest is always checked. To require a signature, pass
+`publisher: { required: true }`. `publisher.trust` receives the key's fingerprint before the
+bundle runs.
+
+In the pane:
+
+- Only the active pane hears the keys. An inactive pane keeps nothing focused. What had the focus
+  gets it back when the pane becomes active again.
+- `prefix` works as for `<Terminal>`. The host's key and its sequence stay with the host, even if
   the app binds the same key. One key switches between terminals and apps.
-- A render error in the pane shows in the pane and never reaches the root.
-- `app.dispose()` frees a closed pane: requests and live streams stop, modules are
-  unregistered, the connection closes. `app.quit` is the host's: `examples/mux` closes the
-  pane with it.
+- A render error shows in the pane, and never reaches the root.
 
-`<Terminal>` is for local programs; a luciole app in the same process goes through `<Embed>`.
+To close a pane, call `app.dispose()`. Its requests and live streams stop, its modules are
+unregistered, and its connection closes. `app.quit` belongs to the host: `examples/mux` closes
+the pane with it.
 
-## Keys in a multiplexer
+## Which keys reach a pane?
 
-Global shortcuts pass before a focused terminal: an app's keymap would steal the embedded
-program's keys. That is why only the host's prefix key is reserved, and never sent to the
-PTY.
+An active pane takes every key first, <kbd>Ctrl+C</kbd> included. Only the `prefix` and the
+sequence it starts stay with the app's bindings. `"ctrl+oo"` is that kind of sequence:
 
-<Note>
-  Known gaps of the embedded emulator: OSC 8 hyperlinks are not drawn; the mode was not verified on
-  Linux when it shipped; there is no PTY on Windows. In the browser runtime, `<Terminal>`
-  shows an "unavailable here" screen.
-</Note>
+<kbd>Ctrl+O</kbd>, then <kbd>O</kbd>.
+
+The pane takes the keys first because OpenTUI's keymap sees each key before the focused
+element. Without that, an app's bindings, such as `j`, <kbd>Esc</kbd> or <kbd>Ctrl+C</kbd> to
+quit, would take the keys from the embedded program.
+
+- A prefix that nothing binds reaches the program.
+- Without a `prefix`, only moving the focus gives the keys back: `active`, or a click.
+
+## What does not work yet
+
+- The embedded emulator does not draw OSC 8 hyperlinks.
+- The emulator was not verified on Linux when it shipped.
+- There is no PTY on Windows.
+- In the browser runtime, `<Terminal>` draws a box that says the program cannot run there.
+
+## Check that the panes work
+
+`examples/mux` has a journey that drives it on a real PTY. It checks that typing reaches the
+active pane, that <kbd>Ctrl+C</kbd> interrupts the shell's job, that the prefix moves the keys,
+and that no pane's program survives the quit:
+
+<CopyCommand lines={["bun run test:pty:mux"]} />
+
+See also [testing an app](/docs/guides/testing/) for the other journeys, and the
+[API reference](/docs/reference/api/) for the signatures.

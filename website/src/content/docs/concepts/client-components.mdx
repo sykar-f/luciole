@@ -1,48 +1,77 @@
 ---
 title: Client Components
-description: '"use client" marks what runs in the terminal: keys, focus, local state. How the build draws the boundary, keeps modules on one side and checks packages.'
+description: '"use client" marks the modules the Client runs: keys, focus, local state. Where the boundary falls, how to keep code on one side, and what the build checks.'
 sources:
   - docs/BOUNDARIES.md
   - docs/API.md
+  - examples/notes/app/notes/[id]/page.tsx
   - examples/notes/components/NoteEditor.tsx
   - examples/forge/components/editor.ts
   - packages/core/src/build.ts
+  - packages/core/src/route-tree.tsx
+  - packages/core/src/client.tsx
 ---
 
 import Excerpt from "../../../components/guide/Excerpt.astro";
 import Note from "../../../components/docs/Note.astro";
 
-A module that starts with `"use client"` runs in the user's terminal. It holds what a
-network round trip must never slow down: every key, the focus, scrolling, local state and
-loading animations. Everything it imports, directly or not, joins the Client's bundle.
+A Client Component is a module that starts with `"use client"`. The Client runs it on the
+user's machine, so no network round trip slows it down. It holds every key, the focus,
+scrolling, local state and loading animations.
+
+Client Components are ordinary React components that render OpenTUI elements, such as `box`,
+`text`, `input`, `select` and `scrollbox`. Layouts, loading, error and not-found files are
+always Client Components.
+
+## Where does the boundary fall?
+
+`"use client"` marks where the Server's imports stop. The Server does not run that module.
+A page that imports it receives a **reference** to it instead, one for each exported value.
+The module joins the Client's bundle, with everything it imports, directly or not.
+
+Notes' note page shows both sides of the boundary:
+
+<Excerpt
+  path="examples/notes/app/notes/[id]/page.tsx"
+  find="import { getSession"
+  until="components/NoteEditor"
+  mark={["import { NoteEditor }"]}
+  tone="server"
+  caption='The page runs on the Server, with its data and its Server Functions. NoteEditor starts with "use client", so the page receives a reference to it.'
+/>
 
 <Excerpt
   path="examples/notes/components/NoteEditor.tsx"
   find='"use client"'
-  count={1}
+  until="./ui-state"
+  mark={['"use client"', 'from "./NoteFrame"', 'from "../actions/notes"']}
   tone="client"
+  caption="NoteEditor and everything it imports join the Client's bundle, NoteFrame included, though it has no directive. The import of actions/notes brings a reference to a Server Function, not its code."
 />
 
-Client Components are ordinary React components rendering OpenTUI elements (`box`,
-`text`, `input`, `select`, `scrollbox`…). Layouts, loading, error and not-found files are
-always Client Components.
+`"use client"` counts only at the very top of the file, before any other statement. An
+import of types only, such as `import type { MouseEvent }`, pulls nothing into either bundle.
 
-## The boundary
+<details>
+<summary>How the build finds the directive</summary>
 
-`"use client"` cuts the Server's graph. A page that imports a Client Component receives a
-**reference** to it: the build generates a Client Reference per runtime export, and the
-Client's bundle registers the modules they point to. Types alone create no edge.
+The build reads the module's prologue through the TypeScript AST: the string statements
+before the first other statement. No regular expression rewrites the source. For each
+runtime export of a `"use client"` module, the build writes a Client Reference. The Client's
+bundle registers the modules those references point to.
 
-The directive is recognised only in the module's prologue, through the TypeScript AST; no
-regular expression rewrites it.
+</details>
 
-## Keys
+## Bind your own keys
 
-The framework declares only <kbd>Ctrl+C</kbd> (quit) and, during a navigation,
+The framework binds two keys, in the `luciole` group:
 
-<kbd>Esc</kbd> (cancel), in the `luciole` group. Every other key belongs to the app, through
-OpenTUI's keymap re-exported by `@luciole-sh/core/client`. Notes is driven by the pointer; its
-editor adds optional shortcuts that the screen never lists:
+- <kbd>Ctrl+C</kbd> quits the app.
+- <kbd>Esc</kbd> cancels a navigation in progress.
+
+Every other key belongs to the app. Bind it with `useBindings`, OpenTUI's keymap that
+`@luciole-sh/core/client` re-exports. Notes is driven by the pointer, and its editor adds
+shortcuts that the screen does not list:
 
 <Excerpt
   path="examples/notes/components/NoteEditor.tsx"
@@ -50,26 +79,30 @@ editor adds optional shortcuts that the screen never lists:
   until="[editing, focus, canSave, failing, draft]"
   mark={['key: "ctrl+s"']}
   tone="client"
+  caption="Notes' editor binds Ctrl+S to save, and Ctrl+E to start or stop editing."
 />
 
-A layer of bindings lives with its component: leaving a page removes its keys and their
-help. `<KeyHelp inline groups={["note"]} />` draws the help from the active bindings that
-declare a `desc`; Notes declares none. OpenTUI's `useKeyboard` still works beside it.
+A layer of bindings lives with its component: leaving a page removes its keys and their help.
+`<KeyHelp inline groups={["note"]} />` draws that help from the active bindings that declare a
+`desc`. Notes declares none. OpenTUI's `useKeyboard` still works beside the keymap.
 
-## Staying on one side
+## Keep a module on one side
 
-| Intention                              | How                                                           |
+| What you want                          | How                                                           |
 | -------------------------------------- | ------------------------------------------------------------- |
-| A component the Server renders         | `"use client"`: the boundary, the Server receives a reference |
+| A component the Server renders         | `"use client"`: the boundary. The Server receives a reference |
 | Code that must never reach the Client  | `import "server-only"`, or a file under `server/`             |
 | Code that must never run on the Server | `import "client-only"`                                        |
 
-`"use client"` and `client-only` are not the same thing. A page may import a
-`"use client"` module and receives references from it. A module importing `client-only`
-must not be reached from the Server's graph outside a `"use client"` boundary, or the build
-fails. Both sides run on Bun: code meant for the user's terminal (`$EDITOR`, `~/.config`,
-the clipboard) would not crash on the Server, it would act on the wrong machine.
-Forge's editor launcher is the example in the repository:
+`"use client"` and `client-only` do different jobs:
+
+- A page may import a `"use client"` module. It receives references from it.
+- A module that imports `client-only` fails the build when a Server module imports it, directly
+  or not, without a `"use client"` module in between.
+
+`client-only` exists because both sides run on Bun. Code meant for the user's machine, such as
+`$EDITOR`, `~/.config` or the clipboard, would not crash on the Server. It would act on the
+wrong machine. Forge's editor launcher is the example in the repository:
 
 <Excerpt
   path="examples/forge/components/editor.ts"
@@ -77,22 +110,32 @@ Forge's editor launcher is the example in the repository:
   until="build refuses this module"
   mark={['import "client-only"']}
   tone="client"
+  caption="Forge's editor launcher opens a file in the reviewer's own editor, so it imports client-only."
 />
 
-The markers need no package: the build resolves them to empty modules, and
-`@luciole-sh/core/tsconfig` declares them so `tsc` accepts the import. There is no `*.server.*` or
-`*.client.*` suffix.
+The markers need no package. The build resolves them to empty modules, and
+`@luciole-sh/core/tsconfig` declares them so that `tsc` accepts the import. There is no
+`*.server.*` or `*.client.*` suffix.
 
-The Client's graph refuses modules under `server/`, anything that imports `server-only`,
-`@luciole-sh/core/server`, and `require()` or dynamic `import()` in the app's sources.
+The build refuses these among the modules the Client imports, directly or not:
 
-## Packages
+- a module under `server/`
+- a module that imports `server-only` or `@luciole-sh/core/server`
+- a `"use cache"` module
+- `require()` or a dynamic `import()` in the app's sources
 
-A Client Component imports any installed package without declaring it; the bundler takes it
-with its dependencies. The markers work for packages too: a package that imports
-`server-only` or `@luciole-sh/core/server` and reaches the Client, or `client-only` and reaches the
-Server, fails the build. A third-party package that declares nothing can be put on the
-Server's side in an optional `luciole.json`:
+## Use packages on either side
+
+A Client Component imports any installed package without declaring it. The bundler takes the
+package with its dependencies.
+
+The markers work for packages too. The build fails when a package reaches the wrong side:
+
+- a package that imports `server-only` or `@luciole-sh/core/server` reaches the Client
+- a package that imports `client-only` reaches the Server
+
+A third-party package that declares nothing can be kept on the Server's side. List it in an
+optional `luciole.json`, next to the app's `package.json`:
 
 ```json
 { "serverPackages": ["@prisma/client", "bcrypt"] }
@@ -106,14 +149,24 @@ Client package db-client imports server-only: it is Server-only
 ```
 
 <Note kind="warning">
-  These checks protect the boundary between Client and Server; they are not a sandbox. A package's
-  code runs with the rights of its process. Built-ins such as `node:fs` do not decide a side either:
-  a module that opens the Server's database must say `server-only`, or it would be bundled into the
-  Client and open a database on the user's machine.
+  These checks protect the boundary between Client and Server. They are not a sandbox: a package's
+  code runs with the rights of its process. Built-ins such as `node:fs` do not choose a side either.
+  A module that opens the Server's database must import `server-only`. Otherwise it is bundled into
+  the Client, and it opens a database on the user's machine.
 </Note>
 
-## Imports
+## Which import paths does the build resolve?
 
-App imports are relative paths, with or without extensions, or subpath imports (`#name`,
-from the nearest `package.json`'s `imports`); a subpath import counts for all its targets.
-Path aliases from `tsconfig` are not supported by this compiler.
+- relative paths, with or without an extension
+- subpath imports (`#name`), from the `imports` field of the nearest `package.json`. A subpath
+  import counts for all its targets.
+
+Path aliases from `tsconfig` do not resolve.
+
+## See also
+
+- [Server Components](/docs/concepts/server-components/): what a page passes to a Client
+  Component.
+- [Server Functions](/docs/concepts/server-functions/): what a reference does when the Client
+  calls it.
+- [Apps you did not write](/docs/guides/untrusted-apps/): the sandbox that these checks are not.

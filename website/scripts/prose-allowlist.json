@@ -17,12 +17,7 @@
   "packages/luciole.sh/README.md": 1,
   "packages/markdown-editor/README.md": 5,
   "website/src/components/Hero.astro": 1,
-  "website/src/content/docs/concepts/client-components.mdx": 6,
-  "website/src/content/docs/guides/anatomy-of-an-app.mdx": 5,
   "website/src/content/docs/guides/opening-an-app.mdx": 14,
-  "website/src/content/docs/guides/terminals-and-panes.mdx": 3,
-  "website/src/content/docs/guides/testing.mdx": 2,
-  "website/src/content/docs/guides/untrusted-apps.mdx": 9,
   "website/src/content/docs/reference/build-and-distribution.mdx": 20,
   "website/src/content/docs/reference/releases.mdx": 1,
   "website/src/content/docs/reference/troubleshooting.mdx": 2

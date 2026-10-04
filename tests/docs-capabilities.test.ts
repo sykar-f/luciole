@@ -13,9 +13,10 @@ const leaves = (value: unknown, prefix = ""): string[] =>
     ? Object.entries(value).flatMap(([key, child]) => leaves(child, `${prefix}${key}.`))
     : [prefix.slice(0, -1)];
 
-/** The rows of the table that follows the `## Capabilities` heading: key and flag cells. */
+/** The rows of the table under `## Declare and grant capabilities`: key and flag cells. */
 function capabilityRows() {
-  const section = page.split(/^## /m).find((part) => part.startsWith("Capabilities\n")) ?? "";
+  const section =
+    page.split(/^## /m).find((part) => part.startsWith("Declare and grant capabilities\n")) ?? "";
   return section
     .split("\n")
     .filter((line) => line.startsWith("| `"))
