@@ -22,6 +22,7 @@ sources:
 ---
 
 import Excerpt from "../../../components/guide/Excerpt.astro";
+import Src from "../../../components/guide/Src.astro";
 import Note from "../../../components/docs/Note.astro";
 
 This page lists what `@luciole-sh/core` exports, one export per row, under the import that
@@ -41,9 +42,10 @@ retry policy. It reports what happened to each request, and the app decides what
 ## Use `@luciole-sh/core/client` in Client Components
 
 Import every name of this section from `@luciole-sh/core/client`, in Client Components only.
+
 Each entry gives its signature or props, its defaults, the errors it raises and an excerpt of
 code that uses it. The excerpts come from the examples and the tests, which the project
-type-checks.
+type-checks. Where no compiled code uses an entry, a short fragment stands in, labelled as one.
 
 luciole's own hooks read the running app, so they work only inside its tree. Outside it, they
 throw `Missing terminal shell`. The field hooks and components throw a message that names the
@@ -75,6 +77,22 @@ see the [TanStack Router API reference](https://tanstack.com/router/latest/docs/
 | `useCanGoBack()`   | Returns `true` when the history holds an entry before the current one.  |
 
 luciole does not re-export TanStack's `<Link>`, because `<Link>` renders a DOM anchor.
+
+<Excerpt
+  path="examples/forge/components/PullChrome.tsx"
+  find="const matchRoute = useMatchRoute();"
+  until="  );"
+  tone="client"
+  caption="Forge highlights the tab whose route matches, the pending one first during a switch."
+/>
+
+No compiled code calls `useSearch()`, so this fragment shows it. The Files example reads the
+same param with `useRouterState` in <Src path="examples/files/app/loading.tsx" find="useRouterState({" />.
+
+```tsx
+// Fragment, not compiled: a page opened at /?dir=src
+const { dir } = useSearch({ strict: false }); // "src", or undefined without the param
+```
 
 The params and the props of the special files have these types:
 
