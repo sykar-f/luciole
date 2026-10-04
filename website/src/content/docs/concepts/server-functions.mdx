@@ -1,22 +1,26 @@
 ---
 title: Server Functions
-description: '"use server" functions are called from the terminal like any function. What the framework guarantees about a call, what it reports when one fails, and live generators.'
+description: '"use server" functions are called from the Client like any function. What the framework guarantees about a call, what it reports when one fails, and live generators.'
 sources:
   - docs/API.md
   - docs/BOUNDARIES.md
   - packages/core/src/transport.ts
+  - packages/core/src/client.tsx
   - packages/core/src/server.ts
   - examples/notes/actions/notes.ts
+  - examples/notes/app/notes/[id]/page.tsx
   - examples/notes/components/draft.ts
+  - examples/notes/components/notes-list.ts
 ---
 
 import Excerpt from "../../../components/guide/Excerpt.astro";
 import Note from "../../../components/docs/Note.astro";
+import Sequence from "../../../components/guide/Sequence.astro";
 
 A module that starts with `"use server"` exports functions the Client can call. The build
-registers them on the Server and replaces them, in the Client, with references: calling one
-encodes the arguments with Flight, sends `POST /action`, and resolves with what the function
-returned. There is no RPC layer, schema or manifest to write.
+registers them on the Server and replaces them, in the Client, with references. Calling a
+reference sends `POST /action` with the arguments in Flight, and resolves with what the
+function returned. There is no RPC layer, schema or manifest to write.
 
 <Excerpt
   path="examples/notes/actions/notes.ts"
@@ -26,45 +30,101 @@ returned. There is no RPC layer, schema or manifest to write.
   tone="server"
 />
 
-## Rules of a `"use server"` module
+## What happens during a call
+
+Notes saves a note one second after the last key. This is that call, from the editor to
+`saveNote` and back:
+
+<Sequence
+  title="Saving a note"
+  lanes={[
+    { id: "editor", label: "NoteEditor", sub: "Client Component", tone: "client" },
+    { id: "client", label: "Client", sub: "transport, router", tone: "client" },
+    { id: "server", label: "Server", sub: "HTTP handler", tone: "server" },
+    { id: "fn", label: "saveNote", sub: '"use server"', tone: "server" },
+  ]}
+  messages={[
+    { phase: "In the Client" },
+    { from: "editor", to: "client", label: "saveAction(snapshot)", n: 1 },
+    {
+      from: "client",
+      to: "server",
+      label: "POST /action: the ID, build ID, arguments",
+      n: 2,
+      tone: "wire",
+    },
+    { phase: "On the Server" },
+    { from: "server", to: "server", label: "sign-in, build, known function?", n: 3 },
+    { from: "server", to: "fn", label: "saveNote(...args)", n: 4 },
+    { from: "fn", to: "fn", label: "parse, save, invalidate({ tag })", n: 5 },
+    { from: "fn", to: "server", label: "SaveResult", n: 6, back: true },
+    { from: "server", to: "server", label: "waits for the cache purges", n: 7 },
+    {
+      from: "server",
+      to: "client",
+      label: "envelope: value, paths, tags",
+      n: 8,
+      back: true,
+      tone: "wire",
+    },
+    { phase: "Back in the Client" },
+    { from: "client", to: "client", label: "revalidates what read the tags", n: 9 },
+    {
+      from: "client",
+      to: "server",
+      label: "GET /render /notes/[id], POST /action listNotes",
+      n: 10,
+      tone: "wire",
+    },
+    { from: "client", to: "editor", label: "SaveResult", n: 11, back: true },
+  ]}
+  caption="The Server answers (8) once the purges are done (7), so the reload (10) reads the new note. The call resolves (11) without waiting for that reload to answer."
+/>
+
+## What a `"use server"` module may export
 
 - Exports are **named, async function declarations**. Inline functions, closures, exports
   by variable, default exports and re-exports are refused with the file and line.
 - The one other runtime export allowed is `export const auth = "public" | "required"`,
   which applies to every function of the module ([authentication](/docs/concepts/authentication/)).
-- `.bind` and passing a Server Function as an argument to another are not part of the
-  validated API.
+- Do not rely on `.bind`, or on passing a Server Function as an argument to another. Neither
+  is part of the validated API.
 - A Client Component may import the module directly, or receive a function as a prop from a
-  page: both go through the same call.
+  page. Both go through the same call.
 
-## Arguments are not checked for you
+## Validate the arguments yourself
 
-Arguments arrive decoded by Flight but **not verified**: a TypeScript type describes what
+Arguments arrive decoded by Flight but **not verified**. A TypeScript type describes what
 the Client is supposed to send, not what arrives. The framework only guarantees a list of
 arguments. Validate them before any effect, as Notes does with Zod (`SnapshotInput.parse`
 above).
 
-A function that rejects its arguments throws: the answer is a generic `500`, and the caller
-sees the outcome `unknown`, because the framework cannot know that nothing happened before
-the refusal. No message, stack or path leaves the Server.
+When validation throws, the Server answers with a generic `500`. The caller then sees the
+outcome `unknown`, [described below](#when-a-call-fails). No message, stack or path leaves
+the Server.
 
 ## When a call fails
 
 Every failed request throws a `TransportError` whose `outcome` says what the Server may have
 done:
 
-| `outcome`  | Cases                                                                                                             | Did the Server call the function? |
-| ---------- | ----------------------------------------------------------------------------------------------------------------- | --------------------------------- |
-| `not-sent` | Connection refused, host unreachable, aborted before sending                                                      | No                                |
-| `rejected` | A `4xx`: no bearer (`AuthenticationRequired`), another build (`BuildMismatch`), unknown action, bad argument list | No                                |
-| `unknown`  | Timeout or cut after sending, response lost or truncated, a `5xx`                                                 | Maybe                             |
+| `outcome`  | Cases                                                                                                                     | Did the Server call the function? |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
+| `not-sent` | Connection refused, host unreachable, aborted before sending                                                              | No                                |
+| `rejected` | A `4xx`: no token (`AuthenticationRequired`), another build (`BuildMismatch`), unknown Server Function, bad argument list | No                                |
+| `unknown`  | Timeout or cut after sending, response lost or truncated, a `5xx`                                                         | Maybe                             |
 
 `rejected` means that the Server did not call the function. Some of your code may still have
 run: the Server calls `authenticate` from `server/auth.ts` before it checks the build.
 
-The transport reports `unknown` for every failure it does not recognise, and it **never
-retries**. Your app decides what comes next: retry, look the operation up, mark it unknown, or
-only show a message.
+A thrown argument check is `unknown`, because the framework cannot tell what ran before the
+throw. The transport reports `unknown` for every failure it does not recognise, and it
+**never retries**. Your app decides what comes next:
+
+- retry;
+- look the operation up;
+- mark it unknown;
+- only show a message.
 
 Notes looks an unknown save up first, by its operation ID. When the Server has no trace of
 it, Notes sends the same operation again, and the Server applies it at most once:
@@ -78,15 +138,18 @@ it, Notes sends the same operation again, and the Server applies it at most once
   tone="client"
 />
 
-The [latency and faults guide](/docs/guides/latency-and-faults/) shows how to cause each
-outcome on purpose.
+`useApplication().withSignal(signal, () => action(...))` ties an abort signal to any Server
+Function call. The [latency and faults guide](/docs/guides/latency-and-faults/) shows how to
+cause each outcome on purpose.
 
-## Declaring what changed
+## Declare what a Server Function changed
 
-The framework refreshes nothing by itself after a Server Function: a read costs no page
-render. A function that changes data says so with `invalidate()` from `@luciole-sh/core/server`; the
-paths and tags travel back in the response's envelope, and the Client revalidates the
-routes concerned without waiting for them.
+The framework refreshes nothing by itself after a Server Function, so a read costs no page
+render. A function that changes data calls `invalidate()` from `@luciole-sh/core/server`:
+
+- the paths and tags travel back in the response's envelope (step 8 above);
+- the Client revalidates the routes concerned (steps 9 and 10);
+- the call resolves without waiting for those routes (step 11).
 
 | Call                       | Effect                                                                                                 |
 | -------------------------- | ------------------------------------------------------------------------------------------------------ |
@@ -94,15 +157,19 @@ routes concerned without waiting for them.
 | `invalidate("/repos/web")` | That path and its descendants, never a mere prefix (`/repos/website` is not included).                 |
 | `invalidate({ tag })`      | Purges the Server cache for that tag, then the routes that read it ([caching](/docs/concepts/cache/)). |
 
-A lost response invalidates nothing in the Client. Data read outside route loaders (a
-counter in the chrome) subscribes with `useInvalidation(listener)`, and Client code can call
-`useApplication().invalidate(paths?)` after a change it observed itself.
+A lost response invalidates nothing in the Client. Two hooks cover what route loaders do not
+reload:
 
-## Live Server Functions
+- `useInvalidation(listener)` runs after each invalidation, for data read outside route
+  loaders, such as a counter in a layout. Notes reloads its sidebar's list this way.
+- `useApplication().invalidate(paths?)` lets Client code revalidate after a change it
+  observed itself.
+
+## Stream values from a Server Function
 
 An `export async function*` in a `"use server"` module streams its values. `useLive` opens
-the request when the component mounts, or when its arguments change, and cancels it on
-unmount; the Server then stops the generator, and its `finally` runs.
+the request when the component mounts, or when its arguments change. It cancels the request
+on unmount, and the Server then stops the generator and runs its `finally`.
 
 ```tsx
 const { items, done, error } = useLive(checkLog, [check.id], { limit: 500 });
@@ -110,8 +177,6 @@ const { items, done, error } = useLive(checkLog, [check.id], { limit: 500 });
 
 Nothing reconnects by itself: a cut ends the stream with a `TransportError` (`unknown`). A
 live response is exempt from the Server's idle timeout.
-`useApplication().withSignal(signal, () => action(...))` ties an abort signal to any Server
-Function call.
 
 <Note>
   Each call carries a `callId` (`x-luciole-call`), which the Server reads with `getCallId()`: it
