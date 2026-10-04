@@ -74,9 +74,9 @@ const terminalOnly = terminal.map((key) => ({ key, example: examples[key] }));
             </div>
             <div class="screen-side">
               {example.demo ? (
-                <LiveTerminal demo={example.demo} frame={frame(example.frame)} script={example.script} boot="manual" />
+                <LiveTerminal demo={example.demo} frame={frame(example.frame)} caption={frame(example.frame).title} script={example.script} boot="manual" />
               ) : (
-                <Screen frame={frame(example.frame)} />
+                <Screen frame={example.frame} caption={frame(example.frame).title} />
               )}
             </div>
           </section>
@@ -104,7 +104,7 @@ const terminalOnly = terminal.map((key) => ({ key, example: examples[key] }));
               </p>
             </div>
             <div class="screen-side">
-              <Screen frame={frame(example.frame)} />
+              <Screen frame={example.frame} caption={frame(example.frame).title} />
             </div>
           </section>
         ))
