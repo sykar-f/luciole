@@ -11,6 +11,8 @@ sources:
   - packages/core/src/markdown
   - packages/core/src/dev/supervisor.ts
   - packages/core/src/run.tsx
+  - packages/core/src/grammars.ts
+  - packages/core/src/math.ts
 ---
 
 import Excerpt from "../../../components/guide/Excerpt.astro";
@@ -40,13 +42,13 @@ For Client Components only.
 
 ### The app and its connection
 
-| Export                                                      | Contract                                                                                                                                   |
-| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `useApplication()`                                          | `{ setToken(token?), refresh(), invalidate(paths?), cancel(), withSignal(signal, call), onEvent(listener), status, error }`.               |
-| `useConnection()`                                           | `{ status, error, buildError, activity, refresh }` for the chrome; `activity` is `connect`, `navigate`, `refresh` or `idle`.               |
-| `useInvalidation(listener)`                                 | Called at every invalidation, from the Server or the Client, with the paths and tags: for data read outside route loaders.                 |
-| `useLive(source, args, { limit }?)`                         | `{ items, done, error }` of a generator Server Function, subscribed while the component is mounted.                                        |
-| `TransportError`, `BuildMismatch`, `AuthenticationRequired` | Typed failures; `outcome` is `not-sent`, `rejected` or `unknown` ([Server Functions](/docs/concepts/server-functions/#when-a-call-fails)). |
+| Export                                                      | Contract                                                                                                                                                      |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `useApplication()`                                          | `{ setToken(token?), refresh(), invalidate(paths?), cancel(), withSignal(signal, call), onEvent(listener), status, error }`.                                  |
+| `useConnection()`                                           | `{ status, error, buildError, activity, refresh }` for the chrome; `activity` is `connect`, `navigate`, `refresh` or `idle`.                                  |
+| `useInvalidation(listener)`                                 | Called at every invalidation, from the Server or the Client, with the paths and tags: for data read outside route loaders.                                    |
+| `useLive(source, args, { limit }?)`                         | `{ items, done, error }` of a generator Server Function, subscribed while the component is mounted; `items` keeps the last `limit` values (1,000 by default). |
+| `TransportError`, `BuildMismatch`, `AuthenticationRequired` | Typed failures; `outcome` is `not-sent`, `rejected` or `unknown` ([Server Functions](/docs/concepts/server-functions/#when-a-call-fails)).                    |
 
 ### Fields and keys
 
@@ -75,8 +77,10 @@ finished blocks render once, the last block is closed ahead of time (`**bold` sh
 text is styled without Tree-sitter so the streaming and final renders match. Code is coloured
 once its fence closes; `diff` blocks are coloured line by line from the start. OpenTUI knows
 JavaScript, TypeScript, Markdown and Zig; `import "@luciole-sh/core/grammars"` (once, in the Client)
-adds Bash, C, C++, CSS, Go, HTML, Java, JSON, PHP, Python, Ruby, Rust, TOML and YAML. A click
-on a link calls `onLink(url)`; images are drawn with kitty, sixel or half blocks.
+adds Bash, C, C++, CSS, Go, HTML, Java, JSON, Lua, PHP, Python, Ruby, Rust, TOML and YAML. It
+also replaces OpenTUI's TypeScript grammar, and reads TSX with a grammar of its own instead of
+TypeScript's. A click on a link calls `onLink(url)`; images are drawn with kitty, sixel or half
+blocks.
 
 `markdownStyle({ text, muted, faint, accent, onBand, band, bandQuiet, code, panel, link,
 danger, ok })` derives every group `<Markdown>` reads from those colors: H1 and H2 on
@@ -107,10 +111,10 @@ Client or an `inline` pane acts itself, with the user's rights (`pbcopy`, `osasc
 
 ### Observing
 
-| Export                           | Contract                                                                                            |
-| -------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `<DebugOverlay limit? />`        | Requests, open requests, bytes, last round trip and the latest events since it mounted.             |
-| `instrumentTracing(app, tracer)` | One span per request to an OpenTelemetry `Tracer` (or a compatible one); returns the stop function. |
+| Export                           | Contract                                                                                                       |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `<DebugOverlay limit? />`        | Requests, open requests, bytes, last round trip and the latest `limit` events (6 by default) since it mounted. |
+| `instrumentTracing(app, tracer)` | One span per request to an OpenTelemetry `Tracer` (or a compatible one); returns the stop function.            |
 
 `useApplication().onEvent(listener)` receives each transport event (`request`, `response`,
 `chunk`, `end`, `error` with its `outcome`) and each resolved navigation, plus `invalidate`
@@ -158,8 +162,18 @@ wrapped. `/action` answers with `Server-Timing: total;dur=…`.
 | `@luciole-sh/core/sandbox`    | The `sandbox` mode for a host: `openSandbox` (a confined Client for `<TerminalView>`), `confineServer`, `sandboxAvailability`.         |
 | `@luciole-sh/core/pty`        | `spawnPty({ command, cols, rows, env?, cwd?, onData, onExit, … })` → `{ write, resize, kill, send, pid }`: `Bun.Terminal`, POSIX only. |
 | `@luciole-sh/core/metadata`   | `AppMetadata`, the schema of `.luciole/metadata.json`, and the functions that read and write it.                                       |
-| `@luciole-sh/core/grammars`   | Side effect only: registers the extra Tree-sitter grammars.                                                                            |
+| `@luciole-sh/core/grammars`   | Registers the extra Tree-sitter grammars when imported; exports them as `GRAMMARS`.                                                    |
+| `@luciole-sh/core/math`       | `renderMath(tex, { display, color, scale })` → `Promise<Uint8Array>`, a PNG (below).                                                   |
 | `@luciole-sh/core/tsconfig`   | The TypeScript configuration every app extends.                                                                                        |
+
+## Display math: `@luciole-sh/core/math`
+
+`renderMath` draws TeX as a PNG on a transparent background, in `color`, at `scale` pixels per
+`ex`; `display` chooses display or inline math. It rejects TeX that MathJax cannot read. It
+is what `@luciole-sh/markdown-editor`'s `math` option takes, to draw display math in terminals
+that draw pictures; Notes passes it. Like `grammars`, it is opt-in: MathJax and resvg
+(WebAssembly, nothing native to build) are optional peer dependencies of a few megabytes,
+which the app installs; they load on the first formula.
 
 ## Supervising an app: `@luciole-sh/core/dev`
 
@@ -205,6 +219,7 @@ and progressive Flight decoding. A decorator sees every `render` and `call`; wha
 reaches the app as it is, so it must let `TransportError`s and their `outcome` through.
 
 <Note>
-  The package is not published yet, and the API changes without notice while the project is
-  experimental. The [status page](/status/) says what is stable enough to rely on.
+  The packages are published on npm, at version 0.x: a patch release does not break the API, a minor
+  release may, and the changelog lists each break. The [status page](/status/) says what is stable
+  enough to rely on.
 </Note>
