@@ -593,6 +593,39 @@ def flight(directory):
         server.terminate()
 
 
+def build_tree(directory):
+    """What `luciole build --compile` leaves in Notes' .luciole/: the layout, without sizes or hashes."""
+    app = ROOT / "examples/notes"
+    subprocess.run([BUN, CLI, "build", "--app", str(app), "--compile"], check=True,
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    hashed = re.compile(r"-[0-9a-z]{8}(\.\w+)$")
+    platform = re.compile(r"^(darwin|linux|windows)-(x64|arm64)(-musl)?$")
+
+    def listing(path, depth):
+        # Files before directories, so a file's name is first met at its own level.
+        entries = sorted(path.iterdir(), key=lambda p: (p.is_dir(), p.name))
+        lines, extensions = [], set()
+        for entry in entries:
+            match = hashed.search(entry.name)
+            if entry.is_file() and match:
+                extensions.add(match.group(1))
+            elif entry.is_dir():
+                name = "<os>-<arch>" if platform.match(entry.name) else entry.name
+                lines += ["  " * depth + name + "/", *listing(entry, depth + 1)]
+            else:
+                lines.append("  " * depth + entry.name)
+        if extensions:
+            lines.append("  " * depth + "<asset>-<hash>" + ", ".join(sorted(extensions)))
+        return lines
+
+    body = "\n".join([".luciole/", *listing(app / ".luciole", 1)]) + "\n"
+    OUT.mkdir(parents=True, exist_ok=True)
+    (OUT / "build-tree.txt").write_text(body)
+    print(f"captured build-tree ({len(body.splitlines())} lines)")
+    if PRINT:
+        print(body)
+
+
 def flow_graph(directory):
     # The minimal program of packages/flow-graph/README.md, run as a reader runs it: no
     # luciole, only Bun, React and OpenTUI. `fitView` makes the first frame the one shown.
@@ -609,7 +642,7 @@ def flow_graph(directory):
         term.stop()
 
 
-SCENES = {"forge": forge, "notes": notes, "notes-empty": notes_empty, "notes-pick": notes_pick, "notes-loading": notes_loading, "notes-error": notes_error, "notes-disconnected": notes_disconnected, "latency": latency, "chat": chat, "coder": coder, "files": files, "mdreader": mdreader, "markdown-editor": markdown_editor, "devtools": devtools, "mux": mux, "flight": flight, "flow-graph": flow_graph}
+SCENES = {"forge": forge, "notes": notes, "notes-empty": notes_empty, "notes-pick": notes_pick, "notes-loading": notes_loading, "notes-error": notes_error, "notes-disconnected": notes_disconnected, "latency": latency, "chat": chat, "coder": coder, "files": files, "mdreader": mdreader, "markdown-editor": markdown_editor, "devtools": devtools, "mux": mux, "flight": flight, "build-tree": build_tree, "flow-graph": flow_graph}
 
 
 def main():

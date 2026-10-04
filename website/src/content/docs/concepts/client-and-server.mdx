@@ -197,7 +197,7 @@ Three rules decide where a module runs:
 
 [Client Components](/docs/concepts/client-components/) gives the details.
 `luciole build` writes both programs into the app's `.luciole/` directory:
-[its outputs](/docs/reference/build-and-distribution/#luciole-build) are listed in the
+[its outputs](/docs/reference/build-and-distribution/#what-luciole-build-writes) are listed in the
 Reference.
 
 <Note>
@@ -209,7 +209,7 @@ Reference.
 ## Why both sides come from one build
 
 Both programs must come from **the same build**. Each build has an ID, a hash of everything
-the build reads ([the list](/docs/reference/build-and-distribution/#the-build-id)).
+the build reads ([the list](/docs/reference/build-and-distribution/#how-the-build-id-is-made)).
 
 - The Client sends that ID with every request, in `x-luciole-build`.
 - A Server of another build refuses the request with a `409`, before decoding it.
@@ -217,7 +217,7 @@ the build reads ([the list](/docs/reference/build-and-distribution/#the-build-id
 
 The hash includes `bun.lock`, which lists the packages of every platform. A Linux Server and a
 macOS Client compiled from the same sources therefore share one build ID.
-[`--on`](/docs/guides/opening-an-app/#on-another-machine-over-ssh) relies on that.
+[`--on`](/docs/guides/opening-an-app/#start-the-server-on-another-machine) relies on that.
 
 ## Where the pieces live
 
