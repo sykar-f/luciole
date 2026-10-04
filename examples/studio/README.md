@@ -1,183 +1,229 @@
-# studio
+# studio — describe an app, use it while it is written
 
-Décrire une application luciole à un agent de code et **s'en servir pendant qu'il l'écrit**.
-À gauche la conversation avec le harness (Claude Code, ou un générateur scripté),
-à droite l'application générée, en marche, embarquée par le widget VT : un **brouillon**
-après chaque fichier écrit, une **révision** après chaque tour, sans perdre ce que vous
-faisiez dans l'app. Conception : [DESIGN.md](DESIGN.md) (hébergement : [HOSTING.md](HOSTING.md)).
+Studio lets you describe a luciole app to a coding agent and use that app while the agent
+writes it. The conversation sits on the left, and the generated app runs on the right.
 
-## Lancement
+It exercises these luciole features:
 
-Sans cloner le dépôt : `luciole example studio` lance cet exemple depuis le tag git de la
-version de luciole installée ([docs/DISTRIBUTION.md](../../docs/DISTRIBUTION.md#exemples)).
-Les variables d'environnement et les clés ci-dessous s'appliquent de la même façon.
+- an app embedded in another, in a terminal widget
+- a confined app: its Server and Client run in a sandbox
+- signed builds, made beside the source
+- the restored session, which keeps your place in the app across rebuilds
 
-Depuis la racine du monorepo (les dépendances sont `workspace:*` et `catalog:` : l'exemple
-ne se lance pas depuis son propre dossier). Prérequis : Bun 1.4.2, `bun install
---frozen-lockfile` une fois, `git` (studio tient un dépôt git dans le projet) et — pour `-H claude`
-seulement — le binaire `claude` dans le `PATH`, déjà connecté par vous (`claude auth login`) ; aucune clé API n'est
-lue. `-H fake` n'exige rien. Attendez-vous à la conversation à gauche et, à droite,
-l'application générée qui apparaît au premier brouillon.
+```text
+ ● studio · demo · powered by scripted demo · r5                                                                                                              ✓
+     11 -       <text id="studio-soon">A guestbook is coming…</text>            ╭─ r5 · sandbox ──────────────────────────────────────────────────────────────╮
+     12 +       <Links />                                                       │                                                                             │
+     13       </box>                                                            │ MY APP · Connected                                                          │
+     14     );                                                                  │                                                                             │
+     15   }                                                                     │ Guestbook · 30 signatures                                                   │
+                                                                                │                                                                             │
+  Wrote app/page.tsx, server/guestbook.ts, actions/guestbook.ts, components/    │ Guest 06: Hello from the first visitors                                     │
+  Guestbook.tsx, app/guestbook/page.tsx, components/Links.tsx.                  │ Guest 07: Hello from the first visitors                                   ▀ │
+                                                                                │ Guest 08: Hello from the first visitors                                     │
+  • Revision r4 built and running.                                              │ Guest 09: Hello from the first visitors                                     │
+                                                                                │ Guest 10: Hello from the first visitors                                     │
+   › Show how many people signed the guestbook                                  │ Guest 11: Hello from the first visitors                                     │
+                                                                                │                                                                             │
+  Counting the signatures in the guestbook's title.                             │ Name     Ada                                                                │
+                                                                                │                                                                             │
+  ▾ ✎ components/Guestbook.tsx                                         +1 −1    │ Message  Hi!                                                                │
+     45     return (                                                            │                                                                             │
+     46       <box flexDirection="column" gap={1}>                              │                                                                             │
+     47         <text id="guestbook-title" fg="#67d9bc">                        │                                                                             │
+     48 -         Guestbook                                                     │                                                                             │
+     48 +         Guestbook · counting signatures…                              │                                                                             │
+     49         </text>                                                         │                                                                             │
+     50         <ScrollBox id="guestbook-entries" name="guestbook/entries" re   │                                                                             │
+     51           {entries.map((entry) => (                                     │                                                                             │
+                                                                                │                                                                             │
+  ▾ ✎ components/Guestbook.tsx                                         +1 −1    │                                                                             │
+     45     return (                                                            │                                                                             │
+     46       <box flexDirection="column" gap={1}>                              │                                                                             │
+     47         <text id="guestbook-title" fg="#67d9bc">                        │                                                                             │
+     48 -         Guestbook · counting signatures…                              │                                                                             │
+     48 +         Guestbook · {entries.length} signatures                       │                                                                             │
+     49         </text>                                                         │                                                                             │
+     50         <ScrollBox id="guestbook-entries" name="guestbook/entries" re   │                                                                             │
+     51           {entries.map((entry) => (                                     │                                                                             │
+                                                                                │                                                                             │
+  Wrote components/Guestbook.tsx.                                               │                                                                             │
+                                                                                │                                                                             │
+  • Revision r5 built and running.                                            ▄ │                                                                             │
+ ╭────────────────────────────────────────────────────────────────────────────╮ │                                                                             │
+ │ › Describe the app, or a change…                                           │ │                                                                             │
+ ╰────────────────────────────────────────────────────────────────────────────╯ │                                                                             │
+  scripted · ✎ auto edits                      Scripted demo · no model calls   ╰─────────────────────────────────────────────────────────────────────────────╯
+  Ctrl+O o app · p full · u undo · d diff · h revisions · r restart  ctrl+c quit
+```
+
+The frame of the app names what it shows:
+
+- **a draft**, built after each file the agent writes, labelled `draft`
+- **a revision**, committed after each turn, labelled `r1`, `r2`…
+
+The screen above comes from `bun run test:pty:studio`, after two guestbook prompts. The
+name and message typed in the app survived the draft and the revision.
+
+[DESIGN.md](DESIGN.md) holds the design notes, and [HOSTING.md](HOSTING.md) a study of a
+hosted studio. Both are in French.
+
+## Run it
+
+You need:
+
+- Bun 1.4.2 or newer, and `git`
+- macOS, for the sandboxed preview (see [Limits](#limits))
+- for `-H claude` only, the `claude` binary in your `PATH`, signed in with `claude auth login`
+
+`-H fake` runs a scripted generator instead of an agent: it needs no model and no network.
+From the release:
 
 ```sh
-bun run studio -- -H fake                    # générateur scripté : hors ligne, sans quota
-bun run studio -- -H claude --project todos  # un projet nommé, sous $XDG_DATA_HOME/luciole/studio
-bun run studio -- --dir ~/apps/notes -r      # un dossier ; -r reprend la dernière session
+bunx luciole.sh example studio -- -H fake
 ```
 
-| Option                        | Effet                                                                                      |
-| ----------------------------- | ------------------------------------------------------------------------------------------ |
-| `-H, --harness`               | `claude` (défaut) ou `fake` (générateur scripté)                                           |
-| `-d, --dir DIR`               | dossier du projet : vide (ou absent), il reçoit le template ; un projet studio est rouvert |
-| `-p, --project NAME`          | projet sous `$XDG_DATA_HOME/luciole/studio/NAME` (défaut : un nouveau `app-<date>`)        |
-| `-r, --resume [ID]`           | reprend la session du harness                                                              |
-| `--preview sandbox\|process`  | aperçu confiné (défaut), ou avec vos droits                                                |
-| `--fixes N`                   | corrections automatiques après un échec (défaut 2, au plus 5)                              |
-| `-m, --model`, `-e, --effort` | modèle et effort, tels que le harness les nomme                                            |
+From a clone of the repository, at its root:
 
-> **Attention.** L'agent hérite de tout l'environnement de studio (variables, clés
-> comprises) et écrit dans le dossier du projet avec vos droits. Studio demande les
-> permissions au mode `ask` et n'offre pas `--mode` ; le mode `full` de coder, qui
-> désactive le bac à sable de l'agent (`danger-full-access` chez Codex), n'y est pas
-> proposé, mais ne l'activez dans aucun harness lancé à côté sur ce dossier. De même,
-> `--preview process` fait tourner l'application générée avec vos droits, sans confinement.
+```sh
+bun install --frozen-lockfile                 # once
+bun run studio -- -H fake                     # the scripted generator
+bun run studio -- -H claude --project todos   # Claude Code, in a named project
+bun run studio -- --dir ~/apps/notes -r       # a directory, resuming its conversation
+```
 
-Codex, pi et opencode restent réservés à coder pour l'instant : studio ne sait pas empêcher
-Codex de lancer des commandes (son protocole n'a pas de mode sans commandes), et les
-demander à studio échoue avec cette raison.
+| Option                        | Effect                                                                               |
+| ----------------------------- | ------------------------------------------------------------------------------------ |
+| `-H, --harness`               | `claude`, the default, or `fake`.                                                    |
+| `-d, --dir DIR`               | The project directory. An empty one gets the template, and a studio project reopens. |
+| `-p, --project NAME`          | A project under `$XDG_DATA_HOME/luciole/studio/NAME`. Default: a new `app-<date>`.   |
+| `-r, --resume [ID]`           | Resume the project's last harness conversation, or the one named `ID`.               |
+| `--preview sandbox\|process`  | Run the app in a sandbox, the default, or with your rights.                          |
+| `--fixes N`                   | Automatic corrections after a failed check. Default: 2, at most 5.                   |
+| `-m, --model`, `-e, --effort` | The model and its effort, as the harness names them.                                 |
 
-Chaque génération consomme le quota de **votre** abonnement ou de votre clé : studio ne
-parle jamais à un modèle lui-même, il pilote le binaire officiel déjà installé et connecté
-(mêmes règles que coder, aucun secret lu, le binaire de l'utilisateur, jamais l'abonnement d'un autre ; la licence
-de l'Agent SDK d'Anthropic n'est pas OSI : usage personnel et non commercial). Une
-correction automatique est un tour de plus.
+> **Warning.** The agent inherits studio's whole environment, keys included, and writes in
+> the project directory with your rights. `--preview process` runs the generated app with
+> your rights too, outside any sandbox. Do not turn on full access, which removes the
+> agent's own sandbox, in another harness that runs on the same directory.
 
-## Pendant le tour : les brouillons
+With `-H claude`, each turn uses the quota of your own subscription or key. Each automatic
+correction is one more turn. Studio never calls a model itself: it drives the `claude` binary you
+installed, and reads no secret. The licence of Anthropic's Agent SDK is not OSI-approved:
+it allows personal, non-commercial use.
 
-Chaque écriture du harness (celles de 300 ms regroupées) donne un brouillon : le même
-garde-fou (un fichier refusé ne tourne jamais, même en brouillon), un build à part, un
-Server confiné, et l'aperçu bascule dessus. Le cadre dit ce qu'il montre : `draft` ou
-`r12`, et `◐ draft` pendant qu'un brouillon se construit. Rien n'est commité, corrigé ni
-renvoyé au harness : en plein tour un fichier importe souvent un fichier pas encore écrit,
-donc un brouillon en échec garde l'écran qui marchait et l'écrit en haut du cadre
-(« draft · waiting for a build that works »). Un seul brouillon à la fois ; une écriture
-plus récente l'emporte sur celui qui tourne. La fin du tour reste celle d'avant.
+## Try it
 
-**Ce qui survit** à un brouillon comme à une révision, en `sandbox` comme en `process` : la
-page et l'historique, le texte des champs nommés, le champ qui a le focus
-(`useRestoredFocus`) et la position des listes (`<ScrollBox name>`), ainsi que les données
-dans `data/`. Le reste de la mémoire de l'app est perdu. Les instructions de studio
-demandent donc de nommer chaque champ ; un `<Input>` ou `<Textarea>` sans `name` donne un
-**conseil** (dans la conversation, puis avec votre message suivant au harness), jamais un
-refus ni une correction.
+With `-H fake`, send these two prompts:
 
-Avec `-H fake`, le prompt « Add a guestbook page with a form to sign it » écrit en quatre
-fois (une pause de `STUDIO_FAKE_WRITE_MS`, 1,5 s par défaut, entre deux écritures), puis
-« Show how many people signed the guestbook » le modifie : tapez un nom dans le livre d'or
-(`g` depuis l'accueil, `Tab` entre les champs, `PageDown` dans la liste) et regardez-le
-survivre aux brouillons.
+1. "Add a guestbook page with a form to sign it." The generator writes the page in four
+   steps, 1.5 s apart, and the app switches to a draft after each one.
+2. "Show how many people signed the guestbook." The generator changes the page.
 
-## Ce qui se passe après chaque tour
+Between the two, press `Ctrl+O` `o` to reach the app, then `g` to open the guestbook. Type
+a name, move with `Tab` and scroll the list with `PageDown`. Your text, the focus and the
+scroll survive every draft.
 
-1. **Garde-fou** : les fichiers changés doivent être des `.ts`/`.tsx` sous `app/`,
-   `components/`, `server/`, `actions/`, et n'importer que les paquets permis (voir
-   `STUDIO.md` dans le projet). Un changement refusé est annulé.
-2. **Build** à part (`.luciole-studio/builds/`), signé par la clé propre au projet.
-3. **Server** de l'application démarré **confiné** : il lit son build, écrit `data/`, ne
-   joint aucun réseau sauf les hôtes que vous autorisez, ne lance aucun programme.
-4. **Révision** : un commit du dépôt git que studio tient dans le projet (identité
-   `studio`, jamais la vôtre) ; l'aperçu passe à la nouvelle révision.
-5. **Types** vérifiés à côté (`tsc`), sans bloquer l'aperçu ; une **page en échec** dans
-   l'aperçu est signalée par son Client lui-même.
+`Ctrl+O` is the only key studio keeps. Every other key goes to the focused pane, so
+`Ctrl+C` in the app reaches the app.
 
-Un échec revient au harness sous forme d'un message `[studio] …` (fichier, ligne, message),
-au plus `--fixes` fois de suite et jamais deux fois pour le même échec ; ensuite la main
-est à vous. Le harness n'a que des outils de fichiers (Claude : `Read`, `Write`, `Edit`,
-`Glob`, `Grep`), les instructions de studio, aucun de vos réglages (hooks, MCP), et studio
-refuse toute commande qu'il demande.
-
-## Clavier
-
-`Ctrl+O` est la seule touche que studio garde ; tout le reste va au panneau actif, l'aperçu
-compris (`Ctrl+C` y va à l'application).
-
-| Touches           | Action                                                         |
+| Keys              | Action                                                         |
 | ----------------- | -------------------------------------------------------------- |
-| `Ctrl+O` puis `o` | conversation ↔ application (un clic aussi)                     |
-| `Ctrl+O` puis `p` | application plein écran                                        |
-| `Ctrl+O` puis `r` | relancer l'application (même révision, Server neuf)            |
-| `Ctrl+O` puis `u` | revenir à la révision précédente (comme une nouvelle révision) |
-| `Ctrl+O` puis `d` | ce qu'a changé la révision affichée                            |
-| `Ctrl+O` puis `h` | les révisions : en choisir une la restaure                     |
-| `Esc`             | interrompre le tour du harness                                 |
+| `Ctrl+O` then `o` | Switch between the conversation and the app. A click does too. |
+| `Ctrl+O` then `p` | Show the app full screen.                                      |
+| `Ctrl+O` then `r` | Restart the app: the same revision, with a new Server.         |
+| `Ctrl+O` then `u` | Go back to the previous revision, as a new revision.           |
+| `Ctrl+O` then `d` | Show what the revision on screen changed.                      |
+| `Ctrl+O` then `h` | List the revisions. Choosing one restores it.                  |
+| `Esc`             | Interrupt the harness's turn.                                  |
 
-Commandes : `/allow HOST` et `/deny HOST` (réseau de l'application, écrit par studio dans
-son `package.json`), `/restore N`, `/restart`, `/revisions`.
+Type these commands in the conversation:
 
-## Isolation
+| Command       | Effect                                                                  |
+| ------------- | ----------------------------------------------------------------------- |
+| `/allow HOST` | Let the app reach `HOST`. Studio writes it in the app's `package.json`. |
+| `/deny HOST`  | Take that permission back.                                              |
+| `/restore N`  | Restore revision `N`.                                                   |
+| `/restart`    | Restart the app.                                                        |
+| `/revisions`  | List the revisions.                                                     |
 
-Par défaut l'aperçu est **confiné** : Server et Client de l'application sous Seatbelt
-(macOS). Sans mécanisme disponible, studio ne démarre pas l'aperçu et dit pourquoi ;
-`--preview process` le lance quand même, **avec vos droits**, et l'écrit en permanence
-au-dessus de l'aperçu. Linux : le Client confiné existe (`luciole-sandbox`), pas encore le
-Server confiné ; le mode `sandbox` y est donc refusé pour l'instant.
+## How it is built
 
-## Architecture
+After each turn, studio checks the work in this order:
 
-```
-app/args.ts            options (zod)
-app/page.tsx           Server : ouvre le projet, rend le premier état
-components/            Client : StudioScreen (conversation, aperçu, révisions), Preview
-actions/studio.ts      "use server" : feed, state, send, respond, restore, allowHost…
-server/studio.ts       la boucle : session du harness, brouillons, validation, révisions, corrections
-server/drafts.ts       quand faire un brouillon : écritures regroupées, un à la fois
-server/harness.ts      adaptateur, choix du harness, options de démarrage
-server/project.ts      dossier, template, dépôt git, verrou
-server/preview.ts      build signé, Server confiné, tsc
-server/validate.ts     garde-fou puis build
-server/guard.ts        chemins et imports permis, conseils (champs sans nom) ; policy.ts : réponses aux demandes
-server/generator.ts    le harness scripté : il écrit vraiment, d'après scenarios.ts
-template/              le projet de départ ; server/template.gen.ts l'embarque
-```
+1. **Guard.** The changed files must be `.ts` or `.tsx` files under `app/`, `components/`,
+   `server/` or `actions/`, and import only the allowed packages. `STUDIO.md`, in the
+   project, lists them. Studio undoes a refused turn.
+2. **Build.** Studio builds the app in `.luciole-studio/builds/`, signed with the project's
+   own key.
+3. **Server.** The app's Server starts in a sandbox. It reads its build and writes `data/`.
+   It reaches only the hosts you allowed, and starts no program.
+4. **Revision.** Studio commits the turn in the project's git repository, as the `studio`
+   author, never as you. The app switches to the new revision.
+5. **Types.** `tsc` checks the types beside the app, without holding it back.
 
-`bun examples/studio/scripts/template.ts` régénère `server/template.gen.ts` après une
-modification du template (un test vérifie qu'il est à jour).
+A failure goes back to the harness as a `[studio]` message with its file, line and error.
+Studio sends at most `--fixes` corrections in a row, and never two for the same failure.
 
-## Tests
+The harness gets studio's instructions and the file tools only: `Read`, `Write`, `Edit`,
+`Glob`, `Grep`. It gets none of your settings, such as hooks or MCP servers. Studio refuses
+every command the harness asks to run.
+
+Open these files first:
+
+| File                          | What it holds                                                        |
+| ----------------------------- | -------------------------------------------------------------------- |
+| `app/args.ts`                 | The options, declared with zod.                                      |
+| `components/StudioScreen.tsx` | The screen: conversation, app pane, revisions, keys and commands.    |
+| `components/Preview.tsx`      | The app pane, which runs the app's Client in a terminal widget.      |
+| `actions/studio.ts`           | The Server Functions the screen calls: `send`, `respond`, `restore`… |
+| `server/studio.ts`            | The loop: the harness, the drafts, the checks, the revisions.        |
+| `server/drafts.ts`            | When to build a draft: one at a time, and a newer write wins.        |
+| `server/guard.ts`             | The allowed paths and imports, and the advice on unnamed fields.     |
+| `server/preview.ts`           | The signed build, the sandboxed Server, and `tsc`.                   |
+| `server/generator.ts`         | The scripted generator, which writes the files `scenarios.ts` holds. |
+| `template/`                   | The starting project, embedded in `server/template.gen.ts`.          |
+
+After you change `template/`, run `bun examples/studio/scripts/template.ts` to regenerate
+`server/template.gen.ts`. A test checks that it is up to date.
+
+The tests, then the drafts in a real terminal, in `sandbox` and in `process` mode:
 
 ```sh
 bun test tests/studio-project.test.ts tests/studio-scenarios.test.ts tests/studio-drafts.test.ts tests/studio.test.tsx
-bun run test:pty:studio                            # brouillons et continuité, en sandbox puis en process
-bun scripts/studio/measure.ts --harness fake      # la mesure de l'étape 6, sur le générateur
+bun run test:pty:studio
 ```
 
-## Mesure sur Claude Code
+## Environment variables
 
-Le 27 septembre 2026, avant les brouillons, avec votre accord, sur Claude Code 2.1.283 (Agent SDK 0.3.283, modèle
-par défaut du compte : `claude-opus-5-5`) : les 13 prompts des scénarios, chacun dans un
-projet neuf (les scénarios `guestbook` et `signatures` sont venus après), avec les
-instructions, les outils et la politique de studio
-(`scripts/studio/measure.ts --harness claude --accept-quota` ; résultats bruts :
-[measures/claude-2026-09-27.json](measures/claude-2026-09-27.json)).
+| Variable               | Default          | Effect                                                            |
+| ---------------------- | ---------------- | ----------------------------------------------------------------- |
+| `STUDIO_HARNESS`       | `claude`         | The harness, as `--harness` sets it.                              |
+| `XDG_DATA_HOME`        | `~/.local/share` | The projects of `--project` go in `luciole/studio/` below it.     |
+| `STUDIO_FAKE_WRITE_MS` | `1500`           | The scripted generator's pause after each write of a turn.        |
+| `STUDIO_FAKE_DELAY_MS` | `40`             | The scripted generator's pause between the other steps of a turn. |
+| `STUDIO_FAKE_GATE_DIR` | none             | A directory where tests pace the generator's drafts.              |
 
-| Mesure                              | Résultat                                                  |
-| ----------------------------------- | --------------------------------------------------------- |
-| bons au premier essai               | **8/13**                                                  |
-| bons après corrections (2 au plus)  | **13/13**                                                 |
-| tours du harness                    | 21                                                        |
-| durée d'un tour et de sa validation | médiane 14 s (8 à 45 s), 5,6 min en tout                  |
-| coût rapporté par le SDK            | 1,41 $ en tout, médiane 0,06 $ par prompt (0,04 à 0,31 $) |
+Studio sets these for the processes it starts:
 
-Le coût est celui que Claude Code rapporte ; sur un abonnement, il se compte en quota.
-Le rendu dans l'aperçu n'est pas mesuré (le script n'ouvre pas de Client).
+- `STUDIO_DATA` for the app's Server: the `data/` directory, the only one it may write
+- `PORT=0` for the app's Server under `--preview process`
+- `GIT_TERMINAL_PROMPT=0` for `git`, so that it never asks for a password
 
-**Les 5 échecs venaient de studio, pas du modèle** : le template importait `node:fs`
-(que le garde-fou refuse) dans le fichier que toute donnée touche, et un tour refusé
-n'était annulé qu'en partie, d'où un build cassé juste après. Corrigés depuis (template
-sans `node:fs`, tour refusé annulé en entier, diagnostics de build qui nomment le fichier),
-**sans nouvelle mesure**. Aucune faute prévue par les scénarios (syntaxe, import inventé,
-hook côté Server, mauvais type ou propriété, paquet ou commande interdits) n'a été commise
-par Claude Code ; il a refusé de lui-même de lancer des tests, et une fois répondu à une
-question (la branche git) au lieu de l'afficher dans l'app. Il a aussi mentionné un
-connecteur claude.ai de votre compte : `isolated` les écarte désormais (types du SDK,
-non revérifié sur un run).
+## Limits
+
+- The sandboxed preview needs macOS. On Linux, the Client sandbox exists but the Server
+  sandbox does not yet, so studio refuses `--preview sandbox` there. Without a sandbox,
+  studio does not start the app and says why.
+- Studio drives Claude Code only. It cannot stop Codex from running commands, so Codex, pi
+  and opencode stay in the coder example.
+- A rebuild keeps the restored session and `data/`: the route, the history, named fields,
+  the focus and the scroll. The rest of the app's memory is lost.
+- A field without a `name` cannot be restored. Studio gives advice for it, never a refusal.
+- A failed draft keeps the last screen that worked, and its frame reads
+  `draft · waiting for a build that works`.
+- Studio was measured once on Claude Code, on 27 September 2026, before drafts existed.
+  8 of 13 prompts were right at the first try, and 13 of 13 after at most two corrections.
+  [The raw results](measures/claude-2026-09-27.json) give the times and costs.
+- The 5 first-try failures came from studio's template and guard. They are fixed, but the
+  run was not measured again.
