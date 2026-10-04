@@ -1,145 +1,270 @@
 # @luciole-sh/markdown-editor
 
-Un éditeur Markdown **WYSIWYG** pour le terminal : le document s'affiche tel qu'il se lit
-(titres sur leur bandeau, gras, listes à puces, cases à cocher, code coloré), aucun
-marqueur Markdown n'apparaît à l'écran, et le Markdown tapé devient ce qu'il signifie au
-fil de la frappe. Du Markdown entre (`value`), du Markdown sort (`onChange`). Paquet de
-l'espace de travail, encore privé (non publié), utilisé par
-[`examples/notes`](../../examples/notes). Licence MIT.
+A WYSIWYG Markdown editor for the terminal. Headings, bold, lists and code show as they read, with no Markdown
+mark on screen, and Markdown goes in through `value` and comes out through `onChange`.
 
-## Installation
+The package is published on npm as `@luciole-sh/markdown-editor`, under the MIT licence. It is at version 0.x, so a
+minor release may change the API until 1.0.
+
+## Install
 
 ```sh
-bun add @luciole-sh/markdown-editor @luciole-sh/core @opentui/core @opentui/react react
-# ou : npm install @luciole-sh/markdown-editor @luciole-sh/core @opentui/core @opentui/react react
+bun add @luciole-sh/markdown-editor @opentui/core @opentui/react react
+# or: npm install @luciole-sh/markdown-editor @opentui/core @opentui/react react
 ```
 
-`react`, `@opentui/core` et `@opentui/react` sont des pairs : une seule copie, celle de
-l'application. `@luciole-sh/core` n'est pas une dépendance de l'éditeur : l'exemple ci-dessous en
-tire `markdownStyle`, l'application l'a déjà. Le paquet est de l'ESM pur, avec ses déclarations ; il s'importe sous Bun
-et sous Node.
+`react`, `@opentui/core` and `@opentui/react` are peer dependencies, so your project keeps a single copy of each.
+The package is ESM only and ships its declarations. It runs on Bun 1.3 or newer. Under Node, OpenTUI asks for
+version 26.4 or newer.
 
-```tsx
-"use client";
-import { useState } from "react";
-import { MarkdownEditor } from "@luciole-sh/markdown-editor";
-import { markdownStyle } from "@luciole-sh/core/client";
+## Run a first editor
 
-const style = markdownStyle({ text: "#e6edf3", accent: "#e8b84a" /* … */ });
+This program opens a note in an empty project. It needs the install above and a `tsconfig.json` that tells the
+compiler to use OpenTUI for JSX:
 
-export function Note({ initial }: { initial: string }) {
-  const [markdown, setMarkdown] = useState(initial);
-  return (
-    <MarkdownEditor
-      value={markdown}
-      onChange={setMarkdown}
-      syntaxStyle={style}
-      focused
-      flexGrow={1}
-    />
-  );
+```json
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "jsxImportSource": "@opentui/react",
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true
+  }
 }
 ```
 
-## Ce qu'on tape
+Save this as `index.tsx` and run `bun index.tsx`. Ctrl+C quits.
 
-| Tapé                                       | Devient                                                           |
-| ------------------------------------------ | ----------------------------------------------------------------- |
-| `**mot**`, `*mot*`, `` `mot` ``, `~~mot~~` | gras, italique, code, barré                                       |
-| `# `, `## `… en début de ligne             | un titre de ce niveau                                             |
-| `- `, `* `, `1. `, `[ ] `, `> `            | une liste à puces, numérotée, une tâche, une citation             |
-| ` ``` ` puis Entrée, `---` puis Entrée     | un bloc de code (` ```ts ` : coloré en TypeScript), un séparateur |
-| `[texte](url)`, une URL puis espace        | un lien                                                           |
-| `\*`                                       | une étoile, telle quelle                                          |
+```tsx
+import { RGBA, SyntaxStyle, createCliRenderer } from "@opentui/core";
+import { createRoot } from "@opentui/react";
+import { useState } from "react";
+import { MarkdownEditor } from "@luciole-sh/markdown-editor";
 
-**Fermeture automatique.** Un délimiteur tapé attend la touche suivante pour décider de
-son sens : devant un mot il ouvre, après un mot il ferme, devant une espace il reste un
-caractère (`2 * 3`). Ce qu'il ouvre se ferme sans qu'on tape la fermeture : en fin de
-bloc, ou quand le curseur s'en va. Le Markdown émis est donc toujours équilibré.
+// The editor reads its colors from a SyntaxStyle. These groups are enough for headings on a
+// band, bold and italic, inline code, a code panel, links and list markers.
+const color = (hex: string) => RGBA.fromHex(hex);
+const style = SyntaxStyle.fromStyles({
+  default: { fg: color("#e6edf3") },
+  conceal: { fg: color("#6e7681") },
+  "markup.heading.1": {
+    fg: color("#0d1117"),
+    bg: color("#e8b84a"),
+    bold: true,
+  },
+  "markup.heading.2": { fg: color("#e8b84a"), bold: true },
+  "markup.strong": { bold: true },
+  "markup.italic": { italic: true },
+  "markup.raw": { fg: color("#a5d6ff") },
+  "markup.raw.block": { bg: color("#161b22") },
+  "markup.link": { fg: color("#58a6ff"), underline: true },
+  "markup.list": { fg: color("#e8b84a") },
+});
 
-**Retour arrière** juste après une conversion la défait et rend les caractères tapés
-(`# ` redevient `# `). En début de titre, de liste ou de citation, il retire la marque du
-bloc ; Entrée sur un élément de liste vide sort de la liste.
+const NOTE = `# Packing list
 
-Un délimiteur tapé sur une sélection l'entoure (`**` met la sélection en gras). Coller
-insère du Markdown : blocs et marques arrivent tels quels.
+Things to **remember** before the trip:
 
-## Architecture
+- passport
+- [ ] charger
+- [x] tickets
 
-Quatre couches, chacune utilisable seule, les trois premières sans terminal :
+Run \`bun run build\` when you are back.
+`;
 
-- **`model/`** : le document, immuable. Des blocs (paragraphe, titre, citation, élément
-  de liste, code, brut, séparateur) dont le texte est une suite de segments marqués. Une
-  position est un bloc et un décalage dans son texte.
-- **`markdown/`** : l'aller-retour avec Markdown (lexer GFM de `marked`). Ce que
-  l'éditeur ne modélise pas (tableaux, HTML, images) est gardé caractère pour caractère.
-  Un bloc non modifié est réécrit exactement comme il a été lu : ouvrir et fermer une note
-  ne la reformate pas.
-- **`editing/`** : les éditions comme fonctions pures d'un état (`commands.ts`), les
-  règles de saisie (`rules.ts`), l'historique par instantanés (`history.ts`) et
-  `EditorController`, qui les réunit sans écran.
-- **`view/`** : la mise en page (retour à la ligne par mots, correspondance position ↔
-  cellule), le dessin, la table des touches (des intentions, testables sans terminal),
-  la coloration Tree-sitter des blocs de code, le renderable OpenTUI et le composant React.
+function App() {
+  const [markdown, setMarkdown] = useState(NOTE);
+  return (
+    <box flexDirection="column" flexGrow={1}>
+      <MarkdownEditor
+        value={markdown}
+        onChange={setMarkdown}
+        syntaxStyle={style}
+        focused
+        flexGrow={1}
+      />
+      <text>{`${markdown.length} characters of Markdown. Ctrl+C quits.`}</text>
+    </box>
+  );
+}
 
-Les couleurs viennent du `SyntaxStyle` passé en `syntaxStyle`, avec les mêmes groupes que
-le `<Markdown>` de luciole (`markup.heading.1`, `markup.raw.block`…) :
-`markdownStyle(palette)` de `@luciole-sh/core/client` en construit un complet.
+createRoot(await createCliRenderer()).render(<App />);
+```
 
-## Ce qui est vérifié
+The note appears as it reads. The heading sits on a coloured band, `**remember**` is bold, and the tasks have
+boxes:
 
-- **Les 652 exemples de la spec CommonMark 0.31.2** et un corpus GFM (`test/spec.test.ts`) :
-  lu puis réécrit de zéro, chaque exemple garde son sens (le HTML de `marked`, le lecteur
-  de luciole, réduit à ce qu'un terminal affiche), et la forme réécrite est stable.
-- **5 000 documents aléatoires** (`test/fuzz.test.ts`, graine fixe ; 50 000 passent aussi) :
-  citations, listes imbriquées, contenu d'éléments, code, marques croisées, caractères
-  spéciaux. Écrits en Markdown puis relus, ils reviennent identiques.
-- **La frappe, touche par touche** (`test/typing.test.ts`), à travers le vrai décodage des
-  touches d'OpenTUI, sur trois claviers : xterm, protocole kitty (touches en séquences
-  d'échappement), Mac AZERTY (`[ ] { } | ~ \` avec Option). Même Markdown, même écran.
-- **Le rendu, cellule par cellule** (`test/view.test.tsx`) : bandeaux des titres (H1 sur
-  trois lignes, plein jusqu'à la colonne 28 puis dégradé jusqu'au bord), espacements,
-  barres de citation, alignement du contenu des listes, panneau de code coloré, barre de
-  défilement (pouce, espace de fin, glisser, note courte sans barre).
+```text
 
-L'écriture des marques se vérifie elle-même : `marked` s'écarte de CommonMark sur
-certaines suites de délimiteurs mêlés (`~~*`, `***`), donc chaque texte formaté est relu, et
-d'autres graphies sont essayées (`_`, `__`, imbrication inverse, puis balises `<em>`) jusqu'à
-ce qu'il se relise tel quel.
+  Packing list
 
-## Limites connues
 
-- Une citation **à l'intérieur** d'un élément de liste (`- a` puis `  > b`) reste affichée
-  comme son Markdown : les citations contiennent des listes, pas l'inverse.
-- Les tableaux, le HTML et les définitions de liens s'éditent comme leur Markdown.
-- Les images s'affichent comme leur Markdown (`![alt](src)`).
-- Un soulignement setext (`===` sous un paragraphe) ne se tape pas : Entrée sépare déjà
-  les blocs, comme une ligne vide.
+Things to remember before the trip:
 
-## Défilement
+• passport
+[ ] charger
+[✓] tickets
 
-L'éditeur défile lui-même, à la molette, au clavier (le curseur reste en vue) et pendant
-la frappe. Une **barre de défilement** discrète descend sa dernière colonne dès que le
-document dépasse sa hauteur : un pouce dans la couleur `conceal` du style (celle des
-filets), long comme la part visible du texte, placé où en est la lecture, en demi-lignes
-(`█ ▀ ▄`, comme les `ScrollBox` d'OpenTUI). Il se glisse ; un clic sur la piste y amène
-la page. Avec `readingWidth`, la barre se tient dans la marge de la page ; sans marge,
-l'éditeur garde sa dernière colonne pour elle, affichée ou non, pour que le texte ne
-bouge pas quand elle apparaît. `scrollbar={false}` la retire (et rend la colonne).
+Run bun run build when you are back.
 
-Un document qui dépasse défile **au-delà de sa dernière ligne** d'un quart de la hauteur
-visible : la fin du texte se lit à hauteur d'œil, pas collée au bord. Cet espace n'est
-pas du contenu : rien dans le Markdown, le curseur n'y va pas, et un document qui tient à
-l'écran ne défile pas du tout. `wheelRoom()` en tient compte : dans une page web
-(docs/WEB.md, `lucioleScrollRoom`), la page ne reprend la molette qu'une fois cet
-espace parcouru. La géométrie est pure (`src/view/scrollbar.ts`, `test/scrollbar.test.ts`).
+136 characters of Markdown. Ctrl+C quits.
+```
 
-## Depuis l'extérieur
+_The program above, in a 72×13 terminal. The frame is captured from a real PTY by
+[`website/scripts/capture.py`](https://github.com/sykar-f/luciole/blob/main/website/scripts/capture.py)
+(`python3 website/scripts/capture.py markdown-editor`), and the program is
+[`example/index.tsx`](https://github.com/sykar-f/luciole/blob/main/packages/markdown-editor/example/index.tsx)._
 
-Le `ref` donne le renderable, dont `controller` édite et formate depuis une barre
-d'outils : `toggleMark("bold")`, `setBlock({ type: "heading", level: 2 })`,
-`indent(1)`, `undo()`, `redo()`, `end()`. `activeMarks` et `block` disent ce qui est
-actif sous le curseur ; `subscribe(listener)` prévient de chaque changement.
+The editor reads its colours from a `SyntaxStyle`, with the group names of Markdown highlighting
+(`markup.heading.1`, `markup.strong`, `markup.raw.block` and so on). Without `syntaxStyle`, the text is plain and
+headings have no band. If you build apps with `@luciole-sh/core`, its `markdownStyle(palette)` builds a complete
+style that `<Markdown>` shares with the editor.
 
-Les raccourcis de l'application passent avant ceux de l'éditeur (OpenTUI ne donne une
-touche au renderable focalisé que si aucun gestionnaire global ne l'a prise).
+## Type Markdown, get the result
+
+The editor turns Markdown into what it means as you type it.
+
+| You type                                       | You get                                             |
+| ---------------------------------------------- | --------------------------------------------------- |
+| `**word**`, `*word*`, `` `word` ``, `~~word~~` | bold, italic, code, strikethrough                   |
+| `# `, `## ` and so on at the line start        | a heading of that level                             |
+| `- `, `* `, `1. `, `[ ] `, `> `                | a bullet list, a numbered list, a task, a quote     |
+| ` ``` ` then Enter, `---` then Enter           | a code block (` ```ts ` colours TypeScript), a rule |
+| `[text](url)`, or a URL then a space           | a link                                              |
+| `\*`                                           | a plain star                                        |
+
+- **Closing delimiters.** A delimiter waits for the next key. Before a word it opens, after a word it closes, and
+  before a space it stays a character, as in `2 * 3`. What it opens closes by itself at the end of the block, so the
+  Markdown the editor emits is always balanced.
+- **Backspace** right after a conversion undoes it and gives back the characters you typed. At the start of a
+  heading, list item or quote, it removes the block's mark. Enter on an empty list item leaves the list.
+- **Selections.** A delimiter typed over a selection wraps it. Pasting inserts Markdown, so blocks and marks arrive
+  as written.
+- **Untouched text.** A block you do not edit is written back exactly as it was read, so opening and closing a note
+  does not reformat it.
+
+The editor also draws tables, task boxes, footnotes, GitHub alerts, `==highlights==`, `<kbd>` keys and Unicode
+math. The block holding the cursor shows its Markdown, and the others show what it means.
+
+### Keys
+
+| Keys                           | Action                                                            |
+| ------------------------------ | ----------------------------------------------------------------- |
+| Ctrl+B, Alt+B                  | Bold                                                              |
+| Ctrl+I, Alt+I                  | Italic (Ctrl+I only where the terminal tells it from Tab)         |
+| Alt+S, Alt+E                   | Strikethrough, inline code                                        |
+| Ctrl+K, Alt+K                  | Make or edit a link                                               |
+| Alt+0 to Alt+6                 | Paragraph, or a heading of level 1 to 6                           |
+| Alt+L, Alt+O, Alt+Q, Alt+T     | Bullet list, numbered list, quote, tick a task                    |
+| Tab, Shift+Tab                 | Indent or outdent a list item. Elsewhere the key goes to your app |
+| Ctrl+Z, Ctrl+Shift+Z or Ctrl+Y | Undo, redo                                                        |
+| Alt+C, Alt+X, or Cmd+C, Cmd+X  | Copy, cut, as Markdown                                            |
+
+Your own key handlers run before the editor's. OpenTUI gives a key to the focused editor only when no global
+handler took it.
+
+## Props
+
+### `MarkdownEditor`
+
+The React component. It takes every OpenTUI layout prop (`flexGrow`, `width`, `height` and so on) and these:
+
+| Prop                 | Type                            | Default                                     | What it does                                                                                                                  |
+| -------------------- | ------------------------------- | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `value`              | `string`                        | required                                    | The document, as Markdown. It is controlled, like an input's `value`.                                                         |
+| `onChange`           | `(markdown: string) => void`    | none                                        | Called after each edit with the Markdown. It does not fire for a `value` you set from outside.                                |
+| `focused`            | `boolean`                       | `false`                                     | The editor receives keys and pastes while it has the focus.                                                                   |
+| `syntaxStyle`        | `SyntaxStyle`                   | none                                        | The colours of the document. See the first editor above.                                                                      |
+| `placeholder`        | `string`                        | none                                        | Faint text shown while the document is empty.                                                                                 |
+| `selectionColor`     | `ColorInput`                    | the code panel's colour                     | The background of selected text.                                                                                              |
+| `readingWidth`       | `number`                        | the editor's width                          | The widest the page runs, in cells. A narrower page is centred, and heading bands and code panels reach into its left margin. |
+| `scrollbar`          | `boolean`                       | `true`                                      | A scrollbar down the right edge while the document is taller than the editor.                                                 |
+| `terminalBackground` | `RGBA`                          | asked from the terminal                     | The terminal's background, which heading bands fade into.                                                                     |
+| `onLink`             | `(url: string) => void`         | none                                        | A link was clicked: a plain click while the editor is not focused, Ctrl or Alt+click while editing.                           |
+| `onCopy`             | `(markdown: string) => void`    | copies to the terminal's clipboard (OSC 52) | The selection was copied or cut, as Markdown.                                                                                 |
+| `onFocusRequest`     | `() => void`                    | the editor takes the focus                  | The editor was clicked while not focused. Set `focused` to grant it.                                                          |
+| `math`               | `MathRenderer`                  | none                                        | Draws display math (`$$…$$`) as a picture in terminals that show pictures. Without it, display math shows its TeX.            |
+| `ref`                | `Ref<MarkdownEditorRenderable>` | none                                        | The renderable, whose `controller` edits from outside.                                                                        |
+
+### `MarkdownEditorRenderable`
+
+The OpenTUI renderable behind the component, for programs that do not use React. Create it with
+`new MarkdownEditorRenderable(ctx, options)`. Its `options` are the props above, except `ref` and `focused`: call
+`focus()` on the renderable instead.
+
+| Member        | What it gives                                                                                                               |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `controller`  | The `EditorController` that holds the document and edits it.                                                                |
+| `value`       | The document as Markdown. Setting a value other than the last one reported reloads the document.                            |
+| `wheelRoom()` | `{ up, down }`: whether the wheel can still move the text each way. In a web page, the page takes the wheel when it cannot. |
+
+### `EditorController`
+
+The editing engine, usable without a screen. A toolbar reaches it through `ref.current.controller`.
+
+| Member                                                    | What it does                                                                                                                                      |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `new EditorController(markdown?)`                         | Creates a controller on a Markdown document.                                                                                                      |
+| `markdown`                                                | The document as Markdown, as last reported.                                                                                                       |
+| `subscribe(listener)`                                     | Calls `listener({ markdown, edited })` on each change, and returns a function that unsubscribes. `edited` is `false` for a load or a cursor move. |
+| `load(markdown)`                                          | Replaces the document.                                                                                                                            |
+| `toggleMark("bold")`                                      | Toggles a mark on the selection: `bold`, `italic`, `strike`, `code`.                                                                              |
+| `setBlock({ type: "heading", level: 2 })`                 | Turns the selected blocks into a `BlockKind`: paragraph, heading, quote, list item or code.                                                       |
+| `indent(1)`, `indent(-1)`                                 | Indents or outdents the selected list items.                                                                                                      |
+| `undo()`, `redo()`, `end()`                               | Undo, redo, and move the cursor to the end.                                                                                                       |
+| `activeMarks`, `block`                                    | The marks and the block under the cursor.                                                                                                         |
+| `type(text)`, `enter()`, `backspace()`, `paste(markdown)` | The edits a key press makes.                                                                                                                      |
+
+### Markdown in and out
+
+`parseMarkdown(markdown)` returns the editor's document, and `serializeMarkdown(doc)` writes it back. Neither
+needs a terminal. The document types are exported too, and so are `EditorChange`, `BlockKind`,
+`MarkdownEditorOptions` and `MathRenderer`.
+
+## How it is built
+
+The package has four layers, each usable alone. The first three need no terminal.
+
+- **Document model.** Immutable blocks (paragraph, heading, quote, list item, code, raw text, rule) made of marked text.
+- **Markdown.** The round trip through the GFM lexer of `marked`. What the editor does not model is kept as
+  written.
+- **Editing.** Edits as pure functions of a state, the typing rules, undo history and `EditorController`.
+- **View.** Layout, drawing, the key table, Tree-sitter colouring of code, the OpenTUI renderable and the React
+  component.
+
+## Limits
+
+- A quote inside a list item (`- a` then `  > b`) shows as its Markdown, because quotes hold lists and not the
+  reverse.
+- A table shows its pipes while the cursor is in it, and you edit it as Markdown. HTML and link definitions are
+  edited as Markdown too.
+- An image appears as a picture only in a terminal that draws pictures (the Kitty graphics protocol or sixel). Other
+  terminals show its alternative text.
+- A setext underline (`===` under a paragraph) cannot be typed. Enter already separates blocks, as a blank line does.
+- Display math shows its TeX unless you pass a `math` renderer. `@luciole-sh/core/math` has one.
+- The editor needs a terminal and OpenTUI. It does not draw in a web page by itself.
+
+## Tests
+
+The suite checks the editor against these:
+
+- **The 652 examples of the CommonMark 0.31.2 spec** and a GFM corpus (`test/spec.test.ts`). Each example is read and
+  written back from scratch, keeps its meaning, and writes the same form again.
+- **5,000 random documents** (`test/fuzz.test.ts`, fixed seed). Written as Markdown and read again, they come back
+  identical.
+- **Typing, key by key** (`test/typing.test.ts`), through OpenTUI's real key decoding, on xterm, the kitty protocol
+  and a Mac AZERTY keyboard.
+- **Rendering, cell by cell** (`test/view.test.tsx`): heading bands, spacing, quote bars, list alignment, code
+  panels and the scrollbar.
+
+## Next
+
+- [luciole documentation](https://luciole.sh/docs/), including the
+  [API reference](https://luciole.sh/docs/reference/api/)
+- [`examples/notes`](https://github.com/sykar-f/luciole/tree/main/examples/notes), a full app that edits notes with
+  this editor
+- [Package status](https://luciole.sh/status/)
