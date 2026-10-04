@@ -19,6 +19,10 @@ const entries = new Map((await getCollection("docs")).map((entry) => [entry.id, 
     it. The guides take one task each; the reference lists what the code defines, and links
     to it.
   </p>
+  <p>
+    Already using luciole? <a href={href("reference/releases")}>Releases and upgrades</a> gives the
+    current version and how to move an app to a new one.
+  </p>
   {
     sections.map((section) => (
       <section class="overview-section">
