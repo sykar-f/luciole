@@ -383,17 +383,32 @@ def notes_disconnected(directory):
 
 
 def files(directory):
-    term = dev("files", {"FILES_ROOT": str(ROOT)}, directory, 140, 40)
+    # A tree of its own, made of this checkout's files: the capture does not depend on the
+    # checkout's name or location, on what it holds besides these files, or on the day (each
+    # file is dated eight hours before the capture, as the first one was seen).
+    project = pathlib.Path(directory) / "luciole"
+    project.mkdir()
+    for name in ("README.md", "CHANGELOG.md", "CONTRIBUTING.md", "LICENSE", "bunfig.toml", "package.json"):
+        shutil.copy(ROOT / name, project / name)
+    shutil.copytree(ROOT / "docs", project / "docs", ignore=shutil.ignore_patterns("*.txt", "missions"))
+    (project / "tests").mkdir()
+    for test in sorted((ROOT / "tests").iterdir()):
+        if test.is_file() and test.suffix in (".ts", ".tsx"):
+            shutil.copy(test, project / "tests" / test.name)
+    when = time.time() - 8 * 3600
+    for path in (*project.rglob("*"), project):
+        os.utime(path, (when, when))
+    term = dev("files", {"FILES_ROOT": str(project), "TZ": "UTC", "LANG": "en_US.UTF-8"}, directory, 140, 40)
     try:
-        term.wait_for("README.md", 120)
+        term.wait_for("docs/", 120)
         term.idle(1)
-        for key in b"jjjjjj":
-            term.send(bytes([key]), 0.1)
+        # docs/ comes first, then tests/: open it, and go down to the second file.
+        term.send(b"j", 0.1)
         term.send(b"\r")
         term.idle(1)
         term.send(b"jj")
         term.idle(1.5)
-        save(term, "files", "Files: an explorer with previews")
+        save(term, "files", "Files: an explorer with previews", replace=[(str(project.resolve()), "/home/ada/src/luciole")])
     finally:
         term.stop()
 

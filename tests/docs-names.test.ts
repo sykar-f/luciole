@@ -27,9 +27,6 @@ const ALLOWED = new Set<string>([
   "website/src/pages/guide/demarrage.astro", // mission: guide removal (after the /docs port)
   "website/src/pages/guide/distribution.astro", // mission: guide removal (after the /docs port)
   "website/src/pages/guide/navigation.astro", // mission: guide removal (after the /docs port)
-  // Recorded terminal screens (generated frames), not authored names.
-  "website/src/frames/files.json", // mission: re-record the frames (none yet)
-  "website/src/frames/mux.json", // mission: re-record the frames (none yet)
 ]);
 
 const TEXT = /\.(mdx?|astro|tsx?|json|css|html)$/;
