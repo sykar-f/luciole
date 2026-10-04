@@ -6,8 +6,13 @@ sources:
   - docs/BOUNDARIES.md
   - packages/core/src/build.ts
   - packages/core/src/transport.ts
+  - packages/core/src/client.tsx
   - packages/core/src/server.ts
+  - packages/core/src/route-tree.tsx
   - examples/notes/app/notes/[id]/page.tsx
+  - examples/notes/app/layout.tsx
+  - examples/notes/actions/notes.ts
+  - examples/notes/components/notes-list.ts
   - website/src/frames/flight.txt
 ---
 
@@ -18,83 +23,108 @@ import RunHere from "../../../components/docs/RunHere.astro";
 import Sequence from "../../../components/guide/Sequence.astro";
 import Src from "../../../components/guide/Src.astro";
 
-luciole is a React Server Components framework for the terminal. You write one app; its
+luciole is a React Server Components framework for terminal apps. You write one app, and its
 build produces two programs:
 
 - the **Server** renders pages, runs Server Functions and keeps the data;
 - the **Client** runs in the user's terminal, draws with [OpenTUI](https://github.com/anomalyco/opentui)
   and handles every key, scroll and hover itself.
 
-Typing and scrolling never wait for the network: the Client only calls the Server to load a
+Typing and scrolling never wait for the network. The Client calls the Server only to load a
 page or to run a Server Function. `tests/latency.test.tsx` checks this under 500 ms of
 simulated latency.
 
-## What each side contains
+## What travels between the Client and the Server
 
-| Program | Contains                                                                                | Never contains                                  |
-| ------- | --------------------------------------------------------------------------------------- | ----------------------------------------------- |
-| Client  | the terminal runtime, TanStack Router, the keymap, and **this app's** Client Components | Server pages, Server Functions' code, `server/` |
-| Server  | the HTTP runtime, the routes, the Server Functions and the business code                | OpenTUI                                         |
+The Client sends two kinds of requests:
 
-The rule that decides where a module goes is short: pages are Server by default,
-`"use client"` starts the Client's graph, and `server-only` or `client-only` pin a module to
-one side ([Client Components](/docs/concepts/client-components/)).
+- `GET /render` asks for a page;
+- `POST /action` runs a Server Function.
 
-## What the build writes
-
-`luciole build` writes into the app's `.luciole/` directory:
-
-```text
-.luciole/
-  manifest.json   build ID, graphs, route graph and Client References
-  metadata.json   display name, identifier, icon (from package.json)
-  client/         index.js: the terminal Client
-  server/         index.js: the Server
-  app/            the app bundle for a host (index.cjs, manifest.json)
-```
-
-`--web` adds `web/`, the browser runtime; `--web-local` adds `web-server/` too
-([opening an app](/docs/guides/opening-an-app/)). `client/` and `server/` run from the app's
-installation: React, React Server DOM and OpenTUI stay external and resolve in its
-`node_modules`. To run a side on another machine, compile a binary for it
-([build and distribution](/docs/reference/build-and-distribution/)).
-
-## The same build on both sides
-
-Both programs must come from **the same build**. Each build has an ID, a hash of everything
-the build reads ([the list](/docs/reference/build-and-distribution/#the-build-id)). The Client
-sends that ID with every request (`x-luciole-build`). A Server of another build refuses the
-request with a `409`, before decoding it. The state already mounted in the Client stays as it
-is.
-
-The hash includes `bun.lock`, which lists the packages of every platform. A Linux Server and a
-macOS Client compiled from the same sources therefore share one build ID.
-[`--on`](/docs/guides/opening-an-app/#on-another-machine-over-ssh) relies on that.
-
-## What travels between them
-
-The Client asks for a page with `GET /render` and calls Server Functions with
-`POST /action`. The Server answers in [React Flight](https://react.dev/reference/rsc/server-components),
-React's serialization of a rendered tree.
+The Server answers both in [React Flight](https://react.dev/reference/rsc/server-components),
+React's serialization of a rendered tree. Here is a minute of Notes, the example app, as the
+two programs see it:
 
 <Sequence
-  title="A page, then a Server Function"
+  title="A minute of Notes"
   lanes={[
-    { id: "client", label: "Client", sub: "in the terminal", tone: "client" },
-    { id: "server", label: "Server", sub: "renders, keeps the data", tone: "server" },
+    { id: "you", label: "You", sub: "at the keyboard", tone: "neutral" },
+    { id: "client", label: "Client", sub: "draws Notes", tone: "client" },
+    { id: "server", label: "Server", sub: "renders, keeps the notes", tone: "server" },
   ]}
   messages={[
-    { phase: "Open a page" },
-    { from: "client", to: "server", label: "GET /render, with the build ID", n: 1 },
-    { from: "server", to: "client", label: "Flight: the page", n: 2, back: true },
-    { phase: "Call a Server Function" },
-    { from: "client", to: "server", label: "POST /action, with the build ID", n: 3 },
-    { from: "server", to: "client", label: "Flight: the result", n: 4, back: true },
+    { phase: "Start" },
+    { from: "client", to: "server", label: "GET /render, route /", n: 1, tone: "wire" },
+    {
+      from: "server",
+      to: "client",
+      label: "Flight: the home page, streamed",
+      n: 2,
+      back: true,
+      tone: "wire",
+    },
+    {
+      from: "client",
+      to: "server",
+      label: "POST /action listNotes, for the sidebar",
+      n: 3,
+      tone: "wire",
+    },
+    { from: "server", to: "client", label: "Flight: the notes", n: 4, back: true, tone: "wire" },
+    { phase: "Open a note" },
+    { from: "you", to: "client", label: "click on note 1", n: 5 },
+    { from: "client", to: "client", label: "draws loading.tsx at once", n: 6 },
+    { from: "client", to: "server", label: "GET /render, route /notes/[id]", n: 7, tone: "wire" },
+    {
+      from: "server",
+      to: "client",
+      label: "Flight: the page, then the tags it read",
+      n: 8,
+      back: true,
+      tone: "wire",
+    },
+    { phase: "Type, then save" },
+    { from: "you", to: "client", label: "keys, drawn without the Server", n: 9 },
+    {
+      from: "client",
+      to: "server",
+      label: "1 s after the last key: POST /action saveNote",
+      n: 10,
+      tone: "wire",
+    },
+    { from: "server", to: "server", label: "saves, invalidates the note's tags", n: 11 },
+    {
+      from: "server",
+      to: "client",
+      label: "the result and those tags",
+      n: 12,
+      back: true,
+      tone: "wire",
+    },
+    {
+      from: "client",
+      to: "server",
+      label: "GET /render /notes/[id], POST /action listNotes",
+      n: 13,
+      tone: "wire",
+    },
+    { phase: "Refresh" },
+    { from: "you", to: "client", label: "Ctrl+R", n: 14 },
+    {
+      from: "client",
+      to: "server",
+      label: "GET /render /notes/[id], POST /action listNotes",
+      n: 15,
+      tone: "wire",
+    },
   ]}
-  caption="Every request carries the build ID: a Server of another build answers 409 and decodes nothing."
+  caption="Keys (9) stay in the Client. After a save (12), the Client reloads only what read the invalidated tags (13). Ctrl+R reloads what is on screen (15)."
 />
 
-The page of note 1 in Notes is a Server Component. The Client draws its answer:
+Every request also carries the build ID, which
+[keeps both sides on one build](#why-both-sides-come-from-one-build).
+
+Step 8 answers with the page of note 1, a Server Component. The Client draws it:
 
 <CodeAndScreen
   path="examples/notes/app/notes/[id]/page.tsx"
@@ -106,13 +136,12 @@ The page of note 1 in Notes is a Server Component. The Client draws its answer:
   caption="The page hands NoteEditor, a Client Component, the note and two Server Functions. The note opens on the right of the screen."
 />
 
-This is the complete answer the Server sent for that page, captured by
-`website/scripts/capture.py`. It holds two Flight streams: the envelope, and the page
-carried inside it as bytes.
+The answer of step 8, captured by `website/scripts/capture.py`, holds two Flight streams. The
+envelope comes first, and the page travels inside it as bytes.
 
 <AnnotatedCapture
   path="website/src/frames/flight.txt"
-  caption="The answer to GET /render for note 1, as the Server sent it. Each number marks the part its note explains."
+  caption="Step 8 of the minute of Notes: the answer to GET /render for note 1, as the Server sent it. Each number marks the part its note explains."
   notes={[
     { match: "1:R", note: "announces that row 1 will be a stream: the page's." },
     {
@@ -129,7 +158,7 @@ carried inside it as bytes.
     },
     {
       match: '2:I["$1",[],"NoteEditor"]',
-      note: "imports that Client Component. Its code is already in the terminal: only its module ID travels.",
+      note: "imports that Client Component. Its code is already in the Client: only its module ID travels.",
     },
     {
       match: '#saveNote"',
@@ -148,7 +177,7 @@ carried inside it as bytes.
     { match: "1:C", note: "closes the page's stream." },
     {
       match: '2:["note:local:1"]',
-      note: "are the cache tags the render read: what a save of this note refreshes.",
+      note: "are the cache tags the render read. A save of this note invalidates them (step 11).",
     },
   ]}
 />
@@ -162,21 +191,49 @@ Notes runs in this page too, its Client and its Server both in your browser:
   caption="Notes with note 1 open: the list of notes on the left, the note on the right."
 />
 
+## What each side contains
+
+| Program | Contains                                                                                            | Never contains                                  |
+| ------- | --------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| Client  | the runtime that draws in a terminal, TanStack Router, the keymap, **this app's** Client Components | Server pages, Server Functions' code, `server/` |
+| Server  | the HTTP runtime, the routes, the Server Functions and the business code                            | OpenTUI                                         |
+
+Three rules decide where a module runs:
+
+- pages run on the Server;
+- a file marked `"use client"`, and what it imports, runs on the Client;
+- `server-only` or `client-only` pins a module to one side.
+
+[Client Components](/docs/concepts/client-components/) gives the details.
+`luciole build` writes both programs into the app's `.luciole/` directory:
+[its outputs](/docs/reference/build-and-distribution/#luciole-build) are listed in the
+Reference.
+
 <Note>
-  The Client and the Server both run on Bun. A module that reads a file or starts a process works on
-  either side, on the wrong machine if it lands on the wrong one: that is what the `server-only` and
-  `client-only` markers are for.
+  The Client and the Server both run on Bun. A module that reads a file or starts a process runs on
+  either side without an error. On the wrong side, it acts on the wrong machine. Mark it
+  `server-only` or `client-only`.
 </Note>
+
+## Why both sides come from one build
+
+Both programs must come from **the same build**. Each build has an ID, a hash of everything
+the build reads ([the list](/docs/reference/build-and-distribution/#the-build-id)).
+
+- The Client sends that ID with every request, in `x-luciole-build`.
+- A Server of another build refuses the request with a `409`, before decoding it.
+- The Client keeps what it already shows.
+
+The hash includes `bun.lock`, which lists the packages of every platform. A Linux Server and a
+macOS Client compiled from the same sources therefore share one build ID.
+[`--on`](/docs/guides/opening-an-app/#on-another-machine-over-ssh) relies on that.
 
 ## Where the pieces live
 
-| Concern                               | File                                          |
-| ------------------------------------- | --------------------------------------------- |
-| Graphs, boundaries, manifests         | <Src path="packages/core/src/build.ts" />     |
-| Transport: build ID, bearer, outcomes | <Src path="packages/core/src/transport.ts" /> |
-| HTTP handler, sessions, actions       | <Src path="packages/core/src/server.ts" />    |
-| The Client in a terminal              | <Src path="packages/core/src/run.tsx" />      |
-| The Server as a process               | <Src path="packages/core/src/serve.ts" />     |
-
-The guided tour's first chapters, [La carte](/guide/carte/) and [Le build](/guide/build/)
-(in French), follow the same split in more depth.
+| Concern                                          | File                                          |
+| ------------------------------------------------ | --------------------------------------------- |
+| Graphs, boundaries, manifests                    | <Src path="packages/core/src/build.ts" />     |
+| Transport: build ID, token, outcomes             | <Src path="packages/core/src/transport.ts" /> |
+| HTTP handler, sign-in sessions, Server Functions | <Src path="packages/core/src/server.ts" />    |
+| The Client in a terminal                         | <Src path="packages/core/src/run.tsx" />      |
+| The Server as a process                          | <Src path="packages/core/src/serve.ts" />     |
