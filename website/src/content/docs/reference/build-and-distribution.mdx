@@ -16,6 +16,9 @@ import Note from "../../../components/docs/Note.astro";
 
 ## `luciole build`
 
+Run every command on this page from the app's directory, since `--app` defaults to `.`.
+From elsewhere, pass `--app <dir>`. The output is then `<dir>/.luciole/`.
+
 ```text
 .luciole/
   manifest.json   build ID, graphs, route graph and Client References
@@ -28,13 +31,19 @@ import Note from "../../../components/docs/Note.astro";
   web-server/     with --web-local
 ```
 
-- The Client bundle holds the terminal runtime and this app's Client Components; the Server
-  bundle the HTTP runtime, routes, Server Functions and business code. The Server bundle does
-  not import OpenTUI, and the Client bundle holds no business code.
+- The Client bundle holds the terminal runtime and this app's Client Components. The Server
+  bundle holds the HTTP runtime, routes, Server Functions and business code, and does not
+  import OpenTUI.
+- The Client bundle holds no Server implementation. It has no Server page, no Server
+  Function's code, no `server-only` module and nothing under a `server/` directory. Business
+  rules written in Client Components, such as when to retry a save, are in it.
 - Each bundle has a linked source map: Bun applies it to stack traces at run time, in
   development as in production.
-- Artifacts are built in a temporary directory and published only once every part succeeded:
-  a failed build leaves the last good one in place.
+- The app build is assembled in a temporary directory. It replaces the previous build only
+  once all of it succeeded, so a failure while building it leaves the last good build in
+  place. The app build is everything in the tree above except `web/`.
+- `--web` installs its runtime, and `--compile` its binary, after that replacement. If either
+  fails, `.luciole/` holds the new build without them.
 - `luciole build` without `--compile` or `--web` does not touch the network.
 - `.luciole/app/` needs Client code without top-level `await` (CommonJS cannot express it):
   without it the build succeeds without the app bundle and says where; `--app-bundle` makes
@@ -42,12 +51,22 @@ import Note from "../../../components/docs/Note.astro";
 
 ### The build ID
 
-A hash of the reachable sources (every layout, loading and error screen included), every
-runtime file, and the `bun.lock` that governs the installation: the nearest above the
-framework, then above the app, without leaving the git checkout. The lockfile lists the
-packages of every platform, unlike `node_modules`, so binaries of each target of one version
-keep the same ID. The Client sends it with each request; a Server of another build refuses
-before decoding. Both roles must come from the same build.
+A hash of what the build reads:
+
+- the app's modules in both graphs, every layout, loading and error screen included
+- every `.ts` and `.tsx` source of the framework
+- the `bun.lock` of the framework's installation, which the build requires
+- the app's `bun.lock`, when it is another file
+- the sources of the workspace packages the app links (`workspace:*`, outside any
+  `node_modules`), since their changes leave the lock as it is
+- the app's `package.json`, its `luciole.json` and its icon
+
+The build takes the nearest `bun.lock` above the framework, and above the app. It never looks
+past the git checkout.
+
+The lockfile lists the packages of every platform, unlike `node_modules`, so binaries of each
+target of one version keep the same ID. The Client sends it with each request; a Server of
+another build refuses before decoding. Both roles must come from the same build.
 
 `.luciole/client` and `.luciole/server` are not a delivery format: they carry no manifest or
 lockfile to install elsewhere. A machine of known platform gets a compiled binary; an unknown
@@ -182,3 +201,7 @@ its `package.json` is refused.
 - A compiled binary does not embed `.luciole/app/`: it cannot be opened by URL.
 - A compiled Client is rebuilt from `index.js` without its source map: its stack traces stay
   in the bundle's coordinates.
+- The build swaps the previous build out with two renames: `.luciole/` to
+  `.luciole-previous/`, then the new build to `.luciole/`. If the second rename fails,
+  `.luciole/` is missing. The previous build stays in `.luciole-previous/`, and the build does
+  not move it back.

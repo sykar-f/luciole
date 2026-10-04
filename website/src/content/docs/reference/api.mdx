@@ -11,6 +11,8 @@ sources:
   - packages/core/src/markdown
   - packages/core/src/dev/supervisor.ts
   - packages/core/src/run.tsx
+  - packages/core/src/grammars.ts
+  - packages/core/src/math.ts
 ---
 
 import Excerpt from "../../../components/guide/Excerpt.astro";
@@ -40,13 +42,13 @@ For Client Components only.
 
 ### The app and its connection
 
-| Export                                                      | Contract                                                                                                                                   |
-| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `useApplication()`                                          | `{ setToken(token?), refresh(), invalidate(paths?), cancel(), withSignal(signal, call), onEvent(listener), status, error }`.               |
-| `useConnection()`                                           | `{ status, error, buildError, activity, refresh }` for the chrome; `activity` is `connect`, `navigate`, `refresh` or `idle`.               |
-| `useInvalidation(listener)`                                 | Called at every invalidation, from the Server or the Client, with the paths and tags: for data read outside route loaders.                 |
-| `useLive(source, args, { limit }?)`                         | `{ items, done, error }` of a generator Server Function, subscribed while the component is mounted.                                        |
-| `TransportError`, `BuildMismatch`, `AuthenticationRequired` | Typed failures; `outcome` is `not-sent`, `rejected` or `unknown` ([Server Functions](/docs/concepts/server-functions/#when-a-call-fails)). |
+| Export                                                      | Contract                                                                                                                                                      |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `useApplication()`                                          | `{ setToken(token?), refresh(), invalidate(paths?), cancel(), withSignal(signal, call), onEvent(listener), status, error }`.                                  |
+| `useConnection()`                                           | `{ status, error, buildError, activity, refresh }` for the chrome; `activity` is `connect`, `navigate`, `refresh` or `idle`.                                  |
+| `useInvalidation(listener)`                                 | Called at every invalidation, from the Server or the Client, with the paths and tags: for data read outside route loaders.                                    |
+| `useLive(source, args, { limit }?)`                         | `{ items, done, error }` of a generator Server Function, subscribed while the component is mounted; `items` keeps the last `limit` values (1,000 by default). |
+| `TransportError`, `BuildMismatch`, `AuthenticationRequired` | Typed failures; `outcome` is `not-sent`, `rejected` or `unknown` ([Server Functions](/docs/concepts/server-functions/#when-a-call-fails)).                    |
 
 ### Fields and keys
 
@@ -70,13 +72,17 @@ For Client Components only.
 | `<Markdown content streaming syntaxStyle onLink? imageBase? />`                    | Markdown rendered by blocks: while `content` streams, the text already shown never moves. |
 | `markdownStyle(palette)`                                                           | A complete `SyntaxStyle` (heading bands, code panel, code tokens) from a dozen colors.    |
 
-`<Markdown>` shows text that arrives in pieces, typically a model's answer, without flicker:
-finished blocks render once, the last block is closed ahead of time (`**bold` shows bold), and
-text is styled without Tree-sitter so the streaming and final renders match. Code is coloured
-once its fence closes; `diff` blocks are coloured line by line from the start. OpenTUI knows
-JavaScript, TypeScript, Markdown and Zig; `import "@luciole-sh/core/grammars"` (once, in the Client)
-adds Bash, C, C++, CSS, Go, HTML, Java, JSON, PHP, Python, Ruby, Rust, TOML and YAML. A click
-on a link calls `onLink(url)`; images are drawn with kitty, sixel or half blocks.
+`<Markdown>` shows text that arrives in pieces, typically a model's answer, without flicker.
+Finished blocks render once. The last block is closed ahead of time, so `**bold` shows bold.
+Text is styled without Tree-sitter, so the streaming and final renders match.
+
+Code is coloured once its fence closes, and `diff` blocks line by line from the start. A click
+on a link calls `onLink(url)`. Images are drawn with kitty, sixel or half blocks.
+
+OpenTUI colours JavaScript, TypeScript, Markdown and Zig. Import `@luciole-sh/core/grammars`
+once, in the Client, to add Bash, C, C++, CSS, Go, HTML, Java, JSON, Lua, PHP, Python, Ruby,
+Rust, TOML and YAML. That import also replaces OpenTUI's TypeScript grammar, and gives TSX a
+grammar of its own.
 
 `markdownStyle({ text, muted, faint, accent, onBand, band, bandQuiet, code, panel, link,
 danger, ok })` derives every group `<Markdown>` reads from those colors: H1 and H2 on
@@ -107,10 +113,10 @@ Client or an `inline` pane acts itself, with the user's rights (`pbcopy`, `osasc
 
 ### Observing
 
-| Export                           | Contract                                                                                            |
-| -------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `<DebugOverlay limit? />`        | Requests, open requests, bytes, last round trip and the latest events since it mounted.             |
-| `instrumentTracing(app, tracer)` | One span per request to an OpenTelemetry `Tracer` (or a compatible one); returns the stop function. |
+| Export                           | Contract                                                                                                       |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `<DebugOverlay limit? />`        | Requests, open requests, bytes, last round trip and the latest `limit` events (6 by default) since it mounted. |
+| `instrumentTracing(app, tracer)` | One span per request to an OpenTelemetry `Tracer` (or a compatible one); returns the stop function.            |
 
 `useApplication().onEvent(listener)` receives each transport event (`request`, `response`,
 `chunk`, `end`, `error` with its `outcome`) and each resolved navigation, plus `invalidate`
@@ -132,7 +138,7 @@ and the types `LiveState`, `TracerLike`, `Session`, `SessionEntry`,
 | Export                                                                | Contract                                                                                                                               |
 | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | `getSession()`                                                        | `{ userId }` in the async context of a render or an action.                                                                            |
-| `getOptionalSession()`                                                | The same, or `null` on a public page or action.                                                                                        |
+| `getOptionalSession()`                                                | The request's session, or `null` for an anonymous request; a public page or Server Function gets a signed-in user's session too.       |
 | `getCallId()`                                                         | The transport request's ID, distinct from the business operation.                                                                      |
 | `getArgs()`, `getLaunch()`                                            | The app's arguments, untyped; the launch `{ scope, id?, cwd }` ([app arguments](/docs/reference/app-arguments/)).                      |
 | `notFound(what?)`                                                     | Ends a page's render with the nearest `not-found.tsx`.                                                                                 |
@@ -158,8 +164,28 @@ wrapped. `/action` answers with `Server-Timing: total;dur=…`.
 | `@luciole-sh/core/sandbox`    | The `sandbox` mode for a host: `openSandbox` (a confined Client for `<TerminalView>`), `confineServer`, `sandboxAvailability`.         |
 | `@luciole-sh/core/pty`        | `spawnPty({ command, cols, rows, env?, cwd?, onData, onExit, … })` → `{ write, resize, kill, send, pid }`: `Bun.Terminal`, POSIX only. |
 | `@luciole-sh/core/metadata`   | `AppMetadata`, the schema of `.luciole/metadata.json`, and the functions that read and write it.                                       |
-| `@luciole-sh/core/grammars`   | Side effect only: registers the extra Tree-sitter grammars.                                                                            |
+| `@luciole-sh/core/grammars`   | Registers the extra Tree-sitter grammars when imported; exports them as `GRAMMARS`.                                                    |
+| `@luciole-sh/core/math`       | `renderMath(tex, { display, color, scale })` → `Promise<Uint8Array>`, a PNG (below).                                                   |
 | `@luciole-sh/core/tsconfig`   | The TypeScript configuration every app extends.                                                                                        |
+
+## Display math: `@luciole-sh/core/math`
+
+```ts
+import { renderMath } from "@luciole-sh/core/math";
+
+const png = await renderMath("e^{i\\pi} + 1 = 0", { display: true, color: "#e6e6e6", scale: 8 });
+```
+
+`renderMath(tex, { display, color, scale })` returns a `Promise<Uint8Array>`: a PNG of `tex`
+on a transparent background, in `color`, at `scale` pixels per `ex`. `display` chooses display
+or inline math. It rejects TeX that MathJax cannot read.
+
+Pass it to the `math` option of `@luciole-sh/markdown-editor` to draw display math in
+terminals that draw pictures, as Notes does.
+
+The entry is opt-in, like `grammars`. Its two optional peer dependencies, `mathjax-full` and
+`@resvg/resvg-wasm`, weigh a few megabytes: install them in your app. They load on the first
+formula.
 
 ## Supervising an app: `@luciole-sh/core/dev`
 
@@ -205,6 +231,7 @@ and progressive Flight decoding. A decorator sees every `render` and `call`; wha
 reaches the app as it is, so it must let `TransportError`s and their `outcome` through.
 
 <Note>
-  The package is not published yet, and the API changes without notice while the project is
-  experimental. The [status page](/status/) says what is stable enough to rely on.
+  The packages are published on npm, at version 0.x. A patch release does not break the API, and a
+  minor release may. The changelog lists each break, and the [status page](/status/) says what is
+  stable enough to rely on.
 </Note>

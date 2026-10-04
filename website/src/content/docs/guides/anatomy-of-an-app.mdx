@@ -86,7 +86,9 @@ You write no RPC protocol, module registry, Flight manifest or OpenTUI bootstrap
 
 <Note>
   The atomic save and the lookup of a lost result are Notes' own code, not a framework guarantee of
-  exactly-once delivery. If no result is found, the operation stays unknown and is not replayed.
+  exactly-once delivery. The framework never retries. Notes looks the operation up; if the Server
+  has no result, Notes sends it again with the same ID, which the repository applies at most once.
+  If that fails too, the save stays unknown.
 </Note>
 
 ## Run it

@@ -53,17 +53,21 @@ the refusal. No message, stack or path leaves the Server.
 Every failed request throws a `TransportError` whose `outcome` says what the Server may have
 done:
 
-| `outcome`  | Cases                                                                                                             | Did app code run on the Server? |
-| ---------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------- |
-| `not-sent` | Connection refused, host unreachable, aborted before sending                                                      | No                              |
-| `rejected` | A `4xx`: no bearer (`AuthenticationRequired`), another build (`BuildMismatch`), unknown action, bad argument list | No                              |
-| `unknown`  | Timeout or cut after sending, response lost or truncated, a `5xx`                                                 | Maybe                           |
+| `outcome`  | Cases                                                                                                             | Did the Server call the function? |
+| ---------- | ----------------------------------------------------------------------------------------------------------------- | --------------------------------- |
+| `not-sent` | Connection refused, host unreachable, aborted before sending                                                      | No                                |
+| `rejected` | A `4xx`: no bearer (`AuthenticationRequired`), another build (`BuildMismatch`), unknown action, bad argument list | No                                |
+| `unknown`  | Timeout or cut after sending, response lost or truncated, a `5xx`                                                 | Maybe                             |
 
-The transport never claims a certainty it lacks: any case it does not recognise is
-`unknown`. And it **never retries**. Retrying, looking the operation up, marking it unknown
-or only showing a message is the app's decision. Notes' rule is that an unknown save is
-looked up first, by its operation ID; only when the Server has no trace of it is the same
-operation sent again, which the Server applies at most once:
+`rejected` means that the Server did not call the function. Some of your code may still have
+run: the Server calls `authenticate` from `server/auth.ts` before it checks the build.
+
+The transport reports `unknown` for every failure it does not recognise, and it **never
+retries**. Your app decides what comes next: retry, look the operation up, mark it unknown, or
+only show a message.
+
+Notes looks an unknown save up first, by its operation ID. When the Server has no trace of
+it, Notes sends the same operation again, and the Server applies it at most once:
 
 <Excerpt
   path="examples/notes/components/draft.ts"

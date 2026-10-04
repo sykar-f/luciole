@@ -37,11 +37,15 @@ pour les opérations qui ne sont pas des documents.
 Toute requête qui échoue lève une `TransportError` dont `outcome` dit ce que le Server
 a pu faire :
 
-| `outcome`  | Cas                                                                                                                                          | Le Server a-t-il exécuté du code applicatif ? |
-| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
-| `not-sent` | Connexion refusée, hôte injoignable, annulation avant l'envoi                                                                                | Non                                           |
-| `rejected` | `4xx` : bearer absent (`AuthenticationRequired`), build différent (`BuildMismatch`), action inconnue, arguments qui ne forment pas une liste | Non                                           |
-| `unknown`  | Timeout ou coupure après l'envoi, réponse perdue ou tronquée, `5xx`                                                                          | Peut-être                                     |
+| `outcome`  | Cas                                                                                                                                          | Le Server a-t-il appelé la fonction ? |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| `not-sent` | Connexion refusée, hôte injoignable, annulation avant l'envoi                                                                                | Non                                   |
+| `rejected` | `4xx` : bearer absent (`AuthenticationRequired`), build différent (`BuildMismatch`), action inconnue, arguments qui ne forment pas une liste | Non                                   |
+| `unknown`  | Timeout ou coupure après l'envoi, réponse perdue ou tronquée, `5xx`                                                                          | Peut-être                             |
+
+`rejected` dit que la fonction n'a pas été appelée, pas qu'aucun code de l'application
+n'a tourné : le Server exécute `authenticate` de `server/auth.ts` à chaque requête de page
+ou de Server Function, avant de vérifier le build.
 
 Le transport ne prétend jamais une certitude qu'il n'a pas : tout cas non reconnu vaut
 `unknown`. Une exception levée par une Server Function répond un `500` générique
@@ -49,17 +53,19 @@ Le transport ne prétend jamais une certitude qu'il n'a pas : tout cas non recon
 Une erreur de rendu Server qui porte un `digest` Flight n'est pas une erreur de
 transport : elle arrive telle quelle à `error.tsx`.
 
-L'erreur remonte telle quelle jusqu'au code qui a appelé la Server Function. Rejouer,
-consulter un registre, marquer l'opération inconnue ou seulement afficher un message
-relève de l'application. Le motif de Notes, « une opération inconnue n'est jamais
-rejouée, elle est consultée », est un choix applicatif :
+L'erreur remonte telle quelle jusqu'au code qui a appelé la Server Function. Le
+framework ne réessaie jamais. Rejouer, consulter un registre, marquer l'opération
+inconnue ou seulement afficher un message relève de l'application. Le motif de Notes est
+un choix applicatif : une opération inconnue est d'abord consultée par son identifiant ;
+si le Server n'en a aucune trace, Notes la renvoie avec le même identifiant, que le
+repository n'applique qu'une fois. Le premier envoi :
 
 ```tsx
 try {
   draft.confirm(await saveNote(snapshot));
 } catch (e) {
   if (e instanceof TransportError && e.outcome !== "unknown") draft.fail(e.message);
-  else draft.markUnknown(); // Ctrl+O consulte le résultat, sans rejouer
+  else draft.markUnknown(); // Ctrl+O consulte le résultat, puis renvoie au besoin
 }
 ```
 
@@ -536,7 +542,8 @@ jamais ses composants `<Form>` et `<Field>`, qui rendent du HTML.
 Entrée `@luciole-sh/core/server` :
 
 - `getSession()` : `{ userId }` dans le contexte async du rendu ou de l'action.
-- `getOptionalSession()` : la même session, ou `null` dans une page/action publique.
+- `getOptionalSession()` : la session de la requête, ou `null` pour une requête anonyme ;
+  une page ou une action publique reçoit aussi la session d'un utilisateur connecté.
 - `getCallId()` : identifiant de requête de transport, distinct de l'opération métier.
 - `notFound(what?)` : termine le rendu d'une page avec le `not-found.tsx` le plus proche.
 - `invalidate(path?)` : dans une Server Function, déclare les routes à revalider.
@@ -670,10 +677,15 @@ export default {
 
 Le chemin `unauthorizedPath` doit désigner une route publique existante. Une
 navigation sans session vers une route protégée reçoit un `401` puis navigue
-localement vers ce chemin : c'est une règle de routage déclarée par le Server. Sans
-`unauthorizedPath`, le Client reste sur la dernière route confirmée et expose l'erreur
-`AuthenticationRequired`. Une Server Function refusée ne navigue jamais : l'erreur
-remonte à son appelant.
+localement vers ce chemin : c'est une règle de routage déclarée par le Server. Un
+rafraîchissement de la route courante qui reçoit un `401` y va aussi. Sans
+`unauthorizedPath`, une navigation atteint quand même la route protégée : son
+emplacement de page montre l'erreur `AuthenticationRequired` (via le `error.tsx` le
+plus proche), dans les layouts qui restent, et le statut vaut `Authentication
+required`. Un rafraîchissement refusé garde l'arbre monté, comme tout rafraîchissement
+qui échoue : un logout (`setToken()`) sur une page protégée la laisse donc à l'écran,
+et l'application navigue ailleurs elle-même. Une Server Function refusée ne navigue
+jamais : l'erreur remonte à son appelant.
 
 Les layouts sont des Client Components : ils ne peuvent pas appeler
 `getOptionalSession()` ni `getSession()`, réservés aux pages Server, actions et
@@ -688,7 +700,8 @@ répondent `400`, une page protégée sans session répond `401`.
 
 `useApplication().setToken()` purge le cache de routes TanStack (et le purge de
 nouveau à la fin d'une navigation en cours) : un arbre privé mis en cache sous un
-bearer n'est jamais réaffiché sous un autre, ni après logout. Il recharge aussi les
+bearer n'est jamais réaffiché sous un autre, ni après logout ; seul l'arbre déjà
+monté reste, sans `unauthorizedPath` (voir plus haut). Il recharge aussi les
 routes courantes sous le nouveau bearer : une navigation ou une revalidation encore
 en vol, partie avec l'ancien, est remplacée et sa réponse n'est jamais affichée.
 Après login/logout, l'application navigue toujours vers la route voulue.
