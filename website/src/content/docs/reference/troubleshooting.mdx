@@ -1,0 +1,266 @@
+---
+title: Troubleshooting
+description: The errors luciole, Bun and macOS print while you create, build, start, connect and ship an app, each with its cause, its fix and how to check the fix.
+sources:
+  - packages/create/src/scaffold.ts
+  - packages/core/src/commands/init.ts
+  - packages/core/src/commands/command.ts
+  - packages/core/src/launcher/target.ts
+  - packages/core/src/commands/dev.ts
+  - packages/core/src/build.ts
+  - packages/core/src/serve.ts
+  - packages/core/src/run.tsx
+  - packages/core/src/connect.ts
+  - packages/core/src/client.tsx
+  - packages/core/src/server.ts
+---
+
+This page lists the errors you can meet with luciole, grouped by the step that prints them.
+Search it for the first words of your message. Each entry gives the message as printed, its
+cause, the fix, and how to check that the fix worked.
+
+A word in angle brackets, such as `<path>`, stands for a value that changes from one run to
+the next.
+
+## Creating an app
+
+### `init` refuses a directory that is not empty
+
+You ran `bunx luciole.sh init my-app` on a directory that already holds files, and luciole
+prints:
+
+```text
+Target already contains a project
+Cannot create the starter: <command> exited <code>
+```
+
+- **Cause:** the scaffolder writes only into a missing or empty directory. Any file counts,
+  even one that is not a project.
+- **Fix:** pick a new name, such as `bunx luciole.sh init my-other-app`, or empty the
+  directory first.
+- **Check:** luciole prints `Starter created:` followed by the next commands.
+
+### The build cannot resolve an import
+
+You imported a package or a file that does not exist, and luciole prints:
+
+```text
+Cannot resolve <name>
+```
+
+- **Cause:** `<name>` is misspelled, or it is a package that the app's `package.json` does
+  not list. The line starts with the file, line and column of the import.
+- **Fix:** correct the import, or add the package with `bun add <name>`.
+- **Check:** `bun run build` succeeds.
+
+### The build finds no `bun.lock`
+
+You installed the app's dependencies with npm, pnpm or Yarn, and luciole prints:
+
+```text
+No bun.lock governs the luciole installation at <framework>: install it with Bun
+```
+
+- **Cause:** the build ID includes the lockfile of the installation, and only Bun writes
+  `bun.lock`.
+- **Fix:** delete `node_modules`, then run `bun install`.
+- **Check:** `bun.lock` exists next to `package.json`, and `bun run build` succeeds.
+
+## Running a command
+
+### A relative path is refused
+
+You ran `luciole examples/notes`, and luciole prints:
+
+```text
+<target>: not a path (start it with ./), an installed app, an npm package, a git source (github:user/repo, git+https://…) or a Server URL
+```
+
+- **Cause:** luciole reads a target without `./` as an app name, an npm package or a git
+  source. It does not guess that you meant a directory.
+- **Fix:** start the path with `./`, as in `luciole ./examples/notes`.
+- **Check:** luciole builds the directory and the Client opens
+  ([opening an app](/docs/guides/opening-an-app/)).
+
+### A flag is missing its value
+
+You ran a command such as `luciole build --app` with nothing after the flag, and luciole
+prints:
+
+```text
+<flag> needs a value
+```
+
+- **Cause:** the flag takes a value, and the next word is missing or is another flag. This
+  is a usage error, so the command exits with code 2.
+- **Fix:** give the value right after the flag, as in `luciole build --app ./my-app`.
+- **Check:** `echo $?` after the command prints `0`, not `2`.
+
+## Building
+
+### A save breaks the build during `luciole dev`
+
+You saved a file with an error while `luciole dev` runs, and luciole shows:
+
+```text
+Build failed: <error>
+```
+
+- **Cause:** `<error>` is what the build found, with its file, line and column. The line
+  shows in orange at the top of the Client, and the previous build keeps running.
+- **Fix:** correct the file that `<error>` names, then save it.
+- **Check:** the Client reopens on the same page, without the orange line.
+
+### A Client Component imports Server code
+
+You imported a database module or `node:fs` from a file marked `"use client"`, and luciole
+prints:
+
+```text
+Server-only import in Client graph: <module>
+```
+
+- **Cause:** the Client bundle reaches the terminal, so it cannot hold Server code. The
+  next line, `via …`, gives the chain of imports from the page to `<module>`.
+- **Fix:** move the call into a page or a Server Function, and pass its result to the
+  Client Component ([client components](/docs/concepts/client-components/)).
+- **Check:** `bun run build` succeeds.
+
+## Starting the Server
+
+### The port is in use
+
+You ran `luciole start --role server` while another program listens on its port, and Bun
+prints:
+
+```text
+Failed to start server. Is port <port> in use?
+```
+
+- **Cause:** the Server listens on `PORT`, `3000` by default, and the port is taken.
+- **Fix:** stop the other program, or choose a free port with `PORT=3001`. The Client then
+  needs `--url http://127.0.0.1:3001`.
+- **Check:** `curl http://127.0.0.1:<port>/health` answers.
+
+### The Server refuses to listen on the network
+
+You set `LUCIOLE_HOST` to an address other than loopback, and luciole prints:
+
+```text
+Remote binding requires LUCIOLE_TOKEN or server/auth.ts and a TLS reverse proxy
+```
+
+- **Cause:** a Server on the network without a token would let anyone in as the single
+  user ([authentication](/docs/concepts/authentication/)).
+- **Fix:** set `LUCIOLE_TOKEN`, or add `server/auth.ts`. Put a TLS reverse proxy in front of
+  the Server.
+- **Check:** the Server starts, and a request without the token gets a `401`.
+
+### A variable has an invalid value
+
+You set one of luciole's variables to a value it cannot read, such as
+`LUCIOLE_LATENCY_MS=fast`, and luciole prints one of:
+
+```text
+Invalid Client environment: <details>
+Invalid Server environment: <details>
+```
+
+- **Cause:** both programs check their variables at startup. `<details>` names the variable
+  and the value it expects.
+- **Fix:** correct or unset the variable that `<details>` names
+  ([environment variables](/docs/reference/environment/)).
+- **Check:** the program starts.
+
+## Connecting the Client
+
+### The Client cannot read its config file
+
+The Client stops before it opens, and luciole prints one of:
+
+```text
+<path>: <error>
+<path>: expected { "url": "…" }
+```
+
+- **Cause:** `<path>` is your file `~/.config/luciole/<app>.json`. Either it is not valid
+  JSON, or it has no `url`. The Client stops rather than ignore the file.
+- **Fix:** write the file as `{ "url": "http://127.0.0.1:3000" }` with your Server's URL, or
+  delete it to use the default.
+- **Check:** `cat ~/.config/luciole/<app>.json` shows one `url`, and the Client opens.
+
+### The SSH tunnel fails
+
+You ran `luciole connect ssh://…`, and luciole prints one of:
+
+```text
+ssh <host>: <error>
+ssh <host>: no tunnel after <ms> ms
+```
+
+- **Cause:** `<error>` is OpenSSH's own message, such as `Could not resolve hostname`. The
+  second line means `ssh` started but the Server's port never answered.
+- **Fix:** run `ssh <host>` alone until it logs in, then check that the Server runs there
+  ([over SSH](/docs/guides/opening-an-app/#over-ssh)).
+- **Check:** `luciole connect` opens the Client, and its status reads "Connected".
+
+### The status reads "Disconnected"
+
+Your app's status line shows the Client's status, and luciole reports:
+
+```text
+Disconnected
+```
+
+- **Cause:** the Client's last request did not reach the Server. The Server stopped, or the
+  network or the tunnel dropped.
+- **Fix:** start the Server again. For an app the launcher opened, read its log in
+  `$XDG_STATE_HOME/luciole/<app>/server.log`.
+- **Check:** the next request succeeds and the status reads "Connected"
+  ([the connection](/docs/concepts/loading-and-errors/#the-connection-in-the-apps-chrome)).
+
+### The Server answers `409`
+
+The status reads "Incompatible build", and luciole shows:
+
+```text
+Incompatible build: install matching Client and Server
+```
+
+- **Cause:** the Client and the Server come from two different builds. You rebuilt or
+  upgraded one of them.
+- **Fix:** run `luciole build`, then restart both programs from that build. On a remote
+  machine, install the same version there.
+- **Check:** the status reads "Connected" and the page loads.
+
+### The Server answers `401`
+
+The page or a Server Function fails, and luciole shows:
+
+```text
+Authentication required
+```
+
+- **Cause:** the request carried no valid token. Either `LUCIOLE_TOKEN` differs between the
+  two programs, or `server/auth.ts` returned no sign-in session.
+- **Fix:** give the Client the Server's token, or sign in through the app's sign-in page
+  ([authentication](/docs/concepts/authentication/#what-happens-without-a-session)).
+- **Check:** the page loads, and the status reads "Connected".
+
+## Shipping a binary
+
+### macOS blocks a downloaded binary
+
+You downloaded a binary built with `luciole build --compile` in a browser, opened it, and
+macOS shows a dialog such as:
+
+```text
+Apple could not verify “<binary>” is free of malware that may harm your Mac or compromise your privacy.
+```
+
+- **Cause:** Gatekeeper blocks a downloaded file that Apple has not notarized. The wording
+  changes with the version of macOS.
+- **Fix:** for a binary you built, run `xattr -d com.apple.quarantine ./<binary>`. For one
+  you ship, sign and notarize it
+  ([macOS signing](/docs/reference/build-and-distribution/#signing-and-notarization-for-macos)).
+- **Check:** `./<binary>` starts without the dialog.
