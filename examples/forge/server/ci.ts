@@ -87,18 +87,23 @@ const MINUTE_MS = 60_000,
 const stamp = (ms: number) =>
   `[${String(Math.floor(ms / MINUTE_MS)).padStart(2, "0")}:${((ms % MINUTE_MS) / SECOND_MS).toFixed(1).padStart("ss.s".length, "0")}]`;
 
+// How often a held stream looks at its gate again: it only delays the release.
+const GATE_POLL_MS = 20;
 /**
  * Yields each log line when the clock reaches it. A finished check yields its whole
- * log at once. Streamed to the Client as a Flight async iterable.
+ * log at once. Streamed to the Client as a Flight async iterable. Tests may pass `held`:
+ * while it returns true, every line after the first waits, even once its time has come.
  */
 export async function* streamLog(
   check: CheckRow,
   scale: number,
   now: () => number,
+  held?: () => boolean,
 ): AsyncGenerator<string> {
-  for (const [at, line] of script(check, scale)) {
+  for (const [i, [at, line]] of script(check, scale).entries()) {
     const wait = check.started_at + at - now();
     if (wait > 0) await Bun.sleep(wait);
+    while (i > 0 && held?.()) await Bun.sleep(GATE_POLL_MS);
     yield `${stamp(at)} ${line}`;
   }
 }
