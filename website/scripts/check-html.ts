@@ -1,14 +1,14 @@
 /**
  * The check on the HTML the site ships, run on dist/ after `astro build`: a page that breaks
  * one of these rules fails the build.
- *   bun scripts/check-html.ts [dist]
+ *   bun scripts/check-html.ts [dist [site]]
  *
  * On every page:
  *   - an internal link, and the #anchor it carries, points at a page, a file or an id that exists;
  *   - there is exactly one h1, no heading level is skipped, and one `main#main`;
  *   - the first focusable element is a skip link to #main, with a text;
  * and on an indexable page (no noindex), a canonical, an og:url and an og:image on the site's
- * domain (`site` of astro.config.mjs), the first two being the page's own address, and a place
+ * domain (`site` of astro.config.mjs, unless the second argument gives it), the first two being the page's own address, and a place
  * in the sitemap.
  *
  * Two things are set aside, each by name below: the cards photographed into a picture, which
@@ -23,10 +23,20 @@
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { z } from "zod";
-import config from "../astro.config.mjs";
 
-const { site } = z.object({ site: z.string().url() }).parse(config);
-const origin = new URL(site).origin;
+/**
+ * The site's origin: the second argument, or `site` of astro.config.mjs. The config is imported
+ * only then, as it needs the website's own install (astro/config), which a test of the check
+ * does not have.
+ */
+async function siteOrigin(argument: string | undefined) {
+  if (argument) return new URL(argument).origin;
+  const { default: config } = z
+    .object({ default: z.object({ site: z.string().url() }) })
+    .parse(await import("../astro.config.mjs"));
+  return new URL(config.site).origin;
+}
+const origin = await siteOrigin(process.argv[3]);
 
 const FOCUSABLE = [
   "a[href]",

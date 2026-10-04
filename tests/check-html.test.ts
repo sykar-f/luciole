@@ -4,7 +4,8 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 
 // The check on the built site (website/scripts/check-html.ts), run on a small `dist` written
-// here: one good page that every case starts from, and one change per rule.
+// here, given the site's origin (the script reads astro.config.mjs without it, which needs
+// the website's own install): one good page that every case starts from, and one change per rule.
 const root = resolve(import.meta.dir, "..");
 const site = "https://luciole.sh";
 const directories: string[] = [];
@@ -48,7 +49,7 @@ async function check(pages: Record<string, string>, listed = Object.keys(pages))
       .map((path) => `<url><loc>${site}${path}</loc></url>`)
       .join("")}</urlset>`,
   );
-  const child = Bun.spawn([process.execPath, "website/scripts/check-html.ts", dist], {
+  const child = Bun.spawn([process.execPath, "website/scripts/check-html.ts", dist, site], {
     cwd: root,
     stdout: "pipe",
     stderr: "pipe",
