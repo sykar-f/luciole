@@ -120,10 +120,10 @@ prints:
 Server-only import in Client graph: <module>
 ```
 
-- **Cause:** the Client bundle reaches the terminal, so it cannot hold Server code. The
+- **Cause:** the Client bundle reaches your terminal, so it cannot hold Server code. The
   next line, `via …`, gives the chain of imports from the page to `<module>`.
 - **Fix:** move the call into a page or a Server Function, and pass its result to the
-  Client Component ([client components](/docs/concepts/client-components/)).
+  Client Component ([Client Components](/docs/concepts/client-components/)).
 - **Check:** `bun run build` succeeds.
 
 ## Starting the Server
