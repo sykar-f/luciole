@@ -205,8 +205,11 @@ function timedOut(state?: () => string) {
     return `Condition timed out. State unavailable: ${messageOf(error)}`;
   }
 }
-/** Polls `check` until it holds; a failure prints `state()`: what the process and its screen showed. */
-export async function until(check: () => boolean, timeout = 5000, state?: () => string) {
+/**
+ * Polls `check` until it holds; a failure prints `state()`: what the process and its screen
+ * showed. The guard against a hang is `WAIT_MS`, as for `untilFrame`.
+ */
+export async function until(check: () => boolean, timeout = WAIT_MS, state?: () => string) {
   const start = performance.now();
   while (!check()) {
     if (performance.now() - start > timeout) throw new Error(timedOut(state));
