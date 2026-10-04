@@ -13,7 +13,7 @@ import { destroy, type TestUI } from "./helpers";
 const Started = z.object({ port: z.number().int(), pid: z.number().int() });
 test("milestone 1: Flight action via HTTP, local typing, refresh without remount", async () => {
   const child = spawn(process.execPath, ["--conditions=react-server", "tests/action-server.ts"], {
-    stdio: ["ignore", "pipe", "inherit"],
+    stdio: ["pipe", "pipe", "inherit"],
   });
   const lines = createInterface({ input: child.stdout })[Symbol.asyncIterator]();
   let rendered: TestUI | undefined;
@@ -87,6 +87,8 @@ test("milestone 1: Flight action via HTTP, local typing, refresh without remount
     expect(field?.value).toBe("abcd");
     expect(result).toBeUndefined();
     expect(done).toBeDefined();
+    // The Server holds the save until now: it was in flight while "d" was typed.
+    child.stdin.write("release\n");
     await act(async () => {
       await done;
     });
