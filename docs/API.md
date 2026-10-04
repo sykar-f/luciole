@@ -49,17 +49,19 @@ Le transport ne prétend jamais une certitude qu'il n'a pas : tout cas non recon
 Une erreur de rendu Server qui porte un `digest` Flight n'est pas une erreur de
 transport : elle arrive telle quelle à `error.tsx`.
 
-L'erreur remonte telle quelle jusqu'au code qui a appelé la Server Function. Rejouer,
-consulter un registre, marquer l'opération inconnue ou seulement afficher un message
-relève de l'application. Le motif de Notes, « une opération inconnue n'est jamais
-rejouée, elle est consultée », est un choix applicatif :
+L'erreur remonte telle quelle jusqu'au code qui a appelé la Server Function. Le
+framework ne réessaie jamais. Rejouer, consulter un registre, marquer l'opération
+inconnue ou seulement afficher un message relève de l'application. Le motif de Notes est
+un choix applicatif : une opération inconnue est d'abord consultée par son identifiant ;
+si le Server n'en a aucune trace, Notes la renvoie avec le même identifiant, que le
+repository n'applique qu'une fois. Le premier envoi :
 
 ```tsx
 try {
   draft.confirm(await saveNote(snapshot));
 } catch (e) {
   if (e instanceof TransportError && e.outcome !== "unknown") draft.fail(e.message);
-  else draft.markUnknown(); // Ctrl+O consulte le résultat, sans rejouer
+  else draft.markUnknown(); // Ctrl+O consulte le résultat, puis renvoie au besoin
 }
 ```
 

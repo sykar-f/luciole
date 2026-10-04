@@ -91,7 +91,7 @@ export const examples: Record<ExampleKey, Example> = {
     demo: "notes",
     run: "bun run dev",
     about:
-      "The reference app: a server page reads SQLite, the editor keeps what you type while a save travels, and a save whose answer was lost is looked up, never replayed.",
+      "The reference app: a server page reads SQLite, the editor keeps what you type while a save travels, and a save whose answer was lost is looked up, then sent again under the same ID.",
   },
   chat: {
     name: "Chat",

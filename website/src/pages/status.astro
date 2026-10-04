@@ -99,8 +99,8 @@ const CHECKED = { date: "4 October 2026", revision: "02fb6a2" };
       named fields come back, state held only in memory does not.
     </li>
     <li>
-      <strong>No silent retries.</strong> An operation whose outcome is unknown is never replayed;
-      the app decides what to do. <code>useLive</code> streams do not reconnect by themselves, nor
+      <strong>No silent retries.</strong> The framework never retries an operation whose outcome is
+      unknown; the app decides what to do (Notes looks it up, then resends it with the same id). <code>useLive</code> streams do not reconnect by themselves, nor
       does a client joined by an <code>ssh://</code> URL; a server started with <code>--on</code>
       has its tunnel relaunched.
     </li>
