@@ -32,8 +32,11 @@ bun packages/core/src/cli.ts start --role client --app examples/forge --url http
 Réglages Server : `FORGE_SLOW_MS` (travail simulé, défaut 250 ms, rend le streaming
 visible), `FORGE_CI_SCALE` (durée de la CI, défaut 1), `FORGE_GIT_REPO` et
 `FORGE_GIT_COMMITS`, et pour les tests `FORGE_CLOCK_START` (date ISO : l'horloge du Server
-part de là puis avance ; `scripts/pty/forge.ts` fige ainsi les âges affichés). Ils sont validés par Zod au démarrage : une valeur invalide arrête
-le Server en nommant la variable.
+part de là puis avance ; `scripts/pty/forge.ts` fige ainsi les âges affichés) et
+`FORGE_CI_GATE` (chemin de fichier : tant qu'il existe, les logs de CI s'arrêtent après
+leur première ligne, pour lire un check en cours sans course contre l'horloge de la CI).
+Ces deux dernières sont réservées aux tests. Ils sont validés par Zod au démarrage : une
+valeur invalide arrête le Server en nommant la variable.
 
 Chaque opération du domaine (`server/forge.ts`) reçoit ses entrées comme `unknown`, telles
 que le réseau les a livrées aux Server Functions, et les valide avec Zod avant tout effet :
