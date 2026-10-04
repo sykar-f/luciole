@@ -205,37 +205,44 @@ The design note behind it is [docs/BOUNDARIES.md](docs/BOUNDARIES.md) (French).
 ## Run an example
 
 The examples are not published on npm. They live in this repository, at the git tag of
-the installed release (`v<version>`).
-
-From an installed release, the launcher asks you to trust the repository (`--yes`
-accepts):
+the installed release (`v<version>`). `example <name>` fetches the one you name:
 
 ```sh
 bunx luciole.sh example           # lists the examples of this release
 bunx luciole.sh example notes     # Notes: cloned, installed from the lock, built and run
 ```
 
-The examples are `agent`, `chat`, `coder`, `files`, `flow`, `latency`, `mdreader`, `mux`,
-`notes` and `studio`. Only `example <name>` expands to the repository: a bare
-`luciole notes` is an npm package name, and `notes` there is not ours.
+The table writes `luciole`; `bunx luciole.sh` runs the same commands without installing.
+The launcher asks you to trust the repository, and `--yes` accepts. A bare `luciole notes`
+is an npm package name, and `notes` there is not ours.
 
-From a clone (see [Work on luciole from a clone](#work-on-luciole-from-a-clone)), run them
-from the root:
+| Example    | Run it                                      | Shows                                            |
+| ---------- | ------------------------------------------- | ------------------------------------------------ |
+| `notes`    | `luciole example notes`                     | The reference app: SQLite, saves, retries        |
+| `chat`     | `OPENROUTER_API_KEY=… luciole example chat` | A chat that streams; the key stays on the Server |
+| `mdreader` | `MD_PATH=docs luciole example mdreader`     | A Markdown folder in two panes                   |
+| `coder`    | `luciole example coder -- --harness fake`   | A coding-agent session; `fake` is scripted       |
+| `files`    | `luciole example files`                     | A file explorer with image previews              |
+| `mux`      | `luciole example mux`                       | A small tmux: shell and vim side by side         |
+| DevTools   | `luciole devtools --demo`                   | Both processes in one waterfall                  |
 
-| Command                                                                          | Example                                                             |
-| -------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| `LUCIOLE_LATENCY_MS=500 bun packages/core/src/cli.ts dev --app examples/latency` | A text field, a hover zone and a list stay local; a ping is slow    |
-| `CHAT_DEMO=1 bun run chat`                                                       | AI chat with a scripted offline model (no API key)                  |
-| `bun run agent`                                                                  | A coding agent UI for `pi` (needs `pi`, signed in)                  |
-| `bun run coder -- --harness fake`                                                | A coding agent session; `fake` is scripted and offline              |
-| `bun run files`                                                                  | File explorer of the current directory                              |
-| `bun run mdreader`                                                               | Markdown reader for the `.md` files of the current directory        |
-| `bun run mux`                                                                    | Local programs side by side, each on its own PTY                    |
-| `bun run studio -- -H fake`                                                      | Describe an app, watch it written and running (scripted)            |
-| `bun run flow`                                                                   | A CI pipeline on a node canvas (`@luciole-sh/flow-graph`), run live |
+The same list, with a screen for each, is at <https://luciole.sh/examples/>.
 
-The `chat`, `agent`, `coder` and `studio` examples talk to real models or coding agents once
-configured; see their READMEs in [`examples/`](examples/).
+From a clone (see [Work on luciole from a clone](#work-on-luciole-from-a-clone)), the same
+examples run from the root with `bun run <script>`:
+
+| Example    | From a clone                                   |
+| ---------- | ---------------------------------------------- |
+| `notes`    | `bun run dev`                                  |
+| `chat`     | `OPENROUTER_API_KEY=… bun run chat`            |
+| `mdreader` | `MD_PATH=docs bun run mdreader`                |
+| `coder`    | `bun run coder -- --harness fake`              |
+| `files`    | `bun run files`                                |
+| `mux`      | `bun run mux`                                  |
+| DevTools   | `bun packages/core/src/cli.ts devtools --demo` |
+
+`chat` and `coder` talk to real models or coding agents once configured. See their READMEs
+in [`examples/`](examples/).
 
 ## Read the documentation
 
