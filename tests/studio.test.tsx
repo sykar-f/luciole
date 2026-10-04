@@ -14,7 +14,7 @@ import { join } from "node:path";
 import { act } from "react";
 import { testRender } from "@opentui/react/test-utils";
 import { isolationProblem } from "../examples/studio/server/preview";
-import { execute, importClient, launch, privateBuild } from "./helpers";
+import { eventually, execute, importClient, launch, privateBuild, WAIT_MS } from "./helpers";
 
 const built = await privateBuild("examples/studio");
 const MODE = isolationProblem("sandbox") ? "process" : "sandbox";
@@ -23,8 +23,6 @@ const WIDTH = 160;
 // machine both can happen between two frames, so the test reads the failure afterwards.
 const HEIGHT = 120;
 const STEP_TIMEOUT_MS = 60_000;
-const STOP_TIMEOUT_MS = 20_000;
-const POLL_MS = 100;
 
 async function startStudio(mode: string = MODE) {
   const temp = realpathSync(await mkdtemp(join(tmpdir(), "studio-e2e-")));
@@ -56,6 +54,7 @@ async function startStudio(mode: string = MODE) {
   const waitFor = async (check: string | RegExp, timeout = STEP_TIMEOUT_MS) => {
     const start = performance.now();
     for (;;) {
+      // The poll of a wait on the frame, bounded by `timeout`: the app works meanwhile.
       await step(() => Bun.sleep(50));
       const shown = await frame();
       if (typeof check === "string" ? shown.includes(check) : check.test(shown)) return shown;
@@ -65,7 +64,8 @@ async function startStudio(mode: string = MODE) {
   };
   const prompt = async (text: string) => {
     await step(() => ui.mockInput.typeText(text));
-    await step(() => Bun.sleep(30));
+    // The composer holds the text it submits.
+    await waitFor(text);
     await step(() => ui.mockInput.pressKey("RETURN"));
   };
   const press = (key: string, modifiers?: { ctrl?: boolean }) =>
@@ -81,9 +81,10 @@ async function startStudio(mode: string = MODE) {
       app.dispose();
       await server.stop();
       // The preview's processes leave with the studio; on a loaded machine, not at once.
-      const deadline = performance.now() + STOP_TIMEOUT_MS;
-      while ((await leftovers(project)).length > 0 && performance.now() < deadline)
-        await Bun.sleep(POLL_MS);
+      // Still there past the guard, the test's last check names them.
+      await eventually(async () => (await leftovers(project)).length === 0, WAIT_MS).catch(
+        () => {},
+      );
       if (state === undefined) delete process.env.XDG_STATE_HOME;
       else process.env.XDG_STATE_HOME = state;
       await rm(temp, { recursive: true, force: true });
