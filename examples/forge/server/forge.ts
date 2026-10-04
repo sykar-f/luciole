@@ -54,6 +54,8 @@ export type ForgeOptions = {
   ciScale?: number;
   /** Transport correlation for the audit trail (`getCallId()` in the Server). */
   callId?: () => string | undefined;
+  /** Test-only: while it returns true, CI logs hold after their first line. */
+  ciHeld?: () => boolean;
 };
 /** Invalid arguments: a Client bug or a forged call, never an expected business outcome. */
 export class InvalidRequest extends Error {}
@@ -451,7 +453,7 @@ export function createForge(db: Database, options: ForgeOptions = {}) {
       )
       .get(integer(checkId, "check"));
     if (!row) throw new InvalidRequest("Unknown check");
-    return streamLog(row, ciScale, now);
+    return streamLog(row, ciScale, now, options.ciHeld);
   }
   function readiness(pullId: number): MergeReadiness {
     const row = db.query<PullRow, [number]>("SELECT * FROM pulls WHERE id=?").get(pullId);

@@ -1,4 +1,5 @@
 import "server-only";
+import { existsSync } from "node:fs";
 import { getCallId, getSession, notFound } from "@luciole-sh/core/server";
 import { z } from "zod";
 import type { Role } from "../components/model";
@@ -18,17 +19,22 @@ const env = z
     // Test-only: "now" at startup, as an ISO date. Time still flows (CI runs, sessions
     // expire) but relative ages on screen no longer depend on the day of the run.
     FORGE_CLOCK_START: z.iso.datetime().transform(Date.parse).optional(),
+    // Test-only: a file path. While the file exists, CI logs hold after their first line,
+    // so a test can read a check mid-attempt without racing the CI clock.
+    FORGE_CI_GATE: z.string().optional(),
   })
   .parse(process.env);
 
 // The single Forge of this Server process. Pages, Server Functions and the auth
 // adapter share it; tests and the operator script build their own from `createForge`.
 const start = env.FORGE_CLOCK_START,
+  gate = env.FORGE_CI_GATE,
   booted = Date.now();
 export const forge = createForge(openDatabase(env.FORGE_DB), {
   ciScale: env.FORGE_CI_SCALE,
   callId: getCallId,
   now: start === undefined ? undefined : () => start + (Date.now() - booted),
+  ciHeld: gate === undefined ? undefined : () => existsSync(gate),
 });
 if (env.FORGE_GIT_REPO)
   await importGitRepository(forge, env.FORGE_GIT_REPO, "luciole", env.FORGE_GIT_COMMITS);
