@@ -2,16 +2,11 @@
 import assert from "node:assert/strict";
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { ctrl, drive } from "./driver";
-import { BUN, example, report, startServer, temporaryDirectory } from "./harness";
-
-/** Lets a key's effect (Ctrl+E focusing the text) land before the next keys arrive. */
-const KEY_SETTLE_MS = 150;
+import { ctrl, drive, type Driver } from "./driver";
+import { BUN, example, report, sessionKeeps, startServer, temporaryDirectory } from "./harness";
 
 const PRIVATE_FILE_MODE = 0o600;
 const PERMISSION_BITS = 0o777;
-// The session file is written 200 ms after the last change.
-const SESSION_WRITTEN_MS = 500;
 
 using directory = temporaryDirectory("luciole-restore-");
 const state = join(directory.path, "state");
@@ -37,17 +32,21 @@ const saved = () =>
         .filter((name) => name.endsWith(".json"))
         .sort()
     : [];
+/** Ctrl+E: the cursor at the end of the text, shown once editing started. */
+async function edit(t: Driver) {
+  t.write(ctrl("e"));
+  await t.until(async () => (await t.cursor()).visible, "Ctrl+E never showed the cursor");
+}
 
 {
   await using t = await start();
   await t.waitFor("Welcome to Notes");
   await t.click("Welcome to Notes");
   await t.waitFor("Getting around");
-  // Ctrl+E: the cursor at the end of the text.
-  await t.type(ctrl("e"), KEY_SETTLE_MS);
+  await edit(t);
   t.write("abc");
   await t.waitFor("abc");
-  await t.pause(SESSION_WRITTEN_MS);
+  await t.until(() => sessionKeeps(sessions, "abc"), "the session never kept the text");
   assert.equal(saved().length, 1, saved().join());
   const mode = statSync(join(sessions, saved()[0] ?? "")).mode & PERMISSION_BITS;
   assert.equal(mode, PRIVATE_FILE_MODE, `session file mode ${mode.toString(8)}`);
@@ -60,7 +59,7 @@ const saved = () =>
   await t.waitFor("abc");
   await t.waitFor("● Unsaved");
   assert.equal(saved().length, 1, saved().join());
-  await t.type(ctrl("e"), KEY_SETTLE_MS);
+  await edit(t);
   t.write("d");
   await t.waitFor("abcd");
   // A signal (a closed terminal, a rebuild): the session is written before exit.

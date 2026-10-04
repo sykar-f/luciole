@@ -30,8 +30,8 @@ const APP = example("files");
 const LATENCY_MS = numberFromEnv("LUCIOLE_LATENCY_MS", 500);
 // Under this simulated RTT loading screens and ghost rows are too brief to be caught.
 const VISIBLE_LOADING_RTT_MS = 400;
-const SETTLE_MS = 400;
-const FILTER_TYPED_MS = 200;
+// The highlighted row of a list or a menu.
+const HIGHLIGHT = "#1f3b4d";
 const HALF_BLOCK = /[▀▄█▌▐]/;
 // A 48×32 gradient drawn with half blocks: far more colour pairs than a palette would give.
 const TRUECOLOR_PAIRS = 20;
@@ -123,8 +123,16 @@ await using t = await drive({
 async function filter(text: string) {
   t.write("/");
   await t.waitFor("return done");
-  await t.type(text, FILTER_TYPED_MS);
+  t.write(text);
+  // Enter picks from the last frame's filter: wait until that frame has all of it.
+  await t.waitFor(`/ filter ${text}`);
   t.write(Keys.enter);
+}
+/** The colors of the first cell of `text` on the screen. */
+async function styleOf(text: string) {
+  const lines = await t.lines();
+  const row = lines.findIndex((line) => line.includes(text));
+  return row < 0 ? undefined : t.styleAt(row, (lines[row] ?? "").indexOf(text));
 }
 /** What Ghostty sends when files are dropped: shell-escaped paths, bracketed paste. */
 const drop = (...paths: string[]) =>
@@ -167,8 +175,10 @@ assert.ok(
 t.markOutput();
 t.write("p");
 await t.waitFor("drawn with kitty (forced)");
-await t.pause(SETTLE_MS);
-assert.ok(t.output().includes("\x1b_G"), "no kitty graphics command after forcing the protocol");
+await t.until(
+  () => t.output().includes("\x1b_G"),
+  "no kitty graphics command after forcing the protocol",
+);
 t.write("p");
 await t.waitFor("drawn with truecolor half blocks (forced)");
 t.write("p");
@@ -236,8 +246,7 @@ await t.escape();
 await filter("READ");
 await t.waitFor("Second paragraph line.");
 t.write(Keys.enter);
-await t.pause(SETTLE_MS);
-assert.ok(!(await text()).includes(" details "), await text());
+await t.waitFor(" details ", { absent: true });
 await t.escape();
 await t.waitFor(" details ");
 
@@ -245,7 +254,11 @@ await t.waitFor(" details ");
 await t.click("≡ README.md", Mouse.right);
 await t.waitFor("Copy full path");
 t.write("j");
-await t.pause(SETTLE_MS);
+// The menu has the keys: j moves its highlight, and the list stays where it was.
+await t.until(
+  async () => (await styleOf("Copy name"))?.bg === HIGHLIGHT,
+  "j never moved the menu's highlight",
+);
 assert.ok((await text()).includes("name      README.md"), "the list moved under the menu");
 await t.escape();
 assert.ok(!(await text()).includes("Copy full path"));
@@ -266,8 +279,7 @@ assert.equal(
 t.write("m");
 await t.waitFor("Preview full screen");
 t.write(Keys.enter);
-await t.pause(SETTLE_MS);
-assert.ok(!(await text()).includes(" details "), "Enter did not open the preview full screen");
+await t.waitFor(" details ", { absent: true });
 await t.escape();
 await t.waitFor(" details ");
 

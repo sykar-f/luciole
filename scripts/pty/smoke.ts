@@ -21,7 +21,7 @@ const latency = numberFromEnv("LUCIOLE_LATENCY_MS", 0);
 const serverDelay = numberFromEnv("NOTES_DELAY_MS", 700);
 // Under this simulated RTT the loading screen is too brief to be caught.
 const VISIBLE_LOADING_RTT_MS = 400;
-/** Lets a key's effect (Ctrl+E focusing the text) land before the next keys arrive. */
+/** Lets Ctrl+E land before the next key where the Client draws nothing for it. */
 const KEY_SETTLE_MS = 150;
 /** How long a lost connection goes unmentioned (StatusLine's LOST_QUIET_MS). */
 const QUIET_MS = 3000;
@@ -46,6 +46,12 @@ await using t = await drive({
   env: { NODE_ENV: "production", XDG_STATE_HOME: join(directory.path, "state") },
 });
 
+/** Ctrl+E: the cursor at the end of the text, shown once editing started. */
+async function edit() {
+  t.write(ctrl("e"));
+  await t.until(async () => (await t.cursor()).visible, "Ctrl+E never showed the cursor");
+}
+
 /** The rows of the window's frame: search box, the list's count. */
 async function layoutRows() {
   const lines = await t.lines();
@@ -67,7 +73,7 @@ if (latency >= VISIBLE_LOADING_RTT_MS) {
 await t.waitFor("Getting around");
 if (loadingRows) assert.deepEqual(await layoutRows(), loadingRows, "the loading layout moved");
 // Ctrl+E: the cursor at the end of the text, where a click there would put it.
-await t.type(ctrl("e"), KEY_SETTLE_MS);
+await edit();
 t.write("abc");
 await t.waitFor("abc");
 // Autosave is off: unsaved text is marked until Ctrl+S sends it, then nothing is said.
@@ -97,14 +103,15 @@ if (server) {
   // The claim: a short loss goes unmentioned; load can only make it later.
   assert.ok(lossShownMs >= QUIET_MS - 100, `lost connection said after ${lossShownMs} ms`);
   await t.waitFor("Reconnect");
+  // Disconnected, the Client draws nothing on Ctrl+E (no cursor, no scroll) until the
+  // next key: no effect to wait on, so the key is given the time it was always given.
   await t.type(ctrl("e"), KEY_SETTLE_MS);
   t.write("e");
   await t.waitFor("abcde");
   // Saving with the Server gone: refused, retried quietly, the text still there.
   t.write(ctrl("s"));
-  await t.pause(QUIET_MS);
-  const shown = await t.text();
-  assert.ok(shown.includes("Your text is kept here") && shown.includes("abcde"), shown);
+  await t.waitFor("Your text is kept here");
+  assert.ok((await t.text()).includes("abcde"), await t.text());
 }
 await Bun.write(join(ROOT, "docs/pty-frame.txt"), await t.snapshot());
 if (server) {
@@ -112,6 +119,7 @@ if (server) {
   // no console overlay covers the UI.
   await t.click("Shopping list");
   await t.waitFor("Try again");
+  // No event to wait on: a moment for an overlay that must not come.
   await t.pause(200);
   const shown = await t.text();
   assert.ok(shown.includes("⌕") && !shown.includes("Console"), shown);

@@ -47,6 +47,7 @@ async function drag(d: Driver, from: { row: number; column: number }, dx: number
     const x = from.column + Math.round((dx * i) / steps);
     const y = from.row + Math.round((dy * i) / steps);
     d.write(`${ESC}[<32;${at(x, y)}M`);
+    // The pace of a hand: the gesture itself, not a wait for its effect.
     await Bun.sleep(20);
   }
   await d.type(`${ESC}[<0;${at(from.column + dx, from.row + dy)}m`);
@@ -95,9 +96,10 @@ await t.click("build ──");
 await t.waitFor("before: e2e, staging");
 const build0 = await find(t, "build ──");
 await drag(t, build0, 0, 3);
-await t.pause(400);
-const build1 = await find(t, "build ──");
-assert.equal(build1.row, build0.row + 3, "the drag moved build three rows down");
+await t.until(
+  async () => (await t.lines()).findIndex((line) => line.includes("build ──")) === build0.row + 3,
+  "the drag never moved build three rows down",
+);
 results.mouseDrag = "build +3 rows";
 
 // r runs the pipeline on the Server; the run streams back.

@@ -17,11 +17,19 @@ import { dirname, join } from "node:path";
 import { z } from "zod";
 import { LifetimeStatus } from "../../packages/core/src/launcher/lifetime";
 import { ctrl, drive, type Driver } from "./driver";
-import { BUN, CLI, ROOT, defer, eventually, HANG_MS, report, temporaryDirectory } from "./harness";
+import {
+  BUN,
+  CLI,
+  ROOT,
+  defer,
+  eventually,
+  HANG_MS,
+  report,
+  sessionKeeps,
+  temporaryDirectory,
+} from "./harness";
 
 const TIMEOUT_MS = 60_000;
-// The session file is written 200 ms after the last change.
-const SESSION_WRITTEN_MS = 600;
 
 const APP: Record<string, string> = {
   "package.json": JSON.stringify({
@@ -121,7 +129,8 @@ assert.equal(sockets().length, 2, "one Server per launch");
 assert.ok((await a.text()).includes("LABEL same"));
 a.write("alpha words");
 await wait(a, "alpha words");
-await a.pause(SESSION_WRITTEN_MS);
+// What the relaunch restores is what reached the session file.
+await a.until(() => sessionKeeps(sessions, "alpha words"), "the session never kept the words");
 const [serverOfFirst] = (
   await Promise.all(sockets().map(async (socket) => ({ socket, status: await status(socket) })))
 ).filter(({ status: s }) => s?.launch === first);

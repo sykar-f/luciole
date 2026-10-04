@@ -29,6 +29,8 @@ const ROWS = Number(args.rows);
 const APP = example(args.app);
 const ESC = "\x1b";
 const FRAME_BEGIN = `${ESC}[?2026h`;
+// The bench's windows, not waits for an effect: what a gesture causes within this long is
+// what it measures (it asserts nothing).
 const SETTLE_MS = 400;
 const PROBE = join(import.meta.dir, "scroll-probe.ts");
 /** A wheel report at a cell, 1-based: 64 up, 65 down. */
@@ -110,6 +112,7 @@ for (const gesture of GESTURES) {
   const started = performance.now();
   for (const { reports, gapMs } of gesture.bursts) {
     t.write(wheel(true, at.column, at.row).repeat(reports));
+    // The gesture's own rhythm: the time between two reads of a moving hand.
     if (gapMs) await t.pause(gapMs);
   }
   const sentMs = performance.now() - started;

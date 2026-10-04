@@ -28,7 +28,8 @@ import {
 const FRAMES = process.env.STUDIO_PTY_FRAMES;
 const BOOT_TIMEOUT_MS = 90_000;
 const TIMEOUT_MS = 60_000;
-// A Client that just drew its first screen, given a moment before it is sent keys.
+// A Client that just drew its first screen, given a moment before it is sent keys: its
+// bindings register in an effect after that frame, and nothing on screen says when.
 const FIRST_KEYS_MS = 500;
 // Side by side at 160 columns, the preview's frame starts here: the transcript (which
 // shows the diffs, the apps' texts included) stays left of it.
