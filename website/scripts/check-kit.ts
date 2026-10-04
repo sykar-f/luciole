@@ -1,11 +1,11 @@
 /**
  * The contracts of the docs' figure kit (README.md, « Les composants des docs »), on a page
  * of the built site: every screen captioned and described by its transcript, a marked screen
- * with a legend that numbers its marks, every sequence captioned and described by the
- * ordered list of its steps, every excerpt that has a side
- * naming it in words, every annotated capture with a note per mark, and no demo of a RunHere
- * fetched before the reader's click. scripts/check-html.ts runs it on each page of dist/, so
- * a page that breaks one fails `bun run build`.
+ * with a legend that numbers its marks and each number drawn beside its region, every
+ * sequence captioned and described by the ordered list of its steps, every excerpt that has
+ * a side naming it in words, every annotated capture with a note per mark, and no demo of a
+ * RunHere fetched before the reader's click. scripts/check-html.ts runs it on each page of
+ * dist/, so a page that breaks one fails `bun run build`.
  */
 /// <reference types="bun" />
 
@@ -21,6 +21,8 @@ type Figure = {
   marks: number;
   /** A marked screen's region numbers (`data-marks`), which its legend lists. */
   regions: string[];
+  /** Its numbers with no blank cells to sit on (`data-unplaced`), which Screen leaves out. */
+  unplaced: string[];
   boot: string[];
 };
 
@@ -79,6 +81,7 @@ export async function kitProblems(html: string, page: string) {
           lists: 0,
           marks: 0,
           regions: (element.getAttribute("data-marks") ?? "").split(" ").filter(Boolean),
+          unplaced: (element.getAttribute("data-unplaced") ?? "").split(" ").filter(Boolean),
           boot: [],
         };
         figures.push(figure);
@@ -182,6 +185,8 @@ export async function kitProblems(html: string, page: string) {
         if (figure.lists === 0) say(figure, "no legend: an ordered list of its marks");
         else if (figure.items !== figure.regions.length)
           say(figure, `${figure.regions.length} marks for ${figure.items} legend items`);
+        for (const n of figure.unplaced)
+          say(figure, `mark ${n} has no blank cells beside its region: it would hide the screen`);
       }
     }
     if (figure.kind === "sequence") {

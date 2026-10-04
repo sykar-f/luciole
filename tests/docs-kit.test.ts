@@ -77,6 +77,16 @@ describe("the figure kit's contracts", () => {
     ]);
   });
 
+  test("a mark with no blank cells beside its region", async () => {
+    const crowded = marked(legend).replace(
+      'data-marks="1 2 3"',
+      'data-marks="1 2 3" data-unplaced="2"',
+    );
+    expect(await problems(crowded)).toEqual([
+      '/docs/a/: screen "Notes, marked": mark 2 has no blank cells beside its region: it would hide the screen',
+    ]);
+  });
+
   test("a sequence without the list of its steps", async () => {
     expect(await problems(sequence(""))).toEqual([
       '/docs/a/: sequence "A click": no ordered list of its steps',

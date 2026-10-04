@@ -5,6 +5,7 @@
 // to a screen reader and opens under it. A marked screen outlines its regions and numbers
 // them; the ordered list it holds, its legend, says what each number points to.
 import { escape, frame as load, style, text, type Frame } from "../lib/frames";
+import { badges } from "../lib/marks";
 import { uniqueId } from "../lib/transcripts";
 
 /** The cells of the screen a piece of code drew, in rectangles of rows and columns. */
@@ -54,6 +55,9 @@ if (!caption?.trim()) throw new Error(`Screen « ${frame.title} »: a caption is
 const regions = Astro.props.regions ?? (marks ? (frame.regions ?? []) : []);
 if (marks && regions.length === 0)
   throw new Error(`Screen « ${frame.title} »: marks, but no regions to mark.`);
+// Each number on blank cells beside its region; one with no room is left out, and
+// check-kit fails the page (data-unplaced) rather than let it cover the screen's text.
+const numbers = marks ? badges(frame, regions) : { badges: [], unplaced: [], gutter: 0 };
 const transcript = text(frame);
 
 // The id the screen's description points to: from the capture's title, so the same on
@@ -77,8 +81,12 @@ const html = frame.cells
   class:list={["stage", className, { wide, marks }]}
   data-figure="screen"
   data-marks={marks ? regions.map((region) => region.id).join(" ") : undefined}
+  data-unplaced={numbers.unplaced.length > 0 ? numbers.unplaced.join(" ") : undefined}
 >
-  <div class:list={["term", { printed, poweron }]} style={`--cols:${frame.cols}`}>
+  <div
+    class:list={["term", { printed, poweron }]}
+    style={`--cols:${frame.cols}${numbers.gutter ? `;--gutter:${numbers.gutter}` : ""}`}
+  >
     <div class="bar" aria-hidden="true">
       <span class="title"><b>┤</b> {frame.title} <b>├</b></span>
       <span class="size"><b>┤</b> {frame.cols}×{frame.rows} <b>├</b></span>
@@ -93,15 +101,23 @@ const html = frame.cells
         <pre aria-hidden="true" set:html={html} />
         {
           regions.flatMap((region) =>
-            region.rects.map(({ row, col, rows, cols }, i) => (
+            region.rects.map(({ row, col, rows, cols }) => (
               <span
                 class:list={["region", region.side]}
                 data-region={region.id}
-                data-n={marks && i === 0 ? region.id : undefined}
                 style={`--row:${row};--col:${col};--h:${rows};--w:${cols}`}
               />
             )),
           )
+        }
+        {
+          numbers.badges.map(({ id, side, row, col, cols }) => (
+            <span
+              class:list={["badge", side]}
+              data-n={id}
+              style={`--row:${row};--col:${col};--h:1;--w:${cols}`}
+            />
+          ))
         }
       </div>
       <slot name="live" />
@@ -274,11 +290,13 @@ const html = frame.cells
   /* A row is --cell-line em high: a page that lays a live terminal over the capture gives
      the terminal's, so both grids match. */
   .grid {
-    /* JetBrains Mono advances 0.6em: the grid fills the width exactly, never below 6px. */
+    /* JetBrains Mono advances 0.6em: the grid fills the width exactly, never below 6px.
+       A marked screen may open a --gutter of cells on its left, for the numbers of
+       regions that start at its edge. */
     position: relative;
     width: calc(var(--cols) * 0.6em);
-    margin: 0 12px;
-    font-size: max(6px, calc((100cqw - 26px) / var(--cols) / 0.6));
+    margin: 0 12px 0 calc(12px + var(--gutter, 0) * 0.6em);
+    font-size: max(6px, calc((100cqw - 26px) / (var(--cols) + var(--gutter, 0)) / 0.6));
   }
 
   pre {
@@ -325,32 +343,38 @@ const html = frame.cells
     opacity: 1;
   }
 
-  /* Marked: every region outlined, over the glass, and numbered at its first rectangle's
-     corner. The number is drawn, not text, so copying the screen copies the screen; the
-     legend says it in words. Dark on the side's colour: palettes.py holds each side at
-     4.5:1 or more on --night in every palette. */
+  /* Marked: every region outlined, over the glass, and numbered on blank cells beside it
+     (lib/marks.ts), so a number never hides the screen's text. The number is drawn, not
+     text: copying the screen copies the screen, and the legend says it in words. Dark on
+     the side's colour: palettes.py holds each side at 4.5:1 or more on --night in every
+     palette. */
   .marks .region {
     z-index: 2;
     opacity: 1;
   }
 
-  .marks .region[data-n]::before {
-    content: attr(data-n) / "";
+  .badge {
     position: absolute;
-    top: 0;
-    left: 0;
-    min-width: 1.5em;
-    padding: 0.2em 0.3em;
-    border-radius: 3px;
+    z-index: 2;
+    left: calc(var(--col) * 0.6em);
+    top: calc(var(--row) * var(--cell-line, 1.25) * 1em);
+    display: grid;
+    place-items: center;
+    width: calc(var(--w) * 0.6em);
+    height: calc(var(--cell-line, 1.25) * 1em);
+    border-radius: 2px;
     background: var(--screen-client);
     color: var(--night);
-    font: 700 max(0.75rem, 1em) / 1 var(--mono);
-    text-align: center;
-    transform: translate(-70%, -70%);
-    box-shadow: 0 0 0 2px var(--screen);
+    pointer-events: none;
   }
 
-  .marks .region.server[data-n]::before {
+  /* Its own size on the number only: the badge's em is the grid's, as its place is. */
+  .badge::before {
+    content: attr(data-n) / "";
+    font: 700 0.95em / 1 var(--mono);
+  }
+
+  .badge.server {
     background: var(--screen-server);
   }
 
