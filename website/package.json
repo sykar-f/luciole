@@ -9,7 +9,8 @@
     "check": "astro check",
     "lint": "../node_modules/.bin/oxlint --deny-warnings -c oxlint.website.json .",
     "capture": "python3 scripts/capture.py",
-    "demo": "bun scripts/demo.ts"
+    "demo": "bun scripts/demo.ts",
+    "deploy": "bun run demo && bun run build && wrangler deploy"
   },
   "dependencies": {
     "@astrojs/markdown-satteri": "0.4.2",
@@ -26,6 +27,7 @@
     "@astrojs/check": "0.9.10",
     "pagefind": "1.5.2",
     "shiki": "4.4.3",
-    "typescript": "6.0.2"
+    "typescript": "6.0.2",
+    "wrangler": "4.147.0"
   }
 }
