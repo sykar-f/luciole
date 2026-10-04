@@ -1,11 +1,13 @@
 # Contributing to luciole
 
-Thanks for your interest. luciole is experimental: APIs change without notice, so
-please open an issue to discuss a larger change before writing it.
+Thanks for your interest. luciole is experimental (version 0.x): the API may change in a
+minor release, so please open an issue to discuss a larger change before writing it.
+A change that breaks the API goes in the [CHANGELOG](CHANGELOG.md), marked **Breaking**.
 
 ## Setup
 
-You need [Bun](https://bun.sh) 1.4.2 (the version pinned in `package.json`).
+You need [Bun](https://bun.sh) 1.4.2, the version the repository pins (`.bun-version`).
+To only use luciole, [the README](README.md) has the shorter path.
 
 ```sh
 git clone https://github.com/sykar-f/luciole.git
