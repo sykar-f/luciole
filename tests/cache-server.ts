@@ -13,8 +13,13 @@ const late = cached(async () => {
   cacheTag("late");
   return "late data";
 }, "server/late.ts#late");
+// The /late page is held by two gates the test opens (through /open-page and /open-late), so
+// what it proves is an order of events: no duration stands for "the page function is still
+// running". Each test launches its own Server, so a gate left closed cannot reach another.
+const pageGate = Promise.withResolvers<void>();
+const lateGate = Promise.withResolvers<void>();
 async function Late() {
-  await Bun.sleep(400);
+  await lateGate.promise;
   return React.createElement("text", null, String(await late()));
 }
 const action = (fn: ServerFunction) => ({ fn, auth: "public" as const });
@@ -32,11 +37,35 @@ serve({
       },
     ],
     [
+      "/open-page",
+      {
+        component: () => {
+          pageGate.resolve();
+          return React.createElement("text", null, "open");
+        },
+        auth: "public" as const,
+        url: "/open-page",
+        params: [],
+      },
+    ],
+    [
+      "/open-late",
+      {
+        component: () => {
+          lateGate.resolve();
+          return React.createElement("text", null, "open");
+        },
+        auth: "public" as const,
+        url: "/open-late",
+        params: [],
+      },
+    ],
+    [
       "/late",
       {
-        // The page function itself takes 200 ms; its headers must not wait for it.
+        // The page function is held until /open-page; its headers must not wait for it.
         component: async () => {
-          await Bun.sleep(200);
+          await pageGate.promise;
           return React.createElement(
             "box",
             null,
