@@ -1,0 +1,21 @@
+---
+title: Glossary
+description: The terms the docs define, each in a sentence or two, with the page that explains it.
+sources:
+  - website/src/lib/docs/glossary.ts
+---
+
+import { alphabetical, anchorOf, pageHref, partsOf } from "../../../lib/docs/glossary";
+
+On every other page of the docs, the first use of a term links to its entry here. Each entry
+ends with the page that explains the term.
+
+<dl class="glossary">
+  {alphabetical.flatMap((term) => [
+    <dt id={anchorOf(term)}>{term.name}</dt>,
+    <dd>
+      {partsOf(term.definition).map((part) => (part.code ? <code>{part.text}</code> : part.text))}{" "}
+      <a href={pageHref(term)}>{term.see}</a>
+    </dd>,
+  ])}
+</dl>

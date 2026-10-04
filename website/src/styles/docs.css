@@ -275,6 +275,27 @@
   color: inherit;
 }
 
+/* The glossary: each term, then its definition; the term a link points to stands out. */
+.docs .prose .glossary dt {
+  margin-top: 1.3em;
+  color: var(--paper);
+  font-weight: 600;
+}
+
+.docs .prose .glossary dt:first-child {
+  margin-top: 0;
+}
+
+.docs .prose .glossary dd {
+  margin: 0.25em 0 0;
+}
+
+.docs .prose .glossary dt:target,
+.docs .prose .glossary dt:target + dd {
+  background: var(--night-raised);
+  box-shadow: -10px 0 0 var(--night-raised);
+}
+
 /* Code blocks from Markdown: Shiki with the palette's theme (lib/codeTheme.ts). */
 .docs .prose pre.astro-code {
   padding: 14px 16px;

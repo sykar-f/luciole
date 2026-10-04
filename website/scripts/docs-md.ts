@@ -5,7 +5,8 @@
  * imports go, and the components become what they say in Markdown: a note a quote, a
  * copyable command a shell block, an excerpt its code, a screen its transcript (a marked
  * one its legend too, whose numbers stand for the marks), a sequence
- * its steps, a capture its text and notes, each figure with its caption. A component this
+ * its steps, a capture its text and notes, each figure with its caption, and the glossary
+ * its terms, from the data that renders it. A component this
  * script has no Markdown for stops it: the page would lose what the component says.
  * Fenced code is kept as it is.
  *   bun website/scripts/docs-md.ts <directory>   # writes one .md per page
@@ -14,6 +15,7 @@ import { readFileSync } from "node:fs";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
 import { z } from "zod";
+import { alphabetical, pageHref } from "../src/lib/docs/glossary";
 import { excerpt, whole } from "../src/lib/guide/source";
 import { repo } from "../src/lib/links";
 import { commands, envPrefix } from "../src/lib/product";
@@ -369,6 +371,13 @@ function figure(
   }
 }
 
+/** The glossary page's terms, as glossary.ts gives them: one item each, its page linked. */
+function glossaryList() {
+  return alphabetical.map(
+    (term) => `- **${term.name}**: ${term.definition} [${term.see}](${pageHref(term)})`,
+  );
+}
+
 function prose(line: string) {
   return line
     .replace(/<Src path="([^"]+)"\s*\/>/g, "`$1`")
@@ -423,6 +432,14 @@ export function toMarkdown(mdx: string, page = "a page") {
     }
     if (/^\s*<\/Note>\s*$/.test(line)) {
       quoting = false;
+      continue;
+    }
+    // The glossary page renders its list from glossary.ts, in an expression.
+    if (/^\s*<dl class="glossary">\s*$/.test(line)) {
+      const close = lines.findIndex((other, at) => at > i && /^\s*<\/dl>\s*$/.test(other));
+      if (close < 0) throw new Error(`docs-md: the glossary in ${page} never closes.`);
+      i = close;
+      out.push(...quoted(glossaryList()));
       continue;
     }
     const tag = /^\s*<([A-Z]\w*)/.exec(line)?.[1];

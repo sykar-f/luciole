@@ -818,7 +818,7 @@ const NOT_PUBLIC = [
  * The public corpus, what a run reads by default: every docs page, the READMEs of the
  * repository, its packages and examples, the site's public pages with the components and
  * layouts they draw, and the modules that hold their text (the examples' blurbs, the
- * sections of the docs overview).
+ * sections of the docs overview, the glossary's definitions).
  */
 export function corpus() {
   return [
@@ -831,6 +831,7 @@ export function corpus() {
     ),
     join(site, "lib/examples.ts"),
     join(site, "lib/docs/nav.ts"),
+    join(site, "lib/docs/glossary.ts"),
   ];
 }
 
