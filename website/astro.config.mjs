@@ -1,5 +1,6 @@
 import { defineConfig, fontProviders } from "astro/config";
 import mdx from "@astrojs/mdx";
+import sitemap from "@astrojs/sitemap";
 import { satteri } from "@astrojs/markdown-satteri";
 import { night } from "./src/lib/codeTheme.ts";
 import { headingAnchors, renameProduct } from "./src/lib/docs/markdown.ts";
@@ -22,14 +23,19 @@ const SYMBOLS_RANGE = `
   .split(/,\s*/);
 
 export default defineConfig({
-  site: "https://github.com/sykar-f/luciole",
+  site: "https://luciole.sh",
   // `cloudflared tunnel --url http://localhost:4321` shares a local preview: its host.
   server: { allowedHosts: [".trycloudflare.com"] },
   // The page shows the example applications' real sources, read from the checkout.
   vite: { server: { fs: { allow: [".."] } } },
   // The documentation (src/content/docs): its code blocks take the palette's colours, like
   // every excerpt on the site.
-  integrations: [mdx()],
+  // The sitemap leaves out the pages Base.astro marks `hidden` (noindex): the og card's page
+  // and the lab prototypes.
+  integrations: [
+    mdx(),
+    sitemap({ filter: (page) => !/^https:\/\/luciole\.sh\/(og|lab)(\/|$)/.test(page) }),
+  ],
   // Self-hosted, preloaded from the head (Base.astro) and given metric-matched fallbacks, so
   // the first paint already has the fonts or text that does not move when they arrive.
   // global.css maps these variables onto --mono, --sans and --term.
