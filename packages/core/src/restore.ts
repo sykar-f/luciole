@@ -14,6 +14,16 @@ export type SessionEntry = {
   scroll?: Record<string, number>;
 };
 export type Session = { index: number; entries: SessionEntry[] };
+/** Where a session is written (src/session.ts): a moment later, or at once. */
+export type SessionWriter = {
+  schedule(session: Session): void;
+  flush(session: Session): void;
+};
+/**
+ * When a change must reach the disk: `later` lets keystrokes pile up behind one write;
+ * `now` is for what a submit took or gave back, written before its request leaves.
+ */
+type Write = "later" | "now";
 /** Where a field lives: an entry of the history, checked by its address. */
 export type Place = { index: number; href: string };
 
@@ -38,7 +48,7 @@ const copy = (e: SessionEntry): SessionEntry => ({
 export class Restoration {
   private entries: SessionEntry[];
   private index: number;
-  private listeners = new Set<() => void>();
+  private listeners = new Set<(write: Write) => void>();
   // Fields cleared by a submit: they stay unsaved until the user types into them again,
   // so a value set by the application (the one sent) is never saved back.
   private sent = new Set<string>();
@@ -111,7 +121,7 @@ export class Restoration {
       delete entry.fields[name];
       this.sent.add(`${place.index}\n${name}`);
     }
-    if (Object.keys(taken).length) this.changed();
+    if (Object.keys(taken).length) this.changed("now");
     return taken;
   }
   /** Puts back text taken by `take`, unless the user typed something newer since. */
@@ -124,7 +134,7 @@ export class Restoration {
       this.sent.delete(key);
       entry.fields[name] = value;
     }
-    this.changed();
+    this.changed("now");
   }
   /** The named field that had the focus at `place`. */
   focused(place: Place): string | undefined {
@@ -170,13 +180,24 @@ export class Restoration {
       ),
     };
   }
-  subscribe = (listener: () => void) => {
+  subscribe = (listener: (write: Write) => void) => {
     this.listeners.add(listener);
     return () => {
       this.listeners.delete(listener);
     };
   };
-  private changed() {
-    for (const listener of this.listeners) listener();
+  /**
+   * Writes the session to `writer` now, which claims it, then after every change. Typing
+   * is written a moment later and never waits on the disk. A submit's text is written
+   * gone before its request leaves: a Client killed while sending does not offer it again.
+   */
+  persistTo(writer: SessionWriter) {
+    writer.flush(this.snapshot());
+    return this.subscribe((write) =>
+      write === "now" ? writer.flush(this.snapshot()) : writer.schedule(this.snapshot()),
+    );
+  }
+  private changed(write: Write = "later") {
+    for (const listener of this.listeners) listener(write);
   }
 }

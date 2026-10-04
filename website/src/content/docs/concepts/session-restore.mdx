@@ -9,6 +9,7 @@ sources:
   - examples/notes/components/NoteEditor.tsx
   - examples/forge/components/NewPullForm.tsx
   - examples/forge/components/Conversation.tsx
+  - tests/restore-submit-kill.test.ts
 ---
 
 import Excerpt from "../../../components/guide/Excerpt.astro";
@@ -111,10 +112,16 @@ page, so the two are opt-in, by name:
 ## Sending without sending twice
 
 A group gathers the fields named `group/field`. `useRestoredFields("group").submit(action)`
-forgets their text **before** the request, so a crash while sending does not offer it again.
-If the outcome proves nothing ran (`not-sent`, `rejected`), or if `failed(result)` says the
-Server refused, the text is kept again, unless the user typed something newer meanwhile.
-`clear()` forgets it on demand.
+forgets their text **before** the request leaves, on disk too. A Client killed while sending
+does not offer the text again. `tests/restore-submit-kill.test.ts` kills one with SIGKILL as
+its save leaves, then checks that the next Client starts without the text.
+
+The text is kept again, unless the user typed something newer meanwhile, when:
+
+- the outcome proves nothing ran (`not-sent`, `rejected`)
+- `failed(result)` says the Server refused it
+
+`clear()` forgets the text on demand.
 
 <Excerpt
   path="examples/notes/components/NoteEditor.tsx"

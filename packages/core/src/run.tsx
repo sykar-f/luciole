@@ -120,8 +120,7 @@ export async function run(
     ...(devtools && { wrapTransport: devtools.wrapTransport }),
   });
   // Claims the session at once: another Client starting now must not take it.
-  session.flush(app.restoration.snapshot());
-  app.restoration.subscribe(() => session.schedule(app.restoration.snapshot()));
+  app.restoration.persistTo(session);
   if (supervised) app.onTokenChange((token) => supervised({ type: "bearer", token }));
   // Whoever started this Client over IPC (`luciole dev`, a sandbox host, studio) hears
   // which page failed and why: the error screen alone tells only a person.

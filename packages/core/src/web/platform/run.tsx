@@ -365,8 +365,7 @@ export async function runInPage(
     quitOnCtrlC: false,
   });
   app.onEvent(tellEvent);
-  session.flush(app.restoration.snapshot());
-  app.restoration.subscribe(() => session.schedule(app.restoration.snapshot()));
+  app.restoration.persistTo(session);
   addEventListener("pagehide", () => session.flush(app.restoration.snapshot()));
 
   // OpenTUI replaces the global requestAnimationFrame with its render loop's (renderer.ts),
