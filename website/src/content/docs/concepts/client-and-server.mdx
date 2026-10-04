@@ -215,15 +215,16 @@ Both programs must come from **the same build**. Each build has an ID, a hash of
 the build reads ([the list](/docs/reference/build-and-distribution/#how-the-build-id-is-made)).
 
 - The Client sends that ID with every request, in `x-luciole-build`.
-- A Server of another build refuses the request with a `409`.
+- A Server of another build refuses the request with a `409`, before decoding it.
 - The Client keeps what it already shows.
 
 Two tests check this:
 
 - `tests/http-transport.test.ts`: a page load carries the build ID. A `409` fails both a page
   load and a Server Function call as an incompatible build.
-- `tests/transport.test.tsx`: the Server answers an old build ID with a `409`. The status then
-  reads "Incompatible build", and an open editor keeps its text.
+- `tests/transport.test.tsx`: the Server answers an old build ID with a `409`, even when the
+  body cannot be decoded. The status then reads "Incompatible build", and an open editor keeps
+  its text.
 
 When the status reads "Incompatible build",
 [Troubleshooting](/docs/reference/troubleshooting/#the-server-answers-409) gives the fix.

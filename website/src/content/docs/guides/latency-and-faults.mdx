@@ -8,6 +8,7 @@ sources:
   - examples/latency
   - examples/notes/components/NoteEditor.tsx
   - examples/notes/components/StatusLine.tsx
+  - tests/http-transport.test.ts
 ---
 
 import CopyCommand from "../../../components/CopyCommand.astro";
@@ -126,7 +127,9 @@ succeeds. Press <kbd>Ctrl+T</kbd> to watch the requests.
   up, or let the user decide. An idempotent operation ID, stored with the result, makes the
   lookup possible.
 
-The framework never retries: it reports what it knows, and the app decides.
+The transport never retries a call: it reports what it knows, and the app decides.
+`tests/http-transport.test.ts` checks that a failed call sends one request, whatever its
+outcome.
 
 ## See the requests
 

@@ -20,6 +20,7 @@ sources:
   - packages/core/src/registry
   - website/scripts/capture.py
   - tests/build.test.ts
+  - tests/transport.test.tsx
 ---
 
 import Note from "../../../components/docs/Note.astro";
@@ -177,7 +178,8 @@ the previous build:
 ## How the build ID is made
 
 Both roles must come from the same build. The Client sends its build ID with each request, and
-a Server of another build refuses the request before decoding it.
+a Server of another build refuses the request before decoding it. `tests/transport.test.tsx`
+sends a body the Server cannot decode: with an old build ID, the answer is still a `409`.
 
 The build ID is a hash of what the build reads:
 
