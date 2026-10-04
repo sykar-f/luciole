@@ -627,9 +627,10 @@ export class Application {
         this.report(statusOf(e));
         throw redirect({ href: e.loginPath });
       }
-      // A failed refresh keeps the mounted tree, its focus and its Drafts; a failed
-      // navigation shows the error in the page slot, inside the persistent layouts.
-      if (mounted !== undefined && isReactNode(mounted)) {
+      // A failed refresh keeps the mounted tree, its focus and its Drafts; a refused one
+      // drops it, as it shows what this viewer may no longer see. Otherwise the error
+      // shows in the page slot, inside the persistent layouts.
+      if (mounted !== undefined && isReactNode(mounted) && !(e instanceof AuthenticationRequired)) {
         this.report(statusOf(e), messageOf(e));
         return mounted;
       }

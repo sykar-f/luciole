@@ -54,7 +54,8 @@ why ([`@luciole-sh/core/dev`](/docs/reference/api/#supervising-an-app-luciole-sh
 
 A failed navigation shows `error.tsx` in the page's place with the layouts still mounted.
 A failed **refresh** keeps the current tree mounted instead, and exposes the error in
-`useConnection().error`.
+`useConnection().error`. A refresh refused with a `401` is the exception: see
+[authentication](/docs/concepts/authentication/#what-happens-without-a-session).
 
 ## `not-found.tsx`
 

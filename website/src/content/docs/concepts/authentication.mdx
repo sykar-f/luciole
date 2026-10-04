@@ -80,8 +80,9 @@ export async function beginLogin() {
 - Without `unauthorizedPath`, a navigation still moves to the protected route. Its page slot
   shows the error, through the nearest `error.tsx`, inside the layouts that stay. The status
   is `Authentication required`.
-- Without `unauthorizedPath`, a refresh that gets a `401` keeps the page on screen, as any
-  failed refresh does.
+- Without `unauthorizedPath`, a refresh that gets a `401` takes the page off the screen. Its
+  page slot shows the error, as after a refused navigation. A refresh that fails for another
+  reason, such as a lost connection, keeps the page and its unsaved text.
 - A refused Server Function never navigates: the error reaches its caller, and
   `AuthenticationRequired.loginPath` says where to sign in.
 
@@ -92,10 +93,13 @@ TanStack's route cache, and again at the end of a navigation in progress. A priv
 cached under one token is never shown under another. Then it reloads the current routes
 with the new token. After signing in or out, your app navigates where it wants.
 
+Signing out on a protected page takes that page off the screen. The reload gets a `401`, and
+the Client goes to `unauthorizedPath`. Without `unauthorizedPath`, the page slot shows the error,
+inside the layouts that stay.
+
 <Note kind="warning">
-  Without `unauthorizedPath`, signing out on a protected page leaves that page on screen. The reload
-  gets a `401`, and a failed reload keeps the page it had. Navigate away right after `setToken()`,
-  or declare `unauthorizedPath`.
+  The page leaves the screen with the unsaved text its components held. The Client does not keep
+  that text, because keeping the page would leave the previous account's data on screen.
 </Note>
 
 Replacing a token also forgets the text of restorable fields
