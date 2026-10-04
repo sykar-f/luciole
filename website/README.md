@@ -36,6 +36,68 @@ bun run build      # dist/, publiable sur n'importe quel hébergement statique
 bun run check      # astro check : types des composants et scripts
 ```
 
+## Les composants des docs
+
+Chaque visuel d'une page de `src/content/docs/` passe par un de ces composants : il a une
+légende obligatoire et une version texte, et l'export Markdown (`scripts/docs-md.ts`, lu par
+la démo mdreader) sait l'écrire. Un composant que l'export ne connaît pas l'arrête :
+lui donner sa forme Markdown d'abord. `tests/docs-kit.test.ts` construit le site et vérifie
+ces contrats dans le HTML ; `tests/docs-md.test.ts` vérifie l'export.
+
+| Composant                        | Props                                                                                               | Ce que la page montre                                                                                                           |
+| -------------------------------- | --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `Screen` (`components/`)         | `frame` (nom dans `src/frames/` ou `Frame`), `caption`, `wide?`, `regions?`, `printed?`, `poweron?` | la capture, sa légende, sa transcription (`<details>` « Transcript », décrit l'écran) ; `wide` : 140 colonnes à 10 px à 1280 px |
+| `Sequence` (`components/guide/`) | `title`, `lanes`, `messages`, `caption`                                                             | le diagramme, sa légende, la liste numérotée de ses messages (« The steps as text »)                                            |
+| `Excerpt` (`components/guide/`)  | `path`, `find?`, `until?`, `count?`, `after?`, `mark?`, `tone?`, `lang?`, `caption?`                | le code trouvé par repères ; un `tone` non neutre écrit son côté (Client, Server, Wire, Build)                                  |
+| `AnnotatedCapture` (`docs/`)     | `path` (depuis la racine), `notes` (`{ match, note }`, `note` en Markdown inline), `caption`        | la capture, chaque `match` marqué et numéroté, puis les notes ; un `match` absent fait échouer le build                         |
+| `CodeAndScreen` (`docs/`)        | les props d'`Excerpt`, `frame`, `regions?`, `caption`                                               | le code et l'écran qu'il dessine, côte à côte dès 880 px de large, l'un sous l'autre sinon                                      |
+| `RunHere` (`docs/`)              | `demo` (dans `public/demo/`), `frame`, `name`, `caption`, `script?`                                 | la capture et un bouton ; la démo ne se charge qu'au clic (rien vers `/demo/` avant)                                            |
+
+```mdx
+import AnnotatedCapture from "../../../components/docs/AnnotatedCapture.astro";
+import CodeAndScreen from "../../../components/docs/CodeAndScreen.astro";
+import RunHere from "../../../components/docs/RunHere.astro";
+import Screen from "../../../components/Screen.astro";
+import Sequence from "../../../components/guide/Sequence.astro";
+
+<Screen frame="devtools-network" caption="The Network panel, both processes' requests." wide />
+
+<Sequence
+  title="A page"
+  lanes={[
+    { id: "client", label: "Client", tone: "client" },
+    { id: "server", label: "Server", tone: "server" },
+  ]}
+  messages={[
+    { from: "client", to: "server", label: "GET /render", n: 1 },
+    { from: "server", to: "client", label: "Flight: the page", n: 2, back: true },
+  ]}
+  caption="One round trip per page."
+/>
+
+<CodeAndScreen
+  path="examples/notes/app/notes/[id]/page.tsx"
+  find="export default async function Page"
+  until="^}"
+  tone="server"
+  frame="notes"
+  caption="The page, and the screen the Client draws from it."
+/>
+
+<AnnotatedCapture
+  path="website/src/frames/flight.txt"
+  caption="The Server's answer for note 1."
+  notes={[{ match: "1:R", note: "announces the page's stream." }]}
+/>
+
+<RunHere demo="notes" frame="notes" name="Notes" caption="Notes with note 1 open." />
+```
+
+Les props se lisent dans la source de la page : écrire des littéraux (chaînes, nombres,
+tableaux, objets), pas de variables, que l'export ne saurait pas évaluer. Les couleurs
+passent par `scripts/palettes.py --check` (en CI) : les lignes atténuées d'un extrait
+(`--code-dimmed`) restent à 4,5:1 au moins.
+
 ## Hors de l'espace de travail
 
 Comme `probes/`, `website/` a son propre `package.json` et son propre `bun.lock` et
