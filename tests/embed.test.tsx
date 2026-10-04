@@ -86,6 +86,14 @@ test("<Embed>: two applications, keys to the active pane, focus set aside, crash
             e.type === "invalidate" ||
             (e.type === "loader" && e.phase === "start"),
         );
+    // Whether a call of `app` to `action` (`file#export`) has finished, answered or failed.
+    const finished = (app: Application, action: string) =>
+      (events.get(app) ?? []).some(
+        (e) => (e.type === "end" || e.type === "error") && e.target.endsWith(`/${action}`),
+      );
+    // Whether `app` has navigated to `path`.
+    const reached = (app: Application, path: string) =>
+      (events.get(app) ?? []).some((e) => e.type === "navigation" && e.path === path);
     // Which pane has the keys: the host's state, switched by its prefix sequence.
     let active: "md" | "fx" = "md";
     const activePane = (): "md" | "fx" => active;
@@ -128,6 +136,10 @@ test("<Embed>: two applications, keys to the active pane, focus set aside, crash
         () => frame().includes("The first document.") && frame().includes("guide.md"),
         WAIT_MS,
       );
+      // files asks for the preview of its selected entry PREVIEW_DELAY_MS after its list
+      // shows (examples/files/components/Explorer.tsx): a baseline taken before that call
+      // ends would count it among what a key set off.
+      await until(() => finished(fxApp, "actions/files.ts#preview"), WAIT_MS);
     });
     // A crash stays in its pane.
     expect(frame()).toContain("bomb crashed:");
@@ -137,7 +149,12 @@ test("<Embed>: two applications, keys to the active pane, focus set aside, crash
     const fxBefore = count(fxApp);
     await act(async () => {
       ui?.mockInput.pressKey("[");
-      await until(() => frame().includes("The second document."), WAIT_MS);
+      // files' preview of guide.md can show the same text: mdreader's own navigation is
+      // what says mdreader opened it.
+      await until(
+        () => reached(mdApp, "/doc/guide.md") && frame().includes("The second document."),
+        WAIT_MS,
+      );
     });
     // …and files, which is not active, heard nothing.
     expect(startedSince(fxApp, fxBefore)).toEqual([]);
