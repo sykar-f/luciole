@@ -1,5 +1,6 @@
 import { test, expect } from "bun:test";
-import { mkdtemp, mkdir, readdir, rename, rm, stat, symlink } from "node:fs/promises";
+import { mkdtemp, mkdir, readdir, readlink, rename, rm, stat, symlink } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { build, publish } from "../packages/core/src/build";
@@ -286,6 +287,107 @@ test(
         expect((await readManifest(dir)).buildId).toBe(buildId);
         if (artefact) expect(await stat(join(dir, ".luciole", artefact))).toBeDefined();
       }
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+      await rm(cache, { recursive: true, force: true });
+    }
+  },
+  BUILD_TEST_MS * 3,
+);
+/** Every entry under `directory`: a file's SHA-256, a link's target, a directory's mark. */
+async function tree(directory: string, into = new Map<string, string>(), at = "") {
+  for (const entry of await readdir(join(directory, at), { withFileTypes: true })) {
+    const path = join(at, entry.name);
+    if (entry.isSymbolicLink()) into.set(path, `-> ${await readlink(join(directory, path))}`);
+    else if (entry.isDirectory()) {
+      into.set(path, "dir");
+      await tree(directory, into, path);
+    } else
+      into.set(
+        path,
+        createHash("sha256")
+          .update(await Bun.file(join(directory, path)).bytes())
+          .digest("hex"),
+      );
+  }
+  return into;
+}
+/** What a build left beside `.luciole/`: a temporary directory or a backup. */
+const leftovers = async (dir: string) =>
+  (await readdir(dir)).filter((name) => name.startsWith(".luciole-") && name !== ".luciole-lock");
+test("an up-to-date build stages on a copy and publishes it", async () => {
+  await fixture(
+    { "app/page.tsx": "export default function Page(){return <text>ok</text>}" },
+    async (dir) => {
+      const output = join(dir, ".luciole");
+      const first = await build(dir);
+      const before = await tree(output);
+      const staged: string[] = [];
+      const failure = await rejectionOf(
+        build(dir, undefined, {
+          stage: async (temp) => {
+            staged.push(temp);
+            expect(await readBuildId(temp)).toBe(first.buildId);
+            await Bun.write(join(temp, "server/index.js"), "half-written");
+            throw new Error("codesign failed");
+          },
+        }),
+      );
+      expect(messageOf(failure)).toBe("codesign failed");
+      expect(staged[0]).not.toBe(output);
+      expect(await tree(output)).toEqual(before);
+      expect(await leftovers(dir)).toEqual([]);
+      const again = await build(dir, undefined, {
+        stage: (temp) => Bun.write(join(temp, "web/index.html"), "STAGED_SENTINEL").then(() => {}),
+      });
+      expect(again.buildId).toBe(first.buildId);
+      expect(await Bun.file(join(output, "web/index.html")).text()).toBe("STAGED_SENTINEL");
+      expect(await leftovers(dir)).toEqual([]);
+    },
+  );
+});
+test(
+  "a failed --web or --compile on an up-to-date build leaves .luciole/ as it was",
+  async () => {
+    const dir = await temporaryApp("up-to-date-rollback");
+    const cache = await mkdtemp(join(tmpdir(), "luciole-web-cache-"));
+    try {
+      await mkdir(join(dir, "app"));
+      await Bun.write(
+        join(dir, "app/layout.tsx"),
+        `"use client";export default function Layout({children}){return children}`,
+      );
+      await Bun.write(
+        join(dir, "app/page.tsx"),
+        "export default function Page(){return <text>ok</text>}",
+      );
+      // A web runtime already prepared in the cache: no network, no Zig.
+      const runtime = await webRuntimeDirectory(join(cache, "luciole"));
+      await mkdir(join(runtime, TREE_SITTER_DIRECTORY), { recursive: true });
+      for (const name of [...WEB_RUNTIME_FILES, "runtime.js.map", "web-runtime.json"])
+        await Bun.write(join(runtime, name), name);
+      const cli = (...flags: string[]) =>
+        execute([process.execPath, resolve("packages/core/src/cli.ts"), "build", ...flags], {
+          cwd: dir,
+          env: { ...process.env, XDG_CACHE_HOME: cache },
+        });
+      const output = join(dir, ".luciole");
+      expect((await cli("--web")).exitCode).toBe(0);
+      const web = await tree(output);
+      // The runtime install fails half-way: its files are copied, then its tree-sitter
+      // directory is missing.
+      for (const name of WEB_RUNTIME_FILES) await Bun.write(join(runtime, name), "CHANGED");
+      await rm(join(runtime, TREE_SITTER_DIRECTORY), { recursive: true });
+      expect((await cli("--web")).exitCode).not.toBe(0);
+      expect(await tree(output)).toEqual(web);
+      expect(await leftovers(dir)).toEqual([]);
+      // The same for a binary: the runtime is looked up once the Server is bundled.
+      expect((await cli("--compile", "--runtime", "host")).exitCode).toBe(0);
+      const compiled = await tree(output);
+      const failed = await cli("--compile", "--runtime", join(dir, "no-such-bun"));
+      expect(failed.exitCode).not.toBe(0);
+      expect(await tree(output)).toEqual(compiled);
+      expect(await leftovers(dir)).toEqual([]);
     } finally {
       await rm(dir, { recursive: true, force: true });
       await rm(cache, { recursive: true, force: true });

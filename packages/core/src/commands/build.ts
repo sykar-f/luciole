@@ -94,13 +94,10 @@ export const build: Command = {
         appBundle: flag("--app-bundle") || web ? "required" : "auto",
         signBundle,
         webServer: local,
-        stage,
+        // An up-to-date build stages too, on a copy of the output already there.
+        stage: web || compile ? stage : undefined,
       });
-      // An up-to-date build returns before it stages anything: --web and --compile then
-      // act on the output already there, as they do on every repeated build.
-      if (!staging.directory) await stage(result.output);
-      const { directory: staged, compiled, outside } = staging;
-      if (!staged) throw new Error("the build staged nothing");
+      const { directory: staged = result.output, compiled, outside } = staging;
       if (outside) await moveStaged(outside.staged, outside.outfile);
       // Where a staged file ended up: the staging directory became `result.output`.
       const published = (file: string) => join(result.output, relative(staged, file));

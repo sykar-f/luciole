@@ -1,6 +1,6 @@
 import ts from "@typescript/typescript6";
 import { basename, resolve, relative, dirname, join } from "node:path";
-import { mkdir, readFile, readdir, rename, rm, realpath } from "node:fs/promises";
+import { cp, mkdir, readFile, readdir, rename, rm, realpath } from "node:fs/promises";
 import { readFileSync, realpathSync } from "node:fs";
 import { createRequire } from "node:module";
 import { createHash } from "node:crypto";
@@ -118,7 +118,8 @@ export type BuildOptions = {
   webServer?: boolean;
   /**
    * Adds to the staged build (`--web`'s runtime, `--compile`'s binary) before it replaces
-   * the active one: given the temporary directory, it throws and nothing is published.
+   * the active one: given the temporary directory, it throws and nothing is published. An
+   * up-to-date build stages on a copy of the active one.
    */
   stage?: (staged: string) => Promise<void>;
 };
@@ -367,6 +368,21 @@ export async function publish(temp: string, output: string, move = rename) {
     throw error;
   }
   await rm(backup, { recursive: true, force: true });
+}
+/**
+ * Stages on a copy of an up-to-date `output` and publishes it as a changed build is: a
+ * failing `stage` leaves `output` as it was.
+ */
+async function restage(output: string, stage: (staged: string) => Promise<void>) {
+  const temp = `${output}-${crypto.randomUUID()}`;
+  try {
+    await cp(output, temp, { recursive: true, preserveTimestamps: true, verbatimSymlinks: true });
+    await stage(temp);
+    await publish(temp, output);
+  } catch (error) {
+    await rm(temp, { recursive: true, force: true });
+    throw error;
+  }
 }
 async function buildUnlocked(
   directory: string,
@@ -827,7 +843,10 @@ async function buildUnlocked(
       manifest[`${id(p)}#${name}`] = { id: id(p), chunks: [], name };
   const builtWith = { appBundle, webServer, signed: !!signBundle };
   // A signature is not part of the identity: a signed build is always made afresh.
-  if (!signBundle && (await upToDate(output, buildId, builtWith))) return { buildId, output };
+  if (!signBundle && (await upToDate(output, buildId, builtWith))) {
+    if (stage) await restage(output, stage);
+    return { buildId, output };
+  }
   const temp = `${output}-${crypto.randomUUID()}`;
   await mkdir(temp, { recursive: true });
   const routes = graph.pages.map((r, i) => ({
