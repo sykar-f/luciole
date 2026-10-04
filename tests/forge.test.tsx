@@ -1,5 +1,8 @@
 /** @jsxImportSource @opentui/react */
 import { expect, test } from "bun:test";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 import { act } from "react";
 import { InputRenderable, TextareaRenderable } from "@opentui/core";
 import { testRender } from "@opentui/react/test-utils";
@@ -246,7 +249,12 @@ test("a description Draft survives a concurrent edit until it is explicitly disc
 }, 60000);
 
 test("CI logs stream live through Flight, then the rerun unblocks the merge", async () => {
-  const forge = await startForge(built, { env: { FORGE_CI_SCALE: "0.6" } });
+  // While this file exists the Server holds every CI log after its first line, so the
+  // mid-attempt state is read with the stream stopped, not against the CI clock.
+  const gate = join(await mkdtemp(join(tmpdir(), "forge-ci-gate-")), "held");
+  const forge = await startForge(built, {
+    env: { FORGE_CI_SCALE: "0.6", FORGE_CI_GATE: gate },
+  });
   const { ui, step, waitFor, operator } = forge;
   try {
     await forge.signIn("bob");
@@ -266,18 +274,23 @@ test("CI logs stream live through Flight, then the rerun unblocks the merge", as
       }),
     );
     await waitFor("✗ test");
+    await writeFile(gate, "");
     await step(() => ui.mockInput.typeText("r"));
     await waitFor("Checks restarted (attempt 2)");
     await step(() => ui.mockInput.typeText("j"));
-    // Lines arrive one by one while the page stays interactive.
-    const partial = await waitFor("$ bun test", 8000);
+    // Lines arrive one by one while the page stays interactive. The log and the check's
+    // row each read their own stream: both have their first line, and the gate holds the
+    // rest, so neither can end while the state is read.
+    await waitFor("$ bun test", 8000);
+    const partial = await waitFor("◐ test");
+    expect(partial).toContain("$ bun test");
     expect(partial).toContain("streaming…");
-    expect(partial).toContain("◐ test");
     expect(partial).not.toContain("passed (attempt 2)");
     const before = await forge.metrics();
     await step(() => ui.mockInput.typeText("k"));
     await step(() => ui.mockInput.typeText("j"));
     expect((await forge.metrics()).renders).toBe(before.renders);
+    await rm(gate);
     await waitFor("✓ passed (attempt 2)", 15000);
     // The component that watched a running check invalidates once it ends.
     await waitFor("✓ test", 5000);
@@ -285,6 +298,7 @@ test("CI logs stream live through Flight, then the rerun unblocks the merge", as
     await waitFor("Ready to merge");
   } finally {
     await forge.stop();
+    await rm(dirname(gate), { recursive: true, force: true });
   }
 }, 60000);
 
