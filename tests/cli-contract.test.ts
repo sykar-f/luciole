@@ -68,3 +68,28 @@ test("luciolex exits with the usage code when it has no target", async () => {
     expect(run.stderr.toString()).toContain("Usage: luciolex");
   }
 });
+
+test("--yes is luciole's before -- and the application's after it", async () => {
+  const { takeYes } = await import("../packages/core/src/commands/launch");
+  const own = takeYes(["--yes", "--verbose"]);
+  expect(own.args).toEqual(["--verbose"]);
+  expect(own.confirm).toHaveProperty("confirm");
+  const theirs = takeYes(["--", "--yes"]);
+  expect(theirs.args).toEqual(["--", "--yes"]);
+  expect(theirs.confirm).toEqual({});
+  const both = takeYes(["--yes", "--", "--yes"]);
+  expect(both.args).toEqual(["--", "--yes"]);
+  expect(both.confirm).toHaveProperty("confirm");
+});
+
+test("luciolex and luciole never read a --yes after -- as their own", async () => {
+  // The application is refused its unknown `--yes`: it reached the application.
+  for (const argv of [
+    [cli, dir, "--", "--yes"],
+    [luciolex, dir, "--", "--yes"],
+  ]) {
+    const run = await execute([process.execPath, ...argv]);
+    expect(run.exitCode).not.toBe(0);
+    expect(run.stderr.toString()).toContain("--yes");
+  }
+});

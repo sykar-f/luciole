@@ -3,9 +3,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { messageOf } from "../guards";
 import { launch as launchTarget } from "../launcher";
-import { acceptAll } from "../launcher/prompt";
 import { readPackageJson } from "../package-json";
 import { frameworkRoot, type Command } from "./command";
+import { takeYes } from "./launch";
 
 /** Where the examples live; `LUCIOLE_EXAMPLES_REPO` (a git URL) points elsewhere, for a fork or a test. */
 export const EXAMPLES_REPOSITORY = "github:sykar-f/luciole";
@@ -130,10 +130,7 @@ export const example: Command = {
       return;
     }
     const target = await resolveExample(name, repository, version);
-    const confirm = rest.includes("--yes") ? { confirm: acceptAll } : {};
-    process.exitCode = await launchTarget(target, {
-      args: rest.filter((arg) => arg !== "--yes"),
-      ...confirm,
-    });
+    const { args: appArgs, confirm } = takeYes(rest);
+    process.exitCode = await launchTarget(target, { args: appArgs, ...confirm });
   },
 };
