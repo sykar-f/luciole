@@ -17,6 +17,7 @@ const projects = [
   "packages/create",
   "packages/luciole.sh",
   "packages/flow-graph",
+  "packages/flow-graph/example",
   "packages/flow-graph/scripts",
   "packages/flow-graph/test",
   "packages/markdown-editor",
