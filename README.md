@@ -7,7 +7,7 @@
 
 # luciole
 
-Build terminal apps with React. Typing and scrolling stay local; the server keeps
+Build terminal apps with React. Typing and scrolling stay local; the Server keeps
 the data and runs model calls.
 
 luciole is a React Server Components framework for the terminal. Pages render on a
@@ -118,7 +118,7 @@ export default async function Page({ params }: { params: { id: string } }) {
 ```
 
 [`components/NoteEditor.tsx`](examples/notes/components/NoteEditor.tsx) runs on the
-Client. Each keystroke changes local state; no request is sent:
+Client. Each keystroke changes local state, and no request is sent:
 
 ```tsx
 "use client";
@@ -189,7 +189,8 @@ The examples are `agent`, `chat`, `coder`, `files`, `flow`, `latency`, `mdreader
 `notes` and `studio`. Only `example <name>` expands to the repository: a bare
 `luciole notes` is an npm package name, and `notes` there is not ours.
 
-From a clone (see [Development](#development)), run them from the root:
+From a clone (see [Work on luciole from a clone](#work-on-luciole-from-a-clone)), run them
+from the root:
 
 | Command                                                                          | Example                                                             |
 | -------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
@@ -206,7 +207,7 @@ From a clone (see [Development](#development)), run them from the root:
 The `chat`, `agent`, `coder` and `studio` examples talk to real models or coding agents once
 configured; see their READMEs in [`examples/`](examples/).
 
-## Documentation
+## Read the documentation
 
 The documentation is at **<https://luciole.sh/docs/>**, in English. Start there.
 
@@ -228,7 +229,7 @@ Then, by topic:
 - [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md): builds, binaries and the generic Client.
 - [docs/VALIDATION.md](docs/VALIDATION.md): what is tested, and the known limits.
 
-## Development
+## Work on luciole from a clone
 
 To work on luciole itself, run it from a clone:
 
@@ -253,8 +254,8 @@ LUCIOLE_LATENCY_MS=500 bun run dev
 ```
 
 Search, typing, scrolling and hover stay instant. Opening another note waits for the
-Server and shows a loading state. Saves are silent: Notes reports one only after 3 s, so
-typing alone shows no delay.
+Server and shows a loading state. Saves are silent: Notes mentions a save only when it
+takes more than 3 s, so typing alone shows no delay.
 
 To create an app that links your clone's packages:
 
