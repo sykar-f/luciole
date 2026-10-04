@@ -23,6 +23,14 @@ const frames = resolve(import.meta.dirname, "../src/frames");
 /** How much of a page's source an error quotes. */
 const QUOTED = 40;
 
+/** The release the pages name, read from the manifest as the releases page reads it. */
+const Core = z.looseObject({ version: z.string(), engines: z.object({ bun: z.string() }) });
+const core = Core.parse(
+  JSON.parse(
+    await readFile(resolve(import.meta.dirname, "../../packages/core/package.json"), "utf8"),
+  ),
+);
+
 /** What the pages' expressions read, as scripts in their front matter define them. */
 const values: Record<string, string> = {
   repo,
@@ -32,6 +40,9 @@ const values: Record<string, string> = {
   "commands.fromClone": commands.fromClone,
   "commands.cli": commands.cli,
   "commands.runner": commands.runner,
+  version: core.version,
+  distTag: core.version.includes("-") ? "next" : "latest",
+  bun: core.engines.bun,
 };
 const evaluate = (expression: string) => values[expression] ?? expression;
 
