@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { spawn } from "node:child_process";
-import { existsSync, readdirSync } from "node:fs";
-import { appendFile, chmod, copyFile, mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { appendFile, chmod, copyFile, mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { createInterface } from "node:readline";
@@ -12,7 +12,15 @@ import { messageOf } from "../packages/core/src/guards";
 import { readBinaryIdentity, type BinaryIdentity } from "../packages/core/src/launcher/identity";
 import { serverId } from "../packages/core/src/launcher/managed";
 import { runOn } from "../packages/core/src/launcher/remote";
-import { execute, leaveCrashedSession, privateBuild, rejectionOf, until } from "./helpers";
+import {
+  execute,
+  exited,
+  leaveCrashedSession,
+  privateBuild,
+  rejectionOf,
+  until,
+  WAIT_MS,
+} from "./helpers";
 
 const root = resolve("examples/notes");
 const built = await privateBuild("examples/notes");
@@ -146,24 +154,26 @@ test("`notes` alone runs both roles here; quitting on purpose stops its Server",
       stderr: "ignore",
     });
     let screen = "";
-    const deadline = performance.now() + 15000;
-    while (performance.now() < deadline && !screen.includes("Getting around")) {
-      await Bun.sleep(100);
-      screen = Bun.stripANSI(await readFile(log, "utf8").catch(() => ""));
-    }
+    const shown = () => {
+      screen = existsSync(log) ? Bun.stripANSI(readFileSync(log, "utf8")) : "";
+      return screen.includes("Getting around");
+    };
+    await until(shown, WAIT_MS, () => screen);
     // Listening now on its socket in the runtime directory, no TCP port.
     const sockets = () =>
       readdirSync(join(temporary, "luciole")).filter((entry) => entry.endsWith(".sock"));
     expect(sockets()).toHaveLength(1);
     await Bun.write(join(run, "stop"), "");
-    await Promise.race([client.exited, Bun.sleep(15000).then(() => client.kill())]);
-    expect(screen).toContain("Getting around");
+    // Ctrl+C quits the Client on purpose, which stops its Server and removes the socket.
+    await exited(client);
     // The Server's data lives where the user ran it; its log in their state directory.
     expect(existsSync(join(run, "notes.sqlite"))).toBe(true);
     expect(existsSync(join(run, ".local/state/luciole/notes/server.log"))).toBe(true);
-    const deadlineGone = performance.now() + 5000;
-    while (sockets().length && performance.now() < deadlineGone) await Bun.sleep(50);
-    expect(sockets()).toEqual([]);
+    await until(
+      () => sockets().length === 0,
+      WAIT_MS,
+      () => sockets().join("\n"),
+    );
   } finally {
     await rm(run, { recursive: true, force: true });
     await rm(temporary, { recursive: true, force: true });
@@ -314,9 +324,9 @@ test("--on: a lost Client finds its Server again; a cut tunnel comes back by its
     client.watch((reachable) => seen.push(reachable));
     const tunnels = (await sshCalls(host.log)).filter(({ args }) => args.includes("-N"));
     process.kill(tunnels.at(-1)?.pid ?? 0, "SIGKILL");
-    await until(() => seen.includes(false), 5000);
+    await until(() => seen.includes(false), WAIT_MS);
     // Started again after 1 s, on the same local socket: the same Server answers.
-    await until(() => seen.at(-1) === true, 10000);
+    await until(() => seen.at(-1) === true, WAIT_MS);
     expect(seen).toEqual([false, true]);
     expect((await health(second.url)).pid).toBe(pid);
     await client.leave();

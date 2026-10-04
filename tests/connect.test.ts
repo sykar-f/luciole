@@ -14,7 +14,7 @@ import {
 } from "../packages/core/src/connect";
 import { messageOf } from "../packages/core/src/guards";
 import type { Fetch } from "../packages/core/src/transport";
-import { rejectionOf, until } from "./helpers";
+import { rejectionOf, until, WAIT_MS } from "./helpers";
 
 let work: string, fakeSsh: string, server: ReturnType<typeof Bun.serve>;
 
@@ -116,9 +116,7 @@ test("ssh:// forwards a private socket to the remote Server and stops with the C
   ]);
   expect(alive(call.pid)).toBe(true);
   tunnel.close();
-  const deadline = performance.now() + 3000;
-  while (alive(call.pid) && performance.now() < deadline) await Bun.sleep(20);
-  expect(alive(call.pid)).toBe(false);
+  await until(() => !alive(call.pid), WAIT_MS);
   expect(await Bun.file(socket).exists()).toBe(false);
   // Defaults: the remote loopback, port 3000, the user's own ssh port and login.
   (await openTunnel("ssh://server.example", { ssh: fakeSsh })).close();
@@ -198,7 +196,7 @@ await openTunnel("ssh://silent.example", { ssh: ${JSON.stringify(fakeSsh)} });`,
   const calls = () => readFileSync(join(work, "calls.jsonl"), "utf8").length;
   const before = calls();
   const client = Bun.spawn([process.execPath, script], { stdout: "ignore", stderr: "ignore" });
-  await until(() => calls() > before);
+  await until(() => calls() > before, WAIT_MS);
   const call = await lastCall();
   const directory = dirname(call.args[call.args.indexOf("-L") + 1].split(":")[0]);
   expect(existsSync(directory)).toBe(true);
@@ -206,9 +204,7 @@ await openTunnel("ssh://silent.example", { ssh: ${JSON.stringify(fakeSsh)} });`,
   await client.exited;
   // The signal still ends the Client as it would have, after the tunnel is gone.
   expect(client.signalCode).toBe("SIGTERM");
-  const deadline = performance.now() + 3000;
-  while (alive(call.pid) && performance.now() < deadline) await Bun.sleep(20);
-  expect(alive(call.pid)).toBe(false);
+  await until(() => !alive(call.pid), WAIT_MS);
   expect(existsSync(directory)).toBe(false);
 });
 
@@ -222,9 +218,7 @@ test("ssh failures, stalls and option-like hosts are explained", async () => {
     ),
   ).toContain("no tunnel after 300 ms");
   const stalled = await lastCall();
-  const deadline = performance.now() + 3000;
-  while (alive(stalled.pid) && performance.now() < deadline) await Bun.sleep(20);
-  expect(alive(stalled.pid)).toBe(false);
+  await until(() => !alive(stalled.pid), WAIT_MS);
   expect(
     messageOf(await rejectionOf(openTunnel("ssh://-oProxyCommand=x/", { ssh: fakeSsh }))),
   ).toContain('cannot start with "-"');
@@ -242,7 +236,7 @@ test("a first ping that fails is reported: the Client started connected", async 
   const refused: Fetch = () => Promise.reject(new Error("refused"));
   const seen: boolean[] = [];
   keepAlive(refused, "watcher", 5).watch((reachable) => seen.push(reachable));
-  await until(() => seen.length > 0);
+  await until(() => seen.length > 0, WAIT_MS);
   expect(seen).toEqual([false]);
 });
 
@@ -258,7 +252,7 @@ test("a ping answered late does not undo what a newer one said", async () => {
   keepAlive(fetchServer, "watcher", 5).watch((reachable) => seen.push(reachable));
   // None answers on its own: the test says which does, and in what order.
   const answer = async (index: number, outcome: "ok" | "lost") => {
-    await until(() => pings.length > index);
+    await until(() => pings.length > index, WAIT_MS);
     if (outcome === "ok") pings[index]?.resolve(new Response());
     else pings[index]?.reject(new Error("no answer"));
     for (let i = 0; i < 10; i++) await Promise.resolve();

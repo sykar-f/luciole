@@ -2,6 +2,7 @@ import React from "react";
 import { serve, type ServerFunction } from "../packages/core/src/server";
 // A Server built by hand whose answers take longer than Bun's default idle timeout (10 s):
 // a page, a Server Function, and a stream that stays silent that long between values.
+// Each sleep below is that slowness, simulated on purpose: none waits for an outcome.
 const QUIET_MS = Number(process.env.SLOW_MS ?? 12_000);
 const action = (fn: ServerFunction) => ({ fn, auth: "public" as const });
 async function Slow() {

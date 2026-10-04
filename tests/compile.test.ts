@@ -1,10 +1,21 @@
 import { expect, test } from "bun:test";
-import { copyFile, mkdtemp, readFile, rm } from "node:fs/promises";
+import type { Subprocess } from "bun";
+import { existsSync, readFileSync } from "node:fs";
+import { copyFile, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { compileClient, hostTarget, runtimePortability } from "../packages/core/src/compile";
 import { messageOf } from "../packages/core/src/guards";
-import { BUILD_TEST_MS, execute, launch, privateBuild, rejectionOf } from "./helpers";
+import {
+  BUILD_TEST_MS,
+  execute,
+  exited,
+  launch,
+  privateBuild,
+  rejectionOf,
+  until,
+  WAIT_MS,
+} from "./helpers";
 
 const built = await privateBuild("examples/notes");
 
@@ -25,6 +36,7 @@ test("the compiled Client runs alone: no Bun, no node_modules, same build as its
   const server = await launch(join(built.output, "server/index.js"), {
     NOTES_DB: join(work, "notes.sqlite"),
   });
+  let client: Subprocess | undefined, run: string | undefined;
   try {
     const { outfile, target } = await compileClient(output, {
       name: "notes",
@@ -50,23 +62,26 @@ test("the compiled Client runs alone: no Bun, no node_modules, same build as its
       expect(text).toContain("com.apple.security.cs.disable-library-validation");
     }
     // An empty directory, far from any node_modules, with a minimal environment.
-    const run = await mkdtemp(join(tmpdir(), "luciole-run-"));
+    run = await mkdtemp(join(tmpdir(), "luciole-run-"));
     await copyFile(outfile, join(run, "client"));
     const log = join(run, "screen.log");
-    const client = Bun.spawn(inPty(log, `./client --url ${server.url}`), {
+    client = Bun.spawn(inPty(log, `./client --url ${server.url}`), {
       cwd: run,
       env: { HOME: run, TERM: "xterm-256color", PATH: "/usr/bin:/bin" },
       stdout: "ignore",
       stderr: "ignore",
     });
     let screen = "";
-    const deadline = performance.now() + 15000;
-    while (performance.now() < deadline && !screen.includes("Welcome to Notes")) {
-      await Bun.sleep(100);
-      screen = Bun.stripANSI(await readFile(log, "utf8").catch(() => ""));
-    }
+    const shown = () => {
+      screen = existsSync(log) ? Bun.stripANSI(readFileSync(log, "utf8")) : "";
+      return ["Welcome to Notes", "+ New note", "No note selected"].every((text) =>
+        screen.includes(text),
+      );
+    };
+    await until(shown, WAIT_MS, () => screen);
     await Bun.write(join(run, "stop"), "");
-    await Promise.race([client.exited, Bun.sleep(3000).then(() => client.kill())]);
+    // Ctrl+C: the Client quits on purpose, before its Server stops.
+    await exited(client);
     // The list only exists once the Server answered (the renderer redraws changed cells
     // only, so a status is not captured as one word).
     expect(screen).toContain("+ New note");
@@ -74,9 +89,14 @@ test("the compiled Client runs alone: no Bun, no node_modules, same build as its
     expect(screen).toContain("Welcome to Notes");
     // The build identity travels inside the binary.
     expect(await Bun.file(outfile).text()).toContain(buildId);
-    await rm(run, { recursive: true, force: true });
   } finally {
+    // After a failed step too, the Client quits before its Server stops under its calls.
+    if (client && run) {
+      await Bun.write(join(run, "stop"), "");
+      await exited(client).catch(() => {});
+    }
     await server.stop();
+    if (run) await rm(run, { recursive: true, force: true });
     await rm(work, { recursive: true, force: true });
   }
 }, 60000);

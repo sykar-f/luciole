@@ -212,6 +212,35 @@ export async function until(check: () => boolean, timeout = 5000, state?: () => 
     await Bun.sleep(10);
   }
 }
+/**
+ * `until` for a check that must ask: a socket, a file, another process. The guard against
+ * a hang is `WAIT_MS`, as for `untilFrame`.
+ */
+export async function eventually(
+  check: () => Promise<boolean>,
+  timeout = WAIT_MS,
+  state?: () => string,
+) {
+  const start = performance.now();
+  while (!(await check())) {
+    if (performance.now() - start > timeout) throw new Error(timedOut(state));
+    await Bun.sleep(10);
+  }
+}
+/**
+ * Waits for `child` to exit, as a test that told it to quit expects. One still running after
+ * `timeout` (the guard against a hang, which says nothing of how fast it quits) is killed,
+ * and the wait fails: a forced end is not the quit the test asked for.
+ */
+export async function exited(child: { exited: Promise<number>; kill(): void }, timeout = WAIT_MS) {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const hung = new Promise<"hung">((done) => (timer = setTimeout(() => done("hung"), timeout)));
+  const outcome = await Promise.race([child.exited, hung]);
+  clearTimeout(timer);
+  if (outcome !== "hung") return outcome;
+  child.kill();
+  throw new Error(`The process did not exit within ${timeout} ms`);
+}
 
 /**
  * Renders `ui` until its frame shows `text`, and returns that frame. The guard against a
