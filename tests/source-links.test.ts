@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { resolve } from "node:path";
+import { readFileSync } from "node:fs";
+import { join, resolve } from "node:path";
+import { z } from "zod";
 import { LIVE, buildRevision, repo, repoLink, revision } from "../website/src/lib/links.ts";
 import { sourceLink } from "../website/src/lib/docs/sources.ts";
 
@@ -49,4 +51,15 @@ describe("a link to a file of the repository", () => {
       expect(reason.length).toBeGreaterThan(10);
     }
   });
+});
+
+test("the markdown-editor README links to the release it documents", () => {
+  const dir = join(root, "packages/markdown-editor");
+  const { version } = z
+    .object({ version: z.string() })
+    .parse(JSON.parse(readFileSync(join(dir, "package.json"), "utf8")));
+  const readme = readFileSync(join(dir, "README.md"), "utf8");
+  const refs = [...readme.matchAll(/github\.com\/sykar-f\/luciole\/(?:blob|tree)\/([^/]+)\//g)];
+  expect(refs.length).toBeGreaterThan(0);
+  for (const [, ref] of refs) expect(ref).toBe(`v${version}`);
 });
