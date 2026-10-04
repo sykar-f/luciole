@@ -1,10 +1,11 @@
 ---
 title: App arguments
-description: Command-line options an app declares in app/args.ts with a zod schema. The grammar, --help, how each entry point hands them to the Server, and how the Server reads them typed.
+description: Command-line options an app declares in app/args.ts with a zod schema. The grammar, --help, how each entry point hands them to the Server, how the Server reads them typed, and the API a host checks them with.
 sources:
   - docs/API.md
   - packages/core/src/args.ts
   - packages/core/src/launcher/app-args.ts
+  - packages/core/src/luciolex.ts
   - packages/core/src/server.ts
   - examples/coder/app/args.ts
 ---
@@ -77,6 +78,9 @@ The build refuses an app that declares one of the runtime's options:
 - `--grace`, `--yes`, `--new`
 - `--help`, `-h`, `--version`
 
+`RESERVED_FLAGS` and `RESERVED_SHORTS` hold these names, without their dashes
+([below](#check-a-command-line-from-a-host-or-a-tool)).
+
 ## Read them on the Server
 
 The value is typed by the import, with no code generation:
@@ -130,3 +134,134 @@ The build bundles `app/args.ts` into `.luciole/args/`. It writes the options' JS
   the key that decides which Server a launch joins, and part of every `"use cache"` key. In the
   browser (`--web-local`), the Server has no command line and takes the schema's defaults.
 </Note>
+
+## Check a command line from a host or a tool
+
+`app/args.ts` needs `defineArgs` alone. A host or a tool that checks an app's options before it
+starts the Server, as the launcher does, uses the rest of `@luciole-sh/core/args`:
+
+```ts
+import {
+  ArgsError,
+  defineArgs,
+  isUsageError,
+  RESERVED_FLAGS,
+  RESERVED_SHORTS,
+  USAGE_EXIT_CODE,
+  type ArgsDefinition,
+  type ArgsSchema,
+  type ArgsSpec,
+  type HelpOptions,
+  type ParseContext,
+  type StandardJsonSchema,
+  type StandardSchema,
+} from "@luciole-sh/core/args";
+```
+
+### `defineArgs(spec)`
+
+`spec` is an `ArgsSpec<Output>`:
+
+| Field       | Type                 | Contract                                                   |
+| ----------- | -------------------- | ---------------------------------------------------------- |
+| `summary?`  | `string`             | The line after the app's name, at the top of `--help`.     |
+| `options`   | `ArgsSchema<Output>` | The options' schema. `Output` is the type `get()` returns. |
+| `examples?` | `readonly string[]`  | Command lines listed at the end of `--help`.               |
+
+`defineArgs` returns an `ArgsDefinition<Output>`: the fields of `spec`, and these methods.
+
+| Method                   | Returns              | Contract                                                                                     |
+| ------------------------ | -------------------- | -------------------------------------------------------------------------------------------- |
+| `parse(argv, context)`   | `Promise<Output>`    | Parses and validates the words of `argv`. Rejects with an `ArgsError` that names the option. |
+| `help(options)`          | `string`             | The text `--help` prints: the app's options, then the runtime's, then the examples.          |
+| `get()`                  | `Output`             | The Server's parsed options ([above](#read-them-on-the-server)).                             |
+| `flags()`                | one entry per option | The grammar, checked. Throws the configuration errors below.                                 |
+| `jsonSchema()`           | a JSON Schema object | The options' JSON Schema, draft 2020-12, as the build writes it to `metadata.json`.          |
+| `adopt(launch, context)` | the parsed launch    | The Server parses its own launch with it. An app or a host never calls it.                   |
+
+`get()` outside a started Server throws `Application arguments are read on the Server, once it
+started; pass what the UI needs as props`.
+
+`parse` takes a `ParseContext`:
+
+| Field  | Contract                                                                           |
+| ------ | ---------------------------------------------------------------------------------- |
+| `cwd`  | The directory the command was typed in. `kind: "path"` values resolve against it.  |
+| `env?` | The variables that options with `env` read. Default: `{}`, so no variable is read. |
+
+`help` takes `HelpOptions`:
+
+| Field      | Contract                                                                            |
+| ---------- | ----------------------------------------------------------------------------------- |
+| `name`     | The app's name, on the first line.                                                  |
+| `version?` | Printed after the name.                                                             |
+| `runtime?` | Rows of `{ flags, description }`, listed under `Runtime (luciole):`. Default: none. |
+| `usage?`   | The `Usage:` lines. Default: `<name> [options]`.                                    |
+
+The launcher checks the words before it starts a Server, then passes them on:
+
+<Excerpt
+  path="packages/core/src/launcher/app-args.ts"
+  find="export async function checkArgs"
+  until="^}"
+  tone="neutral"
+/>
+
+### The schema types
+
+`ArgsSchema<Output>` is `StandardSchema<unknown, Output> & StandardJsonSchema`. A zod 4 schema
+is both. Another library fits when its schema has both of these under `~standard`:
+
+- `StandardSchema<Input, Output>`: `version: 1`, a `vendor` name and
+  `validate(value)`, which returns `{ value }` or `{ issues }`, or a promise of either
+- `StandardJsonSchema`: `jsonSchema.input({ target: "draft-2020-12" })`, which returns the JSON
+  Schema the grammar and `--help` are read from
+
+The Server validates synchronously, before the app's modules run. A schema whose `validate`
+returns a promise stops the Server with `app/args.ts: an asynchronous schema cannot configure a
+Server`.
+
+### Usage errors
+
+A command line the app refuses rejects with an `ArgsError`. It extends `Error` and carries
+`exitCode`, which is `USAGE_EXIT_CODE`: `2`.
+
+`isUsageError(error)` is `true` for any object whose `exitCode` is `2`. Use it rather than
+`instanceof`, because the launcher imports the app's bundled copy of this module, whose class
+is not its own.
+
+<Excerpt path="packages/core/src/luciolex.ts" find="launch(target" until="^);" tone="neutral" />
+
+| Message                                                       | When                                                          |
+| ------------------------------------------------------------- | ------------------------------------------------------------- |
+| `Unknown option --<name> (did you mean --<option>?)`          | The option does not exist. The suggestion needs a close name. |
+| `Unknown option -<letter>`                                    | No option has this short alias.                               |
+| `--<option> needs a value`                                    | The word after it is missing.                                 |
+| `--<option> takes no value (--no-<option> turns it off)`      | A boolean option is given `=value`.                           |
+| `--<option> is given twice`                                   | An option that is not an array appears twice.                 |
+| `--<option>: expected one of a\|b, got "<value>"`             | The value is not one of the enum's.                           |
+| `--<option>: expected a number, got "<value>"`                | A number option is given text.                                |
+| `Unexpected argument <word>: this app takes options only`     | A word is not an option, or follows `--`.                     |
+| `<VARIABLE>: expected 1, true, 0 or false for --<option>`     | A boolean option's variable holds another value.              |
+| `Missing --<option>`, or `Missing --<option> (or <VARIABLE>)` | A required option is absent, and so is its variable.          |
+| `--<option>: <message>`                                       | The schema refused the value, with the schema's own message.  |
+
+### Configuration errors
+
+A schema the grammar cannot read throws an `Error` from `flags()` and `parse()`. The build
+reports the same message and stops:
+
+| Message                                                                   | Cause                                                |
+| ------------------------------------------------------------------------- | ---------------------------------------------------- |
+| `app/args.ts: options must be an object schema`                           | `options` is not an object schema.                   |
+| `app/args.ts: --<option>: unsupported schema; use a boolean, a string, …` | A nested object, another union, or a bad `.meta()`.  |
+| `app/args.ts: --<option> is reserved by luciole (--url --on …)`           | The option is one of `RESERVED_FLAGS`.               |
+| `app/args.ts: --<option>: -h is reserved by luciole`                      | The short alias is one of `RESERVED_SHORTS`.         |
+| `app/args.ts: -<letter> names both --<a> and --<b>`                       | Two options share a short alias.                     |
+| `app/args.ts: export default defineArgs({...})`                           | The build found no definition as the default export. |
+
+A bad `.meta()` names its key in the message: `short must be one letter`, or `env must be a
+variable name`.
+
+`RESERVED_FLAGS` is `["url", "on", "target", "grace", "yes", "help", "version", "new"]`, and
+`RESERVED_SHORTS` is `["h"]`.
