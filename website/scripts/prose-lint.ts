@@ -19,6 +19,7 @@ import { z } from "zod";
 
 export const root = resolve(import.meta.dirname, "../..");
 export const allowlistPath = resolve(import.meta.dirname, "prose-allowlist.json");
+export const stylePath = resolve(import.meta.dirname, "../STYLE.md");
 const docs = join(root, "website/src/content/docs");
 
 const MAX_PARAGRAPH_WORDS = 60;
@@ -29,6 +30,7 @@ export const rules = [
   "long-sentence",
   "chained-clauses",
   "split-paragraph",
+  "avoid-term",
   "bad-allow",
   "unused-allow",
 ] as const;
@@ -54,6 +56,31 @@ const LIST_ITEM = /^([-*+]|\d+[.)])\s+/;
 const INLINE_TAG = /^<\/?(kbd|code|Src|a|em|strong|b|i|br|sup|sub|abbr|span)\b/;
 const COMMENT_ONLY = /^(\{\/\*.*\*\/\}|<!--.*-->)$/;
 const ALLOW = /prose-lint:\s*allow\s+([\w-]+)\s*(?:—|--?)\s*(\S.*?)\s*(?:\*\/\}|-->)/;
+const TABLE_RULE = /^\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?$/;
+
+/** The cells of a table row, split on the pipes that are neither escaped nor in code. */
+function cells(row: string) {
+  const found: string[] = [];
+  let cell = "";
+  let code = false;
+  for (let at = 0; at < row.length; at++) {
+    const char = row[at];
+    if (char === "\\" && row[at + 1] === "|") {
+      cell += "|";
+      at++;
+    } else if (char === "`") {
+      code = !code;
+      cell += char;
+    } else if (char === "|" && !code) {
+      found.push(cell);
+      cell = "";
+    } else cell += char;
+  }
+  found.push(cell);
+  if (row.trimStart().startsWith("|")) found.shift();
+  if (row.trimEnd().endsWith("|")) found.pop();
+  return found.map((text) => text.trim()).filter((text) => text !== "");
+}
 
 /**
  * Splits a page into prose blocks, and records the exception comments by line. Lines are
@@ -62,6 +89,7 @@ const ALLOW = /prose-lint:\s*allow\s+([\w-]+)\s*(?:—|--?)\s*(\S.*?)\s*(?:\*\/\
 function blocks(source: string) {
   const lines = source.split("\n");
   const found: Block[] = [];
+  const headings: Block[] = [];
   const comments: { line: number; text: string }[] = [];
   let current: Block | undefined;
   let fence: string | undefined;
@@ -110,7 +138,12 @@ function blocks(source: string) {
       if (!/;\s*$/.test(text)) skipUntil = /;\s*$/;
       continue;
     }
-    if (text.startsWith("#") || text.startsWith("|")) {
+    if (text.startsWith("#")) {
+      close();
+      headings.push({ lines: [{ line, text: text.replace(/^#+\s*/, "") }] });
+      continue;
+    }
+    if (text.startsWith("|")) {
       close();
       continue;
     }
@@ -136,7 +169,7 @@ function blocks(source: string) {
     current.lines.push({ line, text });
   }
   close();
-  return { blocks: found, comments };
+  return { blocks: found, headings, comments };
 }
 
 /** `length` characters that count as one word, carry no punctuation and can start a sentence. */
@@ -145,12 +178,12 @@ const blank = (length: number) => " ".repeat(length);
 
 /**
  * The block's text with the same offsets, where code, expressions, URLs and tags no longer
- * count as punctuation or as several words: a code span is one word, a link is its text.
+ * count as punctuation or as several words: code is one word, a link is its text.
  */
 function plain(text: string) {
   return text
     .replace(/\{\/\*[\s\S]*?\*\/\}|<!--[\s\S]*?-->/g, (match) => blank(match.length))
-    .replace(/(`+)[\s\S]*?\1/g, (match) => word(match.length))
+    .replace(/(`+)[\s\S]*?\1|<code\b[^>]*>[\s\S]*?<\/code>/g, (match) => word(match.length))
     .replace(/\{[^{}]*\}/g, (match) => word(match.length))
     .replace(/<[A-Z][^>]*\/>/g, (match) => word(match.length))
     .replace(/<\/?[a-zA-Z][^>]*>/g, (match) => blank(match.length))
@@ -175,9 +208,63 @@ const ENDS_SENTENCE = /[.!?:…][)\]"'*_`]*$/;
 /** What starts the second half of a sentence cut by a blank line. */
 const CONTINUES = /^(<(kbd|code|Src)\b|\p{Ll})/u;
 
+/** A form the terminology table of STYLE.md says to avoid, as the lint finds it. */
+export interface AvoidTerm {
+  pattern: RegExp;
+  /** The rows of the table it checks, by their Concept. */
+  concepts: string[];
+  /** A path prefix where the form is the right one. */
+  except?: string;
+}
+
+/**
+ * The forms to avoid, read from STYLE.md: the `avoid-term` block under the terminology
+ * table. Each line is `/<regex>/<flags> <concept>[ + <concept>…][ (not in <path>)]`, or
+ * `(reviewer) <concept>` for a row the lint cannot judge. Every row of the table has a line,
+ * and every line names a row: the two cannot drift apart.
+ */
+export function readAvoidTerms(style = readFileSync(stylePath, "utf8")): AvoidTerm[] {
+  const section = /^## Terminology\n([\s\S]*?)^## /m.exec(style)?.[1];
+  if (!section) throw new Error("STYLE.md: no Terminology section");
+  const rows = section
+    .split("\n")
+    .filter((line) => line.startsWith("|") && !TABLE_RULE.test(line))
+    .map((line) => cells(line)[0] ?? "")
+    .slice(1);
+  const lines = /^```avoid-term\n([\s\S]*?)^```/m.exec(section)?.[1]?.split("\n") ?? [];
+  if (lines.length === 0) throw new Error("STYLE.md: no avoid-term block under the table");
+  const terms: AvoidTerm[] = [];
+  const named = new Set<string>();
+  for (const line of lines.filter((text) => text.trim() !== "")) {
+    const parsed =
+      /^(?:\/((?:\\.|[^\\/])+)\/([a-z]*)|\(reviewer\))\s+(.+?)(?:\s+\(not in (\S+)\))?$/.exec(line);
+    if (!parsed) throw new Error(`STYLE.md: bad avoid-term line: ${line}`);
+    const [, source, flags = "", list = "", except] = parsed;
+    const concepts = list.split(" + ").map((concept) => concept.trim());
+    for (const concept of concepts) {
+      if (!rows.includes(concept))
+        throw new Error(`STYLE.md: avoid-term names "${concept}", not a row of the table`);
+      named.add(concept);
+    }
+    if (source) terms.push({ pattern: new RegExp(source, `${flags}g`), concepts, except });
+  }
+  const missing = rows.filter((row) => !named.has(row));
+  if (missing.length > 0)
+    throw new Error(
+      `STYLE.md: no avoid-term line for ${missing.map((row) => `"${row}"`).join(", ")}`,
+    );
+  return terms;
+}
+
+let avoidTerms: AvoidTerm[] | undefined;
+
 /** Lints one page; `path` is how its findings name it, relative to the repository. */
-export function lintSource(path: string, source: string): Finding[] {
-  const { blocks: found, comments } = blocks(source);
+export function lintSource(
+  path: string,
+  source: string,
+  terms = (avoidTerms ??= readAvoidTerms()),
+): Finding[] {
+  const { blocks: found, headings, comments } = blocks(source);
   const findings: Finding[] = [];
   const report = (line: number, rule: Rule, detail: string) =>
     findings.push({ path, line, rule, detail });
@@ -201,6 +288,26 @@ export function lintSource(path: string, source: string): Finding[] {
       if (semicolons > 1 || (semicolons > 0 && colons > 0))
         report(line, "chained-clauses", `${semicolons} semicolons, ${colons} colons`);
     }
+  }
+
+  // A form to avoid, in prose: code spans, expressions, URLs and directives are set aside.
+  const applies = terms.filter(({ except }) => !except || !path.startsWith(except));
+  for (const block of [...found, ...headings]) {
+    const first = block.lines[0];
+    if (!first) continue;
+    const text = plain(block.lines.map(({ text }) => text).join("\n")).replace(
+      /"use (client|server|cache)"/g,
+      (match) => word(match.length),
+    );
+    const seen = new Set<number>();
+    for (const { pattern, concepts } of applies)
+      for (const match of text.matchAll(pattern)) {
+        const index = match.index ?? 0;
+        if (seen.has(index)) continue;
+        seen.add(index);
+        const line = first.line + text.slice(0, index).split("\n").length - 1;
+        report(line, "avoid-term", `"${match[0]}": ${concepts.join(", ")}`);
+      }
   }
 
   // A blank line inside a sentence: MDX renders the rest as a new paragraph.

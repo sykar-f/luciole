@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import {
@@ -7,7 +7,9 @@ import {
   lintSource,
   ratchet,
   readAllowlist,
+  readAvoidTerms,
   run,
+  stylePath,
 } from "../website/scripts/prose-lint.ts";
 
 // The prose lint of website/STYLE.md. The docs must hold the ratchet of
@@ -17,6 +19,9 @@ const root = resolve(import.meta.dir, "..");
 
 const rulesOf = (source: string) =>
   lintSource("page.mdx", source).map(({ line, rule }) => `${line} ${rule}`);
+
+const findingsOf = (source: string, path = "page.mdx") =>
+  lintSource(path, source).map(({ line, rule, detail }) => `${line} ${rule} ${detail}`);
 
 describe("the docs and the README", () => {
   const { files, findings, errors } = run();
@@ -217,6 +222,76 @@ describe("what is not prose", () => {
     const item = Array.from({ length: 40 }, () => "word").join(" ");
     const page = [`- ${item}.`, `- ${item}.`].join("\n");
     expect(rulesOf(page)).toEqual(["1 long-sentence", "2 long-sentence"]);
+  });
+});
+
+describe("avoid-term", () => {
+  const terms = (source: string, path?: string) =>
+    findingsOf(source, path)
+      .filter((finding) => finding.includes("avoid-term"))
+      .map((finding) => finding.replace(/:.*$/, ""));
+
+  test("flags the forms of the table in prose, not in code", () => {
+    // The landing's sub-title (Hero.astro:64) and its rewrite.
+    expect(
+      terms("Server Components render next to your data, the client runs in your terminal."),
+    ).toEqual(['1 avoid-term "client"']);
+    expect(
+      terms("Server Components render next to your data, the Client runs in your terminal."),
+    ).toEqual([]);
+    expect(terms("Import it from `client`, or `@luciole-sh/core/client`.")).toEqual([]);
+    expect(terms("<code>the client</code> and {client} are not prose.")).toEqual([]);
+  });
+
+  test("keeps the generic sense and the code names", () => {
+    expect(terms("An HTTP client, an SSH server and a web server are not luciole's.")).toEqual([]);
+    expect(terms("`saveAction` posts to /action, and actions/ holds it.")).toEqual([]);
+    expect(terms('GitHub Actions runs it. A `"use server"` module or "use client".')).toEqual([]);
+    expect(terms("Pages, actions and repositories read it.")).toEqual(['1 avoid-term "actions"']);
+  });
+
+  test("tells the two sessions apart from the one the table refuses", () => {
+    expect(terms("The sign-in session, the restored session, the Session restore page.")).toEqual(
+      [],
+    );
+    expect(terms("A request without it has no session.")).toEqual(['1 avoid-term "session"']);
+    expect(terms("Replacing a bearer forgets the text; the bearer token stays.")).toEqual([
+      '1 avoid-term "bearer"',
+    ]);
+  });
+
+  test("lets Notes name its Draft, and no framework page", () => {
+    const line = "Anything held only in memory, Drafts included, is lost.";
+    expect(terms(line, "examples/notes/README.md")).toEqual([]);
+    expect(terms(line, "website/src/content/docs/concepts/session-restore.mdx")).toEqual([
+      '1 avoid-term "Drafts"',
+    ]);
+  });
+
+  test("checks headings, and reports the line of the form", () => {
+    expect(terms("## The connection, in the app's chrome")).toEqual(['1 avoid-term "chrome"']);
+    expect(terms("One line.\nThen the dev server")).toEqual(['2 avoid-term "server"']);
+  });
+
+  test("an allow comment silences one", () => {
+    expect(
+      terms(
+        "{/* prose-lint: allow avoid-term — a process session, not luciole's */}\nIts own session.",
+      ),
+    ).toEqual([]);
+  });
+
+  test("reads every row of the STYLE.md table, and refuses a row without a line", () => {
+    const style = readFileSync(stylePath, "utf8");
+    expect(readAvoidTerms(style).length).toBeGreaterThan(10);
+    const withoutChrome = style.replace(/^\/\\bchrome.*\n/m, "");
+    expect(() => readAvoidTerms(withoutChrome)).toThrow(
+      `no avoid-term line for "The persistent part of an app's screen"`,
+    );
+    const unknown = style.replace("/\\bchrome\\b/ The persistent", "/\\bchrome\\b/ The chrome");
+    expect(() => readAvoidTerms(unknown)).toThrow(
+      `names "The chrome part of an app's screen", not a row of the table`,
+    );
   });
 });
 

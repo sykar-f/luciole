@@ -217,6 +217,31 @@ One name per concept. The "Avoid" column lists the forms found in the pages on 2
 | The machine `--on` reaches over SSH       | **remote machine**                                                                                                          | "host"                                                 | It keeps "host" for one meaning.                                                                                    |
 | The library that opens an app             | **launcher**                                                                                                                | "launcher" for the app that bare `luciole` opens       | One name per thing. Call that app "the app list", as it lists installed apps.                                       |
 
+**lint:** `avoid-term` reports each form below in prose. Code spans, `<code>`, expressions,
+URLs and the `"use client"` directives are not prose, so `saveAction`, `/action` and
+`` `client` `` pass. Each line names the rows it checks. `(reviewer)` marks a row whose form
+depends on meaning, which the reviewer checks, as with any form inside code. The lint refuses
+a row without a line.
+
+```avoid-term
+/(?<![\w\/.@-]|\b[A-Z][A-Z0-9]+[ -]|\bweb )(client|server)s?(?![\w\/]|\.\w)/ luciole's two programs
+/\b[Tt]he terminal\b/ luciole's two programs
+/(?<![\w\/]|GitHub )(public )?actions?(?![\w\/])/ A function the Client calls on the Server
+/\bServer (Actions?|References?)\b/ A function the Client calls on the Server
+/\b[Bb]earer\b(?! token)/ The credential sent with each request
+/(?<!\b(sign-in|restored|agent|coding-agent|shell|terminal|tmux|recorded|SSH) )\b[Ss]essions?\b(?! restore)/ What `authenticate` returns + What the Client keeps across restarts
+/\bDrafts?\b/ Text typed but not saved yet (not in examples/notes/)
+/\bchrome\b/ The persistent part of an app's screen
+/\bthe luciole dependency\b/ The framework package
+/(?<![\w@.\/-])luciole\/[a-z]/ Its entries
+/@luciole\// Its entries + The libraries
+/\bbunx luciole(?![.\w])/ Installing
+/\bluciole CLI tool\b/ The command line
+/\bLuciole\b/ The product
+(reviewer) The program that embeds an app + The machine `--on` reaches over SSH
+(reviewer) The library that opens an app
+```
+
 ## Page shapes
 
 Each page does one of the four [Diátaxis](https://diataxis.fr/) jobs, and its opening and
@@ -236,8 +261,8 @@ In a Reference entry, give the exact import or command, the signature or flags, 
 
 `bun website/scripts/prose-lint.ts [paths]` lints the given files or directories, or every
 page and the `README.md` when no path is given. Each finding prints as `path:line rule`. It
-skips front matter, imports, fenced code, tables, headings, HTML blocks and component tags.
-It lints the Markdown inside a component, such as a Note's text.
+skips front matter, imports, fenced code, tables, HTML blocks and component tags. It lints
+the Markdown inside a component, such as a Note's text. Headings are checked for terms only.
 
 A finding that the rule should not apply to takes an exception, with its reason, on the line
 just before it:
