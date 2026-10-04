@@ -12,10 +12,12 @@ import {
   launch,
   privateBuild,
   until,
+  WAIT_MS,
   importClient,
   destroy,
   draftOf,
   renderable,
+  wire,
   type TestUI,
 } from "./helpers";
 
@@ -44,6 +46,7 @@ test(
         };
       },
     });
+    const requests = wire(app);
     let rendered: TestUI | undefined;
     try {
       await app.router.load();
@@ -74,13 +77,18 @@ test(
         await ui.mockMouse.scroll(field.x, field.y, "down");
       });
       expect(await overlay()).toContain("requests 0 · open 0 · 0B");
+      const before = requests.finished.length;
       await act(async () => {
         ui.mockInput.pressKey("s", { ctrl: true });
       });
       const draft = draftOf(app, "1");
       await act(async () => {
         await until(() => !draft.pending);
-        await Bun.sleep(150);
+        // The save, the page and the list read have all ended, and nothing else is open.
+        await until(
+          () => requests.finished.length - before >= 3 && requests.open.size === 0,
+          WAIT_MS,
+        );
       });
       // The save, then the page and the list it invalidated.
       const line = await overlay();
@@ -99,6 +107,7 @@ test(
       ]);
       expect(page[1]?.attributes["http.response.status_code"]).toBe(200);
     } finally {
+      await act(() => requests.settled().catch(() => {}));
       stop();
       await destroy(rendered);
       await server.stop();

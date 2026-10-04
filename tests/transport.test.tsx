@@ -9,9 +9,11 @@ import { Database } from "bun:sqlite";
 import { z } from "zod";
 import { build } from "../packages/core/src/build";
 import {
+  WAIT_MS,
   launch,
   privateBuild,
   until,
+  wire,
   importClient,
   destroy,
   draftOf,
@@ -52,6 +54,7 @@ test("lost commit: durable outcome recovery, no mutation replay, reconnect refre
   });
   const { createApp, Shell } = await importClient(built.directory, "loss");
   const app = createApp({ url: server.url, initialPath: "/notes/1" });
+  const requests = wire(app);
   let rendered: TestUI | undefined;
   try {
     await app.router.load();
@@ -103,8 +106,9 @@ test("lost commit: durable outcome recovery, no mutation replay, reconnect refre
     // The outcome is looked up by itself once the Server is back: no one has to ask. On a
     // loaded machine the lookup may already be through when the refresh above ends.
     await act(async () => {
-      await until(() => !draft.pending, 10_000);
-      await Bun.sleep(30);
+      await until(() => !draft.pending, WAIT_MS);
+      // The refresh and the lookup have both answered: the state below is final.
+      await requests.settled();
     });
     expect(draft.baseline).toBe(`${seed}abc`);
     expect(draft.value).toBe(`${seed}abcd`);
@@ -116,6 +120,7 @@ test("lost commit: durable outcome recovery, no mutation replay, reconnect refre
     expect(operationId).toBeDefined();
     expect(app.status).toBe("Connected");
   } finally {
+    await act(() => requests.settled().catch(() => {}));
     await destroy(rendered);
     await server.stop();
     await rm(dir, { recursive: true, force: true });
@@ -141,10 +146,12 @@ test("out-of-order navigation, incompatible build preserves mounted editor, refr
       const listing = new Headers(init.headers).get("x-luciole-action")?.endsWith("#listNotes");
       if (block && (url.includes("/render") || listing))
         throw new Error("network unavailable during refresh");
+      // Simulated time, not a wait: note 1 answers late, after the navigation past it.
       if (slow && new URL(url).searchParams.get("params") === '{"id":"1"}') await Bun.sleep(350);
       return fetch(input, init);
     },
   });
+  const requests = wire(app);
   let rendered: TestUI | undefined;
   try {
     await app.router.load();
@@ -178,8 +185,10 @@ test("out-of-order navigation, incompatible build preserves mounted editor, refr
         app.router.navigate({ to: "/notes/1" }),
         app.router.navigate({ to: "/notes/2" }),
       ]);
-      await Bun.sleep(400);
+      // Every response is in, the slow one for note 1 included: none is left to land.
+      await requests.settled();
     });
+    await ui.renderOnce();
     // The latest navigation wins; the slower superseded response never replaces it.
     expect(app.router.state.resolvedLocation?.pathname).toBe("/notes/2");
     const field = markdownEditor(ui, "note-2");
@@ -206,6 +215,7 @@ test("out-of-order navigation, incompatible build preserves mounted editor, refr
     });
     expect(bad.status).toBe(409);
   } finally {
+    await act(() => requests.settled().catch(() => {}));
     await destroy(rendered);
     await server.stop();
     await rm(dir, { recursive: true, force: true });
@@ -213,7 +223,12 @@ test("out-of-order navigation, incompatible build preserves mounted editor, refr
 });
 test("progressive Flight Suspense renders fallback before delayed content", async () => {
   const dir = await temporaryApp("stream");
-  let server: Awaited<ReturnType<typeof launch>> | undefined, rendered: TestUI | undefined;
+  // The Suspense boundary resolves once the test creates this file, not after a delay: the
+  // fallback stays on screen for as long as the test looks at it.
+  const release = join(dir, "release");
+  let server: Awaited<ReturnType<typeof launch>> | undefined,
+    rendered: TestUI | undefined,
+    requests: ReturnType<typeof wire> | undefined;
   try {
     await mkdir(join(dir, "app"), { recursive: true });
     await Bun.write(
@@ -222,25 +237,33 @@ test("progressive Flight Suspense renders fallback before delayed content", asyn
     );
     await Bun.write(
       join(dir, "app/page.tsx"),
-      `import {Suspense} from 'react';async function Slow(){await Bun.sleep(700);return <text>STREAM COMPLETE</text>}export default function Page(){return <box flexDirection="column"><text>SHELL READY</text><Suspense fallback={<text>STREAM LOADING</text>}><Slow/></Suspense></box>}`,
+      `import {Suspense} from 'react';async function Slow(){while(!(await Bun.file(${JSON.stringify(release)}).exists()))await Bun.sleep(10);return <text>STREAM COMPLETE</text>}export default function Page(){return <box flexDirection="column"><text>SHELL READY</text><Suspense fallback={<text>STREAM LOADING</text>}><Slow/></Suspense></box>}`,
     );
     await build(dir);
     server = await launch(join(dir, ".luciole/server/index.js"));
     const { createApp, Shell } = await importClient(dir);
     const app = createApp({ url: server.url });
+    requests = wire(app);
     await app.router.load();
     const ui = await testRender(<Shell app={app} />, { width: 80, height: 12 });
     rendered = ui;
     await ui.renderOnce();
     expect(ui.captureCharFrame()).toContain("STREAM LOADING");
     expect(ui.captureCharFrame()).toContain("SHELL READY");
-    await act(async () => {
-      await Bun.sleep(800);
-    });
-    await ui.renderOnce();
-    expect(ui.captureCharFrame()).toContain("STREAM COMPLETE");
+    await Bun.write(release, "");
+    // One act() per step: the Suspense retry commits when an act() ends, not within one.
+    const deadline = performance.now() + WAIT_MS;
+    while (!ui.captureCharFrame().includes("STREAM COMPLETE")) {
+      if (performance.now() > deadline) throw new Error("The streamed content never rendered");
+      // The step of a poll bounded by WAIT_MS, not a wait for the outcome.
+      await act(() => Bun.sleep(10));
+      await ui.renderOnce();
+    }
     expect(ui.captureCharFrame()).not.toContain("STREAM LOADING");
   } finally {
+    // The page stream ends once released, should a check above have failed first.
+    await Bun.write(release, "");
+    await act(async () => requests?.settled().catch(() => {}));
     await destroy(rendered);
     if (server) await server.stop();
     await rm(dir, { recursive: true, force: true });

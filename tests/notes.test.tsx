@@ -14,6 +14,7 @@ import {
   WAIT_MS,
   launch,
   until as pollUntil,
+  wire,
   importClient,
   destroy,
   draftOf,
@@ -40,13 +41,17 @@ async function start(
   });
   const { createApp, Shell } = await importClient(built.directory, tag);
   const app = createApp({ url: server.url, ...options });
+  const requests = wire(app);
   await app.router.load();
   const ui = await testRender(<Shell app={app} />, { width: 110, height: 32 });
   return {
     app,
     ui,
     server,
+    requests,
     stop: async () => {
+      // The calls still on the wire end before the Server they talk to stops.
+      await act(() => requests.settled().catch(() => {}));
       await destroy(ui);
       await server.stop();
       await rm(folder, { recursive: true, force: true });
@@ -61,13 +66,22 @@ const frame = async (ui: TestUI) => {
 };
 /** Renders frames, which drive the timelines, until `check` holds. */
 const untilRendered = async (ui: TestUI, check: () => boolean) => {
-  for (let i = 0; i < 100 && !check(); i++)
+  const deadline = performance.now() + WAIT_MS;
+  while (!check() && performance.now() < deadline)
     await act(async () => {
       await ui.renderOnce();
+      // The step of a poll bounded by WAIT_MS, not a wait for the outcome.
       await Bun.sleep(10);
     });
   expect(check()).toBe(true);
 };
+/** Renders frames until one shows `text`. */
+const untilShown = (ui: TestUI, text: string | RegExp) =>
+  untilRendered(ui, () =>
+    typeof text === "string"
+      ? ui.captureCharFrame().includes(text)
+      : text.test(ui.captureCharFrame()),
+  );
 /** What the line above the title says; nothing while saves go well. */
 const status = (ui: TestUI) => {
   const node = ui.renderer.root.findDescendantById("note-status");
@@ -85,6 +99,7 @@ async function eventually(check: () => boolean, timeout = WAIT_MS) {
   while (!check()) {
     if (performance.now() > deadline) throw new Error("Condition timed out");
     await act(async () => {
+      // The step of a poll bounded by `timeout`: timers fire between two `act()`s.
       await Bun.sleep(20);
     });
   }
@@ -109,23 +124,21 @@ const press = (ui: TestUI, id: string) =>
       node.x + Math.floor(node.width / 2),
       node.y + Math.floor(node.height / 2),
     );
-    await Bun.sleep(30);
   });
 /** The sidebar at 110 columns: 30% of the screen. */
 const SIDEBAR_WIDTH = 33;
 const sidebarSlot = (ui: TestUI) => ui.renderer.root.findDescendantById("sidebar")?.parent;
 
-/** Clicks inside `act()`, then lets the effects and requests it started settle. */
+/** Clicks inside `act()`; the caller waits for what the click does. */
 const click = (ui: TestUI, text: string, button?: MouseButton) =>
   act(async () => {
     await clickOn(ui, text, button);
-    await Bun.sleep(30);
   });
 
 test(
   "generated Notes: Flight action, preserved Draft, navigation and offline editing",
   async () => {
-    const { app, ui, server, stop } = await start("notes", {
+    const { app, ui, server, requests, stop } = await start("notes", {
       NOTES_DELAY_MS: "400",
     });
     try {
@@ -150,6 +163,10 @@ test(
       expect(await frame(ui)).toContain("Save");
       const counts = () => metricsOf(server);
       const before = await counts();
+      const finished = requests.finished.length;
+      // The save, then the list read again because the save invalidated it.
+      const saveAndRead = () =>
+        requests.finished.slice(finished).filter((event) => event.kind === "action").length >= 2;
       await act(async () => {
         ui.mockInput.pressKey("s", { ctrl: true });
       });
@@ -164,19 +181,16 @@ test(
       expect(status(ui)).toBe("");
       await act(async () => {
         await until(() => !draft.pending);
-        await Bun.sleep(50);
+        await until(saveAndRead);
       });
+      // The list read has landed and rendered: had it remounted the editor, it is done.
+      await frame(ui);
       expect(draft.baseline).toBe(`${seed}abc`);
       expect(draft.value).toBe(`${seed}abcd`);
       expect(draft.dirty).toBe(true);
       expect(draft.version).toBe(2);
       expect(input("note-1").node).toBe(field.node);
       await eventually(() => status(ui) === "● Unsaved");
-      // The save, then the list read again because the save invalidated it.
-      await act(async () => {
-        for (let i = 0; i < 50 && (await counts()).actions - before.actions < 2; i++)
-          await Bun.sleep(10);
-      });
       expect((await counts()).actions - before.actions).toBe(2);
 
       // The layout, and the list in it, persist from one note to another.
@@ -265,13 +279,15 @@ test(
 
       // Search narrows the list; the ✕ in the box clears it.
       await click(ui, "Search");
+      const searchField = () => renderable(ui, "search-field", Renderable);
+      await act(async () => until(() => Reflect.get(searchField(), "focused") === true));
       await act(async () => {
         await ui.mockInput.typeText("coffee");
       });
-      expect(await frame(ui)).toMatch(/\b1 of \d+ notes/);
+      await untilShown(ui, /\b1 of \d+ notes/);
       expect(await frame(ui)).not.toContain("Welcome to Notes");
       await click(ui, "✕");
-      expect(await frame(ui)).toContain("Welcome to Notes");
+      await untilShown(ui, "Welcome to Notes");
 
       // The list slides away to a rail and comes back; ≡ stays where it was all along.
       const toggle = renderable(ui, "toggle-sidebar", Renderable);
@@ -281,13 +297,13 @@ test(
       expect(ui.renderer.root.findDescendantById("rail")).toBeDefined();
       expect([toggle.x, toggle.y]).toEqual(at);
       await press(ui, "toggle-sidebar");
-      expect(ui.renderer.root.findDescendantById("sidebar")).toBeDefined();
+      await untilRendered(ui, () => !!ui.renderer.root.findDescendantById("sidebar"));
       await untilRendered(ui, () => sidebarSlot(ui)?.width === SIDEBAR_WIDTH);
       expect([toggle.x, toggle.y]).toEqual(at);
 
       // A right click on a note offers its menu; Rename… opens its title.
       await click(ui, "Shopping list", MouseButtons.RIGHT);
-      expect(await frame(ui)).toContain("Rename…");
+      await untilShown(ui, "Rename…");
       await click(ui, "Rename…");
       await act(async () => until(() => path(app) === "/notes/2"));
       await act(async () => until(() => !!ui.renderer.root.findDescendantById("title-field")));
@@ -329,7 +345,7 @@ test(
       const count = Number(/(\d+) notes/.exec(await frame(ui))?.[1]);
       // The note's own ⋯, at the end of its title: the same menu as its row's.
       await press(ui, "note-menu");
-      expect(await frame(ui)).toContain("Copy as Markdown");
+      await untilShown(ui, "Copy as Markdown");
       await click(ui, "Delete");
       await act(async () => until(() => ui.captureCharFrame().includes("Deleted “Plans”")));
       expect(path(app)).not.toBe(`/notes/${id}`);

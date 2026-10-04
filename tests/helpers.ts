@@ -6,11 +6,12 @@ import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { act, type ReactNode } from "react";
+import type { Renderable } from "@opentui/core";
 import type { MouseButton } from "@opentui/core/testing";
 import type { testRender } from "@opentui/react/test-utils";
 import { z } from "zod";
 import { build, type BuildOptions } from "../packages/core/src/build";
-import type { Application, ApplicationOptions } from "../packages/core/src/client";
+import type { Application, ApplicationOptions, TransportEvent } from "../packages/core/src/client";
 import { messageOf } from "../packages/core/src/guards";
 import { readJsonFile } from "../packages/core/src/package-json";
 import type { DraftStore } from "../examples/notes/components/draft";
@@ -258,6 +259,64 @@ export async function untilFrame(ui: TestUI, text: string, timeout = WAIT_MS) {
     if (performance.now() - start > timeout) throw new Error(timedOut(() => frame));
     await Bun.sleep(10);
   }
+}
+
+/** What `node` and its descendants are still answering: a Tree-sitter highlight, an image. */
+function answering(node: Renderable): Promise<unknown>[] {
+  const own = [
+    Reflect.get(node, "isHighlighting") === true && Reflect.get(node, "highlightingDone"),
+    Reflect.get(node, "loading") === true && Reflect.get(node, "loadPromise"),
+  ].filter((promise): promise is Promise<unknown> => promise instanceof Promise);
+  return [...own, ...node.getChildren().flatMap(answering)];
+}
+
+/**
+ * Renders `ui` until it shows `text`, nothing in it is still answering (a code block's
+ * highlight, an image's load) and one more frame draws the same, then returns that frame.
+ * It waits on those answers, not on time; WAIT_MS only guards against a hang.
+ */
+export async function untilDrawn(ui: TestUI, text = "") {
+  const deadline = performance.now() + WAIT_MS;
+  let drawn: string | undefined;
+  for (;;) {
+    await act(async () => {
+      await ui.renderOnce();
+    });
+    const pending = answering(ui.renderer.root);
+    const frame = ui.captureCharFrame();
+    if (!pending.length && frame === drawn) return frame;
+    drawn = pending.length || !frame.includes(text) ? undefined : frame;
+    const left = deadline - performance.now();
+    if (left < 0) throw new Error(timedOut(() => frame));
+    if (!pending.length) {
+      // A turn of the event loop, not a delay: what is due (a timer, I/O) runs first.
+      await act(() => new Promise<void>((done) => setImmediate(done)));
+      continue;
+    }
+    // The hang guard, not a wait: it only ends the wait when an answer never comes.
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const hang = new Promise<void>((done) => (timer = setTimeout(done, left)));
+    await act(() => Promise.race([Promise.allSettled(pending), hang]));
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * The requests `app` has on the wire, read from its transport events, and those that have
+ * finished (`end` or `error`), in order. A teardown awaits `settled()` before it stops the
+ * Server: a call left in flight, unawaited by the application or abandoned by a failed
+ * assertion, would otherwise be cut into an unhandled TransportError.
+ */
+export function wire(app: Pick<Application, "onEvent">) {
+  const open = new Set<number>();
+  const finished: Extract<TransportEvent, { type: "end" | "error" }>[] = [];
+  app.onEvent((event) => {
+    if (event.type === "request") open.add(event.id);
+    if (event.type !== "end" && event.type !== "error") return;
+    open.delete(event.id);
+    finished.push(event);
+  });
+  return { open, finished, settled: () => until(() => open.size === 0, WAIT_MS) };
 }
 
 /** What a generated Client's `createApp` takes: the build provides the rest. */

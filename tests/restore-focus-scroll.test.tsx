@@ -12,13 +12,15 @@ import {
   type Session,
 } from "../packages/core/src/client";
 import { Runtime } from "../packages/core/src/runtime-context";
-import { destroy, renderable, type TestUI } from "./helpers";
+import { WAIT_MS, destroy, renderable, type TestUI } from "./helpers";
 
 const ROWS = 40;
 // What a late list shows at first: too few rows to reach a kept position.
 const FIRST_ROWS = 8;
 const LATE_MS = 200;
 const FRAME_MS = 20;
+// How often ScrollBox applies a kept position again (SCROLL_RETRY_MS, src/fields.tsx).
+const RETRY_MS = 50;
 
 const applicationWith = (session?: Session) =>
   createApplication({
@@ -75,6 +77,24 @@ async function mount(app: Application, late = false) {
   return { ui: shown, frame, list: () => renderable(shown, "list", ScrollBoxRenderable) };
 }
 
+/**
+ * Renders frames until `check` holds: the test renderer lays out only when asked, and the
+ * list's late rows and the restore's retries are timers that fire between frames.
+ */
+async function untilLaidOut(
+  frame: () => Promise<string>,
+  check: () => boolean,
+  state: () => string,
+) {
+  const deadline = performance.now() + WAIT_MS;
+  while (!check()) {
+    if (performance.now() > deadline) throw new Error(state());
+    await frame();
+    // The step of a poll bounded by WAIT_MS, not a wait for the outcome.
+    await act(() => Bun.sleep(FRAME_MS));
+  }
+}
+
 test("the focused field and the scroll position come back with the session", async () => {
   const before = applicationWith();
   const first = await mount(before);
@@ -95,12 +115,11 @@ test("the focused field and the scroll position come back with the session", asy
     const after = await mount(applicationWith(saved), true);
     second = after.ui;
     expect(await after.frame()).toContain("focus:post/body");
-    // The test renderer lays out only when asked: a frame per check.
-    for (let i = 0; after.list().scrollTop !== 7; i++) {
-      if (i * FRAME_MS > LATE_MS * 5) throw new Error(`scrolled to ${after.list().scrollTop}`);
-      await after.frame();
-      await act(() => Bun.sleep(FRAME_MS));
-    }
+    await untilLaidOut(
+      after.frame,
+      () => after.list().scrollTop === 7,
+      () => `scrolled to ${after.list().scrollTop}`,
+    );
     expect(await after.frame()).toContain("row 7");
   } finally {
     await destroy(first.ui);
@@ -121,10 +140,20 @@ test("a kept focus no longer among the names gives the first one; scrolling duri
     await act(async () => {
       list().scrollTop = 1;
     });
-    for (let i = 0; i * FRAME_MS < LATE_MS * 2; i++) {
-      await frame();
-      await act(() => Bun.sleep(FRAME_MS));
-    }
+    // Kept at once: the user's scroll is recorded as it happens.
+    expect(app.restoration.snapshot().entries[0]?.scroll).toEqual({ "post/list": 1 });
+    // The other rows arrive and are laid out: the kept position could be reached now.
+    await untilLaidOut(
+      frame,
+      () => list().content.getChildrenCount() === ROWS && list().scrollHeight >= ROWS,
+      () => `${list().content.getChildrenCount()} rows, ${list().scrollHeight} high`,
+    );
+    await act(async () => {
+      // A negative wait, kept: nothing marks a restore that does not happen. A retry of the
+      // restore falls due within RETRY_MS, and fires before this later timer does.
+      await Bun.sleep(RETRY_MS * 2);
+    });
+    await frame();
     expect(list().scrollTop).toBe(1);
     expect(app.restoration.snapshot().entries[0]?.scroll).toEqual({ "post/list": 1 });
   } finally {

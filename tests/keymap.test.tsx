@@ -6,7 +6,16 @@ import { testRender } from "@opentui/react/test-utils";
 import { mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { build } from "../packages/core/src/build";
-import { launch, importClient, destroy, renderable, temporaryApp, type TestUI } from "./helpers";
+import {
+  WAIT_MS,
+  launch,
+  importClient,
+  destroy,
+  renderable,
+  temporaryApp,
+  until,
+  type TestUI,
+} from "./helpers";
 
 // An application that shows its keys, as a terminal program does: a footer for the
 // layout's layer, a line for the page's. Inside the checkout so `@luciole-sh/core` resolves.
@@ -84,7 +93,8 @@ test("help is generated from the keymap layers mounted right now", async () => {
     // The editor's bindings run through the keymap.
     await act(async () => {
       ui.mockInput.pressEscape();
-      await Bun.sleep(50);
+      // A lone Escape is told from a sequence's start only after a pause: it is read late.
+      await until(() => app.router.state.resolvedLocation?.pathname === "/", WAIT_MS);
     });
     expect(app.router.state.resolvedLocation?.pathname).toBe("/");
     // Its layer left with it: Ctrl+S is no longer bound anywhere.
@@ -115,10 +125,16 @@ test("a desktop window leaves Ctrl+C to the application", async () => {
       [y].slice(x, x + width)
       .trim();
     expect(footer).toBe("ctrl+r reconnect · ctrl+t requests");
+    // Not a wait: a key is dispatched as it is pressed, to the keymap's listener before
+    // this later one, so once this one has heard Ctrl+C, no quit now is final.
+    let heard = false;
+    ui.renderer.keyInput.on("keypress", (key) => {
+      if (key.ctrl && key.name === "c") heard = true;
+    });
     await act(async () => {
       ui.mockInput.pressCtrlC();
-      await Bun.sleep(50);
     });
+    expect(heard).toBe(true);
     expect(quits).toBe(0);
   } finally {
     await destroy(rendered);

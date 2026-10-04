@@ -18,7 +18,7 @@ import {
   type ApplicationOptions,
 } from "../packages/core/src/client";
 import { ApplicationView } from "../packages/core/src/embed";
-import { destroy, launch, privateBuild, rejectionOf, until, type TestUI } from "./helpers";
+import { WAIT_MS, destroy, launch, privateBuild, rejectionOf, until, type TestUI } from "./helpers";
 
 const mdBuilt = await privateBuild("examples/mdreader");
 const filesBuilt = await privateBuild("examples/files");
@@ -126,7 +126,7 @@ test("<Embed>: two applications, keys to the active pane, focus set aside, crash
     await act(async () => {
       await until(
         () => frame().includes("The first document.") && frame().includes("guide.md"),
-        15_000,
+        WAIT_MS,
       );
     });
     // A crash stays in its pane.
@@ -137,7 +137,7 @@ test("<Embed>: two applications, keys to the active pane, focus set aside, crash
     const fxBefore = count(fxApp);
     await act(async () => {
       ui?.mockInput.pressKey("[");
-      await until(() => frame().includes("The second document."), 10_000);
+      await until(() => frame().includes("The second document."), WAIT_MS);
     });
     // …and files, which is not active, heard nothing.
     expect(startedSince(fxApp, fxBefore)).toEqual([]);
@@ -161,6 +161,8 @@ test("<Embed>: two applications, keys to the active pane, focus set aside, crash
     const mdBefore = count(mdApp);
     await act(async () => {
       await ui?.mockInput.typeText("zz");
+      // A negative wait, kept: keys are dispatched as they are typed, but a request they
+      // set off would start later, and no event marks a request that never starts.
       await Bun.sleep(300);
     });
     expect(typed?.value).toBe("gu");

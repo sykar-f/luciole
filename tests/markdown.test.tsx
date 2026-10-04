@@ -9,6 +9,7 @@ import { type Block, MarkdownStream } from "../packages/core/src/markdown/stream
 import { syntax } from "../packages/harness/src/ui/syntax";
 import { color } from "../packages/harness/src/ui/theme";
 import { MARKDOWN_REPLY } from "../packages/harness/src/adapters/fake";
+import { untilDrawn } from "./helpers";
 
 const fixture = (name: string) =>
   Bun.file(new URL(`./fixtures/markdown/${name}.md`, import.meta.url)).text();
@@ -37,21 +38,8 @@ const trimmed = (frame: string) =>
     .map((row) => row.trimEnd())
     .join("\n")
     .trimEnd();
-/** The frame once Tree-sitter answered: showing `until`, then unchanged for several passes. */
-async function settled(setup: Setup, until = "") {
-  let frame = "";
-  let stable = 0;
-  for (let pass = 0; pass < 200 && stable < 10; pass++) {
-    await act(async () => {
-      await setup.renderOnce();
-      await Bun.sleep(10);
-    });
-    const next = trimmed(setup.captureCharFrame());
-    stable = next === frame && next.includes(until) ? stable + 1 : 0;
-    frame = next;
-  }
-  return frame;
-}
+/** The frame once Tree-sitter and the images answered, showing `until`. */
+const settled = async (setup: Setup, until = "") => trimmed(await untilDrawn(setup, until));
 
 test("every block but the one being written is drawn once, as the finished reply draws it", async () => {
   for (const content of [MARKDOWN_REPLY, await fixture("rich")]) {

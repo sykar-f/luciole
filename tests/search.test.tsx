@@ -7,7 +7,16 @@ import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { build } from "../packages/core/src/build";
-import { launch, importClient, destroy, metricsOf, type TestUI } from "./helpers";
+import {
+  WAIT_MS,
+  launch,
+  importClient,
+  destroy,
+  metricsOf,
+  until,
+  wire,
+  type TestUI,
+} from "./helpers";
 
 // `AnyRouter` types its history as `any`: checked before use.
 const isHistory = (value: unknown): value is RouterHistory =>
@@ -18,7 +27,9 @@ const isHistory = (value: unknown): value is RouterHistory =>
 
 test("search parameters reach the Server page as strings and key the route cache", async () => {
   const directory = await mkdtemp(join(tmpdir(), "luciole-search-"));
-  let server: Awaited<ReturnType<typeof launch>> | undefined, rendered: TestUI | undefined;
+  let server: Awaited<ReturnType<typeof launch>> | undefined,
+    rendered: TestUI | undefined,
+    requests: ReturnType<typeof wire> | undefined;
   try {
     for (const name of ["app/items"]) await mkdir(join(directory, name), { recursive: true });
     await symlink(resolve("node_modules"), join(directory, "node_modules"), "dir");
@@ -39,6 +50,7 @@ test("search parameters reach the Server page as strings and key the route cache
     server = running;
     const { createApp, Shell } = await importClient(directory);
     const app = createApp({ url: running.url });
+    requests = wire(app);
     await app.router.load();
     const ui = await testRender(<Shell app={app} />, { width: 80, height: 8 });
     rendered = ui;
@@ -66,12 +78,18 @@ test("search parameters reach the Server page as strings and key the route cache
       const history: unknown = app.router.history;
       if (!isHistory(history)) throw new Error("The router has no history");
       history.back();
-      await Bun.sleep(30);
+      await until(
+        () =>
+          app.router.state.resolvedLocation?.href === "/items?q=42" &&
+          app.router.state.status === "idle",
+        WAIT_MS,
+      );
     });
     expect(await frame()).toContain('ITEMS q="42" keys=q');
     expect(app.router.state.location.search).toEqual({ q: "42" });
     expect(await renders()).toBeGreaterThanOrEqual(before);
   } finally {
+    await act(async () => requests?.settled().catch(() => {}));
     await destroy(rendered);
     if (server) await server.stop();
     await rm(directory, { recursive: true, force: true });

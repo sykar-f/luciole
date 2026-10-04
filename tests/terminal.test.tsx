@@ -8,7 +8,7 @@ import { createDefaultOpenTuiKeymap } from "@opentui/keymap/opentui";
 import { KeymapProvider, useBindings } from "@opentui/keymap/react";
 import { Terminal } from "../packages/core/src/client";
 import { legacyKey, queryResponder } from "../packages/core/src/vt/gaps";
-import { destroy, execute, until, type TestUI } from "./helpers";
+import { WAIT_MS, destroy, execute, until, type TestUI } from "./helpers";
 
 const key = (name: string, mods: Partial<{ ctrl: boolean; meta: boolean; shift: boolean }> = {}) =>
   new KeyEvent({
@@ -102,7 +102,7 @@ test("<Terminal> runs a shell: keys, host prefix, Ctrl+C, resize, exit", async (
     act(async () => {
       await until(
         () => frame().includes(text),
-        10_000,
+        WAIT_MS,
         () => `waiting for ${text}:\n${frame()}`,
       );
     });
@@ -132,22 +132,27 @@ test("<Terminal> runs a shell: keys, host prefix, Ctrl+C, resize, exit", async (
     });
     expect(hits.prefix).toBe(1);
     // Ctrl+C interrupts the program's foreground job and reaches no quit binding. The key
-    // goes once `sleep` runs in the shell's session (its pid): a process takes that name
-    // when it execs, after the shell made its group the terminal's foreground one.
+    // goes once `sleep` runs as the shell's child: a process takes that name when it execs,
+    // after the shell made its group the terminal's foreground one. `pgrep -P`, as macOS's
+    // pgrep has no `-s` for a session.
     await type("printf 'p%s\\n' $$");
-    let session = "";
+    let shell = "";
     await act(async () => {
       await until(() => {
-        session = /^p(\d+)\s*$/m.exec(frame())?.[1] ?? "";
-        return session !== "";
-      }, 10_000);
+        shell = /^p(\d+)\s*$/m.exec(frame())?.[1] ?? "";
+        return shell !== "";
+      }, WAIT_MS);
     });
     await type("sleep 30");
     const sleeping = async () =>
-      (await execute(["pgrep", "-x", "-s", session, "sleep"])).stdout.toString().trim() !== "";
+      (await execute(["pgrep", "-x", "-P", shell, "sleep"])).stdout.toString().trim() !== "";
     await act(async () => {
-      const deadline = performance.now() + 10_000;
-      while (!(await sleeping()) && performance.now() < deadline) await Bun.sleep(20);
+      const deadline = performance.now() + WAIT_MS;
+      while (!(await sleeping())) {
+        if (performance.now() > deadline) throw new Error("`sleep 30` never started");
+        // The step of a poll bounded by WAIT_MS: no event says another process started.
+        await Bun.sleep(20);
+      }
       ui?.mockInput.pressKey("c", { ctrl: true });
     });
     await type("printf 's%s\\n' $?");
@@ -169,7 +174,7 @@ test("<Terminal> runs a shell: keys, host prefix, Ctrl+C, resize, exit", async (
     await act(async () => setActive(true));
     await type("exit");
     await act(async () => {
-      await until(() => exits.length > 0, 5000);
+      await until(() => exits.length > 0, WAIT_MS);
     });
     expect(exits).toEqual([0]);
   } finally {

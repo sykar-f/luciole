@@ -1,9 +1,9 @@
 /** @jsxImportSource @opentui/react */
 import { afterEach, expect, test } from "bun:test";
-import { act } from "react";
 import { testRender } from "@opentui/react/test-utils";
 import { GRAMMARS } from "../packages/core/src/grammars";
 import { syntax } from "../packages/harness/src/ui/syntax";
+import { untilDrawn } from "./helpers";
 
 // A line of each language: enough tokens for several highlight groups.
 const SNIPPETS: Record<string, string> = {
@@ -26,7 +26,6 @@ const SNIPPETS: Record<string, string> = {
   yaml: 'name: coder\nversion: 1\nlist:\n  - "a" # y',
 };
 const MIN_COLORS = 3;
-const PASSES = 100;
 
 type Setup = Awaited<ReturnType<typeof testRender>>;
 let opened: Setup | undefined;
@@ -48,18 +47,11 @@ test.each(Object.entries(SNIPPETS))("%s code is highlighted", async (filetype, c
     width: 70,
     height: 5,
   });
-  const setup = opened;
-  let colors = 0;
-  for (let pass = 0; pass < PASSES && colors < MIN_COLORS; pass++) {
-    await act(async () => {
-      await setup.renderOnce();
-      await Bun.sleep(20);
-    });
-    const seen = setup
-      .captureSpans()
-      .lines.flatMap((line) => line.spans.filter((span) => span.text.trim()))
-      .map((span) => [span.fg.r, span.fg.g, span.fg.b].join());
-    colors = new Set(seen).size;
-  }
-  expect(colors).toBeGreaterThanOrEqual(MIN_COLORS);
+  // Drawn once Tree-sitter has answered, highlighted or not: no time is given to it.
+  await untilDrawn(opened);
+  const seen = opened
+    .captureSpans()
+    .lines.flatMap((line) => line.spans.filter((span) => span.text.trim()))
+    .map((span) => [span.fg.r, span.fg.g, span.fg.b].join());
+  expect(new Set(seen).size).toBeGreaterThanOrEqual(MIN_COLORS);
 });

@@ -25,6 +25,7 @@ const files: Record<string, string> = {
   "app/page.tsx": `export default function Home(){return <text>HOME</text>}`,
   "app/live/page.tsx": `import {Ticker} from "../../components/Ticker";export default function Live(){return <Ticker/>}`,
   "components/Ticker.tsx": `"use client";import {useLive} from "@luciole-sh/core/client";import {ticks} from "../actions/live";export function Ticker(){const {items,done,error}=useLive(ticks,["t"],{limit:3});return <text>TICKS {items.join(",")} {done?"DONE":""} {error?"ERROR "+String(error.outcome):""}</text>}`,
+  // Simulated time, not a wait: the generator yields a value every 20 ms, forever.
   "actions/live.ts": `"use server";import {status} from "../server/status";export async function* ticks(prefix:string){status.open++;try{for(let i=0;;i++){yield prefix+i;await Bun.sleep(20)}}finally{status.closed++}}export async function stats(){return {...status}}`,
   "server/status.ts": `export const status={open:0,closed:0};`,
 };
@@ -62,6 +63,7 @@ test(
           if (performance.now() - start > WAIT_MS)
             throw new Error(`Frame never showed it:\n${await frame()}`);
           await act(async () => {
+            // The step of a poll bounded by WAIT_MS, not a wait for the outcome.
             await Bun.sleep(20);
           });
         }
@@ -80,6 +82,7 @@ test(
       while (performance.now() - start < WAIT_MS) {
         last = await stats();
         if (last.closed === 1) break;
+        // The step of a poll bounded by WAIT_MS: only the Server knows its finally ran.
         await Bun.sleep(20);
       }
       expect(last).toEqual({ open: 1, closed: 1 });

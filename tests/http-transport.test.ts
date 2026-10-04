@@ -7,7 +7,7 @@ import {
   type Fetch,
 } from "../packages/core/src/transport";
 import { messageOf } from "../packages/core/src/guards";
-import { rejectionOf, renderBody } from "./helpers";
+import { WAIT_MS, rejectionOf, renderBody, until } from "./helpers";
 
 const base = {
   url: "http://terminal.invalid",
@@ -121,7 +121,8 @@ test("aborting a render before its response cancels the request", async () => {
     ),
   });
   const pending = transport.render("/", {}, controller.signal);
-  await Bun.sleep(5);
+  // The request is out: the abort reaches it in flight, not before it is sent.
+  await until(() => received !== undefined, WAIT_MS);
   controller.abort();
   expect(await rejectionOf(pending)).toBeInstanceOf(TransportError);
   expect(received?.aborted).toBe(true);
@@ -221,6 +222,6 @@ test("a render's tags arrive once its page stream ended", async () => {
     fetch: stub(() => new Response(renderBody(`0:"page"\n`, ["notes", "note:1"]))),
   }).render("/", {}, new AbortController().signal, {}, { onTags: (tags) => told.push(tags) });
   expect(tree).toBe("page");
-  await Bun.sleep(10);
+  await until(() => told.length > 0, WAIT_MS);
   expect(told).toEqual([["notes", "note:1"]]);
 });

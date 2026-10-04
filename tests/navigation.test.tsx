@@ -8,6 +8,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   BUILD_TEST_MS,
+  WAIT_MS,
   launch,
   privateBuild,
   until,
@@ -16,6 +17,7 @@ import {
   draftOf,
   markdownEditor,
   renderable,
+  wire,
   type TestUI,
 } from "./helpers";
 
@@ -55,6 +57,14 @@ test(
         return fetch(url, init);
       },
     });
+    const requests = wire(app);
+    // The loads that ended superseded: a stale answer is handled, and ignored, by then.
+    let superseded = 0;
+    app.onEvent((event) => {
+      if (event.type === "loader" && event.phase === "end" && event.result === "aborted")
+        superseded++;
+    });
+    const supersededAfter = (count: number) => until(() => superseded > count, WAIT_MS);
     let rendered: TestUI | undefined;
     const geometry = (ui: TestUI) =>
       Object.fromEntries(
@@ -100,9 +110,10 @@ test(
       });
       expect(pending()).toBe("/notes/1");
       expect(first.signal?.aborted).toBe(true);
+      const beforeFirst = superseded;
       await act(async () => {
         first.resolve();
-        await Bun.sleep(20);
+        await supersededAfter(beforeFirst);
       });
       expect(pending()).toBe("/notes/1");
       expect(resolved()).toBe("/");
@@ -113,10 +124,11 @@ test(
       expect(resolved()).toBe("/");
       expect(pending()).toBe("/");
       expect(restarted.signal?.aborted).toBe(true);
+      const beforeRestarted = superseded;
       await act(async () => {
         restarted.resolve();
         await Promise.allSettled([navigation, retried]);
-        await Bun.sleep(20);
+        await supersededAfter(beforeRestarted);
       });
       await ui.renderOnce();
       expect(resolved()).toBe("/");
@@ -148,6 +160,9 @@ test(
       // what the page has to say: here, its unsaved text.
       expect(ui.captureCharFrame()).not.toContain("Syncing…");
       await act(async () => {
+        // Simulated time, and a negative wait: past StatusLine's SYNC_QUIET_MS (1 s), when
+        // "Syncing…" would be due, nothing but the unsaved text is said. No event marks a
+        // message not shown; the product's timer fires first, being due first.
         await Bun.sleep(1100);
       });
       await ui.renderOnce();
@@ -246,6 +261,7 @@ test(
       await ui.renderOnce();
       expect(geometry(ui)).toEqual(narrowGeometry);
     } finally {
+      await act(() => requests.settled().catch(() => {}));
       await destroy(rendered);
       await server.stop();
       await rm(temp, { recursive: true, force: true });
