@@ -65,9 +65,10 @@ const CHECKED = { date: "4 October 2026", revision: "02fb6a2" };
   <h2>What is tested</h2>
   <ul>
     <li>
-      On every push and pull request, GitHub Actions on macOS and Linux: types, lint, format,
-      integration tests and build, a production journey in a real PTY, the dev server's rebuild
-      journey, and a clean install that creates a starter and drives its client in a PTY.
+      On every push and pull request, GitHub Actions on macOS and Linux run types, lint, format,
+      integration tests and build. They also run a production journey in a real PTY, the rebuild
+      journey of development, and a clean install that creates a starter and drives its Client in
+      a PTY.
     </li>
     <li>
       On Linux in CI, each of the five packages is packed, installed in an empty project and
@@ -75,7 +76,7 @@ const CHECKED = { date: "4 October 2026", revision: "02fb6a2" };
       publishes.
     </li>
     <li>
-      On Linux in CI, the compiled client in Debian (glibc) and Alpine (musl) containers without
+      On Linux in CI, the compiled Client in Debian (glibc) and Alpine (musl) containers without
       Bun, and the sandbox mode in containers, one per mechanism (namespaces, bubblewrap, Landlock).
     </li>
     <li>
@@ -84,7 +85,7 @@ const CHECKED = { date: "4 October 2026", revision: "02fb6a2" };
       <code>bun run test:web</code>.
     </li>
     <li>
-      The remote path was tested by hand, a macOS client and a Linux server over an SSH tunnel.
+      The remote path was tested by hand, a macOS Client and a Linux Server over an SSH tunnel.
     </li>
   </ul>
 
@@ -96,7 +97,7 @@ const CHECKED = { date: "4 October 2026", revision: "02fb6a2" };
       request.
     </li>
     <li>
-      <strong>One user per server</strong> by default: the built-in session is a single token.
+      <strong>One user per Server</strong> by default: the built-in sign-in session is a single token.
       Multi-user sign-in is the app's to write, in <code>server/auth.ts</code>.
     </li>
     <li>
@@ -106,7 +107,7 @@ const CHECKED = { date: "4 October 2026", revision: "02fb6a2" };
     <li>
       <strong>No silent retries.</strong> The framework never retries an operation whose outcome is
       unknown; the app decides what to do (Notes looks it up, then resends it with the same id). <code>useLive</code> streams do not reconnect by themselves, nor
-      does a client joined by an <code>ssh://</code> URL; a server started with <code>--on</code>
+      does a Client joined by an <code>ssh://</code> URL; a Server started with <code>--on</code>
       has its tunnel relaunched.
     </li>
   </ul>
