@@ -5,11 +5,16 @@ import { join, resolve } from "node:path";
 import { QUERIES, chromeOf, openIndex, searchProblems } from "../website/scripts/check-search.ts";
 
 // The check on the site's search (website/scripts/check-search.ts, run by the website's
-// `bun run build` after Pagefind): on the built dist/, then on small sites indexed here by
-// the same Pagefind binary, one page out of place per case.
+// `bun run build` after Pagefind): on small sites indexed here by the same Pagefind binary,
+// one page out of place per case, then on the built dist/ when a build left one. `bun test`
+// runs before any site build, so dist/ is optional here; every build runs the check on it.
+// The binary comes with website/'s own install, which CI does before the tests.
 const root = resolve(import.meta.dir, "..");
 const website = join(root, "website");
 const dist = join(website, "dist");
+const PAGEFIND = join(website, "node_modules/.bin/pagefind");
+const built = existsSync(join(dist, "pagefind", "pagefind.js"));
+const installed = existsSync(PAGEFIND);
 const directories: string[] = [];
 afterAll(() => directories.forEach((directory) => rmSync(directory, { recursive: true })));
 
@@ -33,14 +38,12 @@ async function indexed(pages: Record<string, string>) {
     mkdirSync(join(site, path), { recursive: true });
     writeFileSync(join(site, path, "index.html"), html);
   }
-  const run = Bun.spawnSync([join(website, "node_modules/.bin/pagefind"), "--site", site]);
+  const run = Bun.spawnSync([PAGEFIND, "--site", site]);
   expect(run.exitCode).toBe(0);
   return openIndex(site);
 }
 
-test("the built site finds each query's page first and indexes no chrome", async () => {
-  if (!existsSync(join(dist, "pagefind", "pagefind.js")))
-    throw new Error("no website/dist/pagefind: run `bun run build` in website/ first");
+test.if(built)("the built site finds each query's page first and indexes no chrome", async () => {
   const chrome = await chromeOf(readFileSync(join(dist, "docs", "index.html"), "utf8"));
   for (const text of ["Skip to content", "lucıole.sh", "Docs menu"]) expect(chrome).toContain(text);
   expect(await searchProblems(await openIndex(dist), QUERIES, chrome)).toEqual([]);
@@ -66,7 +69,7 @@ test("the chrome is read from the skip link, the header, the footer and the side
   ]);
 });
 
-test("a query whose page is found second or not at all fails", async () => {
+test.if(installed)("a query whose page is found second or not at all fails", async () => {
   const index = await indexed({
     a: page("<h1>Lanterns</h1><p>A lantern, a lantern, a lantern lights the glow.</p>"),
     b: page("<h1>Glow</h1><p>A glow.</p>"),
@@ -83,7 +86,7 @@ test("a query whose page is found second or not at all fails", async () => {
   ]);
 });
 
-test("chrome inside the indexed body fails, once per page and text", async () => {
+test.if(installed)("chrome inside the indexed body fails, once per page and text", async () => {
   // No body marked: Pagefind indexes <body>, minus its <nav> and <footer>.
   const index = await indexed({
     a: page("<p>Lanterns.</p>", { body: false }),
@@ -100,7 +103,7 @@ test("chrome inside the indexed body fails, once per page and text", async () =>
   );
 });
 
-test("a page with no chrome to read fails: nothing would be checked", async () => {
+test.if(installed)("a page with no chrome to read fails: nothing would be checked", async () => {
   const index = await indexed({ a: page("<p>Lanterns.</p>") });
   expect(await searchProblems(index, [], [])).toEqual([
     "no chrome read from /docs/: nothing checked",
