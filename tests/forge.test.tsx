@@ -15,6 +15,7 @@ import {
   privateBuild,
   renderable,
   until,
+  wire,
 } from "./helpers";
 
 const built = await privateBuild("examples/forge");
@@ -165,12 +166,12 @@ test("a merge whose response is lost is resolved from the ledger, never replayed
     await step(() => ui.mockInput.typeText("m"));
     await waitFor("outcome unknown");
     expect(present(operator.pull("payments", 1), "pull request").state).toBe("merged");
-    // A second attempt is blocked locally while the outcome is unknown.
+    // A second attempt is blocked locally while the outcome is unknown: the key sends no
+    // action. The activity log could not tell, since a merged pull request merges silently.
+    const calls = wire(forge.app);
     await step(() => ui.mockInput.typeText("m"));
     await forge.settle();
-    expect(
-      operator.activity(50).filter((a) => a.action === "merge" && a.target === "payments#1"),
-    ).toHaveLength(1);
+    expect(calls.finished.filter((call) => call.kind === "action")).toEqual([]);
     await step(() => ui.mockInput.pressKey("o", ctrl));
     await waitFor("Merged #1 into main");
     await waitFor("Merged by @alice");
