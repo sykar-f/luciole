@@ -69,6 +69,46 @@ describe("a figure in Markdown", () => {
     expect(markdown).toContain("*Notes with note 1 open.*");
   });
 
+  test("a marked screen: its transcript, its caption, then its legend's numbers", () => {
+    const markdown = toMarkdown(
+      page(
+        [
+          `<Screen frame="devtools-network" caption="Both processes' requests." wide marks>`,
+          "",
+          "  1. `client notes 4101`: the Client process.",
+          "  2. The Server process.",
+          "     A second line.",
+          "",
+          "</Screen>",
+          "",
+          "After the figure.",
+        ].join("\n"),
+      ),
+    );
+    expect(markdown).toContain("The screen “DevTools: requests of both processes”, as text:");
+    expect(markdown).toContain(
+      [
+        "*Both processes' requests.*",
+        "",
+        "1. `client notes 4101`: the Client process.",
+        "2. The Server process.",
+        "   A second line.",
+        "",
+        "After the figure.",
+      ].join("\n"),
+    );
+    expect(markdown).not.toContain("Screen>");
+  });
+
+  test("a marked screen without its legend, or never closed, stops the export", () => {
+    expect(() =>
+      toMarkdown(page(`<Screen frame="devtools-network" caption="Requests." marks>\n</Screen>`)),
+    ).toThrow('a marked <Screen frame="devtools-network"> has no legend');
+    expect(() =>
+      toMarkdown(page(`<Screen frame="notes" caption="Notes." marks>`), "a.mdx"),
+    ).toThrow("a <Screen> in a.mdx never closes");
+  });
+
   test("a sequence: its steps, numbered under their phases, and its caption", () => {
     const markdown = toMarkdown(
       page(`<Sequence
