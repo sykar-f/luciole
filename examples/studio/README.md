@@ -104,7 +104,8 @@ bun run studio -- --dir ~/apps/notes -r       # a directory, resuming its conver
 
 > **Warning.** The agent inherits studio's whole environment, keys included, and writes in
 > the project directory with your rights. `--preview process` runs the generated app with
-> your rights too, outside any sandbox.
+> your rights too, outside any sandbox. Do not turn on full access, which removes the
+> agent's own sandbox, in another harness that runs on the same directory.
 
 With `-H claude`, each turn uses the quota of your own subscription or key. Each automatic
 correction is one more turn. Studio never calls a model itself: it drives the `claude` binary you
