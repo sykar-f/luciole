@@ -14,8 +14,6 @@ import { BUN, build, example, report, startServer, temporaryDirectory } from "./
 
 const APP = example("mdreader");
 const FRAMES = process.env.MDREADER_PTY_FRAMES;
-const RENDERED_MS = 800;
-const SCROLLED_MS = 600;
 // The bright selection of the list, which has the keys at start.
 const SELECTED_BACKGROUND = "#1f3b4d";
 
@@ -125,21 +123,23 @@ const docs = library(directory.path);
   await t.waitFor("README.md");
   await t.waitFor("Handbook");
   await t.waitFor("hello ${name}");
-  await t.pause(RENDERED_MS);
+  // Rendered: the table drawn, the markers concealed, the library counted.
+  await t.waitFor("│j  │down");
+  await t.waitFor((text) => !text.includes("# Handbook") && !text.includes("**handbook**"));
+  await t.waitFor("4 documents");
   await snapshot(t, "home");
   const shown = await t.text();
-  assert.ok(!shown.includes("# Handbook"), "heading marker not concealed");
-  assert.ok(!shown.includes("**handbook**"), "emphasis markers not concealed");
-  assert.ok(shown.includes("4 documents"), shown);
   for (const listed of ["guide.md", "alpha.md", "beta note.md", "▾ notes/", "▾ deep/"])
     assert.ok(shown.includes(listed), listed);
   for (const hidden of ["HIDDEN", "skip.txt"]) assert.ok(!shown.includes(hidden), hidden);
-  assert.ok(shown.includes("│j  │down"), "table not rendered");
   // The list has the keys at start: the open document is its bright selection.
-  const lines = await t.lines();
-  const row = lines.findIndex((line) => line.startsWith(" │ README.md"));
-  const style = await t.styleAt(row, lines[row]?.indexOf("README.md") ?? -1);
-  assert.equal(style.bg, SELECTED_BACKGROUND, JSON.stringify(style));
+  await t.until(async () => {
+    const lines = await t.lines();
+    const row = lines.findIndex((line) => line.startsWith(" │ README.md"));
+    if (row < 0) return false;
+    const style = await t.styleAt(row, lines[row]?.indexOf("README.md") ?? -1);
+    return style.bg === SELECTED_BACKGROUND;
+  }, "README.md is not the list's bright selection");
 
   // Browsing the list: the arrows select, the selected document opens.
   await t.type(Keys.down);
@@ -149,7 +149,9 @@ const docs = library(directory.path);
   // Tab gives the keys to the document: the arrows no longer change it.
   await t.type(Keys.tab);
   await t.waitFor("tab files");
-  await t.type(Keys.down, SCROLLED_MS);
+  await t.type(Keys.down);
+  // The document scrolled: the status gives the position read.
+  await t.waitFor(/ \d+%/);
   const reading = await t.text();
   assert.ok(reading.includes("Welcome to the") && !reading.includes("First note."), reading);
   await snapshot(t, "reading");
@@ -214,7 +216,8 @@ const docs = library(directory.path);
   await using single = await session(join(docs, "guide.md"), join(directory.path, "state-single"));
   const { t } = single;
   await t.waitFor("The long document of the library.");
-  await t.pause(RENDERED_MS);
+  // Drawn to its status line: the library's frame, if any, would be there too.
+  await t.waitFor("Top");
   await snapshot(t, "single");
   const shown = await t.text();
   assert.ok(
