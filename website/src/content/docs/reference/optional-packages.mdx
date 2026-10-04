@@ -1,0 +1,114 @@
+---
+title: Optional packages
+description: The packages that grammars, math and the web target need, which an app installs itself, with the command that installs each set.
+sources:
+  - packages/core/src/optional.ts
+  - packages/core/package.json
+  - packages/core/src/grammars.ts
+  - packages/core/src/math.ts
+  - packages/core/src/web/build.ts
+  - packages/core/src/web/server-build.ts
+  - packages/create/scripts/starter.ts
+  - tests/docs-optional.test.ts
+---
+
+import CopyCommand from "../../../components/CopyCommand.astro";
+
+This page lists the packages that four features of `@luciole-sh/core` need, with the command
+that installs each set. `@luciole-sh/core` declares them as optional peer dependencies, so an
+app that never uses a feature does not download its packages.
+
+| Feature                                                   | You need it when                        | Entry point                          | In the starter |
+| --------------------------------------------------------- | --------------------------------------- | ------------------------------------ | -------------- |
+| [Grammars](#highlight-more-languages-grammars)            | code blocks hold Bash, Python, Go…      | `import "@luciole-sh/core/grammars"` | yes            |
+| [Math](#draw-display-math-math)                           | the app draws TeX formulas              | `@luciole-sh/core/math`              | yes            |
+| [Web runtime](#build-for-the-browser-web-runtime)         | you build with `--web` or `--web-local` | `luciole build --web`                | no             |
+| [SQLite WASM](#run-the-server-in-the-browser-sqlite-wasm) | you build with `--web-local`            | `luciole build --web-local`          | no             |
+
+An app created with `bunx luciole.sh init` already lists the packages of grammars and math in
+its `dependencies`, because the starter is the Notes example, which uses both.
+
+## What a missing package prints
+
+A feature whose package is missing stops with this message:
+
+```text
+<feature> needs the optional package <name>, which is not installed: run `bun add <name>`
+```
+
+- **Grammars and the web target** check their packages when you build, before bundling.
+- **Math** loads its packages on the first formula, so the message shows when the app runs.
+
+The message names only the first missing package. Install the whole set with the command of
+its section below, so that the next build does not stop on the next package.
+[Troubleshooting](/docs/reference/troubleshooting/#a-feature-needs-an-optional-package) gives
+the same fix.
+
+## Highlight more languages: grammars
+
+Import `@luciole-sh/core/grammars` once, in the Client, to colour more languages in `<code>`,
+`<diff>` and `<Markdown>` blocks. [The API](/docs/reference/api/#show-other-apps-terminals-and-markdown)
+lists them. The build checks all 16 packages when the app imports the entry.
+
+<CopyCommand
+  lines={[
+    "bun add tree-sitter-bash tree-sitter-c tree-sitter-cpp tree-sitter-css tree-sitter-go tree-sitter-html tree-sitter-java tree-sitter-json tree-sitter-php tree-sitter-python tree-sitter-ruby tree-sitter-rust tree-sitter-typescript @tree-sitter-grammars/tree-sitter-lua @tree-sitter-grammars/tree-sitter-toml @tree-sitter-grammars/tree-sitter-yaml",
+  ]}
+/>
+
+| Package                                  | Languages       | Versions `@luciole-sh/core` accepts |
+| ---------------------------------------- | --------------- | ----------------------------------- |
+| `tree-sitter-bash`                       | Bash            | `^0.25.1`                           |
+| `tree-sitter-c`                          | C               | `^0.24.1`                           |
+| `tree-sitter-cpp`                        | C++             | `^0.23.4`                           |
+| `tree-sitter-css`                        | CSS             | `^0.25.0`                           |
+| `tree-sitter-go`                         | Go              | `^0.25.0`                           |
+| `tree-sitter-html`                       | HTML            | `^0.23.2`                           |
+| `tree-sitter-java`                       | Java            | `^0.23.5`                           |
+| `tree-sitter-json`                       | JSON            | `^0.24.8`                           |
+| `tree-sitter-php`                        | PHP             | `^0.24.2`                           |
+| `tree-sitter-python`                     | Python          | `^0.25.0`                           |
+| `tree-sitter-ruby`                       | Ruby            | `^0.23.1`                           |
+| `tree-sitter-rust`                       | Rust            | `^0.24.0`                           |
+| `tree-sitter-typescript`                 | TypeScript, TSX | `^0.23.2`                           |
+| `@tree-sitter-grammars/tree-sitter-lua`  | Lua             | `^0.4.1`                            |
+| `@tree-sitter-grammars/tree-sitter-toml` | TOML            | `^0.7.0`                            |
+| `@tree-sitter-grammars/tree-sitter-yaml` | YAML            | `^0.7.1`                            |
+
+## Draw display math: math
+
+`renderMath` from `@luciole-sh/core/math` turns TeX into a PNG, as
+[the API](/docs/reference/api/#render-display-math-with-luciole-shcoremath) describes.
+
+<CopyCommand lines={["bun add mathjax-full @resvg/resvg-wasm"]} />
+
+| Package             | Role                     | Versions `@luciole-sh/core` accepts |
+| ------------------- | ------------------------ | ----------------------------------- |
+| `mathjax-full`      | turns TeX into SVG       | `^3.2.2`                            |
+| `@resvg/resvg-wasm` | turns the SVG into a PNG | `^2.6.2`                            |
+
+## Build for the browser: web runtime
+
+`luciole build --web` bundles xterm.js into the page that draws the app in a browser.
+`--web-local` implies `--web`, so it needs these packages too.
+[Build and distribution](/docs/reference/build-and-distribution/) lists both flags.
+
+<CopyCommand lines={["bun add @xterm/xterm @xterm/addon-fit @xterm/addon-webgl"]} />
+
+| Package              | Role                               | Versions `@luciole-sh/core` accepts |
+| -------------------- | ---------------------------------- | ----------------------------------- |
+| `@xterm/xterm`       | draws the app's screen in the page | `^6.0.0`                            |
+| `@xterm/addon-fit`   | sizes that screen to the window    | `^0.11.0`                           |
+| `@xterm/addon-webgl` | draws that screen with WebGL       | `^0.19.0`                           |
+
+## Run the Server in the browser: SQLite WASM
+
+`luciole build --web-local` runs the Server in a browser Worker, where SQLite WASM stands in
+for `bun:sqlite`. Install the web runtime's packages as well. Other builds use `bun:sqlite`
+itself and do not need this package.
+
+<CopyCommand lines={["bun add @sqlite.org/sqlite-wasm"]} />
+
+| Package                   | Role                           | Versions `@luciole-sh/core` accepts |
+| ------------------------- | ------------------------------ | ----------------------------------- |
+| `@sqlite.org/sqlite-wasm` | SQLite for the Server's Worker | `^3.53.4-build1`                    |
