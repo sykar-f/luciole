@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 """Capture real screens of the example applications for the website.
 
-Each scene starts an application with `luciole dev` in a PTY, plays keys, and writes the
-screen pyte decoded (text, colours, attributes) to src/frames/<name>.json. The site
+A scene starts a program in a PTY, plays keys, and writes the screen pyte decoded (text,
+colours, attributes) to src/frames/<name>.json. Most scenes start an example with
+`luciole dev`; `flow-graph` runs its package's example with Bun alone, as its README does,
+and `flight` writes the Server's bytes to src/frames/flight.txt, with no PTY. The site
 renders those cells as HTML: what it shows is what the terminal received, not a mock-up.
 
   python3 website/scripts/capture.py              # every scene
   python3 website/scripts/capture.py forge files  # some scenes
   python3 website/scripts/capture.py --print forge  # also print the text of each frame
 
-Needs pyte (scripts/requirements-pty.txt) and a checkout where `bun install` ran.
+Needs pyte (`pip install pyte`, in a virtual environment) and a checkout where
+`bun install` ran.
 """
 import datetime
 import fcntl
