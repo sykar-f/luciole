@@ -2,7 +2,8 @@
 // A captured terminal screen, drawn as text: every cell is the character and colours the
 // application sent, so it stays sharp at any size and can be selected. Always a figure: a
 // caption says what the screen shows, and its transcript, the rows as text, describes it
-// to a screen reader and opens under it.
+// to a screen reader and opens under it. A marked screen outlines its regions and numbers
+// them; the ordered list it holds, its legend, says what each number points to.
 import { escape, frame as load, style, text, type Frame } from "../lib/frames";
 import { uniqueId } from "../lib/transcripts";
 
@@ -16,6 +17,12 @@ interface Props {
   /** What the screen shows, in a sentence. */
   caption: string;
   regions?: Region[];
+  /**
+   * Outline each region and draw its number, for the legend the Screen holds: an ordered
+   * list, one item per region, between its tags. The regions are the frame's own unless
+   * `regions` gives others.
+   */
+  marks?: boolean;
   /** Print the rows one after the other, once, like a teletype. */
   printed?: boolean;
   /** Start dark and switch on like a tube: a line that opens to the whole screen. */
@@ -36,7 +43,7 @@ interface Props {
 
 const {
   caption,
-  regions = [],
+  marks = false,
   printed = false,
   poweron = false,
   wide = false,
@@ -44,6 +51,9 @@ const {
 } = Astro.props;
 const frame = typeof Astro.props.frame === "string" ? load(Astro.props.frame) : Astro.props.frame;
 if (!caption?.trim()) throw new Error(`Screen « ${frame.title} »: a caption is required.`);
+const regions = Astro.props.regions ?? (marks ? (frame.regions ?? []) : []);
+if (marks && regions.length === 0)
+  throw new Error(`Screen « ${frame.title} »: marks, but no regions to mark.`);
 const transcript = text(frame);
 
 // The id the screen's description points to: from the capture's title, so the same on
@@ -63,7 +73,11 @@ const html = frame.cells
   .join("");
 ---
 
-<figure class:list={["stage", className, { wide }]} data-figure="screen">
+<figure
+  class:list={["stage", className, { wide, marks }]}
+  data-figure="screen"
+  data-marks={marks ? regions.map((region) => region.id).join(" ") : undefined}
+>
   <div class:list={["term", { printed, poweron }]} style={`--cols:${frame.cols}`}>
     <div class="bar" aria-hidden="true">
       <span class="title"><b>┤</b> {frame.title} <b>├</b></span>
@@ -72,17 +86,18 @@ const html = frame.cells
     <div
       class="screen"
       role="img"
-      aria-label={`${frame.title}, a ${frame.cols} by ${frame.rows} terminal screen`}
+      aria-label={`${frame.title}, a ${frame.cols} by ${frame.rows} terminal screen${marks ? `, its ${regions.length} numbered marks listed below` : ""}`}
       aria-describedby={id}
     >
       <div class="grid">
         <pre aria-hidden="true" set:html={html} />
         {
           regions.flatMap((region) =>
-            region.rects.map(({ row, col, rows, cols }) => (
+            region.rects.map(({ row, col, rows, cols }, i) => (
               <span
                 class:list={["region", region.side]}
                 data-region={region.id}
+                data-n={marks && i === 0 ? region.id : undefined}
                 style={`--row:${row};--col:${col};--h:${rows};--w:${cols}`}
               />
             )),
@@ -93,6 +108,13 @@ const html = frame.cells
     </div>
   </div>
   <figcaption class="caption">{caption}</figcaption>
+  {
+    marks && (
+      <div class="legend">
+        <slot />
+      </div>
+    )
+  }
   <details class="transcript">
     <summary>Transcript</summary>
     <pre id={id} data-transcript>{transcript}</pre>
@@ -301,6 +323,54 @@ const html = frame.cells
 
   .region.lit {
     opacity: 1;
+  }
+
+  /* Marked: every region outlined, over the glass, and numbered at its first rectangle's
+     corner. The number is drawn, not text, so copying the screen copies the screen; the
+     legend says it in words. Dark on the side's colour: palettes.py holds each side at
+     4.5:1 or more on --night in every palette. */
+  .marks .region {
+    z-index: 2;
+    opacity: 1;
+  }
+
+  .marks .region[data-n]::before {
+    content: attr(data-n) / "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    min-width: 1.5em;
+    padding: 0.2em 0.3em;
+    border-radius: 3px;
+    background: var(--screen-client);
+    color: var(--night);
+    font: 700 max(0.75rem, 1em) / 1 var(--mono);
+    text-align: center;
+    transform: translate(-70%, -70%);
+    box-shadow: 0 0 0 2px var(--screen);
+  }
+
+  .marks .region.server[data-n]::before {
+    background: var(--screen-server);
+  }
+
+  .legend {
+    margin-top: 8px;
+    color: var(--prose);
+    font: 400 0.85rem / 1.5 var(--sans);
+  }
+
+  .legend :global(ol) {
+    margin: 0;
+    padding-left: 2.2em;
+  }
+
+  .legend :global(li + li) {
+    margin-top: 0.3em;
+  }
+
+  .legend :global(li::marker) {
+    font: 700 0.8rem var(--mono);
   }
 
   .printed pre :global(.row) {
