@@ -36,6 +36,14 @@ const sequence = (steps: string) => `
 const run = (extra: string) => `<div data-figure="run-here"><div data-live data-boot="manual"
   data-src="/demo/notes/index.html"></div></div>${extra}`;
 
+/** A RunHere starting from a round trip of `latency` ms, with `control` in its figure. */
+const timed = (control: string, latency = "500") => `<div data-figure="run-here"
+  data-latency="${latency}"><div data-live data-boot="manual" data-src="/demo/latency/index.html">
+  </div>${control}</div>`;
+const slider = (bounds = 'min="0" max="2000"', shown = "500 ms") =>
+  `<input type="range" ${bounds} value="500"><output>${shown}</output>`;
+const labelled = (inside = slider()) => `<label>Round trip to the Server${inside}</label>`;
+
 describe("the figure kit's contracts", () => {
   test("hold on a captioned, transcribed screen and a listed sequence", async () => {
     const html =
@@ -127,6 +135,39 @@ describe("the figure kit's contracts", () => {
     ]);
     expect(await problems(run("").replace('data-boot="manual"', 'data-boot="visible"'))).toEqual([
       '/docs/a/: run-here "": its demo does not wait for a click',
+    ]);
+  });
+
+  test("a RunHere's round-trip slider, there exactly when it has a latency", async () => {
+    expect(await problems(timed(labelled()))).toEqual([]);
+    expect(await problems(timed(""))).toEqual([
+      '/docs/a/: run-here "": latency="500", and no round-trip slider',
+    ]);
+    const unset = timed(labelled()).replace(/\s*data-latency="500"/, "");
+    expect(await problems(unset)).toEqual([
+      '/docs/a/: run-here "": a round-trip slider, and no latency to start it from',
+    ]);
+    // A slider of the page's own, outside the figure, is not the RunHere's.
+    expect(await problems(run(labelled()))).toEqual([]);
+  });
+
+  test("a round-trip slider without a name, a unit or bounds the network takes", async () => {
+    expect(await problems(timed(slider()))).toEqual([
+      '/docs/a/: run-here "": its round-trip slider has no label',
+    ]);
+    // Named for a screen reader only: the reader who sees it does not know what it sets.
+    const unseen = timed(slider().replace("<input", '<input aria-label="Round trip"'));
+    expect(await problems(unseen)).toEqual([
+      '/docs/a/: run-here "": its round-trip slider has no label',
+    ]);
+    expect(await problems(timed(labelled(slider('min="0" max="2000"', "500"))))).toEqual([
+      '/docs/a/: run-here "": its round-trip slider shows no value in ms',
+    ]);
+    expect(await problems(timed(labelled(slider('min="0" max="20000"'))))).toEqual([
+      '/docs/a/: run-here "": its round trip goes from 0 to 20000 ms, beyond the network command\'s 0 to 10000',
+    ]);
+    expect(await problems(timed(labelled(), "3000"))).toEqual([
+      '/docs/a/: run-here "": its latency, 3000 ms, is off its slider\'s 0 to 2000',
     ]);
   });
 });
