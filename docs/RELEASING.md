@@ -74,7 +74,11 @@ Par le propriétaire, sur GitHub et npm ; aucune session de développement ne le
 ## Couper une release
 
 1. Sur `main`, à jour et vert, mettre la même `version` dans les cinq `package.json`
-   publiables ; la fusionner par le circuit habituel.
+   publiables et, dans le même commit, passer les liens `blob/v<ancienne>/…` de
+   `packages/markdown-editor/README.md` à `blob/v<version>/…`, parce que ce README part dans
+   le tarball et doit pointer vers le tag qui contient les fichiers qu'il cite
+   (`tests/source-links.test.ts` échoue tant que ce tag et la `version` du paquet diffèrent) ;
+   la fusionner par le circuit habituel.
 2. Répéter à blanc (ci-dessous) sur ce commit.
 3. **Documentation.** Sur ce même commit, avant le tag :
    - relire `/status/` (`website/src/pages/status.astro`) ligne à ligne contre le code et la CI,
