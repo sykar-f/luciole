@@ -20,7 +20,7 @@ bun install --frozen-lockfile    # une fois, Bun 1.4.2
 bun packages/core/src/cli.ts dev --app examples/notes
 ```
 
-Il n'y a pas de script `bun run` pour cet exemple. Aucune clé API, aucun réseau. Au
+`bun run dev`, à la racine, lance la même commande. Aucune clé API, aucun réseau. Au
 premier lancement, la base `notes.sqlite` est créée dans le répertoire courant et
 remplie de quelques notes d'exemple ; la liste est à gauche, la note ouverte à droite.
 

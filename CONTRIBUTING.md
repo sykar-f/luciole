@@ -21,8 +21,8 @@ The website (`website/`) has its own dependencies:
 (cd website && bun install --frozen-lockfile)
 ```
 
-Run an example from the monorepo root, for instance `bun run forge`. The
-[README](README.md) lists them all.
+Run an example from the monorepo root, for instance `bun run dev`. The
+[README](README.md) lists them.
 
 ## Checks
 
