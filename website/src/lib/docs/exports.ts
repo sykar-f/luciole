@@ -58,30 +58,7 @@ export type ApiFamily = "client" | "server-and-cache" | "hosts-and-tools" | "lib
  * ratchet: once a page documents a name, the test fails until the name leaves this list.
  */
 export const pendingExports: Readonly<Record<ApiFamily, readonly string[]>> = {
-  client: [
-    "@luciole-sh/core/client#CapabilityState",
-    "@luciole-sh/core/client#EmbedProps",
-    "@luciole-sh/core/client#Fault",
-    "@luciole-sh/core/client#Fetch",
-    "@luciole-sh/core/client#FieldInputProps",
-    "@luciole-sh/core/client#FieldScrollBoxProps",
-    "@luciole-sh/core/client#FieldTextareaProps",
-    "@luciole-sh/core/client#GlobalKey",
-    "@luciole-sh/core/client#Host",
-    "@luciole-sh/core/client#MarkdownPalette",
-    "@luciole-sh/core/client#MarkdownProps",
-    "@luciole-sh/core/client#NetworkConditions",
-    "@luciole-sh/core/client#Outcome",
-    "@luciole-sh/core/client#RequestCause",
-    "@luciole-sh/core/client#RequestContext",
-    "@luciole-sh/core/client#RestoredFields",
-    "@luciole-sh/core/client#RouteParams",
-    "@luciole-sh/core/client#RouteSearch",
-    "@luciole-sh/core/client#TerminalProps",
-    "@luciole-sh/core/client#TerminalViewProps",
-    "@luciole-sh/core/client#Transport",
-    "@luciole-sh/core/client#TransportEvent",
-  ],
+  client: [],
   "server-and-cache": [],
   "hosts-and-tools": [
     "@luciole-sh/core/client#HostChannel",
