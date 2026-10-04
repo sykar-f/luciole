@@ -3,15 +3,21 @@ title: Server Components
 description: Pages render on the Server, next to the data. What a page may do, what it passes to the Client, and what it can never send.
 sources:
   - packages/core/src/build.ts
+  - packages/core/src/server.ts
+  - packages/core/src/client.tsx
   - tests/build.test.ts
   - docs/BOUNDARIES.md
   - docs/API.md
   - examples/notes/app/page.tsx
   - examples/notes/app/notes/[id]/page.tsx
+  - examples/notes/server/queries.ts
+  - examples/notes/components/notes-list.ts
+  - website/src/frames/flight.txt
 ---
 
 import Excerpt from "../../../components/guide/Excerpt.astro";
 import Note from "../../../components/docs/Note.astro";
+import Sequence from "../../../components/guide/Sequence.astro";
 
 A `page.tsx` is a Server Component by default. It runs in the Server process, reads data
 directly (no API layer between the page and the database) and returns OpenTUI elements. The
@@ -30,23 +36,65 @@ page renders. Notes does this below.
   caption="The home page of Notes, when no note is chosen: it renders a Client Component. The page of a note, below, reads a cached query."
 />
 
+## What crosses from the Server to the Client
+
+The page of a note runs on the Server and renders `NoteEditor`, a Client Component. Three
+things cross to the Client, and the page's code is not one of them:
+
+<Sequence
+  title="The page of a note crosses the boundary"
+  lanes={[
+    { id: "server", label: "Server", sub: "runs page.tsx", tone: "server" },
+    { id: "client", label: "Client", sub: "mounts what arrives", tone: "client" },
+  ]}
+  messages={[
+    { phase: "On the Server" },
+    { from: "server", to: "server", label: "Page() awaits noteOf(): the cache or SQLite", n: 1 },
+    { from: "server", to: "server", label: "renders <NoteEditor>, a Client Component", n: 2 },
+    { phase: "In Flight" },
+    { from: "server", to: "client", label: "NoteEditor's module ID", n: 3, tone: "wire" },
+    { from: "server", to: "client", label: "its props in JSON: the note", n: 4, tone: "wire" },
+    {
+      from: "server",
+      to: "client",
+      label: "references to saveNote and getOperation",
+      n: 5,
+      tone: "wire",
+    },
+    { phase: "On the Client" },
+    { from: "client", to: "client", label: "imports NoteEditor from its own bundle", n: 6 },
+    { from: "client", to: "client", label: "mounts it with the note, handles its keys", n: 7 },
+    {
+      from: "client",
+      to: "server",
+      label: "saveAction(snapshot): POST /action",
+      n: 8,
+      tone: "wire",
+    },
+  ]}
+  caption="The page's code and the query (1, 2) stay on the Server. Only a module ID, the props and references cross (3 to 5). Calling a reference sends a request (8)."
+/>
+
+The [annotated Flight answer](/docs/concepts/client-and-server/#what-travels-between-the-client-and-the-server)
+shows those three things, byte by byte.
+
 ## What a page can do
 
 - Be `async` and `await` anything: a query, a file, a model call.
-- Read the session with `getSession()` (or `getOptionalSession()` on a public page) and the
-  app's command-line arguments with [`cli.get()`](/docs/reference/app-arguments/).
+- Read the sign-in session with `getSession()`, or `getOptionalSession()` on a public page.
+- Read the app's command-line arguments with [`cli.get()`](/docs/reference/app-arguments/).
 - Import Server Functions and Client Components, and pass them down as props.
 - End with `notFound(what?)`, which shows the nearest `not-found.tsx`.
-- Declare `export const staleTime = 30` (seconds) to let the router show its cached tree
-  without asking again ([caching](/docs/concepts/cache/#show-a-page-without-a-request-with-staletime)), and
-  `export const auth = "public"` to be reachable without a session
+- Export `staleTime = 30`, in seconds, to let the router show its cached tree without asking
+  again ([caching](/docs/concepts/cache/#show-a-page-without-a-request-with-staletime)).
+- Export `auth = "public"` to make the page reachable without signing in
   ([authentication](/docs/concepts/authentication/)).
 
 ## What a page passes to the Client
 
 A page composes Client Components and gives them props. Props travel in Flight, React's
-serialization: data, promises, async iterables, and references to Server Functions. The page of a note hands
-its editor the note and two Server Functions:
+serialization. A prop can be data, a promise, an async iterable or a reference to a Server
+Function. The page of a note hands its editor the note and two Server Functions:
 
 <Excerpt
   path="examples/notes/app/notes/[id]/page.tsx"
@@ -56,34 +104,43 @@ its editor the note and two Server Functions:
   tone="server"
 />
 
-`saveAction` reaches the Client as a reference: calling it sends a request to the Server,
+`saveAction` reaches the Client as a reference. Calling it sends a request to the Server,
 which runs `saveNote` there ([Server Functions](/docs/concepts/server-functions/)).
 
 ## What a page cannot do
 
-- Handle a key: pages are rendered, not mounted. Keys belong to Client Components.
+- Handle a key. A page is rendered on the Server, never mounted. Keys belong to Client
+  Components.
 - Use React's Client hooks and APIs: `useState`, `useEffect`, `createContext` and the other
-  exports React withholds from its `react-server` build. The build refuses them at the
-  imported name, with the fix, rather than letting the Server die at start on a missing
-  export:
+  exports React leaves out of its `react-server` build. The build refuses the import and
+  prints the fix, so the Server does not crash at start on a missing export:
 
-```text
-app/page.tsx:1:19: useState is Client-only React: a Server Component cannot use it. Add "use client" at the top of this file, or move the part that needs it into a Client Component
-  via app/page.tsx
-```
+  ```text
+  app/page.tsx:1:19: useState is Client-only React: a Server Component cannot use it. Add "use client" at the top of this file, or move the part that needs it into a Client Component
+    via app/page.tsx
+  ```
 
 - Be cached as a tree. `"use cache"` caches data, not components.
-- Put a secret in a prop. Everything a page passes to a Client Component is sent to the
-  terminal.
+
+<Note kind="warning">
+  Never put a secret in a prop. Everything a page passes to a Client Component is sent to the
+  Client, where the person at the keyboard can read it.
+</Note>
 
 <Note kind="warning">
   An exception thrown while rendering reaches the nearest `error.tsx` as a render error, opaque in
-  production. A page cannot rely on its message reaching the terminal.
+  production. A page cannot rely on its message reaching the Client.
 </Note>
 
 ## Why pages and not Server layouts
 
-Layouts are Client Components that stay mounted; only the page is rendered by the Server on
-each navigation. Persistent Server layouts (one Flight payload per segment) are out of the
-contract until a concrete need calls for them. Data a layout needs from the Server, such as
-a display name for the chrome, comes from a page or from a Client context the app provides.
+Layouts are Client Components that stay mounted. Only the page is rendered by the Server on
+each navigation. Persistent Server layouts, with one Flight payload per segment, are not
+supported.
+
+A layout that needs data from the Server, such as a display name for its status line, gets
+it in one of two ways:
+
+- from a Server Function it calls, as the sidebar of Notes reads its list with `listNotes`;
+- from a page;
+- from a Client context the app provides.
