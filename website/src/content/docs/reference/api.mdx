@@ -226,42 +226,211 @@ An app does not need these exports.
 
 ## Use `@luciole-sh/core/server` on the Server
 
-| Export                                   | Contract                                                                                                                       |
-| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `getSession()`                           | Returns `{ userId }`, the sign-in session of the current render or Server Function call.                                       |
-| `getOptionalSession()`                   | Returns the sign-in session, or `null` for an anonymous request. A public page or Server Function gets a signed-in user's too. |
-| `getCallId()`                            | Returns the transport request's ID, distinct from the business operation.                                                      |
-| `getArgs()`                              | Returns the app's arguments, untyped ([app arguments](/docs/reference/app-arguments/)).                                        |
-| `getLaunch()`                            | Returns the launch: `{ scope, id?, cwd }`.                                                                                     |
-| `notFound(what?)`                        | Ends a page's render with the nearest `not-found.tsx`.                                                                         |
-| `invalidate(path?)`                      | Declares, from a Server Function, that the data under `path` changed. Default: `"/"`, every route.                             |
-| `invalidate({ tag })`                    | Drops the cached results labelled `tag`. Resolves once they are gone ([caching](/docs/concepts/cache/)).                       |
-| `cacheLife()`, `cacheTag()`              | Set the age and the tags of a `"use cache"` result.                                                                            |
-| `memoryCache()`, `sqliteCache({ path })` | The two cache stores. Their types are `CacheHandler`, `CacheEntry` and `CacheEvent`.                                           |
-| `AuthConfig`                             | The type of `server/auth.ts`'s default export ([authentication](/docs/concepts/authentication/)).                              |
-| `createHandler(config, options)`         | The Server as a function of a `Request`, without listening.                                                                    |
-| `serve(config)`                          | `createHandler` on `Bun.serve`, with the environment, the socket and the lifetime.                                             |
+Import this entry from Server code only: pages, layouts, Server Functions and `server/*.ts`.
+
+### Read the request and the launch
+
+| Export                 | Contract                                                                                                                       |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `getSession()`         | Returns `{ userId }`, the sign-in session of the current render or Server Function call.                                       |
+| `getOptionalSession()` | Returns the sign-in session, or `null` for an anonymous request. A public page or Server Function gets a signed-in user's too. |
+| `getCallId()`          | Returns the transport request's ID, distinct from the business operation.                                                      |
+| `getArgs()`            | Returns the app's arguments, untyped ([app arguments](/docs/reference/app-arguments/)).                                        |
+| `getLaunch()`          | Returns the launch: `{ scope, id?, cwd }`.                                                                                     |
+| `notFound(what?)`      | Ends a page's render with the nearest `not-found.tsx`.                                                                         |
+| `invalidate(path?)`    | Declares, from a Server Function, that the data under `path` changed. Default: `"/"`, every route.                             |
+| `AuthConfig`           | The type of `server/auth.ts`'s default export ([authentication](/docs/concepts/authentication/)).                              |
 
 These calls throw an `Error` with these messages:
 
-| Call                                   | Message                                                                     | When                                                         |
-| -------------------------------------- | --------------------------------------------------------------------------- | ------------------------------------------------------------ |
-| `getSession()`, `getOptionalSession()` | `No request session`                                                        | Called outside a render or a Server Function call.           |
-| `getSession()`                         | `Authentication required`                                                   | The request has no signed-in user.                           |
-| `invalidate(path)`                     | `invalidate(path) is only available in Server Functions: no Client to tell` | Called outside a Server Function call.                       |
-| `invalidate(path)`                     | `invalidate() takes an absolute path`                                       | `path` does not start with `/`, or is over 1,000 characters. |
+| Call                                   | Message                                                                             | When                                                         |
+| -------------------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| `getSession()`, `getOptionalSession()` | `No request session`                                                                | Called outside a render or a Server Function call.           |
+| `getSession()`, `getOptionalSession()` | `<call> is unavailable inside "use cache" (<fn>): pass the identity as an argument` | Called by a cached function, or by code it calls.            |
+| `getSession()`                         | `Authentication required`                                                           | The request has no signed-in user.                           |
+| `invalidate(path)`                     | `invalidate(path) is only available in Server Functions: no Client to tell`         | Called outside a Server Function call.                       |
+| `invalidate(path)`                     | `invalidate() takes an absolute path`                                               | `path` does not start with `/`, or is over 1,000 characters. |
 
 [Server Functions](/docs/concepts/server-functions/#declare-what-a-server-function-changed)
 explains when to call `invalidate`.
 
-`serve({ instrument })` hands `instrument.onEvent(event)` two kinds of events:
+### Cache Server reads
+
+These exports age, label and store the results of `"use cache"` functions.
+[Caching Server reads](/docs/concepts/cache/) explains when a call reads an entry.
+
+| Export                               | Contract                                                                                                                                                                                            |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cacheLife(life)`                    | Sets how long the running result stays fresh. `life` is a `CacheProfile` or `{ revalidate?, expire? }`, in seconds.                                                                                 |
+| `cacheTag(...tags)`                  | Labels the running result. A tag holds 1 to 256 visible ASCII characters, without commas or spaces. A result holds at most 64 tags.                                                                 |
+| `invalidate({ tag })`                | Drops the results labelled `tag`, from any Server code. Returns a `Promise<void>` that resolves once they are gone.                                                                                 |
+| `CacheProfile`                       | `"default" \| "seconds" \| "minutes" \| "hours" \| "days" \| "weeks" \| "max"`. The [profiles table](/docs/concepts/cache/#label-and-age-a-result-with-cachetag-and-cachelife) gives their seconds. |
+| `memoryCache({ maxEntries? })`       | The default store, in this process only. The least recently used entry leaves first. Default: `1000` entries.                                                                                       |
+| `sqliteCache({ path, maxEntries? })` | A store in the SQLite file at `path`, created if missing. It survives restarts, and the oldest entries leave first. Default: `10000` entries.                                                       |
+| `CacheHandler`                       | The type of a store: `get(key)`, `set(key, entry)` and `invalidateTags(tags)`. Each returns its value or a `Promise` of it.                                                                         |
+| `CacheEntry`                         | `{ value, tags, createdAt, revalidate, expire }`. `value` is opaque text, `createdAt` is epoch milliseconds, the durations are seconds.                                                             |
+| `CacheEvent`                         | `{ type: "cache", op, key, fn, tags, callId, ms, at }`, with `op` one of `hit`, `miss`, `stale`, `write` and `invalidate`.                                                                          |
+
+A result whose function never calls `cacheLife` takes the `default` profile: 900 seconds,
+and no expiry. A field that `{ revalidate?, expire? }` leaves out takes its `default` value
+too. When `cacheLife` runs more than once, the shortest value of each field wins.
+
+`invalidateTags(tags)` must remove the entries before it resolves, since the Client reads
+again right after. Export the store from `server/cache.ts`, as
+[Where entries live](/docs/concepts/cache/#where-entries-live) shows.
+
+These calls throw with these messages:
+
+| Call                                  | Message                                                              | When                                                                 |
+| ------------------------------------- | -------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `cacheLife()`, `cacheTag()`           | `<call> is only available inside a "use cache" function`             | Called outside a cached function.                                    |
+| `cacheLife(name)`                     | `Unknown cache profile: <name>`                                      | `name` is not a `CacheProfile`.                                      |
+| `cacheLife({ revalidate?, expire? })` | `revalidate must not exceed expire`, in a `ZodError`                 | `revalidate` ends up above `expire`, as with `{ expire: 60 }` alone. |
+| `cacheTag()`, `invalidate({ tag })`   | `tags are 1–256 visible ASCII characters, no comma`, in a `ZodError` | A tag breaks the rule above.                                         |
+| `cacheTag()`                          | `At most 64 tags per cached result`                                  | The result holds more than 64 tags.                                  |
+
+Notes labels each cached read with the owner of its notes:
+
+<Excerpt path="examples/notes/server/queries.ts" tone="server" />
+
+### Describe the app to the Server with `ServerConfig`
+
+`luciole build` writes `.luciole/server/index.js`, which builds a `ServerConfig` and calls
+`serve(config)`. You write one yourself only to run a Server without the build, as luciole's
+tests do.
+
+| Field         | Type                                                   | Contract                                                                                                   |
+| ------------- | ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| `buildId`     | `string`                                               | The build's ID. A request whose `x-luciole-build` header differs gets a 409.                               |
+| `manifest`    | `unknown`                                              | The Client References of the build, as `luciole build` writes them.                                        |
+| `actions`     | `Map<string, { fn: ServerFunction; auth: RouteAuth }>` | The Server Functions, keyed by their ID, `path#name`. The Client sends it in `x-luciole-action`.           |
+| `routes`      | `Map<string, ServerRoute>`                             | The pages, keyed by their route ID.                                                                        |
+| `auth?`       | `AuthConfig`                                           | Who is signed in. `serve` reads it, and `createHandler` takes `options.auth` instead.                      |
+| `instrument?` | `ServerInstrument`                                     | Receives each request event and each cache event. Default: none.                                           |
+| `cache?`      | `CacheHandler`                                         | Where cached results live. Default: `memoryCache()`.                                                       |
+| `appBundle?`  | `string`                                               | The directory of the application bundle, `.luciole/app`. When it exists, hosts can load the app from it.   |
+| `web?`        | `string`                                               | The directory of the web runtime, `.luciole/web`. `serve` serves it to the origin in `LUCIOLE_WEB_ORIGIN`. |
+
+The types of its fields:
+
+| Type               | Definition                                      | Contract                                                                                                    |
+| ------------------ | ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `RouteAuth`        | `"public" \| "required"`                        | A `required` page or Server Function answers 401 to a request without a sign-in session.                    |
+| `ServerFunction`   | `(...args: unknown[]) => unknown`               | Its arguments arrive decoded but unchecked: validate them first. An async iterable it returns streams live. |
+| `ServerRoute`      | `{ component, auth, url, params }`              | `component` receives `{ params, searchParams }`, both `Record<string, string>`.                             |
+| `ServerInstrument` | `{ onEvent(event: ServerEvent \| CacheEvent) }` | Called synchronously on the request's path. Keep it cheap, and never throw from it.                         |
+
+A `ServerRoute`'s `url` is the pattern with `$name` parameters. The Server uses it only to
+check `unauthorizedPath`. A request must give exactly the names in `params`, each a non-empty
+string. Its search holds at most 32 keys, each of 1 to 64 letters, digits, `_`, `.` or `-`. A
+value holds 1,000 characters at most.
+
+### Start a Server with `serve`
+
+`serve(config: ServerConfig)` starts the Server on `Bun.serve` and returns Bun's `Server`. It
+takes the rest from the [Server's environment](/docs/reference/environment/#configure-the-server):
+
+- It listens on `LUCIOLE_SOCKET`, or else on `LUCIOLE_HOST` and `PORT`. Defaults:
+  `127.0.0.1` and `3000`.
+- Without `config.auth`, a request carrying `Authorization: Bearer <LUCIOLE_TOKEN>` is
+  signed in as `LUCIOLE_USER`. When `LUCIOLE_TOKEN` is unset, every request is.
+- A request body holds 1 MiB at most.
+- A TCP connection idle for 30 seconds closes, but a live response keeps its connection. A
+  socket has no idle timeout.
+- Once it listens, it prints one line on stdout: `{"ready":true,"port":…,"pid":…,"buildId":…}`,
+  with `socket` in place of `port`.
+- It stops on SIGTERM and SIGINT. On a socket, the launcher also decides how long it lives.
+
+`serve` throws before it listens, with these messages:
+
+| Message                                                                                       | When                                                                       |
+| --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `Invalid Server environment: <details>`                                                       | A variable fails its check, such as a `PORT` that is not an integer.       |
+| `Remote binding requires LUCIOLE_TOKEN or server/auth.ts and a TLS reverse proxy`             | `LUCIOLE_HOST` is not a loopback address, with no socket, token or `auth`. |
+| `LUCIOLE_WEB_ORIGIN is set but this build has no web runtime: build with luciole build --web` | `LUCIOLE_WEB_ORIGIN` is set and `config.web` holds no web runtime.         |
+| `<web> was built for runtime ABI <abi>, this Server has <abi>`                                | The web runtime comes from another version of luciole.                     |
+
+It also throws the errors of `createHandler`, below.
+
+This test Server is built by hand, with an instrument that prints each event as a JSON line.
+An app imports from `@luciole-sh/core/server`, where this test reads the source:
+
+<Excerpt path="tests/instrument-server.ts" tone="server" />
+
+### Answer requests with `createHandler`
+
+`createHandler(config: ServerConfig, options: HandlerOptions)` returns the Server as a
+function, `(req: Request, url?: URL) => Promise<Response>`. It does not listen, bind a
+socket or exit. Use it to answer requests where `Bun.serve` does not run, as the web
+runtime's Worker does:
+
+<Excerpt
+  path="packages/core/src/web/platform/serve.ts"
+  find="export function serve"
+  until="^}"
+  tone="server"
+/>
+
+`HandlerOptions` says what the place where the handler runs provides:
+
+| Option             | Type                                                               | Contract                                                                                                   |
+| ------------------ | ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| `auth`             | `AuthConfig`                                                       | Who is signed in. `serve` passes `config.auth`, or its token check.                                        |
+| `devtools?`        | `string`                                                           | The address of `luciole devtools`, in development only. Default: none.                                     |
+| `testing?`         | `boolean`                                                          | Answers `/test-metrics` with `{ renders, actions }`. Default: `false`.                                     |
+| `web?`             | `{ admits(req): boolean; serve(req, url): Response \| undefined }` | Which browser requests may run, and the web page's files. Default: refuses every request with an `Origin`. |
+| `keepAlive?`       | `(req: Request) => void`                                           | Called when a live response starts. `serve` lifts the idle timeout of that request.                        |
+| `dropAfterCommit?` | `() => void`                                                       | A fault for luciole's tests, called after a Server Function returned `{ ok: true }`.                       |
+
+`createHandler` throws an `Error` with these messages:
+
+| Message                                         | When                                                           |
+| ----------------------------------------------- | -------------------------------------------------------------- |
+| `Authentication route not found: <path>`        | No route's `url` is `auth.unauthorizedPath`.                   |
+| `Authentication route must be public: <path>`   | The route at `auth.unauthorizedPath` is `required`.            |
+| `<bundle> does not match its manifest (sha256)` | The bytes in `appBundle` differ from those its manifest names. |
+
+The handler answers these requests:
+
+| Request                                 | Answer                                                                                                          |
+| --------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `GET /manifest`, `GET /bundle/<sha256>` | The application bundle, without a sign-in session. Without one, a 404: `This Server has no application bundle`. |
+| `GET /health`                           | `{ buildId, pid }`, for a signed-in request only.                                                               |
+| `GET /render?route=…`                   | The page's Flight stream, `text/x-component`, with `cache-control: no-store`.                                   |
+| `POST /action`                          | The Server Function's result as a Flight stream, with `Server-Timing: total;dur=…` in milliseconds.             |
+
+It answers these errors as text:
+
+| Status | Body                                                                                                          | When                                                                            |
+| ------ | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| 403    | `Browser origins are unsupported`                                                                             | The request has an `Origin` that `web` refuses.                                 |
+| 409    | `Incompatible build: install matching Client and Server`                                                      | `x-luciole-build` differs from `buildId`.                                       |
+| 400    | `Invalid instance key`, `Invalid route parameters`, `Invalid search parameters`, `Arguments must be an array` | A header, the parameters, the search or the arguments fail their check.         |
+| 401    | `Unauthorized`, `Authentication required`                                                                     | A `required` route or Server Function, or `/health`, without a sign-in session. |
+| 404    | `Route not found`, `Unknown action`, `Not found`                                                              | The route ID, the Server Function ID or the path is unknown.                    |
+| 500    | `Server request failed`                                                                                       | `authenticate` or the Server Function threw. The Server logs the call ID.       |
+
+A 401 from a page or a Server Function carries `x-luciole-login: <unauthorizedPath>` when
+`auth` sets one.
+
+### Observe requests with `instrument`
+
+`instrument.onEvent(event)` receives two kinds of events:
 
 - a `ServerEvent` for every `/render` and `/action`: `request`, `response`, `end` or `error`,
   with `callId`, `kind`, `target` and `at`
 - each `CacheEvent` of the cache
 
-Without `instrument`, no response is wrapped. `/action` answers with
-`Server-Timing: total;dur=…`.
+| `ServerEvent` type | Extra fields               | When                                                                             |
+| ------------------ | -------------------------- | -------------------------------------------------------------------------------- |
+| `request`          | none                       | The request arrives.                                                             |
+| `response`         | `status`, `ms`             | The handler returned its `Response`.                                             |
+| `end`              | `ms`, `bytes`, `cancelled` | The body ended, or the Client went away. A live body ends with its generator.    |
+| `error`            | `ms`, `message`            | The handler threw, in place of `response`, or the body failed while it streamed. |
+
+`at` is epoch milliseconds, and `ms` counts from the request's arrival. `target` is the route
+ID or the Server Function ID, as the request gave it. Without `instrument` or `devtools`, no
+response is wrapped.
 
 ## Find the other entries
 

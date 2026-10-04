@@ -82,15 +82,7 @@ export const pendingExports: Readonly<Record<ApiFamily, readonly string[]>> = {
     "@luciole-sh/core/client#Transport",
     "@luciole-sh/core/client#TransportEvent",
   ],
-  "server-and-cache": [
-    "@luciole-sh/core/server#CacheProfile",
-    "@luciole-sh/core/server#HandlerOptions",
-    "@luciole-sh/core/server#RouteAuth",
-    "@luciole-sh/core/server#ServerConfig",
-    "@luciole-sh/core/server#ServerFunction",
-    "@luciole-sh/core/server#ServerInstrument",
-    "@luciole-sh/core/server#ServerRoute",
-  ],
+  "server-and-cache": [],
   "hosts-and-tools": [
     "@luciole-sh/core/client#HostChannel",
     "@luciole-sh/core/client#HostEvent",
