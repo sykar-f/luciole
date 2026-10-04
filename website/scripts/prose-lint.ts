@@ -73,6 +73,13 @@ interface Prose {
   comments: Comment[];
 }
 
+/** How far ahead of a token's first character the scanner reads to match it whole. */
+const TOKEN_WINDOW = 64;
+/** Length of `-->`, the end of an HTML comment. */
+const COMMENT_END_LENGTH = 3;
+/** Length of `---`, the fence of a front matter block. */
+const FRONT_MATTER_FENCE_LENGTH = 3;
+
 const FENCE = /^(`{3,}|~{3,})/;
 const LIST_ITEM = /^([-*+]|\d+[.)])\s+/;
 /** Tags that sit inside a sentence: a line that starts with one is prose. */
@@ -421,7 +428,7 @@ function sourceProse(source: string, kind: "astro" | "ts"): Prose {
         found.jsx = true;
         previous = ")";
       } else if (/[\w$]/.test(char)) {
-        const word = /^[\w$]+/.exec(source.slice(at, at + 64))?.[0] ?? char;
+        const word = /^[\w$]+/.exec(source.slice(at, at + TOKEN_WINDOW))?.[0] ?? char;
         at += word.length;
         previous = word;
         found.other = true;
@@ -464,7 +471,8 @@ function sourceProse(source: string, kind: "astro" | "ts"): Prose {
       markup("");
       return;
     }
-    const name = /^[\w:.-]+/.exec(source.slice(at, at + 64))?.[0] ?? fail(at, "a tag without name");
+    const name =
+      /^[\w:.-]+/.exec(source.slice(at, at + TOKEN_WINDOW))?.[0] ?? fail(at, "a tag without name");
     at += name.length;
     let closed = false;
     for (;;) {
@@ -486,7 +494,7 @@ function sourceProse(source: string, kind: "astro" | "ts"): Prose {
         continue;
       }
       const attribute =
-        /^[^\s=/>]+/.exec(source.slice(at, at + 64))?.[0] ?? fail(at, "a bad attribute");
+        /^[^\s=/>]+/.exec(source.slice(at, at + TOKEN_WINDOW))?.[0] ?? fail(at, "a bad attribute");
       at += attribute.length;
       while (/\s/.test(source[at] ?? "")) at++;
       if (source[at] !== "=") continue;
@@ -544,12 +552,12 @@ function sourceProse(source: string, kind: "astro" | "ts"): Prose {
       if (char === "<" && source.startsWith("<!--", at)) {
         const stop = source.indexOf("-->", at);
         if (stop === -1) fail(at, "unclosed comment");
-        comment(at, source.slice(at, stop + 3));
-        at = stop + 3;
+        comment(at, source.slice(at, stop + COMMENT_END_LENGTH));
+        at = stop + COMMENT_END_LENGTH;
         continue;
       }
       if (char === "<" && next === "/") {
-        const tag = /^<\/([\w:.-]*)\s*>/.exec(source.slice(at, at + 64));
+        const tag = /^<\/([\w:.-]*)\s*>/.exec(source.slice(at, at + TOKEN_WINDOW));
         if (!tag) fail(at, "a bad closing tag");
         at += tag?.[0].length ?? 0;
         const name = tag?.[1] ?? "";
@@ -578,7 +586,7 @@ function sourceProse(source: string, kind: "astro" | "ts"): Prose {
     if (/^---\s*\n/.test(source)) {
       const stop = source.search(/\n---\s*(\n|$)/);
       if (stop === -1) fail(0, "unclosed front matter");
-      at = 3;
+      at = FRONT_MATTER_FENCE_LENGTH;
       end = stop;
       standalone(code(false, false).literals);
       end = source.length;
