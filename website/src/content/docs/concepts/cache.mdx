@@ -1,22 +1,29 @@
 ---
 title: Caching Server reads
-description: '"use cache" keeps the result of a Server read, tagged; invalidate({ tag }) purges it and revalidates only the routes that read it.'
+description: '"use cache" keeps the result of a Server read, tagged. invalidate({ tag }) purges it, and the Client reloads only the routes that read the tag.'
 sources:
   - docs/CACHE.md
   - packages/core/src/cache
+  - packages/core/src/server.ts
+  - packages/core/src/transport.ts
+  - packages/core/src/client.tsx
   - examples/notes/server/queries.ts
   - examples/notes/server/tags.ts
   - examples/notes/actions/notes.ts
 ---
 
 import Excerpt from "../../../components/guide/Excerpt.astro";
+import Sequence from "../../../components/guide/Sequence.astro";
 import Note from "../../../components/docs/Note.astro";
 
-Inspired by the Cache Components of Next.js 16 and reduced to what a terminal Client uses:
-**data reads** cached on the Server, tagged, and an invalidation that purges them, then
-revalidates only the Client routes that read those tags.
+`"use cache"` keeps the result of a Server read. Invalidating one of its tags purges it, and
+the Client reloads only the routes that read that tag.
+
+Notes caches its list and each note, tagged by owner:
 
 <Excerpt path="examples/notes/server/queries.ts" tone="server" />
+
+Its Server Functions invalidate those tags after a change:
 
 <Excerpt
   path="examples/notes/actions/notes.ts"
@@ -26,65 +33,87 @@ revalidates only the Client routes that read those tags.
   tone="server"
 />
 
-## Declaring
+## Mark a function or a module as cached
 
 - **A module**: `"use cache"` at the top caches every exported function. The module exports
-  only `export async function` declarations (and types).
+  only `export async function` declarations, and types.
 - **A function**: `"use cache"` as the first statement of an `export async function`
   declared at the module's top level.
 
-The build refuses, with the file and line: closures, methods, arrow functions, functions
-that are not exported or not async, a default export (a page component), exported values or
-re-exports in a `"use cache"` module, `"use cache"` in a `"use server"` or `"use client"`
-module, and a `"use cache"` module reached by the Client's graph. Cache the functions a
-Server Function calls, not the Server Function: it receives arguments from the Client.
+The build refuses the following, and names the file and line:
 
-## Keys and values
+- a closure, a method or an arrow function
+- a function that is not exported, or not async
+- a default export, such as a page component
+- an exported value or a re-export in a `"use cache"` module
+- `"use cache"` in a `"use server"` or `"use client"` module
+- a `"use cache"` module that the Client's code imports
 
-The key is a SHA-256 of the build ID, the function's ID (`path#name`) and its arguments
-encoded like Server Function arguments: `Date`, `Map`, `Set`, `BigInt` and `undefined`
-survive. **A new build never reads another build's entries.** Each caller receives its own
-decoded copy. Concurrent calls with the same key share one computation. An exception is
-never cached.
+Cache the functions a Server Function calls, not the Server Function itself. A Server
+Function receives its arguments from the Client.
 
-Refused, arguments or results: async iterables, `ReadableStream`, React elements, Client
-functions, `Blob`. The cache stores data, not trees.
+## When two calls share a result
 
-## `cacheTag` and `cacheLife`
+Two calls share an entry when they run under the same build, call the same function and pass
+equal arguments. **A new build never reads another build's entries.** Arguments follow the
+rules of Server Function arguments, so `Date`, `Map`, `Set`, `BigInt` and `undefined` keep
+their type.
+
+- Each caller receives its own copy. Changing it leaves the entry as it was.
+- Concurrent calls with the same arguments share one computation.
+- An exception is never cached.
+
+The cache stores data, not trees. Arguments and results cannot be async iterables,
+`ReadableStream`, React elements, Client functions or `Blob`.
+
+## Label and age a result with `cacheTag` and `cacheLife`
 
 Both work only while a `"use cache"` function runs.
 
-- `cacheTag(...tags)` labels the result: 1 to 256 visible ASCII characters without commas,
-  at most 64 per result. Encode free identifiers, as `server/tags.ts` does with
-  `encodeURIComponent`.
-- `cacheLife(profile | { revalidate?, expire? })`, in **seconds**. Profiles
-  (`revalidate` / `expire`): `default` (900 / never), `seconds` (1 / 60), `minutes`
-  (60 / 3600), `hours` (3600 / 86,400), and `days`, `weeks`, `max`. Several calls: the
-  shortest of each field wins.
+`cacheTag(...tags)` labels the result. A tag holds 1 to 256 visible ASCII characters, without
+commas, and a result holds at most 64 tags. Encode free identifiers, as `server/tags.ts` does
+with `encodeURIComponent`.
 
-| Age of the entry              | Result                                                                                             |
-| ----------------------------- | -------------------------------------------------------------------------------------------------- |
-| below `revalidate`            | `hit`                                                                                              |
-| from `revalidate` to `expire` | `stale`: the old value now, a new one computed behind (a failure keeps the old one until `expire`) |
-| `expire` or more              | `miss`: the caller waits for the computation                                                       |
+`cacheLife(profile | { revalidate?, expire? })` sets the result's lifetime, in **seconds**.
+When a function calls `cacheLife` several times, the shortest value of each field wins.
 
+| Profile   | `revalidate` | `expire`  |
+| --------- | ------------ | --------- |
+| `default` | 900          | never     |
+| `seconds` | 1            | 60        |
+| `minutes` | 60           | 3,600     |
+| `hours`   | 3,600        | 86,400    |
+| `days`    | 86,400       | 604,800   |
+| `weeks`   | 604,800      | 2,592,000 |
+| `max`     | 2,592,000    | never     |
+
+The age of an entry decides what a call gets:
+
+| Age of the entry              | Result                                                                  |
+| ----------------------------- | ----------------------------------------------------------------------- |
+| below `revalidate`            | `hit`: the stored value                                                 |
+| from `revalidate` to `expire` | `stale`: the stored value now, and a new one computed in the background |
+| `expire` or more              | `miss`: the caller waits for the computation                            |
+
+If the background computation of a `stale` entry fails, the old value stays until `expire`.
 A cached function that calls another inherits its tags and its shortest lifetime.
 
 <Note kind="warning">
   `getSession()` and `getOptionalSession()` **throw** inside a cached function and anything it
-  calls: its result is shared by every caller with the same arguments. Pass the identity as an
-  argument, as Notes does with `noteOf(getSession().userId, params.id)`.
+  calls. Every caller with the same arguments receives the same result, so it cannot depend on who
+  signed in. Pass the identity as an argument, as Notes does with `noteOf(getSession().userId,
+  params.id)`.
 </Note>
 
 ## Where entries live
 
-| Handler                                     | Scope                                                                                                        |
-| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `memoryCache({ maxEntries = 1000 })`        | The default. This process only, least recently used out first, emptied on every restart (every dev rebuild). |
-| `sqliteCache({ path, maxEntries = 10000 })` | Survives restarts and is shared by the Server processes of a machine.                                        |
+| Handler                                     | Scope                                                                       |
+| ------------------------------------------- | --------------------------------------------------------------------------- |
+| `memoryCache({ maxEntries = 1000 })`        | The default. This process only. The least recently used entry leaves first. |
+| `sqliteCache({ path, maxEntries = 10000 })` | Survives restarts. The Server processes of one machine share it.            |
 
-The app picks one with an optional `server/cache.ts`, whose default export the build passes
-to the Server:
+A memory cache is empty after every restart, so after every rebuild of `bun run dev`. To
+pick a handler, export it by default from an optional `server/cache.ts`:
 
 ```ts
 // server/cache.ts
@@ -92,41 +121,87 @@ import { sqliteCache } from "@luciole-sh/core/server";
 export default sqliteCache({ path: process.env.CACHE_DB ?? "cache.sqlite" });
 ```
 
-A custom handler implements `get`, `set` and `invalidateTags`; `invalidateTags` must have
-removed the entries before it resolves, since the Client reads again right after.
+A custom handler implements `get`, `set` and `invalidateTags`. Its `invalidateTags` must
+remove the entries before it resolves, since the Client reads again right after.
 
-## What a render read
+## How a tag travels from a read to a reload
 
-During `GET /render`, every cached read (hit or miss) adds its tags to the render's, those of
-async Server Components under `Suspense` included. The tags travel in the Flight stream,
-after the page. The Client remembers the tags of each loaded tree; on a tag invalidation it
-revalidates the routes whose tree read one of them, plus those whose tags it does not know
-yet. A route that may have read a tag is never forgotten.
+Each render records the tags of the cached reads it made, in async Server Components under
+`Suspense` too. A hit counts as much as a miss. The tags reach the Client after the page.
 
-With `staleTime` 0 (the default), TanStack reloads every **mounted** route on any
-invalidation: the precision matters for routes in the router's cache and pages that declare a
-`staleTime`.
+When a Server Function invalidates a tag, the Server purges its entries before it answers.
+The answer names the tag, and the Client reloads two kinds of routes:
 
-## A page's `staleTime`
+- the routes whose page read the tag
+- the routes whose tags it does not know yet, such as a page still loading
+
+<Sequence
+  title="The life of a tag"
+  lanes={[
+    { id: "client", label: "Client", sub: "keeps each route's tags", tone: "client" },
+    { id: "server", label: "Server", sub: "renders, runs Server Functions", tone: "server" },
+    { id: "cache", label: "Cache", sub: "memory or SQLite", tone: "server" },
+  ]}
+  messages={[
+    { phase: "A render reads a cached value" },
+    { from: "client", to: "server", label: "GET /render, note 1", n: 1 },
+    { from: "server", to: "cache", label: 'noteOf("local", "1")', n: 2 },
+    { from: "cache", to: "server", label: "the note, tag note:local:1", n: 3, back: true },
+    { from: "server", to: "client", label: "Flight: the page, then its tags", n: 4, back: true },
+    { from: "client", to: "client", label: "note 1 read note:local:1", n: 5 },
+    { phase: "A Server Function invalidates the tag" },
+    { from: "client", to: "server", label: "POST /action, saveNote", n: 6 },
+    { from: "server", to: "cache", label: 'invalidate({ tag: "note:local:1" })', n: 7 },
+    { from: "cache", to: "server", label: "entries removed", n: 8, back: true },
+    {
+      from: "server",
+      to: "client",
+      label: "the result, and the tag invalidated",
+      n: 9,
+      back: true,
+    },
+    { phase: "The Client reloads the routes that read it" },
+    { from: "client", to: "client", label: "routes that read note:local:1", n: 10 },
+    { from: "client", to: "server", label: "GET /render, note 1", n: 11 },
+    { from: "server", to: "cache", label: "noteOf: miss, read again", n: 12 },
+  ]}
+  caption="A hit records its tag too (3): a page served from the cache still reloads when the tag is invalidated. The note of another owner keeps its entry."
+/>
+
+With `staleTime` 0, the default, TanStack reloads every **mounted** route on any
+invalidation. The choice by tag matters for routes in the router's cache, and for pages that
+declare a `staleTime`.
+
+## Show a page without a request with `staleTime`
 
 ```ts
 export const staleTime = 30; // seconds; a literal or a product (5 * 60)
 ```
 
 For that long, coming back to the page shows its cached tree **without a request**. Without
-it, the cached tree shows and then revalidates. An invalidation (path, tag, `refresh()`)
-overrides it.
+`staleTime`, the cached tree shows and then reloads. An invalidation by path or by tag, and
+`refresh()`, reload the page before the time is up.
 
-## Outside a Server Function
+## Invalidate a tag outside a Server Function
 
-`invalidate({ tag })` also works outside any Server Function: a background task, a webhook,
-during a render, the DevTools. It then purges **the Server cache only**: no response goes to
-a Client, so none is told. Each reads fresh data at its next render of the route.
-`invalidate(path)` outside a Server Function is an error: no Client could hear it.
+`invalidate({ tag })` also works outside any Server Function:
 
-## Limits
+- in a background task or a webhook
+- during a render
+- from the DevTools
 
-- No caching of React trees (components, pages).
-- No tag invalidation from the Client: `useApplication().invalidate` takes paths.
-- Deduplication and in-flight invalidation are per process; SQLite shares entries, not
-  computations.
+It then purges **the Server cache only**. No answer goes to a Client, so no Client reloads.
+Each Client reads fresh data at its next render of the route. `invalidate(path)` outside a
+Server Function throws, since no Client could receive it.
+
+## What the cache does not do
+
+- It does not cache React trees, such as components or pages.
+- The Client cannot invalidate a tag: `useApplication().invalidate` takes paths.
+- Concurrent calls share a computation within one process only. A shared SQLite cache shares
+  entries, not computations.
+
+## See also
+
+- [Server Functions](/docs/concepts/server-functions/), which call `invalidate`.
+- [Routing](/docs/concepts/routing/), for the routes the Client reloads.
