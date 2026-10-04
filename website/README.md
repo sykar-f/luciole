@@ -143,7 +143,7 @@ pas du jour de la capture. Après un changement visible d'un exemple, relancer l
 
 Le hero fait tourner Notes dans la page : `luciole build --web-local` de `examples/notes`,
 Client et Server dans l'onglet (voir `docs/WEB.md`). `scripts/demo.ts` refait ce build
-pour chaque démo (`forge`, `notes`, `mdreader`, `chat`, `coder`, `devtools`) et copie `.luciole/web/`
+pour chaque démo (`forge`, `notes`, `mdreader`, `chat`, `coder`, `latency`, `devtools`) et copie `.luciole/web/`
 sans les source maps dans
 `public/demo/<app>/`, que Git ignore. Le runtime web, commun à toutes les applications, est
 publié une fois dans `public/demo/runtime/` : la première démo lancée met en cache les plus
