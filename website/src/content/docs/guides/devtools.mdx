@@ -100,10 +100,10 @@ The bottom line of each panel lists its own keys, then these.
 1. `client notes 4101`: the inspected Client, with its app and process ID. `●` marks a
    connected process. The demo shows `○`, because no app is connected.
 2. `server notes 4100`: the inspected Server.
-3. The requests, one line each. A line joins the Client's request and the Server's work
-   through their shared `callId`. Its columns give the cause (`nav`, `pre`, `ref`, `inv`,
-   `act`, `live`), the cache that answered (`mem`, `hit`, `miss`, `stale`, `part`) and the
-   time. The bar on the right draws the six series its header names:
+3. The requests the Client sent, one line each. A line joins the Client's request and the
+   Server's work through their shared `callId`. Its columns give the cause (`nav`, `pre`,
+   `ref`, `inv`, `act`, `live`), the cache that answered (`mem`, `hit`, `miss`, `stale`,
+   `part`) and the time. The bar on the right draws the six series its header names:
    - `░` queued and `▒` waiting, on the Client
    - `█` the Server's work
    - `━` the stream, with a `╋` for each chunk
@@ -148,10 +148,11 @@ or 2 s. <kbd>o</kbd> opens the console, filtered on the selected request.
    `props: note` names what changed at the last one.
 2. `◇ NotePage Server`: a Server Component. In development, the panel shows the Server
    Components that the Server's stream describes, above the Client components they produced.
-3. `⚠ unnecessary`: an **unnecessary render**. The props, the state and the context are
-   equal, as `memo()` compares them, so the component rendered only because its parent did.
-4. The selected component: its render count, the reason of its last render, its size and
-   position, its props and its hooks.
+3. `⚠ unnecessary`: an **unnecessary render** on the Client. The props, the state and the
+   context are equal, as `memo()` compares them, so the component rendered only because its
+   parent did.
+4. The selected Client component: its render count, the reason of its last render, its size
+   and position, its props and its hooks.
 
 </Screen>
 
