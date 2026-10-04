@@ -6,6 +6,7 @@
  * application's terminal, the Router panel invalidates a route in the application, network
  * conditions apply live, and Server logs arrive.
  */
+import assert from "node:assert/strict";
 import { join } from "node:path";
 import { drive, type Driver } from "./driver";
 import { BUN, CLI, ROOT, report, temporaryDirectory } from "./harness";
@@ -50,7 +51,16 @@ await wait(app, "Getting around");
 await wait(devtools, "▣ /notes/1");
 
 devtools.write("2");
-await wait(devtools, "NoteEditor");
+await wait(devtools, " components · ");
+// The note's page comes after the list's rows, one per note: the selection walks down the
+// tree, never further than it is long, until a component of NoteEditor.tsx shows.
+for (let row = 0; ; row++) {
+  const shown = await devtools.text();
+  if (shown.includes("NoteEditor")) break;
+  assert.ok(row < Number(/(\d+) components · /.exec(shown)?.[1]), shown);
+  await devtools.type("j", SELECT_MS);
+}
+// The page above it, a Server Component.
 await wait(devtools, "◇ ");
 // Paint flashing: typing re-renders the editor, outlined in the application's terminal.
 devtools.write("h");
