@@ -226,6 +226,26 @@ warning into an error.
 - `bun-linux-x64`, `bun-linux-arm64`
 - `bun-linux-x64-musl`, `bun-linux-arm64-musl`
 
+A target other than this machine's also needs `--native-dir`. OpenTUI ships its native library
+in one package per platform, and `bun install` installs only this machine's. Without
+`--native-dir`, the build stops and names the missing package.
+
+Install the target's packages in a directory of their own, as the build's message says:
+
+1. Copy the app's `package.json` and `bun.lock` into that directory.
+2. Run the install there, with `--os` set to the target's system, `linux` or `darwin`:
+
+   ```sh
+   bun install --frozen-lockfile --os=linux --cpu='*'
+   ```
+
+   The quotes keep zsh from expanding `*`.
+
+3. Pass that directory to `luciole build` with `--native-dir`.
+
+[Ship a binary](/docs/guides/ship-a-binary/#choose-a-target-for-each-machine) shows these steps
+for `bun-linux-x64`.
+
 What each Linux binary needs:
 
 - The glibc binary starts on a minimal Debian.
@@ -345,7 +365,7 @@ package lists them in `optionalDependencies` and in `luciole.binaries`.
 
 ```sh
 luciole build --compile --name notes --target bun-darwin-arm64
-luciole build --compile --name notes --target bun-linux-x64 --native-dir …
+luciole build --compile --name notes --target bun-linux-x64 --native-dir ../notes-linux  # another platform
 luciole pack --package @ada/notes --version 1.2.0 .luciole/bin/*/notes
 ```
 
