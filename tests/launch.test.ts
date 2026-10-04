@@ -10,21 +10,13 @@ import {
   eventually,
   execute,
   exited,
+  inPty,
   leaveCrashedSession,
   until,
   WAIT_MS,
 } from "./helpers";
 
 const cli = resolve("packages/core/src/cli.ts");
-
-// macOS and util-linux spell script(1) differently; see tests/compile.test.ts.
-const inPty = (log: string, command: string) => {
-  const script =
-    process.platform === "darwin"
-      ? `/usr/bin/script -q ${log} ${command}`
-      : `script -q -e -f -c '${command}' ${log}`;
-  return ["/bin/sh", "-c", `(while [ ! -f stop ]; do sleep 0.1; done; printf '\\003') | ${script}`];
-};
 
 test("`luciole ./app` builds it, runs its Server on a socket and its Client here", async () => {
   const temporary = await mkdtemp("/tmp/luciole-t-");
