@@ -102,7 +102,11 @@ The bottom line of each panel lists its own keys, then these.
 3. The requests, one line each. A line joins the Client's request and the Server's work
    through their shared `callId`. Its columns give the cause (`nav`, `pre`, `ref`, `inv`,
    `act`, `live`), the cache that answered (`mem`, `hit`, `miss`, `stale`, `part`) and the
-   time. The bar on the right draws queueing, waiting, Server work and the stream.
+   time. The bar on the right draws the six series its header names:
+   - `░` queued and `▒` waiting, on the Client
+   - `█` the Server's work
+   - `━` the stream, with a `╋` for each chunk
+   - `◆` an answer from a cache on the Client, with no request
 4. `Server: request +2ms · headers +4ms · end –`: the Server's own timing of the selected
    request. `watch` is a live stream, so it has no end yet.
 
