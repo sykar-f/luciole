@@ -1,6 +1,6 @@
 ---
 title: DevTools
-description: Inspect a running app from another terminal pane. Requests of both processes with the cache that answered, components and why they rendered, logs, router, cache, keys and live network conditions.
+description: Inspect a running app from a second terminal pane. See the requests of both processes and the cache that answered, which components rendered and why, the logs, the router, the cache, the keys and the network conditions.
 sources:
   - docs/DEVTOOLS.md
   - packages/core/src/commands/devtools.ts
@@ -9,15 +9,19 @@ sources:
 
 import CopyCommand from "../../../components/CopyCommand.astro";
 import Note from "../../../components/docs/Note.astro";
+import Screen from "../../../components/Screen.astro";
 import { commands } from "../../../lib/product";
 
-The DevTools are the equivalent of Chrome DevTools and React DevTools for a luciole app, in
-a terminal. They are a luciole app themselves: their Server holds the event bus, their
-Client reads it through a live Server Function, and each panel is a route.
+The DevTools show what a running luciole app does, as Chrome DevTools and React DevTools do
+for a web page. They run in a second terminal pane, next to the app you inspect. Open them
+when a screen is slow, renders too often or shows stale data.
 
-## Start
+To try them without an app, run the DevTools demo on the
+[Examples](/examples/#devtools) page.
 
-Two terminal panes, from the repository's root:
+## Start the DevTools next to your app
+
+Open two terminal panes at the repository's root:
 
 <CopyCommand label="pane 1: the DevTools" lines={[`${commands.fromClone} devtools`]} />
 
@@ -28,94 +32,183 @@ Two terminal panes, from the repository's root:
 
 `--env` prints the two variables to export:
 
-| Variable           | Role                                                                                                                                                  |
-| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `LUCIOLE_DEVTOOLS` | Where the DevTools listen: `1` (the default per-user Unix socket), a path (`/…` or `unix:/…`) or `ws://host:port`. Read by the Client and the Server. |
-| `BUN_OPTIONS`      | `--preload=…/src/devtools/hook.ts`, the fiber hook the Components panel needs. Without it everything else works, and the panel says how to enable it. |
+| Variable           | Role                                                                                                    |
+| ------------------ | ------------------------------------------------------------------------------------------------------- |
+| `LUCIOLE_DEVTOOLS` | Where the DevTools listen. The Client and the Server both read it.                                      |
+| `BUN_OPTIONS`      | Preloads `src/devtools/hook.ts`, the hook the Components panel needs. The other panels work without it. |
 
-`luciole devtools` listens on `--listen`, else on the shell's `LUCIOLE_DEVTOOLS`, else on the
-default socket. `--demo` replays a simulated session; `--replay file.json` opens a
-recording.
+`LUCIOLE_DEVTOOLS` takes one of three addresses:
 
-**Nothing without the variable.** The Server leaves its instrumentation as configured and
-the Client never imports the agent. Under `NODE_ENV=production` (`luciole start`), the variable
-is ignored with a warning.
+- `1`, the default Unix socket of your user
+- a socket path, `/…` or `unix:/…`
+- `ws://host:port`
 
-## Panels
+`luciole devtools` listens on its `--listen` flag first. Without the flag, it listens on the
+shell's `LUCIOLE_DEVTOOLS`, then on the default socket. Two more flags open other sources:
 
-Common keys: <kbd>1</kbd>–<kbd>7</kbd> or <kbd>Tab</kbd> switch panels, <kbd>j</kbd> /
+- `--demo` replays a scripted run of Notes.
+- `--replay file.json` opens a recording.
 
-<kbd>k</kbd> or the arrows select, <kbd>G</kbd> follows the newest in live lists,
-<kbd>p</kbd> pauses (events are kept and applied on resume), <kbd>C</kbd> clears,
-<kbd>E</kbd> exports.
+Without `LUCIOLE_DEVTOOLS`, the app does not load the DevTools. Its Server keeps the
+instrumentation you configured, and its Client never imports the DevTools agent. Under
+`NODE_ENV=production` (`luciole start`), both processes ignore the variable and print a
+warning.
 
-| Panel        | What it shows                                                                                                                                                                                                                             |
-| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1 Network    | One line per request, Client and Server joined by `callId`: queueing, waiting, Server work, stream and chunks; the cause (`nav`, `pre`, `ref`, `inv`, `act`, `live`) and the cache that answered (`mem`, `hit`, `miss`, `stale`, `part`). |
-| 2 Components | The Client's component tree and, above what they produced, the Server Components Flight describes in development (`◇`); render counts and the reason of the last one.                                                                     |
-| 3 Console    | `console.*` of both processes, the Server's with the `callId` of the request they were written under.                                                                                                                                     |
-| 4 Router     | Location, rendered and cached matches, status, age, params and search.                                                                                                                                                                    |
-| 5 Cache      | The Server cache as its events describe it: entries, function, tags, age, hits and misses, invalidations.                                                                                                                                 |
-| 6 Input      | The keys the app received, with modifiers and sequences.                                                                                                                                                                                  |
-| 7 Conditions | The Client's network conditions, **live**: latency, jitter, chunk delay, refuse/drop/cut probabilities, presets.                                                                                                                          |
+## Move around with the keyboard
 
-### What Network flags
+These keys work in every panel:
 
-- `↳` **sequential waterfall**: a request left less than 25 ms after another's response; it
-  was probably waiting for it.
-- `⟳` **double invalidation**: one cause rendered the same page twice, for instance the
-  Server's `invalidate()` and a component's, after the same action.
+| Key                                                    | Action                                                              |
+| ------------------------------------------------------ | ------------------------------------------------------------------- |
+| <kbd>1</kbd> to <kbd>7</kbd>                           | Open that panel.                                                    |
+| <kbd>Tab</kbd>, <kbd>Shift+Tab</kbd>                   | Open the next or the previous panel.                                |
+| <kbd>j</kbd>, <kbd>k</kbd>, <kbd>↓</kbd>, <kbd>↑</kbd> | Select the next or the previous line.                               |
+| <kbd>g</kbd>                                           | Select the first line.                                              |
+| <kbd>Shift+G</kbd>                                     | Follow the newest line of a live list.                              |
+| <kbd>p</kbd>                                           | Pause. The DevTools keep the events and apply them when you resume. |
+| <kbd>Shift+C</kbd>                                     | Clear the events.                                                   |
+| <kbd>Shift+E</kbd>                                     | Export a recording.                                                 |
 
-<kbd>f</kbd> filters, <kbd>z</kbd> zooms on the last 60 s, 10 s or 2 s, <kbd>o</kbd> opens the
-console filtered on the request.
+The bottom line of each panel lists its own keys, then these.
 
-### What Components flags
+## What does each panel show?
 
-- `⚠` **useless render**: props, state and context equal (as `memo()` compares them), rendered
-  only because the parent did. <kbd>u</kbd> shows only those.
-- <kbd>h</kbd> flashes the components that render **in the app's own terminal**, as a coloured
-  outline drawn after layout: the app's layout never moves. <kbd>o</kbd> opens the selected
-  component's source in `$VISUAL` or `$EDITOR`.
+| Panel        | What it shows                                                                                              |
+| ------------ | ---------------------------------------------------------------------------------------------------------- |
+| 1 Network    | One line per request of the Client and the Server, with its timing, its cause and the cache that answered. |
+| 2 Components | The Client's component tree, how often each component rendered, and why it rendered last.                  |
+| 3 Console    | The `console.*` output of both processes. A Server line carries the `callId` of its request.               |
+| 4 Router     | The location, the rendered and cached matches, their status, age, params and search.                       |
+| 5 Cache      | The Server cache's entries, with their function, tags, age, hits, misses and invalidations.                |
+| 6 Input      | The keys the app received, with their modifiers and sequences.                                             |
+| 7 Conditions | The Client's network conditions, which you change while the app runs.                                      |
 
-Names, source locations and hook names come from the build: it annotates each component and
-custom hook of the app and the framework (not packages) with its original name, file and
-the variables its hooks feed. Hooks from packages are not annotated; a count that does not
-add up names nothing rather than something wrong.
+### Read the Network panel
 
-### Cache and Conditions
+<Screen
+  frame="devtools-network"
+  caption="The Network panel of `luciole devtools --demo`, on a scripted run of Notes, with the watch stream selected."
+  regions={[
+    { id: "1", side: "client", rects: [{ row: 1, col: 3, rows: 1, cols: 17 }] },
+    { id: "2", side: "server", rects: [{ row: 1, col: 24, rows: 1, cols: 17 }] },
+    { id: "3", side: "client", rects: [{ row: 3, col: 0, rows: 11, cols: 100 }] },
+    { id: "4", side: "server", rects: [{ row: 23, col: 1, rows: 1, cols: 43 }] },
+  ]}
+/>
 
-In Cache, <kbd>t</kbd> picks a tag of the selected entry and <kbd>x</kbd> invalidates it.
-Outside a request that purges **the Server cache only**: no Client is told, and each sees
-fresh data at its next render of the route. In Conditions, jitter, chunk delay and faults
-change the transport's conditions in place; latency is added before sending, so it appears
-as loader waiting.
+1. `client notes 4101`: the inspected Client, with its app and process ID. `●` marks a
+   connected process. The demo shows `○`, because no app is connected.
+2. `server notes 4100`: the inspected Server.
+3. The requests, one line each. A line joins the Client's request and the Server's work
+   through their shared `callId`. Its columns give the cause (`nav`, `pre`, `ref`, `inv`,
+   `act`, `live`), the cache that answered (`mem`, `hit`, `miss`, `stale`, `part`) and the
+   time. The bar on the right draws queueing, waiting, Server work and the stream.
+4. `Server: request +2ms · headers +4ms · end –`: the Server's own timing of the selected
+   request. `watch` is a live stream, so it has no end yet.
 
-## Record and replay
+The panel flags two patterns in the first column:
 
-<kbd>E</kbd> writes `luciole-devtools-<date>.json` (the raw journal, which `--replay` opens)
-and a `.har` (HAR 1.2, readable by Chrome's tools; what HTTP cannot say travels in `_luciole`
-fields) in the directory the DevTools run in.
+- `↳` marks a **sequential waterfall**. The request left less than 25 ms after another
+  request's response, so it probably waited for that response.
+- `⟳` marks a **double invalidation**. One cause rendered the same page twice, for instance
+  the Server's `invalidate()` and a component's, after the same Server Function.
 
-## Security
+In this panel, <kbd>f</kbd> filters the lines and <kbd>z</kbd> zooms on the last 60 s, 10 s
+or 2 s. <kbd>o</kbd> opens the console, filtered on the selected request.
 
-The default socket is in `$XDG_RUNTIME_DIR` (or macOS's private `tmpdir()`), named by uid,
-mode `0600`. With `ws://`, the listener refuses any request carrying an `Origin` header (a
-web page cannot drive the app) and listens on the host given: keep it local. The commands are
-development ones: invalidate, refresh, network conditions, flash, and purge a Server cache
-tag, the only one that changes the Server's state.
+### Read the Components panel
 
-## React DevTools, side by side
+<Screen
+  frame="devtools-components"
+  caption="The Components panel of `luciole devtools --demo`, with the Layout component selected."
+  regions={[
+    {
+      id: "1",
+      side: "client",
+      rects: [
+        { row: 3, col: 0, rows: 2, cols: 100 },
+        { row: 6, col: 0, rows: 3, cols: 100 },
+      ],
+    },
+    { id: "2", side: "server", rects: [{ row: 5, col: 7, rows: 1, cols: 15 }] },
+    { id: "3", side: "client", rects: [{ row: 8, col: 14, rows: 1, cols: 13 }] },
+    { id: "4", side: "client", rects: [{ row: 19, col: 0, rows: 5, cols: 100 }] },
+  ]}
+/>
+
+1. The Client's component tree, from `Layout` to `KeyHelp`. `×3` counts the renders, and
+   `props: note` names what changed at the last one.
+2. `◇ NotePage Server`: a Server Component. In development, the panel shows the Server
+   Components that the Server's stream describes, above the Client components they produced.
+3. `⚠ unnecessary`: an **unnecessary render**. The props, the state and the context are
+   equal, as `memo()` compares them, so the component rendered only because its parent did.
+4. The selected component: its render count, the reason of its last render, its size and
+   position, its props and its hooks.
+
+In this panel, these keys act on the components:
+
+- <kbd>u</kbd> shows only the unnecessary renders.
+- <kbd>h</kbd> flashes the components that render in the app's own pane. The outline is drawn after
+  layout, so the app's layout does not move.
+- <kbd>o</kbd> opens the selected component's source in `$VISUAL` or `$EDITOR`.
+
+The build adds the names, the source locations and the hook names. It annotates each
+component and custom hook of your app and of the framework. Hooks from packages are not
+annotated: when the panel cannot match a hook, it shows no name rather than a wrong one.
+
+### Purge a cache tag
+
+In the Cache panel, <kbd>t</kbd> picks a tag of the selected entry, and <kbd>x</kbd>
+invalidates that tag. Outside a request, this purges **the Server cache only**. No Client is
+told: each Client gets fresh data at its next render of the route.
+
+### Change the network conditions
+
+The Conditions panel changes the Client's latency, jitter, chunk delay and fault
+probabilities while the app runs. The variables of
+[Latency and faults](/docs/guides/latency-and-faults/) set the same conditions, at startup
+only. The DevTools add their latency before a request is sent, so Network shows it as
+waiting.
+
+## Export a recording and replay it
+
+<kbd>Shift+E</kbd> writes two files in the directory the DevTools run in:
+
+- `luciole-devtools-<date>.json`, the raw events, which `--replay` opens
+- a HAR 1.2 file, which Chrome's tools read. What HTTP cannot say goes in `_luciole` fields.
+
+## Keep the DevTools local
+
+The DevTools can invalidate, refresh, change the network conditions, flash components and
+purge a Server cache tag. Purging a tag is the only command that changes the Server's state.
+These are development commands, so keep the listener on your machine:
+
+- The default socket is in `$XDG_RUNTIME_DIR`, or in macOS's private `tmpdir()`. Its name
+  holds your user ID, and its mode is `0600`.
+- With `ws://`, the listener refuses any request that carries an `Origin` header, so a web
+  page cannot drive the app.
+- With `ws://`, the listener listens on the host you give. Give a local one.
+
+## Run React DevTools alongside
 
 ```sh
 npx react-devtools        # the standalone interface
 DEV=true bun run dev      # OpenTUI loads react-devtools-core and connects
 ```
 
-The fiber hook chains React DevTools' own hook instead of replacing it: both receive every
+The DevTools hook chains React DevTools' own hook instead of replacing it. Both receive every
 commit.
+
+## Check that it works
+
+Open Notes with the DevTools attached, edit a note and wait a second for its autosave.
+Network shows an `act` line for `saveNote`. Components shows a higher render count on
+`NoteEditor`.
+
+If Network fills and Components stays empty, the Client started without the preload. Run the
+`eval` line of pane 2 again in that pane, then restart the app.
 
 <Note>
   The DevTools are for development. Several Clients connected at once mix their trees and routers in
-  the panels; the Cache panel does not invalidate Clients yet. The guided tour's chapter [Les
-  DevTools](/guide/devtools/) (in French) walks through a session.
+  the panels. The Cache panel does not invalidate Clients yet.
 </Note>
