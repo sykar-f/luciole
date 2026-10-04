@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import { defineConfig, fontProviders } from "astro/config";
 import mdx from "@astrojs/mdx";
 import sitemap from "@astrojs/sitemap";
@@ -22,6 +23,49 @@ const SYMBOLS_RANGE = `
   .trim()
   .split(/,\s*/);
 
+// The Fontsource files the site uses, vendored under src/assets/fonts/<family>/ (vendor.sh
+// there refetches them), so `astro build` makes no request for fonts. Same bytes and same
+// unicode-ranges as the Fontsource provider gave, and each face carries its `subset`, which
+// the preloads of Base.astro select on (the local provider cannot name one).
+const FONT_SUBSET_RANGES = {
+  latin: `U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308,
+    U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD`,
+  "latin-ext": `U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308,
+    U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113,
+    U+2C60-2C7F, U+A720-A7FF`,
+};
+
+/** Files are `<dir>/<subset>-<weight>-<style>.woff2`; `wght` stands for the variable axis. */
+const vendoredFonts = {
+  name: "vendored",
+  resolveFont({ familyName, weights, styles, subsets, options }) {
+    const fonts = [];
+    for (const subset of subsets) {
+      const ranges = FONT_SUBSET_RANGES[subset];
+      if (!ranges) throw new Error(`${familyName}: no unicode-range for the "${subset}" subset`);
+      for (const weight of weights) {
+        for (const style of styles) {
+          const file = `${subset}-${weight.includes(" ") ? "wght" : weight}-${style}.woff2`;
+          fonts.push({
+            src: [
+              {
+                url: fileURLToPath(
+                  new URL(`./src/assets/fonts/${options.dir}/${file}`, import.meta.url),
+                ),
+              },
+            ],
+            weight,
+            style,
+            unicodeRange: ranges.split(/,\s*/),
+            meta: { subset },
+          });
+        }
+      }
+    }
+    return { fonts };
+  },
+};
+
 export default defineConfig({
   site: "https://luciole.sh",
   // `cloudflared tunnel --url http://localhost:4321` shares a local preview: its host.
@@ -36,12 +80,13 @@ export default defineConfig({
     mdx(),
     sitemap({ filter: (page) => !/^\/(og|lab)(\/|$)/.test(new URL(page).pathname) }),
   ],
-  // Self-hosted, preloaded from the head (Base.astro) and given metric-matched fallbacks, so
+  // Vendored (src/assets/fonts), preloaded from the head (Base.astro) and given metric-matched fallbacks, so
   // the first paint already has the fonts or text that does not move when they arrive.
   // global.css maps these variables onto --mono, --sans and --term.
   fonts: [
     {
-      provider: fontProviders.fontsource(),
+      provider: vendoredFonts,
+      options: { dir: "ibm-plex-mono" },
       name: "IBM Plex Mono",
       cssVariable: "--font-plex-mono",
       weights: ["400", "500", "600", "700"],
@@ -50,7 +95,8 @@ export default defineConfig({
       fallbacks: [],
     },
     {
-      provider: fontProviders.fontsource(),
+      provider: vendoredFonts,
+      options: { dir: "ibm-plex-sans" },
       name: "IBM Plex Sans",
       cssVariable: "--font-plex-sans",
       weights: ["400", "600"],
@@ -59,7 +105,8 @@ export default defineConfig({
       fallbacks: ["ui-sans-serif", "system-ui", "sans-serif"],
     },
     {
-      provider: fontProviders.fontsource(),
+      provider: vendoredFonts,
+      options: { dir: "jetbrains-mono" },
       name: "JetBrains Mono",
       cssVariable: "--font-jetbrains-mono",
       weights: ["100 800"],

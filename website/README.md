@@ -26,6 +26,9 @@ La recherche est Pagefind : `bun run build` indexe `dist/` après Astro (le seul
 `data-pagefind-body` est celui des pages de documentation) ; `bun run dev` n'a pas d'index et
 le dit.
 
+Les polices (IBM Plex Mono et Sans, JetBrains Mono) sont dans `src/assets/fonts/`, avec leur
+licence OFL : le build ne les télécharge pas, `vendor.sh` les rafraîchit.
+
 ```sh
 cd website
 bun install --frozen-lockfile
