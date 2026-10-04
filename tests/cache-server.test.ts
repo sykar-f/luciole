@@ -6,7 +6,7 @@ import {
   TransportError,
   type TransportEvent,
 } from "../packages/core/src/transport";
-import { launch, rejectionOf, until } from "./helpers";
+import { launch, rejectionOf, until, WAIT_MS } from "./helpers";
 
 // The cache's ServerEvent (src/cache/runtime.ts), as tests/cache-server.ts prints it.
 const Printed = z.object({
@@ -83,30 +83,32 @@ test("a read below Suspense sends its tag at the page's end, without delaying th
     callServer: () => Promise.reject(new Error("unused")),
     onEvent: (event) => events.push(event),
   });
+  const open = (route: string) => transport.render(route, {}, new AbortController().signal, {}, {});
   try {
-    const start = performance.now();
-    let told: { tags: readonly string[]; ms: number } | undefined;
-    const tree = await transport.render(
+    let told: readonly string[] | undefined;
+    // The Server holds the page function and Late behind gates (tests/cache-server.ts): what
+    // the test sees is the order in which things happen, whatever the speed of the machine.
+    const rendering = transport.render(
       "/late",
       {},
       new AbortController().signal,
       {},
       {
-        onTags: (tags) => (told = { tags, ms: performance.now() - start }),
+        onTags: (tags) => (told = tags),
       },
     );
-    // Headers leave before the page function (200 ms) returns; the shell follows it,
-    // while Late still sleeps its 400 ms.
-    const response = events.find((e) => e.type === "response");
-    expect(response?.type === "response" && response.ms).toBeLessThan(150);
-    const shell = performance.now() - start;
-    expect(shell).toBeGreaterThanOrEqual(200);
-    expect(shell).toBeLessThan(500);
+    // Headers leave while the page function has not returned: its gate is still closed, and
+    // /late is the only request so far.
+    await until(() => events.some((e) => e.type === "response"), WAIT_MS);
+    // The page function returns; the shell follows it while Late is still held.
+    await open("/open-page");
+    const tree = await rendering;
     expect(tree).toBeTruthy();
     expect(told).toBeUndefined();
-    await until(() => told !== undefined);
-    expect(told?.tags).toEqual(["late"]);
-    expect(told?.ms).toBeGreaterThanOrEqual(600);
+    // Late returns: its tag reaches the Client at the end of the page.
+    await open("/open-late");
+    await until(() => told !== undefined, WAIT_MS);
+    expect(told).toEqual(["late"]);
   } finally {
     await server.stop();
   }

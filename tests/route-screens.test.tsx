@@ -7,7 +7,15 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { build } from "../packages/core/src/build";
 import { compileRouteGraph } from "../packages/core/src/route-graph";
-import { BUILD_TEST_MS, launch, importClient, readManifest, destroy, type TestUI } from "./helpers";
+import {
+  BUILD_TEST_MS,
+  launch,
+  importClient,
+  readManifest,
+  destroy,
+  untilFrame,
+  type TestUI,
+} from "./helpers";
 
 /** The layout's mount stamp: unchanged while the layout stays mounted. */
 const layoutOf = (frame: string) => /LAYOUT (\d+)/.exec(frame)?.[1];
@@ -67,43 +75,45 @@ test(
         await ui.renderOnce();
         return ui.captureCharFrame();
       };
-      const go = (href: string) =>
-        act(async () => {
+      // Navigates, then waits for the frame to show what the route renders.
+      const go = async (href: string, shown: string) => {
+        await act(async () => {
           await app.router.navigate({ href });
-          await Bun.sleep(30);
         });
+        await untilFrame(ui, shown);
+      };
       const layout = layoutOf(await frame());
       expect(layout).toBeDefined();
 
-      await go("/items/9");
+      await go("/items/9", "MISSING Item 9 (id 9)");
       expect(await frame()).toContain("MISSING Item 9 (id 9)");
       expect(app.status).toBe("Connected");
-      await go("/items/3");
+      await go("/items/3", "ITEM 3");
       expect(await frame()).toContain("ITEM 3");
 
       // A Server exception reaches error.tsx (development keeps its message); retry()
       // loads the page again.
-      await go("/boom");
+      await go("/boom", "FAILED secret detail [undefined]");
       expect(await frame()).toContain("FAILED secret detail [undefined]");
       await act(async () => {
         await ui.mockInput.typeText("r");
-        await Bun.sleep(50);
       });
+      await untilFrame(ui, "RECOVERED 2");
       expect(await frame()).toContain("RECOVERED 2");
 
       // The catch-all takes one or more segments; a single parameter ranks first.
-      await go("/docs/guide/install/linux");
+      await go("/docs/guide/install/linux", "DOC guide/install/linux");
       expect(await frame()).toContain("DOC guide/install/linux");
-      await go("/docs/intro");
+      await go("/docs/intro", "SECTION intro");
       expect(await frame()).toContain("SECTION intro");
 
-      await go("/nowhere/at/all");
+      await go("/nowhere/at/all", "NO ROUTE /nowhere/at/all");
       expect(await frame()).toContain("NO ROUTE /nowhere/at/all");
       expect(layoutOf(await frame())).toBe(layout);
 
       // A transport failure reaches error.tsx with its outcome.
       await running.stop();
-      await go("/items/4");
+      await go("/items/4", "[not-sent]");
       expect(await frame()).toContain("[not-sent]");
       expect(layoutOf(await frame())).toBe(layout);
     } finally {
