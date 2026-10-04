@@ -116,6 +116,11 @@ export type BuildOptions = {
    * build --web-local`): the same entry, run by a Worker (docs/WEB.md, step 3).
    */
   webServer?: boolean;
+  /**
+   * Adds to the staged build (`--web`'s runtime, `--compile`'s binary) before it replaces
+   * the active one: given the temporary directory, it throws and nothing is published.
+   */
+  stage?: (staged: string) => Promise<void>;
 };
 /**
  * `.luciole/app/manifest.json`: the bundle's identity, ABI and hash, the built-ins it
@@ -235,7 +240,10 @@ function packageOfFile(file: string) {
   const at = parts.lastIndexOf("node_modules");
   if (at < 0 || at + 1 >= parts.length) return undefined;
   const end = at + 1 + packageDepth(parts[at + 1]);
-  return { name: parts.slice(at + 1, end).join("/"), dir: parts.slice(0, end).join("/") };
+  return {
+    name: parts.slice(at + 1, end).join("/"),
+    dir: parts.slice(0, end).join("/"),
+  };
 }
 /**
  * Builds `directory` into `output`. Concurrent builds of one output (two launches, two
@@ -254,7 +262,9 @@ export async function build(
   });
 }
 const ReactExports = z.object({
-  exports: z.object({ ".": z.object({ "react-server": z.string(), default: z.string() }) }),
+  exports: z.object({
+    ".": z.object({ "react-server": z.string(), default: z.string() }),
+  }),
 });
 /**
  * What React exports to Client code and not to the Server (`useState`, `useEffect`,
@@ -327,10 +337,34 @@ async function upToDate(
     return false;
   }
 }
+/**
+ * Puts a finished build in place of the active one. A failed build never touches the
+ * active artefacts: if the second move fails, the backup goes back to `output` before the
+ * error is rethrown. `move` is a parameter so that a test can make a move fail.
+ */
+export async function publish(temp: string, output: string, move = rename) {
+  const backup = output + "-previous";
+  await rm(backup, { recursive: true, force: true });
+  const replaces = await Bun.file(join(output, "manifest.json")).exists();
+  if (replaces) await move(output, backup);
+  try {
+    await move(temp, output);
+  } catch (error) {
+    if (replaces)
+      await move(backup, output).catch((restore: unknown) => {
+        throw new AggregateError(
+          [error, restore],
+          `${output} could not be restored: the previous build is in ${backup}`,
+        );
+      });
+    throw error;
+  }
+  await rm(backup, { recursive: true, force: true });
+}
 async function buildUnlocked(
   directory: string,
   output: string,
-  { appBundle: wanted = "auto", signBundle, webServer = false }: BuildOptions,
+  { appBundle: wanted = "auto", signBundle, webServer = false, stage }: BuildOptions,
 ) {
   const appBundle = signBundle ? "required" : wanted;
   const root = await realpath(directory),
@@ -886,7 +920,10 @@ async function buildUnlocked(
         conditions: serverSide ? ["react-server"] : [],
         // A browser bundle carries no environment: React's production builds, as the page's.
         ...(browserServer
-          ? { minify: true, define: { "process.env.NODE_ENV": JSON.stringify("production") } }
+          ? {
+              minify: true,
+              define: { "process.env.NODE_ENV": JSON.stringify("production") },
+            }
           : {}),
         metafile: clientSide,
         // Next to the bundle, and linked from it: Bun maps runtime stack traces through it
@@ -947,7 +984,9 @@ async function buildUnlocked(
                   isAbiSpecifier(a.path) ? { path: a.path, external: true } : undefined,
                 );
               b.onResolve(
-                { filter: /^@luciole-sh\/core\/(client|server|route-tree|args|grammars)$/ },
+                {
+                  filter: /^@luciole-sh\/core\/(client|server|route-tree|args|grammars)$/,
+                },
                 (a) => {
                   const entry = FRAMEWORK_ENTRIES.get(a.path.slice("@luciole-sh/core/".length));
                   if (!entry) throw new Error(`Unknown framework entry ${a.path}`);
@@ -1156,13 +1195,13 @@ async function buildUnlocked(
         capabilities: declaration.capabilities,
         publisher: signBundle,
       });
-    await writeAppMetadata(temp, { ...declaration, metadata: { ...declaration.metadata, args } });
+    await writeAppMetadata(temp, {
+      ...declaration,
+      metadata: { ...declaration.metadata, args },
+    });
     // Failed builds never touch the active artefacts.
-    const backup = output + "-previous";
-    await rm(backup, { recursive: true, force: true });
-    if (await Bun.file(join(output, "manifest.json")).exists()) await rename(output, backup);
-    await rename(temp, output);
-    await rm(backup, { recursive: true, force: true });
+    await stage?.(temp);
+    await publish(temp, output);
     return { buildId, output };
   } catch (error) {
     await rm(temp, { recursive: true, force: true });
