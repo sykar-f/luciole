@@ -7,7 +7,15 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { build } from "../packages/core/src/build";
 import type { Transport } from "../packages/core/src/transport";
-import { BUILD_TEST_MS, importClient, destroy, type TestUI } from "./helpers";
+import {
+  BUILD_TEST_MS,
+  WAIT_MS,
+  importClient,
+  destroy,
+  until,
+  untilFrame,
+  type TestUI,
+} from "./helpers";
 
 const files: Record<string, string> = {
   "app/layout.tsx": `"use client";export default function Layout({children}){return <box flexDirection="column">{children}</box>}`,
@@ -59,28 +67,27 @@ test(
       const app = createApp({ url: "http://terminal.invalid", transport });
       const ui = await testRender(<Shell app={app} />, { width: 80, height: 12 });
       rendered = ui;
+      // A page render is pending once its request is out: only then is `release` its own.
+      const requested = (count: number) => until(() => requests.length >= count, WAIT_MS);
       const visit = async (path: string, loading: string, page: string) => {
+        const count = requests.length + 1;
         await act(async () => {
           void app.router.navigate({ to: path });
-          await Bun.sleep(10);
+          await requested(count);
+          await untilFrame(ui, loading);
         });
-        await ui.renderOnce();
-        expect(ui.captureCharFrame()).toContain(loading);
         await act(async () => {
           releasePage();
-          await Bun.sleep(10);
+          await untilFrame(ui, page);
         });
-        await ui.renderOnce();
-        expect(ui.captureCharFrame()).toContain(page);
       };
       await act(async () => {
-        await Bun.sleep(10);
+        await requested(1);
+        await untilFrame(ui, "ROOT LOADING /");
       });
-      await ui.renderOnce();
-      expect(ui.captureCharFrame()).toContain("ROOT LOADING /");
       await act(async () => {
         releasePage();
-        await Bun.sleep(10);
+        await untilFrame(ui, "PAGE / {}");
       });
       await visit("/notes/new", "ROOT LOADING /notes/new", "PAGE /notes/new {}");
       await visit(
@@ -111,15 +118,14 @@ test(
       // cached route still revalidates it.
       await act(async () => {
         void app.router.navigate({ to: "/notes/$id", params: { id: "slow" } });
-        await Bun.sleep(10);
+        await requested(6);
+        await untilFrame(ui, "NOTE LOADING slow");
       });
-      await ui.renderOnce();
-      expect(ui.captureCharFrame()).toContain("NOTE LOADING slow");
       await act(async () => {
         ui.mockInput.pressEscape();
-        await Bun.sleep(20);
+        // The group layout remounted: the cancel has restored the resolved route.
+        await untilFrame(ui, "SETTINGS LAYOUT 0");
       });
-      await ui.renderOnce();
       expect(app.router.state.resolvedLocation?.pathname).toBe("/account/security");
       // The pending destination left the group, so its layout remounts on cancel.
       expect(ui.captureCharFrame()).toContain("SETTINGS LAYOUT 0");
@@ -127,7 +133,7 @@ test(
       expect(requests.length).toBe(6);
       await act(async () => {
         await app.router.navigate({ to: "/profile" });
-        await Bun.sleep(10);
+        await requested(7);
       });
       expect(requests.at(-1)?.[0]).toBe("/(settings)/profile");
       expect(requests.length).toBe(7);
