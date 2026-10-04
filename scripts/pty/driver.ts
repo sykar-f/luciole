@@ -13,6 +13,7 @@
  */
 import { afterEach } from "bun:test";
 import { createTestRenderer, type TestRendererSetup } from "@opentui/core/testing";
+import { messageOf } from "../../packages/core/src/guards";
 import { VtTerminalRenderable } from "../../packages/core/src/vt/gaps";
 import { environment } from "./harness";
 
@@ -121,11 +122,19 @@ const hex = (ints: readonly number[]) =>
  */
 type Wait = { start: number; report: () => string; park: () => void };
 const waiting = new Set<Wait>();
+/** What a wait would have reported; a screen already gone says so instead of throwing. */
+function reported(wait: Wait) {
+  try {
+    return wait.report();
+  } catch (error: unknown) {
+    return `report unavailable: ${messageOf(error)}`;
+  }
+}
 try {
   afterEach(() => {
     for (const wait of waiting) {
       const ms = Math.round(performance.now() - wait.start);
-      console.error(`The test ended while a PTY wait still ran, after ${ms} ms: ${wait.report()}`);
+      console.error(`The test ended while a PTY wait still ran, after ${ms} ms: ${reported(wait)}`);
       wait.park();
     }
     waiting.clear();
