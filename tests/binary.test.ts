@@ -15,6 +15,7 @@ import { runOn } from "../packages/core/src/launcher/remote";
 import {
   execute,
   exited,
+  inPty,
   leaveCrashedSession,
   privateBuild,
   rejectionOf,
@@ -122,15 +123,6 @@ test("`notes serve --socket` is the Server alone, on a private socket", async ()
     (await execute([binary, "serve", "--http", ":1", "--socket", "/x"])).stderr.toString(),
   ).toContain("exclusive");
 });
-
-// macOS and util-linux spell script(1) differently; see tests/compile.test.ts.
-const inPty = (log: string, command: string) => {
-  const script =
-    process.platform === "darwin"
-      ? `/usr/bin/script -q ${log} ${command}`
-      : `script -q -e -f -c '${command}' ${log}`;
-  return ["/bin/sh", "-c", `(while [ ! -f stop ]; do sleep 0.1; done; printf '\\003') | ${script}`];
-};
 
 test("`notes` alone runs both roles here; quitting on purpose stops its Server", async () => {
   // A short TMPDIR, cleaned by this test: the launcher's socket directories go there.

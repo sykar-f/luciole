@@ -290,6 +290,25 @@ export async function exited(child: { exited: Promise<number>; kill(): void }, t
 }
 
 /**
+ * The command line that runs `command` in a terminal of its own, script(1) writing its
+ * screen to `log`. macOS and util-linux spell script(1) differently (busybox lacks -e); both
+ * must flush the log as the screen comes (`-t 0`, `-f`): macOS otherwise writes whole 4 KiB
+ * blocks and keeps the rest up to 30 s, so a frame's end shows only once more output
+ * follows. script(1) needs a real pipe for its input, not Bun's socket: with `"stop"`, a
+ * shell pipe that sends Ctrl+C once the test creates the `stop` file in the working
+ * directory; with `"stdin"`, `cat`, passing on the keys the test writes to its stdin.
+ */
+export function inPty(log: string, command: string, input: "stop" | "stdin" = "stop") {
+  const script =
+    process.platform === "darwin"
+      ? `/usr/bin/script -q -t 0 ${log} ${command}`
+      : `script -q -e -f -c '${command}' ${log}`;
+  const keys =
+    input === "stdin" ? "cat" : `(while [ ! -f stop ]; do sleep 0.1; done; printf '\\003')`;
+  return ["/bin/sh", "-c", `${keys} | ${script}`];
+}
+
+/**
  * Renders `ui` until its frame shows `text`, and returns that frame. The guard against a
  * hang is `WAIT_MS`: how soon the frame gets there says nothing of the code, so a loaded
  * machine only makes the wait longer.

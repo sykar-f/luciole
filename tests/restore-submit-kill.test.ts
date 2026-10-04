@@ -7,6 +7,7 @@ import { z } from "zod";
 import { sessionDirectory } from "../packages/core/src/session";
 import {
   BUILD_TEST_MS,
+  inPty,
   launch,
   leaveCrashedSession,
   present,
@@ -27,13 +28,6 @@ const CTRL_S = "\x13";
 // DECTCEM: the terminal's cursor shown, which OpenTUI does for a focused editor only.
 const CURSOR_SHOWN = "\x1b[?25h";
 
-// macOS and util-linux spell script(1) differently; see tests/compile.test.ts. Both write
-// the screen as it comes (`-t 0`, `-f`). Keys reach it through `cat`: script(1) needs a
-// pipe, and Bun's is a socket it cannot set up.
-const inPty = (log: string, command: string) =>
-  process.platform === "darwin"
-    ? `cat | /usr/bin/script -q -t 0 ${log} ${command}`
-    : `cat | script -q -e -f -c '${command}' ${log}`;
 const alive = (pid: number) => {
   try {
     process.kill(pid, 0);
@@ -81,7 +75,7 @@ test(
         ...preload,
         join(built.directory, ".luciole/client/index.js"),
       ];
-      const child = Bun.spawn(["/bin/sh", "-c", inPty(log, command.join(" "))], {
+      const child = Bun.spawn(inPty(log, command.join(" "), "stdin"), {
         cwd: run,
         stdin: "pipe",
         stdout: "ignore",
