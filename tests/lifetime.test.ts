@@ -11,7 +11,7 @@ import {
   serverStatus,
   type EnsureOptions,
 } from "../packages/core/src/launcher/managed";
-import { rejectionOf, until } from "./helpers";
+import { eventually, rejectionOf, until, WAIT_MS } from "./helpers";
 
 let work: string, runtime: string;
 beforeAll(async () => {
@@ -51,15 +51,8 @@ const alive = (pid: number) => {
     return false;
   }
 };
-async function eventually(check: () => Promise<boolean>, timeout = 5000) {
-  const deadline = performance.now() + timeout;
-  while (!(await check())) {
-    if (performance.now() > deadline) throw new Error("Condition timed out");
-    await Bun.sleep(20);
-  }
-}
-async function gone(pid: number, timeout = 5000) {
-  await until(() => !alive(pid), timeout);
+async function gone(pid: number) {
+  await until(() => !alive(pid), WAIT_MS);
 }
 /** A Client of that Server, as src/connect.ts keeps one alive. */
 const client = (url: string, id: string) =>
@@ -110,12 +103,13 @@ test("the watchdog: pings keep the Server; silence past its period loses the Cli
   // No launcher pipe here, as on a remote host: only pings tell the Server.
   const server = await ensureServer({ ...options(), graceMs: 0 });
   const connection = await client(server.url, "pinging");
-  // Pinged every 100 ms: alive well past the 600 ms watchdog period.
+  // Pinged every 100 ms: alive well past the 600 ms watchdog period. A negative wait: no
+  // event says a watchdog check kept a Client, so the test lets 2.5 periods pass.
   await Bun.sleep(1500);
   expect(alive(server.pid)).toBe(true);
   // A Server nobody pings loses its (absent) Client after one period; no grace: it stops.
   const lonely = await ensureServer({ ...options(), graceMs: 0 });
-  await gone(lonely.pid, 3000);
+  await gone(lonely.pid);
   await connection.managed?.leave();
   await gone(server.pid);
 });
@@ -156,9 +150,9 @@ test("pings follow a Server going away and coming back", async () => {
   );
   connection.watch((reachable) => seen.push(reachable));
   await fetch("http://localhost/lifetime/stop", { method: "POST", unix: server.socket });
-  await until(() => seen.includes(false));
+  await until(() => seen.includes(false), WAIT_MS);
   const back = await ensureServer(setup);
-  await until(() => seen.at(-1) === true);
+  await until(() => seen.at(-1) === true, WAIT_MS);
   expect(seen).toEqual([false, true]);
   await connection.leave();
   await gone(back.pid);
