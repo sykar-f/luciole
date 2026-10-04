@@ -213,6 +213,24 @@ export async function until(check: () => boolean, timeout = 5000, state?: () => 
   }
 }
 
+/**
+ * Renders `ui` until its frame shows `text`, and returns that frame. The guard against a
+ * hang is `WAIT_MS`: how soon the frame gets there says nothing of the code, so a loaded
+ * machine only makes the wait longer.
+ */
+export async function untilFrame(ui: TestUI, text: string, timeout = WAIT_MS) {
+  const start = performance.now();
+  for (;;) {
+    await act(async () => {
+      await ui.renderOnce();
+    });
+    const frame = ui.captureCharFrame();
+    if (frame.includes(text)) return frame;
+    if (performance.now() - start > timeout) throw new Error(timedOut(() => frame));
+    await Bun.sleep(10);
+  }
+}
+
 /** What a generated Client's `createApp` takes: the build provides the rest. */
 export type ClientOptions = Omit<ApplicationOptions, "routeTree" | "buildId" | "resolveModule">;
 /**
