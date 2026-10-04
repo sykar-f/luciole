@@ -118,6 +118,7 @@ test("unsupported targets and missing native packages are explained", async () =
     }),
   );
   expect(messageOf(missing)).toContain("--native-dir");
+  expect(messageOf(missing)).toContain("--cpu='*'");
 }, 60000);
 
 // Only where the Bun running the tests links libraries other Macs lack (Nix, Homebrew).
