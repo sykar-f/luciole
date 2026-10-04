@@ -76,11 +76,6 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
         <input type="range" data-ping min={PING.min} max={PING.max} step={PING.step} value={PING.value} />
         <output data-ping-value>{PING.value} ms</output>
       </label>
-      <label class="switch">
-        <input type="checkbox" role="switch" data-afterglow checked />
-        <span class="track" aria-hidden="true"></span>
-        Afterglow
-      </label>
     </div>
 
     <div class="pair">
@@ -93,7 +88,6 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
             <div class="glass">
               <div class="frame" data-frame={side.id} data-src={src} data-title={`Notes, ${side.name}`}>
                 <Screen frame={notes} class="poster" />
-                <div class="glows" data-glows aria-hidden="true" />
               </div>
             </div>
             <div class="raise" data-raise aria-hidden="true" />
@@ -114,9 +108,9 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
 <script>
   import * as z from "zod/mini";
   import { gridSize } from "../lib/cells";
-  import { glowWrites } from "../lib/glow";
   import { overscroll } from "../lib/overscroll";
   import { screenColours } from "../lib/recolor";
+  import { writes } from "../lib/writes";
 
   const Drawn = z.object({ source: z.literal("luciole"), type: z.literal("stage"), stage: z.literal("drawn") });
   const Typed = z.object({ source: z.literal("luciole"), type: z.literal("typed"), data: z.string() });
@@ -219,17 +213,6 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
   }
 
   function duel(root: HTMLElement, raise: (pane: HTMLElement) => void) {
-    const columns = Number(root.dataset.columns);
-    const rows = Number(root.dataset.rows);
-    const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
-    // The afterglow is motion: off for a reader who asks for less, until they switch it on.
-    const afterglow = root.querySelector<HTMLInputElement>("[data-afterglow]");
-    if (afterglow && still) afterglow.checked = false;
-    const glowing = () => afterglow?.checked ?? !still;
-    afterglow?.addEventListener("change", () => {
-      if (glowing()) return;
-      for (const layer of root.querySelectorAll("[data-glows]")) layer.replaceChildren();
-    });
     const { background, foreground } = screenColours();
     const frames: HTMLIFrameElement[] = [];
     for (const holder of root.querySelectorAll<HTMLElement>("[data-frame]")) {
@@ -279,7 +262,7 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
     addEventListener("message", (event) => {
       const frame = frames.find((f) => f.contentWindow === event.source);
       if (!frame) return;
-      // Once drawn: the poster goes, the cells the app rewrites glow and are timed, and the
+      // Once drawn: the poster goes, the cells the app rewrites are timed, and the
       // round trip sits before each key (SSH) or each request (luciole).
       if (Drawn.safeParse(event.data).success) {
         // The grid in the middle of its frame: what the font's steps leave over is shared
@@ -295,17 +278,7 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
         // as the screen shows it, so the turns still crossing the round trip over SSH
         // are not taken for nothing to scroll.
         overscroll({ frame, signal });
-        const layer = frame.parentElement?.querySelector<HTMLElement>("[data-glows]");
-        if (layer)
-          glowWrites({
-            frame,
-            layer,
-            columns,
-            rows,
-            signal,
-            shows: glowing,
-            onWritten: () => measured(frame),
-          });
+        writes({ frame, signal, onWritten: () => measured(frame) });
         return void network(frame);
       }
       // What one terminal sent, the other gets: at once for luciole's, whose keys never
@@ -423,7 +396,7 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
   }
 
   /* Between the screens and the title, what the reader sets for both: one ping, the only
-     thing they change about the network, and whether rewritten cells glow. */
+     thing they change about the network. */
   .controls {
     display: flex;
     flex-wrap: wrap;
@@ -487,58 +460,6 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
     min-width: 7ch;
     color: var(--paper);
     font-variant-numeric: tabular-nums;
-  }
-
-  /* The afterglow's switch, drawn as the slider is: a thin rule, a block of paper. The
-     checkbox under it stays the control (keyboard, label, state). */
-  .switch {
-    position: relative;
-    display: flex;
-    align-items: center;
-    gap: 1.5ch;
-    cursor: pointer;
-  }
-
-  .switch input {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    margin: 0;
-    opacity: 0;
-  }
-
-  .track {
-    position: relative;
-    width: 26px;
-    height: 14px;
-    border: 1px solid var(--rule-strong);
-  }
-
-  .track::after {
-    content: "";
-    position: absolute;
-    top: 2px;
-    left: 2px;
-    width: 8px;
-    height: 8px;
-    background: var(--mist);
-    transition:
-      transform 0.15s ease,
-      background-color 0.15s ease;
-  }
-
-  .switch input:checked + .track::after {
-    transform: translateX(12px);
-    background: var(--paper);
-  }
-
-  .switch input:focus-visible + .track {
-    outline: 2px solid var(--dominant);
-    outline-offset: 4px;
-  }
-
-  .switch:has(input:checked) {
-    color: var(--paper);
   }
 
   .pair {
@@ -814,39 +735,6 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
   /* Drawn over, the poster only keeps the size: clicks go to the app. */
   .frame.on :global(.stage) {
     visibility: hidden;
-  }
-
-  /* Over the frame, the cells its app just rewrote, glowing out (lib/glow.ts). */
-  .glows {
-    position: absolute;
-    z-index: 2;
-    inset: calc(-1 * var(--margin));
-    overflow: hidden;
-    pointer-events: none;
-  }
-
-  .glows :global(i) {
-    position: absolute;
-    background: color-mix(in srgb, var(--afterglow) 40%, transparent);
-    box-shadow: 0 0 calc(var(--glow-blur) * 1.6) color-mix(in srgb, var(--afterglow) 50%, transparent);
-    mix-blend-mode: screen;
-    opacity: var(--glow, 1);
-    animation: afterglow var(--glow-ms, 0.45s) forwards;
-  }
-
-  /* A firefly's flash: lit almost at once, then a slow fade, darkest last. */
-  @keyframes afterglow {
-    from {
-      opacity: calc(var(--glow, 1) * 0.6);
-      animation-timing-function: ease-out;
-    }
-    8% {
-      opacity: var(--glow, 1);
-      animation-timing-function: cubic-bezier(0.25, 0, 0.55, 1);
-    }
-    to {
-      opacity: 0;
-    }
   }
 
   .narrow {
