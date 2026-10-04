@@ -16,7 +16,9 @@ async function launch({ args, rest, option, optional, directory }: CommandContex
   // Without a URL the Client reads LUCIOLE_URL, then ~/.config/luciole/<app>.json.
   const target = connecting ? args[1] : url;
   if (connecting && (!target || target.startsWith("--")))
-    throw new ArgsError("Usage: luciole connect <url | ssh://[user@]host[/port]> [--app dir]");
+    throw new ArgsError(
+      "Usage: luciole connect <url | ssh://[user@]host[/port]> [--app dir] [--artifact dir]",
+    );
   const child = spawn(
     process.execPath,
     [
@@ -45,6 +47,6 @@ export const start: Command = {
   run: launch,
 };
 export const connect: Command = {
-  usage: "connect <url | ssh://[user@]host[/port]> [--app dir]",
+  usage: "connect <url | ssh://[user@]host[/port]> [--app dir] [--artifact dir]",
   run: launch,
 };

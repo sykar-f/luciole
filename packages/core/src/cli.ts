@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { commands, fallback } from "./commands";
 import { readFlags } from "./commands/command";
 import { messageOf } from "./guards";
-import { isUsageError, USAGE_EXIT_CODE } from "./args";
+import { ArgsError, isUsageError, USAGE_EXIT_CODE } from "./args";
 const args = process.argv.slice(2),
   command = args[0];
 const { rest, option, optional, flag } = readFlags(args);
@@ -15,7 +15,7 @@ async function main() {
       ? fallback
       : (commands.get(command) ?? (command.startsWith("-") ? undefined : fallback));
   if (!subcommand)
-    throw new Error(
+    throw new ArgsError(
       `Usage: luciole ${[...commands.values(), fallback].map((c) => c.usage).join(" | ")}`,
     );
   await subcommand.run({
