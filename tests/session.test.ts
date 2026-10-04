@@ -4,11 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Session } from "../packages/core/src/restore";
 import { eventually, execute } from "./helpers";
-import {
-  ORPHAN_RETENTION_MS,
-  openSession,
-  sessionDirectory,
-} from "../packages/core/src/session";
+import { ORPHAN_RETENTION_MS, openSession, sessionDirectory } from "../packages/core/src/session";
 
 let state: string;
 beforeEach(async () => {

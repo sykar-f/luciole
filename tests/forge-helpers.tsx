@@ -97,7 +97,11 @@ export async function startForge(built: PrivateBuild, options: Options = {}) {
    */
   const settle = () =>
     step(async () => {
-      await until(() => unread(ui) === 0, WAIT_MS, () => `${unread(ui)} bytes unread`);
+      await until(
+        () => unread(ui) === 0,
+        WAIT_MS,
+        () => `${unread(ui)} bytes unread`,
+      );
       // A turn of the event loop, not a delay: what the keys set off runs first.
       await new Promise<void>((done) => setImmediate(done));
       await requests.settled();
