@@ -10,6 +10,7 @@ import {
 } from "../packages/harness/src/adapters/codex";
 import type { HarnessEvent } from "../packages/harness/src/adapters/types";
 import type { RpcHandlers } from "../packages/harness/src/jsonl";
+import { until, WAIT_MS } from "./helpers";
 
 // Exchanges recorded on the real codex app-server by scripts/coder/record-codex.ts,
 // replayed in step with the adapter: its requests answered as recorded, Codex's
@@ -159,10 +160,12 @@ function replay(
     },
     deps,
   );
-  const settled = async () => {
-    for (let i = 0; i < 400 && !events.some((e) => e.type === "turn.completed"); i++)
-      await Bun.sleep(5);
-  };
+  const settled = () =>
+    until(
+      () => events.some((e) => e.type === "turn.completed"),
+      WAIT_MS,
+      () => events.map((e) => e.type).join("\n"),
+    );
   return { harness, events, transports, settled };
 }
 const completed = (events: readonly HarnessEvent[]) =>
@@ -291,13 +294,11 @@ test("read mode plans: the plan shows, and approving it implements it in ask mod
   expect(completed(events).some((i) => i.kind === "message" && i.text.includes("notes.txt"))).toBe(
     true,
   );
-  for (
-    let i = 0;
-    i < 100 && !events.some((e) => e.type === "info.updated" && e.info.mode === "ask");
-    i++
-  )
-    await Bun.sleep(5);
-  expect(events.some((e) => e.type === "info.updated" && e.info.mode === "ask")).toBe(true);
+  // The approved plan leaves plan mode, then sends its turn in the same step.
+  await until(
+    () => events.some((e) => e.type === "info.updated" && e.info.mode === "ask"),
+    WAIT_MS,
+  );
   const turns = transports[0]?.sent.filter((s) => s.method === "turn/start") ?? [];
   expect(turns.at(-1)?.params).toMatchObject({
     input: [{ type: "text", text: "Implement the plan." }],

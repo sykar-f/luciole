@@ -12,7 +12,7 @@ import {
 } from "../packages/harness/src/adapters/opencode";
 import type { HarnessEvent } from "../packages/harness/src/adapters/types";
 import { messageOf } from "../packages/core/src/guards";
-import { rejectionOf } from "./helpers";
+import { rejectionOf, until, WAIT_MS } from "./helpers";
 
 // Exchanges recorded on the real opencode 1.18.31 by scripts/coder/record-opencode.ts,
 // replayed in step with the adapter: its events wait for the requests that caused them.
@@ -174,11 +174,13 @@ async function replay(
       mode: "ask",
       ...(options.model ? { model: options.model } : {}),
     });
-  const settled = async () => {
-    for (let i = 0; i < 400 && !events.some((e) => e.type === "turn.completed"); i++)
-      await Bun.sleep(5);
-    await Bun.sleep(20);
-  };
+  // The adapter handles each event as it arrives, the turn's end last: none of it follows.
+  const settled = () =>
+    until(
+      () => events.some((e) => e.type === "turn.completed"),
+      WAIT_MS,
+      () => events.map((e) => e.type).join("\n"),
+    );
   const sent = (path: RegExp) => server.calls.filter((c) => path.test(c.path));
   return { harness, events, server, served, start, settled, sent };
 }
@@ -335,8 +337,8 @@ test("the harness's commands run through opencode's command route", async () => 
   const { harness, start, sent } = await replay("say-ok");
   await start();
   expect((await harness.commands()).map((c) => c.name)).toEqual(["review"]);
+  // Not answered before its turn ends, but sent before `send` returns.
   await harness.send({ text: "/review the last commit" });
-  await Bun.sleep(10);
   expect(sent(/^\/session\/.+\/command$/)[0]?.body).toMatchObject({
     command: "review",
     arguments: "the last commit",
@@ -462,9 +464,9 @@ test("a lost event stream: reconnected, the turn and open requests caught up", a
   );
   await harness.start({ cwd: "/project", mode: "ask" });
   ends[0]?.();
-  for (let i = 0; i < 300 && streams.length < 2; i++) await Bun.sleep(10);
-  for (let i = 0; i < 100 && !events.some((e) => e.type === "request.opened"); i++)
-    await Bun.sleep(10);
+  // Reconnected after the adapter's delay, then caught up from the server's state.
+  await until(() => streams.length >= 2, WAIT_MS);
+  await until(() => events.some((e) => e.type === "request.opened"), WAIT_MS);
   expect(events.some((e) => e.type === "notice" && e.text.includes("reconnecting"))).toBe(true);
   expect(events.some((e) => e.type === "turn.started")).toBe(true);
   expect(events.find((e) => e.type === "request.opened")).toMatchObject({

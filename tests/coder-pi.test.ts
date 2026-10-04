@@ -8,7 +8,7 @@ import { USE_CLAUDE } from "../packages/harness/src/anthropic-guard";
 import { PiHarness, type PiDeps } from "../packages/harness/src/adapters/pi";
 import type { HarnessEvent } from "../packages/harness/src/adapters/types";
 import { messageOf } from "../packages/core/src/guards";
-import { rejectionOf } from "./helpers";
+import { rejectionOf, until, WAIT_MS } from "./helpers";
 
 // Exchanges recorded on the real pi 0.87.1 with coder's gate by scripts/coder/record-pi.ts,
 // replayed in step with the adapter.
@@ -129,11 +129,17 @@ async function replay(
     },
     deps,
   );
-  const settled = async () => {
-    for (let i = 0; i < 400 && !events.some((e) => e.type === "turn.completed"); i++)
-      await Bun.sleep(5);
-    await Bun.sleep(20);
-  };
+  // The turn is over once the usage pi's stats give after its end is in: the adapter
+  // completes the turn, then asks for the stats (PiHarness.settled).
+  const settled = () =>
+    until(
+      () => {
+        const end = events.findIndex((e) => e.type === "turn.completed");
+        return end >= 0 && events.slice(end).some((e) => e.type === "usage.updated");
+      },
+      WAIT_MS,
+      () => events.map((e) => e.type).join("\n"),
+    );
   return { harness, events, spawned, settled };
 }
 const completed = (events: readonly HarnessEvent[]) =>

@@ -16,7 +16,7 @@ import {
 } from "../packages/harness/src/adapters/claude";
 import type { HarnessEvent } from "../packages/harness/src/adapters/types";
 import { messageOf } from "../packages/core/src/guards";
-import { rejectionOf } from "./helpers";
+import { rejectionOf, until, WAIT_MS } from "./helpers";
 
 // Streams recorded on the real claude 2.1.283 by scripts/coder/record-claude.ts, replayed
 // through the adapter: the contract is the neutral events it gives for each of them.
@@ -144,10 +144,12 @@ function replay(
     },
     deps,
   );
-  const settled = async () => {
-    for (let i = 0; i < 200 && !events.some((e) => e.type === "turn.completed"); i++)
-      await Bun.sleep(5);
-  };
+  const settled = () =>
+    until(
+      () => events.some((e) => e.type === "turn.completed"),
+      WAIT_MS,
+      () => events.map((e) => e.type).join("\n"),
+    );
   return { harness, events, queries, settled };
 }
 const completed = (events: readonly HarnessEvent[]) =>
@@ -319,7 +321,7 @@ test("plan: ExitPlanMode is a plan review; after the SDK's error end, the sessio
   // Recorded with a deny that also stopped the turn: Claude ends it as aborted.
   expect(events.find((e) => e.type === "turn.completed")).toMatchObject({ status: "interrupted" });
   // The stream threw after its error result: a new query resumes the same session.
-  for (let i = 0; i < 100 && queries.length < 2; i++) await Bun.sleep(5);
+  await until(() => queries.length >= 2, WAIT_MS);
   expect(queries).toHaveLength(2);
   // The session the CLI reported (system/init), which a resume must name.
   const init = fixture("plan").flatMap((l) =>
