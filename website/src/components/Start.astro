@@ -1,7 +1,7 @@
 ---
-// Your own app in a minute, written as it will read once the package is published: `init`
-// copies the hero's Notes as a project of yours, `dev` runs both sides and rebuilds on a
-// save. Names come from lib/product.ts: a rename is that file. The mascot sits on the
+// Your own app in a minute, from npm: `init` copies the hero's Notes as a project of yours,
+// `dev` runs both sides and rebuilds on a save. The commands come from lib/product.ts, where
+// tests/docs-commands.test.ts checks that they run. The mascot sits on the
 // session's top border, left of the Copy column, its lantern straddling the frame
 // (design/mascot/, the spritesheet with a 1 px float).
 import CopyCommand from "./CopyCommand.astro";
@@ -26,7 +26,7 @@ const EDIT = "components/NoNoteShown.tsx";
       <p class="bar" aria-hidden="true"><span><b>┤</b> ~ <b>├</b></span></p>
       <ol class="steps">
         {
-          [`bunx ${commands.cli} init my-app`, "cd my-app && bun install", "bun run dev"].map((line) => (
+          [`${commands.fromNpm} init my-app`, "cd my-app && bun install", "bun run dev"].map((line) => (
             <li>
               <CopyCommand lines={[line]} plain />
             </li>
