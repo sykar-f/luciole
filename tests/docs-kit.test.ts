@@ -22,6 +22,16 @@ const screen = (caption: string, transcript: string) => `
     <details><summary>Transcript</summary><pre id="s1" data-transcript>${transcript}</pre></details>
   </figure>`;
 
+/** A screen of the capture `title`, set in its bar as Screen sets it, described by `id`. */
+const titled = (title: string, id: string) =>
+  screen(title, "Welcome")
+    .replace('aria-describedby="s1"', `aria-describedby="${id}"`)
+    .replace('id="s1"', `id="${id}"`)
+    .replace(
+      'data-figure="screen">',
+      `data-figure="screen"><div class="bar"><span class="title"><b>┤</b> ${title} <b>├</b></span></div>`,
+    );
+
 /** A screen marked 1 to 3, with `legend` after its caption. */
 const marked = (legend: string, marks = "1 2 3") =>
   screen("Notes, marked", "Welcome")
@@ -70,6 +80,20 @@ describe("the figure kit's contracts", () => {
       '/docs/a/: screen "Notes": aria-describedby="s1" names 2 elements',
       '/docs/a/: screen "Notes": aria-describedby="s1" names 2 elements',
     ]);
+  });
+
+  test("a docs page that shows one capture twice, and the landing's duel", async () => {
+    const twice =
+      titled("Notes: the first note open", "s1") + titled("Notes: the first note open", "s2");
+    expect(await problems(twice)).toEqual([
+      '/docs/a/: screen "Notes: the first note open": shows the capture "Notes: the first note open" a second time',
+    ]);
+    expect(
+      await problems(
+        titled("Notes: the first note open", "s1") + titled("Notes: the Server gone", "s2"),
+      ),
+    ).toEqual([]);
+    expect(await problems(twice, "/")).toEqual([]);
   });
 
   test("a marked screen whose legend numbers each mark, and one without it", async () => {
@@ -215,6 +239,12 @@ describe("the build's check", () => {
   test("fails a page with a screen that has no caption", async () => {
     const { code, err } = await build(screen("", "Welcome"));
     expect(err).toContain('/docs/: screen "": no caption');
+    expect(code).toBe(1);
+  });
+
+  test("fails a page that shows one capture twice", async () => {
+    const { code, err } = await build(titled("Notes", "s1") + titled("Notes", "s2"));
+    expect(err).toContain('/docs/: screen "Notes": shows the capture "Notes" a second time');
     expect(code).toBe(1);
   });
 

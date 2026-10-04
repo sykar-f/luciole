@@ -61,7 +61,7 @@ describe("a figure in Markdown", () => {
       page(`<Screen frame="notes" caption="Notes with note 1 open." wide />`),
     );
     expect(markdown).toContain(
-      "The screen “Notes: a Server 500 ms away”, as text:\n\n```text\n ╭───╮",
+      "The screen “Notes: the first note open”, as text:\n\n```text\n ╭───╮",
     );
     expect(markdown).toContain("*Notes with note 1 open.*");
   });

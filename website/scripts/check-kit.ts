@@ -1,12 +1,13 @@
 /**
  * The contracts of the docs' figure kit (README.md, « Les composants des docs »), on a page
- * of the built site: every screen captioned and described by its transcript, a marked screen
- * with a legend that numbers its marks and each number drawn beside its region, every
- * sequence captioned and described by the ordered list of its steps, every excerpt that has
- * a side naming it in words, every annotated capture with a note per mark, no demo of a
- * RunHere fetched before the reader's click, and a round-trip slider in a RunHere exactly when
- * it is given a `latency`, labelled and naming its unit. scripts/check-html.ts runs it on each
- * page of dist/, so a page that breaks one fails `bun run build`.
+ * of the built site: every screen captioned and described by its transcript, each capture
+ * shown once on a docs page, a marked screen with a legend that numbers its marks and each
+ * number drawn beside its region, every sequence captioned and described by the ordered list
+ * of its steps, every excerpt that has a side naming it in words, every annotated capture
+ * with a note per mark, no demo of a RunHere fetched before the reader's click, and a
+ * round-trip slider in a RunHere exactly when it is given a `latency`, labelled and naming
+ * its unit. scripts/check-html.ts runs it on each page of dist/, so a page that breaks one
+ * fails `bun run build`.
  */
 /// <reference types="bun" />
 
@@ -14,6 +15,8 @@ type Figure = {
   kind: string;
   tone?: string;
   caption: string;
+  /** A screen's title, in the bar above it: the name of the capture it shows. */
+  title: string;
   describedBy: string[];
   transcripts: { id: string; text: string }[];
   side: string;
@@ -93,6 +96,7 @@ export async function kitProblems(html: string, page: string) {
           kind: element.getAttribute("data-figure") ?? "",
           tone: element.getAttribute("data-tone") ?? undefined,
           caption: "",
+          title: "",
           describedBy: [],
           transcripts: [],
           side: "",
@@ -119,6 +123,10 @@ export async function kitProblems(html: string, page: string) {
     .on(
       "figcaption",
       read((figure, chunk) => (figure.caption += chunk)),
+    )
+    .on(
+      ".bar > .title",
+      read((figure, chunk) => (figure.title += chunk)),
     )
     .on(
       ".side",
@@ -219,6 +227,10 @@ export async function kitProblems(html: string, page: string) {
     .transform(html);
 
   const french = page.startsWith("/guide/");
+  // The landing's duel shows one capture under each of its two terminals, on purpose: the
+  // rule holds on the docs, where a second copy tells the reader nothing new.
+  const docs = page.startsWith("/docs/");
+  const shown = new Set<string>();
   const problems: string[] = [];
   const say = (figure: Figure, what: string) =>
     problems.push(
@@ -237,6 +249,11 @@ export async function kitProblems(html: string, page: string) {
       if (!captioned) say(figure, "no caption");
       described(figure);
       const transcript = figure.transcripts[0];
+      const title = figure.title.replace(/[┤├]/g, "").trim();
+      if (docs && title) {
+        if (shown.has(title)) say(figure, `shows the capture "${title}" a second time`);
+        shown.add(title);
+      }
       if (!transcript?.text.trim()) say(figure, "no transcript");
       else if (!figure.describedBy.includes(transcript.id))
         say(figure, "its description is not its transcript");
