@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Session } from "../packages/core/src/client";
 import type { NetworkConditions } from "../packages/core/src/transport";
-import { launch, importClient, type PrivateBuild } from "./helpers";
+import { launch, importClient, until, WAIT_MS, type PrivateBuild } from "./helpers";
 
 // Key names as bindings write them, to the mock terminal's codes.
 const KEYS: Record<string, string> = {
@@ -17,6 +17,9 @@ const KEYS: Record<string, string> = {
   down: "ARROW_DOWN",
   end: "END",
 };
+
+// A step of `waitFor`'s poll: the wait ends on the frame, WAIT_MS only guards a hang.
+const POLL_MS = 20;
 
 type ClientOptions = {
   network?: NetworkConditions;
@@ -54,8 +57,10 @@ async function openClient(built: PrivateBuild, url: string, options: ClientOptio
     act(async () => {
       await work();
     });
-  const settle = (ms = 30) => step(() => Bun.sleep(ms));
-  const waitFor = async (check: string | RegExp | ((frame: string) => boolean), timeout = 8000) => {
+  const waitFor = async (
+    check: string | RegExp | ((frame: string) => boolean),
+    timeout = WAIT_MS,
+  ) => {
     const start = performance.now();
     const matches = (shown: string) =>
       typeof check === "string"
@@ -64,7 +69,7 @@ async function openClient(built: PrivateBuild, url: string, options: ClientOptio
           ? check.test(shown)
           : check(shown);
     for (;;) {
-      await settle(20);
+      await step(() => Bun.sleep(POLL_MS));
       const shown = await frame();
       if (matches(shown)) return shown;
       if (performance.now() - start > timeout)
@@ -74,14 +79,19 @@ async function openClient(built: PrivateBuild, url: string, options: ClientOptio
   const type = (text: string) => step(() => ui.mockInput.typeText(text));
   const press = (key: string, modifiers?: { ctrl?: boolean; shift?: boolean; meta?: boolean }) =>
     step(() => ui.mockInput.pressKey(KEYS[key] ?? key, modifiers));
-  /** Types a prompt and sends it with Enter. */
+  /** Types a prompt and sends it with Enter, once the composer holds what was typed. */
   const prompt = async (text: string) => {
     await type(text);
-    await settle();
+    const composer = () => ui.renderer.currentFocusedEditor?.plainText;
+    await until(
+      () => composer()?.endsWith(text) === true,
+      WAIT_MS,
+      () => `composer: ${JSON.stringify(composer())}`,
+    );
     await press("return");
   };
   const close = () => act(async () => ui.renderer.destroy());
-  return { app, ui, frame, step, settle, waitFor, type, press, prompt, close };
+  return { app, ui, frame, step, waitFor, type, press, prompt, close };
 }
 
 /**
