@@ -344,6 +344,13 @@ async function upToDate(
  */
 export async function publish(temp: string, output: string, move = rename) {
   const backup = output + "-previous";
+  // A build killed between the two moves left the previous build in the backup only: it
+  // goes back in place first, so that this publication replaces it, or restores it.
+  if (
+    !(await Bun.file(join(output, "manifest.json")).exists()) &&
+    (await Bun.file(join(backup, "manifest.json")).exists())
+  )
+    await move(backup, output);
   await rm(backup, { recursive: true, force: true });
   const replaces = await Bun.file(join(output, "manifest.json")).exists();
   if (replaces) await move(output, backup);

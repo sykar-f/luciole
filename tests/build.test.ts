@@ -131,6 +131,35 @@ test("a failed publication puts the previous build back", async () => {
     await rm(work, { recursive: true, force: true });
   }
 });
+test("a publication after a killed one keeps the previous build", async () => {
+  const work = await mkdtemp(join(tmpdir(), "luciole-publish-"));
+  try {
+    const output = join(work, ".luciole");
+    const backup = `${output}-previous`;
+    // Killed between the two moves: the previous build is in the backup only.
+    await mkdir(backup);
+    await Bun.write(join(backup, "manifest.json"), '{"buildId":"previous"}');
+    const next = join(work, "next");
+    await mkdir(next);
+    await Bun.write(join(next, "manifest.json"), '{"buildId":"next"}');
+    let moves = 0;
+    const failing: typeof rename = async (from, to) => {
+      if (from === next && ++moves === 1) throw new Error("injected rename failure");
+      await rename(from, to);
+    };
+    expect(messageOf(await rejectionOf(publish(next, output, failing)))).toBe(
+      "injected rename failure",
+    );
+    expect(await Bun.file(join(output, "manifest.json")).json()).toEqual({ buildId: "previous" });
+    expect(await Bun.file(join(backup, "manifest.json")).exists()).toBe(false);
+    // The next publication replaces it.
+    await publish(next, output);
+    expect(await Bun.file(join(output, "manifest.json")).json()).toEqual({ buildId: "next" });
+    expect(await readdir(work)).toEqual([".luciole"]);
+  } finally {
+    await rm(work, { recursive: true, force: true });
+  }
+});
 test("a step staged with the build that fails leaves the previous build", async () => {
   await fixture(
     { "app/page.tsx": "export default function Page(){return <text>ok</text>}" },
