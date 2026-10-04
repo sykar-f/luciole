@@ -1,15 +1,20 @@
 /** @jsxImportSource @opentui/react */
-import { beforeAll, expect, test } from "bun:test";
+import { expect, test } from "bun:test";
 import { act } from "react";
 import { InputRenderable, TextareaRenderable } from "@opentui/core";
 import { testRender } from "@opentui/react/test-utils";
-import { build } from "../packages/core/src/build";
-import { forgeDirectory, startForge, type ForgeHarness } from "./forge-helpers";
-import { destroy, draftsOf, importClient, present, renderable, until } from "./helpers";
+import { startForge, type ForgeHarness } from "./forge-helpers";
+import {
+  destroy,
+  draftsOf,
+  importClient,
+  present,
+  privateBuild,
+  renderable,
+  until,
+} from "./helpers";
 
-beforeAll(async () => {
-  await build(forgeDirectory);
-}, 60000);
+const built = await privateBuild("examples/forge");
 
 const ctrl = { ctrl: true };
 
@@ -25,7 +30,7 @@ async function shownIn(forge: ForgeHarness, id: string) {
 }
 
 test("anonymous start redirects to the public login; a bad PIN stays there", async () => {
-  const forge = await startForge();
+  const forge = await startForge(built);
   try {
     expect(forge.path()).toBe("/login");
     expect(await forge.frame()).toContain("Demo accounts");
@@ -55,7 +60,7 @@ test("anonymous start redirects to the public login; a bad PIN stays there", asy
 }, 30000);
 
 test("reviewer journey: line comment, approval, then Drafts never cross accounts", async () => {
-  const forge = await startForge();
+  const forge = await startForge(built);
   const { ui, step, waitFor, operator } = forge;
   try {
     await forge.signIn("bob");
@@ -140,7 +145,7 @@ test("reviewer journey: line comment, approval, then Drafts never cross accounts
 }, 60000);
 
 test("a merge whose response is lost is resolved from the ledger, never replayed", async () => {
-  const forge = await startForge();
+  const forge = await startForge(built);
   const { ui, step, waitFor, operator } = forge;
   try {
     await forge.signIn("alice");
@@ -178,7 +183,7 @@ test("a merge whose response is lost is resolved from the ledger, never replayed
 
 test("a merge that never reached the Server fails plainly and can be tried again", async () => {
   let refuse = false;
-  const forge = await startForge({
+  const forge = await startForge(built, {
     // Actions only: a refused connection is `not-sent`, the Server provably ran nothing.
     fetch: async (input, init) => {
       if (refuse && init?.method === "POST")
@@ -211,7 +216,7 @@ test("a merge that never reached the Server fails plainly and can be tried again
 }, 60000);
 
 test("a description Draft survives a concurrent edit until it is explicitly discarded", async () => {
-  const forge = await startForge();
+  const forge = await startForge(built);
   const { ui, step, waitFor, operator } = forge;
   try {
     await forge.signIn("alice");
@@ -241,7 +246,7 @@ test("a description Draft survives a concurrent edit until it is explicitly disc
 }, 60000);
 
 test("CI logs stream live through Flight, then the rerun unblocks the merge", async () => {
-  const forge = await startForge({ env: { FORGE_CI_SCALE: "0.6" } });
+  const forge = await startForge(built, { env: { FORGE_CI_SCALE: "0.6" } });
   const { ui, step, waitFor, operator } = forge;
   try {
     await forge.signIn("bob");
@@ -284,7 +289,7 @@ test("CI logs stream live through Flight, then the rerun unblocks the merge", as
 }, 60000);
 
 test("opening a pull request: the static /pulls/new route beats /pulls/$number", async () => {
-  const forge = await startForge();
+  const forge = await startForge(built);
   const { ui, step, waitFor, operator } = forge;
   try {
     await forge.signIn("bob");
@@ -319,7 +324,7 @@ test("opening a pull request: the static /pulls/new route beats /pulls/$number",
 }, 60000);
 
 test("the new pull request form validates locally, then survives a Client restart", async () => {
-  const forge = await startForge();
+  const forge = await startForge(built);
   const { ui, step, waitFor, operator } = forge;
   let token: string | undefined;
   forge.app.onTokenChange((next) => (token = next));
@@ -349,7 +354,7 @@ test("the new pull request form validates locally, then survives a Client restar
     });
 
     // A new Client process: new memory, the same session file and (in dev) bearer.
-    const { createApp, Shell } = await importClient(forgeDirectory, "forge-restart");
+    const { createApp, Shell } = await importClient(built.directory, "forge-restart");
     const app = createApp({ url: forge.server.url, token, session });
     await app.router.load();
     const again = await testRender(<Shell app={app} />, { width: 140, height: 40 });
@@ -381,7 +386,7 @@ test("the new pull request form validates locally, then survives a Client restar
 }, 60000);
 
 test("a missing pull request shows the not-found screen inside the chrome", async () => {
-  const forge = await startForge();
+  const forge = await startForge(built);
   try {
     await forge.signIn("carol");
     await forge.step(() =>
@@ -407,7 +412,7 @@ test("a missing pull request shows the not-found screen inside the chrome", asyn
 }, 30000);
 
 test("help lines are generated from the key layers mounted right now", async () => {
-  const forge = await startForge();
+  const forge = await startForge(built);
   const { ui, step, waitFor } = forge;
   try {
     expect(await shownIn(forge, "login-help")).toBe(
@@ -445,7 +450,7 @@ test("help lines are generated from the key layers mounted right now", async () 
 }, 60000);
 
 test("while a field is edited, keys bound to commands are text", async () => {
-  const forge = await startForge();
+  const forge = await startForge(built);
   const { ui, step, waitFor, operator } = forge;
   const typed = "iu12?axmejk/nsv[] rest";
   try {

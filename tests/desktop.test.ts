@@ -7,22 +7,20 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
-import { build } from "../packages/core/src/build";
+import { join } from "node:path";
 import { ctrl, drive } from "../scripts/pty/driver";
-import { BUILD_TEST_MS, launch } from "./helpers";
+import { BUILD_TEST_MS, launch, privateBuild } from "./helpers";
 
-const root = resolve("examples/notes");
+const built = await privateBuild("examples/notes");
 // Long enough for a Ctrl+C that quits to have ended the Client.
 const QUIT_WINDOW_MS = 500;
 let dir: string;
 let server: Awaited<ReturnType<typeof launch>>;
 
 beforeAll(async () => {
-  await build(root);
   dir = await mkdtemp(join(tmpdir(), "luciole-desktop-"));
   // In production, as the Client below: a development Server wants the bearer of `luciole dev`.
-  server = await launch(join(root, ".luciole/server/index.js"), {
+  server = await launch(join(built.output, "server/index.js"), {
     NOTES_DB: join(dir, "notes.sqlite"),
     NODE_ENV: "production",
   });
@@ -38,7 +36,7 @@ const sessions = async (state: string) =>
 /** The notes Client in a window: started and connected; stopped at the end of its scope. */
 async function openWindow(state: string) {
   const window = await drive({
-    command: [process.execPath, join(root, ".luciole/client/index.js"), "--url", server.url],
+    command: [process.execPath, join(built.output, "client/index.js"), "--url", server.url],
     cols: 100,
     rows: 28,
     env: { NODE_ENV: "production", XDG_STATE_HOME: state, LUCIOLE_DESKTOP: "1" },

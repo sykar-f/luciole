@@ -5,12 +5,12 @@ import { Renderable } from "@opentui/core";
 import { testRender } from "@opentui/react/test-utils";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
-import { build } from "../packages/core/src/build";
+import { join } from "node:path";
 import { instrumentTracing } from "../packages/core/src/client";
 import {
   BUILD_TEST_MS,
   launch,
+  privateBuild,
   until,
   importClient,
   destroy,
@@ -19,18 +19,17 @@ import {
   type TestUI,
 } from "./helpers";
 
-const root = resolve("examples/notes");
+const built = await privateBuild("examples/notes");
 
 test(
   "the overlay shows no request while typing and one timed call per save",
   async () => {
-    await build(root);
     const dir = await mkdtemp(join(tmpdir(), "luciole-observe-"));
-    const server = await launch(join(root, ".luciole/server/index.js"), {
+    const server = await launch(join(built.output, "server/index.js"), {
       NOTES_DB: join(dir, "notes.sqlite"),
       NOTES_AUTOSAVE_MS: "0",
     });
-    const { createApp, Shell } = await importClient(root, "observe");
+    const { createApp, Shell } = await importClient(built.directory, "observe");
     const app = createApp({ url: server.url, initialPath: "/notes/1", latencyMs: 40 });
     // A fake OpenTelemetry tracer: one span per request, ended with its body.
     const spans: { name: string; attributes: Record<string, unknown>; ended: boolean }[] = [];

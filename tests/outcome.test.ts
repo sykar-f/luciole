@@ -2,8 +2,7 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import { Database } from "bun:sqlite";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
-import { build } from "../packages/core/src/build";
+import { join } from "node:path";
 import {
   createHttpTransport,
   networkFromEnv,
@@ -11,17 +10,17 @@ import {
   type Outcome,
 } from "../packages/core/src/transport";
 import { z } from "zod";
-import { launch, until } from "./helpers";
+import { launch, privateBuild, until } from "./helpers";
 
 // Each outcome is checked against a real Notes Server and its database: `not-sent` and
 // `rejected` must mean the save never ran, `unknown` that it may have.
-const root = resolve("examples/notes");
+const built = await privateBuild("examples/notes");
 let dir = "",
   buildId = "",
   // Note 1 as a new database seeds it: what a save that never ran leaves.
   seeded = "";
 beforeAll(async () => {
-  ({ buildId } = await build(root));
+  ({ buildId } = built);
   dir = await mkdtemp(join(tmpdir(), "luciole-outcome-"));
   await (await server("seeded")).stop();
   seeded = stored("seeded");
@@ -29,7 +28,7 @@ beforeAll(async () => {
 afterAll(() => rm(dir, { recursive: true, force: true }));
 
 const server = (name: string, env: Record<string, string> = {}) =>
-  launch(join(root, ".luciole/server/index.js"), { NOTES_DB: join(dir, `${name}.sqlite`), ...env });
+  launch(join(built.output, "server/index.js"), { NOTES_DB: join(dir, `${name}.sqlite`), ...env });
 const transport = (url: string, options: { buildId?: string; token?: string } = {}) =>
   createHttpTransport({
     url,

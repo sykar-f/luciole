@@ -6,7 +6,6 @@ import { join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import sharp from "sharp";
 import { z } from "zod";
-import { build } from "../packages/core/src/build";
 import { compileApp, hostTarget } from "../packages/core/src/compile";
 import { connect } from "../packages/core/src/connect";
 import { messageOf } from "../packages/core/src/guards";
@@ -17,10 +16,11 @@ import { readBinaryIdentity } from "../packages/core/src/launcher/identity";
 import { install } from "../packages/core/src/registry/apps";
 import { packApp } from "../packages/core/src/registry/pack";
 import type { Registry } from "../packages/core/src/registry/registry";
-import { execute, rejectionOf } from "./helpers";
+import { execute, privateBuild, rejectionOf } from "./helpers";
 
 // examples/files makes thumbnails with sharp, whose addon links libvips next to it.
 const root = resolve("examples/files");
+const built = await privateBuild("examples/files");
 let work: string;
 beforeAll(async () => {
   work = await mkdtemp(join(tmpdir(), "luciole-native-"));
@@ -37,7 +37,7 @@ test("sharp is native, through its platform packages; zod is not", () => {
 });
 
 test("the build keeps native packages out of the Server bundle", async () => {
-  const { output } = await build(root);
+  const { output } = built;
   const bundle = await Bun.file(join(output, "server/index.js")).text();
   expect(bundle).toContain('from "sharp"');
   expect(bundle).not.toContain("sharp-darwin-arm64/sharp.node");
@@ -51,7 +51,7 @@ const Thumbnail = z.object({
 });
 
 test("a compiled binary loads sharp from native/ next to it, far from any node_modules", async () => {
-  const { output, buildId } = await build(root);
+  const { output, buildId } = built;
   const compiled = await compileApp(output, {
     name: "files",
     outfile: join(work, "build/files"),

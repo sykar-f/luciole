@@ -2,19 +2,17 @@ import { expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { build } from "../packages/core/src/build";
 import { createForge } from "../examples/forge/server/forge";
 import { importGitRepository } from "../examples/forge/server/git-import";
 import { openDatabase } from "../examples/forge/server/schema";
-import { launch, present, readManifest } from "./helpers";
+import { launch, present, privateBuild, readManifest } from "./helpers";
 
-const directory = resolve("examples/forge");
+const built = await privateBuild("examples/forge");
 
 test("Forge artefacts: SQL, git, sessions and seed data never reach the Client", async () => {
-  await build(directory);
-  const manifest = await readManifest(directory);
-  const client = await Bun.file(join(directory, ".luciole/client/index.js")).text();
-  const server = await Bun.file(join(directory, ".luciole/server/index.js")).text();
+  const manifest = await readManifest(built.directory);
+  const client = await Bun.file(join(built.output, "client/index.js")).text();
+  const server = await Bun.file(join(built.output, "server/index.js")).text();
   const serverOnly = [
     "CREATE TABLE IF NOT EXISTS",
     "token_hash",
@@ -48,7 +46,7 @@ test("Forge artefacts: SQL, git, sessions and seed data never reach the Client",
 test("a rendered page carries the public identity, never the session", async () => {
   const temp = await mkdtemp(join(tmpdir(), "forge-flight-"));
   const database = join(temp, "forge.sqlite");
-  const server = await launch(join(directory, ".luciole/server/index.js"), {
+  const server = await launch(join(built.output, "server/index.js"), {
     FORGE_DB: database,
     FORGE_SLOW_MS: "0",
   });

@@ -3,11 +3,11 @@ import { expect, test } from "bun:test";
 import { act } from "react";
 import { testRender } from "@opentui/react/test-utils";
 import { BoxRenderable, InputRenderable, ScrollBoxRenderable } from "@opentui/core";
-import { join, resolve } from "node:path";
-import { build } from "../packages/core/src/build";
+import { join } from "node:path";
 import type { Fetch } from "../packages/core/src/client";
 import {
   launch,
+  privateBuild,
   until,
   importClient,
   destroy,
@@ -16,11 +16,11 @@ import {
   type TestUI,
 } from "./helpers";
 
+const built = await privateBuild("examples/latency");
+
 test("500 ms RTT delays Flight and actions while input, hover and scroll stay local", async () => {
-  const directory = resolve("examples/latency");
-  await build(directory);
-  const server = await launch(join(directory, ".luciole/server/index.js"));
-  const { createApp, Shell } = await importClient(directory, "latency");
+  const server = await launch(join(built.output, "server/index.js"));
+  const { createApp, Shell } = await importClient(built.directory, "latency");
   // Holds the armed request at the Client's `fetch`, after its one-way latency and before
   // the Server sees it: while it is held, nothing can have been answered, however slow
   // the machine is.

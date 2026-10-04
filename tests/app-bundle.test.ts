@@ -1,6 +1,6 @@
 import { test, expect, spyOn } from "bun:test";
 import { mkdtemp, mkdir, rm } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { z } from "zod";
 import { ABI_KEY, ABI_PACKAGES, ABI_SPECIFIERS, AppManifest } from "../packages/core/src/abi";
@@ -9,7 +9,10 @@ import { build } from "../packages/core/src/build";
 import * as optional from "../packages/core/src/optional";
 import { messageOf } from "../packages/core/src/guards";
 import { readJsonFile } from "../packages/core/src/package-json";
-import { BUILD_TEST_MS, rejectionOf } from "./helpers";
+import { BUILD_TEST_MS, privateBuild, rejectionOf } from "./helpers";
+
+const latency = await privateBuild("examples/latency");
+const notes = await privateBuild("examples/notes", { appBundle: "required" });
 
 test("the ABI names the installed versions and the runtime provides every specifier", async () => {
   // The workspace catalog pins every version the framework and the examples declare.
@@ -150,8 +153,7 @@ test(
 test(
   "the examples build their application bundle",
   async () => {
-    const dir = resolve("examples/latency");
-    await build(dir);
+    const dir = latency.directory;
     const manifest = AppManifest.parse(await manifestOf(dir));
     expect(manifest.name).toBe("latency");
     expect((await loadAppBundle(join(dir, ".luciole/app"))).buildId).toBe(manifest.buildId);
@@ -162,8 +164,7 @@ test(
 test(
   "the Notes application, which draws code with @luciole-sh/core/grammars, builds a bundle that loads",
   async () => {
-    const dir = resolve("examples/notes");
-    await build(dir, undefined, { appBundle: "required" });
+    const dir = notes.directory;
     const manifest = AppManifest.parse(await manifestOf(dir));
     expect(manifest.name).toBe("notes");
     expect((await loadAppBundle(join(dir, ".luciole/app"))).buildId).toBe(manifest.buildId);

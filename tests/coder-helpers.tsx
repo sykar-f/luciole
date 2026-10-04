@@ -3,12 +3,11 @@ import { act } from "react";
 import { testRender } from "@opentui/react/test-utils";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import type { Session } from "../packages/core/src/client";
 import type { NetworkConditions } from "../packages/core/src/transport";
-import { launch, importClient } from "./helpers";
+import { launch, importClient, type PrivateBuild } from "./helpers";
 
-export const coderDirectory = resolve("examples/coder");
 // Key names as bindings write them, to the mock terminal's codes.
 const KEYS: Record<string, string> = {
   return: "RETURN",
@@ -33,8 +32,8 @@ type Options = ClientOptions & {
 };
 
 /** A generated Client of `url` in OpenTUI's test renderer, with its own runtime. */
-async function openClient(url: string, options: ClientOptions) {
-  const { createApp, Shell } = await importClient(coderDirectory, crypto.randomUUID());
+async function openClient(built: PrivateBuild, url: string, options: ClientOptions) {
+  const { createApp, Shell } = await importClient(built.directory, crypto.randomUUID());
   const app = createApp({
     url,
     latencyMs: 0,
@@ -89,15 +88,15 @@ async function openClient(url: string, options: ClientOptions) {
  * A real coder Server on the scripted harness (fast: 1 ms between chunks) and a real
  * generated Client rendered in OpenTUI's test renderer; `client()` opens another one.
  */
-export async function startCoder(options: Options = {}) {
+export async function startCoder(built: PrivateBuild, options: Options = {}) {
   const temp = await mkdtemp(join(tmpdir(), "coder-"));
-  const server = await launch(join(coderDirectory, ".luciole/server/index.js"), {
+  const server = await launch(join(built.output, "server/index.js"), {
     LUCIOLE_ARGS: JSON.stringify({ v: 1, argv: options.argv ?? ["--harness", "fake"], cwd: temp }),
     XDG_STATE_HOME: join(temp, "state"),
     CODER_FAKE_DELAY_MS: "1",
     ...options.env,
   });
-  const first = await openClient(server.url, options);
+  const first = await openClient(built, server.url, options);
   let closed = false;
   async function stop() {
     if (!closed) await first.close();
@@ -109,7 +108,7 @@ export async function startCoder(options: Options = {}) {
     ...first,
     server,
     temp,
-    client: (more: ClientOptions = {}) => openClient(server.url, more),
+    client: (more: ClientOptions = {}) => openClient(built, server.url, more),
     /** Destroys the first Client, as a crash would (its session stays with the test). */
     crash: async () => {
       closed = true;

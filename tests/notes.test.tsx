@@ -6,11 +6,11 @@ import { Renderable, TextRenderable } from "@opentui/core";
 import { MouseButtons, type MouseButton } from "@opentui/core/testing";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
-import { build } from "../packages/core/src/build";
+import { join } from "node:path";
 import { TransportError, type Transport } from "../packages/core/src/client";
 import {
   BUILD_TEST_MS,
+  privateBuild,
   WAIT_MS,
   launch,
   until as pollUntil,
@@ -24,22 +24,21 @@ import {
   type ClientOptions,
   type TestUI,
 } from "./helpers";
-const appDir = resolve("examples/notes");
+const built = await privateBuild("examples/notes");
 
 async function start(
   tag: string,
   env: Record<string, string> = {},
   options: Omit<ClientOptions, "url"> = {},
 ) {
-  await build(appDir);
   const folder = await mkdtemp(join(tmpdir(), "luciole-notes-"));
-  const server = await launch(join(appDir, ".luciole/server/index.js"), {
+  const server = await launch(join(built.output, "server/index.js"), {
     NOTES_DB: join(folder, "notes.sqlite"),
     // Saves only when asked: the requests counted below are the test's own.
     NOTES_AUTOSAVE_MS: "0",
     ...env,
   });
-  const { createApp, Shell } = await importClient(appDir, tag);
+  const { createApp, Shell } = await importClient(built.directory, tag);
   const app = createApp({ url: server.url, ...options });
   await app.router.load();
   const ui = await testRender(<Shell app={app} />, { width: 110, height: 32 });

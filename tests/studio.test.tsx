@@ -6,18 +6,17 @@
  * fails and a page that fails in the preview go back to the generator, which corrects
  * them; Ctrl+O u undoes; nothing outlives the studio.
  */
-import { beforeAll, expect, test } from "bun:test";
+import { expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { act } from "react";
 import { testRender } from "@opentui/react/test-utils";
-import { build } from "../packages/core/src/build";
 import { isolationProblem } from "../examples/studio/server/preview";
-import { execute, importClient, launch } from "./helpers";
+import { execute, importClient, launch, privateBuild } from "./helpers";
 
-const STUDIO = resolve("examples/studio");
+const built = await privateBuild("examples/studio");
 const MODE = isolationProblem("sandbox") ? "process" : "sandbox";
 const WIDTH = 160;
 // Tall enough for a failure and its correction to stay on screen together: on a loaded
@@ -27,17 +26,13 @@ const STEP_TIMEOUT_MS = 60_000;
 const STOP_TIMEOUT_MS = 20_000;
 const POLL_MS = 100;
 
-beforeAll(async () => {
-  await build(STUDIO);
-}, STEP_TIMEOUT_MS);
-
 async function startStudio(mode: string = MODE) {
   const temp = realpathSync(await mkdtemp(join(tmpdir(), "studio-e2e-")));
   // The preview's Client keeps its sessions under the Client's state: this test's.
   const state = process.env.XDG_STATE_HOME;
   process.env.XDG_STATE_HOME = join(temp, "state");
   const project = join(temp, "demo");
-  const server = await launch(join(STUDIO, ".luciole/server/index.js"), {
+  const server = await launch(join(built.output, "server/index.js"), {
     LUCIOLE_ARGS: JSON.stringify({
       v: 1,
       argv: ["--harness", "fake", "--dir", project, "--preview", mode],
@@ -46,7 +41,7 @@ async function startStudio(mode: string = MODE) {
     XDG_STATE_HOME: join(temp, "state"),
     STUDIO_FAKE_DELAY_MS: "1",
   });
-  const { createApp, Shell } = await importClient(STUDIO, crypto.randomUUID());
+  const { createApp, Shell } = await importClient(built.directory, crypto.randomUUID());
   const app = createApp({ url: server.url, latencyMs: 0 });
   await app.router.load();
   const ui = await testRender(<Shell app={app} />, { width: WIDTH, height: HEIGHT });

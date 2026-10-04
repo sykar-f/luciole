@@ -5,11 +5,11 @@ import { Renderable } from "@opentui/core";
 import { testRender } from "@opentui/react/test-utils";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
-import { build } from "../packages/core/src/build";
+import { join } from "node:path";
 import {
   BUILD_TEST_MS,
   launch,
+  privateBuild,
   until,
   importClient,
   destroy,
@@ -19,18 +19,18 @@ import {
   type TestUI,
 } from "./helpers";
 
+const built = await privateBuild("examples/notes");
+
 test(
   "local route loading, cancel, refresh identity, failed navigation and superseded loads",
   async () => {
-    const directory = resolve("examples/notes");
-    await build(directory);
     const temp = await mkdtemp(join(tmpdir(), "luciole-navigation-"));
-    const server = await launch(join(directory, ".luciole/server/index.js"), {
+    const server = await launch(join(built.output, "server/index.js"), {
       NOTES_DB: join(temp, "notes.sqlite"),
       // Saves only when asked: a timer's save would take a gate meant for the test's own.
       NOTES_AUTOSAVE_MS: "0",
     });
-    const { createApp, Shell } = await importClient(directory, "navigation");
+    const { createApp, Shell } = await importClient(built.directory, "navigation");
     let gate: { promise: Promise<void>; signal?: AbortSignal } | undefined;
     function hold() {
       const deferred = Promise.withResolvers<void>();

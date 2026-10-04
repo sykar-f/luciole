@@ -1,11 +1,12 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
-import { build } from "../packages/core/src/build";
+import { join } from "node:path";
 import { compileClient, fetchRuntime, hostTarget } from "../packages/core/src/compile";
 import { messageOf } from "../packages/core/src/guards";
-import { execute, rejectionOf } from "./helpers";
+import { execute, privateBuild, rejectionOf } from "./helpers";
+
+const built = await privateBuild("examples/notes");
 
 // A registry serving a fake runtime package, the way npm publishes @oven/bun-<os>-<arch>.
 const name = (() => {
@@ -91,7 +92,7 @@ test("an incomplete entry left by an older cache is replaced", async () => {
 });
 
 test("--compile embeds the stock runtime by default and explains an offline miss", async () => {
-  const { output } = await build(resolve("examples/notes"));
+  const { output } = built;
   const offline = { cache: (await source()).cache, registry: "http://127.0.0.1:9" };
   expect(
     messageOf(await rejectionOf(compileClient(output, { name: "notes", ...offline }))),

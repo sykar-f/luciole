@@ -7,8 +7,7 @@ import { KeymapProvider } from "@opentui/keymap/react";
 import { testRender } from "@opentui/react/test-utils";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
-import { build } from "../packages/core/src/build";
+import { join } from "node:path";
 import { createRootRoute } from "@tanstack/react-router";
 import {
   Embed,
@@ -21,7 +20,15 @@ import {
 } from "../packages/core/src/client";
 import { registerModules, splitInstance } from "../packages/core/src/flight/client";
 import { instanceManifests } from "../packages/core/src/instance";
-import { destroy, importClient, launch, readManifest, until, type TestUI } from "./helpers";
+import {
+  destroy,
+  importClient,
+  launch,
+  privateBuild,
+  readManifest,
+  until,
+  type TestUI,
+} from "./helpers";
 
 test("an instance key is read before the build ID's slash only", () => {
   expect(splitInstance("p1@abc/app/x.tsx")).toEqual(["p1", "abc/app/x.tsx"]);
@@ -100,8 +107,8 @@ test("one runtime, two bundle bindings: imported Server Functions reach their ow
   ).toThrow();
 });
 
-const mdreader = resolve("examples/mdreader");
-const files = resolve("examples/files");
+const mdBuilt = await privateBuild("examples/mdreader");
+const filesBuilt = await privateBuild("examples/files");
 const actionsOf = (events: ApplicationEvent[]) =>
   events.flatMap((e) => (e.type === "request" && e.kind === "action" ? [e.target] : []));
 function record(app: Application) {
@@ -120,20 +127,19 @@ async function panes(ui: TestUI, texts: string[]) {
 }
 
 test("two panes of one build, two Servers: own modules, own Server Functions", async () => {
-  await build(mdreader);
-  const { buildId } = await readManifest(mdreader);
+  const { buildId } = await readManifest(mdBuilt.directory);
   const left = await mkdtemp(join(tmpdir(), "luciole-pane-a-"));
   const right = await mkdtemp(join(tmpdir(), "luciole-pane-b-"));
   await Bun.write(join(left, "README.md"), "# Left\n\nServed to pane a.\n");
   await Bun.write(join(right, "README.md"), "# Right\n\nServed to pane b.\n");
-  const server = join(mdreader, ".luciole/server/index.js");
+  const server = join(mdBuilt.output, "server/index.js");
   const a = await launch(server, { MD_PATH: left });
   const b = await launch(server, { MD_PATH: right });
   let ui: TestUI | undefined;
   try {
     // One bundle evaluation per pane, as a host of several panes loads them.
-    const paneA = await importClient(mdreader, "instance-a");
-    const paneB = await importClient(mdreader, "instance-b");
+    const paneA = await importClient(mdBuilt.directory, "instance-a");
+    const paneB = await importClient(mdBuilt.directory, "instance-b");
     const appA = paneA.createApp({ url: a.url, instance: "a" });
     const appB = paneB.createApp({ url: b.url, instance: "b" });
     const eventsA = record(appA);
@@ -179,17 +185,16 @@ function HostKeymap({ children }: { children: ReactNode }) {
 }
 
 test("two panes of one build on one shared runtime: bundles evaluated per pane", async () => {
-  await build(mdreader);
-  const { buildId } = await readManifest(mdreader);
+  const { buildId } = await readManifest(mdBuilt.directory);
   const left = await mkdtemp(join(tmpdir(), "luciole-shared-a-"));
   const right = await mkdtemp(join(tmpdir(), "luciole-shared-b-"));
   await Bun.write(join(left, "README.md"), "# Left\n\nShared runtime, pane a.\n");
   await Bun.write(join(right, "README.md"), "# Right\n\nShared runtime, pane b.\n");
-  const server = join(mdreader, ".luciole/server/index.js");
+  const server = join(mdBuilt.output, "server/index.js");
   const a = await launch(server, { MD_PATH: left });
   const b = await launch(server, { MD_PATH: right });
   let ui: TestUI | undefined;
-  const bundle = join(mdreader, ".luciole/app");
+  const bundle = join(mdBuilt.output, "app");
   const appA = await openApplication({ bundle, url: a.url, instance: "sa" });
   const appB = await openApplication({ bundle, url: b.url, instance: "sb" });
   try {
@@ -226,17 +231,15 @@ test("two panes of one build on one shared runtime: bundles evaluated per pane",
 }, 60_000);
 
 test("two builds in one process, each pane with its key", async () => {
-  await build(mdreader);
-  await build(files);
   const docs = await mkdtemp(join(tmpdir(), "luciole-two-builds-"));
   await Bun.write(join(docs, "README.md"), "# Docs\n\nRendered next to files.\n");
   await Bun.write(join(docs, "second-build-marker.txt"), "x\n");
-  const md = await launch(join(mdreader, ".luciole/server/index.js"), { MD_PATH: docs });
-  const fx = await launch(join(files, ".luciole/server/index.js"), { FILES_ROOT: docs });
+  const md = await launch(join(mdBuilt.output, "server/index.js"), { MD_PATH: docs });
+  const fx = await launch(join(filesBuilt.output, "server/index.js"), { FILES_ROOT: docs });
   let ui: TestUI | undefined;
   try {
-    const mdClient = await importClient(mdreader, "two-builds-md");
-    const fxClient = await importClient(files, "two-builds-files");
+    const mdClient = await importClient(mdBuilt.directory, "two-builds-md");
+    const fxClient = await importClient(filesBuilt.directory, "two-builds-files");
     const mdApp = mdClient.createApp({ url: md.url, instance: "md" });
     const fxApp = fxClient.createApp({ url: fx.url, instance: "fx" });
     ui = await testRender(
@@ -260,11 +263,10 @@ test("two builds in one process, each pane with its key", async () => {
 }, 60_000);
 
 test("the Server refuses a malformed instance key and prefixes a valid one", async () => {
-  await build(mdreader);
-  const { buildId } = await readManifest(mdreader);
+  const { buildId } = await readManifest(mdBuilt.directory);
   const docs = await mkdtemp(join(tmpdir(), "luciole-instance-server-"));
   await Bun.write(join(docs, "README.md"), "# Home\n");
-  const server = await launch(join(mdreader, ".luciole/server/index.js"), { MD_PATH: docs });
+  const server = await launch(join(mdBuilt.output, "server/index.js"), { MD_PATH: docs });
   try {
     const render = (instance?: string) =>
       fetch(`${server.url}/render?route=/`, {

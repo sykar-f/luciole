@@ -3,7 +3,21 @@ import { mkdir, readFile, rm } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { build } from "../packages/core/src/build";
 import { ROUTE_TREE_FILE } from "../packages/core/src/route-graph";
-import { temporaryApp } from "./helpers";
+import { privateBuild, temporaryApp } from "./helpers";
+
+// Each read before its example's build, which runs as the file loads (`privateBuild`).
+const EXAMPLES = [
+  "examples/notes",
+  "examples/latency",
+  "examples/forge",
+  "packages/core/src/devtools/luciole-devtools",
+];
+const trees: { file: string; committed: string }[] = [];
+for (const example of EXAMPLES) {
+  const file = join(resolve(example), ROUTE_TREE_FILE);
+  trees.push({ file, committed: await readFile(file, "utf8") });
+  await privateBuild(example);
+}
 
 test("generated route tree types navigation targets and params", async () => {
   const dir = await temporaryApp("route-types");
@@ -62,15 +76,5 @@ export function Bad() {
 }, 60000);
 
 test("checked-in example route trees match the route graph", async () => {
-  for (const example of [
-    "examples/notes",
-    "examples/latency",
-    "examples/forge",
-    "packages/core/src/devtools/luciole-devtools",
-  ]) {
-    const file = join(resolve(example), ROUTE_TREE_FILE);
-    const committed = await readFile(file, "utf8");
-    await build(resolve(example));
-    expect(await readFile(file, "utf8")).toBe(committed);
-  }
+  for (const { file, committed } of trees) expect(await readFile(file, "utf8")).toBe(committed);
 }, 60000);
