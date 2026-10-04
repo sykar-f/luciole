@@ -372,6 +372,9 @@ function scalar(value: string | undefined) {
   return text;
 }
 
+// A Note opener on its own line, its props (kind, title) in any order and either quote.
+const NOTE_OPEN = /^\s*<Note((?:\s+[\w-]+=(?:"[^"]*"|'[^']*'))*)\s*>\s*$/;
+
 export function toMarkdown(mdx: string, page = "a page") {
   const [, front = "", body = mdx] = /^---\n([\s\S]*?)\n---\n([\s\S]*)$/.exec(mdx) ?? [];
   const title = scalar(/^title:\s*(.+)$/m.exec(front)?.[1]);
@@ -393,11 +396,15 @@ export function toMarkdown(mdx: string, page = "a page") {
       continue;
     }
     if (/^(import|export) /.test(line)) continue;
-    const open = /^\s*<Note(?:\s+kind="(\w+)")?\s*>\s*$/.exec(line);
+    const open = NOTE_OPEN.exec(line);
     if (open) {
       quoting = true;
-      const kind = open[1] ?? "note";
-      out.push(`> **${kind[0]?.toUpperCase()}${kind.slice(1)}:**`, ">");
+      const { kind, title } = attributes(`<Note${open[1] ?? ""}`);
+      const label = typeof kind === "string" ? kind : "note";
+      const heading = `**${label[0]?.toUpperCase()}${label.slice(1)}:**`;
+      // A titled Note leads with its title; only a kind other than the default keeps its label.
+      if (typeof title !== "string") out.push(`> ${heading}`, ">");
+      else out.push(label === "note" ? `> **${title}**` : `> ${heading} **${title}**`, ">");
       continue;
     }
     if (/^\s*<\/Note>\s*$/.test(line)) {
