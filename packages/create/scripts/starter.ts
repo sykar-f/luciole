@@ -142,10 +142,13 @@ export async function stageStarter(options: {
     recursive: true,
     filter: (p) => {
       const [first = ""] = relative(example, p).split(sep);
+      // `.luciole` is the build output, `.luciole-lock` its lock, `.luciole-<id>` a build's staging
+      // directory (core/build.ts): none is the example's source, whatever builds it meanwhile.
       return (
-        !["node_modules", ".luciole", "package.json", "tsconfig.json", "README.md"].includes(
-          first,
-        ) && !/\.sqlite(-wal|-shm)?$/.test(first)
+        !["node_modules", "package.json", "tsconfig.json", "README.md"].includes(first) &&
+        first !== ".luciole" &&
+        !first.startsWith(".luciole-") &&
+        !/\.sqlite(-wal|-shm)?$/.test(first)
       );
     },
   });
