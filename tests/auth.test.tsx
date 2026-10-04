@@ -14,6 +14,7 @@ import {
   readManifest,
   rejectionOf,
   destroy,
+  until,
   type TestUI,
 } from "./helpers";
 
@@ -94,6 +95,10 @@ test(
       expect(
         await anonymous.callServer(`${manifest.buildId}/actions/public.ts#publicAction`, []),
       ).toBe("alice");
+      // A refresh refused on a protected route goes to the login page too.
+      anonymous.setToken(undefined);
+      await until(() => at(anonymous) === "/login");
+      anonymous.setToken("valid");
 
       // The Server never trusts the Client route guard.
       const { url } = server;
@@ -282,6 +287,77 @@ test(
         expect(ui.captureCharFrame()).not.toContain(previous);
         expect(ui.captureCharFrame()).toContain(expected);
       }
+    } finally {
+      await destroy(rendered);
+      if (server) await server.stop();
+      await rm(directory, { recursive: true, force: true });
+    }
+  },
+  BUILD_TEST_MS,
+);
+
+test(
+  "without unauthorizedPath a refused navigation shows the error and a refusal keeps the tree",
+  async () => {
+    const directory = await mkdtemp(join(tmpdir(), "luciole-auth-nologin-"));
+    let server: Awaited<ReturnType<typeof launch>> | undefined, rendered: TestUI | undefined;
+    try {
+      await authFixture(directory);
+      await mkdir(join(directory, "app/private"), { recursive: true });
+      await Bun.write(
+        join(directory, "app/layout.tsx"),
+        `"use client";export default function Layout({children}){return <box flexDirection="column"><text>LAYOUT</text>{children}</box>}`,
+      );
+      await Bun.write(
+        join(directory, "app/page.tsx"),
+        `export const auth="public" as const;export default function Page(){return <text>HOME</text>}`,
+      );
+      await Bun.write(
+        join(directory, "app/private/page.tsx"),
+        `import {getSession} from "@luciole-sh/core/server";export default function Page(){return <text>PRIVATE of {getSession().userId}</text>}`,
+      );
+      await Bun.write(
+        join(directory, "server/auth.ts"),
+        `import type {AuthConfig} from "@luciole-sh/core/server";export default {authenticate(request){return request.headers.get("authorization")==="Bearer valid"?{userId:"alice"}:null}} satisfies AuthConfig`,
+      );
+      await build(directory);
+      server = await launch(join(directory, ".luciole/server/index.js"));
+      const { createApp, Shell } = await importClient(directory);
+      const app = createApp({ url: server.url });
+      await app.router.load();
+      const ui = await testRender(<Shell app={app} />, { width: 60, height: 10 });
+      rendered = ui;
+      await ui.renderOnce();
+      expect(ui.captureCharFrame()).toContain("HOME");
+
+      // The navigation reaches the protected route; its page slot shows the refusal,
+      // inside the layout that stays.
+      await act(async () => {
+        await app.router.navigate({ to: "/private" });
+      });
+      await ui.renderOnce();
+      expect(app.router.state.resolvedLocation?.pathname).toBe("/private");
+      expect(app.status).toBe("Authentication required");
+      expect(ui.captureCharFrame()).toContain("LAYOUT");
+      expect(ui.captureCharFrame()).toContain("Authentication required");
+
+      app.setToken("valid");
+      await act(async () => {
+        await app.router.navigate({ to: "/private" });
+      });
+      await ui.renderOnce();
+      expect(ui.captureCharFrame()).toContain("PRIVATE of alice");
+
+      // A refused refresh keeps the mounted tree, as any failed refresh does: signing out
+      // leaves the page on screen until the app navigates (concepts/authentication.mdx).
+      await act(async () => {
+        app.setToken(undefined);
+        await until(() => app.status === "Authentication required");
+      });
+      await ui.renderOnce();
+      expect(app.status).toBe("Authentication required");
+      expect(app.router.state.resolvedLocation?.pathname).toBe("/private");
+      expect(ui.captureCharFrame()).toContain("PRIVATE of alice");
     } finally {
       await destroy(rendered);
       if (server) await server.stop();

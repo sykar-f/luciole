@@ -73,8 +73,13 @@ export async function beginLogin() {
 ## What happens without a session
 
 - A navigation to a protected route gets a `401`, then goes locally to `unauthorizedPath`,
-  which must name an existing public route. Without `unauthorizedPath`, the Client stays on
-  the last confirmed route and exposes `AuthenticationRequired`.
+  which must name an existing public route. So does a refresh of the current route.
+- Without `unauthorizedPath`, a navigation still moves to the protected route. Its page slot
+  shows the error, through the nearest `error.tsx`, inside the layouts that stay. The status
+  is `Authentication required`.
+- Without `unauthorizedPath`, a refresh that gets a `401` keeps the mounted tree, as any
+  failed refresh does. A sign-out (`setToken()`) on a protected page therefore leaves that
+  page on screen: navigate away after it.
 - A refused Server Function never navigates: the error reaches its caller, and
   `AuthenticationRequired.loginPath` says where to sign in.
 
@@ -83,7 +88,8 @@ export async function beginLogin() {
 `useApplication().setToken(token?)` replaces the bearer of the following requests. It purges
 TanStack's route cache (again at the end of a navigation in progress), so a private tree
 cached under one bearer is never shown under another, and it reloads the current routes
-under the new bearer. After signing in or out, the app navigates where it wants. Replacing a
+under the new bearer. The tree already on screen is the exception: without
+`unauthorizedPath`, it stays until the app navigates (above). After signing in or out, the app navigates where it wants. Replacing a
 bearer also forgets the text of restorable fields ([session restore](/docs/concepts/session-restore/));
 it touches no app state: an app that changes identity clears its own Drafts.
 

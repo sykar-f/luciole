@@ -672,10 +672,15 @@ export default {
 
 Le chemin `unauthorizedPath` doit désigner une route publique existante. Une
 navigation sans session vers une route protégée reçoit un `401` puis navigue
-localement vers ce chemin : c'est une règle de routage déclarée par le Server. Sans
-`unauthorizedPath`, le Client reste sur la dernière route confirmée et expose l'erreur
-`AuthenticationRequired`. Une Server Function refusée ne navigue jamais : l'erreur
-remonte à son appelant.
+localement vers ce chemin : c'est une règle de routage déclarée par le Server. Un
+rafraîchissement de la route courante qui reçoit un `401` y va aussi. Sans
+`unauthorizedPath`, une navigation atteint quand même la route protégée : son
+emplacement de page montre l'erreur `AuthenticationRequired` (via le `error.tsx` le
+plus proche), dans les layouts qui restent, et le statut vaut `Authentication
+required`. Un rafraîchissement refusé garde l'arbre monté, comme tout rafraîchissement
+qui échoue : un logout (`setToken()`) sur une page protégée la laisse donc à l'écran,
+et l'application navigue ailleurs elle-même. Une Server Function refusée ne navigue
+jamais : l'erreur remonte à son appelant.
 
 Les layouts sont des Client Components : ils ne peuvent pas appeler
 `getOptionalSession()` ni `getSession()`, réservés aux pages Server, actions et
@@ -690,7 +695,8 @@ répondent `400`, une page protégée sans session répond `401`.
 
 `useApplication().setToken()` purge le cache de routes TanStack (et le purge de
 nouveau à la fin d'une navigation en cours) : un arbre privé mis en cache sous un
-bearer n'est jamais réaffiché sous un autre, ni après logout. Il recharge aussi les
+bearer n'est jamais réaffiché sous un autre, ni après logout ; seul l'arbre déjà
+monté reste, sans `unauthorizedPath` (voir plus haut). Il recharge aussi les
 routes courantes sous le nouveau bearer : une navigation ou une revalidation encore
 en vol, partie avec l'ancien, est remplacée et sa réponse n'est jamais affichée.
 Après login/logout, l'application navigue toujours vers la route voulue.
