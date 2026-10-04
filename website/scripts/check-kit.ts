@@ -1,10 +1,11 @@
 /**
  * The contracts of the docs' figure kit (README.md, « Les composants des docs »), on a page
- * of the built site: every screen captioned and described by its transcript, every sequence
- * captioned and described by the ordered list of its steps, every excerpt that has a side
- * naming it in words, every annotated capture with a note per mark, and no demo of a RunHere
- * fetched before the reader's click. scripts/check-html.ts runs it on each page of dist/, so
- * a page that breaks one fails `bun run build`.
+ * of the built site: every screen captioned and described by its transcript, a marked screen
+ * with a legend that numbers its marks and each number drawn beside its region, every
+ * sequence captioned and described by the ordered list of its steps, every excerpt that has
+ * a side naming it in words, every annotated capture with a note per mark, and no demo of a
+ * RunHere fetched before the reader's click. scripts/check-html.ts runs it on each page of
+ * dist/, so a page that breaks one fails `bun run build`.
  */
 /// <reference types="bun" />
 
@@ -18,6 +19,13 @@ type Figure = {
   items: number;
   lists: number;
   marks: number;
+  /** A marked screen's region numbers (`data-marks`), which its legend lists. */
+  regions: string[];
+  /** Its numbers with no blank cells to sit on (`data-unplaced`), which Screen leaves out. */
+  unplaced: string[];
+  /** The ordered lists of its legend (`[data-legend]`), and their items, not nested ones. */
+  legends: number;
+  legendItems: number;
   boot: string[];
 };
 
@@ -43,7 +51,7 @@ export async function kitProblems(html: string, page: string) {
   const demo: string[] = [];
   let text: ((chunk: string) => void) | undefined;
   const inner = () => open.at(-1);
-  const count = (what: "lists" | "items" | "marks") => {
+  const count = (what: "lists" | "items" | "marks" | "legends" | "legendItems") => {
     const figure = inner();
     if (figure) figure[what] += 1;
   };
@@ -75,6 +83,10 @@ export async function kitProblems(html: string, page: string) {
           items: 0,
           lists: 0,
           marks: 0,
+          regions: (element.getAttribute("data-marks") ?? "").split(" ").filter(Boolean),
+          unplaced: (element.getAttribute("data-unplaced") ?? "").split(" ").filter(Boolean),
+          legends: 0,
+          legendItems: 0,
           boot: [],
         };
         figures.push(figure);
@@ -115,6 +127,8 @@ export async function kitProblems(html: string, page: string) {
     .on("ol", { element: () => count("lists") })
     .on("li", { element: () => count("items") })
     .on("mark[data-n]", { element: () => count("marks") })
+    .on("[data-legend] > ol", { element: () => count("legends") })
+    .on("[data-legend] > ol > li", { element: () => count("legendItems") })
     .on("[data-boot]", {
       element(element) {
         inner()?.boot.push(element.getAttribute("data-boot") ?? "");
@@ -171,6 +185,16 @@ export async function kitProblems(html: string, page: string) {
       if (!transcript?.text.trim()) say(figure, "no transcript");
       else if (!figure.describedBy.includes(transcript.id))
         say(figure, "its description is not its transcript");
+      if (figure.regions.length > 0) {
+        const numbers = figure.regions.map(Number).sort((a, b) => a - b);
+        if (numbers.some((n, i) => n !== i + 1))
+          say(figure, `its marks ${figure.regions.join(" ")} are not numbered from 1`);
+        if (figure.legends === 0) say(figure, "no legend: an ordered list of its marks");
+        else if (figure.legendItems !== figure.regions.length)
+          say(figure, `${figure.regions.length} marks for ${figure.legendItems} legend items`);
+        for (const n of figure.unplaced)
+          say(figure, `mark ${n} has no blank cells beside its region: it would hide the screen`);
+      }
     }
     if (figure.kind === "sequence") {
       if (!captioned) say(figure, "no caption");

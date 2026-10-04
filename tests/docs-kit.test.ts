@@ -22,6 +22,13 @@ const screen = (caption: string, transcript: string) => `
     <details><summary>Transcript</summary><pre id="s1" data-transcript>${transcript}</pre></details>
   </figure>`;
 
+/** A screen marked 1 to 3, with `legend` after its caption. */
+const marked = (legend: string, marks = "1 2 3") =>
+  screen("Notes, marked", "Welcome")
+    .replace('data-figure="screen">', `data-figure="screen" data-marks="${marks}">`)
+    .replace("</figcaption>", `</figcaption><div class="legend" data-legend>${legend}</div>`);
+const legend = "<ol><li>The list</li><li>The note</li><li>The status</li></ol>";
+
 const sequence = (steps: string) => `
   <figure data-figure="sequence"><svg role="img" aria-describedby="q"></svg>
     <figcaption>A click</figcaption><details><div id="q">${steps}</div></details></figure>`;
@@ -54,6 +61,34 @@ describe("the figure kit's contracts", () => {
     expect(await problems(screen("Notes", "Welcome").repeat(2))).toEqual([
       '/docs/a/: screen "Notes": aria-describedby="s1" names 2 elements',
       '/docs/a/: screen "Notes": aria-describedby="s1" names 2 elements',
+    ]);
+  });
+
+  test("a marked screen whose legend numbers each mark, and one without it", async () => {
+    expect(await problems(marked(legend))).toEqual([]);
+    expect(await problems(marked(""))).toEqual([
+      '/docs/a/: screen "Notes, marked": no legend: an ordered list of its marks',
+    ]);
+    expect(await problems(marked("<ol><li>The list</li><li>The note</li></ol>"))).toEqual([
+      '/docs/a/: screen "Notes, marked": 3 marks for 2 legend items',
+    ]);
+    expect(await problems(marked(legend, "2 3 4"))).toEqual([
+      '/docs/a/: screen "Notes, marked": its marks 2 3 4 are not numbered from 1',
+    ]);
+  });
+
+  test("a legend item may hold a list of its own: only the legend's items count", async () => {
+    const nested = legend.replace("<li>The note", "<li>The note<ol><li>its title</li></ol>");
+    expect(await problems(marked(nested))).toEqual([]);
+  });
+
+  test("a mark with no blank cells beside its region", async () => {
+    const crowded = marked(legend).replace(
+      'data-marks="1 2 3"',
+      'data-marks="1 2 3" data-unplaced="2"',
+    );
+    expect(await problems(crowded)).toEqual([
+      '/docs/a/: screen "Notes, marked": mark 2 has no blank cells beside its region: it would hide the screen',
     ]);
   });
 
@@ -139,6 +174,14 @@ describe("the build's check", () => {
   test("fails a page with a screen that has no caption", async () => {
     const { code, err } = await build(screen("", "Welcome"));
     expect(err).toContain('/docs/: screen "": no caption');
+    expect(code).toBe(1);
+  });
+
+  test("fails a page with a marked screen that has no legend", async () => {
+    const { code, err } = await build(marked(""));
+    expect(err).toContain(
+      '/docs/: screen "Notes, marked": no legend: an ordered list of its marks',
+    );
     expect(code).toBe(1);
   });
 });

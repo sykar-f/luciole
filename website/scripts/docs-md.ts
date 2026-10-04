@@ -3,7 +3,8 @@
  * to read: its live demo (scripts/demo.ts) and its capture (scripts/capture.py) show it,
  * as the landing page is in English. The front matter becomes a title and a lede, the
  * imports go, and the components become what they say in Markdown: a note a quote, a
- * copyable command a shell block, an excerpt its code, a screen its transcript, a sequence
+ * copyable command a shell block, an excerpt its code, a screen its transcript (a marked
+ * one its legend too, whose numbers stand for the marks), a sequence
  * its steps, a capture its text and notes, each figure with its caption. A component this
  * script has no Markdown for stops it: the page would lose what the component says.
  * Fenced code is kept as it is.
@@ -235,7 +236,11 @@ const FrameFile = z.object({
     z.array(z.tuple([z.string(), z.nullable(z.string()), z.nullable(z.string()), z.string()])),
   ),
 });
-const ScreenProps = z.object({ frame: z.string(), caption: Caption });
+const ScreenProps = z.object({
+  frame: z.string(),
+  caption: Caption,
+  marks: z.optional(z.boolean()),
+});
 const SequenceProps = z.object({
   title: z.string(),
   caption: Caption,
@@ -307,16 +312,25 @@ function code(props: unknown) {
   };
 }
 
-/** A figure component in Markdown, or undefined for a tag this script does not know. */
-function figure(name: string, props: Record<string, unknown>): string[] | undefined {
+/**
+ * A figure component in Markdown, or undefined for a tag this script does not know. `body`
+ * is what a Screen holds between its tags: a marked Screen's legend.
+ */
+function figure(
+  name: string,
+  props: Record<string, unknown>,
+  body: string[] = [],
+): string[] | undefined {
   switch (name) {
     case "Excerpt": {
       const { lines, caption } = code(props);
       return [...lines, ...captioned(caption)];
     }
     case "Screen": {
-      const { frame, caption } = ScreenProps.parse(props);
-      return [...screen(frame), ...captioned(caption)];
+      const { frame, caption, marks } = ScreenProps.parse(props);
+      if (marks && !body.some((line) => line.trim()))
+        throw new Error(`docs-md: a marked <Screen frame="${frame}"> has no legend.`);
+      return [...screen(frame), ...captioned(caption), ...(body.length ? ["", ...body] : [])];
     }
     case "Sequence": {
       const { title, caption, lanes, messages } = SequenceProps.parse(props);
@@ -420,7 +434,25 @@ export function toMarkdown(mdx: string, page = "a page") {
         out.push(...quoted(["```sh", ...strings(list), "```"]));
         continue;
       }
-      const markdown = figure(tag, attributes(whole));
+      // A Screen that is not self-closing holds its legend, up to its closing tag, which
+      // may sit on a line of its own or end the legend's last line.
+      const body: string[] = [];
+      if (tag === "Screen" && !/\/>\s*$/.test(whole)) {
+        const opened = (lines[i] ?? "").slice((whole.split("\n").at(-1) ?? "").length);
+        const rest = [opened, ...lines.slice(i + 1)].join("\n");
+        const close = rest.indexOf("</Screen>");
+        if (close < 0) throw new Error(`docs-md: a <Screen> in ${page} never closes.`);
+        const after = rest.slice(close + "</Screen>".length).split("\n")[0] ?? "";
+        if (after.trim())
+          throw new Error(`docs-md: text after </Screen> on its line in ${page}: ${after.trim()}`);
+        const held = rest.slice(0, close).split("\n");
+        i += held.length - 1;
+        const indent = Math.min(
+          ...held.filter((line) => line.trim()).map((line) => /^\s*/.exec(line)?.[0].length ?? 0),
+        );
+        body.push(...held.map((line) => prose(line.slice(indent)).trimEnd()));
+      }
+      const markdown = figure(tag, attributes(whole), body);
       if (!markdown) {
         throw new Error(
           `docs-md: <${tag}> in ${page} has no Markdown form. Give it one in website/scripts/docs-md.ts.`,
