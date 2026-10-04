@@ -47,8 +47,8 @@ export default {
 
 `authenticate` returns the session or `null`. Pages, actions and repositories read it with
 `getSession()` (`{ userId }`), or `getOptionalSession()`. That one returns the request's
-session, or `null` for an anonymous request. A public page or action still gets the session
-of a signed-in user. Forge is the example in the repository that provides one.
+session, or `null` for an anonymous request. A public page or Server Function still gets the
+session of a signed-in user. Forge is the example in the repository that provides one.
 
 ## Public pages and actions
 
@@ -80,21 +80,27 @@ export async function beginLogin() {
 - Without `unauthorizedPath`, a navigation still moves to the protected route. Its page slot
   shows the error, through the nearest `error.tsx`, inside the layouts that stay. The status
   is `Authentication required`.
-- Without `unauthorizedPath`, a refresh that gets a `401` keeps the mounted tree, as any
-  failed refresh does. A sign-out (`setToken()`) on a protected page therefore leaves that
-  page on screen: navigate away after it.
+- Without `unauthorizedPath`, a refresh that gets a `401` keeps the page on screen, as any
+  failed refresh does.
 - A refused Server Function never navigates: the error reaches its caller, and
   `AuthenticationRequired.loginPath` says where to sign in.
 
 ## Signing in and out
 
-`useApplication().setToken(token?)` replaces the bearer of the following requests. It purges
-TanStack's route cache (again at the end of a navigation in progress), so a private tree
-cached under one bearer is never shown under another, and it reloads the current routes
-under the new bearer. The tree already on screen is the exception: without
-`unauthorizedPath`, it stays until the app navigates (above). After signing in or out, the app navigates where it wants. Replacing a
-bearer also forgets the text of restorable fields ([session restore](/docs/concepts/session-restore/));
-it touches no app state: an app that changes identity clears its own Drafts.
+`useApplication().setToken(token?)` replaces the token of the following requests. It purges
+TanStack's route cache, and again at the end of a navigation in progress. A private page
+cached under one token is never shown under another. Then it reloads the current routes
+with the new token. After signing in or out, your app navigates where it wants.
+
+<Note kind="warning">
+  Without `unauthorizedPath`, signing out on a protected page leaves that page on screen. The reload
+  gets a `401`, and a failed reload keeps the page it had. Navigate away right after `setToken()`,
+  or declare `unauthorizedPath`.
+</Note>
+
+Replacing a token also forgets the text of restorable fields
+([session restore](/docs/concepts/session-restore/)). It touches no app state: an app that
+changes identity clears its own unsaved text.
 
 <Note kind="warning">
   Layouts are Client Components: they cannot call `getSession()`. Public session data the chrome

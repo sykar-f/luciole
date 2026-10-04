@@ -72,15 +72,17 @@ For Client Components only.
 | `<Markdown content streaming syntaxStyle onLink? imageBase? />`                    | Markdown rendered by blocks: while `content` streams, the text already shown never moves. |
 | `markdownStyle(palette)`                                                           | A complete `SyntaxStyle` (heading bands, code panel, code tokens) from a dozen colors.    |
 
-`<Markdown>` shows text that arrives in pieces, typically a model's answer, without flicker:
-finished blocks render once, the last block is closed ahead of time (`**bold` shows bold), and
-text is styled without Tree-sitter so the streaming and final renders match. Code is coloured
-once its fence closes; `diff` blocks are coloured line by line from the start. OpenTUI knows
-JavaScript, TypeScript, Markdown and Zig; `import "@luciole-sh/core/grammars"` (once, in the Client)
-adds Bash, C, C++, CSS, Go, HTML, Java, JSON, Lua, PHP, Python, Ruby, Rust, TOML and YAML. It
-also replaces OpenTUI's TypeScript grammar, and reads TSX with a grammar of its own instead of
-TypeScript's. A click on a link calls `onLink(url)`; images are drawn with kitty, sixel or half
-blocks.
+`<Markdown>` shows text that arrives in pieces, typically a model's answer, without flicker.
+Finished blocks render once. The last block is closed ahead of time, so `**bold` shows bold.
+Text is styled without Tree-sitter, so the streaming and final renders match.
+
+Code is coloured once its fence closes, and `diff` blocks line by line from the start. A click
+on a link calls `onLink(url)`. Images are drawn with kitty, sixel or half blocks.
+
+OpenTUI colours JavaScript, TypeScript, Markdown and Zig. Import `@luciole-sh/core/grammars`
+once, in the Client, to add Bash, C, C++, CSS, Go, HTML, Java, JSON, Lua, PHP, Python, Ruby,
+Rust, TOML and YAML. That import also replaces OpenTUI's TypeScript grammar, and gives TSX a
+grammar of its own.
 
 `markdownStyle({ text, muted, faint, accent, onBand, band, bandQuiet, code, panel, link,
 danger, ok })` derives every group `<Markdown>` reads from those colors: H1 and H2 on
@@ -136,7 +138,7 @@ and the types `LiveState`, `TracerLike`, `Session`, `SessionEntry`,
 | Export                                                                | Contract                                                                                                                               |
 | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | `getSession()`                                                        | `{ userId }` in the async context of a render or an action.                                                                            |
-| `getOptionalSession()`                                                | The request's session, or `null` for an anonymous request; a public page or action gets a signed-in user's session too.                |
+| `getOptionalSession()`                                                | The request's session, or `null` for an anonymous request; a public page or Server Function gets a signed-in user's session too.       |
 | `getCallId()`                                                         | The transport request's ID, distinct from the business operation.                                                                      |
 | `getArgs()`, `getLaunch()`                                            | The app's arguments, untyped; the launch `{ scope, id?, cwd }` ([app arguments](/docs/reference/app-arguments/)).                      |
 | `notFound(what?)`                                                     | Ends a page's render with the nearest `not-found.tsx`.                                                                                 |
@@ -168,12 +170,22 @@ wrapped. `/action` answers with `Server-Timing: total;dur=…`.
 
 ## Display math: `@luciole-sh/core/math`
 
-`renderMath` draws TeX as a PNG on a transparent background, in `color`, at `scale` pixels per
-`ex`; `display` chooses display or inline math. It rejects TeX that MathJax cannot read. It
-is what `@luciole-sh/markdown-editor`'s `math` option takes, to draw display math in terminals
-that draw pictures; Notes passes it. Like `grammars`, it is opt-in: MathJax and resvg
-(WebAssembly, nothing native to build) are optional peer dependencies of a few megabytes,
-which the app installs; they load on the first formula.
+```ts
+import { renderMath } from "@luciole-sh/core/math";
+
+const png = await renderMath("e^{i\\pi} + 1 = 0", { display: true, color: "#e6e6e6", scale: 8 });
+```
+
+`renderMath(tex, { display, color, scale })` returns a `Promise<Uint8Array>`: a PNG of `tex`
+on a transparent background, in `color`, at `scale` pixels per `ex`. `display` chooses display
+or inline math. It rejects TeX that MathJax cannot read.
+
+Pass it to the `math` option of `@luciole-sh/markdown-editor` to draw display math in
+terminals that draw pictures, as Notes does.
+
+The entry is opt-in, like `grammars`. Its two optional peer dependencies, `mathjax-full` and
+`@resvg/resvg-wasm`, weigh a few megabytes: install them in your app. They load on the first
+formula.
 
 ## Supervising an app: `@luciole-sh/core/dev`
 
@@ -219,7 +231,7 @@ and progressive Flight decoding. A decorator sees every `render` and `call`; wha
 reaches the app as it is, so it must let `TransportError`s and their `outcome` through.
 
 <Note>
-  The packages are published on npm, at version 0.x: a patch release does not break the API, a minor
-  release may, and the changelog lists each break. The [status page](/status/) says what is stable
-  enough to rely on.
+  The packages are published on npm, at version 0.x. A patch release does not break the API, and a
+  minor release may. The changelog lists each break, and the [status page](/status/) says what is
+  stable enough to rely on.
 </Note>

@@ -63,8 +63,8 @@ A Client finds its Server in this order: `--url`, then `LUCIOLE_URL`, then the u
 { "url": "ssh://alice@notes.example.com" }
 ```
 
-With built artifacts, the two roles start separately. These commands run from the app's
-directory (`--app` defaults to `.`); from elsewhere, add `--app <dir>`:
+With built artifacts, the two roles start separately. Run these commands from the app's
+directory, since `--app` defaults to `.`. From elsewhere, add `--app <dir>`:
 
 ```sh
 luciole build
@@ -172,16 +172,23 @@ compiles it with Zig 0.16.0; `luciole web-runtime` does it ahead of time). Witho
 carries a browser `Origin`. Authentication is unchanged; the bearer stays in memory.
 
 **`--web-local`** writes a static site into `.luciole/web/`, to serve from any static host
-(`application/wasm` for `.wasm` files). The Server runs in a SharedWorker shared by every tab
-of the origin and of the build. A browser without SharedWorker runs it in a dedicated Worker
-instead, and only one tab at a time may open the app. Its SQLite databases live in memory
-and are written to OPFS before each Server Function answers. The Server code may use
-`bun:sqlite` (a subset), `Bun.sleep`, `crypto` and same-origin `fetch`. `fs` reads a
-read-only snapshot: the files of the site's `server-seed.json`, none without it. Writing a
-file, making a directory or removing one does nothing; `rename`, `copyFile`, `symlink`,
-`mkdtemp` and opening a file to write fail with `EROFS`. `child_process`, `Bun.spawn` and
-`Bun.Terminal` fail with a message; an app that needs them, or a real disk, keeps `--web`.
-`<Terminal>` shows an "unavailable here" screen. The site's own demos are built this way.
+(`application/wasm` for `.wasm` files). The site's own demos are built this way.
+
+The Server runs in a SharedWorker, shared by every tab of the origin that runs this build. A
+browser without SharedWorker runs the Server in a dedicated Worker instead. There, only one tab
+at a time can open the app. SQLite databases live in memory, and the Server writes them to
+OPFS before each Server Function answers.
+
+The Server code can use `bun:sqlite` (a subset), `Bun.sleep`, `crypto` and same-origin
+`fetch`. Other APIs behave as follows:
+
+- `fs` reads a read-only snapshot: the files listed in the site's `server-seed.json`, or none.
+- Writing a file, making a directory or removing one does nothing.
+- `rename`, `copyFile`, `symlink`, `mkdtemp` and opening a file to write fail with `EROFS`.
+- `child_process`, `Bun.spawn` and `Bun.Terminal` fail with a message.
+- `<Terminal>` shows an "unavailable here" screen.
+
+An app that needs a process, a terminal or a real disk keeps `--web`.
 
 ## As a single binary
 
