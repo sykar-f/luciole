@@ -34,7 +34,7 @@ export default defineConfig({
   // and the lab prototypes.
   integrations: [
     mdx(),
-    sitemap({ filter: (page) => !/^https:\/\/luciole\.sh\/(og|lab)(\/|$)/.test(page) }),
+    sitemap({ filter: (page) => !/^\/(og|lab)(\/|$)/.test(new URL(page).pathname) }),
   ],
   // Self-hosted, preloaded from the head (Base.astro) and given metric-matched fallbacks, so
   // the first paint already has the fonts or text that does not move when they arrive.
