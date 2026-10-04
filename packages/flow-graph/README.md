@@ -1,6 +1,6 @@
 # @luciole-sh/flow-graph
 
-`@luciole-sh/flow-graph` draws node graphs in the terminal, with the names and the shape of
+`@luciole-sh/flow-graph` draws node graphs in your terminal, with the names and the shape of
 [React Flow](https://reactflow.dev). It is published on npm, and it renders through
 [OpenTUI](https://github.com/anomalyco/opentui).
 
@@ -85,7 +85,7 @@ const renderer = await createCliRenderer();
 createRoot(renderer).render(<Pipeline />);
 ```
 
-The first frame is already fitted to the terminal:
+The first frame is already fitted to your terminal:
 
 ```text
 
@@ -300,7 +300,7 @@ With the mouse:
 - The package is 0.x. Until 1.0, a minor release may break the API.
 - It is tested on Bun only. The `bun` export condition points to the TypeScript sources.
 - Zoom has three fixed levels, because a terminal cannot scale glyphs.
-- Curves need braille glyphs in the terminal's font. Set `braille={false}` where they are missing.
+- Curves need braille glyphs in your terminal's font. Set `braille={false}` where they are missing.
 - A `group` node needs a `width` and a `height`.
 - Edges are drawn in box characters. They cannot be arbitrary components.
 - It does not lay nodes out for you. You give every node a `position`.
