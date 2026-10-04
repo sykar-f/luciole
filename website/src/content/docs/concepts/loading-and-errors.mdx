@@ -85,7 +85,7 @@ What stays on screen depends on what failed:
 | A refresh refused with a `401` | Not the current page, dropped as it shows what the user may no longer see |
 
 A refresh refused with a `401` follows the rules of
-[authentication](/docs/concepts/authentication/#what-happens-without-a-session).
+[authentication](/docs/concepts/authentication/#what-does-the-user-see-when-a-request-is-refused).
 
 Each error screen, yours or the default one, also emits a `failure` event. The event carries
 the page's `path` and the error's `message`, and you receive it through

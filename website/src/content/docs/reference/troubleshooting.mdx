@@ -244,7 +244,7 @@ Authentication required
 - **Cause:** the request carried no valid token. Either `LUCIOLE_TOKEN` differs between the
   two programs, or `server/auth.ts` returned no sign-in session.
 - **Fix:** give the Client the Server's token, or sign in through the app's sign-in page
-  ([authentication](/docs/concepts/authentication/#what-happens-without-a-session)).
+  ([authentication](/docs/concepts/authentication/#what-does-the-user-see-when-a-request-is-refused)).
 - **Check:** the page loads, and the status reads "Connected".
 
 ## Shipping a binary
