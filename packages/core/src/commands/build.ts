@@ -7,30 +7,30 @@ import type { Command } from "./command";
 export const build: Command = {
   usage:
     "build [--app-bundle] [--sign-bundle] [--web | --web-local] [--compile [--name n] [--client-only] [--target t] [--runtime official|host|<bun>] [--portable] [--native-dir dir] [--outfile f] [--sign identity [--notarize profile]]]",
-  async run({ args, optional, directory }) {
+  async run({ flag, optional, directory }) {
     // Every flag is read first: a missing value fails before a long build.
-    const compile = args.includes("--compile")
+    const compile = flag("--compile")
       ? {
           name: optional("--name") ?? basename(directory),
           target: optional("--target"),
           outfile: optional("--outfile"),
           runtime: optional("--runtime"),
-          portable: args.includes("--portable"),
+          portable: flag("--portable"),
           nativeDir: optional("--native-dir"),
           sign: optional("--sign"),
           notarize: optional("--notarize"),
         }
       : undefined;
     // --sign-bundle: the publisher key (`luciole keys`), read before a long build fails on it.
-    const signBundle = args.includes("--sign-bundle") ? readPublisherKey() : undefined;
+    const signBundle = flag("--sign-bundle") ? readPublisherKey() : undefined;
     // --app-bundle: the application must be embeddable (.luciole/app), or the build fails.
     // --web: browsers open the application from its Server (docs/WEB.md), so it needs its
     // bundle, and this ABI's web runtime next to it. --web-local: a static site where the
     // Server runs in the browser too.
-    const local = args.includes("--web-local");
-    const web = local || args.includes("--web");
+    const local = flag("--web-local");
+    const web = local || flag("--web");
     const result = await buildApplication(directory, undefined, {
-      appBundle: args.includes("--app-bundle") || web ? "required" : "auto",
+      appBundle: flag("--app-bundle") || web ? "required" : "auto",
       signBundle,
       webServer: local,
     });
@@ -40,7 +40,7 @@ export const build: Command = {
     if (!compile) return;
     // The app binary holds the Server too (src/launcher/binary.ts); --client-only keeps
     // it out of what the terminal's machine receives.
-    const clientOnly = args.includes("--client-only");
+    const clientOnly = flag("--client-only");
     const compiled = await (clientOnly ? compileClient : compileApp)(result.output, compile);
     console.log({
       [clientOnly ? "client" : "binary"]: compiled.outfile,
