@@ -37,7 +37,7 @@ string the Client sends with each request to prove who signed in. The Client sen
 
 A request without the token has no sign-in session. Protected pages and Server Functions
 refuse that request, and public ones still answer
-([what answers without a sign-in session](/docs/reference/environment/#server)).
+([what answers without a sign-in session](/docs/reference/environment/#which-routes-answer-without-a-sign-in-session)).
 
 The Server listens on loopback by default. It refuses any other address (`LUCIOLE_HOST`)
 unless `LUCIOLE_TOKEN` or `server/auth.ts` is set.
@@ -236,7 +236,7 @@ Secrets stay on the Server: see
 
 ## See also
 
-- [Environment variables](/docs/reference/environment/#server): `LUCIOLE_TOKEN`,
+- [Environment variables](/docs/reference/environment/#configure-the-server): `LUCIOLE_TOKEN`,
   `LUCIOLE_USER` and `LUCIOLE_HOST`
 - [Loading and errors](/docs/concepts/loading-and-errors/): `error.tsx` and the connection
   status

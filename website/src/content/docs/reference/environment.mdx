@@ -1,98 +1,148 @@
 ---
 title: Environment variables
-description: Every variable the Client, the Server, the launcher and the tools read, with its default. Both processes validate their environment at startup and stop on an invalid value, naming it.
+description: Every variable the Client, the Server, the launcher and the tools read, with its default, then the variables luciole sets for its own processes.
 sources:
   - packages/core/src/run.tsx
   - packages/core/src/serve.ts
+  - packages/core/src/server.ts
   - packages/core/src/transport.ts
   - packages/core/src/connect.ts
+  - packages/core/src/launch.ts
   - packages/core/src/launcher/lifetime.ts
+  - packages/core/src/launcher/managed.ts
+  - packages/core/src/launcher/local.ts
+  - packages/core/src/launcher/home.ts
+  - packages/core/src/launcher/luciole/server/context.ts
+  - packages/core/src/generic/launch.ts
+  - packages/core/src/commands/devtools.ts
+  - packages/core/src/commands/example.ts
   - packages/core/src/devtools
   - packages/core/src/sandbox/mechanism.ts
   - packages/core/src/registry/npm.ts
+  - tests/docs-environment.test.ts
 ---
 
 import Note from "../../../components/docs/Note.astro";
 
-The Client and the Server check their own environment at startup: an invalid value stops the
+This page lists every environment variable luciole reads, with its default.
+[A separate table](#which-variables-luciole-sets-for-its-own-processes) lists the variables
+luciole sets for its own processes, which are not settings.
+
+The Client and the Server check their own variables at startup. An invalid value stops the
 process with a message that names the variable.
+[Troubleshooting](/docs/reference/troubleshooting/#a-variable-has-an-invalid-value) shows that
+message and its fix.
 
-[Troubleshooting](/docs/reference/troubleshooting/#a-variable-has-an-invalid-value) shows that message and its fix.
+## Configure the Client
 
-## Client
+| Variable                 | Default                                              | Effect                                                                                                                                 |
+| ------------------------ | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `LUCIOLE_URL`            | the user's config file, then `http://127.0.0.1:3000` | The Server to join, after `--url` ([opening an app](/docs/guides/opening-an-app/#joining-a-server-that-already-runs)).                 |
+| `LUCIOLE_TOKEN`          | none                                                 | The token the Client sends as `Authorization: Bearer …`, in local single-user mode.                                                    |
+| `LUCIOLE_LATENCY_MS`     | `0`                                                  | A simulated round trip added to every app request, half each way.                                                                      |
+| `LUCIOLE_JITTER_MS`      | `0`                                                  | A random extra delay, up to this value, on each direction of each request.                                                             |
+| `LUCIOLE_CHUNK_DELAY_MS` | `0`                                                  | A delay before each chunk of a response reaches the decoder.                                                                           |
+| `LUCIOLE_FAULT`          | none                                                 | Simulated faults with probabilities, such as `refuse:0.1,drop:0.05,cut:0.05` ([latency and faults](/docs/guides/latency-and-faults/)). |
+| `LUCIOLE_PING_MS`        | `10000`                                              | How often a Client pings a Server the launcher manages.                                                                                |
+| `LUCIOLE_DESKTOP`        | unset                                                | `1`: the Client fills a desktop window. <kbd>Ctrl+C</kbd> goes to the app, and closing the window quits.                               |
+| `LUCIOLE_DEVTOOLS`       | unset                                                | In development, the address of `luciole devtools` ([DevTools](/docs/guides/devtools/)).                                                |
 
-| Variable                 | Default                                              | Effect                                                                                                                         |
-| ------------------------ | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `LUCIOLE_URL`            | the user's config file, then `http://127.0.0.1:3000` | The Server to join, after `--url` ([opening an app](/docs/guides/opening-an-app/#joining-a-server-that-already-runs)).         |
-| `LUCIOLE_TOKEN`          | none                                                 | The bearer sent as `Authorization: Bearer …` in local single-user mode.                                                        |
-| `LUCIOLE_LATENCY_MS`     | `0`                                                  | A simulated round trip added to every app request, half each way.                                                              |
-| `LUCIOLE_JITTER_MS`      | `0`                                                  | A random extra delay, up to this value, on each direction of each request.                                                     |
-| `LUCIOLE_CHUNK_DELAY_MS` | `0`                                                  | A delay before each chunk of a response reaches the decoder.                                                                   |
-| `LUCIOLE_FAULT`          | none                                                 | Simulated faults with probabilities: `refuse:0.1,drop:0.05,cut:0.05` ([latency and faults](/docs/guides/latency-and-faults/)). |
-| `LUCIOLE_PING_MS`        | `10000`                                              | How often a Client pings a Server the launcher manages.                                                                        |
-| `LUCIOLE_DESKTOP`        | unset                                                | `1`: the Client fills a desktop window. <kbd>Ctrl+C</kbd> belongs to the app; closing the window quits.                        |
-| `LUCIOLE_DEVTOOLS`       | unset                                                | Development only: the address of `luciole devtools` ([DevTools](/docs/guides/devtools/)).                                      |
+## Configure the Server
 
-## Server
+| Variable             | Default     | Effect                                                                                                                |
+| -------------------- | ----------- | --------------------------------------------------------------------------------------------------------------------- |
+| `PORT`               | `3000`      | The TCP port. `0` picks a free one, as `luciole dev` does.                                                            |
+| `LUCIOLE_HOST`       | `127.0.0.1` | The address to listen on. Any address but loopback requires `LUCIOLE_TOKEN` or `server/auth.ts`.                      |
+| `LUCIOLE_SOCKET`     | unset       | A Unix socket to listen on instead of TCP, with mode `0600`. The Client joins it with `--url unix:/path`.             |
+| `LUCIOLE_TOKEN`      | none        | The token every request must carry. The Server reads it only when the app has no `server/auth.ts`.                    |
+| `LUCIOLE_USER`       | `local`     | The identity of the single user, which `getSession()` returns.                                                        |
+| `LUCIOLE_WEB_ORIGIN` | unset       | The one browser origin allowed to open the app, built with `luciole build --web`.                                     |
+| `LUCIOLE_DEVTOOLS`   | unset       | In development, the address of `luciole devtools`. Under `NODE_ENV=production`, the Server ignores it with a warning. |
 
-| Variable             | Default                | Effect                                                                                                                                               |
-| -------------------- | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `PORT`               | `3000`                 | The TCP port. `0` picks a free one (`luciole dev` does).                                                                                             |
-| `LUCIOLE_HOST`       | `127.0.0.1`            | The address to listen on. Anything but loopback requires `LUCIOLE_TOKEN` or `server/auth.ts`.                                                        |
-| `LUCIOLE_SOCKET`     | unset                  | Listen on this Unix socket (mode `0600`) instead of TCP. The Client joins it with `--url unix:/path`.                                                |
-| `LUCIOLE_TOKEN`      | none                   | Read only without `server/auth.ts`. When it is set, a request without it has no session (below). When it is unset, every request is the single user. |
-| `LUCIOLE_USER`       | `local`                | The identity of that single user, returned by `getSession()`.                                                                                        |
-| `LUCIOLE_WEB_ORIGIN` | unset                  | The one browser origin allowed to open the app (`luciole build --web`); without it, requests carrying a browser `Origin` are refused.                |
-| `LUCIOLE_DEVTOOLS`   | unset                  | Development only; ignored with a warning under `NODE_ENV=production`.                                                                                |
-| `LUCIOLE_ARGS`       | set by the entry point | The app's checked arguments (`{ v, argv, cwd }`), which the Server parses again ([app arguments](/docs/reference/app-arguments/)).                   |
+Without `server/auth.ts`, `LUCIOLE_TOKEN` decides who a request is:
 
-A request without a session gets a `401` on a protected page or Server Function, and on
-`GET /health`. These routes answer without a session:
+- When it is unset, every request is the single user, `LUCIOLE_USER`.
+- When it is set, a request that carries it is that user.
+- When it is set, a request without it has no sign-in session.
+
+Without `LUCIOLE_WEB_ORIGIN`, the Server refuses every request that carries a browser
+`Origin`.
+
+### Which routes answer without a sign-in session
+
+A request without a sign-in session gets a `401` on a protected page or Server Function, and
+on `GET /health`. These routes answer it:
 
 - public pages and Server Functions ([authentication](/docs/concepts/authentication/#make-a-page-or-a-server-function-public))
 - `GET /manifest` and `GET /bundle/<sha256>`, how a host learns the build
 - the web page under `/_luciole/web/`, with `LUCIOLE_WEB_ORIGIN`
 - the launcher's `/lifetime/*` routes, on a managed Server's socket
 
-## Launcher and binaries
+## Configure the launcher and the commands
 
 | Variable                | Default                                                  | Effect                                                                    |
 | ----------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------- |
 | `LUCIOLE_SSH`           | `ssh`                                                    | The ssh command `--on` uses.                                              |
 | `LUCIOLE_REGISTRY`      | `NPM_CONFIG_REGISTRY`, then `https://registry.npmjs.org` | The npm registry to search and install apps from.                         |
+| `LUCIOLE_EXAMPLES_REPO` | `github:sykar-f/luciole`                                 | The git URL `luciole example` fetches examples from, such as a fork.      |
 | `LUCIOLE_PUBLISHER_KEY` | `$XDG_CONFIG_HOME/luciole/keys/publisher.pem`            | The publisher key that signs app bundles.                                 |
 | `LUCIOLE_NATIVE_DIR`    | `native/` next to the binary                             | Where a compiled binary finds its native Server packages.                 |
-| `LUCIOLE_SESSION_KEY`   | the Server's URL                                         | What a Client files its restorable session under; the launcher sets it.   |
-| `LUCIOLE_GRACE_MS`      | `900000` (15 min)                                        | A managed Server's grace period; the launcher sets it from `--grace`.     |
 | `LUCIOLE_WATCHDOG_MS`   | `30000`                                                  | How long a managed Server waits for a ping before counting a Client lost. |
 
-The launcher also sets variables for the processes it starts (`LUCIOLE_LIFETIME`,
-`LUCIOLE_LAUNCH`, `LUCIOLE_SESSION`…): they are its protocol with them, not settings.
+## Configure the sandbox
 
-## Sandbox
+| Variable                    | Default                       | Effect                                                                          |
+| --------------------------- | ----------------------------- | ------------------------------------------------------------------------------- |
+| `LUCIOLE_SANDBOX_MECHANISM` | the best mechanism available  | A weaker Linux mechanism to use: `userns`, `bwrap` or `landlock`. Tests use it. |
+| `LUCIOLE_SANDBOX_LAUNCHER`  | the bundled `luciole-sandbox` | Another `luciole-sandbox` launcher, such as a local cargo build.                |
 
-| Variable                    | Effect                                                                                                                                                 |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `LUCIOLE_SANDBOX_MECHANISM` | Asks the Linux sandbox for a weaker mechanism than the best available (`userns`, `bwrap`, `landlock`), for tests; never one the system does not allow. |
-| `LUCIOLE_SANDBOX_LAUNCHER`  | Another `luciole-sandbox` launcher, such as a local cargo build.                                                                                       |
+`LUCIOLE_SANDBOX_MECHANISM` never selects a mechanism the system does not allow.
 
-## DevTools
+## Turn on the DevTools
 
-| Variable                  | Effect                                                                         |
-| ------------------------- | ------------------------------------------------------------------------------ |
-| `LUCIOLE_DEVTOOLS_LISTEN` | Where the DevTools' Server listens; `none` opens no bus (demo or replay only). |
-| `LUCIOLE_DEVTOOLS_DEMO`   | `1`: replay a simulated session.                                               |
-| `LUCIOLE_DEVTOOLS_REPLAY` | A recording to open.                                                           |
-| `BUN_OPTIONS`             | `--preload=…/devtools/hook.ts` enables the Components panel.                   |
-| `DEV`                     | `true`: OpenTUI connects to the standalone React DevTools.                     |
+| Variable           | Effect                                                                    |
+| ------------------ | ------------------------------------------------------------------------- |
+| `LUCIOLE_DEVTOOLS` | The address of `luciole devtools`, for the Client and the Server (above). |
+| `BUN_OPTIONS`      | `--preload=…/devtools/hook.ts` turns on the Components panel.             |
+| `DEV`              | `true`: OpenTUI connects to the standalone React DevTools.                |
 
-## Directories
+`luciole devtools --env` prints the values of `LUCIOLE_DEVTOOLS` and `BUN_OPTIONS` to export.
+
+## Which variables luciole sets for its own processes
+
+luciole sets these variables when it starts a process. They are its protocol with that
+process, not settings: change the flag or the field in the "Set from" column instead.
+
+| Variable                   | Set by                                | Set from                   | What it carries                                                                                                                   |
+| -------------------------- | ------------------------------------- | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `LUCIOLE_ARGS`             | every entry point                     | the app's options          | The app's checked arguments, `{ v, argv, cwd }`, which the Server parses again ([app arguments](/docs/reference/app-arguments/)). |
+| `LUCIOLE_LAUNCH`           | the launcher, `luciole dev`           | `luciole.server`           | The launch `{ v, scope, id?, cwd }`, which `getLaunch()` returns.                                                                 |
+| `LUCIOLE_LIFETIME`         | the launcher                          | none                       | `managed`: the Server stops when its grace period ends with no Client.                                                            |
+| `LUCIOLE_GRACE_MS`         | the launcher                          | `--grace`, `luciole.grace` | The grace period of a managed Server. Default: `900000` ms, 15 minutes.                                                           |
+| `LUCIOLE_LIFETIME_STARTER` | the launcher                          | none                       | The Client that started a managed Server. The end of its standard input counts as that Client lost.                               |
+| `LUCIOLE_LIFETIME_CLIENT`  | the launcher, a binary                | none                       | The ID a Client pings its managed Server with.                                                                                    |
+| `LUCIOLE_SESSION`          | the launcher, `luciole dev`, a binary | none                       | The restored session the Client opens, such as one left by a crashed Client.                                                      |
+| `LUCIOLE_SESSION_KEY`      | the launcher                          | none                       | What a Client files its restored session under. Default: the Server's URL.                                                        |
+| `LUCIOLE_LAUNCHER_HANDOFF` | the app list                          | none                       | The file where the app list writes the app to launch next.                                                                        |
+| `LUCIOLE_LAUNCHER_NOTICE`  | the app list                          | none                       | The message the app list shows when it reopens, such as how the last app exited.                                                  |
+| `LUCIOLE_GENERIC_TABS`     | `luciole https://…`                   | the Server URLs given      | The tabs of the generic Client, as JSON.                                                                                          |
+| `LUCIOLE_DEVTOOLS_LISTEN`  | `luciole devtools`                    | `--listen`                 | Where the DevTools' Server listens. `none` opens no connection, for a demo or a replay.                                           |
+| `LUCIOLE_DEVTOOLS_DEMO`    | `luciole devtools`                    | `--demo`                   | `1`: the DevTools replay a simulated run.                                                                                         |
+| `LUCIOLE_DEVTOOLS_REPLAY`  | `luciole devtools`                    | `--replay`                 | The recording to open.                                                                                                            |
+| `LUCIOLE_DEVTOOLS_HOOK`    | `luciole devtools`                    | none                       | The path of `devtools/hook.ts`, which the DevTools print for `BUN_OPTIONS`.                                                       |
+| `LUCIOLE_TEST`             | the test suite                        | none                       | `1`: the Server answers `/test-metrics`.                                                                                          |
+| `LUCIOLE_TEST_DROP_ONCE`   | the test suite                        | none                       | `1`, with `LUCIOLE_TEST`: the Server exits after its first successful Server Function, before it answers.                         |
+
+`tests/docs-environment.test.ts` fails when the sources read a `LUCIOLE_*` variable that no
+table of this page lists.
+
+## Where luciole keeps its files
 
 The XDG variables decide where luciole keeps its files:
 
 | What                                  | Where                                                          |
 | ------------------------------------- | -------------------------------------------------------------- |
-| restorable sessions                   | `$XDG_STATE_HOME/luciole/<app>/sessions/`                      |
+| restored sessions                     | `$XDG_STATE_HOME/luciole/<app>/sessions/`                      |
 | logs of launched Servers              | `$XDG_STATE_HOME/luciole/<app>/server.log`                     |
 | where a Client finds its Server       | `$XDG_CONFIG_HOME/luciole/<app>.json`                          |
 | trust granted to repositories         | `$XDG_CONFIG_HOME/luciole/trust.json`                          |
@@ -105,7 +155,7 @@ The XDG variables decide where luciole keeps its files:
 | sockets of managed Servers            | `$XDG_RUNTIME_DIR/luciole`, else `/tmp/luciole-<uid>` (`0700`) |
 
 <Note>
-  An app's own variables (`NOTES_DB` for Notes, `CHAT_DEMO` for Chat) are the app's business: the
-  framework neither reads nor documents them. An app can map an option to one with `.meta({env})` in
-  `app/args.ts`.
+  An app's own variables, such as `NOTES_DB` for Notes or `CHAT_DEMO` for Chat, belong to the app.
+  The framework neither reads nor documents them. An app can map an option to one with `.meta({env}
+  )` in `app/args.ts`.
 </Note>
