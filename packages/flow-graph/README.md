@@ -6,8 +6,9 @@
 
 ## Install
 
-You need Bun 1.3 or newer. The package has no dependency of its own. React and OpenTUI are
-peers, so your project keeps one copy of each.
+It runs on Node 26.4 or newer, the version OpenTUI needs, or on Bun 1.3 or newer. The package
+has no dependency of its own. React and OpenTUI are peers, so your project keeps one copy of
+each.
 
 ```sh
 bun add @luciole-sh/flow-graph @opentui/core @opentui/keymap @opentui/react react

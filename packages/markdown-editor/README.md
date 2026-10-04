@@ -14,8 +14,8 @@ bun add @luciole-sh/markdown-editor @opentui/core @opentui/react react
 ```
 
 `react`, `@opentui/core` and `@opentui/react` are peer dependencies, so your project keeps a single copy of each.
-The package is ESM only and ships its declarations. It runs on Bun 1.3 or newer. Under Node, OpenTUI asks for
-version 26.4 or newer.
+The package is ESM only and ships its declarations. It runs on Node 26.4 or newer, the version OpenTUI needs, or
+on Bun 1.3 or newer.
 
 ## Run a first editor
 
