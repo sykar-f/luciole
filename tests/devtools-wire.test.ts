@@ -1,4 +1,5 @@
-import { expect, test } from "bun:test";
+import { expect, mock, test } from "bun:test";
+import * as fs from "node:fs/promises";
 import { mkdtemp, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -13,6 +14,20 @@ import { parseCommand, parseEvent, type DevtoolsEvent } from "../packages/core/s
 import { connectAgent, listenBus, type Connection } from "../packages/core/src/devtools/wire";
 import { messageOf } from "../packages/core/src/guards";
 import { rejectionOf, until } from "./helpers";
+
+// An unlink in flight lands whenever the thread pool runs it: one test holds those started
+// while it says so, and runs them at the moment the race would be lost.
+const real = { ...fs };
+let holding: Array<() => Promise<void>> | undefined;
+void mock.module("node:fs/promises", () => ({
+  ...real,
+  unlink: (path: string) => {
+    if (!holding) return real.unlink(path);
+    const { promise, resolve, reject } = Promise.withResolvers<void>();
+    holding.push(() => real.unlink(path).then(resolve, reject));
+    return promise;
+  },
+}));
 
 const hello = { protocol: PROTOCOL_VERSION, role: "client" as const, pid: process.pid };
 const request = (callId: string) =>
@@ -96,8 +111,6 @@ test("a live DevTools keeps its socket; a dead one's socket is reused, owner-onl
     expect((await stat(join(dir, "bus.sock"))).mode & 0o777).toBe(0o600);
     first.close();
     // A DevTools that died: killed while it listened, it left its socket and no listener.
-    // Its own path: `close()` above unlinks in the background, and on this one could
-    // remove the socket the next listener made.
     const dead = join(dir, "dead.sock");
     const killed = Bun.spawn([
       process.execPath,
@@ -109,6 +122,43 @@ test("a live DevTools keeps its socket; a dead one's socket is reused, owner-onl
     const second = await listenBus({ address: { kind: "unix", path: dead }, onMessage: () => {} });
     expect((await stat(dead)).mode & 0o777).toBe(0o600);
     second.close();
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("a closed DevTools frees its path at once: a new one listens there", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "luciole-devtools-"));
+  const address: Address = { kind: "unix", path: join(dir, "bus.sock") };
+  try {
+    const first = await listenBus({ address, onMessage: () => {} });
+    const held: Array<() => Promise<void>> = [];
+    holding = held;
+    first.close();
+    holding = undefined;
+    const received: DevtoolsEvent[] = [];
+    const bus = await listenBus({
+      address,
+      onMessage: (_connection, value) => {
+        const event = parseEvent(value);
+        if (event) received.push(event);
+      },
+    });
+    try {
+      // What the first DevTools left in flight lands only now that the second one listens.
+      await Promise.allSettled(held.map((run) => run()));
+      expect((await stat(address.path)).isSocket()).toBe(true);
+      const agent = connectAgent({ address, hello, retryMs: 20, onCommand: () => {} });
+      try {
+        agent.send(request("reopened"));
+        await until(() => received.length === 2);
+        expect(received.map((e) => e.type)).toEqual(["luciole:hello", "luciole-client:request"]);
+      } finally {
+        agent.close();
+      }
+    } finally {
+      bus.close();
+    }
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
