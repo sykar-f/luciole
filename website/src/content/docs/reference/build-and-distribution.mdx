@@ -39,13 +39,15 @@ From elsewhere, pass `--app <dir>`. The output is then `<dir>/.luciole/`.
   rules written in Client Components, such as when to retry a save, are in it.
 - Each bundle has a linked source map: Bun applies it to stack traces at run time, in
   development as in production.
-- A failed build leaves the previous build in `.luciole/`, whichever step fails. The app
-  build, the runtime that `--web` installs and the binary that `--compile` writes are all
-  assembled in a temporary directory. They replace the previous build together, once every
-  step succeeded. The app build is everything in the tree above except `web/`.
+- A failed build leaves the previous build in `.luciole/`, whichever step fails, with one
+  exception named below. The app build, the runtime that `--web` installs and the binary that
+  `--compile` writes are all assembled in a temporary directory. They replace the previous
+  build together, once every step succeeded. The app build is everything in the tree above
+  except `web/`.
 - A binary written outside `.luciole/` with `--outfile` is built beside its destination. It
   replaces the previous binary only when the build is published, so a failed `--compile`
   leaves the previous binary. It can still have updated the `native/` directory beside it.
+  If the move of that binary fails, `.luciole/` already holds the new build.
 - `luciole build` without `--compile` or `--web` does not touch the network.
 - `.luciole/app/` needs Client code without top-level `await` (CommonJS cannot express it):
   without it the build succeeds without the app bundle and says where; `--app-bundle` makes
