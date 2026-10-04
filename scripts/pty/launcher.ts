@@ -9,7 +9,6 @@ import { join } from "node:path";
 import { drive, Keys } from "./driver";
 import { BUN, CLI, report, temporaryDirectory } from "./harness";
 
-const FOCUS_MS = 300;
 const UNREACHABLE = "http://127.0.0.1:1";
 
 using directory = temporaryDirectory("luciole-pty-launcher-");
@@ -50,6 +49,15 @@ await using t = await drive({
   },
 });
 const wait = (text: string) => t.waitFor(text);
+/** Tab, Tab: from the list to the search field, which shows its cursor. */
+async function toSearch() {
+  t.write("\t\t");
+  await t.until(async () => {
+    const cursor = await t.cursor();
+    const field = (await t.lines()).findIndex((line) => line.includes("search the registry"));
+    return cursor.visible && cursor.row === field + 1;
+  }, "Tab, Tab never gave the keys to the search field");
+}
 
 await wait("INSTALLED (1)");
 await wait("@ada/demo@1.0.0");
@@ -58,13 +66,13 @@ t.write(Keys.enter);
 await wait("demo exited with 3");
 assert.equal(readFileSync(ran, "utf8"), "demo ran \n");
 // A path that is no app: explained once back in the launcher.
-await t.type("\t\t", FOCUS_MS);
+await toSearch();
 t.write("./nowhere");
 await wait("./nowhere");
 t.write(Keys.enter);
 await wait("not a luciole app");
 // Words search the registry, here unreachable: the status line says so.
-await t.type("\t\t", FOCUS_MS);
+await toSearch();
 t.write("notes");
 await wait("notes");
 t.write(Keys.enter);
