@@ -76,20 +76,36 @@ Par le propriétaire, sur GitHub et npm ; aucune session de développement ne le
 1. Sur `main`, à jour et vert, mettre la même `version` dans les cinq `package.json`
    publiables ; la fusionner par le circuit habituel.
 2. Répéter à blanc (ci-dessous) sur ce commit.
-3. Pousser le tag, de ce commit-là seulement :
+3. **Documentation.** Sur ce même commit, avant le tag :
+   - relire `/status/` (`website/src/pages/status.astro`) ligne à ligne contre le code et la CI,
+     puis mettre à jour sa date et sa révision (`CHECKED`) : la révision doit être celle qui
+     sera taguée ou un de ses ancêtres ;
+   - mettre à jour la version partout où la documentation la cite (README, `CHANGELOG.md`,
+     `SECURITY.md`, site), et la date de l'entrée du `CHANGELOG.md` au jour du tag ;
+   - après la publication, faire le test de fumée de l'étape 7 (`bunx luciole.sh@<version> init`).
+4. Pousser le tag, de ce commit-là seulement :
 
    ```sh
    git tag v0.2.0
    git push origin v0.2.0
    ```
 
-4. Le workflow `Release` démarre : `verify` (tag, pack-check, licences, dry-run), puis
+5. Le workflow `Release` démarre : `verify` (tag, pack-check, licences, dry-run), puis
    `publish` attend l'approbation de l'environnement `npm`. Relire la sortie de `verify`,
    approuver.
-5. `publish` publie dans l'ordre des dépendances, avec provenance. Un paquet déjà présent
+6. `publish` publie dans l'ordre des dépendances, avec provenance. Un paquet déjà présent
    au registre à cette version est sauté : si un paquet échoue, corriger la cause et relancer
    le workflow (Re-run failed jobs) reprend où il s'était arrêté. Une version publiée ne
    se republie pas : si le tarball lui-même est faux, la suite est une nouvelle version.
+7. **Test de fumée de la documentation.** Dans un dossier vide, avec la version publiée :
+
+   ```sh
+   bunx luciole.sh@<version> init my-app
+   cd my-app && bun install && bun run dev
+   ```
+
+   C'est le chemin du README et de _Getting started_ sur luciole.sh/docs. S'il échoue, la
+   documentation ment : le corriger avant d'annoncer la version.
 
 ## Répéter à blanc
 
