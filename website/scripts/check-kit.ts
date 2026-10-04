@@ -1,7 +1,8 @@
 /**
  * The contracts of the docs' figure kit (README.md, « Les composants des docs »), on a page
- * of the built site: every screen captioned and described by its transcript, every sequence
- * captioned and described by the ordered list of its steps, every excerpt that has a side
+ * of the built site: every screen captioned and described by its transcript, a marked screen
+ * with a legend that numbers its marks, every sequence captioned and described by the
+ * ordered list of its steps, every excerpt that has a side
  * naming it in words, every annotated capture with a note per mark, and no demo of a RunHere
  * fetched before the reader's click. scripts/check-html.ts runs it on each page of dist/, so
  * a page that breaks one fails `bun run build`.
@@ -18,6 +19,8 @@ type Figure = {
   items: number;
   lists: number;
   marks: number;
+  /** A marked screen's region numbers (`data-marks`), which its legend lists. */
+  regions: string[];
   boot: string[];
 };
 
@@ -75,6 +78,7 @@ export async function kitProblems(html: string, page: string) {
           items: 0,
           lists: 0,
           marks: 0,
+          regions: (element.getAttribute("data-marks") ?? "").split(" ").filter(Boolean),
           boot: [],
         };
         figures.push(figure);
@@ -171,6 +175,14 @@ export async function kitProblems(html: string, page: string) {
       if (!transcript?.text.trim()) say(figure, "no transcript");
       else if (!figure.describedBy.includes(transcript.id))
         say(figure, "its description is not its transcript");
+      if (figure.regions.length > 0) {
+        const numbers = figure.regions.map(Number).sort((a, b) => a - b);
+        if (numbers.some((n, i) => n !== i + 1))
+          say(figure, `its marks ${figure.regions.join(" ")} are not numbered from 1`);
+        if (figure.lists === 0) say(figure, "no legend: an ordered list of its marks");
+        else if (figure.items !== figure.regions.length)
+          say(figure, `${figure.regions.length} marks for ${figure.items} legend items`);
+      }
     }
     if (figure.kind === "sequence") {
       if (!captioned) say(figure, "no caption");
