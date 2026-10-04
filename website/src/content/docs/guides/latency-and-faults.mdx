@@ -44,10 +44,11 @@ down. The latency playground, `examples/latency`, lets you feel it:
   frame="latency"
   name="Latency"
   caption="The latency playground at rest: an input, a hover area and 100 lines to scroll."
+  latency={500}
 />
 
-In this page, the playground adds no latency. Its Server runs in your browser, so a round trip
-takes a few milliseconds. To feel 500 ms, run it on your machine:
+The slider under the playground sets the round trip of each request to its Server, from 0 to
+2 seconds. To run it on your machine with the same 500 ms:
 
 <CopyCommand
   lines={[`${envPrefix}_LATENCY_MS=500 ${commands.fromClone} dev --app examples/latency`]}

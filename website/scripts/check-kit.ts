@@ -3,9 +3,10 @@
  * of the built site: every screen captioned and described by its transcript, a marked screen
  * with a legend that numbers its marks and each number drawn beside its region, every
  * sequence captioned and described by the ordered list of its steps, every excerpt that has
- * a side naming it in words, every annotated capture with a note per mark, and no demo of a
- * RunHere fetched before the reader's click. scripts/check-html.ts runs it on each page of
- * dist/, so a page that breaks one fails `bun run build`.
+ * a side naming it in words, every annotated capture with a note per mark, no demo of a
+ * RunHere fetched before the reader's click, and a round-trip slider in a RunHere exactly when
+ * it is given a `latency`, labelled and naming its unit. scripts/check-html.ts runs it on each
+ * page of dist/, so a page that breaks one fails `bun run build`.
  */
 /// <reference types="bun" />
 
@@ -27,6 +28,13 @@ type Figure = {
   legends: number;
   legendItems: number;
   boot: string[];
+  /** A RunHere's starting round trip (`data-latency`), in ms. */
+  latency?: string;
+  /** Its range inputs, with whether they sit in a `<label>`. */
+  ranges: { labelled: boolean; min: number; max: number }[];
+  /** The text of its labels outside their `<output>`, and of its outputs. */
+  label: string;
+  outputs: string[];
 };
 
 /** How much of a figure's caption a problem quotes, to name the figure. */
@@ -40,6 +48,11 @@ const SIDES: Record<string, string> = {
 };
 const SIDES_FR: Record<string, string> = { ...SIDES, wire: "Réseau" };
 
+/** The round trip the embed's `network` command takes (packages/core/src/web/embed.ts). */
+const MAX_LATENCY_MS = 10_000;
+/** A range input's bounds when it does not set them (HTML). */
+const RANGE = { min: 0, max: 100 };
+
 /**
  * What a page's HTML breaks of the kit's contracts, one line each, and how many figures it
  * holds. `page` is the page's address (`/docs/…/`), which says its language too.
@@ -49,6 +62,9 @@ export async function kitProblems(html: string, page: string) {
   const open: Figure[] = [];
   const ids = new Map<string, number>();
   const demo: string[] = [];
+  let labels = 0;
+  /** The output being read, by its count in the figure's outputs. */
+  let output: number | undefined;
   let text: ((chunk: string) => void) | undefined;
   const inner = () => open.at(-1);
   const count = (what: "lists" | "items" | "marks" | "legends" | "legendItems") => {
@@ -88,6 +104,10 @@ export async function kitProblems(html: string, page: string) {
           legends: 0,
           legendItems: 0,
           boot: [],
+          latency: element.getAttribute("data-latency") ?? undefined,
+          ranges: [],
+          label: "",
+          outputs: [],
         };
         figures.push(figure);
         open.push(figure);
@@ -132,6 +152,41 @@ export async function kitProblems(html: string, page: string) {
     .on("[data-boot]", {
       element(element) {
         inner()?.boot.push(element.getAttribute("data-boot") ?? "");
+      },
+    })
+    // A label's own words apart from its output's: what names a slider, and its value. A
+    // text handler sees the text of the element's descendants too.
+    .on("label", {
+      element(element) {
+        labels += 1;
+        element.onEndTag(() => {
+          labels -= 1;
+        });
+      },
+      text(chunk) {
+        const figure = inner();
+        if (figure && output === undefined) figure.label += chunk.text;
+      },
+    })
+    .on("output", {
+      element(element) {
+        output = inner()?.outputs.push("");
+        element.onEndTag(() => {
+          output = undefined;
+        });
+      },
+      text(chunk) {
+        const figure = inner();
+        if (figure && output !== undefined) figure.outputs[output - 1] += chunk.text;
+      },
+    })
+    .on('input[type="range"]', {
+      element(element) {
+        inner()?.ranges.push({
+          labelled: labels > 0,
+          min: Number(element.getAttribute("min") ?? RANGE.min),
+          max: Number(element.getAttribute("max") ?? RANGE.max),
+        });
       },
     })
     .on("[id]", {
@@ -216,7 +271,37 @@ export async function kitProblems(html: string, page: string) {
       if (!figure.boot.every((boot) => boot === "manual") || figure.boot.length === 0)
         say(figure, "its demo does not wait for a click");
       for (const fetch of demo) say(figure, `the page fetches a demo before the click: ${fetch}`);
+      roundTrip(figure);
     }
   }
   return { problems, figures: figures.length };
+
+  /**
+   * A RunHere's slider: there exactly when the page gives it a `latency`, named by the words
+   * of its label (seen, not only heard), its value shown in ms, within what the `network`
+   * command takes.
+   */
+  function roundTrip(figure: Figure) {
+    const [range, ...more] = figure.ranges;
+    if (figure.latency === undefined) {
+      if (range) say(figure, "a round-trip slider, and no latency to start it from");
+      return;
+    }
+    if (!range) return void say(figure, `latency="${figure.latency}", and no round-trip slider`);
+    if (more.length > 0) say(figure, `${figure.ranges.length} round-trip sliders`);
+    if (!range.labelled || !figure.label.trim()) say(figure, "its round-trip slider has no label");
+    if (!figure.outputs.some((output) => /^\d+ ms$/.test(output.trim())))
+      say(figure, "its round-trip slider shows no value in ms");
+    if (!(range.min >= 0 && range.max <= MAX_LATENCY_MS))
+      say(
+        figure,
+        `its round trip goes from ${range.min} to ${range.max} ms, beyond the network command's 0 to ${MAX_LATENCY_MS}`,
+      );
+    const latency = Number(figure.latency);
+    if (!(latency >= range.min && latency <= range.max))
+      say(
+        figure,
+        `its latency, ${figure.latency} ms, is off its slider's ${range.min} to ${range.max}`,
+      );
+  }
 }

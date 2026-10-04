@@ -17,12 +17,21 @@ interface Props {
   name: string;
   /** Keys to type once it runs, as LiveTerminal takes them. */
   script?: Step[];
+  /**
+   * The round trip between the demo's Client and its Server, in ms, that the reader starts
+   * from and changes with a slider. Without it, no slider: the demo's requests take what the
+   * browser takes.
+   */
+  latency?: number;
 }
 
-const { demo, frame, caption, name, script } = Astro.props;
+/** The slider's bounds, in ms: from no wait to the 2 s the docs' captures show. */
+const ROUND_TRIP = { min: 0, max: 2000, step: 10 };
+
+const { demo, frame, caption, name, script, latency } = Astro.props;
 ---
 
-<div class="run" data-figure="run-here" data-run-here>
+<div class="run" data-figure="run-here" data-run-here data-latency={latency}>
   <LiveTerminal demo={demo} frame={load(frame)} caption={caption} script={script} boot="manual" />
   <p class="start">
     <button type="button" class="button" data-start hidden>Run {name} in this page</button>
@@ -30,6 +39,80 @@ const { demo, frame, caption, name, script } = Astro.props;
       {name} is starting. Once it runs, click the screen to type in it.
     </span>
   </p>
+  {
+    latency !== undefined && (
+      <label data-round-trip hidden>
+        Round trip to the Server
+        <input
+          type="range"
+          min={ROUND_TRIP.min}
+          max={ROUND_TRIP.max}
+          step={ROUND_TRIP.step}
+          value={latency}
+          aria-valuetext={`${latency} ms`}
+        />
+        <output>{latency} ms</output>
+      </label>
+    )
+  }
+  {
+    /* Inline, so that a page without the slider carries none of its style either. */
+    latency !== undefined && (
+      <style is:inline>
+        /* The reader's round trip, as the landing's ping: a hairline track, a square thumb. */
+        [data-round-trip]:not([hidden]) {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 8px 1.5ch;
+          margin-top: 12px;
+          color: var(--mist);
+          font: 400 0.8rem / 1.4 var(--mono);
+        }
+        [data-round-trip] input {
+          width: min(240px, 50vw);
+          height: 16px;
+          margin: 0;
+          background: transparent;
+          appearance: none;
+          cursor: pointer;
+        }
+        [data-round-trip] input::-webkit-slider-runnable-track {
+          height: 1px;
+          background: var(--rule-strong);
+        }
+        [data-round-trip] input::-moz-range-track {
+          height: 1px;
+          background: var(--rule-strong);
+        }
+        [data-round-trip] input::-webkit-slider-thumb {
+          width: 10px;
+          height: 16px;
+          margin-top: -8px;
+          border: 0;
+          border-radius: 0;
+          background: var(--paper);
+          appearance: none;
+        }
+        [data-round-trip] input::-moz-range-thumb {
+          width: 10px;
+          height: 16px;
+          border: 0;
+          border-radius: 0;
+          background: var(--paper);
+        }
+        [data-round-trip] input:focus-visible {
+          outline: 2px solid var(--dominant);
+          outline-offset: 4px;
+        }
+        [data-round-trip] output {
+          min-width: 7ch;
+          color: var(--paper);
+          font-variant-numeric: tabular-nums;
+        }
+      </style>
+    )
+  }
 </div>
 
 <script>
@@ -53,12 +136,54 @@ const { demo, frame, caption, name, script } = Astro.props;
     );
   }
 </script>
+{
+  latency !== undefined && (
+    <script>
+      import * as z from "zod/mini";
 
+      // The reader's round trip, for the Client of the demo running in the figure: the
+      // embed's `network` command (packages/core/src/web/embed.ts) puts it between the app
+      // and its Server, never before the keys. A message posted before the demo listens is
+      // lost, so it goes once the demo has drawn, every time it starts, and again on each
+      // move of the slider.
+      const Drawn = z.object({
+        source: z.literal("luciole"),
+        type: z.literal("stage"),
+        stage: z.literal("drawn"),
+      });
+
+      for (const root of document.querySelectorAll<HTMLElement>("[data-run-here][data-latency]")) {
+        const live = root.querySelector<HTMLElement>("[data-live]");
+        const control = root.querySelector<HTMLElement>("[data-round-trip]");
+        const slider = control?.querySelector<HTMLInputElement>("input");
+        const shown = control?.querySelector<HTMLOutputElement>("output");
+        if (!live || !control || !slider || !shown || !live.classList.contains("standing")) continue;
+        control.hidden = false;
+        // The demo's frame, while it runs: LiveTerminal adds it on the click and removes it on
+        // `live:stop`.
+        const demo = () => root.querySelector("iframe")?.contentWindow;
+        const network = () =>
+          demo()?.postMessage(
+            { source: "luciole", type: "network", latencyMs: Number(slider.value) },
+            location.origin,
+          );
+        slider.addEventListener("input", () => {
+          shown.value = `${slider.value} ms`;
+          slider.setAttribute("aria-valuetext", shown.value);
+          network();
+        });
+        addEventListener("message", (event) => {
+          if (event.origin !== location.origin || event.source !== demo()) return;
+          if (Drawn.safeParse(event.data).success) network();
+        });
+      }
+    </script>
+  )
+}
 <style>
   .run {
     margin: 1.6em 0;
   }
-
   .start {
     margin-top: 12px;
     color: var(--mist);
