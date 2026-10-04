@@ -46,7 +46,9 @@ const CARDS = new Set(["/og/", "/lab/mascot-og/"]);
 
 /**
  * What `bun run demo` writes into public/demo/, apart from `astro build` (it is git-ignored):
- * its links are checked when the build holds it, and counted as skipped when it does not.
+ * each demo is an application, not a document of the site, so none of its own rules apply to
+ * it. The links into it are checked when the build holds it, and counted as skipped when it
+ * does not.
  */
 const BUILT_APART = "/demo/";
 
@@ -210,6 +212,15 @@ function target(pathname: string): { page?: Page; file?: string } | undefined {
 
 let skipped = 0;
 
+/** A percent-escape the browser could not read leaves the link pointing at nothing. */
+function decode(value: string) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return undefined;
+  }
+}
+
 function checkLink(page: Page, href: string) {
   if (
     /^(?:[a-z][a-z\d+.-]*:|\/\/)/i.test(href) &&
@@ -219,7 +230,8 @@ function checkLink(page: Page, href: string) {
     return;
   const url = new URL(href, `${origin}${page.path}`);
   if (url.origin !== origin) return;
-  const pathname = decodeURIComponent(url.pathname);
+  const pathname = decode(url.pathname);
+  if (pathname === undefined) return report(page, `link to ${href} points at nothing`);
   if (pathname.startsWith(BUILT_APART) && !existsSync(join(dist, BUILT_APART))) {
     skipped += 1;
     return;
@@ -227,10 +239,10 @@ function checkLink(page: Page, href: string) {
   const found = target(pathname);
   if (!found || (!found.page && !found.file))
     return report(page, `link to ${href} points at nothing`);
-  const anchor = decodeURIComponent(url.hash.slice(1));
-  if (!anchor || anchor.toLowerCase() === "top" || !found.page) return;
-  if (!found.page.ids.has(anchor))
-    report(page, `link to ${href}: no #${anchor} on ${found.page.path}`);
+  const anchor = decode(url.hash.slice(1));
+  if (anchor === "" || anchor?.toLowerCase() === "top" || !found.page) return;
+  if (anchor === undefined || !found.page.ids.has(anchor))
+    report(page, `link to ${href}: no #${anchor ?? ""} on ${found.page.path}`);
 }
 
 function checkStructure(page: Page) {
@@ -271,13 +283,14 @@ function checkIndexable(page: Page, sitemap: Set<string> | undefined) {
 }
 
 const sitemap = sitemapAddresses(dist);
-const indexable = [...pages.values()].filter((page) => !page.noindex);
+const indexable = [...pages.values()].filter(
+  (page) => !page.noindex && !page.path.startsWith(BUILT_APART),
+);
 if (indexable.length > 0 && !sitemap) problems.push("sitemap-index.xml is missing from the build");
 for (const page of [...pages.values()].sort((a, b) => a.path.localeCompare(b.path))) {
-  if (!CARDS.has(page.path)) {
-    for (const href of new Set(page.links)) checkLink(page, href);
-    checkStructure(page);
-  }
+  if (CARDS.has(page.path) || page.path.startsWith(BUILT_APART)) continue;
+  for (const href of new Set(page.links)) checkLink(page, href);
+  checkStructure(page);
   if (!page.noindex) checkIndexable(page, sitemap);
 }
 
