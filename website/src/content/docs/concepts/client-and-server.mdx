@@ -30,10 +30,10 @@ simulated latency.
 
 ## What each side contains
 
-| Program | Contains                                                                                | Never contains                           |
-| ------- | --------------------------------------------------------------------------------------- | ---------------------------------------- |
-| Client  | the terminal runtime, TanStack Router, the keymap, and **this app's** Client Components | pages, Server Functions' code, `server/` |
-| Server  | the HTTP runtime, the routes, the Server Functions and the business code                | OpenTUI                                  |
+| Program | Contains                                                                                | Never contains                                  |
+| ------- | --------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| Client  | the terminal runtime, TanStack Router, the keymap, and **this app's** Client Components | Server pages, Server Functions' code, `server/` |
+| Server  | the HTTP runtime, the routes, the Server Functions and the business code                | OpenTUI                                         |
 
 The rule that decides where a module goes is short: pages are Server by default,
 `"use client"` starts the Client's graph, and `server-only` or `client-only` pin a module to

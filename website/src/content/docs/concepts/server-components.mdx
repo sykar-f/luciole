@@ -13,9 +13,14 @@ sources:
 import Excerpt from "../../../components/guide/Excerpt.astro";
 import Note from "../../../components/docs/Note.astro";
 
-Every `page.tsx` is a Server Component. It runs in the Server process, reads data directly
-(no API layer between the page and the database) and returns OpenTUI elements. The Client
-receives the rendered tree, never the page's code.
+A `page.tsx` is a Server Component by default. It runs in the Server process, reads data
+directly (no API layer between the page and the database) and returns OpenTUI elements. The
+Client receives the rendered tree, never the page's code.
+
+The build does not refuse a page that starts with `"use client"`. That page is a Client
+Component: its code goes into the Client, and the Server sends only its reference with
+`params` and `searchParams`. It reads no data on the Server. Keep the page on the Server and
+move the interactive part into a Client Component it renders, as Notes does below.
 
 <Excerpt
   path="examples/notes/app/page.tsx"
