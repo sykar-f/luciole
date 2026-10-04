@@ -14,6 +14,9 @@ sources:
   - examples/notes/actions/notes.ts
   - examples/notes/components/notes-list.ts
   - website/src/frames/flight.txt
+  - tests/latency.test.tsx
+  - tests/transport.test.tsx
+  - tests/http-transport.test.ts
 ---
 
 import AnnotatedCapture from "../../../components/docs/AnnotatedCapture.astro";
@@ -212,8 +215,18 @@ Both programs must come from **the same build**. Each build has an ID, a hash of
 the build reads ([the list](/docs/reference/build-and-distribution/#how-the-build-id-is-made)).
 
 - The Client sends that ID with every request, in `x-luciole-build`.
-- A Server of another build refuses the request with a `409`, before decoding it.
+- A Server of another build refuses the request with a `409`.
 - The Client keeps what it already shows.
+
+Two tests check this:
+
+- `tests/http-transport.test.ts`: a page load carries the build ID. A `409` fails both a page
+  load and a Server Function call as an incompatible build.
+- `tests/transport.test.tsx`: the Server answers an old build ID with a `409`. The status then
+  reads "Incompatible build", and an open editor keeps its text.
+
+When the status reads "Incompatible build",
+[Troubleshooting](/docs/reference/troubleshooting/#the-server-answers-409) gives the fix.
 
 The hash includes `bun.lock`, which lists the packages of every platform. A Linux Server and a
 macOS Client compiled from the same sources therefore share one build ID.

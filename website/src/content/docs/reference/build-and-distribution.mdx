@@ -19,6 +19,7 @@ sources:
   - packages/core/src/launcher/lifetime.ts
   - packages/core/src/registry
   - website/scripts/capture.py
+  - tests/build.test.ts
 ---
 
 import Note from "../../../components/docs/Note.astro";
@@ -162,6 +163,16 @@ If the last move of an `--outfile` binary fails, `.luciole/` already holds the n
 
 A build that does not use `--compile` publishes a `.luciole/` without `bin/`. It removes the
 binary a previous `--compile` wrote there.
+
+`tests/build.test.ts` makes a build fail in six ways, then checks that `.luciole/` still holds
+the previous build:
+
+- the app does not compile
+- a step staged with the build, such as `--web`, fails
+- the rename (5) fails
+- a previous build was killed between steps 4 and 5
+- `--web` or `--compile` fails on an up-to-date build
+- `--compile --outfile` fails, which also leaves the previous binary
 
 ## How the build ID is made
 
