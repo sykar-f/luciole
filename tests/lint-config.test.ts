@@ -13,9 +13,10 @@ const root = resolve(import.meta.dir, "..");
 const Resolved = z.looseObject({
   options: z.looseObject({ typeAware: z.boolean().optional() }),
   rules: z.record(z.string(), z.unknown()),
-  overrides: z.array(
-    z.looseObject({ files: z.array(z.string()), rules: z.record(z.string(), z.unknown()) }),
-  ),
+  // Absent from the print when a config has none.
+  overrides: z
+    .array(z.looseObject({ files: z.array(z.string()), rules: z.record(z.string(), z.unknown()) }))
+    .default([]),
   ignorePatterns: z.array(z.string()),
 });
 
@@ -59,13 +60,12 @@ test("the website is linted type-aware, with the type-aware rules on", async () 
     expect(site.rules[`typescript/${rule}`]).toBeDefined();
 });
 
-test("the root config ignores website/, and the guide pages keep their magic-number exception", async () => {
+test("the root config ignores website/, and no website file is exempt from a rule", async () => {
   const [base, site] = await Promise.all([
     resolved(root, ".oxlintrc.json"),
     resolved(resolve(root, "website"), "oxlint.website.json"),
   ]);
   expect(base.ignorePatterns).toContain("website/**");
   expect(base.overrides.flatMap((o) => o.files).some((f) => f.startsWith("website/"))).toBe(false);
-  const exempt = site.overrides.find((o) => o.rules["no-magic-numbers"] === "allow");
-  expect(exempt?.files).toEqual(["src/pages/guide/index.astro", "src/pages/guide/build.astro"]);
+  expect(site.overrides).toEqual([]);
 });

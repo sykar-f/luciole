@@ -17,6 +17,7 @@ sources:
   - packages/core/src/web-runtime.ts
   - packages/core/src/web-routes.ts
   - packages/core/src/web/server/page.ts
+  - packages/core/src/web/runtime.tsx
   - packages/core/src/web/node/fs.ts
   - packages/core/src/commands/launch.ts
   - packages/core/src/commands/start.ts
@@ -24,7 +25,7 @@ sources:
 ---
 
 import Note from "../../../components/docs/Note.astro";
-import Sequence from "../../../components/guide/Sequence.astro";
+import Sequence from "../../../components/docs/Sequence.astro";
 
 `luciole <target>` opens an app from wherever it comes: a directory, an installed app, an npm
 package, a git repository or a Server URL. Find the section that matches where the app is and
@@ -272,6 +273,31 @@ A browser runs the same app bundle, drawn in the page by xterm.js. Two builds ex
 The first build prepares the web runtime. It needs the network, `git` and Zig 0.16.0, on your
 `PATH` or in `ZIG`. To prepare it ahead of time, run `luciole web-runtime`.
 
+The page holds the web runtime: luciole's Client, React, xterm.js and OpenTUI compiled to
+WebAssembly. Your app's bundle is the one a terminal Client runs, unchanged:
+
+<Sequence
+  title="Notes in a tab, built with --web-local"
+  lanes={[
+    { id: "page", label: "Page", sub: "runtime.js", tone: "client" },
+    { id: "wasm", label: "OpenTUI", sub: "in WebAssembly", tone: "client" },
+    { id: "xterm", label: "xterm.js", sub: "the screen", tone: "client" },
+    { id: "worker", label: "SharedWorker", sub: "the app's Server", tone: "server" },
+  ]}
+  messages={[
+    { phase: "The page opens" },
+    { from: "page", to: "page", label: "loads the app bundle, checks its ABI", n: 1 },
+    { from: "page", to: "worker", label: "connects through a message port", n: 2 },
+    { phase: "The user types" },
+    { from: "xterm", to: "page", label: "the keys typed in the page", n: 3, back: true },
+    { from: "page", to: "worker", label: "GET /render, POST /action", n: 4, tone: "wire" },
+    { from: "worker", to: "page", label: "the answer, streamed", n: 5, back: true, tone: "wire" },
+    { from: "page", to: "wasm", label: "OpenTUI lays out the screen", n: 6 },
+    { from: "wasm", to: "xterm", label: "the screen, as terminal output", n: 7 },
+  ]}
+  caption="The app does not know it runs in a browser. Only the Client's requests take another path: to your Server with --web, to the Worker with --web-local."
+/>
+
 ### Serve the app from your Server
 
 From the app's directory:
@@ -288,6 +314,8 @@ origin only, the one `LUCIOLE_WEB_ORIGIN` names.
   carries a browser `Origin`.
 - Sign-in works as in a terminal Client. The page keeps the bearer token, the string the
   Client sends with each request to prove who signed in, in memory only.
+- With `LUCIOLE_WEB_ORIGIN` set, the Server refuses to start when the build has no web runtime,
+  or one built for another ABI. Run `luciole build --web` again.
 
 ### Publish a static site
 
@@ -310,6 +338,11 @@ SQLite databases live in memory. The Server saves them to the browser's storage 
 each Server Function answers. A `<Terminal>` shows an "unavailable here" screen.
 
 An app that needs a process, a terminal or a real disk keeps `--web`.
+
+<Note>
+  The DevTools do not attach to an app in a browser. Inspect the app in a terminal, with the same
+  code.
+</Note>
 
 ## Hand someone a single binary
 

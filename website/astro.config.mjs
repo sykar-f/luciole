@@ -70,8 +70,26 @@ const vendoredFonts = {
   },
 };
 
+// The French guide left the site once /docs held its content: each of its old URLs opens the
+// English page that took that chapter over.
+const GUIDE_REDIRECTS = {
+  "/guide": "/docs/",
+  "/guide/carte": "/docs/concepts/client-and-server/",
+  "/guide/build": "/docs/reference/build-and-distribution/",
+  "/guide/demarrage": "/docs/guides/opening-an-app/",
+  "/guide/navigation": "/docs/concepts/routing/",
+  "/guide/server-functions": "/docs/concepts/server-functions/",
+  "/guide/cache": "/docs/concepts/cache/",
+  "/guide/session": "/docs/concepts/session-restore/",
+  "/guide/distribution": "/docs/reference/build-and-distribution/",
+  "/guide/web-desktop": "/docs/guides/opening-an-app/#open-an-app-in-a-browser",
+  "/guide/devtools": "/docs/guides/devtools/",
+  "/guide/glossaire": "/docs/reference/glossary/",
+};
+
 export default defineConfig({
   site: "https://luciole.sh",
+  redirects: GUIDE_REDIRECTS,
   // `cloudflared tunnel --url http://localhost:4321` shares a local preview: its host.
   server: { allowedHosts: [".trycloudflare.com"] },
   // The page shows the example applications' real sources, read from the checkout.

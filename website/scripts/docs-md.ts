@@ -16,7 +16,7 @@ import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
 import { z } from "zod";
 import { alphabetical, pageHref } from "../src/lib/docs/glossary";
-import { excerpt, whole } from "../src/lib/guide/source";
+import { excerpt, whole } from "../src/lib/docs/source";
 import { repo } from "../src/lib/links";
 import { commands, envPrefix } from "../src/lib/product";
 import { locate, steps, text, type Frame } from "../src/lib/transcripts";

@@ -19,7 +19,9 @@
  * transcript or a list of steps, a side in words, no demo fetched before a click.
  *
  * Two things are set aside, each by name below: the cards photographed into a picture, which
- * are not documents, and the links into what `bun run demo` builds apart from the site.
+ * are not documents, and the links into what `bun run demo` builds apart from the site. A
+ * redirect that astro.config.mjs declares is no document either: only its target is checked,
+ * as a link.
  *
  * The pages are read as the browser reads them, in one pass each, with Bun's HTMLRewriter.
  * Focusable means what Tab stops on: links, buttons, form fields, summaries, tabindex >= 0
@@ -90,6 +92,8 @@ interface Page {
   canonicals: string[];
   ogUrls: string[];
   ogImages: string[];
+  /** Where a `<meta http-equiv="refresh">` sends the reader: the page is a redirect. */
+  redirect?: string;
 }
 
 /** The files of the build whose name matches `kind`, relative to it, in a stable order. */
@@ -167,6 +171,11 @@ async function read(file: string, html: string): Promise<Page> {
       },
       text(chunk) {
         if (collecting) collecting.text += chunk.text;
+      },
+    })
+    .on("meta[http-equiv='refresh']", {
+      element(element) {
+        page.redirect = /url=(.*)$/i.exec(element.getAttribute("content") ?? "")?.[1];
       },
     })
     .on("meta[name='robots']", {
@@ -335,6 +344,10 @@ const indexable = [...pages.values()].filter(
 if (indexable.length > 0 && !sitemap) problems.push("sitemap-index.xml is missing from the build");
 for (const page of [...pages.values()].sort((a, b) => a.path.localeCompare(b.path))) {
   if (CARDS.has(page.path) || page.path.startsWith(BUILT_APART)) continue;
+  if (page.redirect !== undefined) {
+    checkLink(page, page.redirect);
+    continue;
+  }
   for (const href of new Set(page.links)) checkLink(page, href);
   checkStructure(page);
   if (!page.noindex) checkIndexable(page, sitemap);

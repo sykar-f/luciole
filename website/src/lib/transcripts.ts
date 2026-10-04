@@ -1,7 +1,7 @@
 // The text of the site's figures: what a screen reader reads in place of the drawing, and
 // what the Markdown export (scripts/docs-md.ts) prints for it. Plain TypeScript, with no
 // Vite in it: the export and the tests run it under Bun.
-import type { Tone } from "./guide/tones";
+import type { Tone } from "./docs/tones";
 
 // ── Screens ──────────────────────────────────────────────────────────────────
 

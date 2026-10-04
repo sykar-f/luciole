@@ -8,6 +8,7 @@ sources:
   - packages/core/src/session.ts
   - packages/core/src/client.tsx
   - packages/core/src/run.tsx
+  - packages/core/src/launcher/launch-key.ts
   - examples/chat/components/Chat.tsx
   - examples/notes/components/NoteEditor.tsx
   - examples/forge/components/NewPullForm.tsx
@@ -15,9 +16,10 @@ sources:
   - tests/restore-submit-kill.test.ts
 ---
 
-import Excerpt from "../../../components/guide/Excerpt.astro";
+import Excerpt from "../../../components/docs/Excerpt.astro";
 import Note from "../../../components/docs/Note.astro";
 import Screen from "../../../components/Screen.astro";
+import Sequence from "../../../components/docs/Sequence.astro";
 
 The Client keeps a restored session, as a browser does, so a crash or a rebuild does not lose
 what the user typed. For each history entry, it keeps:
@@ -48,6 +50,64 @@ The Client is then killed with `kill -9`, and Notes is launched again:
   frame="session-restore-after"
   caption="After the relaunch. The Client opens the Idea note again, with the same line, still unsaved."
 />
+
+## Which Client gets the text back
+
+The next Client of the same app takes over the file the crashed Client left:
+
+<Sequence
+  title="A crash, then the return"
+  lanes={[
+    { id: "field", label: "Named field", sub: "<Textarea name>", tone: "client" },
+    { id: "client", label: "Client", sub: "the one that crashes", tone: "client" },
+    { id: "file", label: "Restored session", sub: "sessions/<id>.json", tone: "neutral" },
+    { id: "next", label: "Next Client", sub: "same Server key", tone: "client" },
+  ]}
+  messages={[
+    { phase: "While the user types" },
+    { from: "field", to: "client", label: "typed text, kept per entry", n: 1 },
+    { from: "client", to: "file", label: "written 200 ms later", n: 2 },
+    { phase: "The Client stops" },
+    { from: "client", to: "file", label: "a signal: written, the file stays", n: 3 },
+    { from: "client", to: "client", label: "or a crash: the last write stays", n: 4 },
+    { phase: "A Client starts" },
+    { from: "next", to: "file", label: "a file left for this Server key?", n: 5, back: true },
+    { from: "next", to: "file", label: "takes the newest one", n: 6, back: true },
+    { from: "next", to: "next", label: "history restored", n: 7 },
+    { from: "next", to: "field", label: "the field fills on mount", n: 8, back: true },
+  ]}
+  caption="Under luciole dev, the supervisor hands each restarted Client the restored session of the one before, so step 5 has nothing to search."
+/>
+
+The next Client takes a file only when:
+
+- the Client that wrote the file is dead
+- the file was written for the same Server key
+- the file is the newest of those left
+
+The Server key names the app, not the socket address, which changes at every launch:
+
+| How the app was opened          | Server key                                           |
+| ------------------------------- | ---------------------------------------------------- |
+| `luciole ./notes`, a directory  | `local:<directory>`                                  |
+| `luciole github:ada/tools#v1/…` | `git:<repository>`, with the path inside it          |
+| `notes`, a compiled binary      | `local:notes`                                        |
+| `notes --on build-box`          | `ssh:build-box/notes`                                |
+| `luciole connect`, `--url`      | the URL, so these Clients never take the files above |
+
+The launcher also adds the app's arguments to the key. When the app's Server is not shared, it
+adds the current directory too
+([how long a Server lives](/docs/reference/build-and-distribution/#how-long-a-server-lives)).
+`--new` starts without a restored session.
+
+<details>
+<summary>How two Clients starting at once share the files</summary>
+
+Each Client renames the file it takes, so of two Clients that start together, one gets the
+file and the other moves on to the next one. The winner writes its own process ID into the file
+at once, so that a third Client sees it alive.
+
+</details>
 
 ## What happens to my text?
 
@@ -186,9 +246,32 @@ The examples follow TanStack Form, in Forge's new pull request form
   send writes it at once.
 - A `kill -9` cannot be caught. Text typed in the last 200 ms before one is lost.
 - After a crash, the next Client takes over the newest restored session a dead Client left for
-  the same Server address. It never takes the file of a living Client.
+  the same [Server key](#which-client-gets-the-text-back). It never takes the file of a living
+  Client.
 - A file holds at most 50 history entries. A field longer than 100,000 characters is not kept.
 - A file left by a dead Client is deleted after 7 days.
+- A dead Client's process ID that the system gives to a new process makes its file look alive.
+  The file is then neither taken over nor deleted.
+
+A file holds the history and each entry's named fields. Here is one of Notes, in
+`~/.local/state/luciole/notes/sessions/`:
+
+```json
+{
+  "version": 1,
+  "server": "local:/Users/ada/examples/notes",
+  "pid": 48213,
+  "updatedAt": 1790350000000,
+  "index": 1,
+  "entries": [
+    { "href": "/", "fields": {} },
+    { "href": "/notes/42", "fields": { "note/text": "A line not saved yet" } }
+  ]
+}
+```
+
+An entry with a kept focus or scroll position adds `"focus"` or `"scroll"`, such as Forge's
+`"scroll": { "pull/timeline": 12 }`.
 
 <Note kind="warning">
   The text of named fields is written to disk unencrypted. Leave a password or a PIN without a

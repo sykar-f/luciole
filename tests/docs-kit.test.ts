@@ -154,14 +154,16 @@ describe("the figure kit's contracts", () => {
     ]);
   });
 
-  test("an excerpt whose side is colour only, in the docs and in the French guide", async () => {
+  test("an excerpt whose side is colour only, or not in English", async () => {
     const excerpt = (side: string) =>
       `<figure data-figure="excerpt" data-tone="wire"><div class="bar"><a>page.tsx</a>${side}</div></figure>`;
     expect(await problems(excerpt(""))).toEqual([
       '/docs/a/: excerpt "": its side reads "", not Wire',
     ]);
     expect(await problems(excerpt('<span class="side">Wire</span>'))).toEqual([]);
-    expect(await problems(excerpt('<span class="side">Réseau</span>'), "/guide/a/")).toEqual([]);
+    expect(await problems(excerpt('<span class="side">Réseau</span>'))).toEqual([
+      '/docs/a/: excerpt "": its side reads "Réseau", not Wire',
+    ]);
   });
 
   test("an annotated capture whose marks and notes disagree", async () => {

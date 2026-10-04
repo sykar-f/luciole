@@ -20,14 +20,7 @@ const OLD_NAMES: [string, RegExp][] = [
  * the same wave. Each entry names the mission that removes it; delete the
  * entry with that mission.
  */
-const ALLOWED = new Set<string>([
-  // The French guide leaves the public site once its content is ported to
-  // /docs (a later mission); its pages are not edited before then.
-  "website/src/pages/guide/build.astro", // mission: guide removal (after the /docs port)
-  "website/src/pages/guide/demarrage.astro", // mission: guide removal (after the /docs port)
-  "website/src/pages/guide/distribution.astro", // mission: guide removal (after the /docs port)
-  "website/src/pages/guide/navigation.astro", // mission: guide removal (after the /docs port)
-]);
+const ALLOWED = new Set<string>([]);
 
 const TEXT = /\.(mdx?|astro|tsx?|json|css|html)$/;
 

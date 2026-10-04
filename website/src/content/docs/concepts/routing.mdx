@@ -7,14 +7,17 @@ sources:
   - packages/core/src/route-graph.ts
   - packages/core/src/route-tree.tsx
   - packages/core/src/client.tsx
+  - packages/core/src/transport.ts
+  - packages/core/src/server.ts
   - examples/notes/app
   - examples/forge/app
   - website/scripts/capture.py
 ---
 
-import Excerpt from "../../../components/guide/Excerpt.astro";
+import Excerpt from "../../../components/docs/Excerpt.astro";
 import Note from "../../../components/docs/Note.astro";
 import Screen from "../../../components/Screen.astro";
+import Sequence from "../../../components/docs/Sequence.astro";
 
 Each `page.tsx` under `app/` is a page, and its directory is its URL. The build turns these
 files into the routes of [TanStack Router](https://tanstack.com/router). TanStack Router then
@@ -111,6 +114,56 @@ re-export TanStack's `<Link>`, because `<Link>` renders a DOM anchor.
   to the last resolved route without reloading it.
 - `refresh()` reloads the current route. The tree stays mounted while it does, so a field
   keeps its focus and its text.
+
+## What a navigation does, from the click to the page
+
+A click on a note in Notes' sidebar opens that note. Only steps 5 to 8 and 12 leave the
+Client:
+
+<Sequence
+  title="A click on a note"
+  lanes={[
+    { id: "tui", label: "OpenTUI", sub: "mouse, keys, screen", tone: "client" },
+    { id: "router", label: "Router", sub: "TanStack Router", tone: "client" },
+    { id: "transport", label: "Transport", sub: "the Client's requests", tone: "wire" },
+    { id: "server", label: "Server", sub: "the page", tone: "server" },
+  ]}
+  messages={[
+    { phase: "In the terminal" },
+    { from: "tui", to: "tui", label: "click → the row's onMouseDown", n: 1 },
+    { from: "tui", to: "router", label: "navigate to /notes/$id", n: 2 },
+    { from: "router", to: "router", label: "loading.tsx shows at once", n: 3 },
+    { from: "router", to: "transport", label: "the route's loader", n: 4 },
+    { phase: "On the network and the Server" },
+    { from: "transport", to: "server", label: "GET /render, route /notes/[id]", n: 5 },
+    { from: "server", to: "server", label: "checks build, route, params", n: 6 },
+    { from: "server", to: "server", label: "the page reads the note", n: 7 },
+    { from: "server", to: "transport", label: "Flight: the page", n: 8, back: true },
+    { phase: "Back in the terminal" },
+    { from: "transport", to: "transport", label: "decodes, finds NoteEditor here", n: 9 },
+    { from: "transport", to: "router", label: "the page's tree", n: 10, back: true },
+    { from: "router", to: "tui", label: "the page replaces loading.tsx", n: 11, back: true },
+    { from: "server", to: "transport", label: "the cache tags the page read", n: 12, back: true },
+  ]}
+  caption="The root layout, with the sidebar and its search, stays mounted from step 1 to step 11. The tags (12) arrive last, once the page has finished rendering."
+/>
+
+The request carries a route ID and its params, never a path for the Server to match. The answer
+names each Client Component, such as `NoteEditor`, without its code, which the Client already
+holds. [What travels between the Client and the Server](/docs/concepts/client-and-server/#what-travels-between-the-client-and-the-server)
+shows this answer line by line.
+
+| Stays in the Client                                | Crosses the network                      |
+| -------------------------------------------------- | ---------------------------------------- |
+| the click, the focus, the selection                | the route ID and its params              |
+| the navigation and the history                     | the build ID, the call ID and the token  |
+| the layouts and their state                        | the rendered tree, with its Client names |
+| `loading.tsx`, `error.tsx`                         | the cache tags the page read             |
+| the router's cache, cancelling with <kbd>Esc</kbd> |                                          |
+
+When a step fails, the page's error screen or not-found screen takes the place of
+`loading.tsx`. [Loading and errors](/docs/concepts/loading-and-errors/) lists each failure and
+what the user sees.
 
 ## Read search params
 

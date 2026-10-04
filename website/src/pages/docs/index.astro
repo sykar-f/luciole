@@ -1,9 +1,7 @@
 ---
-// The entry of the documentation: every section and page, in the order of the sidebar,
-// and the guided tour, which stays in French.
+// The entry of the documentation: every section and page, in the order of the sidebar.
 import { getCollection } from "astro:content";
 import Docs from "../../layouts/Docs.astro";
-import { chapters } from "../../lib/guide/chapters";
 import { href, sections } from "../../lib/docs/nav";
 import { name } from "../../lib/product";
 
@@ -41,14 +39,6 @@ const entries = new Map((await getCollection("docs")).map((entry) => [entry.id, 
       </section>
     ))
   }
-  <section class="overview-section">
-    <h2>The guided tour <span class="meta">in French</span></h2>
-    <p class="summary">
-      {chapters.length} chapters that follow one request from a key to the database and back, each
-      answering one question.
-    </p>
-    <p><a href="/guide/" hreflang="fr">Open the guided tour</a></p>
-  </section>
 </Docs>
 
 <style>
@@ -71,11 +61,6 @@ const entries = new Map((await getCollection("docs")).map((entry) => [entry.id, 
 
   .summary {
     color: var(--mist);
-  }
-
-  .meta {
-    color: var(--mist);
-    font: 400 var(--step--1) / 1.6 var(--mono);
   }
 
   @media (max-width: 560px) {

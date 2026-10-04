@@ -2,10 +2,10 @@
 // A sequence diagram laid out from its own labels: every gap between two lanes is as wide as
 // the longest label that crosses it, so no label overflows and none has to be placed by hand.
 // Its messages are also an ordered list, under the drawing: the same sequence as text, which
-// describes the drawing to a screen reader. Its styles are its own, so it reads the same in
-// the guide and in the docs (MDX).
+// describes the drawing to a screen reader. Its styles are its own, so it reads the same on
+// every page that draws one (MDX).
 import { steps, uniqueId, type Lane, type Message } from "../../lib/transcripts";
-import type { Tone } from "../../lib/guide/tones";
+import type { Tone } from "../../lib/docs/tones";
 
 interface Props {
   title: string;
@@ -17,8 +17,6 @@ interface Props {
 
 const { title, lanes, messages, caption } = Astro.props;
 if (!caption?.trim()) throw new Error(`Sequence « ${title} »: a caption is required.`);
-// The French guide's pages say it in French.
-const french = Astro.url.pathname.startsWith("/guide/");
 
 const CHAR = 6.9; // 11.5px IBM Plex Mono: 0.6em a character
 const HEAD_CHAR = 7.6;
@@ -43,7 +41,7 @@ const HALF = 0.5;
 
 const at = (id: string) => {
   const i = lanes.findIndex((lane) => lane.id === id);
-  if (i === -1) throw new Error(`Sequence « ${title} » : couloir inconnu ${id}`);
+  if (i === -1) throw new Error(`Sequence « ${title} »: unknown lane ${id}`);
   return i;
 };
 
@@ -181,7 +179,7 @@ const rows = messages.map((message, i) => {
   </div>
   <figcaption>{caption}</figcaption>
   <details class="steps">
-    <summary>{french ? "Les étapes, en texte" : "The steps as text"}</summary>
+    <summary>The steps as text</summary>
     <div id={`${id}-steps`}>
       {
         groups.map((group) => (
