@@ -86,7 +86,7 @@ await t.waitFor("fold all");
 await t.type(Keys.enter);
 await t.waitFor("▾ $ bash");
 assert.match(await t.text(), /│\s+\d+ notes\.txt/, "the bash output is unfolded");
-await t.type("a", 500);
+await t.type("a");
 await t.waitFor("+ luciole");
 await frame("3-unfolded");
 await t.type("a");
