@@ -8,8 +8,10 @@ import { join, resolve } from "node:path";
 import { build } from "../packages/core/src/build";
 import {
   BUILD_TEST_MS,
+  WAIT_MS,
   launch,
   until,
+  untilFrame,
   importClient,
   readManifest,
   destroy,
@@ -30,6 +32,13 @@ test(
   async () => {
     const directory = await mkdtemp(join(tmpdir(), "luciole-invalidate-"));
     let server: Awaited<ReturnType<typeof launch>> | undefined, rendered: TestUI | undefined;
+    // The Server Function calls on the wire. The Layout calls `counts()` on each
+    // invalidation without awaiting it, and its request leaves a tick later: settled means
+    // every invalidation got its call, and no call is left open for the teardown to cut.
+    const calling = new Set<number>();
+    let invalidated = 0,
+      counted = 0;
+    const settled = () => until(() => calling.size === 0 && counted === invalidated, WAIT_MS);
     try {
       for (const [name, text] of Object.entries(files)) {
         await mkdir(join(directory, name, ".."), { recursive: true });
@@ -51,6 +60,20 @@ test(
           return fetch(input, init);
         },
       });
+      const invalidations: string[] = [];
+      app.onEvent((event) => {
+        if (event.type === "invalidate") {
+          invalidated++;
+          invalidations.push(...event.paths);
+        }
+        if (event.type !== "request" && event.type !== "end" && event.type !== "error") return;
+        if (event.kind !== "action") return;
+        if (event.type !== "request") calling.delete(event.id);
+        else {
+          calling.add(event.id);
+          if (event.target.endsWith("#counts")) counted++;
+        }
+      });
       await app.router.load();
       const ui = await testRender(<Shell app={app} />, { width: 60, height: 8 });
       rendered = ui;
@@ -66,11 +89,11 @@ test(
       renders.length = 0;
       await act(async () => {
         await ui.mockInput.typeText("b");
-        await until(() => renders.length > 0);
-        await Bun.sleep(50);
+        // The frame shows the revalidated /a: the render it waited for has happened.
+        await untilFrame(ui, "A 1");
+        await untilFrame(ui, "SEEN /a");
+        await settled();
       });
-      expect(await frame()).toContain("A 1");
-      expect(await frame()).toContain("SEEN /a");
       expect(renders).toEqual(["/a"]);
       // The declared path selects its route and descendants, never a mere prefix.
       const calls: Parameters<typeof app.router.invalidate>[0][] = [];
@@ -81,9 +104,8 @@ test(
       };
       await act(async () => {
         await ui.mockInput.typeText("b");
-        await Bun.sleep(80);
+        await untilFrame(ui, "A 2");
       });
-      expect(await frame()).toContain("A 2");
       // The filter receives route matches: a mounted match, moved to each candidate path.
       const filter = calls.find((opts) => opts?.filter)?.filter;
       const [mounted] = app.router.state.matches;
@@ -97,13 +119,17 @@ test(
         await app.router.navigate({ to: "/a" });
       });
       renders.length = 0;
+      invalidations.length = 0;
       const result = await act(() =>
         app.callServer(`${manifest.buildId}/actions/data.ts#quiet`, []),
       );
       expect(result).toBe("quiet");
-      await act(() => Bun.sleep(50));
+      // Not a wait: the transport declares an invalidation before `callServer` returns, so
+      // an empty list now is final, and a refetch has nothing to start from.
+      expect(invalidations).toEqual([]);
       expect(renders).toEqual([]);
     } finally {
+      await settled().catch(() => {});
       await destroy(rendered);
       if (server) await server.stop();
       await rm(directory, { recursive: true, force: true });
