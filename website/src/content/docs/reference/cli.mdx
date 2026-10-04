@@ -112,6 +112,9 @@ app's shell needs instead.
 | `--outfile f`                           | Where to write the binary.                                                                                |
 | `--sign identity`, `--notarize profile` | Sign the macOS binary with a Developer ID, then notarize it.                                              |
 
+Every option from `--name` down belongs to `--compile`: without it, `luciole build --name x` is a
+usage error, never silently ignored.
+
 Details: [build and distribution](/docs/reference/build-and-distribution/).
 
 ### `luciole runtime [--target t]`
@@ -178,9 +181,10 @@ the Client joining `--url`. Without `--url`, the Client looks for its Server as
 [usual](/docs/guides/opening-an-app/#joining-a-server-that-already-runs). The app's
 arguments go to the Server only.
 
-### `luciole connect <url | ssh://[user@]host[/port]> [--app dir]`
+### `luciole connect <url | ssh://[user@]host[/port]> [--app dir] [--artifact dir]`
 
-Runs the built Client against a URL, `ssh://` included.
+Runs the built Client against a URL, `ssh://` included. `--artifact dir` runs the Client
+built in `dir` instead of the one in `<app>/.luciole/client`.
 
 ### `luciole trust <server url> <SHA256:fingerprint>`
 

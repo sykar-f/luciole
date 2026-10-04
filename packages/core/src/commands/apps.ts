@@ -1,3 +1,4 @@
+import { ArgsError } from "../args";
 import { hostTarget } from "../compile";
 import { directories } from "../launcher/paths";
 import { acceptAll, askTerminal } from "../launcher/prompt";
@@ -35,7 +36,7 @@ export const install: Command = {
   usage: "install <npm spec>… [--yes]",
   async run(context) {
     const specs = operands(context);
-    if (!specs.length) throw new Error("Usage: luciole install <npm spec>… [--yes]");
+    if (!specs.length) throw new ArgsError("Usage: luciole install <npm spec>… [--yes]");
     for (const text of specs) {
       const spec = parsePackageSpec(text);
       if (!spec) throw new Error(`${text} is not an npm package spec`);
@@ -77,7 +78,7 @@ export const remove: Command = {
   usage: "remove <app>…",
   async run(context) {
     const names = operands(context);
-    if (!names.length) throw new Error("Usage: luciole remove <app>…");
+    if (!names.length) throw new ArgsError("Usage: luciole remove <app>…");
     for (const name of names) {
       await removeApp(name, directories());
       console.log(`${name} removed`);

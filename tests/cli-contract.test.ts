@@ -40,6 +40,41 @@ test("a flag that needs a value and gets none is a usage error naming it", async
   }
 });
 
+test("every usage error exits with code 2 and says what is wrong", async () => {
+  for (const [args, message] of [
+    [["install"], "Usage: luciole install"],
+    [["remove"], "Usage: luciole remove"],
+    [["pack"], "Usage: luciole pack"],
+    [["pack", "--package", "x", "--version", "1.0.0"], "Usage: luciole pack"],
+    [["trust"], "Usage: luciole trust"],
+    [["trust", "https://example.com"], "Usage: luciole trust"],
+    [["--nope"], "Usage: luciole"],
+  ] as const) {
+    const run = await luciole([...args]);
+    expect(run.exitCode).toBe(2);
+    expect(run.stderr.toString()).toContain(message);
+  }
+});
+
+test("the flags of --compile are refused without it, before any build", async () => {
+  for (const args of [
+    ["--name", "x"],
+    ["--client-only"],
+    ["--target", "bun-linux-x64"],
+    ["--runtime", "host"],
+    ["--portable"],
+    ["--native-dir", "native"],
+    ["--outfile", "out"],
+    ["--sign", "identity"],
+    ["--notarize", "profile"],
+  ]) {
+    const run = await luciole(["build", ...args], dir);
+    expect(run.exitCode).toBe(2);
+    expect(run.stderr.toString()).toContain(`${args[0]} only applies with --compile`);
+  }
+  expect(await Bun.file(join(dir, ".luciole/server/index.js")).exists()).toBe(false);
+});
+
 test("luciole's own flags stop at --", () => {
   const { flag, optional, rest } = readFlags(["build", "--web", "--", "--web-local", "--app", "x"]);
   expect(flag("--web")).toBe(true);

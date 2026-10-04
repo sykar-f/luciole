@@ -1,4 +1,5 @@
 import { resolve } from "node:path";
+import { ArgsError } from "../args";
 import { packApp } from "../registry/pack";
 import type { Command } from "./command";
 export const pack: Command = {
@@ -10,7 +11,7 @@ export const pack: Command = {
       .filter((arg, i, all) => !arg.startsWith("--") && !valued.includes(all[i - 1] ?? ""));
     const name = optional("--package"),
       version = optional("--version");
-    if (!name || !version || !binaries.length) throw new Error(`Usage: luciole ${pack.usage}`);
+    if (!name || !version || !binaries.length) throw new ArgsError(`Usage: luciole ${pack.usage}`);
     const directories = await packApp({
       package: name,
       version,

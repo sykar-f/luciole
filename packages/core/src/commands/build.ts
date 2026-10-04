@@ -1,14 +1,31 @@
 import { basename } from "node:path";
+import { ArgsError } from "../args";
 import { build as buildApplication } from "../build";
 import { compileApp, compileClient } from "../compile";
 import { publisherIdentity, readPublisherKey } from "../publisher";
 import { installWebRuntime } from "../web-runtime";
 import type { Command } from "./command";
+// What only `--compile` reads: given without it, they would be dropped in silence.
+const COMPILE_FLAGS = [
+  "--name",
+  "--client-only",
+  "--target",
+  "--runtime",
+  "--portable",
+  "--native-dir",
+  "--outfile",
+  "--sign",
+  "--notarize",
+];
 export const build: Command = {
   usage:
     "build [--app-bundle] [--sign-bundle] [--web | --web-local] [--compile [--name n] [--client-only] [--target t] [--runtime official|host|<bun>] [--portable] [--native-dir dir] [--outfile f] [--sign identity [--notarize profile]]]",
   async run({ flag, optional, directory }) {
     // Every flag is read first: a missing value fails before a long build.
+    if (!flag("--compile")) {
+      const stray = COMPILE_FLAGS.find(flag);
+      if (stray) throw new ArgsError(`${stray} only applies with --compile`);
+    }
     const compile = flag("--compile")
       ? {
           name: optional("--name") ?? basename(directory),

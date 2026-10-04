@@ -1,3 +1,4 @@
+import { ArgsError } from "../args";
 import { originOf, pinPublisher } from "../generic/origin";
 import type { Command } from "./command";
 
@@ -9,7 +10,7 @@ export const trust: Command = {
   usage: "trust <server url> <SHA256:fingerprint>",
   run({ args }) {
     const [, url, fingerprint] = args;
-    if (!url || !fingerprint) throw new Error("Usage: luciole trust <server url> <SHA256:…>");
+    if (!url || !fingerprint) throw new ArgsError("Usage: luciole trust <server url> <SHA256:…>");
     const origin = originOf(url);
     pinPublisher(origin, fingerprint);
     console.log(`${origin}: publisher key ${fingerprint} pinned`);
