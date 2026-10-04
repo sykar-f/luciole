@@ -17,6 +17,7 @@ sources:
 
 import Excerpt from "../../../components/guide/Excerpt.astro";
 import Note from "../../../components/docs/Note.astro";
+import Screen from "../../../components/Screen.astro";
 
 The Client keeps a restored session, as a browser does, so a crash or a rebuild does not lose
 what the user typed. For each history entry, it keeps:
@@ -31,6 +32,22 @@ Nothing else is kept:
 - The bearer token, the string the Client sends with each request to prove who signed in, stays
   with your app.
 - A field without a `name`, such as a PIN or a password, is never written.
+
+## What a crash keeps
+
+In Notes, the user types a line at the end of a note and does not save it:
+
+<Screen
+  frame="session-restore-before"
+  caption="Before the crash. The line And by week, for the journal. ends the Idea note, and ● Unsaved above the title says the Server does not have it yet."
+/>
+
+The Client is then killed with `kill -9`, and Notes is launched again:
+
+<Screen
+  frame="session-restore-after"
+  caption="After the relaunch. The Client opens the Idea note again, with the same line, still unsaved."
+/>
 
 ## What happens to my text?
 

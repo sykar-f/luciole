@@ -385,6 +385,85 @@ def notes_disconnected(directory):
         term.stop()
 
 
+# The line typed before the crash, at the end of the Idea note: one line long, so the note
+# shows it without scrolling after the relaunch (the editor's scroll is not restored).
+RESTORED_WORDS = "And by week, for the journal."
+
+
+def close(term):
+    """Stop a Terminal whose process may have ended already, killed or quit."""
+    if term.process.poll() is None:
+        term.stop()
+    else:
+        os.close(term.master)
+
+
+def ended(term, timeout=30):
+    """Wait for a Terminal's process to end, reading what it writes meanwhile."""
+    deadline = time.monotonic() + timeout
+    while term.process.poll() is None:
+        assert time.monotonic() < deadline, f"still running\n{term.text()}"
+        term.pump()
+
+
+def session_restore(directory):
+    # The steps of scripts/pty/lifetime.ts: `luciole ./examples/notes`, whose Server waits in
+    # grace for the next launch, words typed and left unsaved, the Client killed with
+    # SIGKILL, then launched again. A launch, not `luciole dev`, which would restart it.
+    # Under /tmp: a Unix socket's path is short (104 bytes on macOS).
+    runtime = tempfile.mkdtemp(prefix="luciole-rt-", dir="/tmp")
+    env = {
+        **os.environ, "TERM": "xterm-256color", "COLORTERM": "truecolor",
+        "XDG_STATE_HOME": directory + "/state", "XDG_RUNTIME_DIR": runtime,
+        "NOTES_DB": directory + "/notes.sqlite",
+        # Nothing saves by itself: the words are still unsaved when they come back.
+        "NOTES_AUTOSAVE_MS": "0",
+    }
+    launch = lambda: Terminal([BUN, CLI, str(ROOT / "examples/notes")], env, *NOTES_SIZE)
+    sessions = pathlib.Path(directory, "state/luciole/notes/sessions")
+    try:
+        term = launch()
+        try:
+            term.wait_for("Welcome to Notes", 120)
+            term.idle(1)
+            # Down through the list to its last note, Idea, one line long.
+            for _ in range(20):
+                if "What if the list" in term.text():
+                    break
+                term.send(b"\x1b[B", pause=0.5)
+            term.wait_for("What if the list", 30)
+            term.send(b"\x05", pause=0.4)  # Ctrl+E: the cursor at the end of the text
+            term.send(b"\r" + RESTORED_WORDS.encode())
+            term.wait_for(RESTORED_WORDS)
+            term.wait_for("● Unsaved")
+            # The session file is written 200 ms after the last change.
+            term.idle(1)
+            save(term, "session-restore-before", "Notes: words typed, not saved")
+            (file,) = sessions.glob("*.json")
+            os.kill(json.loads(file.read_text())["pid"], signal.SIGKILL)
+            ended(term)
+        finally:
+            close(term)
+        term = launch()
+        try:
+            term.wait_for(RESTORED_WORDS, 120)
+            term.wait_for("● Unsaved")
+            term.idle(1)
+            save(term, "session-restore-after", "Notes: launched again after kill -9")
+            # Quitting on purpose stops the Server the first launch started.
+            term.send(b"\x03", pause=0)
+            ended(term)
+        finally:
+            close(term)
+    finally:
+        # A Server a failed capture left behind: SIGTERM ends it, its socket gives its pid.
+        for socket in pathlib.Path(runtime, "luciole").glob("*.sock"):
+            status = subprocess.run(["curl", "-s", "--max-time", "2", "--unix-socket", str(socket), "http://localhost/lifetime/status"], capture_output=True, text=True).stdout
+            if status:
+                os.kill(json.loads(status)["pid"], signal.SIGTERM)
+        shutil.rmtree(runtime, ignore_errors=True)
+
+
 def latency(directory):
     # LUCIOLE_LATENCY_MS: the round trip of guides/latency-and-faults.mdx, long enough that
     # the typing below lands while `ping` waits, and the screen says so.
@@ -642,7 +721,9 @@ def flow_graph(directory):
         term.stop()
 
 
-SCENES = {"forge": forge, "notes": notes, "notes-empty": notes_empty, "notes-pick": notes_pick, "notes-loading": notes_loading, "notes-error": notes_error, "notes-disconnected": notes_disconnected, "latency": latency, "chat": chat, "coder": coder, "files": files, "mdreader": mdreader, "markdown-editor": markdown_editor, "devtools": devtools, "mux": mux, "flight": flight, "build-tree": build_tree, "flow-graph": flow_graph}
+SCENES = {"forge": forge, "notes": notes, "notes-empty": notes_empty, "notes-pick": notes_pick, "notes-loading": notes_loading, "notes-error": notes_error, "notes-disconnected": notes_disconnected,
+          "session-restore": session_restore,
+          "latency": latency, "chat": chat, "coder": coder, "files": files, "mdreader": mdreader, "markdown-editor": markdown_editor, "devtools": devtools, "mux": mux, "flight": flight, "build-tree": build_tree, "flow-graph": flow_graph}
 
 
 def main():
