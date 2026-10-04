@@ -1,0 +1,379 @@
+---
+title: Hosting a Server
+description: Run your app's Server on a machine of your own, so that Clients on other machines join it over HTTPS. Then update it, roll it back, and fix a Client that gets a 409.
+sources:
+  - packages/core/src/serve.ts
+  - packages/core/src/server.ts
+  - packages/core/src/transport.ts
+  - packages/core/src/client.tsx
+  - packages/core/src/connect.ts
+  - packages/core/src/compile.ts
+  - packages/core/src/commands/build.ts
+  - packages/core/src/launcher/binary.ts
+  - packages/core/src/launcher/identity.ts
+  - examples/notes/app/error.tsx
+---
+
+import Note from "../../../components/docs/Note.astro";
+import Sequence from "../../../components/guide/Sequence.astro";
+import Src from "../../../components/guide/Src.astro";
+
+Run your app's Server on a machine you control, so that Clients on other machines join it over
+HTTPS. You need this guide when several people share one Server, or when the data must stay on
+one machine. To run a Server for yourself only, `notes --on <machine>` is shorter
+([start the Server on another machine](/docs/guides/opening-an-app/#start-the-server-on-another-machine)).
+
+This guide hosts Notes, the example app, at `https://notes.example.com`. You need:
+
+- an app that builds with `luciole build`
+- a Linux machine with systemd and a DNS name that points to it
+- [Caddy](https://caddyserver.com/), or another reverse proxy that terminates TLS
+
+Each request of a Client crosses the proxy, then reaches the Server on loopback:
+
+<Sequence
+  title="One request of a remote Client"
+  lanes={[
+    { id: "client", label: "Client", sub: "on a user's machine", tone: "client" },
+    { id: "proxy", label: "Caddy", sub: "port 443, TLS", tone: "neutral" },
+    { id: "server", label: "Server", sub: "127.0.0.1:3000", tone: "server" },
+  ]}
+  messages={[
+    {
+      from: "client",
+      to: "proxy",
+      label: "HTTPS, with the token and the build ID",
+      n: 1,
+      tone: "wire",
+    },
+    { from: "proxy", to: "server", label: "HTTP on loopback, same headers", n: 2, tone: "wire" },
+    { from: "server", to: "server", label: "check the token, then the build ID", n: 3 },
+    { from: "server", to: "proxy", label: "the page, streamed", n: 4, back: true, tone: "wire" },
+    {
+      from: "proxy",
+      to: "client",
+      label: "each chunk as it arrives",
+      n: 5,
+      back: true,
+      tone: "wire",
+    },
+  ]}
+  caption="Only the proxy listens on the network (1). The Server checks who sent the request, then whether the Client comes from its own build (3). A mismatch ends there with a 409."
+/>
+
+## Build the Server and the Clients
+
+From the app's directory, on your own machine:
+
+```sh
+luciole build --compile --target bun-linux-x64
+luciole build --compile --client-only --target bun-darwin-arm64
+```
+
+You get two kinds of binary:
+
+- `.luciole/bin/linux-x64/notes` is the full binary, for the Server's machine. It also writes a
+  `native/` directory beside it when the app has native packages.
+- `.luciole/client/notes-darwin-arm64` is the Client alone. Build one for each platform your
+  users run.
+
+Hand your users the Client alone, because the full binary holds your Server code
+([why](/docs/guides/opening-an-app/#hand-someone-a-single-binary)).
+
+Build both from the same commit. A Server accepts only the Clients of its own build, and both
+builds get the same build ID from the same sources
+([how the build ID is made](/docs/reference/build-and-distribution/#how-the-build-id-is-made)).
+
+## Install a release on the Server's machine
+
+Give each release a directory of its own, and point a `current` link at the one that runs.
+An update then adds a directory, and a rollback moves the link back.
+
+```sh
+# on the Server's machine, once
+useradd --system --home-dir /var/lib/notes --create-home notes
+mkdir -p /opt/notes/releases
+
+# on your machine: copy the binary, and native/ when the build wrote one
+rsync -a .luciole/bin/linux-x64/ notes.example.com:/opt/notes/releases/1.2.0/
+
+# on the Server's machine
+ln -sfn /opt/notes/releases/1.2.0 /opt/notes/current
+/opt/notes/current/notes --version
+```
+
+`--version` prints the app, the build ID and the target. Note the `buildId`: you compare it
+with the running Server after each update.
+
+```text
+{"name":"notes","buildId":"<build id>","target":"bun-linux-x64","identity":"luciole-binary:1:…"}
+```
+
+## Choose who may connect
+
+Pick one of the two ways, as [authentication](/docs/concepts/authentication/) explains:
+
+| Way              | Who the Server sees                       | What each user needs                   |
+| ---------------- | ----------------------------------------- | -------------------------------------- |
+| `LUCIOLE_TOKEN`  | one single user, `LUCIOLE_USER`           | the same token, in `LUCIOLE_TOKEN`     |
+| `server/auth.ts` | each user, as `authenticate` returns them | an account, and the app's sign-in page |
+
+For the token, generate a long random string and keep it in a file that only root reads:
+
+```sh
+mkdir -p /etc/notes
+echo "LUCIOLE_TOKEN=$(openssl rand -hex 32)" > /etc/notes/env
+chmod 600 /etc/notes/env
+```
+
+<Note kind="warning">
+  Set the token or `server/auth.ts` even though the Server listens on loopback. The Server refuses a
+  network address without one of them, but it cannot see the proxy. Behind a proxy without a token,
+  anyone who reaches the proxy uses the app as its single user.
+</Note>
+
+## Run the Server under systemd
+
+Write `/etc/systemd/system/notes.service`:
+
+```ini
+[Unit]
+Description=Notes Server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=notes
+WorkingDirectory=/var/lib/notes
+EnvironmentFile=/etc/notes/env
+ExecStart=/opt/notes/current/notes serve --http 127.0.0.1:3000
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Then start it, now and at each boot:
+
+```sh
+systemctl enable --now notes
+journalctl -u notes -n 5
+```
+
+What the unit relies on:
+
+- `notes serve --http 127.0.0.1:3000` runs the Server alone, on that address. An empty host,
+  as in `:3000`, also means loopback.
+- The app's own options go after `--`, as in `notes serve --http 127.0.0.1:3000 -- <options>`
+  ([app arguments](/docs/reference/app-arguments/)).
+- The Server runs in `WorkingDirectory`. Notes creates `notes.sqlite` there.
+- `systemctl stop` sends SIGTERM. The Server closes its open connections and exits with code
+  `0`, so a request in progress fails on its Client.
+
+At startup, the Server prints one line, which `journalctl` shows:
+
+```text
+{"ready":true,"port":3000,"pid":4242,"buildId":"<build id>"}
+```
+
+## Put a TLS proxy in front
+
+Write `/etc/caddy/Caddyfile`, then reload Caddy with `systemctl reload caddy`:
+
+```text
+notes.example.com {
+	reverse_proxy 127.0.0.1:3000
+}
+```
+
+Caddy gets the certificate for the name by itself. Another proxy works when it does all of
+these:
+
+- It terminates TLS, so the token never travels in clear.
+- It passes each chunk of a response on as it arrives. Pages stream, and a live Server
+  Function keeps its response open while it waits.
+- It keeps a quiet response open, with no read timeout shorter than your longest live
+  response.
+- It forwards every request header, `Authorization` and `x-luciole-build` included.
+
+Check the chain from any machine. The Server answers with its build ID:
+
+```sh
+curl -H "Authorization: Bearer $LUCIOLE_TOKEN" https://notes.example.com/health
+# {"buildId":"<build id>","pid":4242}
+```
+
+Without the token, the same request gets a `401`.
+
+## Connect the Clients
+
+Each user starts the Client with the token and the Server's URL:
+
+```sh
+LUCIOLE_TOKEN=<token> ./notes-darwin-arm64 --url https://notes.example.com
+```
+
+To skip `--url`, the user writes the URL in `~/.config/luciole/notes.json` instead
+([join a Server that already runs](/docs/guides/opening-an-app/#join-a-server-that-already-runs)):
+
+```json
+{ "url": "https://notes.example.com" }
+```
+
+The status reads "Connected" once the first page loads. With `server/auth.ts`, the user signs
+in through the app instead of setting `LUCIOLE_TOKEN`.
+
+## Update the Server and the Clients
+
+A Server runs one build, and refuses every request from a Client of another build. An update
+therefore switches the Server and the Clients together:
+
+1. Build the Server and the Clients from the new commit, as in
+   [build the Server and the Clients](#build-the-server-and-the-clients).
+2. Copy the new release beside the current one, without switching yet:
+
+   ```sh
+   rsync -a .luciole/bin/linux-x64/ notes.example.com:/opt/notes/releases/1.3.0/
+   ```
+
+3. Send the new Client to your users. They keep using the old one until step 5.
+4. On the Server's machine, stop the Server, save its data, switch the link and start again:
+
+   ```sh
+   systemctl stop notes
+   cp -a /var/lib/notes /var/lib/notes.before-1.3.0
+   ln -sfn /opt/notes/releases/1.3.0 /opt/notes/current
+   systemctl start notes
+   ```
+
+5. Each user quits the old Client and starts the new one.
+
+Check that the Server runs the new build: `journalctl -u notes -n 5` and `/health` show the
+`buildId` that `/opt/notes/releases/1.3.0/notes --version` prints.
+
+Between steps 4 and 5, an open Client shows "Disconnected" while the Server restarts. Its
+next request then gets a [409](#a-client-gets-409), until its user starts the new Client.
+Switch at a quiet time, and tell your users first.
+
+<Note kind="warning">
+  luciole does not version or migrate your app's data. When the new release changes what it stores,
+  such as the tables of `notes.sqlite`, the previous release may fail to read it. Keep the copy of
+  step 4 until you no longer need to roll back.
+</Note>
+
+## Roll back
+
+Keep the previous release's directory, and its Clients, until the new one has proved itself.
+To go back, move the link to the previous release:
+
+```sh
+systemctl stop notes
+ln -sfn /opt/notes/releases/1.2.0 /opt/notes/current
+# only when 1.3.0 changed the stored data: restore the copy of the update
+rsync -a --delete /var/lib/notes.before-1.3.0/ /var/lib/notes/
+systemctl start notes
+```
+
+<Note kind="warning">
+  Restoring the copy discards everything your users saved since the update.
+</Note>
+
+Then each user starts the Client of 1.2.0 again. A Client of 1.3.0 gets a 409 from this
+Server.
+
+Check that `/health` shows the `buildId` that `/opt/notes/releases/1.2.0/notes --version`
+prints.
+
+## A Client gets 409
+
+A Client of one build cannot use a Server of another. Here is how to see it happen, read it,
+and fix it.
+
+### Provoke the mismatch
+
+After the update to 1.3.0, start the Client of 1.2.0, kept in a directory named after its
+release:
+
+```sh
+LUCIOLE_TOKEN=<token> ./1.2.0/notes-darwin-arm64 --url https://notes.example.com
+```
+
+<Sequence
+  title="A Client of 1.2.0 against a Server of 1.3.0"
+  lanes={[
+    { id: "client", label: "Client 1.2.0", sub: "build A", tone: "client" },
+    { id: "server", label: "Server 1.3.0", sub: "build B", tone: "server" },
+  ]}
+  messages={[
+    {
+      from: "client",
+      to: "server",
+      label: "GET /render /, x-luciole-build: A",
+      n: 1,
+      tone: "wire",
+    },
+    { from: "server", to: "server", label: "A is not B: no page renders", n: 2 },
+    {
+      from: "server",
+      to: "client",
+      label: "409 Incompatible build: install matching Client and Server",
+      n: 3,
+      back: true,
+      tone: "wire",
+    },
+    { from: "client", to: "client", label: "status: Incompatible build", n: 4 },
+  ]}
+  caption="The Server compares the build ID the Client sends with its own (2), before any page or Server Function runs. It answers 409 with the message (3), and the Client shows the status (4)."
+/>
+
+### Read the message
+
+The status reads "Incompatible build". Notes shows this message in place of the page:
+
+```text
+Incompatible build: install matching Client and Server
+```
+
+What the message tells you:
+
+- The Client and the Server come from two different builds.
+- The Server refused the request before running your code. No Server Function ran, so no data
+  changed.
+- The Client drops the pages it had cached, since they came from another build.
+
+<details>
+<summary>Where the message comes from</summary>
+
+The Server answers `409` with this text in <Src path="packages/core/src/server.ts" find="Incompatible build: install matching" />,
+when the request's `x-luciole-build` header differs from its build ID. The Client turns the
+answer into a `BuildMismatch` error, whose `outcome` is `rejected`
+(<Src path="packages/core/src/transport.ts" find="new BuildMismatch" />).
+
+</details>
+
+### Fix it
+
+Find which side is out of date. Compare the Server's `buildId` from `/health` with the
+`--version` of each release you kept in `/opt/notes/releases/`. A Client alone does not print
+its build ID, so the release it came with tells you its build.
+
+| What you find                                    | Fix                                                    |
+| ------------------------------------------------ | ------------------------------------------------------ |
+| The Client is older than the Server              | Install the Client of the Server's release.            |
+| The Server is older, after a rollback            | Start the previous Client, or update the Server again. |
+| Every Client fails, even of the Server's release | Make the proxy forward the `x-luciole-build` header.   |
+
+Check that the status reads "Connected" and the page loads.
+[Troubleshooting](/docs/reference/troubleshooting/#the-server-answers-409) lists this message
+with the other errors a Client shows.
+
+## See also
+
+- [Authentication](/docs/concepts/authentication/): `LUCIOLE_TOKEN`, `server/auth.ts`, and what a
+  refused request shows
+- [Environment variables](/docs/reference/environment/#configure-the-server): `PORT`,
+  `LUCIOLE_HOST`, `LUCIOLE_TOKEN` and `LUCIOLE_USER`
+- [Troubleshooting](/docs/reference/troubleshooting/#starting-the-server): a port in use, a
+  Server that refuses the network, a `401`
+- [Build and distribution](/docs/reference/build-and-distribution/#compile-a-single-binary):
+  targets, native packages and signing

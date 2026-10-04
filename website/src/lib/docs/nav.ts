@@ -39,6 +39,7 @@ export const sections: readonly Section[] = [
       "guides/latency-and-faults",
       "guides/devtools",
       "guides/opening-an-app",
+      "guides/host-a-server",
       "guides/untrusted-apps",
       "guides/terminals-and-panes",
       "guides/testing",
