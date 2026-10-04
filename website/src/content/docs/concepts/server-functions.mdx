@@ -53,11 +53,15 @@ the refusal. No message, stack or path leaves the Server.
 Every failed request throws a `TransportError` whose `outcome` says what the Server may have
 done:
 
-| `outcome`  | Cases                                                                                                             | Did app code run on the Server? |
-| ---------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------- |
-| `not-sent` | Connection refused, host unreachable, aborted before sending                                                      | No                              |
-| `rejected` | A `4xx`: no bearer (`AuthenticationRequired`), another build (`BuildMismatch`), unknown action, bad argument list | No                              |
-| `unknown`  | Timeout or cut after sending, response lost or truncated, a `5xx`                                                 | Maybe                           |
+| `outcome`  | Cases                                                                                                             | Did the Server call the function? |
+| ---------- | ----------------------------------------------------------------------------------------------------------------- | --------------------------------- |
+| `not-sent` | Connection refused, host unreachable, aborted before sending                                                      | No                                |
+| `rejected` | A `4xx`: no bearer (`AuthenticationRequired`), another build (`BuildMismatch`), unknown action, bad argument list | No                                |
+| `unknown`  | Timeout or cut after sending, response lost or truncated, a `5xx`                                                 | Maybe                             |
+
+`rejected` means the function was not called, not that none of the app's code ran: the
+Server runs `server/auth.ts`'s `authenticate` on every page and Server Function request,
+before it checks the build.
 
 The transport never claims a certainty it lacks: any case it does not recognise is
 `unknown`. And it **never retries**. Retrying, looking the operation up, marking it unknown

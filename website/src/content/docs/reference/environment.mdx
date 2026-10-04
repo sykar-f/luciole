@@ -33,16 +33,23 @@ process with a message that names the variable.
 
 ## Server
 
-| Variable             | Default                | Effect                                                                                                                                |
-| -------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `PORT`               | `3000`                 | The TCP port. `0` picks a free one (`luciole dev` does).                                                                              |
-| `LUCIOLE_HOST`       | `127.0.0.1`            | The address to listen on. Anything but loopback requires `LUCIOLE_TOKEN` or `server/auth.ts`.                                         |
-| `LUCIOLE_SOCKET`     | unset                  | Listen on this Unix socket (mode `0600`) instead of TCP. The Client joins it with `--url unix:/path`.                                 |
-| `LUCIOLE_TOKEN`      | none                   | Required from every request in local single-user mode.                                                                                |
-| `LUCIOLE_USER`       | `local`                | The identity of that single user, returned by `getSession()`.                                                                         |
-| `LUCIOLE_WEB_ORIGIN` | unset                  | The one browser origin allowed to open the app (`luciole build --web`); without it, requests carrying a browser `Origin` are refused. |
-| `LUCIOLE_DEVTOOLS`   | unset                  | Development only; ignored with a warning under `NODE_ENV=production`.                                                                 |
-| `LUCIOLE_ARGS`       | set by the entry point | The app's checked arguments (`{ v, argv, cwd }`), which the Server parses again ([app arguments](/docs/reference/app-arguments/)).    |
+| Variable             | Default                | Effect                                                                                                                                 |
+| -------------------- | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `PORT`               | `3000`                 | The TCP port. `0` picks a free one (`luciole dev` does).                                                                               |
+| `LUCIOLE_HOST`       | `127.0.0.1`            | The address to listen on. Anything but loopback requires `LUCIOLE_TOKEN` or `server/auth.ts`.                                          |
+| `LUCIOLE_SOCKET`     | unset                  | Listen on this Unix socket (mode `0600`) instead of TCP. The Client joins it with `--url unix:/path`.                                  |
+| `LUCIOLE_TOKEN`      | none                   | Local single-user mode only (no `server/auth.ts`). Set, a request without it has no session (below); unset, every request is the user. |
+| `LUCIOLE_USER`       | `local`                | The identity of that single user, returned by `getSession()`.                                                                          |
+| `LUCIOLE_WEB_ORIGIN` | unset                  | The one browser origin allowed to open the app (`luciole build --web`); without it, requests carrying a browser `Origin` are refused.  |
+| `LUCIOLE_DEVTOOLS`   | unset                  | Development only; ignored with a warning under `NODE_ENV=production`.                                                                  |
+| `LUCIOLE_ARGS`       | set by the entry point | The app's checked arguments (`{ v, argv, cwd }`), which the Server parses again ([app arguments](/docs/reference/app-arguments/)).     |
+
+A request without a session is refused (`401`) on a protected page or Server Function, and
+on `GET /health`. These answer without one: public pages and Server Functions
+([authentication](/docs/concepts/authentication/#public-pages-and-actions)), `GET /manifest`
+and `GET /bundle/<sha256>` (how a host learns the build), the web page under `/_luciole/web/`
+with `LUCIOLE_WEB_ORIGIN`, and the launcher's `/lifetime/*` routes on a managed Server's
+socket.
 
 ## Launcher and binaries
 

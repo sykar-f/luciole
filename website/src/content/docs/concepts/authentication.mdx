@@ -18,7 +18,9 @@ permissions stay with the app.
 
 An app without `server/auth.ts` has a **single-user** session: every request is the user
 `LUCIOLE_USER` (`local` by default). `LUCIOLE_TOKEN`, set on both sides, protects it: the
-Client sends it as `Authorization: Bearer …` and the Server refuses a request without it.
+Client sends it as `Authorization: Bearer …`, and a request without it has no session. Its
+protected pages and Server Functions are refused; public ones still answer
+([what answers without a session](/docs/reference/environment/#server)).
 
 The Server listens on loopback by default. It refuses to listen elsewhere (`LUCIOLE_HOST`)
 unless `LUCIOLE_TOKEN` or `server/auth.ts` is set. Before any public exposure, put it behind a
@@ -44,8 +46,9 @@ export default {
 ```
 
 `authenticate` returns the session or `null`. Pages, actions and repositories read it with
-`getSession()` (`{ userId }`), or `getOptionalSession()`, which returns `null` on a public
-page or action. Forge is the example in the repository that provides one.
+`getSession()` (`{ userId }`), or `getOptionalSession()`. That one returns the request's
+session, or `null` for an anonymous request. A public page or action still gets the session
+of a signed-in user. Forge is the example in the repository that provides one.
 
 ## Public pages and actions
 

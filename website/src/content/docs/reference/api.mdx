@@ -132,7 +132,7 @@ and the types `LiveState`, `TracerLike`, `Session`, `SessionEntry`,
 | Export                                                                | Contract                                                                                                                               |
 | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | `getSession()`                                                        | `{ userId }` in the async context of a render or an action.                                                                            |
-| `getOptionalSession()`                                                | The same, or `null` on a public page or action.                                                                                        |
+| `getOptionalSession()`                                                | The request's session, or `null` for an anonymous request; a public page or action gets a signed-in user's session too.                |
 | `getCallId()`                                                         | The transport request's ID, distinct from the business operation.                                                                      |
 | `getArgs()`, `getLaunch()`                                            | The app's arguments, untyped; the launch `{ scope, id?, cwd }` ([app arguments](/docs/reference/app-arguments/)).                      |
 | `notFound(what?)`                                                     | Ends a page's render with the nearest `not-found.tsx`.                                                                                 |

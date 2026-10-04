@@ -37,11 +37,15 @@ pour les opérations qui ne sont pas des documents.
 Toute requête qui échoue lève une `TransportError` dont `outcome` dit ce que le Server
 a pu faire :
 
-| `outcome`  | Cas                                                                                                                                          | Le Server a-t-il exécuté du code applicatif ? |
-| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
-| `not-sent` | Connexion refusée, hôte injoignable, annulation avant l'envoi                                                                                | Non                                           |
-| `rejected` | `4xx` : bearer absent (`AuthenticationRequired`), build différent (`BuildMismatch`), action inconnue, arguments qui ne forment pas une liste | Non                                           |
-| `unknown`  | Timeout ou coupure après l'envoi, réponse perdue ou tronquée, `5xx`                                                                          | Peut-être                                     |
+| `outcome`  | Cas                                                                                                                                          | Le Server a-t-il appelé la fonction ? |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| `not-sent` | Connexion refusée, hôte injoignable, annulation avant l'envoi                                                                                | Non                                   |
+| `rejected` | `4xx` : bearer absent (`AuthenticationRequired`), build différent (`BuildMismatch`), action inconnue, arguments qui ne forment pas une liste | Non                                   |
+| `unknown`  | Timeout ou coupure après l'envoi, réponse perdue ou tronquée, `5xx`                                                                          | Peut-être                             |
+
+`rejected` dit que la fonction n'a pas été appelée, pas qu'aucun code de l'application
+n'a tourné : le Server exécute `authenticate` de `server/auth.ts` à chaque requête de page
+ou de Server Function, avant de vérifier le build.
 
 Le transport ne prétend jamais une certitude qu'il n'a pas : tout cas non reconnu vaut
 `unknown`. Une exception levée par une Server Function répond un `500` générique
@@ -538,7 +542,8 @@ jamais ses composants `<Form>` et `<Field>`, qui rendent du HTML.
 Entrée `@luciole-sh/core/server` :
 
 - `getSession()` : `{ userId }` dans le contexte async du rendu ou de l'action.
-- `getOptionalSession()` : la même session, ou `null` dans une page/action publique.
+- `getOptionalSession()` : la session de la requête, ou `null` pour une requête anonyme ;
+  une page ou une action publique reçoit aussi la session d'un utilisateur connecté.
 - `getCallId()` : identifiant de requête de transport, distinct de l'opération métier.
 - `notFound(what?)` : termine le rendu d'une page avec le `not-found.tsx` le plus proche.
 - `invalidate(path?)` : dans une Server Function, déclare les routes à revalider.
