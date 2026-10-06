@@ -61,7 +61,8 @@ beforeAll(async () => {
   const root = join(import.meta.dir, "..");
   ({ version = "" } = await readPackageJson(join(root, "packages/core/package.json")));
   await git(work, "clone", "--quiet", root, clone);
-  await git(clone, "tag", releaseTag(version));
+  // --force: the clone carries the published tags, and this one must name the clone's HEAD.
+  await git(clone, "tag", "--force", releaseTag(version));
 });
 afterAll(() => rm(work, { recursive: true, force: true }));
 
