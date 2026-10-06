@@ -22,6 +22,7 @@
     "url": "git+https://github.com/sykar-f/luciole.git",
     "directory": "packages/core"
   },
+  "homepage": "https://luciole.sh",
   "engines": {
     "bun": ">=1.4.2"
   },
