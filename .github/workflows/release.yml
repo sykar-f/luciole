@@ -30,6 +30,15 @@ jobs:
       - uses: oven-sh/setup-bun@v2.2.0
         with:
           bun-version: 1.4.2
+      # The npm that publish pins, installed the same way here so a dry run proves it.
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: 24
+      - name: Pin npm
+        run: |
+          set -euo pipefail
+          npm install --global npm@11.5.1
+          test "$(npm --version)" = 11.5.1
       - run: bun install --frozen-lockfile
       # Lockstep: the tag `v<version>` and every publishable package.json agree on one
       # version, or nothing is published. A dispatch from a branch has no tag, so it takes
@@ -90,7 +99,13 @@ jobs:
           bun-version: 1.4.2
       - run: bun install --frozen-lockfile
       # Provenance needs npm >= 9.5 and trusted publishing (docs/RELEASING.md) npm >= 11.5.1:
-      # the runner's default npm is not relied on.
+      # the runner's default npm is not relied on. setup-node puts node and npm in the tool
+      # cache, which the runner's user can write: the system's /usr/local is root's, and a
+      # global npm install there fails with EACCES. The verify job runs the same two steps,
+      # so a dry run proves them.
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: 24
       - name: Pin npm
         run: |
           set -euo pipefail
