@@ -73,20 +73,31 @@ Par le propriétaire, sur GitHub et npm ; aucune session de développement ne le
 
 ## Couper une release
 
-1. Sur `main`, à jour et vert, mettre la même `version` dans les cinq `package.json`
-   publiables et, dans le même commit, passer les liens `blob/v<ancienne>/…` de
-   `packages/markdown-editor/README.md` à `blob/v<version>/…`, parce que ce README part dans
-   le tarball et doit pointer vers le tag qui contient les fichiers qu'il cite
-   (`tests/source-links.test.ts` échoue tant que ce tag et la `version` du paquet diffèrent) ;
-   la fusionner par le circuit habituel.
+1. Sur `main`, à jour et vert, avec l'entrée `[Unreleased]` du `CHANGELOG.md` écrite, sur une
+   branche :
+
+   ```sh
+   bun run release 0.2.0          # ou 0.2.0-rc.1 pour une préversion
+   ```
+
+   Le script (`scripts/release.ts`) met la même `version` dans les cinq `package.json`
+   publiables, passe les liens `blob/v<ancienne>/…` des README de `flow-graph` et de
+   `markdown-editor` à `v<version>` (ces README partent dans le tarball : `tests/source-links.test.ts`
+   échoue tant que leur tag et la `version` diffèrent), ouvre l'entrée datée du `CHANGELOG.md`
+   sous un `[Unreleased]` vide, rafraîchit `bun.lock` et, pour une version sans suffixe, avance
+   la date et la révision de `/status/`. Il refuse un arbre modifié, un tag existant et un
+   `[Unreleased]` vide ; il ne commite ni ne tague rien. `--date YYYY-MM-DD` remplace la date du
+   jour. Le gabarit du starter n'est pas à toucher : `packages/create` le génère au pack.
+
 2. Répéter à blanc (ci-dessous) sur ce commit.
-3. **Documentation.** Sur ce même commit, avant le tag :
-   - relire `/status/` (`website/src/pages/status.astro`) ligne à ligne contre le code et la CI,
-     puis mettre à jour sa date et sa révision (`CHECKED`) : la révision doit être celle qui
-     sera taguée ou un de ses ancêtres ;
-   - mettre à jour la version partout où la documentation la cite (README, `CHANGELOG.md`,
-     `SECURITY.md`, site), et la date de l'entrée du `CHANGELOG.md` au jour du tag ;
+3. **Documentation**, pour une version sans suffixe, sur ce même commit, avant le tag :
+   - relire `/status/` (`website/src/pages/status.astro`) ligne à ligne contre le code et la CI :
+     le script a avancé sa date et sa révision, la relecture reste à faire ;
+   - mettre à jour la version partout où la documentation la cite (README, `SECURITY.md`, site) ;
    - après la publication, faire le test de fumée de l'étape 7 (`bunx luciole.sh@<version> init`).
+
+   Commiter, fusionner par le circuit habituel, pousser `main`, attendre la CI verte.
+
 4. Pousser le tag, de ce commit-là seulement :
 
    ```sh
