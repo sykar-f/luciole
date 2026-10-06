@@ -13,7 +13,7 @@ and marked **Breaking**.
 
 ## [Unreleased]
 
-## [0.1.0] - 2026-10-04
+## [0.1.0] - 2026-10-06
 
 First public release, on npm. Five packages share this version: `luciole.sh`,
 `@luciole-sh/core`, `@luciole-sh/create`, `@luciole-sh/flow-graph` and

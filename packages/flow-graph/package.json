@@ -21,6 +21,7 @@
     "url": "git+https://github.com/sykar-f/luciole.git",
     "directory": "packages/flow-graph"
   },
+  "homepage": "https://luciole.sh",
   "type": "module",
   "sideEffects": false,
   "exports": {
