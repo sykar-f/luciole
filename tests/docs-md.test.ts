@@ -199,7 +199,21 @@ describe("a figure in Markdown", () => {
     expect(reversed).toContain("> **Warning:** **Careful**");
   });
 
+  test("a source reference in a sentence links the file, or the line its anchor finds", () => {
+    const markdown = toMarkdown(
+      page(
+        'See <Src path="packages/core/src/build.ts" /> and <Src path="packages/core/src/build.ts" find="export" />.',
+      ),
+    );
+    expect(markdown).toMatch(
+      /See \[`src\/build\.ts`\]\(https:\/\/github\.com\/[^)]+\/src\/build\.ts\) and \[`src\/build\.ts:\d+`\]\([^)]+#L\d+\)\./,
+    );
+  });
+
   test("a component the export has no Markdown for stops it, named", () => {
+    expect(() => toMarkdown(page(`A sentence with <Mystery /> in it.`), "x.mdx")).toThrow(
+      "<Mystery> in x.mdx has no Markdown form",
+    );
     expect(() => toMarkdown(page(`<Mystery size={3} />`), "concepts/x.mdx")).toThrow(
       "<Mystery> in concepts/x.mdx has no Markdown form",
     );

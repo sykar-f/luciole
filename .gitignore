@@ -11,3 +11,6 @@ docs/flow-pty-frame.txt
 docs/forge-pty-frame.txt
 docs/notes-pty-frame.txt
 docs/missions/
+
+# Generated from website/src/content/docs by scripts/pack-docs.ts (packages/core prepack)
+packages/core/docs/

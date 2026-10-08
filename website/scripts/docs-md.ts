@@ -16,8 +16,8 @@ import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
 import { z } from "zod";
 import { alphabetical, pageHref } from "../src/lib/docs/glossary";
-import { excerpt, whole } from "../src/lib/docs/source";
-import { repo } from "../src/lib/links";
+import { excerpt, locate as lineOf, whole } from "../src/lib/docs/source";
+import { repo, source } from "../src/lib/links";
 import { commands, envPrefix } from "../src/lib/product";
 import { locate, steps, text, type Frame } from "../src/lib/transcripts";
 
@@ -378,12 +378,30 @@ function glossaryList() {
   );
 }
 
-function prose(line: string) {
-  return line
-    .replace(/<Src path="([^"]+)"\s*\/>/g, "`$1`")
+/** A `<Src path find? after? />`: the file, or the line an anchor finds, linked to the source tree. */
+function sourceLink(tag: string) {
+  const { path, find, after } = z
+    .object({ path: z.string(), find: z.optional(z.string()), after: z.optional(z.string()) })
+    .parse(attributes(tag));
+  const line = find === undefined ? undefined : lineOf(path, find, after);
+  const label = `${path.replace(/^packages\/core\//, "")}${line ? `:${line}` : ""}`;
+  return `[\`${label}\`](${line ? `${source(path)}#L${line}` : source(path)})`;
+}
+
+function prose(line: string, page = "a page") {
+  const text = line
+    .replace(/<Src\b[^>]*\/>/g, sourceLink)
     .replace(/<kbd>(.*?)<\/kbd>/g, "`$1`")
     .replace(/<code>(.*?)<\/code>/g, "`$1`")
     .replace(/\{([\w.]+)\}/g, (whole, name: string) => (name in values ? evaluate(name) : whole));
+  // A component inside a sentence would pass into the Markdown as a tag nobody renders.
+  const unknown = /<([A-Z]\w*)[\s/>]/.exec(text.replace(/`[^`\n]*`/g, ""))?.[1];
+  if (unknown) {
+    throw new Error(
+      `docs-md: <${unknown}> in ${page} has no Markdown form. Give it one in website/scripts/docs-md.ts.`,
+    );
+  }
+  return text;
 }
 
 /** A one-line YAML scalar: plain, or quoted (`''` inside single quotes is one `'`). */
@@ -467,7 +485,7 @@ export function toMarkdown(mdx: string, page = "a page") {
         const indent = Math.min(
           ...held.filter((line) => line.trim()).map((line) => /^\s*/.exec(line)?.[0].length ?? 0),
         );
-        body.push(...held.map((line) => prose(line.slice(indent)).trimEnd()));
+        body.push(...held.map((line) => prose(line.slice(indent), page).trimEnd()));
       }
       const markdown = figure(tag, attributes(whole), body);
       if (!markdown) {
@@ -478,7 +496,7 @@ export function toMarkdown(mdx: string, page = "a page") {
       out.push(...quoted(markdown));
       continue;
     }
-    out.push(quoting ? `> ${prose(line.trim())}`.trimEnd() : prose(line));
+    out.push(quoting ? `> ${prose(line.trim(), page)}`.trimEnd() : prose(line, page));
   }
   return `${out
     .join("\n")

@@ -29,6 +29,7 @@
   "type": "module",
   "files": [
     "src",
+    "docs",
     "web",
     "native/luciole-sandbox/dist",
     "tsconfig.base.json",
@@ -37,6 +38,9 @@
   "bin": {
     "luciole": "./src/cli.ts",
     "luciolex": "./src/luciolex.ts"
+  },
+  "scripts": {
+    "prepack": "cd ../.. && bun scripts/pack-docs.ts"
   },
   "exports": {
     "./client": "./src/client.tsx",

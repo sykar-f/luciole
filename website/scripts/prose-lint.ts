@@ -832,7 +832,7 @@ export function corpus() {
       pages(join(site, directory), NOT_PUBLIC),
     ),
     join(site, "lib/examples.ts"),
-    join(site, "lib/docs/nav.ts"),
+    join(site, "lib/docs/sections.ts"),
     join(site, "lib/docs/glossary.ts"),
   ];
 }
