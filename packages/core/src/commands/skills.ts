@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, readdir, readFile, realpath, rm, rmdir, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { dirname, join, relative } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { z } from "zod";
 import { ArgsError } from "../args";
 import { messageOf } from "../guards";
@@ -152,11 +152,44 @@ async function readManifest(target: Target): Promise<Manifest | undefined> {
   if (text === undefined) return undefined;
   try {
     const parsed = Manifest.safeParse(JSON.parse(text));
-    if (parsed.success) return parsed.data;
+    if (parsed.success && (await staysInside(target.directory, Object.keys(parsed.data.files))))
+      return parsed.data;
   } catch {
     // Reported below, with the file.
   }
   throw new Error(`${join(target.directory, MANIFEST_FILE)}: not a luciole skills manifest`);
+}
+
+/**
+ * Whether every manifest path is a plain relative path that lies in `directory`: the manifest
+ * names what `remove` and `install` delete, so a forged one must not reach beyond its folder.
+ */
+async function staysInside(directory: string, paths: readonly string[]) {
+  const real = await realpath(directory);
+  return paths.every(
+    (path) =>
+      path !== "" &&
+      !isAbsolute(path) &&
+      path.split("/").every((part) => part !== "" && part !== "." && part !== "..") &&
+      resolve(real, path).startsWith(real + sep),
+  );
+}
+
+/**
+ * Whether the folder of `skill` holds only files this core would write, byte for byte: what an
+ * install interrupted before its manifest leaves. Such a folder is luciole's, not a stranger's.
+ */
+async function isUnrecordedCopy(
+  directory: string,
+  skill: string,
+  desired: ReadonlyMap<string, Uint8Array>,
+) {
+  for (const file of await filesUnder(join(directory, skill))) {
+    const wanted = desired.get(`${skill}/${file}`);
+    const disk = await read(join(directory, skill, file));
+    if (!wanted || !disk || !same(disk, wanted)) return false;
+  }
+  return true;
 }
 const manifestText = (manifest: Manifest) =>
   `${JSON.stringify({ ...manifest, files: Object.fromEntries(Object.entries(manifest.files).sort(([a], [b]) => a.localeCompare(b))) }, null, 2)}\n`;
@@ -312,10 +345,19 @@ export async function installSkills(options: SkillsOptions): Promise<void> {
     const owns = (skill: string) =>
       Object.keys(old?.files ?? {}).some((p) => p.startsWith(`${skill}/`));
     const foreign = new Set<string>();
+    // A folder with no record that holds only our own bytes is a partial install: adopted.
+    const adopted = new Set<string>();
+    for (const skill of new Set([...desired.keys()].map((path) => path.split("/")[0] ?? path)))
+      if (
+        !owns(skill) &&
+        existsSync(join(target.directory, skill)) &&
+        (await isUnrecordedCopy(target.directory, skill, desired))
+      )
+        adopted.add(skill);
     for (const [path, wanted] of desired) {
       const skill = path.split("/")[0] ?? path;
       const file = join(target.directory, path);
-      if (!owns(skill) && existsSync(join(target.directory, skill))) {
+      if (!adopted.has(skill) && !owns(skill) && existsSync(join(target.directory, skill))) {
         if (!foreign.has(skill))
           refusals.push(
             `${target.label}/${skill} exists and is not luciole's: refused, move it first`,
@@ -357,7 +399,8 @@ export async function installSkills(options: SkillsOptions): Promise<void> {
     };
     if (old === undefined && Object.keys(files).length === 0) continue;
     if (!old || manifestText(old) !== manifestText(manifest)) {
-      if (writes.length === 0 && removes.length === 0 && old === undefined) continue;
+      if (adopted.size === 0 && writes.length === 0 && removes.length === 0 && old === undefined)
+        continue;
       done.push(`recorded ${target.label}/${MANIFEST_FILE}`);
     }
     plans.push({ target, writes, removes, manifest, skipped, old });

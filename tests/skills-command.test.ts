@@ -20,6 +20,7 @@ const temp = await isolatedTemporary("luciole-skills-test-");
 afterAll(() => rm(temp, { recursive: true, force: true }));
 
 const Recorded = z.object({ version: z.string(), files: z.record(z.string(), z.string()) });
+const hash = (text: string) => new Bun.CryptoHasher("sha256").update(text).digest("hex");
 const SKILL = "---\nname: luciole-demo\ndescription: A demo skill.\n---\n\n# Demo\n";
 const BLOCK = "## luciole\n\nRead the docs.\n";
 
@@ -321,4 +322,51 @@ test("luciole skills runs end to end, and status exits with its named code", asy
   const remove = await luciole(["skills", "remove", "--app", directory]);
   expect(remove.exitCode, remove.stderr.toString()).toBe(0);
   expect(await readdir(directory)).toEqual([]);
+});
+
+test("a forged manifest naming a path outside its folder deletes nothing", async () => {
+  const outside = join(root, "outside.txt");
+  await Bun.write(outside, "precious\n");
+  const forged = [
+    "../../../outside.txt",
+    outside,
+    "luciole-demo/../../../../outside.txt",
+    "./luciole-demo/SKILL.md",
+  ];
+  for (const path of forged) {
+    await Bun.write(
+      app(`.agents/skills/${MANIFEST_FILE}`),
+      JSON.stringify({ version: "1.0.0", files: { [path]: hash("precious\n") } }),
+    );
+    const agents = parseAgents("agents");
+    for (const run of [
+      () => removeSkills(optionsFor({ agents })),
+      () => removeSkills(optionsFor({ agents, force: true })),
+      () => installSkills(optionsFor({ agents })),
+      () => installSkills(optionsFor({ agents, force: true })),
+    ])
+      expect(messageOf(await rejectionOf(run()))).toContain("not a luciole skills manifest");
+    expect(await Bun.file(outside).text()).toBe("precious\n");
+  }
+});
+
+test("install heals an install interrupted before its manifest, and still refuses strangers", async () => {
+  await installSkills(optionsFor());
+  // The interruption: the files are there, the manifest is not.
+  await rm(app(`.agents/skills/${MANIFEST_FILE}`));
+  await rm(app(".agents/skills/luciole-demo/references"), { recursive: true });
+  const healed = optionsFor();
+  await installSkills(healed);
+  expect(healed.warnings).toEqual([]);
+  expect(await exists(".agents/skills/luciole-demo/references/a.md")).toBe(true);
+  expect(await exists(`.agents/skills/${MANIFEST_FILE}`)).toBe(true);
+  expect(await statusSkills(optionsFor())).toBe(0);
+  await removeSkills(optionsFor());
+  expect(await exists(".agents")).toBe(false);
+
+  // Any other content in the folder keeps it foreign.
+  await installSkills(optionsFor());
+  await rm(app(`.agents/skills/${MANIFEST_FILE}`));
+  await Bun.write(app(".agents/skills/luciole-demo/extra.md"), "mine\n");
+  expect(messageOf(await rejectionOf(installSkills(optionsFor())))).toContain("not luciole's");
 });
