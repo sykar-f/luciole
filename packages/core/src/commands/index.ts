@@ -9,6 +9,7 @@ import { keys } from "./keys";
 import { launch } from "./launch";
 import { pack } from "./pack";
 import { runtime } from "./runtime";
+import { skills } from "./skills";
 import { trust } from "./trust";
 import { connect, start } from "./start";
 import { webRuntime } from "./web";
@@ -35,6 +36,7 @@ export const commands: ReadonlyMap<string, Command> = new Map(
       ["list", list],
       ["remove", remove],
       ["pack", pack],
+      ["skills", skills],
       ["example", example],
     ] as const
   ).map(([name, command]) => [name, declared(name, command)]),

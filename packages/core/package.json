@@ -30,6 +30,8 @@
   "files": [
     "src",
     "docs",
+    "skills",
+    "agents-block.md",
     "web",
     "native/luciole-sandbox/dist",
     "tsconfig.base.json",
