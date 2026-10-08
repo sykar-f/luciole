@@ -236,6 +236,7 @@ export async function stageStarter(options: {
         scripts: {
           dev: "luciole dev",
           build: "luciole build",
+          test: "bun test",
           // Not a bare `tsc`: `.bin/tsc` is TypeScript 6's, from `@typescript/old`.
           check: "bun node_modules/typescript/bin/tsc --noEmit",
           lint: "oxlint --deny-warnings .",
@@ -254,7 +255,7 @@ export async function stageStarter(options: {
     JSON.stringify(
       {
         extends: "@luciole-sh/core/tsconfig",
-        include: ["app", "components", "actions", "server"],
+        include: ["app", "components", "actions", "server", "tests"],
         exclude: ["node_modules", ".luciole"],
       },
       null,

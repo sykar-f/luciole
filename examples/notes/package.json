@@ -9,6 +9,9 @@
     "identifier": "dev.luciole.examples.notes",
     "icon": "assets/icon.png"
   },
+  "scripts": {
+    "test": "bun test"
+  },
   "dependencies": {
     "@luciole-sh/core": "workspace:*",
     "@luciole-sh/markdown-editor": "workspace:*",
