@@ -149,8 +149,9 @@ export async function openClient(
     app: running,
     ui,
     requests,
-    waitFor: (text, timeout) => untilFrame(ui, text, timeout),
-    settled: (text) => untilDrawn(ui, text),
+    // Inside `act()` for the whole wait: timers of the app update its state meanwhile.
+    waitFor: (text, timeout) => act(() => untilFrame(ui, text, timeout)),
+    settled: (text) => act(() => untilDrawn(ui, text)),
     frame: async () => {
       await ui.renderOnce();
       return ui.captureCharFrame();
