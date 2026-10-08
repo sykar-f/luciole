@@ -15,6 +15,7 @@ import { checkArgs, loadArgs, type CheckedArgs } from "../launcher/app-args";
 import { LAUNCH_VARIABLE, type Launch } from "../launch";
 import { messageOf } from "../guards";
 import { frameworkRoot, stop, type Command } from "./command";
+import { printStaleNotice } from "./skills";
 // Editors write a file in several events: one rebuild per burst.
 const REBUILD_DEBOUNCE_MS = 150;
 // A Client killed by a signal has no exit code: the run still says it did not quit.
@@ -25,6 +26,7 @@ export const dev: Command = {
   usage: DEV_USAGE,
   flags: { "--app": "value" },
   async run({ directory, rest }) {
+    await printStaleNotice(directory);
     // The application's arguments (after `--`), checked after each build: its schema may
     // have changed. The first build's refusal ends the run, a later one is a build error.
     const cwd = process.cwd();

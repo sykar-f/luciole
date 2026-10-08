@@ -1,7 +1,9 @@
+import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { readPackageJson } from "../package-json";
 import { canGreet, mascotArt } from "../mascot";
 import { frameworkRoot, workspaceRoot, type Command } from "./command";
+import { installSkills, packagedMaterial } from "./skills";
 
 /** The scaffolder package, published at the framework's own version. */
 const CREATE_NAME = "@luciole-sh/create";
@@ -57,10 +59,19 @@ export const init: Command = {
   usage: "init <dir>",
   flags: {},
   async run({ args }) {
-    await createStarter({
-      target: resolve(args[1] ?? "my-luciole-app"),
-      framework: frameworkRoot,
-      workspace: workspaceRoot,
+    const target = resolve(args[1] ?? "my-luciole-app");
+    await createStarter({ target, framework: frameworkRoot, workspace: workspaceRoot });
+    // Every new app starts with the agent skills and the AGENTS.md block, at this version.
+    await installSkills({
+      ...(await packagedMaterial()),
+      directory: target,
+      home: homedir(),
+      global: false,
+      agents: ["agents", "claude"],
+      dryRun: false,
+      force: false,
+      log: (line) => console.log(line),
+      warn: (line) => console.error(line),
     });
     // The useful lines come first, from the scaffolder; the picture is a greeting, for a person
     // at a colour terminal.
