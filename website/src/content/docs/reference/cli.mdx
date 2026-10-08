@@ -30,7 +30,7 @@ Every subcommand reads its flags by the same rules:
 
 - The CLI's own flags come before `--`. What follows `--` belongs to the app
   ([app arguments](/docs/reference/app-arguments/)), even a word that looks like a CLI flag.
-- `--app dir` names the app for `dev`, `build`, `start` and `connect`. Without it, they work
+- `--app dir` names the app for `dev`, `build`, `skills`, `start` and `connect`. Without it, they work
   on the current directory.
 - A flag that needs a value and gets none is refused, naming the flag: `luciole build --app`
   prints `--app needs a value`
@@ -128,6 +128,47 @@ The pieces of this supervision are public as
 
 Starts the [DevTools](/docs/guides/devtools/). `--env` prints the variables the inspected
 app's shell needs instead.
+
+### `luciole skills [install | status | remove] [--app dir] [--global] [--agent agents,claude] [--dry-run] [--force]`
+
+Installs, checks and removes the agent material that ships with the framework, at the version
+the app uses. Without a word, it installs. The material is two things:
+
+- Agent skills: folders named `luciole-*`, each with a `SKILL.md` (the Agent Skills format).
+- A block in the app's `AGENTS.md`.
+
+[Coding agents](/docs/guides/coding-agents/) then work on the app with up-to-date knowledge.
+Everything comes from the installed package: no network, no telemetry.
+
+| Flag                    | Effect                                                                                                                                                                                                                                       |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--app dir`             | The app. Default: the current directory.                                                                                                                                                                                                     |
+| `--global`              | Targets `~/.agents/skills` and `~/.claude/skills`: skills only, never `AGENTS.md`. They follow the version that installed them.                                                                                                              |
+| `--agent agents,claude` | Narrows the skill targets. `agents` is `.agents/skills`, read by Codex, Cursor, Gemini CLI, Copilot, OpenCode and pi. `claude` is `.claude/skills`, the only place Claude Code reads. Default: both. The block is written whatever the list. |
+| `--dry-run`             | Prints what would change and writes nothing.                                                                                                                                                                                                 |
+| `--force`               | Replaces (`install`) or deletes (`remove`) a file or block you modified.                                                                                                                                                                     |
+
+- **Copies.** Each skill folder is copied as it is, with no symlink, so a fresh clone works
+  before `bun install`. Commit the copies. Each `SKILL.md` gets
+  `metadata.luciole-version: "<version>"` in its frontmatter, and nothing else in it changes.
+- **Ownership.** Each target directory holds a `.luciole-skills.json` that records the files
+  written and their hashes. Running `install` again changes nothing and prints `up to date`.
+  A file you modified is left alone with a warning, unless `--force`. A folder of the same
+  name that luciole did not write is refused, even with `--force`.
+- **`AGENTS.md`.** The block lies between `<!-- BEGIN:luciole -->` and `<!-- END:luciole -->`.
+  The file is created when absent; only the block is ever touched. When `CLAUDE.md` is absent,
+  it is created with an `@AGENTS.md` import. When it exists without one, the import is added
+  in a block of its own, unless `CLAUDE.md` is `AGENTS.md` itself.
+- **`status`** lists each skill and the block, per target, as up to date, stale (written by
+  another version), modified locally, or missing. It exits with `STALE_EXIT_CODE`, **3**, when
+  anything is stale or missing, so a CI job can run it.
+- **`remove`** deletes what the manifest owns and you did not modify, removes the block and
+  the import, and deletes the files and folders it created once they are empty. With
+  `--agent`, only that agent's skills go; the block stays.
+
+`luciole init` runs `install` in the new app. `luciole dev` and `luciole build` print one line
+on stderr when the installed skills come from another version than the running core. The
+notice changes no exit code, and is silent when `CI` is set or the app has no manifest.
 
 ## Build
 
