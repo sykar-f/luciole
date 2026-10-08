@@ -82,7 +82,7 @@ for a Server and a Client to start.
 
 To check what the Client does when a request fails, give `openClient` a `fetch` or a
 `transport` of your own, which stands between the Client and the Server.
-`client.app.restoration.snapshot()` returns the session that a restart would reopen;
+`client.app.restoration.snapshot()` returns the restored session that a restart would reopen;
 `openClient(app, server, { session })` restores one. The [API reference](/docs/reference/api/#test-an-app-luciole-shcoretest) lists every
 export.
 
