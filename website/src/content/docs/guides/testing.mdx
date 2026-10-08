@@ -2,6 +2,8 @@
 title: Testing an app
 description: Check an app at four levels, from the build's own boundary checks to a real terminal. The patterns the repository uses, and which of them are public API.
 sources:
+  - examples/notes/tests/notes.test.ts
+  - packages/core/src/test
   - tests/restore-notes.test.tsx
   - tests/latency.test.tsx
   - scripts/pty/driver.ts
@@ -18,16 +20,16 @@ import CopyCommand from "../../../components/CopyCommand.astro";
 import Excerpt from "../../../components/docs/Excerpt.astro";
 import Note from "../../../components/docs/Note.astro";
 
-Check that your app works, from the build to a real terminal. luciole ships no testing library
-yet. This page gives the four levels the repository tests itself with, and which of them your
-app can use:
+Check that your app works, from the build to a real terminal. `@luciole-sh/core/test` builds
+your app, starts its Server and drives its Client from a `bun test` file. This page gives the
+four levels the repository tests itself with, and which of them your app can use:
 
-| Level           | Tool                                          | What it catches                               | Can your app use it?                           |
-| --------------- | --------------------------------------------- | --------------------------------------------- | ---------------------------------------------- |
-| The build       | `luciole build`, `bun run verify`             | code on the wrong side, bad routes, bad types | yes                                            |
-| In-process      | `bun test`, `createApplication`, `testRender` | screens, restores, failed requests            | yes. The repository's helpers are not exported |
-| A bad network   | `LUCIOLE_LATENCY_MS` and the other variables  | work that waits on the network                | yes                                            |
-| A real terminal | the journeys of `scripts/pty/`                | what a user sees and types                    | only inside the repository                     |
+| Level           | Tool                                         | What it catches                               | Can your app use it?       |
+| --------------- | -------------------------------------------- | --------------------------------------------- | -------------------------- |
+| The build       | `luciole build`, `bun run verify`            | code on the wrong side, bad routes, bad types | yes                        |
+| In-process      | `bun test`, `@luciole-sh/core/test`          | screens, restores, failed requests            | yes                        |
+| A bad network   | `LUCIOLE_LATENCY_MS` and the other variables | work that waits on the network                | yes                        |
+| A real terminal | the journeys of `scripts/pty/`               | what a user sees and types                    | only inside the repository |
 
 ## Let the build catch boundary errors
 
@@ -51,38 +53,42 @@ In a starter, `bun run verify` runs the type check, lint, format check and build
 The type check covers navigation too. `app/routeTree.gen.ts` makes a link to a route that does
 not exist a TypeScript error, and so is a missing param.
 
-## Drive the Client in-process with `bun test`
+## Test the app end to end with `@luciole-sh/core/test`
 
-The Client is an ordinary object that a test drives without a terminal:
-
-- `createApplication` takes a `transport` or a `fetch`, which stands between the Client and the
-  Server.
-- `app.restoration.snapshot()` returns the restored session that a restart would reopen.
-  `createApplication({ session })` restores one.
-- OpenTUI's `testRender` draws the `Shell` in memory and types into it.
-
-The repository restarts Notes this way. The second run refuses saves, to check that unsent
-text is kept:
+A test builds the app, starts its Server, draws its Client in a test terminal and drives it, in
+the process of `bun test`. A starter ships one, and `bun test` runs it:
 
 <Excerpt
-  path="tests/restore-notes.test.tsx"
-  find="const open = async"
-  until="return { app, ui };"
-  mark={["createApp({", "fetch: async"]}
+  path="examples/notes/tests/notes.test.ts"
+  find="// Builds the app once"
   tone="neutral"
-  caption="Each run builds a Client with its own fetch, which can refuse saves, then draws it with testRender."
+  caption="Build once, then per test: a Server, a Client, a click and a few keys."
 />
 
-On the Server, `createHandler(config, options)` from `@luciole-sh/core/server` is the Server as
-a function of a `Request`, without listening. `@luciole-sh/core/build` builds an app from a
-test.
+- `buildApp` builds the app while the file loads, in a temporary directory that is removed
+  after the file. Your app's own folder is untouched, so a `luciole dev` beside it is not
+  disturbed.
+- `startServer` runs the built Server in a process of its own, on a free port. `env` is its
+  environment: the database the test uses, a latency, a fault.
+- `openClient` imports the built Client, loads its first page and draws it in a test terminal.
+  `await using` stops the Client, then the Server, even when an assertion fails.
+- `waitFor` renders until the screen shows a text, and fails with the last frame when it never
+  does. Every wait is bounded and says what it saw; a fixed sleep is never the wait.
+- `click`, `press` and `type` act as a user does. `client.ui` is OpenTUI's test renderer, for
+  what these three do not cover, and `client.app` is the running `Application`.
 
-<Note kind="warning">
-  These entries are public: `@luciole-sh/core/client`, `@luciole-sh/core/server` and
-  `@luciole-sh/core/build`. The helpers that the repository's tests build on them are not exported.
-  `tests/helpers.ts` imports a built Client and launches a Server, for instance. An app outside the
-  repository writes its own.
-</Note>
+Pass `TEST_TIMEOUT_MS` as the last argument of `test()`. Bun's default of 5 s leaves no room
+for a Server and a Client to start.
+
+To check what the Client does when a request fails, give `openClient` a `fetch` or a
+`transport` of your own, which stands between the Client and the Server. `app.restoration`
+returns the restored session that a restart would reopen; `openClient(app, server, { session })` restores
+one. The [API reference](/docs/reference/api/#test-an-app-luciole-shcoretest) lists every
+export.
+
+On the Server alone, `createHandler(config, options)` from `@luciole-sh/core/server` is the
+Server as a function of a `Request`, without listening. `@luciole-sh/core/build` builds an app
+from a test.
 
 ## Test under a bad network
 
