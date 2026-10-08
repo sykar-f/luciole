@@ -127,6 +127,8 @@ export type ServerFunction = (...args: unknown[]) => unknown;
  * milliseconds, `ms` counts from the request's arrival. `end` follows the body, a live
  * one included; `error` replaces `response` when a handler threw (the Client gets a
  * generic 500), and ends a body that failed while streaming.
+ * `at` comes from the Server process's own clock; correlate with the Client's events
+ * by `callId`, not by comparing `at` across processes.
  */
 export type ServerEvent = {
   callId: string;

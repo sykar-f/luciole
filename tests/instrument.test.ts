@@ -23,6 +23,7 @@ const Printed = z.object({
 type Event = z.infer<typeof Printed>["event"];
 
 test("the Server reports each render and action under the Client's callId", async () => {
+  const beforeLaunch = Date.now();
   const server = await launch("tests/instrument-server.ts");
   const received: Event[] = [];
   createInterface({ input: server.child.stdout }).on("line", (line) => {
@@ -48,6 +49,7 @@ test("the Server reports each render and action under the Client's callId", asyn
     const failure = await rejectionOf(transport.call("a.ts#boom", []));
     expect(failure instanceof TransportError && failure.outcome).toBe("unknown");
     await until(() => received.filter((e) => e.type === "end" || e.type === "error").length === 3);
+    const afterEvents = Date.now();
     const calls = client.flatMap((e) => (e.type === "request" ? [e.callId] : []));
     expect(received.map((e) => [e.callId, e.kind, e.target, e.type, e.status])).toEqual([
       [calls[0], "render", "/", "request", undefined],
@@ -59,10 +61,14 @@ test("the Server reports each render and action under the Client's callId", asyn
       [calls[2], "action", "a.ts#boom", "request", undefined],
       [calls[2], "action", "a.ts#boom", "error", undefined],
     ]);
-    // Both processes share the epoch clock: the Server sees a request after it is sent.
+    // Allow for process clock offsets when checking that timestamps use epoch milliseconds.
+    const previousAt = new Map<string, number>();
     for (const event of received) {
-      const sent = client.find((e) => e.callId === event.callId && e.type === "request");
-      expect(event.at).toBeGreaterThanOrEqual((sent?.at ?? Infinity) - 5);
+      expect(event.at).toBeGreaterThanOrEqual(beforeLaunch - 1_000);
+      expect(event.at).toBeLessThanOrEqual(afterEvents + 1_000);
+      const previous = previousAt.get(event.callId);
+      if (previous !== undefined) expect(event.at).toBeGreaterThanOrEqual(previous);
+      previousAt.set(event.callId, event.at);
     }
     const action = await fetch(`${server.url}/action`, {
       method: "POST",
