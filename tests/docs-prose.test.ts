@@ -53,7 +53,7 @@ describe("the public corpus", () => {
       "website/src/components/ServerSide.astro",
       "website/src/components/Start.astro",
       "website/src/lib/examples.ts",
-      "website/src/lib/docs/nav.ts",
+      "website/src/lib/docs/sections.ts",
       "website/src/lib/docs/glossary.ts",
     ])
       expect(files).toContain(file);
