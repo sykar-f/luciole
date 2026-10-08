@@ -50,6 +50,7 @@
     "./build": "./src/build.ts",
     "./dev": "./src/dev/supervisor.ts",
     "./pty": "./src/vt/pty.ts",
+    "./test": "./src/test/index.ts",
     "./sandbox": "./src/sandbox/index.ts",
     "./metadata": "./src/app-metadata.ts",
     "./tsconfig": "./tsconfig.base.json",

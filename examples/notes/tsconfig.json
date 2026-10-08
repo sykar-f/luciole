@@ -3,6 +3,6 @@
   // Workspace packages export their sources under the `bun` condition, as Bun resolves
   // them at run and build time; TypeScript needs to be told.
   "compilerOptions": { "customConditions": ["bun"] },
-  "include": ["app", "components", "actions", "server"],
+  "include": ["app", "components", "actions", "server", "tests"],
   "exclude": ["**/node_modules", "**/.luciole"]
 }

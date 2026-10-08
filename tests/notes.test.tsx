@@ -1,22 +1,18 @@
 /** @jsxImportSource @opentui/react */
 import { test, expect } from "bun:test";
 import { act } from "react";
-import { testRender } from "@opentui/react/test-utils";
 import { Renderable, TextRenderable } from "@opentui/core";
 import { MouseButtons, type MouseButton } from "@opentui/core/testing";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { TransportError, type Transport } from "../packages/core/src/client";
+import { openClient, startServer } from "../packages/core/src/test";
 import {
   BUILD_TEST_MS,
   privateBuild,
   WAIT_MS,
-  launch,
   until as pollUntil,
-  wire,
-  importClient,
-  destroy,
   draftOf,
   metricsOf,
   markdownEditor,
@@ -33,26 +29,20 @@ async function start(
   options: Omit<ClientOptions, "url"> = {},
 ) {
   const folder = await mkdtemp(join(tmpdir(), "luciole-notes-"));
-  const server = await launch(join(built.output, "server/index.js"), {
+  const server = await startServer(built, {
     NOTES_DB: join(folder, "notes.sqlite"),
     // Saves only when asked: the requests counted below are the test's own.
     NOTES_AUTOSAVE_MS: "0",
     ...env,
   });
-  const { createApp, Shell } = await importClient(built.directory, tag);
-  const app = createApp({ url: server.url, ...options });
-  const requests = wire(app);
-  await app.router.load();
-  const ui = await testRender(<Shell app={app} />, { width: 110, height: 32 });
+  const client = await openClient(built, server, { tag, width: 110, height: 32, ...options });
   return {
-    app,
-    ui,
+    app: client.app,
+    ui: client.ui,
     server,
-    requests,
+    requests: client.requests,
     stop: async () => {
-      // The calls still on the wire end before the Server they talk to stops.
-      await act(() => requests.settled().catch(() => {}));
-      await destroy(ui);
+      await client.stop();
       await server.stop();
       await rm(folder, { recursive: true, force: true });
     },

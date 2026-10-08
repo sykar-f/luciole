@@ -20,6 +20,7 @@ sources:
   - packages/core/src/vt/terminal.tsx
   - packages/core/src/sandbox
   - packages/core/src/app-metadata.ts
+  - packages/core/src/test
   - packages/core/src/route-tree.tsx
   - packages/core/src/devtools/client-agent.ts
   - examples/studio/server/preview.ts
@@ -1387,6 +1388,81 @@ this way:
   count={6}
   tone="neutral"
 />
+
+## Test an app: `@luciole-sh/core/test`
+
+A `bun test` file builds an app, starts its Server, draws its Client in a test terminal and
+drives it. The [testing guide](/docs/guides/testing/#test-the-app-end-to-end-with-luciole-shcoretest)
+walks through an example.
+
+```ts
+import {
+  buildApp,
+  startServer,
+  openClient,
+  until,
+  eventually,
+  TEST_TIMEOUT_MS,
+  WAIT_MS,
+  type TestClient,
+  type TestServer,
+} from "@luciole-sh/core/test";
+```
+
+| Export                                | Contract                                                                                                                                                                                            |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `buildApp(directory?, options?)`      | Builds the app in `directory` into a temporary directory, and resolves with a `BuiltApp`. Default: the working directory. `options` are the options of `build()`. Removes the build after the file. |
+| `startServer(app, env?)`              | Starts the Server of a `BuiltApp` on a free port, and resolves with a `TestServer` once it listens. `env` adds to the process environment.                                                          |
+| `openClient(app, server, options?)`   | Draws the Client of a `BuiltApp` in a test terminal, connected to a `TestServer`, and resolves with a `TestClient` once the first page is loaded.                                                   |
+| `until(check, timeout?, state?)`      | Polls `check` until it returns `true`. On a timeout it fails with `Condition timed out` and what `state()` returns. Default timeout: `WAIT_MS`.                                                     |
+| `eventually(check, timeout?, state?)` | `until` for a `check` that returns a promise: a socket, a file, another process.                                                                                                                    |
+| `TEST_TIMEOUT_MS`                     | `60000`: the budget, in milliseconds, to pass as the last argument of `test()`. Bun's default of 5 s does not cover a build, a Server and a Client.                                                 |
+| `WAIT_MS`                             | `30000`: how long a wait lasts before it gives up. It guards against a hang; a slow machine only makes a wait last longer.                                                                          |
+
+`buildApp` runs while the file loads, so call it at the top level with `await`, outside any
+test's timeout. It links the nearest `node_modules` above the app into the build.
+
+| `BuiltApp` field | Contract                                      |
+| ---------------- | --------------------------------------------- |
+| `directory`      | The temporary directory that holds the build. |
+| `output`         | The build's output, `<directory>/.luciole`.   |
+| `buildId`        | The id of the build.                          |
+
+| `TestServer` member | Contract                                                                         |
+| ------------------- | -------------------------------------------------------------------------------- |
+| `url`               | `http://127.0.0.1:<port>`.                                                       |
+| `port`, `pid`       | The port the Server listens on, and its process id.                              |
+| `buildId`           | The id of the build it serves.                                                   |
+| `child`             | The Server's process.                                                            |
+| `stop()`            | Stops the process and resolves once it has exited. Calling it twice is harmless. |
+
+`await using server = await startServer(app)` stops the Server at the end of the block, as
+`stop()` does.
+
+`openClient` takes `OpenClientOptions`: the options of the Client's `createApp`
+(`ClientOptions`, without `url`: `fetch`, `transport`, …) and three more.
+
+| `OpenClientOptions` field | Type     | Default | Contract                                                                 |
+| ------------------------- | -------- | ------- | ------------------------------------------------------------------------ |
+| `tag`                     | `string` | none    | Gives the Client its own runtime. Two Clients in one file need two tags. |
+| `width`                   | `number` | `110`   | Columns of the test terminal.                                            |
+| `height`                  | `number` | `32`    | Rows of the test terminal.                                               |
+
+| `TestClient` member       | Contract                                                                                                                                               |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `waitFor(text, timeout?)` | Renders until the screen shows `text`, and resolves with that frame. On a timeout it fails with the last frame. Default: `WAIT_MS`.                    |
+| `settled(text?)`          | Renders until the screen shows `text` and has stopped changing: no code block is still highlighting, no image still loading. Resolves with that frame. |
+| `frame()`                 | Resolves with the screen now, as text.                                                                                                                 |
+| `click(text, button?)`    | A left click on the first cell of `text`. Fails with the screen when it shows no `text`.                                                               |
+| `press(key, modifiers?)`  | Presses a key: `"s"` with `{ ctrl: true }` is Ctrl+S, `"return"` and `"escape"` are keys. `KeyModifiers` is `{ ctrl?, shift?, meta? }`.                |
+| `type(text)`              | Types `text` one character at a time.                                                                                                                  |
+| `requests`                | The requests on the wire: `open`, `finished`, and `settled()`, which resolves once none is open.                                                       |
+| `app`                     | The running `Application`: its router, its restoration, its [events](#observe-requests-and-navigations).                                               |
+| `ui`                      | The test terminal, a `TestUI`: OpenTUI's renderer, `mockInput`, `mockMouse` and `captureCharFrame()`.                                                  |
+| `stop()`                  | Waits for the requests on the wire, then destroys the test terminal. It does not stop the Server. Calling it twice is harmless.                        |
+
+`await using client = await openClient(app, server)` stops the Client at the end of the
+block. Declared after the Server, it stops first.
 
 ## Type the router: `@luciole-sh/core/route-tree`
 

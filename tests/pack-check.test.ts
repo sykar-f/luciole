@@ -68,6 +68,25 @@ test("a test shipped inside files fails the check", async () => {
   expect(problems.join("\n")).toContain("test in the tarball: src/a.test.ts");
 });
 
+test("a test/ directory an export points into is the package's API, not a test", async () => {
+  const api = fixture(
+    {
+      ...good,
+      name: "fixture-test-api",
+      exports: { "./test": "./src/test/index.js" },
+      files: ["src"],
+    },
+    { "src/test/index.js": "export const answer = 42;\n", "src/test/more.js": "export {};\n" },
+  );
+  expect(await checkPackage(api, () => {})).toEqual([]);
+  const stray = fixture(
+    { ...good, name: "fixture-test-dir", files: ["dist", "src"] },
+    { "dist/index.js": "export {};\n", "src/test/helper.js": "export {};\n" },
+  );
+  const problems = await checkPackage(stray, () => {});
+  expect(problems.join("\n")).toContain("test in the tarball: src/test/helper.js");
+});
+
 test("wildcard exports are expanded: each match imports, a pattern matching nothing fails", async () => {
   const ok = fixture(
     { ...good, name: "fixture-wild", exports: { "./x/*": "./dist/x/*.js" } },
