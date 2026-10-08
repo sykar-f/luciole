@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, readdir, readFile, realpath, rm, rmdir, writeFile } from "node:fs/promises";
+import { lstat, mkdir, readdir, readFile, realpath, rm, rmdir, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { z } from "zod";
@@ -105,13 +105,43 @@ export function stamp(text: string, version: string, name = "SKILL.md"): string 
   return lines.join("\n");
 }
 
-/** Every file under `directory`, as paths relative to it, in a stable order. */
-async function filesUnder(directory: string, prefix = ""): Promise<string[]> {
+/**
+ * The one gate to a path under a target directory, which every read, write and delete there
+ * goes through: the command never follows a symbolic link inside a target. Each component from
+ * the target's real directory down to `path`, the file included, is checked with `lstat`; a
+ * link refuses the whole operation. (The target itself may be a link: it resolves to the
+ * directory the user chose.) Resolves with the path to use.
+ */
+async function inside(directory: string, path: string): Promise<string> {
+  const real = await realpath(directory).catch(() => directory);
+  let current = real;
+  for (const part of path.split("/")) {
+    current = join(current, part);
+    const info = await lstat(current).catch(() => undefined);
+    if (!info) break;
+    if (info.isSymbolicLink())
+      throw new Error(`${current}: a symbolic link, which luciole never follows: refused`);
+  }
+  return join(real, path);
+}
+const readIn = async (directory: string, path: string) => read(await inside(directory, path));
+const existsIn = async (directory: string, path: string) =>
+  existsSync(await inside(directory, path));
+
+/**
+ * Every file under `directory`, as paths relative to it, in a stable order. With `strict`,
+ * a symbolic link anywhere in it is refused rather than skipped.
+ */
+async function filesUnder(directory: string, prefix = "", strict = false): Promise<string[]> {
   const entries = await readdir(join(directory, prefix), { withFileTypes: true }).catch(() => []);
   const found: string[] = [];
   for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
     const path = prefix ? `${prefix}/${entry.name}` : entry.name;
-    if (entry.isDirectory()) found.push(...(await filesUnder(directory, path)));
+    if (strict && entry.isSymbolicLink())
+      throw new Error(
+        `${join(directory, path)}: a symbolic link, which luciole never follows: refused`,
+      );
+    if (entry.isDirectory()) found.push(...(await filesUnder(directory, path, strict)));
     else if (entry.isFile()) found.push(path);
   }
   return found;
@@ -148,7 +178,7 @@ function targetsOf(options: SkillsOptions, agents: readonly Agent[]): Target[] {
 }
 
 async function readManifest(target: Target): Promise<Manifest | undefined> {
-  const text = await readText(join(target.directory, MANIFEST_FILE));
+  const text = (await readIn(target.directory, MANIFEST_FILE))?.toString("utf8");
   if (text === undefined) return undefined;
   try {
     const parsed = Manifest.safeParse(JSON.parse(text));
@@ -184,9 +214,10 @@ async function isUnrecordedCopy(
   skill: string,
   desired: ReadonlyMap<string, Uint8Array>,
 ) {
-  for (const file of await filesUnder(join(directory, skill))) {
+  await inside(directory, skill);
+  for (const file of await filesUnder(join(await realpath(directory), skill), "", true)) {
     const wanted = desired.get(`${skill}/${file}`);
-    const disk = await read(join(directory, skill, file));
+    const disk = await readIn(directory, `${skill}/${file}`);
     if (!wanted || !disk || !same(disk, wanted)) return false;
   }
   return true;
@@ -350,14 +381,13 @@ export async function installSkills(options: SkillsOptions): Promise<void> {
     for (const skill of new Set([...desired.keys()].map((path) => path.split("/")[0] ?? path)))
       if (
         !owns(skill) &&
-        existsSync(join(target.directory, skill)) &&
+        (await existsIn(target.directory, skill)) &&
         (await isUnrecordedCopy(target.directory, skill, desired))
       )
         adopted.add(skill);
     for (const [path, wanted] of desired) {
       const skill = path.split("/")[0] ?? path;
-      const file = join(target.directory, path);
-      if (!adopted.has(skill) && !owns(skill) && existsSync(join(target.directory, skill))) {
+      if (!adopted.has(skill) && !owns(skill) && (await existsIn(target.directory, skill))) {
         if (!foreign.has(skill))
           refusals.push(
             `${target.label}/${skill} exists and is not luciole's: refused, move it first`,
@@ -365,7 +395,7 @@ export async function installSkills(options: SkillsOptions): Promise<void> {
         foreign.add(skill);
         continue;
       }
-      const state = fileState(await read(file), wanted, old?.files[path]);
+      const state = fileState(await readIn(target.directory, path), wanted, old?.files[path]);
       if (state === "current") files[path] = hash(wanted);
       else if (state === "modified" && !options.force) {
         skipped = true;
@@ -381,7 +411,7 @@ export async function installSkills(options: SkillsOptions): Promise<void> {
     // What an older version shipped and this one does not: removed unless the user edited it.
     for (const [path, owned] of Object.entries(old?.files ?? {})) {
       if (desired.has(path)) continue;
-      const disk = await read(join(target.directory, path));
+      const disk = await readIn(target.directory, path);
       if (!disk) continue;
       if (hash(disk) === owned || options.force) {
         removes.push(path);
@@ -424,11 +454,11 @@ export async function installSkills(options: SkillsOptions): Promise<void> {
   if (options.dryRun) return;
   for (const plan of plans) {
     for (const [path, data] of plan.writes)
-      await write(options, join(plan.target.directory, path), data);
+      await write(options, await inside(plan.target.directory, path), data);
     for (const path of plan.removes) await removeFile(plan.target.directory, path);
     const text = manifestText(plan.manifest);
     if (!plan.old || manifestText(plan.old) !== text)
-      await write(options, join(plan.target.directory, MANIFEST_FILE), text);
+      await write(options, await inside(plan.target.directory, MANIFEST_FILE), text);
   }
   if (blockWrite) await write(options, blockWrite[0], blockWrite[1]);
   if (importWrite) await write(options, importWrite[0], importWrite[1]);
@@ -437,9 +467,9 @@ export async function installSkills(options: SkillsOptions): Promise<void> {
 
 /** Deletes `path` under `directory`, then the folders it leaves empty. */
 async function removeFile(directory: string, path: string) {
-  await rm(join(directory, path), { force: true });
+  await rm(await inside(directory, path), { force: true });
   for (let dir = dirname(path); dir !== "."; dir = dirname(dir))
-    await rmdir(join(directory, dir)).catch(() => undefined);
+    await rmdir(await inside(directory, dir)).catch(() => undefined);
 }
 
 /**
@@ -460,14 +490,14 @@ export async function statusSkills(options: SkillsOptions): Promise<number> {
     const manifest = manifests[index];
     for (const skill of skills) {
       const paths = [...desired.keys()].filter((path) => path.startsWith(`${skill}/`));
-      if (!manifest?.files && existsSync(join(target.directory, skill))) {
+      if (!manifest?.files && (await existsIn(target.directory, skill))) {
         report(target.label, skill, "foreign");
         continue;
       }
       const states = await Promise.all(
         paths.map(async (path) =>
           fileState(
-            await read(join(target.directory, path)),
+            await readIn(target.directory, path),
             desired.get(path) ?? new Uint8Array(),
             manifest?.files[path],
           ),
@@ -502,6 +532,11 @@ export async function removeSkills(options: SkillsOptions): Promise<void> {
   let blockKept = false;
   let touched = false;
 
+  // Nothing is deleted before every path the manifests name has passed the gate.
+  for (const target of targets) {
+    const recorded = await readManifest(target);
+    for (const path of Object.keys(recorded?.files ?? {})) await inside(target.directory, path);
+  }
   if (!options.global && wholly) {
     const manifests = (await Promise.all(all.map(readManifest))).flatMap((m) => m ?? []);
     const block = await blockState(options, manifests.find((m) => m.block !== undefined)?.block);
@@ -540,7 +575,7 @@ export async function removeSkills(options: SkillsOptions): Promise<void> {
     if (!manifest) continue;
     const files: Record<string, string> = {};
     for (const [path, owned] of Object.entries(manifest.files)) {
-      const disk = await read(join(target.directory, path));
+      const disk = await readIn(target.directory, path);
       if (!disk) continue;
       if (hash(disk) === owned || options.force) {
         touched = true;
@@ -552,7 +587,7 @@ export async function removeSkills(options: SkillsOptions): Promise<void> {
       }
     }
     if (options.dryRun) continue;
-    const manifestFile = join(target.directory, MANIFEST_FILE);
+    const manifestFile = await inside(target.directory, MANIFEST_FILE);
     const keep = Object.keys(files).length > 0 || (blockKept && manifest.block !== undefined);
     if (keep) {
       const { block, ...rest } = manifest;

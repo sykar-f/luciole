@@ -370,3 +370,60 @@ test("install heals an install interrupted before its manifest, and still refuse
   await Bun.write(app(".agents/skills/luciole-demo/extra.md"), "mine\n");
   expect(messageOf(await rejectionOf(installSkills(optionsFor())))).toContain("not luciole's");
 });
+
+test("the command never follows a symbolic link inside a target", async () => {
+  const elsewhere = join(root, "elsewhere");
+  const agents = parseAgents("agents");
+  const runs = [
+    () => removeSkills(optionsFor({ agents })),
+    () => removeSkills(optionsFor({ agents, force: true })),
+    () => installSkills(optionsFor({ agents })),
+    () => installSkills(optionsFor({ agents, force: true })),
+  ];
+  const cases = [
+    // A linked subdirectory and a forged key reaching through it.
+    { link: "link", files: ["link/x"] },
+    // A linked skill folder, recorded as luciole's by a forged manifest.
+    { link: "luciole-demo", files: ["luciole-demo/SKILL.md", "luciole-demo/references/a.md"] },
+  ];
+  for (const { link, files } of cases) {
+    await rm(elsewhere, { recursive: true, force: true });
+    await rm(app(".agents"), { recursive: true, force: true });
+    const contents = new Map([
+      ["x", "outside x\n"],
+      ["SKILL.md", "outside skill\n"],
+      ["references/a.md", "outside reference\n"],
+    ]);
+    for (const [name, data] of contents) await Bun.write(join(elsewhere, name), data);
+    await mkdir(app(".agents/skills"), { recursive: true });
+    await symlink(elsewhere, app(`.agents/skills/${link}`));
+    await Bun.write(
+      app(`.agents/skills/${MANIFEST_FILE}`),
+      JSON.stringify({
+        version: "1.0.0",
+        files: Object.fromEntries(
+          files.map((file) => [file, hash(contents.get(file.slice(file.indexOf("/") + 1)) ?? "")]),
+        ),
+      }),
+    );
+    for (const run of runs) {
+      expect(messageOf(await rejectionOf(run()))).toContain("a symbolic link");
+      for (const [name, data] of contents)
+        expect(await Bun.file(join(elsewhere, name)).text()).toBe(data);
+      expect((await readdir(elsewhere)).sort()).toEqual(["SKILL.md", "references", "x"]);
+    }
+  }
+});
+
+test("a target that is itself a link resolves to the directory the user chose", async () => {
+  const chosen = join(root, "chosen");
+  await mkdir(chosen, { recursive: true });
+  await mkdir(app(".claude"), { recursive: true });
+  await symlink(chosen, app(".claude/skills"));
+  const claude = parseAgents("claude");
+  await installSkills(optionsFor({ agents: claude }));
+  expect(await Bun.file(join(chosen, "luciole-demo/SKILL.md")).exists()).toBe(true);
+  expect(await statusSkills(optionsFor({ agents: claude }))).toBe(0);
+  await removeSkills(optionsFor({ agents: claude }));
+  expect(await Bun.file(join(chosen, "luciole-demo/SKILL.md")).exists()).toBe(false);
+});
