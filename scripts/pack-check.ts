@@ -8,7 +8,8 @@
  *   - the tarball's package.json holds no `workspace:` or `catalog:` spec;
  *   - every target of `exports` (`*` patterns expanded, `null` exclusions applied; one
  *     matching nothing fails), `types`, `main` and `bin` exists in the tarball;
- *   - the tarball holds no test and nothing outside `files` (paths, directories, globs and
+ *   - the tarball holds no test (a `test/` directory an export points into is the package's own
+ *     API, not one) and nothing outside `files` (paths, directories, globs and
  *     `!` exclusions; package.json, README and LICENSE aside);
  *   - the tarball installs in a temporary project (with the peers, and the tarballs of the
  *     workspace packages it depends on, which no registry holds before their release) and
@@ -293,9 +294,17 @@ export async function checkPackage(dir: string, log: (line: string) => void): Pr
     const always =
       /^(package\.json|readme(\.[a-z]+)?|licen[cs]e(\.[a-z]+)?|changelog(\.[a-z]+)?)$/i;
     for (const entry of entries) {
+      // A directory named `test` is the package's own API (`@luciole-sh/core/test`) when an
+      // export points into it; a file named `.test.` or `.spec.` is a test whatever holds it.
+      const testDirectory = /^(.*?(?:^|\/)(?:tests?|__tests__))\//.exec(entry)?.[1];
+      const exportedDirectory =
+        testDirectory !== undefined &&
+        [...exported.subpaths.values()].some((targets) =>
+          targets.some((target) => target.startsWith(`${testDirectory}/`)),
+        );
       if (
         /(^|\/)[^/]*\.(test|spec)\.[^/]+$/.test(entry) ||
-        /(^|\/)(tests?|__tests__)\//.test(entry)
+        (testDirectory !== undefined && !exportedDirectory)
       )
         problems.push(`test in the tarball: ${entry}`);
       if (!inFiles(entry, files) && !always.test(entry)) problems.push(`outside files: ${entry}`);
