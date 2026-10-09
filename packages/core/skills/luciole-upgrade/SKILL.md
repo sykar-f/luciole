@@ -24,9 +24,9 @@ Run every command from the app's directory. The upgrade guide is
    the tag `v<old>` of `sykar-f/luciole`.
 
 3. **Read what changed** between the two versions: the entries marked **Breaking** in
-   [CHANGELOG.md](https://github.com/sykar-f/luciole/blob/main/CHANGELOG.md) and in
-   `gh release list -R sykar-f/luciole`, when the network allows. The package ships no
-   CHANGELOG. Offline, or as a complement, diff the docs after step 5:
+   [CHANGELOG.md](https://github.com/sykar-f/luciole/blob/main/CHANGELOG.md), and in the notes
+   of each release in between, `gh release view v<version> -R sykar-f/luciole`, when the
+   network allows. The package ships no CHANGELOG. Offline, or as a complement, diff the docs after step 5:
    `diff -ru "$TMPDIR/luciole-docs-<installed>" node_modules/@luciole-sh/core/docs`.
 4. **Bump every luciole package in one command**, to the same version: each `@luciole-sh/*`
    and `luciole.sh` that `package.json` lists. A patch: `bun update <packages>`. A minor
