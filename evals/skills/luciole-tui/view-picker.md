@@ -52,7 +52,7 @@ checks:
         await c.press("return");
         const narrow = await c.waitFor("Chosen: About");
         expect(widget.getSelectedOption().name).toBe("About");
-        expect(narrow).toMatch(/[◀▶←→<>]/);
+        expect(narrow).toMatch(/[◀▶←→‹›<>]/);
         native(c, "TabSelectRenderable");
         await c.press("tab");
         expect(widget.focused).toBe(false);

@@ -37,18 +37,19 @@ checks:
         await c.waitFor("Shortcut count: 0");
         await c.press("x");
         await c.waitFor("Shortcut count: 1");
-        await c.press("1", { ctrl: true });
+        await c.press("f", { ctrl: true });
         await c.type("ax");
         expect(await c.waitFor("First: ax")).toContain("Shortcut count: 1");
-        await c.press("2", { ctrl: true });
+        await c.press("g", { ctrl: true });
         await c.type("bx");
         const second = await c.waitFor("Second: bx");
         expect(second).toContain("First: ax");
         expect(second).toContain("Shortcut count: 1");
-        await c.press("1", { ctrl: true });
+        await c.press("f", { ctrl: true });
         await c.type("c");
         expect(await c.waitFor("First: axc")).toContain("Second: bx");
-        await c.press("escape");
+        c.ui.renderer.useKittyKeyboard = true;
+      await act(async () => c.ui.mockInput.pressKey("\x1b[27u"));
         await c.press("x");
         const blurred = await c.waitFor("Shortcut count: 2");
         expect(blurred).toContain("First: axc");
@@ -62,7 +63,7 @@ Add a focus demonstration screen at `/focus`, with its interactive part exported
 `FocusDemo` from `components/FocusDemo.tsx`. The root layout is minimal.
 
 Show two initially empty single-line fields, First and Second, with no field focused at
-first. Ctrl+1 focuses First, Ctrl+2 focuses Second, and Escape leaves both unfocused.
+first. Ctrl+F focuses First, Ctrl+G focuses Second, and Escape leaves both unfocused.
 Keep their text when focus moves. Mirror the values below as `First: <value>` and
 `Second: <value>` so they can be read without a cursor covering a character.
 

@@ -19,16 +19,12 @@ checks:
       mkdir -p tests
       cp app/patch/page.tsx app/patch/page.tsx.eval-backup
       trap 'mv app/patch/page.tsx.eval-backup app/patch/page.tsx; rm -f tests/library-eval.test.ts' EXIT
-      cat > app/patch/page.tsx <<'PAGE'
-      import { PatchView } from "../../components/PatchView";
-      const lines = Array.from({ length: 80 }, (_, i) => String(i+1).padStart(3, "0"));
-      const patch = ["--- a/large.ts", "+++ b/large.ts", "@@ -1,80 +1,80 @@", ...lines.map(n => `-old_${n}`), ...lines.map(n => `+new_${n}`)].join("\n") + "\n";
-      export default function Page() { return <PatchView patch={patch} />; }
-      PAGE
       cat > tests/library-eval.test.ts <<'TEST'
       import { expect, test } from "bun:test";
       import { act } from "react";
       import { buildApp, startServer, openClient, until, TEST_TIMEOUT_MS } from "@luciole-sh/core/test";
+      const originalApp = await buildApp();
+      await Bun.write("app/patch/page.tsx", "import { PatchView } from \"../../components/PatchView\";\nconst lines = Array.from({ length: 80 }, (_, i) => String(i+1).padStart(3, \"0\"));\nconst patch = [\"--- a/large.ts\", \"+++ b/large.ts\", \"@@ -1,80 +1,80 @@\", ...lines.map(n => `-old_${n}`), ...lines.map(n => `+new_${n}`)].join(\"\\n\") + \"\\n\";\nexport default function Page() { return <PatchView patch={patch} />; }\n");
       const app = await buildApp();
       function nodes(node) { return [node, ...node.getChildren().flatMap(nodes)]; }
       function native(client, name) {
@@ -37,6 +33,16 @@ checks:
         for (let n = found[0]; n; n = n.parent) expect(n.visible).toBe(true);
         return found[0];
       }
+      test("the submitted Server screen passes the sample patch", async () => {
+        await using server = await startServer(originalApp, { NOTES_DB: ":memory:" });
+        await using c = await openClient(originalApp, server, { width: 100, height: 24 });
+        await act(() => c.app.router.navigate({ to: "/patch" }));
+        const frame = await c.settled("Welcome");
+        expect(frame).toContain("Hello");
+        const widget = native(c, "DiffRenderable");
+        expect(widget.diff).toContain('const greeting = "Hello";');
+        expect(widget.diff).toContain('const greeting = "Welcome";');
+      }, TEST_TIMEOUT_MS);
       test("visible native patch toggles, scrolls and resizes", async () => {
         await using server = await startServer(app, { NOTES_DB: ":memory:" });
         await using c = await openClient(app, server, { width: 100, height: 24 });
@@ -53,16 +59,17 @@ checks:
         expect(await c.frame()).not.toBe(first);
         await c.press("v", { ctrl: true });
         await c.settled("old_001");
-        for (let i=0; i<14; i++) await c.press("pagedown");
-        const bottom = await c.settled("new_080");
+        for (let i=0; i<14; i++) await act(async () => c.ui.mockInput.pressKey("\x1b[6~"));
+        const bottom = await c.settled("new_060");
         expect(bottom).not.toContain("old_001");
-        for (let i=0; i<14; i++) await c.press("pageup");
+        for (let i=0; i<14; i++) await act(async () => c.ui.mockInput.pressKey("\x1b[5~"));
         await c.settled("old_001");
         await act(async () => c.ui.resize(32, 24));
         const narrow = await c.settled("old_001");
         native(c, "DiffRenderable");
-        expect(narrow).toContain("new_001");
-        expect(narrow.toLowerCase()).toContain("unified");
+          expect(narrow.toLowerCase()).toContain("unified");
+      for (let i=0; i<14; i++) await act(async () => c.ui.mockInput.pressKey("\x1b[6~"));
+      await c.settled("new_060");
       }, TEST_TIMEOUT_MS);
       TEST
       bun test tests/library-eval.test.ts --timeout 60000

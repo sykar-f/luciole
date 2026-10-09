@@ -49,14 +49,15 @@ checks:
         const renders = [];
         c.app.onEvent(e => { if (e.type === "request" && e.kind === "render") renders.push(e); });
         await c.press("p", { ctrl: true });
-        await until(() => renders.length > 0);
-        await c.requests.settled();
+        await act(() => until(() => renders.length > 0));
+        await act(() => c.requests.settled());
         expect(renders).toHaveLength(1);
         expect(renders[0].cause).toBe("preload");
         expect(c.app.router.state.location.pathname).toBe("/");
-        await c.press("h", { ctrl: true });
+        c.ui.renderer.useKittyKeyboard = true;
+      await act(async () => c.ui.mockInput.pressKey("\x1b[104;5u"));
         await c.waitFor("Help active");
-        await c.requests.settled();
+        await act(() => c.requests.settled());
         expect(renders).toHaveLength(1);
         expect(c.app.router.state.location.pathname).toBe("/help/overview");
         await act(() => c.app.router.navigate({ to: "/help/$topic/details", params: { topic: "syntax" }, search: { page: "042", keep: "yes" } }));
@@ -68,12 +69,12 @@ checks:
         await c.press("n", { ctrl: true });
         try {
           await c.waitFor("Opening");
-          await until(() => !!release);
+          await act(() => until(() => !!release));
         } finally { holding = false; release?.(); }
         await c.waitFor("Raw page: 43");
         expect(c.app.router.state.location.search).toMatchObject({ page: "43", keep: "yes" });
         await c.press("left", { meta: true });
-        await until(() => c.app.router.state.location.pathname === "/help/overview");
+        await act(() => until(() => c.app.router.state.location.pathname === "/help/overview"));
         await c.waitFor("Raw page: 1");
         for (const value of ["bad", "0", "-2", "2.5"]) {
           await act(() => c.app.router.navigate({ to: "/help/$topic", params: { topic: "validation" }, search: { page: value } }));
