@@ -154,6 +154,7 @@ for (const entry of ["node", "web"]) {
         callServer: () => Promise.reject("unused"),
       });
       try {
+        expect(await transport.call("a.ts#entry", [])).toBe(entry);
         const leaving = new AbortController();
         const response = await fetch(`${server.url}/render?route=/pending`, {
           headers: {
@@ -175,11 +176,11 @@ for (const entry of ["node", "web"]) {
         } else {
           // A second request gives the cancelled reads time to settle in the Server.
           await transport.call("a.ts#run", []);
-          expect(
-            received.filter(
-              (e) => e.callId === "leaving" && (e.type === "end" || e.type === "error"),
-            ),
-          ).toEqual([expect.objectContaining({ type: "end", cancelled: true })]);
+          const terminal = received.filter(
+            (e) => e.callId === "leaving" && (e.type === "end" || e.type === "error"),
+          );
+          expect(terminal).toHaveLength(1);
+          expect(terminal[0]).toMatchObject({ type: "end", cancelled: true });
         }
         expect(received.filter((e) => e.callId === "leaving" && e.type === "failure")).toEqual([]);
       } finally {

@@ -1,12 +1,17 @@
 import React from "react";
 import type { ServerFunction } from "../packages/core/src/server";
+let resolvedEntry = "node";
 if (process.env.FLIGHT_ENTRY === "web") {
   Bun.plugin({
     name: "web-flight",
     setup(build) {
-      build.onResolve({ filter: /^\.\/flight\/server$/ }, () => ({
-        path: import.meta.resolve("../packages/core/src/web/platform/flight/server.ts"),
-      }));
+      build.onLoad({ filter: /\/src\/flight\/server\.ts$/ }, () => {
+        resolvedEntry = "web";
+        return {
+          loader: "ts",
+          contents: `export * from "${new URL("../packages/core/src/web/platform/flight/server.ts", import.meta.url).pathname}";`,
+        };
+      });
     },
   });
 }
@@ -47,6 +52,7 @@ serve({
   ]),
   actions: new Map([
     ["a.ts#run", action(() => 42)],
+    ["a.ts#entry", action(() => resolvedEntry)],
     ["a.ts#pending-state", action(() => [...signals].map((signal) => signal.aborted))],
     [
       "a.ts#boom",
