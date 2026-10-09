@@ -41,6 +41,9 @@ export function relayBody(
           (error: unknown) => {
             if (stop.signal.aborted) {
               observe.end?.({ type: "end", cancelled: true });
+              // Aborting the pipe rejects with its reason. A source whose own
+              // cancellation failed must still reject the consumer's cancel.
+              if (error !== stop.signal.reason) throw error;
             } else {
               observe.end?.({ type: "error", error });
               controller.error(error);

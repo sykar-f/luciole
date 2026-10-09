@@ -268,3 +268,18 @@ test("the body relay keeps an unread source under backpressure", async () => {
   expect(pulls).toBeLessThanOrEqual(3);
   await relayed.cancel();
 });
+
+test("a source cancellation failure still rejects the consumer's cancel", async () => {
+  const failure = new Error("source cleanup failed");
+  const events: unknown[] = [];
+  const reader = relayBody(
+    new ReadableStream<Uint8Array>({
+      cancel: () => Promise.reject(failure),
+    }),
+    { end: (event) => events.push(event) },
+  ).getReader();
+  const pending = reader.read();
+  expect(await rejectionOf(reader.cancel(new Error("gone")))).toBe(failure);
+  expect(await pending).toMatchObject({ done: true });
+  expect(events).toEqual([{ type: "end", cancelled: true }]);
+});
