@@ -15,6 +15,9 @@ import {
   run,
   runCheck,
   runInApp,
+  runPass,
+  type Kill,
+  type RunResult,
   type Scenario,
 } from "../scripts/skills-eval-scenario";
 
@@ -367,4 +370,95 @@ test("a scenario without setup runs the agent on the app as copied", async () =>
   const result = await runInApp({ scenario, scenarioDir: temp, app, out, agent: WRITES_FILE });
   expect(result).toMatchObject({ agent: "ok", checks: [false, true] });
   expect(await Bun.file(join(out, "setup.log")).exists()).toBe(false);
+});
+
+const eperm = () => Object.assign(new Error("kill EPERM"), { code: "EPERM" });
+
+test("a refused group signal still ends the run when the group is gone", async () => {
+  const { out, app } = await appCopy();
+  // The signal is delivered, but the system still answers EPERM, as macOS may.
+  const kill: Kill = (pid, signal) => {
+    process.kill(pid, signal);
+    throw eperm();
+  };
+  const { setup: _, ...scenario } = withSetup("unused");
+  const result = await runInApp({
+    scenario,
+    scenarioDir: temp,
+    app,
+    out,
+    agent: LEAVES_CHILD,
+    cleanup: { kill },
+  });
+  expect(result).toMatchObject({ agent: "ok", left: undefined });
+  expect(alive(pidOf(await readFile(join(out, "transcript.jsonl"), "utf8")))).toBe(false);
+});
+
+test("a member no signal can end is reported, and the run completes", async () => {
+  const { out, app } = await appCopy();
+  const kill: Kill = () => {
+    throw eperm();
+  };
+  const scenario: Scenario = {
+    name: "luciole-x/stuck",
+    prompt: "p",
+    checks: [{ exists: "a.txt" }],
+    timeoutMinutes: 1,
+  };
+  const result = await runInApp({
+    scenario,
+    scenarioDir: temp,
+    app,
+    out,
+    agent: LEAVES_CHILD,
+    cleanup: { kill, goneMs: 200 },
+  });
+  const child = pidOf(await readFile(join(out, "transcript.jsonl"), "utf8"));
+  try {
+    expect(result).toMatchObject({ agent: "ok", left: 1, checks: [true] });
+    const table = renderTable(
+      [{ scenario: scenario.name, arm: "without", run: 1, ...result }],
+      [scenario],
+    );
+    expect(table).toContain("| ok, cleanup: 1 left |");
+  } finally {
+    process.kill(child, "SIGKILL");
+  }
+});
+
+test("the report keeps the finished rows when a later run fails", async () => {
+  const report = join(await mkdtemp(join(temp, "report-")), "report.md");
+  const scenario: Scenario = {
+    name: "luciole-x/pass",
+    prompt: "p",
+    checks: [{ exists: "a" }],
+    timeoutMinutes: 1,
+  };
+  const row = (run: number): RunResult => ({
+    scenario: scenario.name,
+    arm: "without",
+    run,
+    checks: [true],
+    agent: "ok",
+    seconds: 1,
+  });
+  const pass = runPass(
+    [1, 2, 3],
+    async (n) => {
+      if (n === 3) throw new Error("the third run crashed");
+      return row(n);
+    },
+    { scenarios: [scenario], report },
+  );
+  const failure = await pass.then(
+    () => undefined,
+    (error: unknown) => error,
+  );
+  expect(String(failure)).toContain("the third run crashed");
+  const lines = (await readFile(report, "utf8")).split("\n");
+  expect(lines.slice(2, 5)).toEqual([
+    "| luciole-x/pass | without | 1   | pass | -          | ok    | 1s       |",
+    "| luciole-x/pass | without | 2   | pass | -          | ok    | 1s       |",
+    "",
+  ]);
 });

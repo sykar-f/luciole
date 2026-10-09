@@ -26,6 +26,7 @@ import {
   renderTable,
   run,
   runInApp,
+  runPass,
   USAGE,
   type Arm,
   type Args,
@@ -168,18 +169,26 @@ async function main() {
   console.log(`Report directory: ${temp}`);
   const bases = await prepareBases(temp);
 
-  const results: RunResult[] = [];
-  for (const scenario of scenarios)
-    for (let n = 1; n <= args.runs; n++)
-      for (const arm of ARMS) {
-        const out = join(temp, "runs", scenario.name, `${arm}-${n}`);
-        results.push(
-          await runOnce({ scenario, arm, run: n, base: bases[arm], out, model: args.model }),
-        );
-      }
+  const plan = scenarios.flatMap((scenario) =>
+    Array.from({ length: args.runs }, (_, i) => i + 1).flatMap((n) =>
+      ARMS.map((arm) => ({ scenario, arm, n })),
+    ),
+  );
+  const results = await runPass(
+    plan,
+    ({ scenario, arm, n }) =>
+      runOnce({
+        scenario,
+        arm,
+        run: n,
+        base: bases[arm],
+        out: join(temp, "runs", scenario.name, `${arm}-${n}`),
+        model: args.model,
+      }),
+    { scenarios, report: join(temp, "report.md") },
+  );
 
   const table = renderTable(results, scenarios);
-  await writeFile(join(temp, "report.md"), `${table}\n`);
   console.log(`\n${table}\n`);
   console.log(`Transcripts, diffs and check logs: ${join(temp, "runs")}`);
 }
