@@ -43,10 +43,13 @@ render. See `node_modules/@luciole-sh/core/docs/concepts/client-components.md`.
 ## A page fails at run time
 
 A page that throws reaches the nearest `error.tsx`. In production the Client receives only
-"Server render failed": React's production Flight drops the message, and the Server logs
-nothing for it. So:
+"Server render failed": React's production Flight drops the message. The Server logs
+`Render failed <callId> <routeId> <error.name>` (for a launched Server, read
+`$XDG_STATE_HOME/luciole/<app>/server.log`). The message stays out of the log by design:
+it may carry user data. So:
 
-- To read the real error, reproduce under `bun run dev`, where `error.tsx` gets the message.
+- To read the message, reproduce under `bun run dev`, where `error.tsx` gets it, or use an
+  `instrument` that logs the non-terminal `failure` event.
 - A condition the user must understand is an answer, not a throw: return the message as the
   page's own output, in the app's own pane (a Server page renders Client Components too).
   Editing `error.tsx` cannot bring a production message back.
