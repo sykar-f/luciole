@@ -1,0 +1,42 @@
+diff --git a/app/notes/[id]/page.tsx b/app/notes/[id]/page.tsx
+index 617b46e..2c231c2 100644
+--- a/app/notes/[id]/page.tsx
++++ b/app/notes/[id]/page.tsx
+@@ -1,4 +1,6 @@
++import { useState } from "react";
+ import { getSession, notFound } from "@luciole-sh/core/server";
++import { useBindings } from "@luciole-sh/core/client";
+ import { z } from "zod";
+ import { noteOf } from "../../../server/queries";
+ import { saveNote, getOperation } from "../../../actions/notes";
+@@ -16,13 +18,23 @@ const autosaveMs = z.coerce
+ export default async function Page({ params }: { params: { id: string } }) {
+   const note = await noteOf(getSession().userId, params.id);
+   if (!note) notFound("Note");
++  // Ctrl+W shows how many words the note holds, above it.
++  const [counting, setCounting] = useState(false);
++  useBindings(
++    () => ({ bindings: [{ key: "ctrl+w", cmd: () => setCounting((shown) => !shown) }] }),
++    [],
++  );
++  const words = note.value.split(/\s+/).filter(Boolean).length;
+   return (
+-    <NoteEditor
+-      key={note.id}
+-      initialNote={note}
+-      saveAction={saveNote}
+-      resolveAction={getOperation}
+-      autosaveMs={autosaveMs}
+-    />
++    <box flexDirection="column" flexGrow={1}>
++      {counting ? <text>{`${words} words`}</text> : null}
++      <NoteEditor
++        key={note.id}
++        initialNote={note}
++        saveAction={saveNote}
++        resolveAction={getOperation}
++        autosaveMs={autosaveMs}
++      />
++    </box>
+   );
+ }

@@ -1,0 +1,14 @@
+diff --git a/components/commands.ts b/components/commands.ts
+index 9e5b129..e965edb 100644
+--- a/components/commands.ts
++++ b/components/commands.ts
+@@ -50,7 +50,8 @@ export function useCommands() {
+     /** A blank note, opened with its title ready to type. */
+     create: async () => {
+       try {
+-        const note = await createNote();
++        // A flaky network loses a request now and then: try a second time before giving up.
++        const note = await createNote().catch(() => createNote());
+         ui.rename(note.id);
+         await open(note.id);
+       } catch (error: unknown) {
