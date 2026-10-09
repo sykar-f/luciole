@@ -64,6 +64,8 @@ bunx luciole build --compile --client-only --name notes --target bun-linux-x64 \
 ```
 
 In a shell script, call `bunx luciole`: `luciole` is on the `PATH` only inside `bun run`.
+When that `bun install` fails in your own sandbox (`EPERM` on its tempdir, no network), the
+script is not at fault: keep it, and give the user the command to run it.
 
 `uname -sm` on the receiving machine picks the target: `Linux x86_64` → `bun-linux-x64`,
 `Linux aarch64` → `bun-linux-arm64`, add `-musl` on Alpine, `Darwin arm64` →
@@ -90,6 +92,8 @@ Restart=on-failure
   `x-luciole-build`.
 - App options go after `--`: `notes serve --http 127.0.0.1:3000 -- --mode read`.
 - Clients join with `LUCIOLE_TOKEN=<token> ./notes-darwin-arm64 --url https://notes.example.com`.
+  The Client also reads `LUCIOLE_URL`, then `~/.config/luciole/<name>.json` (`{ "url": … }`):
+  hand over the binary itself, not a launcher script that wraps it.
 - A Server answers `409 Incompatible build` to a Client of another build: build the Server and
   every Client from the same commit, and switch them together on update and rollback.
 
