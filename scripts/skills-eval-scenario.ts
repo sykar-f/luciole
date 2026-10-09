@@ -1,11 +1,12 @@
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
 
 /**
- * The parts of `scripts/skills-eval.ts` that run without an agent: the scenario format, the
- * command line, processes and their groups, the checks, the run's diff, whether a transcript
- * shows an agent reading a skill, and the report's table. The format is documented in
+ * The parts of `scripts/skills-eval.ts` that run without Codex: the scenario format, the
+ * command line, processes and their groups, the setup, the checks, the run's diff, one run in
+ * an app copy with the agent's command given, whether a transcript shows an agent reading a
+ * skill, and the report's table. The format is documented in
  * evals/skills/README.md.
  */
 
@@ -28,6 +29,7 @@ const Frontmatter = z.strictObject({
     .regex(/^luciole-[a-z0-9-]+$/)
     .optional(),
   "timeout-minutes": z.number().positive().optional(),
+  setup: z.string().min(1).optional(),
   checks: z.array(Check).min(1),
 });
 
@@ -37,6 +39,8 @@ export interface Scenario {
   checks: readonly Check[];
   expectSkill?: string;
   timeoutMinutes: number;
+  /** A shell command that plants the app's state before the baseline commit. */
+  setup?: string;
 }
 
 /** A scenario file's text, read as `name`: its prompt, checks and options, or a thrown error. */
@@ -64,6 +68,7 @@ export function parseScenario(name: string, text: string): Scenario {
     checks: parsed.data.checks,
     expectSkill: parsed.data["expect-skill"],
     timeoutMinutes: parsed.data["timeout-minutes"] ?? DEFAULT_TIMEOUT_MINUTES,
+    setup: parsed.data.setup,
   };
 }
 
@@ -148,8 +153,8 @@ export interface RunResult {
   checks: readonly boolean[];
   /** Absent when the scenario expects no skill. */
   skillRead?: boolean;
-  /** Whether the agent ran out of time or exited non-zero. */
-  agent: "ok" | "timeout" | `exit ${number}`;
+  /** Whether the agent ran out of time or exited non-zero, or never started. */
+  agent: "ok" | "timeout" | `exit ${number}` | "setup failed";
   seconds: number;
 }
 
@@ -240,10 +245,11 @@ export async function endGroup(id: number) {
 export async function run(
   cmd: readonly string[],
   cwd: string,
-  options: { timeoutMs?: number } = {},
+  options: { timeoutMs?: number; env?: Readonly<Record<string, string>> } = {},
 ): Promise<Ran> {
   const child = Bun.spawn([...cmd], {
     cwd,
+    env: { ...process.env, ...options.env },
     stdin: "ignore",
     stdout: "pipe",
     stderr: "pipe",
@@ -274,6 +280,7 @@ export async function must(cmd: readonly string[], cwd: string) {
   return result.output;
 }
 
+const MS_PER_SECOND = 1000;
 const MS_PER_MINUTE = 60_000;
 /** How long one check command may run. */
 const CHECK_TIMEOUT_MINUTES = 10;
@@ -316,4 +323,88 @@ export async function baselineOf(app: string) {
 export async function diffSince(app: string, baseline: string) {
   await must(["git", "add", "-A"], app);
   return must(["git", "diff", "--cached", "--binary", baseline], app);
+}
+
+/** Commits everything in `app` as the runner, even nothing: the commit a run starts from. */
+export async function commitAll(app: string, message: string) {
+  await must(["git", "add", "-A"], app);
+  await must(
+    [
+      "git",
+      "-c",
+      "user.name=skills-eval",
+      "-c",
+      "user.email=skills-eval@luciole.invalid",
+      "commit",
+      "-q",
+      "--allow-empty",
+      "-m",
+      message,
+    ],
+    app,
+  );
+}
+
+/**
+ * Runs a scenario's `setup` in `app` (`sh -c`, at most as long as a check), with the scenario's
+ * directory as `$SCENARIO_DIR`, then commits what it changed, so the baseline holds it.
+ */
+export async function runSetup(
+  setup: string,
+  app: string,
+  options: { scenarioDir: string; timeoutMs?: number },
+): Promise<{ passed: boolean; log: string }> {
+  const result = await run(["sh", "-c", setup], app, {
+    timeoutMs: options.timeoutMs ?? CHECK_TIMEOUT_MS,
+    env: { SCENARIO_DIR: options.scenarioDir },
+  });
+  const status = result.timedOut ? "timed out" : `exit ${result.code}`;
+  const passed = result.code === 0 && !result.timedOut;
+  if (passed) await commitAll(app, "setup");
+  return { passed, log: `${status}\n${result.output}` };
+}
+
+/**
+ * One run in `app`, a fresh copy of a base: the scenario's setup, then the agent's command,
+ * then the checks. It writes `setup.log` (when the scenario has a setup), `transcript.jsonl`,
+ * `diff.patch` and `checks.log` to `out`. A setup that fails starts no agent and no check.
+ */
+export async function runInApp(options: {
+  scenario: Scenario;
+  scenarioDir: string;
+  app: string;
+  out: string;
+  agent: readonly string[];
+}): Promise<Omit<RunResult, "scenario" | "arm" | "run">> {
+  const { scenario, app, out } = options;
+  if (scenario.setup !== undefined) {
+    const setup = await runSetup(scenario.setup, app, { scenarioDir: options.scenarioDir });
+    await writeFile(join(out, "setup.log"), setup.log);
+    if (!setup.passed) return { checks: [], agent: "setup failed", seconds: 0 };
+  }
+  const baseline = await baselineOf(app);
+
+  const started = performance.now();
+  const agent = await run(options.agent, app, {
+    timeoutMs: scenario.timeoutMinutes * MS_PER_MINUTE,
+  });
+  const seconds = (performance.now() - started) / MS_PER_SECOND;
+  await writeFile(join(out, "transcript.jsonl"), agent.output);
+
+  await writeFile(join(out, "diff.patch"), await diffSince(app, baseline));
+
+  const checks: boolean[] = [];
+  const logs: string[] = [];
+  for (const check of scenario.checks) {
+    const result = await runCheck(check, app);
+    checks.push(result.passed);
+    logs.push(`## ${describeCheck(check)}: ${result.passed ? "pass" : "FAIL"}\n${result.log}`);
+  }
+  await writeFile(join(out, "checks.log"), logs.join("\n\n"));
+  return {
+    checks,
+    skillRead: scenario.expectSkill ? readsSkill(agent.output, scenario.expectSkill) : undefined,
+    agent: agent.timedOut ? "timeout" : agent.code === 0 ? "ok" : `exit ${agent.code}`,
+    seconds,
+  };
 }
