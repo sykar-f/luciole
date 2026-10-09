@@ -1,9 +1,12 @@
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { z } from "zod";
 
 /**
- * The pure parts of `scripts/skills-eval.ts`: the scenario format, the command line, whether a
- * transcript shows an agent reading a skill, and the report's table. The format is documented
- * in evals/skills/README.md.
+ * The parts of `scripts/skills-eval.ts` that run without an agent: the scenario format, the
+ * command line, processes, the checks, whether a transcript shows an agent reading a skill,
+ * and the report's table. The format is documented in
+ * evals/skills/README.md.
  */
 
 export const DEFAULT_MODEL = "gpt-6-luna";
@@ -190,4 +193,69 @@ export function renderTable(results: readonly RunResult[], scenarios: readonly S
     "Checks:",
     ...legend,
   ].join("\n");
+}
+
+export interface Ran {
+  code: number;
+  output: string;
+  timedOut: boolean;
+}
+
+/** Runs `cmd` with stdin closed; past `timeoutMs`, it is killed. */
+export async function run(
+  cmd: readonly string[],
+  cwd: string,
+  options: { timeoutMs?: number } = {},
+): Promise<Ran> {
+  const child = Bun.spawn([...cmd], {
+    cwd,
+    stdin: "ignore",
+    stdout: "pipe",
+    stderr: "pipe",
+    timeout: options.timeoutMs,
+    killSignal: "SIGKILL",
+  });
+  const [out, err, code] = await Promise.all([
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+    child.exited,
+  ]);
+  return { code, output: out + err, timedOut: child.signalCode === "SIGKILL" };
+}
+
+/** `run`, which must exit 0: its output, or a thrown error that holds it. */
+export async function must(cmd: readonly string[], cwd: string) {
+  const result = await run(cmd, cwd);
+  if (result.code !== 0) throw new Error(`${cmd.join(" ")} failed in ${cwd}:\n${result.output}`);
+  return result.output;
+}
+
+const MS_PER_MINUTE = 60_000;
+/** How long one check command may run. */
+const CHECK_TIMEOUT_MINUTES = 10;
+export const CHECK_TIMEOUT_MS = CHECK_TIMEOUT_MINUTES * MS_PER_MINUTE;
+
+/** Whether `check` holds in `app`, and what it saw. */
+export async function runCheck(
+  check: Check,
+  app: string,
+  options: { timeoutMs?: number } = {},
+): Promise<{ passed: boolean; log: string }> {
+  if ("run" in check) {
+    const result = await run(["sh", "-c", check.run], app, {
+      timeoutMs: options.timeoutMs ?? CHECK_TIMEOUT_MS,
+    });
+    const status = result.timedOut ? "timed out" : `exit ${result.code}`;
+    return { passed: result.code === 0 && !result.timedOut, log: `${status}\n${result.output}` };
+  }
+  if ("exists" in check || "absent" in check) {
+    const path = "exists" in check ? check.exists : check.absent;
+    const found = await Bun.file(join(app, path)).exists();
+    return { passed: "exists" in check ? found : !found, log: found ? "found" : "not found" };
+  }
+  const { file, pattern } = "match" in check ? check.match : check["no-match"];
+  const text = await readFile(join(app, file), "utf8").catch(() => undefined);
+  if (text === undefined) return { passed: false, log: `${file} does not exist` };
+  const matched = new RegExp(pattern, "m").test(text);
+  return { passed: "match" in check ? matched : !matched, log: matched ? "matched" : "no match" };
 }

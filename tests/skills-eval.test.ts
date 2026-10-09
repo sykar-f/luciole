@@ -1,5 +1,6 @@
-import { expect, test } from "bun:test";
-import { readdir, readFile } from "node:fs/promises";
+import { afterAll, expect, test } from "bun:test";
+import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import {
   DEFAULT_MODEL,
@@ -8,8 +9,12 @@ import {
   parseScenario,
   readsSkill,
   renderTable,
+  runCheck,
   type Scenario,
 } from "../scripts/skills-eval-scenario";
+
+const temp = await mkdtemp(join(tmpdir(), "luciole-skills-eval-test-"));
+afterAll(() => rm(temp, { recursive: true, force: true }));
 
 const evals = resolve(import.meta.dir, "../evals/skills");
 
@@ -141,4 +146,36 @@ test("the table: one row per run, a column per check, and the legend", () => {
       "  luciole-app/about c2: run bun run verify",
     ].join("\n"),
   );
+});
+
+test("each check kind passes and fails as its scenario says", async () => {
+  const app = await mkdtemp(join(temp, "app-"));
+  await writeFile(join(app, "page.tsx"), "export const title = 'About Notes';\n");
+  const cases: [Parameters<typeof runCheck>[0], boolean][] = [
+    [{ run: "exit 0" }, true],
+    [{ run: "exit 1" }, false],
+    [{ exists: "page.tsx" }, true],
+    [{ exists: "missing.tsx" }, false],
+    [{ absent: "missing.tsx" }, true],
+    [{ absent: "page.tsx" }, false],
+    [{ match: { file: "page.tsx", pattern: "About Notes" } }, true],
+    [{ match: { file: "page.tsx", pattern: "^Nope" } }, false],
+    [{ "no-match": { file: "page.tsx", pattern: "^Nope" } }, true],
+    [{ "no-match": { file: "page.tsx", pattern: "About" } }, false],
+    [{ match: { file: "missing.tsx", pattern: "x" } }, false],
+    [{ "no-match": { file: "missing.tsx", pattern: "x" } }, false],
+  ];
+  for (const [check, passed] of cases)
+    expect({ check, passed: (await runCheck(check, app)).passed }).toEqual({ check, passed });
+  expect((await runCheck({ run: "echo out; exit 3" }, app)).log).toBe("exit 3\nout\n");
+  expect((await runCheck({ match: { file: "missing.tsx", pattern: "x" } }, app)).log).toBe(
+    "missing.tsx does not exist",
+  );
+});
+
+test("a check command that runs out of time fails", async () => {
+  const app = await mkdtemp(join(temp, "app-"));
+  const result = await runCheck({ run: "sleep 60" }, app, { timeoutMs: 200 });
+  expect(result.passed).toBe(false);
+  expect(result.log).toStartWith("timed out");
 });

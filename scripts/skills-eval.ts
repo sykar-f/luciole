@@ -20,14 +20,16 @@ import { z } from "zod";
 import { stageStarter } from "../packages/create/scripts/starter";
 import {
   describeCheck,
+  must,
   parseArgs,
   parseScenario,
   readsSkill,
   renderTable,
+  run,
+  runCheck,
   USAGE,
   type Arm,
   type Args,
-  type Check,
   type RunResult,
   type Scenario,
 } from "./skills-eval-scenario";
@@ -42,43 +44,7 @@ const PACKED = {
 const ARMS: readonly Arm[] = ["without", "with"];
 const MS_PER_SECOND = 1000;
 const SECONDS_PER_MINUTE = 60;
-/** How long one check command may run. */
-const CHECK_TIMEOUT_MINUTES = 10;
-const CHECK_TIMEOUT_MS = CHECK_TIMEOUT_MINUTES * SECONDS_PER_MINUTE * MS_PER_SECOND;
 const PackageJson = z.looseObject({ dependencies: z.record(z.string(), z.string()) });
-
-interface Ran {
-  code: number;
-  output: string;
-  timedOut: boolean;
-}
-
-async function run(
-  cmd: readonly string[],
-  cwd: string,
-  options: { timeoutMs?: number } = {},
-): Promise<Ran> {
-  const child = Bun.spawn([...cmd], {
-    cwd,
-    stdin: "ignore",
-    stdout: "pipe",
-    stderr: "pipe",
-    timeout: options.timeoutMs,
-    killSignal: "SIGKILL",
-  });
-  const [out, err, code] = await Promise.all([
-    new Response(child.stdout).text(),
-    new Response(child.stderr).text(),
-    child.exited,
-  ]);
-  return { code, output: out + err, timedOut: child.signalCode === "SIGKILL" };
-}
-
-async function must(cmd: readonly string[], cwd: string) {
-  const result = await run(cmd, cwd);
-  if (result.code !== 0) throw new Error(`${cmd.join(" ")} failed in ${cwd}:\n${result.output}`);
-  return result.output;
-}
 
 /** The scenarios to run: those named, or every one of the skill's. */
 async function loadScenarios(args: Args): Promise<Scenario[]> {
@@ -169,24 +135,6 @@ async function prepareBases(temp: string): Promise<Record<Arm, string>> {
   );
   for (const directory of [without, withMaterial]) await baseline(directory);
   return { without, with: withMaterial };
-}
-
-async function runCheck(check: Check, app: string): Promise<{ passed: boolean; log: string }> {
-  if ("run" in check) {
-    const result = await run(["sh", "-c", check.run], app, { timeoutMs: CHECK_TIMEOUT_MS });
-    const status = result.timedOut ? "timed out" : `exit ${result.code}`;
-    return { passed: result.code === 0 && !result.timedOut, log: `${status}\n${result.output}` };
-  }
-  if ("exists" in check || "absent" in check) {
-    const path = "exists" in check ? check.exists : check.absent;
-    const found = await Bun.file(join(app, path)).exists();
-    return { passed: "exists" in check ? found : !found, log: found ? "found" : "not found" };
-  }
-  const { file, pattern } = "match" in check ? check.match : check["no-match"];
-  const text = await readFile(join(app, file), "utf8").catch(() => undefined);
-  if (text === undefined) return { passed: false, log: `${file} does not exist` };
-  const matched = new RegExp(pattern, "m").test(text);
-  return { passed: "match" in check ? matched : !matched, log: matched ? "matched" : "no match" };
 }
 
 async function runOnce(options: {
