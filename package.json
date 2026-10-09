@@ -62,6 +62,7 @@
     "test": "bun test --timeout 20000 --parallel=4",
     "licenses": "bun scripts/licenses.ts",
     "release": "bun scripts/release.ts",
+    "skills:eval": "bun scripts/skills-eval.ts",
     "probes": "cd probes/rsc && bun install --frozen-lockfile && bun probe.tsx && cd ../rpc && bun install --frozen-lockfile && bun probe.tsx",
     "build": "bun packages/core/src/cli.ts build --app examples/notes",
     "dev": "bun packages/core/src/cli.ts dev --app examples/notes",
