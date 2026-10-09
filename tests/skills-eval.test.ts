@@ -1,4 +1,5 @@
 import { afterAll, expect, test } from "bun:test";
+import { z } from "zod";
 import { existsSync, realpathSync } from "node:fs";
 import { mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -412,6 +413,107 @@ test("a child the agent leaves behind ends with the run", async () => {
   expect(result).toMatchObject({ code: 0, timedOut: false });
   expect(alive(pidOf(result.output))).toBe(false);
 });
+
+// Run the real supervisor in a separate process so the injected ps cannot affect other tests.
+for (const mode of ["leader exit", "SIGINT", "SIGINT finishing run"] as const)
+  test(`a stalled member listing cannot hold cleanup after ${mode}`, async () => {
+    const { app, out } = await appCopy();
+    const gate = join(out, "release-listing");
+    const listings = join(out, "listings");
+    const agentPid = join(out, "agent.pid");
+    const auth = join(out, "source-auth.json");
+    await mkdir(listings);
+    await writeFile(auth, "credentials");
+    const listingScript = join(out, "listing.ts");
+    await writeFile(
+      listingScript,
+      `await Bun.write(${JSON.stringify(listings)} + "/" + process.pid, "");
+while (!(await Bun.file(${JSON.stringify(gate)}).exists())) await Bun.sleep(10);`,
+    );
+    const script = join(out, "stalled-runner.ts");
+    const { setup: _, ...scenario } = withSetup("unused");
+    await writeFile(
+      script,
+      `import {existsSync} from "node:fs";
+import {run, runInApp} from ${JSON.stringify(resolve(import.meta.dir, "../scripts/skills-eval-scenario.ts"))};
+const spawn = Bun.spawn.bind(Bun);
+const kill = process.kill.bind(process);
+const kills = new Map();
+const active = () => ${JSON.stringify(mode)} === "leader exit" || existsSync(${JSON.stringify(agentPid)});
+// Make even an already-killed group require a listing (as with an EPERM probe).
+process.kill = (pid, signal) => {
+ if (signal === 0 && active()) return true;
+ if (pid < 0 && signal === "SIGKILL" && active()) {
+  kills.set(pid, (kills.get(pid) ?? 0) + 1);
+  if (${JSON.stringify(mode)} === "SIGINT finishing run" && kills.get(pid) > 1)
+   throw Object.assign(new Error("kill ESRCH"), {code: "ESRCH"});
+  try { kill(pid, signal); } catch {}
+  throw Object.assign(new Error("kill EPERM"), {code: "EPERM"});
+ }
+ return kill(pid, signal);
+};
+Bun.spawn = (cmd, options) => spawn(cmd[0] === "ps" && active()
+ ? [process.execPath, ${JSON.stringify(listingScript)}] : cmd, options);
+${
+  mode === "leader exit"
+    ? `const result = await run(["sh", "-c", "sleep 60 & echo $!"], ${JSON.stringify(app)}, {cleanup: {goneMs: 50}});
+console.log(JSON.stringify(result));`
+    : `await runInApp({scenario: ${JSON.stringify(scenario)}, arm: "with", scenarioDir: ${JSON.stringify(temp)}, app: ${JSON.stringify(app)}, out: ${JSON.stringify(out)}, codexAuth: ${JSON.stringify(auth)}, agent: ["sh", "-c", 'echo "$$" > "$0"; sleep 60 & wait', ${JSON.stringify(agentPid)}]});`
+}
+`,
+    );
+    const runner = Bun.spawn([process.execPath, script], {
+      stdin: "ignore",
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const output = new Response(runner.stdout).text();
+    const errors = new Response(runner.stderr).text();
+    const waitFor = async (ready: () => Promise<boolean>) => {
+      const deadline = performance.now() + 10_000;
+      while (!(await ready()) && performance.now() < deadline) await Bun.sleep(10);
+      expect(await ready()).toBe(true);
+    };
+    try {
+      if (mode !== "leader exit") {
+        await waitFor(() => Bun.file(agentPid).exists());
+        runner.kill("SIGINT");
+      }
+      await waitFor(async () => (await readdir(listings)).length > 0);
+      // The gate remains shut. Completion must come from the cleanup deadline, not ps EOF.
+      const code = await Promise.race([
+        runner.exited,
+        Bun.sleep(mode === "leader exit" ? 1000 : 12_000).then(() => "listing still awaited"),
+      ]);
+      if (code === 1) throw new Error(await errors);
+      expect(code).toBe(mode === "leader exit" ? 0 : 130);
+      if (mode === "leader exit") {
+        const result = z
+          .object({
+            code: z.number(),
+            output: z.string(),
+            timedOut: z.boolean(),
+            left: z.number(),
+          })
+          .parse(JSON.parse(await output));
+        expect(result).toMatchObject({ code: 0, timedOut: false, left: 1 });
+        expect(alive(pidOf(result.output))).toBe(false);
+      } else {
+        expect(await readdir(runLayout(out).codex)).toEqual([]);
+        expect(alive(Number(await readFile(agentPid, "utf8")))).toBe(false);
+      }
+      for (const pid of await readdir(listings)) expect(alive(Number(pid))).toBe(false);
+      expect(await errors).toBe("");
+    } finally {
+      await writeFile(gate, "release");
+      // Release the diagnostic listing even on the old implementation, then reap the runner.
+      runner.kill("SIGKILL");
+      await runner.exited;
+      for (const pid of await readdir(listings))
+        if (alive(Number(pid))) process.kill(Number(pid), "SIGKILL");
+      await Promise.all([output, errors]);
+    }
+  }, 20_000);
 
 test("each check kind passes and fails as its scenario says", async () => {
   const app = await mkdtemp(join(temp, "app-"));
