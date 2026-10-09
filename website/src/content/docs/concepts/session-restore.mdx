@@ -144,7 +144,10 @@ Three rules decide which entry holds the text:
 ## Name a field to keep its text
 
 `<Input>` and `<Textarea>` from `@luciole-sh/core/client` are OpenTUI's `input` and `textarea`,
-made controlled: `value` in, `onChange` out. A `name` makes their text restorable:
+made controlled: `value` in, and the text out through `onInput` on `<Input>` and `onChange` on
+`<Textarea>`. A `name` makes their text restorable. On mount, that same prop receives the
+restored text once. Pass the other prop, and your app's state stays empty and the field comes
+back blank:
 
 <Excerpt
   path="examples/chat/components/Chat.tsx"
