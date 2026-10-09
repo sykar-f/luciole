@@ -186,7 +186,7 @@ const Search = z
   .refine((search) => Object.keys(search).length <= SEARCH_KEYS);
 // Decoded by Flight from the request body: one argument per parameter.
 const Arguments = z.array(z.unknown());
-// The Client's event clock (src/transport.ts): `at` compares across both processes.
+// Within this process, `at` and `ms` share a monotonic clock; correlate with the Client by `callId`.
 const now = () => performance.timeOrigin + performance.now();
 // What the Server's log says of an error: its name, never its message.
 const nameOf = (error: unknown) => (error instanceof Error ? error.name : "Error");
