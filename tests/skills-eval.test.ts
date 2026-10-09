@@ -1,10 +1,13 @@
 import { afterAll, expect, test } from "bun:test";
-import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import {
+  baselineOf,
   DEFAULT_MODEL,
   DEFAULT_TIMEOUT_MINUTES,
+  diffSince,
+  must,
   parseArgs,
   parseScenario,
   readsSkill,
@@ -208,4 +211,27 @@ test("a check command that runs out of time fails", async () => {
   const result = await runCheck({ run: "sleep 60" }, app, { timeoutMs: 200 });
   expect(result.passed).toBe(false);
   expect(result.log).toStartWith("timed out");
+});
+
+test("the diff holds what the agent committed as well as what it left", async () => {
+  const app = join(temp, "repo");
+  await mkdir(app);
+  const git = (...args: string[]) =>
+    must(["git", "-c", "user.name=t", "-c", "user.email=t@t.invalid", ...args], app);
+  await writeFile(join(app, "a.txt"), "a\n");
+  await git("init", "-q");
+  await git("add", "-A");
+  await git("commit", "-q", "-m", "baseline");
+  const baseline = await baselineOf(app);
+
+  await writeFile(join(app, "committed.txt"), "committed\n");
+  await git("add", "-A");
+  await git("commit", "-q", "-m", "the agent's commit");
+  await writeFile(join(app, "a.txt"), "a changed\n");
+  await writeFile(join(app, "untracked.txt"), "untracked\n");
+
+  const diff = await diffSince(app, baseline);
+  expect(diff).toContain("+committed");
+  expect(diff).toContain("+a changed");
+  expect(diff).toContain("+untracked");
 });

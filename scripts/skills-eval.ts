@@ -19,7 +19,9 @@ import { join, resolve } from "node:path";
 import { z } from "zod";
 import { stageStarter } from "../packages/create/scripts/starter";
 import {
+  baselineOf,
   describeCheck,
+  diffSince,
   must,
   parseArgs,
   parseScenario,
@@ -149,6 +151,7 @@ async function runOnce(options: {
   await mkdir(out, { recursive: true });
   const app = join(out, "app");
   await copyApp(base, app);
+  const baseline = await baselineOf(app);
   console.log(`${scenario.name} · ${arm} · run ${options.run}: codex in ${app}`);
 
   const started = performance.now();
@@ -172,11 +175,7 @@ async function runOnce(options: {
   const seconds = (performance.now() - started) / MS_PER_SECOND;
   await writeFile(join(out, "transcript.jsonl"), agent.output);
 
-  await must(["git", "add", "-A"], app);
-  await writeFile(
-    join(out, "diff.patch"),
-    await must(["git", "diff", "--cached", "--binary"], app),
-  );
+  await writeFile(join(out, "diff.patch"), await diffSince(app, baseline));
 
   const checks: boolean[] = [];
   const logs: string[] = [];

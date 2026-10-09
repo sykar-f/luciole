@@ -4,8 +4,8 @@ import { z } from "zod";
 
 /**
  * The parts of `scripts/skills-eval.ts` that run without an agent: the scenario format, the
- * command line, processes and their groups, the checks, whether a transcript shows an agent
- * reading a skill, and the report's table. The format is documented in
+ * command line, processes and their groups, the checks, the run's diff, whether a transcript
+ * shows an agent reading a skill, and the report's table. The format is documented in
  * evals/skills/README.md.
  */
 
@@ -302,4 +302,18 @@ export async function runCheck(
   if (text === undefined) return { passed: false, log: `${file} does not exist` };
   const matched = new RegExp(pattern, "m").test(text);
   return { passed: "match" in check ? matched : !matched, log: matched ? "matched" : "no match" };
+}
+
+/** The commit `app` holds before the agent runs: what its diff is taken against. */
+export async function baselineOf(app: string) {
+  return (await must(["git", "rev-parse", "HEAD"], app)).trim();
+}
+
+/**
+ * Everything that changed in `app` since `baseline`: committed, staged, unstaged and
+ * untracked alike, because an agent may commit its work or leave it in the tree.
+ */
+export async function diffSince(app: string, baseline: string) {
+  await must(["git", "add", "-A"], app);
+  return must(["git", "diff", "--cached", "--binary", baseline], app);
 }
