@@ -594,8 +594,11 @@ export const runStoreIn = (home: string, cache?: string) =>
 
 /** Snapshot existing store entries. A later concurrent entry is covered by the guard. */
 export async function deniedStoreEntries(store: string, own: string): Promise<string[]> {
+  const canonical = realpathSync(store);
   return [
-    ...(await readdir(store)).map((name) => join(store, name)).filter((path) => path !== own),
+    ...(await readdir(canonical))
+      .map((name) => join(canonical, name))
+      .filter((path) => path !== own),
     runLayout(own).codex,
   ].sort();
 }
