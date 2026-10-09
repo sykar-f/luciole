@@ -9,12 +9,35 @@
  * `AsyncLocalStorage` when the host provides one.
  */
 import { renderToReadableStream as render } from "react-server-dom-webpack/server.edge";
-import { digestOf } from "../../../not-found";
+import { digestOf, readNotFound } from "../../../not-found";
 export {
   registerClientReference,
   registerServerReference,
   decodeReply,
 } from "react-server-dom-webpack/server.edge";
-export function renderToReadableStream(model: unknown, manifest: unknown) {
-  return render(model, manifest, { onError: digestOf });
+/** `failed` hears each error the render raised, apart from a not-found and a cancellation. */
+export function renderToReadableStream(
+  model: unknown,
+  manifest: unknown,
+  failed?: (error: unknown) => void,
+) {
+  // Once the reader left, Flight reports the cancel's reason: no failure.
+  let left = false;
+  const reader = render(model, manifest, {
+    onError: (error: unknown) => {
+      if (!left && !readNotFound(error)) failed?.(error);
+      return digestOf(error);
+    },
+  }).getReader();
+  return new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      const next = await reader.read();
+      if (next.done) controller.close();
+      else controller.enqueue(next.value);
+    },
+    cancel(reason) {
+      left = true;
+      return reader.cancel(reason);
+    },
+  });
 }

@@ -4,19 +4,32 @@
 /// <reference path="../../types.d.ts" />
 import { PassThrough } from "node:stream";
 import { renderToPipeableStream } from "react-server-dom-webpack/server.node";
-import { digestOf } from "../not-found";
+import { digestOf, readNotFound } from "../not-found";
 export {
   registerClientReference,
   registerServerReference,
   decodeReply,
 } from "react-server-dom-webpack/server.node";
-export function renderToReadableStream(model: unknown, manifest: unknown) {
+/** `failed` hears each error the render raised, apart from a not-found and a cancellation. */
+export function renderToReadableStream(
+  model: unknown,
+  manifest: unknown,
+  failed?: (error: unknown) => void,
+) {
   const output = new PassThrough();
+  // Once the reader left, Flight reports its abort and its failed writes: no failure.
+  let left = false;
   const render = renderToPipeableStream(model, manifest, {
-    onError: digestOf,
+    onError: (error: unknown) => {
+      if (!left && !readNotFound(error)) failed?.(error);
+      return digestOf(error);
+    },
   });
   render.pipe(output);
-  output.on("close", () => render.abort());
+  output.on("close", () => {
+    left = true;
+    render.abort();
+  });
   // Pulled one chunk at a time like Readable.toWeb, whose `node:stream/web` type is not
   // the global ReadableStream. Node streams are untyped: every chunk is checked to be bytes.
   const chunks: AsyncIterator<unknown> = output[Symbol.asyncIterator]();
@@ -28,6 +41,8 @@ export function renderToReadableStream(model: unknown, manifest: unknown) {
       else controller.error(new TypeError("Flight wrote a chunk that is not bytes"));
     },
     async cancel() {
+      // Before the output closes: Flight's next write fails first.
+      left = true;
       await chunks.return?.();
     },
   });

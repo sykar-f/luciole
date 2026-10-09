@@ -15,16 +15,16 @@ const Printed = z.object({
     at: z.number(),
     kind: z.enum(["render", "action"]),
     target: z.string(),
-    type: z.enum(["request", "response", "end", "error"]),
+    type: z.enum(["request", "response", "end", "error", "failure"]),
     status: z.number().optional(),
     ms: z.number().optional(),
+    message: z.string().optional(),
+    cancelled: z.boolean().optional(),
   }),
 });
 type Event = z.infer<typeof Printed>["event"];
-
-test("the Server reports each render and action under the Client's callId", async () => {
-  const beforeLaunch = Date.now();
-  const server = await launch("tests/instrument-server.ts");
+/** The events the Server at `server` prints, as they arrive. */
+function printedEvents(server: Awaited<ReturnType<typeof launch>>) {
   const received: Event[] = [];
   createInterface({ input: server.child.stdout }).on("line", (line) => {
     let value: unknown;
@@ -36,6 +36,13 @@ test("the Server reports each render and action under the Client's callId", asyn
     const printed = Printed.safeParse(value);
     if (printed.success) received.push(printed.data.event);
   });
+  return received;
+}
+
+test("the Server reports each render and action under the Client's callId", async () => {
+  const beforeLaunch = Date.now();
+  const server = await launch("tests/instrument-server.ts");
+  const received = printedEvents(server);
   const client: TransportEvent[] = [];
   const transport = createHttpTransport({
     url: server.url,
@@ -81,3 +88,75 @@ test("the Server reports each render and action under the Client's callId", asyn
     await server.stop();
   }
 });
+
+// Production Flight hands the Client a digest and drops the message: the Server's log keeps
+// the error's name, its instrument the message. A not-found, or a Client that leaves, is no
+// failure.
+test("a page that throws is logged by name and reported with its message", async () => {
+  const server = await launch("tests/instrument-server.ts", { NODE_ENV: "production" });
+  const received = printedEvents(server);
+  let log = "";
+  server.child.stderr.on("data", (s: Buffer) => (log += s.toString()));
+  const render = (route: string, callId: string, signal?: AbortSignal) =>
+    fetch(`${server.url}/render?route=${encodeURIComponent(route)}`, {
+      headers: { "x-luciole-build": "build-1", "x-luciole-call": callId },
+      signal,
+    });
+  try {
+    const broken = await (await render("/broken", "call-broken")).text();
+    const missing = await (await render("/missing", "call-missing")).text();
+    const leaving = new AbortController();
+    const pending = await render("/pending", "call-pending", leaving.signal);
+    await pending.body?.getReader().read();
+    leaving.abort();
+    const of = (callId: string) => received.filter((e) => e.callId === callId);
+    await until(
+      () =>
+        of("call-broken").some((e) => e.type === "end") &&
+        of("call-missing").some((e) => e.type === "end") &&
+        of("call-pending").some((e) => e.cancelled === true),
+    );
+    // The Server aborts the page once the Client left: a later request shows it done.
+    await (await render("/", "call-after")).text();
+    await until(() => of("call-after").some((e) => e.type === "end"));
+    expect(broken).toContain('E{"digest":"Server render failed"}');
+    expect(missing).toContain('E{"digest":"luciole:not-found:\\"note\\""}');
+    expect(broken + log).not.toContain("boom");
+    expect(log.split("\n").filter((line) => line.includes("failed"))).toEqual([
+      "Render failed call-broken /broken TypeError",
+    ]);
+    // `failure` comes wherever Flight raised it: the rest of the sequence stays the same.
+    const failures = of("call-broken").filter((e) => e.type === "failure");
+    expect(failures).toHaveLength(1);
+    expect(failures[0]).toMatchObject({ kind: "render", target: "/broken", message: "boom" });
+    expect(
+      of("call-broken")
+        .map((e) => e.type)
+        .filter((type) => type !== "failure"),
+    ).toEqual(["request", "response", "end"]);
+    expect(of("call-missing").map((e) => e.type)).toEqual(["request", "response", "end"]);
+    expect(of("call-pending").filter((e) => e.type === "failure")).toEqual([]);
+  } finally {
+    await server.stop();
+  }
+});
+
+// Flight runs where the Server runs, under the `react-server` condition, which this
+// `bun test` process does not use: tests/flight-failure.check.ts holds the cases.
+for (const entry of ["node", "web"])
+  test(`the ${entry} Flight entry reports a page's errors (tests/flight-failure.check.ts)`, async () => {
+    const child = Bun.spawn(
+      [
+        process.execPath,
+        "test",
+        "--conditions=react-server",
+        "--timeout",
+        "20000",
+        "./tests/flight-failure.check.ts",
+      ],
+      { stdout: "pipe", stderr: "pipe", env: { ...process.env, FLIGHT_ENTRY: entry } },
+    );
+    const [code, output] = await Promise.all([child.exited, new Response(child.stderr).text()]);
+    if (code !== 0) console.error(output);
+    expect(code).toBe(0);
+  });

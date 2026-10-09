@@ -126,7 +126,9 @@ export type ServerFunction = (...args: unknown[]) => unknown;
  * `target` is the routeId or Server Function id as requested (unchecked). `at` is epoch
  * milliseconds, `ms` counts from the request's arrival. `end` follows the body, a live
  * one included; `error` replaces `response` when a handler threw (the Client gets a
- * generic 500), and ends a body that failed while streaming.
+ * generic 500), and ends a body that failed while streaming. `failure` is not terminal:
+ * one per error a page's render raised (not a not-found), anywhere between `request` and
+ * the last event, `response` included; the stream goes on to the Client's error boundary.
  * `at` comes from the Server process's own clock; correlate with the Client's events
  * by `callId`, not by comparing `at` across processes.
  */
@@ -140,6 +142,7 @@ export type ServerEvent = {
   | { type: "response"; status: number; ms: number }
   | { type: "end"; ms: number; bytes: number; cancelled: boolean }
   | { type: "error"; ms: number; message: string }
+  | { type: "failure"; ms: number; message: string }
 );
 /**
  * Receives `ServerEvent`s, and each "use cache" operation (`CacheEvent`, src/cache/runtime.ts)
@@ -185,6 +188,8 @@ const Search = z
 const Arguments = z.array(z.unknown());
 // The Client's event clock (src/transport.ts): `at` compares across both processes.
 const now = () => performance.timeOrigin + performance.now();
+// What the Server's log says of an error: its name, never its message.
+const nameOf = (error: unknown) => (error instanceof Error ? error.name : "Error");
 const ROUTES = { "/render": "render", "/action": "action" } as const;
 const kindOf = (req: Request, url: URL) =>
   url.pathname === "/render" && req.method === "GET"
@@ -289,8 +294,15 @@ export function createHandler(config: ServerConfig, options: HandlerOptions) {
   const metrics = { renders: 0, actions: 0 };
   const manifestFor = instanceManifests(config.manifest);
   const bundleRoutes = appRoutes(config.appBundle);
-  // `failed` hears a handler's exception before it becomes the generic 500.
-  async function handle(req: Request, url: URL, callId: string, failed?: (error: unknown) => void) {
+  // `failed` hears a handler's exception before it becomes the generic 500, `renderFailed`
+  // each error a page's render raised, which streams on to the Client's error boundary.
+  async function handle(
+    req: Request,
+    url: URL,
+    callId: string,
+    failed?: (error: unknown) => void,
+    renderFailed?: (error: unknown) => void,
+  ) {
     const arrived = performance.now();
     if (!web.admits(req))
       return new Response("Browser origins are unsupported", { status: STATUS.forbidden });
@@ -339,7 +351,13 @@ export function createHandler(config: ServerConfig, options: HandlerOptions) {
           metrics.renders++;
           const tree = React.createElement(route.component, { params, searchParams });
           // `{ tree, tags }`: the cache tags the page read follow it (docs/CACHE.md).
-          const body = renderPage(tree, (model) => renderToReadableStream(model, manifest));
+          // Flight hands the Client a digest only: the Server keeps the trace, a name and
+          // never a message, which may carry user data.
+          const fail = (error: unknown) => {
+            console.error("Render failed", callId, routeId, nameOf(error));
+            renderFailed?.(error);
+          };
+          const body = renderPage(tree, (model) => renderToReadableStream(model, manifest, fail));
           return new Response(body, {
             headers: {
               "content-type": "text/x-component",
@@ -409,7 +427,7 @@ export function createHandler(config: ServerConfig, options: HandlerOptions) {
     } catch (error) {
       failed?.(error);
       const callId = req.headers.get("x-luciole-call") ?? "request";
-      console.error("Request failed", callId, error instanceof Error ? error.name : "Error");
+      console.error("Request failed", callId, nameOf(error));
       return new Response("Server request failed", { status: STATUS.serverError });
     }
   }
@@ -432,10 +450,17 @@ export function createHandler(config: ServerConfig, options: HandlerOptions) {
     };
     onEvent({ ...tag, at: now(), type: "request" });
     let threw = false;
-    const response = await handle(req, url, callId, (error) => {
-      threw = true;
-      onEvent({ ...tag, at: now(), type: "error", ms: ms(), message: messageOf(error) });
-    });
+    const response = await handle(
+      req,
+      url,
+      callId,
+      (error) => {
+        threw = true;
+        onEvent({ ...tag, at: now(), type: "error", ms: ms(), message: messageOf(error) });
+      },
+      (error) =>
+        onEvent({ ...tag, at: now(), type: "failure", ms: ms(), message: messageOf(error) }),
+    );
     if (threw) return response;
     onEvent({ ...tag, at: now(), type: "response", status: response.status, ms: ms() });
     const body = observeBody(response.body, (event) =>
