@@ -1,5 +1,5 @@
 /** @jsxImportSource @opentui/react */
-import { afterAll, beforeAll, expect, test } from "bun:test";
+import { afterAll, expect, test } from "bun:test";
 import { act } from "react";
 import { Renderable } from "@opentui/core";
 import { testRender } from "@opentui/react/test-utils";
@@ -53,18 +53,17 @@ export function Editor() {
   return <box id="item-help" height={1}><KeyHelp inline groups={["item"]} /></box>;
 }`,
 };
-let root = "";
-beforeAll(async () => {
-  root = await temporaryApp("keymap");
-  for (const [name, text] of Object.entries(FILES)) {
-    await mkdir(join(root, name, ".."), { recursive: true });
-    await Bun.write(join(root, name), text);
-  }
-  await build(root);
-});
+// Build this shared fixture while the file loads, as privateBuild does: a build's
+// duration on a slow runner must not consume a hook's timeout before any test runs.
+const root = await temporaryApp("keymap");
 afterAll(async () => {
   await rm(root, { recursive: true, force: true });
 });
+for (const [name, text] of Object.entries(FILES)) {
+  await mkdir(join(root, name, ".."), { recursive: true });
+  await Bun.write(join(root, name), text);
+}
+await build(root);
 
 test("help is generated from the keymap layers mounted right now", async () => {
   const server = await launch(join(root, ".luciole/server/index.js"));
