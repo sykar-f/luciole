@@ -1,6 +1,6 @@
 ---
 name: luciole-debug
-description: Debug a luciole app. Use when `luciole build` or `bun run verify` fails with a boundary error ("is Client-only React", "Server-only import in Client graph", "must declare \"use client\""), a route or params type error, or "Cannot resolve"; when a page shows its error screen, or a generic "Server render failed" only in production (`luciole start`) while `bun run dev` shows the real message; when the status reads Disconnected, Incompatible build (409) or Authentication required (401); when a Server Function call fails, runs twice or duplicates data on a flaky network; when data stays stale after a change; or when a screen is slow or renders too often and you need `luciole devtools`, `<DebugOverlay />`, `onEvent` or tracing. Also for "it works in dev but not in production", "reproduce a network bug", "add latency or faults".
+description: Debug a luciole app. Use when `luciole build` or `bun run verify` fails with a boundary error ("is Client-only React", "Server-only import in Client graph", "must declare \"use client\""), a route or params type error, or "Cannot resolve"; when a page shows its error screen, or a generic "Server render failed" only in production (`luciole start`) while `bun run dev` shows the real message; when the status reads Disconnected, Incompatible build (409) or Authentication required (401); when a Server Function call fails, runs twice or duplicates data on a flaky network; when data or a list stays stale after a change until restart; or when a screen is slow or renders too often and you need `luciole devtools`, `<DebugOverlay />`, `onEvent` or tracing. Also for "it works in dev but not in production", "reproduce a network bug", "add latency or faults".
 ---
 
 # Debug a luciole app
@@ -47,10 +47,11 @@ A page that throws reaches the nearest `error.tsx`. In production the Client rec
 nothing for it. So:
 
 - To read the real error, reproduce under `bun run dev`, where `error.tsx` gets the message.
-- A condition the user must understand is an answer, not a throw. Render the message from the
-  page itself (a Server page can render the app's own panes and Client Components). For a
-  missing record, call `notFound("Note")`: its `what` survives production. Editing
-  `error.tsx` cannot bring a production message back.
+- A condition the user must understand is an answer, not a throw: return the message as the
+  page's own output, in the app's own pane (a Server page renders Client Components too).
+  Editing `error.tsx` cannot bring a production message back.
+- `notFound()` is for a record that does not exist: it shows `not-found.tsx` and tells the
+  router the page is missing. Do not route another message through its `what`.
 - `useApplication().onEvent` receives a `failure` event with the page's `path` and `message`
   for each error screen.
 
@@ -61,10 +62,10 @@ See `node_modules/@luciole-sh/core/docs/concepts/loading-and-errors.md`.
 Every failed request throws a `TransportError` (from `@luciole-sh/core/client`). Branch on its
 `outcome`, never on "it threw":
 
-| `outcome`              | Did the Server run the function? | What to do                                                                                                                     |
-| ---------------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `not-sent`, `rejected` | No                               | Safe to retry, or to say "not saved".                                                                                          |
-| `unknown`              | Maybe                            | A retry may run it twice. Look the operation up (Notes' `getOperation`), reload what the Server holds, or let the user decide. |
+| `outcome`              | Did the Server run the function? | What to do                                                                                                                                                                         |
+| ---------------------- | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `not-sent`, `rejected` | No                               | Safe to retry, or to say "not saved".                                                                                                                                              |
+| `unknown`              | Maybe                            | A retry may run it twice. Send an operation ID the Server stores so a retry is idempotent (Notes' saves and `getOperation`), reload what the Server holds, or let the user decide. |
 
 The transport never retries; a `.catch(() => call())` retries `unknown` too and duplicates
 writes. See `node_modules/@luciole-sh/core/docs/concepts/server-functions.md`.
@@ -94,10 +95,19 @@ failed rebuild under `luciole dev`):
 
 ## Data stays stale after a change
 
-The framework refreshes nothing after a Server Function by itself. The function that writes
-calls `invalidate()`, `invalidate("/path")` or `invalidate({ tag })` from
-`@luciole-sh/core/server`. Data read outside route loaders (a list in a layout) reloads in
-`useInvalidation(listener)`. A lost response invalidates nothing. See
+The framework refreshes nothing after a Server Function by itself. Find which read is stale:
+
+- **A page** (its Server render) reloads when the writing Server Function calls
+  `invalidate()`, `invalidate("/path")` or `invalidate({ tag })` from `@luciole-sh/core/server`.
+  If it does not, add the call there.
+- **Data a Client Component loads itself** through a Server Function (a list in a layout, a
+  counter) never reloads with the routes. The hook that loads it subscribes with
+  `useInvalidation(listener)` from `@luciole-sh/core/client` and reloads in the listener. One
+  subscription covers every Server Function that invalidates; a reload added after each call
+  site misses the others, and polling hides the bug.
+
+A lost response invalidates nothing. See
+`node_modules/@luciole-sh/core/docs/concepts/server-functions.md` and
 `node_modules/@luciole-sh/core/docs/concepts/cache.md`.
 
 ## Slow screens and extra renders
@@ -112,6 +122,8 @@ often, or you need to see the requests: it covers `luciole devtools`, `<DebugOve
   renders.
 - `app/routeTree.gen.ts` comes from the build: regenerate it with `bun run build`.
 - Show an expected failure as the page's own output; keep throws for bugs.
-- Retry a Server Function only on `not-sent` or `rejected`.
+- Retry a Server Function on `not-sent` or `rejected`; retry on `unknown` only when an
+  operation ID makes the call idempotent.
+- Reload Client-loaded data in `useInvalidation`, where the data is loaded.
 - Treat "Incompatible build" as a deployment issue: rebuild and restart both processes.
 - Reproduce a production-only error under `bun run dev` to see its message.
