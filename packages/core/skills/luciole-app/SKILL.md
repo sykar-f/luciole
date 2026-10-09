@@ -1,6 +1,6 @@
 ---
 name: luciole-app
-description: Luciole app features. Use when adding or changing a screen of a luciole app (@luciole-sh/core), such as a route, page, layout, loading, error or not-found screen, or a dynamic route under app/; when writing a Server Function ("use server", actions/) or reading data on the Server (server/, "use cache"); when a page must update after a change (invalidate, cache tags, "the list does not refresh"); when using TanStack Router for navigation, active tabs, search, history, preload or pending UI; when adding sign-in, a public page or per-user data (server/auth.ts, getSession); when typed text must survive a crash or a rebuild (named fields, session restore). Phrasings such as "add a page", "add a screen at /x", "add a button that saves", "show the count of", "make it refresh", "add login".
+description: Luciole app features. Use when adding or changing a screen of a luciole app (@luciole-sh/core): a route, page, layout, loading, error or not-found screen, or a dynamic route under app/; when writing a Server Function ("use server", actions/) or reading Server data (server/, "use cache"); when a page must update after a change (invalidate, cache tags, "the list does not refresh"); when using TanStack Router for navigation, active-route detection ("active tab", "current page", "highlight the current section", "is this section active"), search, history, preload or pending UI; when adding sign-in, a public page or per-user data (server/auth.ts, getSession); when typed text must survive a crash or rebuild (named fields, session restore). Phrasings such as "add a page", "add a button that saves", "show the count of", "make it refresh", "add login".
 ---
 
 # Build a feature in a luciole app
@@ -101,6 +101,10 @@ this file holds what you would get wrong without them.
   no default export, no re-exports.
 - Read params and search params as strings, and parse them (`z.coerce.number()`). Use
   `[...rest]` or two pages for an optional segment: `[[...x]]` does not exist.
+- Detect an active route, tab or section with `useMatchRoute()` from
+  `@luciole-sh/core/client`; use `fuzzy: true` to include descendants and narrow the match
+  against `false` for typed params. Read [references/routing.md](references/routing.md)
+  for the shared-header recipe.
 - Leave `app/routeTree.gen.ts` to the build and commit it with the route.
 - Mark Server-only modules `import "server-only";` and modules that must run on the user's
   machine (`$EDITOR`, clipboard, `~/.config`) `import "client-only";`.

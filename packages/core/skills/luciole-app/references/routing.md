@@ -1,11 +1,18 @@
 # Routing
 
 - [Discover the typed Router API](#discover-the-typed-router-api)
+- [Active section and typed params](#active-section-and-typed-params)
 - [Active tabs with native selection](#active-tabs-with-native-selection)
 - [Navigate](#navigate)
 - [Search, preload and history](#search-preload-and-history)
 
 The full rules: `node_modules/@luciole-sh/core/docs/concepts/routing.md`.
+
+For "is this section active?", the current page or a highlighted tab, call `useMatchRoute()`
+from `@luciole-sh/core/client`, then `matchRoute({ to: "/notes/$id", fuzzy: true })`.
+Match the generated route pattern instead of comparing `location.pathname` with a string,
+`startsWith` or a regular expression. The match supplies typed params to shared chrome;
+narrow it against `false` instead of asserting the type of `useParams({ strict: false })`.
 
 ## Discover the typed Router API
 
@@ -32,6 +39,30 @@ Follow its exports to `src/Matches.tsx` for `useMatchRoute`, and to the hook's s
 Use the installed signatures; upstream route setup is replaced by luciole's directory
 routing. With a hook's `from`, read route IDs in `app/routeTree.gen.ts`; group/layout/index
 IDs can differ from navigation's `to` patterns.
+
+## Active section and typed params
+
+A root header or sidebar can match any note screen, including `/notes/<id>/info`,
+without receiving the page's params. With pages at `app/notes/[id]/page.tsx` and
+`app/notes/[id]/info/page.tsx` and their generated route tree:
+
+```tsx
+"use client";
+import { useMatchRoute } from "@luciole-sh/core/client";
+
+export function NoteSection() {
+  const matchRoute = useMatchRoute();
+  const note = matchRoute({ to: "/notes/$id", fuzzy: true, includeSearch: false });
+  return <text>{note !== false ? `Notes active: ${note.id}` : "Notes inactive"}</text>;
+}
+```
+
+`to` is the generated pattern; omit `params` to match any id and recover it, or pass
+`params: { id }` to match a particular note. `fuzzy: true` includes descendant screens;
+leave it off for an exact tab. `includeSearch: false` makes section activity independent
+of search values; the default includes an inclusive comparison of the supplied `search`.
+`pending: true` matches the destination during navigation (and returns `false` when no
+navigation is pending); leave it off to mark the current section.
 
 ## Active tabs with native selection
 
