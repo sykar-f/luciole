@@ -1,6 +1,6 @@
 import { afterAll, expect, test } from "bun:test";
-import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { existsSync, realpathSync } from "node:fs";
+import { mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import {
@@ -864,6 +864,19 @@ test("the report flags a without run that read the material, and a write outside
   ]);
 });
 
+test("stored runs deny canonical entries when the store is reached through a symlink", async () => {
+  const store = await mkdtemp(join(temp, "symlink-store-"));
+  const other = join(store, "other-run");
+  await mkdir(other);
+  const linkedStore = `${store}-link`;
+  await symlink(store, linkedStore);
+  await withStoredRun(linkedStore, [], async (root) => {
+    const expected = [realpathSync(other), runLayout(root).codex].sort();
+    expect(await deniedStoreEntries(linkedStore, root)).toEqual(expected);
+    expect(await deniedStoreEntries(realpathSync(store), root)).toEqual(expected);
+  });
+});
+
 test("stored runs deny other entries and return app, logs and checks to the report", async () => {
   expect(runStoreIn("/home/u")).toBe("/home/u/.cache/luciole-skills-eval");
   expect(runStoreIn("/home/u", "/cache")).toBe("/cache/luciole-skills-eval");
@@ -879,7 +892,7 @@ test("stored runs deny other entries and return app, logs and checks to the repo
     const { app, tmp: runTmp, codex } = runLayout(root);
     await copyApp(source.app, app, root);
     const denies = await deniedStoreEntries(store, root);
-    expect(denies).toEqual([other, codex].sort());
+    expect(denies).toEqual([realpathSync(other), codex].sort());
     const command = agentCommand({
       app,
       tmp: runTmp,
