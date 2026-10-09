@@ -1,4 +1,5 @@
 import { afterAll, expect, test } from "bun:test";
+import { z } from "zod";
 import { existsSync, realpathSync } from "node:fs";
 import { mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -487,7 +488,14 @@ console.log(JSON.stringify(result));`
       if (code === 1) throw new Error(await errors);
       expect(code).toBe(mode === "leader exit" ? 0 : 130);
       if (mode === "leader exit") {
-        const result = JSON.parse(await output);
+        const result = z
+          .object({
+            code: z.number(),
+            output: z.string(),
+            timedOut: z.boolean(),
+            left: z.number(),
+          })
+          .parse(JSON.parse(await output));
         expect(result).toMatchObject({ code: 0, timedOut: false, left: 1 });
         expect(alive(pidOf(result.output))).toBe(false);
       } else {

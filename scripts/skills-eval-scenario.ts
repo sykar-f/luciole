@@ -414,7 +414,7 @@ export interface Ran {
   code: number;
   output: string;
   timedOut: boolean;
-  /** The group's live members that survived its end: none, unless the system refused. */
+  /** Members not confirmed gone; at least one when the member lookup cannot finish. */
   left: number;
 }
 
@@ -440,7 +440,11 @@ const PsLine = /^\s*(\d+)\s+(\d+)\s+(\S+)/;
  * The members of the process group `id` that still run: zombies, which only wait for their
  * parent to read their status, do not count.
  */
-async function liveMembers(id: number, kill: Kill): Promise<number[]> {
+async function liveMembers(
+  id: number,
+  kill: Kill,
+  deadline: number,
+): Promise<number[] | undefined> {
   try {
     kill(-id, 0);
   } catch (error: unknown) {
@@ -451,8 +455,27 @@ async function liveMembers(id: number, kill: Kill): Promise<number[]> {
     stdout: "pipe",
     stderr: "ignore",
   });
-  const listing = await new Response(ps.stdout).text();
-  await ps.exited;
+  // The deadline must include ps itself: under contention even the listing can stall.
+  // Never await its pipes or exit after the budget expires.
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const listing = await Promise.race([
+    Promise.all([new Response(ps.stdout).text(), ps.exited]).then(([text]) => text),
+    new Promise<undefined>((resolve) => {
+      timer = setTimeout(
+        () => {
+          try {
+            ps.kill("SIGKILL");
+          } catch {
+            // A refused signal must not keep the cleanup deadline pending either.
+          } finally {
+            resolve(undefined);
+          }
+        },
+        Math.max(0, deadline - performance.now()),
+      );
+    }),
+  ]).finally(() => clearTimeout(timer));
+  if (listing === undefined) return undefined;
   return listing.split("\n").flatMap((line) => {
     const [, pid, pgid, stat] = PsLine.exec(line) ?? [];
     return Number(pgid) === id && !stat?.startsWith("Z") ? [Number(pid)] : [];
@@ -479,9 +502,13 @@ export async function endGroup(id: number, options: Cleanup = {}): Promise<numbe
     if (errorCode(error) === "ESRCH") return 0;
   }
   const deadline = performance.now() + (options.goneMs ?? GROUP_GONE_MS);
+  let remaining = 1;
   for (;;) {
-    const left = await liveMembers(id, kill);
+    const left = await liveMembers(id, kill, deadline);
+    // A stalled lookup cannot certify that the killed group disappeared.
+    if (left === undefined) return remaining;
     if (!left.length) return 0;
+    remaining = left.length;
     if (performance.now() > deadline) return left.length;
     for (const pid of left)
       try {
@@ -553,11 +580,16 @@ export async function run(
         }, options.timeoutMs);
   const code = await child.exited;
   clearTimeout(timer);
+  // Once signalled, the interrupt path owns cleanup and the process exit. A finishing
+  // run must not race it into report/check commands (or release its owner early).
+  if (interrupting) await interruption;
   const left = await endGroup(child.pid, options.cleanup);
+  if (interrupting) await interruption;
   owner?.groups.delete(child.pid);
   // A member left alive may hold the pipes open forever: keep what they said until now.
   if (left) await Promise.all([out.cancel(), err.cancel()]);
   await Promise.all([out.done, err.done]);
+  if (interrupting) await interruption;
   return { code, output: out.text() + err.text(), timedOut, left };
 }
 
@@ -834,6 +866,7 @@ export async function codexAuthIn(home: string): Promise<string | undefined> {
 // exit while a pending copy recreates the file after cleanup.
 const authCopies = new Map<string, { groups: Set<number>; root?: string; report?: string }>();
 let interrupting = false;
+let interruption: Promise<void> | undefined;
 const INTERRUPTED_EXIT = 130;
 const TERMINATED_EXIT = 143;
 async function interruptAuthCopies(signal: "SIGINT" | "SIGTERM") {
@@ -842,17 +875,16 @@ async function interruptAuthCopies(signal: "SIGINT" | "SIGTERM") {
   const groups = [...authCopies.values()].flatMap(({ groups }) => [...groups]);
   for (const auth of authCopies.keys()) rmSync(auth, { force: true });
   await Promise.all(groups.map((id) => endGroup(id)));
-  // A finishing run may have changed the owner while cleanup was awaited.
+  // Recheck credential removal before leaving the process.
   for (const auth of authCopies.keys()) rmSync(auth, { force: true });
-  await Promise.all(
-    [...authCopies.values()].flatMap(({ groups }) => [...groups].map((id) => endGroup(id))),
-  );
+  // No new group can start after interrupting is set, and finishing runs await us.
+  // The snapshot already includes every group; do not start another cleanup budget.
   for (const { root } of authCopies.values())
     if (root !== undefined) rmSync(root, { recursive: true, force: true });
   process.exit(signal === "SIGINT" ? INTERRUPTED_EXIT : TERMINATED_EXIT);
 }
-const onAuthInterrupt = () => void interruptAuthCopies("SIGINT");
-const onAuthTerminate = () => void interruptAuthCopies("SIGTERM");
+const onAuthInterrupt = () => void (interruption ??= interruptAuthCopies("SIGINT"));
+const onAuthTerminate = () => void (interruption ??= interruptAuthCopies("SIGTERM"));
 
 function registerAuth(auth: string, root?: string) {
   if (interrupting) throw new Error("Eval runner is interrupting; no new agent may start");
