@@ -1,8 +1,6 @@
 ---
 expect-skill: luciole-test
 timeout-minutes: 15
-# The package ships its skills: hide them, so the arm without material has none.
-setup: rm -rf node_modules/@luciole-sh/core/skills
 checks:
   - exists: tests/save-failure.test.ts
   - run: bun test tests/save-failure.test.ts
