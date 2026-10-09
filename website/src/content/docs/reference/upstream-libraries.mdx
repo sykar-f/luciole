@@ -33,7 +33,7 @@ A declaration file can mention internal symbols that the package does not export
 | ------------------------ | -------------------------------------------------------------------------------- |
 | `@opentui/react`         | `README.md`, `src/index.d.ts`, `jsx-namespace.d.ts`, `src/types/components.d.ts` |
 | `@opentui/core`          | `README.md`, `index.d.ts`, `renderables/index.d.ts`                              |
-| `@tanstack/react-router` | `src/index.ts` and the hook sources under `src/`                                 |
+| `@tanstack/react-router` | `src/index.tsx` and the hook sources under `src/`                                |
 | `@tanstack/router-core`  | `src/router.ts` and `src/load-client.ts`                                         |
 | `@tanstack/react-form`   | `README.md`, `src/index.ts`, `src/useForm.tsx`, `src/useField.tsx`               |
 
@@ -48,8 +48,8 @@ in Client Components. Tables and sliders are exported renderable classes
 (`TextTableRenderable`, `SliderRenderable`); register them with `extend` from `@opentui/react`
 to use them in JSX.
 
-For fields that must survive a restart, use luciole's `Input`, `Textarea`, `Select` and
-other [named fields](/docs/concepts/session-restore/).
+For state that must survive a restart, use luciole's `Input`, `Textarea` and `ScrollBox`
+as [named fields](/docs/concepts/session-restore/).
 For commands that should appear in key help, use `useBindings` and `<KeyHelp>`.
 Native OpenTUI controls and keyboard hooks do not add luciole's restoration or key help.
 
