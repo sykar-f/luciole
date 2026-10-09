@@ -77,7 +77,10 @@ export async function clickOn(ui: TestUI, text: string, button?: MouseButton) {
  * those, `latencyMs` and `network` set the network conditions of a test.
  */
 export type OpenClientOptions = Omit<ClientOptions, "url"> & {
-  /** A distinct tag gives the Client its own runtime; two Clients in one file need two. */
+  /**
+   * Shares a runtime (module registry, router, Drafts) between Clients: those opened with the
+   * same tag share one. Without a tag, every Client gets a runtime of its own.
+   */
   tag?: string;
   /** Columns of the test terminal. Default: `110`. */
   width?: number;
@@ -127,8 +130,9 @@ export type TestClient = {
 /**
  * Renders the Client of a built app in a test terminal, connected to `server`: the journey of
  * a user's screen, without a pty. It imports the generated Client, creates the app, loads
- * the first page and draws the `Shell`. Declare it after the Server with `await using`, so
- * the screen is released first.
+ * the first page and draws the `Shell`. Each Client has a runtime of its own, so nothing one
+ * leaves (a draft, a route) reaches the next; pass the same `tag` to share one. Declare it
+ * after the Server with `await using`, so the screen is released first.
  */
 export async function openClient(
   app: { directory: string },
@@ -136,7 +140,7 @@ export async function openClient(
   options: OpenClientOptions = {},
 ): Promise<TestClient> {
   const { tag, width = 110, height = 32, ...clientOptions } = options;
-  const { createApp, Shell } = await importClient(app.directory, tag);
+  const { createApp, Shell } = await importClient(app.directory, tag ?? crypto.randomUUID());
   const running = createApp({ url: server.url, ...clientOptions });
   const requests = wire(running);
   await running.router.load();

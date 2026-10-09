@@ -72,7 +72,9 @@ the process of `bun test`. A starter ships one, and `bun test` runs it:
 - `startServer` runs the built Server in a process of its own, on a free port. `env` adds the
   app's own settings to its environment, such as the database the test uses.
 - `openClient` imports the built Client, loads its first page and draws it in a test terminal.
-  `await using` stops the Client, then the Server, even when an assertion fails.
+  Each Client has a runtime of its own: a draft or a route left by one test does not reach
+  the next. Clients opened with the same `tag` share one. `await using` stops the Client,
+  then the Server, even when an assertion fails.
 - `waitFor` renders until the screen shows a text, and fails with the last frame when it never
   does. Every wait is bounded and says what it saw; a fixed sleep is never the wait.
 - `click`, `press` and `type` act as a user does. `client.ui` is OpenTUI's test renderer, for

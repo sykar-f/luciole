@@ -36,6 +36,48 @@ test(
   TEST_TIMEOUT_MS,
 );
 
+/** Types "Milk" into the welcome note, autosave off, and leaves without saving. */
+async function leaveADraft(tag?: string) {
+  await using server = await startServer(app, { NOTES_DB: ":memory:", NOTES_AUTOSAVE_MS: "0" });
+  await using client = await openClient(app, server, { tag });
+  await client.waitFor("Welcome to Notes");
+  await client.click("Welcome to Notes");
+  await client.settled("Getting around");
+  await client.press("e", { ctrl: true });
+  await client.type("Milk");
+  await client.waitFor("Unsaved");
+}
+
+test(
+  "each Client has a runtime of its own: a draft left by one does not reach the next",
+  async () => {
+    await leaveADraft();
+    await using server = await startServer(app, { NOTES_DB: ":memory:", NOTES_AUTOSAVE_MS: "0" });
+    await using client = await openClient(app, server);
+    await client.waitFor("Welcome to Notes");
+    await client.click("Welcome to Notes");
+    const note = await client.settled("Getting around");
+    expect(note).not.toContain("Unsaved");
+    expect(note).not.toContain("Milk");
+  },
+  TEST_TIMEOUT_MS,
+);
+
+test(
+  "Clients opened with the same tag share a runtime, and its drafts",
+  async () => {
+    await leaveADraft("shared");
+    await using server = await startServer(app, { NOTES_DB: ":memory:", NOTES_AUTOSAVE_MS: "0" });
+    await using client = await openClient(app, server, { tag: "shared" });
+    await client.waitFor("Welcome to Notes");
+    await client.click("Welcome to Notes");
+    const note = await client.settled("Getting around");
+    expect(note).toContain("Unsaved");
+    expect(note).toContain("Milk");
+  },
+  TEST_TIMEOUT_MS,
+);
+
 test(
   "a wait that never holds fails with what the screen showed, and a click with the screen",
   async () => {

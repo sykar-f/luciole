@@ -1442,11 +1442,11 @@ test's timeout. It links the nearest `node_modules` above the app into the build
 `openClient` takes `OpenClientOptions`: the options of the Client's `createApp`
 (`ClientOptions`, without `url`: `fetch`, `transport`, …) and three more.
 
-| `OpenClientOptions` field | Type     | Default | Contract                                                                 |
-| ------------------------- | -------- | ------- | ------------------------------------------------------------------------ |
-| `tag`                     | `string` | none    | Gives the Client its own runtime. Two Clients in one file need two tags. |
-| `width`                   | `number` | `110`   | Columns of the test terminal.                                            |
-| `height`                  | `number` | `32`    | Rows of the test terminal.                                               |
+| `OpenClientOptions` field | Type     | Default | Contract                                                                                                                                |
+| ------------------------- | -------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `tag`                     | `string` | none    | Shares a runtime (module registry, router, Drafts): Clients opened with the same tag share one. Without a tag, each Client has its own. |
+| `width`                   | `number` | `110`   | Columns of the test terminal.                                                                                                           |
+| `height`                  | `number` | `32`    | Rows of the test terminal.                                                                                                              |
 
 | `TestClient` member       | Contract                                                                                                                                               |
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
