@@ -1,6 +1,6 @@
 {
   "name": "@luciole-sh/core",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": false,
   "description": "luciole: React Server Components for the terminal. The framework, its luciole and luciolex CLIs, and its runtime.",
   "keywords": [

@@ -1,6 +1,6 @@
 {
   "name": "@luciole-sh/markdown-editor",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": false,
   "description": "A true WYSIWYG Markdown editor for the terminal: no markers on screen, Markdown in and out.",
   "keywords": [

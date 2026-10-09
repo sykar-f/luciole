@@ -112,9 +112,9 @@ The first frame is already fitted to your terminal:
 ```
 
 _The program above, in a 72×20 terminal. The frame is captured from a real PTY by
-[`website/scripts/capture.py`](https://github.com/sykar-f/luciole/blob/v0.1.0/website/scripts/capture.py)
+[`website/scripts/capture.py`](https://github.com/sykar-f/luciole/blob/v0.2.0/website/scripts/capture.py)
 (`python3 website/scripts/capture.py flow-graph`), and the program is
-[`example/main.tsx`](https://github.com/sykar-f/luciole/blob/v0.1.0/packages/flow-graph/example/main.tsx)._
+[`example/main.tsx`](https://github.com/sykar-f/luciole/blob/v0.2.0/packages/flow-graph/example/main.tsx)._
 
 The graph is yours to edit. Drag a node, or select one and move it with the keys below.
 Drag from the dot on a selected node to connect it to another node.
@@ -138,7 +138,7 @@ In a luciole app, use `<Flow>` in a Client Component. Pan, zoom, drag and select
 the Client. Only what your app sends, such as a Server Function called from `onNodesChange`
 or `onConnect`, reaches the Server.
 
-[`examples/flow`](https://github.com/sykar-f/luciole/tree/v0.1.0/examples/flow) is a full app: a
+[`examples/flow`](https://github.com/sykar-f/luciole/tree/v0.2.0/examples/flow) is a full app: a
 CI pipeline editor with custom nodes, a side panel and live runs on the Server. The framework's
 documentation is at <https://luciole.sh/docs/>.
 
@@ -664,7 +664,7 @@ With the mouse:
 ## Origin of the code
 
 The orthogonal routing of edges, the bezier control points and the application of changes come
-from xyflow (MIT), in [`src/vendor/xyflow`](https://github.com/sykar-f/luciole/blob/v0.1.0/packages/flow-graph/src/vendor/xyflow/README.md). Rendering and
+from xyflow (MIT), in [`src/vendor/xyflow`](https://github.com/sykar-f/luciole/blob/v0.2.0/packages/flow-graph/src/vendor/xyflow/README.md). Rendering and
 interaction are the package's own.
 
 ## Licence

@@ -13,6 +13,53 @@ and marked **Breaking**.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-09
+
+### Added
+
+- A public testing API, `@luciole-sh/core/test`, to build an app, start its Server
+  and drive its Client in a test terminal. It provides frame waits with bounded
+  timeouts, clicks, typing and named keys. `openClient` sets simulated latency
+  and network faults, and gives each Client its own runtime by default; a shared
+  `tag` opts into sharing unsaved text and routes. New apps include an example test.
+- Offline Markdown documentation in `@luciole-sh/core/docs`, with an index and
+  links between pages, matching the installed release.
+- `luciole skills` installs versioned skills in `.agents/skills` and
+  `.claude/skills`, an app-specific `AGENTS.md` block and a `CLAUDE.md` import.
+  Install, status and remove commands track owned files and preserve user edits;
+  dev and build warn when the installed skills are stale. The installed files
+  pass a starter's formatter, and formatting the managed block does not make it
+  appear edited.
+- Six skills for coding agents: `luciole-app` for screens, routing, Server
+  Functions, caching and sign-in; `luciole-tui` for native widgets, focus,
+  clickable controls, menus and concise layouts; `luciole-test` for test levels,
+  network failures and restore; `luciole-debug` for Client/Server diagnostics;
+  `luciole-ship` for builds and deployment; and `luciole-upgrade` for moving an
+  app to a newer release.
+- New apps created by `luciole init`, `bunx luciole.sh init` or
+  `bunx @luciole-sh/create` include the agent material by default. The standalone
+  `@luciole-sh/create` scaffolder accepts `--no-skills` to opt out.
+- An upstream-libraries reference explaining which OpenTUI, TanStack Router and
+  TanStack Form APIs apply to luciole apps, including native widgets, typed
+  Router hooks and browser-only limits.
+
+### Changed
+
+- **Breaking:** Server instrumentation can emit a new, non-terminal `failure`
+  event when a page render fails. Consumers that exhaustively handle
+  `ServerEvent` must handle this variant without treating it as the end of the
+  response body.
+
+### Fixed
+
+- A failed Server page render now leaves a trace with its call ID, route and
+  error name in the Server log. Instrumentation receives the error message in a
+  failure event, shown in DevTools.
+- A cancelled response body ends once in instrumentation, and cancelling a
+  streaming page reaches the Flight render, including on Node.
+- The restore guide uses `Input`'s `onInput`, and the hosting guide includes
+  `--native-dir` when building for another target.
+
 ## [0.1.0] - 2026-10-06
 
 First public release, on npm. Five packages share this version: `luciole.sh`,
@@ -45,5 +92,6 @@ First public release, on npm. Five packages share this version: `luciole.sh`,
 - No multi-user load test and no public TLS proxy test. See
   <https://luciole.sh/status/>.
 
-[Unreleased]: https://github.com/sykar-f/luciole/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/sykar-f/luciole/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/sykar-f/luciole/releases/tag/v0.2.0
 [0.1.0]: https://github.com/sykar-f/luciole/releases/tag/v0.1.0
