@@ -79,6 +79,36 @@ test(
 );
 
 test(
+  "press takes key names: Return submits the focused input",
+  async () => {
+    await using server = await startServer(app, { NOTES_DB: ":memory:" });
+    await using client = await openClient(app, server);
+    await client.waitFor("Welcome to Notes");
+    await client.click("Search");
+    await client.type("Welc");
+    await client.press("return");
+    const note = await client.settled("Getting around");
+    expect(note).not.toContain("Welcreturn");
+  },
+  TEST_TIMEOUT_MS,
+);
+
+test(
+  "press refuses an unknown key name, and lists the known ones",
+  async () => {
+    await using server = await startServer(app, { NOTES_DB: ":memory:" });
+    await using client = await openClient(app, server);
+    await client.waitFor("Welcome to Notes");
+    await client.click("Search");
+    const refused = await rejectionOf(client.press("enter"));
+    expect(messageOf(refused)).toContain('Unknown key "enter"');
+    expect(messageOf(refused)).toContain("return, linefeed, tab");
+    expect(await client.frame()).not.toContain("enter");
+  },
+  TEST_TIMEOUT_MS,
+);
+
+test(
   "a wait that never holds fails with what the screen showed, and a click with the screen",
   async () => {
     await using server = await startServer(app, { NOTES_DB: ":memory:" });

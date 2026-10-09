@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { act, type ReactNode } from "react";
-import type { MouseButton } from "@opentui/core/testing";
+import { KeyCodes, type MouseButton } from "@opentui/core/testing";
 import { testRender } from "@opentui/react/test-utils";
 import type { Application, ApplicationOptions, TransportEvent } from "../client";
 import { until, untilDrawn, untilFrame, WAIT_MS, type TestUI } from "./wait";
@@ -88,6 +88,23 @@ export type OpenClientOptions = Omit<ClientOptions, "url"> & {
   height?: number;
 };
 
+/**
+ * The key names `press` takes, to the codes of the test terminal: OpenTUI's `KeyCodes`, in
+ * lower case, the arrows by their direction (`"up"`, not `"arrow_up"`).
+ */
+const KEYS: Record<string, string> = Object.fromEntries(
+  Object.entries(KeyCodes).map(([name, code]) => [name.toLowerCase().replace(/^arrow_/, ""), code]),
+);
+
+/** The code of `key`: one character as itself, a name through `KEYS`; an unknown name throws. */
+function keyCode(key: string) {
+  if ([...new Intl.Segmenter().segment(key)].length === 1) return key;
+  const code = KEYS[key];
+  if (code === undefined)
+    throw new Error(`Unknown key "${key}". Known keys: ${Object.keys(KEYS).join(", ")}`);
+  return code;
+}
+
 /** The modifiers of a key press. */
 export type KeyModifiers = { ctrl?: boolean; shift?: boolean; meta?: boolean };
 
@@ -114,7 +131,11 @@ export type TestClient = {
   frame(): Promise<string>;
   /** A left click on the first cell of `text`; fails when the screen does not show it. */
   click(text: string, button?: MouseButton): Promise<void>;
-  /** Presses a key, `"s"` with `{ ctrl: true }` for Ctrl+S, or `"return"`, `"escape"`, … */
+  /**
+   * Presses a key: one character, `"s"` with `{ ctrl: true }` for Ctrl+S, or a name among
+   * `return`, `linefeed`, `tab`, `backspace`, `delete`, `home`, `end`, `escape`, `up`, `down`,
+   * `right`, `left` and `f1` to `f12`. Any other name throws.
+   */
   press(key: string, modifiers?: KeyModifiers): Promise<void>;
   /** Types `text` one character at a time. */
   type(text: string): Promise<void>;
@@ -166,7 +187,7 @@ export async function openClient(
     click: (text, button) => act(() => clickOn(ui, text, button)),
     press: (key, modifiers) =>
       act(async () => {
-        ui.mockInput.pressKey(key, modifiers);
+        ui.mockInput.pressKey(keyCode(key), modifiers);
       }),
     type: (text) =>
       act(async () => {
