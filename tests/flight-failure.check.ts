@@ -47,3 +47,36 @@ const heard = (model: unknown) => {
     expect(errors).toEqual([]);
   });
 }
+
+// A next() already waiting for Flight output must be interruptible: return() on
+// Node's async iterator queues behind that next(), unlike stream cancellation.
+test(`${name}: cancellation interrupts a pending Flight read`, async () => {
+  let signal: AbortSignal | undefined;
+  const { errors, stream } = heard(
+    page(() => {
+      const current = React.cacheSignal();
+      if (!(current instanceof AbortSignal)) throw new Error("No Flight cache signal");
+      signal = current;
+      return React.use(new Promise<never>(() => {}));
+    }),
+  );
+  const reader = stream.getReader();
+  await reader.read();
+  const pending = reader.read();
+  // Let pull enter the native read before cancelling, without resolving the page.
+  await new Promise((done) => setTimeout(done, 20));
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      reader.cancel(new Error("gone")),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error("cancel waits behind next")), 500);
+      }),
+    ]);
+    expect(await pending).toMatchObject({ done: true });
+    expect(signal?.aborted).toBe(true);
+    expect(errors).toEqual([]);
+  } finally {
+    clearTimeout(timer);
+  }
+});
