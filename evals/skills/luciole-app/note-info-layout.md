@@ -3,7 +3,7 @@ expect-skill: luciole-app
 timeout-minutes: 15
 checks:
   - exists: app/notes/[id]/info/page.tsx
-  - run: grep -rlF --include=layout.tsx '[Info]' app
+  - run: grep -rlF --include=layout.tsx 'Info view' app
   - match:
       file: app/notes/[id]/info/page.tsx
       pattern: notFound\(
@@ -25,14 +25,14 @@ checks:
           const at = (path: string) => until(() => client.app.router.state.location.pathname === path);
 
           await client.app.router.navigate({ to: "/notes/$id", params: { id: "7" } } as never);
-          await client.waitFor("[Info]");
-          await client.waitFor("[Note]");
-          await client.click("[Info]");
+          await client.waitFor("Info view");
+          await client.waitFor("Note view");
+          await client.click("Info view");
           await at("/notes/7/info");
           await client.waitFor("Characters: 590");
-          await client.click("[Note]");
+          await client.click("Note view");
           await at("/notes/7");
-          await client.waitFor("[Info]");
+          await client.waitFor("Info view");
 
           await client.app.router.navigate({ to: "/notes/$id/info", params: { id: "nope" } } as never);
           await client.waitFor("No note selected");
@@ -46,7 +46,8 @@ checks:
 Give every note a second screen at `/notes/<id>/info` that shows how many characters the note's
 Markdown text holds, as `Characters: <count>` (the stored text's JavaScript `length`).
 
-Both `/notes/<id>` and `/notes/<id>/info` show the same bar above the page, with two buttons,
-`[Note]` and `[Info]`: each opens that screen of the same note. The bar stays mounted while the
-user switches between the two screens of a note. For a note that does not exist,
-`/notes/<id>/info` shows the same screen as `/notes/<id>` does. Keep `bun run verify` passing.
+Both `/notes/<id>` and `/notes/<id>/info` show the same bar above the page, with two buttons
+labelled `Note view` and `Info view`: each opens that screen of the same note. The bar stays
+mounted while the user switches between the two screens of a note. For a note that does not
+exist, `/notes/<id>/info` shows the same screen as `/notes/<id>` does. Keep `bun run verify`
+passing.

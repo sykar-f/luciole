@@ -8,6 +8,9 @@ checks:
   - match:
       file: actions/capture.ts
       pattern: \.(safeParse|parse)\(
+  - match:
+      file: actions/capture.ts
+      pattern: invalidate\(
   - run: bun run verify
   - run: |
       cat > tests/eval-capture.test.ts <<'TEST'
