@@ -165,7 +165,5 @@ export function NoteControls({ id }: { id: string }) {
 Preload on intent (a selected row or hover), using the same destination and search as the
 later navigation. It renders the Server page with its authentication checks and reads;
 keep page rendering free of writes. For freshness and reuse, read the installed routing
-docs' "Preload a page before it opens" section. Refresh data through luciole's Server
-`invalidate()` and `useConnection().refresh()`; Router invalidation alone does not purge
-Server cache tags or coordinate other Server reads. For terminal history and restoration
+docs' "Preload a page before it opens" section. For terminal history and restoration
 limits, use the upstream boundary guide rather than browser setup examples.

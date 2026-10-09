@@ -12,20 +12,20 @@ The declaration column is relative to `node_modules/@opentui/core/renderables/`.
 Check JSX names in `node_modules/@opentui/react/jsx-namespace.d.ts` and callbacks/refs in
 `node_modules/@opentui/react/src/types/components.d.ts` before using a row.
 
-| Task                                              | Inspect                                                               | Declaration                     |
-| ------------------------------------------------- | --------------------------------------------------------------------- | ------------------------------- |
-| Frame, flex layout, panes                         | `<box>`                                                               | `Box.d.ts`                      |
-| Styled text, external terminal hyperlink          | `<text>`, `<span>`, `<a href>`                                        | `Text.d.ts`, `TextNode.d.ts`    |
-| Scrolling content                                 | `<scrollbox>`; named luciole `ScrollBox` for restoration              | `ScrollBox.d.ts`                |
-| One-line or multiline editing                     | `<input>`, `<textarea>`; named luciole `Input`, `Textarea` for drafts | `Input.d.ts`, `Textarea.d.ts`   |
-| Vertical choice list                              | `<select>`                                                            | `Select.d.ts`                   |
-| Horizontal choices, view modes                    | `<tab-select>`                                                        | `TabSelect.d.ts`                |
-| Patch with colors, gutters, unified or split view | `<diff>` with `diff` and `view`                                       | `Diff.d.ts`                     |
-| Code or Markdown                                  | `<code>`, `<markdown>`; luciole `Markdown` for math/presentation      | `Code.d.ts`, `Markdown.d.ts`    |
-| Code gutter, diagnostics                          | `<line-number>`                                                       | `LineNumberRenderable.d.ts`     |
-| Large ASCII title                                 | `<ascii-font>`                                                        | `ASCIIFont.d.ts`                |
-| Raster image                                      | `<image>`                                                             | `Image.d.ts`                    |
-| Table or slider                                   | `TextTableRenderable`, `SliderRenderable` through `extend`            | `TextTable.d.ts`, `Slider.d.ts` |
+| Task                                              | Inspect                                                                           | Declaration                     |
+| ------------------------------------------------- | --------------------------------------------------------------------------------- | ------------------------------- |
+| Frame, flex layout, panes                         | `<box>`                                                                           | `Box.d.ts`                      |
+| Styled text, external terminal hyperlink          | `<text>`, `<span>`, `<a href>`                                                    | `Text.d.ts`, `TextNode.d.ts`    |
+| Scrolling content                                 | `<scrollbox>`; named luciole `ScrollBox` for restoration                          | `ScrollBox.d.ts`                |
+| One-line or multiline editing                     | `<input>`, `<textarea>`; named luciole `Input`, `Textarea` for drafts             | `Input.d.ts`, `Textarea.d.ts`   |
+| Vertical choice list                              | `<select>`                                                                        | `Select.d.ts`                   |
+| Horizontal choices, view modes                    | `<tab-select>`                                                                    | `TabSelect.d.ts`                |
+| Patch with colors, gutters, unified or split view | `<diff>` with `diff` and `view`                                                   | `Diff.d.ts`                     |
+| Code or Markdown                                  | `<code>`, `<markdown>`; luciole `Markdown` for stable streaming, links and images | `Code.d.ts`, `Markdown.d.ts`    |
+| Code gutter, diagnostics                          | `<line-number>`                                                                   | `LineNumberRenderable.d.ts`     |
+| Large ASCII title                                 | `<ascii-font>`                                                                    | `ASCIIFont.d.ts`                |
+| Raster image                                      | `<image>`                                                                         | `Image.d.ts`                    |
+| Table or slider                                   | `TextTableRenderable`, `SliderRenderable` through `extend`                        | `TextTable.d.ts`, `Slider.d.ts` |
 
 Survey `node_modules/@opentui/core/renderables/index.d.ts` for other candidates. For classes
 without a JSX tag, follow the React README's component extension recipe and its
