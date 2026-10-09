@@ -31,13 +31,17 @@ export function relayBody(
               return consumed;
             },
             close() {
-              controller.close();
+              // Source EOF may already have committed the pipe to shutdown,
+              // which then ignores abort. Consumer cancellation owns the output
+              // close before releasing its last write; only the other exit may
+              // close this controller. The check and close are synchronous.
+              if (!stop.signal.aborted) controller.close();
             },
           }),
           { signal: stop.signal, preventAbort: true },
         )
         .then(
-          () => observe.end?.({ type: "end", cancelled: false }),
+          () => observe.end?.({ type: "end", cancelled: stop.signal.aborted }),
           (error: unknown) => {
             if (stop.signal.aborted) {
               observe.end?.({ type: "end", cancelled: true });
