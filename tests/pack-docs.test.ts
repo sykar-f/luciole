@@ -55,6 +55,11 @@ describe("the generated documentation", async () => {
     );
   });
 
+  test("ships the upstream library boundaries and routing links", () => {
+    expect(files["reference/upstream-libraries.md"]).toContain("## TanStack Router");
+    expect(files["concepts/routing.md"]).toContain("../reference/upstream-libraries.md");
+  });
+
   test("keeps no import line and no leftover component", () => {
     for (const [path, text] of Object.entries(files)) {
       const plain = prose(text);

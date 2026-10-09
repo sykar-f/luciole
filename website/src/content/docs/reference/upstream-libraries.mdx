@@ -1,0 +1,248 @@
+---
+title: Upstream libraries
+description: Which OpenTUI and TanStack Router and Form APIs apply in a luciole app, which need adapting, and where to read the installed API.
+sources:
+  - packages/core/src/client.tsx
+  - packages/core/src/route-tree.tsx
+  - packages/core/src/route-graph.ts
+  - packages/core/src/fields.tsx
+  - packages/core/src/restore.ts
+  - packages/create/scripts/starter.ts
+  - examples/forge/components/NewPullForm.tsx
+---
+
+This page lists the boundaries between luciole and OpenTUI, TanStack Router and TanStack Form.
+Import luciole's controls and navigation hooks from `@luciole-sh/core/client`.
+Import other native controls from `@opentui/react` or `@opentui/core`, and optional Form hooks
+from `@tanstack/react-form`.
+
+## Read the installed API first
+
+The upstream guides explain the libraries' concepts:
+[OpenTUI](https://github.com/anomalyco/opentui),
+[TanStack Router](https://tanstack.com/router/latest/docs/overview) and
+[TanStack Form](https://tanstack.com/form/latest/docs/overview).
+Their websites may describe a different version. For exact imports, props and signatures,
+the installed package's sources, declarations and README take precedence.
+
+From your app directory, open `node_modules/<package>/package.json` and read its `version`,
+`exports` and `types`. Follow the root export to check whether a symbol is public.
+A declaration file can mention internal symbols that the package does not export.
+
+| Package                  | Where to start in `node_modules`                                                 |
+| ------------------------ | -------------------------------------------------------------------------------- |
+| `@opentui/react`         | `README.md`, `src/index.d.ts`, `jsx-namespace.d.ts`, `src/types/components.d.ts` |
+| `@opentui/core`          | `README.md`, `index.d.ts`, `renderables/index.d.ts`                              |
+| `@tanstack/react-router` | `src/index.ts` and the hook sources under `src/`                                 |
+| `@tanstack/router-core`  | `src/router.ts` and `src/load-client.ts`                                         |
+| `@tanstack/react-form`   | `README.md`, `src/index.ts`, `src/useForm.tsx`, `src/useField.tsx`               |
+
+These boundaries were checked with OpenTUI `0.5.12`, Router `1.170.38` and Form `1.33.5`.
+Recheck the installed signatures when upgrading.
+
+## OpenTUI: native controls and luciole controls
+
+`@opentui/react` and `@opentui/core` are installed in every luciole app.
+OpenTUI's native JSX controls, including `<diff>`, `<tab-select>` and `<ascii-font>`, work
+in Client Components. Tables and sliders are exported renderable classes
+(`TextTableRenderable`, `SliderRenderable`); register them with `extend` from `@opentui/react`
+to use them in JSX.
+
+For fields that must survive a restart, use luciole's `Input`, `Textarea`, `Select` and
+other [named fields](/docs/concepts/session-restore/).
+For commands that should appear in key help, use `useBindings` and `<KeyHelp>`.
+Native OpenTUI controls and keyboard hooks do not add luciole's restoration or key help.
+
+### Set a tab selection through its ref
+
+In the checked version, `<tab-select>` has no `selectedIndex` prop.
+Use `TabSelectRenderable.setSelectedIndex` through a ref.
+A valid setter call emits `onChange`, even for the current index. Account for that callback
+when syncing state.
+
+```tsx
+"use client";
+import { useEffect, useRef } from "react";
+import type { TabSelectRenderable } from "@opentui/core";
+
+export function Tabs() {
+  const tab = useRef<TabSelectRenderable>(null);
+  useEffect(() => {
+    tab.current?.setSelectedIndex(1);
+  }, []);
+  return (
+    <tab-select
+      ref={tab}
+      focused
+      options={[
+        { name: "Overview", description: "Summary", value: "overview" },
+        { name: "Files", description: "Changed files", value: "files" },
+      ]}
+    />
+  );
+}
+```
+
+## TanStack Router: hooks on a generated route tree
+
+luciole generates `app/routeTree.gen.ts` from `app/` and owns the router, its memory history
+and its Flight loaders. Do not author `createRoute` calls or an app-defined route schema.
+There is no app route option for `loader`, `beforeLoad` or `validateSearch`.
+A page's exported `validateSearch` is ignored at runtime.
+Read data and check access in Server pages using luciole's APIs.
+
+The following hooks are TanStack's hooks, re-exported unwrapped from
+`@luciole-sh/core/client`: `useCanGoBack`, `useLocation`, `useMatchRoute`, `useNavigate`,
+`useParams`, `useRouter`, `useRouterState` and `useSearch`.
+Their upstream signatures apply to the generated routes. The route setup examples upstream
+must be replaced with luciole's [directory routing](/docs/concepts/routing/).
+
+| API                                                   | Boundary in luciole                                                                 |
+| ----------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `useNavigate`, `useParams`                            | Generated types check route targets and required string params.                     |
+| `useMatchRoute`                                       | Exact and fuzzy matching work; a match returns params, or `false`.                  |
+| `useLocation`, `useSearch`                            | Read the memory location and string search values. There is no browser address bar. |
+| `useCanGoBack`, `router.history.back()` / `forward()` | Navigate the Client's memory history.                                               |
+| `useRouterState`                                      | Subscribe to navigation state, including `isLoading`.                               |
+| `router.preloadRoute`                                 | Render a Server page in advance, including its authentication checks.               |
+| `router.invalidate({ sync: true })`                   | Reload route trees and await completion. It does not purge tagged Server data.      |
+
+For changes to Server data, use
+[luciole's cache invalidation](/docs/concepts/cache/) and `useConnection().refresh()`.
+Router invalidation alone does not coordinate luciole's other Server reads.
+
+### Parse search values in your app
+
+Search keys are optional and their values are strings, not TanStack's JSON values or
+schema-derived numbers. `useSearch({ strict: false })` reads the current page's search from
+a shared layout. Parse and validate at the Server/Client boundary before using a value.
+
+For an app with `app/notes/[id]/page.tsx`, this Client Component keeps `page` a string
+in navigation and parses it for display:
+
+```tsx
+"use client";
+import { useNavigate, useSearch } from "@luciole-sh/core/client";
+
+function pageNumber(value: string | undefined): number {
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : 1;
+}
+
+export function OpenNote() {
+  const navigate = useNavigate();
+  const search = useSearch({ strict: false });
+  const page = pageNumber(search.page);
+  return (
+    <text
+      onMouseDown={() =>
+        void navigate({ to: "/notes/$id", params: { id: "42" }, search: { page: "2" } })
+      }
+    >
+      Page {page}: open note 42
+    </text>
+  );
+}
+```
+
+A Server page receives `searchParams: Record<string, string>` and must also validate the
+values it uses. Parsing in a Client Component does not validate a later Server request.
+
+### Match a route and preload it
+
+For the same app, a key binding can open the note while the row's mouse event preloads it:
+
+```tsx
+"use client";
+import { useBindings, useMatchRoute, useNavigate, useRouter } from "@luciole-sh/core/client";
+
+export function NoteRow() {
+  const navigate = useNavigate();
+  const router = useRouter();
+  const matchRoute = useMatchRoute();
+  const destination = { to: "/notes/$id", params: { id: "42" } } as const;
+  const active = Boolean(matchRoute({ ...destination, fuzzy: true }));
+  useBindings(
+    () => ({
+      bindings: [{ key: "ctrl+o", desc: "Open note", cmd: () => void navigate(destination) }],
+    }),
+    [navigate],
+  );
+  return (
+    <text onMouseOver={() => void router.preloadRoute(destination)}>
+      {active ? "> " : "  "}Note 42
+    </text>
+  );
+}
+```
+
+A preload makes one render request. An immediate navigation to the identical destination,
+including search, reuses the fresh preloaded tree without another request.
+[Preload freshness](/docs/concepts/routing/#preload-a-page-before-it-opens) limits that reuse.
+
+### Catch-all params differ across the boundary
+
+For `app/manual/[...slug]/page.tsx`, Client navigation targets `/manual/$` with
+`params: { _splat: "guide/start" }`. `useParams({ strict: false })` exposes `_splat`.
+The Server page receives `params.slug`, with the same `"guide/start"` value.
+
+### Browser APIs do not supply terminal behaviour
+
+| Upstream feature               | What happens in a luciole Client                                                                                                                        |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `<Link>`                       | Can type-check when imported directly, but renders a DOM anchor and does not navigate on a terminal click. luciole intentionally does not re-export it. |
+| `useBlocker`, history blockers | Ignored by memory history in a terminal environment. They do not guard process exit.                                                                    |
+| `reloadDocument`               | Throws because document navigation needs a browser location.                                                                                            |
+| Route masks                    | Navigation uses the real route, but restoration reopens the masked URL stored in history. Avoid masks for restorable navigation.                        |
+
+Use key bindings or native mouse events with `useNavigate` for navigation.
+Do not copy browser history, DOM scroll restoration or TanStack Start setup into an app.
+luciole owns the Client router and sends Server pages through Flight.
+
+## TanStack Form: hooks with terminal callbacks
+
+TanStack Form is optional; the starter does not depend on it.
+If your app uses it, add `@tanstack/react-form` to your app's dependencies.
+Its `useForm` and `useField` hooks work with controlled terminal fields and validation.
+Submit through a key binding, and pass the callback's value to `field.handleChange`.
+There is no HTML form submission or `event.target.value` to read.
+
+```tsx
+"use client";
+import { useField, useForm } from "@tanstack/react-form";
+import { Input, useBindings } from "@luciole-sh/core/client";
+
+export function TitleForm() {
+  const form = useForm({
+    defaultValues: { title: "" },
+    onSubmit: ({ value }) => console.log(value.title),
+  });
+  const title = useField({
+    form,
+    name: "title",
+    validators: { onSubmit: ({ value }) => (value.trim() ? undefined : "Enter a title") },
+  });
+  useBindings(
+    () => ({ bindings: [{ key: "ctrl+s", desc: "Submit", cmd: () => void form.handleSubmit() }] }),
+    [form],
+  );
+  return (
+    <Input
+      name="title-form/title"
+      focused
+      value={title.state.value}
+      onInput={(value) => title.handleChange(value)}
+    />
+  );
+}
+```
+
+`<form.Field>` and `<form.Subscribe>` fail OpenTUI's installed JSX types with `TS2786`.
+Their React return signatures include values OpenTUI's JSX does not accept.
+This is a JSX signature incompatibility: the render-prop components are headless, not HTML
+controls. Use the hooks instead. Advanced Form composition and async validation paths need
+checking in the app that uses them; they were not exercised here.
+
+For restoring and clearing unsaved text when submitting, follow
+[Session restore](/docs/concepts/session-restore/#use-a-form-library).
+Validate submitted values again on the Server.

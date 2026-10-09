@@ -228,9 +228,8 @@ The text is kept again, unless the user typed something newer meanwhile, when:
 
 ## Use a form library
 
-The framework neither validates nor sends forms. A library that drives a field by value and
-callback works as it is, through its "React Native" path. A terminal has no `<form>`, so a key
-binding submits the form.
+The framework neither validates nor sends forms. Use a library's hooks to drive a field by
+value and callback. A terminal has no `<form>`, so a key binding submits the form.
 
 | Library         | Use                                                      | Avoid                                     |
 | --------------- | -------------------------------------------------------- | ----------------------------------------- |
@@ -239,7 +238,10 @@ binding submits the form.
 | Formik          | `useFormik` and `handleChange("field")`                  | `<Form>` and `<Field>`, which render HTML |
 
 The examples follow TanStack Form, in Forge's new pull request form
-(`components/NewPullForm.tsx`).
+(`components/NewPullForm.tsx`). TanStack's `<form.Field>` and `<form.Subscribe>` are headless
+components, but their return signatures fail OpenTUI's JSX types.
+[Upstream libraries](/docs/reference/upstream-libraries/#tanstack-form-hooks-with-terminal-callbacks)
+shows the hook adaptation.
 
 ## Where is the text stored?
 
