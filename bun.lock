@@ -152,7 +152,7 @@
     },
     "packages/core": {
       "name": "@luciole-sh/core",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "bin": {
         "luciole": "./src/cli.ts",
         "luciolex": "./src/luciolex.ts",
@@ -252,7 +252,7 @@
     },
     "packages/create": {
       "name": "@luciole-sh/create",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "bin": {
         "create-luciole": "./bin.ts",
       },
@@ -276,7 +276,7 @@
     },
     "packages/flow-graph": {
       "name": "@luciole-sh/flow-graph",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "devDependencies": {
         "@opentui/core": "catalog:",
         "@opentui/keymap": "catalog:",
@@ -305,7 +305,7 @@
     },
     "packages/luciole.sh": {
       "name": "luciole.sh",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "bin": {
         "luciole": "./bin.ts",
       },
@@ -315,7 +315,7 @@
     },
     "packages/markdown-editor": {
       "name": "@luciole-sh/markdown-editor",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "dependencies": {
         "marked": "catalog:",
       },

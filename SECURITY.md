@@ -34,7 +34,7 @@ Only the latest published release gets security fixes. Until 1.0, that is the la
 
 | Version | Supported                         |
 | ------- | --------------------------------- |
-| 0.1.x   | Yes, the first published release  |
+| 0.2.x   | Yes, the current release          |
 | `main`  | Fixes land here first, unreleased |
 
 The five published packages share one version. A fix ships as a patch release of all
