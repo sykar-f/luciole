@@ -69,7 +69,7 @@ Every failed request throws a `TransportError` (from `@luciole-sh/core/client`).
 The transport never retries; a `.catch(() => call())` retries `unknown` too and duplicates
 writes. See `node_modules/@luciole-sh/core/docs/concepts/server-functions.md`.
 
-Reproduce network bugs with the Client's variables, on `bun run dev` or in a test:
+Reproduce network bugs with the Client's variables, on `bun run dev` or `luciole`:
 
 ```sh
 LUCIOLE_LATENCY_MS=300 LUCIOLE_FAULT=drop:0.3 bun run dev
@@ -77,7 +77,8 @@ LUCIOLE_LATENCY_MS=300 LUCIOLE_FAULT=drop:0.3 bun run dev
 
 `LUCIOLE_FAULT` takes `refuse` (gives `not-sent`), `drop` (the Server ran, the response is lost:
 `unknown`) and `cut` (`unknown`), each with a probability: `refuse:0.1,drop:0.05`. Also
-`LUCIOLE_JITTER_MS` and `LUCIOLE_CHUNK_DELAY_MS`. See
+`LUCIOLE_JITTER_MS` and `LUCIOLE_CHUNK_DELAY_MS`. A test's Server ignores them: a test passes
+`latencyMs` and `network` to `openClient` instead (the `luciole-test` skill). See
 `node_modules/@luciole-sh/core/docs/guides/latency-and-faults.md`.
 
 ## The connection status says why
