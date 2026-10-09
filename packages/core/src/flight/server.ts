@@ -35,10 +35,11 @@ export function renderToReadableStream(
   render.pipe(output);
   // The native adapter destroys the Node source on cancellation; an iterator's
   // return() queues behind its pending next() and cannot interrupt that read.
-  // node:stream/web and the host declare distinct types for the same stream API.
-  const stream = (
-    Readable.toWeb(output, { strategy: { highWaterMark: 1 } }) as unknown as ReadableStream<unknown>
-  ).pipeThrough(
+  // Narrow the adapter's Node declaration to the host's stream type without
+  // assuming that untyped Node chunks already satisfy our byte contract.
+  const native: unknown = Readable.toWeb(output, { strategy: { highWaterMark: 1 } });
+  if (!(native instanceof ReadableStream)) throw new TypeError("Node did not return a web stream");
+  const stream = native.pipeThrough(
     new TransformStream<unknown, Uint8Array>({
       transform(value, controller) {
         if (!(value instanceof Uint8Array))
