@@ -95,7 +95,9 @@ output goes to `setup.log`.
 The runner prints the directory it writes to first, then one table: a row per scenario, arm and
 run, with `pass` or `FAIL` for each check (`c1`, `c2`… are listed under the table), whether the
 expected skill was read, how the agent ended (`ok`, `timeout`, `exit N`, or `setup failed`
-when it never started), and the duration.
+when it never started), and the duration. When the agent leaves processes that no signal can
+end (macOS may refuse one with EPERM), the run still completes and its outcome says so, as in
+`ok, cleanup: 1 left`.
 
 The directory holds, for each run under `runs/<skill>/<scenario>/<arm>-<n>/`:
 
@@ -105,4 +107,5 @@ The directory holds, for each run under `runs/<skill>/<scenario>/<arm>-<n>/`:
 - `checks.log`: each check's output;
 - `app/`: the app after the run.
 
-`report.md` at the root holds the table.
+`report.md` at the root holds the table. It is written again after each run, so a pass that
+stops early keeps the rows of the runs it finished.
