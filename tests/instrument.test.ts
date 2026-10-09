@@ -283,3 +283,28 @@ test("a source cancellation failure still rejects the consumer's cancel", async 
   expect(await pending).toMatchObject({ done: true });
   expect(events).toEqual([{ type: "end", cancelled: true }]);
 });
+
+test("consumer cancellation owns the close during natural pipe shutdown", async () => {
+  const events: unknown[] = [];
+  let wrote = () => {};
+  const lastWrite = new Promise<void>((done) => {
+    wrote = done;
+  });
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(new Uint8Array([1]));
+      controller.close();
+    },
+  });
+  const relayed = relayBody(body, {
+    chunk: () => wrote(),
+    end: (event) => events.push(event),
+  });
+  // Reading the final queued chunk closes the source. The pipe starts natural
+  // shutdown, while its sink write still awaits a pull from the unread output.
+  await lastWrite;
+  await Promise.resolve();
+  const reason = new Error("gone after source EOF");
+  await relayed.cancel(reason);
+  expect(events).toEqual([{ type: "end", cancelled: true }]);
+});
