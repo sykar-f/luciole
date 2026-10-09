@@ -1,0 +1,18 @@
+diff --git a/app/notes/[id]/page.tsx b/app/notes/[id]/page.tsx
+index 617b46e..4f89a21 100644
+--- a/app/notes/[id]/page.tsx
++++ b/app/notes/[id]/page.tsx
+@@ -12,10 +12,13 @@ const autosaveMs = z.coerce
+   .nonnegative()
+   .default(AUTOSAVE_MS)
+   .parse(process.env.NOTES_AUTOSAVE_MS);
++/** The longest note the editor opens, in characters: past it, typing lags. */
++const MAX_OPEN_CHARS = 200_000;
+ 
+ export default async function Page({ params }: { params: { id: string } }) {
+   const note = await noteOf(getSession().userId, params.id);
+   if (!note) notFound("Note");
++  if (note.value.length > MAX_OPEN_CHARS) throw new Error("This note is too large to open");
+   return (
+     <NoteEditor
+       key={note.id}

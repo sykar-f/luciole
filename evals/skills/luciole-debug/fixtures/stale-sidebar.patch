@@ -1,0 +1,32 @@
+diff --git a/components/notes-list.ts b/components/notes-list.ts
+index f3a3293..04c486d 100644
+--- a/components/notes-list.ts
++++ b/components/notes-list.ts
+@@ -1,11 +1,11 @@
+ "use client";
+ import { useEffect, useSyncExternalStore } from "react";
+-import { TransportError, useInvalidation } from "@luciole-sh/core/client";
++import { TransportError } from "@luciole-sh/core/client";
+ import { listNotes } from "../actions/notes";
+ import type { Note } from "./draft";
+ 
+ // The sidebar's notes. Layouts are Client Components: the list is read through a Server
+-// Function, then read again whenever a change invalidates cached reads.
++// Function.
+ 
+ type State = { notes: readonly Note[] | null; error: string };
+ let state: State = { notes: null, error: "" };
+@@ -59,12 +59,11 @@ export const notesList = {
+   },
+ };
+ 
+-/** The list, loaded on mount and after every invalidation. */
++/** The list, loaded on mount. */
+ export function useNotesList() {
+   useEffect(() => {
+     void notesList.load();
+   }, []);
+-  useInvalidation(() => void notesList.load());
+   return useSyncExternalStore(notesList.subscribe, notesList.get);
+ }
+ /** The list as it is, without loading it. */
