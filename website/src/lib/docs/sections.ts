@@ -55,6 +55,7 @@ export const sections: readonly Section[] = [
       "reference/package-json",
       "reference/environment",
       "reference/api",
+      "reference/upstream-libraries",
       "reference/build-and-distribution",
       "reference/optional-packages",
       "reference/troubleshooting",

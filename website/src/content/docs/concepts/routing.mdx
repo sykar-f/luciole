@@ -97,8 +97,10 @@ The build writes `app/routeTree.gen.ts`. Commit it and do not edit it. It regist
 routes with TanStack, so TypeScript checks `to`, `params` and `useParams` against this app's
 files. A route that does not exist, or a missing param, is a TypeScript error.
 
-Navigate with the hooks that `@luciole-sh/core/client` re-exports. luciole does not
-re-export TanStack's `<Link>`, because `<Link>` renders a DOM anchor.
+Navigate with TanStack's hooks, re-exported unwrapped by `@luciole-sh/core/client`. luciole does
+not re-export TanStack's `<Link>`, because `<Link>` renders a DOM anchor.
+[Upstream libraries](/docs/reference/upstream-libraries/) lists which TanStack APIs apply
+to this generated route tree.
 
 <Excerpt
   path="examples/notes/components/commands.ts"
@@ -167,9 +169,12 @@ what the user sees.
 
 ## Read search params
 
-Every page accepts search params, as **strings**, like a URL's (`"42"` stays `"42"`). Each
-search is a separate page, rendered by the Server and cached apart. Back and forward restore
-it.
+Every page accepts search params, as **strings**, like a URL's (`"42"` stays `"42"`). Search
+keys are optional. luciole supplies the route validator; a page's exported `validateSearch`
+is ignored. Parse and validate values in your app at the Server/Client boundary.
+
+Each search is a separate page, rendered by the Server and cached apart. Back and forward
+restore it.
 
 ```tsx
 void navigate({ to: "/repos/$repo", params: { repo }, search: { state: "merged" } });
