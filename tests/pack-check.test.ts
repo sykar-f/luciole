@@ -68,6 +68,45 @@ test("a test shipped inside files fails the check", async () => {
   expect(problems.join("\n")).toContain("test in the tarball: src/a.test.ts");
 });
 
+test("explicitly shipped template content can include the starter's tests", async () => {
+  const dir = fixture(
+    { ...good, name: "fixture-starter", files: ["dist", "template"] },
+    {
+      "dist/index.js": "export {};\n",
+      "template/tests/notes.test.ts": "export {};\n",
+      "template/__tests__/helper.ts": "export {};\n",
+      "template/app/notes.spec.ts": "export {};\n",
+    },
+  );
+  expect(await checkPackage(dir, () => {})).toEqual([]);
+});
+
+test("shipping a template still refuses the package's own tests", async () => {
+  const dir = fixture(
+    { ...good, name: "fixture-starter-own-tests", files: ["dist", "template", "src"] },
+    {
+      "dist/index.js": "export {};\n",
+      "template/tests/notes.test.ts": "export {};\n",
+      "src/own.test.ts": "export {};\n",
+      "src/tests/helper.ts": "export {};\n",
+    },
+  );
+  const problems = await checkPackage(dir, () => {});
+  expect(problems).toContain("test in the tarball: src/own.test.ts");
+  expect(problems).toContain("test in the tarball: src/tests/helper.ts");
+  expect(problems).not.toContain("test in the tarball: template/tests/notes.test.ts");
+});
+
+test("a broad files glob does not declare a template as content", async () => {
+  const dir = fixture(
+    { ...good, name: "fixture-implicit-template", files: ["**"] },
+    { "dist/index.js": "export {};\n", "template/tests/notes.test.ts": "export {};\n" },
+  );
+  expect(await checkPackage(dir, () => {})).toContain(
+    "test in the tarball: template/tests/notes.test.ts",
+  );
+});
+
 test("a test/ directory an export points into is the package's API, not a test", async () => {
   const api = fixture(
     {

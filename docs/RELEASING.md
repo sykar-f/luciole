@@ -33,7 +33,9 @@ Les mêmes vérifications tournent sur chaque push (job `publishable` de `ci.yml
 avant la publication (job `verify` de `release.yml`) :
 
 - `bun scripts/pack-check.ts <les cinq dossiers>` : chaque paquet se range en tarball, sans
-  spec `workspace:` ni `catalog:`, sans test ni fichier hors de `files`, toutes ses cibles
+  spec `workspace:` ni `catalog:`, sans test propre au paquet (un répertoire `test/` exporté est
+  une API ; les tests sous `template/` explicitement déclaré dans `files` sont du contenu de
+  starter) ni fichier hors de `files`, toutes ses cibles
   d'`exports` et de `bin` présentes ; le tarball s'installe dans un projet vierge (avec les
   tarballs des paquets du dépôt dont il dépend) et chaque export s'importe sous node (sauf
   paquets Bun seul) et sous bun ;
