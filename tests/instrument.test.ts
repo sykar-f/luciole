@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { relayBody } from "../packages/core/src/cache/render";
 import { createInterface } from "node:readline";
 import { z } from "zod";
 import {
@@ -209,3 +210,61 @@ for (const entry of ["node", "web"])
     if (code !== 0) console.error(output);
     expect(code).toBe(0);
   });
+
+// Exercise the relay's completion owner with a controlled source, including the
+// pending read that cancellation resolves to done in the original reader wrapper.
+for (const outcome of ["normal", "error", "cancel"] as const) {
+  test(`the body relay settles once on ${outcome}`, async () => {
+    let source!: ReadableStreamDefaultController<Uint8Array>;
+    const cancelled: unknown[] = [];
+    const events: unknown[] = [];
+    const bytes: number[] = [];
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        source = controller;
+      },
+      cancel(reason) {
+        cancelled.push(reason);
+      },
+    });
+    const reader = relayBody(body, {
+      chunk: (value) => bytes.push(...value),
+      end: (event) => events.push(event),
+    }).getReader();
+    const first = reader.read();
+    source.enqueue(new Uint8Array([1, 2, 3]));
+    expect((await first).value).toEqual(new Uint8Array([1, 2, 3]));
+    const pending = reader.read();
+    const reason = new Error("gone");
+    if (outcome === "cancel") {
+      await reader.cancel(reason);
+      expect(await pending).toMatchObject({ done: true });
+      expect(cancelled).toEqual([reason]);
+      expect(events).toEqual([{ type: "end", cancelled: true }]);
+    } else if (outcome === "error") {
+      source.error(reason);
+      expect(await rejectionOf(pending)).toBe(reason);
+      expect(events).toEqual([{ type: "error", error: reason }]);
+    } else {
+      source.close();
+      expect(await pending).toMatchObject({ done: true });
+      await until(() => events.length > 0);
+      expect(events).toEqual([{ type: "end", cancelled: false }]);
+    }
+    expect(bytes).toEqual([1, 2, 3]);
+  });
+}
+
+test("the body relay keeps an unread source under backpressure", async () => {
+  let pulls = 0;
+  const body = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      pulls++;
+      controller.enqueue(new Uint8Array([pulls]));
+    },
+  });
+  const relayed = relayBody(body);
+  await new Promise((done) => setTimeout(done, 20));
+  expect(pulls).toBeLessThanOrEqual(3);
+  await relayed.cancel();
+});
