@@ -395,6 +395,36 @@ function alive(pid: number) {
   }
 }
 
+/** A killed listing can remain a zombie after its runner exits without reaping it. */
+async function running(pid: number) {
+  const probe = Bun.spawn(["ps", "-p", String(pid), "-o", "stat="], {
+    stdin: "ignore",
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+  const [state, errors, code] = await Promise.all([
+    new Response(probe.stdout).text(),
+    new Response(probe.stderr).text(),
+    probe.exited,
+  ]);
+  expect(errors).toBe("");
+  // ps exits 1 when the selected process no longer exists.
+  expect([0, 1]).toContain(code);
+  const stat = state.trim();
+  return stat !== "" && !stat.startsWith("Z");
+}
+
+test("the exit probe distinguishes a running process from a reaped one", async () => {
+  expect(await running(process.pid)).toBe(true);
+  const child = Bun.spawn([process.execPath, "-e", ""], {
+    stdin: "ignore",
+    stdout: "ignore",
+    stderr: "ignore",
+  });
+  expect(await child.exited).toBe(0);
+  expect(await running(child.pid)).toBe(false);
+});
+
 /** A stand-in agent: it starts a child that would outlive it, prints the child's pid, waits. */
 const SPAWNS_CHILD = ["sh", "-c", "sleep 60 & echo $!; wait"];
 const LEAVES_CHILD = ["sh", "-c", "sleep 60 & echo $!"];
@@ -540,7 +570,7 @@ console.log(JSON.stringify(result));`
         expect(await readdir(runLayout(out).codex)).toEqual([]);
         expect(alive(Number(await readFile(agentPid, "utf8")))).toBe(false);
       }
-      for (const pid of await readdir(listings)) expect(alive(Number(pid))).toBe(false);
+      for (const pid of await readdir(listings)) expect(await running(Number(pid))).toBe(false);
       expect(await errors).toBe("");
     } finally {
       await writeFile(gate, "release");
