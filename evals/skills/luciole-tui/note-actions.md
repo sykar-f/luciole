@@ -16,7 +16,8 @@ setup: |
 # placement, target identity, Escape and outside dismissal. c5: painted hover.
 # c6: at 60x20, <=12 occupied rows leaves eight rows for reading/expansion;
 # no permanent Duplicate/Delete inventory and <=4 key hints keep chrome small.
-# A visible entrance is a More/Actions label or a familiar ellipsis glyph.
+# Visible entrances are judged by clicking visible cells, after hovering the
+# note row; labels may prioritize candidates but do not determine acceptance.
 # Near the click means <=24 columns (one menu width) and <=5 rows, allowing
 # clamping at terminal edges. These are design criteria, not speed gates.
 checks:
@@ -40,7 +41,8 @@ checks:
         return source+"\n"+children.join("\n");
       }
       const source = await reachable("app/desk/page.tsx");
-      expect(source).toMatch(/onMouse(?:Down|Up)[\s\S]*?(?:button\s*===?\s*(?:MouseButton(?:s)?\.RIGHT|2)|(?:MouseButton(?:s)?\.RIGHT|2)\s*===?\s*\w+\.button)/);
+      expect(source).toMatch(/onMouse(?:Down|Up)/);
+      expect(source).toMatch(/(?:button\s*===?\s*(?:MouseButton(?:s)?\.RIGHT|2)|(?:MouseButton(?:s)?\.RIGHT|2)\s*===?\s*\w+\.button)/);
       expect(source).toMatch(/onMouse(?:Over|Enter)/);
       expect(source).toMatch(/onMouse(?:Out|Leave)/);
       CODE
@@ -100,17 +102,25 @@ checks:
         for (const action of ["Duplicate", "Delete"]) expect(shownAction(before, action), "secondary actions appear only after opening the menu").toBe(false);
         if (right) await c.click(title, MouseButtons.RIGHT);
         else {
-          const frame = await c.frame();
-          const rows = frame.split("\n");
           const at = cell(c, title);
-          const candidates = rows.flatMap((row, y) => [...row.matchAll(/More(?:…|\.\.\.)?|Actions|[⋮⋯…]|\.\.\./gi)].map(m => ({ x: m.index, y })))
-            .sort((a, b) => Math.abs(a.y-at.y)-Math.abs(b.y-at.y));
-          expect(candidates.length, "visible named or ellipsis action entrance").toBeGreaterThan(0);
+          await move(c, at.x, at.y);
+          // Hover may reveal the entrance. Probe every visible cell, prioritizing
+          // the target row; no label vocabulary determines whether it qualifies.
+          const rows = (await c.frame()).split("\n");
+          const candidates = rows.flatMap((row, y) => Array.from(row).flatMap((ch, x) =>
+            ch.trim() ? [{ x, y }] : []))
+            .sort((a, b) => Math.abs(a.y-at.y)-Math.abs(b.y-at.y) || a.x-b.x);
+          let opened = false;
           for (const p of candidates) {
+            await move(c, at.x, at.y);
+            await move(c, p.x, p.y);
+            // A candidate must still be visibly painted when clicked.
+            if (!(await c.frame()).split("\n")[p.y]?.[p.x]?.trim()) continue;
             await act(async () => { await c.ui.mockMouse.click(p.x, p.y); });
             const shown = await c.frame();
-            if (["Open", "Duplicate", "Delete"].every(s => shownAction(shown, s))) break;
+            if (["Open", "Duplicate", "Delete"].every(s => shownAction(shown, s))) { opened = true; break; }
           }
+          expect(opened, "a visible control opens secondary actions").toBe(true);
         }
         const frame = await see(c, "Duplicate");
         for (const action of ["Open", "Duplicate", "Delete"]) expect(shownAction(frame, action)).toBe(true);
@@ -196,17 +206,25 @@ checks:
         for (const action of ["Duplicate", "Delete"]) expect(shownAction(before, action), "secondary actions appear only after opening the menu").toBe(false);
         if (right) await c.click(title, MouseButtons.RIGHT);
         else {
-          const frame = await c.frame();
-          const rows = frame.split("\n");
           const at = cell(c, title);
-          const candidates = rows.flatMap((row, y) => [...row.matchAll(/More(?:…|\.\.\.)?|Actions|[⋮⋯…]|\.\.\./gi)].map(m => ({ x: m.index, y })))
-            .sort((a, b) => Math.abs(a.y-at.y)-Math.abs(b.y-at.y));
-          expect(candidates.length, "visible named or ellipsis action entrance").toBeGreaterThan(0);
+          await move(c, at.x, at.y);
+          // Hover may reveal the entrance. Probe every visible cell, prioritizing
+          // the target row; no label vocabulary determines whether it qualifies.
+          const rows = (await c.frame()).split("\n");
+          const candidates = rows.flatMap((row, y) => Array.from(row).flatMap((ch, x) =>
+            ch.trim() ? [{ x, y }] : []))
+            .sort((a, b) => Math.abs(a.y-at.y)-Math.abs(b.y-at.y) || a.x-b.x);
+          let opened = false;
           for (const p of candidates) {
+            await move(c, at.x, at.y);
+            await move(c, p.x, p.y);
+            // A candidate must still be visibly painted when clicked.
+            if (!(await c.frame()).split("\n")[p.y]?.[p.x]?.trim()) continue;
             await act(async () => { await c.ui.mockMouse.click(p.x, p.y); });
             const shown = await c.frame();
-            if (["Open", "Duplicate", "Delete"].every(s => shownAction(shown, s))) break;
+            if (["Open", "Duplicate", "Delete"].every(s => shownAction(shown, s))) { opened = true; break; }
           }
+          expect(opened, "a visible control opens secondary actions").toBe(true);
         }
         const frame = await see(c, "Duplicate");
         for (const action of ["Open", "Duplicate", "Delete"]) expect(shownAction(frame, action)).toBe(true);
@@ -233,6 +251,9 @@ checks:
         await act(async () => { await c.ui.mockMouse.click(59, 19); });
         await hidden(c, "Duplicate");
         await menu(c, "Packing list");
+        await c.click("Open");
+        await see(c, "Bring boots.");
+        await menu(c, "Packing list", false);
         await c.click("Duplicate");
         const frame = await see(c, "Packing list copy");
         expect(frame).toContain("Orchard plan");

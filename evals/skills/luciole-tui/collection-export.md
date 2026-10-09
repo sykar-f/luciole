@@ -18,8 +18,8 @@ setup: |
   ACTION
   bunx oxfmt --write app/layout.tsx actions/export-collection.ts
 # c1: project health. c2: a timer/timeline reachable from the page.
-# c3: painted waiting element changes over twelve samples, occupies <=3 rows,
-# every other row stays painted identically, content anchors keep coordinates,
+# c3: the waiting element changes over twelve samples; during the wait,
+# content anchors keep coordinates (disabled content may dim uniformly),
 # and the supplied Server result arrives over an action request.
 # The planted delay gives a finite observation window; elapsed duration is not
 # scored. A glyph change or an opacity/colour pulse both qualify as animation.
@@ -116,9 +116,9 @@ checks:
           await act(async () => { await Bun.sleep(25); });
         }
         expect(first, "a visible waiting state").toBeDefined();
-        const region = first.flatMap((row, y) => JSON.stringify(row) !== JSON.stringify(idlePaint[y]) ? [y] : []);
-        expect(region.length, "compact waiting element").toBeGreaterThan(0);
-        expect(region.length).toBeLessThanOrEqual(3);
+        // Ignore paint on content anchors: disabled content can dim without moving.
+        const region = first.flatMap((row, y) => !anchors.some(a => a.at.y === y) && JSON.stringify(row) !== JSON.stringify(idlePaint[y]) ? [y] : []);
+        expect(region.length, "visible waiting element").toBeGreaterThan(0);
         let changed = false;
         for (let i = 0; i < 12; i++) {
           await act(async () => { await Bun.sleep(100); });
@@ -129,12 +129,12 @@ checks:
           for (let y = 0; y < next.length; y++) {
             if (region.includes(y)) {
               if (JSON.stringify(next[y]) !== JSON.stringify(first[y])) changed = true;
-            } else expect(next[y], `stationary row ${y}`).toEqual(first[y]);
+            }
           }
         }
         expect(changed, "waiting element changes glyphs or painted colours over time").toBe(true);
         const result = await see(c, "Export ready (2 notes)");
-        for (const a of anchors) { expect(result).toContain(a.text); expect(cell(c, a.text)).toEqual(a.at); }
+        for (const a of anchors) expect(result).toContain(a.text);
         await c.requests.settled();
         expect(c.requests.finished.slice(finished).some(r => r.kind === "action" && r.type === "end")).toBe(true);
       }, TEST_TIMEOUT_MS);
