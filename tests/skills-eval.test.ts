@@ -13,6 +13,7 @@ import {
   must,
   parseArgs,
   parseScenario,
+  fingerprintOf,
   materialReads,
   readsSkill,
   renderTable,
@@ -139,12 +140,12 @@ test("the command line: skill, scenarios, runs and model", () => {
 const event = (item: Record<string, unknown>) => JSON.stringify({ type: "item.completed", item });
 
 /** A `command_execution` item as `codex exec --json` writes it once the command has ended. */
-const ran = (command: string, exitCode: number) =>
+const ran = (command: string, exitCode: number, output = "") =>
   event({
     id: "item_1",
     type: "command_execution",
     command: `/bin/zsh -lc '${command}'`,
-    aggregated_output: "",
+    aggregated_output: output,
     exit_code: exitCode,
     status: exitCode === 0 ? "completed" : "failed",
   });
@@ -186,10 +187,66 @@ test("the material read in a transcript: the skill's SKILL.md or the block, read
     ran("rg -n upgrade node_modules/@luciole-sh/core/agents-block.md", 0),
     ran("cat package.json", 0),
   ].join("\n");
-  expect(materialReads(transcript, "luciole-upgrade")).toEqual([
+  expect(materialReads(transcript, { skill: "luciole-upgrade" })).toEqual([
     "/bin/zsh -lc 'cat ../with-1/app/.agents/skills/luciole-upgrade/SKILL.md'",
     "/bin/zsh -lc 'rg -n upgrade node_modules/@luciole-sh/core/agents-block.md'",
   ]);
+});
+
+/** The opening of luciole-ship's SKILL.md, as skill-ship's report found it in a Codex log. */
+const SHIP = [
+  "---",
+  "name: luciole-ship",
+  "description: Ships a luciole app — compiled binaries, macOS signing and notarization, a hosted Server, the web target and npm packages with luciole pack.",
+  "disable-model-invocation: true",
+  "---",
+  "",
+  "# Ship a luciole app",
+  "",
+].join("\n");
+
+test("a skill's fingerprint: its name line and its description's first words", () => {
+  const fingerprint = fingerprintOf(SHIP);
+  expect(fingerprint?.name.test("name: luciole-ship\n")).toBe(true);
+  expect(fingerprint?.name.test("name: luciole-shipping\n")).toBe(false);
+  expect(fingerprint?.description.test("description: Ships a luciole app")).toBe(true);
+  // A folded description breaks its words over lines.
+  expect(fingerprint?.description.test("Ships a\n  luciole app")).toBe(true);
+  expect(fingerprintOf("# no frontmatter")).toBeUndefined();
+  expect(fingerprintOf("---\nname: x\n---\n")).toBeUndefined();
+});
+
+test("a without run that read the skill through a Codex log is contaminated", () => {
+  const fingerprint = fingerprintOf(SHIP);
+  // skill-ship's TaedsM without-1: rg printed rollout lines, whose JSON escapes the newlines.
+  const logged = JSON.stringify({ aggregated_output: SHIP }).slice(1, -1);
+  const searched = ran(
+    "rg -n luciole-ship /Users/u/.codex /Users/u/.agents 2>/dev/null",
+    0,
+    `/Users/u/.codex/sessions/2026/10/09/rollout-x.jsonl:12:{"type":"response_item",${logged}}`,
+  );
+  // A two-step read: the search names no skill path, the cat names the log.
+  const listed = ran("rg -l luciole-ship /Users/u/.codex/sessions", 0, "rollout-x.jsonl\n");
+  const opened = ran(
+    "cat /Users/u/.codex/sessions/2026/10/09/rollout-2026-10-09T02-57-45-a.jsonl",
+    0,
+  );
+  const history = ran("tail /Users/u/.codex/history.jsonl", 0);
+  const references = ran(
+    "cat node_modules/@luciole-sh/core/skills/luciole-ship/references/web.md",
+    0,
+  );
+  const clean = ran("cat app/sessions/page.tsx", 0, "name: luciole-ship");
+  const transcript = [searched, listed, opened, history, references, clean].join("\n");
+  expect(materialReads(transcript, { skill: "luciole-ship", fingerprint })).toEqual([
+    "/bin/zsh -lc 'rg -n luciole-ship /Users/u/.codex /Users/u/.agents 2>/dev/null'",
+    "/bin/zsh -lc 'rg -l luciole-ship /Users/u/.codex/sessions'",
+    "/bin/zsh -lc 'cat /Users/u/.codex/sessions/2026/10/09/rollout-2026-10-09T02-57-45-a.jsonl'",
+    "/bin/zsh -lc 'tail /Users/u/.codex/history.jsonl'",
+    "/bin/zsh -lc 'cat node_modules/@luciole-sh/core/skills/luciole-ship/references/web.md'",
+  ]);
+  // Without the fingerprint, only the commands that name the material count.
+  expect(materialReads(searched, { skill: "luciole-ship" })).toEqual([]);
 });
 
 /** A `file_change` item as `codex exec --json` writes it, for each path. */
@@ -224,6 +281,7 @@ test("the without arm may not read the skill under test or the block, anywhere",
   expect(unreadableFor({ arm: "without", skill: "luciole-app", roots })).toEqual([
     ...roots,
     "/**/luciole-app/SKILL.md",
+    "/**/luciole-app/references/**",
     "/**/agents-block.md",
   ]);
 });
@@ -470,22 +528,34 @@ test("a scenario without setup runs the agent on the app as copied", async () =>
   expect(await Bun.file(join(out, "setup.log")).exists()).toBe(false);
 });
 
-test("while the agent runs, its root holds only its app and its $TMPDIR", async () => {
+test("while the agent runs, its root holds only its app, its $TMPDIR and its $CODEX_HOME", async () => {
   const { out, app } = await appCopy();
-  const { tmp } = runLayout(out);
+  const { tmp, codex } = runLayout(out);
   expect(runLayout(out).app).toBe(app);
+  const auth = join(await mkdtemp(join(temp, "codex-home-")), "auth.json");
+  await writeFile(auth, '{"token":"t"}\n');
   const result = await runInApp({
     scenario: withSetup("echo planted > planted.txt"),
     arm: "without",
     scenarioDir: await scenarioDir(),
     app,
     out,
-    agent: ["sh", "-c", 'ls -A ..; echo "TMPDIR=$TMPDIR"; echo agent > agent.txt'],
+    codexAuth: auth,
+    agent: [
+      "sh",
+      "-c",
+      'ls -A ..; ls -A "$CODEX_HOME"; echo "TMPDIR=$TMPDIR CODEX_HOME=$CODEX_HOME"; echo agent > agent.txt',
+    ],
   });
   expect(result).toMatchObject({ agent: "ok", checks: [true, true] });
   // The setup's log, like the transcript, is written once the agent has ended.
-  expect(await readFile(join(out, "transcript.jsonl"), "utf8")).toBe(`app\ntmp\nTMPDIR=${tmp}\n`);
+  expect(await readFile(join(out, "transcript.jsonl"), "utf8")).toBe(
+    `app\ncodex\ntmp\nauth.json\nTMPDIR=${tmp} CODEX_HOME=${codex}\n`,
+  );
   expect(await readFile(join(out, "setup.log"), "utf8")).toBe("exit 0\n");
+  // The credentials leave with the agent; the user's own stay where they were.
+  expect(await readdir(codex)).toEqual([]);
+  expect(await readFile(auth, "utf8")).toBe('{"token":"t"}\n');
 });
 
 test("the report flags a without run that read the material, and a write outside the app", async () => {

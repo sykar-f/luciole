@@ -1,4 +1,4 @@
-import { mkdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
 import { z } from "zod";
 
@@ -119,17 +119,19 @@ export function parseArgs(argv: readonly string[]): Args {
 }
 
 // The events of `codex exec --json` that carry a shell command the agent ran. Codex writes one
-// when the command starts, with `exit_code: null`, and one when it ends, with its exit code.
+// when the command starts, with `exit_code: null`, and one when it ends, with its exit code and
+// what it printed.
 const CommandEvent = z.looseObject({
   item: z.looseObject({
     type: z.literal("command_execution"),
     command: z.string(),
+    aggregated_output: z.string().optional(),
     exit_code: z.number().nullable().optional(),
   }),
 });
 
 /** The shell commands of a `codex exec --json` transcript that ran and exited 0. */
-export function succeededCommands(transcript: string): string[] {
+export function succeededCommands(transcript: string): { command: string; output: string }[] {
   return transcript.split("\n").flatMap((line) => {
     let event: unknown;
     try {
@@ -138,7 +140,9 @@ export function succeededCommands(transcript: string): string[] {
       return [];
     }
     const parsed = CommandEvent.safeParse(event);
-    return parsed.success && parsed.data.item.exit_code === 0 ? [parsed.data.item.command] : [];
+    if (!parsed.success || parsed.data.item.exit_code !== 0) return [];
+    const { command, aggregated_output: output = "" } = parsed.data.item;
+    return [{ command, output }];
   });
 }
 
@@ -150,19 +154,76 @@ export function succeededCommands(transcript: string): string[] {
  */
 export function readsSkill(transcript: string, skill: string): boolean {
   const path = `${skill}/SKILL.md`;
-  return succeededCommands(transcript).some((command) => command.includes(path));
+  return succeededCommands(transcript).some(({ command }) => command.includes(path));
+}
+
+/** How many words of a skill's description its fingerprint holds. */
+const FINGERPRINT_WORDS = 4;
+
+/**
+ * What a skill's own text begins with, wherever a copy of it sits: its frontmatter's `name:`
+ * line, and the first words of its description. Output that holds both carries the skill.
+ */
+export interface Fingerprint {
+  name: RegExp;
+  description: RegExp;
+}
+
+const SkillFrontmatter = z.looseObject({ name: z.string(), description: z.string() });
+const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+/**
+ * The space between two words of a text as a command prints it: a JSON log escapes its
+ * newlines, once or, in a log of a log, more.
+ */
+const GAP = String.raw`(?:\s|\\+n)+`;
+
+/** The fingerprint of a SKILL.md's text, or nothing when it has no name and description. */
+export function fingerprintOf(skillMd: string): Fingerprint | undefined {
+  const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---/.exec(skillMd)?.[1];
+  if (frontmatter === undefined) return undefined;
+  const parsed = SkillFrontmatter.safeParse(Bun.YAML.parse(frontmatter));
+  if (!parsed.success) return undefined;
+  const words = parsed.data.description.split(/\s+/).filter(Boolean).slice(0, FINGERPRINT_WORDS);
+  if (!words.length) return undefined;
+  return {
+    name: new RegExp(
+      String.raw`name:[ \t]*["']?${escapeRegExp(parsed.data.name)}["']?(?:\s|\\+n|$)`,
+    ),
+    description: new RegExp(words.map(escapeRegExp).join(GAP)),
+  };
 }
 
 /**
- * The commands of a transcript that read the material of `skill`: they name its SKILL.md or the
- * AGENTS.md block's source, `agents-block.md`, and exited 0. The without arm has neither to
- * read; such a run is contaminated.
+ * What a command names when it reads a Codex session's log: a rollout, the session index, the
+ * prompt history, or a home's session directories. Those logs hold the full output of every
+ * command an earlier session ran, a `cat` of a skill included.
  */
-export function materialReads(transcript: string, skill: string): string[] {
-  const names = [`${skill}/SKILL.md`, "agents-block.md"];
-  return succeededCommands(transcript).filter((command) =>
-    names.some((name) => command.includes(name)),
-  );
+const SESSION_STORE =
+  /rollout-[^\s'"]*\.jsonl|session_index\.jsonl|\.codex\/history\.jsonl|\.codex\/(?:archived_)?sessions\b|(?:archived_)?sessions\/\d{4}\//;
+
+/**
+ * The commands of a transcript, run with success, that read the material of `skill`: they name
+ * its SKILL.md, a file of its `references/`, the AGENTS.md block's source `agents-block.md`, or
+ * a Codex session's log; or what they printed holds the skill's `fingerprint`, which a search
+ * through a copy of it shows. The without arm has none of it to read; such a run is
+ * contaminated.
+ */
+export function materialReads(
+  transcript: string,
+  material: { skill: string; fingerprint?: Fingerprint },
+): string[] {
+  const names = [`${material.skill}/SKILL.md`, `${material.skill}/references/`, "agents-block.md"];
+  const { fingerprint } = material;
+  return succeededCommands(transcript)
+    .filter(
+      ({ command, output }) =>
+        names.some((name) => command.includes(name)) ||
+        SESSION_STORE.test(command) ||
+        (fingerprint !== undefined &&
+          fingerprint.name.test(output) &&
+          fingerprint.description.test(output)),
+    )
+    .map(({ command }) => command);
 }
 
 // The events of `codex exec --json` that carry the files the agent's patches wrote.
@@ -550,11 +611,12 @@ export async function runSetup(
 
 /**
  * Where a run's files go under its root `out`. While the agent runs, the root holds only these:
- * the app, the copy the agent works in, and `tmp`, its `$TMPDIR`. The logs, the transcript and
- * the diff are written there once it has ended.
+ * the app, the copy the agent works in; `tmp`, its `$TMPDIR`; and `codex`, its `$CODEX_HOME`,
+ * where Codex finds no session but this one and writes this one's log. The logs, the transcript
+ * and the diff are written there once it has ended.
  */
 export function runLayout(out: string) {
-  return { app: join(out, "app"), tmp: join(out, "tmp") };
+  return { app: join(out, "app"), tmp: join(out, "tmp"), codex: join(out, "codex") };
 }
 
 /** The name of the permissions profile the agent runs under. */
@@ -565,15 +627,20 @@ export const skillOf = (scenario: Scenario) => scenario.name.split("/")[0] ?? sc
 
 /**
  * What the agent of a run of `arm` may not read: `roots`, the directories that hold the other
- * runs and reports and the skills' sources, and, in the without arm, the skill under test and
- * the AGENTS.md block's source wherever they sit on the disk, as patterns.
+ * runs and reports, the skills' sources and the Codex sessions' logs, and, in the without arm,
+ * the skill under test (its SKILL.md and its references) and the AGENTS.md block's source
+ * wherever they sit on the disk, as patterns.
  */
 export function unreadableFor(options: {
   arm: Arm;
   skill: string;
   roots: readonly string[];
 }): string[] {
-  const material = [`/**/${options.skill}/SKILL.md`, "/**/agents-block.md"];
+  const material = [
+    `/**/${options.skill}/SKILL.md`,
+    `/**/${options.skill}/references/**`,
+    "/**/agents-block.md",
+  ];
   return [...options.roots, ...(options.arm === "without" ? material : [])];
 }
 
@@ -619,9 +686,11 @@ export function agentCommand(options: {
 
 /**
  * One run of `arm` in `app`, a fresh copy of a base under the run's root `out` (see
- * `runLayout`): the scenario's setup, then the agent's command with `$TMPDIR` in the root, then
- * the checks. It writes `setup.log` (when the scenario has a setup), `transcript.jsonl`,
- * `diff.patch` and `checks.log` to `out`. A setup that fails starts no agent and no check.
+ * `runLayout`): the scenario's setup, then the agent's command with `$TMPDIR` and `$CODEX_HOME`
+ * in the root, then the checks. The Codex home holds a copy of `codexAuth` while the agent runs,
+ * and only its own session's log afterwards. It writes `setup.log` (when the scenario has a
+ * setup), `transcript.jsonl`, `diff.patch` and `checks.log` to `out`. A setup that fails starts
+ * no agent and no check.
  */
 export async function runInApp(options: {
   scenario: Scenario;
@@ -630,6 +699,10 @@ export async function runInApp(options: {
   app: string;
   out: string;
   agent: readonly string[];
+  /** The credentials Codex starts with, copied into the run's Codex home for the run only. */
+  codexAuth?: string;
+  /** The skill under test's fingerprint, when the skill exists, for the contamination guard. */
+  fingerprint?: Fingerprint;
   /** How the agent's process group ends: `process.kill` unless a test stands in for it. */
   cleanup?: Cleanup;
 }): Promise<Omit<RunResult, "scenario" | "arm" | "run">> {
@@ -645,16 +718,21 @@ export async function runInApp(options: {
     setupLog = setup.log;
   }
   const baseline = await baselineOf(app);
-  const { tmp } = runLayout(out);
+  const { tmp, codex } = runLayout(out);
   await mkdir(tmp, { recursive: true });
+  await mkdir(codex, { recursive: true });
+  const auth = join(codex, "auth.json");
+  if (options.codexAuth !== undefined) await copyFile(options.codexAuth, auth);
 
   const started = performance.now();
   const agent = await run(options.agent, app, {
     timeoutMs: scenario.timeoutMinutes * MS_PER_MINUTE,
-    env: { TMPDIR: tmp },
+    env: { TMPDIR: tmp, CODEX_HOME: codex },
     cleanup: options.cleanup,
   });
   const seconds = (performance.now() - started) / MS_PER_SECOND;
+  // The report outlives the run: the credentials must not.
+  await rm(auth, { force: true });
   if (setupLog !== undefined) await writeFile(join(out, "setup.log"), setupLog);
   await writeFile(join(out, "transcript.jsonl"), agent.output);
 
@@ -671,7 +749,13 @@ export async function runInApp(options: {
   return {
     checks,
     skillRead: scenario.expectSkill ? readsSkill(agent.output, scenario.expectSkill) : undefined,
-    contamination: arm === "without" ? materialReads(agent.output, skillOf(scenario)) : undefined,
+    contamination:
+      arm === "without"
+        ? materialReads(agent.output, {
+            skill: skillOf(scenario),
+            fingerprint: options.fingerprint,
+          })
+        : undefined,
     outside: writesOutside(agent.output, [app, await realpath(app)]),
     agent: agent.timedOut ? "timeout" : agent.code === 0 ? "ok" : `exit ${agent.code}`,
     left: agent.left || undefined,

@@ -18,13 +18,14 @@
  * one scenario at a time and is never part of `bun test` or `bun run verify`.
  */
 import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { z } from "zod";
 import { stageStarter } from "../packages/create/scripts/starter";
 import {
   agentCommand,
   commitAll,
+  fingerprintOf,
   must,
   parseArgs,
   parseScenario,
@@ -39,11 +40,14 @@ import {
   USAGE,
   type Arm,
   type Args,
+  type Fingerprint,
   type RunResult,
   type Scenario,
 } from "./skills-eval-scenario";
 
 const workspace = resolve(import.meta.dir, "..");
+/** The user's Codex home: its credentials start each run, and no run may read the rest. */
+const codexHome = process.env.CODEX_HOME ?? join(homedir(), ".codex");
 const SCENARIOS = join(workspace, "evals/skills");
 /** The workspace packages a starter depends on, which the registry may not have at this version. */
 const PACKED = {
@@ -98,11 +102,12 @@ async function copyApp(from: string, to: string) {
 /**
  * The directories no run may read: the temporary directories, which hold this report with its
  * bases, tarballs and runs, the reports of other passes, and the apps agents made for
- * themselves; and every checkout of this repository, which holds the skills' sources. A run's
- * own root, under the first, stays open to it.
+ * themselves; the user's Codex home, whose sessions' logs, history and memories hold what every
+ * earlier session read, this pass's runs included; and every checkout of this repository, which
+ * holds the skills' sources. A run's own root, under the first, stays open to it.
  */
 async function unreadableRoots(): Promise<string[]> {
-  const roots = [tmpdir(), "/tmp"];
+  const roots = [tmpdir(), "/tmp", codexHome];
   if (process.platform === "darwin") {
     const user = (await run(["getconf", "DARWIN_USER_TEMP_DIR"], workspace)).output.trim();
     if (user) roots.push(user);
@@ -162,6 +167,7 @@ async function runOnce(options: {
   out: string;
   model: string;
   unreadable: readonly string[];
+  fingerprint?: Fingerprint;
 }): Promise<RunResult> {
   const { scenario, arm, base, out, model } = options;
   await mkdir(out, { recursive: true });
@@ -181,6 +187,8 @@ async function runOnce(options: {
       prompt: scenario.prompt,
       unreadable: unreadableFor({ arm, skill: skillOf(scenario), roots: options.unreadable }),
     }),
+    codexAuth: join(codexHome, "auth.json"),
+    fingerprint: options.fingerprint,
   });
   return { scenario: scenario.name, arm, run: options.run, ...result };
 }
@@ -198,6 +206,12 @@ async function main() {
   console.log(`Report directory: ${temp}`);
   const bases = await prepareBases(temp);
   const unreadable = await unreadableRoots();
+  // The skill as the with arm installs it: its text, wherever a without agent finds a copy.
+  const fingerprint = fingerprintOf(
+    await readFile(join(bases.with, ".agents/skills", args.skill, "SKILL.md"), "utf8").catch(
+      () => "",
+    ),
+  );
 
   const plan = scenarios.flatMap((scenario) =>
     Array.from({ length: args.runs }, (_, i) => i + 1).flatMap((n) =>
@@ -215,6 +229,7 @@ async function main() {
         out: join(temp, "runs", scenario.name, `${arm}-${n}`),
         model: args.model,
         unreadable,
+        fingerprint,
       }),
     { scenarios, report: join(temp, "report.md") },
   );
