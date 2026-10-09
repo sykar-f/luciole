@@ -1,6 +1,6 @@
 ---
 name: luciole-tui
-description: Terminal UI in a luciole app. Use when laying out or styling a screen, a pane, a sidebar, a footer or a status bar; when adding a keyboard shortcut, a key binding, a help line or a list of shortcuts; when moving focus between fields or panes; when reacting to the terminal's size or a resize; when showing the connection state; when running a shell, vim or another program inside the app (a terminal pane, a split, a small tmux) or embedding another luciole app; when highlighting code or drawing math. Phrasings such as "add a shortcut", "show the keys", "split the screen", "add a status bar", "two panes side by side", "open a shell in the app".
+description: Screens, keys and panes of a luciole app, drawn with OpenTUI (no DOM, no CSS). Use before running a shell, top, vim or any program in a pane of the app, splitting the screen into panes side by side, or embedding another luciole app; adding a keyboard shortcut, a key binding, a footer or help line that lists the shortcuts; laying out or styling a screen, a sidebar, a footer or a status bar; moving focus between fields or panes; reacting to the terminal size or a resize; showing the connection state; highlighting code or drawing math. Phrasings such as "add a shortcut", "show the keys", "open a shell in the app", "two panes side by side", "add a status bar".
 ---
 
 # luciole terminal UI
