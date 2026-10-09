@@ -72,6 +72,7 @@ checks:
           await act(() => until(() => !!release));
         } finally { holding = false; release?.(); }
         await c.waitFor("Raw page: 43");
+      expect(c.app.router.state.location.pathname).toBe("/help/syntax/details");
         expect(c.app.router.state.location.search).toMatchObject({ page: "43", keep: "yes" });
         await c.press("left", { meta: true });
         await act(() => until(() => c.app.router.state.location.pathname === "/help/overview"));
