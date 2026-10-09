@@ -51,15 +51,19 @@ packages such as sharp); it must stay next to the binary.
 
 ## Another platform needs its native packages
 
-A `--target` other than this machine's fails without `--native-dir`, because `bun install`
-installed only this machine's OpenTUI library. Install the target's packages from the app's
-lockfile in a directory of their own first:
+A `--target` other than this machine's fails without `--native-dir`, `--client-only`
+included, because `bun install` installed only this machine's OpenTUI library. Install the
+target's packages from the app's lockfile in a directory of their own first, once per target
+system:
 
 ```sh
-mkdir -p ../notes-linux && cp package.json bun.lock ../notes-linux/
-(cd ../notes-linux && bun install --frozen-lockfile --os=linux --cpu=x64)
-luciole build --compile --name notes --target bun-linux-x64 --native-dir ../notes-linux
+native=$(mktemp -d) && cp package.json bun.lock "$native/"
+(cd "$native" && bun install --frozen-lockfile --os=linux --cpu=x64)
+bunx luciole build --compile --client-only --name notes --target bun-linux-x64 \
+  --native-dir "$native" --outfile dist/notes-linux-x64
 ```
+
+In a shell script, call `bunx luciole`: `luciole` is on the `PATH` only inside `bun run`.
 
 `uname -sm` on the receiving machine picks the target: `Linux x86_64` → `bun-linux-x64`,
 `Linux aarch64` → `bun-linux-arm64`, add `-musl` on Alpine, `Darwin arm64` →
@@ -92,13 +96,16 @@ Restart=on-failure
 ## Publish to npm
 
 ```sh
-luciole build --compile --name notes                       # one per target, --target for others
-luciole pack --package @ada/notes --version 1.2.0 .luciole/bin/*/notes
+bunx luciole build --compile --name notes                   # this machine's target
+bunx luciole build --compile --name notes --target bun-linux-x64 --native-dir "$native"
+bunx luciole pack --package @ada/notes --version 1.2.0 .luciole/bin/*/notes
 ```
 
-`luciole pack` writes `npm/<scope>__<name>-<os>-<arch>/` per platform and the main
-`npm/<scope>__<name>/`, then prints the `npm publish` order, platforms first. Every binary must
-come from one build. Users then run `luciole install @ada/notes` and `luciole update notes`.
+Pass every platform's binary to **one** `luciole pack`: each call rewrites the main package
+`npm/<scope>__<name>/` with only the binaries it was given. It also writes
+`npm/<scope>__<name>-<os>-<arch>/` per platform, and prints the `npm publish` order, platforms
+first. The binaries must come from one build: build them all before the next source change.
+Users then run `luciole install @ada/notes` and `luciole update notes`.
 
 ## The web target
 
