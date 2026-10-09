@@ -11,7 +11,8 @@ setup: |
   LAYOUT
   bunx oxfmt --write app/layout.tsx
 # c1: project health. c2: reachable mouse/button and hover mechanisms.
-# c3: click-only visible entrance and all three effects. c4: contextual menu,
+# c3: all three effects with clicks alone, through direct controls or a menu.
+# c4: actions hidden until opening, contextual and visible entrances,
 # placement, target identity, Escape and outside dismissal. c5: painted hover.
 # c6: at 60x20, <=12 occupied rows leaves eight rows for reading/expansion;
 # no permanent Duplicate/Delete inventory and <=4 key hints keep chrome small.
@@ -93,7 +94,10 @@ checks:
         }
         throw new Error(`Not shown: ${text}\n${frame}`);
       }
+      function shownAction(frame, action) { return new RegExp("\\b"+action+"\\b").test(frame); }
       async function menu(c, title, right = true) {
+        const before = await c.frame();
+        for (const action of ["Duplicate", "Delete"]) expect(shownAction(before, action), "secondary actions appear only after opening the menu").toBe(false);
         if (right) await c.click(title, MouseButtons.RIGHT);
         else {
           const frame = await c.frame();
@@ -105,26 +109,29 @@ checks:
           for (const p of candidates) {
             await act(async () => { await c.ui.mockMouse.click(p.x, p.y); });
             const shown = await c.frame();
-            if (["Open", "Duplicate", "Delete"].every(s => shown.includes(s))) break;
+            if (["Open", "Duplicate", "Delete"].every(s => shownAction(shown, s))) break;
           }
         }
         const frame = await see(c, "Duplicate");
-        for (const action of ["Open", "Duplicate", "Delete"]) expect(frame).toContain(action);
+        for (const action of ["Open", "Duplicate", "Delete"]) expect(shownAction(frame, action)).toBe(true);
         return frame;
       }
-      test("note actions work with clicks alone through a discoverable entrance", async () => {
+      async function choose(c, title, action) {
+        // Direct actions qualify for click-only reachability; c4 judges menus.
+        if (!shownAction(await c.frame(), action)) await menu(c, title, false);
+        await c.click(action);
+      }
+      test("note actions work with clicks alone", async () => {
         const { server, client: c } = await launch("/desk");
         await using s = server;
         await using client = c;
         await see(c, "Orchard plan");
-        await menu(c, "Orchard plan", false);
-        await c.click("Open");
-        await see(c, "Prune pear trees.");
-        await menu(c, "Orchard plan", false);
-        await c.click("Duplicate");
+        const closed = await c.frame();
+        await choose(c, "Orchard plan", "Open");
+        expect(await see(c, "Prune pear trees.")).not.toEqual(closed);
+        await choose(c, "Orchard plan", "Duplicate");
         await see(c, "Orchard plan copy");
-        await menu(c, "Orchard plan", false);
-        await c.click("Delete");
+        await choose(c, "Orchard plan", "Delete");
         const frame = await see(c, "Deleted");
         expect(frame).toContain("Packing list");
         expect(frame).toContain("Orchard plan copy");
@@ -183,7 +190,10 @@ checks:
         }
         throw new Error(`Not shown: ${text}\n${frame}`);
       }
+      function shownAction(frame, action) { return new RegExp("\\b"+action+"\\b").test(frame); }
       async function menu(c, title, right = true) {
+        const before = await c.frame();
+        for (const action of ["Duplicate", "Delete"]) expect(shownAction(before, action), "secondary actions appear only after opening the menu").toBe(false);
         if (right) await c.click(title, MouseButtons.RIGHT);
         else {
           const frame = await c.frame();
@@ -195,12 +205,17 @@ checks:
           for (const p of candidates) {
             await act(async () => { await c.ui.mockMouse.click(p.x, p.y); });
             const shown = await c.frame();
-            if (["Open", "Duplicate", "Delete"].every(s => shown.includes(s))) break;
+            if (["Open", "Duplicate", "Delete"].every(s => shownAction(shown, s))) break;
           }
         }
         const frame = await see(c, "Duplicate");
-        for (const action of ["Open", "Duplicate", "Delete"]) expect(frame).toContain(action);
+        for (const action of ["Open", "Duplicate", "Delete"]) expect(shownAction(frame, action)).toBe(true);
         return frame;
+      }
+      async function choose(c, title, action) {
+        // Direct actions qualify for click-only reachability; c4 judges menus.
+        if (!shownAction(await c.frame(), action)) await menu(c, title, false);
+        await c.click(action);
       }
       test("right-click targets the note, places its menu nearby and dismisses it", async () => {
         const { server, client: c } = await launch("/desk");
@@ -214,7 +229,7 @@ checks:
         expect(Math.abs(action.y-p.y)).toBeLessThanOrEqual(5);
         await c.press("escape");
         await hidden(c, "Duplicate");
-        await menu(c, "Packing list");
+        await menu(c, "Packing list", false);
         await act(async () => { await c.ui.mockMouse.click(59, 19); });
         await hidden(c, "Duplicate");
         await menu(c, "Packing list");
