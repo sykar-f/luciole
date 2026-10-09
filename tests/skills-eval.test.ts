@@ -722,7 +722,7 @@ test("the report flags a without run that read the material, and a write outside
   ]);
 });
 
-test("the agent may write its whole app and its tmp, and read none of the unreadable paths", () => {
+test("the agent argv pins filesystem isolation and the loopback-only proxy allowlist", () => {
   const command = agentCommand({
     app: "/r/runs/s/without-1/app",
     tmp: "/r/runs/s/without-1/tmp",
@@ -748,6 +748,11 @@ test("the agent may write its whole app and its tmp, and read none of the unread
     "permissions.skills_eval.filesystem={ " +
       '"/" = "read", "/var/T" = "deny", "/w" = "deny", "/r/runs/s/without-1/tmp" = "write", ' +
       '":workspace_roots" = { "." = "write", ".agents" = "write", ".git" = "write" } }',
+    "-c",
+    "features.network_proxy=true",
+    "-c",
+    "permissions.skills_eval.network={ enabled = true, allow_local_binding = true, " +
+      'domains = { "localhost" = "allow", "127.0.0.1" = "allow", "::1" = "allow" } }',
     "Do it.",
   ]);
 });

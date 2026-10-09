@@ -652,7 +652,8 @@ export function unreadableFor(options: {
  * `/tmp`, where the report lives. Under this profile the agent writes in `app`, those two
  * included, and in `tmp`, and nowhere else; it reads the rest of the disk, except the paths and
  * patterns of `unreadable`, which no command it runs can list or open. A pattern wins over a
- * path, even inside `app`. The network stays off, as in `workspace-write`.
+ * path, even inside `app`. The managed network proxy allows only loopback destinations;
+ * local binding permits app servers. Codex 0.160 also allows direct outbound DNS on port 53.
  */
 export function agentCommand(options: {
   app: string;
@@ -681,6 +682,11 @@ export function agentCommand(options: {
     `default_permissions=${path(PROFILE)}`,
     "-c",
     `permissions.${PROFILE}.filesystem={ ${filesystem.join(", ")} }`,
+    "-c",
+    "features.network_proxy=true",
+    "-c",
+    `permissions.${PROFILE}.network={ enabled = true, allow_local_binding = true, ` +
+      'domains = { "localhost" = "allow", "127.0.0.1" = "allow", "::1" = "allow" } }',
     options.prompt,
   ];
 }

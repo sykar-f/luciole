@@ -54,7 +54,11 @@ the profile on every command the agent runs:
 - **In the without arm**, it also reads no `<skill>/SKILL.md` of the skill under test, nothing
   under its `references/`, and no `agents-block.md`, wherever they sit on the disk: the user's
   own skill directories and the package manager's caches included.
-- The network stays off, as in `workspace-write`.
+- **On the network**, it can bind and connect on loopback (`127.0.0.1` and `::1`) on any
+  port, so it can run the app and its tests. Codex's managed proxy allows only `localhost`,
+  `127.0.0.1` and `::1`; outside TCP connections and HTTPS fetches are refused. **Codex 0.160
+  also permits direct outbound DNS on port 53**, a sandbox limitation: a run can resolve
+  outside names, but cannot fetch their pages or packages. It can reach nothing else.
 
 The report checks what the sandbox should have stopped, whatever it allowed. A without run is
 **contaminated** when a command it ran exited 0 and either named the skill's SKILL.md, a file of
