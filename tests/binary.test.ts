@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { spawn } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { appendFile, chmod, copyFile, mkdir, mkdtemp, rm } from "node:fs/promises";
+import { appendFile, chmod, copyFile, mkdir, mkdtemp, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { createInterface } from "node:readline";
@@ -224,6 +224,28 @@ async function health(url: string) {
   return Health.parse(await response?.json());
 }
 
+/** Fake SSH runs on this machine: observe the detached Server's actual exit. */
+async function stopRemote(server: Awaited<ReturnType<typeof runOn>>) {
+  const { pid } = await health(server.url);
+  await (await clientOf(server.url)).managed?.leave();
+  await server.stop();
+  // Leave acknowledges the request before shutdown; stop closes only the tunnel.
+  // Neither the reply nor removal of the socket proves the executable is released.
+  await until(
+    () => {
+      try {
+        process.kill(pid, 0);
+        return false;
+      } catch (error) {
+        if (error instanceof Error && "code" in error && error.code === "ESRCH") return true;
+        throw error;
+      }
+    },
+    WAIT_MS,
+    () => `remote Server ${pid} has not exited`,
+  );
+}
+
 test("--on installs once, verifies the install, and serves through a tunnel", async () => {
   const host = await fakeHost();
   const messages: string[] = [];
@@ -249,23 +271,18 @@ test("--on installs once, verifies the install, and serves through a tunnel", as
     expect(calls.some(({ args }) => args.includes("alice@host.example"))).toBe(true);
     // The tunnel notices a dead connection by itself.
     expect(calls.some(({ args }) => args.includes("ServerAliveInterval=10"))).toBe(true);
-    for (const server of servers) {
-      await (await clientOf(server.url)).managed?.leave();
-      await server.stop();
-    }
+    for (const server of servers) await stopRemote(server);
     // Installed and intact: the next launch uploads nothing.
     messages.length = 0;
     const again = await runOn("host.example", options);
     expect(messages).toEqual([]);
-    await (await clientOf(again.url)).managed?.leave();
-    await again.stop();
+    await stopRemote(again);
     // Damaged or altered on the host: reinstalled, never run as found.
     await appendFile(host.installed, "tampered");
     const repaired = await runOn("host.example", options);
     expect(messages.join("\n")).toContain("does not match its SHA256SUMS: reinstalling");
     expect(await Bun.file(host.installed).bytes()).toEqual(await Bun.file(binary).bytes());
-    await (await clientOf(repaired.url)).managed?.leave();
-    await repaired.stop();
+    await stopRemote(repaired);
     // With no binary for that platform at hand, the launch is refused instead.
     await appendFile(host.installed, "tampered");
     expect(
@@ -279,6 +296,40 @@ test("--on installs once, verifies the install, and serves through a tunnel", as
       ),
     ).toContain("does not match its SHA256SUMS (damaged or altered)");
   } finally {
+    await host.remove();
+  }
+}, 90000);
+
+test("--on reinstalls a bundle while its binary is still running", async () => {
+  const host = await fakeHost();
+  const messages: string[] = [];
+  const options = {
+    identity,
+    id: serverId("ssh:test/notes"),
+    graceMs: 60_000,
+    self: binary,
+    log: (message: string) => messages.push(message),
+    env: host.env,
+  };
+  const first = await runOn("host.example", options);
+  try {
+    const running = await health(first.url);
+    const before = await stat(host.installed);
+    // Corrupt the checksum manifest, which can be written even on Linux while
+    // the binary runs. Reinstall must replace its inode, never open it to write.
+    await appendFile(join(host.installed, "..", "SHA256SUMS"), `${"0".repeat(64)}  notes\n`);
+    const repaired = await runOn("host.example", options);
+    try {
+      expect(messages.join("\n")).toContain("does not match its SHA256SUMS: reinstalling");
+      expect((await stat(host.installed)).ino).not.toBe(before.ino);
+      expect(await Bun.file(host.installed).bytes()).toEqual(await Bun.file(binary).bytes());
+      expect(await health(repaired.url)).toEqual(running);
+      await stopRemote(repaired);
+    } finally {
+      await repaired.stop();
+    }
+  } finally {
+    await first.stop();
     await host.remove();
   }
 }, 90000);
