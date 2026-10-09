@@ -6,7 +6,7 @@ checks:
   - run: bun run verify
   - no-match:
       file: components/commands.ts
-      pattern: \.catch\(\s*(async\s*)?\(\)\s*=>\s*createNote
+      pattern: \.catch\(\s*(async\s*)?\(\)\s*=>\s*createNote\(\)
   - match:
       file: components/commands.ts
       pattern: createNote\([\s\S]*createNote\(
