@@ -414,6 +414,44 @@ test("a child the agent leaves behind ends with the run", async () => {
   expect(alive(pidOf(result.output))).toBe(false);
 });
 
+/** Publish a child-written PID marker only when its line is complete. */
+function pidMarker(value: string, file = '"$0"') {
+  return `echo "${value}" > ${file}.tmp && mv ${file}.tmp ${file}`;
+}
+
+for (const value of ["$$", "$$ $$"])
+  test(`a PID marker is hidden until its write finishes (${value})`, async () => {
+    const out = await mkdtemp(join(temp, "pid-publication-"));
+    const file = join(out, "agent.pid");
+    // Redirection has opened the file before this echo function runs. Pause at
+    // that exact point, then let the reader inspect it before releasing the write.
+    const writer = Bun.spawn(
+      [
+        "sh",
+        "-c",
+        `echo() { printf 'opened\n' >&2; read -r release; printf '%s\n' "$*"; }; ${pidMarker(value)}`,
+        file,
+      ],
+      { stdin: "pipe", stdout: "ignore", stderr: "pipe" },
+    );
+    const ready = writer.stderr.getReader();
+    try {
+      const { value: bytes } = await ready.read();
+      expect(new TextDecoder().decode(bytes)).toBe("opened\n");
+      const exposed = (await Bun.file(file).exists()) ? await readFile(file, "utf8") : undefined;
+      expect(exposed).toBeUndefined();
+    } finally {
+      await writer.stdin.write("release\n");
+      await writer.stdin.end();
+      await writer.exited;
+      ready.releaseLock();
+    }
+    expect(writer.exitCode).toBe(0);
+    const pids = (await readFile(file, "utf8")).trim().split(" ").map(Number);
+    expect(pids).toHaveLength(value.split(" ").length);
+    for (const pid of pids) expect(pid).toBeGreaterThan(0);
+  });
+
 // Run the real supervisor in a separate process so the injected ps cannot affect other tests.
 for (const mode of ["leader exit", "SIGINT", "SIGINT finishing run"] as const)
   test(`a stalled member listing cannot hold cleanup after ${mode}`, async () => {
@@ -458,7 +496,7 @@ ${
   mode === "leader exit"
     ? `const result = await run(["sh", "-c", "sleep 60 & echo $!"], ${JSON.stringify(app)}, {cleanup: {goneMs: 50}});
 console.log(JSON.stringify(result));`
-    : `await runInApp({scenario: ${JSON.stringify(scenario)}, arm: "with", scenarioDir: ${JSON.stringify(temp)}, app: ${JSON.stringify(app)}, out: ${JSON.stringify(out)}, codexAuth: ${JSON.stringify(auth)}, agent: ["sh", "-c", 'echo "$$" > "$0"; sleep 60 & wait', ${JSON.stringify(agentPid)}]});`
+    : `await runInApp({scenario: ${JSON.stringify(scenario)}, arm: "with", scenarioDir: ${JSON.stringify(temp)}, app: ${JSON.stringify(app)}, out: ${JSON.stringify(out)}, codexAuth: ${JSON.stringify(auth)}, agent: ["sh", "-c", ${JSON.stringify(pidMarker("$$") + "; sleep 60 & wait")}, ${JSON.stringify(agentPid)}]});`
 }
 `,
     );
@@ -775,7 +813,7 @@ await Promise.all(${JSON.stringify(
             codexAuth: fileAuth ? auth : undefined,
             // Bounded children expire on their own if the assertion fails. The test never
             // ends these groups itself: only the runner's interrupt path may do that.
-            agent: ["sh", "-c", 'sleep 10 & echo "$$ $!" > "$0"; wait', pidFiles[n]],
+            agent: ["sh", "-c", `sleep 10 & ${pidMarker("$$ $!")}; wait`, pidFiles[n]],
           })),
         )}.map(options => withStoredRun(${JSON.stringify(store)}, [], async root => {
  const {app} = runLayout(root);
@@ -846,7 +884,7 @@ await withStoredRun(${JSON.stringify(store)}, [], async root => {
      name: "s/checking",
      prompt: "p",
      timeoutMinutes: 1,
-     checks: [{ run: 'sleep 10 & echo "$$ $!" > ' + quote(pidFile) + "; wait" }],
+     checks: [{ run: `sleep 10 & ${pidMarker("$$ $!", quote(pidFile))}; wait` }],
    },
    arm: "without",
    scenarioDir: temp,
@@ -866,6 +904,8 @@ await withStoredRun(${JSON.stringify(store)}, [], async root => {
     while (!(await Bun.file(pidFile).exists()) && performance.now() < deadline) await Bun.sleep(10);
     const [leader, child] = (await readFile(pidFile, "utf8")).trim().split(" ").map(Number);
     const root = await readFile(marker, "utf8");
+    expect(leader).toBeGreaterThan(0);
+    expect(child).toBeGreaterThan(0);
     runner.kill("SIGTERM");
     runner.kill("SIGTERM");
     expect(await runner.exited).toBe(143);
