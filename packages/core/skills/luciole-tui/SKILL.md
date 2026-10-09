@@ -27,7 +27,8 @@ API: `node_modules/@luciole-sh/core/docs/reference/api.md`, section "Restore fie
 - Make waits alive: animate a compact label or spinner while the action is pending, stop on
   completion/unmount and report the result. Keep content positions fixed; disabled content may dim.
 - Keep one primary task per screen. Disclose details in overlays, truncate bars and fold
-  sidebars at narrow widths. Use images, links and clipboard where useful; prefer native
+  sidebars at narrow widths. Spend no row on decoration: end pane borders with their content
+  and leave items unboxed at small sizes. Use images, links and clipboard where useful; prefer native
   Markdown, code and diff widgets, the document's terminal title and the app's theme.
 
 Read [references/interaction.md](references/interaction.md) before implementing item actions,
