@@ -4,8 +4,8 @@ import { z } from "zod";
 
 /**
  * The parts of `scripts/skills-eval.ts` that run without an agent: the scenario format, the
- * command line, processes, the checks, whether a transcript shows an agent reading a skill,
- * and the report's table. The format is documented in
+ * command line, processes and their groups, the checks, whether a transcript shows an agent
+ * reading a skill, and the report's table. The format is documented in
  * evals/skills/README.md.
  */
 
@@ -201,7 +201,42 @@ export interface Ran {
   timedOut: boolean;
 }
 
-/** Runs `cmd` with stdin closed; past `timeoutMs`, it is killed. */
+/** How long a process group may take to disappear once killed. */
+const GROUP_GONE_MS = 5000;
+const GROUP_POLL_MS = 20;
+
+/** Whether the process group `id` still has a member. */
+function groupAlive(id: number) {
+  try {
+    process.kill(-id, 0);
+    return true;
+  } catch (error: unknown) {
+    if (error instanceof Error && "code" in error && error.code === "ESRCH") return false;
+    throw error;
+  }
+}
+
+/**
+ * Kills every process of the group `id` and waits until none is left. An agent starts servers,
+ * watchers and test runners; none may outlive its run, hold its copy of the app, or keep a port.
+ */
+export async function endGroup(id: number) {
+  try {
+    process.kill(-id, "SIGKILL");
+  } catch (error: unknown) {
+    if (!(error instanceof Error && "code" in error && error.code === "ESRCH")) throw error;
+  }
+  const deadline = performance.now() + GROUP_GONE_MS;
+  while (groupAlive(id)) {
+    if (performance.now() > deadline) throw new Error(`process group ${id} survived SIGKILL`);
+    await Bun.sleep(GROUP_POLL_MS);
+  }
+}
+
+/**
+ * Runs `cmd` with stdin closed, as the leader of its own process group: on timeout, and after
+ * it exits, the whole group ends, children and grandchildren included.
+ */
 export async function run(
   cmd: readonly string[],
   cwd: string,
@@ -212,15 +247,24 @@ export async function run(
     stdin: "ignore",
     stdout: "pipe",
     stderr: "pipe",
-    timeout: options.timeoutMs,
-    killSignal: "SIGKILL",
+    detached: true,
   });
-  const [out, err, code] = await Promise.all([
-    new Response(child.stdout).text(),
-    new Response(child.stderr).text(),
-    child.exited,
-  ]);
-  return { code, output: out + err, timedOut: child.signalCode === "SIGKILL" };
+  // Read while it runs: a full pipe would stall it. A child that keeps the pipe open keeps
+  // the read pending until the group ends below.
+  const out = new Response(child.stdout).text();
+  const err = new Response(child.stderr).text();
+  let timedOut = false;
+  const timer =
+    options.timeoutMs === undefined
+      ? undefined
+      : setTimeout(() => {
+          timedOut = true;
+          endGroup(child.pid).catch(() => undefined);
+        }, options.timeoutMs);
+  const code = await child.exited;
+  clearTimeout(timer);
+  await endGroup(child.pid);
+  return { code, output: (await out) + (await err), timedOut };
 }
 
 /** `run`, which must exit 0: its output, or a thrown error that holds it. */

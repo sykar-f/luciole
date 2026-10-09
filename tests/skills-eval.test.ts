@@ -9,6 +9,7 @@ import {
   parseScenario,
   readsSkill,
   renderTable,
+  run,
   runCheck,
   type Scenario,
 } from "../scripts/skills-eval-scenario";
@@ -146,6 +147,35 @@ test("the table: one row per run, a column per check, and the legend", () => {
       "  luciole-app/about c2: run bun run verify",
     ].join("\n"),
   );
+});
+
+/** Whether the process `pid` exists. */
+function alive(pid: number) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** A stand-in agent: it starts a child that would outlive it, prints the child's pid, waits. */
+const SPAWNS_CHILD = ["sh", "-c", "sleep 60 & echo $!; wait"];
+const LEAVES_CHILD = ["sh", "-c", "sleep 60 & echo $!"];
+const pidOf = (output: string) => Number(output.trim().split("\n")[0]);
+
+test("a timeout ends the agent's whole process group", async () => {
+  const result = await run(SPAWNS_CHILD, temp, { timeoutMs: 2000 });
+  expect(result.timedOut).toBe(true);
+  const child = pidOf(result.output);
+  expect(child).toBeGreaterThan(0);
+  expect(alive(child)).toBe(false);
+});
+
+test("a child the agent leaves behind ends with the run", async () => {
+  const result = await run(LEAVES_CHILD, temp, { timeoutMs: 10_000 });
+  expect(result).toMatchObject({ code: 0, timedOut: false });
+  expect(alive(pidOf(result.output))).toBe(false);
 });
 
 test("each check kind passes and fails as its scenario says", async () => {
