@@ -63,12 +63,22 @@ Each request of a Client crosses the proxy, then reaches the Server on loopback:
 
 ## Build the Server and the Clients
 
-From the app's directory, on your own machine:
+From the app's directory, on a Mac with Apple silicon:
 
 ```sh
-luciole build --compile --target bun-linux-x64
+mkdir -p ../notes-linux && cp package.json bun.lock ../notes-linux/
+(cd ../notes-linux && bun install --frozen-lockfile --os=linux --cpu=x64)
+luciole build --compile --target bun-linux-x64 --native-dir ../notes-linux
 luciole build --compile --client-only --target bun-darwin-arm64
 ```
+
+A target other than your machine's needs `--native-dir`, `--client-only` included. OpenTUI ships
+its native library in one package per platform, and `bun install` installs only your machine's.
+Without `--native-dir`, the build stops and names the missing package.
+
+The first two lines install the Linux packages from the app's lockfile in a directory of their
+own. On another machine, repeat them for each target that is not its own
+([build for another platform](/docs/reference/build-and-distribution/#build-for-another-platform)).
 
 You get two kinds of binary:
 
