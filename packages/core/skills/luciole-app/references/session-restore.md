@@ -41,3 +41,11 @@ export function Composer({ send }: { send: (text: string) => Promise<string> }) 
 - A field of your own (an editor) uses `useRestoredField(name, value, onChange)`.
 - `useRestoredFocus(names)` and `<ScrollBox name>` keep the focus and the scroll position.
 - `setToken` to another account forgets the field text.
+
+## Optional form libraries
+
+When integrating TanStack Form, read
+`node_modules/@luciole-sh/core/docs/reference/upstream-libraries.md`, section "TanStack Form",
+and `node_modules/@luciole-sh/core/docs/concepts/session-restore.md`, section "Use a form library".
+Form is optional. Use its hooks with luciole's named fields and string callbacks; submit
+through `useBindings` and validate the submitted values again on the Server.

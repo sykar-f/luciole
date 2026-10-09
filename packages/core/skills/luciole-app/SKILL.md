@@ -1,6 +1,6 @@
 ---
 name: luciole-app
-description: Luciole app features. Use when adding or changing a screen of a luciole app (@luciole-sh/core), such as a route, page, layout, loading, error or not-found screen, or a dynamic route under app/; when writing a Server Function ("use server", actions/) or reading data on the Server (server/, "use cache"); when a page must update after a change (invalidate, cache tags, "the list does not refresh"); when navigating between screens (useNavigate, params, search params); when adding sign-in, a public page or per-user data (server/auth.ts, getSession); when typed text must survive a crash or a rebuild (named fields, session restore). Phrasings such as "add a page", "add a screen at /x", "add a button that saves", "show the count of", "make it refresh", "add login".
+description: Luciole app features. Use when adding or changing a screen of a luciole app (@luciole-sh/core), such as a route, page, layout, loading, error or not-found screen, or a dynamic route under app/; when writing a Server Function ("use server", actions/) or reading data on the Server (server/, "use cache"); when a page must update after a change (invalidate, cache tags, "the list does not refresh"); when using TanStack Router for navigation, active tabs, search, history, preload or pending UI; when adding sign-in, a public page or per-user data (server/auth.ts, getSession); when typed text must survive a crash or a rebuild (named fields, session restore). Phrasings such as "add a page", "add a screen at /x", "add a button that saves", "show the count of", "make it refresh", "add login".
 ---
 
 # Build a feature in a luciole app
@@ -112,7 +112,8 @@ this file holds what you would get wrong without them.
 ## Read further when the task needs it
 
 - Read [references/routing.md](references/routing.md) when adding a dynamic route, a route
-  group, a layout, search params or a navigation.
+  group or a layout, or using TanStack Router for navigation, active tabs, search, history,
+  preload or pending UI.
 - Read [references/server-functions.md](references/server-functions.md) when writing a
   Server Function or handling a failed call.
 - Read [references/cache.md](references/cache.md) when a page reads data that changes, or
@@ -122,7 +123,7 @@ this file holds what you would get wrong without them.
 - Read [references/loading-errors.md](references/loading-errors.md) when adding a loading,
   error or not-found screen, or showing the connection's state.
 - Read [references/session-restore.md](references/session-restore.md) when typed text must
-  survive a crash, a rebuild or going back.
+  survive a crash, a rebuild or going back, or integrating an optional form library.
 
 ## Other skills
 

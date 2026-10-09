@@ -78,6 +78,7 @@ Under `node_modules/@luciole-sh/core/docs/`, read the page before you touch its 
 - `reference/environment.md`: an environment variable
 - `reference/api.md`: an export of `@luciole-sh/core`
 - `reference/build-and-distribution.md`: build output, publishing
+- `reference/upstream-libraries.md`: OpenTUI, TanStack Router and optional Form boundaries
 - `reference/optional-packages.md`: grammars, math, web target
 - `reference/troubleshooting.md`: an error message
 - `reference/releases.md`: versions and upgrades
@@ -88,3 +89,7 @@ Under `node_modules/@luciole-sh/core/docs/`, read the page before you touch its 
 Use `luciole-app` to build a feature (route, page, Server Function, cache, auth),
 `luciole-tui` for terminal UI and keys, `luciole-test` for tests, `luciole-debug` when something
 fails; `luciole-ship` and `luciole-upgrade` run only when the user asks to ship or upgrade.
+
+Before composing a screen, read `luciole-tui/references/opentui.md`. Before navigation,
+active tabs, search, preload, history or pending UI, read `luciole-app/references/routing.md`;
+for optional form libraries, read `luciole-app/references/session-restore.md`.
