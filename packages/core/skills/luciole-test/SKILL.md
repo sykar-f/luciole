@@ -47,8 +47,8 @@ test(
   a restart test passes on that shared memory even when restore is broken.
 - Set latency and faults on the Client: `openClient(app, server, { latencyMs, network })`. The
   Server ignores `LUCIOLE_LATENCY_MS`, `LUCIOLE_FAULT` and the other network variables passed to
-  `startServer`, whatever its doc comment says. Read [references/network.md](references/network.md),
-  beside this `SKILL.md`, when a test needs a failed request, a fault or latency.
+  `startServer`. Read [references/network.md](references/network.md), beside this `SKILL.md`,
+  when a test needs a failed request, a fault or latency.
 - Put the settings the app reads with `process.env` in its pages, layouts, Server Functions or
   `server/` into `startServer`'s second argument: they run in the Server's process. A setting the
   Notes starter reads that way is `NOTES_AUTOSAVE_MS` (`"0"` turns autosave off).
