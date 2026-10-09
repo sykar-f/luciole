@@ -24,27 +24,45 @@ one. Scenarios run one at a time.
 ## What a run sees and writes
 
 Each run has its own root, `runs/<skill>/<scenario>/<arm>-<n>/`. While the agent runs, the root
-holds only `app/`, its copy of the app, and `tmp/`, which is its `$TMPDIR`; the logs are written
-there once it has ended. The agent runs under a Codex permissions profile, in place of
-`--sandbox workspace-write`, which the sandbox enforces on every command the agent runs:
+holds only `app/`, its copy of the app; `tmp/`, which is its `$TMPDIR`; and `codex/`, which is
+its `$CODEX_HOME`. The logs are written there once it has ended.
+
+The Codex home of a run starts with a copy of the user's `auth.json` and nothing else: no
+earlier session's log, no history, no memories, no user config, plugins, MCP servers or hooks.
+Codex writes its state and this run's session log there, and the copy of `auth.json` is removed
+when the agent ends. The agent's commands cannot read `codex/`: Codex itself uses it, outside the
+sandbox.
+
+The agent runs under a Codex permissions profile, in place of `--sandbox workspace-write`. It
+needs **Codex 0.160 or later**, the version the runner was probed with: permission profiles
+(`default_permissions`, `permissions.<name>.filesystem`, `:workspace_roots` and `deny`
+patterns) are a beta feature of Codex, and an older Codex rejects the run. The sandbox enforces
+the profile on every command the agent runs:
 
 - **It writes** anywhere in `app/`, `.agents/` and `.git/` included, so `luciole skills` can
   refresh the material and the agent can commit, and in `tmp/`. Nowhere else: not in the
   system's `$TMPDIR`, which holds the report, and not in `/tmp`. A scratch app the agent makes
   for itself lands in `tmp/` and goes with the run.
-- **It reads** the rest of the disk, as the toolchain needs, except the temporary directories
-  (`$TMPDIR`, the user's temporary directory and `/tmp`), which hold this report's bases,
-  tarballs and other runs, other reports, and other agents' scratch apps, and every checkout of
-  this repository, which holds the skills' sources. Its own root, inside the first, stays open.
-- **In the without arm**, it also reads no `<skill>/SKILL.md` of the skill under test and no
-  `agents-block.md`, wherever they sit on the disk, the user's own skill directories included.
+- **It reads** the rest of the disk, as the toolchain needs, except:
+  - the temporary directories (`$TMPDIR`, the user's temporary directory and `/tmp`), which
+    hold this report's bases, tarballs and other runs, other reports, and other agents'
+    scratch apps. Its own `app/` and `tmp/`, inside them, stay open;
+  - the user's Codex home (`$CODEX_HOME`, or `~/.codex`), whose session logs, history and
+    memories hold the output of every earlier session, this pass's with runs included;
+  - every checkout of this repository, which holds the skills' sources.
+- **In the without arm**, it also reads no `<skill>/SKILL.md` of the skill under test, nothing
+  under its `references/`, and no `agents-block.md`, wherever they sit on the disk: the user's
+  own skill directories and the package manager's caches included.
 - The network stays off, as in `workspace-write`.
 
-The report checks what the sandbox should have stopped, whatever it allowed: a without run whose
-transcript shows a command that read the skill's SKILL.md or `agents-block.md` and exited 0 is
-**contaminated**, and a run whose `file_change` events name a path outside its app **wrote
-outside**. Both show in the table, with the commands and paths listed under it, so a leak or a
-write that escaped never passes for a skill's result.
+The report checks what the sandbox should have stopped, whatever it allowed. A without run is
+**contaminated** when a command it ran exited 0 and either named the skill's SKILL.md, a file of
+its `references/`, `agents-block.md` or a Codex session's log (a `rollout-*.jsonl`,
+`session_index.jsonl`, `history.jsonl` or a Codex home's `sessions/`), or printed the skill's
+own opening: its frontmatter's `name:` line and the first words of its description, which a
+search through any copy of the skill shows. A run whose `file_change` events name a path
+outside its app **wrote outside**. Both show in the table, with the commands and paths listed
+under it, so a leak or a write that escaped never passes for a skill's result.
 
 The runner measures and does not gate: it exits 0 whatever the scores. It never runs in
 `bun test` or `bun run verify`, because every run costs a real agent session.
