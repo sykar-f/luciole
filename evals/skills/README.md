@@ -174,7 +174,9 @@ The directory holds, for each run under `runs/<skill>/<scenario>/<arm>-<n>/`:
 - `diff.patch`: everything the agent changed, against the app as it found it, setup included;
 - `checks.log`: each check's output;
 - `app/`: the app after the run;
-- `tmp/`: what the agent left in its `$TMPDIR`.
+- `codex/`: the run's Codex home, with its credential copy removed.
+
+The live run's `tmp/` is removed with the store root and is not copied into the report.
 
 `report.md` at the root holds the table. It is written again after each run, so a pass that
 stops early keeps the rows of the runs it finished.

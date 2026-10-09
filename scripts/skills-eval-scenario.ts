@@ -124,7 +124,7 @@ function otherStorePath(command: string, store: { directory: string; root: strin
   const paths = command.match(/(?:\/|\.\.\/|\.\/)[^\s'"`;$|&()<>]+/g) ?? [];
   return paths.some((path) => {
     const absolute = resolve(store.app, path);
-    return inside(absolute, store.directory) && !inside(absolute, store.root);
+    return absolute.startsWith(`${store.directory}/`) && !inside(absolute, store.root);
   });
 }
 

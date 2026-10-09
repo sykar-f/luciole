@@ -934,6 +934,7 @@ test("a successful read of a late store entry contaminates only the other run", 
     ran("cat /cache/store/late/app/file", 0),
     ran("cat ../../late/app/file", 0),
     ran("cat /cache/store/own/app/file", 0),
+    ran("ls ../..", 0),
     ran("cat /cache/store/late/app/file", 1),
   ].join("\n");
   expect(materialReads(transcript, { skill: "luciole-app", store })).toEqual([
