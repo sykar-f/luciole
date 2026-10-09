@@ -118,29 +118,39 @@ export function parseArgs(argv: readonly string[]): Args {
   return { skill, scenarios, runs, model };
 }
 
-// The events of `codex exec --json` that carry a shell command the agent ran.
+// The events of `codex exec --json` that carry a shell command the agent ran. Codex writes one
+// when the command starts, with `exit_code: null`, and one when it ends, with its exit code.
 const CommandEvent = z.looseObject({
-  item: z.looseObject({ type: z.literal("command_execution"), command: z.string() }),
+  item: z.looseObject({
+    type: z.literal("command_execution"),
+    command: z.string(),
+    exit_code: z.number().nullable().optional(),
+  }),
 });
 
-/**
- * Whether a `codex exec --json` transcript shows the agent reading `skill`'s SKILL.md: a
- * command it ran names the file. The skill's description, which the agent sees without reading
- * anything, does not count.
- */
-export function readsSkill(transcript: string, skill: string): boolean {
-  const path = `${skill}/SKILL.md`;
-  return transcript.split("\n").some((line) => {
-    if (!line.includes(path)) return false;
+/** The shell commands of a `codex exec --json` transcript that ran and exited 0. */
+export function succeededCommands(transcript: string): string[] {
+  return transcript.split("\n").flatMap((line) => {
     let event: unknown;
     try {
       event = JSON.parse(line);
     } catch {
-      return false;
+      return [];
     }
     const parsed = CommandEvent.safeParse(event);
-    return parsed.success && parsed.data.item.command.includes(path);
+    return parsed.success && parsed.data.item.exit_code === 0 ? [parsed.data.item.command] : [];
   });
+}
+
+/**
+ * Whether a `codex exec --json` transcript shows the agent reading `skill`'s SKILL.md: a
+ * command it ran names the file and exited 0. A `cat` of a file that does not exist fails, so
+ * it does not count; nor does the skill's description, which the agent sees without reading
+ * anything.
+ */
+export function readsSkill(transcript: string, skill: string): boolean {
+  const path = `${skill}/SKILL.md`;
+  return succeededCommands(transcript).some((command) => command.includes(path));
 }
 
 export type Arm = "without" | "with";

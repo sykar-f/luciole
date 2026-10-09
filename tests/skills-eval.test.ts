@@ -133,16 +133,44 @@ test("the command line: skill, scenarios, runs and model", () => {
 
 const event = (item: Record<string, unknown>) => JSON.stringify({ type: "item.completed", item });
 
-test("a skill counts as read when a command the agent ran names its SKILL.md", () => {
-  const read = event({
+/** A `command_execution` item as `codex exec --json` writes it once the command has ended. */
+const ran = (command: string, exitCode: number) =>
+  event({
+    id: "item_1",
     type: "command_execution",
-    command: "/bin/zsh -lc 'cat .agents/skills/luciole-app/SKILL.md'",
+    command: `/bin/zsh -lc '${command}'`,
+    aggregated_output: "",
+    exit_code: exitCode,
+    status: exitCode === 0 ? "completed" : "failed",
   });
+
+test("a skill counts as read when a command the agent ran names its SKILL.md", () => {
+  const read = ran("cat .agents/skills/luciole-app/SKILL.md", 0);
   expect(readsSkill(read, "luciole-app")).toBe(true);
   expect(readsSkill(read, "luciole-test")).toBe(false);
   // A message that names the file is not a read; nor is a line that is not an event.
   const said = event({ type: "agent_message", text: "see .agents/skills/luciole-app/SKILL.md" });
   expect(readsSkill([said, "cat luciole-app/SKILL.md"].join("\n"), "luciole-app")).toBe(false);
+});
+
+test("a command that failed is not a read, nor one that has not ended", () => {
+  const failed = ran("cat .agents/skills/luciole-upgrade/SKILL.md 2>/dev/null", 1);
+  expect(readsSkill(failed, "luciole-upgrade")).toBe(false);
+  // Codex announces the command before it runs it, with no exit code yet.
+  const started = JSON.stringify({
+    type: "item.started",
+    item: {
+      id: "item_1",
+      type: "command_execution",
+      command: "/bin/zsh -lc 'cat .agents/skills/luciole-upgrade/SKILL.md'",
+      aggregated_output: "",
+      exit_code: null,
+      status: "in_progress",
+    },
+  });
+  expect(readsSkill(started, "luciole-upgrade")).toBe(false);
+  const succeeded = ran("cat .agents/skills/luciole-upgrade/SKILL.md", 0);
+  expect(readsSkill([failed, started, succeeded].join("\n"), "luciole-upgrade")).toBe(true);
 });
 
 test("the table: one row per run, a column per check, and the legend", () => {
