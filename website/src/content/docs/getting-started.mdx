@@ -37,10 +37,17 @@ What each command does:
 
 1. `bunx luciole.sh init my-app` fetches the `luciole.sh` package and runs its `luciole init`.
    That runs the scaffolder, `@luciole-sh/create`, at the same version. It writes the app
-   into `my-app` and prints `Starter created:` with the next commands.
+   into `my-app` and prints `Starter created:` with the next commands. The app includes
+   the luciole block in `AGENTS.md`, its `@AGENTS.md` import in `CLAUDE.md`, and skills in
+   `.agents/skills/` and `.claude/skills/` with their `.luciole-skills.json` manifests,
+   at that release's version.
 2. `bun install` installs the app's dependencies from npm, `@luciole-sh/core` among them.
 3. `bun run dev` builds both programs and starts them: the Server, with a SQLite database in
    `notes.sqlite`, and the Client in your terminal.
+
+You can also run the scaffolder directly: `bunx @luciole-sh/create my-app` or
+`npm init @luciole-sh my-app`. To omit the agent material, use
+`bunx @luciole-sh/create my-app --no-skills` or `npm init @luciole-sh my-app -- --no-skills`.
 
 What you should see: the Client fills your terminal. The list of notes is on the left, with a
 few sample notes. No note is open, so the right side reads **No note selected**, above a

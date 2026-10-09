@@ -2,6 +2,12 @@ import { afterAll, expect, test } from "bun:test";
 import { cp, mkdir, readdir, rm, symlink } from "node:fs/promises";
 import { join, relative, resolve, sep } from "node:path";
 import { z } from "zod";
+import {
+  installSkills,
+  packagedMaterial,
+  statusSkills,
+  type SkillsOptions,
+} from "../packages/core/src/commands/skills";
 import { messageOf } from "../packages/core/src/guards";
 import { stageStarter } from "../packages/create/scripts/starter";
 import { BUILD_TEST_MS, isolatedTemporary, rejectionOf } from "./helpers";
@@ -71,6 +77,9 @@ async function isolatedWorkspace() {
   await copied(
     "examples/notes",
     "packages/create",
+    "packages/core/src",
+    "packages/core/skills",
+    "packages/core/agents-block.md",
     "packages/core/package.json",
     "packages/markdown-editor/package.json",
     "package.json",
@@ -86,8 +95,9 @@ async function isolatedWorkspace() {
 }
 
 // The tarball of @luciole-sh/create, packed once for the tests that follow.
+const stagingWorkspace = await isolatedWorkspace();
 const createTarball = await pack(
-  join(await isolatedWorkspace(), "packages/create"),
+  join(stagingWorkspace, "packages/create"),
   join(temp, "tarballs/create"),
 );
 /** The starter's dependency fields that name where a package comes from rather than a range. */
@@ -108,6 +118,7 @@ test(
     );
     expect(created.code, created.output).toBe(0);
 
+    await expectSkills(starter);
     const manifest = await readStarter(starter);
     const version = z
       .object({ version: z.string() })
@@ -149,6 +160,85 @@ test(
     );
     expect(again.code).toBe(1);
     expect(again.output).toContain("Target already contains a project");
+  },
+  BUILD_TEST_MS,
+);
+
+/** Compare every installed byte with core's installer, including manifests and imports. */
+async function expectSkills(directory: string) {
+  const options: SkillsOptions = {
+    ...(await packagedMaterial()),
+    directory,
+    home: temp,
+    global: false,
+    agents: ["agents", "claude"],
+    dryRun: false,
+    force: false,
+    log: () => {},
+    warn: (line) => {
+      throw new Error(line);
+    },
+  };
+  expect(await statusSkills(options)).toBe(0);
+  const expected = join(temp, "expected-skills");
+  await installSkills({ ...options, directory: expected });
+  for (const entry of await readdir(expected, { recursive: true, withFileTypes: true })) {
+    if (!entry.isFile()) continue;
+    const path = relative(expected, join(entry.parentPath, entry.name));
+    expect(await Bun.file(join(directory, path)).text(), path).toBe(
+      await Bun.file(join(expected, path)).text(),
+    );
+  }
+}
+
+test(
+  "npm pack retains both skill directories and their manifests",
+  async () => {
+    const destination = join(temp, "tarballs/npm-create");
+    await mkdir(destination, { recursive: true });
+    const packed = await run(
+      ["npm", "pack", "--pack-destination", destination],
+      join(stagingWorkspace, "packages/create"),
+    );
+    expect(packed.code, packed.output).toBe(0);
+    const [tarball] = await readdir(destination);
+    const consumer = join(temp, "npm-consumer");
+    await mkdir(consumer);
+    const added = await run(
+      [process.execPath, "add", join(destination, z.string().parse(tarball))],
+      consumer,
+    );
+    expect(added.code, added.output).toBe(0);
+    const created = await run(
+      [join(consumer, "node_modules/.bin/create-luciole"), "app"],
+      consumer,
+    );
+    expect(created.code, created.output).toBe(0);
+    await expectSkills(join(consumer, "app"));
+  },
+  BUILD_TEST_MS,
+);
+
+test(
+  "--no-skills omits all agent material, before or after the directory",
+  async () => {
+    const consumer = join(temp, "no-skills-consumer");
+    await mkdir(consumer);
+    const added = await run([process.execPath, "add", createTarball], consumer);
+    expect(added.code, added.output).toBe(0);
+    for (const args of [["app", "--no-skills"], ["--no-skills", "other-app"], ["--no-skills"]]) {
+      const created = await run(
+        [join(consumer, "node_modules/.bin/create-luciole"), ...args],
+        consumer,
+      );
+      expect(created.code, created.output).toBe(0);
+      expect(created.output).toStartWith("Starter created:");
+      const directory = args.find((arg) => arg !== "--no-skills") ?? "my-luciole-app";
+      const entries = await readdir(join(consumer, directory));
+      for (const name of ["AGENTS.md", "CLAUDE.md", ".agents", ".claude"])
+        expect(entries).not.toContain(name);
+      expect(entries).toContain("app");
+    }
   },
   BUILD_TEST_MS,
 );

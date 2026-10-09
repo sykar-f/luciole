@@ -9,6 +9,7 @@
  */
 import { rename, rm } from "node:fs/promises";
 import { join, resolve } from "node:path";
+import { installSkills, packagedMaterial } from "../../core/src/commands/skills";
 import { PACKED_GITIGNORE } from "../src/scaffold";
 import { stageStarter } from "./starter";
 
@@ -23,6 +24,19 @@ if (flag === "--workspace" && directory && !extra.length) {
   const template = join(import.meta.dir, "../template");
   await rm(template, { recursive: true, force: true });
   await stageStarter({ workspace, target: template, link: "published" });
+  await installSkills({
+    ...(await packagedMaterial()),
+    directory: template,
+    home: template,
+    global: false,
+    agents: ["agents", "claude"],
+    dryRun: false,
+    force: false,
+    log: () => {},
+    warn: (line) => {
+      throw new Error(line);
+    },
+  });
   await rename(join(template, ".gitignore"), join(template, PACKED_GITIGNORE));
   console.log(`staged ${template}`);
 } else {

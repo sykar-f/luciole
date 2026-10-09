@@ -166,7 +166,11 @@ Everything comes from the installed package: no network, no telemetry.
   the import, and deletes the files and folders it created once they are empty. With
   `--agent`, only that agent's skills go; the block stays.
 
-`luciole init` runs `install` in the new app. `luciole dev` and `luciole build` print one line
+`luciole init` runs `install` in the new app. The scaffolder (`bunx @luciole-sh/create my-app`
+or `npm init @luciole-sh my-app`) also writes both skill directories and their manifests,
+the `AGENTS.md` block and the `CLAUDE.md` import, at its release's version. Opt out with
+`bunx @luciole-sh/create my-app --no-skills` or `npm init @luciole-sh my-app -- --no-skills`.
+`luciole dev` and `luciole build` print one line
 on stderr when the installed skills come from another version than the running core. The
 notice changes no exit code, and is silent when `CI` is set or the app has no manifest.
 
