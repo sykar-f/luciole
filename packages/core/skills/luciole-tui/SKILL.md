@@ -1,6 +1,6 @@
 ---
 name: luciole-tui
-description: Screens, keys and panes of a luciole app, drawn with OpenTUI (no DOM, no CSS). Use before running a shell, top, vim or any program in a pane of the app, splitting the screen into panes side by side, or embedding another luciole app; adding a keyboard shortcut, a key binding, a footer or help line that lists the shortcuts; laying out or styling a screen, a sidebar, a footer or a status bar; moving focus between fields or panes; reacting to the terminal size or a resize; showing the connection state; highlighting code or drawing math. Phrasings such as "add a shortcut", "show the keys", "open a shell in the app", "two panes side by side", "add a status bar".
+description: Screens and rich interaction in a luciole app with OpenTUI. Use for layout, styling, sidebars, status bars, focus, terminal resize, connection state, code or math; shortcuts and key help; running a shell or vim in a pane, splitting panes or embedding an app; clickable items, hover, tooltip, right click or context menu; loading animation or spinner; image display. Phrasings such as "add a shortcut", "open a shell in the app", "two panes side by side", "make it look nice", "easier to use", "discoverable".
 ---
 
 # luciole terminal UI
@@ -11,6 +11,24 @@ Before composing a screen, read [references/opentui.md](references/opentui.md), 
 installed components and reuse the widget's own behaviour. Then read the app's
 `app/layout.tsx` and `components/StatusLine.tsx` for its visual conventions.
 API: `node_modules/@luciole-sh/core/docs/reference/api.md`, section "Restore fields and bind keys".
+
+## Design
+
+- Design for a newcomer, like a desktop app: clicks are first-class; actionable items have
+  hover feedback and a pointer. Right-click exposes secondary actions; use drag and wheel
+  where they fit. Keys accelerate the same actions available through buttons, tabs or menus.
+- Make actions self-discoverable: labelled controls, empty states with their filling action,
+  hover hints and menu items showing shortcuts. Keep `<KeyHelp>` to the current layer's few keys.
+- Make waits alive (`loading.tsx`, pending actions, slow loads): animate opacity or a spinner
+  in fixed geometry, stop on unmount, and report the action's result.
+- Use images, hyperlinks and clipboard where useful; prefer native Markdown, code and diff
+  widgets. Use the current document as terminal title and adapt the palette to the theme.
+- Keep one primary task per screen. Show the few frequent actions; disclose the rest in menus,
+  overlays or secondary views. Spend no line on decoration, truncate bars, and fold sidebars
+  or shorten labels at narrow terminal widths.
+
+Read [references/interaction.md](references/interaction.md) when a screen has clickable items,
+menus, hover, images or a wait.
 
 ## Layout
 
@@ -30,7 +48,8 @@ API: `node_modules/@luciole-sh/core/docs/reference/api.md`, section "Restore fie
 ## Keys
 
 The framework binds only Ctrl+C (quit) and Esc (cancel a pending navigation), in the group
-`luciole`. Every other key is the app's. Bind with `useBindings` from
+`luciole`. Every other key is the app's. Give refresh and debug visible controls calling the same
+functions as their bindings. Bind with `useBindings` from
 `@luciole-sh/core/client`, not with `useKeyboard`:
 
 ```tsx
@@ -89,3 +108,6 @@ need packages the starter already lists; for another app, see
 - A binding sees the key before the focused `<input>`: a plain key (`j`, `/`, `return`)
   bound while a field has the focus eats the typing. Make such bindings depend on the focus
   state, and use `ctrl+…` for window-wide shortcuts.
+- A right-click handler checks `event.button === MouseButton.RIGHT` from `@opentui/core`;
+  left-click actions check `MouseButton.LEFT`. Reset hover state on `onMouseOut`, and restore
+  the renderer's pointer on exit and unmount.

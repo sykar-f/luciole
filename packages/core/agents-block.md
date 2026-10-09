@@ -12,6 +12,8 @@ Flight. The Client runs OpenTUI elements, keys, focus and local state. `app/` is
 `components/` holds Client Components. `bun run verify` (types, lint, format, build) is the
 check: the build enforces most rules below and prints the fix.
 
+Design like a modern app: mouse, hover, menus, motion, images, and concise screens.
+
 ### Gotchas
 
 - There is no DOM. Lay out with `<box>` (flex props on the element: `flexDirection`, `gap`,
@@ -93,3 +95,5 @@ fails; `luciole-ship` and `luciole-upgrade` run only when the user asks to ship 
 Before composing a screen, read `luciole-tui/references/opentui.md`. Before navigation,
 active tabs, search, preload, history or pending UI, read `luciole-app/references/routing.md`;
 for optional form libraries, read `luciole-app/references/session-restore.md`.
+For clickable items, menus, hover, images or a wait, read
+`luciole-tui/references/interaction.md`.

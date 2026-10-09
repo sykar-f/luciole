@@ -21,3 +21,5 @@ parent directories.
   generic in production. Show your own words, and offer `retry()`.
 - The layout shows the connection with `useConnection()`: `status`, `error`, `buildError`,
   `refresh`, `activity`. The framework draws no status bar.
+- Animate `loading.tsx` in fixed geometry; read `luciole-tui/references/interaction.md`
+  for the loading pulse.
