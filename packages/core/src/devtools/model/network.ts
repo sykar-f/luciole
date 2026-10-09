@@ -43,6 +43,8 @@ export type Row = {
     end?: number;
     bytes?: number;
     error?: { at: number; message: string };
+    /** The first error the page's render raised: not terminal, its stream went on. */
+    failure?: { at: number; message: string };
   };
   cache: CacheOp[];
   /** The invalidation this render answers (`Invalidation.cause`), when it does. */
@@ -84,7 +86,7 @@ export const rowEnd = (row: Row) =>
 const answered = (row: Row) =>
   row.client.cancelled || row.client.error ? undefined : (row.client.end ?? row.client.response);
 export const rowStatus = (row: Row) =>
-  row.client.error || row.server.error
+  row.client.error || row.server.error || row.server.failure
     ? "error"
     : row.client.cancelled
       ? "cancelled"
@@ -263,10 +265,12 @@ export function createNetworkModel() {
       case "luciole-server:request":
       case "luciole-server:response":
       case "luciole-server:end":
-      case "luciole-server:error": {
+      case "luciole-server:error":
+      case "luciole-server:failure": {
         const p = event.payload;
         const row = rowFor(p.callId, p.kind, p.target);
         if (p.type === "request") row.server.request = p.at;
+        else if (p.type === "failure") row.server.failure ??= { at: p.at, message: p.message };
         else if (p.type === "response") {
           row.server.response = p.at;
           row.server.status = p.status;

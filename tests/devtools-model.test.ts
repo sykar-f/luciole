@@ -175,3 +175,33 @@ test("a tag invalidation marks the entries carrying the tag, and creates none", 
   // The invalidation belongs to no request: only the writes' request has a row.
   expect(session.network.rows().map((row) => row.callId)).toEqual(["c1"]);
 });
+
+test("a render failure marks its row failed without ending it", () => {
+  const server = (seq: number, type: string, at: number, rest = {}) => {
+    const event = parseEvent(
+      message(PLUGIN.server, type, {
+        type,
+        callId: "f1",
+        at: FIXTURE_START + at,
+        kind: "render",
+        target: "/",
+        ...rest,
+      }),
+    );
+    if (!event) throw new Error(`Invalid server ${type}`);
+    return { seq, source: 2, event };
+  };
+  const session = loaded([
+    server(1, "request", 0),
+    server(2, "response", 3, { status: 200, ms: 3 }),
+    server(3, "failure", 5, { ms: 5, message: "boom" }),
+    server(4, "failure", 6, { ms: 6, message: "again" }),
+    server(5, "end", 9, { ms: 9, bytes: 120, cancelled: false }),
+  ]);
+  const row = byCall(session).get("f1");
+  expect(row && rowStatus(row)).toBe("error");
+  // The first failure is kept; the stream still ran to its end.
+  expect(row?.server.failure).toEqual({ at: FIXTURE_START + 5, message: "boom" });
+  expect(row?.server.end).toBe(FIXTURE_START + 9);
+  expect(row?.server.error).toBeUndefined();
+});

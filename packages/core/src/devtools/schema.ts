@@ -93,6 +93,12 @@ const server = {
     ms: z.number(),
     message: z.string(),
   }),
+  failure: z.looseObject({
+    ...serverBase,
+    type: z.literal("failure"),
+    ms: z.number(),
+    message: z.string(),
+  }),
   cache: z.looseObject({
     type: z.literal("cache"),
     op: z.enum(["hit", "miss", "stale", "write", "invalidate"]),

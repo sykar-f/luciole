@@ -87,7 +87,7 @@ function bar(row: Row, t0: number, span: number, width: number, horizon: number)
   fill(row.server.request, row.server.response ?? row.server.end ?? end, "█", color.ok);
   if (row.client.response !== undefined) fill(row.client.response, end, "━", color.stream);
   for (const chunk of row.client.chunks) cells[x(chunk.at)] = { ch: "╋", fg: color.stream };
-  const failed = row.client.error ?? row.server.error;
+  const failed = row.client.error ?? row.server.error ?? row.server.failure;
   if (failed) cells[x(failed.at)] = { ch: "✕", fg: color.error };
   if (row.client.cancelled && row.client.end !== undefined)
     cells[x(row.client.end)] = { ch: "⊘", fg: color.muted };
@@ -301,7 +301,7 @@ function Detail({
       <Line fg={color.server}>
         {row.server.request === undefined
           ? "Server: no event (not instrumented, or never reached)"
-          : `Server: request ${rel(row.server.request)} · headers ${rel(row.server.response)} · end ${rel(row.server.end)}${row.server.bytes === undefined ? "" : ` · ${bytes(row.server.bytes)}`}${row.server.error ? ` · error ${row.server.error.message}` : ""}`}
+          : `Server: request ${rel(row.server.request)} · headers ${rel(row.server.response)} · end ${rel(row.server.end)}${row.server.bytes === undefined ? "" : ` · ${bytes(row.server.bytes)}`}${row.server.error ? ` · error ${row.server.error.message}` : ""}${row.server.failure ? ` · failure ${row.server.failure.message}` : ""}`}
       </Line>
       <Line fg={color.cache}>
         {row.cache.length
