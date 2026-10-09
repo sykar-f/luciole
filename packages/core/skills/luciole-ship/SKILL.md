@@ -92,8 +92,6 @@ Restart=on-failure
   `x-luciole-build`.
 - App options go after `--`: `notes serve --http 127.0.0.1:3000 -- --mode read`.
 - Clients join with `LUCIOLE_TOKEN=<token> ./notes-darwin-arm64 --url https://notes.example.com`.
-  The Client also reads `LUCIOLE_URL`, then `~/.config/luciole/<name>.json` (`{ "url": … }`):
-  hand over the binary itself, not a launcher script that wraps it.
 - A Server answers `409 Incompatible build` to a Client of another build: build the Server and
   every Client from the same commit, and switch them together on update and rollback.
 
@@ -137,6 +135,10 @@ or a host, and never run them yourself:
 
 - Hand users who connect to your Server a `--client-only` binary: the full binary holds the
   Server bundle, business code and SQL included, readable by whoever gets the file.
+- No build option bakes the Server's URL into a binary. Put the compiled binary itself at the
+  path asked for, and tell users how to join: `--url <url>`, `LUCIOLE_URL`, or
+  `~/.config/luciole/<name>.json` holding `{ "url": "<url>" }`. A launcher script in its place,
+  with the binary hidden beside it, breaks as soon as the file is handed over alone.
 - `--client-only --version` opens the app instead of printing an identity: only the full
   binary prints `{"name","buildId","target","identity"}`. Check a full binary with
   `./notes --version`.
