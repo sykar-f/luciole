@@ -6,6 +6,7 @@ sources:
   - packages/core/src/test
   - tests/restore-notes.test.tsx
   - tests/latency.test.tsx
+  - tests/test-api.test.ts
   - scripts/pty/driver.ts
   - scripts/pty/restore.ts
   - packages/core/src/build.ts
@@ -24,12 +25,12 @@ Check that your app works, from the build to a real terminal. `@luciole-sh/core/
 your app, starts its Server and drives its Client from a `bun test` file. This page gives the
 four levels the repository tests itself with, and which of them your app can use:
 
-| Level           | Tool                                         | What it catches                               | Can your app use it?       |
-| --------------- | -------------------------------------------- | --------------------------------------------- | -------------------------- |
-| The build       | `luciole build`, `bun run verify`            | code on the wrong side, bad routes, bad types | yes                        |
-| In-process      | `bun test`, `@luciole-sh/core/test`          | screens, restores, failed requests            | yes                        |
-| A bad network   | `LUCIOLE_LATENCY_MS` and the other variables | work that waits on the network                | yes                        |
-| A real terminal | the journeys of `scripts/pty/`               | what a user sees and types                    | only inside the repository |
+| Level           | Tool                                     | What it catches                               | Can your app use it?       |
+| --------------- | ---------------------------------------- | --------------------------------------------- | -------------------------- |
+| The build       | `luciole build`, `bun run verify`        | code on the wrong side, bad routes, bad types | yes                        |
+| In-process      | `bun test`, `@luciole-sh/core/test`      | screens, restores, failed requests            | yes                        |
+| A bad network   | `openClient`'s `latencyMs` and `network` | work that waits on the network                | yes                        |
+| A real terminal | the journeys of `scripts/pty/`           | what a user sees and types                    | only inside the repository |
 
 ## Let the build catch boundary errors
 
@@ -68,8 +69,8 @@ the process of `bun test`. A starter ships one, and `bun test` runs it:
 - `buildApp` builds the app while the file loads, in a temporary directory that is removed
   after the file. Your app's own folder is untouched, so a `luciole dev` beside it is not
   disturbed.
-- `startServer` runs the built Server in a process of its own, on a free port. `env` is its
-  environment: the database the test uses, a latency, a fault.
+- `startServer` runs the built Server in a process of its own, on a free port. `env` adds the
+  app's own settings to its environment, such as the database the test uses.
 - `openClient` imports the built Client, loads its first page and draws it in a test terminal.
   `await using` stops the Client, then the Server, even when an assertion fails.
 - `waitFor` renders until the screen shows a text, and fails with the last frame when it never
@@ -92,9 +93,27 @@ from a test.
 
 ## Test under a bad network
 
-Every test that drives a real Client can set the transport's conditions, with
-`LUCIOLE_LATENCY_MS`, `LUCIOLE_JITTER_MS`, `LUCIOLE_CHUNK_DELAY_MS` and `LUCIOLE_FAULT`. See
-[latency and faults](/docs/guides/latency-and-faults/).
+Pass the network conditions to `openClient`, which gives them to the Client's transport:
+
+- `latencyMs` adds a round trip to every request.
+- `network.jitterMs` adds a random delay to each direction.
+- `network.chunkDelayMs` slows each chunk of a streamed answer.
+- `network.fault` is called for each request, and returns `"refuse"`, `"drop"`, `"cut"` or
+  `undefined`.
+
+<Excerpt
+  path="tests/test-api.test.ts"
+  find="// Refuses every Server Function call"
+  until="toBeGreaterThanOrEqual(480);"
+  mark={["network:", "latencyMs: 500"]}
+  tone="neutral"
+  caption="A fault for Server Function calls only, then 500 ms of latency on a second Client."
+/>
+
+The Server's environment does not set these conditions in a test. The variables
+`LUCIOLE_LATENCY_MS`, `LUCIOLE_FAULT` and the others apply to a Client that `luciole` or
+`bun run dev` starts. [Latency and faults](/docs/guides/latency-and-faults/) lists them, with
+what each fault does.
 
 `tests/latency.test.tsx` adds 500 ms of latency. It checks that typing, scrolling and hover
 still send no request.

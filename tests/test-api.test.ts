@@ -52,6 +52,26 @@ test(
 );
 
 test(
+  "openClient's network conditions reach the transport: a fault, then a latency",
+  async () => {
+    await using server = await startServer(app, { NOTES_DB: ":memory:" });
+    // Refuses every Server Function call: the page loads, the list of notes cannot.
+    await using refused = await openClient(app, server, {
+      network: { fault: (request) => (request.kind === "action" ? "refuse" : undefined) },
+    });
+    await refused.waitFor("Server unreachable");
+    const action = refused.requests.finished.find(({ kind }) => kind === "action");
+    expect(action).toMatchObject({ type: "error", outcome: "not-sent" });
+    // 500 ms of round trip on every request.
+    await using slow = await openClient(app, server, { tag: "slow", latencyMs: 500 });
+    await slow.waitFor("Welcome to Notes");
+    expect(slow.requests.finished[0]).toMatchObject({ type: "end", kind: "render" });
+    expect(slow.requests.finished[0]?.ms).toBeGreaterThanOrEqual(480);
+  },
+  TEST_TIMEOUT_MS,
+);
+
+test(
   "stopping twice is harmless, and the Server really exits",
   async () => {
     const server = await startServer(app, { NOTES_DB: ":memory:" });
