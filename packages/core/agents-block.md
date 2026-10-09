@@ -12,7 +12,11 @@ Flight. The Client runs OpenTUI elements, keys, focus and local state. `app/` is
 `components/` holds Client Components. `bun run verify` (types, lint, format, build) is the
 check: the build enforces most rules below and prints the fix.
 
-Design like a modern app: mouse, hover, menus, motion, images, and concise screens.
+Item actions use a hoverable, clickable row, right-click menu and a "⋯" entrance revealed on
+hover or selection. Put secondary actions in that menu, mark destructive items and report
+results. Reuse the app's row/menu/toast primitives even for session-local items; mount their
+layers if absent. Before finishing, exercise both menu entrances and readable content at
+60×20. Keep waits animated while pending, with content positions fixed.
 
 ### Gotchas
 

@@ -18,6 +18,11 @@ Read `components/Sidebar.tsx` for the item-row model: row hover, click to open, 
 and a "⋯" entrance revealed on hover or selection. These are app components, not luciole exports;
 a diverged app may use different files or signatures. Reuse its equivalents.
 
+Session-local items can use the same menu/toast infrastructure as server-backed notes:
+`ui.openMenu` takes callbacks, not a database note. Keep item data in the page's Client state
+and pass closures for that item into the menu. An autonomous screen still mounts the
+existing layers if its layout omits them.
+
 A button's hover feedback covers the button. The item row itself also needs hover and click.
 Keep secondary actions in the item's menu, with destructive items marked and results reported.
 A screen-level primary action can be a plain button. Mount existing menu/toast layers once at
