@@ -23,9 +23,22 @@ one. Scenarios run one at a time.
 
 ## What a run sees and writes
 
-Each run has its own root, `runs/<skill>/<scenario>/<arm>-<n>/`. While the agent runs, the root
-holds only `app/`, its copy of the app; `tmp/`, which is its `$TMPDIR`; and `codex/`, which is
-its `$CODEX_HOME`. The logs are written there once it has ended.
+A live run gets a fresh random directory under
+`${XDG_CACHE_HOME:-$HOME/.cache}/luciole-skills-eval/`, with `app/`, its copy of the app;
+`tmp/`, its `$TMPDIR`; and `codex/`, its `$CODEX_HOME`. The store and its ancestors stay
+readable so Node can resolve toolchain paths. A store beneath an unreadable root is rejected.
+Every other existing store entry and the run's own `codex/` are denied by exact path. The
+store itself stays read-only to the agent.
+
+The report remains in temporary storage. After the agent ends, its app and Codex session
+logs are copied into `runs/<skill>/<scenario>/<arm>-<n>/`, alongside its transcript, diff and
+check logs; checks run on that report copy. The live store directory is removed afterwards.
+Interrupt cleanup removes credential copies, ends live process groups and removes live store
+directories, including runs interrupted while staging or returning results.
+
+A concurrent run created after the deny list was taken is not in that list. The contamination
+guard flags successful commands naming another path in the store, including relative paths,
+in the without arm. This is detection rather than sandbox prevention for that late entry.
 
 The Codex home of a run starts with a copy of the user's `auth.json`, when present; environment
 authentication needs no file and starts with an empty home. There is nothing else: no
@@ -46,22 +59,30 @@ the profile on every command the agent runs:
   for itself lands in `tmp/` and goes with the run.
 - **It reads** the rest of the disk, as the toolchain needs, except:
   - the temporary directories (`$TMPDIR`, the user's temporary directory and `/tmp`), which
-    hold this report's bases, tarballs and other runs, other reports, and other agents'
-    scratch apps. Its own `app/` and `tmp/`, inside them, stay open;
+    hold this report's bases, tarballs, report copies and other agents' scratch apps;
   - the user's Codex home (`$CODEX_HOME`, or `~/.codex`), whose session logs, history and
     memories hold the output of every earlier session, this pass's with runs included;
   - every checkout of this repository, which holds the skills' sources.
-- **In the without arm**, it also reads no `<skill>/SKILL.md` of the skill under test, nothing
-  under its `references/`, and no `agents-block.md`, wherever they sit on the disk: the user's
-  own skill directories and the package manager's caches included.
-- The network stays off, as in `workspace-write`.
+- **In the without arm**, it reads no `SKILL.md` or `agents-block.md` anywhere on disk,
+  including the user's skill directories and package caches. These single-component patterns
+  avoid a Codex 0.160 Seatbelt limitation: a nested global deny pattern also forbids removing
+  unrelated directories, preventing tests from cleaning up their build locks.
+- Reference basenames are also denied globally when the without base has no legitimate file
+  of that name. Names shared with the app or its package docs remain readable, so the docs
+  keep their pages. A successful command naming the skill's `references/`, or printing a
+  reference's first heading and first words (even from a renamed copy), contaminates the run.
+- **On the network**, it can bind and connect on loopback (`127.0.0.1` and `::1`) on any
+  port, so it can run the app and its tests. Codex's managed proxy allows only `localhost`,
+  `127.0.0.1` and `::1`; outside TCP connections and HTTPS fetches are refused. **Codex 0.160
+  also permits direct outbound DNS on port 53**, a sandbox limitation: a run can resolve
+  outside names, but cannot fetch their pages or packages. It can reach nothing else.
 
 The report checks what the sandbox should have stopped, whatever it allowed. A without run is
 **contaminated** when a command it ran exited 0 and either named the skill's SKILL.md, a file of
 its `references/`, `agents-block.md` or a Codex session's log (a `rollout-*.jsonl`,
 `session_index.jsonl`, `history.jsonl` or a Codex home's `sessions/`), or printed the skill's
-own opening: its frontmatter's `name:` line and the first words of its description, which a
-search through any copy of the skill shows. A run whose `file_change` events name a path
+own opening: its frontmatter's `name:` line and the first words of its description, or a
+reference's first heading and first words, which a search through a renamed copy also shows. A run whose `file_change` events name a path
 outside its app **wrote outside**. Both show in the table, with the commands and paths listed
 under it, so a leak or a write that escaped never passes for a skill's result.
 
@@ -153,7 +174,9 @@ The directory holds, for each run under `runs/<skill>/<scenario>/<arm>-<n>/`:
 - `diff.patch`: everything the agent changed, against the app as it found it, setup included;
 - `checks.log`: each check's output;
 - `app/`: the app after the run;
-- `tmp/`: what the agent left in its `$TMPDIR`.
+- `codex/`: the run's Codex home, with its credential copy removed.
+
+The live run's `tmp/` is removed with the store root and is not copied into the report.
 
 `report.md` at the root holds the table. It is written again after each run, so a pass that
 stops early keeps the rows of the runs it finished.

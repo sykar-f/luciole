@@ -17,7 +17,7 @@
  * the report; it exits 0 whatever the scores, because it measures and does not gate. It runs
  * one scenario at a time and is never part of `bun test` or `bun run verify`.
  */
-import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { z } from "zod";
@@ -25,8 +25,13 @@ import { stageStarter } from "../packages/create/scripts/starter";
 import {
   agentCommand,
   commitAll,
+  copyApp,
+  deniedStoreEntries,
+  runStoreIn,
+  withStoredRun,
   codexAuthIn,
   fingerprintOf,
+  referencePolicy,
   must,
   parseArgs,
   parseScenario,
@@ -87,25 +92,12 @@ async function pack(directory: string, destination: string) {
 }
 
 /**
- * A copy of `from` at `to`. On macOS, the system's `cp -c` clones: the copies share the
- * installation's blocks instead of writing node_modules again for every run. A `cp` earlier on
- * the PATH (GNU's, from Nix or Homebrew) has no `-c`, so the system's is named.
- */
-async function copyApp(from: string, to: string) {
-  if (process.platform === "darwin") {
-    const cloned = await run(["/bin/cp", "-R", "-c", from, to], workspace);
-    if (cloned.code === 0) return;
-    await rm(to, { recursive: true, force: true });
-  }
-  await must(["cp", "-R", from, to], workspace);
-}
-
-/**
  * The directories no run may read: the temporary directories, which hold this report with its
  * bases, tarballs and runs, the reports of other passes, and the apps agents made for
  * themselves; the user's Codex home, whose sessions' logs, history and memories hold what every
  * earlier session read, this pass's runs included; and every checkout of this repository, which
- * holds the skills' sources. A run's own root, under the first, stays open to it.
+ * holds the skills' sources. Live roots sit outside those ancestors; other store entries
+ * are denied separately.
  */
 async function unreadableRoots(): Promise<string[]> {
   const roots = [tmpdir(), "/tmp", codexHome];
@@ -169,29 +161,41 @@ async function runOnce(options: {
   model: string;
   unreadable: readonly string[];
   fingerprint?: Fingerprint;
+  references: Awaited<ReturnType<typeof referencePolicy>>;
 }): Promise<RunResult> {
   const { scenario, arm, base, out, model } = options;
   await mkdir(out, { recursive: true });
-  const { app, tmp } = runLayout(out);
-  await copyApp(base, app);
-  console.log(`${scenario.name} · ${arm} · run ${options.run}: codex in ${app}`);
-  const result = await runInApp({
-    scenario,
-    arm,
-    scenarioDir: join(SCENARIOS, dirname(scenario.name)),
-    app,
-    out,
-    agent: agentCommand({
+  const store = runStoreIn(homedir(), process.env.XDG_CACHE_HOME);
+  return withStoredRun(store, options.unreadable, async (root) => {
+    const { app, tmp } = runLayout(root);
+    await copyApp(base, app, root);
+    const otherRuns = await deniedStoreEntries(dirname(root), root);
+    console.log(`${scenario.name} · ${arm} · run ${options.run}: codex in ${app}`);
+    const result = await runInApp({
+      scenario,
+      arm,
+      scenarioDir: join(SCENARIOS, dirname(scenario.name)),
       app,
-      tmp,
-      model,
-      prompt: scenario.prompt,
-      unreadable: unreadableFor({ arm, skill: skillOf(scenario), roots: options.unreadable }),
-    }),
-    codexAuth: await codexAuthIn(codexHome),
-    fingerprint: options.fingerprint,
+      out,
+      runRoot: root,
+      agent: agentCommand({
+        app,
+        tmp,
+        model,
+        prompt: scenario.prompt,
+        unreadable: unreadableFor({
+          arm,
+          skill: skillOf(scenario),
+          roots: [...options.unreadable, ...otherRuns],
+          references: options.references.denies,
+        }),
+      }),
+      codexAuth: await codexAuthIn(codexHome),
+      fingerprint: options.fingerprint,
+      references: options.references.fingerprints,
+    });
+    return { scenario: scenario.name, arm, run: options.run, ...result };
   });
-  return { scenario: scenario.name, arm, run: options.run, ...result };
 }
 
 async function main() {
@@ -214,6 +218,11 @@ async function main() {
     ),
   );
 
+  const references = await referencePolicy(
+    join(bases.with, ".agents/skills", args.skill),
+    bases.without,
+  );
+
   const plan = scenarios.flatMap((scenario) =>
     Array.from({ length: args.runs }, (_, i) => i + 1).flatMap((n) =>
       ARMS.map((arm) => ({ scenario, arm, n })),
@@ -231,6 +240,7 @@ async function main() {
         model: args.model,
         unreadable,
         fingerprint,
+        references,
       }),
     { scenarios, report: join(temp, "report.md") },
   );
