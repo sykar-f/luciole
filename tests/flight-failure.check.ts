@@ -62,9 +62,22 @@ test(`${name}: cancellation interrupts a pending Flight read`, async () => {
   );
   const reader = stream.getReader();
   await reader.read();
-  const pending = reader.read();
-  // Let pull enter the native read before cancelling, without resolving the page.
-  await new Promise((done) => setTimeout(done, 20));
+  // Drain the development metadata too: the native adapter preserves chunk
+  // boundaries where Node's iterator used to coalesce the first buffered rows.
+  let pending = reader.read();
+  for (;;) {
+    let quiet: ReturnType<typeof setTimeout> | undefined;
+    const result = await Promise.race([
+      pending,
+      new Promise<null>((done) => {
+        quiet = setTimeout(() => done(null), 20);
+      }),
+    ]);
+    clearTimeout(quiet);
+    if (result === null) break;
+    expect(result.done).toBe(false);
+    pending = reader.read();
+  }
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     await Promise.race([
@@ -73,8 +86,18 @@ test(`${name}: cancellation interrupts a pending Flight read`, async () => {
         timer = setTimeout(() => reject(new Error("cancel waits behind next")), 500);
       }),
     ]);
+    clearTimeout(timer);
     expect(await pending).toMatchObject({ done: true });
-    expect(signal?.aborted).toBe(true);
+    if (!signal) throw new Error("The page never rendered");
+    if (!signal.aborted) {
+      await Promise.race([
+        new Promise<void>((done) => signal.addEventListener("abort", () => done(), { once: true })),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => reject(new Error("Flight was not aborted")), 500);
+        }),
+      ]);
+    }
+    expect(signal.aborted).toBe(true);
     expect(errors).toEqual([]);
   } finally {
     clearTimeout(timer);

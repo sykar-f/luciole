@@ -23,11 +23,12 @@ export function relayBody(
         .pipeTo(
           new WritableStream<Uint8Array>({
             write(value) {
-              observe.chunk?.(value);
-              controller.enqueue(value);
-              return new Promise<void>((resolve) => {
+              const consumed = new Promise<void>((resolve) => {
                 resume = resolve;
               });
+              observe.chunk?.(value);
+              controller.enqueue(value);
+              return consumed;
             },
             close() {
               controller.close();
