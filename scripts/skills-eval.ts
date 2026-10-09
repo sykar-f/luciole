@@ -10,6 +10,9 @@
  * - without: no `.agents/skills`, no AGENTS.md block, and neither the skills nor the block in
  *   node_modules/@luciole-sh/core, only its docs;
  * - with: after `luciole skills install --agent agents`.
+ * Each run's agent writes only in its root's app and tmp (its `$TMPDIR`) and reads neither the
+ * other runs, the report, other temporary directories nor the repository; the without arm's
+ * agent reads the skill under test and the AGENTS.md block nowhere on the disk.
  * The scenario's checks run in the copy afterwards. The table, the transcripts and the diffs are
  * the report; it exits 0 whatever the scores, because it measures and does not gate. It runs
  * one scenario at a time and is never part of `bun test` or `bun run verify`.
@@ -20,6 +23,7 @@ import { dirname, join, resolve } from "node:path";
 import { z } from "zod";
 import { stageStarter } from "../packages/create/scripts/starter";
 import {
+  agentCommand,
   commitAll,
   must,
   parseArgs,
@@ -27,8 +31,11 @@ import {
   renderTable,
   run,
   runInApp,
+  runLayout,
   runPass,
+  skillOf,
   splitBases,
+  unreadableFor,
   USAGE,
   type Arm,
   type Args,
@@ -88,6 +95,24 @@ async function copyApp(from: string, to: string) {
   await must(["cp", "-R", from, to], workspace);
 }
 
+/**
+ * The directories no run may read: the temporary directories, which hold this report with its
+ * bases, tarballs and runs, the reports of other passes, and the apps agents made for
+ * themselves; and every checkout of this repository, which holds the skills' sources. A run's
+ * own root, under the first, stays open to it.
+ */
+async function unreadableRoots(): Promise<string[]> {
+  const roots = [tmpdir(), "/tmp"];
+  if (process.platform === "darwin") {
+    const user = (await run(["getconf", "DARWIN_USER_TEMP_DIR"], workspace)).output.trim();
+    if (user) roots.push(user);
+  }
+  const worktrees = await must(["git", "worktree", "list", "--porcelain"], workspace);
+  for (const line of worktrees.split("\n"))
+    if (line.startsWith("worktree ")) roots.push(line.slice("worktree ".length));
+  return [...new Set(roots)];
+}
+
 /** A git repository at `directory` whose one commit is the app as the agent finds it. */
 async function baseline(directory: string) {
   await must(["git", "init", "-q"], directory);
@@ -136,30 +161,26 @@ async function runOnce(options: {
   base: string;
   out: string;
   model: string;
+  unreadable: readonly string[];
 }): Promise<RunResult> {
   const { scenario, arm, base, out, model } = options;
   await mkdir(out, { recursive: true });
-  const app = join(out, "app");
+  const { app, tmp } = runLayout(out);
   await copyApp(base, app);
   console.log(`${scenario.name} · ${arm} · run ${options.run}: codex in ${app}`);
   const result = await runInApp({
     scenario,
+    arm,
     scenarioDir: join(SCENARIOS, dirname(scenario.name)),
     app,
     out,
-    agent: [
-      "codex",
-      "exec",
-      "-m",
-      model,
-      "--skip-git-repo-check",
-      "--json",
-      "-C",
+    agent: agentCommand({
       app,
-      "--sandbox",
-      "workspace-write",
-      scenario.prompt,
-    ],
+      tmp,
+      model,
+      prompt: scenario.prompt,
+      unreadable: unreadableFor({ arm, skill: skillOf(scenario), roots: options.unreadable }),
+    }),
   });
   return { scenario: scenario.name, arm, run: options.run, ...result };
 }
@@ -176,6 +197,7 @@ async function main() {
   const temp = await mkdtemp(join(tmpdir(), "luciole-skills-eval-"));
   console.log(`Report directory: ${temp}`);
   const bases = await prepareBases(temp);
+  const unreadable = await unreadableRoots();
 
   const plan = scenarios.flatMap((scenario) =>
     Array.from({ length: args.runs }, (_, i) => i + 1).flatMap((n) =>
@@ -192,6 +214,7 @@ async function main() {
         base: bases[arm],
         out: join(temp, "runs", scenario.name, `${arm}-${n}`),
         model: args.model,
+        unreadable,
       }),
     { scenarios, report: join(temp, "report.md") },
   );

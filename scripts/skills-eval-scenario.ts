@@ -1,13 +1,13 @@
-import { readFile, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { isAbsolute, join } from "node:path";
 import { z } from "zod";
 
 /**
  * The parts of `scripts/skills-eval.ts` that run without Codex: the scenario format, the
- * command line, processes and their groups, the setup, the checks, the run's diff, one run in
- * an app copy with the agent's command given, the split of the installed app into the arms'
- * bases, whether a transcript shows an agent reading a skill, and the report's table. The format is documented in
- * evals/skills/README.md.
+ * command line, processes and their groups, the setup, the checks, the run's diff, a run's
+ * layout and the agent's sandboxed command, one run in an app copy with the agent's command
+ * given, the split of the installed app into the arms' bases, what a transcript shows the agent
+ * read and wrote, and the report's table. The format is documented in evals/skills/README.md.
  */
 
 export const DEFAULT_MODEL = "gpt-6-luna";
@@ -153,6 +153,50 @@ export function readsSkill(transcript: string, skill: string): boolean {
   return succeededCommands(transcript).some((command) => command.includes(path));
 }
 
+/**
+ * The commands of a transcript that read the material of `skill`: they name its SKILL.md or the
+ * AGENTS.md block's source, `agents-block.md`, and exited 0. The without arm has neither to
+ * read; such a run is contaminated.
+ */
+export function materialReads(transcript: string, skill: string): string[] {
+  const names = [`${skill}/SKILL.md`, "agents-block.md"];
+  return succeededCommands(transcript).filter((command) =>
+    names.some((name) => command.includes(name)),
+  );
+}
+
+// The events of `codex exec --json` that carry the files the agent's patches wrote.
+const FileChangeEvent = z.looseObject({
+  item: z.looseObject({
+    type: z.literal("file_change"),
+    changes: z.array(z.looseObject({ path: z.string() })),
+  }),
+});
+
+/**
+ * The paths a transcript's `file_change` events wrote outside `app`, each once, whether the
+ * sandbox let the write through or not. Codex names them absolute, through the real path of
+ * the app (`/private/var/…` for `/var/…` on macOS): `app` lists each spelling of its root.
+ */
+export function writesOutside(transcript: string, app: readonly string[]): string[] {
+  const inside = (path: string) =>
+    app.some((root) => path === root || path.startsWith(root.endsWith("/") ? root : `${root}/`));
+  const paths = transcript.split("\n").flatMap((line) => {
+    let event: unknown;
+    try {
+      event = JSON.parse(line);
+    } catch {
+      return [];
+    }
+    const parsed = FileChangeEvent.safeParse(event);
+    if (!parsed.success) return [];
+    return parsed.data.item.changes
+      .map((change) => (isAbsolute(change.path) ? change.path : join(app[0] ?? "", change.path)))
+      .filter((path) => !inside(path));
+  });
+  return [...new Set(paths)];
+}
+
 export type Arm = "without" | "with";
 
 export interface RunResult {
@@ -163,6 +207,14 @@ export interface RunResult {
   checks: readonly boolean[];
   /** Absent when the scenario expects no skill. */
   skillRead?: boolean;
+  /**
+   * The commands of a without run that read the skill under test or the AGENTS.md block, which
+   * that arm must not find: the run is contaminated. Absent in the with arm, and when the agent
+   * never started.
+   */
+  contamination?: readonly string[];
+  /** The paths the agent wrote outside its app. Absent when the agent never started. */
+  outside?: readonly string[];
   /** Whether the agent ran out of time or exited non-zero, or never started. */
   agent: "ok" | "timeout" | `exit ${number}` | "setup failed";
   /** The agent's live processes that its cleanup could not end, when there are any. */
@@ -174,7 +226,14 @@ export interface RunResult {
 const outcome = (result: RunResult) =>
   result.left ? `${result.agent}, cleanup: ${result.left} left` : result.agent;
 
-/** The report: one row per scenario, arm and run, then the legend of the check columns. */
+/** A list a run may have found something in: `-` where it does not apply. */
+const flagOf = (found: readonly string[] | undefined) =>
+  found === undefined ? "-" : found.length ? "YES" : "no";
+
+/**
+ * The report: one row per scenario, arm and run, then the legend of the check columns, then
+ * what made a run contaminated and what it wrote outside its app.
+ */
 export function renderTable(results: readonly RunResult[], scenarios: readonly Scenario[]) {
   const width = Math.max(0, ...scenarios.map((s) => s.checks.length));
   const header = [
@@ -183,6 +242,8 @@ export function renderTable(results: readonly RunResult[], scenarios: readonly S
     "run",
     ...Array.from({ length: width }, (_, i) => `c${i + 1}`),
     "skill read",
+    "contaminated",
+    "wrote outside",
     "agent",
     "duration",
   ];
@@ -195,6 +256,8 @@ export function renderTable(results: readonly RunResult[], scenarios: readonly S
       return passed === undefined ? "" : passed ? "pass" : "FAIL";
     }),
     result.skillRead === undefined ? "-" : result.skillRead ? "yes" : "no",
+    flagOf(result.contamination),
+    flagOf(result.outside),
     outcome(result),
     `${Math.round(result.seconds)}s`,
   ]);
@@ -206,6 +269,14 @@ export function renderTable(results: readonly RunResult[], scenarios: readonly S
   const legend = scenarios.flatMap((scenario) =>
     scenario.checks.map((check, i) => `  ${scenario.name} c${i + 1}: ${describeCheck(check)}`),
   );
+  const listed = (title: string, pick: (result: RunResult) => readonly string[] | undefined) => {
+    const lines = results.flatMap((result) =>
+      (pick(result) ?? []).map(
+        (what) => `  ${result.scenario} ${result.arm} ${result.run}: ${what}`,
+      ),
+    );
+    return lines.length ? ["", title, ...lines] : [];
+  };
   return [
     line(header),
     `|${widths.map((w) => "-".repeat(w + 2)).join("|")}|`,
@@ -213,6 +284,8 @@ export function renderTable(results: readonly RunResult[], scenarios: readonly S
     "",
     "Checks:",
     ...legend,
+    ...listed("Contaminated (the material read in the without arm):", (r) => r.contamination),
+    ...listed("Written outside the app:", (r) => r.outside),
   ].join("\n");
 }
 
@@ -476,12 +549,83 @@ export async function runSetup(
 }
 
 /**
- * One run in `app`, a fresh copy of a base: the scenario's setup, then the agent's command,
- * then the checks. It writes `setup.log` (when the scenario has a setup), `transcript.jsonl`,
+ * Where a run's files go under its root `out`. While the agent runs, the root holds only these:
+ * the app, the copy the agent works in, and `tmp`, its `$TMPDIR`. The logs, the transcript and
+ * the diff are written there once it has ended.
+ */
+export function runLayout(out: string) {
+  return { app: join(out, "app"), tmp: join(out, "tmp") };
+}
+
+/** The name of the permissions profile the agent runs under. */
+const PROFILE = "skills_eval";
+
+/** The skill a scenario belongs to, the directory it sits in: the skill under test. */
+export const skillOf = (scenario: Scenario) => scenario.name.split("/")[0] ?? scenario.name;
+
+/**
+ * What the agent of a run of `arm` may not read: `roots`, the directories that hold the other
+ * runs and reports and the skills' sources, and, in the without arm, the skill under test and
+ * the AGENTS.md block's source wherever they sit on the disk, as patterns.
+ */
+export function unreadableFor(options: {
+  arm: Arm;
+  skill: string;
+  roots: readonly string[];
+}): string[] {
+  const material = [`/**/${options.skill}/SKILL.md`, "/**/agents-block.md"];
+  return [...options.roots, ...(options.arm === "without" ? material : [])];
+}
+
+/**
+ * The Codex command of one run. Its permissions profile replaces `workspace-write`, which keeps
+ * `.agents/` and `.git/` read-only inside the app, so `luciole skills` could not refresh the
+ * material nor the agent commit, and which lets the agent write in the system's `$TMPDIR` and
+ * `/tmp`, where the report lives. Under this profile the agent writes in `app`, those two
+ * included, and in `tmp`, and nowhere else; it reads the rest of the disk, except the paths and
+ * patterns of `unreadable`, which no command it runs can list or open. A pattern wins over a
+ * path, even inside `app`. The network stays off, as in `workspace-write`.
+ */
+export function agentCommand(options: {
+  app: string;
+  tmp: string;
+  model: string;
+  prompt: string;
+  unreadable: readonly string[];
+}): string[] {
+  const path = (value: string) => JSON.stringify(value);
+  const filesystem = [
+    `"/" = "read"`,
+    ...options.unreadable.map((directory) => `${path(directory)} = "deny"`),
+    `${path(options.tmp)} = "write"`,
+    `":workspace_roots" = { "." = "write", ".agents" = "write", ".git" = "write" }`,
+  ];
+  return [
+    "codex",
+    "exec",
+    "-m",
+    options.model,
+    "--skip-git-repo-check",
+    "--json",
+    "-C",
+    options.app,
+    "-c",
+    `default_permissions=${path(PROFILE)}`,
+    "-c",
+    `permissions.${PROFILE}.filesystem={ ${filesystem.join(", ")} }`,
+    options.prompt,
+  ];
+}
+
+/**
+ * One run of `arm` in `app`, a fresh copy of a base under the run's root `out` (see
+ * `runLayout`): the scenario's setup, then the agent's command with `$TMPDIR` in the root, then
+ * the checks. It writes `setup.log` (when the scenario has a setup), `transcript.jsonl`,
  * `diff.patch` and `checks.log` to `out`. A setup that fails starts no agent and no check.
  */
 export async function runInApp(options: {
   scenario: Scenario;
+  arm: Arm;
   scenarioDir: string;
   app: string;
   out: string;
@@ -489,20 +633,29 @@ export async function runInApp(options: {
   /** How the agent's process group ends: `process.kill` unless a test stands in for it. */
   cleanup?: Cleanup;
 }): Promise<Omit<RunResult, "scenario" | "arm" | "run">> {
-  const { scenario, app, out } = options;
+  const { scenario, app, out, arm } = options;
+  // The setup's log waits for the agent's end: nothing but the layout is in the root before.
+  let setupLog: string | undefined;
   if (scenario.setup !== undefined) {
     const setup = await runSetup(scenario.setup, app, { scenarioDir: options.scenarioDir });
-    await writeFile(join(out, "setup.log"), setup.log);
-    if (!setup.passed) return { checks: [], agent: "setup failed", seconds: 0 };
+    if (!setup.passed) {
+      await writeFile(join(out, "setup.log"), setup.log);
+      return { checks: [], agent: "setup failed", seconds: 0 };
+    }
+    setupLog = setup.log;
   }
   const baseline = await baselineOf(app);
+  const { tmp } = runLayout(out);
+  await mkdir(tmp, { recursive: true });
 
   const started = performance.now();
   const agent = await run(options.agent, app, {
     timeoutMs: scenario.timeoutMinutes * MS_PER_MINUTE,
+    env: { TMPDIR: tmp },
     cleanup: options.cleanup,
   });
   const seconds = (performance.now() - started) / MS_PER_SECOND;
+  if (setupLog !== undefined) await writeFile(join(out, "setup.log"), setupLog);
   await writeFile(join(out, "transcript.jsonl"), agent.output);
 
   await writeFile(join(out, "diff.patch"), await diffSince(app, baseline));
@@ -518,6 +671,8 @@ export async function runInApp(options: {
   return {
     checks,
     skillRead: scenario.expectSkill ? readsSkill(agent.output, scenario.expectSkill) : undefined,
+    contamination: arm === "without" ? materialReads(agent.output, skillOf(scenario)) : undefined,
+    outside: writesOutside(agent.output, [app, await realpath(app)]),
     agent: agent.timedOut ? "timeout" : agent.code === 0 ? "ok" : `exit ${agent.code}`,
     left: agent.left || undefined,
     seconds,

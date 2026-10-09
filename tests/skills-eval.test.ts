@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promis
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import {
+  agentCommand,
   AGENT_MATERIAL,
   baselineOf,
   CORE_PACKAGE,
@@ -12,13 +13,17 @@ import {
   must,
   parseArgs,
   parseScenario,
+  materialReads,
   readsSkill,
   renderTable,
   run,
   runCheck,
   runInApp,
+  runLayout,
   runPass,
   splitBases,
+  unreadableFor,
+  writesOutside,
   type Kill,
   type RunResult,
   type Scenario,
@@ -173,6 +178,56 @@ test("a command that failed is not a read, nor one that has not ended", () => {
   expect(readsSkill([failed, started, succeeded].join("\n"), "luciole-upgrade")).toBe(true);
 });
 
+test("the material read in a transcript: the skill's SKILL.md or the block, read with success", () => {
+  const transcript = [
+    ran("cat ~/.codex/skills/luciole-upgrade/SKILL.md", 1),
+    ran("cat ../with-1/app/.agents/skills/luciole-upgrade/SKILL.md", 0),
+    ran("cat ~/.agents/skills/cloudflare/SKILL.md", 0),
+    ran("rg -n upgrade node_modules/@luciole-sh/core/agents-block.md", 0),
+    ran("cat package.json", 0),
+  ].join("\n");
+  expect(materialReads(transcript, "luciole-upgrade")).toEqual([
+    "/bin/zsh -lc 'cat ../with-1/app/.agents/skills/luciole-upgrade/SKILL.md'",
+    "/bin/zsh -lc 'rg -n upgrade node_modules/@luciole-sh/core/agents-block.md'",
+  ]);
+});
+
+/** A `file_change` item as `codex exec --json` writes it, for each path. */
+const changed = (status: string, ...paths: string[]) =>
+  event({
+    id: "item_7",
+    type: "file_change",
+    changes: paths.map((path) => ({ path, kind: "add" })),
+    status,
+  });
+
+test("a write outside the app is flagged, through either spelling of its root", () => {
+  const app = ["/var/r/runs/s/with-1/app", "/private/var/r/runs/s/with-1/app"];
+  const transcript = [
+    changed("completed", "/private/var/r/runs/s/with-1/app/app/login/page.tsx"),
+    changed("completed", "/var/r/runs/s/with-1/app/components/a.tsx", "relative.ts"),
+    changed("completed", "/private/var/r/components/LoginForm.tsx"),
+    // Refused by the sandbox or not, it was the agent's work, and the checks do not see it.
+    changed("failed", "/tmp/notes-check/app/page.tsx", "/private/var/r/runs/s/with-1/app-x/a"),
+    changed("completed", "/private/var/r/components/LoginForm.tsx"),
+  ].join("\n");
+  expect(writesOutside(transcript, app)).toEqual([
+    "/private/var/r/components/LoginForm.tsx",
+    "/tmp/notes-check/app/page.tsx",
+    "/private/var/r/runs/s/with-1/app-x/a",
+  ]);
+});
+
+test("the without arm may not read the skill under test or the block, anywhere", () => {
+  const roots = ["/var/T/", "/tmp", "/w"];
+  expect(unreadableFor({ arm: "with", skill: "luciole-app", roots })).toEqual(roots);
+  expect(unreadableFor({ arm: "without", skill: "luciole-app", roots })).toEqual([
+    ...roots,
+    "/**/luciole-app/SKILL.md",
+    "/**/agents-block.md",
+  ]);
+});
+
 test("the table: one row per run, a column per check, and the legend", () => {
   const scenario: Scenario = {
     name: "luciole-app/about",
@@ -189,6 +244,8 @@ test("the table: one row per run, a column per check, and the legend", () => {
         run: 1,
         checks: [true, false],
         skillRead: false,
+        contamination: [],
+        outside: [],
         agent: "ok",
         seconds: 61.4,
       },
@@ -206,10 +263,10 @@ test("the table: one row per run, a column per check, and the legend", () => {
   );
   expect(table).toBe(
     [
-      "| scenario          | arm     | run | c1   | c2   | skill read | agent   | duration |",
-      "|-------------------|---------|-----|------|------|------------|---------|----------|",
-      "| luciole-app/about | without | 1   | pass | FAIL | no         | ok      | 61s      |",
-      "| luciole-app/about | with    | 1   | pass | pass | yes        | timeout | 90s      |",
+      "| scenario          | arm     | run | c1   | c2   | skill read | contaminated | wrote outside | agent   | duration |",
+      "|-------------------|---------|-----|------|------|------------|--------------|---------------|---------|----------|",
+      "| luciole-app/about | without | 1   | pass | FAIL | no         | no           | no            | ok      | 61s      |",
+      "| luciole-app/about | with    | 1   | pass | pass | yes        | -            | -             | timeout | 90s      |",
       "",
       "Checks:",
       "  luciole-app/about c1: exists a",
@@ -339,6 +396,7 @@ const withSetup = (setup: string): Scenario => ({
 test("a setup's change is in the baseline, and the diff holds only the agent's", async () => {
   const { out, app } = await appCopy();
   const result = await runInApp({
+    arm: "with",
     scenario: withSetup('cp "$SCENARIO_DIR/fixtures/planted.txt" planted.txt\necho a set > a.txt'),
     scenarioDir: await scenarioDir(),
     app,
@@ -359,6 +417,7 @@ test("the setup sees the scenario's directory as $SCENARIO_DIR", async () => {
   const { out, app } = await appCopy();
   const directory = await scenarioDir();
   await runInApp({
+    arm: "with",
     scenario: withSetup('printf %s "$SCENARIO_DIR" > planted.txt'),
     scenarioDir: directory,
     app,
@@ -372,6 +431,7 @@ test("a failing setup starts no agent and no check, and the report says so", asy
   const { out, app } = await appCopy();
   const scenario = withSetup("echo boom; exit 3");
   const result = await runInApp({
+    arm: "with",
     scenario,
     scenarioDir: await scenarioDir(),
     app,
@@ -391,16 +451,110 @@ test("a failing setup starts no agent and no check, and the report says so", asy
     [scenario],
   );
   expect(table.split("\n")[2]).toBe(
-    "| luciole-x/planted | with | 1   |    |    | -          | setup failed | 0s       |",
+    "| luciole-x/planted | with | 1   |    |    | -          | -            | -             | setup failed | 0s       |",
   );
 });
 
 test("a scenario without setup runs the agent on the app as copied", async () => {
   const { out, app } = await appCopy();
   const { setup: _, ...scenario } = withSetup("unused");
-  const result = await runInApp({ scenario, scenarioDir: temp, app, out, agent: WRITES_FILE });
+  const result = await runInApp({
+    scenario,
+    arm: "with",
+    scenarioDir: temp,
+    app,
+    out,
+    agent: WRITES_FILE,
+  });
   expect(result).toMatchObject({ agent: "ok", checks: [false, true] });
   expect(await Bun.file(join(out, "setup.log")).exists()).toBe(false);
+});
+
+test("while the agent runs, its root holds only its app and its $TMPDIR", async () => {
+  const { out, app } = await appCopy();
+  const { tmp } = runLayout(out);
+  expect(runLayout(out).app).toBe(app);
+  const result = await runInApp({
+    scenario: withSetup("echo planted > planted.txt"),
+    arm: "without",
+    scenarioDir: await scenarioDir(),
+    app,
+    out,
+    agent: ["sh", "-c", 'ls -A ..; echo "TMPDIR=$TMPDIR"; echo agent > agent.txt'],
+  });
+  expect(result).toMatchObject({ agent: "ok", checks: [true, true] });
+  // The setup's log, like the transcript, is written once the agent has ended.
+  expect(await readFile(join(out, "transcript.jsonl"), "utf8")).toBe(`app\ntmp\nTMPDIR=${tmp}\n`);
+  expect(await readFile(join(out, "setup.log"), "utf8")).toBe("exit 0\n");
+});
+
+test("the report flags a without run that read the material, and a write outside the app", async () => {
+  const scenario: Scenario = {
+    name: "luciole-x/leaky",
+    prompt: "p",
+    checks: [{ exists: "a.txt" }],
+    timeoutMinutes: 1,
+  };
+  const read = ran("cat ../../with-1/app/.agents/skills/luciole-x/SKILL.md", 0);
+  const results: RunResult[] = [];
+  const escaped: string[] = [];
+  for (const arm of ["without", "with"] as const) {
+    const { out, app } = await appCopy();
+    const outside = join(out, "LoginForm.tsx");
+    escaped.push(outside);
+    const transcript = [read, changed("completed", join(app, "a.txt"), outside)].join("\n");
+    const agent = ["sh", "-c", `printf '%s\\n' "$0"`, transcript];
+    const result = await runInApp({ scenario, arm, scenarioDir: temp, app, out, agent });
+    results.push({ scenario: scenario.name, arm, run: 1, ...result });
+  }
+  const command = "/bin/zsh -lc 'cat ../../with-1/app/.agents/skills/luciole-x/SKILL.md'";
+  expect(results.map(({ contamination, outside }) => ({ contamination, outside }))).toEqual([
+    { contamination: [command], outside: [escaped[0]] },
+    { contamination: undefined, outside: [escaped[1]] },
+  ]);
+  const table = renderTable(results, [scenario]).split("\n");
+  expect(table[2]).toMatch(
+    /^\| luciole-x\/leaky \| without \| 1 +\| pass \| - +\| YES +\| YES +\|/,
+  );
+  expect(table[3]).toMatch(/^\| luciole-x\/leaky \| with +\| 1 +\| pass \| - +\| - +\| YES +\|/);
+  expect(table.slice(-6)).toEqual([
+    "Contaminated (the material read in the without arm):",
+    `  luciole-x/leaky without 1: ${command}`,
+    "",
+    "Written outside the app:",
+    `  luciole-x/leaky without 1: ${escaped[0]}`,
+    `  luciole-x/leaky with 1: ${escaped[1]}`,
+  ]);
+});
+
+test("the agent may write its whole app and its tmp, and read none of the unreadable paths", () => {
+  const command = agentCommand({
+    app: "/r/runs/s/without-1/app",
+    tmp: "/r/runs/s/without-1/tmp",
+    model: "m",
+    prompt: "Do it.",
+    unreadable: ["/var/T", "/w"],
+  });
+  expect(command).not.toContain("--sandbox");
+  expect(command.slice(0, 8)).toEqual([
+    "codex",
+    "exec",
+    "-m",
+    "m",
+    "--skip-git-repo-check",
+    "--json",
+    "-C",
+    "/r/runs/s/without-1/app",
+  ]);
+  expect(command.slice(8)).toEqual([
+    "-c",
+    'default_permissions="skills_eval"',
+    "-c",
+    "permissions.skills_eval.filesystem={ " +
+      '"/" = "read", "/var/T" = "deny", "/w" = "deny", "/r/runs/s/without-1/tmp" = "write", ' +
+      '":workspace_roots" = { "." = "write", ".agents" = "write", ".git" = "write" } }',
+    "Do it.",
+  ]);
 });
 
 const eperm = () => Object.assign(new Error("kill EPERM"), { code: "EPERM" });
@@ -414,6 +568,7 @@ test("a refused group signal still ends the run when the group is gone", async (
   };
   const { setup: _, ...scenario } = withSetup("unused");
   const result = await runInApp({
+    arm: "with",
     scenario,
     scenarioDir: temp,
     app,
@@ -437,6 +592,7 @@ test("a member no signal can end is reported, and the run completes", async () =
     timeoutMinutes: 1,
   };
   const result = await runInApp({
+    arm: "with",
     scenario,
     scenarioDir: temp,
     app,
@@ -488,8 +644,8 @@ test("the report keeps the finished rows when a later run fails", async () => {
   expect(String(failure)).toContain("the third run crashed");
   const lines = (await readFile(report, "utf8")).split("\n");
   expect(lines.slice(2, 5)).toEqual([
-    "| luciole-x/pass | without | 1   | pass | -          | ok    | 1s       |",
-    "| luciole-x/pass | without | 2   | pass | -          | ok    | 1s       |",
+    "| luciole-x/pass | without | 1   | pass | -          | -            | -             | ok    | 1s       |",
+    "| luciole-x/pass | without | 2   | pass | -          | -            | -             | ok    | 1s       |",
     "",
   ]);
 });
