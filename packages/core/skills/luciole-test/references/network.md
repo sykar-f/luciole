@@ -24,7 +24,6 @@ Fault only the requests under test, so the page still loads:
 ```ts
 await using server = await startServer(app, { NOTES_DB: ":memory:" });
 await using client = await openClient(app, server, {
-  tag: "refused-save",
   network: {
     fault: ({ kind, target }) =>
       kind === "action" && target.endsWith("#saveNote") ? "refuse" : undefined,

@@ -1,6 +1,6 @@
 ---
 name: luciole-test
-description: Tests of a luciole app. Read before writing, changing, running or fixing any `bun test` file of an app built on `@luciole-sh/core` (`tests/*.test.ts`, `buildApp`, `startServer`, `openClient`), including several tests in one file; testing what the user sees after a failed save, an unreachable Server, latency or a fault; testing that typed text comes back after a restart; or when a luciole test times out, sees state left by another test, or passes when it should fail. Also for "add tests", "write a test for this screen", "test the error message", "prove it with a test", "why does my test hang".
+description: Tests of a luciole app. Read before writing, changing, running or fixing any `bun test` file of an app built on `@luciole-sh/core` (`tests/*.test.ts`, `buildApp`, `startServer`, `openClient`), including a test of a Server Function or of `server/` code; testing what the user sees after a failed save, an unreachable Server, latency or a fault; testing that typed text comes back after a restart; or when a luciole test times out, cannot import the code it tests, or passes when it should fail. Also for "add tests", "write a test for this screen", "test the error message", "prove it with a test", "why does my test hang".
 ---
 
 # Testing a luciole app
@@ -26,8 +26,8 @@ test(
   async () => {
     // The Server's own process environment: the app's settings and a database per test.
     await using server = await startServer(app, { NOTES_DB: ":memory:" });
-    // Declared after the Server, so it stops first. A tag per Client: see Gotchas.
-    await using client = await openClient(app, server, { tag: "opens-a-note" });
+    // Declared after the Server, so it stops first.
+    await using client = await openClient(app, server);
 
     await client.waitFor("Welcome to Notes");
     await client.click("Welcome to Notes");
@@ -42,9 +42,10 @@ test(
 
 ## Gotchas
 
-- Give every `openClient` call its own `tag`. Clients without one share a single runtime for the
-  whole file: router, modules and Drafts. A later test then sees the text an earlier test typed, and
-  a restart test passes on that shared memory even when restore is broken.
+- Test Server Functions, pages and the code under `server/` through the built app: drive the
+  screen that calls them, and check what it shows. They run only inside the built Server,
+  within a request: imported into a test, they fail on `Cannot find package 'server-only'`, then
+  on React's `react-server` condition.
 - Set latency and faults on the Client: `openClient(app, server, { latencyMs, network })`. The
   Server ignores `LUCIOLE_LATENCY_MS`, `LUCIOLE_FAULT` and the other network variables passed to
   `startServer`. Read [references/network.md](references/network.md), beside this `SKILL.md`,
