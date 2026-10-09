@@ -40,6 +40,13 @@ and marked **Breaking**.
   TanStack Form APIs apply to luciole apps, including native widgets, typed
   Router hooks and browser-only limits.
 
+### Changed
+
+- **Breaking:** Server instrumentation can emit a new, non-terminal `failure`
+  event when a page render fails. Consumers that exhaustively handle
+  `ServerEvent` must handle this variant without treating it as the end of the
+  response body.
+
 ### Fixed
 
 - A failed Server page render now leaves a trace with its call ID, route and
