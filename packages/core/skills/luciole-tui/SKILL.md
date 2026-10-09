@@ -14,21 +14,32 @@ API: `node_modules/@luciole-sh/core/docs/reference/api.md`, section "Restore fie
 
 ## Design
 
-- Design for a newcomer, like a desktop app: clicks are first-class; actionable items have
-  hover feedback and a pointer. Right-click exposes secondary actions; use drag and wheel
-  where they fit. Keys accelerate the same actions available through buttons, tabs or menus.
-- Make actions self-discoverable: labelled controls, empty states with their filling action,
-  hover hints and menu items showing shortcuts. Keep `<KeyHelp>` to the current layer's few keys.
-- Make waits alive (`loading.tsx`, pending actions, slow loads): animate opacity or a spinner
-  in fixed geometry, stop on unmount, and report the action's result.
-- Use images, hyperlinks and clipboard where useful; prefer native Markdown, code and diff
-  widgets. Use the current document as terminal title and adapt the palette to the theme.
-- Keep one primary task per screen. Show the few frequent actions; disclose the rest in menus,
-  overlays or secondary views. Spend no line on decoration, truncate bars, and fold sidebars
-  or shorten labels at narrow terminal widths.
+- Reuse the app's interaction primitives before writing controls. Inspect `components/ui.tsx`,
+  `components/ui-state.ts` and `components/Sidebar.tsx` if present: the starter has `useHover`,
+  `Button`/`IconButton`, `ui.openMenu`, `MenuLayer`, toasts and a working item-row model.
+- For every actionable item, implement a clickable row with reversible hover and a pointer. Right-click
+  opens that item's menu; a visible "⋯" entrance appears on hover or selection. Put secondary
+  actions (duplicate, rename, delete) in that menu, mark destructive items and report results
+  with a toast or status. Reserve plain buttons for screen-level primary actions. Session-local
+  item state still reuses these app interactions; mount their layers if the layout lacks them.
+- Design for newcomers: keys accelerate the same click actions; menu items show shortcuts.
+  Empty states offer their filling action; `<KeyHelp>` shows the current layer's few keys.
+- Make waits alive: animate a compact label or spinner while the action is pending, stop on
+  completion/unmount and report the result. Keep content positions fixed; disabled content may dim.
+- Keep one primary task per screen. Disclose details in overlays, truncate bars and fold
+  sidebars at narrow widths. Spend no row on decoration: end pane borders with their content
+  and leave items unboxed at small sizes. Use images, links and clipboard where useful; prefer native
+  Markdown, code and diff widgets, the document's terminal title and the app's theme.
 
-Read [references/interaction.md](references/interaction.md) when a screen has clickable items,
-menus, hover, images or a wait.
+Read [references/interaction.md](references/interaction.md) before implementing item actions,
+menus, hover, images or a wait: reuse the app's primitives first; build only what is missing.
+
+Finish item actions only after exercising the row and both menu entrances, rather than
+ending at a successful build. Check a small terminal (for example 60×20, with `openClient(app, server,
+{ width: 60, height: 20 })` from `@luciole-sh/core/test`, or `bun run dev` in a small terminal):
+titles readable clear of borders, primary content visible, secondary actions hidden until
+asked for, every action reachable by clicks, hover restores, both menu entrances target the
+item, and Esc/outside click close the menu.
 
 ## Layout
 

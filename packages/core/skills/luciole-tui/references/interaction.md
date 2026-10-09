@@ -2,182 +2,143 @@
 
 ## Contents
 
-- [Clickable row and hover](#clickable-row-and-hover)
-- [Context menu](#context-menu)
+- [Reuse the app's interactions](#reuse-the-apps-interactions)
+- [Item row with the starter's menu](#item-row-with-the-starters-menu)
+- [Apps without these primitives](#apps-without-these-primitives)
 - [Loading animation](#loading-animation)
 - [Image with a fallback](#image-with-a-fallback)
 - [Other interaction branches](#other-interaction-branches)
 
-Check the installed `@opentui/core/Renderable.d.ts`, `renderer.d.ts`, `types.d.ts` and
-`renderables/Image.d.ts`; React hooks are in `@opentui/react/src/hooks/index.d.ts`.
-The renderer exposes terminal features directly. Reuse those methods.
+## Reuse the app's interactions
 
-## Clickable row and hover
+Inspect the app before writing interaction code. In the starter, `components/ui.tsx` supplies
+`useHover` (state and pointer), `Button`/`IconButton` (button hover), `MenuLayer` and `ToastLayer`;
+`components/ui-state.ts` supplies `ui.openMenu({ items, x, y })`, `ui.closeMenu()` and `ui.toast`.
+Read `components/Sidebar.tsx` for the item-row model: row hover, click to open, right-click
+and a "⋯" entrance revealed on hover or selection. These are app components, not luciole exports;
+a diverged app may use different files or signatures. Reuse its equivalents.
 
-Save as `components/ActionRow.tsx`. Use a labelled row for an action, with a colour change
-and pointer on hover. A status line or hover hint can explain an ambiguous label.
+Session-local items can use the same menu/toast infrastructure as server-backed notes:
+`ui.openMenu` takes callbacks, not a database note. Keep item data in the page's Client state
+and pass closures for that item into the menu. An autonomous screen still mounts the
+existing layers if its layout omits them.
+
+A button's hover feedback covers the button. The item row itself also needs hover and click.
+Keep secondary actions in the item's menu, with destructive items marked and results reported.
+A screen-level primary action can be a plain button. Mount existing menu/toast layers once at
+screen scope (check `app/layout.tsx`); opening state alone paints nothing without the layer.
+
+## Item row with the starter's menu
+
+After checking those local signatures, this compact adaptation of the Sidebar row can live in
+`components/ItemRow.tsx`. Both entrances use the same item's callbacks. The "⋯" handler stops
+propagation so opening the menu does not also open the item. Existing `MenuLayer` handles
+Escape, outside click, placement and closing before running an action. Mount it and
+`ToastLayer` at screen scope if the layout does not already do so.
 
 ```tsx
 "use client";
-import { useEffect, useState } from "react";
-import { MouseButton, type MouseEvent } from "@opentui/core";
+import { useEffect } from "react";
+import { MouseButton } from "@opentui/core";
 import { useRenderer } from "@opentui/react";
+import { useHover } from "./ui";
+import { ui } from "./ui-state";
+import { usePalette } from "./theme";
 
-export function ActionRow({
+export function ItemRow({
   label,
-  run,
-  context,
+  selected = false,
+  open,
+  duplicate,
+  remove,
 }: {
   label: string;
-  run: () => void;
-  context?: (event: MouseEvent) => void;
+  selected?: boolean;
+  open: () => void;
+  duplicate: () => void;
+  remove: () => void;
 }) {
+  const color = usePalette();
   const renderer = useRenderer();
-  const [hover, setHover] = useState(false);
+  const { hovered, handlers } = useHover();
   useEffect(() => () => renderer.setMousePointer("default"), [renderer]);
+  const menu = (x: number, y: number) =>
+    ui.openMenu({
+      x,
+      y,
+      items: [
+        { label: "Open", run: open },
+        {
+          label: "Duplicate",
+          run: () => {
+            duplicate();
+            ui.toast({ text: "Duplicated" });
+          },
+        },
+        {
+          label: "Delete",
+          danger: true,
+          run: () => {
+            remove();
+            ui.toast({ text: "Deleted" });
+          },
+        },
+      ],
+    });
   return (
     <box
+      flexDirection="row"
       height={1}
       flexShrink={0}
-      backgroundColor={hover ? "#334155" : "#0f172a"}
-      onMouseOver={() => {
-        setHover(true);
-        renderer.setMousePointer("pointer");
-      }}
-      onMouseOut={() => {
-        setHover(false);
-        renderer.setMousePointer("default");
-      }}
+      backgroundColor={selected ? color.selected : hovered ? color.hover : undefined}
+      {...handlers}
       onMouseDown={(event) => {
-        if (event.button === MouseButton.RIGHT && context) {
-          event.preventDefault();
-          event.stopPropagation();
-          context(event);
-        } else if (event.button === MouseButton.LEFT) {
-          event.stopPropagation();
-          run();
-        }
+        if (event.button === MouseButton.RIGHT) menu(event.x, event.y);
+        else if (event.button === MouseButton.LEFT) open();
       }}
     >
-      <text height={1} wrapMode="none" truncate fg="#f8fafc">
+      <text flexGrow={1} height={1} wrapMode="none" truncate fg={color.text}>
         {label}
       </text>
+      {hovered || selected ? (
+        <box
+          flexShrink={0}
+          paddingX={1}
+          onMouseDown={(event) => {
+            event.stopPropagation();
+            menu(event.x, event.y + 1);
+          }}
+        >
+          <text fg={color.muted}>⋯</text>
+        </box>
+      ) : null}
     </box>
   );
 }
 ```
 
-## Context menu
+## Apps without these primitives
 
-Save as `components/DocumentActions.tsx`, alongside `ActionRow`. Mount this example at the
-terminal origin, filling the screen: mouse `x`/`y` are terminal cells. In a nested pane,
-subtract the pane's rendered `x`/`y` before positioning its overlay. The visible **More…**
-entry also opens the menu; right-click is a shortcut to it. Items and bindings share actions.
-The full-screen backdrop closes on an outside click; menu events stop before reaching it.
-Esc belongs to the mounted menu layer. Clamp again on resize, including very small screens.
+Only build a primitive when the app lacks an equivalent. Verify props and methods in installed
+`@opentui/core/Renderable.d.ts`, `renderer.d.ts`, `types.d.ts`; hooks are in
+`@opentui/react/src/hooks/index.d.ts`. A row uses `onMouseOver`/`onMouseOut` for colour and
+`setMousePointer("pointer")`/`"default"`, restoring on unmount. Check `MouseButton.RIGHT` and
+`MouseButton.LEFT` from `@opentui/core`.
 
-```tsx
-"use client";
-import { useState } from "react";
-import { type MouseEvent } from "@opentui/core";
-import { useRenderer, useTerminalDimensions } from "@opentui/react";
-import { useBindings } from "@luciole-sh/core/client";
-import { ActionRow } from "./ActionRow";
-
-type Point = { x: number; y: number };
-function Menu({
-  at,
-  close,
-  open,
-  copy,
-}: {
-  at: Point;
-  close: () => void;
-  open: () => void;
-  copy: () => void;
-}) {
-  const { width, height } = useTerminalDimensions();
-  const menuWidth = Math.min(24, width);
-  const menuHeight = Math.min(2, height);
-  useBindings(
-    () => ({ bindings: [{ key: "escape", cmd: close, desc: "Close menu", group: "menu" }] }),
-    [close],
-  );
-  const choose = (action: () => void) => {
-    close();
-    action();
-  };
-  return (
-    <box
-      position="absolute"
-      top={0}
-      left={0}
-      width="100%"
-      height="100%"
-      zIndex={100}
-      onMouseDown={close}
-    >
-      <box
-        position="absolute"
-        left={Math.max(0, Math.min(at.x, width - menuWidth))}
-        top={Math.max(0, Math.min(at.y, height - menuHeight))}
-        width={menuWidth}
-        height={menuHeight}
-        overflow="hidden"
-        zIndex={101}
-        onMouseDown={(event) => event.stopPropagation()}
-      >
-        <scrollbox width="100%" height="100%">
-          <ActionRow label="Open          Ctrl+O" run={() => choose(open)} />
-          <ActionRow label="Copy path     Ctrl+Y" run={() => choose(copy)} />
-        </scrollbox>
-      </box>
-    </box>
-  );
-}
-
-export function DocumentActions({ path, onOpen }: { path: string; onOpen: () => void }) {
-  const renderer = useRenderer();
-  const [at, setAt] = useState<Point | null>(null);
-  const [result, setResult] = useState("");
-  const open = () => {
-    onOpen();
-    setResult("Opened");
-  };
-  const copy = () =>
-    setResult(renderer.copyToClipboardOSC52(path) ? "Copied path" : "Copy unavailable");
-  const show = (event: MouseEvent) => setAt({ x: event.x, y: event.y });
-  useBindings(
-    () => ({
-      bindings: [
-        { key: "ctrl+o", cmd: open, desc: "Open", group: "document" },
-        { key: "ctrl+y", cmd: copy, desc: "Copy path", group: "document" },
-      ],
-    }),
-    [onOpen, renderer, path],
-  );
-  return (
-    <box width="100%" height="100%" flexDirection="column">
-      <ActionRow label={`Open ${path}`} run={open} context={show} />
-      <ActionRow label="More…" run={() => setAt({ x: 0, y: 2 })} context={show} />
-      <text height={1} wrapMode="none" truncate>
-        {result}
-      </text>
-      {at ? <Menu at={at} close={() => setAt(null)} open={open} copy={copy} /> : null}
-    </box>
-  );
-}
-```
-
-For a longer menu use `<scrollbox>` (wheel support) and focusable `<select>` or bindings
-for Up/Down/Return; preserve the same click actions and display their shortcut labels.
+A menu shares one action list between right-click and a visible entrance. Mouse `x`/`y` are
+terminal cells: mount its overlay at terminal origin or subtract the containing pane's
+rendered coordinates. Clamp on resize; use a full-screen backdrop for outside dismissal,
+stop menu-event propagation, and bind Esc through `useBindings` while mounted. Longer menus
+use `<scrollbox>` and focusable `<select>` or Up/Down/Return bindings. Preserve click actions
+and shortcut labels. Report the chosen action's result in a toast or status.
 
 ## Loading animation
 
-Save as `components/Pulse.tsx`. This is the fixed-geometry opacity pulse from the installed
-starter's Pulse component (also `examples/chat/components/Pulse.tsx` in the repository).
-Use it around a compact loading label or a skeleton matching the arriving page. For a
-spinner, change only a glyph within a fixed-width cell. Pause the timeline on unmount.
+Reuse `components/Pulse.tsx` if present. The fallback below uses the starter's fixed-geometry
+opacity pulse (also `examples/chat/components/Pulse.tsx` in the repository). Mount the animated
+label only while pending; reserve its space so content stays in place. Disabled content may
+dim. Show the result when pending ends. For a spinner, change only a glyph in a fixed-width
+cell. Pause the timeline on unmount.
 
 ```tsx
 "use client";
