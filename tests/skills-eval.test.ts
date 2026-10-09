@@ -1,4 +1,5 @@
 import { afterAll, expect, test } from "bun:test";
+import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -8,6 +9,10 @@ import {
   baselineOf,
   CORE_PACKAGE,
   codexAuthIn,
+  copyApp,
+  deniedStoreEntries,
+  runStoreIn,
+  withStoredRun,
   DEFAULT_MODEL,
   DEFAULT_TIMEOUT_MINUTES,
   diffSince,
@@ -653,10 +658,11 @@ for (const signal of ["SIGINT", "SIGTERM"] as const)
       const runs = await Promise.all([appCopy(), appCopy()]);
       const pidFiles = runs.map(({ out }) => join(out, "agent.pid"));
       const script = join(runs[0].out, "runner.ts");
+      const store = await mkdtemp(join(temp, "signal-store-"));
       const { setup: _, ...scenario } = withSetup("unused");
       await writeFile(
         script,
-        `import { runInApp } from ${JSON.stringify(resolve(import.meta.dir, "../scripts/skills-eval-scenario.ts"))};
+        `import { runInApp, withStoredRun, copyApp, runLayout } from ${JSON.stringify(resolve(import.meta.dir, "../scripts/skills-eval-scenario.ts"))};
 await Promise.all(${JSON.stringify(
           runs.map(({ out, app }, n) => ({
             scenario,
@@ -669,7 +675,12 @@ await Promise.all(${JSON.stringify(
             // ends these groups itself: only the runner's interrupt path may do that.
             agent: ["sh", "-c", 'sleep 10 & echo "$$ $!" > "$0"; wait', pidFiles[n]],
           })),
-        )}.map(options => runInApp(options)));
+        )}.map(options => withStoredRun(${JSON.stringify(store)}, [], async root => {
+ const {app} = runLayout(root);
+ await copyApp(options.app, app, root);
+ await Bun.write(options.out + "/store-root", root);
+ await runInApp({...options, app, runRoot: root});
+})));
 `,
       );
       const runner = Bun.spawn([process.execPath, script], {
@@ -690,8 +701,11 @@ await Promise.all(${JSON.stringify(
             (await readFile(file, "utf8")).trim().split(" ").map(Number),
           ),
         );
-        for (const { out } of runs)
-          expect(await Bun.file(join(runLayout(out).codex, "auth.json")).exists()).toBe(fileAuth);
+        const storeRoots = await Promise.all(
+          runs.map(({ out }) => readFile(join(out, "store-root"), "utf8")),
+        );
+        for (const root of storeRoots)
+          expect(await Bun.file(join(runLayout(root).codex, "auth.json")).exists()).toBe(fileAuth);
         runner.kill(signal);
         runner.kill(signal);
         expect(await runner.exited).toBe(signal === "SIGINT" ? 130 : 143);
@@ -701,13 +715,67 @@ await Promise.all(${JSON.stringify(
           expect(alive(-leader)).toBe(false);
           expect(alive(child)).toBe(false);
         }
-        for (const { out } of runs) expect(await readdir(runLayout(out).codex)).toEqual([]);
+        for (const root of storeRoots) expect(existsSync(root)).toBe(false);
+        expect(await readdir(store)).toEqual([]);
         expect(await readFile(auth, "utf8")).toBe("credentials");
       } finally {
         runner.kill("SIGKILL");
         await runner.exited;
       }
     }, 20_000);
+
+test("an interrupt during report checks ends the check group and removes its live store", async () => {
+  const source = await appCopy();
+  const out = await mkdtemp(join(temp, "checking-report-"));
+  const store = await mkdtemp(join(temp, "checking-store-"));
+  const pidFile = join(out, "check.pid");
+  const marker = join(out, "store-root");
+  const script = join(out, "runner.ts");
+  const quote = (value: string) => `'${value.replaceAll("'", "'\\''")}'`;
+  await writeFile(
+    script,
+    `import {withStoredRun, copyApp, runInApp, runLayout} from ${JSON.stringify(resolve(import.meta.dir, "../scripts/skills-eval-scenario.ts"))};
+await withStoredRun(${JSON.stringify(store)}, [], async root => {
+ const {app} = runLayout(root);
+ await copyApp(${JSON.stringify(source.app)}, app, root);
+ await Bun.write(${JSON.stringify(marker)}, root);
+ await runInApp({...${JSON.stringify({
+   scenario: {
+     name: "s/checking",
+     prompt: "p",
+     timeoutMinutes: 1,
+     checks: [{ run: 'sleep 10 & echo "$$ $!" > ' + quote(pidFile) + "; wait" }],
+   },
+   arm: "without",
+   scenarioDir: temp,
+   out,
+   agent: ["sh", "-c", "true"],
+ })}, app, runRoot: root});
+});
+`,
+  );
+  const runner = Bun.spawn([process.execPath, script], {
+    stdin: "ignore",
+    stdout: "ignore",
+    stderr: "pipe",
+  });
+  try {
+    const deadline = performance.now() + 10_000;
+    while (!(await Bun.file(pidFile).exists()) && performance.now() < deadline) await Bun.sleep(10);
+    const [leader, child] = (await readFile(pidFile, "utf8")).trim().split(" ").map(Number);
+    const root = await readFile(marker, "utf8");
+    runner.kill("SIGTERM");
+    runner.kill("SIGTERM");
+    expect(await runner.exited).toBe(143);
+    expect(alive(-leader)).toBe(false);
+    expect(alive(child)).toBe(false);
+    expect(existsSync(root)).toBe(false);
+    expect(await readdir(store)).toEqual([]);
+  } finally {
+    runner.kill("SIGKILL");
+    await runner.exited;
+  }
+}, 20_000);
 
 test("without an auth file, each fresh home starts empty and the pass continues", async () => {
   const home = await mkdtemp(join(temp, "empty-home-"));
@@ -793,6 +861,84 @@ test("the report flags a without run that read the material, and a write outside
     "Written outside the app:",
     `  luciole-x/leaky without 1: ${escaped[0]}`,
     `  luciole-x/leaky with 1: ${escaped[1]}`,
+  ]);
+});
+
+test("stored runs deny other entries and return app, logs and checks to the report", async () => {
+  expect(runStoreIn("/home/u")).toBe("/home/u/.cache/luciole-skills-eval");
+  expect(runStoreIn("/home/u", "/cache")).toBe("/cache/luciole-skills-eval");
+  const store = await mkdtemp(join(temp, "store-"));
+  const other = join(store, "other-run");
+  await mkdir(other);
+  const source = await appCopy();
+  const out = join(temp, "stored-report");
+  await mkdir(out);
+  let runRoot = "";
+  const result = await withStoredRun(store, [], async (root) => {
+    runRoot = root;
+    const { app, tmp: runTmp, codex } = runLayout(root);
+    await copyApp(source.app, app, root);
+    const denies = await deniedStoreEntries(store, root);
+    expect(denies).toEqual([other, codex].sort());
+    const command = agentCommand({
+      app,
+      tmp: runTmp,
+      model: "m",
+      prompt: "p",
+      unreadable: denies,
+    });
+    expect(command[7]).toBe(app);
+    expect(command).toContain(
+      `permissions.skills_eval.filesystem={ "/" = "read", ${denies.map((path) => `"${path}" = "deny"`).join(", ")}, "${runTmp}" = "write", ":workspace_roots" = { "." = "write", ".agents" = "write", ".git" = "write" } }`,
+    );
+    const result = await runInApp({
+      scenario: {
+        name: "s/stored",
+        prompt: "p",
+        timeoutMinutes: 1,
+        checks: [{ exists: "agent.txt" }],
+      },
+      arm: "without",
+      scenarioDir: temp,
+      app,
+      out,
+      runRoot: root,
+      agent: [
+        "sh",
+        "-c",
+        'echo changed > agent.txt; mkdir "$CODEX_HOME/sessions"; echo session > "$CODEX_HOME/sessions/session.log"; echo "$TMPDIR"',
+      ],
+    });
+    expect(await readdir(root)).toEqual(["app", "codex", "tmp"]);
+    expect(await readFile(join(out, "transcript.jsonl"), "utf8")).toBe(`${runTmp}\n`);
+    expect(await readFile(join(out, "codex/sessions/session.log"), "utf8")).toBe("session\n");
+    expect(await Bun.file(join(codex, "auth.json")).exists()).toBe(false);
+    return result;
+  });
+  expect(result).toMatchObject({ agent: "ok", checks: [true] });
+  expect(await readFile(join(out, "app/agent.txt"), "utf8")).toBe("changed\n");
+  expect(existsSync(runRoot)).toBe(false);
+  expect(await readdir(store)).toEqual(["other-run"]);
+  const error = await rejectionOf(withStoredRun(store, [temp], async () => undefined));
+  expect(error).toBeInstanceOf(Error);
+  expect(String(error)).toContain("outside every unreadable root");
+});
+
+test("a successful read of a late store entry contaminates only the other run", () => {
+  const store = {
+    directory: "/cache/store",
+    root: "/cache/store/own",
+    app: "/cache/store/own/app",
+  };
+  const transcript = [
+    ran("cat /cache/store/late/app/file", 0),
+    ran("cat ../../late/app/file", 0),
+    ran("cat /cache/store/own/app/file", 0),
+    ran("cat /cache/store/late/app/file", 1),
+  ].join("\n");
+  expect(materialReads(transcript, { skill: "luciole-app", store })).toEqual([
+    "/bin/zsh -lc 'cat /cache/store/late/app/file'",
+    "/bin/zsh -lc 'cat ../../late/app/file'",
   ]);
 });
 

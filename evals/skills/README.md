@@ -23,9 +23,22 @@ one. Scenarios run one at a time.
 
 ## What a run sees and writes
 
-Each run has its own root, `runs/<skill>/<scenario>/<arm>-<n>/`. While the agent runs, the root
-holds only `app/`, its copy of the app; `tmp/`, which is its `$TMPDIR`; and `codex/`, which is
-its `$CODEX_HOME`. The logs are written there once it has ended.
+A live run gets a fresh random directory under
+`${XDG_CACHE_HOME:-$HOME/.cache}/luciole-skills-eval/`, with `app/`, its copy of the app;
+`tmp/`, its `$TMPDIR`; and `codex/`, its `$CODEX_HOME`. The store and its ancestors stay
+readable so Node can resolve toolchain paths. A store beneath an unreadable root is rejected.
+Every other existing store entry and the run's own `codex/` are denied by exact path. The
+store itself stays read-only to the agent.
+
+The report remains in temporary storage. After the agent ends, its app and Codex session
+logs are copied into `runs/<skill>/<scenario>/<arm>-<n>/`, alongside its transcript, diff and
+check logs; checks run on that report copy. The live store directory is removed afterwards.
+Interrupt cleanup removes credential copies, ends live process groups and removes live store
+directories, including runs interrupted while staging or returning results.
+
+A concurrent run created after the deny list was taken is not in that list. The contamination
+guard flags successful commands naming another path in the store, including relative paths,
+in the without arm. This is detection rather than sandbox prevention for that late entry.
 
 The Codex home of a run starts with a copy of the user's `auth.json`, when present; environment
 authentication needs no file and starts with an empty home. There is nothing else: no
@@ -46,8 +59,7 @@ the profile on every command the agent runs:
   for itself lands in `tmp/` and goes with the run.
 - **It reads** the rest of the disk, as the toolchain needs, except:
   - the temporary directories (`$TMPDIR`, the user's temporary directory and `/tmp`), which
-    hold this report's bases, tarballs and other runs, other reports, and other agents'
-    scratch apps. Its own `app/` and `tmp/`, inside them, stay open;
+    hold this report's bases, tarballs, report copies and other agents' scratch apps;
   - the user's Codex home (`$CODEX_HOME`, or `~/.codex`), whose session logs, history and
     memories hold the output of every earlier session, this pass's with runs included;
   - every checkout of this repository, which holds the skills' sources.

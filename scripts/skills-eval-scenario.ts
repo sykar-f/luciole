@@ -1,6 +1,6 @@
-import { copyFileSync, rmSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { mkdir, readFile, readdir, realpath, rm, writeFile } from "node:fs/promises";
-import { basename, isAbsolute, join } from "node:path";
+import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import { z } from "zod";
 
 /**
@@ -117,6 +117,15 @@ export function parseArgs(argv: readonly string[]): Args {
   const [skill, ...scenarios] = positional;
   if (!skill) throw new Error("name a skill");
   return { skill, scenarios, runs, model };
+}
+
+/** Literal absolute or relative paths named by a successful command, including quoted paths. */
+function otherStorePath(command: string, store: { directory: string; root: string; app: string }) {
+  const paths = command.match(/(?:\/|\.\.\/|\.\/)[^\s'"`;$|&()<>]+/g) ?? [];
+  return paths.some((path) => {
+    const absolute = resolve(store.app, path);
+    return inside(absolute, store.directory) && !inside(absolute, store.root);
+  });
 }
 
 // The events of `codex exec --json` that carry a shell command the agent ran. Codex writes one
@@ -252,7 +261,12 @@ const SESSION_STORE =
  */
 export function materialReads(
   transcript: string,
-  material: { skill: string; fingerprint?: Fingerprint; references?: readonly Fingerprint[] },
+  material: {
+    skill: string;
+    fingerprint?: Fingerprint;
+    references?: readonly Fingerprint[];
+    store?: { directory: string; root: string; app: string };
+  },
 ): string[] {
   const names = [`${material.skill}/SKILL.md`, `${material.skill}/references/`, "agents-block.md"];
   const { fingerprint } = material;
@@ -261,6 +275,7 @@ export function materialReads(
       ({ command, output }) =>
         names.some((name) => command.includes(name)) ||
         SESSION_STORE.test(command) ||
+        (material.store !== undefined && otherStorePath(command, material.store)) ||
         (fingerprint !== undefined &&
           fingerprint.name.test(output) &&
           fingerprint.description.test(output)) ||
@@ -509,6 +524,11 @@ export async function run(
     onSpawn?: (id: number) => void;
   } = {},
 ): Promise<Ran> {
+  if (interrupting) throw new Error("Eval runner is interrupting; no new process may start");
+  const owner = [...authCopies.values()].find(
+    ({ root, report }) =>
+      (root !== undefined && inside(cwd, root)) || (report !== undefined && inside(cwd, report)),
+  );
   const child = Bun.spawn([...cmd], {
     cwd,
     env: { ...process.env, ...options.env },
@@ -517,6 +537,7 @@ export async function run(
     stderr: "pipe",
     detached: true,
   });
+  owner?.groups.add(child.pid);
   options.onSpawn?.(child.pid);
   // Read while it runs: a full pipe would stall it. A child that keeps the pipe open keeps
   // the read pending until the group ends below.
@@ -533,6 +554,7 @@ export async function run(
   const code = await child.exited;
   clearTimeout(timer);
   const left = await endGroup(child.pid, options.cleanup);
+  owner?.groups.delete(child.pid);
   // A member left alive may hold the pipes open forever: keep what they said until now.
   if (left) await Promise.all([out.cancel(), err.cancel()]);
   await Promise.all([out.done, err.done]);
@@ -544,6 +566,68 @@ export async function must(cmd: readonly string[], cwd: string) {
   const result = await run(cmd, cwd);
   if (result.code !== 0) throw new Error(`${cmd.join(" ")} failed in ${cwd}:\n${result.output}`);
   return result.output;
+}
+
+/** Copy an app, using clone-on-write on macOS when the filesystem supports it. */
+export async function copyApp(from: string, to: string, cwd = dirname(to)) {
+  if (process.platform === "darwin") {
+    const cloned = await run(["/bin/cp", "-R", "-c", from, to], cwd);
+    if (cloned.code === 0) return;
+    await rm(to, { recursive: true, force: true });
+  }
+  await must(["cp", "-R", from, to], cwd);
+}
+
+function canonicalPath(path: string) {
+  try {
+    return realpathSync(path);
+  } catch {
+    return resolve(path);
+  }
+}
+
+const inside = (path: string, root: string) => path === root || path.startsWith(`${root}/`);
+
+/** A live run sits outside denied temporary ancestors; reports stay in tmpdir. */
+export const runStoreIn = (home: string, cache?: string) =>
+  join(cache || join(home, ".cache"), "luciole-skills-eval");
+
+/** Snapshot existing store entries. A later concurrent entry is covered by the guard. */
+export async function deniedStoreEntries(store: string, own: string): Promise<string[]> {
+  return [
+    ...(await readdir(store)).map((name) => join(store, name)).filter((path) => path !== own),
+    runLayout(own).codex,
+  ].sort();
+}
+
+/** Reserve and own the store directory synchronously, before any staging can be interrupted. */
+export async function withStoredRun<T>(
+  store: string,
+  roots: readonly string[],
+  work: (root: string) => Promise<T>,
+): Promise<T> {
+  if (interrupting) throw new Error("Eval runner is interrupting; no new run may start");
+  mkdirSync(store, { recursive: true });
+  const canonical = realpathSync(store);
+  if (
+    roots.some((root) => inside(canonical, resolve(root)) || inside(canonical, canonicalPath(root)))
+  )
+    throw new Error("The eval run store must be outside every unreadable root");
+  const root = mkdtempSync(join(canonical, "run-"));
+  const auth = join(runLayout(root).codex, "auth.json");
+  registerAuth(auth, root);
+  try {
+    return await work(root);
+  } catch (error: unknown) {
+    if (interrupting)
+      await new Promise<never>(() => {
+        // Keep the interrupted caller pending: the owner exits after group and store cleanup.
+      });
+    throw error;
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+    releaseAuth(auth);
+  }
 }
 
 const MS_PER_SECOND = 1000;
@@ -745,41 +829,44 @@ export async function codexAuthIn(home: string): Promise<string | undefined> {
 // One owner for every run's credential copy and live agent group, including concurrent runs
 // and runs without file authentication. Copy and removal are synchronous so a signal cannot
 // exit while a pending copy recreates the file after cleanup.
-const authCopies = new Map<string, number | undefined>();
+const authCopies = new Map<string, { groups: Set<number>; root?: string; report?: string }>();
 let interrupting = false;
 const INTERRUPTED_EXIT = 130;
 const TERMINATED_EXIT = 143;
 async function interruptAuthCopies(signal: "SIGINT" | "SIGTERM") {
   if (interrupting) return;
   interrupting = true;
-  const groups = [...authCopies.values()].filter((id): id is number => id !== undefined);
+  const groups = [...authCopies.values()].flatMap(({ groups }) => [...groups]);
   for (const auth of authCopies.keys()) rmSync(auth, { force: true });
   await Promise.all(groups.map((id) => endGroup(id)));
   // A finishing run may have changed the owner while cleanup was awaited.
   for (const auth of authCopies.keys()) rmSync(auth, { force: true });
   await Promise.all(
-    [...authCopies.values()]
-      .filter((id): id is number => id !== undefined)
-      .map((id) => endGroup(id)),
+    [...authCopies.values()].flatMap(({ groups }) => [...groups].map((id) => endGroup(id))),
   );
+  for (const { root } of authCopies.values())
+    if (root !== undefined) rmSync(root, { recursive: true, force: true });
   process.exit(signal === "SIGINT" ? INTERRUPTED_EXIT : TERMINATED_EXIT);
 }
 const onAuthInterrupt = () => void interruptAuthCopies("SIGINT");
 const onAuthTerminate = () => void interruptAuthCopies("SIGTERM");
 
-function copyAuth(source: string | undefined, auth: string) {
+function registerAuth(auth: string, root?: string) {
   if (interrupting) throw new Error("Eval runner is interrupting; no new agent may start");
+  if (authCopies.has(auth)) return;
   if (!authCopies.size) {
     process.on("SIGINT", onAuthInterrupt);
     process.on("SIGTERM", onAuthTerminate);
   }
-  // Register before copying: even a partially written copy belongs to this run.
-  authCopies.set(auth, undefined);
+  authCopies.set(auth, { groups: new Set(), root });
+}
+
+function copyAuth(source: string | undefined, auth: string) {
+  registerAuth(auth);
   if (source !== undefined) copyFileSync(source, auth);
 }
 
-function removeAuth(auth: string) {
-  rmSync(auth, { force: true });
+function releaseAuth(auth: string) {
   authCopies.delete(auth);
   if (!authCopies.size) {
     process.off("SIGINT", onAuthInterrupt);
@@ -787,9 +874,14 @@ function removeAuth(auth: string) {
   }
 }
 
+function removeAuth(auth: string) {
+  rmSync(auth, { force: true });
+  // Stored runs remain owned through the result copy and checks.
+  if (authCopies.get(auth)?.root === undefined) releaseAuth(auth);
+}
+
 /**
- * One run of `arm` in `app`, a fresh copy of a base under the run's root `out` (see
- * `runLayout`): the scenario's setup, then the agent's command with `$TMPDIR` and `$CODEX_HOME`
+ * One run of `arm` in `app`, a fresh copy of a base under `runRoot` (or `out` for a fixture): the scenario's setup, then the agent's command with `$TMPDIR` and `$CODEX_HOME`
  * in the root, then the checks. The Codex home holds a copy of `codexAuth` while the agent runs,
  * and only its own session's log afterwards. It writes `setup.log` (when the scenario has a
  * setup), `transcript.jsonl`, `diff.patch` and `checks.log` to `out`. A setup that fails starts
@@ -801,6 +893,8 @@ export async function runInApp(options: {
   scenarioDir: string;
   app: string;
   out: string;
+  /** The live store root, when results must be copied back to out. */
+  runRoot?: string;
   agent: readonly string[];
   /** The credentials Codex starts with, copied into the run's Codex home for the run only. */
   codexAuth?: string;
@@ -811,18 +905,24 @@ export async function runInApp(options: {
   cleanup?: Cleanup;
 }): Promise<Omit<RunResult, "scenario" | "arm" | "run">> {
   const { scenario, app, out, arm } = options;
+  const stored =
+    options.runRoot === undefined
+      ? undefined
+      : authCopies.get(join(runLayout(options.runRoot).codex, "auth.json"));
+  if (stored !== undefined) stored.report = out;
   // The setup's log waits for the agent's end: nothing but the layout is in the root before.
   let setupLog: string | undefined;
   if (scenario.setup !== undefined) {
     const setup = await runSetup(scenario.setup, app, { scenarioDir: options.scenarioDir });
     if (!setup.passed) {
       await writeFile(join(out, "setup.log"), setup.log);
+      if (options.runRoot !== undefined) await copyApp(app, join(out, "app"), options.runRoot);
       return { checks: [], agent: "setup failed", seconds: 0 };
     }
     setupLog = setup.log;
   }
   const baseline = await baselineOf(app);
-  const { tmp, codex } = runLayout(out);
+  const { tmp, codex } = runLayout(options.runRoot ?? out);
   await mkdir(tmp, { recursive: true });
   await mkdir(codex, { recursive: true });
   const auth = join(codex, "auth.json");
@@ -835,7 +935,7 @@ export async function runInApp(options: {
       timeoutMs: scenario.timeoutMinutes * MS_PER_MINUTE,
       env: { TMPDIR: tmp, CODEX_HOME: codex },
       cleanup: options.cleanup,
-      onSpawn: (id) => authCopies.set(auth, id),
+      onSpawn: (id) => authCopies.get(auth)?.groups.add(id),
     });
   } finally {
     // The report outlives the run: the credentials must not.
@@ -847,10 +947,15 @@ export async function runInApp(options: {
 
   await writeFile(join(out, "diff.patch"), await diffSince(app, baseline));
 
+  const checksApp = options.runRoot === undefined ? app : join(out, "app");
+  if (options.runRoot !== undefined) {
+    await copyApp(app, checksApp, options.runRoot);
+    await copyApp(codex, join(out, "codex"), options.runRoot);
+  }
   const checks: boolean[] = [];
   const logs: string[] = [];
   for (const check of scenario.checks) {
-    const result = await runCheck(check, app);
+    const result = await runCheck(check, checksApp);
     checks.push(result.passed);
     logs.push(`## ${describeCheck(check)}: ${result.passed ? "pass" : "FAIL"}\n${result.log}`);
   }
@@ -864,6 +969,14 @@ export async function runInApp(options: {
             skill: skillOf(scenario),
             fingerprint: options.fingerprint,
             references: options.references,
+            store:
+              options.runRoot === undefined
+                ? undefined
+                : {
+                    directory: dirname(options.runRoot),
+                    root: options.runRoot,
+                    app,
+                  },
           })
         : undefined,
     outside: writesOutside(agent.output, [app, await realpath(app)]),
