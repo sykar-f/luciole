@@ -1024,7 +1024,7 @@ test("stored runs deny other entries and return app, logs and checks to the repo
         'echo changed > agent.txt; mkdir "$CODEX_HOME/sessions"; echo session > "$CODEX_HOME/sessions/session.log"; echo "$TMPDIR"',
       ],
     });
-    expect(await readdir(root)).toEqual(["app", "codex", "tmp"]);
+    expect((await readdir(root)).toSorted()).toEqual(["app", "codex", "tmp"]);
     expect(await readFile(join(out, "transcript.jsonl"), "utf8")).toBe(`${runTmp}\n`);
     expect(await readFile(join(out, "codex/sessions/session.log"), "utf8")).toBe("session\n");
     expect(await Bun.file(join(codex, "auth.json")).exists()).toBe(false);
