@@ -27,7 +27,8 @@ Each run has its own root, `runs/<skill>/<scenario>/<arm>-<n>/`. While the agent
 holds only `app/`, its copy of the app; `tmp/`, which is its `$TMPDIR`; and `codex/`, which is
 its `$CODEX_HOME`. The logs are written there once it has ended.
 
-The Codex home of a run starts with a copy of the user's `auth.json` and nothing else: no
+The Codex home of a run starts with a copy of the user's `auth.json`, when present; environment
+authentication needs no file and starts with an empty home. There is nothing else: no
 earlier session's log, no history, no memories, no user config, plugins, MCP servers or hooks.
 Codex writes its state and this run's session log there, and the copy of `auth.json` is removed
 when the agent ends. The agent's commands cannot read `codex/`: Codex itself uses it, outside the
