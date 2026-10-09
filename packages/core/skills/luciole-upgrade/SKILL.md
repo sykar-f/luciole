@@ -62,6 +62,9 @@ it, and any file `luciole skills` left alone.
 
 - `luciole skills` without `--agent` writes both `.agents/skills` and `.claude/skills`, and
   `status` without it checks both. Name the same targets in both commands.
+- A sandbox may keep `.agents/` read-only (Codex's `workspace-write` does): when
+  `luciole skills` fails with `EPERM`, finish the other steps and give the user the two
+  commands of step 7 to run. Hand-editing the copies leaves them "modified locally".
 - `luciole skills` leaves a skill file the user edited and warns, and `status` then reads
   "modified locally" and still exits 0. List those files for the user; use `--force` only
   with their consent.
