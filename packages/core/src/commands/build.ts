@@ -6,6 +6,7 @@ import { compileApp, compileClient } from "../compile";
 import { publisherIdentity, readPublisherKey } from "../publisher";
 import { installWebRuntime } from "../web-runtime";
 import type { Command } from "./command";
+import { printStaleNotice } from "./skills";
 // What only `--compile` reads: given without it, they would be dropped in silence.
 const COMPILE_FLAGS = {
   "--name": "value",
@@ -65,6 +66,7 @@ export const build: Command = {
     // Server runs in the browser too.
     const local = flag("--web-local");
     const web = local || flag("--web");
+    await printStaleNotice(directory);
     // Everything is staged with the build and published with it: a failing --web or
     // --compile leaves the previous build in place. A binary written outside the build
     // (--outfile) is staged beside its destination and moved over the previous one last.

@@ -163,3 +163,26 @@ test("a workspace nested under a node_modules ancestor, or a test directory, is 
   expect(dependencies["@luciole-sh/markdown-editor"]).toBe("file:./vendor/markdown-editor");
   expect(await Bun.file(join(starter, "vendor/markdown-editor/src/index.ts")).exists()).toBe(true);
 });
+
+test(
+  "luciole init gives the new app the skills and the AGENTS.md block",
+  async () => {
+    const target = join(temp, "init-skills");
+    const cli = join(workspaceFramework, "src/cli.ts");
+    const created = await execute([process.execPath, cli, "init", target], {
+      env: { ...process.env, CI: "" },
+    });
+    expect(created.exitCode, created.stderr.toString()).toBe(0);
+    for (const directory of [".agents/skills", ".claude/skills"]) {
+      expect(await Bun.file(join(target, directory, "luciole-app/SKILL.md")).text()).toContain(
+        "luciole-version:",
+      );
+      expect(await Bun.file(join(target, directory, ".luciole-skills.json")).exists()).toBe(true);
+    }
+    expect(await Bun.file(join(target, "AGENTS.md")).text()).toContain("<!-- BEGIN:luciole -->");
+    expect(await Bun.file(join(target, "CLAUDE.md")).text()).toContain("@AGENTS.md");
+    const status = await execute([process.execPath, cli, "skills", "status", "--app", target]);
+    expect(status.exitCode, status.stdout.toString()).toBe(0);
+  },
+  BUILD_TEST_MS,
+);

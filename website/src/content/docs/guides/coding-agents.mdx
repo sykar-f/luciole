@@ -1,0 +1,51 @@
+---
+title: Coding agents
+description: Give Claude Code, Codex, Cursor and other coding agents the skills and the AGENTS.md block that match the luciole version your app uses.
+sources:
+  - packages/core/src/commands/skills.ts
+  - packages/core/skills
+  - packages/core/agents-block.md
+---
+
+import CopyCommand from "../../../components/CopyCommand.astro";
+import Note from "../../../components/docs/Note.astro";
+
+A coding agent knows the framework it was trained on, not the one your app runs. luciole
+ships agent skills and an `AGENTS.md` block with each release. An agent that works on your app
+then reads what matches its version.
+
+An app made by `luciole init` already has them. For an older app, run in its directory:
+
+```sh
+luciole skills
+```
+
+## What lands in your app
+
+- **Skills.** One folder per skill under `.agents/skills/` and `.claude/skills/`, each with a
+  `SKILL.md` ([Agent Skills format](https://agentskills.io)). Codex, Cursor, Gemini CLI,
+  Copilot, OpenCode and pi read `.agents/skills/`; Claude Code reads only `.claude/skills/`.
+- **A block in `AGENTS.md`**, between `<!-- BEGIN:luciole -->` and `<!-- END:luciole -->`. The
+  rest of the file is yours. When `CLAUDE.md` is absent, luciole creates it with an
+  `@AGENTS.md` import, so Claude Code reads the same instructions.
+
+Commit all of it. The copies are plain files, not symlinks, so a fresh clone works before
+`bun install`.
+
+## Keep it current
+
+After you upgrade `@luciole-sh/core`, `luciole dev` and `luciole build` print a line on stderr
+saying the installed skills are from another version. Run `luciole skills` to update them.
+Files you edited are left alone with a warning; `--force` replaces them.
+
+In CI, `luciole skills status` exits with code 3 when a skill or the block is stale or
+missing.
+
+<Note>
+  `luciole skills --global` installs the skills in `~/.agents/skills` and `~/.claude/skills` for
+  every project. They follow the luciole version that installed them, not each project's: prefer the
+  project copies.
+</Note>
+
+See the [`luciole skills` reference](/docs/reference/cli/) for every flag, and
+`luciole skills remove` to take it all out again.

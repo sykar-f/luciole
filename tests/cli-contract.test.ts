@@ -210,3 +210,32 @@ test("luciolex and luciole never read a --yes after -- as their own", async () =
     expect(run.stderr.toString()).toContain("--yes");
   }
 });
+
+test("build and dev print a stale-skills notice on stderr, and change no exit code", async () => {
+  const manifest = join(dir, ".agents/skills/.luciole-skills.json");
+  const dated = JSON.stringify({ version: "0.0.1", files: {} });
+  await Bun.write(manifest, dated);
+  await Bun.write(join(withArgs, ".claude/skills/.luciole-skills.json"), dated);
+  try {
+    const env = { ...process.env, CI: "" };
+    const built = await execute([process.execPath, cli, "build"], { cwd: dir, env });
+    expect(built.exitCode).toBe(0);
+    expect(built.stderr.toString()).toContain("agent skills in this app are from luciole 0.0.1");
+    // dev stops on a refused argument: still exit code 2, the notice before it.
+    const refused = await execute(
+      [process.execPath, cli, "dev", "--app", withArgs, "--", "--mode", "wrong"],
+      { env },
+    );
+    expect(refused.exitCode).toBe(2);
+    expect(refused.stderr.toString()).toContain("run luciole skills to update them");
+    const quiet = await execute([process.execPath, cli, "build"], {
+      cwd: dir,
+      env: { ...process.env, CI: "true" },
+    });
+    expect(quiet.exitCode).toBe(0);
+    expect(quiet.stderr.toString()).not.toContain("agent skills");
+  } finally {
+    await rm(join(dir, ".agents"), { recursive: true, force: true });
+    await rm(join(withArgs, ".claude"), { recursive: true, force: true });
+  }
+}, 60000);
