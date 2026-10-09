@@ -9,7 +9,16 @@ npm init @luciole-sh my-app
 bun create @luciole-sh my-app
 ```
 
-then, in `my-app`:
+The app includes `AGENTS.md` with the luciole block, `CLAUDE.md` with its `@AGENTS.md` import,
+and skills in `.agents/skills/` and `.claude/skills/`, with their `.luciole-skills.json` manifests,
+at this release's version. They work before `bun install`. To create an app without this material:
+
+```sh
+bunx @luciole-sh/create my-app --no-skills
+npm init @luciole-sh my-app -- --no-skills
+```
+
+Then, in `my-app`:
 
 ```sh
 bun install

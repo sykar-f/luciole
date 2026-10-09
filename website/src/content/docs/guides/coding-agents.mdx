@@ -14,7 +14,14 @@ A coding agent knows the framework it was trained on, not the one your app runs.
 ships agent skills and an `AGENTS.md` block with each release. An agent that works on your app
 then reads what matches its version.
 
-An app made by `luciole init` already has them. For an older app, run in its directory:
+An app made by `luciole init`, `bunx @luciole-sh/create my-app` or
+`npm init @luciole-sh my-app` already has them, at that release's version. The scaffolder
+writes both skill directories, their `.luciole-skills.json` manifests, the `AGENTS.md` block
+and the `CLAUDE.md` import. To opt out when creating an app, use
+`bunx @luciole-sh/create my-app --no-skills` or
+`npm init @luciole-sh my-app -- --no-skills`.
+
+For an older app, run in its directory:
 
 ```sh
 luciole skills
