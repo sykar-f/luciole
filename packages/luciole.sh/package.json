@@ -1,6 +1,6 @@
 {
   "name": "luciole.sh",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": false,
   "description": "Install name of luciole: `bunx luciole.sh init` starts a project. The framework is @luciole-sh/core.",
   "keywords": [

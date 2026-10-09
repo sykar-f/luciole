@@ -1,6 +1,6 @@
 {
   "name": "@luciole-sh/create",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": false,
   "description": "Scaffolds a luciole starter application: bunx @luciole-sh/create my-app, npm init @luciole-sh my-app.",
   "keywords": [

@@ -115,9 +115,9 @@ Run bun run build when you are back.
 ```
 
 _The program above, in a 72×13 terminal. The frame is captured from a real PTY by
-[`website/scripts/capture.py`](https://github.com/sykar-f/luciole/blob/v0.1.0/website/scripts/capture.py)
+[`website/scripts/capture.py`](https://github.com/sykar-f/luciole/blob/v0.2.0/website/scripts/capture.py)
 (`python3 website/scripts/capture.py markdown-editor`), and the program is
-[`example/index.tsx`](https://github.com/sykar-f/luciole/blob/v0.1.0/packages/markdown-editor/example/index.tsx)._
+[`example/index.tsx`](https://github.com/sykar-f/luciole/blob/v0.2.0/packages/markdown-editor/example/index.tsx)._
 
 The editor reads its colours from a `SyntaxStyle`, with the group names of Markdown highlighting
 (`markup.heading.1`, `markup.strong`, `markup.raw.block` and so on). Without `syntaxStyle`, the text is plain and
@@ -411,6 +411,6 @@ The suite checks the editor against these:
 
 - [luciole documentation](https://luciole.sh/docs/), including the
   [API reference](https://luciole.sh/docs/reference/api/)
-- [`examples/notes`](https://github.com/sykar-f/luciole/tree/v0.1.0/examples/notes), a full app that edits notes with
+- [`examples/notes`](https://github.com/sykar-f/luciole/tree/v0.2.0/examples/notes), a full app that edits notes with
   this editor
 - [Package status](https://luciole.sh/status/)
