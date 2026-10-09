@@ -13,6 +13,48 @@ and marked **Breaking**.
 
 ## [Unreleased]
 
+### Added
+
+- A public testing API, `@luciole-sh/core/test`, to build an app, start its Server
+  and drive its Client in a test terminal. It provides frame waits with bounded
+  timeouts, clicks, typing, named keys and simulated latency and network faults.
+  New apps include an example test.
+- Offline Markdown documentation in `@luciole-sh/core/docs`, with an index and
+  links between pages, matching the installed release.
+- `luciole skills` installs versioned skills in `.agents/skills` and
+  `.claude/skills`, an app-specific `AGENTS.md` block and a `CLAUDE.md` import.
+  Install, status and remove commands track owned files and preserve user edits;
+  dev and build warn when the installed skills are stale.
+- Six skills for coding agents: `luciole-app` for screens, routing, Server
+  Functions, caching and sign-in; `luciole-tui` for native widgets, focus,
+  clickable controls, menus and concise layouts; `luciole-test` for test levels,
+  network failures and restore; `luciole-debug` for Client/Server diagnostics;
+  `luciole-ship` for builds and deployment; and `luciole-upgrade` for moving an
+  app to a newer release.
+- New apps created by `luciole init`, `bunx luciole.sh init` or
+  `bunx @luciole-sh/create` include the agent material by default. The standalone
+  `@luciole-sh/create` scaffolder accepts `--no-skills` to opt out.
+- An upstream-libraries reference explaining which OpenTUI, TanStack Router and
+  TanStack Form APIs apply to luciole apps, including native widgets, typed
+  Router hooks and browser-only limits.
+
+### Fixed
+
+- A failed Server page render now leaves a trace with its call ID, route and
+  error name in the Server log. Instrumentation receives the error message in a
+  failure event, shown in DevTools.
+- A cancelled response body ends once in instrumentation, and cancelling a
+  streaming page reaches the Flight render, including on Node.
+- Each `openClient` test Client has its own runtime by default, so unsaved text
+  and routes cannot leak into another Client. A shared `tag` opts into sharing.
+  `press("return")` and the other documented key names send keys rather than
+  typing their names.
+- The testing guide now puts network conditions on `openClient`, where they
+  take effect. The restore guide uses `Input`'s `onInput`, and the hosting guide
+  includes `--native-dir` when building for another target.
+- Installing agent material produces files that pass a starter's formatter;
+  formatting the managed block does not make it appear edited.
+
 ## [0.1.0] - 2026-10-06
 
 First public release, on npm. Five packages share this version: `luciole.sh`,
