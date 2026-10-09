@@ -5,14 +5,12 @@ description: Screens, keys and panes of a luciole app, drawn with OpenTUI (no DO
 
 # luciole terminal UI
 
-The screen is OpenTUI, rendered by React 19: intrinsics from `@opentui/react` (`<box>`,
-`<text>`, `<span>`, `<scrollbox>`, `<input>`, `<textarea>`, `<select>`, `<code>`,
-`<markdown>`). There is no DOM, no CSS and no `window`. Routes, pages and data belong to the
-`luciole-app` skill.
+The screen is OpenTUI, rendered by React 19. Routes, pages and data belong to `luciole-app`.
 
-Before writing a screen, read one of the app's own components (the starter's
-`app/layout.tsx`, `components/StatusLine.tsx`) and copy its idioms. API:
-`node_modules/@luciole-sh/core/docs/reference/api.md`, section "Restore fields and bind keys".
+Before composing a screen, read [references/opentui.md](references/opentui.md), survey the
+installed components and reuse the widget's own behaviour. Then read the app's
+`app/layout.tsx` and `components/StatusLine.tsx` for its visual conventions.
+API: `node_modules/@luciole-sh/core/docs/reference/api.md`, section "Restore fields and bind keys".
 
 ## Layout
 
