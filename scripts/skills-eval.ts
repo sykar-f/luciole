@@ -25,6 +25,7 @@ import { stageStarter } from "../packages/create/scripts/starter";
 import {
   agentCommand,
   commitAll,
+  codexAuthIn,
   fingerprintOf,
   must,
   parseArgs,
@@ -187,7 +188,7 @@ async function runOnce(options: {
       prompt: scenario.prompt,
       unreadable: unreadableFor({ arm, skill: skillOf(scenario), roots: options.unreadable }),
     }),
-    codexAuth: join(codexHome, "auth.json"),
+    codexAuth: await codexAuthIn(codexHome),
     fingerprint: options.fingerprint,
   });
   return { scenario: scenario.name, arm, run: options.run, ...result };
