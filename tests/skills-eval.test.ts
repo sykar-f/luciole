@@ -15,6 +15,8 @@ import {
   parseArgs,
   parseScenario,
   fingerprintOf,
+  referenceFingerprintOf,
+  referencePolicy,
   materialReads,
   readsSkill,
   renderTable,
@@ -219,6 +221,48 @@ test("a skill's fingerprint: its name line and its description's first words", (
   expect(fingerprintOf("---\nname: x\n---\n")).toBeUndefined();
 });
 
+test("reference openings detect renamed copies without confusing the docs", async () => {
+  const reference =
+    "# Routing\n\nThe full rules: `node_modules/@luciole-sh/core/docs/concepts/routing.md`.\n";
+  const fingerprint = referenceFingerprintOf(reference);
+  expect(fingerprint).toBeDefined();
+  expect(referenceFingerprintOf("no heading")).toBeUndefined();
+  expect(referenceFingerprintOf("# Empty\n")).toBeUndefined();
+  const skillDirectory = join(temp, "reference-skill");
+  const app = join(temp, "reference-app");
+  await mkdir(join(skillDirectory, "references", "nested"), { recursive: true });
+  await mkdir(join(app, "node_modules", "@luciole-sh", "core", "docs"), { recursive: true });
+  await writeFile(join(skillDirectory, "references", "routing.md"), reference);
+  await writeFile(
+    join(skillDirectory, "references", "nested", "auth.md"),
+    "# Auth\n\nSign in before reading anything.\n",
+  );
+  await writeFile(
+    join(app, "node_modules", "@luciole-sh", "core", "docs", "routing.md"),
+    "# Routing\n\nRoutes map pages to paths.\n",
+  );
+  const policy = await referencePolicy(skillDirectory, app);
+  expect(policy.denies).toEqual(["/**/auth.md"]);
+  expect(policy.fingerprints).toHaveLength(2);
+  const transcript = [
+    ran("cat copied.txt", 0, reference),
+    ran("rg full cached.json", 0, JSON.stringify({ text: reference })),
+    ran("cat failed.txt", 1, reference),
+    ran("cat docs/routing.md", 0, "# Routing\n\nRoutes map pages to paths.\n"),
+  ].join("\n");
+  expect(
+    materialReads(transcript, { skill: "luciole-app", references: policy.fingerprints }),
+  ).toEqual(["/bin/zsh -lc 'cat copied.txt'", "/bin/zsh -lc 'rg full cached.json'"]);
+  expect(
+    unreadableFor({
+      arm: "without",
+      skill: "luciole-app",
+      roots: ["/r"],
+      references: policy.denies,
+    }),
+  ).toEqual(["/r", "/**/SKILL.md", "/**/auth.md", "/**/agents-block.md"]);
+});
+
 test("a without run that read the skill through a Codex log is contaminated", () => {
   const fingerprint = fingerprintOf(SHIP);
   // skill-ship's TaedsM without-1: rg printed rollout lines, whose JSON escapes the newlines.
@@ -283,8 +327,7 @@ test("the without arm may not read the skill under test or the block, anywhere",
   expect(unreadableFor({ arm: "with", skill: "luciole-app", roots })).toEqual(roots);
   expect(unreadableFor({ arm: "without", skill: "luciole-app", roots })).toEqual([
     ...roots,
-    "/**/luciole-app/SKILL.md",
-    "/**/luciole-app/references/**",
+    "/**/SKILL.md",
     "/**/agents-block.md",
   ]);
 });
@@ -705,20 +748,36 @@ test("the report flags a without run that read the material, and a write outside
     timeoutMinutes: 1,
   };
   const read = ran("cat ../../with-1/app/.agents/skills/luciole-x/SKILL.md", 0);
+  const reference = "# Reference\n\nRead the full routing rules.";
+  const fingerprint = referenceFingerprintOf(reference);
+  if (!fingerprint) throw new Error("Reference fixture needs an opening");
+  const referenceRead = ran("cat renamed.txt", 0, reference);
   const results: RunResult[] = [];
   const escaped: string[] = [];
   for (const arm of ["without", "with"] as const) {
     const { out, app } = await appCopy();
     const outside = join(out, "LoginForm.tsx");
     escaped.push(outside);
-    const transcript = [read, changed("completed", join(app, "a.txt"), outside)].join("\n");
+    const transcript = [
+      read,
+      referenceRead,
+      changed("completed", join(app, "a.txt"), outside),
+    ].join("\n");
     const agent = ["sh", "-c", `printf '%s\\n' "$0"`, transcript];
-    const result = await runInApp({ scenario, arm, scenarioDir: temp, app, out, agent });
+    const result = await runInApp({
+      scenario,
+      arm,
+      scenarioDir: temp,
+      app,
+      out,
+      agent,
+      references: [fingerprint],
+    });
     results.push({ scenario: scenario.name, arm, run: 1, ...result });
   }
   const command = "/bin/zsh -lc 'cat ../../with-1/app/.agents/skills/luciole-x/SKILL.md'";
   expect(results.map(({ contamination, outside }) => ({ contamination, outside }))).toEqual([
-    { contamination: [command], outside: [escaped[0]] },
+    { contamination: [command, "/bin/zsh -lc 'cat renamed.txt'"], outside: [escaped[0]] },
     { contamination: undefined, outside: [escaped[1]] },
   ]);
   const table = renderTable(results, [scenario]).split("\n");
@@ -726,9 +785,10 @@ test("the report flags a without run that read the material, and a write outside
     /^\| luciole-x\/leaky \| without \| 1 +\| pass \| - +\| YES +\| YES +\|/,
   );
   expect(table[3]).toMatch(/^\| luciole-x\/leaky \| with +\| 1 +\| pass \| - +\| - +\| YES +\|/);
-  expect(table.slice(-6)).toEqual([
+  expect(table.slice(-7)).toEqual([
     "Contaminated (the material read in the without arm):",
     `  luciole-x/leaky without 1: ${command}`,
+    "  luciole-x/leaky without 1: /bin/zsh -lc 'cat renamed.txt'",
     "",
     "Written outside the app:",
     `  luciole-x/leaky without 1: ${escaped[0]}`,

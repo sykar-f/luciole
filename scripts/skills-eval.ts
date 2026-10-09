@@ -27,6 +27,7 @@ import {
   commitAll,
   codexAuthIn,
   fingerprintOf,
+  referencePolicy,
   must,
   parseArgs,
   parseScenario,
@@ -169,6 +170,7 @@ async function runOnce(options: {
   model: string;
   unreadable: readonly string[];
   fingerprint?: Fingerprint;
+  references: Awaited<ReturnType<typeof referencePolicy>>;
 }): Promise<RunResult> {
   const { scenario, arm, base, out, model } = options;
   await mkdir(out, { recursive: true });
@@ -186,10 +188,16 @@ async function runOnce(options: {
       tmp,
       model,
       prompt: scenario.prompt,
-      unreadable: unreadableFor({ arm, skill: skillOf(scenario), roots: options.unreadable }),
+      unreadable: unreadableFor({
+        arm,
+        skill: skillOf(scenario),
+        roots: options.unreadable,
+        references: options.references.denies,
+      }),
     }),
     codexAuth: await codexAuthIn(codexHome),
     fingerprint: options.fingerprint,
+    references: options.references.fingerprints,
   });
   return { scenario: scenario.name, arm, run: options.run, ...result };
 }
@@ -214,6 +222,11 @@ async function main() {
     ),
   );
 
+  const references = await referencePolicy(
+    join(bases.with, ".agents/skills", args.skill),
+    bases.without,
+  );
+
   const plan = scenarios.flatMap((scenario) =>
     Array.from({ length: args.runs }, (_, i) => i + 1).flatMap((n) =>
       ARMS.map((arm) => ({ scenario, arm, n })),
@@ -231,6 +244,7 @@ async function main() {
         model: args.model,
         unreadable,
         fingerprint,
+        references,
       }),
     { scenarios, report: join(temp, "report.md") },
   );

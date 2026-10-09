@@ -51,9 +51,14 @@ the profile on every command the agent runs:
   - the user's Codex home (`$CODEX_HOME`, or `~/.codex`), whose session logs, history and
     memories hold the output of every earlier session, this pass's with runs included;
   - every checkout of this repository, which holds the skills' sources.
-- **In the without arm**, it also reads no `<skill>/SKILL.md` of the skill under test, nothing
-  under its `references/`, and no `agents-block.md`, wherever they sit on the disk: the user's
-  own skill directories and the package manager's caches included.
+- **In the without arm**, it reads no `SKILL.md` or `agents-block.md` anywhere on disk,
+  including the user's skill directories and package caches. These single-component patterns
+  avoid a Codex 0.160 Seatbelt limitation: a nested global deny pattern also forbids removing
+  unrelated directories, preventing tests from cleaning up their build locks.
+- Reference basenames are also denied globally when the without base has no legitimate file
+  of that name. Names shared with the app or its package docs remain readable, so the docs
+  keep their pages. A successful command naming the skill's `references/`, or printing a
+  reference's first heading and first words (even from a renamed copy), contaminates the run.
 - **On the network**, it can bind and connect on loopback (`127.0.0.1` and `::1`) on any
   port, so it can run the app and its tests. Codex's managed proxy allows only `localhost`,
   `127.0.0.1` and `::1`; outside TCP connections and HTTPS fetches are refused. **Codex 0.160
@@ -64,8 +69,8 @@ The report checks what the sandbox should have stopped, whatever it allowed. A w
 **contaminated** when a command it ran exited 0 and either named the skill's SKILL.md, a file of
 its `references/`, `agents-block.md` or a Codex session's log (a `rollout-*.jsonl`,
 `session_index.jsonl`, `history.jsonl` or a Codex home's `sessions/`), or printed the skill's
-own opening: its frontmatter's `name:` line and the first words of its description, which a
-search through any copy of the skill shows. A run whose `file_change` events name a path
+own opening: its frontmatter's `name:` line and the first words of its description, or a
+reference's first heading and first words, which a search through a renamed copy also shows. A run whose `file_change` events name a path
 outside its app **wrote outside**. Both show in the table, with the commands and paths listed
 under it, so a leak or a write that escaped never passes for a skill's result.
 

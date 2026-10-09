@@ -1,6 +1,6 @@
 import { copyFileSync, rmSync } from "node:fs";
-import { mkdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
-import { isAbsolute, join } from "node:path";
+import { mkdir, readFile, readdir, realpath, rm, writeFile } from "node:fs/promises";
+import { basename, isAbsolute, join } from "node:path";
 import { z } from "zod";
 
 /**
@@ -194,6 +194,47 @@ export function fingerprintOf(skillMd: string): Fingerprint | undefined {
   };
 }
 
+/** A reference's first heading and the first words after it, as a search prints them. */
+export function referenceFingerprintOf(text: string): Fingerprint | undefined {
+  const heading = /^#{1,6}[^\S\r\n]+[^\r\n]+/m.exec(text);
+  if (!heading) return undefined;
+  const words = text
+    .slice(heading.index + heading[0].length)
+    .trim()
+    .split(/\s+/)
+    .slice(0, FINGERPRINT_WORDS);
+  if (!words[0]) return undefined;
+  return {
+    name: new RegExp(escapeRegExp(heading[0])),
+    description: new RegExp(words.map(escapeRegExp).join(GAP)),
+  };
+}
+
+/**
+ * References as installed in the with base. Deny a basename only when the without base
+ * has no legitimate file of that name; otherwise the contamination guard covers its text.
+ */
+export async function referencePolicy(skillDirectory: string, withoutApp: string) {
+  const legitimate = new Set<string>();
+  for await (const file of new Bun.Glob("**/*").scan({
+    cwd: withoutApp,
+    dot: true,
+    onlyFiles: true,
+  }))
+    legitimate.add(basename(file));
+  const denies = new Set<string>();
+  const fingerprints: Fingerprint[] = [];
+  const references = join(skillDirectory, "references");
+  if (!(await readdir(references).catch(() => [])).length) return { denies: [], fingerprints };
+  for await (const file of new Bun.Glob("**/*").scan({ cwd: references, onlyFiles: true })) {
+    const fingerprint = referenceFingerprintOf(await readFile(join(references, file), "utf8"));
+    if (fingerprint) fingerprints.push(fingerprint);
+    const name = basename(file);
+    if (!legitimate.has(name)) denies.add(`/**/${name}`);
+  }
+  return { denies: [...denies].sort(), fingerprints };
+}
+
 /**
  * What a command names when it reads a Codex session's log: a rollout, the session index, the
  * prompt history, or a home's session directories. Those logs hold the full output of every
@@ -211,7 +252,7 @@ const SESSION_STORE =
  */
 export function materialReads(
   transcript: string,
-  material: { skill: string; fingerprint?: Fingerprint },
+  material: { skill: string; fingerprint?: Fingerprint; references?: readonly Fingerprint[] },
 ): string[] {
   const names = [`${material.skill}/SKILL.md`, `${material.skill}/references/`, "agents-block.md"];
   const { fingerprint } = material;
@@ -222,7 +263,10 @@ export function materialReads(
         SESSION_STORE.test(command) ||
         (fingerprint !== undefined &&
           fingerprint.name.test(output) &&
-          fingerprint.description.test(output)),
+          fingerprint.description.test(output)) ||
+        material.references?.some(
+          (reference) => reference.name.test(output) && reference.description.test(output),
+        ),
     )
     .map(({ command }) => command);
 }
@@ -631,20 +675,18 @@ export const skillOf = (scenario: Scenario) => scenario.name.split("/")[0] ?? sc
 
 /**
  * What the agent of a run of `arm` may not read: `roots`, the directories that hold the other
- * runs and reports, the skills' sources and the Codex sessions' logs, and, in the without arm,
- * the skill under test (its SKILL.md and its references) and the AGENTS.md block's source
- * wherever they sit on the disk, as patterns.
+ * runs and reports, the skills' sources and the Codex sessions' logs. In the without arm,
+ * single-component patterns deny every SKILL.md, the AGENTS.md block's source, and reference
+ * basenames that do not collide with legitimate app files. Nested global patterns prevent
+ * directory deletion under Codex 0.160's Seatbelt ancestor protection.
  */
 export function unreadableFor(options: {
   arm: Arm;
   skill: string;
   roots: readonly string[];
+  references?: readonly string[];
 }): string[] {
-  const material = [
-    `/**/${options.skill}/SKILL.md`,
-    `/**/${options.skill}/references/**`,
-    "/**/agents-block.md",
-  ];
+  const material = ["/**/SKILL.md", ...(options.references ?? []), "/**/agents-block.md"];
   return [...options.roots, ...(options.arm === "without" ? material : [])];
 }
 
@@ -764,6 +806,7 @@ export async function runInApp(options: {
   codexAuth?: string;
   /** The skill under test's fingerprint, when the skill exists, for the contamination guard. */
   fingerprint?: Fingerprint;
+  references?: readonly Fingerprint[];
   /** How the agent's process group ends: `process.kill` unless a test stands in for it. */
   cleanup?: Cleanup;
 }): Promise<Omit<RunResult, "scenario" | "arm" | "run">> {
@@ -820,6 +863,7 @@ export async function runInApp(options: {
         ? materialReads(agent.output, {
             skill: skillOf(scenario),
             fingerprint: options.fingerprint,
+            references: options.references,
           })
         : undefined,
     outside: writesOutside(agent.output, [app, await realpath(app)]),
