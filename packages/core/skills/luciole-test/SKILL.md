@@ -1,6 +1,6 @@
 ---
 name: luciole-test
-description: Test a luciole app. Use when writing, running or fixing `bun test` files that drive the app through `@luciole-sh/core/test` (`buildApp`, `startServer`, `openClient`); when testing what the user sees after a failed save, an unreachable Server, latency or a fault; when testing that typed text survives a restart; or when a luciole test times out, sees state from another test, or passes when it should fail. Also for "add tests", "write a test for this screen", "test the error message", "why does my test hang".
+description: Tests of a luciole app. Read before writing, changing, running or fixing any `bun test` file of an app built on `@luciole-sh/core` (`tests/*.test.ts`, `buildApp`, `startServer`, `openClient`), including several tests in one file; testing what the user sees after a failed save, an unreachable Server, latency or a fault; testing that typed text comes back after a restart; or when a luciole test times out, sees state left by another test, or passes when it should fail. Also for "add tests", "write a test for this screen", "test the error message", "prove it with a test", "why does my test hang".
 ---
 
 # Testing a luciole app
@@ -42,30 +42,30 @@ test(
 
 ## Gotchas
 
-- Give every `openClient` call its own `tag`. Clients without one share a single runtime for
-  the whole file: router, modules and Drafts. A later test then sees the text an earlier test
-  typed, and a restart test passes on that shared memory even when restore is broken.
-- Set latency and faults on the Client: `openClient(app, server, { latencyMs, network })`.
-  The Server ignores `LUCIOLE_LATENCY_MS`, `LUCIOLE_FAULT` and the other network variables
-  passed to `startServer`, whatever its doc comment says. Read
-  [references/network.md](references/network.md) when a test needs a failed request, a fault
-  or latency.
+- Give every `openClient` call its own `tag`. Clients without one share a single runtime for the
+  whole file: router, modules and Drafts. A later test then sees the text an earlier test typed, and
+  a restart test passes on that shared memory even when restore is broken.
+- Set latency and faults on the Client: `openClient(app, server, { latencyMs, network })`. The
+  Server ignores `LUCIOLE_LATENCY_MS`, `LUCIOLE_FAULT` and the other network variables passed to
+  `startServer`, whatever its doc comment says. Read [references/network.md](references/network.md),
+  beside this `SKILL.md`, when a test needs a failed request, a fault or latency.
 - Put the settings the app reads with `process.env` in its pages, layouts, Server Functions or
-  `server/` into `startServer`'s second argument: they run in the Server's process. A setting
-  the Notes starter reads that way is `NOTES_AUTOSAVE_MS` (`"0"` turns autosave off).
-- Wait on the screen. `client.waitFor(text)` waits for a text to appear;
-  `eventually(async () => !(await client.frame()).includes(text))` waits for one to go;
-  `client.settled(text)` also waits for highlighting and images to finish. The app's own timers
-  (an autosave, a retry, a message shown after 3 s) run in real time during these waits, which
-  last up to 30 s.
+  `server/` into `startServer`'s second argument: they run in the Server's process. A setting the
+  Notes starter reads that way is `NOTES_AUTOSAVE_MS` (`"0"` turns autosave off).
+- Wait on the screen. `client.waitFor(text)` waits for a text to appear; `eventually(async () =>
+!(await client.frame()).includes(text))` waits for one to go; `client.settled(text)` also waits
+  for highlighting and images to finish. The app's own timers (an autosave, a retry, a message shown
+  after 3 s) run in real time during these waits, which last up to 30 s.
+- Run every test file you write or change with `bun test <file>` and see it pass: a starter's `bun
+run verify` builds the app but runs no test.
 - Pass `TEST_TIMEOUT_MS` as the last argument of every `test()` that opens a Client.
-- Keep a single copy of `react` in `node_modules` (`bun pm ls --all | grep ' react@'` lists
-  one): the test renders the built Client with the test's own React, and a second copy fails
-  with "Invalid hook call".
+- Keep a single copy of `react` in `node_modules` (`bun pm ls --all | grep ' react@'` lists one):
+  the test renders the built Client with the test's own React, and a second copy fails with "Invalid
+  hook call".
 - `buildApp` rebuilds from the sources at every `bun test`. When the file fails before any test
   runs, `bun run verify` names the build error's file and line.
-- Read [references/restore.md](references/restore.md) when a test restarts the app or checks
-  what comes back after a crash.
+- Read [references/restore.md](references/restore.md), beside this `SKILL.md`, when a test restarts
+  the app or checks what comes back after a crash.
 
 ## What else proves an app
 
