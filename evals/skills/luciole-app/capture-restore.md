@@ -17,10 +17,28 @@ checks:
       import { test } from "bun:test";
       import { act } from "react";
       import { join } from "node:path";
-      import { buildApp, openClient, startServer, TEST_TIMEOUT_MS, until } from "@luciole-sh/core/test";
+      import {
+        buildApp,
+        openClient,
+        startServer,
+        TEST_TIMEOUT_MS,
+        until,
+        type TestClient,
+      } from "@luciole-sh/core/test";
 
       const app = await buildApp(join(import.meta.dir, ".."));
-      const TEXT = "buy oat milk";
+
+      /** Clicks the last place `text` is drawn: a button sits below a title that may repeat its words. */
+      const clickLast = (client: TestClient, text: string) =>
+        act(async () => {
+          await client.ui.renderOnce();
+          const rows = client.ui.captureCharFrame().split("\n");
+          const y = rows.findLastIndex((row) => row.includes(text));
+          if (y < 0) throw new Error(`"${text}" is not shown\n${rows.join("\n")}`);
+          await client.ui.mockMouse.click(rows[y]?.lastIndexOf(text) ?? 0, y);
+        });
+      // One word: a field drawn over a border shows its spaces as the border's line.
+      const TEXT = "OatMilk42";
 
       test(
         "/capture keeps unsaved text across a crash, and forgets it once saved",
@@ -37,12 +55,14 @@ checks:
             session = first.app.restoration.snapshot();
           }
           if (!JSON.stringify(session).includes(TEXT))
-            throw new Error(`the restored session does not hold the typed text: ${JSON.stringify(session)}`);
+            throw new Error(
+              `the restored session does not hold the typed text: ${JSON.stringify(session)}`,
+            );
 
           await using second = await openClient(app, server, { tag: "second", session });
           await until(() => second.app.router.state.location.pathname === "/capture");
           await second.waitFor(TEXT);
-          await second.click("Save");
+          await clickLast(second, "Save");
           await act(() => until(() => !JSON.stringify(second.app.restoration.snapshot()).includes(TEXT)));
           // The note reached the Server and the sidebar's list, read again after the change.
           await second.waitFor(TEXT);

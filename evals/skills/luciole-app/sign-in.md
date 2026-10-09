@@ -9,10 +9,28 @@ checks:
   - run: |
       cat > tests/eval-signin.test.ts <<'TEST'
       import { test } from "bun:test";
+      import { act } from "react";
       import { join } from "node:path";
-      import { buildApp, openClient, startServer, TEST_TIMEOUT_MS, until } from "@luciole-sh/core/test";
+      import {
+        buildApp,
+        openClient,
+        startServer,
+        TEST_TIMEOUT_MS,
+        until,
+        type TestClient,
+      } from "@luciole-sh/core/test";
 
       const app = await buildApp(join(import.meta.dir, ".."));
+
+      /** Clicks the last place `text` is drawn: a button sits below a title that may repeat its words. */
+      const clickLast = (client: TestClient, text: string) =>
+        act(async () => {
+          await client.ui.renderOnce();
+          const rows = client.ui.captureCharFrame().split("\n");
+          const y = rows.findLastIndex((row) => row.includes(text));
+          if (y < 0) throw new Error(`"${text}" is not shown\n${rows.join("\n")}`);
+          await client.ui.mockMouse.click(rows[y]?.lastIndexOf(text) ?? 0, y);
+        });
 
       test(
         "the app opens on /login, refuses a wrong PIN and signs ada in",
@@ -20,7 +38,8 @@ checks:
           await using server = await startServer(app, { NOTES_DB: ":memory:" });
           // The Server itself refuses a request without a session, whatever the Client shows.
           const refused = await fetch(`${server.url}/health`);
-          if (refused.status !== 401) throw new Error(`/health answered ${refused.status} without a session`);
+          if (refused.status !== 401)
+            throw new Error(`/health answered ${refused.status} without a session`);
 
           await using client = await openClient(app, server);
           const at = (path: string) => until(() => client.app.router.state.location.pathname === path);
@@ -30,12 +49,12 @@ checks:
           await client.type("ada");
           await client.press("\t");
           await client.type("9999");
-          await client.click("Sign in");
+          await clickLast(client, "Sign in");
           await client.waitFor("Wrong user or PIN");
 
           for (let i = 0; i < 4; i++) await client.press("\b");
           await client.type("1234");
-          await client.click("Sign in");
+          await clickLast(client, "Sign in");
           await at("/");
           await client.waitFor("No note selected");
         },
