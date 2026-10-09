@@ -32,6 +32,8 @@ import {
   type Scenario,
 } from "../scripts/skills-eval-scenario";
 
+import { rejectionOf } from "./helpers";
+
 const temp = await mkdtemp(join(tmpdir(), "luciole-skills-eval-test-"));
 afterAll(() => rm(temp, { recursive: true, force: true }));
 
@@ -566,7 +568,7 @@ test("a failing agent spawn removes the auth copy and its signal handlers", asyn
   await writeFile(auth, "credentials");
   const listeners = [process.listenerCount("SIGINT"), process.listenerCount("SIGTERM")];
   const { setup: _, ...scenario } = withSetup("unused");
-  await expect(
+  const error = await rejectionOf(
     runInApp({
       scenario,
       arm: "with",
@@ -576,7 +578,8 @@ test("a failing agent spawn removes the auth copy and its signal handlers", asyn
       codexAuth: auth,
       agent: [join(temp, "missing-agent")],
     }),
-  ).rejects.toThrow();
+  );
+  expect(error).toBeInstanceOf(Error);
   expect(await readdir(runLayout(out).codex)).toEqual([]);
   expect(await readFile(auth, "utf8")).toBe("credentials");
   expect([process.listenerCount("SIGINT"), process.listenerCount("SIGTERM")]).toEqual(listeners);

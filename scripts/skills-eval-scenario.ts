@@ -694,9 +694,11 @@ export async function codexAuthIn(home: string): Promise<string | undefined> {
 // One owner for all live credential copies, including concurrent runs. Copy and removal are
 // synchronous so a signal cannot exit while a pending copy recreates the file after cleanup.
 const authCopies = new Set<string>();
+const INTERRUPTED_EXIT = 130;
+const TERMINATED_EXIT = 143;
 function interruptAuthCopies(signal: "SIGINT" | "SIGTERM") {
   for (const auth of authCopies) rmSync(auth, { force: true });
-  process.exit(signal === "SIGINT" ? 130 : 143);
+  process.exit(signal === "SIGINT" ? INTERRUPTED_EXIT : TERMINATED_EXIT);
 }
 const onAuthInterrupt = () => interruptAuthCopies("SIGINT");
 const onAuthTerminate = () => interruptAuthCopies("SIGTERM");
