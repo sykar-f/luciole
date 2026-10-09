@@ -38,7 +38,8 @@ compare request timings and causes.
   requests, the open requests, the bytes, the last round trip and the latest events. The
   starter binds it to <kbd>Ctrl+T</kbd>.
 - `useApplication().onEvent(listener)` receives every `request`, `response` (with `ms`),
-  `end`, `error` (with `outcome`), `navigation`, `invalidate`, `loader` and `failure` event.
+  `chunk` (with `bytes`), `end`, `error` (with `outcome`), `navigation`, `invalidate`,
+  `loader` and `failure` event.
   Keep the listener light: it runs on the request's path.
 - `instrumentTracing(app, tracer)` from `@luciole-sh/core/client` opens an OpenTelemetry span
   per request (`luciole.render` or `luciole.action`).

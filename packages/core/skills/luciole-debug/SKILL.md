@@ -85,13 +85,10 @@ LUCIOLE_LATENCY_MS=300 LUCIOLE_FAULT=drop:0.3 bun run dev
 ## The connection status says why
 
 `useConnection()` gives `status`, `error` (why the last refresh failed) and `buildError` (a
-failed rebuild under `luciole dev`):
-
-| `status`                  | Cause and fix                                                                                          |
-| ------------------------- | ------------------------------------------------------------------------------------------------------ |
-| "Disconnected"            | The Server is down or out of reach. A launched app logs to `$XDG_STATE_HOME/luciole/<app>/server.log`. |
-| "Incompatible build"      | A `409`: Client and Server come from two builds. Run `luciole build`, restart both. No code to change. |
-| "Authentication required" | A `401`: `LUCIOLE_TOKEN` differs between the two, or `server/auth.ts` returned no session.             |
+failed rebuild under `luciole dev`). "Incompatible build" is a `409` and "Authentication
+required" a `401`: both are fixed by rebuilding, restarting or giving the token, with no code
+to change. For each status's cause and fix, see the "Connecting the Client" section of
+`node_modules/@luciole-sh/core/docs/reference/troubleshooting.md`.
 
 ## Data stays stale after a change
 
