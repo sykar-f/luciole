@@ -461,6 +461,8 @@ export async function run(
     timeoutMs?: number;
     env?: Readonly<Record<string, string>>;
     cleanup?: Cleanup;
+    /** Registers the live group with its run owner before waiting for the agent. */
+    onSpawn?: (id: number) => void;
   } = {},
 ): Promise<Ran> {
   const child = Bun.spawn([...cmd], {
@@ -471,6 +473,7 @@ export async function run(
     stderr: "pipe",
     detached: true,
   });
+  options.onSpawn?.(child.pid);
   // Read while it runs: a full pipe would stall it. A child that keeps the pipe open keeps
   // the read pending until the group ends below.
   const out = collect(child.stdout);
@@ -697,26 +700,32 @@ export async function codexAuthIn(home: string): Promise<string | undefined> {
   return (await Bun.file(auth).exists()) ? auth : undefined;
 }
 
-// One owner for all live credential copies, including concurrent runs. Copy and removal are
-// synchronous so a signal cannot exit while a pending copy recreates the file after cleanup.
-const authCopies = new Set<string>();
+// One owner for every run's credential copy and live agent group, including concurrent runs
+// and runs without file authentication. Copy and removal are synchronous so a signal cannot
+// exit while a pending copy recreates the file after cleanup.
+const authCopies = new Map<string, number | undefined>();
+let interrupting = false;
 const INTERRUPTED_EXIT = 130;
 const TERMINATED_EXIT = 143;
-function interruptAuthCopies(signal: "SIGINT" | "SIGTERM") {
-  for (const auth of authCopies) rmSync(auth, { force: true });
+async function interruptAuthCopies(signal: "SIGINT" | "SIGTERM") {
+  if (interrupting) return;
+  interrupting = true;
+  const groups = [...authCopies.values()].filter((id): id is number => id !== undefined);
+  for (const auth of authCopies.keys()) rmSync(auth, { force: true });
+  await Promise.all(groups.map((id) => endGroup(id)));
   process.exit(signal === "SIGINT" ? INTERRUPTED_EXIT : TERMINATED_EXIT);
 }
-const onAuthInterrupt = () => interruptAuthCopies("SIGINT");
-const onAuthTerminate = () => interruptAuthCopies("SIGTERM");
+const onAuthInterrupt = () => void interruptAuthCopies("SIGINT");
+const onAuthTerminate = () => void interruptAuthCopies("SIGTERM");
 
-function copyAuth(source: string, auth: string) {
+function copyAuth(source: string | undefined, auth: string) {
   if (!authCopies.size) {
     process.on("SIGINT", onAuthInterrupt);
     process.on("SIGTERM", onAuthTerminate);
   }
   // Register before copying: even a partially written copy belongs to this run.
-  authCopies.add(auth);
-  copyFileSync(source, auth);
+  authCopies.set(auth, undefined);
+  if (source !== undefined) copyFileSync(source, auth);
 }
 
 function removeAuth(auth: string) {
@@ -769,11 +778,12 @@ export async function runInApp(options: {
   const started = performance.now();
   let agent: Ran;
   try {
-    if (options.codexAuth !== undefined) copyAuth(options.codexAuth, auth);
+    copyAuth(options.codexAuth, auth);
     agent = await run(options.agent, app, {
       timeoutMs: scenario.timeoutMinutes * MS_PER_MINUTE,
       env: { TMPDIR: tmp, CODEX_HOME: codex },
       cleanup: options.cleanup,
+      onSpawn: (id) => authCopies.set(auth, id),
     });
   } finally {
     // The report outlives the run: the credentials must not.

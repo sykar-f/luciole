@@ -8,7 +8,6 @@ import {
   baselineOf,
   CORE_PACKAGE,
   codexAuthIn,
-  endGroup,
   DEFAULT_MODEL,
   DEFAULT_TIMEOUT_MINUTES,
   diffSince,
@@ -604,53 +603,67 @@ test("an agent timeout removes the auth copy", async () => {
 });
 
 for (const signal of ["SIGINT", "SIGTERM"] as const)
-  test(`${signal} removes a running agent's auth copy and exits interrupted`, async () => {
-    const { out, app } = await appCopy();
-    const auth = join(await mkdtemp(join(temp, "auth-")), "auth.json");
-    await writeFile(auth, "credentials");
-    const pidFile = join(out, "agent.pid");
-    const script = join(out, "runner.ts");
-    const { setup: _, ...scenario } = withSetup("unused");
-    await writeFile(
-      script,
-      `import { runInApp } from ${JSON.stringify(resolve(import.meta.dir, "../scripts/skills-eval-scenario.ts"))};
-await runInApp(${JSON.stringify({
-        scenario,
-        arm: "with",
-        scenarioDir: temp,
-        app,
-        out,
-        codexAuth: auth,
-        agent: ["sh", "-c", 'echo $$ > "$0"; exec sleep 30', pidFile],
-      })});
+  for (const fileAuth of [true, false])
+    test(`${signal} ends concurrent agent groups and removes auth copies (file auth: ${fileAuth})`, async () => {
+      const auth = join(await mkdtemp(join(temp, "auth-")), "auth.json");
+      await writeFile(auth, "credentials");
+      const runs = await Promise.all([appCopy(), appCopy()]);
+      const pidFiles = runs.map(({ out }) => join(out, "agent.pid"));
+      const script = join(runs[0].out, "runner.ts");
+      const { setup: _, ...scenario } = withSetup("unused");
+      await writeFile(
+        script,
+        `import { runInApp } from ${JSON.stringify(resolve(import.meta.dir, "../scripts/skills-eval-scenario.ts"))};
+await Promise.all(${JSON.stringify(
+          runs.map(({ out, app }, n) => ({
+            scenario,
+            arm: "with",
+            scenarioDir: temp,
+            app,
+            out,
+            codexAuth: fileAuth ? auth : undefined,
+            // Bounded children expire on their own if the assertion fails. The test never
+            // ends these groups itself: only the runner's interrupt path may do that.
+            agent: ["sh", "-c", 'sleep 10 & echo "$$ $!" > "$0"; wait', pidFiles[n]],
+          })),
+        )}.map(options => runInApp(options)));
 `,
-    );
-    const runner = Bun.spawn([process.execPath, script], {
-      stdin: "ignore",
-      stdout: "ignore",
-      stderr: "pipe",
-    });
-    let agentPid: number | undefined;
-    try {
-      // The stand-in's marker proves the copy exists and the agent is running before signalling.
-      const deadline = performance.now() + 10_000;
-      while (!(await Bun.file(pidFile).exists()) && performance.now() < deadline)
-        await Bun.sleep(10);
-      expect(await Bun.file(pidFile).exists()).toBe(true);
-      agentPid = Number(await readFile(pidFile, "utf8"));
-      expect(await readFile(join(runLayout(out).codex, "auth.json"), "utf8")).toBe("credentials");
-      runner.kill(signal);
-      expect(await runner.exited).toBe(signal === "SIGINT" ? 130 : 143);
-      expect(await readdir(runLayout(out).codex)).toEqual([]);
-      expect(await readFile(auth, "utf8")).toBe("credentials");
-    } finally {
-      runner.kill("SIGKILL");
-      await runner.exited;
-      if (agentPid === undefined && (await Bun.file(pidFile).exists()))
-        agentPid = Number(await readFile(pidFile, "utf8"));
-      if (agentPid !== undefined) await endGroup(agentPid);
-    }
-  }, 20_000);
+      );
+      const runner = Bun.spawn([process.execPath, script], {
+        stdin: "ignore",
+        stdout: "ignore",
+        stderr: "pipe",
+      });
+      try {
+        // Both markers prove both agents are running before signalling their owner.
+        const deadline = performance.now() + 10_000;
+        while (
+          !(await Promise.all(pidFiles.map((file) => Bun.file(file).exists()))).every(Boolean) &&
+          performance.now() < deadline
+        )
+          await Bun.sleep(10);
+        const groups = await Promise.all(
+          pidFiles.map(async (file) =>
+            (await readFile(file, "utf8")).trim().split(" ").map(Number),
+          ),
+        );
+        for (const { out } of runs)
+          expect(await Bun.file(join(runLayout(out).codex, "auth.json")).exists()).toBe(fileAuth);
+        runner.kill(signal);
+        expect(await runner.exited).toBe(signal === "SIGINT" ? 130 : 143);
+        for (const [leader, child] of groups) {
+          expect(leader).toBeGreaterThan(0);
+          expect(child).toBeGreaterThan(0);
+          expect(alive(-leader)).toBe(false);
+          expect(alive(child)).toBe(false);
+        }
+        for (const { out } of runs) expect(await readdir(runLayout(out).codex)).toEqual([]);
+        expect(await readFile(auth, "utf8")).toBe("credentials");
+      } finally {
+        runner.kill("SIGKILL");
+        await runner.exited;
+      }
+    }, 20_000);
 
 test("without an auth file, each fresh home starts empty and the pass continues", async () => {
   const home = await mkdtemp(join(temp, "empty-home-"));
