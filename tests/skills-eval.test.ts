@@ -7,6 +7,8 @@ import {
   AGENT_MATERIAL,
   baselineOf,
   CORE_PACKAGE,
+  codexAuthIn,
+  endGroup,
   DEFAULT_MODEL,
   DEFAULT_TIMEOUT_MINUTES,
   diffSince,
@@ -29,6 +31,8 @@ import {
   type RunResult,
   type Scenario,
 } from "../scripts/skills-eval-scenario";
+
+import { rejectionOf } from "./helpers";
 
 const temp = await mkdtemp(join(tmpdir(), "luciole-skills-eval-test-"));
 afterAll(() => rm(temp, { recursive: true, force: true }));
@@ -556,6 +560,127 @@ test("while the agent runs, its root holds only its app, its $TMPDIR and its $CO
   // The credentials leave with the agent; the user's own stay where they were.
   expect(await readdir(codex)).toEqual([]);
   expect(await readFile(auth, "utf8")).toBe('{"token":"t"}\n');
+});
+
+test("a failing agent spawn removes the auth copy and its signal handlers", async () => {
+  const { out, app } = await appCopy();
+  const auth = join(await mkdtemp(join(temp, "auth-")), "auth.json");
+  await writeFile(auth, "credentials");
+  const listeners = [process.listenerCount("SIGINT"), process.listenerCount("SIGTERM")];
+  const { setup: _, ...scenario } = withSetup("unused");
+  const error = await rejectionOf(
+    runInApp({
+      scenario,
+      arm: "with",
+      scenarioDir: temp,
+      app,
+      out,
+      codexAuth: auth,
+      agent: [join(temp, "missing-agent")],
+    }),
+  );
+  expect(error).toBeInstanceOf(Error);
+  expect(await readdir(runLayout(out).codex)).toEqual([]);
+  expect(await readFile(auth, "utf8")).toBe("credentials");
+  expect([process.listenerCount("SIGINT"), process.listenerCount("SIGTERM")]).toEqual(listeners);
+});
+
+test("an agent timeout removes the auth copy", async () => {
+  const { out, app } = await appCopy();
+  const auth = join(await mkdtemp(join(temp, "auth-")), "auth.json");
+  await writeFile(auth, "credentials");
+  const { setup: _, ...scenario } = withSetup("unused");
+  const result = await runInApp({
+    scenario: { ...scenario, timeoutMinutes: 0.001 },
+    arm: "with",
+    scenarioDir: temp,
+    app,
+    out,
+    codexAuth: auth,
+    agent: ["sleep", "30"],
+  });
+  expect(result.agent).toBe("timeout");
+  expect(await readdir(runLayout(out).codex)).toEqual([]);
+});
+
+for (const signal of ["SIGINT", "SIGTERM"] as const)
+  test(`${signal} removes a running agent's auth copy and exits interrupted`, async () => {
+    const { out, app } = await appCopy();
+    const auth = join(await mkdtemp(join(temp, "auth-")), "auth.json");
+    await writeFile(auth, "credentials");
+    const pidFile = join(out, "agent.pid");
+    const script = join(out, "runner.ts");
+    const { setup: _, ...scenario } = withSetup("unused");
+    await writeFile(
+      script,
+      `import { runInApp } from ${JSON.stringify(resolve(import.meta.dir, "../scripts/skills-eval-scenario.ts"))};
+await runInApp(${JSON.stringify({
+        scenario,
+        arm: "with",
+        scenarioDir: temp,
+        app,
+        out,
+        codexAuth: auth,
+        agent: ["sh", "-c", 'echo $$ > "$0"; exec sleep 30', pidFile],
+      })});
+`,
+    );
+    const runner = Bun.spawn([process.execPath, script], {
+      stdin: "ignore",
+      stdout: "ignore",
+      stderr: "pipe",
+    });
+    let agentPid: number | undefined;
+    try {
+      // The stand-in's marker proves the copy exists and the agent is running before signalling.
+      const deadline = performance.now() + 10_000;
+      while (!(await Bun.file(pidFile).exists()) && performance.now() < deadline)
+        await Bun.sleep(10);
+      expect(await Bun.file(pidFile).exists()).toBe(true);
+      agentPid = Number(await readFile(pidFile, "utf8"));
+      expect(await readFile(join(runLayout(out).codex, "auth.json"), "utf8")).toBe("credentials");
+      runner.kill(signal);
+      expect(await runner.exited).toBe(signal === "SIGINT" ? 130 : 143);
+      expect(await readdir(runLayout(out).codex)).toEqual([]);
+      expect(await readFile(auth, "utf8")).toBe("credentials");
+    } finally {
+      runner.kill("SIGKILL");
+      await runner.exited;
+      if (agentPid === undefined && (await Bun.file(pidFile).exists()))
+        agentPid = Number(await readFile(pidFile, "utf8"));
+      if (agentPid !== undefined) await endGroup(agentPid);
+    }
+  }, 20_000);
+
+test("without an auth file, each fresh home starts empty and the pass continues", async () => {
+  const home = await mkdtemp(join(temp, "empty-home-"));
+  const codexAuth = await codexAuthIn(home);
+  expect(codexAuth).toBeUndefined();
+  const { setup: _, ...scenario } = withSetup("unused");
+  const report = join(home, "report.md");
+  const results = await runPass(
+    [1, 2],
+    async (n) => {
+      const { out, app } = await appCopy();
+      const result = await runInApp({
+        scenario,
+        arm: "with",
+        scenarioDir: temp,
+        app,
+        out,
+        codexAuth,
+        agent: ["sh", "-c", 'ls -A "$CODEX_HOME"; echo agent > agent.txt'],
+      });
+      expect(await readFile(join(out, "transcript.jsonl"), "utf8")).toBe("");
+      return { scenario: scenario.name, arm: "with" as const, run: n, ...result };
+    },
+    { scenarios: [scenario], report },
+  );
+  expect(results.map(({ agent }) => agent)).toEqual(["ok", "ok"]);
+  expect(await readFile(report, "utf8")).toContain("| 2");
+  const auth = join(home, "auth.json");
+  await writeFile(auth, "credentials");
+  expect(await codexAuthIn(home)).toBe(auth);
 });
 
 test("the report flags a without run that read the material, and a write outside the app", async () => {

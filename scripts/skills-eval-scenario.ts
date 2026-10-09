@@ -1,4 +1,5 @@
-import { copyFile, mkdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { copyFileSync, rmSync } from "node:fs";
+import { mkdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
 import { z } from "zod";
 
@@ -684,6 +685,43 @@ export function agentCommand(options: {
   ];
 }
 
+/** The user's auth file, when present; environment authentication needs no file. */
+export async function codexAuthIn(home: string): Promise<string | undefined> {
+  const auth = join(home, "auth.json");
+  return (await Bun.file(auth).exists()) ? auth : undefined;
+}
+
+// One owner for all live credential copies, including concurrent runs. Copy and removal are
+// synchronous so a signal cannot exit while a pending copy recreates the file after cleanup.
+const authCopies = new Set<string>();
+const INTERRUPTED_EXIT = 130;
+const TERMINATED_EXIT = 143;
+function interruptAuthCopies(signal: "SIGINT" | "SIGTERM") {
+  for (const auth of authCopies) rmSync(auth, { force: true });
+  process.exit(signal === "SIGINT" ? INTERRUPTED_EXIT : TERMINATED_EXIT);
+}
+const onAuthInterrupt = () => interruptAuthCopies("SIGINT");
+const onAuthTerminate = () => interruptAuthCopies("SIGTERM");
+
+function copyAuth(source: string, auth: string) {
+  if (!authCopies.size) {
+    process.on("SIGINT", onAuthInterrupt);
+    process.on("SIGTERM", onAuthTerminate);
+  }
+  // Register before copying: even a partially written copy belongs to this run.
+  authCopies.add(auth);
+  copyFileSync(source, auth);
+}
+
+function removeAuth(auth: string) {
+  rmSync(auth, { force: true });
+  authCopies.delete(auth);
+  if (!authCopies.size) {
+    process.off("SIGINT", onAuthInterrupt);
+    process.off("SIGTERM", onAuthTerminate);
+  }
+}
+
 /**
  * One run of `arm` in `app`, a fresh copy of a base under the run's root `out` (see
  * `runLayout`): the scenario's setup, then the agent's command with `$TMPDIR` and `$CODEX_HOME`
@@ -722,17 +760,20 @@ export async function runInApp(options: {
   await mkdir(tmp, { recursive: true });
   await mkdir(codex, { recursive: true });
   const auth = join(codex, "auth.json");
-  if (options.codexAuth !== undefined) await copyFile(options.codexAuth, auth);
-
   const started = performance.now();
-  const agent = await run(options.agent, app, {
-    timeoutMs: scenario.timeoutMinutes * MS_PER_MINUTE,
-    env: { TMPDIR: tmp, CODEX_HOME: codex },
-    cleanup: options.cleanup,
-  });
+  let agent: Ran;
+  try {
+    if (options.codexAuth !== undefined) copyAuth(options.codexAuth, auth);
+    agent = await run(options.agent, app, {
+      timeoutMs: scenario.timeoutMinutes * MS_PER_MINUTE,
+      env: { TMPDIR: tmp, CODEX_HOME: codex },
+      cleanup: options.cleanup,
+    });
+  } finally {
+    // The report outlives the run: the credentials must not.
+    removeAuth(auth);
+  }
   const seconds = (performance.now() - started) / MS_PER_SECOND;
-  // The report outlives the run: the credentials must not.
-  await rm(auth, { force: true });
   if (setupLog !== undefined) await writeFile(join(out, "setup.log"), setupLog);
   await writeFile(join(out, "transcript.jsonl"), agent.output);
 
