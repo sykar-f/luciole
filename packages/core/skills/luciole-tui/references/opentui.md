@@ -39,7 +39,8 @@ Installed sources supply the exact API even when an upstream website shows a new
 Use Client Components for native refs, hooks and callbacks within luciole's existing Shell.
 Follow the boundary guide for named restoration wrappers and shared keymap hooks.
 Raw `<textarea>` callbacks carry a content event; luciole `Textarea` provides controlled
-`value` and `onChange(string)`. Images read local paths on the Client machine.
+`value` and `onChange(string)`. Images read local paths on the Client machine; use `protocol="auto"` (Kitty/Sixel when
+supported, blocks otherwise), and an `onError` fallback. `<a href>` lives inside `<text>`.
 
 Let the focused widget handle its native editing/selection keys. When those keys must
 appear in `<KeyHelp>`, bind them through luciole's shared keymap and delegate to the widget.
