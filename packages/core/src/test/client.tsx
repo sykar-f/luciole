@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { act, type ReactNode } from "react";
-import type { MouseButton } from "@opentui/core/testing";
+import { KeyCodes, type MouseButton } from "@opentui/core/testing";
 import { testRender } from "@opentui/react/test-utils";
 import type { Application, ApplicationOptions, TransportEvent } from "../client";
 import { until, untilDrawn, untilFrame, WAIT_MS, type TestUI } from "./wait";
@@ -77,13 +77,33 @@ export async function clickOn(ui: TestUI, text: string, button?: MouseButton) {
  * those, `latencyMs` and `network` set the network conditions of a test.
  */
 export type OpenClientOptions = Omit<ClientOptions, "url"> & {
-  /** A distinct tag gives the Client its own runtime; two Clients in one file need two. */
+  /**
+   * Shares a runtime (module registry, router, Drafts) between Clients: those opened with the
+   * same tag share one. Without a tag, every Client gets a runtime of its own.
+   */
   tag?: string;
   /** Columns of the test terminal. Default: `110`. */
   width?: number;
   /** Rows of the test terminal. Default: `32`. */
   height?: number;
 };
+
+/**
+ * The key names `press` takes, to the codes of the test terminal: OpenTUI's `KeyCodes`, in
+ * lower case, the arrows by their direction (`"up"`, not `"arrow_up"`).
+ */
+const KEYS: Record<string, string> = Object.fromEntries(
+  Object.entries(KeyCodes).map(([name, code]) => [name.toLowerCase().replace(/^arrow_/, ""), code]),
+);
+
+/** The code of `key`: one character as itself, a name through `KEYS`; an unknown name throws. */
+function keyCode(key: string) {
+  if ([...new Intl.Segmenter().segment(key)].length === 1) return key;
+  const code = KEYS[key];
+  if (code === undefined)
+    throw new Error(`Unknown key "${key}". Known keys: ${Object.keys(KEYS).join(", ")}`);
+  return code;
+}
 
 /** The modifiers of a key press. */
 export type KeyModifiers = { ctrl?: boolean; shift?: boolean; meta?: boolean };
@@ -111,7 +131,11 @@ export type TestClient = {
   frame(): Promise<string>;
   /** A left click on the first cell of `text`; fails when the screen does not show it. */
   click(text: string, button?: MouseButton): Promise<void>;
-  /** Presses a key, `"s"` with `{ ctrl: true }` for Ctrl+S, or `"return"`, `"escape"`, … */
+  /**
+   * Presses a key: one character, `"s"` with `{ ctrl: true }` for Ctrl+S, or a name among
+   * `return`, `linefeed`, `tab`, `backspace`, `delete`, `home`, `end`, `escape`, `up`, `down`,
+   * `right`, `left` and `f1` to `f12`. Any other name throws.
+   */
   press(key: string, modifiers?: KeyModifiers): Promise<void>;
   /** Types `text` one character at a time. */
   type(text: string): Promise<void>;
@@ -127,8 +151,9 @@ export type TestClient = {
 /**
  * Renders the Client of a built app in a test terminal, connected to `server`: the journey of
  * a user's screen, without a pty. It imports the generated Client, creates the app, loads
- * the first page and draws the `Shell`. Declare it after the Server with `await using`, so
- * the screen is released first.
+ * the first page and draws the `Shell`. Each Client has a runtime of its own, so nothing one
+ * leaves (a draft, a route) reaches the next; pass the same `tag` to share one. Declare it
+ * after the Server with `await using`, so the screen is released first.
  */
 export async function openClient(
   app: { directory: string },
@@ -136,7 +161,7 @@ export async function openClient(
   options: OpenClientOptions = {},
 ): Promise<TestClient> {
   const { tag, width = 110, height = 32, ...clientOptions } = options;
-  const { createApp, Shell } = await importClient(app.directory, tag);
+  const { createApp, Shell } = await importClient(app.directory, tag ?? crypto.randomUUID());
   const running = createApp({ url: server.url, ...clientOptions });
   const requests = wire(running);
   await running.router.load();
@@ -162,7 +187,7 @@ export async function openClient(
     click: (text, button) => act(() => clickOn(ui, text, button)),
     press: (key, modifiers) =>
       act(async () => {
-        ui.mockInput.pressKey(key, modifiers);
+        ui.mockInput.pressKey(keyCode(key), modifiers);
       }),
     type: (text) =>
       act(async () => {

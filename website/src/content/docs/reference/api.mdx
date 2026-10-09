@@ -1442,24 +1442,24 @@ test's timeout. It links the nearest `node_modules` above the app into the build
 `openClient` takes `OpenClientOptions`: the options of the Client's `createApp`
 (`ClientOptions`, without `url`: `fetch`, `transport`, …) and three more.
 
-| `OpenClientOptions` field | Type     | Default | Contract                                                                 |
-| ------------------------- | -------- | ------- | ------------------------------------------------------------------------ |
-| `tag`                     | `string` | none    | Gives the Client its own runtime. Two Clients in one file need two tags. |
-| `width`                   | `number` | `110`   | Columns of the test terminal.                                            |
-| `height`                  | `number` | `32`    | Rows of the test terminal.                                               |
+| `OpenClientOptions` field | Type     | Default | Contract                                                                                                                                |
+| ------------------------- | -------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `tag`                     | `string` | none    | Shares a runtime (module registry, router, Drafts): Clients opened with the same tag share one. Without a tag, each Client has its own. |
+| `width`                   | `number` | `110`   | Columns of the test terminal.                                                                                                           |
+| `height`                  | `number` | `32`    | Rows of the test terminal.                                                                                                              |
 
-| `TestClient` member       | Contract                                                                                                                                               |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `waitFor(text, timeout?)` | Renders until the screen shows `text`, and resolves with that frame. On a timeout it fails with the last frame. Default: `WAIT_MS`.                    |
-| `settled(text?)`          | Renders until the screen shows `text` and has stopped changing: no code block is still highlighting, no image still loading. Resolves with that frame. |
-| `frame()`                 | Resolves with the screen now, as text.                                                                                                                 |
-| `click(text, button?)`    | A left click on the first cell of `text`. Fails with the screen when it shows no `text`.                                                               |
-| `press(key, modifiers?)`  | Presses a key: `"s"` with `{ ctrl: true }` is Ctrl+S, `"return"` and `"escape"` are keys. `KeyModifiers` is `{ ctrl?, shift?, meta? }`.                |
-| `type(text)`              | Types `text` one character at a time.                                                                                                                  |
-| `requests`                | The requests on the wire: `open`, `finished`, and `settled()`, which resolves once none is open.                                                       |
-| `app`                     | The running `Application`: its router, its restoration, its [events](#observe-requests-and-navigations).                                               |
-| `ui`                      | The test terminal, a `TestUI`: OpenTUI's renderer, `mockInput`, `mockMouse` and `captureCharFrame()`.                                                  |
-| `stop()`                  | Waits for the requests on the wire, then destroys the test terminal. It does not stop the Server. Calling it twice is harmless.                        |
+| `TestClient` member       | Contract                                                                                                                                                                                                                                                                                             |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `waitFor(text, timeout?)` | Renders until the screen shows `text`, and resolves with that frame. On a timeout it fails with the last frame. Default: `WAIT_MS`.                                                                                                                                                                  |
+| `settled(text?)`          | Renders until the screen shows `text` and has stopped changing: no code block is still highlighting, no image still loading. Resolves with that frame.                                                                                                                                               |
+| `frame()`                 | Resolves with the screen now, as text.                                                                                                                                                                                                                                                               |
+| `click(text, button?)`    | A left click on the first cell of `text`. Fails with the screen when it shows no `text`.                                                                                                                                                                                                             |
+| `press(key, modifiers?)`  | Presses a key: one character (`"s"` with `{ ctrl: true }` is Ctrl+S) or a name among `return`, `linefeed`, `tab`, `backspace`, `delete`, `home`, `end`, `escape`, `up`, `down`, `right`, `left` and `f1` to `f12`. Another name fails and lists these. `KeyModifiers` is `{ ctrl?, shift?, meta? }`. |
+| `type(text)`              | Types `text` one character at a time.                                                                                                                                                                                                                                                                |
+| `requests`                | The requests on the wire: `open`, `finished`, and `settled()`, which resolves once none is open.                                                                                                                                                                                                     |
+| `app`                     | The running `Application`: its router, its restoration, its [events](#observe-requests-and-navigations).                                                                                                                                                                                             |
+| `ui`                      | The test terminal, a `TestUI`: OpenTUI's renderer, `mockInput`, `mockMouse` and `captureCharFrame()`.                                                                                                                                                                                                |
+| `stop()`                  | Waits for the requests on the wire, then destroys the test terminal. It does not stop the Server. Calling it twice is harmless.                                                                                                                                                                      |
 
 `await using client = await openClient(app, server)` stops the Client at the end of the
 block. Declared after the Server, it stops first.
