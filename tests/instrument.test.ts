@@ -6,7 +6,7 @@ import {
   TransportError,
   type TransportEvent,
 } from "../packages/core/src/transport";
-import { launch, rejectionOf, until } from "./helpers";
+import { eventually, launch, rejectionOf, until } from "./helpers";
 
 // What tests/instrument-server.ts prints for each ServerEvent (src/server.ts).
 const Printed = z.object({
@@ -140,6 +140,54 @@ test("a page that throws is logged by name and reported with its message", async
     await server.stop();
   }
 });
+
+// The cache signal belongs to the inner Flight render, so this checks the entire
+// HTTP body -> outer Flight -> serialized page stream -> inner Flight chain.
+for (const entry of ["node", "web"]) {
+  for (const proof of ["terminal event", "Flight abort"]) {
+    test(`${entry}: a Client abort has one ${proof} on the Server path`, async () => {
+      const server = await launch("tests/instrument-server.ts", { FLIGHT_ENTRY: entry });
+      const received = printedEvents(server);
+      const transport = createHttpTransport({
+        url: server.url,
+        buildId: "build-1",
+        callServer: () => Promise.reject("unused"),
+      });
+      try {
+        const leaving = new AbortController();
+        const response = await fetch(`${server.url}/render?route=/pending`, {
+          headers: {
+            "x-luciole-build": "build-1",
+            "x-luciole-call": "leaving",
+            connection: "close",
+          },
+          signal: leaving.signal,
+        });
+        await response.body?.getReader().read();
+        expect(await transport.call("a.ts#pending-state", [])).toEqual([false]);
+        leaving.abort();
+        await until(() => received.some((e) => e.callId === "leaving" && e.cancelled));
+        if (proof === "Flight abort") {
+          await eventually(async () => {
+            const state = await transport.call("a.ts#pending-state", []);
+            return JSON.stringify(state) === "[true]";
+          }, 2_000);
+        } else {
+          // A second request gives the cancelled reads time to settle in the Server.
+          await transport.call("a.ts#run", []);
+          expect(
+            received.filter(
+              (e) => e.callId === "leaving" && (e.type === "end" || e.type === "error"),
+            ),
+          ).toEqual([expect.objectContaining({ type: "end", cancelled: true })]);
+        }
+        expect(received.filter((e) => e.callId === "leaving" && e.type === "failure")).toEqual([]);
+      } finally {
+        await server.stop();
+      }
+    });
+  }
+}
 
 // Flight runs where the Server runs, under the `react-server` condition, which this
 // `bun test` process does not use: tests/flight-failure.check.ts holds the cases.
