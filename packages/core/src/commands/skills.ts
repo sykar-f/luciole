@@ -246,12 +246,32 @@ function fileState(
   return owned !== undefined && hash(disk) === owned ? "stale" : "modified";
 }
 
-/** The managed block's text, markers included. */
+/**
+ * The managed block's text, markers included, in the form a Markdown formatter (oxfmt, Prettier)
+ * leaves alone: the opening comments are a block of their own, and so is the closing one,
+ * whatever the body ends with.
+ */
 async function blockText(options: SkillsOptions) {
   const body = (await readFile(options.blockSource, "utf8")).trim();
-  return `${BLOCK_BEGIN}\n<!-- ${VERSION_KEY}: ${options.version} -->\n${body}\n${BLOCK_END}`;
+  return `${BLOCK_BEGIN}\n<!-- ${VERSION_KEY}: ${options.version} -->\n\n${body}\n\n${BLOCK_END}`;
 }
-const importText = `${IMPORT_BEGIN}\n${IMPORT_LINE}\n${IMPORT_END}`;
+const importText = `${IMPORT_BEGIN}\n\n${IMPORT_LINE}\n${IMPORT_END}`;
+
+/**
+ * The block as compared and hashed: without trailing spaces and blank lines, so a formatter
+ * that only moves whitespace around leaves it the same block. Any other edit still shows.
+ */
+const normalized = (block: string) =>
+  block
+    .split("\n")
+    .map((line) => line.trimEnd())
+    .filter((line) => line !== "")
+    .join("\n");
+/** The hash recorded for a block. */
+const hashOfBlock = (block: string) => hash(normalized(block));
+/** Whether `block` is the one recorded: by its normalized form, or the exact bytes before it. */
+const recordedAs = (block: string, recorded: string) =>
+  hashOfBlock(block) === recorded || hash(block) === recorded;
 
 /** Where a marked block lies in `text`, or `undefined`. A begin without its end is refused. */
 function locate(text: string, begin: string, end: string, file: string) {
@@ -282,8 +302,8 @@ async function blockState(options: SkillsOptions, recorded: string | undefined) 
   const current = text === undefined || !at ? undefined : text.slice(at.start, at.stop);
   let state: State;
   if (current === undefined) state = "missing";
-  else if (current === wanted) state = "current";
-  else if (recorded !== undefined) state = hash(current) === recorded ? "stale" : "modified";
+  else if (normalized(current) === normalized(wanted)) state = "current";
+  else if (recorded !== undefined) state = recordedAs(current, recorded) ? "stale" : "modified";
   else {
     // Nothing says who wrote it: another version is stale, the same version edited is the user's.
     const written = new RegExp(`${VERSION_KEY}: (\\S+) -->`).exec(current)?.[1];
@@ -341,7 +361,7 @@ export async function installSkills(options: SkillsOptions): Promise<void> {
   if (!options.global) {
     const block = await blockState(options, recorded);
     const label = shown(options, block.file);
-    if (block.state === "current") blockHash = hash(block.wanted);
+    if (block.state === "current") blockHash = hashOfBlock(block.wanted);
     else if (block.state === "modified" && !options.force)
       options.warn(
         `${label}: the luciole block was modified locally, left alone (--force replaces it)`,
@@ -354,7 +374,7 @@ export async function installSkills(options: SkillsOptions): Promise<void> {
             ? block.text.slice(0, block.at.start) + block.wanted + block.text.slice(block.at.stop)
             : appended(block.text, block.wanted);
       blockWrite = [block.file, next];
-      blockHash = hash(block.wanted);
+      blockHash = hashOfBlock(block.wanted);
       done.push(`${block.state === "missing" ? "added" : "updated"} the luciole block in ${label}`);
     }
     const imports = await importState(options);

@@ -5,6 +5,7 @@ import { z } from "zod";
 import {
   installSkills,
   MANIFEST_FILE,
+  packagedMaterial,
   parseAgents,
   removeSkills,
   stamp,
@@ -135,6 +136,70 @@ test("a modified file survives install without --force and is replaced with it",
   expect(await text(".agents/skills/luciole-demo/SKILL.md")).not.toContain("Mine.");
   expect(await text(".agents/skills/luciole-demo/SKILL.md")).toContain('"1.1.0"');
   expect(await text("AGENTS.md")).toContain("Read the docs.");
+});
+
+const oxfmt = resolve(import.meta.dir, "../node_modules/.bin/oxfmt");
+
+test("what install writes is already formatted, in a new app and around user text", async () => {
+  const shipped = (await packagedMaterial()).blockSource;
+  // A block whose body ends with a list: the formatter puts a blank line before its end marker.
+  const listed = join(root, "package/listed.md");
+  await Bun.write(listed, "## luciole\n\n- one\n- two\n");
+  for (const blockSource of [shipped, listed])
+    for (const userText of [false, true]) {
+      await rm(join(root, "app"), { recursive: true, force: true });
+      await mkdir(join(root, "app"), { recursive: true });
+      if (userText) {
+        await Bun.write(app("AGENTS.md"), "# My rules\n\nBe kind.\n");
+        await Bun.write(app("CLAUDE.md"), "# Claude notes\n");
+      }
+      await installSkills(optionsFor({ blockSource }));
+      const check = await execute([oxfmt, "--check", "AGENTS.md", "CLAUDE.md"], { cwd: app("") });
+      expect(
+        check.exitCode,
+        `${blockSource}, user text ${userText}: ${check.stdout.toString()}`,
+      ).toBe(0);
+    }
+});
+
+test("a block reformatted in whitespace only is up to date, and install leaves it", async () => {
+  await Bun.write(app("AGENTS.md"), "# My rules\n\nBe kind.\n");
+  const before = await snapshot();
+  await installSkills(optionsFor());
+  const installed = await text("AGENTS.md");
+  // Blank lines removed and doubled, trailing spaces added: what another formatter may do.
+  const reformatted = installed
+    .replace("-->\n\n## luciole", "-->\n## luciole")
+    .replace("## luciole\n\n", "## luciole  \n\n\n")
+    .replace("Read the docs.\n\n<!-- END", "Read the docs.\t\n<!-- END");
+  expect(reformatted).not.toBe(installed);
+  await Bun.write(app("AGENTS.md"), reformatted);
+
+  const status = optionsFor();
+  expect(await statusSkills(status)).toBe(0);
+  expect(status.logs.join("\n")).toMatch(/luciole block\s+up to date/);
+  const formatted = await snapshot();
+  const again = optionsFor();
+  await installSkills(again);
+  expect(again.logs).toEqual(["up to date"]);
+  expect(await snapshot()).toEqual(formatted);
+
+  // A new version still finds it its own, and remove still restores the user's file.
+  expect(await statusSkills(optionsFor({ version: "1.1.0" }))).toBe(STALE_EXIT_CODE);
+  await removeSkills(optionsFor());
+  expect(await snapshot()).toEqual(before);
+});
+
+test("a word edited in the block is modified, and install without --force keeps it", async () => {
+  await installSkills(optionsFor());
+  await Bun.write(app("AGENTS.md"), (await text("AGENTS.md")).replace("the docs", "the code"));
+  const status = optionsFor();
+  expect(await statusSkills(status)).toBe(0);
+  expect(status.logs.join("\n")).toMatch(/luciole block\s+modified locally/);
+  const kept = optionsFor({ version: "1.1.0" });
+  await installSkills(kept);
+  expect(kept.warnings.join("\n")).toContain("luciole block was modified locally");
+  expect(await text("AGENTS.md")).toContain("Read the code.");
 });
 
 test("a foreign folder of the same name is refused, and nothing is written", async () => {
