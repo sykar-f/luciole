@@ -34,6 +34,8 @@ const BLOCK_LABEL = "agents-block";
 const DOCS_POINTER = /node_modules\/@luciole-sh\/core\/docs\/([\w./-]+?\.md)/g;
 // An inline Markdown link or image: its target, up to a space (a title) or the closing paren.
 const LINK = /!?\[[^\]]*\]\(\s*<?([^)\s>]+)>?(?:\s+["'(][^)]*)?\)/g;
+// A link reference definition, `[label]: target "title"`, which `[text][label]` links use.
+const DEFINITION = /^ {0,3}\[[^\]]+\]:\s*<?([^\s>]+)>?/gm;
 const EXTERNAL = /^([a-z][a-z0-9+.-]*:|\/\/|#)/i;
 
 const Frontmatter = z.record(z.string(), z.unknown());
@@ -72,7 +74,7 @@ async function filesUnder(directory: string): Promise<string[]> {
 
 /** The relative link targets of a Markdown text, without their fragment. */
 function relativeLinks(markdown: string) {
-  return [...markdown.matchAll(LINK)]
+  return [...markdown.matchAll(LINK), ...markdown.matchAll(DEFINITION)]
     .map((match) => match[1] ?? "")
     .filter((target) => target && !EXTERNAL.test(target))
     .map((target) => decodeURI(target.replace(/[#?].*$/, "")))
@@ -316,6 +318,17 @@ const cases: { rule: string; skill: string; file: string; files: Record<string, 
       "luciole-x/SKILL.md": skillWith("name: luciole-x\ndescription: d", "[a](references/a.md)\n"),
       "luciole-x/references/a.md": "[deep](deep.md)\n",
       "luciole-x/references/deep.md": "# Linked from a reference only\n",
+    },
+  },
+  {
+    rule: "reference",
+    skill: "luciole-x",
+    file: "SKILL.md",
+    files: {
+      "luciole-x/SKILL.md": skillWith(
+        "name: luciole-x\ndescription: d",
+        "See [the other skill][other].\n\n[other]: ../luciole-good/SKILL.md\n",
+      ),
     },
   },
   {
