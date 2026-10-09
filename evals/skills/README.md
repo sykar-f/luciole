@@ -51,6 +51,7 @@ This is [`luciole-app/about-route.md`](luciole-app/about-route.md).
 | `checks`          | yes      | What must hold in the app after the agent finishes, in order. Each check is one column of the table.                           |
 | `expect-skill`    | no       | A skill name. The report then says whether the agent ran a command that names `<skill>/SKILL.md`, that is, whether it read it. |
 | `timeout-minutes` | no       | How long the agent may run before it is killed (default 15). Its checks still run.                                             |
+| `setup`           | no       | A shell command that plants a state in the app before the agent starts. See [A planted state](#a-planted-state).               |
 
 The checks, relative to the app's root:
 
@@ -62,17 +63,49 @@ The checks, relative to the app's root:
 | `match: { file: <path>, pattern: <re> }`    | the file exists and the regex matches (multiline) |
 | `no-match: { file: <path>, pattern: <re> }` | the file exists and the regex does not match      |
 
+## A planted state
+
+Some tasks start from an app that is not fresh: a defect to diagnose, a stale dependency, a
+misused API. Telling the agent about that state in the prompt proves little, so `setup` builds
+it. The command runs with `sh -c` in each run's copy of the app, in both arms, for at most 10
+minutes. The runner then commits what it changed and takes that commit as the baseline. The
+agent finds the planted state in the app as it is, and `diff.patch` holds only the agent's work.
+
+`$SCENARIO_DIR` is the scenario's directory, `evals/skills/<skill>/`. A setup can copy a fixture
+file that sits next to the scenario:
+
+```markdown
+---
+expect-skill: luciole-debug
+setup: |
+  cp "$SCENARIO_DIR/fixtures/broken-page.tsx" app/page.tsx
+checks:
+  - run: bun run verify
+---
+
+The home page renders blank. Find out why and fix it. Keep `bun run verify` passing.
+```
+
+A setup that exits non-zero or runs out of time is not an agent result: the agent does not
+start, the checks do not run, and the report shows `setup failed` for that run. The setup's
+output goes to `setup.log`.
+
 ## The report
 
 The runner prints the directory it writes to first, then one table: a row per scenario, arm and
 run, with `pass` or `FAIL` for each check (`c1`, `c2`… are listed under the table), whether the
-expected skill was read, how the agent ended (`ok`, `timeout`, `exit N`), and the duration.
+expected skill was read, how the agent ended (`ok`, `timeout`, `exit N`, or `setup failed`
+when it never started), and the duration. When the agent leaves processes that no signal can
+end (macOS may refuse one with EPERM), the run still completes and its outcome says so, as in
+`ok, cleanup: 1 left`.
 
 The directory holds, for each run under `runs/<skill>/<scenario>/<arm>-<n>/`:
 
+- `setup.log`: the setup's output, when the scenario has one;
 - `transcript.jsonl`: the agent's events (`codex exec --json`);
-- `diff.patch`: everything the agent changed, against the app as it found it;
+- `diff.patch`: everything the agent changed, against the app as it found it, setup included;
 - `checks.log`: each check's output;
 - `app/`: the app after the run.
 
-`report.md` at the root holds the table.
+`report.md` at the root holds the table. It is written again after each run, so a pass that
+stops early keeps the rows of the runs it finished.

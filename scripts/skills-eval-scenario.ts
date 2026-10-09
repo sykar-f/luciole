@@ -1,11 +1,12 @@
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
 
 /**
- * The parts of `scripts/skills-eval.ts` that run without an agent: the scenario format, the
- * command line, processes and their groups, the checks, the run's diff, whether a transcript
- * shows an agent reading a skill, and the report's table. The format is documented in
+ * The parts of `scripts/skills-eval.ts` that run without Codex: the scenario format, the
+ * command line, processes and their groups, the setup, the checks, the run's diff, one run in
+ * an app copy with the agent's command given, whether a transcript shows an agent reading a
+ * skill, and the report's table. The format is documented in
  * evals/skills/README.md.
  */
 
@@ -28,6 +29,7 @@ const Frontmatter = z.strictObject({
     .regex(/^luciole-[a-z0-9-]+$/)
     .optional(),
   "timeout-minutes": z.number().positive().optional(),
+  setup: z.string().min(1).optional(),
   checks: z.array(Check).min(1),
 });
 
@@ -37,6 +39,8 @@ export interface Scenario {
   checks: readonly Check[];
   expectSkill?: string;
   timeoutMinutes: number;
+  /** A shell command that plants the app's state before the baseline commit. */
+  setup?: string;
 }
 
 /** A scenario file's text, read as `name`: its prompt, checks and options, or a thrown error. */
@@ -64,6 +68,7 @@ export function parseScenario(name: string, text: string): Scenario {
     checks: parsed.data.checks,
     expectSkill: parsed.data["expect-skill"],
     timeoutMinutes: parsed.data["timeout-minutes"] ?? DEFAULT_TIMEOUT_MINUTES,
+    setup: parsed.data.setup,
   };
 }
 
@@ -148,10 +153,16 @@ export interface RunResult {
   checks: readonly boolean[];
   /** Absent when the scenario expects no skill. */
   skillRead?: boolean;
-  /** Whether the agent ran out of time or exited non-zero. */
-  agent: "ok" | "timeout" | `exit ${number}`;
+  /** Whether the agent ran out of time or exited non-zero, or never started. */
+  agent: "ok" | "timeout" | `exit ${number}` | "setup failed";
+  /** The agent's live processes that its cleanup could not end, when there are any. */
+  left?: number;
   seconds: number;
 }
+
+/** How the agent ended, and what its cleanup left behind. */
+const outcome = (result: RunResult) =>
+  result.left ? `${result.agent}, cleanup: ${result.left} left` : result.agent;
 
 /** The report: one row per scenario, arm and run, then the legend of the check columns. */
 export function renderTable(results: readonly RunResult[], scenarios: readonly Scenario[]) {
@@ -174,7 +185,7 @@ export function renderTable(results: readonly RunResult[], scenarios: readonly S
       return passed === undefined ? "" : passed ? "pass" : "FAIL";
     }),
     result.skillRead === undefined ? "-" : result.skillRead ? "yes" : "no",
-    result.agent,
+    outcome(result),
     `${Math.round(result.seconds)}s`,
   ]);
   const widths = header.map((cell, i) =>
@@ -199,38 +210,99 @@ export interface Ran {
   code: number;
   output: string;
   timedOut: boolean;
+  /** The group's live members that survived its end: none, unless the system refused. */
+  left: number;
+}
+
+/** `process.kill`, or a stand-in for it. */
+export type Kill = (pid: number, signal: NodeJS.Signals | 0) => void;
+
+/** How a process group ends: who signals it, and how long it may take to disappear. */
+export interface Cleanup {
+  kill?: Kill;
+  goneMs?: number;
 }
 
 /** How long a process group may take to disappear once killed. */
 const GROUP_GONE_MS = 5000;
 const GROUP_POLL_MS = 20;
 
-/** Whether the process group `id` still has a member. */
-function groupAlive(id: number) {
+const errorCode = (error: unknown) =>
+  error instanceof Error && "code" in error ? error.code : undefined;
+
+const PsLine = /^\s*(\d+)\s+(\d+)\s+(\S+)/;
+
+/**
+ * The members of the process group `id` that still run: zombies, which only wait for their
+ * parent to read their status, do not count.
+ */
+async function liveMembers(id: number, kill: Kill): Promise<number[]> {
   try {
-    process.kill(-id, 0);
-    return true;
+    kill(-id, 0);
   } catch (error: unknown) {
-    if (error instanceof Error && "code" in error && error.code === "ESRCH") return false;
-    throw error;
+    if (errorCode(error) === "ESRCH") return [];
   }
+  const ps = Bun.spawn(["ps", "-A", "-o", "pid=", "-o", "pgid=", "-o", "stat="], {
+    stdin: "ignore",
+    stdout: "pipe",
+    stderr: "ignore",
+  });
+  const listing = await new Response(ps.stdout).text();
+  await ps.exited;
+  return listing.split("\n").flatMap((line) => {
+    const [, pid, pgid, stat] = PsLine.exec(line) ?? [];
+    return Number(pgid) === id && !stat?.startsWith("Z") ? [Number(pid)] : [];
+  });
 }
 
 /**
  * Kills every process of the group `id` and waits until none is left. An agent starts servers,
  * watchers and test runners; none may outlive its run, hold its copy of the app, or keep a port.
+ * The system may refuse a signal (EPERM, as macOS does for a group whose members changed
+ * credentials): then each live member is signalled on its own. Ending a group never throws, so
+ * a cleanup cannot abort a pass; it returns how many live members are left, which the run
+ * reports.
  */
-export async function endGroup(id: number) {
+export async function endGroup(id: number, options: Cleanup = {}): Promise<number> {
+  const kill =
+    options.kill ??
+    ((pid, signal) => {
+      process.kill(pid, signal);
+    });
   try {
-    process.kill(-id, "SIGKILL");
+    kill(-id, "SIGKILL");
   } catch (error: unknown) {
-    if (!(error instanceof Error && "code" in error && error.code === "ESRCH")) throw error;
+    if (errorCode(error) === "ESRCH") return 0;
   }
-  const deadline = performance.now() + GROUP_GONE_MS;
-  while (groupAlive(id)) {
-    if (performance.now() > deadline) throw new Error(`process group ${id} survived SIGKILL`);
+  const deadline = performance.now() + (options.goneMs ?? GROUP_GONE_MS);
+  for (;;) {
+    const left = await liveMembers(id, kill);
+    if (!left.length) return 0;
+    if (performance.now() > deadline) return left.length;
+    for (const pid of left)
+      try {
+        kill(pid, "SIGKILL");
+      } catch {
+        // Refused or already gone: the next listing tells.
+      }
     await Bun.sleep(GROUP_POLL_MS);
   }
+}
+
+/** A stream read as it comes: what it said so far, its end, and a way to stop reading. */
+function collect(stream: ReadableStream<Uint8Array>) {
+  const reader = stream.getReader();
+  const decoder = new TextDecoder();
+  let text = "";
+  const done = (async () => {
+    for (;;) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      text += decoder.decode(chunk.value, { stream: true });
+    }
+    text += decoder.decode();
+  })().catch(() => undefined);
+  return { done, text: () => text, cancel: () => reader.cancel().catch(() => undefined) };
 }
 
 /**
@@ -240,10 +312,15 @@ export async function endGroup(id: number) {
 export async function run(
   cmd: readonly string[],
   cwd: string,
-  options: { timeoutMs?: number } = {},
+  options: {
+    timeoutMs?: number;
+    env?: Readonly<Record<string, string>>;
+    cleanup?: Cleanup;
+  } = {},
 ): Promise<Ran> {
   const child = Bun.spawn([...cmd], {
     cwd,
+    env: { ...process.env, ...options.env },
     stdin: "ignore",
     stdout: "pipe",
     stderr: "pipe",
@@ -251,20 +328,23 @@ export async function run(
   });
   // Read while it runs: a full pipe would stall it. A child that keeps the pipe open keeps
   // the read pending until the group ends below.
-  const out = new Response(child.stdout).text();
-  const err = new Response(child.stderr).text();
+  const out = collect(child.stdout);
+  const err = collect(child.stderr);
   let timedOut = false;
   const timer =
     options.timeoutMs === undefined
       ? undefined
       : setTimeout(() => {
           timedOut = true;
-          endGroup(child.pid).catch(() => undefined);
+          void endGroup(child.pid, options.cleanup);
         }, options.timeoutMs);
   const code = await child.exited;
   clearTimeout(timer);
-  await endGroup(child.pid);
-  return { code, output: (await out) + (await err), timedOut };
+  const left = await endGroup(child.pid, options.cleanup);
+  // A member left alive may hold the pipes open forever: keep what they said until now.
+  if (left) await Promise.all([out.cancel(), err.cancel()]);
+  await Promise.all([out.done, err.done]);
+  return { code, output: out.text() + err.text(), timedOut, left };
 }
 
 /** `run`, which must exit 0: its output, or a thrown error that holds it. */
@@ -274,10 +354,15 @@ export async function must(cmd: readonly string[], cwd: string) {
   return result.output;
 }
 
+const MS_PER_SECOND = 1000;
 const MS_PER_MINUTE = 60_000;
 /** How long one check command may run. */
 const CHECK_TIMEOUT_MINUTES = 10;
 export const CHECK_TIMEOUT_MS = CHECK_TIMEOUT_MINUTES * MS_PER_MINUTE;
+
+/** How a command ended, for its log. */
+const statusOf = (result: Ran) =>
+  `${result.timedOut ? "timed out" : `exit ${result.code}`}${result.left ? `, cleanup: ${result.left} left` : ""}`;
 
 /** Whether `check` holds in `app`, and what it saw. */
 export async function runCheck(
@@ -289,7 +374,7 @@ export async function runCheck(
     const result = await run(["sh", "-c", check.run], app, {
       timeoutMs: options.timeoutMs ?? CHECK_TIMEOUT_MS,
     });
-    const status = result.timedOut ? "timed out" : `exit ${result.code}`;
+    const status = statusOf(result);
     return { passed: result.code === 0 && !result.timedOut, log: `${status}\n${result.output}` };
   }
   if ("exists" in check || "absent" in check) {
@@ -316,4 +401,109 @@ export async function baselineOf(app: string) {
 export async function diffSince(app: string, baseline: string) {
   await must(["git", "add", "-A"], app);
   return must(["git", "diff", "--cached", "--binary", baseline], app);
+}
+
+/** Commits everything in `app` as the runner, even nothing: the commit a run starts from. */
+export async function commitAll(app: string, message: string) {
+  await must(["git", "add", "-A"], app);
+  await must(
+    [
+      "git",
+      "-c",
+      "user.name=skills-eval",
+      "-c",
+      "user.email=skills-eval@luciole.invalid",
+      "commit",
+      "-q",
+      "--allow-empty",
+      "-m",
+      message,
+    ],
+    app,
+  );
+}
+
+/**
+ * Runs a scenario's `setup` in `app` (`sh -c`, at most as long as a check), with the scenario's
+ * directory as `$SCENARIO_DIR`, then commits what it changed, so the baseline holds it.
+ */
+export async function runSetup(
+  setup: string,
+  app: string,
+  options: { scenarioDir: string; timeoutMs?: number },
+): Promise<{ passed: boolean; log: string }> {
+  const result = await run(["sh", "-c", setup], app, {
+    timeoutMs: options.timeoutMs ?? CHECK_TIMEOUT_MS,
+    env: { SCENARIO_DIR: options.scenarioDir },
+  });
+  const status = statusOf(result);
+  const passed = result.code === 0 && !result.timedOut;
+  if (passed) await commitAll(app, "setup");
+  return { passed, log: `${status}\n${result.output}` };
+}
+
+/**
+ * One run in `app`, a fresh copy of a base: the scenario's setup, then the agent's command,
+ * then the checks. It writes `setup.log` (when the scenario has a setup), `transcript.jsonl`,
+ * `diff.patch` and `checks.log` to `out`. A setup that fails starts no agent and no check.
+ */
+export async function runInApp(options: {
+  scenario: Scenario;
+  scenarioDir: string;
+  app: string;
+  out: string;
+  agent: readonly string[];
+  /** How the agent's process group ends: `process.kill` unless a test stands in for it. */
+  cleanup?: Cleanup;
+}): Promise<Omit<RunResult, "scenario" | "arm" | "run">> {
+  const { scenario, app, out } = options;
+  if (scenario.setup !== undefined) {
+    const setup = await runSetup(scenario.setup, app, { scenarioDir: options.scenarioDir });
+    await writeFile(join(out, "setup.log"), setup.log);
+    if (!setup.passed) return { checks: [], agent: "setup failed", seconds: 0 };
+  }
+  const baseline = await baselineOf(app);
+
+  const started = performance.now();
+  const agent = await run(options.agent, app, {
+    timeoutMs: scenario.timeoutMinutes * MS_PER_MINUTE,
+    cleanup: options.cleanup,
+  });
+  const seconds = (performance.now() - started) / MS_PER_SECOND;
+  await writeFile(join(out, "transcript.jsonl"), agent.output);
+
+  await writeFile(join(out, "diff.patch"), await diffSince(app, baseline));
+
+  const checks: boolean[] = [];
+  const logs: string[] = [];
+  for (const check of scenario.checks) {
+    const result = await runCheck(check, app);
+    checks.push(result.passed);
+    logs.push(`## ${describeCheck(check)}: ${result.passed ? "pass" : "FAIL"}\n${result.log}`);
+  }
+  await writeFile(join(out, "checks.log"), logs.join("\n\n"));
+  return {
+    checks,
+    skillRead: scenario.expectSkill ? readsSkill(agent.output, scenario.expectSkill) : undefined,
+    agent: agent.timedOut ? "timeout" : agent.code === 0 ? "ok" : `exit ${agent.code}`,
+    left: agent.left || undefined,
+    seconds,
+  };
+}
+
+/**
+ * Runs each of `items` in turn and rewrites `report` (the table) after each one, so a failure
+ * later in the pass keeps the rows of the runs before it.
+ */
+export async function runPass<T>(
+  items: readonly T[],
+  runOne: (item: T) => Promise<RunResult>,
+  options: { scenarios: readonly Scenario[]; report: string },
+): Promise<RunResult[]> {
+  const results: RunResult[] = [];
+  for (const item of items) {
+    results.push(await runOne(item));
+    await writeFile(options.report, `${renderTable(results, options.scenarios)}\n`);
+  }
+  return results;
 }

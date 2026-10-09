@@ -15,20 +15,18 @@
  */
 import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { z } from "zod";
 import { stageStarter } from "../packages/create/scripts/starter";
 import {
-  baselineOf,
-  describeCheck,
-  diffSince,
+  commitAll,
   must,
   parseArgs,
   parseScenario,
-  readsSkill,
   renderTable,
   run,
-  runCheck,
+  runInApp,
+  runPass,
   USAGE,
   type Arm,
   type Args,
@@ -44,8 +42,6 @@ const PACKED = {
   "@luciole-sh/markdown-editor": "packages/markdown-editor",
 };
 const ARMS: readonly Arm[] = ["without", "with"];
-const MS_PER_SECOND = 1000;
-const SECONDS_PER_MINUTE = 60;
 const PackageJson = z.looseObject({ dependencies: z.record(z.string(), z.string()) });
 
 /** The scenarios to run: those named, or every one of the skill's. */
@@ -93,21 +89,7 @@ async function copyApp(from: string, to: string) {
 /** A git repository at `directory` whose one commit is the app as the agent finds it. */
 async function baseline(directory: string) {
   await must(["git", "init", "-q"], directory);
-  await must(["git", "add", "-A"], directory);
-  await must(
-    [
-      "git",
-      "-c",
-      "user.name=skills-eval",
-      "-c",
-      "user.email=skills-eval@luciole.invalid",
-      "commit",
-      "-q",
-      "-m",
-      "baseline",
-    ],
-    directory,
-  );
+  await commitAll(directory, "baseline");
 }
 
 /** The installed starter, and its copy with the agent material: one base per arm. */
@@ -151,12 +133,13 @@ async function runOnce(options: {
   await mkdir(out, { recursive: true });
   const app = join(out, "app");
   await copyApp(base, app);
-  const baseline = await baselineOf(app);
   console.log(`${scenario.name} · ${arm} · run ${options.run}: codex in ${app}`);
-
-  const started = performance.now();
-  const agent = await run(
-    [
+  const result = await runInApp({
+    scenario,
+    scenarioDir: join(SCENARIOS, dirname(scenario.name)),
+    app,
+    out,
+    agent: [
       "codex",
       "exec",
       "-m",
@@ -169,31 +152,8 @@ async function runOnce(options: {
       "workspace-write",
       scenario.prompt,
     ],
-    app,
-    { timeoutMs: scenario.timeoutMinutes * SECONDS_PER_MINUTE * MS_PER_SECOND },
-  );
-  const seconds = (performance.now() - started) / MS_PER_SECOND;
-  await writeFile(join(out, "transcript.jsonl"), agent.output);
-
-  await writeFile(join(out, "diff.patch"), await diffSince(app, baseline));
-
-  const checks: boolean[] = [];
-  const logs: string[] = [];
-  for (const check of scenario.checks) {
-    const result = await runCheck(check, app);
-    checks.push(result.passed);
-    logs.push(`## ${describeCheck(check)}: ${result.passed ? "pass" : "FAIL"}\n${result.log}`);
-  }
-  await writeFile(join(out, "checks.log"), logs.join("\n\n"));
-  return {
-    scenario: scenario.name,
-    arm,
-    run: options.run,
-    checks,
-    skillRead: scenario.expectSkill ? readsSkill(agent.output, scenario.expectSkill) : undefined,
-    agent: agent.timedOut ? "timeout" : agent.code === 0 ? "ok" : `exit ${agent.code}`,
-    seconds,
-  };
+  });
+  return { scenario: scenario.name, arm, run: options.run, ...result };
 }
 
 async function main() {
@@ -209,18 +169,26 @@ async function main() {
   console.log(`Report directory: ${temp}`);
   const bases = await prepareBases(temp);
 
-  const results: RunResult[] = [];
-  for (const scenario of scenarios)
-    for (let n = 1; n <= args.runs; n++)
-      for (const arm of ARMS) {
-        const out = join(temp, "runs", scenario.name, `${arm}-${n}`);
-        results.push(
-          await runOnce({ scenario, arm, run: n, base: bases[arm], out, model: args.model }),
-        );
-      }
+  const plan = scenarios.flatMap((scenario) =>
+    Array.from({ length: args.runs }, (_, i) => i + 1).flatMap((n) =>
+      ARMS.map((arm) => ({ scenario, arm, n })),
+    ),
+  );
+  const results = await runPass(
+    plan,
+    ({ scenario, arm, n }) =>
+      runOnce({
+        scenario,
+        arm,
+        run: n,
+        base: bases[arm],
+        out: join(temp, "runs", scenario.name, `${arm}-${n}`),
+        model: args.model,
+      }),
+    { scenarios, report: join(temp, "report.md") },
+  );
 
   const table = renderTable(results, scenarios);
-  await writeFile(join(temp, "report.md"), `${table}\n`);
   console.log(`\n${table}\n`);
   console.log(`Transcripts, diffs and check logs: ${join(temp, "runs")}`);
 }
