@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promis
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import {
+  agentCommand,
   AGENT_MATERIAL,
   baselineOf,
   CORE_PACKAGE,
@@ -12,13 +13,18 @@ import {
   must,
   parseArgs,
   parseScenario,
+  fingerprintOf,
+  materialReads,
   readsSkill,
   renderTable,
   run,
   runCheck,
   runInApp,
+  runLayout,
   runPass,
   splitBases,
+  unreadableFor,
+  writesOutside,
   type Kill,
   type RunResult,
   type Scenario,
@@ -133,16 +139,151 @@ test("the command line: skill, scenarios, runs and model", () => {
 
 const event = (item: Record<string, unknown>) => JSON.stringify({ type: "item.completed", item });
 
-test("a skill counts as read when a command the agent ran names its SKILL.md", () => {
-  const read = event({
+/** A `command_execution` item as `codex exec --json` writes it once the command has ended. */
+const ran = (command: string, exitCode: number, output = "") =>
+  event({
+    id: "item_1",
     type: "command_execution",
-    command: "/bin/zsh -lc 'cat .agents/skills/luciole-app/SKILL.md'",
+    command: `/bin/zsh -lc '${command}'`,
+    aggregated_output: output,
+    exit_code: exitCode,
+    status: exitCode === 0 ? "completed" : "failed",
   });
+
+test("a skill counts as read when a command the agent ran names its SKILL.md", () => {
+  const read = ran("cat .agents/skills/luciole-app/SKILL.md", 0);
   expect(readsSkill(read, "luciole-app")).toBe(true);
   expect(readsSkill(read, "luciole-test")).toBe(false);
   // A message that names the file is not a read; nor is a line that is not an event.
   const said = event({ type: "agent_message", text: "see .agents/skills/luciole-app/SKILL.md" });
   expect(readsSkill([said, "cat luciole-app/SKILL.md"].join("\n"), "luciole-app")).toBe(false);
+});
+
+test("a command that failed is not a read, nor one that has not ended", () => {
+  const failed = ran("cat .agents/skills/luciole-upgrade/SKILL.md 2>/dev/null", 1);
+  expect(readsSkill(failed, "luciole-upgrade")).toBe(false);
+  // Codex announces the command before it runs it, with no exit code yet.
+  const started = JSON.stringify({
+    type: "item.started",
+    item: {
+      id: "item_1",
+      type: "command_execution",
+      command: "/bin/zsh -lc 'cat .agents/skills/luciole-upgrade/SKILL.md'",
+      aggregated_output: "",
+      exit_code: null,
+      status: "in_progress",
+    },
+  });
+  expect(readsSkill(started, "luciole-upgrade")).toBe(false);
+  const succeeded = ran("cat .agents/skills/luciole-upgrade/SKILL.md", 0);
+  expect(readsSkill([failed, started, succeeded].join("\n"), "luciole-upgrade")).toBe(true);
+});
+
+test("the material read in a transcript: the skill's SKILL.md or the block, read with success", () => {
+  const transcript = [
+    ran("cat ~/.codex/skills/luciole-upgrade/SKILL.md", 1),
+    ran("cat ../with-1/app/.agents/skills/luciole-upgrade/SKILL.md", 0),
+    ran("cat ~/.agents/skills/cloudflare/SKILL.md", 0),
+    ran("rg -n upgrade node_modules/@luciole-sh/core/agents-block.md", 0),
+    ran("cat package.json", 0),
+  ].join("\n");
+  expect(materialReads(transcript, { skill: "luciole-upgrade" })).toEqual([
+    "/bin/zsh -lc 'cat ../with-1/app/.agents/skills/luciole-upgrade/SKILL.md'",
+    "/bin/zsh -lc 'rg -n upgrade node_modules/@luciole-sh/core/agents-block.md'",
+  ]);
+});
+
+/** The opening of luciole-ship's SKILL.md, as skill-ship's report found it in a Codex log. */
+const SHIP = [
+  "---",
+  "name: luciole-ship",
+  "description: Ships a luciole app — compiled binaries, macOS signing and notarization, a hosted Server, the web target and npm packages with luciole pack.",
+  "disable-model-invocation: true",
+  "---",
+  "",
+  "# Ship a luciole app",
+  "",
+].join("\n");
+
+test("a skill's fingerprint: its name line and its description's first words", () => {
+  const fingerprint = fingerprintOf(SHIP);
+  expect(fingerprint?.name.test("name: luciole-ship\n")).toBe(true);
+  expect(fingerprint?.name.test("name: luciole-shipping\n")).toBe(false);
+  expect(fingerprint?.description.test("description: Ships a luciole app")).toBe(true);
+  // A folded description breaks its words over lines.
+  expect(fingerprint?.description.test("Ships a\n  luciole app")).toBe(true);
+  expect(fingerprintOf("# no frontmatter")).toBeUndefined();
+  expect(fingerprintOf("---\nname: x\n---\n")).toBeUndefined();
+});
+
+test("a without run that read the skill through a Codex log is contaminated", () => {
+  const fingerprint = fingerprintOf(SHIP);
+  // skill-ship's TaedsM without-1: rg printed rollout lines, whose JSON escapes the newlines.
+  const logged = JSON.stringify({ aggregated_output: SHIP }).slice(1, -1);
+  const searched = ran(
+    "rg -n luciole-ship /Users/u/.codex /Users/u/.agents 2>/dev/null",
+    0,
+    `/Users/u/.codex/sessions/2026/10/09/rollout-x.jsonl:12:{"type":"response_item",${logged}}`,
+  );
+  // A two-step read: the search names no skill path, the cat names the log.
+  const listed = ran("rg -l luciole-ship /Users/u/.codex/sessions", 0, "rollout-x.jsonl\n");
+  const opened = ran(
+    "cat /Users/u/.codex/sessions/2026/10/09/rollout-2026-10-09T02-57-45-a.jsonl",
+    0,
+  );
+  const history = ran("tail /Users/u/.codex/history.jsonl", 0);
+  const references = ran(
+    "cat node_modules/@luciole-sh/core/skills/luciole-ship/references/web.md",
+    0,
+  );
+  const clean = ran("cat app/sessions/page.tsx", 0, "name: luciole-ship");
+  const transcript = [searched, listed, opened, history, references, clean].join("\n");
+  expect(materialReads(transcript, { skill: "luciole-ship", fingerprint })).toEqual([
+    "/bin/zsh -lc 'rg -n luciole-ship /Users/u/.codex /Users/u/.agents 2>/dev/null'",
+    "/bin/zsh -lc 'rg -l luciole-ship /Users/u/.codex/sessions'",
+    "/bin/zsh -lc 'cat /Users/u/.codex/sessions/2026/10/09/rollout-2026-10-09T02-57-45-a.jsonl'",
+    "/bin/zsh -lc 'tail /Users/u/.codex/history.jsonl'",
+    "/bin/zsh -lc 'cat node_modules/@luciole-sh/core/skills/luciole-ship/references/web.md'",
+  ]);
+  // Without the fingerprint, only the commands that name the material count.
+  expect(materialReads(searched, { skill: "luciole-ship" })).toEqual([]);
+});
+
+/** A `file_change` item as `codex exec --json` writes it, for each path. */
+const changed = (status: string, ...paths: string[]) =>
+  event({
+    id: "item_7",
+    type: "file_change",
+    changes: paths.map((path) => ({ path, kind: "add" })),
+    status,
+  });
+
+test("a write outside the app is flagged, through either spelling of its root", () => {
+  const app = ["/var/r/runs/s/with-1/app", "/private/var/r/runs/s/with-1/app"];
+  const transcript = [
+    changed("completed", "/private/var/r/runs/s/with-1/app/app/login/page.tsx"),
+    changed("completed", "/var/r/runs/s/with-1/app/components/a.tsx", "relative.ts"),
+    changed("completed", "/private/var/r/components/LoginForm.tsx"),
+    // Refused by the sandbox or not, it was the agent's work, and the checks do not see it.
+    changed("failed", "/tmp/notes-check/app/page.tsx", "/private/var/r/runs/s/with-1/app-x/a"),
+    changed("completed", "/private/var/r/components/LoginForm.tsx"),
+  ].join("\n");
+  expect(writesOutside(transcript, app)).toEqual([
+    "/private/var/r/components/LoginForm.tsx",
+    "/tmp/notes-check/app/page.tsx",
+    "/private/var/r/runs/s/with-1/app-x/a",
+  ]);
+});
+
+test("the without arm may not read the skill under test or the block, anywhere", () => {
+  const roots = ["/var/T/", "/tmp", "/w"];
+  expect(unreadableFor({ arm: "with", skill: "luciole-app", roots })).toEqual(roots);
+  expect(unreadableFor({ arm: "without", skill: "luciole-app", roots })).toEqual([
+    ...roots,
+    "/**/luciole-app/SKILL.md",
+    "/**/luciole-app/references/**",
+    "/**/agents-block.md",
+  ]);
 });
 
 test("the table: one row per run, a column per check, and the legend", () => {
@@ -161,6 +302,8 @@ test("the table: one row per run, a column per check, and the legend", () => {
         run: 1,
         checks: [true, false],
         skillRead: false,
+        contamination: [],
+        outside: [],
         agent: "ok",
         seconds: 61.4,
       },
@@ -178,10 +321,10 @@ test("the table: one row per run, a column per check, and the legend", () => {
   );
   expect(table).toBe(
     [
-      "| scenario          | arm     | run | c1   | c2   | skill read | agent   | duration |",
-      "|-------------------|---------|-----|------|------|------------|---------|----------|",
-      "| luciole-app/about | without | 1   | pass | FAIL | no         | ok      | 61s      |",
-      "| luciole-app/about | with    | 1   | pass | pass | yes        | timeout | 90s      |",
+      "| scenario          | arm     | run | c1   | c2   | skill read | contaminated | wrote outside | agent   | duration |",
+      "|-------------------|---------|-----|------|------|------------|--------------|---------------|---------|----------|",
+      "| luciole-app/about | without | 1   | pass | FAIL | no         | no           | no            | ok      | 61s      |",
+      "| luciole-app/about | with    | 1   | pass | pass | yes        | -            | -             | timeout | 90s      |",
       "",
       "Checks:",
       "  luciole-app/about c1: exists a",
@@ -311,6 +454,7 @@ const withSetup = (setup: string): Scenario => ({
 test("a setup's change is in the baseline, and the diff holds only the agent's", async () => {
   const { out, app } = await appCopy();
   const result = await runInApp({
+    arm: "with",
     scenario: withSetup('cp "$SCENARIO_DIR/fixtures/planted.txt" planted.txt\necho a set > a.txt'),
     scenarioDir: await scenarioDir(),
     app,
@@ -331,6 +475,7 @@ test("the setup sees the scenario's directory as $SCENARIO_DIR", async () => {
   const { out, app } = await appCopy();
   const directory = await scenarioDir();
   await runInApp({
+    arm: "with",
     scenario: withSetup('printf %s "$SCENARIO_DIR" > planted.txt'),
     scenarioDir: directory,
     app,
@@ -344,6 +489,7 @@ test("a failing setup starts no agent and no check, and the report says so", asy
   const { out, app } = await appCopy();
   const scenario = withSetup("echo boom; exit 3");
   const result = await runInApp({
+    arm: "with",
     scenario,
     scenarioDir: await scenarioDir(),
     app,
@@ -363,16 +509,122 @@ test("a failing setup starts no agent and no check, and the report says so", asy
     [scenario],
   );
   expect(table.split("\n")[2]).toBe(
-    "| luciole-x/planted | with | 1   |    |    | -          | setup failed | 0s       |",
+    "| luciole-x/planted | with | 1   |    |    | -          | -            | -             | setup failed | 0s       |",
   );
 });
 
 test("a scenario without setup runs the agent on the app as copied", async () => {
   const { out, app } = await appCopy();
   const { setup: _, ...scenario } = withSetup("unused");
-  const result = await runInApp({ scenario, scenarioDir: temp, app, out, agent: WRITES_FILE });
+  const result = await runInApp({
+    scenario,
+    arm: "with",
+    scenarioDir: temp,
+    app,
+    out,
+    agent: WRITES_FILE,
+  });
   expect(result).toMatchObject({ agent: "ok", checks: [false, true] });
   expect(await Bun.file(join(out, "setup.log")).exists()).toBe(false);
+});
+
+test("while the agent runs, its root holds only its app, its $TMPDIR and its $CODEX_HOME", async () => {
+  const { out, app } = await appCopy();
+  const { tmp, codex } = runLayout(out);
+  expect(runLayout(out).app).toBe(app);
+  const auth = join(await mkdtemp(join(temp, "codex-home-")), "auth.json");
+  await writeFile(auth, '{"token":"t"}\n');
+  const result = await runInApp({
+    scenario: withSetup("echo planted > planted.txt"),
+    arm: "without",
+    scenarioDir: await scenarioDir(),
+    app,
+    out,
+    codexAuth: auth,
+    agent: [
+      "sh",
+      "-c",
+      'ls -A ..; ls -A "$CODEX_HOME"; echo "TMPDIR=$TMPDIR CODEX_HOME=$CODEX_HOME"; echo agent > agent.txt',
+    ],
+  });
+  expect(result).toMatchObject({ agent: "ok", checks: [true, true] });
+  // The setup's log, like the transcript, is written once the agent has ended.
+  expect(await readFile(join(out, "transcript.jsonl"), "utf8")).toBe(
+    `app\ncodex\ntmp\nauth.json\nTMPDIR=${tmp} CODEX_HOME=${codex}\n`,
+  );
+  expect(await readFile(join(out, "setup.log"), "utf8")).toBe("exit 0\n");
+  // The credentials leave with the agent; the user's own stay where they were.
+  expect(await readdir(codex)).toEqual([]);
+  expect(await readFile(auth, "utf8")).toBe('{"token":"t"}\n');
+});
+
+test("the report flags a without run that read the material, and a write outside the app", async () => {
+  const scenario: Scenario = {
+    name: "luciole-x/leaky",
+    prompt: "p",
+    checks: [{ exists: "a.txt" }],
+    timeoutMinutes: 1,
+  };
+  const read = ran("cat ../../with-1/app/.agents/skills/luciole-x/SKILL.md", 0);
+  const results: RunResult[] = [];
+  const escaped: string[] = [];
+  for (const arm of ["without", "with"] as const) {
+    const { out, app } = await appCopy();
+    const outside = join(out, "LoginForm.tsx");
+    escaped.push(outside);
+    const transcript = [read, changed("completed", join(app, "a.txt"), outside)].join("\n");
+    const agent = ["sh", "-c", `printf '%s\\n' "$0"`, transcript];
+    const result = await runInApp({ scenario, arm, scenarioDir: temp, app, out, agent });
+    results.push({ scenario: scenario.name, arm, run: 1, ...result });
+  }
+  const command = "/bin/zsh -lc 'cat ../../with-1/app/.agents/skills/luciole-x/SKILL.md'";
+  expect(results.map(({ contamination, outside }) => ({ contamination, outside }))).toEqual([
+    { contamination: [command], outside: [escaped[0]] },
+    { contamination: undefined, outside: [escaped[1]] },
+  ]);
+  const table = renderTable(results, [scenario]).split("\n");
+  expect(table[2]).toMatch(
+    /^\| luciole-x\/leaky \| without \| 1 +\| pass \| - +\| YES +\| YES +\|/,
+  );
+  expect(table[3]).toMatch(/^\| luciole-x\/leaky \| with +\| 1 +\| pass \| - +\| - +\| YES +\|/);
+  expect(table.slice(-6)).toEqual([
+    "Contaminated (the material read in the without arm):",
+    `  luciole-x/leaky without 1: ${command}`,
+    "",
+    "Written outside the app:",
+    `  luciole-x/leaky without 1: ${escaped[0]}`,
+    `  luciole-x/leaky with 1: ${escaped[1]}`,
+  ]);
+});
+
+test("the agent may write its whole app and its tmp, and read none of the unreadable paths", () => {
+  const command = agentCommand({
+    app: "/r/runs/s/without-1/app",
+    tmp: "/r/runs/s/without-1/tmp",
+    model: "m",
+    prompt: "Do it.",
+    unreadable: ["/var/T", "/w"],
+  });
+  expect(command).not.toContain("--sandbox");
+  expect(command.slice(0, 8)).toEqual([
+    "codex",
+    "exec",
+    "-m",
+    "m",
+    "--skip-git-repo-check",
+    "--json",
+    "-C",
+    "/r/runs/s/without-1/app",
+  ]);
+  expect(command.slice(8)).toEqual([
+    "-c",
+    'default_permissions="skills_eval"',
+    "-c",
+    "permissions.skills_eval.filesystem={ " +
+      '"/" = "read", "/var/T" = "deny", "/w" = "deny", "/r/runs/s/without-1/tmp" = "write", ' +
+      '":workspace_roots" = { "." = "write", ".agents" = "write", ".git" = "write" } }',
+    "Do it.",
+  ]);
 });
 
 const eperm = () => Object.assign(new Error("kill EPERM"), { code: "EPERM" });
@@ -386,6 +638,7 @@ test("a refused group signal still ends the run when the group is gone", async (
   };
   const { setup: _, ...scenario } = withSetup("unused");
   const result = await runInApp({
+    arm: "with",
     scenario,
     scenarioDir: temp,
     app,
@@ -409,6 +662,7 @@ test("a member no signal can end is reported, and the run completes", async () =
     timeoutMinutes: 1,
   };
   const result = await runInApp({
+    arm: "with",
     scenario,
     scenarioDir: temp,
     app,
@@ -460,8 +714,8 @@ test("the report keeps the finished rows when a later run fails", async () => {
   expect(String(failure)).toContain("the third run crashed");
   const lines = (await readFile(report, "utf8")).split("\n");
   expect(lines.slice(2, 5)).toEqual([
-    "| luciole-x/pass | without | 1   | pass | -          | ok    | 1s       |",
-    "| luciole-x/pass | without | 2   | pass | -          | ok    | 1s       |",
+    "| luciole-x/pass | without | 1   | pass | -          | -            | -             | ok    | 1s       |",
+    "| luciole-x/pass | without | 2   | pass | -          | -            | -             | ok    | 1s       |",
     "",
   ]);
 });
