@@ -163,8 +163,9 @@ The runner prints the directory it writes to first, then one table: a row per sc
 run, with `pass` or `FAIL` for each check (`c1`, `c2`… are listed under the table), whether the
 expected skill was read, whether a without run was contaminated (`YES`, `no`, or `-` in the with
 arm), whether the agent wrote outside its app, how the agent ended (`ok`, `timeout`, `exit N`, or `setup failed`
-when it never started), and the duration. When the agent leaves processes that no signal can
-end (macOS may refuse one with EPERM), the run still completes and its outcome says so, as in
+when it never started), and the duration. When processes cannot be ended (macOS may refuse a
+signal with EPERM) or a stalled process listing prevents confirmation that they ended, the run
+still completes and reports the last observed count (or 1 when unknown), as in
 `ok, cleanup: 1 left`.
 
 The directory holds, for each run under `runs/<skill>/<scenario>/<arm>-<n>/`:
