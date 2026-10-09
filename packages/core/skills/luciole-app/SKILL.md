@@ -108,7 +108,6 @@ this file holds what you would get wrong without them.
   `require()` and dynamic `import()` fail the build.
 - Run the Client and the Server from the same build: a Server of another build answers
   `409` ("Incompatible build"); rebuild and restart both.
-- `<Input>` reports typing through `onInput`; `<Textarea>` through `onChange`.
 
 ## Read further when the task needs it
 
