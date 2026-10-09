@@ -713,12 +713,20 @@ async function interruptAuthCopies(signal: "SIGINT" | "SIGTERM") {
   const groups = [...authCopies.values()].filter((id): id is number => id !== undefined);
   for (const auth of authCopies.keys()) rmSync(auth, { force: true });
   await Promise.all(groups.map((id) => endGroup(id)));
+  // A finishing run may have changed the owner while cleanup was awaited.
+  for (const auth of authCopies.keys()) rmSync(auth, { force: true });
+  await Promise.all(
+    [...authCopies.values()]
+      .filter((id): id is number => id !== undefined)
+      .map((id) => endGroup(id)),
+  );
   process.exit(signal === "SIGINT" ? INTERRUPTED_EXIT : TERMINATED_EXIT);
 }
 const onAuthInterrupt = () => void interruptAuthCopies("SIGINT");
 const onAuthTerminate = () => void interruptAuthCopies("SIGTERM");
 
 function copyAuth(source: string | undefined, auth: string) {
+  if (interrupting) throw new Error("Eval runner is interrupting; no new agent may start");
   if (!authCopies.size) {
     process.on("SIGINT", onAuthInterrupt);
     process.on("SIGTERM", onAuthTerminate);
@@ -779,6 +787,7 @@ export async function runInApp(options: {
   let agent: Ran;
   try {
     copyAuth(options.codexAuth, auth);
+    if (interrupting) throw new Error("Eval runner is interrupting; no new agent may start");
     agent = await run(options.agent, app, {
       timeoutMs: scenario.timeoutMinutes * MS_PER_MINUTE,
       env: { TMPDIR: tmp, CODEX_HOME: codex },

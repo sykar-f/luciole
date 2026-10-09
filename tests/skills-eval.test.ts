@@ -650,6 +650,7 @@ await Promise.all(${JSON.stringify(
         for (const { out } of runs)
           expect(await Bun.file(join(runLayout(out).codex, "auth.json")).exists()).toBe(fileAuth);
         runner.kill(signal);
+        runner.kill(signal);
         expect(await runner.exited).toBe(signal === "SIGINT" ? 130 : 143);
         for (const [leader, child] of groups) {
           expect(leader).toBeGreaterThan(0);
