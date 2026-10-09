@@ -868,6 +868,11 @@ It answers these errors as text:
 | 404    | `Route not found`, `Unknown action`, `Unknown bundle`, `Not found`                                            | The route ID, the Server Function ID, the bundle's hash or the path is unknown. |
 | 500    | `Server request failed`                                                                                       | `authenticate` or the Server Function threw. The Server logs the call ID.       |
 
+A page that throws while it renders still answers 200: the error streams to the Client's
+`error.tsx`, as a generic error in production. The Server logs
+`Render failed <callId> <routeId> <name>`, with the error's name and never its message, and
+`instrument` receives a `failure` event with the message. A `notFound()` is not a failure.
+
 A 401 from a page or a Server Function carries `x-luciole-login: <unauthorizedPath>` when
 `auth` sets one.
 
@@ -876,7 +881,7 @@ A 401 from a page or a Server Function carries `x-luciole-login: <unauthorizedPa
 `instrument.onEvent(event)` receives two kinds of events:
 
 - a `ServerEvent` for every `/render` and `/action`: `request`, `response`, `end` or `error`,
-  with `callId`, `kind`, `target` and `at`
+  and `failure` for each error a page's render raises, with `callId`, `kind`, `target` and `at`
 - each `CacheEvent` of the cache
 
 | `ServerEvent` type | Extra fields               | When                                                                             |
@@ -885,6 +890,11 @@ A 401 from a page or a Server Function carries `x-luciole-login: <unauthorizedPa
 | `response`         | `status`, `ms`             | The handler returned its `Response`.                                             |
 | `end`              | `ms`, `bytes`, `cancelled` | The body ended, or the Client went away. A live body ends with its generator.    |
 | `error`            | `ms`, `message`            | The handler threw, in place of `response`, or the body failed while it streamed. |
+| `failure`          | `ms`, `message`            | The page's render raised an error. Not a last event: the body goes on.           |
+
+`failure` comes anywhere after `request`, before `response` too, once per error the render
+raises; the other events keep their order. A `switch` on `type` sees this case beside the four
+others.
 
 `at` is epoch milliseconds, and `ms` counts from the request's arrival. `target` is the route
 ID or the Server Function ID, as the request gave it. Without `instrument` or `devtools`, no

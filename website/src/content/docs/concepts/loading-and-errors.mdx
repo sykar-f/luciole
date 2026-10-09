@@ -67,6 +67,11 @@ An `error.tsx` receives `{ error, path, params, retry }`:
 - `path` and `params` name the page that failed.
 - `retry()` loads the page again.
 
+The Server keeps a trace of a page that throws. Its log gets `Render failed`, the call ID, the
+route ID and the error's name. It never logs the message, which may carry user data: the message
+goes to `instrument` in a `failure` event
+([Observe requests with `instrument`](/docs/reference/api/#observe-requests-with-instrument)).
+
 <CodeAndScreen
   path="examples/notes/app/error.tsx"
   find="export default function PageError"
