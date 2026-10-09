@@ -72,7 +72,10 @@ export async function clickOn(ui: TestUI, text: string, button?: MouseButton) {
   await ui.mockMouse.click(cell.x, cell.y, button);
 }
 
-/** What `openClient` takes beyond the Client's own options (`fetch`, `transport`, …). */
+/**
+ * What `openClient` takes beyond the Client's own options (`fetch`, `transport`, …). Among
+ * those, `latencyMs` and `network` set the network conditions of a test.
+ */
 export type OpenClientOptions = Omit<ClientOptions, "url"> & {
   /** A distinct tag gives the Client its own runtime; two Clients in one file need two. */
   tag?: string;

@@ -84,8 +84,9 @@ export async function launchServer(
 
 /**
  * Starts the Server of a built app, as `luciole start` would, on a free port. `env` adds
- * to the process environment: the app's own settings (a database path), or luciole's
- * (`LUCIOLE_LATENCY_MS`, …). Stop it with `await using` or `stop()`.
+ * to the process environment, such as the app's own settings (a database path). Network
+ * conditions are the Client's: pass `latencyMs` and `network` to `openClient`. Stop it with
+ * `await using` or `stop()`.
  */
 export function startServer(app: { output: string }, env: Record<string, string> = {}) {
   return launchServer(join(app.output, "server/index.js"), env);
