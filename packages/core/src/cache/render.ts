@@ -1,6 +1,73 @@
 import { renderTags } from "./scope";
 
 /**
+ * A byte relay whose pipe owns completion. A sink write holds upstream backpressure
+ * until the next pull; cancellation aborts the pipe and releases that write, so the
+ * pipe can cancel its source even when a read is pending. No read continuation owns
+ * the output controller after the consumer cancels it.
+ */
+export function relayBody(
+  body: ReadableStream<Uint8Array>,
+  observe: {
+    chunk?: (value: Uint8Array) => void;
+    cancel?: (reason: unknown) => void;
+    end?: (result: { type: "end"; cancelled: boolean } | { type: "error"; error: unknown }) => void;
+  } = {},
+): ReadableStream<Uint8Array> {
+  const stop = new AbortController();
+  let resume = () => {};
+  let completion: Promise<void>;
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      completion = body
+        .pipeTo(
+          new WritableStream<Uint8Array>({
+            write(value) {
+              const consumed = new Promise<void>((resolve) => {
+                resume = resolve;
+              });
+              observe.chunk?.(value);
+              controller.enqueue(value);
+              return consumed;
+            },
+            close() {
+              // Source EOF may already have committed the pipe to shutdown,
+              // which then ignores abort. Consumer cancellation owns the output
+              // close before releasing its last write; only the other exit may
+              // close this controller. The check and close are synchronous.
+              if (!stop.signal.aborted) controller.close();
+            },
+          }),
+          { signal: stop.signal, preventAbort: true },
+        )
+        .then(
+          () => observe.end?.({ type: "end", cancelled: stop.signal.aborted }),
+          (error: unknown) => {
+            if (stop.signal.aborted) {
+              observe.end?.({ type: "end", cancelled: true });
+              // Aborting the pipe rejects with its reason. A source whose own
+              // cancellation failed must still reject the consumer's cancel.
+              if (error !== stop.signal.reason) throw error;
+            } else {
+              observe.end?.({ type: "error", error });
+              controller.error(error);
+            }
+          },
+        );
+    },
+    pull() {
+      resume();
+    },
+    cancel(reason) {
+      observe.cancel?.(reason);
+      stop.abort(reason);
+      resume();
+      return completion;
+    },
+  });
+}
+
+/**
  * The root model of a `/render` response: the page, rendered as its own Flight stream,
  * and the "use cache" tags that render read, resolved once its stream ended (content
  * below Suspense included). Flight tells no one when a response is complete, and a
@@ -13,27 +80,11 @@ export function renderPage(
   render: (model: unknown) => ReadableStream<Uint8Array>,
 ): ReadableStream<Uint8Array> {
   const read = new Set<string>();
-  const page = renderTags.run(read, () => render(tree)).getReader();
+  const page = renderTags.run(read, () => render(tree));
   let settle = (_tags: string[]) => {};
   const tags = new Promise<string[]>((resolve) => (settle = resolve));
-  // A cut or cancelled page resolves with what it read so far: the response is ending.
-  const end = () => settle([...read]);
-  const stream = new ReadableStream<Uint8Array>({
-    async pull(controller) {
-      try {
-        const { done, value } = await page.read();
-        if (!done) return controller.enqueue(value);
-        end();
-        controller.close();
-      } catch (error) {
-        end();
-        controller.error(error);
-      }
-    },
-    cancel(reason) {
-      end();
-      return page.cancel(reason);
-    },
-  });
+  // The page's pipe settles once on completion, error or cancellation, with the
+  // tags it read so far. Flight owns cancellation of this serialized stream.
+  const stream = relayBody(page, { end: () => settle([...read]) });
   return render({ tree: stream, tags });
 }

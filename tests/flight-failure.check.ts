@@ -47,3 +47,60 @@ const heard = (model: unknown) => {
     expect(errors).toEqual([]);
   });
 }
+
+// A next() already waiting for Flight output must be interruptible: return() on
+// Node's async iterator queues behind that next(), unlike stream cancellation.
+test(`${name}: cancellation interrupts a pending Flight read`, async () => {
+  let signal: AbortSignal | undefined;
+  const { errors, stream } = heard(
+    page(() => {
+      const current = React.cacheSignal();
+      if (!(current instanceof AbortSignal)) throw new Error("No Flight cache signal");
+      signal = current;
+      return React.use(new Promise<never>(() => {}));
+    }),
+  );
+  const reader = stream.getReader();
+  await reader.read();
+  // Drain the development metadata too: the native adapter preserves chunk
+  // boundaries where Node's iterator used to coalesce the first buffered rows.
+  let pending = reader.read();
+  for (;;) {
+    let quiet: ReturnType<typeof setTimeout> | undefined;
+    const result = await Promise.race([
+      pending,
+      new Promise<null>((done) => {
+        quiet = setTimeout(() => done(null), 20);
+      }),
+    ]);
+    clearTimeout(quiet);
+    if (result === null) break;
+    expect(result.done).toBe(false);
+    pending = reader.read();
+  }
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      reader.cancel(new Error("gone")),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error("cancel waits behind next")), 500);
+      }),
+    ]);
+    clearTimeout(timer);
+    expect(await pending).toMatchObject({ done: true });
+    if (!signal) throw new Error("The page never rendered");
+    const active = signal;
+    if (!active.aborted) {
+      await Promise.race([
+        new Promise<void>((done) => active.addEventListener("abort", () => done(), { once: true })),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => reject(new Error("Flight was not aborted")), 500);
+        }),
+      ]);
+    }
+    expect(signal.aborted).toBe(true);
+    expect(errors).toEqual([]);
+  } finally {
+    clearTimeout(timer);
+  }
+});

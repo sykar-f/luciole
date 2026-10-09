@@ -2,8 +2,9 @@
 // cannot carry ambient module declarations, so a reference brings them to consumers too.
 // oxlint-disable-next-line typescript/triple-slash-reference -- the ambient Flight declarations above.
 /// <reference path="../../types.d.ts" />
-import { PassThrough } from "node:stream";
+import { PassThrough, Readable } from "node:stream";
 import { renderToPipeableStream } from "react-server-dom-webpack/server.node";
+import { relayBody } from "../cache/render";
 import { digestOf, readNotFound } from "../not-found";
 export {
   registerClientReference,
@@ -25,25 +26,31 @@ export function renderToReadableStream(
       return digestOf(error);
     },
   });
-  render.pipe(output);
   output.on("close", () => {
     left = true;
     render.abort();
   });
-  // Pulled one chunk at a time like Readable.toWeb, whose `node:stream/web` type is not
-  // the global ReadableStream. Node streams are untyped: every chunk is checked to be bytes.
-  const chunks: AsyncIterator<unknown> = output[Symbol.asyncIterator]();
-  return new ReadableStream<Uint8Array>({
-    async pull(controller) {
-      const next = await chunks.next();
-      if (next.done) controller.close();
-      else if (next.value instanceof Uint8Array) controller.enqueue(next.value);
-      else controller.error(new TypeError("Flight wrote a chunk that is not bytes"));
-    },
-    async cancel() {
-      // Before the output closes: Flight's next write fails first.
+  // Register our departure before Flight's own destination-close listener aborts
+  // its tasks, so cancellation never becomes a reported render failure.
+  render.pipe(output);
+  // The native adapter destroys the Node source on cancellation; an iterator's
+  // return() queues behind its pending next() and cannot interrupt that read.
+  // Narrow the adapter's Node declaration to the host's stream type without
+  // assuming that untyped Node chunks already satisfy our byte contract.
+  const native: unknown = Readable.toWeb(output, { strategy: { highWaterMark: 1 } });
+  if (!(native instanceof ReadableStream)) throw new TypeError("Node did not return a web stream");
+  const stream = native.pipeThrough(
+    new TransformStream<unknown, Uint8Array>({
+      transform(value, controller) {
+        if (!(value instanceof Uint8Array))
+          throw new TypeError("Flight wrote a chunk that is not bytes");
+        controller.enqueue(value);
+      },
+    }),
+  );
+  return relayBody(stream, {
+    cancel: () => {
       left = true;
-      await chunks.return?.();
     },
   });
 }

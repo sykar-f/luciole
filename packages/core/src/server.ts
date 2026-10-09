@@ -8,7 +8,7 @@ import { webAccess, type WebAccess } from "./web-routes";
 import { INSTANCE_HEADER, InstanceKey, instanceManifests } from "./instance";
 import { NotFoundError } from "./not-found";
 import type { CacheHandler } from "./cache/handler";
-import { renderPage } from "./cache/render";
+import { relayBody, renderPage } from "./cache/render";
 import { Tag, configureCache, invalidateTags, type CacheEvent } from "./cache/runtime";
 import { assertUncached } from "./cache/scope";
 import { devtoolsInstrument } from "./devtools/server-agent";
@@ -209,27 +209,16 @@ function observeBody(
     emit({ type: "end", bytes, cancelled: false });
     return null;
   }
-  const reader = body.getReader();
-  return new ReadableStream<Uint8Array>({
-    async pull(controller) {
-      try {
-        const { done, value } = await reader.read();
-        if (done) {
-          emit({ type: "end", bytes, cancelled: false });
-          controller.close();
-          return;
-        }
-        bytes += value.byteLength;
-        controller.enqueue(value);
-      } catch (e) {
-        emit({ type: "error", message: messageOf(e) });
-        controller.error(e);
-      }
+  return relayBody(body, {
+    chunk: (value) => {
+      bytes += value.byteLength;
     },
-    cancel(reason) {
-      emit({ type: "end", bytes, cancelled: true });
-      return reader.cancel(reason);
-    },
+    end: (result) =>
+      emit(
+        result.type === "end"
+          ? { ...result, bytes }
+          : { type: "error", message: messageOf(result.error) },
+      ),
   });
 }
 const STATUS = {
