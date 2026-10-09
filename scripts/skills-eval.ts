@@ -7,7 +7,8 @@
  * starter needs, stages a starter whose dependencies are those tarballs, and installs it. Each
  * scenario of evals/skills/<skill>/ (all of them, or those named) then runs with Codex in a copy
  * of that app, once per arm and run:
- * - without: no `.agents/skills` and no AGENTS.md block;
+ * - without: no `.agents/skills`, no AGENTS.md block, and neither the skills nor the block in
+ *   node_modules/@luciole-sh/core, only its docs;
  * - with: after `luciole skills install --agent agents`.
  * The scenario's checks run in the copy afterwards. The table, the transcripts and the diffs are
  * the report; it exits 0 whatever the scores, because it measures and does not gate. It runs
@@ -27,6 +28,7 @@ import {
   run,
   runInApp,
   runPass,
+  splitBases,
   USAGE,
   type Arm,
   type Args,
@@ -112,11 +114,17 @@ async function prepareBases(temp: string): Promise<Record<Arm, string>> {
   await must([join(without, "node_modules/.bin/oxfmt"), "--write", "package.json"], without);
 
   const withMaterial = join(temp, "base", "with");
-  await copyApp(without, withMaterial);
-  await must(
-    [join(withMaterial, "node_modules/.bin/luciole"), "skills", "install", "--agent", "agents"],
-    withMaterial,
-  );
+  await splitBases({
+    without,
+    with: withMaterial,
+    copy: copyApp,
+    install: async (app) => {
+      await must(
+        [join(app, "node_modules/.bin/luciole"), "skills", "install", "--agent", "agents"],
+        app,
+      );
+    },
+  });
   for (const directory of [without, withMaterial]) await baseline(directory);
   return { without, with: withMaterial };
 }

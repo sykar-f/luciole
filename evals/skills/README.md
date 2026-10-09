@@ -4,7 +4,9 @@ A scenario asks a coding agent to do one task in a fresh luciole app. The task r
 the results go side by side:
 
 - **without**: the app as `create-luciole` makes it, with no `.agents/skills` and no `AGENTS.md`
-  block;
+  block. The runner also removes `skills/` and `agents-block.md` from
+  `node_modules/@luciole-sh/core`, where a search would otherwise find them: the arm holds the
+  app and the package's docs, and no skill and no block anywhere;
 - **with**: the same app after `luciole skills install --agent agents`.
 
 ```sh

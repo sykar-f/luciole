@@ -3,7 +3,9 @@ import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promis
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import {
+  AGENT_MATERIAL,
   baselineOf,
+  CORE_PACKAGE,
   DEFAULT_MODEL,
   DEFAULT_TIMEOUT_MINUTES,
   diffSince,
@@ -16,6 +18,7 @@ import {
   runCheck,
   runInApp,
   runPass,
+  splitBases,
   type Kill,
   type RunResult,
   type Scenario,
@@ -461,4 +464,40 @@ test("the report keeps the finished rows when a later run fails", async () => {
     "| luciole-x/pass | without | 2   | pass | -          | ok    | 1s       |",
     "",
   ]);
+});
+
+test("the without base keeps the package's docs but none of its agent material", async () => {
+  const without = join(temp, "split", "without");
+  const withMaterial = join(temp, "split", "with");
+  const core = (app: string) => join(app, CORE_PACKAGE);
+  await mkdir(join(core(without), "skills/luciole-app"), { recursive: true });
+  await mkdir(join(core(without), "docs"), { recursive: true });
+  await writeFile(join(core(without), "skills/luciole-app/SKILL.md"), "skill\n");
+  await writeFile(join(core(without), "agents-block.md"), "block\n");
+  await writeFile(join(core(without), "docs/index.md"), "docs\n");
+  const installedFrom: string[][] = [];
+  await splitBases({
+    without,
+    with: withMaterial,
+    copy: async (from, to) => {
+      await must(["cp", "-R", from, to], temp);
+    },
+    // A stand-in for `luciole skills install`: what the package offers it when it runs.
+    install: async (app) => {
+      installedFrom.push(await readdir(core(app)));
+    },
+  });
+  expect(AGENT_MATERIAL).toEqual(["skills", "agents-block.md"]);
+  expect(installedFrom.map((entries) => entries.toSorted())).toEqual([
+    ["agents-block.md", "docs", "skills"],
+  ]);
+  expect((await readdir(core(without))).toSorted()).toEqual(["docs"]);
+  expect((await readdir(core(withMaterial))).toSorted()).toEqual([
+    "agents-block.md",
+    "docs",
+    "skills",
+  ]);
+  expect(await readFile(join(core(withMaterial), "skills/luciole-app/SKILL.md"), "utf8")).toBe(
+    "skill\n",
+  );
 });

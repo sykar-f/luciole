@@ -1,12 +1,12 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
 
 /**
  * The parts of `scripts/skills-eval.ts` that run without Codex: the scenario format, the
  * command line, processes and their groups, the setup, the checks, the run's diff, one run in
- * an app copy with the agent's command given, whether a transcript shows an agent reading a
- * skill, and the report's table. The format is documented in
+ * an app copy with the agent's command given, the split of the installed app into the arms'
+ * bases, whether a transcript shows an agent reading a skill, and the report's table. The format is documented in
  * evals/skills/README.md.
  */
 
@@ -387,6 +387,29 @@ export async function runCheck(
   if (text === undefined) return { passed: false, log: `${file} does not exist` };
   const matched = new RegExp(pattern, "m").test(text);
   return { passed: "match" in check ? matched : !matched, log: matched ? "matched" : "no match" };
+}
+
+/** Where an app holds the installed `@luciole-sh/core`, relative to its root. */
+export const CORE_PACKAGE = "node_modules/@luciole-sh/core";
+/** What the package ships for agents, relative to it: absent from the without arm. */
+export const AGENT_MATERIAL: readonly string[] = ["skills", "agents-block.md"];
+
+/**
+ * Makes the arms' bases from the installed app at `without`: `copy` it to `with`, `install`
+ * the agent material there, which reads the package's own copy, then remove that material from
+ * `without`'s package. Grepping node_modules then finds no skill in the without arm; the
+ * package's docs stay in both, as every user receives them.
+ */
+export async function splitBases(options: {
+  without: string;
+  with: string;
+  copy: (from: string, to: string) => Promise<void>;
+  install: (app: string) => Promise<void>;
+}) {
+  await options.copy(options.without, options.with);
+  await options.install(options.with);
+  for (const entry of AGENT_MATERIAL)
+    await rm(join(options.without, CORE_PACKAGE, entry), { recursive: true, force: true });
 }
 
 /** The commit `app` holds before the agent runs: what its diff is taken against. */
