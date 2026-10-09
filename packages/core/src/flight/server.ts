@@ -36,7 +36,9 @@ export function renderToReadableStream(
   // The native adapter destroys the Node source on cancellation; an iterator's
   // return() queues behind its pending next() and cannot interrupt that read.
   // node:stream/web and the host declare distinct types for the same stream API.
-  const stream = (Readable.toWeb(output) as unknown as ReadableStream<unknown>).pipeThrough(
+  const stream = (
+    Readable.toWeb(output, { strategy: { highWaterMark: 1 } }) as unknown as ReadableStream<unknown>
+  ).pipeThrough(
     new TransformStream<unknown, Uint8Array>({
       transform(value, controller) {
         if (!(value instanceof Uint8Array))

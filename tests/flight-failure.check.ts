@@ -89,9 +89,10 @@ test(`${name}: cancellation interrupts a pending Flight read`, async () => {
     clearTimeout(timer);
     expect(await pending).toMatchObject({ done: true });
     if (!signal) throw new Error("The page never rendered");
-    if (!signal.aborted) {
+    const active = signal;
+    if (!active.aborted) {
       await Promise.race([
-        new Promise<void>((done) => signal.addEventListener("abort", () => done(), { once: true })),
+        new Promise<void>((done) => active.addEventListener("abort", () => done(), { once: true })),
         new Promise<never>((_, reject) => {
           timer = setTimeout(() => reject(new Error("Flight was not aborted")), 500);
         }),
