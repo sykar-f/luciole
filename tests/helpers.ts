@@ -66,26 +66,34 @@ export async function temporaryApp(prefix: string) {
 export const privateBuild = (example: string, options?: BuildOptions) => buildApp(example, options);
 export type PrivateBuild = Awaited<ReturnType<typeof privateBuild>>;
 
-/** The directory holding a `package.json` or a `.git` that is `directory` or above it, if any. */
+/** The directory holding a project or `node_modules`, at `directory` or above it, if any. */
 function projectAbove(directory: string): string | undefined {
   for (let at = directory; ; at = dirname(at)) {
-    if (existsSync(join(at, "package.json")) || existsSync(join(at, ".git"))) return at;
+    if (
+      existsSync(join(at, "package.json")) ||
+      existsSync(join(at, ".git")) ||
+      existsSync(join(at, "node_modules"))
+    )
+      return at;
     if (dirname(at) === at) return undefined;
   }
 }
 
 /**
- * A fresh directory with no project above it: no `package.json` nor `.git` in it or in any
- * ancestor, so `bun add` installs where it runs and nothing resolves to a checkout. `tmpdir()`
- * is not that when TMPDIR points into a checkout (the sweep's does), hence the fallback to
- * `/tmp`; with no such place the call fails rather than let a test pass on a false premise.
+ * A fresh directory with no project or packages above it: no `package.json`, `.git`, or
+ * `node_modules` in it or in any ancestor, so `bun add` installs where it runs and nothing
+ * resolves to a checkout. `tmpdir()` is not that when TMPDIR points into a checkout (the
+ * sweep's does), hence the fallback to `/tmp`; with no such place the call fails rather than
+ * let a test pass on a false premise.
  */
-export async function isolatedTemporary(prefix: string) {
-  for (const candidate of [tmpdir(), "/tmp"]) {
+export async function isolatedTemporary(prefix: string, candidateRoot = tmpdir()) {
+  for (const candidate of [candidateRoot, "/tmp"]) {
     const root = await realpath(candidate).catch(() => undefined);
     if (root !== undefined && projectAbove(root) === undefined) return mkdtemp(join(root, prefix));
   }
-  throw new Error(`No temporary directory free of a project above it (tmpdir: ${tmpdir()})`);
+  throw new Error(
+    `No temporary directory free of a project or node_modules above it (root: ${candidateRoot})`,
+  );
 }
 
 /**

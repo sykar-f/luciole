@@ -1,5 +1,6 @@
 import { afterAll, expect, test } from "bun:test";
-import { mkdir, rm, symlink } from "node:fs/promises";
+import { mkdir, mkdtemp, realpath, rm, symlink } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { build } from "../packages/core/src/build";
 import { buildApp } from "../packages/core/src/test/build";
@@ -51,5 +52,48 @@ for (const [location, app] of [
       });
       expect(response.status).toBe(200);
       expect(await response.text()).toContain("ISOLATED_SERVER_RENDER");
+    }
+  });
+
+for (const kind of ["directory", "link"] as const)
+  test(`isolatedTemporary refuses an ancestor node_modules ${kind}`, async () => {
+    const ancestor = await mkdtemp(join(tmpdir(), "luciole-deps-ancestor-"));
+    let isolated: string | undefined;
+    try {
+      const root = join(ancestor, "nested", "root");
+      await mkdir(root, { recursive: true });
+      if (kind === "link")
+        await symlink(resolve("node_modules"), join(ancestor, "node_modules"), "dir");
+      else {
+        for (const name of ["react-server-dom-webpack", "react-reconciler", "@opentui/core"]) {
+          const dependency = join(ancestor, "node_modules", name);
+          await Bun.write(
+            join(dependency, "package.json"),
+            JSON.stringify({ name, exports: { ".": "./index.js", "./server.node": "./index.js" } }),
+          );
+          await Bun.write(join(dependency, "index.js"), "export {};");
+        }
+      }
+      // Normal resolution reaches the ancestor even without a project manifest.
+      // Each original absence assertion would fail from this contaminated root.
+      for (const name of [
+        "react-server-dom-webpack/server.node",
+        "react-reconciler",
+        "@opentui/core",
+      ])
+        expect(Bun.resolveSync(name, root)).toContain("node_modules");
+      const fallback = await isolatedTemporary("luciole-deps-fallback-", root);
+      isolated = fallback;
+      expect(dirname(fallback)).toBe(await realpath("/tmp"));
+      await mkdir(join(fallback, "node_modules"));
+      for (const name of [
+        "react-server-dom-webpack/server.node",
+        "react-reconciler",
+        "@opentui/core",
+      ])
+        expect(() => Bun.resolveSync(name, fallback)).toThrow();
+    } finally {
+      await rm(ancestor, { recursive: true, force: true });
+      if (isolated !== undefined) await rm(isolated, { recursive: true, force: true });
     }
   });
