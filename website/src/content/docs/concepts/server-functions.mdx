@@ -22,6 +22,7 @@ A module that starts with `"use server"` exports functions the Client can call. 
 registers them on the Server and replaces them, in the Client, with references. Calling a
 reference sends `POST /action` with the arguments in Flight, and resolves with what the
 function returned. There is no RPC layer, schema or manifest to write.
+The function may return nothing (`Promise<void>`): the Client call resolves to `undefined`.
 
 <Excerpt
   path="examples/notes/actions/notes.ts"
