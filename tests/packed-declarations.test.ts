@@ -82,6 +82,13 @@ test("packed core resolves every entry to declarations in a strict consumer", as
   expect(await checkCoreTypes(consumer, (line) => resolved.push(line))).toEqual([]);
   expect(resolved).toHaveLength(12);
   expect(resolved.every((line) => line.endsWith(".d.ts"))).toBe(true);
+  // macOS exposes temporary directories through /var and /private/var. Exercise
+  // an alias on every platform: TypeScript reports the physical declaration path.
+  const alias = join(temp, "consumer-alias");
+  symlinkSync(consumer, alias, "dir");
+  const aliased: string[] = [];
+  expect(await checkCoreTypes(alias, (line) => aliased.push(line))).toEqual([]);
+  expect(aliased).toEqual(resolved);
   const flight = await Bun.file(
     join(consumer, "node_modules/@luciole-sh/core/dts/packages/core/types.d.ts"),
   ).text();
