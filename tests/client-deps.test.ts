@@ -202,6 +202,7 @@ test(
       pkg.exports["./pattern/*"] = { import: "./pattern/*.js" };
       pkg.exports["./unrelated"] = 42;
       pkg.exports["./no-client"] = { "react-server": "./wrong-probe.js" };
+      pkg.exports["./blocked"] = { bun: null, default: "./wrong-probe.js" };
       await Bun.write(manifest, JSON.stringify(pkg));
       for (const name of ["client-probe", "literal-probe", "pattern/example", "wrong-probe"])
         await Bun.write(
@@ -214,7 +215,7 @@ test(
       );
       await Bun.write(
         join(root, "app/page.tsx"),
-        "export default function Page(){return <text>exports</text>}",
+        'import {Probe} from "../components/probe";export default function Page(){return <Probe/>}',
       );
       await Bun.write(
         join(root, "components/probe.ts"),
@@ -239,15 +240,30 @@ test(
       ])
         expect(bundle.includes(`react-dom/${name}`)).toBe(true);
       expect(bundle.includes("wrong-probe.js")).toBe(false);
+      for (const subpath of ["no-client", "blocked"]) {
+        await Bun.write(
+          join(root, "components/probe.ts"),
+          `"use client";export {value} from "react-dom/${subpath}";export function Probe(){return null}`,
+        );
+        const missing = await execute([process.execPath, probe], { cwd: root });
+        expect(missing.exitCode).not.toBe(0);
+        expect(missing.stderr.toString()).toContain(
+          `No export for react-dom/${subpath} under conditions bun, node, import`,
+        );
+      }
+      // A package may export its root as a single string, without a subpath map.
+      await Bun.write(manifest, JSON.stringify({ ...pkg, exports: "./literal-probe.js" }));
       await Bun.write(
         join(root, "components/probe.ts"),
-        '"use client";export {value} from "react-dom/no-client";export function Probe(){return null}',
+        '"use client";export {value} from "react-dom";export function Probe(){return null}',
       );
-      const missing = await execute([process.execPath, probe], { cwd: root });
-      expect(missing.exitCode).not.toBe(0);
-      expect(missing.stderr.toString()).toContain(
-        "No export for react-dom/no-client under conditions bun, node, import",
-      );
+      const literal = await execute([process.execPath, probe], { cwd: root });
+      expect(literal.exitCode, literal.stderr.toString()).toBe(0);
+      expect(
+        (await Bun.file(join(root, ".luciole/client/index.js")).text()).includes(
+          "react-dom/literal-probe.js",
+        ),
+      ).toBe(true);
     } finally {
       await rm(root, { recursive: true, force: true });
     }
