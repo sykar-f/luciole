@@ -251,7 +251,13 @@ test("a child that exits before ready keeps its stderr and cleans its trace", as
 console.error("early exit detail");
 process.exit(23);`,
   );
-  await expect(launch(file)).rejects.toThrow("server exited early exit detail");
+  const error = await launch(file).then(
+    (server) => server.stop().then(() => undefined),
+    (error: unknown) => error,
+  );
+  expect(error).toBeInstanceOf(Error);
+  if (!(error instanceof Error)) throw new Error("Expected the child to exit before ready");
+  expect(error.message).toContain("server exited early exit detail");
   const trace = await Bun.file(paths).text();
   expect(trace).not.toBe("");
   expect(existsSync(dirname(trace))).toBe(false);
