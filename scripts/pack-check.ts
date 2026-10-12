@@ -318,8 +318,10 @@ export async function checkCoreTypes(
   const tsc = join(dirname(Bun.resolveSync("typescript/package.json", import.meta.dir)), "bin/tsc");
   const checked = await run([process.execPath, tsc, "-p", consumer, "--traceResolution"], consumer);
   if (checked.code !== 0) return [`core declaration consumer failed: ${checked.out}`];
+  // TypeScript canonicalizes symlinks, including macOS /var → /private/var.
+  const installed = realpathSync(join(consumer, "node_modules/@luciole-sh/core"));
   for (const [name, target] of entries) {
-    const resolved = join(consumer, "node_modules/@luciole-sh/core", target);
+    const resolved = join(installed, target);
     if (!checked.out.includes(`Module name '${name}' was successfully resolved to '${resolved}'`))
       problems.push(`core consumer did not resolve ${name} to ${target}`);
     else log(`${name}: types resolve to ${target}`);
