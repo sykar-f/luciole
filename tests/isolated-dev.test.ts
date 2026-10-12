@@ -73,9 +73,8 @@ for (const [installation, root] of [
       expect(await Bun.file(join(app.output, "app/index.cjs")).text()).not.toContain(
         "jsx-dev-runtime",
       );
-      expect(await Bun.file(join(app.output, "client/index.js")).text()).not.toContain(
-        "jsx-dev-runtime",
-      );
+      const clientCode = await Bun.file(join(app.output, "client/index.js")).text();
+      expect(clientCode.includes("jsx-dev-runtime")).toBe(false);
       const loaded = await loadAppBundle(join(app.output, "app"));
       expect(loaded.buildId).toBe(app.buildId);
       const environment = loaded.modules.get(

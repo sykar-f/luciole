@@ -963,9 +963,9 @@ async function buildUnlocked(
             ? { define: { "process.env.NODE_ENV": "process.env.NODE_ENV" } }
             : {}),
         // Bun derives the JSX development mode from its NODE_ENV define, overriding
-        // development: false. Keep the host/launcher environment a runtime expression
-        // so automatic JSX uses jsx-runtime, the runtime provided by the host ABI.
-        ...(role === "app" || role === "args"
+        // development: false. Keep the Client, host and launcher environments as runtime
+        // expressions so automatic JSX uses jsx-runtime, including with production React.
+        ...(role === "client" || role === "app" || role === "args"
           ? { define: { "process.env.NODE_ENV": "process.env.NODE_ENV" } }
           : {}),
         metafile: clientSide,
