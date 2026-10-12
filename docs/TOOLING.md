@@ -62,9 +62,15 @@ internes gardent de simples types TypeScript.
 
 - `bun run check` : TypeScript sur le framework, ses applications internes (DevTools,
   lanceur, Client générique, runtime web), les exemples, les tests, les scripts et les
-  sondes. `scripts/check.ts` lance les 18 projets en parallèle (ils sont indépendants),
-  en quelques secondes. `packages/desktop` et `website/` ont chacun leur propre `check`
-  (Electrobun, `astro check`), absent de celui de la racine.
+  sondes. `scripts/check.ts` lance les 30 projets indépendants en parallèle, dont
+  `tests/fixtures/strict-consumer`, sans types DOM.
+
+  Le cœur et cette fixture activent `exactOptionalPropertyTypes`,
+  `noPropertyAccessFromIndexSignature`, `noUncheckedIndexedAccess` et `noUnusedLocals`.
+  Le `packages/core/tsconfig.base.json` destiné aux applications reste inchangé.
+  `packages/desktop` et `website/` ont chacun leur propre `check` (Electrobun,
+  `astro check`), absent de celui de la racine.
+
 - `bun run lint` / `lint:fix` : Oxlint, avec TypeScript et règles React pertinentes, sur
   tout le dépôt sauf quatre fichiers de `packages/desktop` qui ont besoin des types
   d'Electrobun : le `check` de ce paquet les lint après `electrobun prepare`.
