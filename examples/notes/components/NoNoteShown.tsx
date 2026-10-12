@@ -1,4 +1,5 @@
 "use client";
+import { reportError } from "./ui-state";
 import { useCommands } from "./commands";
 import { EmptyPane } from "./NoteFrame";
 import { useKnownNotes } from "./notes-list";
@@ -19,7 +20,12 @@ export function NoNoteShown() {
       <Line fg={color.muted}>
         {count ? "Choose one in the list, or start a new one." : "Start your first note."}
       </Line>
-      <BlockButton id="start-note" tone="primary" filled onPress={() => void commands.create()}>
+      <BlockButton
+        id="start-note"
+        tone="primary"
+        filled
+        onPress={() => commands.create().catch(reportError)}
+      >
         + New note
       </BlockButton>
     </EmptyPane>

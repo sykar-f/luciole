@@ -55,3 +55,8 @@ export const ui = {
 };
 
 export const useUi = () => useSyncExternalStore(ui.subscribe, ui.get);
+
+/** Report unexpected failures from event handlers and background work. */
+export function reportError(error: unknown) {
+  ui.toast({ text: error instanceof Error ? error.message : "Unknown error" });
+}

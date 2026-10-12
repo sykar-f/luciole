@@ -64,10 +64,11 @@ functions as their bindings. Bind with `useBindings` from
 `@luciole-sh/core/client`, not with `useKeyboard`:
 
 ```tsx
+const reportError = (error: unknown) => console.error(error);
 useBindings(
   () => ({
     bindings: [
-      { key: "ctrl+r", cmd: () => void refresh(), desc: "refresh", group: "global" },
+      { key: "ctrl+r", cmd: () => refresh().catch(reportError), desc: "refresh", group: "global" },
       { key: "ctrl+t", cmd: () => setDebug((shown) => !shown), desc: "requests", group: "global" },
     ],
   }),
@@ -122,3 +123,7 @@ need packages the starter already lists; for another app, see
 - A right-click handler checks `event.button === MouseButton.RIGHT` from `@opentui/core`;
   left-click actions check `MouseButton.LEFT`. Reset hover state on `onMouseOut`, and restore
   the renderer's pointer on exit and unmount.
+
+Handle promises started by event handlers or background work with `.catch(reportError)`.
+`reportError` is a synchronous callback that shows the failure through the app’s error UI;
+the reference snippets use `console.error` as a minimal reporter.

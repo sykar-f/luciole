@@ -25,9 +25,17 @@ bun install
 bun run dev
 ```
 
-`luciole init my-app` (and `bunx luciole.sh init my-app`) runs this package at the version of the
-framework that is installed. Bun only.
+From an installed app’s root, `./node_modules/.bin/luciole init my-app` runs this package at
+the installed framework’s version and fails if the binary is absent. Outside an app,
+`bunx luciole.sh@<version> init my-app` selects that release explicitly. Bun only.
 
 The template is staged from `examples/notes` when the package is packed (`prepack`, see
-`scripts/stage.ts`): every version is resolved, and the tooling configuration is inlined. Nothing
-is read from a repository when you run it.
+`scripts/stage.ts`): every version is resolved, and the tooling configuration is inlined.
+The staged directory is removed by `postpack` after the tarball is written; each pack stages it afresh. Nothing is read from a
+repository when you run it.
+
+The starter’s `.bun-version` pins Bun 1.4.2, the version tested by luciole CI. Its luciole
+package dependencies deliberately use `^` ranges to receive compatible patch fixes; the app’s
+lockfile pins the installed versions. Its lint configuration reports floating promises as
+errors, including promises discarded with `void`: handle rejections with `.catch(reportError)`,
+where `reportError` shows the failure to the user.

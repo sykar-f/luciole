@@ -10,6 +10,7 @@ file or a store of your own.
 "use client";
 import { useState } from "react";
 import { Input, useRestoredFields } from "@luciole-sh/core/client";
+const reportError = (error: unknown) => console.error(error);
 
 /** One line of text, kept across a crash until it is sent. */
 export function Composer({ send }: { send: (text: string) => Promise<string> }) {
@@ -22,7 +23,7 @@ export function Composer({ send }: { send: (text: string) => Promise<string> }) 
   return (
     <box flexDirection="column">
       <Input name="composer/text" value={text} onInput={setText} focused width={40} />
-      <text onMouseDown={() => void submit()}>Send</text>
+      <text onMouseDown={() => submit().catch(reportError)}>Send</text>
     </box>
   );
 }

@@ -74,8 +74,8 @@ this file holds what you would get wrong without them.
    ```
 
 5. **Navigate** with the route's pattern and its params, from a Client Component:
-   `const navigate = useNavigate(); void navigate({ to: "/notes/$id", params: { id } });`
-   (`useNavigate` from `@luciole-sh/core/client`).
+   `const navigate = useNavigate(); navigate({ to: "/notes/$id", params: { id } }).catch(reportError);`
+   (`useNavigate` from `@luciole-sh/core/client`; `reportError` shows the failure in the app).
 6. **Check.** `bun run build` once after adding or moving a page, so `app/routeTree.gen.ts`
    knows the new route before the type check; then `bun run format` and `bun run verify`.
 
@@ -134,3 +134,7 @@ this file holds what you would get wrong without them.
 - Terminal rendering, layout of boxes and key bindings: `luciole-tui`.
 - Tests of the app (`@luciole-sh/core/test`): `luciole-test`.
 - A failure to diagnose (a `401`, a `409`, a blank screen, a build error): `luciole-debug`.
+
+Handle promises started by event handlers or background work with `.catch(reportError)`.
+`reportError` is a synchronous callback that shows the failure through the app’s error UI;
+the reference snippets use `console.error` as a minimal reporter.

@@ -6,8 +6,8 @@ Ask the user to run them, or to export a recording and hand you its file.
 ## Start them (the user runs both panes, from the app's root)
 
 ```sh
-bunx luciole devtools                      # pane 1: the DevTools
-eval "$(bunx luciole devtools --env)"      # pane 2: exports LUCIOLE_DEVTOOLS and BUN_OPTIONS
+./node_modules/.bin/luciole devtools                      # pane 1: the DevTools
+eval "$(./node_modules/.bin/luciole devtools --env)"      # pane 2: exports LUCIOLE_DEVTOOLS and BUN_OPTIONS
 bun run dev                                # pane 2: then the app
 ```
 
@@ -47,3 +47,6 @@ compare request timings and causes.
 
 See `node_modules/@luciole-sh/core/docs/guides/devtools.md` and the "Observe requests and
 navigations" section of `node_modules/@luciole-sh/core/docs/reference/api.md`.
+
+Run `./node_modules/.bin/luciole` from the installed app’s root: it uses that version and
+fails if absent, without fetching a package. Outside an app, use `bunx luciole.sh@<version>`.

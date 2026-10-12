@@ -21,7 +21,7 @@ import {
   MenuLayer,
   ToastLayer,
 } from "../components/ui";
-import { ui, useUi } from "../components/ui-state";
+import { reportError, ui, useUi } from "../components/ui-state";
 
 // The notebook's window: the list of notes on the left, the note on the right, nothing
 // across the top: every row goes to the text. What a toolbar would say, the line above the
@@ -64,9 +64,9 @@ function Window({ children }: { children: ReactNode }) {
   useBindings(
     () => ({
       bindings: [
-        { key: "ctrl+r", cmd: () => void refresh() },
+        { key: "ctrl+r", cmd: () => refresh().catch(reportError) },
         { key: "ctrl+t", cmd: () => setDebug((shown) => !shown) },
-        { key: "ctrl+n", cmd: () => void commands.create() },
+        { key: "ctrl+n", cmd: () => commands.create().catch(reportError) },
         // Ctrl+L for the list: Ctrl+B is bold, in the note.
         { key: "ctrl+l", cmd: ui.toggleSidebar },
         {

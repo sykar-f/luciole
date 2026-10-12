@@ -53,11 +53,16 @@ each invalidation.
 import { useEffect, useState } from "react";
 import { useInvalidation } from "@luciole-sh/core/client";
 import { listNotes } from "../actions/notes";
+const reportError = (error: unknown) => console.error(error);
 
 /** How many notes the user has, read again after every change a Server Function declares. */
 export function useNoteCount() {
   const [count, setCount] = useState<number | null>(null);
-  const load = () => void listNotes().then((notes) => setCount(notes.length));
+  const load = () => {
+    listNotes()
+      .then((notes) => setCount(notes.length))
+      .catch(reportError);
+  };
   useEffect(load, []);
   useInvalidation(load);
   return count;

@@ -1,4 +1,5 @@
 "use client";
+import { reportError } from "./ui-state";
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { useApplication, useConnection } from "@luciole-sh/core/client";
 import { usePalette } from "./theme";
@@ -92,7 +93,7 @@ export function StatusLine({
         // Whatever the page had to say is about text not yet on the Server.
         text={page ? `○ ${status}. Your text is kept here.` : `○ ${status}`}
       >
-        <Button id="reconnect" tone="quiet" onPress={() => void refresh()}>
+        <Button id="reconnect" tone="quiet" onPress={() => refresh().catch(reportError)}>
           Reconnect
         </Button>
       </StatusMessage>

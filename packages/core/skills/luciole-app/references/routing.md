@@ -75,6 +75,7 @@ match generated patterns to select the native widget. The callback guard also co
 import { useEffect, useRef } from "react";
 import type { TabSelectRenderable } from "@opentui/core";
 import { useMatchRoute, useNavigate, type LayoutProps } from "@luciole-sh/core/client";
+const reportError = (error: unknown) => console.error(error);
 
 export default function NoteTabs({ children, params }: LayoutProps) {
   const navigate = useNavigate();
@@ -97,7 +98,9 @@ export default function NoteTabs({ children, params }: LayoutProps) {
         ]}
         onChange={(index, option) => {
           if (!option || index === active) return;
-          void navigate({ to: index === 1 ? "/notes/$id/info" : "/notes/$id", params: { id } });
+          navigate({ to: index === 1 ? "/notes/$id/info" : "/notes/$id", params: { id } }).catch(
+            reportError,
+          );
         }}
       />
       {children}
@@ -151,6 +154,7 @@ import {
   useRouterState,
   useSearch,
 } from "@luciole-sh/core/client";
+const reportError = (error: unknown) => console.error(error);
 
 export function NoteControls({ id }: { id: string }) {
   const router = useRouter();
@@ -171,18 +175,18 @@ export function NoteControls({ id }: { id: string }) {
       </text>
       <text onMouseDown={() => router.history.forward()}>Forward</text>
       <text
-        onMouseOver={() => void router.preloadRoute(destination)}
-        onMouseDown={() => void navigate(destination)}
+        onMouseOver={() => router.preloadRoute(destination).catch(reportError)}
+        onMouseDown={() => navigate(destination).catch(reportError)}
       >
         Open note
       </text>
       <text
         onMouseDown={() =>
-          void navigate({
+          navigate({
             to: ".",
             search: (previous) => ({ ...previous, page: String(page + 1) }),
             replace: true,
-          })
+          }).catch(reportError)
         }
       >
         Next page

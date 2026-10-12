@@ -44,8 +44,8 @@ Run every command from the app's directory. The upgrade guide is
 7. **Refresh the agent material**, then check it:
 
    ```sh
-   bunx luciole skills --agent <targets>
-   bunx luciole skills status --agent <targets>
+   ./node_modules/.bin/luciole skills --agent <targets>
+   ./node_modules/.bin/luciole skills status --agent <targets>
    ```
 
    `<targets>` lists the folders the app already has: `agents` for `.agents/skills`, `claude`
@@ -72,3 +72,6 @@ it, and any file `luciole skills` left alone.
   Server and hand out the Clients from one new build, and restart both.
 - Commit `.agents/`, `.claude/`, `AGENTS.md` and `CLAUDE.md` with the upgrade: they are plain
   copies meant to be versioned.
+
+Run `./node_modules/.bin/luciole` from the installed app’s root: it uses that version and
+fails if absent, without fetching a package. Outside an app, use `bunx luciole.sh@<version>`.

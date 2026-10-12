@@ -87,6 +87,7 @@ const FormatterConfig = z.object({
   sortImports: z.boolean(),
   sortPackageJson: z.boolean(),
 });
+const LinterConfig = z.looseObject({ rules: z.record(z.string(), z.unknown()) });
 const IgnoringConfig = z.looseObject({ ignorePatterns: z.array(z.string()) });
 
 async function readJson<T>(file: string, schema: z.ZodType<T>): Promise<T> {
@@ -265,6 +266,10 @@ export async function stageStarter(options: {
   await Bun.write(join(target, "README.md"), STARTER_README);
   for (const file of CONFIG_FILES)
     await cp(join(workspace, file), join(target, file), { recursive: true });
+  const lintFile = join(target, ".oxlintrc.json");
+  const lint = await readJson(lintFile, LinterConfig);
+  lint.rules["typescript/no-floating-promises"] = ["error", { ignoreVoid: false }];
+  await Bun.write(lintFile, JSON.stringify(lint, null, 2));
   if (vendored) {
     // The vendored copies are neither the starter's code nor to be linted or formatted.
     for (const name of [".oxlintrc.json", ".oxfmtrc.json"]) {

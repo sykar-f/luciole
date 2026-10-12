@@ -40,6 +40,8 @@ async function pack(directory: string, destination: string): Promise<string> {
     directory,
   );
   expect(packed.code, packed.output).toBe(0);
+  if (directory.endsWith("/packages/create"))
+    expect(await readdir(directory)).not.toContain("template");
   const [tarball] = await readdir(destination);
   return join(destination, z.string().parse(tarball));
 }
@@ -201,6 +203,7 @@ test(
       join(stagingWorkspace, "packages/create"),
     );
     expect(packed.code, packed.output).toBe(0);
+    expect(await readdir(join(stagingWorkspace, "packages/create"))).not.toContain("template");
     const [tarball] = await readdir(destination);
     const consumer = join(temp, "npm-consumer");
     await mkdir(consumer);
@@ -328,6 +331,13 @@ test(
     for (const script of ["run check", "run lint", "run format:check", "run build"])
       await step(script);
     expect(await Bun.file(join(starter, ".luciole/server/index.js")).exists()).toBe(true);
+    // The rule must reject discarded promises, including `void`, in a consumer's code.
+    const floating = join(starter, "components/floating.ts");
+    await Bun.write(floating, "void Promise.resolve();\n");
+    const refused = await run([process.execPath, "run", "lint"], starter);
+    expect(refused.code, refused.output).not.toBe(0);
+    expect(refused.output).toContain("no-floating-promises");
+    await rm(floating);
   },
   BUILD_TEST_MS * 4,
 );

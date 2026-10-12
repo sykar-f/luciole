@@ -1,4 +1,5 @@
 "use client";
+import { reportError } from "../components/ui-state";
 import { TransportError, type ErrorProps } from "@luciole-sh/core/client";
 import { EmptyPane } from "../components/NoteFrame";
 import { usePalette } from "../components/theme";
@@ -16,7 +17,7 @@ export default function PageError({ error, retry }: ErrorProps) {
   return (
     <EmptyPane id="note-error">
       <Line fg={color.warn}>{reason}</Line>
-      <Button tone="primary" onPress={() => void retry()}>
+      <Button tone="primary" onPress={() => retry().catch(reportError)}>
         Try again
       </Button>
     </EmptyPane>
