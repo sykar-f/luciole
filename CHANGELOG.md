@@ -13,6 +13,46 @@ and marked **Breaking**.
 
 ## [Unreleased]
 
+### Added
+
+- Request cancellation helpers in `@luciole-sh/core/server`: `getSignal()`
+  exposes the current request's `AbortSignal`, and `abortable()` lets a pending
+  await stop when that signal aborts.
+- `useLive` reducer mode folds streamed items into application state without
+  retaining an item array. The documentation shows how to reconnect from the
+  last cursor with a capped backoff.
+- Upstream backend status reports with `UpstreamStatusProvider`,
+  `usePublishUpstreamStatus` and `useUpstreamStatuses`. New apps show these
+  reports beside the Client's connection status.
+- Compiled TypeScript declarations for every public core export in the npm
+  tarball. Each export has a `types` condition; TypeScript consumers need
+  `moduleResolution: "Bundler"`.
+
+### Changed
+
+- **Breaking:** Cancelling a live response closes it immediately, without
+  waiting for the generator's `finally` block. Cleanup runs in the background;
+  use `getSignal()` and `abortable()` to interrupt a pending await and reach
+  cleanup promptly.
+- New apps handle rejected promises explicitly and enforce
+  `no-floating-promises` with `ignoreVoid: false`. The documentation uses the
+  same rejection-handling pattern.
+- Startup timeouts in `@luciole-sh/core/test` now report elapsed time, child
+  process state, captured output and the last observed Server startup stage.
+
+### Fixed
+
+- Core compiles with `exactOptionalPropertyTypes`,
+  `noPropertyAccessFromIndexSignature`, `noUncheckedIndexedAccess` and
+  `noUnusedLocals`, without DOM types. Generated route trees import only the
+  helpers they use.
+- Built Servers bundle their JavaScript dependencies, so apps using isolated
+  installs no longer need to declare `react-server-dom-webpack` themselves.
+- Test Client waits draw streamed updates between polls instead of waiting
+  until the wait ends to display them.
+- A Server Function that returns nothing now resolves on the Client with
+  `undefined`, instead of rejecting with an invalid-response error.
+
 ## [0.2.0] - 2026-10-09
 
 ### Added
