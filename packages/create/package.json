@@ -38,7 +38,8 @@
   ],
   "scripts": {
     "stage": "bun scripts/stage.ts",
-    "prepack": "bun scripts/stage.ts"
+    "prepack": "bun scripts/stage.ts",
+    "postpack": "bun scripts/clean-template.ts"
   },
   "devDependencies": {
     "@types/bun": "catalog:",

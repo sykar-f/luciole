@@ -18,7 +18,7 @@ import { NotePane, READING_WIDTH } from "./NoteFrame";
 import { StatusMessage } from "./StatusLine";
 import { useTheme, type Palette } from "./theme";
 import { Button } from "./ui";
-import { ui, useUi } from "./ui-state";
+import { reportError, ui, useUi } from "./ui-state";
 
 type Props = {
   initialNote: Note;
@@ -54,7 +54,9 @@ export function NoteEditor({ initialNote: note, saveAction, resolveAction, autos
   // again when the Server refuses it or never received it.
   const fields = useRestoredFields("note");
   const send = () =>
-    void save((snapshot) => fields.submit(() => saveAction(snapshot), { failed: (r) => !r.ok }));
+    save((snapshot) => fields.submit(() => saveAction(snapshot), { failed: (r) => !r.ok })).catch(
+      reportError,
+    );
   const editing = focus === "title" || focus === "body";
   const canSave = draft.dirty && !draft.pending && !draft.conflict;
   const body = useRef<MarkdownEditorRenderable>(null);
@@ -65,7 +67,7 @@ export function NoteEditor({ initialNote: note, saveAction, resolveAction, autos
   // it arrives, keeping this Draft would be refused the same way.
   const behind = draft.conflict && note.version <= draft.version;
   useEffect(() => {
-    if (behind) void refresh();
+    if (behind) refresh().catch(reportError);
   }, [behind, refresh]);
 
   // The latest `send`, for timers and cleanups that outlive the render that set them.
@@ -75,7 +77,11 @@ export function NoteEditor({ initialNote: note, saveAction, resolveAction, autos
   });
   // A save the Server has not answered: its outcome is looked up, or it is sent again.
   const retry = () =>
-    draft.unknown ? void recover(resolveAction, saveAction) : canSave ? send() : undefined;
+    draft.unknown
+      ? recover(resolveAction, saveAction).catch(reportError)
+      : canSave
+        ? send()
+        : undefined;
   // An unknown save is settled first, conflict or not: keeping or dropping this Draft
   // needs to know whether it was written.
   const failing = draft.failures > 0 && (draft.unknown || !draft.conflict);
@@ -267,7 +273,7 @@ export function NoteEditor({ initialNote: note, saveAction, resolveAction, autos
           syntaxStyle={syntax}
           placeholder="Start writing… **bold**, # a title, - a list"
           onFocusRequest={() => ui.focus("body")}
-          onLink={(url) => void host.openUrl(url).catch(() => undefined)}
+          onLink={(url) => host.openUrl(url).catch(reportError)}
           readingWidth={READING_WIDTH}
           math={renderMath}
           flexGrow={1}

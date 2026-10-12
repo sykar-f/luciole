@@ -1,4 +1,5 @@
 "use client";
+import { reportError } from "./ui-state";
 import { useEffect, useSyncExternalStore } from "react";
 import { TransportError, useInvalidation } from "@luciole-sh/core/client";
 import { listNotes } from "../actions/notes";
@@ -47,7 +48,7 @@ export const notesList = {
         loading = undefined;
         if (again) {
           again = false;
-          void notesList.load();
+          notesList.load().catch(reportError);
         }
       }
     })();
@@ -62,9 +63,9 @@ export const notesList = {
 /** The list, loaded on mount and after every invalidation. */
 export function useNotesList() {
   useEffect(() => {
-    void notesList.load();
+    notesList.load().catch(reportError);
   }, []);
-  useInvalidation(() => void notesList.load());
+  useInvalidation(() => notesList.load().catch(reportError));
   return useSyncExternalStore(notesList.subscribe, notesList.get);
 }
 /** The list as it is, without loading it. */

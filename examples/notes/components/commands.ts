@@ -10,7 +10,7 @@ import {
 import { createNote, deleteNote, restoreNote } from "../actions/notes";
 import { drafts, type Note } from "./draft";
 import { notesList } from "./notes-list";
-import { ui } from "./ui-state";
+import { reportError, ui } from "./ui-state";
 
 /** A title to show: a blank one reads as such. */
 export const titleOf = (note: Pick<Note, "title">) => note.title.trim() || "Untitled";
@@ -46,7 +46,9 @@ export function useCommands() {
     ui.toast({ text: copied ? "Copied as Markdown" : "The clipboard is not available here" });
   };
   const commands = {
-    open: (id: string) => void open(id),
+    open: (id: string) => {
+      open(id).catch(reportError);
+    },
     /** A blank note, opened with its title ready to type. */
     create: async () => {
       try {
@@ -59,7 +61,7 @@ export function useCommands() {
     },
     rename: (id: string) => {
       ui.rename(id);
-      if (id !== shown) void open(id);
+      if (id !== shown) open(id).catch(reportError);
     },
     /** Deleted at once, with an Undo: nothing asks "are you sure?". */
     remove: async (note: Note) => {
@@ -71,7 +73,7 @@ export function useCommands() {
       try {
         await deleteNote(note.id);
       } catch (error: unknown) {
-        void notesList.load();
+        notesList.load().catch(reportError);
         ui.toast({ text: `Could not delete: ${failure(error)}` });
         return;
       }
@@ -80,14 +82,17 @@ export function useCommands() {
         action: {
           label: "Undo",
           run: () =>
-            void restoreNote(note.id).then(
-              () => open(note.id),
-              (error: unknown) => ui.toast({ text: `Could not restore: ${failure(error)}` }),
-            ),
+            restoreNote(note.id)
+              .then(() => open(note.id))
+              .catch((error: unknown) =>
+                ui.toast({ text: `Could not restore: ${failure(error)}` }),
+              ),
         },
       });
     },
-    copy: (note: Note) => void copy(note),
+    copy: (note: Note) => {
+      copy(note).catch(reportError);
+    },
     /** A note's menu, the same from its row in the list and from its page. */
     menu: (note: Note, x: number, y: number) =>
       ui.openMenu({
@@ -97,7 +102,7 @@ export function useCommands() {
           ...(note.id === shown ? [] : [{ label: "Open", run: () => commands.open(note.id) }]),
           { label: "Rename…", run: () => commands.rename(note.id) },
           { label: "Copy as Markdown", run: () => commands.copy(note) },
-          { label: "Delete", danger: true, run: () => void commands.remove(note) },
+          { label: "Delete", danger: true, run: () => commands.remove(note).catch(reportError) },
         ],
       }),
   };

@@ -16,7 +16,7 @@ import {
   useHover,
 } from "./ui";
 import { excerptOf, fit, whenShort } from "./format";
-import { ui, useUi } from "./ui-state";
+import { reportError, ui, useUi } from "./ui-state";
 
 const matches = (note: Note, query: string) =>
   `${note.title}\n${note.value}`.toLowerCase().includes(query.toLowerCase());
@@ -107,7 +107,11 @@ export function Sidebar({ width }: { width: number }) {
             {query ? (
               <Button onPress={() => setQuery("")}>Clear search</Button>
             ) : (
-              <BlockButton tone="primary" filled onPress={() => void commands.create()}>
+              <BlockButton
+                tone="primary"
+                filled
+                onPress={() => commands.create().catch(reportError)}
+              >
                 + New note
               </BlockButton>
             )}
@@ -152,7 +156,7 @@ export function Sidebar({ width }: { width: number }) {
               : ""}
         </text>
         {error ? (
-          <Button tone="quiet" onPress={() => void notesList.load()}>
+          <Button tone="quiet" onPress={() => notesList.load().catch(reportError)}>
             Retry
           </Button>
         ) : null}
@@ -165,7 +169,12 @@ export function Sidebar({ width }: { width: number }) {
 export function NewNoteButton() {
   const commands = useCommands();
   return (
-    <IconButton id="new-note" icon="+" tone="primary" onPress={() => void commands.create()} />
+    <IconButton
+      id="new-note"
+      icon="+"
+      tone="primary"
+      onPress={() => commands.create().catch(reportError)}
+    />
   );
 }
 

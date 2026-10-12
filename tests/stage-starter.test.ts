@@ -1,5 +1,6 @@
 import { afterAll, expect, test } from "bun:test";
 import { cp, mkdir, readdir, rm, stat, symlink, writeFile } from "node:fs/promises";
+import { z } from "zod";
 import { join, relative, resolve } from "node:path";
 import {
   installSkills,
@@ -54,6 +55,10 @@ test("a starter carries none of the example's build state", async () => {
   expect(entries.filter((name) => name.startsWith(".luciole"))).toEqual([]);
   expect(entries).toContain("app");
   expect(entries).toContain("package.json");
+  const config = z
+    .object({ rules: z.record(z.string(), z.unknown()) })
+    .parse(await Bun.file(join(target, ".oxlintrc.json")).json());
+  expect(config.rules["typescript/no-floating-promises"]).toEqual(["error", { ignoreVoid: false }]);
 }, 60_000);
 
 test("workspace init still installs the same material and prints the same lines", async () => {
