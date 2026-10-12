@@ -14,3 +14,6 @@ docs/missions/
 
 # Generated from website/src/content/docs by scripts/pack-docs.ts (packages/core prepack)
 packages/core/docs/
+
+# Generated declarations (core prepack/postpack)
+packages/core/dts/

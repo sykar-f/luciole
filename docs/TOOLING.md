@@ -62,7 +62,7 @@ internes gardent de simples types TypeScript.
 
 - `bun run check` : TypeScript sur le framework, ses applications internes (DevTools,
   lanceur, Client générique, runtime web), les exemples, les tests, les scripts et les
-  sondes. `scripts/check.ts` lance les 30 projets indépendants en parallèle, dont
+  sondes. `scripts/check.ts` lance les 31 projets indépendants en parallèle, dont
   `tests/fixtures/strict-consumer`, sans types DOM.
 
   Le cœur et cette fixture activent `exactOptionalPropertyTypes`,
