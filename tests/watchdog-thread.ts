@@ -6,7 +6,7 @@
 import { writeSync } from "node:fs";
 import { isMainThread, parentPort, workerData } from "node:worker_threads";
 
-type Beat = { file?: string; phase?: string; test?: string; ordinal?: number };
+type Beat = { file?: string; phase?: string; test?: string; ordinal?: number; stop?: boolean };
 type Capture = { output: string; stop: () => void; finished: boolean };
 
 const STACK_BYTES = 32768;
@@ -76,7 +76,20 @@ type Report = { pid: number; deadline: number; header: string };
 if (isMainThread) {
   // A debugger may suspend *every* thread in the worker. Its deadline and output
   // must therefore live in a separate process, not in the thread it samples.
-  const report: Report = JSON.parse(process.argv[2] ?? "{}");
+  const raw: unknown = JSON.parse(process.argv[2] ?? "{}");
+  if (
+    typeof raw !== "object" ||
+    raw === null ||
+    !("pid" in raw) ||
+    typeof raw.pid !== "number" ||
+    !("deadline" in raw) ||
+    typeof raw.deadline !== "number" ||
+    !("header" in raw) ||
+    typeof raw.header !== "string"
+  ) {
+    throw new Error("Invalid watchdog report arguments");
+  }
+  const report: Report = { pid: raw.pid, deadline: raw.deadline, header: raw.header };
   let capture: Capture | undefined;
   setTimeout(
     () => {
@@ -114,6 +127,10 @@ if (isMainThread) {
     reporter?.kill("SIGTERM");
     reporter = undefined;
     failure = "";
+    if (beat.stop) {
+      parentPort?.postMessage("stopped");
+      return;
+    }
     if (beat.file === undefined) return;
     file = beat.file;
     phase = beat.phase ?? "?";

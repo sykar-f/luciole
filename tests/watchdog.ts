@@ -35,5 +35,10 @@ beforeEach(() => {
 // with the file and closed during the next one, running code of a retired global.
 afterAll(async () => {
   clearInterval(beat);
+  // Cancel an early capture before retiring this thread: an orphan reporter would
+  // otherwise kill a worker that has resumed, or its next isolated file.
+  const stopped = new Promise<void>((done) => watcher.once("message", () => done()));
+  watcher.postMessage({ stop: true });
+  await stopped;
   await watcher.terminate();
 });
