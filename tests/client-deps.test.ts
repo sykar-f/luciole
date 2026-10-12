@@ -105,6 +105,12 @@ for (const builder of ["Client", "Server"] as const)
           );
         for (const name of ["app", "components", "package.json"])
           await cp(join(directory, name), join(linked, name), { recursive: true });
+        // Keep the router namespace visible: its export-only RSC entry otherwise
+        // disappears during tree shaking even when it was selected incorrectly.
+        await Bun.write(
+          join(linked, "components/counter.tsx"),
+          `${await Bun.file(join(linked, "components/counter.tsx")).text()};import * as router from "@tanstack/react-router";export {router};`,
+        );
         const appRequire = createRequire(join(linked, "package.json"));
         const rendererRequire = createRequire(
           Bun.resolveSync("@opentui/react", resolve("packages/core")),
@@ -135,6 +141,9 @@ for (const builder of ["Client", "Server"] as const)
             .object({ buildId: z.string(), output: z.string() })
             .parse(await Bun.file(metadata).json());
         } else result = await build(linked);
+        const clientBundle = await Bun.file(join(result.output, "client/index.js")).text();
+        expect(clientBundle).toContain("@tanstack/react-router/dist/esm/index.js");
+        expect(clientBundle).not.toContain(".rsc.");
         const built = { directory: linked, ...result };
         await using server = await startServer(built);
         await using client = await openClient(built, server);
