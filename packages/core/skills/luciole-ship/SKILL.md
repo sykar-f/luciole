@@ -59,11 +59,12 @@ system:
 ```sh
 native=$(mktemp -d) && cp package.json bun.lock "$native/"
 (cd "$native" && bun install --frozen-lockfile --os=linux --cpu=x64)
-bunx luciole build --compile --client-only --name notes --target bun-linux-x64 \
+./node_modules/.bin/luciole build --compile --client-only --name notes --target bun-linux-x64 \
   --native-dir "$native" --outfile dist/notes-linux-x64
 ```
 
-In a shell script, call `bunx luciole`: `luciole` is on the `PATH` only inside `bun run`.
+Run these commands from the installed app’s root. `./node_modules/.bin/luciole` uses its
+installed version and fails if it is absent; it never fetches a package.
 When that `bun install` fails in your own sandbox (`EPERM` on its tempdir, no network), the
 script is not at fault: keep it, and give the user the command to run it.
 
@@ -98,9 +99,9 @@ Restart=on-failure
 ## Publish to npm
 
 ```sh
-bunx luciole build --compile --name notes                   # this machine's target
-bunx luciole build --compile --name notes --target bun-linux-x64 --native-dir "$native"
-bunx luciole pack --package @ada/notes --version 1.2.0 .luciole/bin/*/notes
+./node_modules/.bin/luciole build --compile --name notes                   # this machine's target
+./node_modules/.bin/luciole build --compile --name notes --target bun-linux-x64 --native-dir "$native"
+./node_modules/.bin/luciole pack --package @ada/notes --version 1.2.0 .luciole/bin/*/notes
 ```
 
 Pass every platform's binary to **one** `luciole pack`: each call rewrites the main package

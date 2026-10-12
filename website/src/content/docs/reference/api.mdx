@@ -167,12 +167,14 @@ Nothing reconnects by itself: `error` says why the stream stopped, and `done` tu
 `useInvalidation(listener)` serves data that a component reads through a Server Function, which
 no route loader reloads:
 
-<Excerpt
-  path="examples/mdreader/components/Library.tsx"
-  find="const load = () => void listDocs()"
-  count={3}
-  tone="client"
-/>
+```tsx
+const reportError = (error: unknown) => console.error(error);
+const load = () => {
+  listDocs().then(setLibrary).catch(reportError);
+};
+useEffect(load, []);
+useInvalidation(load);
+```
 
 `useApplication()` returns an object with these members:
 
@@ -1226,12 +1228,21 @@ an `ssh` error for a URL over SSH. It closes what it opened first.
 
 Studio opens the preview of a generated app this way, with no host capability granted:
 
-<Excerpt
-  path="examples/studio/components/Preview.tsx"
-  find="void Promise.all([leaving, buildChild(), sandboxRuntime()])"
-  until="        ),"
-  tone="client"
-/>
+```tsx
+const reportError = (error: unknown) => console.error(error);
+Promise.all([leaving, buildChild(), sandboxRuntime()])
+  .then(([, child, runtime]) =>
+    openSandbox(
+      { ...options, child, runtime },
+      {
+        perform: () => Promise.reject(new Error("No host capability granted")),
+        onFailure,
+      },
+    ),
+  )
+  .then(setSandbox)
+  .catch(reportError);
+```
 
 ### Confine a Server
 

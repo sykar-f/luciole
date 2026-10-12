@@ -786,8 +786,9 @@ erreur TypeScript. Navigation depuis un Client Component, sans `<Link>` DOM :
 ```tsx
 "use client";
 import { useNavigate } from "@luciole-sh/core/client";
+const reportError = (error: unknown) => console.error(error);
 const navigate = useNavigate();
-void navigate({ to: "/notes/$id", params: { id: "1" } });
+navigate({ to: "/notes/$id", params: { id: "1" } }).catch(reportError);
 ```
 
 Comportement observable :
@@ -823,7 +824,8 @@ sont ignorées) et `loaderDeps` : chaque search est une page distincte, rendue p
 Server et mise en cache à part ; retour et avance la restaurent.
 
 ```tsx
-void navigate({ to: "/repos/$repo", params: { repo }, search: { state: "merged" } });
+const reportError = (error: unknown) => console.error(error);
+navigate({ to: "/repos/$repo", params: { repo }, search: { state: "merged" } }).catch(reportError);
 // Côté Server
 export default function Page({
   params,

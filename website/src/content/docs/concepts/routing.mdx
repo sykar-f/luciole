@@ -105,7 +105,7 @@ to this generated route tree.
 <Excerpt
   path="examples/notes/components/commands.ts"
   find="export function useCommands()"
-  until="open: (id: string) => void open(id),"
+  until="open(id).catch(reportError);"
   mark={["navigate("]}
   tone="client"
 />
@@ -177,7 +177,8 @@ Each search is a separate page, rendered by the Server and cached apart. Back an
 restore it.
 
 ```tsx
-void navigate({ to: "/repos/$repo", params: { repo }, search: { state: "merged" } });
+const reportError = (error: unknown) => console.error(error);
+navigate({ to: "/repos/$repo", params: { repo }, search: { state: "merged" } }).catch(reportError);
 
 // The page, on the Server
 export default function Page({
