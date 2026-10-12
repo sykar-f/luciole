@@ -153,7 +153,9 @@ The params and the props of the special files have these types:
 | `unknown`  | The answer timed out, was lost or was cut, or the Server answered with a `5xx` status.   | Maybe             |
 
 `useLive(source, args, { limit }?)` opens its request on mount, and again when `args` change.
-It compares `args` as JSON. Unmounting cancels the request and stops the Server's generator.
+It compares `args` as JSON. Unmounting cancels the request and ends the response. Use
+[`getSignal()` and `abortable()`](/docs/concepts/server-functions/#stream-values-from-a-server-function)
+to release a generator's pending await so its `finally` runs promptly.
 Nothing reconnects by itself: `error` says why the stream stopped, and `done` turns `true`.
 
 <Excerpt
@@ -690,16 +692,18 @@ Import this entry from Server code only: pages, layouts, Server Functions and `s
 
 ### Read the request and the launch
 
-| Export                 | Contract                                                                                                                       |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `getSession()`         | Returns `{ userId }`, the sign-in session of the current render or Server Function call.                                       |
-| `getOptionalSession()` | Returns the sign-in session, or `null` for an anonymous request. A public page or Server Function gets a signed-in user's too. |
-| `getCallId()`          | Returns the transport request's ID, distinct from the business operation.                                                      |
-| `getArgs()`            | Returns the app's arguments, untyped ([app arguments](/docs/reference/app-arguments/)).                                        |
-| `getLaunch()`          | Returns the launch: `{ scope, id?, cwd }`.                                                                                     |
-| `notFound(what?)`      | Ends a page's render with the nearest `not-found.tsx`.                                                                         |
-| `invalidate(path?)`    | Declares, from a Server Function, that the data under `path` changed. Default: `"/"`, every route.                             |
-| `AuthConfig`           | The type of `server/auth.ts`'s default export ([authentication](/docs/concepts/authentication/)).                              |
+| Export                       | Contract                                                                                                                                                          |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `getSession()`               | Returns `{ userId }`, the sign-in session of the current render or Server Function call.                                                                          |
+| `getOptionalSession()`       | Returns the sign-in session, or `null` for an anonymous request. A public page or Server Function gets a signed-in user's too.                                    |
+| `getSignal()`                | Returns the request's `AbortSignal`, aborted when the Client cancels or the live response's reader leaves. Unavailable outside a request or inside `"use cache"`. |
+| `abortable(promise, signal)` | Returns `Promise<T>`; rejects with `signal.reason` on abort, observing later source rejection without cancelling the source promise.                              |
+| `getCallId()`                | Returns the transport request's ID, distinct from the business operation.                                                                                         |
+| `getArgs()`                  | Returns the app's arguments, untyped ([app arguments](/docs/reference/app-arguments/)).                                                                           |
+| `getLaunch()`                | Returns the launch: `{ scope, id?, cwd }`.                                                                                                                        |
+| `notFound(what?)`            | Ends a page's render with the nearest `not-found.tsx`.                                                                                                            |
+| `invalidate(path?)`          | Declares, from a Server Function, that the data under `path` changed. Default: `"/"`, every route.                                                                |
+| `AuthConfig`                 | The type of `server/auth.ts`'s default export ([authentication](/docs/concepts/authentication/)).                                                                 |
 
 These calls throw an `Error` with these messages:
 

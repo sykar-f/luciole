@@ -26,12 +26,73 @@ export type AuthConfig = {
 type Context = {
   session: Session | null;
   callId: string;
+  signal: AbortSignal;
   /** Set during a Server Function call only: the paths it declared changed. */
   invalidations?: Set<string>;
   /** Likewise, the cache tags it invalidated, each with its purge, awaited before answering. */
   purges?: Map<string, Promise<void>>;
 };
 const context = new AsyncLocalStorage<Context>();
+/** The current request's cancellation signal, including a live response's reader leaving. */
+export function getSignal(): AbortSignal {
+  assertUncached("getSignal()");
+  const c = context.getStore();
+  if (!c) throw new Error("No request signal");
+  return c.signal;
+}
+
+/** Awaits a promise until cancellation, then rejects with the signal's reason. */
+export function abortable<T>(promise: PromiseLike<T>, signal: AbortSignal): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const abort = () => {
+      signal.removeEventListener("abort", abort);
+      reject(signal.reason);
+    };
+    if (signal.aborted) abort();
+    else signal.addEventListener("abort", abort, { once: true });
+    // Observe both outcomes even after abort: the source promise still runs.
+    Promise.resolve(promise).then(
+      (value) => {
+        signal.removeEventListener("abort", abort);
+        resolve(value);
+      },
+      (error: unknown) => {
+        signal.removeEventListener("abort", abort);
+        reject(error);
+      },
+    );
+  });
+}
+
+// Flight must finish without waiting for an app's pending next() or return().
+function cancellableLive(value: AsyncIterable<unknown>, signal: AbortSignal, callId: string) {
+  const iterator: AsyncIterator<unknown, unknown, unknown> = value[Symbol.asyncIterator]();
+  const wrapped = (async function* () {
+    let completed = false;
+    try {
+      while (!signal.aborted) {
+        const next = await abortable(iterator.next(), signal);
+        if (signal.aborted) break;
+        if (next.done) {
+          completed = true;
+          return next.value;
+        }
+        yield next.value;
+      }
+    } catch (error) {
+      if (!signal.aborted) throw error;
+    } finally {
+      if (!completed) {
+        Promise.resolve()
+          .then(() => iterator.return?.())
+          .catch((error: unknown) => console.error("Live cleanup failed", callId, nameOf(error)));
+      }
+    }
+  })();
+  // Flight distinguishes a single-use iterator (x) from an iterable (X).
+  return Object.is(iterator, value) ? wrapped : { [Symbol.asyncIterator]: () => wrapped };
+}
+
 export function getSession() {
   assertUncached("getSession()");
   const c = context.getStore();
@@ -324,7 +385,7 @@ export function createHandler(config: ServerConfig, options: HandlerOptions) {
             : {}),
         });
       // Awaited: a rejection must reach the generic 500 below, never Bun's error page.
-      return await context.run({ session, callId }, async () => {
+      return await context.run({ session, callId, signal: req.signal }, async () => {
         if (url.pathname === "/render" && req.method === "GET") {
           const routeId = url.searchParams.get("route") ?? "";
           const route = config.routes.get(routeId);
@@ -374,12 +435,16 @@ export function createHandler(config: ServerConfig, options: HandlerOptions) {
             return new Response("Arguments must be an array", {
               status: STATUS.badRequest,
             });
+          const cancel = new AbortController();
+          const signal = AbortSignal.any([req.signal, cancel.signal]);
+          store.signal = signal;
           const value: unknown = await entry.fn(...args.data);
           // The Client refetches as soon as it reads the answer: purged entries first.
           await Promise.all(purges.values());
           // A live response may stay quiet longer than the idle timeout; it ends with
           // its generator or when the Client goes away.
-          if (isAsyncIterable(value)) options.keepAlive?.(req);
+          const live = isAsyncIterable(value);
+          if (live) options.keepAlive?.(req);
           // Test-only fault injection occurs strictly after business commit; never enabled by a request.
           if (
             options.dropAfterCommit &&
@@ -389,17 +454,18 @@ export function createHandler(config: ServerConfig, options: HandlerOptions) {
             value.ok
           )
             options.dropAfterCommit();
+          const response = renderToReadableStream(
+            {
+              kind: "result",
+              value: live ? cancellableLive(value, signal, callId) : value,
+              callId,
+              invalidate: [...invalidations],
+              tags: [...purges.keys()],
+            },
+            manifest,
+          );
           return new Response(
-            renderToReadableStream(
-              {
-                kind: "result",
-                value,
-                callId,
-                invalidate: [...invalidations],
-                tags: [...purges.keys()],
-              },
-              manifest,
-            ),
+            live ? relayBody(response, { cancel: (reason) => cancel.abort(reason) }) : response,
             {
               headers: {
                 "content-type": "text/x-component",

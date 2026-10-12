@@ -162,7 +162,10 @@ reload:
 
 An `export async function*` in a `"use server"` module streams its values. `useLive` opens
 the request when the component mounts, or when its arguments change. It cancels the request
-on unmount, and the Server then stops the generator and runs its `finally`.
+on unmount. The Server ends the response immediately and requests the generator's return.
+
+An async generator's `return()` waits behind a pending `await`: use the request's signal
+to release that wait so its `finally` can run promptly.
 
 ```tsx
 const { items, done, error } = useLive(checkLog, [check.id], { limit: 500 });
@@ -170,6 +173,49 @@ const { items, done, error } = useLive(checkLog, [check.id], { limit: 500 });
 
 Nothing reconnects by itself: a cut ends the stream with a `TransportError` (`unknown`). A
 live response is exempt from the Server's idle timeout.
+
+`getSignal()` from `@luciole-sh/core/server` returns the current request's `AbortSignal`.
+It aborts when the Client cancels, including when the response's reader leaves.
+`abortable(promise, signal)` rejects with `signal.reason` on abort. It leaves the source
+promise running, so release the external subscription in `finally`.
+
+For a subscription bridged to a generator through a queue, like Flow's `watchRun` in
+`examples/flow/actions/pipeline.ts`, make the queue's wait abortable:
+
+```ts
+"use server";
+import { abortable, getSignal } from "@luciole-sh/core/server";
+import type { Run } from "../components/model";
+import { pipeline } from "../server/pipeline";
+
+export async function* watchRun(): AsyncGenerator<Run> {
+  const signal = getSignal();
+  const queue: Run[] = [];
+  let wake: (() => void) | undefined;
+  const stop = pipeline.subscribe((run) => {
+    queue.push(run);
+    wake?.();
+  });
+  try {
+    while (!signal.aborted) {
+      const next = queue.shift();
+      if (next) yield next;
+      else {
+        await abortable(new Promise<void>((resolve) => (wake = resolve)), signal);
+        wake = undefined;
+      }
+    }
+  } catch (error) {
+    if (!signal.aborted) throw error;
+  } finally {
+    stop();
+  }
+}
+```
+
+A periodic beat is no longer needed to unblock cancellation. Pass the signal directly to
+external APIs that accept one; use `abortable` when they only give you a promise. Capture
+`getSignal()` inside the Server Function, outside `"use cache"`.
 
 <Note>
   Each call carries a `callId` (`x-luciole-call`), which the Server reads with `getCallId()`: it
