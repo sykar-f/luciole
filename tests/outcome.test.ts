@@ -188,42 +188,53 @@ test("LUCIOLE_FAULT and friends parse into network conditions", () => {
   expect(() => networkFromEnv({ LUCIOLE_CHUNK_DELAY_MS: "-3" })).toThrow("LUCIOLE_CHUNK_DELAY_MS");
 });
 
-// The child reaches handler creation, then blocks without consuming CPU. Its diagnostic
-// trace must remain available even if its stdout pipe never delivers a ready line.
-test("a startup timeout reports the child, stdout and its last startup stage", async () => {
-  const file = join(dir, "stalled.ts");
-  const paths = join(dir, "stalled-trace-path.txt");
-  await Bun.write(
-    file,
-    `import { serve } from ${JSON.stringify(resolve("packages/core/src/server.ts"))};
+// Each child blocks without consuming CPU, before serve or during handler creation.
+// The trace must remain available even if stdout never delivers a ready line.
+for (const stall of [
+  { name: "handler", stage: "handler-start" },
+  { name: "module", stage: "core-module-load" },
+] as const)
+  test(`a ${stall.name} startup timeout reports the child, stdout and its last stage`, async () => {
+    const file = join(dir, `${stall.name}-stalled.ts`);
+    const paths = join(dir, `${stall.name}-stalled-trace-path.txt`);
+    await Bun.write(
+      file,
+      `import { serve } from ${JSON.stringify(resolve("packages/core/src/server.ts"))};
 await Bun.write(${JSON.stringify(paths)}, process.env.LUCIOLE_TEST_STARTUP_TRACE ?? "");
 console.log("first startup line");
 console.log("second startup line");
 process.stdout.write("partial startup data");
-console.error("injected handler stall");
+console.error("injected ${stall.name} stall");
+${stall.name === "module" ? "Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0);" : ""}
 serve({buildId:"stalled",manifest:{},actions:new Map(),get routes(){
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0);
   return new Map();
 }});`,
-  );
-  const started = performance.now();
-  const error = await launch(file).then(
-    (server) => server.stop().then(() => undefined),
-    (error: unknown) => error,
-  );
-  expect(error).toBeInstanceOf(Error);
-  if (!(error instanceof Error)) throw new Error("Expected a startup timeout");
-  expect(performance.now() - started).toBeGreaterThanOrEqual(10_000);
-  expect(error.message).toMatch(/startup timeout after \d+ ms/);
-  expect(error.message).toMatch(/"pid":\d+,"alive":true,"exitCode":null,"signal":null/);
-  expect(error.message).toContain('"lines":["first startup line","second startup line"]');
-  expect(error.message).toContain('"partial":"partial startup data"');
-  expect(error.message).toMatch(/last startup stage:.*"stage":"handler-start","at":\d+/);
-  expect(error.message).toContain("injected handler stall");
-  const trace = await Bun.file(paths).text();
-  expect(trace).not.toBe("");
-  expect(existsSync(dirname(trace))).toBe(false);
-}, 20_000);
+    );
+    const started = performance.now();
+    const error = await launch(file).then(
+      (server) => server.stop().then(() => undefined),
+      (error: unknown) => error,
+    );
+    expect(error).toBeInstanceOf(Error);
+    if (!(error instanceof Error)) throw new Error("Expected a startup timeout");
+    expect(performance.now() - started).toBeGreaterThanOrEqual(10_000);
+    expect(error.message).toMatch(/startup timeout after \d+ ms/);
+    expect(error.message).toMatch(/"pid":\d+,"alive":true,"exitCode":null,"signal":null/);
+    expect(error.message).toContain('"lines":["first startup line","second startup line"]');
+    expect(error.message).toContain('"partial":"partial startup data"');
+    expect(error.message).toMatch(
+      new RegExp(`last startup stage:.*"stage":"${stall.stage}","at":\\d+`),
+    );
+    if (stall.name === "module")
+      expect(error.message).toContain(
+        "pending startup interval: application module loading (after core-module-load, before serve-entry)",
+      );
+    expect(error.message).toContain(`injected ${stall.name} stall`);
+    const trace = await Bun.file(paths).text();
+    expect(trace).not.toBe("");
+    expect(existsSync(dirname(trace))).toBe(false);
+  }, 20_000);
 
 test("successful startup keeps its ready shape and cleans its private trace", async () => {
   const file = join(dir, "ready.ts");

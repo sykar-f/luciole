@@ -102,10 +102,20 @@ try { appendFileSync(process.env.LUCIOLE_TEST_STARTUP_TRACE, JSON.stringify({sta
           exitCode: child.exitCode,
           signal: child.signalCode,
         };
+        const lastStage = stages.split("\n").at(-1) || "none received";
+        let interval = "";
+        try {
+          const mark = z.object({ stage: z.string() }).safeParse(JSON.parse(lastStage));
+          if (mark.success && mark.data.stage === "core-module-load")
+            interval =
+              "\npending startup interval: application module loading (after core-module-load, before serve-entry)";
+        } catch {
+          // Keep the raw last mark in the report even if a trace write was incomplete.
+        }
         const report = `startup timeout after ${Math.round(performance.now() - started)} ms
 child: ${JSON.stringify(state)}
 stdout: ${JSON.stringify({ lines: output.slice(0, -1), partial: output.at(-1) ?? "" })}
-last startup stage: ${stages.split("\n").at(-1) || "none received"}
+last startup stage: ${lastStage}${interval}
 startup stages:\n${stages || "none received"}
 stderr: ${errors}`;
         child.kill();
