@@ -42,6 +42,12 @@ import {
   type Transport,
   type TransportEvent,
 } from "./transport";
+export {
+  UpstreamStatusProvider,
+  usePublishUpstreamStatus,
+  useUpstreamStatuses,
+  type UpstreamStatus,
+} from "./upstream-status";
 export { AuthenticationRequired, BuildMismatch, TransportError } from "./transport";
 export type {
   Fault,

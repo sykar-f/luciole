@@ -1,7 +1,7 @@
 "use client";
 import { reportError } from "./ui-state";
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { useApplication, useConnection } from "@luciole-sh/core/client";
+import { useApplication, useConnection, useUpstreamStatuses } from "@luciole-sh/core/client";
 import { usePalette } from "./theme";
 import { Button } from "./ui";
 
@@ -84,6 +84,7 @@ export function StatusLine({
 }) {
   const color = usePalette();
   const app = useApplication();
+  const upstreams = useUpstreamStatuses();
   const { status, activity, refresh } = useConnection();
   const { offline, lost, syncing } = useContext(WindowState);
   const message =
@@ -113,6 +114,27 @@ export function StatusLine({
   return (
     <box id={id} flexDirection="row" height={1} flexShrink={0} gap={1}>
       {message}
+      {upstreams.length > 0 ? (
+        <text
+          id="upstream-status"
+          flexShrink={1}
+          wrapMode="none"
+          truncate
+          fg={
+            upstreams.some((upstream) => upstream.state === "down" || upstream.state === "degraded")
+              ? color.warn
+              : color.muted
+          }
+        >
+          {status}
+          {upstreams
+            .map(
+              (upstream) =>
+                ` · ${upstream.label}: ${upstream.state}${upstream.detail ? ` (${upstream.detail})` : ""}`,
+            )
+            .join("")}
+        </text>
+      ) : null}
     </box>
   );
 }

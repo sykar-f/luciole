@@ -32,6 +32,61 @@ décide. Notes et Forge conservent leurs Drafts dans leur propre `components/dra
 (un store au-dessus des routes, avec `useDraft`) ; Forge ajoute `components/operations.ts`
 pour les opérations qui ne sont pas des documents.
 
+## État d'un backend amont
+
+`Connected` décrit le lien Client ↔ Server luciole. L'application publie séparément
+l'état d'un backend qu'elle utilise, via `@luciole-sh/core/client` :
+
+```tsx
+"use client";
+import {
+  UpstreamStatusProvider,
+  useConnection,
+  usePublishUpstreamStatus,
+  useUpstreamStatuses,
+  type LayoutProps,
+} from "@luciole-sh/core/client";
+
+function Health() {
+  usePublishUpstreamStatus({ label: "Supervisor", state: "down", detail: "Connexion refusée" });
+  return null;
+}
+function Status() {
+  const { status } = useConnection();
+  const upstreams = useUpstreamStatuses();
+  return (
+    <text>
+      {status}
+      {upstreams.map((item) => ` · ${item.label}: ${item.state}`).join("")}
+    </text>
+  );
+}
+export default function Layout({ children }: LayoutProps) {
+  return (
+    <UpstreamStatusProvider>
+      <Health />
+      <Status />
+      {children}
+    </UpstreamStatusProvider>
+  );
+}
+```
+
+`UpstreamStatus` contient `label: string`, `state: "ok" | "degraded" | "down" | "unknown"`
+et `detail?: string`. Chaque appel de `usePublishUpstreamStatus(status)` possède son entrée ;
+`null` ou le démontage la retire. Les mises à jour s'appliquent après commit React.
+`useUpstreamStatuses()` renvoie un tableau readonly, lisible aussi par un composant de test.
+Les deux hooks exigent un provider ; chaque provider isole ses rapports. Les labels sont
+du texte d'affichage, pas des clés uniques. Le starter Notes fournit déjà le provider et
+montre ces rapports à côté de la connexion. Cette API stocke les rapports de l'application ;
+elle ne sonde aucun backend et conserve le sens de `useConnection()`.
+
+Un abonnement `useLive` ou un poll peut alimenter le hook. L'exemple complet dans
+[Loading and errors](../website/src/content/docs/concepts/loading-and-errors.mdx#report-an-upstream-backend)
+relie une file de notifications à `getSignal()` et `abortable()`, libère l'abonnement dans
+`finally`, et reconnecte le Client après deux secondes en changeant les arguments de
+`useLive`. Entre les abonnements, il publie `unknown` pour éviter un ancien `ok`.
+
 ## Issue d'une requête
 
 Toute requête qui échoue lève une `TransportError` dont `outcome` dit ce que le Server

@@ -195,6 +195,14 @@ useInvalidation(load);
 The first sign-in of a Client keeps the named fields, so text restored after a crash survives
 it. Later calls to `setToken` clear them.
 
+`UpstreamStatusProvider`, `usePublishUpstreamStatus(status)` and `useUpstreamStatuses()`
+share app-reported backend health beneath one provider. `UpstreamStatus` has `label: string`,
+`state: "ok" | "degraded" | "down" | "unknown"` and optional `detail: string`. Each publisher
+owns an entry until it publishes `null` or unmounts. The reader returns a readonly array;
+both hooks require the provider. Updates take effect after commit. Providers isolate apps;
+labels are display text and may repeat. These reports leave the connection fields unchanged.
+See the [status-line API and reconnecting live example](/docs/concepts/loading-and-errors/#report-an-upstream-backend).
+
 `useConnection()` returns an object with these members:
 
 | Member       | Contract                                                                                                 |

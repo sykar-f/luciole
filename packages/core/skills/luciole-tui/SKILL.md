@@ -96,6 +96,14 @@ The framework draws no status bar. `useConnection()` returns
 `{ status, error, buildError, activity, refresh }`; `status` is already the words to show
 (`Connected`, `Disconnected`, …).
 
+For a backend the Server proxies, mount `UpstreamStatusProvider` around publishers and
+status UI. Publish `{ label, state: "ok" | "degraded" | "down" | "unknown", detail? }`
+with `usePublishUpstreamStatus`; read `useUpstreamStatuses()` beside `useConnection().status`.
+All three exports come from `@luciole-sh/core/client`. The starter supplies the provider
+and display. `null` or unmount withdraws a publisher; providers isolate apps. For a live
+source with reconnect and cancellation, read the “Report an upstream backend” section of
+`node_modules/@luciole-sh/core/docs/concepts/loading-and-errors.md`.
+
 ## Terminals and apps in panes
 
 Read [references/panes.md](references/panes.md) when a pane runs a shell, vim or any program,
