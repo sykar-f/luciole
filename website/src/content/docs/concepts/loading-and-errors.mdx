@@ -236,7 +236,9 @@ export function SupervisorHealth() {
 
 `useLive` does not reconnect automatically. This component reconnects two seconds after
 an error or normal end by changing the arguments. While disconnected or awaiting the
-first value, it reports `unknown` instead of retaining a stale `ok`. A received `down`
+first value, it reports `unknown` instead of retaining a stale `ok`.
+
+A received `down`
 report describes the backend; a failed health stream means its health is unknown.
 Unmounting cancels the live call and retry timer, removes the report, and releases the
 Server subscription through `getSignal()`, `abortable()` and `finally`.
