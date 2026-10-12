@@ -93,7 +93,7 @@ function Chrome({ children }: { children: ReactNode }) {
           <span
             key={panel.to}
             fg={i === current ? color.text : color.muted}
-            bg={i === current ? color.selected : undefined}
+            {...(i === current ? { bg: color.selected } : {})}
           >
             {` ${panel.key} ${panel.label} `}
           </span>

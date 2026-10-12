@@ -32,7 +32,7 @@ import { checkAppName } from "./paths";
 import type { RemoteLaunch } from "./launch-key";
 
 // The ssh executable, as git's GIT_SSH: a wrapper, or a test's stand-in.
-const sshCommand = (env: NodeJS.ProcessEnv) => env.LUCIOLE_SSH || "ssh";
+const sshCommand = (env: NodeJS.ProcessEnv) => env["LUCIOLE_SSH"] || "ssh";
 const TUNNEL_READY_MS = 60_000;
 const POLL_MS = 100;
 const BACKOFF_FIRST_MS = 1000;

@@ -82,7 +82,7 @@ export const dev: Command = {
           directory,
           env: {
             ...process.env,
-            PORT: process.env.PORT ?? "0",
+            PORT: process.env["PORT"] ?? "0",
             ...args.env,
             // Already one Server per run, whatever the application declares.
             [LAUNCH_VARIABLE]: JSON.stringify({

@@ -66,6 +66,6 @@ export function canGreet(
   stream: { isTTY?: boolean },
   env: Record<string, string | undefined>,
 ): boolean {
-  if (!stream.isTTY || env.NO_COLOR || env.CI) return false;
-  return env.COLORTERM === "truecolor" || env.COLORTERM === "24bit";
+  if (!stream.isTTY || env["NO_COLOR"] || env["CI"]) return false;
+  return env["COLORTERM"] === "truecolor" || env["COLORTERM"] === "24bit";
 }

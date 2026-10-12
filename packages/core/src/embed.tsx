@@ -185,9 +185,9 @@ export function Embed(props: EmbedProps) {
       ref={box}
       id={`embed-${props.name}`}
       flexDirection="column"
-      flexGrow={props.flexGrow}
-      width={props.width}
-      height={props.height}
+      {...(props.flexGrow === undefined ? {} : { flexGrow: props.flexGrow })}
+      {...(props.width === undefined ? {} : { width: props.width })}
+      {...(props.height === undefined ? {} : { height: props.height })}
     >
       <PaneBoundary name={props.name}>
         <View app={props.app} gate={keys.hears} />

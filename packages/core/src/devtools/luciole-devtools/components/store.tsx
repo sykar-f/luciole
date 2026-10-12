@@ -1,4 +1,5 @@
 "use client";
+import { definedProperties } from "../../../defined-properties";
 import {
   createContext,
   useContext,
@@ -94,7 +95,8 @@ export function DevtoolsProvider({ children }: { children: ReactNode }) {
           const feed = await Promise.resolve(
             app.withSignal(controller.signal, () => subscribe(store.session.last()), "live"),
           );
-          for await (const batch of feed) store.apply(batch);
+          for await (const batch of feed)
+            store.apply({ ...batch, connect: batch.connect && definedProperties(batch.connect) });
         } catch {
           // The DevTools' own Server restarted or the stream was cut: resume.
         }

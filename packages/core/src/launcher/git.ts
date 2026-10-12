@@ -81,7 +81,7 @@ async function run(
   { cwd, quiet = true }: { cwd?: string; quiet?: boolean } = {},
 ) {
   const child = Bun.spawn([...command], {
-    cwd,
+    ...(cwd === undefined ? {} : { cwd: cwd }),
     stdin: "ignore",
     stdout: "pipe",
     // git's own progress and warnings ("filtering not recognized") only matter on failure.

@@ -59,7 +59,11 @@ try {
   // Outside bun test (a script importing a helper): no test ends a wait.
 }
 function watched(state?: () => string): Wait {
-  const wait = { start: performance.now(), state, ended: false };
+  const wait = {
+    start: performance.now(),
+    ...(state === undefined ? {} : { state }),
+    ended: false,
+  };
   waiting.add(wait);
   return wait;
 }

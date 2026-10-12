@@ -5,6 +5,7 @@
  * is a window of its own, as in the desktop host (docs/DESKTOP.md): Ctrl+C belongs to the
  * application; closing the tab keeps the session, quitting forgets it.
  */
+import { definedProperties } from "../../defined-properties";
 import { PassThrough } from "node:stream";
 import * as z from "zod/mini";
 import { Terminal as XTerm } from "@xterm/xterm";
@@ -319,7 +320,10 @@ export async function runInPage(
     cursorBlink: true,
     allowProposedApi: true,
     fontFamily: FONTS,
-    theme: { background, foreground },
+    theme: {
+      ...(background === undefined ? {} : { background: background }),
+      ...(foreground === undefined ? {} : { foreground: foreground }),
+    },
   });
   const fit = new FitAddon();
   terminal.loadAddon(fit);
@@ -358,10 +362,10 @@ export async function runInPage(
     : forgotten;
   const app = create({
     url: server.href,
-    fetch: control?.fetch ?? fetch,
-    network: control?.network,
-    session: session.restored,
-    initialPath: path,
+    ...definedProperties({ fetch: control?.fetch ?? fetch }),
+    ...(control?.network === undefined ? {} : { network: control?.network }),
+    ...(session.restored === undefined ? {} : { session: session.restored }),
+    ...(path === undefined ? {} : { initialPath: path }),
     quitOnCtrlC: false,
   });
   app.onEvent(tellEvent);
@@ -415,5 +419,10 @@ export async function run(
 ) {
   const element = document.getElementById("luciole");
   if (!element) throw new Error("The page has no #luciole element to run in");
-  await runInPage(create, { element, server: new URL("/", location.href), name, sessionKey });
+  await runInPage(create, {
+    element,
+    server: new URL("/", location.href),
+    name,
+    ...(sessionKey === undefined ? {} : { sessionKey: sessionKey }),
+  });
 }

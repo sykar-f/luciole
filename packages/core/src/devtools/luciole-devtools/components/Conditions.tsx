@@ -93,7 +93,7 @@ export function ConditionsPanel({ command }: { command: Command }) {
               height={1}
               wrapMode="none"
               truncate
-              bg={i === list.index ? color.selected : undefined}
+              {...(i === list.index ? { bg: color.selected } : {})}
             >
               <span fg={color.muted}>{fit(f.label, LABEL)}</span>
               <span fg={value ? color.warn : color.text}>

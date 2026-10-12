@@ -27,7 +27,7 @@ export function digestOf(error: unknown) {
 
 /** `{ what }` when `error` is a not-found raised by a Server page, else `null`. */
 export function readNotFound(error: unknown): { what?: string } | null {
-  if (error instanceof NotFoundError) return { what: error.what };
+  if (error instanceof NotFoundError) return error.what === undefined ? {} : { what: error.what };
   const digest = errorDigest(error);
   if (typeof digest !== "string" || !digest.startsWith(PREFIX)) return null;
   let decoded: unknown;

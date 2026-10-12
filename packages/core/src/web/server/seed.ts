@@ -4,6 +4,7 @@
  * the application's Server code reads it; `files` is the read-only snapshot `node:fs`
  * answers from (../node/files.ts). A site without one runs as before.
  */
+import { definedProperties } from "../../defined-properties";
 import * as z from "zod/mini";
 import { configureFiles } from "../node/files";
 
@@ -32,5 +33,5 @@ export async function applySeed(url: URL) {
   const seed = Seed.safeParse(await response.json());
   if (!seed.success) throw new Error(`${url.href}: ${z.prettifyError(seed.error)}`);
   Object.assign(process.env, seed.data.env);
-  configureFiles(seed.data.files ?? []);
+  configureFiles((seed.data.files ?? []).map((entry) => definedProperties(entry)));
 }

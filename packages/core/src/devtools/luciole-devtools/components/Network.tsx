@@ -196,7 +196,7 @@ export function NetworkPanel() {
               flexShrink={0}
               wrapMode="none"
               truncate
-              bg={isSelected ? color.selected : undefined}
+              {...(isSelected ? { bg: color.selected } : {})}
             >
               <span fg={f?.doubleInvalidation ? color.error : color.warn}>
                 {f?.doubleInvalidation ? "⟳" : f?.waterfallAfter ? "↳" : " "}

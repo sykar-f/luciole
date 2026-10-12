@@ -202,7 +202,7 @@ export function networkFromEnv(env: Record<string, string | undefined>): Network
     if (!value.success) throw new Error(`${name} must be a number ≥ 0`);
     return value.data;
   };
-  const faults = (env.LUCIOLE_FAULT ?? "")
+  const faults = (env["LUCIOLE_FAULT"] ?? "")
     .split(",")
     .filter(Boolean)
     .map((entry) => {
@@ -214,7 +214,7 @@ export function networkFromEnv(env: Record<string, string | undefined>): Network
   return {
     jitterMs: number("LUCIOLE_JITTER_MS"),
     chunkDelayMs: number("LUCIOLE_CHUNK_DELAY_MS"),
-    fault: faults.length ? () => faults.find(({ p }) => Math.random() < p)?.type : undefined,
+    ...(faults.length ? { fault: () => faults.find(({ p }) => Math.random() < p)?.type } : {}),
   };
 }
 

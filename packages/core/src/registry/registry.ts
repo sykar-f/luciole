@@ -16,7 +16,7 @@ export function parsePackageSpec(spec: string): PackageSpec | undefined {
   const at = spec.lastIndexOf("@");
   const [name, range] = at > 0 ? [spec.slice(0, at), spec.slice(at + 1)] : [spec, undefined];
   if (!PACKAGE_NAME.test(name) || name.length > MAX_NAME_LENGTH || range === "") return undefined;
-  return { name, range };
+  return { name, ...(range === undefined ? {} : { range: range }) };
 }
 export const formatSpec = ({ name, range }: PackageSpec) => (range ? `${name}@${range}` : name);
 

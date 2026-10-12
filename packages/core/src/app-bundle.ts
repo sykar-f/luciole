@@ -102,13 +102,16 @@ const newInstance = () =>
 export async function openApplication(options: OpenApplicationOptions): Promise<Application> {
   const { bundle, url, instance = newInstance(), publisher, ...rest } = options;
   InstanceKey.parse(instance);
-  const loaded = await loadAppBundle(bundle, { publisher });
+  const loaded = await loadAppBundle(
+    bundle,
+    publisher === undefined ? {} : { publisher: publisher },
+  );
   const connection = await connect(url);
   try {
     const app = applicationOf(loaded, {
       ...rest,
       url: connection.url,
-      fetch: connection.fetch,
+      ...(connection.fetch === undefined ? {} : { fetch: connection.fetch }),
       instance,
     });
     app.onDispose(() => connection.close());

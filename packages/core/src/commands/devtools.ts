@@ -32,11 +32,11 @@ export const devtools: Command = {
   flags: { "--listen": "value", "--demo": "switch", "--replay": "value", "--env": "switch" },
   async run({ flag, optional }) {
     // The shell's LUCIOLE_DEVTOOLS, exported for the application, is where to listen.
-    const listen = optional("--listen") ?? process.env.LUCIOLE_DEVTOOLS ?? "1";
+    const listen = optional("--listen") ?? process.env["LUCIOLE_DEVTOOLS"] ?? "1";
     const address = formatAddress(parseAddress(listen));
     if (flag("--env")) {
       console.log(`export LUCIOLE_DEVTOOLS=${quote(listen === "1" ? address : listen)}`);
-      console.log(`export BUN_OPTIONS=${quote(withHook(process.env.BUN_OPTIONS))}`);
+      console.log(`export BUN_OPTIONS=${quote(withHook(process.env["BUN_OPTIONS"]))}`);
       return;
     }
     const replay = optional("--replay");

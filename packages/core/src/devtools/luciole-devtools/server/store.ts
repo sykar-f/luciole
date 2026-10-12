@@ -1,3 +1,4 @@
+import { definedProperties } from "../../../defined-properties";
 import "server-only";
 import { readFile } from "node:fs/promises";
 import * as z from "zod/mini";
@@ -44,7 +45,7 @@ function store(source: number, value: unknown) {
     return;
   }
   if (event.type === "luciole:hello")
-    sources.set(source, { id: source, ...event.payload, connected: true });
+    sources.set(source, { id: source, ...definedProperties(event.payload), connected: true });
   events.push({ seq: ++sequence, source, event });
   if (events.length > MAX_EVENTS) events = events.slice(-MAX_EVENTS);
   wake();

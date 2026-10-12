@@ -101,8 +101,8 @@ function annotationOf(value: unknown): Annotation | undefined {
   const source = field(found, "source");
   const file = field(found, "file");
   return {
-    source: typeof source === "string" ? source : undefined,
-    file: typeof file === "string" ? file : undefined,
+    ...(typeof source === "string" ? { source } : {}),
+    ...(typeof file === "string" ? { file } : {}),
     hooks: hooks.flatMap((entry: unknown) =>
       Array.isArray(entry) && typeof entry[1] === "string"
         ? [[entry[0], entry[1], typeof entry[2] === "string" ? entry[2] : null] as const]
@@ -128,8 +128,8 @@ const serverComponents = (fiber: Fiber): ServerInfo[] => {
     return [
       {
         name,
-        env: typeof env === "string" ? env : undefined,
-        key: typeof key === "string" ? key : undefined,
+        ...(typeof env === "string" ? { env } : {}),
+        ...(typeof key === "string" ? { key } : {}),
       },
     ];
   });

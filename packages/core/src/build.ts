@@ -239,8 +239,9 @@ async function readConfig(root: string) {
 function packageOfFile(file: string) {
   const parts = file.split("/");
   const at = parts.lastIndexOf("node_modules");
-  if (at < 0 || at + 1 >= parts.length) return undefined;
-  const end = at + 1 + packageDepth(parts[at + 1]);
+  const name = parts[at + 1];
+  if (at < 0 || name === undefined) return undefined;
+  const end = at + 1 + packageDepth(name);
   return {
     name: parts.slice(at + 1, end).join("/"),
     dir: parts.slice(0, end).join("/"),
@@ -411,7 +412,7 @@ async function buildUnlocked(
   // A Client chain starts at the page that rendered its "use client" boundary.
   const clientChain = (file: string) => {
     const chain = graphChain(clientParent, file);
-    return [...graphChain(serverParent, chain[0]).slice(0, -1), ...chain];
+    return [...graphChain(serverParent, chain[0] ?? file).slice(0, -1), ...chain];
   };
   const via = (chain: readonly string[]) => `\n  via ${chain.map(display).join(" → ")}`;
   // A declaration, not an arrow: TypeScript narrows only after calls to declared `never`s.
@@ -1218,8 +1219,10 @@ async function buildUnlocked(
       await writeAppManifest(root, join(temp, "app"), {
         buildId,
         builtins: appBuiltins,
-        capabilities: declaration.capabilities,
-        publisher: signBundle,
+        ...(declaration.capabilities === undefined
+          ? {}
+          : { capabilities: declaration.capabilities }),
+        ...(signBundle === undefined ? {} : { publisher: signBundle }),
       });
     await writeAppMetadata(temp, {
       ...declaration,

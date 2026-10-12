@@ -22,6 +22,7 @@
  * `kind: "path"` (resolved against the invocation's directory), `env` (a variable read
  * when the flag is absent).
  */
+import { definedProperties } from "./defined-properties";
 import { createHash } from "node:crypto";
 import { resolve } from "node:path";
 import * as z from "zod/mini";
@@ -154,13 +155,13 @@ export function grammar(schema: StandardJsonSchema): Flag[] {
     const base = {
       key,
       long,
-      short: p.short,
-      placeholder: p.placeholder,
-      description: p.description,
+      ...(p.short === undefined ? {} : { short: p.short }),
+      ...(p.placeholder === undefined ? {} : { placeholder: p.placeholder }),
+      ...(p.description === undefined ? {} : { description: p.description }),
       default: p.default,
       required: root.data.required.includes(key),
       path: p.kind === "path",
-      env: p.env,
+      ...(p.env === undefined ? {} : { env: p.env }),
     };
     const optional =
       p.anyOf?.length === 2 &&
@@ -168,10 +169,20 @@ export function grammar(schema: StandardJsonSchema): Flag[] {
       p.anyOf.some((a) => a.type === "string" && a.const === undefined);
     if (optional) flags.push({ ...base, arity: "optional", type: "string" });
     else if (p.type === "array" && p.items?.type && p.items.type !== "boolean")
-      flags.push({ ...base, arity: "list", type: p.items.type, choices: texts(p.items.enum) });
+      flags.push({
+        ...base,
+        arity: "list",
+        type: p.items.type,
+        ...definedProperties({ choices: texts(p.items.enum) }),
+      });
     else if (p.type === "boolean") flags.push({ ...base, arity: "switch", type: "boolean" });
     else if (p.type && p.type !== "array")
-      flags.push({ ...base, arity: "value", type: p.type, choices: texts(p.enum) });
+      flags.push({
+        ...base,
+        arity: "value",
+        type: p.type,
+        ...definedProperties({ choices: texts(p.enum) }),
+      });
     else throw new Error(`${where}: ${UNSUPPORTED}`);
     if (RESERVED_FLAGS.includes(long))
       throw new Error(

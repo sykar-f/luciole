@@ -43,11 +43,12 @@ const notify = (root: unknown) => {
 };
 
 async function reactDevtoolsFirst() {
-  if (process.env.DEV !== "true") return;
+  if (process.env["DEV"] !== "true") return;
   // The globals OpenTUI's devtools polyfill sets before loading react-devtools-core.
+  const globals: typeof globalThis & { window?: unknown; self?: unknown } = globalThis;
   Object.assign(globalThis, {
-    window: globalThis.window ?? globalThis,
-    self: globalThis.self ?? globalThis,
+    window: globals.window ?? globalThis,
+    self: globals.self ?? globalThis,
   });
   try {
     // Named at runtime: react-devtools-core ships no types and is OpenTUI's optional peer.

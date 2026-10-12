@@ -126,18 +126,18 @@ export async function readAppDeclaration(root: string): Promise<AppDeclaration> 
     await checkIcon(iconFile);
   }
   return {
-    capabilities: luciole.capabilities,
-    iconFile,
+    ...(luciole.capabilities === undefined ? {} : { capabilities: luciole.capabilities }),
+    ...(iconFile === undefined ? {} : { iconFile }),
     metadata: {
       format: 1,
       name,
       displayName: luciole.displayName ?? name,
-      identifier: luciole.identifier,
-      version,
-      description,
-      icon: iconFile ? APP_ICON : undefined,
-      server: luciole.server,
-      grace: luciole.grace,
+      ...(luciole.identifier === undefined ? {} : { identifier: luciole.identifier }),
+      ...(version === undefined ? {} : { version }),
+      ...(description === undefined ? {} : { description }),
+      ...(iconFile ? { icon: APP_ICON } : {}),
+      ...(luciole.server === undefined ? {} : { server: luciole.server }),
+      ...(luciole.grace === undefined ? {} : { grace: luciole.grace }),
     },
   };
 }

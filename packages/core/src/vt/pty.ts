@@ -174,7 +174,7 @@ export function spawnPty(options: PtyOptions): Pty {
   const child = Bun.spawn(SETSID ? [SETSID, "-c", ...command] : [...command], {
     terminal,
     detached: !SETSID,
-    cwd: options.cwd,
+    ...(options.cwd === undefined ? {} : { cwd: options.cwd }),
     // TERM names what the emulator answers to (terminfo, DA); COLORTERM advertises the
     // truecolor it renders.
     env: { ...own, TERM: "xterm-256color", COLORTERM: "truecolor", ...options.env },

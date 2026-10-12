@@ -5,6 +5,7 @@
  * file, the TTY renderer); the Application itself (src/client.tsx) does not know it. The
  * web runtime replaces this module (docs/WEB.md, W1).
  */
+import { definedProperties } from "./defined-properties";
 import * as z from "zod/mini";
 import { createCliRenderer, type CliRenderer } from "@opentui/core";
 import { createRoot } from "@opentui/react";
@@ -101,7 +102,7 @@ export async function run(
   const session = openSession({
     name,
     server: sessionKey ?? env.data.LUCIOLE_SESSION_KEY ?? url,
-    id: env.data.LUCIOLE_SESSION,
+    ...(env.data.LUCIOLE_SESSION === undefined ? {} : { id: env.data.LUCIOLE_SESSION }),
   });
   const devtools = env.data.LUCIOLE_DEVTOOLS
     ? (await import("./devtools/client-agent")).startClientAgent({
@@ -111,11 +112,11 @@ export async function run(
     : undefined;
   const app = create({
     url: connection.url,
-    fetch: connection.fetch,
-    token: handed ?? env.data.LUCIOLE_TOKEN,
+    ...(connection.fetch === undefined ? {} : { fetch: connection.fetch }),
+    ...definedProperties({ token: handed ?? env.data.LUCIOLE_TOKEN }),
     latencyMs: env.data.LUCIOLE_LATENCY_MS,
     network: networkFromEnv(process.env),
-    session: session.restored,
+    ...(session.restored === undefined ? {} : { session: session.restored }),
     quitOnCtrlC: !desktop,
     ...(devtools && { wrapTransport: devtools.wrapTransport }),
   });

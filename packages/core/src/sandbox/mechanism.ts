@@ -112,7 +112,7 @@ export function detectMechanism(root: string, env: NodeJS.ProcessEnv = process.e
       : { mechanism: undefined, reason: `${SANDBOX_EXEC} is missing` };
   if (process.platform !== "linux")
     return { mechanism: undefined, reason: `no sandbox on ${process.platform}` };
-  const launcher = env.LUCIOLE_SANDBOX_LAUNCHER || launcherPath(root);
+  const launcher = env["LUCIOLE_SANDBOX_LAUNCHER"] || launcherPath(root);
   if (!existsSync(launcher))
     return {
       mechanism: undefined,
@@ -120,7 +120,7 @@ export function detectMechanism(root: string, env: NodeJS.ProcessEnv = process.e
     };
   // The shipped one is the one its SHA256SUMS names (scripts/build-sandbox.ts): a damaged
   // or altered launcher would confine nothing it claims to.
-  if (!env.LUCIOLE_SANDBOX_LAUNCHER && !intact(launcher))
+  if (!env["LUCIOLE_SANDBOX_LAUNCHER"] && !intact(launcher))
     return { mechanism: undefined, reason: `${launcher} does not match its SHA256SUMS` };
   const run = spawnSync(launcher, ["--probe"], { encoding: "utf8", timeout: 5000 });
   let printed: unknown;
@@ -141,7 +141,7 @@ export function detectMechanism(root: string, env: NodeJS.ProcessEnv = process.e
   if (userNamespaces && landlockAbi >= 1) allowed.push({ kind: "userns", landlockAbi, launcher });
   if (bwrap && bwrapUsable(bwrap)) allowed.push({ kind: "bwrap", landlockAbi, launcher, bwrap });
   if (landlockAbi >= ABI_SCOPE) allowed.push({ kind: "landlock", landlockAbi, launcher });
-  const asked = env.LUCIOLE_SANDBOX_MECHANISM;
+  const asked = env["LUCIOLE_SANDBOX_MECHANISM"];
   if (asked !== undefined && !KINDS.some((k) => k === asked))
     return {
       mechanism: undefined,

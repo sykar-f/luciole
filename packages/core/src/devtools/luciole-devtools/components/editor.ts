@@ -35,7 +35,7 @@ export function openInEditor(
   source: string,
   absolute?: string,
 ) {
-  const editor = (process.env.VISUAL ?? process.env.EDITOR ?? "").trim();
+  const editor = (process.env["VISUAL"] ?? process.env["EDITOR"] ?? "").trim();
   if (!editor) return "Set $EDITOR (or $VISUAL) to open sources.";
   const { path, file, line } = sourceLocation(root, source, absolute);
   const [command = editor, ...flags] = editor.split(/\s+/);

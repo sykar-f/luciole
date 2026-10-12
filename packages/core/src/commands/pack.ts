@@ -1,3 +1,4 @@
+import { definedProperties } from "../defined-properties";
 import { resolve } from "node:path";
 import { ArgsError } from "../args";
 import { packApp } from "../registry/pack";
@@ -19,13 +20,15 @@ export const pack: Command = {
     const name = optional("--package"),
       version = optional("--version");
     if (!name || !version || !binaries.length) throw new ArgsError(`Usage: luciole ${pack.usage}`);
-    const directories = await packApp({
-      package: name,
-      version,
-      description: optional("--description"),
-      binaries: binaries.map((binary) => resolve(binary)),
-      outdir: resolve(optional("--outdir") ?? "npm"),
-    });
+    const directories = await packApp(
+      definedProperties({
+        package: name,
+        version,
+        description: optional("--description"),
+        binaries: binaries.map((binary) => resolve(binary)),
+        outdir: resolve(optional("--outdir") ?? "npm"),
+      }),
+    );
     console.log(
       `Publish in this order (platforms first):\n${directories.map((d) => `  npm publish ${d}`).join("\n")}`,
     );

@@ -60,7 +60,10 @@ export async function confineServer(options: ServerSandboxOptions): Promise<Serv
   try {
     const hosts = granted.net.filter((host) => host !== "*");
     if (!granted.net.includes("*") && hosts.length)
-      proxy = await startProxy({ allow: hosts, resolve: options.resolve });
+      proxy = await startProxy({
+        allow: hosts,
+        ...(options.resolve === undefined ? {} : { resolve: options.resolve }),
+      });
     const port = await freeLoopbackPort();
     const proxyUrl = proxy && `http://127.0.0.1:${proxy.port}`;
     const profile = seatbeltProfile({
@@ -71,7 +74,7 @@ export async function confineServer(options: ServerSandboxOptions): Promise<Serv
       writable: options.writable,
       server: { kind: "none" },
       listen: port,
-      proxyPort: proxy?.port,
+      ...(proxy?.port === undefined ? {} : { proxyPort: proxy?.port }),
     });
     options.onProfile?.(profile);
     const started = proxy;

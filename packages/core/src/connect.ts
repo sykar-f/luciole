@@ -23,7 +23,7 @@ const TUNNEL_POLL_MS = 100;
 const TUNNEL_SIGNALS = ["SIGINT", "SIGTERM", "SIGHUP"] as const;
 
 export const configPath = (name: string, env: NodeJS.ProcessEnv = process.env) =>
-  join(env.XDG_CONFIG_HOME || join(homedir(), ".config"), "luciole", `${name}.json`);
+  join(env["XDG_CONFIG_HOME"] || join(homedir(), ".config"), "luciole", `${name}.json`);
 
 export async function serverUrl({
   name,
@@ -40,7 +40,7 @@ export async function serverUrl({
     if (!url) throw new Error("--url needs a value");
     return url;
   }
-  if (env.LUCIOLE_URL) return env.LUCIOLE_URL;
+  if (env["LUCIOLE_URL"]) return env["LUCIOLE_URL"];
   const path = configPath(name, env);
   const file = Bun.file(path);
   if (!(await file.exists())) return DEFAULT_URL;
@@ -96,7 +96,7 @@ export function keepAlive(fetchServer: Fetch, client: string, pingMs: number): M
     fetchServer(new URL(path, "http://localhost"), {
       method: "POST",
       headers: { "x-luciole-client": client },
-      signal,
+      ...(signal === undefined ? {} : { signal: signal }),
     });
   const ping = async () => {
     const turn = ++sent;
@@ -170,7 +170,7 @@ export function connect(
 export function socketDirectory(prefix: string, env: NodeJS.ProcessEnv = process.env) {
   const fits = (parent: string) =>
     join(parent, `${prefix}XXXXXX/s`).length <= SOCKET_PATH_LIMIT && !parent.includes(":");
-  const parent = [env.XDG_RUNTIME_DIR, tmpdir()].find((p) => p && fits(p)) ?? "/tmp";
+  const parent = [env["XDG_RUNTIME_DIR"], tmpdir()].find((p) => p && fits(p)) ?? "/tmp";
   return mkdtempSync(join(parent, prefix));
 }
 

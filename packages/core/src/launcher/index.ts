@@ -13,6 +13,7 @@
  * Arguments after the target go to the app: `--url` makes it a Client of that Server;
  * an app binary also takes `--on host` and `serve`.
  */
+import { definedProperties } from "../defined-properties";
 import { existsSync } from "node:fs";
 import { basename, join } from "node:path";
 import { build } from "../build";
@@ -110,24 +111,28 @@ async function runBuilt(
       definition?.help({
         name,
         usage: [`luciole <app> [options]`],
-        runtime: runtimeHelp(BUILT_FLAGS),
+        ...definedProperties({ runtime: runtimeHelp(BUILT_FLAGS) }),
       }) ?? `Usage: luciole <app> [--url <url>] [--grace <duration>]`,
     );
     return 0;
   }
   if (url) return runForeground([...client, "--url", url], options.env);
   const cwd = options.cwd ?? process.cwd();
-  const args = await checkArgs(definition, app, { cwd, env: options.env, name });
+  const args = await checkArgs(definition, app, {
+    cwd,
+    ...(options.env === undefined ? {} : { env: options.env }),
+    name,
+  });
   const metadata = await readAppMetadata(output);
   const plan = await planLaunch({
     name,
     target,
     scope: metadata.server ?? "shared",
     cwd,
-    fingerprint: args.fingerprint,
+    ...(args.fingerprint === undefined ? {} : { fingerprint: args.fingerprint }),
     buildId,
     fresh,
-    env: options.env,
+    ...(options.env === undefined ? {} : { env: options.env }),
   });
   return runLocal({
     id: serverId(plan.key),
@@ -137,11 +142,11 @@ async function runBuilt(
     directories: options.directories ?? defaultDirectories(),
     env: { ...(options.env ?? process.env), ...args.env, ...plan.env },
     cwd,
-    fingerprint: args.fingerprint,
+    ...(args.fingerprint === undefined ? {} : { fingerprint: args.fingerprint }),
     command: [bun, "--conditions=react-server", join(directory, ".luciole/server/index.js")],
     client,
     sessionKey: plan.key,
-    session: plan.session,
+    ...(plan.session === undefined ? {} : { session: plan.session }),
   });
 }
 

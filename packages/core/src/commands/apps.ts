@@ -72,7 +72,7 @@ export const list: Command = {
     if (!all.length) console.log("No app installed.");
     for (const app of all)
       console.log(
-        `${app.app}  ${formatSpec({ name: app.package, range: app.range })} → ${app.version}` +
+        `${app.app}  ${formatSpec({ name: app.package, ...(app.range === undefined ? {} : { range: app.range }) })} → ${app.version}` +
           `  build ${app.buildId}${app.target === hostTarget() ? "" : ` (${app.target})`}`,
       );
   },

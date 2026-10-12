@@ -8,6 +8,7 @@
  * only names its snapshot (server/snapshots.ts). `configureDatabases` must run before the
  * application's Server code opens one: it gives the images read from storage.
  */
+import { definedProperties } from "../../defined-properties";
 import init, { type Database as WasmDatabase, type SqlValue } from "@sqlite.org/sqlite-wasm";
 
 const sqlite3 = await init();
@@ -78,7 +79,7 @@ class Statement {
     return this.#db.selectArrays(this.#sql, binding(parameters));
   }
   run(...parameters: Parameters) {
-    this.#db.exec({ sql: this.#sql, bind: binding(parameters) });
+    this.#db.exec({ sql: this.#sql, ...definedProperties({ bind: binding(parameters) }) });
     return {
       changes: this.#db.changes(),
       lastInsertRowid: Number(capi.sqlite3_last_insert_rowid(this.#db)),
@@ -112,7 +113,8 @@ export class Database {
     if (filename !== ":memory:") opened.set(filename, this);
   }
   exec(sql: string, ...parameters: Parameters) {
-    if (parameters.length) this.#db.exec({ sql, bind: binding(parameters) });
+    if (parameters.length)
+      this.#db.exec({ sql, ...definedProperties({ bind: binding(parameters) }) });
     else this.#db.exec(sql);
   }
   run(sql: string, ...parameters: Parameters) {

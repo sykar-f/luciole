@@ -32,7 +32,7 @@ export function configureFiles(entries: readonly SnapshotEntry[]) {
       kind: entry.kind,
       size: entry.size,
       mtimeMs: entry.mtimeMs,
-      bytes: entry.content === undefined ? undefined : Buffer.from(entry.content, "base64"),
+      ...(entry.content === undefined ? {} : { bytes: Buffer.from(entry.content, "base64") }),
     });
     // Every ancestor is a directory, listed or not.
     for (let parent = dirname(path); !tree.has(parent); parent = dirname(parent))

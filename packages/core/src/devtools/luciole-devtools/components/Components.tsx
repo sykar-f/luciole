@@ -167,7 +167,14 @@ export function ComponentsPanel({ command }: { command: Command }) {
                 ? color.fade
                 : undefined;
           return (
-            <text key={node.id} height={1} flexShrink={0} wrapMode="none" truncate bg={bg}>
+            <text
+              key={node.id}
+              height={1}
+              flexShrink={0}
+              wrapMode="none"
+              truncate
+              {...(bg === undefined ? {} : { bg: bg })}
+            >
               <span fg={color.faint}>{"  ".repeat(depth)}</span>
               <span fg={node.kind === "server" ? color.server : color.text}>
                 {node.kind === "server" ? `◇ ${node.name}` : node.name}

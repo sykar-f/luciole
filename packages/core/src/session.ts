@@ -1,3 +1,4 @@
+import { definedProperties } from "./defined-properties";
 import {
   mkdirSync,
   readdirSync,
@@ -43,7 +44,7 @@ export const SessionId = z.string().check(z.regex(/^[\w-]{1,64}$/));
 
 /** `$XDG_STATE_HOME/luciole/<app>/sessions` (`~/.local/state/luciole/<app>/sessions`). */
 export const sessionDirectory = (name: string, env: NodeJS.ProcessEnv = process.env) =>
-  join(env.XDG_STATE_HOME || join(homedir(), ".local", "state"), "luciole", name, "sessions");
+  join(env["XDG_STATE_HOME"] || join(homedir(), ".local", "state"), "luciole", name, "sessions");
 
 function alive(pid: number) {
   try {
@@ -193,10 +194,14 @@ export function openSession(options: {
     } catch {}
   };
   let restored = id ? read(path) : undefined;
-  if (!id) restored = claim(left, path, write);
+  const sessionOf = (file: SessionFile): Session => ({
+    index: file.index,
+    entries: file.entries.map((entry) => definedProperties(entry)),
+  });
+  if (!id) restored = claim(left, path, (file) => write(sessionOf(file)));
   let timer: ReturnType<typeof setTimeout> | undefined;
   return {
-    restored: restored ? { index: restored.index, entries: restored.entries } : undefined,
+    restored: restored ? sessionOf(restored) : undefined,
     schedule(session) {
       clearTimeout(timer);
       timer = setTimeout(() => write(session), SAVE_DELAY_MS);

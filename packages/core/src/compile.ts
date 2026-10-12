@@ -3,6 +3,7 @@
  * machine. The build identity is inside it; it connects to Servers of the same build only.
  * Validated on a compiled binary (OpenTUI embeds its native library through `type: "file"`).
  */
+import { definedProperties } from "./defined-properties";
 import { run, textOf } from "./subprocess";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -178,7 +179,7 @@ export async function compileApp(
     await layOutNative(natives, {
       destination: nativeDirectory,
       target,
-      nativeDir: options.nativeDir ? resolve(options.nativeDir) : undefined,
+      ...(options.nativeDir ? { nativeDir: resolve(options.nativeDir) } : {}),
     });
   if (natives.size) await cp(join(staging, "server.js"), join(nativeDirectory, NATIVE_SERVER));
   const identity: BinaryIdentity = { name: checkAppName(options.name), buildId, target };
@@ -196,7 +197,7 @@ export async function compileApp(
   );
   try {
     const compiled = await compileEntry(entry, { ...options, outfile });
-    return { ...compiled, identity, native: natives.size ? nativeDirectory : undefined };
+    return { ...compiled, identity, ...(natives.size ? { native: nativeDirectory } : {}) };
   } finally {
     await rm(staging, { recursive: true, force: true });
   }
@@ -254,17 +255,17 @@ async function compileEntry(
   });
   if (!result.success) throw new Error(logMessages(result.logs));
   if (options.sign !== undefined) await signClient(outfile, options.sign);
-  return {
+  return definedProperties({
     outfile,
     target,
     warning: portability,
     notarization:
       options.notarize === undefined ? undefined : await notarizeClient(outfile, options.notarize),
-  };
+  });
 }
 
 export const defaultCache = () =>
-  join(process.env.XDG_CACHE_HOME || join(homedir(), ".cache"), "luciole");
+  join(process.env["XDG_CACHE_HOME"] || join(homedir(), ".cache"), "luciole");
 
 /**
  * Bun's stock runtime for `target` (`@oven/bun-<os>-<arch>` on npm), downloaded on the

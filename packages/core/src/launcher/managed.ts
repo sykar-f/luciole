@@ -26,8 +26,8 @@ const LOG_TAIL_BYTES = 4096;
 
 /** The directory of this user's managed Server sockets, created 0700 and checked. */
 export function runtimeDirectory(env: NodeJS.ProcessEnv = process.env) {
-  const directory = env.XDG_RUNTIME_DIR
-    ? join(env.XDG_RUNTIME_DIR, "luciole")
+  const directory = env["XDG_RUNTIME_DIR"]
+    ? join(env["XDG_RUNTIME_DIR"], "luciole")
     : `/tmp/luciole-${process.getuid?.() ?? "user"}`;
   mkdirSync(directory, { recursive: true, mode: PRIVATE_DIRECTORY });
   // /tmp is shared: a directory made by someone else, or left open, is not ours to use.

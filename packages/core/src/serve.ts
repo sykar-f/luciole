@@ -53,16 +53,18 @@ export function serve(config: ServerConfig) {
     } satisfies AuthConfig);
   const handler = createHandler(config, {
     auth,
-    devtools: env.data.LUCIOLE_DEVTOOLS,
+    ...(env.data.LUCIOLE_DEVTOOLS === undefined ? {} : { devtools: env.data.LUCIOLE_DEVTOOLS }),
     testing,
     web: webAccess(config.web, env.data.LUCIOLE_WEB_ORIGIN),
     keepAlive: (req) => server.timeout(req, 0),
-    dropAfterCommit: dropOnce
-      ? () => {
-          void server.stop(true);
-          process.exit(0);
+    ...(dropOnce
+      ? {
+          dropAfterCommit: () => {
+            void server.stop(true);
+            process.exit(0);
+          },
         }
-      : undefined,
+      : {}),
   });
   // Declared before `lifetime`, which stops through it; `server` exists by the time it runs.
   const shutdown = () => {
@@ -70,13 +72,15 @@ export function serve(config: ServerConfig) {
     process.exit(0);
   };
   // A Server the launcher manages lives as long as its Clients (src/launcher/lifetime.ts).
+  const args = socket ? configuredArgs()?.fingerprint : undefined;
+  const launch = socket ? getLaunch().id : undefined;
   const lifetime = socket
     ? managedLifetime(process.env, {
         buildId: config.buildId,
         socket,
         stop: () => shutdown(),
-        args: configuredArgs()?.fingerprint,
-        launch: getLaunch().id,
+        ...(args === undefined ? {} : { args }),
+        ...(launch === undefined ? {} : { launch }),
       })
     : undefined;
   const options = {

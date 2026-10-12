@@ -174,10 +174,11 @@ export function createNetworkModel() {
             row.href = loader.href;
             row.loader = { ...row.loader, start: loader.at };
           }
-          if (INVALIDATING.has(p.cause))
-            row.invalidatedBy = invalidations.findLast(
-              (i) => i.at <= (row.loader?.start ?? p.at),
-            )?.cause;
+          if (INVALIDATING.has(p.cause)) {
+            const cause = invalidations.findLast((i) => i.at <= (row.loader?.start ?? p.at))?.cause;
+            if (cause === undefined) delete row.invalidatedBy;
+            else row.invalidatedBy = cause;
+          }
         }
         return;
       }
@@ -241,7 +242,11 @@ export function createNetworkModel() {
         if (started) started.ended = true;
         const linked = started?.row ? rows.get(started.row) : undefined;
         if (linked) {
-          linked.loader = { ...linked.loader, end: p.at, result: p.result };
+          linked.loader = {
+            ...linked.loader,
+            end: p.at,
+            ...(p.result === undefined ? {} : { result: p.result }),
+          };
           return;
         }
         // No request behind this loader: the router's cache, a transport decorator's
@@ -255,7 +260,11 @@ export function createNetworkModel() {
           cause: p.cause,
           href: p.href,
           source: cached ? "router-cache" : p.result === "aborted" ? "aborted" : "no-request",
-          loader: { start: started?.at ?? p.at, end: p.at, result: p.result },
+          loader: {
+            start: started?.at ?? p.at,
+            end: p.at,
+            ...(p.result === undefined ? {} : { result: p.result }),
+          },
           client: { chunks: [], bytes: 0 },
           server: {},
           cache: [],
@@ -284,7 +293,14 @@ export function createNetworkModel() {
         const p = event.payload;
         if (!p.callId) return;
         const row = rows.get(p.callId) ?? rowFor(p.callId, "render", "");
-        row.cache.push({ op: p.op, key: p.key, fn: p.fn, tags: p.tags, at: p.at, ms: p.ms });
+        row.cache.push({
+          op: p.op,
+          key: p.key,
+          fn: p.fn,
+          tags: p.tags,
+          at: p.at,
+          ...(p.ms === undefined ? {} : { ms: p.ms }),
+        });
         return;
       }
       default:
@@ -326,7 +342,11 @@ export function createNetworkModel() {
     }
     for (const group of groups.values())
       if (group.length > 1)
-        for (const row of group) set(row.key, { doubleInvalidation: row.invalidatedBy });
+        for (const row of group)
+          set(
+            row.key,
+            row.invalidatedBy === undefined ? {} : { doubleInvalidation: row.invalidatedBy },
+          );
     derived = flags;
     return flags;
   }

@@ -101,8 +101,8 @@ export async function openSandbox(
       readable,
       writable: [sessions],
       server: { url: origin.url, connection },
-      resolve: options.resolve,
-      onProfile: options.onProfile,
+      ...(options.resolve === undefined ? {} : { resolve: options.resolve }),
+      ...(options.onProfile === undefined ? {} : { onProfile: options.onProfile }),
     });
     const confined = confinement;
     const childEnv: Record<string, string> = {
@@ -110,7 +110,7 @@ export async function openSandbox(
       HOME: tmp.path,
       TMPDIR: tmp.path,
       // Where sessionDirectory() put the origin's sessions, which the profile opens.
-      XDG_STATE_HOME: env.XDG_STATE_HOME || join(homedir(), ".local", "state"),
+      XDG_STATE_HOME: env["XDG_STATE_HOME"] || join(homedir(), ".local", "state"),
       // Nothing to cache: the child could not write it anyway.
       BUN_RUNTIME_TRANSPILER_CACHE_PATH: "0",
       ...Object.fromEntries(PASSED.flatMap((name) => (env[name] ? [[name, env[name]]] : []))),
@@ -118,8 +118,8 @@ export async function openSandbox(
     };
     const permissions = createPermissions({
       granted,
-      denied: origin.denied,
-      ask: options.ask,
+      ...(origin.denied === undefined ? {} : { denied: origin.denied }),
+      ...(options.ask === undefined ? {} : { ask: options.ask }),
       onChange: (change) => {
         child?.send({ kind: "event", event: { type: "capability", ...change } });
         options.onChange?.(change);
