@@ -172,6 +172,7 @@ test(
         filter: (path) =>
           !relative(resolve("packages/core"), path).split("/").includes("node_modules"),
       });
+      await cp(resolve("bun.lock"), join(root, "bun.lock"));
       const dependencies = join(core, "node_modules");
       await mkdir(dependencies);
       for (const entry of await readdir(resolve("node_modules"))) {
