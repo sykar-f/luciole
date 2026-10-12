@@ -909,7 +909,6 @@ async function buildUnlocked(
   let appBuiltins: string[] = [];
   let args: AppArgs | undefined;
   let appSkipped = false;
-  const external = ["react", "react-dom"];
   try {
     type Role = "server" | "client" | "app" | "web-server" | "args";
     const roles: readonly Role[] = [
@@ -949,7 +948,6 @@ async function buildUnlocked(
         // resolve from core below: isolated apps expose only their direct dependencies.
         // The Server carries its JS dependencies, with native packages resolved at
         // run time through its plugin below.
-        external: role === "client" ? external : [],
         conditions: serverSide ? ["react-server"] : [],
         // A browser bundle carries no environment: React's production builds, as the page's.
         // The Bun Server picks development or production at startup, as Flight did
@@ -1037,12 +1035,15 @@ async function buildUnlocked(
               // the Client transition machinery; the terminal Client is a browser-like runtime.
               if (role === "client") {
                 // Keep OpenTUI's native loader and the public test renderer in their
-                // installed modules. Absolute externals retain core's dependency lookup
-                // from any output directory; compilation follows and embeds these paths.
+                // installed modules. Resolve their React peers from the same installation,
+                // including application imports: a linked core may have a different
+                // React than the app, but hooks must share the renderer's instance.
+                // Absolute externals work from any output directory; compilation
+                // follows and embeds these paths.
                 b.onResolve(
                   {
                     filter:
-                      /^(react-server-dom-webpack|react-reconciler|@opentui\/core|@opentui\/react)(\/.*)?$/,
+                      /^(react|react-dom|react-server-dom-webpack|react-reconciler|@opentui\/core|@opentui\/react)(\/.*)?$/,
                   },
                   (a) => ({ path: Bun.resolveSync(a.path, framework), external: true }),
                 );
