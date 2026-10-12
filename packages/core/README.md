@@ -29,6 +29,24 @@ this package's version, which writes the starter (the Notes example, with its to
 See the [root README](../../README.md) for the project overview, and
 [luciole.sh](https://luciole.sh) for the website.
 
+## TypeScript setup
+
+Extend the framework's configuration in your application's `tsconfig.json`:
+
+```json
+{
+  "extends": "@luciole-sh/core/tsconfig"
+}
+```
+
+The package ships compiled `.d.ts` declarations for all public TypeScript entries;
+Bun runs the TypeScript sources. With `skipLibCheck: true`, your application's
+compiler checks your code without checking core's implementation.
+
+Use `moduleResolution: "Bundler"`, as the shared configuration does. The declarations
+retain extensionless internal imports, so `Node16` and `NodeNext` resolution are
+unsupported: with `skipLibCheck`, unresolved internal types can silently become `any`.
+
 ## License
 
 [MIT](./LICENSE)
