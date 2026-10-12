@@ -2,7 +2,13 @@ import { afterAll, expect, spyOn, test } from "bun:test";
 import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { buildApp, openClient, startServer, TEST_TIMEOUT_MS } from "../packages/core/src/test";
+import {
+  buildApp,
+  eventually,
+  openClient,
+  startServer,
+  TEST_TIMEOUT_MS,
+} from "../packages/core/src/test";
 
 const directory = await mkdtemp(join(tmpdir(), "luciole-test-waits-"));
 afterAll(() => rm(directory, { recursive: true, force: true }));
@@ -40,3 +46,28 @@ test(
   },
   TEST_TIMEOUT_MS,
 );
+
+for (const mode of ["settled", "eventually", "requests"] as const) {
+  test(
+    `${mode} observes a delayed useLive chunk without act warnings`,
+    async () => {
+      const errors = spyOn(console, "error");
+      try {
+        await using server = await startServer(app);
+        await using client = await openClient(app, server);
+        if (mode === "settled") {
+          expect(await client.settled("STREAMED CHUNK")).toContain("STREAMED CHUNK");
+        } else if (mode === "eventually") {
+          await eventually(async () => (await client.frame()).includes("STREAMED CHUNK"));
+        } else {
+          await client.requests.settled();
+          expect(await client.frame()).toContain("STREAMED CHUNK");
+        }
+        expect(errors.mock.calls.flat().join("\n")).not.toContain("not wrapped in act");
+      } finally {
+        errors.mockRestore();
+      }
+    },
+    TEST_TIMEOUT_MS,
+  );
+}
