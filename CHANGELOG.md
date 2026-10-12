@@ -13,6 +13,14 @@ and marked **Breaking**.
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-10-12
+
+### Fixed
+
+- A Server that builds a Client, such as Studio's preview, now selects the
+  Client exports of core's dependencies. The Client uses TanStack Router's
+  Client build even when the build process runs with `--conditions=react-server`.
+
 ## [0.3.1] - 2026-10-12
 
 ### Fixed
@@ -151,7 +159,8 @@ First public release, on npm. Five packages share this version: `luciole.sh`,
 - No multi-user load test and no public TLS proxy test. See
   <https://luciole.sh/status/>.
 
-[Unreleased]: https://github.com/sykar-f/luciole/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/sykar-f/luciole/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/sykar-f/luciole/releases/tag/v0.3.2
 [0.3.1]: https://github.com/sykar-f/luciole/releases/tag/v0.3.1
 [0.3.0]: https://github.com/sykar-f/luciole/releases/tag/v0.3.0
 [0.2.0]: https://github.com/sykar-f/luciole/releases/tag/v0.2.0
