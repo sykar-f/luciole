@@ -17,16 +17,16 @@ and marked **Breaking**.
 
 ### Fixed
 
-- Built Clients now find core's own dependencies in isolated installs, without
-  apps having to declare `react-server-dom-webpack`, `react-reconciler`,
-  `@opentui/core` or `@opentui/react` themselves. Moving the installation rebuilds
-  the Client with the new dependency paths.
-- Builds work with `NODE_ENV=development` in the build shell, including isolated
-  installs. A Client built in that environment also runs in production without
-  crashing on `jsxDEV`.
+- Built Clients now find core's own dependencies in isolated installs. Apps no
+  longer need to declare `react-server-dom-webpack`, `react-reconciler`,
+  `@opentui/core` or `@opentui/react` themselves. When the installation moves,
+  the Client is rebuilt with the new dependency paths.
+- Builds work with `NODE_ENV=development` in the build shell, isolated installs
+  included. A Client built in that environment also runs in production and no
+  longer crashes on `jsxDEV`.
 - Built Clients share React with their renderer when core is linked or installed
-  in a separate workspace directory, fixing a blank Client. A Server that builds
-  a Client also selects React's Client exports.
+  in a separate workspace directory. The blank Client is fixed. A Server that
+  builds a Client also selects React's Client exports.
 
 ## [0.3.0] - 2026-10-12
 
