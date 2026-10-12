@@ -44,6 +44,23 @@ import { rejectionOf } from "./helpers";
 const temp = await mkdtemp(join(tmpdir(), "luciole-skills-eval-test-"));
 afterAll(() => rm(temp, { recursive: true, force: true }));
 
+// A child may take arbitrarily long to publish its marker. Only its owner's exit
+// can end the wait early; the test timeout remains the guard against a hang.
+async function waitForRunner(
+  runner: Bun.Subprocess,
+  errors: Promise<string>,
+  ready: () => Promise<boolean>,
+) {
+  let exited = false;
+  void runner.exited.then(() => {
+    exited = true;
+  });
+  while (!(await ready())) {
+    if (exited) throw new Error(`runner exited before its marker: ${await errors}`);
+    await Bun.sleep(10);
+  }
+}
+
 const evals = resolve(import.meta.dir, "../evals/skills");
 
 test("every scenario of the repository parses", async () => {
@@ -495,14 +512,13 @@ for (const mode of ["leader exit", "SIGINT", "SIGINT finishing run"] as const)
     const listingScript = join(out, "listing.ts");
     await writeFile(
       listingScript,
-      `await Bun.write(${JSON.stringify(listings)} + "/" + process.pid, "");
-while (!(await Bun.file(${JSON.stringify(gate)}).exists())) await Bun.sleep(10);`,
+      `while (!(await Bun.file(${JSON.stringify(gate)}).exists())) await Bun.sleep(10);`,
     );
     const script = join(out, "stalled-runner.ts");
     const { setup: _, ...scenario } = withSetup("unused");
     await writeFile(
       script,
-      `import {existsSync} from "node:fs";
+      `import {existsSync, writeFileSync} from "node:fs";
 import {run, runInApp} from ${JSON.stringify(resolve(import.meta.dir, "../scripts/skills-eval-scenario.ts"))};
 const spawn = Bun.spawn.bind(Bun);
 const kill = process.kill.bind(process);
@@ -520,8 +536,13 @@ process.kill = (pid, signal) => {
  }
  return kill(pid, signal);
 };
-Bun.spawn = (cmd, options) => spawn(cmd[0] === "ps" && active()
- ? [process.execPath, ${JSON.stringify(listingScript)}] : cmd, options);
+Bun.spawn = (cmd, options) => {
+ if (cmd[0] !== "ps" || !active()) return spawn(cmd, options);
+ const listing = spawn([process.execPath, ${JSON.stringify(listingScript)}], options);
+ // Publish from the owner: cleanup can kill the child before its runtime starts.
+ writeFileSync(${JSON.stringify(listings)} + "/" + listing.pid, "");
+ return listing;
+};
 ${
   mode === "leader exit"
     ? `const result = await run(["sh", "-c", "sleep 60 & echo $!"], ${JSON.stringify(app)}, {cleanup: {goneMs: 50}});
@@ -537,22 +558,15 @@ console.log(JSON.stringify(result));`
     });
     const output = new Response(runner.stdout).text();
     const errors = new Response(runner.stderr).text();
-    const waitFor = async (ready: () => Promise<boolean>) => {
-      const deadline = performance.now() + 10_000;
-      while (!(await ready()) && performance.now() < deadline) await Bun.sleep(10);
-      expect(await ready()).toBe(true);
-    };
     try {
       if (mode !== "leader exit") {
-        await waitFor(() => Bun.file(agentPid).exists());
+        await waitForRunner(runner, errors, () => Bun.file(agentPid).exists());
         runner.kill("SIGINT");
       }
-      await waitFor(async () => (await readdir(listings)).length > 0);
+      await waitForRunner(runner, errors, async () => (await readdir(listings)).length > 0);
       // The gate remains shut. Completion must come from the cleanup deadline, not ps EOF.
-      const code = await Promise.race([
-        runner.exited,
-        Bun.sleep(mode === "leader exit" ? 1000 : 12_000).then(() => "listing still awaited"),
-      ]);
+      const code = await runner.exited;
+      expect(await Bun.file(gate).exists()).toBe(false);
       if (code === 1) throw new Error(await errors);
       expect(code).toBe(mode === "leader exit" ? 0 : 130);
       if (mode === "leader exit") {
@@ -858,14 +872,12 @@ await Promise.all(${JSON.stringify(
         stdout: "ignore",
         stderr: "pipe",
       });
+      const errors = new Response(runner.stderr).text();
       try {
         // Both markers prove both agents are running before signalling their owner.
-        const deadline = performance.now() + 10_000;
-        while (
-          !(await Promise.all(pidFiles.map((file) => Bun.file(file).exists()))).every(Boolean) &&
-          performance.now() < deadline
-        )
-          await Bun.sleep(10);
+        await waitForRunner(runner, errors, async () =>
+          (await Promise.all(pidFiles.map((file) => Bun.file(file).exists()))).every(Boolean),
+        );
         const groups = await Promise.all(
           pidFiles.map(async (file) =>
             (await readFile(file, "utf8")).trim().split(" ").map(Number),
@@ -891,6 +903,7 @@ await Promise.all(${JSON.stringify(
       } finally {
         runner.kill("SIGKILL");
         await runner.exited;
+        await errors;
       }
     }, 20_000);
 
@@ -929,9 +942,9 @@ await withStoredRun(${JSON.stringify(store)}, [], async root => {
     stdout: "ignore",
     stderr: "pipe",
   });
+  const errors = new Response(runner.stderr).text();
   try {
-    const deadline = performance.now() + 10_000;
-    while (!(await Bun.file(pidFile).exists()) && performance.now() < deadline) await Bun.sleep(10);
+    await waitForRunner(runner, errors, () => Bun.file(pidFile).exists());
     const [leader, child] = (await readFile(pidFile, "utf8")).trim().split(" ").map(Number);
     const root = await readFile(marker, "utf8");
     expect(leader).toBeGreaterThan(0);
@@ -946,6 +959,7 @@ await withStoredRun(${JSON.stringify(store)}, [], async root => {
   } finally {
     runner.kill("SIGKILL");
     await runner.exited;
+    await errors;
   }
 }, 20_000);
 
