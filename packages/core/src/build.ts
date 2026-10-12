@@ -949,12 +949,16 @@ async function buildUnlocked(
         external: role === "client" ? external : [],
         conditions: serverSide ? ["react-server"] : [],
         // A browser bundle carries no environment: React's production builds, as the page's.
+        // The Bun Server picks development or production at startup, as Flight did
+        // before it was bundled. An explicit identity define prevents Bun folding it.
         ...(browserServer
           ? {
               minify: true,
               define: { "process.env.NODE_ENV": JSON.stringify("production") },
             }
-          : {}),
+          : role === "server"
+            ? { define: { "process.env.NODE_ENV": "process.env.NODE_ENV" } }
+            : {}),
         metafile: clientSide,
         // Next to the bundle, and linked from it: Bun maps runtime stack traces through it
         // (development and production alike) and a debugger finds it. Inline would double
@@ -1046,6 +1050,30 @@ async function buildUnlocked(
                   ? undefined
                   : { path: Bun.resolveSync(a.path, framework) },
               );
+              // One Server React, core's peer, shared by application JSX and Flight.
+              // Read its conditional exports: Bun.resolveSync runs in the Client-side
+              // build process and may even find an uninstalled app's React in its cache.
+              if (role === "server")
+                b.onResolve({ filter: /^react(\/.*)?$/ }, (a) => {
+                  const manifest = Bun.resolveSync("react/package.json", framework);
+                  const exports = z
+                    .object({
+                      exports: z.record(
+                        z.string(),
+                        z.union([
+                          z.string(),
+                          z.object({ "react-server": z.string().optional(), default: z.string() }),
+                        ]),
+                      ),
+                    })
+                    .parse(JSON.parse(readFileSync(manifest, "utf8"))).exports;
+                  const entry =
+                    exports[a.path === "react" ? "." : `.${a.path.slice("react".length)}`];
+                  const target =
+                    typeof entry === "string" ? entry : (entry?.["react-server"] ?? entry?.default);
+                  if (!target) throw new Error(`No React export for ${a.path}`);
+                  return { path: join(dirname(manifest), target) };
+                });
               // Native code cannot be bundled: resolved at run time, from node_modules or
               // from an app binary's native/ (src/native.ts, src/compile.ts).
               if (role === "server")
