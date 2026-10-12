@@ -107,7 +107,9 @@ observe lui-même.
 Une Server Function génératrice (`export async function*` dans un module
 `"use server"`) livre ses valeurs au fil de l'eau. `useLive` ouvre la requête au
 montage (ou quand ses arguments changent) et l'annule au démontage ; le Server arrête
-alors le générateur (son `finally` s'exécute).
+alors la réponse immédiatement et demande le retour du générateur. Un `return()` de
+générateur async attend la fin de son `await` en cours : le signal de la requête
+permet de libérer cette attente et d'exécuter son `finally` rapidement.
 
 ```tsx
 const { items, done, error } = useLive(checkLog, [check.id], { limit: 500 });
@@ -117,6 +119,49 @@ Rien ne se reconnecte tout seul : une coupure termine le flux avec une
 `TransportError` (`unknown`). Une réponse live échappe au délai d'inactivité du
 Server. `useApplication().withSignal(signal, () => action(...))` lie un signal
 d'annulation à n'importe quel appel de Server Function.
+
+`getSignal()` d'`@luciole-sh/core/server` renvoie l'`AbortSignal` de la requête. Il
+s'annule avec le Client ou quand le lecteur de la réponse part.
+`abortable(promise, signal)` rejette avec `signal.reason` à l'annulation ; la promesse
+source continue. Libérer donc la souscription externe dans `finally`.
+
+Pour relier une souscription au générateur par une file, comme `watchRun` dans
+`examples/flow/actions/pipeline.ts`, rendre l'attente annulable :
+
+```ts
+"use server";
+import { abortable, getSignal } from "@luciole-sh/core/server";
+import type { Run } from "../components/model";
+import { pipeline } from "../server/pipeline";
+
+export async function* watchRun(): AsyncGenerator<Run> {
+  const signal = getSignal();
+  const queue: Run[] = [];
+  let wake: (() => void) | undefined;
+  const stop = pipeline.subscribe((run) => {
+    queue.push(run);
+    wake?.();
+  });
+  try {
+    while (!signal.aborted) {
+      const next = queue.shift();
+      if (next) yield next;
+      else {
+        await abortable(new Promise<void>((resolve) => (wake = resolve)), signal);
+        wake = undefined;
+      }
+    }
+  } catch (error) {
+    if (!signal.aborted) throw error;
+  } finally {
+    stop();
+  }
+}
+```
+
+Un beat périodique n'est plus nécessaire pour débloquer l'annulation. Passer le signal
+aux API externes qui l'acceptent ; utiliser `abortable` pour une simple promesse.
+Capturer `getSignal()` dans la Server Function, hors de `"use cache"`.
 
 ## Raccourcis clavier
 
@@ -544,6 +589,9 @@ Entrée `@luciole-sh/core/server` :
 - `getSession()` : `{ userId }` dans le contexte async du rendu ou de l'action.
 - `getOptionalSession()` : la session de la requête, ou `null` pour une requête anonyme ;
   une page ou une action publique reçoit aussi la session d'un utilisateur connecté.
+- `getSignal()` : `AbortSignal` de la requête ; lève hors contexte ou dans `"use cache"`.
+- `abortable(promise, signal)` : `Promise<T>` qui rejette avec `signal.reason` à
+  l'annulation et observe les rejets tardifs de la promesse source.
 - `getCallId()` : identifiant de requête de transport, distinct de l'opération métier.
 - `notFound(what?)` : termine le rendu d'une page avec le `not-found.tsx` le plus proche.
 - `invalidate(path?)` : dans une Server Function, déclare les routes à revalider.

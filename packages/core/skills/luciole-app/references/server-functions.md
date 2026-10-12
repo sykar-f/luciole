@@ -59,3 +59,13 @@ The transport never retries. Decide in the app what a failed call means.
 An `export async function*` streams; read it with
 `const { items, done, error } = useLive(fn, [args])` from `@luciole-sh/core/client`. It stops
 on unmount, and nothing reconnects by itself.
+
+For a generator waiting on a subscription's queue, capture `getSignal()` from
+`@luciole-sh/core/server` inside the Server Function. Await the queue's wake promise with
+`abortable(promise, signal)`; catch the rejection only when `signal.aborted`, and release
+the subscription in `finally`. The helper rejects with `signal.reason` while the source
+promise continues. Pass the signal directly to external APIs that accept it. A periodic
+beat is no longer needed: the Server closes the response on cancel even when a generator
+ignores the signal, but its `finally` needs an interruptible await to run promptly.
+
+The full queue example is in the live section of the Server Functions rules linked above.

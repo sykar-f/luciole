@@ -11,6 +11,7 @@ import {
   BUILD_TEST_MS,
   WAIT_MS,
   launch,
+  eventually,
   importClient,
   readManifest,
   destroy,
@@ -18,16 +19,16 @@ import {
 } from "./helpers";
 
 // What the `stats` Server Function of the fixture returns.
-const Stats = z.strictObject({ open: z.number(), closed: z.number() });
+const Stats = z.strictObject({ open: z.number(), closed: z.number(), waiting: z.boolean() });
 
 const files: Record<string, string> = {
   "app/layout.tsx": `"use client";export default function Layout({children}){return <box flexDirection="column">{children}</box>}`,
   "app/page.tsx": `export default function Home(){return <text>HOME</text>}`,
   "app/live/page.tsx": `import {Ticker} from "../../components/Ticker";export default function Live(){return <Ticker/>}`,
   "components/Ticker.tsx": `"use client";import {useLive} from "@luciole-sh/core/client";import {ticks} from "../actions/live";export function Ticker(){const {items,done,error}=useLive(ticks,["t"],{limit:3});return <text>TICKS {items.join(",")} {done?"DONE":""} {error?"ERROR "+String(error.outcome):""}</text>}`,
-  // Simulated time, not a wait: the generator yields a value every 20 ms, forever.
-  "actions/live.ts": `"use server";import {status} from "../server/status";export async function* ticks(prefix:string){status.open++;try{for(let i=0;;i++){yield prefix+i;await Bun.sleep(20)}}finally{status.closed++}}export async function stats(){return {...status}}`,
-  "server/status.ts": `export const status={open:0,closed:0};`,
+  // Eight ticks, then a silent external source: cancellation must release its await.
+  "actions/live.ts": `"use server";import {abortable,getSignal} from "@luciole-sh/core/server";import {status} from "../server/status";export async function* ticks(prefix:string){const signal=getSignal();status.open++;status.waiting=false;try{for(let i=0;i<8;i++){yield prefix+i;await Bun.sleep(20)}status.waiting=true;await abortable(new Promise<never>(()=>{}),signal)}catch(error){if(!signal.aborted)throw error}finally{status.closed++;status.waiting=false}}export async function stats(){return {...status}}`,
+  "server/status.ts": `export const status={open:0,closed:0,waiting:false};`,
 };
 
 test(
@@ -72,7 +73,9 @@ test(
       // Values keep arriving; only the latest `limit` are kept.
       await shows((text) => ticksOf(text).length === 3 && Number(ticksOf(text)[2].slice(1)) > 3);
       expect(ticksOf(await frame())).toHaveLength(3);
-      expect(await stats()).toEqual({ open: 1, closed: 0 });
+      await eventually(async () => (await stats()).waiting);
+      expect(await stats()).toEqual({ open: 1, closed: 0, waiting: true });
+      const cancelledAt = performance.now();
       // Leaving the route cancels the request: the Server generator runs its finally.
       await act(async () => {
         await app.router.navigate({ to: "/" });
@@ -85,7 +88,10 @@ test(
         // The step of a poll bounded by WAIT_MS: only the Server knows its finally ran.
         await Bun.sleep(20);
       }
-      expect(last).toEqual({ open: 1, closed: 1 });
+      expect(last).toEqual({ open: 1, closed: 1, waiting: false });
+      const cleanupMs = performance.now() - cancelledAt;
+      expect(cleanupMs).toBeLessThan(500);
+      console.log(`useLive blocked generator cleanup observed: ${cleanupMs.toFixed(2)} ms`);
 
       // A lost Server ends the stream with an error the application can read.
       await act(async () => {
