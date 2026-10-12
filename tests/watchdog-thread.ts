@@ -4,23 +4,15 @@
  * deadline. Nothing here depends on the blocked main thread's event loop.
  */
 import { writeSync } from "node:fs";
-import { parentPort, workerData } from "node:worker_threads";
+import { isMainThread, parentPort, workerData } from "node:worker_threads";
 
 type Beat = { file?: string; phase?: string; test?: string; ordinal?: number };
 type Capture = { output: string; stop: () => void; finished: boolean };
 
-const blockedMs = Number(workerData);
-const captureMs = Math.min(2000, blockedMs / 2);
 const STACK_BYTES = 32768;
-let last = Date.now();
-let file = "?";
-let phase = "?";
-let test = "unavailable (no test name supplied)";
-let ordinal = 0;
-let capture: Capture | undefined;
 
 /** Start early enough that sampling never postpones the worker's kill deadline. */
-function sample(): Capture {
+function sample(pid: string): Capture {
   const result: Capture = {
     output: "Native stack capture did not finish before the kill deadline.\n",
     stop: () => {},
@@ -35,7 +27,6 @@ function sample(): Capture {
       "Native stack unavailable: no sampling tool exists (sample on macOS; gdb or eu-stack on Linux).\n";
     return result;
   }
-  const pid = String(process.pid);
   const args =
     process.platform === "darwin"
       ? [tool, pid, "1", "-file", "/dev/stdout"]
@@ -80,26 +71,73 @@ function sample(): Capture {
   return result;
 }
 
-parentPort?.on("message", (beat: Beat) => {
-  last = Date.now();
-  capture?.stop();
-  capture = undefined;
-  if (beat.file === undefined) return;
-  file = beat.file;
-  phase = beat.phase ?? "?";
-  ordinal = beat.ordinal ?? 0;
-  test = beat.test ?? "unavailable (no test name supplied)";
-});
-setInterval(() => {
-  const silent = Date.now() - last;
-  if (silent < blockedMs - captureMs) return;
-  capture ??= sample();
-  if (silent < blockedMs) return;
-  capture.stop();
-  if (!capture.finished) capture.output += "\nNative stack capture stopped at the kill deadline.\n";
-  writeSync(
-    2,
-    `\nluciole tests: the main thread of this worker has answered nothing for ${Math.round(silent / 1000)} s in ${file} (${phase}), test start #${ordinal}, test: ${test}: a synchronous call that never returns. Killing the worker so the run fails now instead of hanging.\n${capture.output}`,
+type Report = { pid: number; deadline: number; header: string };
+
+if (isMainThread) {
+  // A debugger may suspend *every* thread in the worker. Its deadline and output
+  // must therefore live in a separate process, not in the thread it samples.
+  const report: Report = JSON.parse(process.argv[2] ?? "{}");
+  let capture: Capture | undefined;
+  setTimeout(
+    () => {
+      capture?.stop();
+      const output =
+        capture?.output ?? "Native stack capture could not start before the kill deadline.\n";
+      writeSync(
+        2,
+        report.header +
+          output +
+          (capture?.finished ? "" : "\nNative stack capture stopped at the kill deadline.\n"),
+      );
+      process.kill(report.pid, "SIGKILL");
+      process.exit(0);
+    },
+    Math.max(0, report.deadline - Date.now()),
   );
-  process.kill(process.pid, "SIGKILL");
-}, blockedMs / 10);
+  process.on("SIGTERM", () => {
+    capture?.stop();
+    process.exit(0);
+  });
+  capture = sample(String(report.pid));
+} else {
+  const blockedMs = Number(workerData);
+  const captureMs = Math.min(2000, blockedMs / 2);
+  let last = Date.now();
+  let file = "?";
+  let phase = "?";
+  let test = "unavailable (no test name supplied)";
+  let ordinal = 0;
+  let reporter: Bun.Subprocess | undefined;
+  let failure = "";
+  parentPort?.on("message", (beat: Beat) => {
+    last = Date.now();
+    reporter?.kill("SIGTERM");
+    reporter = undefined;
+    failure = "";
+    if (beat.file === undefined) return;
+    file = beat.file;
+    phase = beat.phase ?? "?";
+    ordinal = beat.ordinal ?? 0;
+    test = beat.test ?? "unavailable (no test name supplied)";
+  });
+  setInterval(() => {
+    const silent = Date.now() - last;
+    if (silent < blockedMs - captureMs) return;
+    const header = `\nluciole tests: the main thread of this worker has answered nothing for ${Math.round(blockedMs / 1000)} s in ${file} (${phase}), test start #${ordinal}, test: ${test}: a synchronous call that never returns. Killing the worker so the run fails now instead of hanging.\n`;
+    if (!reporter && !failure) {
+      try {
+        const report: Report = { pid: process.pid, deadline: last + blockedMs, header };
+        reporter = Bun.spawn([process.execPath, import.meta.filename, JSON.stringify(report)], {
+          stdin: "ignore",
+          stdout: "ignore",
+          stderr: "inherit",
+        });
+      } catch (error: unknown) {
+        failure = `Native stack reporter could not start: ${String(error)}\n`;
+      }
+    }
+    if (silent < blockedMs || (reporter && reporter.exitCode === null)) return;
+    writeSync(2, header + (failure || "Native stack reporter exited before reporting.\n"));
+    process.kill(process.pid, "SIGKILL");
+  }, blockedMs / 10);
+}

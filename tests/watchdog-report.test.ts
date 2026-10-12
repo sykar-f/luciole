@@ -7,7 +7,7 @@ import { join } from "node:path";
 const watchdog = join(import.meta.dir, "watchdog.ts");
 const label = "a deliberately blocked main thread";
 
-async function blocked(path: string | undefined, tool?: string) {
+async function blocked(path: string | undefined, tool?: string, named = true) {
   const directory = await mkdtemp(join(tmpdir(), "watchdog-report-"));
   let stop: (() => void) | undefined;
   try {
@@ -18,7 +18,7 @@ async function blocked(path: string | undefined, tool?: string) {
 import * as watchdog from ${JSON.stringify(watchdog)};
 test("a passing first test", () => {});
 test(${JSON.stringify(label)}, () => {
-  Reflect.get(watchdog, "watchdogTest")?.(${JSON.stringify(label)});
+${named ? `  Reflect.get(watchdog, "watchdogTest")?.(${JSON.stringify(label)});` : ""}
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0);
 });
 `,
@@ -46,7 +46,9 @@ test(${JSON.stringify(label)}, () => {
       const [stderr, code] = await Promise.all([new Response(child.stderr).text(), child.exited]);
       expect(code).not.toBe(0);
       expect(stderr).toContain(filename);
-      expect(stderr).toContain(`test start #2, test: ${label}`);
+      expect(stderr).toContain(
+        `test start #2, test: ${named ? label : "unavailable (no test name supplied)"}`,
+      );
       expect(stderr).toContain("a synchronous call that never returns");
       return stderr;
     } finally {
@@ -82,4 +84,18 @@ test("a sampling tool's output is bounded", async () => {
   const stderr = await blocked(undefined, "#!/bin/sh\n/usr/bin/head -c 65536 /dev/zero\n");
   expect(stderr).toContain("Native stack truncated at 32768 bytes");
   expect(stderr.length).toBeLessThan(35000);
+});
+
+test("an unmarked blocked test still reports its start ordinal", async () => {
+  await blocked(undefined, undefined, false);
+});
+
+test("a debugger that suspends the worker cannot suspend its kill deadline", async () => {
+  const target = process.platform === "darwin" ? "$1" : "$2";
+  const stderr = await blocked(
+    undefined,
+    `#!/bin/sh\nkill -STOP "${target}"\necho target-suspended\nexec /bin/sleep 30\n`,
+  );
+  expect(stderr).toContain("target-suspended");
+  expect(stderr).toContain("Native stack capture stopped at the kill deadline");
 });
