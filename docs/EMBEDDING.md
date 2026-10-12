@@ -84,7 +84,10 @@ toujours par un proxy de sortie tenu par l'hôte ; l'enfant ne résout même pas
 
 Aujourd'hui chaque application distribue son propre Client : `.luciole/client/index.js`
 embarque le runtime luciole, TanStack Router et le keymap ; seuls React, OpenTUI et Flight
-sont external (`src/build.ts`). Un Client générique inverse la relation.
+restent externes (`src/build.ts`) : React vient des peers de l'application, OpenTUI et
+Flight sont résolus depuis l'installation de core, y compris avec un install isolé.
+La compilation embarque ces modules et le code natif OpenTUI. Un Client générique
+inverse la relation.
 
 Point d'entrée (décision 2) : pas de nouvelle commande. `luciole https://…` passe par le
 lanceur (`src/launcher/`), qui résout son argument dans l'ordre chemin → installé →

@@ -317,6 +317,8 @@ const BuiltWith = z.object({
     appBundle: z.enum(["auto", "required"]),
     webServer: z.boolean(),
     signed: z.boolean(),
+    // Older manifests remain readable; without this path they need a fresh Client.
+    clientInstallation: z.string().optional(),
   }),
 });
 async function upToDate(
@@ -333,7 +335,8 @@ async function upToDate(
       built.data.buildId === buildId &&
       built.data.options.appBundle === options.appBundle &&
       built.data.options.webServer === options.webServer &&
-      built.data.options.signed === options.signed
+      built.data.options.signed === options.signed &&
+      built.data.options.clientInstallation === options.clientInstallation
     );
   } catch {
     return false;
@@ -842,7 +845,14 @@ async function buildUnlocked(
   for (const p of clients)
     for (const name of moduleAt(p).exports)
       manifest[`${id(p)}#${name}`] = { id: id(p), chunks: [], name };
-  const builtWith = { appBundle, webServer, signed: !!signBundle };
+  // Absolute Client imports belong to this installation. Relocation invalidates the
+  // local output cache, never the portable build identity shared with its Server.
+  const builtWith = {
+    appBundle,
+    webServer,
+    signed: !!signBundle,
+    clientInstallation: await realpath(framework),
+  };
   // A signature is not part of the identity: a signed build is always made afresh.
   if (!signBundle && (await upToDate(output, buildId, builtWith))) {
     if (stage) await restage(output, stage);
@@ -899,14 +909,7 @@ async function buildUnlocked(
   let appBuiltins: string[] = [];
   let args: AppArgs | undefined;
   let appSkipped = false;
-  const external = [
-    "react",
-    "react-dom",
-    "react-server-dom-webpack",
-    "@opentui/core",
-    "@opentui/react",
-    "react-reconciler",
-  ];
+  const external = ["react", "react-dom"];
   try {
     type Role = "server" | "client" | "app" | "web-server" | "args";
     const roles: readonly Role[] = [
@@ -942,10 +945,10 @@ async function buildUnlocked(
         target: browserServer ? "browser" : "bun",
         // bun-cjs: a function of (exports, require, module…) the host calls with the ABI.
         ...(role === "app" ? { format: "cjs" as const } : {}),
-        // Only the standalone Client uses packages from its installation. The Server
-        // carries its JS dependencies: core's dependencies are not visible from an
-        // isolated app install or a public test API's temporary output. Native packages
-        // still resolve at run time through the plugin below.
+        // The standalone Client shares the app's React peers. Its core-owned packages
+        // resolve from core below: isolated apps expose only their direct dependencies.
+        // The Server carries its JS dependencies, with native packages resolved at
+        // run time through its plugin below.
         external: role === "client" ? external : [],
         conditions: serverSide ? ["react-server"] : [],
         // A browser bundle carries no environment: React's production builds, as the page's.
@@ -1033,6 +1036,16 @@ async function buildUnlocked(
               // Bun's "bun" export condition selects TanStack's server build, which skips
               // the Client transition machinery; the terminal Client is a browser-like runtime.
               if (role === "client") {
+                // Keep OpenTUI's native loader and the public test renderer in their
+                // installed modules. Absolute externals retain core's dependency lookup
+                // from any output directory; compilation follows and embeds these paths.
+                b.onResolve(
+                  {
+                    filter:
+                      /^(react-server-dom-webpack|react-reconciler|@opentui\/core|@opentui\/react)(\/.*)?$/,
+                  },
+                  (a) => ({ path: Bun.resolveSync(a.path, framework), external: true }),
+                );
                 b.onResolve({ filter: /^@tanstack\/router-core\/isServer$/ }, () => ({
                   path: tanstackClientBuild,
                 }));
