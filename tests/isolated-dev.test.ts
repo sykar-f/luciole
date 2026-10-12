@@ -73,6 +73,9 @@ for (const [installation, root] of [
       expect(await Bun.file(join(app.output, "app/index.cjs")).text()).not.toContain(
         "jsx-dev-runtime",
       );
+      expect(await Bun.file(join(app.output, "client/index.js")).text()).not.toContain(
+        "jsx-dev-runtime",
+      );
       const loaded = await loadAppBundle(join(app.output, "app"));
       expect(loaded.buildId).toBe(app.buildId);
       const environment = loaded.modules.get(
@@ -100,44 +103,59 @@ for (const [installation, root] of [
     TEST_TIMEOUT_MS,
   );
 
-test(
-  "luciole dev builds and renders an isolated app with NODE_ENV=development",
-  async () => {
-    await rm(join(directory, ".luciole"), { recursive: true, force: true });
-    const run = await isolatedTemporary("luciole-isolated-dev-pty-");
-    let child: Subprocess | undefined;
-    try {
-      const log = join(run, "screen.log");
-      child = Bun.spawn(
-        inPty(
-          log,
-          `${process.execPath} ${resolve("packages/core/src/cli.ts")} dev --app ${directory}`,
-        ),
-        {
-          cwd: run,
-          env: { ...env, HOME: run, XDG_STATE_HOME: run, TERM: "xterm-256color" },
-          stdout: "ignore",
-          stderr: "ignore",
-        },
-      );
-      let screen = "";
-      await until(
-        () => {
-          screen = existsSync(log) ? Bun.stripANSI(readFileSync(log, "utf8")) : "";
-          return screen.includes("ISOLATED_DEVELOPMENT_RENDER");
-        },
-        WAIT_MS,
-        () => screen,
-      );
-      await Bun.write(join(run, "stop"), "");
-      expect(await exited(child)).toBe(0);
-    } finally {
-      if (child) {
+for (const mode of ["dev", "start"] as const)
+  test(
+    mode === "dev"
+      ? "luciole dev builds and renders an isolated app with NODE_ENV=development"
+      : "a development-built Client renders in production and ignores DevTools",
+    async () => {
+      if (mode === "dev") await rm(join(directory, ".luciole"), { recursive: true, force: true });
+      await using server =
+        mode === "start"
+          ? await startServer({ output: join(directory, ".luciole") }, { NODE_ENV: "production" })
+          : undefined;
+      const run = await isolatedTemporary("luciole-isolated-dev-pty-");
+      let child: Subprocess | undefined;
+      try {
+        const log = join(run, "screen.log");
+        child = Bun.spawn(
+          inPty(
+            log,
+            `${process.execPath} ${resolve("packages/core/src/cli.ts")} ${mode === "dev" ? "dev" : `start --role client --url ${server?.url}`} --app ${directory}`,
+          ),
+          {
+            cwd: run,
+            env: {
+              ...env,
+              NODE_ENV: mode === "dev" ? "development" : "production",
+              ...(mode === "start" ? { LUCIOLE_DEVTOOLS: `unix:${join(run, "unused.sock")}` } : {}),
+              HOME: run,
+              XDG_STATE_HOME: run,
+              TERM: "xterm-256color",
+            },
+            stdout: "ignore",
+            stderr: "ignore",
+          },
+        );
+        let screen = "";
+        await until(
+          () => {
+            screen = existsSync(log) ? Bun.stripANSI(readFileSync(log, "utf8")) : "";
+            return screen.includes("ISOLATED_DEVELOPMENT_RENDER");
+          },
+          WAIT_MS,
+          () => screen,
+        );
+        if (mode === "start") expect(screen).toContain("LUCIOLE_DEVTOOLS is ignored in production");
         await Bun.write(join(run, "stop"), "");
-        await exited(child).catch(() => {});
+        expect(await exited(child)).toBe(0);
+      } finally {
+        if (child) {
+          await Bun.write(join(run, "stop"), "");
+          await exited(child).catch(() => {});
+        }
+        await rm(run, { recursive: true, force: true });
       }
-      await rm(run, { recursive: true, force: true });
-    }
-  },
-  TEST_TIMEOUT_MS,
-);
+    },
+    TEST_TIMEOUT_MS,
+  );
