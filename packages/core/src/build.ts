@@ -47,7 +47,7 @@ class ExportResolutionError extends Error {
 function packageExport(manifest: string, specifier: string, conditions: readonly string[]): string {
   const name = specifier.startsWith("@")
     ? specifier.split("/").slice(0, 2).join("/")
-    : specifier.split("/")[0]!;
+    : (specifier.split("/")[0] ?? specifier);
   const subpath = specifier === name ? "." : `.${specifier.slice(name.length)}`;
   const pkg = z
     .object({ exports: z.unknown().optional(), main: z.string().optional() })
@@ -120,7 +120,7 @@ function resolvePackageExport(
 ): string {
   const name = specifier.startsWith("@")
     ? specifier.split("/").slice(0, 2).join("/")
-    : specifier.split("/")[0]!;
+    : (specifier.split("/")[0] ?? specifier);
   // Bun locates the installation's metadata, not its condition-dependent entry.
   return packageExport(Bun.resolveSync(`${name}/package.json`, from), specifier, conditions);
 }
