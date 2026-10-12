@@ -1,0 +1,29 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "noCheck": true,
+    "rootDir": "../..",
+    "outDir": "./dts"
+  },
+  "files": [
+    "types.d.ts",
+    "src/markers.d.ts",
+    "src/client.tsx",
+    "src/server.ts",
+    "src/route-tree.tsx",
+    "src/args.ts",
+    "src/build.ts",
+    "src/dev/supervisor.ts",
+    "src/vt/pty.ts",
+    "src/test/index.ts",
+    "src/sandbox/index.ts",
+    "src/app-metadata.ts",
+    "src/grammars.ts",
+    "src/math.ts"
+  ],
+  "include": [],
+  "exclude": []
+}

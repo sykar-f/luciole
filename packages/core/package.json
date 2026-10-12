@@ -35,29 +35,79 @@
     "web",
     "native/luciole-sandbox/dist",
     "tsconfig.base.json",
-    "types.d.ts"
+    "types.d.ts",
+    "dts"
   ],
   "bin": {
     "luciole": "./src/cli.ts",
     "luciolex": "./src/luciolex.ts"
   },
   "scripts": {
-    "prepack": "cd ../.. && bun scripts/pack-docs.ts"
+    "prepack": "bun scripts/declarations.ts && cd ../.. && bun scripts/pack-docs.ts",
+    "postpack": "bun scripts/declarations.ts --clean"
   },
   "exports": {
-    "./client": "./src/client.tsx",
-    "./server": "./src/server.ts",
-    "./route-tree": "./src/route-tree.tsx",
-    "./args": "./src/args.ts",
-    "./build": "./src/build.ts",
-    "./dev": "./src/dev/supervisor.ts",
-    "./pty": "./src/vt/pty.ts",
-    "./test": "./src/test/index.ts",
-    "./sandbox": "./src/sandbox/index.ts",
-    "./metadata": "./src/app-metadata.ts",
+    "./client": {
+      "types": "./dts/packages/core/src/client.d.ts",
+      "bun": "./src/client.tsx",
+      "default": "./src/client.tsx"
+    },
+    "./server": {
+      "types": "./dts/packages/core/src/server.d.ts",
+      "bun": "./src/server.ts",
+      "default": "./src/server.ts"
+    },
+    "./route-tree": {
+      "types": "./dts/packages/core/src/route-tree.d.ts",
+      "bun": "./src/route-tree.tsx",
+      "default": "./src/route-tree.tsx"
+    },
+    "./args": {
+      "types": "./dts/packages/core/src/args.d.ts",
+      "bun": "./src/args.ts",
+      "default": "./src/args.ts"
+    },
+    "./build": {
+      "types": "./dts/packages/core/src/build.d.ts",
+      "bun": "./src/build.ts",
+      "default": "./src/build.ts"
+    },
+    "./dev": {
+      "types": "./dts/packages/core/src/dev/supervisor.d.ts",
+      "bun": "./src/dev/supervisor.ts",
+      "default": "./src/dev/supervisor.ts"
+    },
+    "./pty": {
+      "types": "./dts/packages/core/src/vt/pty.d.ts",
+      "bun": "./src/vt/pty.ts",
+      "default": "./src/vt/pty.ts"
+    },
+    "./test": {
+      "types": "./dts/packages/core/src/test/index.d.ts",
+      "bun": "./src/test/index.ts",
+      "default": "./src/test/index.ts"
+    },
+    "./sandbox": {
+      "types": "./dts/packages/core/src/sandbox/index.d.ts",
+      "bun": "./src/sandbox/index.ts",
+      "default": "./src/sandbox/index.ts"
+    },
+    "./metadata": {
+      "types": "./dts/packages/core/src/app-metadata.d.ts",
+      "bun": "./src/app-metadata.ts",
+      "default": "./src/app-metadata.ts"
+    },
     "./tsconfig": "./tsconfig.base.json",
-    "./grammars": "./src/grammars.ts",
-    "./math": "./src/math.ts",
+    "./grammars": {
+      "types": "./dts/packages/core/src/grammars.d.ts",
+      "bun": "./src/grammars.ts",
+      "default": "./src/grammars.ts"
+    },
+    "./math": {
+      "types": "./dts/packages/core/src/math.d.ts",
+      "bun": "./src/math.ts",
+      "default": "./src/math.ts"
+    },
     "./package.json": "./package.json"
   },
   "dependencies": {

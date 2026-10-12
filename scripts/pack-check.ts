@@ -260,6 +260,73 @@ async function workspaceTarballs(
   return found;
 }
 
+/** Core consumers check declarations, independently of their own implementation flags. */
+export async function checkCoreTypes(
+  consumer: string,
+  log: (line: string) => void,
+): Promise<string[]> {
+  const manifest = Manifest.extend({ exports: z.record(z.string(), z.unknown()) }).parse(
+    await Bun.file(join(consumer, "node_modules/@luciole-sh/core/package.json")).json(),
+  );
+  const entries: [string, string][] = [];
+  const problems: string[] = [];
+  for (const [subpath, entry] of Object.entries(manifest.exports)) {
+    if (subpath === "./tsconfig" || subpath === "./package.json") continue;
+    if (!entry || typeof entry !== "object" || !("types" in entry) || !("default" in entry)) {
+      problems.push(`core export ${subpath} has no types/default conditions`);
+      continue;
+    }
+    const types = String(entry.types);
+    if (!types.startsWith("./dts/") || !types.endsWith(".d.ts"))
+      problems.push(`core export ${subpath} does not target compiled declarations: ${types}`);
+    if (
+      !String(entry.default).startsWith("./src/") ||
+      !("bun" in entry) ||
+      entry.bun !== entry.default
+    )
+      problems.push(`core export ${subpath} does not preserve Bun's source target`);
+    entries.push([`@luciole-sh/core/${subpath.slice(2)}`, types]);
+  }
+  if (problems.length) return problems;
+  writeFileSync(
+    join(consumer, "declarations.ts"),
+    entries.map(([name], i) => `export * as entry${i} from "${name}";`).join("\n"),
+  );
+  writeFileSync(
+    join(consumer, "tsconfig.json"),
+    JSON.stringify({
+      compilerOptions: {
+        target: "ESNext",
+        module: "ESNext",
+        moduleResolution: "Bundler",
+        lib: ["ESNext"],
+        types: ["bun"],
+        jsx: "react-jsx",
+        jsxImportSource: "@opentui/react",
+        strict: true,
+        skipLibCheck: true,
+        noEmit: true,
+        allowImportingTsExtensions: true,
+        exactOptionalPropertyTypes: true,
+        noPropertyAccessFromIndexSignature: true,
+        noUncheckedIndexedAccess: true,
+        noUnusedLocals: true,
+      },
+      include: ["*.ts", "app"],
+    }),
+  );
+  const tsc = join(dirname(Bun.resolveSync("typescript/package.json", import.meta.dir)), "bin/tsc");
+  const checked = await run([process.execPath, tsc, "-p", consumer, "--traceResolution"], consumer);
+  if (checked.code !== 0) return [`core declaration consumer failed: ${checked.out}`];
+  for (const [name, target] of entries) {
+    const resolved = join(consumer, "node_modules/@luciole-sh/core", target);
+    if (!checked.out.includes(`Module name '${name}' was successfully resolved to '${resolved}'`))
+      problems.push(`core consumer did not resolve ${name} to ${target}`);
+    else log(`${name}: types resolve to ${target}`);
+  }
+  return problems;
+}
+
 /** What is wrong with the package at `dir`; empty when it packs, installs and imports. */
 export async function checkPackage(dir: string, log: (line: string) => void): Promise<string[]> {
   const problems: string[] = [];
@@ -337,11 +404,21 @@ export async function checkPackage(dir: string, log: (line: string) => void): Pr
         name: "consumer",
         private: true,
         dependencies: { ...peers, ...local, [name]: `file:${tarPath}` },
+        ...(name === "@luciole-sh/core"
+          ? {
+              devDependencies: {
+                "@types/bun": "1.4.2",
+                "@types/react": "19.3.0",
+                "@types/react-dom": "19.3.0",
+              },
+            }
+          : {}),
         overrides: local,
       }),
     );
     const installed = await run(["bun", "install"], consumer);
     if (installed.code !== 0) return [`install failed: ${installed.out}`];
+    if (name === "@luciole-sh/core") problems.push(...(await checkCoreTypes(consumer, log)));
     // `engines` naming bun and not node: TypeScript sources only bun loads.
     const nodeAllowed =
       !manifest.engines || "node" in manifest.engines || !("bun" in manifest.engines);
