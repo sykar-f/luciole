@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { type Command, declared, readFlags } from "../packages/core/src/commands/command";
 import { messageOf } from "../packages/core/src/guards";
-import { execute, rejectionOf } from "./helpers";
+import { BUILD_TEST_MS, execute, rejectionOf } from "./helpers";
 
 const cli = resolve("packages/core/src/cli.ts");
 const luciolex = resolve("packages/core/src/luciolex.ts");
@@ -172,11 +172,15 @@ test("a missing value is refused, and a value is read", () => {
   expect(readFlags(["start"]).option("--role", "server")).toBe("server");
 });
 
-test("build targets the current directory without --app", async () => {
-  const run = await luciole(["build"], dir);
-  expect(run.exitCode).toBe(0);
-  expect(await Bun.file(join(dir, ".luciole/server/index.js")).exists()).toBe(true);
-});
+test(
+  "build targets the current directory without --app",
+  async () => {
+    const run = await luciole(["build"], dir);
+    expect(run.exitCode).toBe(0);
+    expect(await Bun.file(join(dir, ".luciole/server/index.js")).exists()).toBe(true);
+  },
+  BUILD_TEST_MS,
+);
 
 test("luciolex exits with the usage code when it has no target", async () => {
   for (const args of [[], ["--yes"]]) {

@@ -9,6 +9,7 @@ import { Database } from "bun:sqlite";
 import { z } from "zod";
 import { build } from "../packages/core/src/build";
 import {
+  BUILD_TEST_MS,
   WAIT_MS,
   launch,
   privateBuild,
@@ -234,54 +235,58 @@ test("out-of-order navigation, incompatible build preserves mounted editor, refr
     await rm(dir, { recursive: true, force: true });
   }
 });
-test("progressive Flight Suspense renders fallback before delayed content", async () => {
-  const dir = await temporaryApp("stream");
-  // The Suspense boundary resolves once the test creates this file, not after a delay: the
-  // fallback stays on screen for as long as the test looks at it.
-  const release = join(dir, "release");
-  let server: Awaited<ReturnType<typeof launch>> | undefined,
-    rendered: TestUI | undefined,
-    requests: ReturnType<typeof wire> | undefined;
-  try {
-    await mkdir(join(dir, "app"), { recursive: true });
-    await Bun.write(
-      join(dir, "app/layout.tsx"),
-      `"use client";export default function Layout({children}){return <box flexDirection="column">{children}</box>}`,
-    );
-    await Bun.write(
-      join(dir, "app/page.tsx"),
-      `import {Suspense} from 'react';async function Slow(){while(!(await Bun.file(${JSON.stringify(release)}).exists()))await Bun.sleep(10);return <text>STREAM COMPLETE</text>}export default function Page(){return <box flexDirection="column"><text>SHELL READY</text><Suspense fallback={<text>STREAM LOADING</text>}><Slow/></Suspense></box>}`,
-    );
-    await build(dir);
-    server = await launch(join(dir, ".luciole/server/index.js"));
-    const { createApp, Shell } = await importClient(dir);
-    const app = createApp({ url: server.url });
-    requests = wire(app);
-    await app.router.load();
-    const ui = await testRender(<Shell app={app} />, { width: 80, height: 12 });
-    rendered = ui;
-    await ui.renderOnce();
-    expect(ui.captureCharFrame()).toContain("STREAM LOADING");
-    expect(ui.captureCharFrame()).toContain("SHELL READY");
-    await Bun.write(release, "");
-    // One act() per step: the Suspense retry commits when an act() ends, not within one.
-    const deadline = performance.now() + WAIT_MS;
-    while (!ui.captureCharFrame().includes("STREAM COMPLETE")) {
-      if (performance.now() > deadline) throw new Error("The streamed content never rendered");
-      // The step of a poll bounded by WAIT_MS, not a wait for the outcome.
-      await act(() => Bun.sleep(10));
+test(
+  "progressive Flight Suspense renders fallback before delayed content",
+  async () => {
+    const dir = await temporaryApp("stream");
+    // The Suspense boundary resolves once the test creates this file, not after a delay: the
+    // fallback stays on screen for as long as the test looks at it.
+    const release = join(dir, "release");
+    let server: Awaited<ReturnType<typeof launch>> | undefined,
+      rendered: TestUI | undefined,
+      requests: ReturnType<typeof wire> | undefined;
+    try {
+      await mkdir(join(dir, "app"), { recursive: true });
+      await Bun.write(
+        join(dir, "app/layout.tsx"),
+        `"use client";export default function Layout({children}){return <box flexDirection="column">{children}</box>}`,
+      );
+      await Bun.write(
+        join(dir, "app/page.tsx"),
+        `import {Suspense} from 'react';async function Slow(){while(!(await Bun.file(${JSON.stringify(release)}).exists()))await Bun.sleep(10);return <text>STREAM COMPLETE</text>}export default function Page(){return <box flexDirection="column"><text>SHELL READY</text><Suspense fallback={<text>STREAM LOADING</text>}><Slow/></Suspense></box>}`,
+      );
+      await build(dir);
+      server = await launch(join(dir, ".luciole/server/index.js"));
+      const { createApp, Shell } = await importClient(dir);
+      const app = createApp({ url: server.url });
+      requests = wire(app);
+      await app.router.load();
+      const ui = await testRender(<Shell app={app} />, { width: 80, height: 12 });
+      rendered = ui;
       await ui.renderOnce();
+      expect(ui.captureCharFrame()).toContain("STREAM LOADING");
+      expect(ui.captureCharFrame()).toContain("SHELL READY");
+      await Bun.write(release, "");
+      // One act() per step: the Suspense retry commits when an act() ends, not within one.
+      const deadline = performance.now() + WAIT_MS;
+      while (!ui.captureCharFrame().includes("STREAM COMPLETE")) {
+        if (performance.now() > deadline) throw new Error("The streamed content never rendered");
+        // The step of a poll bounded by WAIT_MS, not a wait for the outcome.
+        await act(() => Bun.sleep(10));
+        await ui.renderOnce();
+      }
+      expect(ui.captureCharFrame()).not.toContain("STREAM LOADING");
+    } finally {
+      // The page stream ends once released, should a check above have failed first.
+      await Bun.write(release, "");
+      await act(async () => requests?.settled().catch(() => {}));
+      await destroy(rendered);
+      if (server) await server.stop();
+      await rm(dir, { recursive: true, force: true });
     }
-    expect(ui.captureCharFrame()).not.toContain("STREAM LOADING");
-  } finally {
-    // The page stream ends once released, should a check above have failed first.
-    await Bun.write(release, "");
-    await act(async () => requests?.settled().catch(() => {}));
-    await destroy(rendered);
-    if (server) await server.stop();
-    await rm(dir, { recursive: true, force: true });
-  }
-});
+  },
+  BUILD_TEST_MS,
+);
 test("Notes validation, normalization, version conflict, durable deduplication and authentication", async () => {
   const dir = await mkdtemp(join(tmpdir(), "luciole-business-"));
   const server = await launch(join(built.output, "server/index.js"), {
