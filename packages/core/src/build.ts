@@ -909,7 +909,6 @@ async function buildUnlocked(
   let appBuiltins: string[] = [];
   let args: AppArgs | undefined;
   let appSkipped = false;
-  const external = ["react", "react-dom"];
   try {
     type Role = "server" | "client" | "app" | "web-server" | "args";
     const roles: readonly Role[] = [
@@ -945,11 +944,11 @@ async function buildUnlocked(
         target: browserServer ? "browser" : "bun",
         // bun-cjs: a function of (exports, require, module…) the host calls with the ABI.
         ...(role === "app" ? { format: "cjs" as const } : {}),
-        // The standalone Client shares the app's React peers. Its core-owned packages
-        // resolve from core below: isolated apps expose only their direct dependencies.
+        // The standalone Client resolves its renderer and React peers from core below:
+        // isolated apps expose only their direct dependencies, and linked apps may
+        // have a separate React installation.
         // The Server carries its JS dependencies, with native packages resolved at
         // run time through its plugin below.
-        external: role === "client" ? external : [],
         conditions: serverSide ? ["react-server"] : [],
         // A browser bundle carries no environment: React's production builds, as the page's.
         // The Bun Server picks development or production at startup, as Flight did
@@ -1043,8 +1042,32 @@ async function buildUnlocked(
               // the Client transition machinery; the terminal Client is a browser-like runtime.
               if (role === "client") {
                 // Keep OpenTUI's native loader and the public test renderer in their
-                // installed modules. Absolute externals retain core's dependency lookup
-                // from any output directory; compilation follows and embeds these paths.
+                // installed modules. Resolve their React peers from the same installation,
+                // including application imports: a linked core may have a different
+                // React than the app, but hooks must share the renderer's instance.
+                // Absolute externals work from any output directory; compilation
+                // follows and embeds these paths.
+                // A Server may build a Client (Studio does). Ignore its react-server
+                // condition: absolute paths must name the Client exports explicitly.
+                b.onResolve({ filter: /^(react|react-dom)(\/.*)?$/ }, (a) => {
+                  const name = a.path.startsWith("react-dom") ? "react-dom" : "react";
+                  const manifest = Bun.resolveSync(`${name}/package.json`, framework);
+                  const exports = z
+                    .object({
+                      exports: z.record(
+                        z.string(),
+                        z.union([
+                          z.string(),
+                          z.object({ bun: z.string().optional(), default: z.string() }),
+                        ]),
+                      ),
+                    })
+                    .parse(JSON.parse(readFileSync(manifest, "utf8"))).exports;
+                  const entry = exports[a.path === name ? "." : `.${a.path.slice(name.length)}`];
+                  const target = typeof entry === "string" ? entry : (entry?.bun ?? entry?.default);
+                  if (!target) throw new Error(`No Client export for ${a.path}`);
+                  return { path: join(dirname(manifest), target), external: true };
+                });
                 b.onResolve(
                   {
                     filter:

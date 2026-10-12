@@ -162,10 +162,15 @@ ni en-tête de build.
 Le Client contient le runtime terminal et les Client Components de **cette
 application**. Le Server contient le runtime HTTP, les routes, les actions et le
 métier. Chacun est un `index.js` qui s’exécute depuis l’installation de l’application.
-Le Client garde React comme peer de l’application ; React Server DOM, le réconciliateur
-et OpenTUI restent externes, résolus depuis l’installation de core dès le build. Le Client
+React, React DOM, React Server DOM, le réconciliateur et OpenTUI restent externes,
+résolus depuis l’installation de core dès le build. Les imports React des Client Components
+partagent ainsi le peer du renderer : un install isolé retrouve les dépendances de core,
+un install hoisté retrouve son peer commun, et un core lié depuis un autre répertoire
+utilise son propre peer même si l’application possède une seconde copie de React. Le Client
 n’a pas besoin des sources Server ni de la base. Les deux artefacts doivent correspondre
-au même identifiant de build.
+au même identifiant de build. Les exports Client de React et React DOM sont sélectionnés
+explicitement, même lorsque le build est lancé par un Server sous la condition
+`react-server` (comme les previews de Studio).
 
 `.luciole/client` et `.luciole/server` ne sont pas une forme de livraison : ils
 n’embarquent ni manifeste ni lockfile à installer ailleurs. Une machine dont on connaît
