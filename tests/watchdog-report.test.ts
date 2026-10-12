@@ -9,16 +9,16 @@ const label = "a deliberately blocked main thread";
 
 async function blocked(path: string | undefined, tool?: string) {
   const directory = await mkdtemp(join(tmpdir(), "watchdog-report-"));
-  let child: Bun.Subprocess | undefined;
+  let stop: (() => void) | undefined;
   try {
     const filename = join(directory, "blocked.test.ts");
     await writeFile(
       filename,
       `import { test } from "bun:test";
-import { watchdogTest } from ${JSON.stringify(watchdog)};
+import * as watchdog from ${JSON.stringify(watchdog)};
 test("a passing first test", () => {});
 test(${JSON.stringify(label)}, () => {
-  watchdogTest(${JSON.stringify(label)});
+  Reflect.get(watchdog, "watchdogTest")?.(${JSON.stringify(label)});
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0);
 });
 `,
@@ -28,7 +28,7 @@ test(${JSON.stringify(label)}, () => {
       await writeFile(sampler, tool);
       await chmod(sampler, 0o755);
     }
-    child = Bun.spawn([process.execPath, "test", "--preload", watchdog, filename], {
+    const child = Bun.spawn([process.execPath, "test", "--preload", watchdog, filename], {
       cwd: directory,
       env: {
         ...process.env,
@@ -39,8 +39,9 @@ test(${JSON.stringify(label)}, () => {
       stdout: "pipe",
       stderr: "pipe",
     });
+    stop = () => child.kill("SIGKILL");
     // An independent parent deadline catches a broken watchdog, never a retry.
-    const guard = setTimeout(() => child?.kill("SIGKILL"), 7000);
+    const guard = setTimeout(() => child.kill("SIGKILL"), 7000);
     try {
       const [stderr, code] = await Promise.all([new Response(child.stderr).text(), child.exited]);
       expect(code).not.toBe(0);
@@ -52,7 +53,7 @@ test(${JSON.stringify(label)}, () => {
       clearTimeout(guard);
     }
   } finally {
-    child?.kill("SIGKILL");
+    stop?.();
     await rm(directory, { recursive: true, force: true });
   }
 }
