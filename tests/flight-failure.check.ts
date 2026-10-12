@@ -104,3 +104,26 @@ test(`${name}: cancellation interrupts a pending Flight read`, async () => {
     clearTimeout(timer);
   }
 });
+
+// Flight can write cancellation rows while a serialized iterable is suspended.
+// The byte adapter must detach its data handler before its controller closes.
+test(`${name}: cancelling a serialized generator leaves no late byte writes`, async () => {
+  let started = () => {};
+  const waiting = new Promise<void>((resolve) => (started = resolve));
+  async function* values() {
+    yield "initial";
+    started();
+    await new Promise<never>(() => {});
+  }
+  const { errors, stream } = heard({ values: values() });
+  const reader = stream.getReader();
+  const drained = (async () => {
+    while (!(await reader.read()).done) {
+      /* consume the root and iterable rows */
+    }
+  })();
+  await waiting;
+  await reader.cancel(new Error("gone"));
+  await drained;
+  expect(errors).toEqual([]);
+});
