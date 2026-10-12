@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { cp, mkdir, rm, symlink } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import type { Subprocess } from "bun";
+import { z } from "zod";
 import { loadAppBundle } from "../packages/core/src/app-bundle";
 import { openClient, startServer, TEST_TIMEOUT_MS } from "../packages/core/src/test";
 import { execute, exited, inPty, isolatedTemporary, until, WAIT_MS } from "./helpers";
@@ -34,11 +35,11 @@ await Bun.write(
 );
 await Bun.write(
   join(directory, "components/counter.tsx"),
-  '"use client";import {useState} from "react";export function Counter(){const [value]=useState("ISOLATED_DEVELOPMENT_RENDER");return <text>{value}</text>}',
+  '"use client";import {useState} from "react";export function buildEnvironment(){return process.env.NODE_ENV}export function Counter(){const [value]=useState("ISOLATED_DEVELOPMENT_RENDER");return <text>{value}</text>}',
 );
 await Bun.write(
   join(directory, "app/args.ts"),
-  'import {defineArgs} from "@luciole-sh/core/args";import {z} from "zod";export default defineArgs({options:z.object({label:z.string().default("development")})});',
+  'import {defineArgs} from "@luciole-sh/core/args";import {z} from "zod";export default defineArgs({summary:process.env.NODE_ENV??"unset",options:z.object({label:z.string().default("development")})});',
 );
 const hoisted = await isolatedTemporary("luciole-hoisted-dev-");
 afterAll(() => rm(hoisted, { recursive: true, force: true }));
@@ -52,7 +53,7 @@ for (const [installation, root] of [
   ["hoisted", hoisted],
 ] as const)
   test(
-    `a ${installation} app builds directly and renders with NODE_ENV=development`,
+    `${installation} app builds directly and renders with NODE_ENV=development`,
     async () => {
       if (installation === "isolated")
         expect(() => Bun.resolveSync("@opentui/react/jsx-dev-runtime", root)).toThrow();
@@ -63,11 +64,33 @@ for (const [installation, root] of [
       );
       const result = await execute([process.execPath, script], { cwd: root, env });
       expect(result.exitCode, result.stderr.toString()).toBe(0);
-      const app = { directory: root, ...JSON.parse(result.stdout.toString()) };
+      const app = {
+        directory: root,
+        ...z
+          .object({ output: z.string(), buildId: z.string() })
+          .parse(JSON.parse(result.stdout.toString())),
+      };
       expect(await Bun.file(join(app.output, "app/index.cjs")).text()).not.toContain(
         "jsx-dev-runtime",
       );
-      expect((await loadAppBundle(join(app.output, "app"))).buildId).toBe(app.buildId);
+      const loaded = await loadAppBundle(join(app.output, "app"));
+      expect(loaded.buildId).toBe(app.buildId);
+      const environment = loaded.modules.get(
+        `${app.buildId}/components/counter.tsx`,
+      )?.buildEnvironment;
+      if (typeof environment !== "function") throw new Error("Missing buildEnvironment export");
+      expect(Reflect.apply(environment, undefined, [])).toBe(process.env.NODE_ENV);
+      const argsScript = join(root, "args-probe.ts");
+      await Bun.write(
+        argsScript,
+        `import cli from "./.luciole/args/index.js";console.log(cli.summary);`,
+      );
+      const args = await execute([process.execPath, argsScript], {
+        cwd: root,
+        env: { ...env, NODE_ENV: "production" },
+      });
+      expect(args.exitCode, args.stderr.toString()).toBe(0);
+      expect(args.stdout.toString().trim()).toBe("production");
       await using server = await startServer(app, { NODE_ENV: "development" });
       await using client = await openClient(app, server);
       expect(await client.waitFor("ISOLATED_DEVELOPMENT_RENDER")).toContain(

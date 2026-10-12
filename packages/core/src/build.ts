@@ -962,6 +962,12 @@ async function buildUnlocked(
           : role === "server"
             ? { define: { "process.env.NODE_ENV": "process.env.NODE_ENV" } }
             : {}),
+        // Bun derives the JSX development mode from its NODE_ENV define, overriding
+        // development: false. Keep the host/launcher environment a runtime expression
+        // so automatic JSX uses jsx-runtime, the runtime provided by the host ABI.
+        ...(role === "app" || role === "args"
+          ? { define: { "process.env.NODE_ENV": "process.env.NODE_ENV" } }
+          : {}),
         metafile: clientSide,
         // Next to the bundle, and linked from it: Bun maps runtime stack traces through it
         // (development and production alike) and a debugger finds it. Inline would double
