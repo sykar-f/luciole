@@ -1,8 +1,9 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { Database } from "bun:sqlite";
+import { existsSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import {
   createHttpTransport,
   networkFromEnv,
@@ -185,4 +186,90 @@ test("LUCIOLE_FAULT and friends parse into network conditions", () => {
   for (const bad of ["explode:1", "drop:2", "drop:x"])
     expect(() => networkFromEnv({ LUCIOLE_FAULT: bad })).toThrow("LUCIOLE_FAULT");
   expect(() => networkFromEnv({ LUCIOLE_CHUNK_DELAY_MS: "-3" })).toThrow("LUCIOLE_CHUNK_DELAY_MS");
+});
+
+// Each child blocks without consuming CPU, before serve or during handler creation.
+// The trace must remain available even if stdout never delivers a ready line.
+for (const stall of [
+  { name: "handler", stage: "handler-start" },
+  { name: "module", stage: "core-module-load" },
+] as const)
+  test(`a ${stall.name} startup timeout reports the child, stdout and its last stage`, async () => {
+    const file = join(dir, `${stall.name}-stalled.ts`);
+    const paths = join(dir, `${stall.name}-stalled-trace-path.txt`);
+    await Bun.write(
+      file,
+      `import { serve } from ${JSON.stringify(resolve("packages/core/src/server.ts"))};
+await Bun.write(${JSON.stringify(paths)}, process.env.LUCIOLE_TEST_STARTUP_TRACE ?? "");
+console.log("first startup line");
+console.log("second startup line");
+process.stdout.write("partial startup data");
+console.error("injected ${stall.name} stall");
+${stall.name === "module" ? "Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0);" : ""}
+serve({buildId:"stalled",manifest:{},actions:new Map(),get routes(){
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0);
+  return new Map();
+}});`,
+    );
+    const started = performance.now();
+    const error = await launch(file).then(
+      (server) => server.stop().then(() => undefined),
+      (error: unknown) => error,
+    );
+    expect(error).toBeInstanceOf(Error);
+    if (!(error instanceof Error)) throw new Error("Expected a startup timeout");
+    expect(performance.now() - started).toBeGreaterThanOrEqual(10_000);
+    expect(error.message).toMatch(/startup timeout after \d+ ms/);
+    expect(error.message).toMatch(/"pid":\d+,"alive":true,"exitCode":null,"signal":null/);
+    expect(error.message).toContain('"lines":["first startup line","second startup line"]');
+    expect(error.message).toContain('"partial":"partial startup data"');
+    expect(error.message).toMatch(
+      new RegExp(`last startup stage:.*"stage":"${stall.stage}","at":\\d+`),
+    );
+    if (stall.name === "module")
+      expect(error.message).toContain(
+        "pending startup interval: application module loading (after core-module-load, before serve-entry)",
+      );
+    expect(error.message).toContain(`injected ${stall.name} stall`);
+    const trace = await Bun.file(paths).text();
+    expect(trace).not.toBe("");
+    expect(existsSync(dirname(trace))).toBe(false);
+  }, 20_000);
+
+test("successful startup keeps its ready shape and cleans its private trace", async () => {
+  const file = join(dir, "ready.ts");
+  const paths = join(dir, "ready-trace-path.txt");
+  await Bun.write(
+    file,
+    `await Bun.write(${JSON.stringify(paths)}, process.env.LUCIOLE_TEST_STARTUP_TRACE ?? "");
+console.error("passing stderr");
+console.log(JSON.stringify({ready:true,port:1234,pid:process.pid,buildId:"fixture"}));
+setInterval(()=>{},1000);`,
+  );
+  await using server = await launch(file);
+  expect(server).toMatchObject({ port: 1234, buildId: "fixture", url: "http://127.0.0.1:1234" });
+  const trace = await Bun.file(paths).text();
+  expect(trace).not.toBe("");
+  expect(existsSync(dirname(trace))).toBe(false);
+});
+
+test("a child that exits before ready keeps its stderr and cleans its trace", async () => {
+  const file = join(dir, "early-exit.ts");
+  const paths = join(dir, "early-exit-trace-path.txt");
+  await Bun.write(
+    file,
+    `await Bun.write(${JSON.stringify(paths)},process.env.LUCIOLE_TEST_STARTUP_TRACE ?? "");
+console.error("early exit detail");
+process.exit(23);`,
+  );
+  const error = await launch(file).then(
+    (server) => server.stop().then(() => undefined),
+    (error: unknown) => error,
+  );
+  expect(error).toBeInstanceOf(Error);
+  if (!(error instanceof Error)) throw new Error("Expected the child to exit before ready");
+  expect(error.message).toContain("server exited early exit detail");
+  const trace = await Bun.file(paths).text();
+  expect(trace).not.toBe("");
+  expect(existsSync(dirname(trace))).toBe(false);
 });

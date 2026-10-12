@@ -3,6 +3,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { z } from "zod";
 import { decodeReply, renderToReadableStream } from "./flight/server";
 import { isAsyncIterable, messageOf } from "./guards";
+import { startupStage } from "./startup-trace";
 import { appRoutes } from "./app-routes";
 import { webAccess, type WebAccess } from "./web-routes";
 import { INSTANCE_HEADER, InstanceKey, instanceManifests } from "./instance";
@@ -343,7 +344,9 @@ export function createHandler(config: ServerConfig, options: HandlerOptions) {
   });
   const metrics = { renders: 0, actions: 0 };
   const manifestFor = instanceManifests(config.manifest);
+  startupStage("build-lookup-start");
   const bundleRoutes = appRoutes(config.appBundle);
+  startupStage("build-lookup-end");
   // `failed` hears a handler's exception before it becomes the generic 500, `renderFailed`
   // each error a page's render raised, which streams on to the Client's error boundary.
   async function handle(
