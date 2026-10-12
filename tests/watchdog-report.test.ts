@@ -99,3 +99,44 @@ test("a debugger that suspends the worker cannot suspend its kill deadline", asy
   expect(stderr).toContain("target-suspended");
   expect(stderr).toContain("Native stack capture stopped at the kill deadline");
 });
+
+test("watchdog teardown cancels a reporter already sampling a recovered worker", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "watchdog-recovered-"));
+  try {
+    const flag = join(directory, "sampling");
+    const sampler = join(directory, process.platform === "darwin" ? "sample" : "gdb");
+    await writeFile(sampler, `#!/bin/sh\necho started > "${flag}"\nexec /bin/sleep 30\n`);
+    await chmod(sampler, 0o755);
+    const script = join(directory, "recover.ts");
+    await writeFile(
+      script,
+      `import { Worker } from "node:worker_threads";
+const watcher = new Worker(${JSON.stringify(join(import.meta.dir, "watchdog-thread.ts"))}, {workerData: 2500});
+watcher.postMessage({file: "recovered", phase: "test", ordinal: 1});
+while (!(await Bun.file(${JSON.stringify(flag)}).exists())) await Bun.sleep(10);
+const stopped = new Promise(resolve => watcher.once("message", resolve));
+watcher.postMessage({stop: true}); await stopped; await watcher.terminate();
+await Bun.sleep(2600); console.error("recovered worker survived");
+`,
+    );
+    const child = Bun.spawn([process.execPath, script], {
+      cwd: directory,
+      env: { ...process.env, PATH: directory },
+      stdin: "ignore",
+      stdout: "ignore",
+      stderr: "pipe",
+    });
+    const guard = setTimeout(() => child.kill("SIGKILL"), 7000);
+    try {
+      const [stderr, code] = await Promise.all([new Response(child.stderr).text(), child.exited]);
+      expect(code).toBe(0);
+      expect(stderr).toContain("recovered worker survived");
+      expect(stderr).not.toContain("a synchronous call that never returns");
+    } finally {
+      clearTimeout(guard);
+      child.kill("SIGKILL");
+    }
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
