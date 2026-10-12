@@ -185,6 +185,8 @@ test(
           );
         else await symlink(resolve("node_modules", entry), join(dependencies, entry), "dir");
       }
+      // The graph's preflight resolves app imports before the role plugin runs.
+      await symlink(join(dependencies, "react-dom"), join(root, "node_modules/react-dom"), "dir");
       const manifest = join(dependencies, "react-dom/package.json");
       const pkg = z
         .object({ exports: z.record(z.string(), z.unknown()) })
@@ -202,7 +204,11 @@ test(
       pkg.exports["./pattern/*"] = { import: "./pattern/*.js" };
       pkg.exports["./unrelated"] = 42;
       pkg.exports["./no-client"] = { "react-server": "./wrong-probe.js" };
-      pkg.exports["./blocked"] = { bun: null, default: "./wrong-probe.js" };
+      pkg.exports["./blocked"] = {
+        "react-server": "./wrong-probe.js",
+        bun: null,
+        default: "./wrong-probe.js",
+      };
       await Bun.write(manifest, JSON.stringify(pkg));
       for (const name of ["client-probe", "literal-probe", "pattern/example", "wrong-probe"])
         await Bun.write(
@@ -245,7 +251,9 @@ test(
           join(root, "components/probe.ts"),
           `"use client";export {value} from "react-dom/${subpath}";export function Probe(){return null}`,
         );
-        const missing = await execute([process.execPath, probe], { cwd: root });
+        const missing = await execute([process.execPath, "--conditions=react-server", probe], {
+          cwd: root,
+        });
         expect(missing.exitCode).not.toBe(0);
         expect(missing.stderr.toString()).toContain(
           `No export for react-dom/${subpath} under conditions bun, node, import`,
