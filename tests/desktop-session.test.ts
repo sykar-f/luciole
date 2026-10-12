@@ -5,6 +5,7 @@
 import { expect, test } from "bun:test";
 import { createWindowSession } from "../packages/desktop/src/host/session";
 import { until } from "./helpers";
+import { watchdogTest } from "./watchdog";
 
 function open(script: string, env?: Record<string, string>) {
   let output = "";
@@ -24,6 +25,7 @@ function open(script: string, env?: Record<string, string>) {
 }
 
 test("the program runs in desktop mode, at the view's size, and receives its input", async () => {
+  watchdogTest("the program runs in desktop mode, at the view's size, and receives its input");
   const window = open('echo "$LUCIOLE_DESKTOP $(stty size)"; read line; echo "got $line"');
   await until(() => window.output().includes("1 10 40"));
   window.session.input("é\r");
@@ -32,12 +34,14 @@ test("the program runs in desktop mode, at the view's size, and receives its inp
 });
 
 test("the program is never told to act as Bun, as a single-runtime host is", async () => {
+  watchdogTest("the program is never told to act as Bun, as a single-runtime host is");
   const window = open('echo "[${BUN_BE_BUN-unset}]"', { BUN_BE_BUN: "1" });
   await until(() => window.exit() !== undefined);
   expect(window.output()).toContain("[unset]");
 });
 
 test("a character split across reads reaches the view whole", async () => {
+  watchdogTest("a character split across reads reaches the view whole");
   // "é" is two bytes; the program writes them apart.
   const window = open(String.raw`printf '\303'; sleep 0.2; printf '\251\n'`);
   await until(() => window.exit() !== undefined);
@@ -46,6 +50,7 @@ test("a character split across reads reaches the view whole", async () => {
 });
 
 test("closing the window hangs the program up", async () => {
+  watchdogTest("closing the window hangs the program up");
   const window = open("trap 'echo hung up; exit 7' HUP; echo ready; while :; do sleep 0.05; done");
   await until(() => window.output().includes("ready"));
   window.session.hangUp();

@@ -4,7 +4,7 @@
  * that never returns (Bun 1.4's spawnSync losing its child's exit, oven-sh/bun#34069)
  * blocks the timeout with the test, and `bun test --parallel` then waits forever. A
  * thread of its own (tests/watchdog-thread.ts) takes the main thread's heartbeat; silence
- * for BLOCKED_MS names the file and kills the worker, which the run reports as a failure
+ * for BLOCKED_MS names the file and test, captures a native stack, and kills the worker
  * within seconds. Loaded by bunfig.toml's [test] preload for every test file.
  */
 import { afterAll, beforeAll, beforeEach } from "bun:test";
@@ -20,9 +20,16 @@ const watcher = new Worker(`${import.meta.dir}/watchdog-thread.ts`, { workerData
 watcher.unref();
 const beat = setInterval(() => watcher.postMessage({}), BEAT_MS);
 beat.unref();
-const at = (phase: string) => () => watcher.postMessage({ file: Bun.main, phase });
-beforeAll(at("beforeAll"));
-beforeEach(at("test"));
+let ordinal = 0;
+/** Bun has no current-test-name API; owned tests supply their label explicitly. */
+export function watchdogTest(name: string) {
+  watcher.postMessage({ file: Bun.main, phase: "test", ordinal, test: name });
+}
+beforeAll(() => watcher.postMessage({ file: Bun.main, phase: "beforeAll" }));
+beforeEach(() => {
+  ordinal += 1;
+  watcher.postMessage({ file: Bun.main, phase: "test", ordinal });
+});
 // The preload's afterAll runs after the file's own: the thread watches the file to its
 // end, then closes while the file's global is live. Left to `--isolate`, it was stopped
 // with the file and closed during the next one, running code of a retired global.
