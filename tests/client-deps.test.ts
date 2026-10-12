@@ -233,7 +233,8 @@ for (const mode of ["build", "dev"] as const)
           HOME: container,
           XDG_STATE_HOME: container,
           TERM: "xterm-256color",
-          NODE_ENV: mode === "dev" ? "development" : "production",
+          // dev preserves the default environment; start selects production.
+          NODE_ENV: mode === "dev" ? undefined : "production",
         },
         stdout: "ignore",
         stderr: "ignore",
