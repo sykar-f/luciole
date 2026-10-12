@@ -81,12 +81,13 @@ function guardStream(value: unknown) {
 
 /**
  * What the Server's `/action` answers (see src/server.ts). The value keeps its Flight
- * references and streams: it is not copied, only checked to be there.
+ * references and streams: it is not copied. Flight decoding removes undefined
+ * properties, so a missing value means the Server Function returned nothing.
  */
 const ActionEnvelope = z.object({
   kind: z.literal("result"),
   callId: z.string(),
-  value: z.unknown(),
+  value: z.optional(z.unknown()),
   invalidate: z.array(z.string()),
   /** Cache tags the Server Function invalidated with `invalidate({ tag })`. */
   tags: z.optional(z.array(z.string())),

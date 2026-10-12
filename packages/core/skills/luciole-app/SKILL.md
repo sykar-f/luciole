@@ -94,8 +94,8 @@ this file holds what you would get wrong without them.
   the tags the existing Server Functions already invalidate, or add its tag to them.
 - Call `getSession()` in the page or the Server Function, then pass `userId` into the
   `"use cache"` function: `getSession()` throws inside one.
-- A Server Function returns a value (`Promise<number>`, the id it changed): the Client
-  refuses one that returns nothing.
+- A Server Function may return nothing (`Promise<void>`): the Client call resolves to
+  `undefined`.
 - Exports of a `"use server"` module are named `async function` declarations, plus
   `export const auth = "public" as const` when the module is public. No arrow functions,
   no default export, no re-exports.

@@ -693,6 +693,7 @@ restaurables sous cette clé plutôt que sous l'URL. C'est ainsi que le lanceur 
 
 Le framework ne rafraîchit rien de lui-même après une Server Function : une lecture
 (`getOperation`, identité publique, recherche) ne coûte aucun rendu de page.
+Une Server Function peut ne rien retourner (`Promise<void>`) : l'appel Client se résout à `undefined`.
 
 Les arguments d'une Server Function arrivent décodés par Flight mais **non vérifiés** :
 son type TypeScript décrit ce que le Client est censé envoyer, pas ce qui arrive. Le

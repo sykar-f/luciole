@@ -35,7 +35,7 @@ export async function renameNote(id: string, title: string): Promise<Note> {
   await changed(note.id);
   return note;
 }
-/** Answers the deleted note's id: a Server Function returning nothing is refused by the Client. */
+/** Answers the deleted note's id; returning nothing would resolve to undefined on the Client. */
 export async function deleteNote(id: string): Promise<string> {
   const note = NoteId.parse(id);
   remove(note);
