@@ -23,6 +23,8 @@ try {
     "examples",
     "package.json",
     "scripts/check.ts",
+    // Keep the public type-contract gate without copying the repository's test suite.
+    "tests/fixtures/strict-consumer",
     "bun.lock",
     "bunfig.toml",
     "tsconfig.json",
