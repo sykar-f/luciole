@@ -1,10 +1,14 @@
 import { afterAll, expect, test } from "bun:test";
 import { mkdir, rm, symlink } from "node:fs/promises";
+import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { useState } from "react";
 import { build } from "../packages/core/src/build";
 import { buildApp, openClient, startServer, TEST_TIMEOUT_MS } from "../packages/core/src/test";
-import { isolatedTemporary } from "./helpers";
+import { compileClient } from "../packages/core/src/compile";
+import { execute, exited, inPty, isolatedTemporary, until, WAIT_MS } from "./helpers";
+import { existsSync, readFileSync } from "node:fs";
+import type { Subprocess } from "bun";
 
 // An isolated install exposes only the app's declared packages. Core's dependencies
 // stay in core's real installation, with no ancestor node_modules to rescue the Client.
@@ -40,7 +44,7 @@ await Bun.write(
 const direct = { directory, ...(await build(directory)) };
 const temporary = await buildApp(directory);
 
-test("all four core-owned Client packages are absent from the isolated app", () => {
+test("all four core-owned Client packages are absent from the isolated app", async () => {
   for (const name of [
     "react-server-dom-webpack/client.browser",
     "react-reconciler",
@@ -48,7 +52,17 @@ test("all four core-owned Client packages are absent from the isolated app", () 
     "@opentui/react",
   ]) {
     expect(() => Bun.resolveSync(name, directory)).toThrow();
-    expect(Bun.resolveSync(name, resolve("packages/core"))).toContain("node_modules");
+    const entry = Bun.resolveSync(name, resolve("packages/core"));
+    expect(entry).toContain("node_modules");
+    const probe = join(directory, "probe.js");
+    await Bun.write(probe, `await import(${JSON.stringify(name)});`);
+    const missing = await execute([process.execPath, probe], { cwd: directory });
+    expect(missing.exitCode).not.toBe(0);
+    expect(missing.stderr.toString()).toContain(`Cannot find module '${name}'`);
+    // The installed Flight, reconciler and OpenTUI all use the app's peer React.
+    expect(createRequire(entry)("react")).toBe(
+      createRequire(join(directory, "package.json"))("react"),
+    );
   }
 });
 
@@ -68,3 +82,40 @@ for (const [location, app] of [
     },
     TEST_TIMEOUT_MS,
   );
+
+for (const mode of ["start", "compile"] as const)
+  test(`the isolated Client renders through ${mode}`, async () => {
+    await using server = await startServer(direct);
+    const run = await isolatedTemporary(`luciole-client-${mode}-`);
+    let child: Subprocess | undefined;
+    try {
+      const command =
+        mode === "compile"
+          ? `${(await compileClient(direct.output, { name: "isolated", outfile: join(run, "client"), runtime: "host" })).outfile} --url ${server.url}`
+          : `${process.execPath} ${resolve("packages/core/src/cli.ts")} start --role client --app ${directory} --url ${server.url}`;
+      const log = join(run, "screen.log");
+      child = Bun.spawn(inPty(log, command), {
+        cwd: run,
+        env: { ...process.env, HOME: run, XDG_STATE_HOME: run, TERM: "xterm-256color" },
+        stdout: "ignore",
+        stderr: "ignore",
+      });
+      let screen = "";
+      await until(
+        () => {
+          screen = existsSync(log) ? Bun.stripANSI(readFileSync(log, "utf8")) : "";
+          return screen.includes("ISOLATED_CLIENT_RENDER");
+        },
+        WAIT_MS,
+        () => screen,
+      );
+      await Bun.write(join(run, "stop"), "");
+      expect(await exited(child)).toBe(0);
+    } finally {
+      if (child) {
+        await Bun.write(join(run, "stop"), "");
+        await exited(child).catch(() => {});
+      }
+      await rm(run, { recursive: true, force: true });
+    }
+  }, 60000);
