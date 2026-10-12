@@ -58,7 +58,8 @@ test("all four core-owned Client packages are absent from the isolated app", asy
     await Bun.write(probe, `await import(${JSON.stringify(name)});`);
     const missing = await execute([process.execPath, probe], { cwd: directory });
     expect(missing.exitCode).not.toBe(0);
-    expect(missing.stderr.toString()).toContain(`Cannot find module '${name}'`);
+    expect(missing.stderr.toString()).toMatch(/Cannot find (module|package)/);
+    expect(missing.stderr.toString()).toContain(name);
     // The installed Flight, reconciler and OpenTUI all use the app's peer React.
     expect(createRequire(entry)("react")).toBe(
       createRequire(join(directory, "package.json"))("react"),
@@ -85,7 +86,7 @@ for (const [location, app] of [
 
 for (const mode of ["start", "compile"] as const)
   test(`the isolated Client renders through ${mode}`, async () => {
-    await using server = await startServer(direct);
+    await using server = await startServer(direct, { NODE_ENV: "production" });
     const run = await isolatedTemporary(`luciole-client-${mode}-`);
     let child: Subprocess | undefined;
     try {
@@ -96,7 +97,13 @@ for (const mode of ["start", "compile"] as const)
       const log = join(run, "screen.log");
       child = Bun.spawn(inPty(log, command), {
         cwd: run,
-        env: { ...process.env, HOME: run, XDG_STATE_HOME: run, TERM: "xterm-256color" },
+        env: {
+          ...process.env,
+          HOME: run,
+          XDG_STATE_HOME: run,
+          NODE_ENV: "production",
+          TERM: "xterm-256color",
+        },
         stdout: "ignore",
         stderr: "ignore",
       });
