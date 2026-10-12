@@ -85,7 +85,7 @@ for (const [location, app] of [
     TEST_TIMEOUT_MS,
   );
 
-for (const builder of ["Client", "Server"] as const)
+for (const builder of ["Client", "Server", "development shell"] as const)
   test(
     `a ${builder} builds a linked Client sharing renderer React despite a second app copy`,
     async () => {
@@ -126,15 +126,17 @@ for (const builder of ["Client", "Server"] as const)
         expect(ReactPeer.parse(appReact).version).toBe(rendererPeer.version);
         expect(appReact).not.toBe(rendererReact);
         let result: { buildId: string; output: string };
-        if (builder === "Server") {
+        if (builder !== "Client") {
           const probe = join(linked, "build-probe.ts");
           const metadata = join(linked, "build-result.json");
           await Bun.write(
             probe,
             `import {build} from ${JSON.stringify(resolve("packages/core/src/build.ts"))};await Bun.write(${JSON.stringify(metadata)},JSON.stringify(await build(${JSON.stringify(linked)})));`,
           );
-          const run = await execute([process.execPath, "--conditions=react-server", probe], {
+          const condition = builder === "Server" ? "react-server" : "development";
+          const run = await execute([process.execPath, `--conditions=${condition}`, probe], {
             cwd: linked,
+            env: { ...process.env, NODE_ENV: "production" },
           });
           expect(run.exitCode, run.stderr.toString()).toBe(0);
           result = z
@@ -142,8 +144,9 @@ for (const builder of ["Client", "Server"] as const)
             .parse(await Bun.file(metadata).json());
         } else result = await build(linked);
         const clientBundle = await Bun.file(join(result.output, "client/index.js")).text();
-        expect(clientBundle).toContain("@tanstack/react-router/dist/esm/index.js");
-        expect(clientBundle).not.toContain(".rsc.");
+        expect(clientBundle.includes("@tanstack/react-router/dist/esm/index.js")).toBe(true);
+        expect(clientBundle.includes(".rsc.")).toBe(false);
+        expect(clientBundle.includes("@tanstack/react-router/dist/esm/index.dev.js")).toBe(false);
         const built = { directory: linked, ...result };
         await using server = await startServer(built);
         await using client = await openClient(built, server);
@@ -157,6 +160,99 @@ for (const builder of ["Client", "Server"] as const)
     },
     TEST_TIMEOUT_MS,
   );
+
+test(
+  "Client export maps select nested subpaths and ignore unrelated shapes",
+  async () => {
+    const root = await isolatedTemporary("luciole-client-exports-");
+    const core = join(root, "node_modules/@luciole-sh/core");
+    try {
+      await cp(resolve("packages/core"), core, {
+        recursive: true,
+        filter: (path) =>
+          !relative(resolve("packages/core"), path).split("/").includes("node_modules"),
+      });
+      const dependencies = join(core, "node_modules");
+      await mkdir(dependencies);
+      for (const entry of await readdir(resolve("node_modules"))) {
+        if (entry.startsWith(".")) continue;
+        if (entry === "react-dom")
+          await cp(
+            dirname(Bun.resolveSync("react-dom/package.json", resolve("packages/core"))),
+            join(dependencies, entry),
+            { recursive: true, dereference: true },
+          );
+        else await symlink(resolve("node_modules", entry), join(dependencies, entry), "dir");
+      }
+      const manifest = join(dependencies, "react-dom/package.json");
+      const pkg = z
+        .object({ exports: z.record(z.string(), z.unknown()) })
+        .passthrough()
+        .parse(await Bun.file(manifest).json());
+      pkg.exports["./client-probe"] = {
+        "react-server": "./wrong-probe.js",
+        import: {
+          development: "./wrong-probe.js",
+          bun: "./client-probe.js",
+          default: "./wrong-probe.js",
+        },
+      };
+      pkg.exports["./literal-probe"] = "./literal-probe.js";
+      pkg.exports["./pattern/*"] = { import: "./pattern/*.js" };
+      pkg.exports["./unrelated"] = 42;
+      pkg.exports["./no-client"] = { "react-server": "./wrong-probe.js" };
+      await Bun.write(manifest, JSON.stringify(pkg));
+      for (const name of ["client-probe", "literal-probe", "pattern/example", "wrong-probe"])
+        await Bun.write(
+          join(dependencies, `react-dom/${name}.js`),
+          'export const value="CLIENT_EXPORT_PROBE";',
+        );
+      await Bun.write(
+        join(root, "app/layout.tsx"),
+        '"use client";export default function Layout({children}){return children}',
+      );
+      await Bun.write(
+        join(root, "app/page.tsx"),
+        "export default function Page(){return <text>exports</text>}",
+      );
+      await Bun.write(
+        join(root, "components/probe.ts"),
+        '"use client";export {value as nested} from "react-dom/client-probe";export {value as literal} from "react-dom/literal-probe";export {value as pattern} from "react-dom/pattern/example";export {default as metadata} from "react-dom/package.json";export function Probe(){return null}',
+      );
+      const probe = join(root, "build-probe.ts");
+      await Bun.write(
+        probe,
+        `import {build} from ${JSON.stringify(join(core, "src/build.ts"))};await build(${JSON.stringify(root)});`,
+      );
+      const run = await execute(
+        [process.execPath, "--conditions=react-server", "--conditions=development", probe],
+        { cwd: root },
+      );
+      expect(run.exitCode, run.stderr.toString()).toBe(0);
+      const bundle = await Bun.file(join(root, ".luciole/client/index.js")).text();
+      for (const name of [
+        "client-probe.js",
+        "literal-probe.js",
+        "pattern/example.js",
+        "package.json",
+      ])
+        expect(bundle.includes(`react-dom/${name}`)).toBe(true);
+      expect(bundle.includes("wrong-probe.js")).toBe(false);
+      await Bun.write(
+        join(root, "components/probe.ts"),
+        '"use client";export {value} from "react-dom/no-client";export function Probe(){return null}',
+      );
+      const missing = await execute([process.execPath, probe], { cwd: root });
+      expect(missing.exitCode).not.toBe(0);
+      expect(missing.stderr.toString()).toContain(
+        "No export for react-dom/no-client under conditions bun, node, import",
+      );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  },
+  TEST_TIMEOUT_MS,
+);
 
 for (const mode of ["start", "compile"] as const)
   test(`the isolated Client renders through ${mode}`, async () => {

@@ -30,11 +30,105 @@ import {
 // luciole's src/, even when this module runs bundled into an application (src/sources.ts).
 const framework = lucioleSources(dirname(import.meta.path));
 const quote = JSON.stringify;
-// Resolved from the framework so starters using a file: dependency find their copy.
-const tanstackClientBuild = join(
-  dirname(Bun.resolveSync("@tanstack/router-core/isServer", framework)),
-  "client.js",
-);
+// Client dependencies run in Bun and import ESM, regardless of the builder's
+// --conditions or NODE_ENV. The router's isServer shim explicitly targets Client
+// code instead of Bun's server environment.
+const CLIENT_CONDITIONS = ["bun", "node", "import"] as const;
+const SERVER_REACT_CONDITIONS = ["react-server", ...CLIENT_CONDITIONS];
+
+class ExportResolutionError extends Error {
+  constructor(specifier: string, conditions: readonly string[]) {
+    super(`No export for ${specifier} under conditions ${conditions.join(", ")}`);
+    this.name = "ExportResolutionError";
+  }
+}
+
+/** Resolve only the requested export, never validate unrelated map entries. */
+function packageExport(manifest: string, specifier: string, conditions: readonly string[]): string {
+  const name = specifier.startsWith("@")
+    ? specifier.split("/").slice(0, 2).join("/")
+    : specifier.split("/")[0]!;
+  const subpath = specifier === name ? "." : `.${specifier.slice(name.length)}`;
+  const pkg = z
+    .object({ exports: z.unknown().optional(), main: z.string().optional() })
+    .parse(JSON.parse(readFileSync(manifest, "utf8")));
+  const root = dirname(manifest);
+  // Legacy packages (react-reconciler) have no export map. Absolute file
+  // resolution adds extensions/index files without consulting process conditions.
+  if (pkg.exports === undefined)
+    return createRequire(manifest).resolve(
+      join(root, subpath === "." ? (pkg.main ?? "index.js") : subpath),
+    );
+  const object = (value: unknown): value is Record<string, unknown> =>
+    typeof value === "object" && value !== null && !Array.isArray(value);
+  let entry: unknown = pkg.exports;
+  let replacement: string | undefined;
+  if (object(entry) && Object.keys(entry).some((key) => key.startsWith("."))) {
+    const map = entry;
+    entry = map[subpath];
+    if (!Object.hasOwn(map, subpath)) {
+      // More specific export patterns win, independently of declaration order.
+      const patterns = Object.keys(map)
+        .filter((key) => key.includes("*"))
+        .sort((a, b) => b.indexOf("*") - a.indexOf("*") || b.length - a.length);
+      for (const pattern of patterns) {
+        const star = pattern.indexOf("*");
+        const prefix = pattern.slice(0, star);
+        const suffix = pattern.slice(star + 1);
+        if (
+          subpath.startsWith(prefix) &&
+          subpath.endsWith(suffix) &&
+          subpath.length >= prefix.length + suffix.length
+        ) {
+          replacement = subpath.slice(prefix.length, subpath.length - suffix.length);
+          entry = map[pattern];
+          break;
+        }
+      }
+    }
+  } else if (subpath !== ".") entry = undefined;
+  const select = (value: unknown): string | null | undefined => {
+    if (value === null) return null;
+    if (typeof value === "string") return value;
+    if (Array.isArray(value)) {
+      let fallback: null | undefined;
+      for (const item of value) {
+        const target = select(item);
+        if (typeof target === "string") return target;
+        if (target === null) fallback = null;
+      }
+      return fallback;
+    } else if (object(value)) {
+      // Export maps define priority by key order; the condition list is a set.
+      for (const [condition, nested] of Object.entries(value))
+        if (condition === "default" || conditions.includes(condition)) {
+          const target = select(nested);
+          if (target !== undefined) return target;
+        }
+    }
+    return undefined;
+  };
+  const target = select(entry);
+  if (!target?.startsWith("./")) throw new ExportResolutionError(specifier, conditions);
+  return join(root, replacement === undefined ? target : target.replaceAll("*", replacement));
+}
+
+function resolvePackageExport(
+  specifier: string,
+  from: string,
+  conditions: readonly string[],
+): string {
+  const name = specifier.startsWith("@")
+    ? specifier.split("/").slice(0, 2).join("/")
+    : specifier.split("/")[0]!;
+  // Bun locates the installation's metadata, not its condition-dependent entry.
+  return packageExport(Bun.resolveSync(`${name}/package.json`, from), specifier, conditions);
+}
+const tanstackClientBuild = resolvePackageExport("@tanstack/router-core/isServer", framework, [
+  "browser",
+  "import",
+]);
+
 type Module = {
   path: string;
   text: string;
@@ -263,11 +357,6 @@ export async function build(
     waiting: () => console.error(`luciole build: waiting for another build of ${output}`),
   });
 }
-const ReactExports = z.object({
-  exports: z.object({
-    ".": z.object({ "react-server": z.string(), default: z.string() }),
-  }),
-});
 /**
  * What React exports to Client code and not to the Server (`useState`, `useEffect`,
  * `createContext`…), read from the React the application resolves: a Server Component
@@ -284,14 +373,15 @@ function clientOnlyReactExports(root: string): ReadonlySet<string> {
     } catch {
       manifest = Bun.resolveSync("react/package.json", framework);
     }
-    const entries = ReactExports.parse(JSON.parse(readFileSync(manifest, "utf8"))).exports["."];
     const load = createRequire(manifest);
     const keys = (entry: string): string[] => {
-      const loaded: unknown = load(join(dirname(manifest), entry));
+      const loaded: unknown = load(entry);
       return typeof loaded === "object" && loaded !== null ? Object.keys(loaded) : [];
     };
-    const server = new Set(keys(entries["react-server"]));
-    return new Set(keys(entries.default).filter((name) => !server.has(name)));
+    const server = new Set(keys(packageExport(manifest, "react", SERVER_REACT_CONDITIONS)));
+    return new Set(
+      keys(packageExport(manifest, "react", CLIENT_CONDITIONS)).filter((name) => !server.has(name)),
+    );
   } catch {
     return new Set();
   }
@@ -1047,33 +1137,17 @@ async function buildUnlocked(
                 // React than the app, but hooks must share the renderer's instance.
                 // Absolute externals work from any output directory; compilation
                 // follows and embeds these paths.
-                // A Server may build a Client (Studio does). Ignore its react-server
-                // condition: absolute paths must name the Client exports explicitly.
-                b.onResolve({ filter: /^(react|react-dom)(\/.*)?$/ }, (a) => {
-                  const name = a.path.startsWith("react-dom") ? "react-dom" : "react";
-                  const manifest = Bun.resolveSync(`${name}/package.json`, framework);
-                  const exports = z
-                    .object({
-                      exports: z.record(
-                        z.string(),
-                        z.union([
-                          z.string(),
-                          z.object({ bun: z.string().optional(), default: z.string() }),
-                        ]),
-                      ),
-                    })
-                    .parse(JSON.parse(readFileSync(manifest, "utf8"))).exports;
-                  const entry = exports[a.path === name ? "." : `.${a.path.slice(name.length)}`];
-                  const target = typeof entry === "string" ? entry : (entry?.bun ?? entry?.default);
-                  if (!target) throw new Error(`No Client export for ${a.path}`);
-                  return { path: join(dirname(manifest), target), external: true };
-                });
+                // Each core-owned dependency selects the Client's conditions, even
+                // when a Server builds it with ambient react-server conditions.
                 b.onResolve(
                   {
                     filter:
-                      /^(react-server-dom-webpack|react-reconciler|@opentui\/core|@opentui\/react)(\/.*)?$/,
+                      /^(react|react-dom|react-server-dom-webpack|react-reconciler|@opentui\/core|@opentui\/react)(\/.*)?$/,
                   },
-                  (a) => ({ path: Bun.resolveSync(a.path, framework), external: true }),
+                  (a) => ({
+                    path: resolvePackageExport(a.path, framework, CLIENT_CONDITIONS),
+                    external: true,
+                  }),
                 );
                 b.onResolve({ filter: /^@tanstack\/router-core\/isServer$/ }, () => ({
                   path: tanstackClientBuild,
@@ -1081,7 +1155,11 @@ async function buildUnlocked(
                 // One router instance: application sources, including the generated
                 // route tree, share the framework's copy.
                 b.onResolve({ filter: /^@tanstack\/react-router$/ }, () => ({
-                  path: Bun.resolveSync("@tanstack/react-router", framework),
+                  path: resolvePackageExport(
+                    "@tanstack/react-router",
+                    framework,
+                    CLIENT_CONDITIONS,
+                  ),
                 }));
               }
               // One zod instance, the pinned one: application schemas share the framework's
@@ -1090,31 +1168,21 @@ async function buildUnlocked(
               b.onResolve({ filter: /^zod(\/.*)?$/ }, (a) =>
                 packageOfFile(a.importer)
                   ? undefined
-                  : { path: Bun.resolveSync(a.path, framework) },
+                  : {
+                      path:
+                        role === "client"
+                          ? resolvePackageExport(a.path, framework, CLIENT_CONDITIONS)
+                          : Bun.resolveSync(a.path, framework),
+                    },
               );
               // One Server React, core's peer, shared by application JSX and Flight.
               // Read its conditional exports: Bun.resolveSync runs in the Client-side
               // build process and may even find an uninstalled app's React in its cache.
               if (role === "server")
                 b.onResolve({ filter: /^react(\/.*)?$/ }, (a) => {
-                  const manifest = Bun.resolveSync("react/package.json", framework);
-                  const exports = z
-                    .object({
-                      exports: z.record(
-                        z.string(),
-                        z.union([
-                          z.string(),
-                          z.object({ "react-server": z.string().optional(), default: z.string() }),
-                        ]),
-                      ),
-                    })
-                    .parse(JSON.parse(readFileSync(manifest, "utf8"))).exports;
-                  const entry =
-                    exports[a.path === "react" ? "." : `.${a.path.slice("react".length)}`];
-                  const target =
-                    typeof entry === "string" ? entry : (entry?.["react-server"] ?? entry?.default);
-                  if (!target) throw new Error(`No React export for ${a.path}`);
-                  return { path: join(dirname(manifest), target) };
+                  return {
+                    path: resolvePackageExport(a.path, framework, SERVER_REACT_CONDITIONS),
+                  };
                 });
               // Native code cannot be bundled: resolved at run time, from node_modules or
               // from an app binary's native/ (src/native.ts, src/compile.ts).
