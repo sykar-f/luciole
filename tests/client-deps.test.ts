@@ -222,10 +222,7 @@ for (const mode of ["build", "dev"] as const)
       const cli = join(relocatedCore, "src/cli.ts");
       await using server =
         mode === "build"
-          ? await startServer(
-              { directory: after, output: join(after, ".luciole"), buildId: prior.buildId },
-              { NODE_ENV: "production" },
-            )
+          ? await startServer({ output: join(after, ".luciole") }, { NODE_ENV: "production" })
           : undefined;
       const log = join(container, "screen.log");
       const command = `${process.execPath} ${cli} ${mode === "dev" ? "dev" : `start --role client --url ${server?.url}`} --app ${after}`;
