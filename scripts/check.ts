@@ -9,6 +9,7 @@ import { dirname, join } from "node:path";
 const projects = [
   ".",
   "packages/core",
+  "packages/core/scripts",
   "tests/fixtures/strict-consumer",
   "packages/core/src/devtools/luciole-devtools",
   "packages/core/src/launcher/luciole",
