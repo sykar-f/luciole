@@ -168,9 +168,14 @@ partagent ainsi le peer du renderer : un install isolé retrouve les dépendance
 un install hoisté retrouve son peer commun, et un core lié depuis un autre répertoire
 utilise son propre peer même si l’application possède une seconde copie de React. Le Client
 n’a pas besoin des sources Server ni de la base. Les deux artefacts doivent correspondre
-au même identifiant de build. Les exports Client de React et React DOM sont sélectionnés
-explicitement, même lorsque le build est lancé par un Server sous la condition
-`react-server` (comme les previews de Studio).
+au même identifiant de build. Toutes les résolutions du Client depuis core (React, Flight, OpenTUI,
+réconciliateur, routeur et Zod) lisent les exports avec les conditions explicites
+`bun`, `node`, `import` et le fallback `default`, dans l’ordre du manifeste, y compris
+les sous-chemins et les conditions imbriquées. Le shim `isServer` du routeur choisit
+`browser`, `import` pour sélectionner son fichier Client. Le processus qui construit
+le Client ne choisit pas ses exports : ni `react-server` (comme les previews de
+Studio), ni `development`, ni `NODE_ENV` ne changent ces sélections. Le routeur utilise
+ainsi `index.js`, sans variante RSC ou `index.dev.js`.
 
 `.luciole/client` et `.luciole/server` ne sont pas une forme de livraison : ils
 n’embarquent ni manifeste ni lockfile à installer ailleurs. Une machine dont on connaît

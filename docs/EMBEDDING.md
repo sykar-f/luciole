@@ -88,8 +88,12 @@ restent externes (`src/build.ts`) : tous, React DOM et le réconciliateur inclus
 résolus depuis l'installation de core, y compris avec un install isolé. Les Client
 Components utilisent ce même peer React : une seconde copie dans l'application ne
 sépare pas les hooks du renderer lorsque core est lié depuis un autre répertoire.
-Les exports Client de React et React DOM ignorent la condition `react-server` du
-processus qui construit le Client (par exemple le Server de Studio).
+Toutes ces résolutions, ainsi que celles du routeur et de Zod, sélectionnent les
+exports avec `bun`, `node`, `import` et le fallback `default` ; le shim `isServer`
+choisit `browser`, `import`. Les conditions du processus qui construit le Client
+(par exemple `react-server` dans le Server de Studio ou `development` dans le shell)
+et son `NODE_ENV` ne changent pas ces sélections. Le routeur garde son entrée Client
+`index.js`.
 La compilation embarque ces modules et le code natif OpenTUI. Un Client générique
 inverse la relation.
 
