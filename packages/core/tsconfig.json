@@ -8,5 +8,11 @@
     "src/launcher/luciole",
     "src/generic/browser",
     "src/web"
-  ]
+  ],
+  "compilerOptions": {
+    "exactOptionalPropertyTypes": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "noUncheckedIndexedAccess": true,
+    "noUnusedLocals": true
+  }
 }
