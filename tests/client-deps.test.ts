@@ -85,6 +85,42 @@ for (const [location, app] of [
     TEST_TIMEOUT_MS,
   );
 
+test(
+  "a linked core shares its renderer React with an app that has a second peer copy",
+  async () => {
+    const linked = await isolatedTemporary("luciole-client-peers-");
+    try {
+      await mkdir(join(linked, "node_modules/@luciole-sh"), { recursive: true });
+      await symlink(resolve("packages/core"), join(linked, "node_modules/@luciole-sh/core"), "dir");
+      for (const name of ["react", "react-dom"])
+        await cp(
+          dirname(Bun.resolveSync(`${name}/package.json`, resolve("packages/core"))),
+          join(linked, "node_modules", name),
+          { recursive: true, dereference: true },
+        );
+      for (const name of ["app", "components", "package.json"])
+        await cp(join(directory, name), join(linked, name), { recursive: true });
+      const appRequire = createRequire(join(linked, "package.json"));
+      const rendererRequire = createRequire(
+        Bun.resolveSync("@opentui/react", resolve("packages/core")),
+      );
+      // Same version, different physical installation: the peer split is real.
+      expect(appRequire("react").version).toBe(rendererRequire("react").version);
+      expect(appRequire("react")).not.toBe(rendererRequire("react"));
+      const built = { directory: linked, ...(await build(linked)) };
+      await using server = await startServer(built);
+      await using client = await openClient(built, server);
+      expect(
+        client.app.options.resolveModule(`${built.buildId}/components/counter.tsx`).peerUseState,
+      ).toBe(rendererRequire("react").useState);
+      expect(await client.waitFor("ISOLATED_CLIENT_RENDER")).toContain("ISOLATED_CLIENT_RENDER");
+    } finally {
+      await rm(linked, { recursive: true, force: true });
+    }
+  },
+  TEST_TIMEOUT_MS,
+);
+
 for (const mode of ["start", "compile"] as const)
   test(`the isolated Client renders through ${mode}`, async () => {
     await using server = await startServer(direct, { NODE_ENV: "production" });
