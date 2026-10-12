@@ -175,6 +175,26 @@ Rien ne se reconnecte tout seul : une coupure termine le flux avec une
 Server. `useApplication().withSignal(signal, () => action(...))` lie un signal
 d'annulation à n'importe quel appel de Server Function.
 
+Avec `{ initial, reduce: (state, item) => nextState }`, `useLive` renvoie
+`{ state, done, error }` sans tableau `items`. Le reducer traite chaque valeur une fois ;
+il doit retourner un état immuable. Un changement d'arguments repart de l'`initial`
+courant ; changer le reducer ou `initial` seul ne relance pas l'abonnement. Une exception
+du reducer termine le flux avec `done: true` et `error`.
+
+```tsx
+const { state, done, error } = useLive(watchEvents, [cursor, attempt], {
+  initial: { cursor, total: 0 },
+  reduce: (summary, event) => ({ cursor: event.cursor, total: summary.total + event.amount }),
+});
+```
+
+Pour reprendre après une fin normale ou une erreur, conserver le dernier curseur et
+l'agrégat, puis changer `attempt` après un backoff. Passer cet agrégat comme nouvel
+`initial` et son curseur au Server, qui rejoue les événements strictement après lui.
+Le [patron complet avec backoff](https://luciole.sh/docs/concepts/server-functions/#fold-items-and-reconnect-from-a-cursor)
+nettoie le timer au démontage et réutilise l'annulation de la file ci-dessous.
+L'application définit la rétention du curseur, le replay et la gestion des doublons.
+
 `getSignal()` d'`@luciole-sh/core/server` renvoie l'`AbortSignal` de la requête. Il
 s'annule avec le Client ou quand le lecteur de la réponse part.
 `abortable(promise, signal)` rejette avec `signal.reason` à l'annulation ; la promesse
