@@ -104,15 +104,22 @@ test(
       const rendererRequire = createRequire(
         Bun.resolveSync("@opentui/react", resolve("packages/core")),
       );
+      const ReactPeer = z.object({
+        version: z.string(),
+        useState: z.custom<typeof useState>((value) => typeof value === "function"),
+      });
+      const appReact: unknown = appRequire("react");
+      const rendererReact: unknown = rendererRequire("react");
+      const rendererPeer = ReactPeer.parse(rendererReact);
       // Same version, different physical installation: the peer split is real.
-      expect(appRequire("react").version).toBe(rendererRequire("react").version);
-      expect(appRequire("react")).not.toBe(rendererRequire("react"));
+      expect(ReactPeer.parse(appReact).version).toBe(rendererPeer.version);
+      expect(appReact).not.toBe(rendererReact);
       const built = { directory: linked, ...(await build(linked)) };
       await using server = await startServer(built);
       await using client = await openClient(built, server);
       expect(
         client.app.options.resolveModule(`${built.buildId}/components/counter.tsx`).peerUseState,
-      ).toBe(rendererRequire("react").useState);
+      ).toBe(rendererPeer.useState);
       expect(await client.waitFor("ISOLATED_CLIENT_RENDER")).toContain("ISOLATED_CLIENT_RENDER");
     } finally {
       await rm(linked, { recursive: true, force: true });

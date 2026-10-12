@@ -944,8 +944,9 @@ async function buildUnlocked(
         target: browserServer ? "browser" : "bun",
         // bun-cjs: a function of (exports, require, module…) the host calls with the ABI.
         ...(role === "app" ? { format: "cjs" as const } : {}),
-        // The standalone Client shares the app's React peers. Its core-owned packages
-        // resolve from core below: isolated apps expose only their direct dependencies.
+        // The standalone Client resolves its renderer and React peers from core below:
+        // isolated apps expose only their direct dependencies, and linked apps may
+        // have a separate React installation.
         // The Server carries its JS dependencies, with native packages resolved at
         // run time through its plugin below.
         conditions: serverSide ? ["react-server"] : [],
