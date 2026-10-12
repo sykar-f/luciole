@@ -70,7 +70,11 @@ test.if(process.platform === "darwin")(
   async () => {
     const stderr = await blocked(process.env.PATH);
     expect(stderr).toContain("Call graph:");
-    expect(stderr).toContain("Sampling tool exited with code 0");
+    // macOS includes its binary-image table: a valid stack may hit the byte cap
+    // before sample exits. Both are successful captures of the call graph.
+    expect(stderr).toMatch(
+      /Sampling tool exited with code 0|Native stack truncated at 32768 bytes/,
+    );
   },
 );
 
