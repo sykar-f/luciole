@@ -13,6 +13,8 @@ and marked **Breaking**.
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-10-12
+
 ### Fixed
 
 - Built Clients now find core's own dependencies in isolated installs, without
@@ -149,7 +151,8 @@ First public release, on npm. Five packages share this version: `luciole.sh`,
 - No multi-user load test and no public TLS proxy test. See
   <https://luciole.sh/status/>.
 
-[Unreleased]: https://github.com/sykar-f/luciole/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/sykar-f/luciole/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/sykar-f/luciole/releases/tag/v0.3.1
 [0.3.0]: https://github.com/sykar-f/luciole/releases/tag/v0.3.0
 [0.2.0]: https://github.com/sykar-f/luciole/releases/tag/v0.2.0
 [0.1.0]: https://github.com/sykar-f/luciole/releases/tag/v0.1.0
