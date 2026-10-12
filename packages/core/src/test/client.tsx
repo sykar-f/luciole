@@ -170,18 +170,19 @@ export async function openClient(
   const stop = () =>
     (stopped ??= (async () => {
       // The calls still on the wire end before the Server they talk to stops.
-      await act(() => requests.settled().catch(() => {}));
+      await requests.settled().catch(() => {});
       await destroy(ui);
     })());
   return {
     app: running,
     ui,
     requests,
-    // Inside `act()` for the whole wait: timers of the app update its state meanwhile.
-    waitFor: (text, timeout) => act(() => untilFrame(ui, text, timeout)),
-    settled: (text) => act(() => untilDrawn(ui, text)),
+    waitFor: (text, timeout) => untilFrame(ui, text, timeout),
+    settled: (text) => untilDrawn(ui, text),
     frame: async () => {
-      await ui.renderOnce();
+      await act(async () => {
+        await ui.renderOnce();
+      });
       return ui.captureCharFrame();
     },
     click: (text, button) => act(() => clickOn(ui, text, button)),

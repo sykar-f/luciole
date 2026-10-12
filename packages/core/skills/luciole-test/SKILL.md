@@ -56,7 +56,9 @@ test(
 - Wait on the screen. `client.waitFor(text)` waits for a text to appear; `eventually(async () =>
 !(await client.frame()).includes(text))` waits for one to go; `client.settled(text)` also waits
   for highlighting and images to finish. The app's own timers (an autosave, a retry, a message shown
-  after 3 s) run in real time during these waits, which last up to 30 s.
+  after 3 s) and streamed chunks update the screen during these waits, which last up to
+  30 s. Await the waits directly: the driver manages React’s `act()` scopes for each poll.
+  Wrapping an entire wait in `act()` prevents updates from committing between polls.
 - Run every test file you write or change with `bun test <file>` and see it pass: a starter's `bun
 run verify` builds the app but runs no test.
 - Pass `TEST_TIMEOUT_MS` as the last argument of every `test()` that opens a Client.

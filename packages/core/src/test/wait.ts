@@ -22,6 +22,15 @@ export const WAIT_MS = TEST_TIMEOUT_MS / 2;
 /** The pause between two polls of a wait. */
 const POLL_MS = 10;
 
+/** Plain conditions need no React scope; a live test renderer enables its act environment. */
+async function pollScope(poll: () => Promise<void>) {
+  if (Reflect.get(globalThis, "IS_REACT_ACT_ENVIRONMENT") === true) await act(poll);
+  else await poll();
+}
+
+/** A bounded poll scope lets external updates commit before the next check. */
+const pollTurn = () => pollScope(() => Bun.sleep(POLL_MS));
+
 /** What `testRender` resolves with: the renderer, input mocks and frame captures. */
 export type TestUI = Awaited<ReturnType<typeof testRender>>;
 
@@ -78,10 +87,15 @@ const abandoned = () => new Promise<never>(() => {});
 export async function until(check: () => boolean, timeout = WAIT_MS, state?: () => string) {
   const wait = watched(state);
   try {
-    while (!check()) {
+    for (;;) {
+      let holds = false;
+      await pollScope(async () => {
+        holds = check();
+      });
+      if (holds) return;
       if (wait.ended) return abandoned();
       if (performance.now() - wait.start > timeout) throw new Error(timedOut(state));
-      await Bun.sleep(POLL_MS);
+      await pollTurn();
     }
   } finally {
     waiting.delete(wait);
@@ -99,10 +113,15 @@ export async function eventually(
 ) {
   const wait = watched(state);
   try {
-    while (!(await check())) {
+    for (;;) {
+      let holds = false;
+      await pollScope(async () => {
+        holds = await check();
+      });
+      if (holds) return;
       if (wait.ended) return abandoned();
       if (performance.now() - wait.start > timeout) throw new Error(timedOut(state));
-      await Bun.sleep(POLL_MS);
+      await pollTurn();
     }
   } finally {
     waiting.delete(wait);
@@ -125,7 +144,7 @@ export async function untilFrame(ui: TestUI, text: string, timeout = WAIT_MS) {
       frame = ui.captureCharFrame();
       if (frame.includes(text)) return frame;
       if (performance.now() - wait.start > timeout) throw new Error(timedOut(() => frame));
-      await Bun.sleep(POLL_MS);
+      await pollTurn();
     }
   } finally {
     waiting.delete(wait);
