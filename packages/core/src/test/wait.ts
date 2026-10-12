@@ -22,8 +22,14 @@ export const WAIT_MS = TEST_TIMEOUT_MS / 2;
 /** The pause between two polls of a wait. */
 const POLL_MS = 10;
 
+/** Plain conditions need no React scope; a live test renderer enables its act environment. */
+async function pollScope(poll: () => Promise<void>) {
+  if (Reflect.get(globalThis, "IS_REACT_ACT_ENVIRONMENT") === true) await act(poll);
+  else await poll();
+}
+
 /** A bounded poll scope lets external updates commit before the next check. */
-const pollTurn = () => act(() => Bun.sleep(POLL_MS));
+const pollTurn = () => pollScope(() => Bun.sleep(POLL_MS));
 
 /** What `testRender` resolves with: the renderer, input mocks and frame captures. */
 export type TestUI = Awaited<ReturnType<typeof testRender>>;
@@ -83,7 +89,7 @@ export async function until(check: () => boolean, timeout = WAIT_MS, state?: () 
   try {
     for (;;) {
       let holds = false;
-      await act(async () => {
+      await pollScope(async () => {
         holds = check();
       });
       if (holds) return;
@@ -109,7 +115,7 @@ export async function eventually(
   try {
     for (;;) {
       let holds = false;
-      await act(async () => {
+      await pollScope(async () => {
         holds = await check();
       });
       if (holds) return;
