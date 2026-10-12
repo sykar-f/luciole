@@ -36,7 +36,7 @@ A file's directory and its first line say which side runs it.
 | `components/notes-list.ts`     | Client | The sidebar's notes, read through a Server Function and again after each change.       |
 | `components/NoteEditor.tsx`    | Client | Every keystroke, the Markdown view, autosave, the restored text.                       |
 | `components/NoteFrame.tsx`     | Client | No directive: it runs on the side of its importers, the editor and the loading screen. |
-| `components/StatusLine.tsx`    | Client | The line above the title: connection, save, router, one message at a time.             |
+| `components/StatusLine.tsx`    | Client | The line above the title: connection, save, router, and app-published upstream health. |
 | `components/draft.ts`          | Client | Notes' own policy: unsaved text in memory, and saves whose outcome is unknown.         |
 | `actions/notes.ts`             | Server | Server Functions, `"use server"`: `saveNote`, `getOperation`, `listNotes` and more.    |
 | `server/repository.ts`         | Server | SQLite, ownership checks and transactions.                                             |

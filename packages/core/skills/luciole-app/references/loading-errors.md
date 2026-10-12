@@ -23,3 +23,12 @@ parent directories.
   `refresh`, `activity`. The framework draws no status bar.
 - Animate `loading.tsx` in fixed geometry; read `luciole-tui/references/interaction.md`
   for the loading pulse.
+
+For an upstream backend's health, use `UpstreamStatusProvider`,
+`usePublishUpstreamStatus({ label, state, detail? })` and `useUpstreamStatuses()` from
+`@luciole-sh/core/client`. State is `ok | degraded | down | unknown`; `null` or unmount
+withdraws the publisher. Put the provider in the persistent layout around publishers and
+status UI; Notes already does. Keep `useConnection().status` for the Client ↔ Server link.
+For a live health source, read “Report an upstream backend” in the full rules linked above:
+it shows reconnect by changing `useLive` arguments and Server cleanup with `getSignal()`
+and `abortable()`. Publish `unknown` while the health stream is unavailable.

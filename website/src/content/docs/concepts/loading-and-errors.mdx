@@ -138,7 +138,8 @@ uses too. The messages come in this order:
 3. what the router is doing: "Opening…" with **Cancel**, "Connecting…" or "Syncing…"
 
 A lost connection and a refresh each appear only after a short delay. The line stays still
-while all goes well, and does not flash after every save.
+while all goes well, and does not flash after every save. Published upstream reports appear
+beside these messages, with the current connection status.
 
 <CodeAndScreen
   path="examples/notes/components/StatusLine.tsx"
@@ -149,6 +150,103 @@ while all goes well, and does not flash after every save.
   frame="notes-disconnected"
   caption="The Server stopped, then a refresh with Ctrl+R failed. The status line says “○ Disconnected” with Reconnect, and the note stays mounted with its text. The list stays too. Its footer reports its own failed load, cut to fit: “Server...chable” with Retry."
 />
+
+## Report an upstream backend
+
+`Connected` describes the Client ↔ luciole Server link. A backend that your Server proxies
+can still be down. Publish its health separately with the exports from
+`@luciole-sh/core/client`:
+
+- Mount `<UpstreamStatusProvider>` once in the persistent layout, around both publishers
+  and the status UI. The Notes starter already does this.
+- Call `usePublishUpstreamStatus({ label, state, detail? })` in any component beneath it.
+  `state` is `ok`, `degraded`, `down` or `unknown`; the app decides what each means.
+- Read `useUpstreamStatuses()` in your status UI or a test probe. It returns a readonly
+  array of the mounted publishers' statuses. Notes shows them beside the connection,
+  for example `Connected · Supervisor: down (connection refused)`.
+
+Each hook call owns one entry. Changes replace that entry; `null` or unmounting removes
+it. Labels are display text, not unique keys. Providers isolate apps and panes; both hooks
+require a provider. Publishing takes effect after commit. This API stores app reports; it
+does not poll backends or change `useConnection()`.
+
+A live source can publish the latest backend report. This example assumes an app-owned
+`supervisor` adapter with `current(): Health` and `subscribe(listener): () => void`.
+It must report failures and recovery of the actual upstream connection.
+
+```ts title="actions/health.ts"
+"use server";
+import { abortable, getSignal } from "@luciole-sh/core/server";
+import { supervisor, type Health } from "../server/supervisor";
+
+// Changing attempt opens a new subscription; its value has no Server-side meaning.
+export async function* watchHealth(_attempt: number): AsyncGenerator<Health> {
+  const signal = getSignal();
+  const queue: Health[] = [];
+  let wake: (() => void) | undefined;
+  const stop = supervisor.subscribe((health) => {
+    queue.push(health);
+    wake?.();
+  });
+  try {
+    yield supervisor.current();
+    while (!signal.aborted) {
+      const next = queue.shift();
+      if (next) yield next;
+      else {
+        await abortable(new Promise<void>((resolve) => (wake = resolve)), signal);
+        wake = undefined;
+      }
+    }
+  } catch (error) {
+    if (!signal.aborted) throw error;
+  } finally {
+    stop();
+  }
+}
+```
+
+The adapter's `Health` is `{ state: "ok" | "degraded" | "down" | "unknown";
+detail?: string }`. Mount this Client Component inside the layout's provider:
+
+```tsx title="components/SupervisorHealth.tsx"
+"use client";
+import { useEffect, useState } from "react";
+import { useLive, usePublishUpstreamStatus } from "@luciole-sh/core/client";
+import { watchHealth } from "../actions/health";
+
+export function SupervisorHealth() {
+  const [attempt, setAttempt] = useState(0);
+  const { items, done, error } = useLive(watchHealth, [attempt], { limit: 1 });
+  useEffect(() => {
+    if (!done) return;
+    const timer = setTimeout(() => setAttempt((value) => value + 1), 2000);
+    return () => clearTimeout(timer);
+  }, [done]);
+  const latest = items.at(-1);
+  usePublishUpstreamStatus({
+    label: "Supervisor",
+    ...(done
+      ? { state: "unknown", detail: error instanceof Error ? error.message : "Health stream ended" }
+      : (latest ?? { state: "unknown", detail: "Waiting for health" })),
+  });
+  return null;
+}
+```
+
+`useLive` does not reconnect automatically. This component reconnects two seconds after
+an error or normal end by changing the arguments. While disconnected or awaiting the
+first value, it reports `unknown` instead of retaining a stale `ok`.
+
+A received `down`
+report describes the backend; a failed health stream means its health is unknown.
+Unmounting cancels the live call and retry timer, removes the report, and releases the
+Server subscription through `getSignal()`, `abortable()` and `finally`.
+
+For an app without the starter, wrap your layout in `UpstreamStatusProvider`, mount
+`SupervisorHealth`, and render `useConnection().status` beside the entries returned by
+`useUpstreamStatuses()` in your own status line. A poll can feed the publishing hook in
+the same way.
 
 ## Cancel or refresh a navigation
 

@@ -3,6 +3,7 @@ import { useState, type ReactNode } from "react";
 import { useTerminalDimensions } from "@opentui/react";
 import {
   DebugOverlay,
+  UpstreamStatusProvider,
   useBindings,
   useConnection,
   type LayoutProps,
@@ -30,9 +31,11 @@ import { reportError, ui, useUi } from "../components/ui-state";
 export default function Layout({ children }: LayoutProps) {
   return (
     <PaletteProvider>
-      <WindowStatusProvider>
-        <Window>{children}</Window>
-      </WindowStatusProvider>
+      <UpstreamStatusProvider>
+        <WindowStatusProvider>
+          <Window>{children}</Window>
+        </WindowStatusProvider>
+      </UpstreamStatusProvider>
     </PaletteProvider>
   );
 }
