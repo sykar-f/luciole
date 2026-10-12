@@ -7,6 +7,7 @@
  * and fix the grid so the live screen matches a capture of it cell for cell. Another
  * origin gets none of it: a page elsewhere must not drive an application it frames.
  */
+import { definedProperties } from "../defined-properties";
 import * as z from "zod/mini";
 import type { ApplicationEvent } from "../client";
 import type { Fetch, Fault, NetworkConditions } from "../transport";
@@ -221,9 +222,9 @@ export function lookOf(search: string): Look {
     const parsed = Colour.safeParse(params.get(name));
     return parsed.success ? `#${parsed.data}` : undefined;
   };
-  return {
+  return definedProperties({
     grid: grid.success ? grid.data : undefined,
     background: colour("background"),
     foreground: colour("foreground"),
-  };
+  });
 }

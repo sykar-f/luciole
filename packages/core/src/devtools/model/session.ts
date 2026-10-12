@@ -1,3 +1,4 @@
+import { definedProperties } from "../../defined-properties";
 import type { ComponentNode, ConsoleLevel, DevtoolsEvent, RouterMatch } from "../schema";
 import { createNetworkModel } from "./network";
 
@@ -87,13 +88,17 @@ export function createSession() {
     switch (event.type) {
       case "luciole:hello":
         // A recorded hello describes a process, not a connection: keep what is known.
-        sources.set(source, { id: source, ...event.payload, connected: from?.connected ?? true });
+        sources.set(source, {
+          id: source,
+          ...definedProperties(event.payload),
+          connected: from?.connected ?? true,
+        });
         return;
       case "luciole:dropped":
         dropped += event.payload.count;
         return;
       case "luciole-console:entry":
-        logs.push({ seq, role: from?.role ?? "unknown", ...event.payload });
+        logs.push({ seq, role: from?.role ?? "unknown", ...definedProperties(event.payload) });
         if (logs.length > MAX_LOGS) logs.shift();
         return;
       case "luciole-server:cache": {
@@ -128,7 +133,7 @@ export function createSession() {
         if (p.op === "stale") entry.stale++;
         if (p.op === "write") {
           entry.writtenAt = p.at;
-          entry.invalidatedAt = undefined;
+          delete entry.invalidatedAt;
         }
         if (p.op === "invalidate") {
           entry.invalidatedAt = p.at;
@@ -138,7 +143,7 @@ export function createSession() {
         return;
       }
       case "luciole-router:state":
-        router = event.payload;
+        router = definedProperties(event.payload);
         return;
       case "luciole-components:commit":
         components = event.payload;

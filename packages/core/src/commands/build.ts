@@ -1,3 +1,4 @@
+import { definedProperties } from "../defined-properties";
 import { rename, rm } from "node:fs/promises";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { ArgsError } from "../args";
@@ -46,7 +47,7 @@ export const build: Command = {
       if (stray) throw new ArgsError(`${stray} only applies with --compile`);
     }
     const compile = flag("--compile")
-      ? {
+      ? definedProperties({
           name: optional("--name") ?? basename(directory),
           target: optional("--target"),
           outfile: optional("--outfile"),
@@ -55,7 +56,7 @@ export const build: Command = {
           nativeDir: optional("--native-dir"),
           sign: optional("--sign"),
           notarize: optional("--notarize"),
-        }
+        })
       : undefined;
     const clientOnly = flag("--client-only");
     // --sign-bundle: the publisher key (`luciole keys`), read before a long build fails on it.
@@ -88,16 +89,16 @@ export const build: Command = {
       // it out of what the terminal's machine receives.
       staging.compiled = await (clientOnly ? compileClient : compileApp)(directory, {
         ...compile,
-        outfile: staging.outside?.staged,
+        ...(staging.outside?.staged === undefined ? {} : { outfile: staging.outside?.staged }),
       });
     };
     try {
       const result = await buildApplication(directory, undefined, {
         appBundle: flag("--app-bundle") || web ? "required" : "auto",
-        signBundle,
+        ...(signBundle === undefined ? {} : { signBundle: signBundle }),
         webServer: local,
         // An up-to-date build stages too, on a copy of the output already there.
-        stage: web || compile ? stage : undefined,
+        ...(web || compile ? { stage } : {}),
       });
       const { directory: staged = result.output, compiled, outside } = staging;
       if (outside) await moveStaged(outside.staged, outside.outfile);

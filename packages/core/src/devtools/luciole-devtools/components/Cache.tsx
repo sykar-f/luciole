@@ -113,7 +113,7 @@ export function CachePanel({ command }: { command: Command }) {
             flexShrink={0}
             wrapMode="none"
             truncate
-            bg={list.first + i === list.index ? color.selected : undefined}
+            {...(list.first + i === list.index ? { bg: color.selected } : {})}
           >
             <span fg={entry.invalidatedAt ? color.faint : color.text}>{fit(entry.key, KEY)} </span>
             <span fg={color.muted}>{fit(entry.fn.split("#").at(-1) ?? entry.fn, FN)} </span>

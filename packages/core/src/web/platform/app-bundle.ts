@@ -125,6 +125,6 @@ const newInstance = () =>
 export async function openApplication(options: OpenApplicationOptions): Promise<Application> {
   const { bundle: _bundle, url, instance = newInstance(), publisher, ...rest } = options;
   InstanceKey.parse(instance);
-  const loaded = await loadAppBundle(url, { publisher });
+  const loaded = await loadAppBundle(url, publisher === undefined ? {} : { publisher: publisher });
   return applicationOf(loaded, { ...rest, url, instance });
 }

@@ -33,9 +33,9 @@ const NOT_FOUND = 404;
 /** `LUCIOLE_REGISTRY`, then npm's own setting, then the public registry. */
 export const registryUrl = (env: NodeJS.ProcessEnv = process.env) =>
   (
-    env.LUCIOLE_REGISTRY ||
-    env.NPM_CONFIG_REGISTRY ||
-    env.npm_config_registry ||
+    env["LUCIOLE_REGISTRY"] ||
+    env["NPM_CONFIG_REGISTRY"] ||
+    env["npm_config_registry"] ||
     DEFAULT_REGISTRY
   ).replace(/\/+$/, "");
 
@@ -145,7 +145,7 @@ export function npmRegistry(location = registryUrl()): Registry {
       return {
         package: spec.name,
         version,
-        description: parsed.data.description,
+        ...(parsed.data.description === undefined ? {} : { description: parsed.data.description }),
         app: parsed.data.luciole,
       };
     },

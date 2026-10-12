@@ -67,7 +67,12 @@ export async function planLaunch(options: {
   const base = launchBase(options.target, options);
   const planned = (key: string, id?: string, session?: string): LaunchPlan => {
     const launch: Launch = { v: 1, scope, cwd, ...(id ? { id } : {}) };
-    return { key, launch, session, env: { [LAUNCH_VARIABLE]: JSON.stringify(launch) } };
+    return {
+      key,
+      launch,
+      ...(session === undefined ? {} : { session: session }),
+      env: { [LAUNCH_VARIABLE]: JSON.stringify(launch) },
+    };
   };
   if (scope !== "per-launch") return planned(base);
   const prefix = base + LAUNCH_SEPARATOR;
@@ -75,7 +80,7 @@ export async function planLaunch(options: {
     ? undefined
     : await claimOrphan({
         name: options.name,
-        env: options.env,
+        ...(options.env === undefined ? {} : { env: options.env }),
         async accept(server) {
           if (!server.startsWith(prefix)) return false;
           if (options.running) return options.running(server);

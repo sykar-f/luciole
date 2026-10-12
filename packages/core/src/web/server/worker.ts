@@ -32,7 +32,12 @@ export function connect(port: Port) {
       try {
         const handle = await handler;
         const response = await handle(
-          new Request(new URL(path, ORIGIN), { method, headers, body, signal: cancel.signal }),
+          new Request(new URL(path, ORIGIN), {
+            method,
+            headers,
+            ...(body === undefined ? {} : { body: body }),
+            signal: cancel.signal,
+          }),
         );
         send(port, { type: "head", id, status: response.status, headers: [...response.headers] });
         const reader = response.body?.getReader();

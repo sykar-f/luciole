@@ -90,7 +90,7 @@ export function RouterPanel({ command }: { command: Command }) {
                 height={1}
                 wrapMode="none"
                 truncate
-                bg={isSelected ? color.selected : undefined}
+                {...(isSelected ? { bg: color.selected } : {})}
               >
                 <span fg={match.isFetching ? color.warn : color.faint}>
                   {match.isFetching ? "↻ " : "  "}

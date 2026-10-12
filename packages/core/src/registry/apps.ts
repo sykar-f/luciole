@@ -159,8 +159,12 @@ export async function update(names: readonly string[], options: InstallOptions) 
   if (unknown.length) throw new Error(`Not installed: ${unknown.join(", ")}`);
   const results: { installed: Installed; changed: boolean; from: string }[] = [];
   for (const current of all.filter((installed) => !names.length || names.includes(installed.app))) {
-    const spec = { name: current.package, range: current.range };
-    const { installed, changed } = await install(spec, { ...options, confirm: undefined });
+    const spec = {
+      name: current.package,
+      ...(current.range === undefined ? {} : { range: current.range }),
+    };
+    const { confirm: _confirm, ...automatic } = options;
+    const { installed, changed } = await install(spec, automatic);
     results.push({ installed, changed, from: current.version });
   }
   return results;

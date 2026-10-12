@@ -314,12 +314,12 @@ export class Application {
       createHttpTransport({
         url: options.url,
         buildId: options.buildId,
-        instance: options.instance,
-        token: options.token,
-        timeoutMs: options.timeoutMs,
-        latencyMs: options.latencyMs,
-        network: options.network,
-        fetch: options.fetch,
+        ...(options.instance === undefined ? {} : { instance: options.instance }),
+        ...(options.token === undefined ? {} : { token: options.token }),
+        ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
+        ...(options.latencyMs === undefined ? {} : { latencyMs: options.latencyMs }),
+        ...(options.network === undefined ? {} : { network: options.network }),
+        ...(options.fetch === undefined ? {} : { fetch: options.fetch }),
         callServer: this.callServer,
         // Not awaited: a confirmed result never waits for, nor fails with, the refresh.
         onInvalidate: (paths, tags) =>
@@ -342,7 +342,7 @@ export class Application {
       parseSearch: (search) => Object.fromEntries(new URLSearchParams(search)),
       stringifySearch: (search) => {
         const query = new URLSearchParams(
-          Object.entries(search).flatMap(([key, value]) =>
+          Object.entries(search).flatMap<[string, string]>(([key, value]) =>
             value === undefined || value === null ? [] : [[key, String(value)]],
           ),
         ).toString();
@@ -914,9 +914,9 @@ export function KeyHelp({
 }) {
   const keys = useActiveKeys({ includeMetadata: true }).flatMap((key) => {
     const attrs = { ...key.commandAttrs, ...key.bindingAttrs };
-    const desc = attrs.desc;
+    const desc = attrs["desc"];
     if (typeof desc !== "string") return [];
-    if (groups && !groups.includes(String(attrs.group))) return [];
+    if (groups && !groups.includes(String(attrs["group"]))) return [];
     return [{ display: key.display, desc }];
   });
   if (inline)

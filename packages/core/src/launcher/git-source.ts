@@ -4,6 +4,7 @@
  * `git+file://…` (a fragment carries `#ref[/dir]`). Pure: the launcher UI's Server
  * classifies targets with it without loading git or the bundler.
  */
+import { definedProperties } from "../defined-properties";
 export type GitSource = {
   /** What git fetches from. */
   url: string;
@@ -39,22 +40,22 @@ export function parseGitSource(spec: string): GitSource | undefined {
     const tree = directory && /^(?:-\/)?tree\/([^/]+)(?:\/(.*))?$/.exec(directory);
     if (tree) [, ref, directory] = tree;
     const after = fragment(hash);
-    return {
+    return definedProperties({
       url: `https://${host}/${owner}/${repo}.git`,
       ref: after.ref ?? ref,
       directory: trimSlashes(after.directory ?? directory),
-    };
+    });
   }
   if (!GIT_URL.test(spec)) return undefined;
   const [location = "", hash] = spec.replace(/^git\+/, "").split("#", 2);
   // A directory after the repository's `.git`: git+ssh://host/repo.git/apps/notes.
   const inRepo = /^(.*?\.git)(\/.*)?$/.exec(location);
   const after = fragment(hash);
-  return {
+  return definedProperties({
     url: inRepo?.[1] ?? location,
-    ref: after.ref,
+    ...(after.ref === undefined ? {} : { ref: after.ref }),
     directory: trimSlashes(after.directory ?? inRepo?.[2]),
-  };
+  });
 }
 
 /** How the source reads back to the user. */

@@ -15,8 +15,8 @@ export async function run(
 ): Promise<Ran> {
   const { stdin } = options;
   const child = Bun.spawn([...command], {
-    cwd: options.cwd,
-    env: options.env,
+    ...(options.cwd === undefined ? {} : { cwd: options.cwd }),
+    ...(options.env === undefined ? {} : { env: options.env }),
     stdin: stdin === undefined ? "ignore" : typeof stdin === "string" ? Buffer.from(stdin) : stdin,
     stdout: "pipe",
     stderr: "pipe",

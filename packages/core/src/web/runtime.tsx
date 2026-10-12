@@ -5,6 +5,7 @@
  * Built once per runtime ABI key (build.ts). What fails before the terminal exists is
  * written into the page instead.
  */
+import { definedProperties } from "../defined-properties";
 import "./setup";
 import { applicationOf, loadAppBundle } from "./platform/app-bundle";
 import { runInPage } from "./platform/run";
@@ -19,7 +20,7 @@ const look = lookOf(location.search);
 // The margin around the terminal is the page's: the same colour, or it shows.
 if (look.background) document.body.style.background = look.background;
 try {
-  const inPage = element.dataset.server === "worker";
+  const inPage = element.dataset["server"] === "worker";
   const here = new URL("./", location.href);
   const server = inPage ? here : new URL("/", location.href);
   const bundle = await loadAppBundle(server, inPage ? { files: new URL("app/", here) } : {});
@@ -33,10 +34,10 @@ try {
   await runInPage((options) => applicationOf(bundle, options), {
     element,
     server,
-    fetch,
+    ...(fetch === undefined ? {} : { fetch }),
     name,
     restore: restoreOf(location.search),
-    path: pathOf(location.search),
+    ...definedProperties({ path: pathOf(location.search) }),
     ...look,
   });
 } catch (error) {

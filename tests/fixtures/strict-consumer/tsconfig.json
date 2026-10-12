@@ -1,0 +1,11 @@
+{
+  "extends": "../../../packages/core/tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ESNext"],
+    "exactOptionalPropertyTypes": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "noUncheckedIndexedAccess": true,
+    "noUnusedLocals": true
+  },
+  "include": ["index.ts", "app", "../../../packages/core/types.d.ts"]
+}

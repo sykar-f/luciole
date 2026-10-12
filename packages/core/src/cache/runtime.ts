@@ -50,7 +50,16 @@ const Life = z
     expire: Seconds.optional(),
   })
   .transform((life) => ({ ...CACHE_PROFILES.default, ...life }))
-  .refine((life) => life.revalidate <= life.expire, "revalidate must not exceed expire");
+  .refine(
+    (life) =>
+      life.revalidate !== undefined && life.expire !== undefined && life.revalidate <= life.expire,
+    "revalidate must not exceed expire",
+  )
+  .transform((life) => {
+    // The refinement rejected an explicitly undefined duration.
+    if (life.revalidate === undefined || life.expire === undefined) return z.NEVER;
+    return { revalidate: life.revalidate, expire: life.expire };
+  });
 const MAX_TAGS = 64;
 /** A tag: 1 to 256 visible ASCII characters, no comma, no space (docs/CACHE.md). */
 export const Tag = z

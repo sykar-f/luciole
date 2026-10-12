@@ -115,9 +115,9 @@ export class Restoration {
     const entry = this.at(place);
     const taken: Record<string, string> = {};
     if (!entry) return taken;
-    for (const name of Object.keys(entry.fields)) {
+    for (const [name, value] of Object.entries(entry.fields)) {
       if (!inGroup(name, group)) continue;
-      taken[name] = entry.fields[name];
+      taken[name] = value;
       delete entry.fields[name];
       this.sent.add(`${place.index}\n${name}`);
     }

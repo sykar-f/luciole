@@ -32,7 +32,7 @@ const OTHERS = 0o077;
 const DOMAIN = "luciole application manifest v1\n";
 
 export const publisherKeyFile = (env: NodeJS.ProcessEnv = process.env) =>
-  env.LUCIOLE_PUBLISHER_KEY || join(directories(env).config, "keys", "publisher.pem");
+  env["LUCIOLE_PUBLISHER_KEY"] || join(directories(env).config, "keys", "publisher.pem");
 
 /** `SHA256:<base64>` of the public key (SPKI DER), as ssh shows host keys. */
 export const fingerprintOf = (publicKey: string) =>

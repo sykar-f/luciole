@@ -12,7 +12,7 @@ async function notify(title: string, body: string | undefined) {
       ? await Notification.requestPermission()
       : Notification.permission;
   if (permission !== "granted") throw new Error("Notifications are not allowed for this page");
-  new Notification(title, { body });
+  new Notification(title, body === undefined ? {} : { body: body });
 }
 
 export function performDirectly(_origin: string) {

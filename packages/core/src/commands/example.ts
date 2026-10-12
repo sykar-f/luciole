@@ -123,7 +123,7 @@ export const example: Command = {
     const [, name, ...rest] = args;
     const { version } = await readPackageJson(join(frameworkRoot, "package.json"));
     if (!version) throw new Error("The framework's package.json has no version");
-    const repository = process.env.LUCIOLE_EXAMPLES_REPO ?? EXAMPLES_REPOSITORY;
+    const repository = process.env["LUCIOLE_EXAMPLES_REPO"] ?? EXAMPLES_REPOSITORY;
     if (!name) {
       const available = await listExamples(repository, releaseTag(version));
       console.log(

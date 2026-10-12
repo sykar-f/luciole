@@ -66,7 +66,7 @@ export type Address = { kind: "unix"; path: string } | { kind: "ws"; url: string
  */
 export function defaultSocketPath(env: Record<string, string | undefined> = process.env) {
   const uid = process.getuid?.() ?? 0;
-  return join(env.XDG_RUNTIME_DIR ?? tmpdir(), `luciole-devtools-${uid}.sock`);
+  return join(env["XDG_RUNTIME_DIR"] ?? tmpdir(), `luciole-devtools-${uid}.sock`);
 }
 
 export function parseAddress(

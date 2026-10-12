@@ -678,7 +678,7 @@ export const skills: Command = {
 
 /** Whether `CI` says this is a pipeline: set, and not one of the usual ways to say it is not. */
 const inPipeline = (env: Record<string, string | undefined>) =>
-  !["", "0", "false", undefined].includes(env.CI);
+  !["", "0", "false", undefined].includes(env["CI"]);
 
 /**
  * A line for stderr when the skills installed in the app come from another version of luciole

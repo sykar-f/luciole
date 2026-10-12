@@ -115,7 +115,7 @@ const { instance } = await WebAssembly.instantiate(bytes, {
   env: { __indirect_function_table: table },
   wasi_snapshot_preview1: wasiImports(() => memory()),
 });
-const exportedMemory = instance.exports.memory;
+const exportedMemory = instance.exports["memory"];
 if (!(exportedMemory instanceof WebAssembly.Memory))
   throw new Error("opentui.wasm exports no memory");
 memoryOfModule = exportedMemory;
@@ -321,7 +321,7 @@ function tableEntry(definition: FFIFunction, callback: NativeFunction) {
     definition.returns && definition.returns !== "void" ? [valueType(definition.returns)] : [];
   const entry = new WebAssembly.Instance(trampolineModule(params, results), {
     e: { f: callback },
-  }).exports.f;
+  }).exports["f"];
   if (typeof entry !== "function") throw new Error("opentui.wasm: trampoline without export");
   return entry;
 }

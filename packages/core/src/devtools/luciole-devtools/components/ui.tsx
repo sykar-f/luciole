@@ -67,7 +67,14 @@ export function Line({
   bg?: string;
 }) {
   return (
-    <text height={1} flexShrink={0} wrapMode="none" truncate fg={fg} bg={bg}>
+    <text
+      height={1}
+      flexShrink={0}
+      wrapMode="none"
+      truncate
+      fg={fg}
+      {...(bg === undefined ? {} : { bg: bg })}
+    >
       {children}
     </text>
   );

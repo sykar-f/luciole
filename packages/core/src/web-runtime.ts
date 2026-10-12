@@ -81,7 +81,7 @@ function prepareOpenTui(checkout: string, zig: string) {
 /** This ABI's web runtime, built on first use; its directory. */
 export async function prepareWebRuntime({
   cache = defaultCache(),
-  zig = process.env.ZIG ?? "zig",
+  zig = process.env["ZIG"] ?? "zig",
 }: { cache?: string; zig?: string } = {}) {
   const directory = await webRuntimeDirectory(cache);
   if (existsSync(join(directory, "web-runtime.json"))) return directory;

@@ -9,7 +9,14 @@ export type { TerminalProps } from "../../../vt/terminal";
 
 export function Terminal({ command, id, flexGrow, width, height }: TerminalProps) {
   return (
-    <box id={id} flexGrow={flexGrow} width={width} height={height} border borderStyle="single">
+    <box
+      {...(id === undefined ? {} : { id: id })}
+      {...(flexGrow === undefined ? {} : { flexGrow: flexGrow })}
+      {...(width === undefined ? {} : { width: width })}
+      {...(height === undefined ? {} : { height: height })}
+      border
+      borderStyle="single"
+    >
       <text>{`${command[0] ?? "A program"} cannot run here: local programs need luciole in a terminal.`}</text>
     </box>
   );

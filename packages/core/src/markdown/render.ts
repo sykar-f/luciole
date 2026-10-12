@@ -161,8 +161,8 @@ export class Palette {
     return {
       __isChunk: true,
       text,
-      fg,
-      bg,
+      ...(fg === undefined ? {} : { fg: fg }),
+      ...(bg === undefined ? {} : { bg: bg }),
       attributes: createTextAttributes(flags),
       ...(link === undefined ? {} : { link: { url: link } }),
     };
@@ -306,7 +306,7 @@ function block(token: MarkedToken, out: Builder, palette: Palette, base: readonl
       const first = title.nodes[0];
       // The band is drawn behind the whole row, the text keeps no background of its own.
       const chunks =
-        first?.kind === "text" ? first.chunks.map((c) => ({ ...c, bg: undefined })) : [];
+        first?.kind === "text" ? first.chunks.map(({ bg: _background, ...chunk }) => chunk) : [];
       out.block({ kind: "heading", level, chunks, band: palette.band(level) });
       return;
     }

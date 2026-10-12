@@ -68,7 +68,14 @@ export function Terminal(props: TerminalProps) {
       {...view}
       program={JSON.stringify(command)}
       label={command.join(" ")}
-      spawn={(io) => spawnPty({ ...io, command, cwd, env })}
+      spawn={(io) =>
+        spawnPty({
+          ...io,
+          command,
+          ...(cwd === undefined ? {} : { cwd: cwd }),
+          ...(env === undefined ? {} : { env: env }),
+        })
+      }
     />
   );
 }
@@ -92,10 +99,12 @@ export function TerminalView(props: TerminalViewProps) {
     let failed = false;
     const respond = queryResponder(PALETTE);
     const terminal = new VtTerminalRenderable(renderer, {
-      id: latest.current.id,
+      ...(latest.current.id === undefined ? {} : { id: latest.current.id }),
       width: "100%",
       height: "100%",
-      maxScrollback: latest.current.scrollback,
+      ...(latest.current.scrollback === undefined
+        ? {}
+        : { maxScrollback: latest.current.scrollback }),
       // Encoded keys, mouse and paste, and native answers to the program's queries.
       onData: (bytes) => pty?.write(bytes),
       // The layout decides the size. The program starts on the first layout: a shell
@@ -158,5 +167,12 @@ export function TerminalView(props: TerminalViewProps) {
       context.consume();
     });
   }, [keymap, renderer, props.active, prefix]);
-  return <box ref={host} flexGrow={props.flexGrow} width={props.width} height={props.height} />;
+  return (
+    <box
+      ref={host}
+      {...(props.flexGrow === undefined ? {} : { flexGrow: props.flexGrow })}
+      {...(props.width === undefined ? {} : { width: props.width })}
+      {...(props.height === undefined ? {} : { height: props.height })}
+    />
+  );
 }

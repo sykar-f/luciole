@@ -1,5 +1,5 @@
 {
   "extends": "./packages/core/tsconfig.base.json",
   "include": ["tests", "scripts", "probes", "packages/core/types.d.ts"],
-  "exclude": ["**/node_modules", "**/.luciole"]
+  "exclude": ["**/node_modules", "**/.luciole", "tests/fixtures/strict-consumer"]
 }

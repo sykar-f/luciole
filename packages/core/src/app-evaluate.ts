@@ -49,9 +49,9 @@ export type AppBundle = {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
 const isRoute = (value: unknown): value is AnyRoute =>
-  isRecord(value) && typeof value.addChildren === "function";
+  isRecord(value) && typeof value["addChildren"] === "function";
 const isActions = (value: unknown): value is Actions =>
-  isRecord(value) && typeof value.bind === "function";
+  isRecord(value) && typeof value["bind"] === "function";
 
 /** A bundle refused before it runs: built for another runtime. `where` names it. */
 export function checkAbi(manifest: AppManifest, where: string) {
@@ -103,22 +103,22 @@ export function evaluateAppBundle(evaluation: Evaluation): AppBundle {
   const exported: unknown = module.exports;
   if (
     !isRecord(exported) ||
-    exported.buildId !== manifest.buildId ||
-    !isRoute(exported.routeTree) ||
-    !isRecord(exported.modules) ||
-    !isActions(exported.actions)
+    exported["buildId"] !== manifest.buildId ||
+    !isRoute(exported["routeTree"]) ||
+    !isRecord(exported["modules"]) ||
+    !isActions(exported["actions"])
   )
     throw new Error(`${file} does not export its build, route tree, modules and actions`);
   const modules = new Map<string, Record<string, unknown>>();
-  for (const [id, value] of Object.entries(exported.modules))
+  for (const [id, value] of Object.entries(exported["modules"]))
     if (isRecord(value)) modules.set(id, value);
   return {
     manifest,
     publisher: evaluation.publisher,
     buildId: manifest.buildId,
-    routeTree: exported.routeTree,
+    routeTree: exported["routeTree"],
     modules,
-    actions: exported.actions,
+    actions: exported["actions"],
   };
 }
 

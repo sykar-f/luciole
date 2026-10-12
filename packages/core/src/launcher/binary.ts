@@ -17,6 +17,7 @@
  * Application options are those `app/args.ts` declares (src/args.ts): anything that is
  * not a runtime flag. `--help` lists both.
  */
+import { definedProperties } from "../defined-properties";
 import { spawn } from "node:child_process";
 import { dirname, join, resolve } from "node:path";
 import { messageOf } from "../guards";
@@ -121,7 +122,10 @@ async function stdinLine() {
 async function runClient(identity: BinaryIdentity, roles: Roles, sessionKey?: string) {
   const client = await roles.client();
   if (!isClientModule(client)) throw new Error("This binary holds no luciole Client");
-  await client.run(client.createApp, { name: identity.name, sessionKey });
+  await client.run(client.createApp, {
+    name: identity.name,
+    ...(sessionKey === undefined ? {} : { sessionKey: sessionKey }),
+  });
 }
 
 async function serve(identity: BinaryIdentity, args: readonly string[], roles: Roles) {
@@ -161,7 +165,7 @@ async function serve(identity: BinaryIdentity, args: readonly string[], roles: R
       graceMs: grace(options, roles),
       directories: directories(),
       env: { ...process.env, ...sent },
-      fingerprint: checked.fingerprint,
+      ...(checked.fingerprint === undefined ? {} : { fingerprint: checked.fingerprint }),
     });
     console.log(formatEnsured(server));
     return;
@@ -179,14 +183,14 @@ async function serve(identity: BinaryIdentity, args: readonly string[], roles: R
   if (http !== undefined) {
     const { host, port } = parseListen(http);
     Object.assign(process.env, { LUCIOLE_HOST: host, PORT: port });
-    delete process.env.LUCIOLE_SOCKET;
+    delete process.env["LUCIOLE_SOCKET"];
   }
-  if (socket !== undefined) process.env.LUCIOLE_SOCKET = resolve(socket);
+  if (socket !== undefined) process.env["LUCIOLE_SOCKET"] = resolve(socket);
   if (roles.server) return roles.server();
   // With native packages, the Server sits next to them: this binary runs it as Bun, which
   // resolves packages (a compiled binary does not). Signals and the exit code pass through.
   const native =
-    process.env.LUCIOLE_NATIVE_DIR ?? join(dirname(process.execPath), NATIVE_DIRECTORY);
+    process.env["LUCIOLE_NATIVE_DIR"] ?? join(dirname(process.execPath), NATIVE_DIRECTORY);
   const child = spawn(process.execPath, [join(native, NATIVE_SERVER)], {
     stdio: "inherit",
     env: { ...process.env, BUN_BE_BUN: "1" },
@@ -215,7 +219,7 @@ async function start(text: string, roles: Roles) {
       definition?.help({
         name: identity.name,
         usage: USAGE(identity.name),
-        runtime: runtimeHelp(RUNTIME_FLAGS),
+        ...definedProperties({ runtime: runtimeHelp(RUNTIME_FLAGS) }),
       }) ?? `Usage: ${USAGE(identity.name).join(`\n       `)}`,
     );
   if (options.has("version"))
@@ -244,7 +248,7 @@ async function start(text: string, roles: Roles) {
       destination === undefined ? `local:${identity.name}` : `ssh:${destination}/${identity.name}`,
     scope: roles.launch?.scope ?? "shared",
     cwd: process.cwd(),
-    fingerprint: checked.fingerprint,
+    ...(checked.fingerprint === undefined ? {} : { fingerprint: checked.fingerprint }),
     buildId: identity.buildId,
     fresh: options.has("new"),
     // A crashed launch's Server there is asked by the remote serve, not from here.
@@ -261,7 +265,7 @@ async function start(text: string, roles: Roles) {
           graceMs: grace(options, roles),
           directories: directories(),
           env: { ...process.env, ...checked.env, ...plan.env },
-          fingerprint: checked.fingerprint,
+          ...(checked.fingerprint === undefined ? {} : { fingerprint: checked.fingerprint }),
           client,
           attach: true,
         })
@@ -270,17 +274,17 @@ async function start(text: string, roles: Roles) {
           id: serverId(plan.key),
           graceMs: grace(options, roles),
           self: process.execPath,
-          target: options.get("target"),
+          ...definedProperties({ target: options.get("target") }),
           launch: {
             ...(definition ? { args: { v: 1, argv: [...app] } } : {}),
-            launch: { scope: plan.launch.scope, id: plan.launch.id },
+            launch: { scope: plan.launch.scope, ...definedProperties({ id: plan.launch.id }) },
           },
           log: (message) => console.error(message),
         });
   // Handed to the Client like a user's own --url; it pings the Server as this Client.
   process.argv.push("--url", server.url);
-  process.env.LUCIOLE_LIFETIME_CLIENT = client;
-  if (plan.session) process.env.LUCIOLE_SESSION = plan.session;
+  process.env["LUCIOLE_LIFETIME_CLIENT"] = client;
+  if (plan.session) process.env["LUCIOLE_SESSION"] = plan.session;
   await runClient(identity, roles, plan.key);
 }
 

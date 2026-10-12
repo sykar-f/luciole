@@ -276,8 +276,8 @@ export function createHandler(config: ServerConfig, options: HandlerOptions) {
   const fingerprint = configuredArgs()?.fingerprint;
   configureCache({
     buildId: fingerprint ? `${config.buildId}#${fingerprint}` : config.buildId,
-    handler: config.cache,
-    onEvent: instrument?.onEvent,
+    ...(config.cache === undefined ? {} : { handler: config.cache }),
+    ...(instrument?.onEvent === undefined ? {} : { onEvent: instrument?.onEvent }),
     callId: getCallId,
   });
   const metrics = { renders: 0, actions: 0 };
@@ -319,7 +319,9 @@ export function createHandler(config: ServerConfig, options: HandlerOptions) {
       const unauthorized = () =>
         new Response("Authentication required", {
           status: STATUS.unauthorized,
-          headers: auth.unauthorizedPath ? { "x-luciole-login": auth.unauthorizedPath } : undefined,
+          ...(auth.unauthorizedPath
+            ? { headers: { "x-luciole-login": auth.unauthorizedPath } }
+            : {}),
         });
       // Awaited: a rejection must reach the generic 500 below, never Bun's error page.
       return await context.run({ session, callId }, async () => {

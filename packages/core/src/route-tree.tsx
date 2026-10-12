@@ -55,7 +55,7 @@ const pick = (
   splat?: string,
 ) =>
   Object.fromEntries(
-    names.map((name) => [name, (name === splat ? params._splat : params[name]) ?? ""]),
+    names.map((name) => [name, (name === splat ? params["_splat"] : params[name]) ?? ""]),
   );
 
 function DefaultNotFound({ what }: { what?: string }) {
@@ -188,9 +188,13 @@ export function pageRoute(
       }, [app, path, error, missing]);
       if (missing)
         return NotFound ? (
-          <NotFound path={path} params={pageParams} what={missing.what} />
+          <NotFound
+            path={path}
+            params={pageParams}
+            {...(missing.what === undefined ? {} : { what: missing.what })}
+          />
         ) : (
-          <DefaultNotFound what={missing.what} />
+          <DefaultNotFound {...(missing.what === undefined ? {} : { what: missing.what })} />
         );
       if (Failure)
         return (

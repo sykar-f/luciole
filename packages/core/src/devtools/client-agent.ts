@@ -81,14 +81,15 @@ export function startClientAgent({
   }
   const channel = fiberChannel();
   let onCommand: (command: Command) => void = () => {};
+  const root = appRoot(process.argv[1]);
   const agent = connectAgent({
     address: parseAddress(address),
     hello: {
       protocol: PROTOCOL_VERSION,
       role: "client",
       pid: process.pid,
-      app: name,
-      root: appRoot(process.argv[1]),
+      ...(name === undefined ? {} : { app: name }),
+      ...(root === undefined ? {} : { root }),
       components: channel !== undefined,
     },
     onCommand: (value) => {
@@ -269,14 +270,20 @@ export function startClientAgent({
           if (!network) return;
           if (jitterMs !== undefined) network.jitterMs = jitterMs;
           if (chunkDelayMs !== undefined) network.chunkDelayMs = chunkDelayMs;
-          if (faults !== undefined)
-            network.fault = faults.length
-              ? () => faults.find(({ p }) => Math.random() < p)?.type
-              : undefined;
+          if (faults !== undefined) {
+            if (faults.length)
+              network.fault = () => faults.find(({ p }) => Math.random() < p)?.type;
+            else delete network.fault;
+          }
           return;
         }
         case "highlight":
-          overlay.configure(command.payload);
+          overlay.configure({
+            enabled: command.payload.enabled,
+            ...(command.payload.unnecessaryOnly === undefined
+              ? {}
+              : { unnecessaryOnly: command.payload.unnecessaryOnly }),
+          });
           return;
         case "select":
           overlay.select(

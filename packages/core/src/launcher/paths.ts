@@ -21,7 +21,7 @@ export type Directories = {
 };
 
 export function directories(env: NodeJS.ProcessEnv = process.env): Directories {
-  const home = env.HOME || homedir();
+  const home = env["HOME"] || homedir();
   const base = (variable: string, fallback: string) =>
     join(env[variable] || join(home, fallback), "luciole");
   return {

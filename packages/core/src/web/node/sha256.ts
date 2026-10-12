@@ -27,6 +27,13 @@ const LENGTH_BYTES = 8;
 const WORD_BITS = 32;
 const WORD_BYTES = 4;
 
+// All reads use indices within the fixed schedule and eight-word state.
+function word(words: readonly number[] | Uint32Array, index: number): number {
+  const value = words[index];
+  if (value === undefined) throw new RangeError("SHA-256 word outside its schedule");
+  return value;
+}
+
 const rotr = (x: number, n: number) => (x >>> n) | (x << (WORD_BITS - n));
 /** FIPS 180-4 § 4.1.2: two rotations, then a rotation (Σ) or a shift (σ). */
 const SIGMA = {
@@ -56,11 +63,24 @@ export function sha256(data: Uint8Array): Uint8Array {
   for (let offset = 0; offset < padded.length; offset += BLOCK) {
     for (let i = 0; i < 16; i++) w[i] = view.getUint32(offset + i * WORD_BYTES);
     for (let i = 16; i < ROUNDS; i++) {
-      w[i] = w[i - 16] + small(SIGMA.small0, w[i - 15]) + w[i - 7] + small(SIGMA.small1, w[i - 2]);
+      w[i] =
+        word(w, i - 16) +
+        small(SIGMA.small0, word(w, i - 15)) +
+        word(w, i - 7) +
+        small(SIGMA.small1, word(w, i - 2));
     }
-    let [a, b, c, d, e, f, g, hh] = [h[0], h[1], h[2], h[3], h[4], h[5], h[6], h[7]];
+    let [a, b, c, d, e, f, g, hh] = [
+      word(h, 0),
+      word(h, 1),
+      word(h, 2),
+      word(h, 3),
+      word(h, 4),
+      word(h, 5),
+      word(h, 6),
+      word(h, 7),
+    ] as const;
     for (let i = 0; i < ROUNDS; i++) {
-      const t1 = hh + big(SIGMA.big1, e) + ((e & f) ^ (~e & g)) + K[i] + w[i];
+      const t1 = hh + big(SIGMA.big1, e) + ((e & f) ^ (~e & g)) + word(K, i) + word(w, i);
       const t2 = big(SIGMA.big0, a) + ((a & b) ^ (a & c) ^ (b & c));
       hh = g;
       g = f;
@@ -71,7 +91,7 @@ export function sha256(data: Uint8Array): Uint8Array {
       b = a;
       a = (t1 + t2) >>> 0;
     }
-    [a, b, c, d, e, f, g, hh].forEach((value, i) => (h[i] = h[i] + value));
+    [a, b, c, d, e, f, g, hh].forEach((value, i) => (h[i] = word(h, i) + value));
   }
   const digest = new Uint8Array(h.length * WORD_BYTES);
   const out = new DataView(digest.buffer);

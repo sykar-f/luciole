@@ -23,6 +23,10 @@ declare module "react-server-dom-webpack/server.node" {
     options?: { onError?: (error: unknown) => string | undefined },
   ): { pipe(stream: NodeJS.WritableStream): void; abort(): void };
   export function decodeReply(body: string | FormData, manifest: unknown): Promise<unknown>;
+  export function decodeReply(
+    body: string | Awaited<ReturnType<Request["formData"]>>,
+    manifest: unknown,
+  ): Promise<unknown>;
 }
 // The web target's Server (src/web/platform/flight/server.ts): the same codec on web streams.
 declare module "react-server-dom-webpack/server.edge" {
@@ -34,6 +38,10 @@ declare module "react-server-dom-webpack/server.edge" {
     options?: { onError?: (error: unknown) => string | undefined },
   ): ReadableStream<Uint8Array>;
   export function decodeReply(body: string | FormData, manifest: unknown): Promise<unknown>;
+  export function decodeReply(
+    body: string | Awaited<ReturnType<Request["formData"]>>,
+    manifest: unknown,
+  ): Promise<unknown>;
 }
 
 // The original isolated RSC probe uses the Node decoder without Server Functions; the

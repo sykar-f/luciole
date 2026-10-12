@@ -36,6 +36,7 @@ export function devtoolsInstrument(
     return instrument;
   }
   const entry = process.argv[1];
+  const root = appRoot(entry);
   const agent = connectAgent({
     address: parseAddress(address),
     hello: {
@@ -43,8 +44,8 @@ export function devtoolsInstrument(
       role: "server",
       pid: process.pid,
       // `<app>/.luciole/server/index.js`, as `luciole dev` and `start` run it.
-      app: entry ? basename(dirname(dirname(dirname(entry)))) : undefined,
-      root: appRoot(entry),
+      ...(entry ? { app: basename(dirname(dirname(dirname(entry)))) } : {}),
+      ...(root === undefined ? {} : { root }),
       buildId: context.buildId,
       // Every module ran its annotations before serve() started.
       sources: Object.fromEntries(globalThis.__LUCIOLE_SOURCES__ ?? []),

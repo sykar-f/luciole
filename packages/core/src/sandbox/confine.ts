@@ -90,7 +90,12 @@ export async function confine(options: ConfineOptions): Promise<Confinement> {
   };
   try {
     if (mechanism.kind === "seatbelt") {
-      const proxy = needsProxy ? await startProxy({ allow, resolve: options.resolve }) : undefined;
+      const proxy = needsProxy
+        ? await startProxy({
+            allow,
+            ...(options.resolve === undefined ? {} : { resolve: options.resolve }),
+          })
+        : undefined;
       if (proxy) cleanup.push(() => proxy.stop());
       const route: ServerRoute =
         server.kind === "socket"
@@ -119,7 +124,7 @@ export async function confine(options: ConfineOptions): Promise<Confinement> {
             writable: options.writable,
             tty,
             server: route,
-            proxyPort: proxy?.port,
+            ...(proxy?.port === undefined ? {} : { proxyPort: proxy?.port }),
           });
           options.onProfile?.(profile);
           return sandboxed(profile, argv);
@@ -157,7 +162,7 @@ export async function confine(options: ConfineOptions): Promise<Confinement> {
       if (needsProxy) {
         proxy = await startProxy({
           allow,
-          resolve: options.resolve,
+          ...(options.resolve === undefined ? {} : { resolve: options.resolve }),
           path: join(sockets, "proxy.sock"),
         });
         const started = proxy;
@@ -179,7 +184,10 @@ export async function confine(options: ConfineOptions): Promise<Confinement> {
         serverUrl = withPort(server.parsed, server.port);
       }
       if (needsProxy) {
-        proxy = await startProxy({ allow, resolve: options.resolve });
+        proxy = await startProxy({
+          allow,
+          ...(options.resolve === undefined ? {} : { resolve: options.resolve }),
+        });
         const started = proxy;
         cleanup.push(() => started.stop());
         tcp.push(proxy.port);

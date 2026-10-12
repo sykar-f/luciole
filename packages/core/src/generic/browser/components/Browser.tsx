@@ -1,4 +1,5 @@
 "use client";
+import { definedProperties } from "../../../defined-properties";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import * as z from "zod/mini";
 import type { KeyEvent } from "@opentui/core";
@@ -61,7 +62,7 @@ const Tab = z.object({
 });
 type Tab = z.infer<typeof Tab>;
 function tabsFromEnvironment(): Tab[] {
-  const text = process.env.LUCIOLE_GENERIC_TABS;
+  const text = process.env["LUCIOLE_GENERIC_TABS"];
   if (!text) return [];
   const parsed: unknown = JSON.parse(text);
   return z.array(Tab).parse(parsed);
@@ -116,9 +117,9 @@ function OriginTab({ tab, id, hub, active, onClose }: TabProps) {
     openApplication({
       bundle: tab.app,
       url: tab.url,
-      session: session.restored,
+      ...(session.restored === undefined ? {} : { session: session.restored }),
       host: channel,
-      quitOnCtrlC,
+      ...(quitOnCtrlC === undefined ? {} : { quitOnCtrlC: quitOnCtrlC }),
       publisher: {
         required: true,
         trust: (fingerprint) => {
@@ -175,7 +176,7 @@ function SandboxTab({ tab, id, hub, active, onClose, ask, onGrants }: TabProps) 
     let closed = false;
     let leave = () => {};
     openSandbox(
-      { ...tab, runtime, child, mechanism },
+      { ...definedProperties(tab), runtime, child, mechanism: definedProperties(mechanism) },
       {
         perform: hub.perform(id, tab.origin),
         ask: (question) => latest.current.ask(question),
@@ -234,12 +235,12 @@ function statusOf(tab: Tab | undefined, granted: Capabilities | undefined) {
   if (!tab) return "";
   if (tab.mode === "inline" || !tab.mechanism)
     return "inline · confiance totale · aucune capacité appliquée";
-  const lines = enforcement(granted ?? tab.granted, tab.mechanism).map(
+  const lines = enforcement(granted ?? tab.granted, definedProperties(tab.mechanism)).map(
     (line) => `${line.capability.split(" ")[0]} (${ENFORCERS[line.by]})`,
   );
   // Short: the line shares its row with the help.
   const network = tab.mechanism.kind === "landlock" ? ", réseau non confiné" : "";
-  return `sandbox · ${mechanismName(tab.mechanism)}${network} · ${lines.length ? lines.join(", ") : "aucune capacité accordée"}`;
+  return `sandbox · ${mechanismName(definedProperties(tab.mechanism))}${network} · ${lines.length ? lines.join(", ") : "aucune capacité accordée"}`;
 }
 
 export function Browser({ children }: { children: ReactNode }) {

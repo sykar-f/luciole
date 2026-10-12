@@ -53,7 +53,7 @@ export async function launchUrls(target: string, options: LaunchOptions): Promis
   for (const url of urls)
     tabs.push(
       await prepareOrigin(url, {
-        mode,
+        ...(mode === undefined ? {} : { mode: mode }),
         allow,
         directories,
         confirm: options.confirm ?? askTerminal,

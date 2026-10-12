@@ -1,4 +1,5 @@
 /** @jsxImportSource @opentui/react */
+import { definedProperties } from "../defined-properties";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import {
   type BoxRenderable,
@@ -183,19 +184,25 @@ function NodeView({ node, look }: { node: Node; look: Look }) {
       return (
         <box
           {...layout}
-          backgroundColor={fill}
+          {...(fill === undefined ? {} : { backgroundColor: fill })}
           paddingX={fill ? CODE_PADDING_X : 0}
           paddingY={fill ? 1 : 0}
         >
           {fill && language ? (
-            <text position="absolute" top={0} right={1} fg={palette.label()} content={language} />
+            <text
+              position="absolute"
+              top={0}
+              right={1}
+              {...definedProperties({ fg: palette.label() })}
+              content={language}
+            />
           ) : null}
           {node.diff ? (
             <TextView chunks={node.diff} marginTop={0} />
           ) : node.closed ? (
             <code
               content={node.text}
-              filetype={infoStringToFiletype(node.lang)}
+              {...definedProperties({ filetype: infoStringToFiletype(node.lang) })}
               syntaxStyle={syntaxStyle}
               conceal={false}
             />
@@ -280,7 +287,7 @@ function HeadingView({
       flexShrink={0}
       paddingLeft={band ? TITLE_INDENT : 0}
       paddingY={band && level === 1 ? 1 : 0}
-      renderBefore={paint}
+      {...(paint === undefined ? {} : { renderBefore: paint })}
     >
       <text content={content} />
     </box>

@@ -68,7 +68,7 @@ class Watcher extends EventEmitter {
 export const watch = () => new Watcher();
 
 /** What `fs/promises.open` returns, for reading: the snapshot's bytes, by position. */
-class FileHandle {
+export class FileHandle {
   private readonly path: unknown;
   constructor(path: unknown) {
     this.path = path;

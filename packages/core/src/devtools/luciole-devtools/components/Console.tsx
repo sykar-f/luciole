@@ -112,7 +112,7 @@ export function ConsolePanel({ callId }: { callId?: string }) {
             flexShrink={0}
             wrapMode="none"
             truncate
-            bg={list.first + i === list.index ? color.selected : undefined}
+            {...(list.first + i === list.index ? { bg: color.selected } : {})}
           >
             <span fg={color.faint}>{`${clock(entry.at)} `}</span>
             <span fg={entry.role === "server" ? color.server : color.client}>
