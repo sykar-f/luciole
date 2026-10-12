@@ -53,10 +53,11 @@ export function NoteEditor({ initialNote: note, saveAction, resolveAction, autos
   // The typed text survives a crash or a rebuild; it is forgotten once sent, and kept
   // again when the Server refuses it or never received it.
   const fields = useRestoredFields("note");
-  const send = () =>
+  const send = () => {
     save((snapshot) => fields.submit(() => saveAction(snapshot), { failed: (r) => !r.ok })).catch(
       reportError,
     );
+  };
   const editing = focus === "title" || focus === "body";
   const canSave = draft.dirty && !draft.pending && !draft.conflict;
   const body = useRef<MarkdownEditorRenderable>(null);
@@ -76,12 +77,10 @@ export function NoteEditor({ initialNote: note, saveAction, resolveAction, autos
     latest.current = send;
   });
   // A save the Server has not answered: its outcome is looked up, or it is sent again.
-  const retry = () =>
-    draft.unknown
-      ? recover(resolveAction, saveAction).catch(reportError)
-      : canSave
-        ? send()
-        : undefined;
+  const retry = () => {
+    if (draft.unknown) recover(resolveAction, saveAction).catch(reportError);
+    else if (canSave) send();
+  };
   // An unknown save is settled first, conflict or not: keeping or dropping this Draft
   // needs to know whether it was written.
   const failing = draft.failures > 0 && (draft.unknown || !draft.conflict);
