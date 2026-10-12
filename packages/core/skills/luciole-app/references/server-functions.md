@@ -60,6 +60,18 @@ An `export async function*` streams; read it with
 `const { items, done, error } = useLive(fn, [args])` from `@luciole-sh/core/client`. It stops
 on unmount, and nothing reconnects by itself.
 
+For an aggregate, pass `{ initial, reduce: (state, item) => nextState }` and read
+`{ state, done, error }`: no `items` array is retained. Return immutable state. New
+arguments reset to the current initial value; reducer/initial changes alone do not
+restart. A thrown reducer ends the stream with `done` and `error`.
+
+When reconnecting from a cursor, read the “Fold items and reconnect from a cursor”
+section in the Server Functions rules linked above. Keep the last cursor in folded
+state, retry on `done` with or without `error`, use a capped backoff and change an
+`attempt` argument. Carry the folded state into the next `initial`; the Server must
+replay strictly after its cursor. Clear the retry timer on unmount. Replay retention
+and duplicate handling belong to the app.
+
 For a generator waiting on a subscription's queue, capture `getSignal()` from
 `@luciole-sh/core/server` inside the Server Function. Await the queue's wake promise with
 `abortable(promise, signal)`; catch the rejection only when `signal.aborted`, and release

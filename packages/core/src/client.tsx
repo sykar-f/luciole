@@ -696,51 +696,91 @@ const DEFAULT_LIVE_LIMIT = 1000;
  * change, and is cancelled on unmount; the Server generator is then stopped. Nothing
  * reconnects by itself: `error` tells why the stream ended, the application decides.
  */
+export function useLive<T, A extends unknown[], S>(
+  source: (...args: A) => Promise<AsyncIterable<T>> | AsyncIterable<T>,
+  args: A,
+  options: { reduce: (state: S, item: T) => S; initial: S },
+): { state: S; done: boolean; error: unknown };
 export function useLive<T, A extends unknown[]>(
   source: (...args: A) => Promise<AsyncIterable<T>> | AsyncIterable<T>,
   args: A,
-  options: { limit?: number } = {},
-): LiveState<T> {
+  options?: { limit?: number },
+): LiveState<T>;
+export function useLive<T, A extends unknown[], S>(
+  source: (...args: A) => Promise<AsyncIterable<T>> | AsyncIterable<T>,
+  args: A,
+  options: { limit?: number } | { reduce: (state: S, item: T) => S; initial: S } = {},
+): LiveState<T> | { state: S; done: boolean; error: unknown } {
   const app = useApplication();
-  const limit = options.limit ?? DEFAULT_LIVE_LIMIT;
-  // A subscription's values are tagged with its arguments: new arguments start empty.
+  const folding = "reduce" in options;
+  const limit = "limit" in options ? (options.limit ?? DEFAULT_LIVE_LIMIT) : DEFAULT_LIVE_LIMIT;
+  // New arguments start empty, or at the reducer's current initial value.
   const key = JSON.stringify(args);
-  const [state, setState] = useState<LiveState<T> & { key: string }>({
-    key,
-    items: [],
-    done: false,
-    error: undefined,
-  });
-  const latestArgs = useRef(args);
+  const initialValue: LiveState<T> | { state: S; done: boolean; error: unknown } =
+    "reduce" in options
+      ? { state: options.initial, done: false, error: undefined }
+      : { items: [], done: false, error: undefined };
+  const [state, setState] = useState(() => ({ key, value: initialValue }));
+  const published = useRef(state);
+  const latest = useRef({ args, options });
   useLayoutEffect(() => {
-    latestArgs.current = args;
+    latest.current = { args, options };
   });
   useEffect(() => {
     const controller = new AbortController();
-    const update = (next: (s: LiveState<T>) => Partial<LiveState<T>>) =>
-      setState((s) => {
-        const current = s.key === key ? s : { key, items: [], done: false, error: undefined };
-        return { ...current, ...next(current) };
-      });
-    void (async () => {
+    const currentOptions = latest.current.options;
+    let value: LiveState<T> | { state: S; done: boolean; error: unknown } =
+      !folding && published.current.key === key && "items" in published.current.value
+        ? published.current.value
+        : "reduce" in currentOptions
+          ? { state: currentOptions.initial, done: false, error: undefined }
+          : { items: [], done: false, error: undefined };
+    const publish = () => {
+      published.current = { key, value };
+      setState(published.current);
+    };
+    publish();
+    const consume = async () => {
       try {
         const iterable = await app.withSignal(
           controller.signal,
-          () => source(...latestArgs.current),
+          () => source(...latest.current.args),
           "live",
         );
         for await (const item of iterable) {
           if (controller.signal.aborted) return;
-          update((s) => ({ items: [...s.items, item].slice(-limit) }));
+          if ("state" in value && "reduce" in currentOptions) {
+            // Fold outside React's updater: each item is reduced exactly once.
+            const reducer = latest.current.options;
+            if ("reduce" in reducer) value = { ...value, state: reducer.reduce(value.state, item) };
+          } else if ("items" in value) {
+            // One bounded copy for ordinary limits; preserve slice semantics for
+            // unusual values (zero, negative, fractional, NaN and Infinity).
+            const items =
+              Number.isInteger(limit) && limit > 0
+                ? value.items.slice(Math.max(0, value.items.length + 1 - limit))
+                : [...value.items, item].slice(-limit);
+            if (Number.isInteger(limit) && limit > 0) items.push(item);
+            value = { ...value, items };
+          }
+          publish();
         }
-        if (!controller.signal.aborted) update(() => ({ done: true }));
+        if (!controller.signal.aborted) {
+          value = { ...value, done: true };
+          publish();
+        }
       } catch (error: unknown) {
-        if (!controller.signal.aborted) update(() => ({ done: true, error }));
+        if (!controller.signal.aborted) {
+          value = { ...value, done: true, error };
+          publish();
+        }
       }
-    })();
+    };
+    // consume handles source, transport and reducer failures above.
+    void consume();
     return () => controller.abort();
-  }, [app, source, key, limit]);
-  return state.key === key ? state : { items: [], done: false, error: undefined };
+  }, [app, source, key, limit, folding]);
+  return state.key === key && "state" in state.value === folding ? state.value : initialValue;
 }
 /**
  * Calls `listener` whenever routes are invalidated, by the Server (`invalidate()` in a
