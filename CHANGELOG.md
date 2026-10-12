@@ -13,6 +13,12 @@ and marked **Breaking**.
 
 ## [Unreleased]
 
+### Fixed
+
+- A Server that builds a Client, such as Studio's preview, now selects the
+  Client exports of core's dependencies. The Client uses TanStack Router's
+  Client build even when the build process runs with `--conditions=react-server`.
+
 ## [0.3.1] - 2026-10-12
 
 ### Fixed
