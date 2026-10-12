@@ -942,8 +942,11 @@ async function buildUnlocked(
         target: browserServer ? "browser" : "bun",
         // bun-cjs: a function of (exports, require, module…) the host calls with the ABI.
         ...(role === "app" ? { format: "cjs" as const } : {}),
-        // The arguments module is whole: a launcher imports it from anywhere.
-        external: role === "app" || role === "args" || browserServer ? [] : external,
+        // Only the standalone Client uses packages from its installation. The Server
+        // carries its JS dependencies: core's dependencies are not visible from an
+        // isolated app install or a public test API's temporary output. Native packages
+        // still resolve at run time through the plugin below.
+        external: role === "client" ? external : [],
         conditions: serverSide ? ["react-server"] : [],
         // A browser bundle carries no environment: React's production builds, as the page's.
         ...(browserServer
