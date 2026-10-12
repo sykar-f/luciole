@@ -9,6 +9,7 @@ import { chmodSync } from "node:fs";
 import { z } from "zod";
 import { managedLifetime } from "./launcher/lifetime";
 import { createHandler, getLaunch, type AuthConfig, type ServerConfig } from "./server";
+import { startupStage } from "./startup-trace";
 import { configuredArgs } from "./args";
 import { WebOrigin, webAccess } from "./web-routes";
 
@@ -33,6 +34,7 @@ const ServerEnvironment = z.object({
 });
 
 export function serve(config: ServerConfig) {
+  startupStage("serve-entry");
   const env = ServerEnvironment.safeParse(process.env);
   if (!env.success) throw new Error(`Invalid Server environment: ${z.prettifyError(env.error)}`);
   const { LUCIOLE_HOST: hostname, LUCIOLE_TOKEN: token, LUCIOLE_SOCKET: socket } = env.data;
@@ -51,6 +53,7 @@ export function serve(config: ServerConfig) {
         return { userId: env.data.LUCIOLE_USER };
       },
     } satisfies AuthConfig);
+  startupStage("handler-start");
   const handler = createHandler(config, {
     auth,
     ...(env.data.LUCIOLE_DEVTOOLS === undefined ? {} : { devtools: env.data.LUCIOLE_DEVTOOLS }),
@@ -66,6 +69,7 @@ export function serve(config: ServerConfig) {
         }
       : {}),
   });
+  startupStage("handler-end");
   // Declared before `lifetime`, which stops through it; `server` exists by the time it runs.
   const shutdown = () => {
     void server.stop(true);
@@ -97,12 +101,15 @@ export function serve(config: ServerConfig) {
   // refuse idleTimeout next to `unix` though it honors it: set outside the literal.
   const unix = { ...options, unix: socket ?? "" };
   Object.assign(unix, { idleTimeout: 0 });
+  startupStage("listen-start");
   const server = socket
     ? Bun.serve(unix)
     : Bun.serve({ ...options, hostname, port: env.data.PORT, idleTimeout: IDLE_TIMEOUT_SECONDS });
+  startupStage("listen-end");
   // Bun creates the socket 0755; Linux checks write access on connect. Its directory
   // should be private too: macOS ignores a socket's own mode.
   if (socket) chmodSync(socket, PRIVATE_SOCKET);
+  startupStage("ready-write-start");
   console.log(
     JSON.stringify({
       ready: true,
@@ -111,6 +118,7 @@ export function serve(config: ServerConfig) {
       buildId: config.buildId,
     }),
   );
+  startupStage("ready-write-end");
   process.on("SIGTERM", shutdown);
   process.on("SIGINT", shutdown);
   return server;

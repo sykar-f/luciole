@@ -1,10 +1,12 @@
 import "server-only";
+import { appendFileSync } from "node:fs";
 import { Database } from "bun:sqlite";
 import { getSession } from "@luciole-sh/core/server";
 import { z } from "zod";
 import type { Note, SaveResult, Snapshot } from "../components/draft";
 import { StoredResult } from "./schemas";
 import { SEEDS } from "./seeds";
+startupStage("notes-module-load");
 const env = z
   .object({
     NOTES_DB: z.string().default("notes.sqlite"),
@@ -12,12 +14,15 @@ const env = z
   })
   .parse(process.env);
 export const MAX_VALUE = 20_000;
+startupStage("database-open-start");
 const db = new Database(env.NOTES_DB, {
   create: true,
 });
+startupStage("database-open-end");
 db.exec(
   "PRAGMA journal_mode=WAL; CREATE TABLE IF NOT EXISTS notes(id TEXT PRIMARY KEY, owner TEXT NOT NULL,title TEXT NOT NULL,value TEXT NOT NULL,version INTEGER NOT NULL); CREATE TABLE IF NOT EXISTS operations(owner TEXT NOT NULL,id TEXT NOT NULL,result TEXT NOT NULL,PRIMARY KEY(owner,id));",
 );
+startupStage("database-schema-end");
 // Databases written before notes were sorted by date and could be deleted gain the columns.
 const columns = new Set(
   db
@@ -30,6 +35,7 @@ if (!columns.has("updated"))
 // A deleted note is kept (with its deletion time) until the user's Undo, or forever.
 if (!columns.has("deleted")) db.exec("ALTER TABLE notes ADD COLUMN deleted INTEGER");
 
+startupStage("database-migration-end");
 const WELCOME = `Notes are written in **Markdown** and kept in *SQLite* on the Server.
 
 ## Getting around
@@ -59,6 +65,7 @@ Ask about the **market** on Saturday.`;
 const owner = env.LUCIOLE_USER;
 // The day the examples were written: the same dates on every screen, captures included.
 const SEEDED = Date.parse("2026-09-23T09:00:00Z");
+startupStage("database-seed-start");
 for (const [id, title, value, edited] of [
   ["1", "Welcome to Notes", WELCOME, SEEDED],
   ["2", "Shopping list", SHOPPING, SEEDED],
@@ -73,6 +80,7 @@ for (const [id, title, value, edited] of [
        AND (notes.value != excluded.value OR notes.title != excluded.title)`,
   ).run(id, owner, title, value, edited);
 
+startupStage("database-seed-end");
 const NOTE = "SELECT id,title,value,version,updated FROM notes";
 // Reads take the owner as an argument: server/queries.ts caches them, and a cached
 // function never reads the session.
@@ -181,4 +189,16 @@ export function remove(id: string) {
 export function restore(id: string): Note {
   db.query("UPDATE notes SET deleted=NULL WHERE id=? AND owner=?").run(id, getSession().userId);
   return loadNote(id);
+}
+
+// The framework test launcher owns this file and reads it only if startup times out.
+// Kept local so this example still works with only the public core package installed.
+function startupStage(stage: string) {
+  const file = process.env["LUCIOLE_TEST_STARTUP_TRACE"];
+  if (process.env["LUCIOLE_TEST"] !== "1" || !file) return;
+  try {
+    appendFileSync(file, JSON.stringify({ stage, at: Date.now(), cpu: process.cpuUsage() }) + "\n");
+  } catch {
+    // A removed diagnostic file must not prevent the application from starting.
+  }
 }
