@@ -13,7 +13,7 @@ import { noteTag, notesTag } from "../server/tags";
 
 const NoteId = z.string().min(1);
 
-/** Answers the deleted note's id: a Server Function returning nothing is refused by the Client. */
+/** Answers the deleted note's id; returning nothing would resolve to undefined on the Client. */
 export async function deleteNote(id: string): Promise<string> {
   const note = NoteId.parse(id);
   remove(note);
