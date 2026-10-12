@@ -1,12 +1,12 @@
 /** @jsxImportSource @opentui/react */
 import { expect, test } from "bun:test";
-import { act, useEffect, useState } from "react";
+import { act, StrictMode, useEffect, useState } from "react";
 import { createRootRoute } from "@tanstack/react-router";
 import { testRender } from "@opentui/react/test-utils";
 import { Application, Shell, useLive, type LiveState } from "../packages/core/src/client";
 import { destroy, untilFrame } from "./helpers";
 
-test("useLive folds exactly once, retains no items and resets on new arguments", async () => {
+test("useLive folds exactly once under StrictMode, retains no items and resets on new arguments", async () => {
   const failure = new Error("reducer failed");
   let change = (_attempt: number) => {};
   let calls = 0;
@@ -39,7 +39,12 @@ test("useLive folds exactly once, retains no items and resets on new arguments",
     routeTree: createRootRoute({ component: Screen }),
   });
   await app.router.load();
-  const ui = await testRender(<Shell app={app} />, { width: 80, height: 5 });
+  const ui = await testRender(
+    <StrictMode>
+      <Shell app={app} />
+    </StrictMode>,
+    { width: 80, height: 5 },
+  );
   try {
     await untilFrame(ui, "0:46:true:undefined");
     expect(calls).toBe(8);
