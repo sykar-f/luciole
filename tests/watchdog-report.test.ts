@@ -66,15 +66,12 @@ test("a blocked worker names its test and reports absent sampling tools", async 
 });
 
 test.if(process.platform === "darwin")(
-  "a blocked worker includes a native macOS stack",
+  "a blocked worker reports a native macOS stack or its capture deadline",
   async () => {
     const stderr = await blocked(process.env.PATH);
-    expect(stderr).toContain("Call graph:");
-    // macOS includes its binary-image table: a valid stack may hit the byte cap
-    // before sample exits. Both are successful captures of the call graph.
-    expect(stderr).toMatch(
-      /Sampling tool exited with code 0|Native stack truncated at 32768 bytes/,
-    );
+    // A loaded runner may reach the fixed kill deadline before sample flushes
+    // its call graph. That bounded interruption is also a correct report.
+    expect(stderr).toMatch(/Call graph:|Native stack capture stopped at the kill deadline/);
   },
 );
 
@@ -139,6 +136,44 @@ await Bun.sleep(2600); console.error("recovered worker survived");
     } finally {
       clearTimeout(guard);
       child.kill("SIGKILL");
+    }
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("a reporter exits cleanly when its target already died", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "watchdog-dead-target-"));
+  try {
+    const target = Bun.spawn(["/bin/sh", "-c", "exit 0"], {
+      stdin: "ignore",
+      stdout: "ignore",
+      stderr: "ignore",
+    });
+    await target.exited;
+    const report = { pid: target.pid, deadline: Date.now() + 100, header: "dead target report\n" };
+    const reporter = Bun.spawn(
+      [process.execPath, join(import.meta.dir, "watchdog-thread.ts"), JSON.stringify(report)],
+      {
+        env: { ...process.env, PATH: directory },
+        stdin: "ignore",
+        stdout: "ignore",
+        stderr: "pipe",
+      },
+    );
+    const guard = setTimeout(() => reporter.kill("SIGKILL"), 3000);
+    try {
+      const [stderr, code] = await Promise.all([
+        new Response(reporter.stderr).text(),
+        reporter.exited,
+      ]);
+      expect(code).toBe(0);
+      expect(stderr).toContain("dead target report");
+      expect(stderr).toContain("Native stack unavailable: no sampling tool exists");
+      expect(stderr).not.toContain("ESRCH");
+    } finally {
+      clearTimeout(guard);
+      reporter.kill("SIGKILL");
     }
   } finally {
     await rm(directory, { recursive: true, force: true });

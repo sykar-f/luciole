@@ -102,7 +102,18 @@ if (isMainThread) {
           output +
           (capture?.finished ? "" : "\nNative stack capture stopped at the kill deadline.\n"),
       );
-      process.kill(report.pid, "SIGKILL");
+      try {
+        process.kill(report.pid, "SIGKILL");
+      } catch (error: unknown) {
+        // Another failure may have already killed the worker during capture.
+        if (
+          typeof error !== "object" ||
+          error === null ||
+          !("code" in error) ||
+          error.code !== "ESRCH"
+        )
+          throw error;
+      }
       process.exit(0);
     },
     Math.max(0, report.deadline - Date.now()),
