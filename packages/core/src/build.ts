@@ -1041,10 +1041,31 @@ async function buildUnlocked(
                 // React than the app, but hooks must share the renderer's instance.
                 // Absolute externals work from any output directory; compilation
                 // follows and embeds these paths.
+                // A Server may build a Client (Studio does). Ignore its react-server
+                // condition: absolute paths must name the Client exports explicitly.
+                b.onResolve({ filter: /^(react|react-dom)(\/.*)?$/ }, (a) => {
+                  const name = a.path.startsWith("react-dom") ? "react-dom" : "react";
+                  const manifest = Bun.resolveSync(`${name}/package.json`, framework);
+                  const exports = z
+                    .object({
+                      exports: z.record(
+                        z.string(),
+                        z.union([
+                          z.string(),
+                          z.object({ bun: z.string().optional(), default: z.string() }),
+                        ]),
+                      ),
+                    })
+                    .parse(JSON.parse(readFileSync(manifest, "utf8"))).exports;
+                  const entry = exports[a.path === name ? "." : `.${a.path.slice(name.length)}`];
+                  const target = typeof entry === "string" ? entry : (entry?.bun ?? entry?.default);
+                  if (!target) throw new Error(`No Client export for ${a.path}`);
+                  return { path: join(dirname(manifest), target), external: true };
+                });
                 b.onResolve(
                   {
                     filter:
-                      /^(react|react-dom|react-server-dom-webpack|react-reconciler|@opentui\/core|@opentui\/react)(\/.*)?$/,
+                      /^(react-server-dom-webpack|react-reconciler|@opentui\/core|@opentui\/react)(\/.*)?$/,
                   },
                   (a) => ({ path: Bun.resolveSync(a.path, framework), external: true }),
                 );

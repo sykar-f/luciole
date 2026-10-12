@@ -85,48 +85,69 @@ for (const [location, app] of [
     TEST_TIMEOUT_MS,
   );
 
-test(
-  "a linked core shares its renderer React with an app that has a second peer copy",
-  async () => {
-    const linked = await isolatedTemporary("luciole-client-peers-");
-    try {
-      await mkdir(join(linked, "node_modules/@luciole-sh"), { recursive: true });
-      await symlink(resolve("packages/core"), join(linked, "node_modules/@luciole-sh/core"), "dir");
-      for (const name of ["react", "react-dom"])
-        await cp(
-          dirname(Bun.resolveSync(`${name}/package.json`, resolve("packages/core"))),
-          join(linked, "node_modules", name),
-          { recursive: true, dereference: true },
+for (const builder of ["Client", "Server"] as const)
+  test(
+    `a ${builder} builds a linked Client sharing renderer React despite a second app copy`,
+    async () => {
+      const linked = await isolatedTemporary("luciole-client-peers-");
+      try {
+        await mkdir(join(linked, "node_modules/@luciole-sh"), { recursive: true });
+        await symlink(
+          resolve("packages/core"),
+          join(linked, "node_modules/@luciole-sh/core"),
+          "dir",
         );
-      for (const name of ["app", "components", "package.json"])
-        await cp(join(directory, name), join(linked, name), { recursive: true });
-      const appRequire = createRequire(join(linked, "package.json"));
-      const rendererRequire = createRequire(
-        Bun.resolveSync("@opentui/react", resolve("packages/core")),
-      );
-      const ReactPeer = z.object({
-        version: z.string(),
-        useState: z.custom<typeof useState>((value) => typeof value === "function"),
-      });
-      const appReact: unknown = appRequire("react");
-      const rendererReact: unknown = rendererRequire("react");
-      const rendererPeer = ReactPeer.parse(rendererReact);
-      // Same version, different physical installation: the peer split is real.
-      expect(ReactPeer.parse(appReact).version).toBe(rendererPeer.version);
-      expect(appReact).not.toBe(rendererReact);
-      const built = { directory: linked, ...(await build(linked)) };
-      await using server = await startServer(built);
-      await using client = await openClient(built, server);
-      expect(
-        client.app.options.resolveModule(`${built.buildId}/components/counter.tsx`).peerUseState,
-      ).toBe(rendererPeer.useState);
-      expect(await client.waitFor("ISOLATED_CLIENT_RENDER")).toContain("ISOLATED_CLIENT_RENDER");
-    } finally {
-      await rm(linked, { recursive: true, force: true });
-    }
-  },
-  TEST_TIMEOUT_MS,
-);
+        for (const name of ["react", "react-dom"])
+          await cp(
+            dirname(Bun.resolveSync(`${name}/package.json`, resolve("packages/core"))),
+            join(linked, "node_modules", name),
+            { recursive: true, dereference: true },
+          );
+        for (const name of ["app", "components", "package.json"])
+          await cp(join(directory, name), join(linked, name), { recursive: true });
+        const appRequire = createRequire(join(linked, "package.json"));
+        const rendererRequire = createRequire(
+          Bun.resolveSync("@opentui/react", resolve("packages/core")),
+        );
+        const ReactPeer = z.object({
+          version: z.string(),
+          useState: z.custom<typeof useState>((value) => typeof value === "function"),
+        });
+        const appReact: unknown = appRequire("react");
+        const rendererReact: unknown = rendererRequire("react");
+        const rendererPeer = ReactPeer.parse(rendererReact);
+        // Same version, different physical installation: the peer split is real.
+        expect(ReactPeer.parse(appReact).version).toBe(rendererPeer.version);
+        expect(appReact).not.toBe(rendererReact);
+        let result: { buildId: string; output: string };
+        if (builder === "Server") {
+          const probe = join(linked, "build-probe.ts");
+          const metadata = join(linked, "build-result.json");
+          await Bun.write(
+            probe,
+            `import {build} from ${JSON.stringify(resolve("packages/core/src/build.ts"))};await Bun.write(${JSON.stringify(metadata)},JSON.stringify(await build(${JSON.stringify(linked)})));`,
+          );
+          const run = await execute([process.execPath, "--conditions=react-server", probe], {
+            cwd: linked,
+          });
+          expect(run.exitCode, run.stderr.toString()).toBe(0);
+          result = z
+            .object({ buildId: z.string(), output: z.string() })
+            .parse(await Bun.file(metadata).json());
+        } else result = await build(linked);
+        const built = { directory: linked, ...result };
+        await using server = await startServer(built);
+        await using client = await openClient(built, server);
+        expect(
+          client.app.options.resolveModule(`${built.buildId}/components/counter.tsx`).peerUseState,
+        ).toBe(rendererPeer.useState);
+        expect(await client.waitFor("ISOLATED_CLIENT_RENDER")).toContain("ISOLATED_CLIENT_RENDER");
+      } finally {
+        await rm(linked, { recursive: true, force: true });
+      }
+    },
+    TEST_TIMEOUT_MS,
+  );
 
 for (const mode of ["start", "compile"] as const)
   test(`the isolated Client renders through ${mode}`, async () => {
