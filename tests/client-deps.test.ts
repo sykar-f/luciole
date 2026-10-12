@@ -1,8 +1,9 @@
 import { afterAll, expect, test } from "bun:test";
-import { mkdir, rm, symlink } from "node:fs/promises";
+import { cp, mkdir, readdir, rename, rm, symlink } from "node:fs/promises";
 import { createRequire } from "node:module";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import { useState } from "react";
+import { z } from "zod";
 import { build } from "../packages/core/src/build";
 import { buildApp, openClient, startServer, TEST_TIMEOUT_MS } from "../packages/core/src/test";
 import { compileClient } from "../packages/core/src/compile";
@@ -124,5 +125,159 @@ for (const mode of ["start", "compile"] as const)
         await exited(child).catch(() => {});
       }
       await rm(run, { recursive: true, force: true });
+    }
+  }, 60000);
+
+const CacheRecord = z
+  .object({
+    buildId: z.string(),
+    options: z.object({ clientInstallation: z.string().optional() }).passthrough(),
+  })
+  .passthrough();
+
+for (const mode of ["build", "dev"] as const)
+  test(`a moved isolated installation rebuilds its Client through ${mode}`, async () => {
+    const container = await isolatedTemporary("luciole-client-move-");
+    const before = join(container, "before");
+    const after = join(container, "after");
+    let child: Subprocess | undefined;
+    try {
+      await mkdir(join(before, "node_modules/@luciole-sh"), { recursive: true });
+      const core = join(before, "node_modules/@luciole-sh/core");
+      await cp(resolve("packages/core"), core, {
+        recursive: true,
+        filter: (path) =>
+          !relative(resolve("packages/core"), path).split("/").includes("node_modules"),
+      });
+      const dependencies = join(core, "node_modules");
+      await mkdir(dependencies);
+      // Other dependencies stay installed; the four absolute Client externals move
+      // physically with core. Relative imports inside each copied package remain intact.
+      for (const entry of await readdir(resolve("node_modules"))) {
+        if (entry.startsWith(".")) continue;
+        const names = entry.startsWith("@")
+          ? (await readdir(resolve("node_modules", entry))).map((name) => `${entry}/${name}`)
+          : [entry];
+        for (const name of names) {
+          const target = join(dependencies, name);
+          await mkdir(dirname(target), { recursive: true });
+          if (
+            [
+              "react-server-dom-webpack",
+              "react-reconciler",
+              "@opentui/core",
+              "@opentui/react",
+            ].includes(name)
+          ) {
+            const source = dirname(
+              Bun.resolveSync(`${name}/package.json`, resolve("packages/core")),
+            );
+            await cp(source, target, {
+              recursive: true,
+              dereference: true,
+              filter: (path) => !relative(source, path).split("/").includes("node_modules"),
+            });
+          } else await symlink(resolve("node_modules", name), target, "dir");
+        }
+      }
+      for (const name of ["react", "react-dom"])
+        await symlink(
+          dirname(Bun.resolveSync(`${name}/package.json`, resolve("packages/core"))),
+          join(before, "node_modules", name),
+          "dir",
+        );
+      for (const name of ["app", "components", "package.json"])
+        await cp(join(directory, name), join(before, name), { recursive: true });
+      await cp(resolve("bun.lock"), join(before, "bun.lock"));
+      const rebuild = async (root: string) => {
+        const result = await execute(
+          [
+            process.execPath,
+            join(root, "node_modules/@luciole-sh/core/src/cli.ts"),
+            "build",
+            "--app",
+            root,
+          ],
+          { cwd: root },
+        );
+        expect(result.exitCode, result.stderr.toString()).toBe(0);
+      };
+      await rebuild(before);
+      const manifest = join(before, ".luciole/manifest.json");
+      const initial = CacheRecord.parse(await Bun.file(manifest).json());
+      // Decode a manifest in its previous form: missing installation metadata is
+      // accepted as an old cache record, but cannot make the Client up to date.
+      delete initial.options.clientInstallation;
+      await Bun.write(manifest, JSON.stringify(initial));
+      const clientFile = join(before, ".luciole/client/index.js");
+      await Bun.write(clientFile, (await Bun.file(clientFile).text()) + "\n// OLD_CACHE_RECORD");
+      await rebuild(before);
+      expect(await Bun.file(clientFile).text()).not.toContain("OLD_CACHE_RECORD");
+      const prior = CacheRecord.parse(await Bun.file(manifest).json());
+      expect(prior.options.clientInstallation).toBe(join(core, "src"));
+      expect(await Bun.file(clientFile).text()).toContain(core);
+      await rename(before, after);
+      if (mode === "build") await rebuild(after);
+      const relocatedCore = join(after, "node_modules/@luciole-sh/core");
+      const cli = join(relocatedCore, "src/cli.ts");
+      await using server =
+        mode === "build"
+          ? await startServer(
+              { directory: after, output: join(after, ".luciole"), buildId: prior.buildId },
+              { NODE_ENV: "production" },
+            )
+          : undefined;
+      const log = join(container, "screen.log");
+      const command = `${process.execPath} ${cli} ${mode === "dev" ? "dev" : `start --role client --url ${server?.url}`} --app ${after}`;
+      child = Bun.spawn(inPty(log, command), {
+        cwd: container,
+        env: {
+          ...process.env,
+          HOME: container,
+          XDG_STATE_HOME: container,
+          TERM: "xterm-256color",
+          NODE_ENV: mode === "dev" ? "development" : "production",
+        },
+        stdout: "ignore",
+        stderr: "ignore",
+      });
+      let screen = "";
+      await until(
+        () => {
+          screen = existsSync(log) ? Bun.stripANSI(readFileSync(log, "utf8")) : "";
+          return screen.includes("ISOLATED_CLIENT_RENDER");
+        },
+        WAIT_MS,
+        () => screen,
+      );
+      const moved = CacheRecord.parse(await Bun.file(join(after, ".luciole/manifest.json")).json());
+      expect(moved.buildId).toBe(prior.buildId);
+      expect(moved.options.clientInstallation).toBe(join(relocatedCore, "src"));
+      expect(await Bun.file(join(after, ".luciole/client/index.js")).text()).not.toContain(core);
+      if (mode === "dev") {
+        await Bun.write(
+          join(after, "components/counter.tsx"),
+          (await Bun.file(join(after, "components/counter.tsx")).text()).replace(
+            "ISOLATED_CLIENT_RENDER",
+            "DEV_REBUILD_RENDER",
+          ),
+        );
+        await until(
+          () => {
+            screen = existsSync(log) ? Bun.stripANSI(readFileSync(log, "utf8")) : "";
+            return screen.includes("DEV_REBUILD_RENDER");
+          },
+          WAIT_MS,
+          () => screen,
+        );
+      }
+      await Bun.write(join(container, "stop"), "");
+      expect(await exited(child)).toBe(0);
+    } finally {
+      if (child) {
+        await Bun.write(join(container, "stop"), "");
+        await exited(child).catch(() => {});
+      }
+      await rm(container, { recursive: true, force: true });
     }
   }, 60000);

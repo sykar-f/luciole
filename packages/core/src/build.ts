@@ -317,6 +317,8 @@ const BuiltWith = z.object({
     appBundle: z.enum(["auto", "required"]),
     webServer: z.boolean(),
     signed: z.boolean(),
+    // Older manifests remain readable; without this path they need a fresh Client.
+    clientInstallation: z.string().optional(),
   }),
 });
 async function upToDate(
@@ -333,7 +335,8 @@ async function upToDate(
       built.data.buildId === buildId &&
       built.data.options.appBundle === options.appBundle &&
       built.data.options.webServer === options.webServer &&
-      built.data.options.signed === options.signed
+      built.data.options.signed === options.signed &&
+      built.data.options.clientInstallation === options.clientInstallation
     );
   } catch {
     return false;
@@ -842,7 +845,14 @@ async function buildUnlocked(
   for (const p of clients)
     for (const name of moduleAt(p).exports)
       manifest[`${id(p)}#${name}`] = { id: id(p), chunks: [], name };
-  const builtWith = { appBundle, webServer, signed: !!signBundle };
+  // Absolute Client imports belong to this installation. Relocation invalidates the
+  // local output cache, never the portable build identity shared with its Server.
+  const builtWith = {
+    appBundle,
+    webServer,
+    signed: !!signBundle,
+    clientInstallation: await realpath(framework),
+  };
   // A signature is not part of the identity: a signed build is always made afresh.
   if (!signBundle && (await upToDate(output, buildId, builtWith))) {
     if (stage) await restage(output, stage);
