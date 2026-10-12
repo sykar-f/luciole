@@ -15,7 +15,7 @@ import { readdirSync, readFileSync } from "node:fs";
 //   configuration, the tests' shared helpers and fixtures) runs the whole suite.
 const base = process.argv[2] ?? "main";
 const SHORT_SHA = 7;
-const TEST_FLAGS = ["--timeout", "20000", "--parallel=4"];
+const TEST_COMMAND = [process.execPath, "scripts/test.ts"];
 const EVERYTHING = [
   /(^|\/)package\.json$/,
   /^bun\.lock$/,
@@ -118,7 +118,7 @@ if (!whole && selected.length === 0) {
 }
 // `./`: bun test takes a bare argument as a filter on paths, a `./` one as the file.
 const files = selected.map((test) => `./${test}`);
-const suite = Bun.spawn([process.execPath, "test", ...TEST_FLAGS, ...files], {
+const suite = Bun.spawn([...TEST_COMMAND, ...files], {
   stdout: "inherit",
   stderr: "inherit",
 });
