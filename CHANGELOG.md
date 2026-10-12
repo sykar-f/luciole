@@ -44,6 +44,8 @@ and marked **Breaking**.
 
 ### Fixed
 
+- Shipped agent skills use the app's installed `./node_modules/.bin/luciole`
+  instead of `bunx luciole`, which could fetch an unrelated npm package.
 - Core compiles with `exactOptionalPropertyTypes`,
   `noPropertyAccessFromIndexSignature`, `noUncheckedIndexedAccess` and
   `noUnusedLocals`, without DOM types. Generated route trees import only the
