@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { build } from "../packages/core/src/build";
 import { messageOf } from "../packages/core/src/guards";
-import { rejectionOf } from "./helpers";
+import { BUILD_TEST_MS, rejectionOf } from "./helpers";
 
 async function fixture(files: Record<string, string>, run: (dir: string) => Promise<void>) {
   const dir = await mkdtemp(join(tmpdir(), "luciole-cache-build-"));
@@ -23,21 +23,25 @@ async function fixture(files: Record<string, string>, run: (dir: string) => Prom
   }
 }
 
-test("module and function directives wrap exported async functions on the Server only", async () => {
-  await fixture(
-    {
-      "server/q.ts": `"use cache";import {helper} from "./h";export type T=number;async function local(){return 1}export async function read(){return helper()+await local()}export async function other(){return 2}`,
-      "server/h.ts": `export const helper=()=>1;export async function fn(n:number){"use cache";return n}`,
-    },
-    async (dir) => {
-      await build(dir);
-      const server = await readFile(join(dir, ".luciole/server/index.js"), "utf8");
-      for (const id of ["server/q.ts#read", "server/q.ts#other", "server/h.ts#fn"])
-        expect(server).toContain(JSON.stringify(id));
-      expect(server).not.toContain('"server/q.ts#local"');
-    },
-  );
-});
+test(
+  "module and function directives wrap exported async functions on the Server only",
+  async () => {
+    await fixture(
+      {
+        "server/q.ts": `"use cache";import {helper} from "./h";export type T=number;async function local(){return 1}export async function read(){return helper()+await local()}export async function other(){return 2}`,
+        "server/h.ts": `export const helper=()=>1;export async function fn(n:number){"use cache";return n}`,
+      },
+      async (dir) => {
+        await build(dir);
+        const server = await readFile(join(dir, ".luciole/server/index.js"), "utf8");
+        for (const id of ["server/q.ts#read", "server/q.ts#other", "server/h.ts#fn"])
+          expect(server).toContain(JSON.stringify(id));
+        expect(server).not.toContain('"server/q.ts#local"');
+      },
+    );
+  },
+  BUILD_TEST_MS,
+);
 
 for (const [name, files, message] of [
   [
@@ -116,25 +120,33 @@ for (const [name, files, message] of [
     "staleTime must be a number of seconds",
   ],
 ] as const)
-  test(`refuses ${name}, naming the file and line`, async () => {
-    await fixture(files, async (dir) => {
-      const error = messageOf(await rejectionOf(build(dir)));
-      expect(error).toContain(message);
-      expect(error).toMatch(/\.tsx?:\d+:\d+:/);
-    });
-  });
-
-test("a page's staleTime, in seconds, becomes its router staleTime in milliseconds", async () => {
-  await fixture(
-    {
-      "server/q.ts": `export async function read(){return 1}`,
-      "app/list/page.tsx": `export const staleTime = 5 * 60;export default function P(){return <text>p</text>}`,
+  test(
+    `refuses ${name}, naming the file and line`,
+    async () => {
+      await fixture(files, async (dir) => {
+        const error = messageOf(await rejectionOf(build(dir)));
+        expect(error).toContain(message);
+        expect(error).toMatch(/\.tsx?:\d+:\d+:/);
+      });
     },
-    async (dir) => {
-      await build(dir);
-      const tree = await readFile(join(dir, "app/routeTree.gen.ts"), "utf8");
-      expect(tree).toContain('path: "list",\n  staleTime: 300000,\n');
-      expect(tree.match(/staleTime/g)).toHaveLength(1);
-    },
+    BUILD_TEST_MS,
   );
-});
+
+test(
+  "a page's staleTime, in seconds, becomes its router staleTime in milliseconds",
+  async () => {
+    await fixture(
+      {
+        "server/q.ts": `export async function read(){return 1}`,
+        "app/list/page.tsx": `export const staleTime = 5 * 60;export default function P(){return <text>p</text>}`,
+      },
+      async (dir) => {
+        await build(dir);
+        const tree = await readFile(join(dir, "app/routeTree.gen.ts"), "utf8");
+        expect(tree).toContain('path: "list",\n  staleTime: 300000,\n');
+        expect(tree.match(/staleTime/g)).toHaveLength(1);
+      },
+    );
+  },
+  BUILD_TEST_MS,
+);

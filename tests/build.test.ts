@@ -24,33 +24,37 @@ async function fixture(files: Record<string, string>, run: (dir: string) => Prom
     await rm(dir, { recursive: true, force: true });
   }
 }
-test("automatic graph, Client reexports, action proxies, no repository in Client", async () => {
-  await fixture(
-    {
-      "app/page.tsx": `import {Editor} from '../components/barrel'; export default function Page(){return <Editor/>}`,
-      "components/barrel.ts": `"use client";export {Editor} from './editor'`,
-      "components/editor.tsx": `import {save} from '../actions/save';export function Editor(){return <input onSubmit={()=>save('x')}/>}`,
-      "actions/save.ts": `"use server";import {value} from '../server/repository';export async function save(x:string){return value+x;}`,
-      "server/repository.ts": `import 'server-only';export const value='SECRET_REPOSITORY_SENTINEL';`,
-    },
-    async (dir) => {
-      await build(dir);
-      const manifest = await readManifest(dir);
-      expect(manifest.manifest[`${manifest.buildId}/components/barrel.ts#Editor`]).toBeDefined();
-      expect(await Bun.file(join(dir, ".luciole/client/index.js")).text()).not.toContain(
-        "SECRET_REPOSITORY_SENTINEL",
-      );
-      expect(await Bun.file(join(dir, ".luciole/server/index.js")).text()).toContain(
-        "SECRET_REPOSITORY_SENTINEL",
-      );
-      expect(manifest.clientGraph).not.toContain("server/repository.ts");
-      // TanStack's server build would bypass the Client transition machinery.
-      const client = await Bun.file(join(dir, ".luciole/client/index.js")).text();
-      expect(client).toContain("createRouter");
-      expect(client).not.toContain('process.env.NODE_ENV === "test" ? void 0 : true');
-    },
-  );
-});
+test(
+  "automatic graph, Client reexports, action proxies, no repository in Client",
+  async () => {
+    await fixture(
+      {
+        "app/page.tsx": `import {Editor} from '../components/barrel'; export default function Page(){return <Editor/>}`,
+        "components/barrel.ts": `"use client";export {Editor} from './editor'`,
+        "components/editor.tsx": `import {save} from '../actions/save';export function Editor(){return <input onSubmit={()=>save('x')}/>}`,
+        "actions/save.ts": `"use server";import {value} from '../server/repository';export async function save(x:string){return value+x;}`,
+        "server/repository.ts": `import 'server-only';export const value='SECRET_REPOSITORY_SENTINEL';`,
+      },
+      async (dir) => {
+        await build(dir);
+        const manifest = await readManifest(dir);
+        expect(manifest.manifest[`${manifest.buildId}/components/barrel.ts#Editor`]).toBeDefined();
+        expect(await Bun.file(join(dir, ".luciole/client/index.js")).text()).not.toContain(
+          "SECRET_REPOSITORY_SENTINEL",
+        );
+        expect(await Bun.file(join(dir, ".luciole/server/index.js")).text()).toContain(
+          "SECRET_REPOSITORY_SENTINEL",
+        );
+        expect(manifest.clientGraph).not.toContain("server/repository.ts");
+        // TanStack's server build would bypass the Client transition machinery.
+        const client = await Bun.file(join(dir, ".luciole/client/index.js")).text();
+        expect(client).toContain("createRouter");
+        expect(client).not.toContain('process.env.NODE_ENV === "test" ? void 0 : true');
+      },
+    );
+  },
+  BUILD_TEST_MS,
+);
 for (const [name, extra] of Object.entries<Record<string, string>>({
   transitive: {
     "shared.ts": `export {value} from './server/secret'`,
@@ -61,52 +65,64 @@ for (const [name, extra] of Object.entries<Record<string, string>>({
     "shared.ts": `export async function value(){"use server";return 1;}`,
   },
 }))
-  test(`reject ${name} with file/line diagnostic`, async () => {
+  test(
+    `reject ${name} with file/line diagnostic`,
+    async () => {
+      await fixture(
+        {
+          "app/page.tsx": `import {Editor} from '../editor';export default function Page(){return <Editor/>}`,
+          "editor.tsx": `"use client";import {value} from './shared';export function Editor(){return <text>{String(value)}</text>}`,
+          ...extra,
+        },
+        async (dir) => {
+          expect(messageOf(await rejectionOf(build(dir)))).toMatch(/\.ts:\d+:\d+:/);
+        },
+      );
+    },
+    BUILD_TEST_MS,
+  );
+test(
+  "a Client module may use Bun and Node builtins: only the side markers decide",
+  async () => {
+    // The Client runs on Bun: a local file, a subprocess or a local database are its own.
+    // Keeping a module on one side is server-only, server/ or client-only (cases above).
     await fixture(
       {
         "app/page.tsx": `import {Editor} from '../editor';export default function Page(){return <Editor/>}`,
-        "editor.tsx": `"use client";import {value} from './shared';export function Editor(){return <text>{String(value)}</text>}`,
-        ...extra,
+        "editor.tsx": `"use client";import {local} from './lib/local';export function Editor(){return <text>{String(local)}</text>}`,
+        "lib/local.ts": `import {readFileSync} from 'node:fs';import {Database} from 'bun:sqlite';export const local=()=>[readFileSync, Database, "LOCAL_STORE_SENTINEL"];`,
       },
       async (dir) => {
-        expect(messageOf(await rejectionOf(build(dir)))).toMatch(/\.ts:\d+:\d+:/);
+        await build(dir);
+        expect((await readManifest(dir)).clientGraph).toContain("lib/local.ts");
+        expect(await Bun.file(join(dir, ".luciole/client/index.js")).text()).toContain(
+          "LOCAL_STORE_SENTINEL",
+        );
       },
     );
-  });
-test("a Client module may use Bun and Node builtins: only the side markers decide", async () => {
-  // The Client runs on Bun: a local file, a subprocess or a local database are its own.
-  // Keeping a module on one side is server-only, server/ or client-only (cases above).
-  await fixture(
-    {
-      "app/page.tsx": `import {Editor} from '../editor';export default function Page(){return <Editor/>}`,
-      "editor.tsx": `"use client";import {local} from './lib/local';export function Editor(){return <text>{String(local)}</text>}`,
-      "lib/local.ts": `import {readFileSync} from 'node:fs';import {Database} from 'bun:sqlite';export const local=()=>[readFileSync, Database, "LOCAL_STORE_SENTINEL"];`,
-    },
-    async (dir) => {
-      await build(dir);
-      expect((await readManifest(dir)).clientGraph).toContain("lib/local.ts");
-      expect(await Bun.file(join(dir, ".luciole/client/index.js")).text()).toContain(
-        "LOCAL_STORE_SENTINEL",
-      );
-    },
-  );
-});
-test("failed rebuild retains prior artefacts", async () => {
-  await fixture(
-    {
-      "app/page.tsx": "export default function Page(){return <text>ok</text>}",
-    },
-    async (dir) => {
-      const first = await build(dir);
-      await Bun.write(
-        join(dir, "app/page.tsx"),
-        'export default async function Page(){"use server";return <text>no</text>}',
-      );
-      expect(messageOf(await rejectionOf(build(dir)))).toContain("Inline");
-      expect((await readManifest(dir)).buildId).toBe(first.buildId);
-    },
-  );
-});
+  },
+  BUILD_TEST_MS,
+);
+test(
+  "failed rebuild retains prior artefacts",
+  async () => {
+    await fixture(
+      {
+        "app/page.tsx": "export default function Page(){return <text>ok</text>}",
+      },
+      async (dir) => {
+        const first = await build(dir);
+        await Bun.write(
+          join(dir, "app/page.tsx"),
+          'export default async function Page(){"use server";return <text>no</text>}',
+        );
+        expect(messageOf(await rejectionOf(build(dir)))).toContain("Inline");
+        expect((await readManifest(dir)).buildId).toBe(first.buildId);
+      },
+    );
+  },
+  BUILD_TEST_MS,
+);
 
 test("a failed publication puts the previous build back", async () => {
   const work = await mkdtemp(join(tmpdir(), "luciole-publish-"));
@@ -161,36 +177,40 @@ test("a publication after a killed one keeps the previous build", async () => {
     await rm(work, { recursive: true, force: true });
   }
 });
-test("a step staged with the build that fails leaves the previous build", async () => {
-  await fixture(
-    { "app/page.tsx": "export default function Page(){return <text>ok</text>}" },
-    async (dir) => {
-      const first = await build(dir);
-      await Bun.write(
-        join(dir, "app/page.tsx"),
-        "export default function Page(){return <text>NEW_PAGE_SENTINEL</text>}",
-      );
-      const staged: string[] = [];
-      // What `--web` does once the app is built: a failing runtime install.
-      const failure = await rejectionOf(
-        build(dir, undefined, {
-          stage: async (temp) => {
-            staged.push(temp);
-            expect(await readBuildId(temp)).not.toBe(first.buildId);
-            throw new Error("web runtime unavailable");
-          },
-        }),
-      );
-      expect(messageOf(failure)).toBe("web runtime unavailable");
-      expect((await readManifest(dir)).buildId).toBe(first.buildId);
-      expect(await Bun.file(join(dir, ".luciole/server/index.js")).text()).not.toContain(
-        "NEW_PAGE_SENTINEL",
-      );
-      expect(await stat(staged[0]).catch(() => undefined)).toBeUndefined();
-      expect(await readdir(dir)).not.toContain(".luciole-previous");
-    },
-  );
-});
+test(
+  "a step staged with the build that fails leaves the previous build",
+  async () => {
+    await fixture(
+      { "app/page.tsx": "export default function Page(){return <text>ok</text>}" },
+      async (dir) => {
+        const first = await build(dir);
+        await Bun.write(
+          join(dir, "app/page.tsx"),
+          "export default function Page(){return <text>NEW_PAGE_SENTINEL</text>}",
+        );
+        const staged: string[] = [];
+        // What `--web` does once the app is built: a failing runtime install.
+        const failure = await rejectionOf(
+          build(dir, undefined, {
+            stage: async (temp) => {
+              staged.push(temp);
+              expect(await readBuildId(temp)).not.toBe(first.buildId);
+              throw new Error("web runtime unavailable");
+            },
+          }),
+        );
+        expect(messageOf(failure)).toBe("web runtime unavailable");
+        expect((await readManifest(dir)).buildId).toBe(first.buildId);
+        expect(await Bun.file(join(dir, ".luciole/server/index.js")).text()).not.toContain(
+          "NEW_PAGE_SENTINEL",
+        );
+        expect(await stat(staged[0]).catch(() => undefined)).toBeUndefined();
+        expect(await readdir(dir)).not.toContain(".luciole-previous");
+      },
+    );
+  },
+  BUILD_TEST_MS,
+);
 test(
   "a failed --compile leaves the previous build and the previous binary",
   async () => {
@@ -315,37 +335,42 @@ async function tree(directory: string, into = new Map<string, string>(), at = ""
 /** What a build left beside `.luciole/`: a temporary directory or a backup. */
 const leftovers = async (dir: string) =>
   (await readdir(dir)).filter((name) => name.startsWith(".luciole-") && name !== ".luciole-lock");
-test("an up-to-date build stages on a copy and publishes it", async () => {
-  await fixture(
-    { "app/page.tsx": "export default function Page(){return <text>ok</text>}" },
-    async (dir) => {
-      const output = join(dir, ".luciole");
-      const first = await build(dir);
-      const before = await tree(output);
-      const staged: string[] = [];
-      const failure = await rejectionOf(
-        build(dir, undefined, {
-          stage: async (temp) => {
-            staged.push(temp);
-            expect(await readBuildId(temp)).toBe(first.buildId);
-            await Bun.write(join(temp, "server/index.js"), "half-written");
-            throw new Error("codesign failed");
-          },
-        }),
-      );
-      expect(messageOf(failure)).toBe("codesign failed");
-      expect(staged[0]).not.toBe(output);
-      expect(await tree(output)).toEqual(before);
-      expect(await leftovers(dir)).toEqual([]);
-      const again = await build(dir, undefined, {
-        stage: (temp) => Bun.write(join(temp, "web/index.html"), "STAGED_SENTINEL").then(() => {}),
-      });
-      expect(again.buildId).toBe(first.buildId);
-      expect(await Bun.file(join(output, "web/index.html")).text()).toBe("STAGED_SENTINEL");
-      expect(await leftovers(dir)).toEqual([]);
-    },
-  );
-});
+test(
+  "an up-to-date build stages on a copy and publishes it",
+  async () => {
+    await fixture(
+      { "app/page.tsx": "export default function Page(){return <text>ok</text>}" },
+      async (dir) => {
+        const output = join(dir, ".luciole");
+        const first = await build(dir);
+        const before = await tree(output);
+        const staged: string[] = [];
+        const failure = await rejectionOf(
+          build(dir, undefined, {
+            stage: async (temp) => {
+              staged.push(temp);
+              expect(await readBuildId(temp)).toBe(first.buildId);
+              await Bun.write(join(temp, "server/index.js"), "half-written");
+              throw new Error("codesign failed");
+            },
+          }),
+        );
+        expect(messageOf(failure)).toBe("codesign failed");
+        expect(staged[0]).not.toBe(output);
+        expect(await tree(output)).toEqual(before);
+        expect(await leftovers(dir)).toEqual([]);
+        const again = await build(dir, undefined, {
+          stage: (temp) =>
+            Bun.write(join(temp, "web/index.html"), "STAGED_SENTINEL").then(() => {}),
+        });
+        expect(again.buildId).toBe(first.buildId);
+        expect(await Bun.file(join(output, "web/index.html")).text()).toBe("STAGED_SENTINEL");
+        expect(await leftovers(dir)).toEqual([]);
+      },
+    );
+  },
+  BUILD_TEST_MS,
+);
 test(
   "a failed --web or --compile on an up-to-date build leaves .luciole/ as it was",
   async () => {
@@ -395,34 +420,38 @@ test(
   },
   BUILD_TEST_MS * 3,
 );
-test("route auth metadata is secure by default and validated", async () => {
-  await fixture(
-    {
-      "app/page.tsx": "export default function Page(){return <text>private</text>}",
-      "app/login/page.tsx":
-        'export const auth="public" as const;export default function Page(){return <text>login</text>}',
-    },
-    async (dir) => {
-      await build(dir);
-      const manifest = await readManifest(dir);
-      expect(manifest.routes.map(({ id, url, auth }) => ({ id, url, auth }))).toEqual([
-        { id: "/", url: "/", auth: "required" },
-        { id: "/login", url: "/login", auth: "public" },
-      ]);
-    },
-  );
-  await fixture(
-    {
-      "app/page.tsx":
-        'export const auth="sometimes";export default function Page(){return <text>bad</text>}',
-    },
-    async (dir) => {
-      expect(messageOf(await rejectionOf(build(dir)))).toContain(
-        'auth must be the literal "public" or "required"',
-      );
-    },
-  );
-});
+test(
+  "route auth metadata is secure by default and validated",
+  async () => {
+    await fixture(
+      {
+        "app/page.tsx": "export default function Page(){return <text>private</text>}",
+        "app/login/page.tsx":
+          'export const auth="public" as const;export default function Page(){return <text>login</text>}',
+      },
+      async (dir) => {
+        await build(dir);
+        const manifest = await readManifest(dir);
+        expect(manifest.routes.map(({ id, url, auth }) => ({ id, url, auth }))).toEqual([
+          { id: "/", url: "/", auth: "required" },
+          { id: "/login", url: "/login", auth: "public" },
+        ]);
+      },
+    );
+    await fixture(
+      {
+        "app/page.tsx":
+          'export const auth="sometimes";export default function Page(){return <text>bad</text>}',
+      },
+      async (dir) => {
+        expect(messageOf(await rejectionOf(build(dir)))).toContain(
+          'auth must be the literal "public" or "required"',
+        );
+      },
+    );
+  },
+  BUILD_TEST_MS,
+);
 for (const [file, source] of [
   ["app/loading.tsx", "export default function Loading(){return <text>wait</text>}"],
   [
@@ -436,31 +465,41 @@ for (const [file, source] of [
     '"use client";import {getSession} from "@luciole-sh/core/server";export default function Layout({children}){return <text>{getSession().userId}</text>}',
   ],
 ] as const)
-  test(`reject ${file}: ${source.slice(0, 48)}`, async () => {
+  test(
+    `reject ${file}: ${source.slice(0, 48)}`,
+    async () => {
+      await fixture(
+        {
+          "app/page.tsx": "export default function Page(){return <text>home</text>}",
+          "app/(group)/about/page.tsx": "export default function Page(){return <text>about</text>}",
+          "server/db.ts": "export const db = 1;",
+          [file]: source,
+        },
+        async (dir) => {
+          expect(messageOf(await rejectionOf(build(dir)))).toMatch(
+            /(loading|layout)\.tsx:\d+:\d+:/,
+          );
+        },
+      );
+    },
+    BUILD_TEST_MS,
+  );
+test(
+  "route graph diagnostics abort the build before any artefact",
+  async () => {
     await fixture(
       {
-        "app/page.tsx": "export default function Page(){return <text>home</text>}",
-        "app/(group)/about/page.tsx": "export default function Page(){return <text>about</text>}",
-        "server/db.ts": "export const db = 1;",
-        [file]: source,
+        "app/(a)/users/page.tsx": "export default function Page(){return <text>a</text>}",
+        "app/(b)/users/page.tsx": "export default function Page(){return <text>b</text>}",
       },
       async (dir) => {
-        expect(messageOf(await rejectionOf(build(dir)))).toMatch(/(loading|layout)\.tsx:\d+:\d+:/);
+        expect(messageOf(await rejectionOf(build(dir)))).toContain("Route collision /users");
+        expect(await Bun.file(join(dir, ".luciole/manifest.json")).exists()).toBe(false);
       },
     );
-  });
-test("route graph diagnostics abort the build before any artefact", async () => {
-  await fixture(
-    {
-      "app/(a)/users/page.tsx": "export default function Page(){return <text>a</text>}",
-      "app/(b)/users/page.tsx": "export default function Page(){return <text>b</text>}",
-    },
-    async (dir) => {
-      expect(messageOf(await rejectionOf(build(dir)))).toContain("Route collision /users");
-      expect(await Bun.file(join(dir, ".luciole/manifest.json")).exists()).toBe(false);
-    },
-  );
-});
+  },
+  BUILD_TEST_MS,
+);
 test(
   "layouts and loadings belong to the build identity and the Client graph",
   async () => {
@@ -514,18 +553,22 @@ const clientUsing = (specifier: string, name: string) => ({
   "components/widget.tsx": `"use client";import {${name}} from '${specifier}';export function Widget(){return <text>{String(${name})}</text>}`,
 });
 
-test("Client packages: bundled without declaration, inventoried with their versions", async () => {
-  await fixture({ ...packages, ...clientUsing("chained", "twice") }, async (dir) => {
-    await build(dir);
-    const manifest = await readManifest(dir);
-    // Transitive dependencies included; Node builtins work on the terminal Client.
-    expect(manifest.clientPackages).toContainEqual({ name: "chained", version: "2.0.0" });
-    expect(manifest.clientPackages).toContainEqual({ name: "tiny-format", version: "1.2.3" });
-    expect(await Bun.file(join(dir, ".luciole/client/index.js")).text()).toContain(
-      "TINY_FORMAT_SENTINEL",
-    );
-  });
-});
+test(
+  "Client packages: bundled without declaration, inventoried with their versions",
+  async () => {
+    await fixture({ ...packages, ...clientUsing("chained", "twice") }, async (dir) => {
+      await build(dir);
+      const manifest = await readManifest(dir);
+      // Transitive dependencies included; Node builtins work on the terminal Client.
+      expect(manifest.clientPackages).toContainEqual({ name: "chained", version: "2.0.0" });
+      expect(manifest.clientPackages).toContainEqual({ name: "tiny-format", version: "1.2.3" });
+      expect(await Bun.file(join(dir, ".luciole/client/index.js")).text()).toContain(
+        "TINY_FORMAT_SENTINEL",
+      );
+    });
+  },
+  BUILD_TEST_MS,
+);
 
 test(
   "Client packages: one made for the Server is refused with its name",
@@ -569,73 +612,83 @@ const sidePackages: Record<string, string> = {
   "node_modules/auth-kit/index.js": `import {hash} from "hasher";export const check=(s)=>hash(s);`,
 };
 
-test("boundary errors show the whole import chain, packages included", async () => {
-  await fixture(
-    {
-      ...packages,
-      "app/page.tsx": `import {Widget} from '../components/widget';export default function Page(){return <Widget/>}`,
-      "components/widget.tsx": `"use client";import {label} from '../lib/format';export function Widget(){return <text>{label()}</text>}`,
-      "lib/format.ts": `import {query} from 'db-client';export const label=()=>String(query);`,
-    },
-    async (dir) => {
-      expect(messageOf(await rejectionOf(build(dir)))).toContain(
-        "Client package db-client imports server-only: it is Server-only\n  via app/page.tsx → components/widget.tsx → lib/format.ts → db-client/index.js → server-only",
-      );
-    },
-  );
-  await fixture(
-    {
-      "app/page.tsx": `import {Widget} from '../components/widget';export default function Page(){return <Widget/>}`,
-      "components/widget.tsx": `"use client";import {v} from '../lib/shared';export function Widget(){return <text>{v}</text>}`,
-      "lib/shared.ts": `export {v} from '../server/secret'`,
-      "server/secret.ts": `export const v=1`,
-    },
-    async (dir) => {
-      expect(messageOf(await rejectionOf(build(dir)))).toMatch(
-        /lib\/shared\.ts:1:1: Server-only import in Client graph: \.\.\/server\/secret\n {2}via app\/page\.tsx → components\/widget\.tsx → lib\/shared\.ts/,
-      );
-    },
-  );
-});
+test(
+  "boundary errors show the whole import chain, packages included",
+  async () => {
+    await fixture(
+      {
+        ...packages,
+        "app/page.tsx": `import {Widget} from '../components/widget';export default function Page(){return <Widget/>}`,
+        "components/widget.tsx": `"use client";import {label} from '../lib/format';export function Widget(){return <text>{label()}</text>}`,
+        "lib/format.ts": `import {query} from 'db-client';export const label=()=>String(query);`,
+      },
+      async (dir) => {
+        expect(messageOf(await rejectionOf(build(dir)))).toContain(
+          "Client package db-client imports server-only: it is Server-only\n  via app/page.tsx → components/widget.tsx → lib/format.ts → db-client/index.js → server-only",
+        );
+      },
+    );
+    await fixture(
+      {
+        "app/page.tsx": `import {Widget} from '../components/widget';export default function Page(){return <Widget/>}`,
+        "components/widget.tsx": `"use client";import {v} from '../lib/shared';export function Widget(){return <text>{v}</text>}`,
+        "lib/shared.ts": `export {v} from '../server/secret'`,
+        "server/secret.ts": `export const v=1`,
+      },
+      async (dir) => {
+        expect(messageOf(await rejectionOf(build(dir)))).toMatch(
+          /lib\/shared\.ts:1:1: Server-only import in Client graph: \.\.\/server\/secret\n {2}via app\/page\.tsx → components\/widget\.tsx → lib\/shared\.ts/,
+        );
+      },
+    );
+  },
+  BUILD_TEST_MS,
+);
 
-test("client-only code never runs on the Server, except behind a use client boundary", async () => {
-  // Application module marked client-only, imported by a page.
-  await fixture(
-    {
-      "app/page.tsx": `import {open} from '../lib/editor';export default function Page(){return <text>{String(open)}</text>}`,
-      "lib/editor.ts": `import "client-only";export const open=()=>Bun.spawn(["vi"]);`,
-    },
-    async (dir) => {
-      expect(messageOf(await rejectionOf(build(dir)))).toMatch(
-        /lib\/editor\.ts:1:1: Client-only module in Server graph: it never runs on the Server\n {2}via app\/page\.tsx → lib\/editor\.ts/,
-      );
-    },
-  );
-  // A package marked client-only, used by Server code.
-  await fixture(
-    {
-      ...sidePackages,
-      "app/page.tsx": `import {openEditor} from 'editor-kit';export default function Page(){return <text>{String(openEditor)}</text>}`,
-    },
-    async (dir) => {
-      expect(messageOf(await rejectionOf(build(dir)))).toContain(
-        "Server package editor-kit imports client-only: it never runs on the Server\n  via app/page.tsx → editor-kit/index.js → client-only",
-      );
-    },
-  );
-  // Both, behind a "use client" boundary: the Server only holds references.
-  await fixture(
-    {
-      ...sidePackages,
-      "app/page.tsx": `import {Editor} from '../components/editor';export default function Page(){return <Editor/>}`,
-      "components/editor.tsx": `"use client";import "client-only";import {openEditor} from 'editor-kit';export function Editor(){return <text>{String(openEditor)}</text>}`,
-    },
-    async (dir) => {
-      await build(dir);
-      expect(await Bun.file(join(dir, ".luciole/server/index.js")).text()).not.toContain("EDITOR");
-    },
-  );
-});
+test(
+  "client-only code never runs on the Server, except behind a use client boundary",
+  async () => {
+    // Application module marked client-only, imported by a page.
+    await fixture(
+      {
+        "app/page.tsx": `import {open} from '../lib/editor';export default function Page(){return <text>{String(open)}</text>}`,
+        "lib/editor.ts": `import "client-only";export const open=()=>Bun.spawn(["vi"]);`,
+      },
+      async (dir) => {
+        expect(messageOf(await rejectionOf(build(dir)))).toMatch(
+          /lib\/editor\.ts:1:1: Client-only module in Server graph: it never runs on the Server\n {2}via app\/page\.tsx → lib\/editor\.ts/,
+        );
+      },
+    );
+    // A package marked client-only, used by Server code.
+    await fixture(
+      {
+        ...sidePackages,
+        "app/page.tsx": `import {openEditor} from 'editor-kit';export default function Page(){return <text>{String(openEditor)}</text>}`,
+      },
+      async (dir) => {
+        expect(messageOf(await rejectionOf(build(dir)))).toContain(
+          "Server package editor-kit imports client-only: it never runs on the Server\n  via app/page.tsx → editor-kit/index.js → client-only",
+        );
+      },
+    );
+    // Both, behind a "use client" boundary: the Server only holds references.
+    await fixture(
+      {
+        ...sidePackages,
+        "app/page.tsx": `import {Editor} from '../components/editor';export default function Page(){return <Editor/>}`,
+        "components/editor.tsx": `"use client";import "client-only";import {openEditor} from 'editor-kit';export function Editor(){return <text>{String(openEditor)}</text>}`,
+      },
+      async (dir) => {
+        await build(dir);
+        expect(await Bun.file(join(dir, ".luciole/server/index.js")).text()).not.toContain(
+          "EDITOR",
+        );
+      },
+    );
+  },
+  BUILD_TEST_MS,
+);
 
 test(
   "serverPackages keeps listed third-party packages out of the Client",
@@ -681,41 +734,49 @@ test(
   },
   BUILD_TEST_MS,
 );
-test("application code shares the framework's zod; a package keeps its own", async () => {
-  await fixture(
-    {
-      "node_modules/legacy-kit/package.json": `{"name":"legacy-kit","version":"1.0.0","main":"index.js"}`,
-      "node_modules/legacy-kit/index.js": `import {z} from "zod";export const kit=()=>z.marker;`,
-      "node_modules/legacy-kit/node_modules/zod/package.json": `{"name":"zod","version":"3.0.0","main":"index.js"}`,
-      "node_modules/legacy-kit/node_modules/zod/index.js": `export const z={marker:"LEGACY_ZOD_SENTINEL"};`,
-      "app/page.tsx": `import {kit} from 'legacy-kit';import {z} from 'zod';export default function Page(){return <text>{String(kit())}{z.string().parse('app')}</text>}`,
-    },
-    async (dir) => {
-      await build(dir);
-      const server = await Bun.file(join(dir, ".luciole/server/index.js")).text();
-      expect(server).toContain("LEGACY_ZOD_SENTINEL");
-      expect(server).toContain("node_modules/zod/v4/classic/");
-    },
-  );
-});
+test(
+  "application code shares the framework's zod; a package keeps its own",
+  async () => {
+    await fixture(
+      {
+        "node_modules/legacy-kit/package.json": `{"name":"legacy-kit","version":"1.0.0","main":"index.js"}`,
+        "node_modules/legacy-kit/index.js": `import {z} from "zod";export const kit=()=>z.marker;`,
+        "node_modules/legacy-kit/node_modules/zod/package.json": `{"name":"zod","version":"3.0.0","main":"index.js"}`,
+        "node_modules/legacy-kit/node_modules/zod/index.js": `export const z={marker:"LEGACY_ZOD_SENTINEL"};`,
+        "app/page.tsx": `import {kit} from 'legacy-kit';import {z} from 'zod';export default function Page(){return <text>{String(kit())}{z.string().parse('app')}</text>}`,
+      },
+      async (dir) => {
+        await build(dir);
+        const server = await Bun.file(join(dir, ".luciole/server/index.js")).text();
+        expect(server).toContain("LEGACY_ZOD_SENTINEL");
+        expect(server).toContain("node_modules/zod/v4/classic/");
+      },
+    );
+  },
+  BUILD_TEST_MS,
+);
 
 // The Client validates what it receives with zod/mini: the classic API would add ~130 KB.
-test("the Client bundle embeds zod/mini, never the classic zod API", async () => {
-  await fixture(
-    // The fixture has no node_modules: application schemas use the framework's zod.
-    {
-      "app/page.tsx": `import {z} from 'zod';export default function Page(){return <text>{z.string().parse('page')}</text>}`,
-    },
-    async (dir) => {
-      await build(dir);
-      const client = await Bun.file(join(dir, ".luciole/client/index.js")).text();
-      expect(client).toContain("node_modules/zod/v4/mini/");
-      expect(client).not.toContain("node_modules/zod/v4/classic/");
-      const server = await Bun.file(join(dir, ".luciole/server/index.js")).text();
-      expect(server).toContain("node_modules/zod/v4/classic/");
-    },
-  );
-});
+test(
+  "the Client bundle embeds zod/mini, never the classic zod API",
+  async () => {
+    await fixture(
+      // The fixture has no node_modules: application schemas use the framework's zod.
+      {
+        "app/page.tsx": `import {z} from 'zod';export default function Page(){return <text>{z.string().parse('page')}</text>}`,
+      },
+      async (dir) => {
+        await build(dir);
+        const client = await Bun.file(join(dir, ".luciole/client/index.js")).text();
+        expect(client).toContain("node_modules/zod/v4/mini/");
+        expect(client).not.toContain("node_modules/zod/v4/classic/");
+        const server = await Bun.file(join(dir, ".luciole/server/index.js")).text();
+        expect(server).toContain("node_modules/zod/v4/classic/");
+      },
+    );
+  },
+  BUILD_TEST_MS,
+);
 test("concurrent builds take turns, and an unchanged build keeps the output in place", async () => {
   await fixture(
     { "app/page.tsx": `export default function Page(){return <text>HOME</text>}` },
@@ -768,48 +829,56 @@ test("subpath imports (#name) join the graph: every target of every condition", 
     },
   );
 }, 60000);
-test("a syntax error and an unresolved import are reported where they are", async () => {
-  // Line 3, column 11: the unclosed <text>'s tag; a reader (or a harness) fixes that line.
-  await fixture(
-    {
-      "app/page.tsx": `export default function Page() {\n  return (\n    <box><text>unclosed</box>\n  );\n}\n`,
-    },
-    async (dir) => {
-      expect(messageOf(await rejectionOf(build(dir)))).toMatch(/^app\/page\.tsx:3:\d+: /);
-    },
-  );
-  await fixture(
-    {
-      "app/page.tsx": `import { title } from "../lib/title";\nimport { Header } from "../components/Header";\nexport default function Page() {\n  return <Header title={title} />;\n}\n`,
-      "lib/title.ts": `export const title = "t";\n`,
-    },
-    async (dir) => {
-      expect(messageOf(await rejectionOf(build(dir)))).toBe(
-        "app/page.tsx:2:1: Cannot resolve ../components/Header",
-      );
-    },
-  );
-});
-test("a Client-only React hook in a Server Component fails the build where it is imported", async () => {
-  // Without the check the build succeeds and the Server dies at start on a missing export.
-  await fixture(
-    {
-      "app/page.tsx": `import { useMemo, useState } from "react";\nexport default function Page() {\n  const [name] = useState(useMemo(() => "", []));\n  return <text>{name}</text>;\n}\n`,
-    },
-    async (dir) => {
-      const message = messageOf(await rejectionOf(build(dir)));
-      expect(message).toMatch(/^app\/page\.tsx:1:19: useState is Client-only React/);
-      expect(message).toContain('Add "use client"');
-    },
-  );
-  // Behind "use client", the same hook is the Client's.
-  await fixture(
-    {
-      "app/page.tsx": `import { Name } from "../components/Name";\nexport default function Page() {\n  return <Name />;\n}\n`,
-      "components/Name.tsx": `"use client";\nimport { useState } from "react";\nexport function Name() {\n  const [name] = useState("");\n  return <text>{name}</text>;\n}\n`,
-    },
-    async (dir) => {
-      await build(dir);
-    },
-  );
-});
+test(
+  "a syntax error and an unresolved import are reported where they are",
+  async () => {
+    // Line 3, column 11: the unclosed <text>'s tag; a reader (or a harness) fixes that line.
+    await fixture(
+      {
+        "app/page.tsx": `export default function Page() {\n  return (\n    <box><text>unclosed</box>\n  );\n}\n`,
+      },
+      async (dir) => {
+        expect(messageOf(await rejectionOf(build(dir)))).toMatch(/^app\/page\.tsx:3:\d+: /);
+      },
+    );
+    await fixture(
+      {
+        "app/page.tsx": `import { title } from "../lib/title";\nimport { Header } from "../components/Header";\nexport default function Page() {\n  return <Header title={title} />;\n}\n`,
+        "lib/title.ts": `export const title = "t";\n`,
+      },
+      async (dir) => {
+        expect(messageOf(await rejectionOf(build(dir)))).toBe(
+          "app/page.tsx:2:1: Cannot resolve ../components/Header",
+        );
+      },
+    );
+  },
+  BUILD_TEST_MS,
+);
+test(
+  "a Client-only React hook in a Server Component fails the build where it is imported",
+  async () => {
+    // Without the check the build succeeds and the Server dies at start on a missing export.
+    await fixture(
+      {
+        "app/page.tsx": `import { useMemo, useState } from "react";\nexport default function Page() {\n  const [name] = useState(useMemo(() => "", []));\n  return <text>{name}</text>;\n}\n`,
+      },
+      async (dir) => {
+        const message = messageOf(await rejectionOf(build(dir)));
+        expect(message).toMatch(/^app\/page\.tsx:1:19: useState is Client-only React/);
+        expect(message).toContain('Add "use client"');
+      },
+    );
+    // Behind "use client", the same hook is the Client's.
+    await fixture(
+      {
+        "app/page.tsx": `import { Name } from "../components/Name";\nexport default function Page() {\n  return <Name />;\n}\n`,
+        "components/Name.tsx": `"use client";\nimport { useState } from "react";\nexport function Name() {\n  const [name] = useState("");\n  return <text>{name}</text>;\n}\n`,
+      },
+      async (dir) => {
+        await build(dir);
+      },
+    );
+  },
+  BUILD_TEST_MS,
+);
