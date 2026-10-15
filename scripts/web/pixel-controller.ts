@@ -187,7 +187,7 @@ try {
   );
   expect(await browser.evaluate("Number.isInteger(probe.state().left.position)")).toBe(true);
   await browser.evaluate(
-    "{const r=probe.state().nested.rect;probe.wheel(r.x+2,r.y+1.5,probe.state().nested.max+.625)}",
+    "{const r=probe.state().nested.rect;probe.wheel(r.x+2,r.y+1.5,probe.state().nested.max+.25)}",
   );
   await wait(
     "probe.state().nested.position===probe.state().nested.max && !Number.isInteger(probe.state().left.position)",
