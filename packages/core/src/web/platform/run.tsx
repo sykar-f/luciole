@@ -10,7 +10,8 @@ import { PassThrough } from "node:stream";
 import * as z from "zod/mini";
 import { Terminal as XTerm } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
-import { WebglAddon } from "@xterm/addon-webgl";
+import { WebglAddon } from "../xterm-webgl/addon/WebglAddon";
+import { PixelScrollAddon } from "../pixel-scroll/host";
 import { createCliRenderer } from "@opentui/core";
 import { createRoot } from "@opentui/react";
 import { Shell, type Application, type ApplicationOptions } from "../../client";
@@ -98,7 +99,9 @@ function drawOnGpu(terminal: XTerm) {
   } catch {
     fallBack();
   }
-  return (): Renderer => (webgl ? "webgl" : "dom");
+  const pixels = new PixelScrollAddon(webgl?.pixels);
+  terminal.loadAddon(pixels);
+  return { renderer: (): Renderer => (webgl ? "webgl" : "dom"), pixels };
 }
 
 /**
@@ -328,15 +331,18 @@ export async function runInPage(
   const fit = new FitAddon();
   terminal.loadAddon(fit);
   terminal.open(element);
-  const drawnBy = drawOnGpu(terminal);
-  terminal.attachCustomWheelEventHandler(wheelReports(terminal));
+  const gpu = drawOnGpu(terminal);
+  const fallbackWheel = wheelReports(terminal);
+  terminal.attachCustomWheelEventHandler(
+    (event) => gpu.pixels.wheel(event) && fallbackWheel(event),
+  );
   // The page around the terminal, and the journeys that drive it, read the screen from
   // the buffer, not from the DOM: the GPU renderer draws nothing there, and the DOM
   // renderer stops drawing while a frame is out of view.
   exposeScreen(() => screenLines(terminal));
   exposeCells(() => screenCells(terminal));
   exposeWrites(tellWrites(terminal));
-  exposeRenderer(drawnBy);
+  exposeRenderer(gpu.renderer);
   const layout = () => (grid ? fitGrid(terminal, fit, grid, element) : fit.fit());
   layout();
   // In a page of its own, the terminal is what the reader came for. Framed, a focus

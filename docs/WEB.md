@@ -394,7 +394,8 @@ partagées entre le contrôleur applicatif et l'hôte xterm.
   `process.platform/env`, `events`, et des `fs` inertes (logs) : un petit module
   `process` du runtime web.
 - Émulateur : **xterm.js** (décision 3), comme `packages/desktop`.
-- Moteur de rendu : **WebGL** (`@xterm/addon-webgl`, `run.tsx`, `drawOnGpu`), chargé avant
+- Moteur de rendu : **WebGL** (fork interne de `@xterm/addon-webgl` 0.19.0,
+  `src/web/xterm-webgl/`, `run.tsx`, `drawOnGpu`), chargé avant
   que la police ne soit ajustée à la grille. xterm.js y dessine lui-même filets, blocs et
   glyphes powerline (`customGlyphs`) et donne à chaque cellule un nombre entier de pixels
   physiques : le moteur DOM, qui dessine les glyphes de la police dans des cellules de
