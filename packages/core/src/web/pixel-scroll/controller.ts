@@ -271,6 +271,8 @@ export class PixelController {
       // Match ordinary Shift+wheel's horizontal policy before setting precise.
       const delta = modifiers.shift ? report.dy : report.dy || report.dx;
       const horizontal = modifiers.shift || (!report.dy && Boolean(report.dx));
+      const direction =
+        !modifiers.shift && horizontal ? (delta < 0 ? "left" : "right") : delta < 0 ? "up" : "down";
       this.renderer.dispatchMouseEventFromHitMap(
         {
           type: "scroll",
@@ -279,9 +281,9 @@ export class PixelController {
           y,
           modifiers,
           scroll: {
-            direction: horizontal ? (delta < 0 ? "left" : "right") : delta < 0 ? "up" : "down",
+            direction,
             delta: Math.abs(delta),
-            precise: report.source === "precise",
+            precise: report.source === "precise" && !horizontal,
           },
         },
         source.map,
