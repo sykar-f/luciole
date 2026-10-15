@@ -197,6 +197,7 @@ export class PixelScrollAddon implements ITerminalAddon {
       dx /= point.cellWidth;
       dy /= point.cellHeight;
     }
+    event.preventDefault();
     const count = Math.max(1, Math.ceil(Math.max(Math.abs(dx), Math.abs(dy)) / MAX_DELTA));
     for (let i = 0; i < count; i++)
       this.report({
