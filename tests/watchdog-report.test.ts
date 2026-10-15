@@ -76,11 +76,14 @@ test.if(process.platform === "darwin")(
 );
 
 test("a sampler taking more than two seconds finishes before the kill", async () => {
+  // Base: capture lead <= 2000 ms, so the 2300 ms sampler cannot finish.
+  // Fixed: 4500 * 0.8 - 4500 / 10 = 3150 ms minimum before startup costs;
+  // minus 2300 ms sampling and ~100 ms startup leaves ~750 ms of margin.
   const stderr = await blocked(
     undefined,
     "#!/bin/sh\necho sampler-started\n/bin/sleep 2.3\necho native-stack-complete\n",
     true,
-    4000,
+    4500,
   );
   expect(stderr).toContain("sampler-started");
   expect(stderr).toContain("native-stack-complete");
