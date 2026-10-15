@@ -384,6 +384,10 @@ page soit encadrée ou non : les parcours `scripts/web/` lisent l'écran par ell
 
 ## 4. Rendu et entrée
 
+Le [contrat expérimental de défilement au pixel](PIXEL-SCROLL.md) définit les
+opérations en bande, les transactions de présentation et les entrées précises
+partagées entre le contrôleur applicatif et l'hôte xterm.
+
 - `createCliRenderer({ stdin, stdout, useThread: false })` : la sortie ANSI
   (NativeSpanFeed) va à l'émulateur, ses frappes et collages vont à `stdin`, son
   redimensionnement appelle `renderer.resize`. Restent à fournir `process.on`,
