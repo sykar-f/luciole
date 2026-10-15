@@ -307,7 +307,13 @@ test("an abandoned projection restores geometry and discards its entire encoder 
 async function scrollScene() {
   const fixture = await setup(30, 16);
   const { ScrollBoxRenderable } = await import("@opentui/core");
-  const parent = new ScrollBoxRenderable(fixture.r, { width: 24, height: 12, scrollY: true });
+  const parent = new ScrollBoxRenderable(fixture.r, {
+    width: 24,
+    height: 12,
+    scrollY: true,
+    scrollX: true,
+    contentOptions: { width: 40 },
+  });
   const child = new ScrollBoxRenderable(fixture.r, {
     width: 18,
     height: 6,
@@ -347,9 +353,9 @@ test("ScrollBox fractions survive keys, scrollTo, scrollbar moves and auto-scrol
     expect(inner.position).toBe(2.375);
     // The normal selection auto-scroll uses integer scrollTop increments.
     child.startAutoScroll(child.x + child.width / 2, child.y + child.height - 1);
-    probe(child, "handleAutoScroll", 100);
+    probe(child, "handleAutoScroll", 20);
     child.stopAutoScroll();
-    expect(inner.position % 1).toBe(0.375);
+    expect(inner.position).toBe(3.375);
     expect(inner.origin).toBe(child.scrollTop);
     child.height = 14;
     await renderOnce();
@@ -398,9 +404,9 @@ test("content-only ScrollBox projections preserve logical state, events and rend
     await renderOnce();
     await r.idle();
     expect(projected).toBeDefined();
-    expect(projected?.origin(parent.verticalScrollBar.num)).toEqual({
-      x: parent.verticalScrollBar.x,
-      y: parent.verticalScrollBar.y,
+    expect(projected?.origin(parent.verticalScrollBar.slider.num)).toEqual({
+      x: parent.verticalScrollBar.slider.x,
+      y: parent.verticalScrollBar.slider.y,
     });
     expect({
       position: outer.position,
@@ -478,6 +484,11 @@ test("precise row deltas bypass acceleration and bubble only the remainder; chai
     expect(inner.position).toBe(inner.max - 0.5);
     expect(ticks).toBe(0);
     inner.set(0);
+    outer.set(1.625);
+    precise(1);
+    expect(outer.position).toBe(2);
+    expect(inner.position).toBe(1);
+    inner.set(0);
     outer.set(0);
     const exhausted = precise(-0.25);
     expect(exhausted.propagationStopped).toBe(false);
@@ -504,7 +515,7 @@ test("frame commands reject synchronized-output controls in every segment before
     r.on(CliRenderEvents.RENDER_ERROR, (event: CliRendererErrorEvent) =>
       errors.push(event.error.message),
     );
-    for (const control of [start, end, "\x9b?2026h"]) {
+    for (const control of [start, end, "\x9b?2026h", "\x1b[?25;2026h", "\x1b[?2026;25l"]) {
       for (const projected of [false, true])
         for (const field of ["before", "after"]) {
           chunks.length = 0;
@@ -525,7 +536,7 @@ test("frame commands reject synchronized-output controls in every segment before
           expect(chunks).toEqual([]);
         }
     }
-    expect(errors).toHaveLength(12);
+    expect(errors).toHaveLength(20);
     r.setFramePlan(() => ({ before: bytes("allowed") }));
     await renderOnce();
     await r.idle();

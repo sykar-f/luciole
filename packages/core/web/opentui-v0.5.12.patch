@@ -242,7 +242,7 @@ index 9db0821..9ab08ee 100644
          case "render":
            // Skip if renderable was destroyed during a previous render callback
 diff --git a/packages/core/src/renderer.ts b/packages/core/src/renderer.ts
-index a87a810..93d4994 100644
+index a87a810..7f209bf 100644
 --- a/packages/core/src/renderer.ts
 +++ b/packages/core/src/renderer.ts
 @@ -279,6 +279,26 @@ export interface CliRendererStats extends NativeRenderStats {
@@ -346,7 +346,7 @@ index a87a810..93d4994 100644
 +        if (!bytes) continue
 +        // CSI can be encoded as ESC [ or as the single-byte C1 control.
 +        const commands = Array.from(bytes, (byte) => String.fromCharCode(byte)).join("")
-+        if (/(?:\x1b\[|\x9b)\?2026[hl]/.test(commands)) {
++        if (/(?:\x1b\[|\x9b)\?(?:\d+;)*0*2026(?:;\d+)*[hl]/.test(commands)) {
 +          throw new Error("Frame commands must not contain synchronized-output controls")
 +        }
 +      }
@@ -1405,7 +1405,7 @@ index 0000000..aa7c150
 +  visit(owner)
 +}
 diff --git a/packages/core/src/renderables/ScrollBox.ts b/packages/core/src/renderables/ScrollBox.ts
-index e792367..7b44bec 100644
+index e792367..136d98f 100644
 --- a/packages/core/src/renderables/ScrollBox.ts
 +++ b/packages/core/src/renderables/ScrollBox.ts
 @@ -1,3 +1,4 @@
@@ -1454,7 +1454,7 @@ index e792367..7b44bec 100644
          this.content.translateY = -position
          this.updateStickyState()
        },
-@@ -382,6 +410,35 @@ export class ScrollBoxRenderable extends BoxRenderable {
+@@ -382,6 +410,36 @@ export class ScrollBoxRenderable extends BoxRenderable {
      })
      this.wrapper.add(this.horizontalScrollBar)
  
@@ -1472,6 +1472,7 @@ index e792367..7b44bec 100644
 +      scroll(delta) {
 +        if (!Number.isFinite(delta)) throw new RangeError("Viewport delta must be finite")
 +        const before = this.position
++        if (delta !== 0) settleScrollableChain(owner)
 +        this.set(before + delta)
 +        return delta - (this.position - before)
 +      },
@@ -1490,7 +1491,7 @@ index e792367..7b44bec 100644
      this.recalculateBarProps()
  
      if (stickyStart && stickyScroll) {
-@@ -545,6 +602,21 @@ export class ScrollBoxRenderable extends BoxRenderable {
+@@ -545,6 +603,21 @@ export class ScrollBoxRenderable extends BoxRenderable {
        if (event.modifiers.shift)
          dir = dir === "up" ? "left" : dir === "down" ? "right" : dir === "right" ? "down" : "up"
  
