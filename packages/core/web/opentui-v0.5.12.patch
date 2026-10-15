@@ -245,7 +245,7 @@ diff --git a/packages/core/src/renderer.ts b/packages/core/src/renderer.ts
 index a87a810..c348ff0 100644
 --- a/packages/core/src/renderer.ts
 +++ b/packages/core/src/renderer.ts
-@@ -279,6 +279,26 @@ export interface CliRendererStats extends NativeRenderStats {
+@@ -279,6 +279,28 @@ export interface CliRendererStats extends NativeRenderStats {
    frameCallbackTime: number
  }
  
@@ -266,6 +266,8 @@ index a87a810..c348ff0 100644
 +}
 +
 +export interface RenderFramePlan extends RenderFrameSegment {
++  /** A presented generation supplies hover through dispatchMouseEventFromHitMap. */
++  deferHover?: boolean
 +  projection?: RenderFrameSegment & { renderable: Renderable; translateX: number; translateY: number }
 +}
 +
@@ -440,6 +442,15 @@ index a87a810..c348ff0 100644
          if (nativeStatus === "rendered") this.frameCount++
          if (this.getElapsedMs(now, this.lastFpsTime) >= 1000) {
            this.currentFps = this.frameCount
+@@ -4733,7 +4866,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+         this.renderStats.fps = this.currentFps
+ 
+         if (nativeStatus === "rendered") {
+-          if (this._useMouse && this.lib.getHitGridDirty(this.rendererPtr)) {
++          if (!plan?.deferHover && this._useMouse && this.lib.getHitGridDirty(this.rendererPtr)) {
+             this.recheckHoverState()
+           }
+ 
 diff --git a/packages/core/src/types.ts b/packages/core/src/types.ts
 index d56f103..2c695e9 100644
 --- a/packages/core/src/types.ts

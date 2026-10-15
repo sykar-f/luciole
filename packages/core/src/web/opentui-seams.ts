@@ -18,6 +18,8 @@ export interface RenderFrameSegment {
 }
 
 export interface RenderFramePlan extends RenderFrameSegment {
+  /** Wait for generation-tagged input instead of hit-testing the projection grid. */
+  deferHover?: boolean;
   /** Replace this content node's paint translation for a second pass. */
   projection?: RenderFrameSegment & {
     renderable: Renderable;
