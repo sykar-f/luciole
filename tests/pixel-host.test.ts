@@ -297,13 +297,15 @@ test("an outside-grid mouseup ends a drag without capturing later chrome input",
   };
   const addon = new PixelScrollAddon(f.renderer);
   try {
+    // eslint-disable-next-line typescript/consistent-type-assertions -- Minimal terminal port for document-level input, without a browser DOM.
     addon.activate(terminal as unknown as Terminal);
-    csi?.([2026, MODE]);
-    osc?.(`${NS};${JSON.stringify({ op: "query", version: 1, nonce: "drag" })}`);
+    void csi?.([2026, MODE]);
+    void osc?.(`${NS};${JSON.stringify({ op: "query", version: 1, nonce: "drag" })}`);
     present?.(f.committed());
     reports.length = 0;
     const pointer = (type: string, x: number, buttons: number) => {
       let prevented = false;
+      // eslint-disable-next-line typescript/consistent-type-assertions -- Only the mouse fields consumed by the registered input listener are needed.
       listeners.get(type)?.({
         type,
         target,
