@@ -9,7 +9,14 @@ type Target = {
   width: number;
   height: number;
 };
-type Frame = { image: Target; snapshot: Target; presentation: Presentation; canonical: string };
+type Cursor = { image: Target; x: number; y: number };
+type Frame = {
+  image: Target;
+  snapshot: Target;
+  presentation: Presentation;
+  canonical: string;
+  cursor: Cursor | undefined;
+};
 type Metrics = {
   canvas: { width: number; height: number };
   cell: { width: number; height: number };
@@ -30,20 +37,26 @@ export class PixelCompositor implements PixelRenderer {
 
   private readonly gl: WebGL2RenderingContext;
   private readonly metrics: () => Metrics;
-  private readonly rasterize: () => void;
+  private readonly rasterize: (cursor: boolean) => void;
+  private readonly cursorRect: () => Rect | undefined;
+  private readonly cursorVisible: () => boolean;
   private readonly signature: () => string;
   private readonly refresh: () => void;
 
   constructor(
     gl: WebGL2RenderingContext,
     metrics: () => Metrics,
-    rasterize: () => void,
+    rasterize: (cursor: boolean) => void,
+    cursorRect: () => Rect | undefined,
+    cursorVisible: () => boolean,
     signature: () => string,
     refresh: () => void,
   ) {
     this.gl = gl;
     this.metrics = metrics;
     this.rasterize = rasterize;
+    this.cursorRect = cursorRect;
+    this.cursorVisible = cursorVisible;
     this.signature = signature;
     this.refresh = refresh;
   }
@@ -85,6 +98,7 @@ export class PixelCompositor implements PixelRenderer {
     if (!frame) return;
     this.remove(frame.image);
     this.remove(frame.snapshot);
+    this.remove(frame.cursor?.image);
   }
 
   private target(width: number, height: number): Target {
@@ -151,7 +165,7 @@ export class PixelCompositor implements PixelRenderer {
     };
   }
 
-  private raster(): Target {
+  private raster(cursor = false): Target {
     const d = this.metrics().canvas;
     if (!this.scratch || this.scratch.width !== d.width || this.scratch.height !== d.height) {
       this.remove(this.scratch);
@@ -159,7 +173,7 @@ export class PixelCompositor implements PixelRenderer {
     }
     this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.scratch.framebuffer);
     try {
-      this.rasterize();
+      this.rasterize(cursor);
     } finally {
       this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null);
     }
@@ -174,7 +188,7 @@ export class PixelCompositor implements PixelRenderer {
 
   begin() {
     this.abort();
-    if (!this.active && !this.ready && !this.held) this.held = this.copy(this.raster());
+    if (!this.active && !this.ready && !this.held) this.held = this.copy(this.raster(true));
     this.preparing = true;
     this.releasing = false;
   }
@@ -185,6 +199,32 @@ export class PixelCompositor implements PixelRenderer {
     this.remove(this.pending);
     this.pending = this.target(p.width, p.height);
     this.blit(source, this.pending, p.x, p.y, p.width, p.height);
+  }
+
+  private captureCursor(): Cursor | undefined {
+    const rect = this.cursorRect();
+    if (!rect) return undefined;
+    const p = this.pixels(rect);
+    const source = this.raster(true);
+    const image = this.target(p.width, p.height);
+    this.blit(source, image, p.x, p.y, p.width, p.height);
+    return { image, x: p.x, y: p.y };
+  }
+
+  private draw(frame: Frame) {
+    this.blit(frame.image, undefined, 0, 0, frame.image.width, frame.image.height);
+    const cursor = frame.cursor;
+    if (cursor && this.cursorVisible())
+      this.blit(
+        cursor.image,
+        undefined,
+        0,
+        0,
+        cursor.image.width,
+        cursor.image.height,
+        cursor.x,
+        cursor.y,
+      );
   }
 
   commit(presentation: Presentation) {
@@ -209,7 +249,13 @@ export class PixelCompositor implements PixelRenderer {
     if (offset < p.height)
       this.blit(this.pending, image, 0, 0, p.width, p.height - offset, p.x, p.y + offset);
     this.removeFrame(this.ready);
-    this.ready = { image, snapshot: this.pending, presentation, canonical: this.signature() };
+    this.ready = {
+      image,
+      snapshot: this.pending,
+      presentation,
+      canonical: this.signature(),
+      cursor: this.captureCursor(),
+    };
     this.pending = undefined;
     this.preparing = false;
     this.refresh();
@@ -246,7 +292,7 @@ export class PixelCompositor implements PixelRenderer {
     }
     const frame = this.active;
     if (this.releasing && !this.preparing && frame?.canonical === this.signature()) {
-      this.blit(frame.image, undefined, 0, 0, frame.image.width, frame.image.height);
+      this.draw(frame);
       this.invalidate();
       for (const listener of this.listeners) listener(undefined);
       return true;
@@ -260,8 +306,10 @@ export class PixelCompositor implements PixelRenderer {
       ) {
         const source = this.raster();
         this.blit(source, frame.image, 0, 0, source.width, source.height);
+        this.remove(frame.cursor?.image);
+        frame.cursor = this.captureCursor();
       }
-      this.blit(frame.image, undefined, 0, 0, frame.image.width, frame.image.height);
+      this.draw(frame);
       if (changed) for (const listener of this.listeners) listener(frame.presentation);
       return true;
     }

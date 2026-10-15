@@ -9,17 +9,17 @@ for (const dpr of [1, 2]) {
       const child = Bun.spawn(
         [process.execPath, import.meta.dir + "/pixel-scroll.ts", String(dpr)],
         {
-          stdout: "pipe",
-          stderr: "pipe",
+          stdout: "inherit",
+          stderr: "inherit",
         },
       );
-      const [out, err, code] = await Promise.all([
-        new Response(child.stdout).text(),
-        new Response(child.stderr).text(),
-        child.exited,
-      ]);
-      if (code !== 0) throw new Error(out + err);
-      expect(code).toBe(0);
+      try {
+        const code = await child.exited;
+        if (code !== 0) throw new Error(`pixel probe exited ${code}`);
+        expect(code).toBe(0);
+      } finally {
+        child.kill();
+      }
     },
     TIMEOUT_MS,
   );

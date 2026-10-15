@@ -56,7 +56,7 @@ export class PixelScrollAddon implements ITerminalAddon {
           ? "reduced-motion"
           : terminal.options.screenReaderMode
             ? "screen-reader"
-            : this.lost || !this.renderer
+            : this.lost || !this.renderer || this.renderer.cellHeight <= 0
               ? "no-gpu"
               : "ready",
       (report) => terminal.input(encode(report), false),

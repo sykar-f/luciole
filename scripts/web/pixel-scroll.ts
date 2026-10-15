@@ -37,7 +37,11 @@ async function verify(dpr: number) {
     },
   });
   try {
-    await using browser = await Browser.start();
+    await using browser = await Browser.start([
+      "--use-mock-keychain",
+      "--password-store=basic",
+      "--disable-extensions",
+    ]);
     await browser.send("Emulation.setDeviceMetricsOverride", {
       width: 800,
       height: 600,
@@ -120,6 +124,21 @@ async function verify(dpr: number) {
     })()`);
     expect(proof).toMatchObject({ errors: [], glError: 0 });
     expect(z.object({ checked: z.number() }).parse(proof).checked).toBeGreaterThanOrEqual(29);
+    const cursor = await browser.evaluate(`(async () => {
+      await probe.write(probe.sync(probe.transaction(50,1,.25,false)+'\\x1b[?25h\\x1b[2;11H'+
+        probe.op({op:'commit',version:1,generation:50})));
+      probe.frames.length=0;
+      probe.redraw(); await probe.write('');
+      const {width,height,cellHeight:H,cellWidth:W}=probe.dimensions();
+      const frame=probe.frames.at(-1);
+      let cursorPixels=0;
+      for(let y=H;y<2*H;y++) for(let x=10*W;x<11*W;x++) {
+        const at=((height-1-y)*width+x)*4;
+        if([17,34,51].some((v,i)=>frame.data[at+i]!==v)) cursorPixels++;
+      }
+      return cursorPixels;
+    })()`);
+    expect(z.number().parse(cursor)).toBeGreaterThan(0);
     const input = await browser.evaluate(`(async () => {
         await probe.write(probe.sync(probe.transaction(100,2,.3)));
         await probe.write(probe.sync(probe.op({op:'begin',version:1,generation:101})));

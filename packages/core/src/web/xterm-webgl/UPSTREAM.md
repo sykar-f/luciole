@@ -16,7 +16,9 @@ No glyph shader or cell layout changed.
 Product changes are confined to `addon/WebglAddon.ts` and
 `addon/WebglRenderer.ts`: the addon exposes its renderer-owned `pixels` API;
 the renderer supplies checkpoint rasterization and redraw composition through
-`PixelCompositor`, with cursor-free captures. The compositor retains a whole
+`PixelCompositor`, with cursor-free captures and a separate retained cursor tile composed afterward.
+The WebGL canvas has an explicit `xterm-webgl-layer` class so context-loss
+listeners do not attach to the 2D link overlay. The compositor retains a whole
 validated GPU frame as well as the region checkpoint, so aborts and synchronized
 output timeouts cannot publish half-prepared chrome or moved rectangles. A grid
 signature gates canonical recapture and release. These modules and their tests

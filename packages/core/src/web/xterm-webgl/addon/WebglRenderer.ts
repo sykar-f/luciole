@@ -32,6 +32,7 @@ import { PixelCompositor } from '../../pixel-scroll/compositor';
 
 export class WebglRenderer extends Disposable implements IRenderer {
   private _pixelCapture = false;
+  private _pixelRaster = false;
   public readonly pixels: PixelCompositor;
   private _renderLayers: IRenderLayer[];
   private _cursorBlinkStateManager: MutableDisposable<CursorBlinkStateManager> = new MutableDisposable();
@@ -97,11 +98,20 @@ export class WebglRenderer extends Disposable implements IRenderer {
     }
 
     this.pixels = new PixelCompositor(this._gl, () => this.dimensions.device,
-      () => {
-        this._pixelCapture = true;
+      (cursor) => {
+        this._pixelRaster = true;
+        this._pixelCapture = !cursor;
         try { this._renderGrid(0, this._terminal.rows - 1); }
-        finally { this._pixelCapture = false; }
+        finally { this._pixelCapture = this._pixelRaster = false; }
       },
+      () => {
+        const buffer = this._terminal.buffer.active;
+        const y = buffer.baseY + buffer.cursorY - buffer.viewportY;
+        if (!this._coreService.isCursorInitialized || this._coreService.isCursorHidden || y < 0 || y >= this._terminal.rows) return undefined;
+        const x = Math.min(buffer.cursorX, this._terminal.cols - 1);
+        return { x, y, width: Math.max(1, buffer.getLine(buffer.baseY + buffer.cursorY)?.getCell(x)?.getWidth() ?? 1), height: 1 };
+      },
+      () => !this._cursorBlinkStateManager.value || this._cursorBlinkStateManager.value.isCursorVisible,
       () => {
         const buffer = this._terminal.buffer.active;
         const parts = [this._terminal.cols, this._terminal.rows, buffer.viewportY];
@@ -371,7 +381,7 @@ export class WebglRenderer extends Disposable implements IRenderer {
     }
 
     // Update render layers
-    for (const l of this._pixelCapture ? [] : this._renderLayers) {
+    for (const l of this._pixelRaster ? [] : this._renderLayers) {
       l.handleGridChanged(this._terminal, start, end);
     }
 
@@ -393,7 +403,7 @@ export class WebglRenderer extends Disposable implements IRenderer {
     // Render
     this._rectangleRenderer.value.renderBackgrounds();
     this._glyphRenderer.value.render(this._model);
-    if (!this._pixelCapture && (!this._cursorBlinkStateManager.value || this._cursorBlinkStateManager.value.isCursorVisible)) {
+    if (!this._pixelCapture && (this._pixelRaster || !this._cursorBlinkStateManager.value || this._cursorBlinkStateManager.value.isCursorVisible)) {
       this._rectangleRenderer.value.renderCursor();
     }
   }
@@ -445,7 +455,7 @@ export class WebglRenderer extends Disposable implements IRenderer {
     const isCursorVisible = !this._pixelCapture &&
       this._coreService.isCursorInitialized &&
       !this._coreService.isCursorHidden &&
-      (!this._cursorBlinkStateManager.value || this._cursorBlinkStateManager.value.isCursorVisible);
+      (this._pixelRaster || !this._cursorBlinkStateManager.value || this._cursorBlinkStateManager.value.isCursorVisible);
     this._model.cursor = undefined;
     let modelUpdated = false;
 
