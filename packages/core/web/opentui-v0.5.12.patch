@@ -1406,7 +1406,7 @@ index 0000000..d93908e
 +  visit(owner)
 +}
 diff --git a/packages/core/src/renderables/ScrollBox.ts b/packages/core/src/renderables/ScrollBox.ts
-index e792367..7cd8021 100644
+index e792367..d74dc82 100644
 --- a/packages/core/src/renderables/ScrollBox.ts
 +++ b/packages/core/src/renderables/ScrollBox.ts
 @@ -1,3 +1,4 @@
@@ -1455,7 +1455,7 @@ index e792367..7cd8021 100644
          this.content.translateY = -position
          this.updateStickyState()
        },
-@@ -382,6 +410,44 @@ export class ScrollBoxRenderable extends BoxRenderable {
+@@ -382,6 +410,47 @@ export class ScrollBoxRenderable extends BoxRenderable {
      })
      this.wrapper.add(this.horizontalScrollBar)
  
@@ -1481,8 +1481,11 @@ index e792367..7cd8021 100644
 +      scroll(delta) {
 +        if (!Number.isFinite(delta)) throw new RangeError("Viewport delta must be finite")
 +        const before = this.position
-+        if (delta !== 0) settleScrollableChain(owner)
-+        this.set(before + delta)
++        const next = Math.max(0, Math.min(this.max, before + delta))
++        // A surface already at its bound does not take ownership from its parent.
++        if (next === before) return delta
++        settleScrollableChain(owner)
++        this.set(next)
 +        return delta - (this.position - before)
 +      },
 +      project(origin) {
@@ -1500,7 +1503,7 @@ index e792367..7cd8021 100644
      this.recalculateBarProps()
  
      if (stickyStart && stickyScroll) {
-@@ -545,6 +611,21 @@ export class ScrollBoxRenderable extends BoxRenderable {
+@@ -545,6 +614,21 @@ export class ScrollBoxRenderable extends BoxRenderable {
        if (event.modifiers.shift)
          dir = dir === "up" ? "left" : dir === "down" ? "right" : dir === "right" ? "down" : "up"
  

@@ -479,8 +479,11 @@ test("precise row deltas bypass acceleration and bubble only the remainder; chai
     precise(0.625);
     expect(inner.position).toBe(inner.max);
     expect(outer.position).toBe(2.375);
+    precise(0.25);
+    expect(inner.position).toBe(inner.max);
+    expect(outer.position).toBe(2.625);
     precise(-0.5);
-    expect(outer.position).toBe(2);
+    expect(outer.position).toBe(3);
     expect(inner.position).toBe(inner.max - 0.5);
     expect(ticks).toBe(0);
     inner.set(0);
