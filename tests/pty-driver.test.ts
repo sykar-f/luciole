@@ -90,6 +90,28 @@ test("an editor handoff accepts plain output and reentry restores frame gating",
   await t.waitFor("renderer pending complete");
 });
 
+test("renderer reentry cannot reuse a frame completed before suspension", async () => {
+  await using t = await drive({
+    command: program(`
+      process.stdin.setRawMode(true);
+      process.on("SIGUSR1", () => process.stdout.write("\\x1b[?1049hresumed pending"));
+      process.stdin.on("data", () => process.stdout.write("\\x1b[?2026h complete\\x1b[?2026l"));
+      process.stdout.write("\\x1b[?1049h\\x1b[?2026hrenderer ready\\x1b[?2026l\\x1b[?1049leditor ready");
+    `),
+    cols: 60,
+    rows: 5,
+  });
+  await t.waitFor("editor ready");
+  // A program may resume by itself, without a key changing the driver's input mark.
+  t.signal("SIGUSR1");
+  expect(await eventually(() => t.output().includes("resumed pending"))).toBe(true);
+  const stale = t.waitFor("resumed pending", { timeout: 100 });
+  expect(stale).rejects.toThrow("never showed");
+  await stale.catch(() => {});
+  t.write("c");
+  await t.waitFor("resumed pending complete");
+});
+
 test("a resize reaches the program, and a failed wait shows the screen", async () => {
   await using t = await drive({
     command: [

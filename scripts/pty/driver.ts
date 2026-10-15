@@ -395,7 +395,7 @@ export class Driver implements AsyncDisposable {
     // Reentry, or a new synchronized frame outside it, restores frame gating.
     if (left > entered && left > begin) return true;
     const end = this.raw.lastIndexOf(FRAME_END);
-    return end > begin && (this.inputMark === undefined || end >= this.inputMark);
+    return end > begin && end > entered && (this.inputMark === undefined || end >= this.inputMark);
   }
 
   /**
