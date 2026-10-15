@@ -128,7 +128,7 @@ export class PixelController {
 
   /** Observe ordinary reports before stdin consumes them; never consume or rewrite them. */
   ordinary(sequence: string) {
-    if (!this.discovery.ready || !sequence.startsWith("\x1b[<")) return;
+    if (this.disposed || !this.discovery.ready || !sequence.startsWith("\x1b[<")) return;
     const event = this.mouse.parseMouseEvent(Buffer.from(sequence));
     if (!event) return;
     const target = Renderable.renderablesByNumber.get(this.renderer.hitTest(event.x, event.y));

@@ -1,4 +1,7 @@
-/* eslint-disable typescript/consistent-type-assertions -- Partial viewport and immutable map doubles isolate the frame encoder from a native renderer. */
+/* eslint-disable typescript/consistent-type-assertions -- Partial renderer, viewport and immutable map doubles isolate controller lifecycle and frame encoding from a native renderer. */
+import { EventEmitter } from "node:events";
+import type { CliRenderer } from "@opentui/core";
+import { PixelController } from "../packages/core/src/web/pixel-scroll/controller";
 import { OrdinaryPixelInput } from "../packages/core/src/web/pixel-scroll/ordinary-input";
 import { PixelHistory, RETAINED_GENERATIONS } from "../packages/core/src/web/pixel-scroll/history";
 import { PixelDiscovery } from "../packages/core/src/web/pixel-scroll/discovery";
@@ -185,4 +188,60 @@ test("popup canonical repaint refreshes fixed chrome before the release command"
   expect(messages(plan.after).map((p) => p?.op)).toEqual(["register"]);
   expect(plan.projection?.translateY).toBe(-10);
   expect(messages(plan.projection?.after).map((p) => p?.op)).toEqual(["step", "commit", "release"]);
+});
+
+test("ordinary SGR input after disposal never accesses the renderer", () => {
+  const osc = new EventEmitter();
+  const writes: string[] = [];
+  let hits = 0;
+  let renders = 0;
+  const renderer = Object.assign(new EventEmitter(), {
+    keyInput: new EventEmitter(),
+    setFramePlan: () => {},
+    captureHitMap: () => {
+      throw new Error("Unexpected frame capture");
+    },
+    dispatchMouseEventFromHitMap: () => false,
+    subscribeOsc: (receive: (sequence: string) => void) => {
+      osc.on("sequence", receive);
+      return () => {
+        osc.off("sequence", receive);
+      };
+    },
+    hitTest: () => {
+      hits++;
+      return 0;
+    },
+    requestRender: () => {
+      renders++;
+    },
+  });
+  const controller = PixelController.attach(renderer as unknown as CliRenderer, (s) =>
+    writes.push(s),
+  );
+  if (!controller) throw new Error("Missing controller");
+  const discovery = writes[0];
+  if (!discovery) throw new Error("Missing discovery output");
+  const query = decode(discovery.slice("\x1b[?2026h".length, -"\x1b[?2026l".length));
+  if (query?.op !== "query") throw new Error("Missing discovery query");
+  osc.emit(
+    "sequence",
+    encode({
+      op: "capability",
+      version: 1,
+      nonce: query.nonce,
+      reason: "ready",
+      snapshot: true,
+      precise: true,
+    }),
+  );
+  controller.ordinary("\x1b[<65;4;5M");
+  expect(hits).toBe(1);
+  controller.dispose();
+  hits = renders = 0;
+  controller.ordinary("\x1b[<65;4;5M");
+  controller.ordinary("\x1b[<0;4;5M");
+  controller.dispose();
+  expect(hits).toBe(0);
+  expect(renders).toBe(0);
 });
