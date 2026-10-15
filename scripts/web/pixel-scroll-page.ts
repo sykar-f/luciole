@@ -63,8 +63,9 @@ const paint = (origin: number, chrome = false) => {
     for (let x = 0; x < COLS; x++) {
       const inside =
         x >= rect.x && x < rect.x + rect.width && y >= rect.y && y < rect.y + rect.height;
-      const rgb = inside ? color(origin + y - rect.y) : chrome ? [200, 0, 0] : [17, 34, 51];
-      stream += `\x1b[${y + 1};${x + 1}H\x1b[48;2;${rgb.join(";")}m `;
+      const rgb = inside ? color(origin + y - rect.y + 16) : chrome ? [200, 0, 0] : [17, 34, 51];
+      const glyph = inside ? `\x1b[38;2;${color(origin + y - rect.y).join(";")}m▀` : " ";
+      stream += `\x1b[${y + 1};${x + 1}H\x1b[48;2;${rgb.join(";")}m${glyph}`;
     }
   }
   return stream;

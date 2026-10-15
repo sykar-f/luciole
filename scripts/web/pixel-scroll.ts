@@ -41,6 +41,7 @@ async function verify(dpr: number) {
       "--use-mock-keychain",
       "--password-store=basic",
       "--disable-extensions",
+      `--force-device-scale-factor=${dpr}`,
     ]);
     await browser.send("Emulation.setDeviceMetricsOverride", {
       width: 800,
@@ -51,7 +52,7 @@ async function verify(dpr: number) {
     await browser.open(site.url.href);
     await browser.waitFor("!!window.probe", "the synthetic host fixture");
     await browser.evaluate(
-      `probe.write(probe.sync(probe.paint(0) + probe.op({op:'query',version:1,nonce:'browser'})) + probe.mode)`,
+      `probe.write('\\x1b[?1049h'+probe.sync(probe.paint(0) + probe.op({op:'query',version:1,nonce:'browser'})) + probe.mode)`,
     );
     expect(await browser.evaluate(`probe.reports[0]`)).toMatchObject({
       op: "capability",
@@ -72,7 +73,8 @@ async function verify(dpr: number) {
           if (frame.generation !== expectedGeneration) { errors.push('generation:'+frame.generation+'/'+expectedGeneration); continue; }
           for(let y=0;y<height;y++) for(let x=0;x<width;x++) {
             const inside = x>=r.x*W && x<(r.x+r.width)*W && y>=r.y*H && y<(r.y+r.height)*H;
-            const rgb = inside ? probe.color(origin + Math.floor((y-r.y*H+q)/H)) : [17,34,51];
+            const local = y-r.y*H+q;
+            const rgb = inside ? probe.color(origin + Math.floor(local/H) + (local%H < H/2 ? 0 : 16)) : [17,34,51];
             const at = ((height-1-y)*width+x)*4;
             if(rgb.some((v,i)=>frame.data[at+i]!==v)) {
               errors.push('pixel:'+expectedGeneration+':'+x+','+y+':'+frame.data.slice(at,at+3)+'/'+rgb);
@@ -125,6 +127,7 @@ async function verify(dpr: number) {
     expect(proof).toMatchObject({ errors: [], glError: 0 });
     expect(z.object({ checked: z.number() }).parse(proof).checked).toBeGreaterThanOrEqual(29);
     const cursor = await browser.evaluate(`(async () => {
+      probe.terminal.focus();
       await probe.write(probe.sync(probe.transaction(50,1,.25,false)+'\\x1b[?25h\\x1b[2;11H'+
         probe.op({op:'commit',version:1,generation:50})));
       probe.frames.length=0;
@@ -147,8 +150,7 @@ async function verify(dpr: number) {
         const point=probe.point();
         const wheel=(dx,dy,mode=0)=>target.dispatchEvent(new WheelEvent('wheel',{
           ...point,bubbles:true,cancelable:true,deltaX:dx,deltaY:dy,deltaMode:mode,ctrlKey:true}));
-        wheel(4,5);
-        wheel(0,70000,1);
+        const consumed = [wheel(4,5),wheel(0,70000,1)];
         for(const [type,buttons] of [['mousemove',0],['mousedown',1],['mousemove',1],['mouseup',0]]) {
           target.dispatchEvent(new MouseEvent(type,{...point,bubbles:true,cancelable:true,button:0,buttons}));
         }
@@ -164,9 +166,9 @@ async function verify(dpr: number) {
         await probe.write(probe.sync(probe.transaction(102,2,0)+probe.op({op:'release',version:1,id:1,generation:102})));
         const after=native;
         // Reduced motion revokes the nonce, then a fresh query can discover again.
-        return {reports,heldReports,before,after,selected:probe.terminal.hasSelection()};
+        return {reports,heldReports,before,after,consumed,selected:probe.terminal.hasSelection()};
       })()`);
-    expect(input).toMatchObject({ before: 0, after: 1 });
+    expect(input).toMatchObject({ before: 0, after: 1, consumed: [false, false] });
     const parsed = InputProof.parse(input);
     const wheel = parsed.reports.filter((report) => report.op === "wheel");
     expect(wheel).toHaveLength(3);
