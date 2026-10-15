@@ -109,6 +109,10 @@ export class PixelSession {
       return;
     }
     if (op.op === "release") {
+      if (this.pending) {
+        this.abort();
+        return;
+      }
       if (
         this.pending ||
         this.committed?.id !== op.id ||

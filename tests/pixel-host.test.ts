@@ -225,3 +225,15 @@ test("release requires matching canonical generation, including positive fractio
   f.send({ op: "release", version: 1, id: 1, generation: 2 });
   expect(f.released()).toBe(1);
 });
+
+test("a release inside a preparation rejects the entire preparation", () => {
+  const f = fixture();
+  f.frame();
+  f.begin(2);
+  f.register(2);
+  f.step(2);
+  f.send({ op: "release", version: 1, id: 1, generation: 1 });
+  f.commit(2);
+  expect(f.committed()?.generation).toBe(1);
+  expect(f.released()).toBe(0);
+});
