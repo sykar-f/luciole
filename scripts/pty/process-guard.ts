@@ -32,6 +32,11 @@ try {
     killGroup(child.pid);
     await child.exited;
   }
+  if (config.directory && process.env.LUCIOLE_TEST_GUARD_REMOVE_ERROR === "1")
+    throw Object.assign(new Error("injected profile removal failure"), {
+      code: "EIO",
+      path: config.directory,
+    });
   if (config.directory) rmSync(config.directory, { recursive: true, force: true });
 }
 process.exit(child.exitCode ?? 1);

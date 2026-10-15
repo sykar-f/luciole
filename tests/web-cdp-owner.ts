@@ -1,21 +1,22 @@
 /** Runs in a separate process so the test can terminate its ownership scope. */
 import assert from "node:assert/strict";
-import { writeFileSync } from "node:fs";
 import { listening } from "../scripts/pty/harness";
 import { Browser } from "../scripts/web/cdp";
 
-await using server = await listening(
+await using _server = await listening(
   [
     process.execPath,
     "-e",
     `
+const { writeFileSync } = require("node:fs");
 const server = Bun.serve({ port: 0, fetch: () => new Response("ready") });
+if (process.env.OWNER_RECORD)
+  writeFileSync(process.env.OWNER_RECORD, JSON.stringify({ server: process.pid, guard: process.ppid }));
 console.log(JSON.stringify({ port: server.port }));
 `,
   ],
   {},
 );
-if (process.env.OWNER_RECORD) writeFileSync(process.env.OWNER_RECORD, String(server.pid));
 await using browser = await Browser.start({ commandTimeoutMs: 200 });
 if (process.argv[2] === "exceptions") {
   for (const evaluate of [

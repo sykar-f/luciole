@@ -69,5 +69,10 @@ writeFileSync(join(profile, "DevToolsActivePort"), `${server.port}\n`);
 if (process.env.CDP_RECORD)
   writeFileSync(
     process.env.CDP_RECORD,
-    JSON.stringify({ chrome: process.pid, descendant: descendant.pid, profile }),
+    JSON.stringify({
+      chrome: process.pid,
+      guard: process.ppid,
+      descendant: descendant.pid,
+      profile,
+    }),
   );
