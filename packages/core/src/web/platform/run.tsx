@@ -11,6 +11,7 @@ import * as z from "zod/mini";
 import { Terminal as XTerm } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "../xterm-webgl/addon/WebglAddon";
+import { PixelController } from "../pixel-scroll/controller";
 import { PixelScrollAddon } from "../pixel-scroll/host";
 import { createCliRenderer } from "@opentui/core";
 import { createRoot } from "@opentui/react";
@@ -62,6 +63,8 @@ export type PageOptions = {
   restore?: boolean;
   /** The route to open when no session is restored (embed.ts, `pathOf`). */
   path?: string;
+  /** `false` keeps row scrolling in the web runtime. Enabled by default. */
+  pixelScroll?: boolean;
 } & Look;
 
 const SAVE_DELAY_MS = 200;
@@ -313,6 +316,7 @@ export async function runInPage(
     name,
     sessionKey,
     restore = true,
+    pixelScroll = true,
     path,
     grid,
     background,
@@ -355,7 +359,11 @@ export async function runInPage(
   const control = embedded
     ? controlledNetwork(fetch ?? ((input, init) => globalThis.fetch(input, init)))
     : undefined;
-  const write = (data: string) => stdin.write(data);
+  let pixels: PixelController | undefined;
+  const write = (data: string) => {
+    pixels?.ordinary(data);
+    return stdin.write(data);
+  };
   const typed = control ? control.keys(write) : write;
   terminal.onData((data) => {
     tellTyped(data);
@@ -393,6 +401,8 @@ export async function runInPage(
     exitSignals: [],
   });
   Object.assign(globalThis, { requestAnimationFrame, cancelAnimationFrame });
+  if (pixelScroll)
+    pixels = PixelController.attach(renderer, (commands) => terminal.write(commands));
   // Framed, the embedding page asks at each turn of the wheel whether the application
   // still scrolls under the pointer. Without mouse tracking the wheel reaches nothing it
   // draws: xterm.js would turn it into arrow keys.
@@ -421,7 +431,11 @@ export async function runInPage(
  */
 export async function run(
   create: (options: RunOptions) => Application,
-  { name = "luciole", sessionKey }: { name?: string; sessionKey?: string } = {},
+  {
+    name = "luciole",
+    sessionKey,
+    pixelScroll,
+  }: { name?: string; sessionKey?: string; pixelScroll?: boolean } = {},
 ) {
   const element = document.getElementById("luciole");
   if (!element) throw new Error("The page has no #luciole element to run in");
@@ -430,5 +444,6 @@ export async function run(
     server: new URL("/", location.href),
     name,
     ...(sessionKey === undefined ? {} : { sessionKey: sessionKey }),
+    ...(pixelScroll === undefined ? {} : { pixelScroll }),
   });
 }

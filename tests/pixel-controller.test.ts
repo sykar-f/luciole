@@ -1,3 +1,5 @@
+/* eslint-disable typescript/consistent-type-assertions -- Partial viewport and immutable map doubles isolate the frame encoder from a native renderer. */
+import { PixelHistory, RETAINED_GENERATIONS } from "../packages/core/src/web/pixel-scroll/history";
 import { PixelDiscovery } from "../packages/core/src/web/pixel-scroll/discovery";
 import { expect, test } from "bun:test";
 import { decode, encode } from "../packages/core/src/pixel-scroll/protocol";
@@ -87,4 +89,20 @@ test("discovery never blocks and accepts only the current supported nonce", () =
   expect(discovery.mode()).toEndWith("l");
   expect(discovery.receive(capability(current.nonce))).toBeUndefined();
   expect(discovery.ready).toBe(false);
+});
+
+test("bounded generation history rejects evicted, stale and mismatched input", () => {
+  const history = new PixelHistory();
+  const frames = Array.from({ length: RETAINED_GENERATIONS + 1 }, (_, i) => ({
+    ...fixture(),
+    generation: i + 1,
+  }));
+  for (const frame of frames) history.add(frame);
+  expect(history.get(1, 1)).toBeUndefined();
+  expect(history.get(2, 2)).toBeUndefined();
+  expect(history.get(1, 2)).toBe(frames[1]);
+  expect(history.get(1, RETAINED_GENERATIONS)).toBe(frames[RETAINED_GENERATIONS - 1]);
+  expect(history.get(1, 2)).toBeUndefined();
+  history.clear();
+  expect(history.get(1, RETAINED_GENERATIONS)).toBeUndefined();
 });
