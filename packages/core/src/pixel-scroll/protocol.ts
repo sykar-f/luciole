@@ -13,7 +13,18 @@ const MAX_NONCE_LENGTH = 64;
 const MAX_MODIFIERS = 15;
 const MAX_BUTTONS = 31;
 const MAX_BUTTON = 4;
-const BUTTON_BITS = [1, 4, 2, 8, 16];
+const PRIMARY_BUTTON = 1;
+const AUXILIARY_BUTTON = 4;
+const SECONDARY_BUTTON = 2;
+const BACK_BUTTON = 8;
+const FORWARD_BUTTON = 16;
+const BUTTON_BITS = [
+  PRIMARY_BUTTON,
+  AUXILIARY_BUTTON,
+  SECONDARY_BUTTON,
+  BACK_BUTTON,
+  FORWARD_BUTTON,
+];
 const PREFIX = `${NS};`;
 const INTRODUCER = `\x1b]${OSC};`;
 const TERMINATOR = "\x1b\\";

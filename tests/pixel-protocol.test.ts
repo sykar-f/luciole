@@ -305,3 +305,10 @@ test("accepts exact integer and geometry limits without truncation", () => {
   };
   expect(decode(encode(step))).toEqual(step);
 });
+
+test("accepts the payload length limit and rejects the next character", () => {
+  const payload = `luciole-pixel;${JSON.stringify(query)}`;
+  const padded = payload.padEnd(MAX_MESSAGE_LENGTH, " ");
+  expect(decodePayload(padded)).toEqual(query);
+  expect(decodePayload(padded + " ")).toBeUndefined();
+});
