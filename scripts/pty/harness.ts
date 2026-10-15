@@ -8,6 +8,7 @@ import { existsSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSyn
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { z } from "zod";
+import { bounded, managedProcess } from "./process";
 
 export const ROOT = resolve(import.meta.dir, "../..");
 /** The Bun running this journey: the one every program under test runs on too. */
@@ -21,8 +22,6 @@ export const example = (name: string) => join(ROOT, "examples", name);
  * would then fail the machine, not the program. The suite's WAIT_MS (tests/helpers.ts).
  */
 export const HANG_MS = 30_000;
-/** How long a process has to end on SIGTERM at the end of its scope, before SIGKILL. */
-const STOP_TIMEOUT_MS = 5000;
 
 /** A fresh directory, removed with its content at the end of the scope. */
 export function temporaryDirectory(prefix: string, parent = tmpdir()) {
@@ -50,22 +49,19 @@ export async function listening(
   command: readonly string[],
   env: Record<string, string | undefined>,
 ) {
-  const child = Bun.spawn([...command], { env: environment(env), stdout: "pipe", stderr: "pipe" });
+  const { child, stop } = managedProcess(command, { env: environment(env) });
   const errors = new Response(child.stderr).text();
-  const stop = async () => {
-    if (child.exitCode !== null || child.signalCode !== null) return;
-    child.kill("SIGTERM");
-    if (!(await Promise.race([child.exited.then(() => true), Bun.sleep(STOP_TIMEOUT_MS)])))
-      child.kill("SIGKILL");
-    await child.exited;
-  };
   let port: number;
   try {
     const reader = child.stdout.getReader();
     const decoder = new TextDecoder();
     let line = "";
     while (!line.includes("\n")) {
-      const chunk = await reader.read();
+      const chunk = await bounded(
+        reader.read(),
+        HANG_MS,
+        `${command.join(" ")} did not announce its port`,
+      );
       if (chunk.done) throw new Error(`${command.join(" ")} did not start:\n${await errors}`);
       line += decoder.decode(chunk.value, { stream: true });
     }
