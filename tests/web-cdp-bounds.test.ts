@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { chmodSync, existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import * as z from "zod/mini";
-import { alive, eventually, temporaryDirectory } from "../scripts/pty/harness";
+import { alive, eventually, HANG_MS, temporaryDirectory } from "../scripts/pty/harness";
 
 const Record = z.object({ chrome: z.number(), descendant: z.number(), profile: z.string() });
 const root = join(import.meta.dir, "..");
@@ -45,11 +45,16 @@ for (const cause of [
       },
       stdout: "ignore",
       stderr: "pipe",
-      ...(cause === "timeout" ? { timeout: 3000, killSignal: "SIGKILL" } : {}),
     });
     const stderr = new Response(child.stderr).text();
     try {
-      const ready = await eventually(() => existsSync(f.owner) && existsSync(f.record), 2000);
+      const ready = await eventually(
+        () =>
+          (existsSync(f.owner) && existsSync(f.record)) ||
+          child.exitCode !== null ||
+          child.signalCode !== null,
+        HANG_MS,
+      );
       if (!ready) {
         child.kill("SIGKILL");
         await child.exited;
@@ -58,10 +63,15 @@ for (const cause of [
       const record = Record.parse(JSON.parse(readFileSync(f.record, "utf8")));
       const server = Number(readFileSync(f.owner, "utf8"));
       if (cause === "SIGTERM" || cause === "SIGINT") child.kill(cause);
+      // Arm the parent's deadline after launch, so this tests ownership rather than
+      // imposing a startup-speed requirement while a browser build runs beside it.
+      const timeout =
+        cause === "timeout" ? setTimeout(() => child.kill("SIGKILL"), 200) : undefined;
       expect(
         await eventually(() => child.exitCode !== null || child.signalCode !== null, 4000),
       ).toBe(true);
       await child.exited;
+      clearTimeout(timeout);
       if (cause === "error" || cause === "wait" || cause === "startup") {
         expect(await stderr).toContain(
           `${cause === "startup" ? "Runtime.enable" : "Runtime.evaluate"}: CDP target ws://127.0.0.1:`,

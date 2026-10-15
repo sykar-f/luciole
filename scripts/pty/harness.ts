@@ -63,7 +63,10 @@ export async function listening(
         Math.max(0, deadline - performance.now()),
         `${command.join(" ")} did not announce its port`,
       );
-      if (chunk.done) throw new Error(`${command.join(" ")} did not start:\n${await errors}`);
+      if (chunk.done) {
+        await stop();
+        throw new Error(`${command.join(" ")} did not start:\n${await errors}`);
+      }
       line += decoder.decode(chunk.value, { stream: true });
     }
     reader.releaseLock();
