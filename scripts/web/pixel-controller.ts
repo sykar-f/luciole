@@ -117,6 +117,16 @@ try {
   expect(bands.checked).toBeGreaterThanOrEqual(96);
   expect(bands.thumbs).toBeGreaterThan(1);
   console.log("continuity", bands);
+  expect(
+    await browser.evaluate(
+      `(async()=>{const before=probe.state().presented.generation;probe.r.requestRender();await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));return probe.state().presented.generation===before})()`,
+    ),
+  ).toBe(true);
+  console.log(
+    "240-row precise dispatch maximum ms",
+    await browser.evaluate("probe.state().maxInputMs"),
+  );
+
   await browser.evaluate("probe.wheel(20,3,.375)");
   await wait("probe.state().presented?.fraction > .3", "a resting fractional presentation");
   await browser.evaluate(

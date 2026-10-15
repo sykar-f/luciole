@@ -49,11 +49,14 @@ const stdin = new PassThrough();
 if (!isInputStream(stdin)) throw new Error("Expected readable stdin");
 let controller: PixelController | undefined;
 const reports: unknown[] = [];
+let maxInputMs = 0;
 terminal.onData((data) => {
   const message = decode(data);
   if (message) reports.push(message);
   controller?.ordinary(data);
+  const began = performance.now();
   stdin.write(data);
+  if (message?.op === "wheel") maxInputMs = Math.max(maxInputMs, performance.now() - began);
 });
 const { requestAnimationFrame, cancelAnimationFrame } = globalThis;
 let wire = "";
@@ -197,6 +200,7 @@ Object.assign(window, {
       nested: view(nested),
       presented,
       copied,
+      maxInputMs,
       selection: r.getSelection()?.getSelectedText() ?? "",
       nativeSelection: terminal.getSelection(),
       cellHeight: webgl.pixels?.cellHeight,
