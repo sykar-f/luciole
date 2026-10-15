@@ -540,6 +540,30 @@ test("frame commands reject synchronized-output controls in every segment before
         }
     }
     expect(errors).toHaveLength(20);
+    // Capture callbacks can fill mutable command buffers; validate after they run.
+    for (const projected of [false, true]) {
+      chunks.length = 0;
+      const commands = bytes("ordinary");
+      const segment = {
+        before: commands,
+        onHitMap() {
+          commands.set(bytes(start));
+        },
+      };
+      r.setFramePlan(() =>
+        projected
+          ? {
+              before: bytes("unwritten"),
+              projection: { renderable: content, translateX: 0, translateY: -1, ...segment },
+            }
+          : segment,
+      );
+      await renderOnce();
+      await r.idle();
+      expect(errors.at(-1)).toContain("must not contain synchronized-output");
+      expect(chunks).toEqual([]);
+    }
+    expect(errors).toHaveLength(22);
     r.setFramePlan(() => ({ before: bytes("allowed") }));
     await renderOnce();
     await r.idle();

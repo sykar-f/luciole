@@ -242,7 +242,7 @@ index 9db0821..9ab08ee 100644
          case "render":
            // Skip if renderable was destroyed during a previous render callback
 diff --git a/packages/core/src/renderer.ts b/packages/core/src/renderer.ts
-index a87a810..7f209bf 100644
+index a87a810..c348ff0 100644
 --- a/packages/core/src/renderer.ts
 +++ b/packages/core/src/renderer.ts
 @@ -279,6 +279,26 @@ export interface CliRendererStats extends NativeRenderStats {
@@ -272,7 +272,7 @@ index a87a810..7f209bf 100644
  export interface CliRendererFrameEvent {
    frameId: number
  }
-@@ -828,6 +848,113 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -828,6 +848,111 @@ export class CliRenderer extends EventEmitter implements RenderContext {
    private frameCount: number = 0
    // Bumped once per loop() iteration; see RenderContext.frameId.
    private _frameId: number = 0
@@ -340,9 +340,11 @@ index a87a810..7f209bf 100644
 +
 +  private renderPlannedFrame(plan: RenderFramePlan): ReturnType<CliRenderer["renderNative"]> {
 +    if (this._splitHeight > 0) throw new Error("Frame plans require a full-screen renderer")
-+    // Validate the whole plan before writing any part of its transaction.
-+    for (const part of [plan, plan.projection]) {
-+      for (const bytes of [part?.before, part?.after]) {
++    const empty = new Uint8Array(0)
++    const segment = (part: RenderFrameSegment, flags: number) => {
++      part.onHitMap?.(this.captureHitMap())
++      // Check the actual command bytes after the callback, which may fill them.
++      for (const bytes of [part.before, part.after]) {
 +        if (!bytes) continue
 +        // CSI can be encoded as ESC [ or as the single-byte C1 control.
 +        const commands = Array.from(bytes, (byte) => String.fromCharCode(byte)).join("")
@@ -350,10 +352,6 @@ index a87a810..7f209bf 100644
 +          throw new Error("Frame commands must not contain synchronized-output controls")
 +        }
 +      }
-+    }
-+    const empty = new Uint8Array(0)
-+    const segment = (part: RenderFrameSegment, flags: number) => {
-+      part.onHitMap?.(this.captureHitMap())
 +      const status = this.lib.renderFrameSegment(
 +        this.rendererPtr,
 +        this.forceFullRepaintRequested,
@@ -386,7 +384,7 @@ index a87a810..7f209bf 100644
    private lastFpsTime: number = 0
    private currentFps: number = 0
    private targetFrameTime: number = 1000 / this._targetFps
-@@ -1562,6 +1689,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -1562,6 +1687,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
    }
  
    public requestRender() {
@@ -394,7 +392,7 @@ index a87a810..7f209bf 100644
      if (this._controlState === RendererControlState.EXPLICIT_SUSPENDED) {
        return
      }
-@@ -3628,7 +3756,10 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -3628,7 +3754,10 @@ export class CliRenderer extends EventEmitter implements RenderContext {
      }
    }
  
@@ -406,7 +404,7 @@ index a87a810..7f209bf 100644
      if (this._splitHeight > 0) {
        if (mouseEvent.y < this.renderOffset) {
          return false
-@@ -3656,7 +3787,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -3656,7 +3785,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
      }
  
      if (mouseEvent.type === "scroll") {
@@ -415,7 +413,7 @@ index a87a810..7f209bf 100644
        const maybeRenderable = Renderable.renderablesByNumber.get(maybeRenderableId)
        const fallbackTarget =
          this._currentFocusedRenderable &&
-@@ -3673,7 +3804,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -3673,7 +3802,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
        return true
      }
  
@@ -424,7 +422,7 @@ index a87a810..7f209bf 100644
      const sameElement = maybeRenderableId === this.lastOverRenderableNum
      this.lastOverRenderableNum = maybeRenderableId
      const maybeRenderable = Renderable.renderablesByNumber.get(maybeRenderableId)
-@@ -4676,6 +4807,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -4676,6 +4805,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
  
        // Bump before any work so all callers this iteration see the new id.
        this._frameId++
@@ -432,7 +430,7 @@ index a87a810..7f209bf 100644
  
        const now = this.normalizeClockTime(this.clock.now(), this.lastTime)
        const elapsed = this.getElapsedMs(now, this.lastTime)
-@@ -4717,7 +4849,8 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -4717,7 +4847,8 @@ export class CliRenderer extends EventEmitter implements RenderContext {
  
        // If destroy() was requested during this frame, skip native work and scheduling.
        if (!this._isDestroyed) {
