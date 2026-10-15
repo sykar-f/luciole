@@ -92,7 +92,19 @@ export class PixelController {
   }
 
   private switchTo(viewport: ScrollableViewport | undefined) {
-    if (!viewport || viewport === this.active || viewport === this.next) return;
+    if (!viewport) return;
+    if (viewport === this.active) {
+      // Several wheel reports may arrive before a frame. If their remainder
+      // returns to the active ancestor, cancel the not-yet-painted handover.
+      if (this.next) {
+        this.next = undefined;
+        this.releasing = false;
+        this.normal = [];
+        this.renderer.requestRender();
+      }
+      return;
+    }
+    if (viewport === this.next) return;
     this.stopSettle();
     if (this.active && this.last) {
       this.active.set(Math.round(this.active.position));
