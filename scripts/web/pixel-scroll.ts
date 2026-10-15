@@ -11,7 +11,11 @@ const Report = z.object({
   dy: z.optional(z.number()),
   action: z.optional(z.string()),
 });
-const InputProof = z.object({ reports: z.array(Report), heldReports: z.array(Report) });
+const InputProof = z.object({
+  reports: z.array(Report),
+  heldReports: z.array(Report),
+  nativeModifier: z.number(),
+});
 
 const bundle = await Bun.build({
   entrypoints: [import.meta.dir + "/pixel-scroll-page.ts"],
@@ -150,20 +154,25 @@ async function verify(dpr: number) {
           target.dispatchEvent(new MouseEvent(type,{...point,bubbles:true,cancelable:true,button:0,buttons}));
         }
         const reports=probe.reports.splice(0);
-        // Native Shift selection is held until the canonical release is rendered.
+        // xterm's native selection is held until the canonical release is rendered.
+        const isMac=['Macintosh','MacIntel','MacPPC','Mac68K'].includes(navigator.platform);
+        probe.terminal.options.macOptionClickForcesSelection=true;
+        const nativeKeys=isMac?{altKey:true}:{shiftKey:true};
+        const nativeModifier=isMac?2:1;
+        const end={...point,clientX:point.clientX+2*probe.dimensions().cellWidth};
         let native=0;
         target.addEventListener('mousedown',()=>native++);
-        target.dispatchEvent(new MouseEvent('mousedown',{...point,bubbles:true,cancelable:true,button:0,buttons:1,shiftKey:true}));
-        target.dispatchEvent(new MouseEvent('mousemove',{...point,bubbles:true,cancelable:true,button:0,buttons:1,shiftKey:true}));
-        target.dispatchEvent(new MouseEvent('mouseup',{...point,bubbles:true,cancelable:true,button:0,buttons:0,shiftKey:true}));
+        target.dispatchEvent(new MouseEvent('mousedown',{...point,bubbles:true,cancelable:true,button:0,buttons:1,detail:1,...nativeKeys}));
+        target.dispatchEvent(new MouseEvent('mousemove',{...end,bubbles:true,cancelable:true,button:0,buttons:1,...nativeKeys}));
+        target.dispatchEvent(new MouseEvent('mouseup',{...end,bubbles:true,cancelable:true,button:0,buttons:0,...nativeKeys}));
         const before=native;
         const heldReports=probe.reports.splice(0);
         await probe.write(probe.sync(probe.transaction(102,2,0)+probe.op({op:'release',version:1,id:1,generation:102})));
         const after=native;
         // Reduced motion revokes the nonce, then a fresh query can discover again.
-        return {reports,heldReports,before,after,consumed,selected:probe.terminal.hasSelection()};
+        return {reports,heldReports,before,after,consumed,nativeModifier,selected:probe.terminal.hasSelection()};
       })()`);
-    expect(input).toMatchObject({ before: 0, after: 1, consumed: [false, false] });
+    expect(input).toMatchObject({ before: 0, after: 1, consumed: [false, false], selected: true });
     const parsed = InputProof.parse(input);
     const wheel = parsed.reports.filter((report) => report.op === "wheel");
     expect(wheel).toHaveLength(3);
@@ -176,7 +185,7 @@ async function verify(dpr: number) {
     expect(parsed.heldReports[0]).toMatchObject({
       op: "pointer",
       generation: 100,
-      modifiers: 1,
+      modifiers: parsed.nativeModifier,
       action: "down",
     });
     await browser.send("Emulation.setEmulatedMedia", {
