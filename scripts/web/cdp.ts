@@ -87,7 +87,9 @@ export class Browser implements AsyncDisposable {
 
   static async start(options: { commandTimeoutMs?: number } = {}) {
     const profile = mkdtempSync(join(tmpdir(), "luciole-cdp-"));
-    const { child: chrome, stop } = await managedProcess(chromeArgs(profile), { directory: profile });
+    const { child: chrome, stop } = await managedProcess(chromeArgs(profile), {
+      directory: profile,
+    });
     // Drain Chrome output so a full pipe cannot stall the browser.
     void new Response(chrome.stdout).arrayBuffer();
     void new Response(chrome.stderr).arrayBuffer();
