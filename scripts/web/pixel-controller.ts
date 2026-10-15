@@ -1,0 +1,168 @@
+/* eslint-disable no-magic-numbers -- Scripted browser proof coordinates and bounds. */
+import { expect } from "bun:test";
+import { createHash } from "node:crypto";
+import { join } from "node:path";
+import { defaultCache } from "../../packages/core/src/compile";
+import { prepareWebRuntime, webRuntimeDirectory } from "../../packages/core/src/web-runtime";
+import { opentuiWasm } from "../../packages/core/src/web/opentui/plugin";
+import { browserNode } from "../../packages/core/src/web/node/plugin";
+import { Browser } from "./cdp";
+
+await prepareWebRuntime();
+const runtime = await webRuntimeDirectory();
+const patch = await Bun.file(
+  import.meta.dir + "/../../packages/core/web/opentui-v0.5.12.patch",
+).arrayBuffer();
+const key = createHash("sha256").update(new Uint8Array(patch)).digest("hex").slice(0, 16);
+const checkout = join(defaultCache(), "web", `opentui-v0.5.12-${key}`);
+const build = await Bun.build({
+  entrypoints: [import.meta.dir + "/pixel-controller-page.ts"],
+  target: "browser",
+  format: "esm",
+  define: { "process.env.NODE_ENV": JSON.stringify("production") },
+  plugins: [
+    opentuiWasm,
+    {
+      name: "fixture-sources",
+      setup(builder) {
+        builder.onResolve({ filter: /^@opentui\/core$/ }, () => ({
+          path: join(checkout, "packages/core/src/index.ts"),
+        }));
+      },
+    },
+    browserNode,
+  ],
+});
+if (!build.success) throw new Error(build.logs.map((log) => log.message).join("\n"));
+const script = await build.outputs[0]?.text();
+const css = await Bun.file(join(runtime, "xterm.css")).text();
+const server = Bun.serve({
+  port: 0,
+  fetch(request) {
+    const path = new URL(request.url).pathname;
+    if (path === "/fixture.js")
+      return new Response(script, { headers: { "content-type": "text/javascript" } });
+    if (path === "/opentui.wasm") return new Response(Bun.file(join(runtime, "opentui.wasm")));
+    return new Response(
+      `<style>${css}body{margin:0;background:#000}</style><script type="module" src="/fixture.js"></script>`,
+      { headers: { "content-type": "text/html" } },
+    );
+  },
+});
+try {
+  await using browser = await Browser.start();
+  await browser.send("Emulation.setDeviceMetricsOverride", {
+    width: 900,
+    height: 600,
+    deviceScaleFactor: Number(process.argv[2] ?? 1),
+    mobile: false,
+  });
+  await browser.open(server.url.href);
+  await browser.waitFor(
+    "!!window.probe?.state().presented",
+    "the negotiated ScrollBox presentation",
+  );
+  const bands = await browser.evaluate(`(async () => {
+    const pause = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const first = probe.state();
+    const rect = first.left.rect, H = first.cellHeight;
+    const errors = []; let checked = 0, previous = 0;
+    const bar = JSON.stringify(first.bar);
+    probe.frames.length = 0;
+    for (const direction of [1, -1]) {
+      for (let i = 0; i < 16; i++) {
+        probe.wheel(rect.x+rect.width-2, rect.y+2.5, direction*.25);
+        await pause(); await pause();
+        const state = probe.state();
+        if (JSON.stringify(state.bar)!==bar) errors.push('scrollbar moved');
+        for(const frame of probe.frames.splice(0)) {
+          const position=frame.origin+frame.phase;
+          if(direction*(position-previous)<-1e-6 || Math.abs(position-previous)>.25+1/H+1e-6) errors.push('discontinuity:'+previous+'/'+position);
+          previous=position;
+          for(let y=Math.ceil(rect.y*H);y<Math.floor((rect.y+rect.height)*H);y++) {
+            const row=frame.origin+Math.floor((y-rect.y*H+Math.round(frame.phase*H))/H);
+            const hex=probe.color(row).slice(1);
+            const expected=[0,2,4].map(at=>parseInt(hex.slice(at,at+2),16));
+            const actual=frame.column.slice(y*3,y*3+3);
+            if(expected.some((v,i)=>v!==actual[i])) {errors.push('band:'+row+':'+y+':'+actual+'/'+expected);break;}
+          }
+          checked++;
+        }
+      }
+    }
+    return {errors,checked,position:probe.state().left.position};
+  })()`);
+  expect(bands).toMatchObject({ errors: [], position: 0 });
+  expect(bands).toHaveProperty("checked");
+  console.log("continuity", bands);
+  await browser.evaluate("probe.wheel(20,3,.375)");
+  await browser.waitFor("probe.state().left.position > .3", "a resting fractional position");
+  await browser.evaluate("probe.events.length=0;probe.pointer('mousemove',3.5,2.9)");
+  await browser.waitFor("probe.events.some(e=>e.type==='over')", "fractional hover");
+  expect(await browser.evaluate("probe.events.filter(e=>e.type==='over').at(-1)?.id")).toBe(
+    "row-2",
+  );
+  await browser.evaluate(
+    "probe.pointer('mousedown',3.5,2.9,1);probe.pointer('mousemove',8.5,3.9,1);probe.pointer('mouseup',8.5,3.9)",
+  );
+  await browser.waitFor("probe.events.some(e=>e.type==='drop')", "application drop");
+  expect(await browser.evaluate("probe.events.some(e=>e.id==='row-2'&&e.type==='down')")).toBe(
+    true,
+  );
+  await browser.evaluate("probe.terminal.input('\\x03')");
+  await browser.waitFor("!!probe.state().copied", "application selection copy");
+  expect(await browser.evaluate("probe.state().copied")).toEqual(expect.stringContaining("ROW"));
+  await browser.evaluate("probe.terminal.input('\\x1b[B')");
+  await browser.waitFor("probe.state().left.position > 1", "focused keyboard scroll");
+  // A disjoint viewport is selected by an ordinary move before precise wheel input.
+  await browser.evaluate("probe.pointer('mousemove',30,3)");
+  await browser.waitFor("probe.state().presented?.rect.x > 25", "disjoint viewport handover");
+  await browser.evaluate("probe.wheel(30,3,.375)");
+  await browser.waitFor(
+    "probe.state().right.position > .3",
+    "precise wheel in the second viewport",
+  );
+  await browser.evaluate("probe.pointer('mousemove',3,3)");
+  await browser.waitFor(
+    "probe.state().presented?.rect.x < 25",
+    "handover back to the long viewport",
+  );
+  await browser.evaluate("probe.nested()");
+  await browser.waitFor("probe.state().nested.rect.height > 0", "nested viewport layout");
+  await browser.evaluate("probe.wheel(4,6,.375)");
+  await browser.waitFor("probe.state().nested.position > 0", "nested precise wheel handover");
+  expect(await browser.evaluate("Number.isInteger(probe.state().left.position)")).toBe(true);
+  await browser.evaluate("probe.popup()");
+  await browser.waitFor("!probe.state().presented", "canonical release before popup presentation");
+  await browser.evaluate("probe.closePopup();probe.pointer('mousemove',3,3)");
+  await browser.waitFor("!!probe.state().presented", "rebuilt presentation");
+  await browser.evaluate("probe.resize()");
+  await browser.waitFor(
+    "probe.state().presented && probe.terminal.rows===17",
+    "resize rediscovery",
+  );
+  for (const scenario of ["optOut", "reduced", "noHost"]) {
+    await browser.send("Emulation.setEmulatedMedia", {
+      features: [
+        {
+          name: "prefers-reduced-motion",
+          value: scenario === "reduced" ? "reduce" : "no-preference",
+        },
+      ],
+    });
+    await browser.open(server.url.href + (scenario === "reduced" ? "" : "?" + scenario));
+    await browser.waitFor("!!window.probe", scenario + " fixture");
+    await browser.evaluate("probe.wheel(20,3,.375)");
+    expect(await browser.evaluate("probe.state().left.position")).toBe(0);
+    await browser.evaluate("probe.wheel(20,3,2)");
+    await browser.waitFor("probe.state().left.position > 0", scenario + " row wheel");
+    expect(
+      await browser.evaluate(
+        "Number.isInteger(probe.state().left.position) && !probe.state().presented",
+      ),
+    ).toBe(true);
+  }
+  console.log("pixel controller browser proof passed");
+} finally {
+  await server.stop(true);
+}
