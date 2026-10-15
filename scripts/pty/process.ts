@@ -9,11 +9,18 @@ export function bounded<T>(work: Promise<T>, milliseconds: number, message: stri
   });
 }
 
+const Cleanup = z.object({ ok: z.boolean(), error: z.optional(z.string()) });
+
 /** The independent guard launches the child in its own process group. */
 export async function managedProcess(
   command: readonly string[],
   options: { env?: Record<string, string>; directory?: string } = {},
 ) {
+  let cleanup: z.infer<typeof Cleanup> | undefined;
+  let channelClosed: () => void = () => {};
+  const disconnected = new Promise<void>((resolve) => {
+    channelClosed = resolve;
+  });
   let reportPid: (pid: number) => void = () => {};
   const ready = new Promise<number>((resolve) => {
     reportPid = resolve;
@@ -30,12 +37,19 @@ export async function managedProcess(
       stdin: "pipe",
       stdout: "pipe",
       stderr: "pipe",
+      onDisconnect() {
+        channelClosed();
+      },
       ipc(message: unknown) {
         const ready = z.object({ pid: z.number() }).safeParse(message);
         if (ready.success) reportPid(ready.data.pid);
+        const result = z.object({ cleanup: Cleanup }).safeParse(message);
+        if (result.success) cleanup = result.data.cleanup;
       },
     },
   );
+  const [stderr, capturedStderr] = guard.stderr.tee();
+  const errors = new Response(capturedStderr).text().catch(String);
   let pid: number;
   try {
     pid = await bounded(
@@ -62,7 +76,11 @@ export async function managedProcess(
     await bounded(guard.exited, 5000, "child did not stop").catch(async () => {
       await guard.stdin.end();
     });
-    await guard.exited;
+    const [exitCode] = await Promise.all([guard.exited, disconnected]);
+    if (!cleanup?.ok)
+      throw new Error(
+        `guard ${guard.pid} exited ${exitCode}: ${cleanup?.error ?? "no cleanup result"}\n${await errors}`,
+      );
   };
-  return { child: { pid, stdout: guard.stdout, stderr: guard.stderr, exited: guard.exited }, stop };
+  return { child: { pid, stdout: guard.stdout, stderr, exited: guard.exited }, stop };
 }

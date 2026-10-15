@@ -5,6 +5,8 @@ import * as z from "zod/mini";
 
 const profile = process.argv.find((arg) => arg.startsWith("--user-data-dir="))?.split("=")[1];
 if (!profile) throw new Error("missing profile");
+if (process.env.LUCIOLE_TEST_GUARD_REMOVE_ERROR === "1")
+  console.error("fake Chrome stderr retained through cleanup");
 const descendant = Bun.spawn([process.execPath, "-e", "setInterval(() => {}, 1000)"], {
   stdout: "ignore",
   stderr: "ignore",
@@ -69,5 +71,10 @@ writeFileSync(join(profile, "DevToolsActivePort"), `${server.port}\n`);
 if (process.env.CDP_RECORD)
   writeFileSync(
     process.env.CDP_RECORD,
-    JSON.stringify({ chrome: process.pid, descendant: descendant.pid, profile }),
+    JSON.stringify({
+      chrome: process.pid,
+      guard: process.ppid,
+      descendant: descendant.pid,
+      profile,
+    }),
   );
