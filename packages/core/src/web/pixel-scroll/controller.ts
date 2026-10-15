@@ -50,6 +50,7 @@ export class PixelController {
   private generation = 0;
   private releasing = false;
   private disposed = false;
+  private rediscoveryQueued = false;
   private normal: (Uint32Array | Uint16Array)[] = [];
   private settleTimer: ReturnType<typeof setTimeout> | undefined;
   private settleAnimation: ReturnType<typeof setInterval> | undefined;
@@ -247,11 +248,14 @@ export class PixelController {
         this.active = this.next ?? this.active;
         this.next = undefined;
         this.releasing = false;
-        this.resume = undefined;
+        if (capability.reason !== "invalidated") this.resume = undefined;
         if (this.active && !this.active.owner.isDestroyed) {
           this.resume =
             capability.reason === "invalidated"
-              ? { viewport: this.active, fraction: this.active.position - this.active.origin }
+              ? (this.resume ?? {
+                  viewport: this.active,
+                  fraction: this.active.position - this.active.origin,
+                })
               : undefined;
         }
         for (const viewport of this.viewports()) {
@@ -261,7 +265,13 @@ export class PixelController {
         this.last = undefined;
         this.normal = [];
         this.renderer.requestRender();
-        if (capability.reason === "invalidated") queueMicrotask(() => this.query());
+        if (capability.reason === "invalidated" && !this.rediscoveryQueued) {
+          this.rediscoveryQueued = true;
+          queueMicrotask(() => {
+            this.rediscoveryQueued = false;
+            this.query();
+          });
+        }
       } else {
         const resume = this.resume;
         this.resume = undefined;
