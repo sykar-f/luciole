@@ -236,12 +236,18 @@ export class PixelController {
       this.write(this.discovery.mode());
       if (!this.discovery.ready) {
         this.stopSettle();
+        this.active = this.next ?? this.active;
+        this.next = undefined;
+        this.releasing = false;
+        this.resume = undefined;
         if (this.active && !this.active.owner.isDestroyed) {
           this.resume =
             capability.reason === "invalidated"
               ? { viewport: this.active, fraction: this.active.position - this.active.origin }
               : undefined;
-          this.active.set(this.active.origin);
+        }
+        for (const viewport of this.viewports()) {
+          if (!Number.isInteger(viewport.position)) viewport.set(viewport.origin);
         }
         this.history.clear();
         this.last = undefined;
