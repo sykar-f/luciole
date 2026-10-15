@@ -204,21 +204,6 @@ try {
   await wait("!!probe.state().presented", "rebuilt presentation");
   await browser.evaluate("probe.resize()");
   await wait("probe.state().presented && probe.terminal.rows===17", "resize rediscovery");
-  await browser.evaluate(
-    "{const r=probe.state().left.rect;probe.wheel(r.x+r.width-2,r.y+2.5,.375)}",
-  );
-  await wait("probe.state().presented?.fraction > .3", "fraction before native selection");
-  await browser.evaluate(
-    "{const r=probe.state().left.rect,mac=navigator.platform.includes('Mac');probe.pointer('mousedown',r.x+1.5,r.y+1.5,1,!mac,mac);probe.pointer('mousemove',r.x+8.5,r.y+2.5,1,!mac,mac);probe.pointer('mouseup',r.x+8.5,r.y+2.5,0,!mac,mac)}",
-  );
-  await wait("!probe.state().presented", "native selection's canonical release");
-  await wait("!!probe.state().nativeSelection", "native selection replay");
-  await browser.evaluate(
-    "probe.terminal.options.macOptionClickForcesSelection=false;probe.events.length=0;{const r=probe.state().left.rect;probe.pointer('mousedown',r.x+1.5,r.y+1.5,1,false,true);probe.pointer('mouseup',r.x+1.5,r.y+1.5,0,false,true)}",
-  );
-  await wait("probe.events.some(e=>e.type==='down')", "ordinary Alt click after release");
-  await browser.evaluate("probe.pointer('mousemove',3,3)");
-  await wait("!!probe.state().presented", "presentation after native selection");
   await browser.evaluate("probe.loseContext()");
   await wait(
     "!probe.state().presented && Number.isInteger(probe.state().left.position)",
@@ -245,6 +230,26 @@ try {
       ),
     ).toBe(true);
   }
+  await browser.send("Emulation.setEmulatedMedia", {
+    features: [{ name: "prefers-reduced-motion", value: "no-preference" }],
+  });
+  await browser.open(server.url.href);
+  await wait("!!window.probe?.state().presented", "native-selection fixture");
+  await browser.evaluate(
+    "{const r=probe.state().left.rect;probe.wheel(r.x+r.width-2,r.y+2.5,.375)}",
+  );
+  await wait("probe.state().presented?.fraction > .3", "fraction before native selection");
+  await browser.evaluate(
+    "{const r=probe.state().left.rect,mac=navigator.platform.includes('Mac');probe.pointer('mousedown',r.x+1.5,r.y+1.5,1,!mac,mac);probe.pointer('mousemove',r.x+8.5,r.y+2.5,1,!mac,mac);probe.pointer('mouseup',r.x+8.5,r.y+2.5,0,!mac,mac)}",
+  );
+  await wait("!probe.state().presented", "native selection's canonical release");
+  await wait("!!probe.state().nativeSelection", "native selection replay");
+  await browser.evaluate(
+    "probe.terminal.options.macOptionClickForcesSelection=false;probe.events.length=0;{const r=probe.state().left.rect;probe.pointer('mousedown',r.x+1.5,r.y+1.5,1,false,true);probe.pointer('mouseup',r.x+1.5,r.y+1.5,0,false,true)}",
+  );
+  await wait("probe.events.some(e=>e.type==='down')", "ordinary Alt click after release");
+  await browser.evaluate("probe.pointer('mousemove',3,3)");
+  await wait("!!probe.state().presented", "presentation after native selection");
   console.log("pixel controller browser proof passed");
 } finally {
   await server.stop(true);
