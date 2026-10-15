@@ -190,22 +190,53 @@ test("a signal while ssh authenticates stops ssh and removes the socket director
   const script = join(work, "waiting-client.ts");
   await Bun.write(
     script,
-    `import { openTunnel } from ${JSON.stringify(resolve("packages/core/src/connect.ts"))};
+    `import { mock } from "bun:test";
+import { spawn } from "node:child_process";
+const original = spawn;
+mock.module("node:child_process", () => ({ spawn: (...args) => {
+  const child = original(...args);
+  // A scheduling gap after ssh starts, before spawn returns to openTunnel.
+  process.kill(process.pid, "SIGSTOP");
+  return child;
+} }));
+const { openTunnel } = await import(${JSON.stringify(resolve("packages/core/src/connect.ts"))});
 await openTunnel("ssh://silent.example", { ssh: ${JSON.stringify(fakeSsh)} });`,
   );
-  const calls = () => readFileSync(join(work, "calls.jsonl"), "utf8").length;
+  const calls = () =>
+    existsSync(join(work, "calls.jsonl"))
+      ? readFileSync(join(work, "calls.jsonl"), "utf8").length
+      : 0;
   const before = calls();
   const client = Bun.spawn([process.execPath, script], { stdout: "ignore", stderr: "ignore" });
-  await until(() => calls() > before, WAIT_MS);
-  const call = await lastCall();
-  const directory = dirname(call.args[call.args.indexOf("-L") + 1].split(":")[0]);
-  expect(existsSync(directory)).toBe(true);
-  client.kill("SIGTERM");
-  await client.exited;
-  // The signal still ends the Client as it would have, after the tunnel is gone.
-  expect(client.signalCode).toBe("SIGTERM");
-  await until(() => !alive(call.pid), WAIT_MS);
-  expect(existsSync(directory)).toBe(false);
+  let call: Awaited<ReturnType<typeof lastCall>> | undefined;
+  let directory: string | undefined;
+  try {
+    await until(
+      () => calls() > before,
+      WAIT_MS,
+      () => "waiting for ssh to start",
+    );
+    call = await lastCall();
+    directory = dirname(call.args[call.args.indexOf("-L") + 1].split(":")[0]);
+    expect(existsSync(directory)).toBe(true);
+    client.kill("SIGTERM");
+    client.kill("SIGCONT");
+    await client.exited;
+    // The signal still ends the Client as it would have, after the tunnel is gone.
+    expect(client.signalCode).toBe("SIGTERM");
+    expect(existsSync(directory)).toBe(false);
+    const pid = call.pid;
+    await until(
+      () => !alive(pid),
+      WAIT_MS,
+      () => `waiting for ssh ${pid} to exit`,
+    );
+  } finally {
+    client.kill("SIGKILL");
+    await client.exited;
+    if (call && alive(call.pid)) process.kill(call.pid, "SIGKILL");
+    if (directory) await rm(directory, { recursive: true, force: true });
+  }
 });
 
 test("ssh failures, stalls and option-like hosts are explained", async () => {
