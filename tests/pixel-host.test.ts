@@ -452,6 +452,7 @@ for (const platform of [
               button: 0,
               shiftKey,
               altKey,
+              detail: type === "mousedown" ? 2 : 0,
               preventDefault() {
                 prevented = true;
               },
@@ -477,6 +478,7 @@ for (const platform of [
           for (const event of replayed) {
             expect(event.shiftKey).toBe(shiftKey);
             expect(event.altKey).toBe(altKey);
+            expect(event.detail).toBe(event.type === "mousedown" ? 2 : 0);
           }
         } finally {
           addon.dispose();

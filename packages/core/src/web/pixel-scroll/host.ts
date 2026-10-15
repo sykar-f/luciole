@@ -233,6 +233,7 @@ export class PixelScrollAddon implements ITerminalAddon {
         clientY: event.clientY,
         button: event.button,
         buttons: event.buttons,
+        detail: event.detail,
         shiftKey: event.shiftKey,
         altKey: event.altKey,
         ctrlKey: event.ctrlKey,
