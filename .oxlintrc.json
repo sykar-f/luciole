@@ -84,6 +84,8 @@
     "packages/flow-graph/dist/**",
     "**/routeTree.gen.ts",
     "website/**",
-    "packages/harness/src/adapters/codex-protocol/**"
+    "packages/harness/src/adapters/codex-protocol/**",
+    "packages/core/src/web/xterm-webgl/addon/**",
+    "packages/core/src/web/xterm-webgl/xterm/**"
   ]
 }

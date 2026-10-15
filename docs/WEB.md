@@ -386,7 +386,15 @@ page soit encadrée ou non : les parcours `scripts/web/` lisent l'écran par ell
 
 Le [contrat expérimental de défilement au pixel](PIXEL-SCROLL.md) définit les
 opérations en bande, les transactions de présentation et les entrées précises
-partagées entre le contrôleur applicatif et l'hôte xterm.
+partagées entre le contrôleur applicatif et l'hôte xterm. L'addon interne
+`src/web/pixel-scroll/host.ts` répond à la découverte, puis ne remplace les
+entrées ordinaires qu'après activation explicite du mode privé. Ses captures
+GPU sont préparées hors écran ; chaque rendu publie une frame validée entière
+et ses métadonnées ensemble. Une préparation incomplète conserve aussi le
+chrome de la dernière frame. La sélection native attend une libération sur
+grille canonique. Réduction des mouvements, lecteur d'écran, changements de
+métriques et perte du contexte révoquent la capacité ; sans négociation,
+`wheelReports` garde le chemin existant.
 
 - `createCliRenderer({ stdin, stdout, useThread: false })` : la sortie ANSI
   (NativeSpanFeed) va à l'émulateur, ses frappes et collages vont à `stdin`, son
@@ -394,7 +402,8 @@ partagées entre le contrôleur applicatif et l'hôte xterm.
   `process.platform/env`, `events`, et des `fs` inertes (logs) : un petit module
   `process` du runtime web.
 - Émulateur : **xterm.js** (décision 3), comme `packages/desktop`.
-- Moteur de rendu : **WebGL** (`@xterm/addon-webgl`, `run.tsx`, `drawOnGpu`), chargé avant
+- Moteur de rendu : **WebGL** (fork interne de `@xterm/addon-webgl` 0.19.0,
+  `src/web/xterm-webgl/`, `run.tsx`, `drawOnGpu`), chargé avant
   que la police ne soit ajustée à la grille. xterm.js y dessine lui-même filets, blocs et
   glyphes powerline (`customGlyphs`) et donne à chaque cellule un nombre entier de pixels
   physiques : le moteur DOM, qui dessine les glyphes de la police dans des cellules de
