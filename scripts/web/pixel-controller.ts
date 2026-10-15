@@ -65,7 +65,7 @@ try {
       console.error(
         label,
         await browser.evaluate(
-          "window.probe ? {state:probe.state(),reports:probe.reports.slice(-6),events:probe.events.slice(-12)} : 'no probe'",
+          "window.probe ? {state:probe.state(),operations:probe.operations(),reports:probe.reports.slice(-6),events:probe.events.slice(-12)} : 'no probe'",
         ),
       );
       throw error;

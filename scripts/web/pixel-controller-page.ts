@@ -56,9 +56,13 @@ terminal.onData((data) => {
   stdin.write(data);
 });
 const { requestAnimationFrame, cancelAnimationFrame } = globalThis;
+let wire = "";
 const r = await createCliRenderer({
   stdin,
-  stdout: terminalOutput({ columns: 50, rows: 16 }, (bytes, done) => terminal.write(bytes, done)),
+  stdout: terminalOutput({ columns: 50, rows: 16 }, (bytes, done) => {
+    wire += new TextDecoder().decode(bytes);
+    terminal.write(bytes, done);
+  }),
   width: 50,
   height: 16,
   useThread: false,
@@ -182,6 +186,7 @@ Object.assign(window, {
     terminal,
     r,
     reports,
+    operations: () => (wire.match(/\x1b\]19462;[^\x1b]*\x1b\\/g) ?? []).map(decode).slice(-20),
     events,
     frames,
     color,
