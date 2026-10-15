@@ -20,11 +20,14 @@ const VENDOR_DIR = "vendor";
  * are the workspace catalog's):
  * - the renderer trio is pinned together: `@opentui/keymap` asks for the exact `@opentui/core` it
  *   was released with, so a `^` range there would install a second copy beside the starter's;
+ * - React DOM is a router peer even for terminal apps. Pin it alongside React so a linked
+ *   checkout and the starter share TypeScript's router identity (which includes its peers);
  * - the optional packages Notes reaches through `@luciole-sh/core/math` and
  *   `@luciole-sh/core/grammars` (code-block highlighting); the web target's are not Notes' needs.
  */
 const STARTER_DEPENDENCIES = [
   "@opentui/keymap",
+  "react-dom",
   "@resvg/resvg-wasm",
   "@tree-sitter-grammars/tree-sitter-lua",
   "@tree-sitter-grammars/tree-sitter-toml",

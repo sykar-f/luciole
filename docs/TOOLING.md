@@ -133,6 +133,13 @@ au moment où l'utilisateur lance la commande. Depuis un dépôt, `luciole init`
 script de staging en mode `--workspace` : le starter y lie `packages/core` par `file:` et copie
 l'éditeur dans `vendor/`. Après `bun install`, les commandes fonctionnent depuis le starter.
 
+Le starter fixe aussi React DOM à la version du catalogue, comme React : TanStack Router
+déclare les deux comme peers, même pour une application terminal. TypeScript inclut les
+versions résolues des peers dans l'identité d'un paquet. Avec un core lié au dépôt, laisser
+Bun choisir React DOM peut donc séparer les deux copies de Router et leur registre de routes,
+même si Router a la même version des deux côtés. Ces versions suivent le catalogue lors des
+mises à jour de React ; aucune modification des types publics du routeur n'est nécessaire.
+
 `scripts/clean-install.ts` vérifie depuis des dossiers temporaires une installation
 neuve du framework et du starter, les types, le lint et le format du starter,
 puis les artefacts séparés en PTY. Une sonde TypeScript y importe `node:path` et
