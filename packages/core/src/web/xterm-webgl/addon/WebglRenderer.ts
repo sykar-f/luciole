@@ -650,6 +650,7 @@ export class WebglRenderer extends Disposable implements IRenderer {
     if (this._canvas.width === width && this._canvas.height === height) {
       return;
     }
+    this.pixels.changed();
     // While the actual canvas size has changed, keep device canvas dimensions as the value before
     // the change as it's an exact multiple of the cell sizes.
     this._canvas.width = width;

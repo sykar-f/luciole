@@ -91,7 +91,11 @@ export class PixelCompositor implements PixelRenderer {
     const gl = this.gl;
     const texture = gl.createTexture();
     const framebuffer = gl.createFramebuffer();
-    if (!texture || !framebuffer) throw new Error("Pixel-scroll allocation failed");
+    if (!texture || !framebuffer) {
+      gl.deleteTexture(texture);
+      gl.deleteFramebuffer(framebuffer);
+      throw new Error("Pixel-scroll allocation failed");
+    }
     const previous: unknown = gl.getParameter(gl.TEXTURE_BINDING_2D);
     gl.bindTexture(gl.TEXTURE_2D, texture);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);

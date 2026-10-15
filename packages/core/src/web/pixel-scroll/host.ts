@@ -18,6 +18,8 @@ const CTRL = 4;
 const META = 8;
 const LINE = 1;
 const PAGE = 2;
+const MAX_BUTTONS = 31;
+const LAST_BUTTON = 4;
 const modifiers = (event: MouseEvent) =>
   (event.shiftKey ? SHIFT : 0) |
   (event.altKey ? ALT : 0) |
@@ -131,8 +133,10 @@ export class PixelScrollAddon implements ITerminalAddon {
     if (element) {
       for (const type of ["mousedown", "mousemove", "mouseup"] as const) {
         const listener = (event: MouseEvent) => this.pointer(event);
-        element.addEventListener(type, listener, true);
-        this.disposables.push({ dispose: () => element.removeEventListener(type, listener, true) });
+        element.ownerDocument.addEventListener(type, listener, true);
+        this.disposables.push({
+          dispose: () => element.ownerDocument.removeEventListener(type, listener, true),
+        });
       }
       const canvas = element.querySelector(".xterm-webgl-layer");
       const loss = () => {
@@ -149,6 +153,9 @@ export class PixelScrollAddon implements ITerminalAddon {
   invalidate(
     reason: "no-gpu" | "invalidated" | "reduced-motion" | "screen-reader" = "invalidated",
   ) {
+    if (this.lost) reason = "no-gpu";
+    else if (this.terminal?.options.screenReaderMode && reason !== "reduced-motion")
+      reason = "screen-reader";
     this.held = undefined;
     this.dragging = false;
     this.synchronized = false;
@@ -228,21 +235,31 @@ export class PixelScrollAddon implements ITerminalAddon {
 
   private pointer(event: MouseEvent) {
     if (this.replaying) return;
+    const element = this.terminal?.element;
+    if (
+      !this.held &&
+      !this.dragging &&
+      (!(event.target instanceof Node) || !element?.contains(event.target))
+    )
+      return;
     if (this.held) {
       this.held.push(this.remember(event));
       event.preventDefault();
       event.stopImmediatePropagation();
       return;
     }
+    if (event.buttons < 0 || event.buttons > MAX_BUTTONS) return;
     const point = this.point(event);
     if (!point || (!point.inside && !this.dragging)) return;
     // On a canonical grid, leave the terminal's native selection gesture intact.
     const native =
       event.shiftKey ||
-      (event.altKey && this.terminal?.options.macOptionClickForcesSelection === true);
+      (event.altKey &&
+        navigator.platform.includes("Mac") &&
+        this.terminal?.options.macOptionClickForcesSelection === true);
     if (native && point.p.fraction === 0) return;
-    if (event.type === "mousedown" && (event.button < 0 || event.button > CTRL)) return;
-    if (event.type === "mouseup" && (event.button < 0 || event.button > CTRL)) return;
+    if (event.type === "mousedown" && (event.button < 0 || event.button > LAST_BUTTON)) return;
+    if (event.type === "mouseup" && (event.button < 0 || event.button > LAST_BUTTON)) return;
     const action =
       event.type === "mousedown"
         ? "down"
