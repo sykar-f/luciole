@@ -456,7 +456,8 @@ export class Driver implements AsyncDisposable {
   }
   /** Sends a signal to the program itself. */
   signal(signal: NodeJS.Signals) {
-    if (this.running) this.child.kill(signal);
+    // Bun 1.4.2's Subprocess.kill uses Linux signal numbers on macOS (oven-sh/bun#35296).
+    if (this.running) process.kill(this.child.pid, signal);
   }
   /** Closing a terminal window: every process of the session gets SIGHUP. */
   hangup() {
