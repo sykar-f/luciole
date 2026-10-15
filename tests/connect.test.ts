@@ -186,6 +186,23 @@ test("a long TMPDIR still yields a socket path that fits", async () => {
 });
 
 test("a signal while ssh authenticates stops ssh and removes the socket directory", async () => {
+  // Share a deadline so every step reports before the runner's 20 s test bound,
+  // leaving a separate 5 s budget for failure cleanup.
+  const deadline = performance.now() + 10_000;
+  const remaining = () => Math.max(0, deadline - performance.now());
+  const within = async <T>(promise: Promise<T>, step: string, timeout = remaining()) => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      return await Promise.race([
+        promise,
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => reject(new Error(step)), timeout);
+        }),
+      ]);
+    } finally {
+      clearTimeout(timer);
+    }
+  };
   // A Client still waiting for the tunnel (a passphrase prompt, say) is killed.
   const script = join(work, "waiting-client.ts");
   await Bun.write(
@@ -213,7 +230,7 @@ await openTunnel("ssh://silent.example", { ssh: ${JSON.stringify(fakeSsh)} });`,
   try {
     await until(
       () => calls() > before,
-      WAIT_MS,
+      remaining(),
       () => "waiting for ssh to start",
     );
     call = await lastCall();
@@ -226,24 +243,26 @@ await openTunnel("ssh://silent.example", { ssh: ${JSON.stringify(fakeSsh)} });`,
         Bun.spawnSync(["ps", "-o", "stat=", "-p", String(client.pid)])
           .stdout.toString()
           .includes("T"),
-      WAIT_MS,
+      remaining(),
       () => "waiting for the Client to stop inside spawn",
     );
     client.kill("SIGTERM");
-    client.kill("SIGCONT");
-    await client.exited;
+    // Bun 1.4.2's Subprocess.kill maps SIGCONT to SIGTSTP on macOS
+    // (oven-sh/bun#35296), leaving the Client stopped with SIGTERM pending.
+    process.kill(client.pid, "SIGCONT");
+    await within(client.exited, "waiting for the Client to exit after SIGTERM and SIGCONT");
     // The signal still ends the Client as it would have, after the tunnel is gone.
     expect(client.signalCode).toBe("SIGTERM");
     expect(existsSync(directory)).toBe(false);
     const pid = call.pid;
     await until(
       () => !alive(pid),
-      WAIT_MS,
+      remaining(),
       () => `waiting for ssh ${pid} to exit`,
     );
   } finally {
     client.kill("SIGKILL");
-    await client.exited;
+    await within(client.exited, "waiting for the Client to exit during cleanup", 5_000);
     if (call && alive(call.pid)) process.kill(call.pid, "SIGKILL");
     if (directory) await rm(directory, { recursive: true, force: true });
   }
