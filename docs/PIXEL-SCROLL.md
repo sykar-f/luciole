@@ -336,3 +336,34 @@ intégrations. Les formes non rectangulaires, l'occlusion arbitraire, le scroll
 horizontal graphique et les garanties de performance ne sont pas spécifiés.
 La fraction peut rester au repos ; ce contrat n'impose ni délai ni animation
 de recalage, sauf le retour canonique nécessaire à la libération.
+
+## Comportement du contrôleur web
+
+`runInPage` installe le contrôleur par défaut ; `pixelScroll: false` (également
+accepté par `run`) désactive son installation. La découverte ne bloque jamais
+le démarrage. Sans réponse compatible, avec la réduction des mouvements ou le
+lecteur d'écran, le chemin ordinaire par lignes reste actif. Le terminal natif
+n'installe pas ce contrôleur.
+
+Une seule vue porte une fraction. Les événements précis dans la région active
+passent par les hit maps de leur génération : snapshot pour les anciennes
+lignes visibles, projection pour le bord entrant. Une vue imbriquée consomme le
+delta, puis fait remonter son reste à sa borne. Le transfert arrondit la vue
+précédente avant de libérer sa grille canonique et d'enregistrer la suivante.
+Hors région active, le mouvement, le clic ou le premier rapport SGR choisit la
+vue suivante ; ce premier pas de molette reste entier. Le contrat v1 ne fournit
+pas de rapports précis sur plusieurs régions simultanées.
+
+Le contrôleur conserve huit générations au maximum, et retire celles antérieures
+à la génération présentée qu'une entrée lui confirme. Une entrée plus ancienne
+ou évincée est rejetée ; elle n'est jamais réinterprétée sur une hit map récente.
+Les frames sans changement de contenu ni de position ne créent pas de transaction.
+Le rendu continue même sans entrée de confirmation.
+
+La position reste fractionnaire au repos. Le contrôleur dispose aussi d'une
+politique interne de retour court à la ligne (140 ms après 120 ms sans molette),
+désactivée par défaut. Shift ou Option/Alt au début d'une sélection demande une
+frame canonique puis sa libération ; l'hôte attend sa présentation effective
+pour rejouer la sélection native. Une popup intersectée libère la surface dans
+sa frame. Une invalidation abandonne les hit maps, repeint à l'origine entière
+et recommence la découverte lorsque l'hôte signale des métriques invalidées.

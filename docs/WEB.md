@@ -363,7 +363,8 @@ vient de l'écran affiché, pas d'un délai : avec `delays: "keys"`, les tours e
 route ne l'ont pas changé, et un écran qui tarde à répondre n'est pas pris pour un écran
 sans rien à faire défiler.
 
-La molette arrive à l'application comme d'un terminal natif : un rapport SGR par hauteur
+Hors de la surface pixel active, ou sans cette capacité, la molette arrive à
+l'application comme d'un terminal natif : un rapport SGR par hauteur
 de ligne parcourue, le reste gardé pour le tour suivant (`wheelReports`,
 `src/web/platform/run.tsx`). xterm.js seul envoie un rapport par événement `wheel`, quelle
 que soit sa distance, et compte le trackpad pour un tiers : un cran de 100 px n'avançait
@@ -383,6 +384,20 @@ pour dérouler un script (connexion à Forge). Ces fonctions sont posées sur `w
 page soit encadrée ou non : les parcours `scripts/web/` lisent l'écran par elles aussi.
 
 ## 4. Rendu et entrée
+
+Le runtime active par défaut le défilement fractionnaire des `ScrollBox` après
+négociation avec l'hôte. La vue reste à la fraction où le geste s'arrête ; elle
+n'ajoute pas d'inertie. `run(create, { pixelScroll: false })`, ou l'option
+`pixelScroll: false` de `runInPage`, conserve le défilement par lignes. Cette
+option n'a aucun effet dans un terminal natif. La réduction des mouvements,
+le mode lecteur d'écran et l'absence d'addon compatible gardent aussi les lignes.
+
+Le contrat v1 compose une seule surface. Dans son rectangle, la molette précise
+vise le contenu sous le pointeur, y compris une vue imbriquée ; les touches de
+défilement visent la vue focalisée. Passer à une autre vue arrondit la précédente.
+Hors du rectangle actif, un mouvement, un clic ou un premier cran SGR sélectionne
+l'autre vue ; ce premier cran reste entier, puis les rapports précis s'appliquent
+à la nouvelle surface. Les bordures et barres de défilement restent fixes.
 
 Le [contrat expérimental de défilement au pixel](PIXEL-SCROLL.md) définit les
 opérations en bande, les transactions de présentation et les entrées précises
