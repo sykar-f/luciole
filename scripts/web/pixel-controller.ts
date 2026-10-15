@@ -211,8 +211,15 @@ try {
   await wait("!probe.state().presented", "canonical release before popup presentation");
   await browser.evaluate("probe.closePopup();probe.pointer('mousemove',3,3)");
   await wait("!!probe.state().presented", "rebuilt presentation");
+  await browser.evaluate(
+    "{const r=probe.state().left.rect;probe.wheel(r.x+r.width-2,r.y+2.5,.375)}",
+  );
+  await wait("probe.state().presented?.fraction>.3", "fraction before resize");
   await browser.evaluate("probe.resize()");
-  await wait("probe.state().presented && probe.terminal.rows===17", "resize rediscovery");
+  await wait(
+    "probe.state().presented?.fraction>.3 && probe.terminal.rows===17",
+    "resize rediscovery",
+  );
   await browser.evaluate("probe.loseContext()");
   await wait(
     "!probe.state().presented && Number.isInteger(probe.state().left.position)",
@@ -238,6 +245,12 @@ try {
         "Number.isInteger(probe.state().left.position) && !probe.state().presented",
       ),
     ).toBe(true);
+    if (scenario === "reduced") {
+      await browser.send("Emulation.setEmulatedMedia", {
+        features: [{ name: "prefers-reduced-motion", value: "no-preference" }],
+      });
+      await wait("!!probe.state().presented", "rediscovery after reduced motion ends");
+    }
   }
   await browser.send("Emulation.setEmulatedMedia", {
     features: [{ name: "prefers-reduced-motion", value: "no-preference" }],

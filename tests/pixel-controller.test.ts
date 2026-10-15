@@ -90,6 +90,8 @@ test("discovery never blocks and accepts only the current supported nonce", () =
   expect(discovery.mode()).toEndWith("l");
   expect(discovery.receive(capability(current.nonce))).toBeUndefined();
   expect(discovery.ready).toBe(false);
+  expect(discovery.receive(capability(current.nonce, "invalidated"))?.reason).toBe("invalidated");
+  expect(discovery.ready).toBe(false);
 });
 
 test("bounded generation history rejects evicted, stale and mismatched input", () => {

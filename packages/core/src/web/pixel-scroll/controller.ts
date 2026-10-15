@@ -41,6 +41,7 @@ export class PixelController {
   private readonly unsubscribe: () => void;
   private active: ScrollableViewport | undefined;
   private choseInitial = false;
+  private resume: { viewport: ScrollableViewport; fraction: number } | undefined;
   private next: ScrollableViewport | undefined;
   private last: PixelFrame | undefined;
   private generation = 0;
@@ -235,13 +236,25 @@ export class PixelController {
       this.write(this.discovery.mode());
       if (!this.discovery.ready) {
         this.stopSettle();
-        if (this.active && !this.active.owner.isDestroyed) this.active.set(this.active.origin);
+        if (this.active && !this.active.owner.isDestroyed) {
+          this.resume =
+            capability.reason === "invalidated"
+              ? { viewport: this.active, fraction: this.active.position - this.active.origin }
+              : undefined;
+          this.active.set(this.active.origin);
+        }
         this.history.clear();
         this.last = undefined;
         this.normal = [];
         this.renderer.requestRender();
         if (capability.reason === "invalidated") queueMicrotask(() => this.query());
-      } else this.renderer.requestRender();
+      } else {
+        const resume = this.resume;
+        this.resume = undefined;
+        if (resume && !resume.viewport.owner.isDestroyed)
+          resume.viewport.set(resume.viewport.origin + resume.fraction);
+        this.renderer.requestRender();
+      }
       return;
     }
     if (!this.discovery.ready) return;

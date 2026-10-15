@@ -15,7 +15,12 @@ export class PixelDiscovery {
 
   receive(sequence: string): Extract<PixelReport, { op: "capability" }> | undefined {
     const report = decode(sequence);
-    if (report?.op !== "capability" || report.nonce !== this.nonce || this.revoked) return;
+    if (
+      report?.op !== "capability" ||
+      report.nonce !== this.nonce ||
+      (this.revoked && report.reason === "ready")
+    )
+      return;
     this.ready = report.snapshot && report.precise && report.reason === "ready";
     if (!this.ready) this.revoked = true;
     return report;
