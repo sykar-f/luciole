@@ -201,6 +201,10 @@ Une fonctionnalité optionnelle sans son paquet échoue avec un message qui le n
 `import()` dynamique, à la première formule. `@luciole-sh/core/grammars` reste synchrone (le bundle
 d'application est en CommonJS, sans `await` de module) : c'est le build qui vérifie ses
 seize paquets quand une application l'importe. Les builds web vérifient les leurs avant
-d'empaqueter. Le dépôt garde ces paquets en `devDependencies` de `@luciole-sh/core` pour que les
+d'empaqueter. La résolution Node (`createRequire`) ne s'initialise que dans le garde
+de build `assertInstalled` : importer `loadOptional` depuis `math` n'exécute aucun
+initialiseur Node. Le bundler peut ainsi retirer le garde et `node:module` du bundle
+d'application évalué par le navigateur, dont l'ABI ne fournit pas de built-ins Node.
+Le dépôt garde ces paquets en `devDependencies` de `@luciole-sh/core` pour que les
 exemples et les tests les trouvent ; le starter (`@luciole-sh/create`) n'en reprend que ce que
 Notes utilise (`math`, `grammars`), dans les `dependencies` de l'application créée.

@@ -5,8 +5,6 @@
  */
 import { createRequire } from "node:module";
 
-const require = createRequire(import.meta.url);
-
 /** What `@luciole-sh/core/grammars` bundles: the build checks them before it resolves the module. */
 export const GRAMMAR_PACKAGES = [
   "tree-sitter-bash",
@@ -72,6 +70,9 @@ export async function loadOptional<T>(
 
 /** For code a bundler resolves later: fails now, naming the first package not installed. */
 export function assertInstalled(feature: string, names: readonly string[]) {
+  // Only build-time guards need Node resolution. Keep importing loadOptional free
+  // of initialization so application bundles can discard this guard and node:module.
+  const require = createRequire(import.meta.url);
   for (const name of names) {
     try {
       require.resolve(`${name}/package.json`);
