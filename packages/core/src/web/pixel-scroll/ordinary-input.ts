@@ -13,6 +13,7 @@ const WHEEL_DOWN = 65;
 const LEFT_HELD = 1;
 const MIDDLE_HELD = 4;
 const RIGHT_HELD = 2;
+const ROUNDING_ULPS = 4;
 
 type Input = Extract<PixelReport, { op: "pointer" | "wheel" }>;
 
@@ -31,8 +32,13 @@ export class OrdinaryPixelInput {
       if (!report.dy) return "";
       if (Math.sign(report.dy) !== Math.sign(this.remainder)) this.remainder = 0;
       this.remainder += report.dy;
-      const rows = Math.trunc(this.remainder);
+      // Decimal trackpad deltas can sum to the float immediately below a row.
+      const nearest = Math.round(this.remainder);
+      const epsilon = Number.EPSILON * ROUNDING_ULPS * Math.max(1, Math.abs(this.remainder));
+      const rows =
+        Math.abs(this.remainder - nearest) <= epsilon ? nearest : Math.trunc(this.remainder);
       this.remainder -= rows;
+      if (Math.abs(this.remainder) <= epsilon) this.remainder = 0;
       return this.sgr(report, (rows < 0 ? WHEEL_UP : WHEEL_DOWN) | modifiers).repeat(
         Math.abs(rows),
       );
