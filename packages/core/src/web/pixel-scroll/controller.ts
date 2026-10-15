@@ -40,6 +40,7 @@ export class PixelController {
   private readonly mouse = new MouseParser();
   private readonly unsubscribe: () => void;
   private active: ScrollableViewport | undefined;
+  private choseInitial = false;
   private next: ScrollableViewport | undefined;
   private last: PixelFrame | undefined;
   private generation = 0;
@@ -153,8 +154,10 @@ export class PixelController {
   private plan(): RenderFramePlan | null {
     if (!this.discovery.ready || this.disposed) return null;
     const views = this.viewports();
-    if (!this.active)
+    if (!this.active && !this.choseInitial) {
       this.active = ancestorViewport(this.renderer.currentFocusedRenderable) ?? views[0];
+      this.choseInitial = this.active !== undefined;
+    }
     const viewport = this.active;
     if (!viewport) return null;
     const map = this.renderer.captureHitMap();

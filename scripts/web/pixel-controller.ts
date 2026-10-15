@@ -58,11 +58,21 @@ try {
     deviceScaleFactor: Number(process.argv[2] ?? 1),
     mobile: false,
   });
+  const wait = async (expression: string, label: string) => {
+    try {
+      return await browser.waitFor(expression, label);
+    } catch (error) {
+      console.error(
+        label,
+        await browser.evaluate(
+          "window.probe ? {state:probe.state(),reports:probe.reports.slice(-6),events:probe.events.slice(-12)} : 'no probe'",
+        ),
+      );
+      throw error;
+    }
+  };
   await browser.open(server.url.href);
-  await browser.waitFor(
-    "!!window.probe?.state().presented",
-    "the negotiated ScrollBox presentation",
-  );
+  await wait("!!window.probe?.state().presented", "the negotiated ScrollBox presentation");
   const bands = z
     .object({
       errors: z.array(z.string()),
@@ -108,14 +118,20 @@ try {
   expect(bands.thumbs).toBeGreaterThan(1);
   console.log("continuity", bands);
   await browser.evaluate("probe.wheel(20,3,.375)");
-  await browser.waitFor(
-    "probe.state().presented?.fraction > .3",
-    "a resting fractional presentation",
+  await wait("probe.state().presented?.fraction > .3", "a resting fractional presentation");
+  await browser.evaluate(
+    "probe.events.length=0; {const r=probe.state().left.rect;probe.pointer('mousemove',r.x+1.5,r.y+r.height-.125)}",
   );
+  await wait("probe.events.some(e=>e.type==='over')", "entering-edge hover");
+  expect(
+    await browser.evaluate(
+      "probe.events.filter(e=>e.type==='over').at(-1)?.id === 'row-'+probe.state().left.rect.height",
+    ),
+  ).toBe(true);
   await browser.evaluate(
     "probe.events.length=0; {const r=probe.state().left.rect; probe.pointer('mousemove',r.x+1.5,r.y+1.9)}",
   );
-  await browser.waitFor("probe.events.some(e=>e.type==='over')", "fractional hover");
+  await wait("probe.events.some(e=>e.type==='over')", "fractional hover");
   expect(await browser.evaluate("probe.events.filter(e=>e.type==='over').at(-1)?.id")).toBe(
     "row-2",
   );
@@ -123,7 +139,7 @@ try {
   await browser.evaluate(
     "{const r=probe.state().left.rect;probe.pointer('mousedown',r.x+1.5,r.y+1.9,1);probe.pointer('mousemove',r.x+1.5,r.y+1.9,1);probe.pointer('mousemove',r.x+6.5,r.y+2.9,1);probe.pointer('mouseup',r.x+6.5,r.y+2.9)}",
   );
-  await browser.waitFor("probe.events.some(e=>e.type==='drop')", "application drop");
+  await wait("probe.events.some(e=>e.type==='drop')", "application drop");
   expect(await browser.evaluate("probe.events.some(e=>e.id==='row-2'&&e.type==='down')")).toBe(
     true,
   );
@@ -136,46 +152,39 @@ try {
     "probe.selectable(true); {const r=probe.state().left.rect;probe.pointer('mousedown',r.x+.5,r.y+1.9,1);probe.pointer('mousemove',r.x+6.5,r.y+2.9,1);probe.pointer('mouseup',r.x+6.5,r.y+2.9)}",
   );
   await browser.evaluate("probe.terminal.input('\\x03')");
-  await browser.waitFor("!!probe.state().copied", "application selection copy");
-  expect(await browser.evaluate("probe.state().copied")).toEqual(expect.stringContaining("ROW"));
+  await wait("!!probe.state().copied", "application selection copy");
+  expect(await browser.evaluate("probe.state().copied")).toEqual(
+    expect.stringContaining("ROW 002"),
+  );
   await browser.evaluate("probe.terminal.input('\\x1b[B')");
-  await browser.waitFor("probe.state().left.position > 1", "focused keyboard scroll");
+  await wait("probe.state().left.position > 1", "focused keyboard scroll");
   await browser.evaluate(
     "{const r=probe.state().left.rect;probe.pointer('mousedown',r.x+1.5,r.y+1.5,1,true);probe.pointer('mousemove',r.x+8.5,r.y+2.5,1,true);probe.pointer('mouseup',r.x+8.5,r.y+2.5,0,true)}",
   );
-  await browser.waitFor("!probe.state().presented", "native selection's canonical release");
-  await browser.waitFor("!!probe.state().nativeSelection", "native selection replay");
+  await wait("!probe.state().presented", "native selection's canonical release");
+  await wait("!!probe.state().nativeSelection", "native selection replay");
   await browser.evaluate("probe.pointer('mousemove',3,3)");
-  await browser.waitFor("!!probe.state().presented", "presentation after native selection");
+  await wait("!!probe.state().presented", "presentation after native selection");
   // A disjoint viewport is selected by an ordinary move before precise wheel input.
   await browser.evaluate("probe.pointer('mousemove',30,3)");
-  await browser.waitFor("probe.state().presented?.rect.x > 25", "disjoint viewport handover");
+  await wait("probe.state().presented?.rect.x > 25", "disjoint viewport handover");
   await browser.evaluate("probe.wheel(30,3,.375)");
-  await browser.waitFor(
-    "probe.state().right.position > .3",
-    "precise wheel in the second viewport",
-  );
+  await wait("probe.state().right.position > .3", "precise wheel in the second viewport");
   await browser.evaluate("probe.pointer('mousemove',3,3)");
-  await browser.waitFor(
-    "probe.state().presented?.rect.x < 25",
-    "handover back to the long viewport",
-  );
+  await wait("probe.state().presented?.rect.x < 25", "handover back to the long viewport");
   await browser.evaluate("probe.nested()");
-  await browser.waitFor("probe.state().nested.rect.height > 0", "nested viewport layout");
+  await wait("probe.state().nested.rect.height > 0", "nested viewport layout");
   await browser.evaluate("probe.wheel(4,6,.375)");
-  await browser.waitFor("probe.state().nested.position > 0", "nested precise wheel handover");
+  await wait("probe.state().nested.position > 0", "nested precise wheel handover");
   expect(await browser.evaluate("Number.isInteger(probe.state().left.position)")).toBe(true);
   await browser.evaluate("probe.popup()");
-  await browser.waitFor("!probe.state().presented", "canonical release before popup presentation");
+  await wait("!probe.state().presented", "canonical release before popup presentation");
   await browser.evaluate("probe.closePopup();probe.pointer('mousemove',3,3)");
-  await browser.waitFor("!!probe.state().presented", "rebuilt presentation");
+  await wait("!!probe.state().presented", "rebuilt presentation");
   await browser.evaluate("probe.resize()");
-  await browser.waitFor(
-    "probe.state().presented && probe.terminal.rows===17",
-    "resize rediscovery",
-  );
+  await wait("probe.state().presented && probe.terminal.rows===17", "resize rediscovery");
   await browser.evaluate("probe.loseContext()");
-  await browser.waitFor(
+  await wait(
     "!probe.state().presented && Number.isInteger(probe.state().left.position)",
     "context-loss canonical fallback",
   );
@@ -189,11 +198,11 @@ try {
       ],
     });
     await browser.open(server.url.href + (scenario === "reduced" ? "" : "?" + scenario));
-    await browser.waitFor("!!window.probe", scenario + " fixture");
+    await wait("!!window.probe", scenario + " fixture");
     await browser.evaluate("probe.wheel(20,3,.375)");
     expect(await browser.evaluate("probe.state().left.position")).toBe(0);
     await browser.evaluate("probe.wheel(20,3,2)");
-    await browser.waitFor("probe.state().left.position > 0", scenario + " row wheel");
+    await wait("probe.state().left.position > 0", scenario + " row wheel");
     expect(
       await browser.evaluate(
         "Number.isInteger(probe.state().left.position) && !probe.state().presented",
