@@ -156,17 +156,6 @@ try {
   expect(await browser.evaluate("probe.state().copied")).toEqual("ROW 002 selectable\nROW 003");
   await browser.evaluate("probe.terminal.input('\\x1b[B')");
   await wait("probe.state().left.position > 1", "focused keyboard scroll");
-  await browser.evaluate(
-    "{const r=probe.state().left.rect,mac=navigator.platform.includes('Mac');probe.pointer('mousedown',r.x+1.5,r.y+1.5,1,!mac,mac);probe.pointer('mousemove',r.x+8.5,r.y+2.5,1,!mac,mac);probe.pointer('mouseup',r.x+8.5,r.y+2.5,0,!mac,mac)}",
-  );
-  await wait("!probe.state().presented", "native selection's canonical release");
-  await wait("!!probe.state().nativeSelection", "native selection replay");
-  await browser.evaluate(
-    "probe.terminal.options.macOptionClickForcesSelection=false;probe.events.length=0;{const r=probe.state().left.rect;probe.pointer('mousedown',r.x+1.5,r.y+1.5,1,false,true);probe.pointer('mouseup',r.x+1.5,r.y+1.5,0,false,true)}",
-  );
-  await wait("probe.events.some(e=>e.type==='down')", "ordinary Alt click after release");
-  await browser.evaluate("probe.pointer('mousemove',3,3)");
-  await wait("!!probe.state().presented", "presentation after native selection");
   // A disjoint viewport is selected by an ordinary move before precise wheel input.
   await browser.evaluate("probe.pointer('mousemove',30,3)");
   await wait("probe.state().presented?.rect.x > 25", "disjoint viewport handover");
@@ -179,12 +168,35 @@ try {
   await browser.evaluate("probe.wheel(4,6,.375)");
   await wait("probe.state().nested.position > 0", "nested precise wheel handover");
   expect(await browser.evaluate("Number.isInteger(probe.state().left.position)")).toBe(true);
+  await browser.evaluate(
+    "{const r=probe.state().nested.rect;probe.wheel(r.x+2,r.y+1.5,probe.state().nested.max+.625)}",
+  );
+  await wait(
+    "probe.state().nested.position===probe.state().nested.max && !Number.isInteger(probe.state().left.position)",
+    "nested bound remainder to parent",
+  );
+  await wait(
+    "probe.state().presented?.rect.height===probe.state().left.rect.height",
+    "parent region after nested bound handover",
+  );
+
   await browser.evaluate("probe.popup()");
   await wait("!probe.state().presented", "canonical release before popup presentation");
   await browser.evaluate("probe.closePopup();probe.pointer('mousemove',3,3)");
   await wait("!!probe.state().presented", "rebuilt presentation");
   await browser.evaluate("probe.resize()");
   await wait("probe.state().presented && probe.terminal.rows===17", "resize rediscovery");
+  await browser.evaluate(
+    "{const r=probe.state().left.rect,mac=navigator.platform.includes('Mac');probe.pointer('mousedown',r.x+1.5,r.y+1.5,1,!mac,mac);probe.pointer('mousemove',r.x+8.5,r.y+2.5,1,!mac,mac);probe.pointer('mouseup',r.x+8.5,r.y+2.5,0,!mac,mac)}",
+  );
+  await wait("!probe.state().presented", "native selection's canonical release");
+  await wait("!!probe.state().nativeSelection", "native selection replay");
+  await browser.evaluate(
+    "probe.terminal.options.macOptionClickForcesSelection=false;probe.events.length=0;{const r=probe.state().left.rect;probe.pointer('mousedown',r.x+1.5,r.y+1.5,1,false,true);probe.pointer('mouseup',r.x+1.5,r.y+1.5,0,false,true)}",
+  );
+  await wait("probe.events.some(e=>e.type==='down')", "ordinary Alt click after release");
+  await browser.evaluate("probe.pointer('mousemove',3,3)");
+  await wait("!!probe.state().presented", "presentation after native selection");
   await browser.evaluate("probe.loseContext()");
   await wait(
     "!probe.state().presented && Number.isInteger(probe.state().left.position)",

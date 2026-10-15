@@ -248,6 +248,7 @@ Object.assign(window, {
           bubbles: true,
           cancelable: true,
           button: 0,
+          detail: type === "mousedown" || type === "mouseup" ? 1 : 0,
           buttons,
           shiftKey,
           altKey,
