@@ -1,26 +1,16 @@
-/** Keep the CDP server outside Bun's parallel test worker. */
-import { expect, test } from "bun:test";
+/** The routine unit sweep must not launch Chrome. */
+import { test } from "bun:test";
+import { pixelJourney } from "./pixel-test-process";
 
 const TIMEOUT_MS = 20_000;
+const CLEANUP_MS = 5_000;
+const browserTest = process.env.LUCIOLE_WEB_SMOKE === "1" ? test : test.skip;
 for (const dpr of [1, 2]) {
-  test(
+  browserTest(
     `pixel host presents atomic, clipped GPU frames at DPR ${dpr}`,
     async () => {
-      const child = Bun.spawn(
-        [process.execPath, import.meta.dir + "/pixel-scroll.ts", String(dpr)],
-        {
-          stdout: "inherit",
-          stderr: "inherit",
-        },
-      );
-      try {
-        const code = await child.exited;
-        if (code !== 0) throw new Error(`pixel probe exited ${code}`);
-        expect(code).toBe(0);
-      } finally {
-        child.kill();
-      }
+      await pixelJourney(import.meta.dir + "/pixel-scroll.ts", [String(dpr)], TIMEOUT_MS, dpr);
     },
-    TIMEOUT_MS,
+    TIMEOUT_MS + CLEANUP_MS,
   );
 }

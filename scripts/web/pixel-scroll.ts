@@ -37,12 +37,7 @@ async function verify(dpr: number) {
     },
   });
   try {
-    await using browser = await Browser.start([
-      "--use-mock-keychain",
-      "--password-store=basic",
-      "--disable-extensions",
-      `--force-device-scale-factor=${dpr}`,
-    ]);
+    await using browser = await Browser.start();
     await browser.send("Emulation.setDeviceMetricsOverride", {
       width: 800,
       height: 600,
