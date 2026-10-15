@@ -60,7 +60,31 @@ try {
     cleanup = { ok: false, error: describe(error) };
     console.error(`guard ${process.pid} cleanup failed: ${cleanup.error}`);
   }
-  process.send?.({ cleanup });
+  // Exercise a genuinely missing report without leaving child resources alive.
+  if (process.env.LUCIOLE_TEST_GUARD_DISCONNECT === "1") process.disconnect?.();
+  if (process.connected) {
+    // A send callback confirms dispatch, not that the owner read the report.
+    // Keep the guard alive until receipt; owner death must still release it.
+    await new Promise<void>((resolve) => {
+      const done = () => {
+        process.off("message", received);
+        process.off("disconnect", done);
+        resolve();
+      };
+      const received = (message: unknown) => {
+        if (z.object({ cleanupReceived: z.literal(true) }).safeParse(message).success) done();
+      };
+      process.on("message", received);
+      process.once("disconnect", done);
+      // Defer transport dispatch to reproduce an exit overtaking report delivery.
+      const send = () => {
+        if (process.connected) process.send?.({ cleanup });
+        else done();
+      };
+      if (process.env.LUCIOLE_TEST_GUARD_DEFER_REPORT === "1") setImmediate(send);
+      else send();
+    });
+  }
   // The external test still observes the guard after its owner has been killed.
   const records = process.env.LUCIOLE_TEST_GUARD_RECORDS;
   if (records) {

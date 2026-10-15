@@ -40,11 +40,14 @@ export async function managedProcess(
       onDisconnect() {
         channelClosed();
       },
-      ipc(message: unknown) {
+      ipc(message: unknown, subprocess) {
         const ready = z.object({ pid: z.number() }).safeParse(message);
         if (ready.success) reportPid(ready.data.pid);
         const result = z.object({ cleanup: Cleanup }).safeParse(message);
-        if (result.success) cleanup = result.data.cleanup;
+        if (result.success) {
+          cleanup = result.data.cleanup;
+          subprocess.send({ cleanupReceived: true });
+        }
       },
     },
   );
