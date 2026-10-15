@@ -7,7 +7,7 @@ import { join } from "node:path";
 const watchdog = join(import.meta.dir, "watchdog.ts");
 const label = "a deliberately blocked main thread";
 
-async function blocked(path: string | undefined, tool?: string, named = true) {
+async function blocked(path: string | undefined, tool?: string, named = true, blockedMs = 2500) {
   const directory = await mkdtemp(join(tmpdir(), "watchdog-report-"));
   let stop: (() => void) | undefined;
   try {
@@ -33,7 +33,7 @@ ${named ? `  Reflect.get(watchdog, "watchdogTest")?.(${JSON.stringify(label)});`
       env: {
         ...process.env,
         PATH: path ?? directory,
-        LUCIOLE_TEST_BLOCKED_MS: "2500",
+        LUCIOLE_TEST_BLOCKED_MS: String(blockedMs),
       },
       stdin: "ignore",
       stdout: "pipe",
@@ -74,6 +74,22 @@ test.if(process.platform === "darwin")(
     expect(stderr).toMatch(/Call graph:|Native stack capture stopped at the kill deadline/);
   },
 );
+
+test("a sampler taking more than two seconds finishes before the kill", async () => {
+  // Base: capture lead <= 2000 ms, so the 2300 ms sampler cannot finish.
+  // Fixed: 4500 * 0.8 - 4500 / 10 = 3150 ms minimum before startup costs;
+  // minus 2300 ms sampling and ~100 ms startup leaves ~750 ms of margin.
+  const stderr = await blocked(
+    undefined,
+    "#!/bin/sh\necho sampler-started\n/bin/sleep 2.3\necho native-stack-complete\n",
+    true,
+    4500,
+  );
+  expect(stderr).toContain("sampler-started");
+  expect(stderr).toContain("native-stack-complete");
+  expect(stderr).toContain("Sampling tool exited with code 0");
+  expect(stderr).not.toContain("Native stack capture stopped at the kill deadline");
+});
 
 test("a sampling tool that stalls cannot postpone the watchdog kill", async () => {
   const stderr = await blocked(undefined, "#!/bin/sh\necho sampler-started\nexec /bin/sleep 30\n");
