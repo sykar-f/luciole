@@ -24,6 +24,19 @@ for (const script of [
   test(
     `PTY ${script}`,
     async () => {
+      // Files expects built artifacts; unlike the other journeys, it does not build.
+      if (script === "files") {
+        const built = await execute([
+          process.execPath,
+          "packages/core/src/cli.ts",
+          "build",
+          "--app",
+          "examples/files",
+        ]);
+        console.log(built.stdout.toString());
+        console.error(built.stderr.toString());
+        expect(built.exitCode, "Files prerequisite build").toBe(0);
+      }
       const result = await execute([process.execPath, `scripts/pty/${script}.ts`]);
       console.log(result.stdout.toString());
       console.error(result.stderr.toString());
