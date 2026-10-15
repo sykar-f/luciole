@@ -286,6 +286,8 @@ export class PixelCompositor implements PixelRenderer {
   present(): boolean {
     const changed = this.ready !== undefined;
     if (this.ready) {
+      this.remove(this.held);
+      this.held = undefined;
       this.removeFrame(this.active);
       this.active = this.ready;
       this.ready = undefined;
