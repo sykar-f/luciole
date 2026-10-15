@@ -36,14 +36,25 @@ for (const cause of [
     const f = await fixture();
     using _directory = f.directory;
     const child = Bun.spawn([process.execPath, join(root, "tests/web-cdp-owner.ts"), cause], {
-      env: { ...process.env, CHROME: f.chrome, CDP_RECORD: f.record, OWNER_RECORD: f.owner },
+      env: {
+        ...process.env,
+        CHROME: f.chrome,
+        CDP_RECORD: f.record,
+        OWNER_RECORD: f.owner,
+        STUCK_METHOD: cause === "startup" ? "Runtime.enable" : "Runtime.evaluate",
+      },
       stdout: "ignore",
       stderr: "pipe",
       ...(cause === "timeout" ? { timeout: 3000, killSignal: "SIGKILL" } : {}),
     });
     const stderr = new Response(child.stderr).text();
     try {
-      expect(await eventually(() => existsSync(f.owner) && existsSync(f.record), 2000)).toBe(true);
+      const ready = await eventually(() => existsSync(f.owner) && existsSync(f.record), 2000);
+      if (!ready) {
+        child.kill("SIGKILL");
+        await child.exited;
+        throw new Error(`owner did not start: ${await stderr}`);
+      }
       const record = Record.parse(JSON.parse(readFileSync(f.record, "utf8")));
       const server = Number(readFileSync(f.owner, "utf8"));
       if (cause === "SIGTERM" || cause === "SIGINT") child.kill(cause);
