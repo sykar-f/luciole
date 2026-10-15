@@ -47,6 +47,20 @@ const Context = z.object({
   context: z.object({ id: z.number(), origin: z.string() }),
 });
 
+export function chromeArgs(profile: string) {
+  return [
+    CHROME,
+    "--headless=new",
+    "--remote-debugging-port=0",
+    `--user-data-dir=${profile}`,
+    "--no-first-run",
+    "--no-default-browser-check",
+    // Keep fresh profiles from opening macOS keychain dialogs in isolated test homes.
+    "--use-mock-keychain",
+    "about:blank",
+  ];
+}
+
 export class Browser implements AsyncDisposable {
   readonly logs: string[] = [];
   /** The execution contexts the page made, by id: a frame of another origin has its own. */
@@ -64,18 +78,7 @@ export class Browser implements AsyncDisposable {
 
   static async start() {
     const profile = mkdtempSync(join(tmpdir(), "luciole-cdp-"));
-    const chrome = Bun.spawn(
-      [
-        CHROME,
-        "--headless=new",
-        "--remote-debugging-port=0",
-        `--user-data-dir=${profile}`,
-        "--no-first-run",
-        "--no-default-browser-check",
-        "about:blank",
-      ],
-      { stdio: ["ignore", "ignore", "ignore"] },
-    );
+    const chrome = Bun.spawn(chromeArgs(profile), { stdio: ["ignore", "ignore", "ignore"] });
     // A BunFile made before the file exists keeps answering that it does not.
     const portFile = join(profile, "DevToolsActivePort");
     const deadline = performance.now() + START_TIMEOUT_MS;
