@@ -88,16 +88,17 @@ for (const cause of [
           );
           expect(await stderr).toContain("/stuck exceeded 200 ms");
         }
-        expect(
-          await eventually(
-            () =>
-              !alive(server) &&
-              !alive(record.chrome) &&
-              !alive(record.descendant) &&
-              !existsSync(record.profile),
-            3000,
-          ),
-        ).toBe(true);
+        let present: string[] = [];
+        const cleaned = await eventually(() => {
+          present = [];
+          if (alive(server)) present.push(`server PID ${server}`);
+          if (alive(record.chrome)) present.push(`chrome PID ${record.chrome}`);
+          if (alive(record.descendant)) present.push(`descendant PID ${record.descendant}`);
+          if (existsSync(record.profile))
+            present.push(`profile ${record.profile} (chrome PID ${record.chrome})`);
+          return present.length === 0;
+        }, 3000);
+        expect(cleaned, `cleanup still has: ${present.join(", ")}`).toBe(true);
         expect(existsSync(record.profile)).toBe(false);
       } finally {
         if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
