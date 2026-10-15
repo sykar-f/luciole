@@ -221,33 +221,10 @@ export async function openTunnel(
     throw new Error(`${url}: host and user cannot start with "-"`);
   const directory = socketDirectory("luciole-ssh-");
   const socket = join(directory, "s");
-  const child = spawn(
-    ssh,
-    [
-      "-N",
-      "-o",
-      "ExitOnForwardFailure=yes",
-      "-L",
-      `${socket}:${remoteSocket ?? `${remote?.[1] ?? "127.0.0.1"}:${remote?.[2] ?? "3000"}`}`,
-      ...(parsed.port ? ["-p", parsed.port] : []),
-      ...options,
-      "--",
-      user ? `${user}@${host}` : host,
-    ],
-    // Prompts use /dev/tty. stderr explains a failure; once the tunnel is up it is still
-    // drained, never printed over the terminal interface.
-    { stdio: ["ignore", "ignore", "pipe"] },
-  );
-  let errors = "",
-    exited: string | undefined;
-  child.stderr?.on("data", (chunk: Buffer) => {
-    if (errors.length < SSH_ERRORS_LIMIT) errors += chunk;
-  });
-  child.once("error", (error) => (exited = error.message));
-  child.once("exit", (code, signal) => (exited ??= `ssh exited with ${signal ?? code}`));
+  let child: ReturnType<typeof spawn> | undefined;
   const close = () => {
     process.off("exit", close);
-    if (child.exitCode === null && child.signalCode === null) child.kill("SIGTERM");
+    if (child && child.exitCode === null && child.signalCode === null) child.kill("SIGTERM");
     rmSync(directory, { recursive: true, force: true });
   };
   // The Client leaves through process.exit; the tunnel must not outlive it.
@@ -263,6 +240,38 @@ export async function openTunnel(
     for (const signal of TUNNEL_SIGNALS) process.off(signal, interrupted);
   };
   for (const signal of TUNNEL_SIGNALS) process.on(signal, interrupted);
+  // Install cleanup before ssh can run: the scheduler may pause us inside spawn,
+  // while ssh has already started and a signal can already arrive.
+  try {
+    child = spawn(
+      ssh,
+      [
+        "-N",
+        "-o",
+        "ExitOnForwardFailure=yes",
+        "-L",
+        `${socket}:${remoteSocket ?? `${remote?.[1] ?? "127.0.0.1"}:${remote?.[2] ?? "3000"}`}`,
+        ...(parsed.port ? ["-p", parsed.port] : []),
+        ...options,
+        "--",
+        user ? `${user}@${host}` : host,
+      ],
+      // Prompts use /dev/tty. stderr explains a failure; once the tunnel is up it is still
+      // drained, never printed over the terminal interface.
+      { stdio: ["ignore", "ignore", "pipe"] },
+    );
+  } catch (error) {
+    ignoreSignals();
+    close();
+    throw error;
+  }
+  let errors = "",
+    exited: string | undefined;
+  child.stderr?.on("data", (chunk: Buffer) => {
+    if (errors.length < SSH_ERRORS_LIMIT) errors += chunk;
+  });
+  child.once("error", (error) => (exited = error.message));
+  child.once("exit", (code, signal) => (exited ??= `ssh exited with ${signal ?? code}`));
   const deadline = performance.now() + timeoutMs;
   try {
     while (exited === undefined && !(await accepts(socket))) {
