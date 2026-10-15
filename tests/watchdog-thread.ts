@@ -125,7 +125,10 @@ if (isMainThread) {
   capture = sample(String(report.pid));
 } else {
   const blockedMs = Number(workerData);
-  const captureMs = Math.min(2000, blockedMs / 2);
+  // sample spends a second collecting, then symbolizes the stack. Two seconds
+  // was too short on CI. Leave several seconds even after the polling interval;
+  // short diagnostic deadlines reserve the same proportion without moving them.
+  const captureMs = Math.min(15_000, blockedMs * 0.8);
   let last = Date.now();
   let file = "?";
   let phase = "?";
