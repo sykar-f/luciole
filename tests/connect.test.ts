@@ -247,7 +247,9 @@ await openTunnel("ssh://silent.example", { ssh: ${JSON.stringify(fakeSsh)} });`,
       () => "waiting for the Client to stop inside spawn",
     );
     client.kill("SIGTERM");
-    client.kill("SIGCONT");
+    // Bun 1.4.2's Subprocess.kill maps SIGCONT to SIGTSTP on macOS
+    // (oven-sh/bun#35296), leaving the Client stopped with SIGTERM pending.
+    process.kill(client.pid, "SIGCONT");
     await within(client.exited, "waiting for the Client to exit after SIGTERM and SIGCONT");
     // The signal still ends the Client as it would have, after the tunnel is gone.
     expect(client.signalCode).toBe("SIGTERM");
