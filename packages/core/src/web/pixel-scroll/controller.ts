@@ -121,6 +121,24 @@ export class PixelController {
     return changed;
   }
 
+  private sameHits(a: RenderHitMap | undefined, b: RenderHitMap): boolean {
+    if (!a || a.width !== b.width || a.height !== b.height) return false;
+    const checked = new Set<number>();
+    for (let y = 0; y < b.height; y++) {
+      for (let x = 0; x < b.width; x++) {
+        const id = b.hitTest(x, y);
+        if (a.hitTest(x, y) !== id) return false;
+        if (!checked.has(id)) {
+          checked.add(id);
+          const old = a.origin(id),
+            current = b.origin(id);
+          if (old?.x !== current?.x || old?.y !== current?.y) return false;
+        }
+      }
+    }
+    return true;
+  }
+
   private obscured(viewport: ScrollableViewport, map: RenderHitMap): boolean {
     const { rect, owner } = viewport;
     for (let y = rect.y; y < rect.y + rect.height; y++) {
@@ -156,6 +174,7 @@ export class PixelController {
       !this.releasing &&
       this.last &&
       !contentChanged &&
+      this.sameHits(this.last.snapshot, map) &&
       this.last.fraction === fraction &&
       this.last.origin === viewport.origin &&
       JSON.stringify(this.last.rect) === JSON.stringify(rect)
