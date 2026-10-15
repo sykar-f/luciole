@@ -56,7 +56,12 @@ export class PixelController {
   private ids = new WeakMap<ScrollableViewport, number>();
   private id = 0;
 
-  static attach(renderer: CliRenderer, write: (commands: string) => void, settle = false) {
+  static attach(
+    renderer: CliRenderer,
+    write: (commands: string) => void,
+    { pixelScroll = true, settle = false }: { pixelScroll?: boolean; settle?: boolean } = {},
+  ) {
+    if (!pixelScroll) return;
     const found = detectOpenTuiSeams(renderer);
     return found.available ? new PixelController(found.renderer, write, settle) : undefined;
   }

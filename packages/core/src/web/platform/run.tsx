@@ -404,8 +404,9 @@ export async function runInPage(
     exitSignals: [],
   });
   Object.assign(globalThis, { requestAnimationFrame, cancelAnimationFrame });
-  if (pixelScroll)
-    pixels = PixelController.attach(renderer, (commands) => terminal.write(commands));
+  pixels = PixelController.attach(renderer, (commands) => terminal.write(commands), {
+    pixelScroll,
+  });
   // Framed, the embedding page asks at each turn of the wheel whether the application
   // still scrolls under the pointer. Without mouse tracking the wheel reaches nothing it
   // draws: xterm.js would turn it into arrow keys.

@@ -73,8 +73,9 @@ const r = await createCliRenderer({
   exitSignals: [],
 });
 Object.assign(globalThis, { requestAnimationFrame, cancelAnimationFrame });
-if (!parameters.has("optOut"))
-  controller = PixelController.attach(r, (commands) => terminal.write(commands));
+controller = PixelController.attach(r, (commands) => terminal.write(commands), {
+  pixelScroll: !parameters.has("optOut"),
+});
 const left = new ScrollBoxRenderable(r, {
   id: "long",
   width: 24,
@@ -141,6 +142,9 @@ webgl.pixels.onPresent((p) => {
 });
 const canvas = document.querySelector(".xterm-webgl-layer");
 if (!(canvas instanceof HTMLCanvasElement)) throw new Error("Missing canvas");
+canvas.addEventListener("webglcontextlost", () => {
+  presented = undefined;
+});
 const gl = canvas.getContext("webgl2");
 if (!gl) throw new Error("Missing context");
 const frames: {

@@ -224,7 +224,7 @@ try {
   );
   await browser.evaluate("probe.loseContext()");
   await wait(
-    "!probe.state().presented && Number.isInteger(probe.state().left.position)",
+    "probe.reports.some(r=>r.op==='capability'&&r.reason==='no-gpu') && !probe.state().presented && Number.isInteger(probe.state().left.position)",
     "context-loss canonical fallback",
   );
   for (const scenario of ["optOut", "reduced", "noHost"]) {
