@@ -19,6 +19,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join, resolve } from "node:path";
+import { createHash } from "node:crypto";
 import { ABI_KEY, ABI_PACKAGES, APP_MANIFEST, AppManifest } from "./abi";
 import { defaultCache } from "./compile";
 import { frameworkHash } from "./framework-hash";
@@ -86,7 +87,13 @@ export async function prepareWebRuntime({
   const directory = await webRuntimeDirectory(cache);
   if (existsSync(join(directory, "web-runtime.json"))) return directory;
   checkZig(zig);
-  const checkout = join(cache, "web", `opentui-${OPENTUI_TAG}`);
+  // A patch revision needs a clean source checkout; applying it over an older
+  // patched tree can neither pass the reverse check nor apply the new patch.
+  const patchKey = createHash("sha256")
+    .update(readFileSync(OPENTUI_PATCH))
+    .digest("hex")
+    .slice(0, HASH_PREFIX);
+  const checkout = join(cache, "web", `opentui-${OPENTUI_TAG}-${patchKey}`);
   mkdirSync(join(cache, "web"), { recursive: true });
   const wasm = prepareOpenTui(checkout, zig);
   const temporary = `${directory}.${process.pid}.tmp`;
