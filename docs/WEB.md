@@ -392,6 +392,12 @@ n'ajoute pas d'inertie. `run(create, { pixelScroll: false })`, ou l'option
 option n'a aucun effet dans un terminal natif. La réduction des mouvements,
 le mode lecteur d'écran et l'absence d'addon compatible gardent aussi les lignes.
 
+Avec le défilement au pixel, `typed` porte l'équivalent SGR ordinaire des entrées
+précises : coordonnées de cellule pour les gestes souris, lignes entières de
+molette après accumulation des fractions, reste gardé pour le tour suivant. La
+page peut toujours le rejouer avec `input` dans une autre grille. Les rapports
+privés restent dans l'app source ; leurs générations ne traversent pas l'iframe.
+
 Le contrat v1 compose une seule surface. Dans son rectangle, la molette précise
 vise le contenu sous le pointeur, y compris une vue imbriquée ; les touches de
 défilement visent la vue focalisée. Passer à une autre vue arrondit la précédente.

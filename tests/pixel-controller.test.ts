@@ -1,4 +1,5 @@
 /* eslint-disable typescript/consistent-type-assertions -- Partial viewport and immutable map doubles isolate the frame encoder from a native renderer. */
+import { OrdinaryPixelInput } from "../packages/core/src/web/pixel-scroll/ordinary-input";
 import { PixelHistory, RETAINED_GENERATIONS } from "../packages/core/src/web/pixel-scroll/history";
 import { PixelDiscovery } from "../packages/core/src/web/pixel-scroll/discovery";
 import { expect, test } from "bun:test";
@@ -105,4 +106,61 @@ test("bounded generation history rejects evicted, stale and mismatched input", (
   expect(history.get(1, 2)).toBeUndefined();
   history.clear();
   expect(history.get(1, RETAINED_GENERATIONS)).toBeUndefined();
+});
+
+test("embedded replay accumulates precise wheel rows and preserves the remainder", () => {
+  const input = new OrdinaryPixelInput();
+  const wheel = (dy: number) =>
+    input.convert(
+      encode({
+        op: "wheel",
+        version: 1,
+        id: 1,
+        generation: 9,
+        x: 3.75,
+        y: 4.5,
+        phase: 0.5,
+        modifiers: 0,
+        dx: 0,
+        dy,
+        source: "precise",
+      }),
+    );
+  expect(wheel(3)).toBe("\x1b[<65;4;5M".repeat(3));
+  expect(Array.from({ length: 5 }, () => wheel(0.42)).join("")).toBe("\x1b[<65;4;5M".repeat(2));
+  expect(wheel(0.9)).toBe("\x1b[<65;4;5M");
+  expect(wheel(-0.25)).toBe("");
+  expect(wheel(-0.75)).toBe("\x1b[<64;4;5M");
+  expect(input.convert("keys")).toBe("keys");
+});
+
+test("embedded pointer replay uses ordinary SGR buttons, cells and modifiers", () => {
+  const input = new OrdinaryPixelInput();
+  const pointer = (
+    action: "move" | "down" | "up" | "drag",
+    button: number,
+    buttons: number,
+    modifiers = 0,
+  ) =>
+    input.convert(
+      encode({
+        op: "pointer",
+        version: 1,
+        id: 1,
+        generation: 9,
+        x: 3.75,
+        y: 4.5,
+        phase: 0.5,
+        modifiers,
+        action,
+        button,
+        buttons,
+      }),
+    );
+  expect(pointer("down", 0, 1, 7)).toBe("\x1b[<28;4;5M");
+  expect(pointer("drag", -1, 1)).toBe("\x1b[<32;4;5M");
+  expect(pointer("drag", -1, 2)).toBe("\x1b[<34;4;5M");
+  expect(pointer("drag", -1, 4)).toBe("\x1b[<33;4;5M");
+  expect(pointer("move", -1, 0)).toBe("\x1b[<35;4;5M");
+  expect(pointer("up", 2, 0, 2)).toBe("\x1b[<10;4;5m");
 });

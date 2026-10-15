@@ -11,6 +11,7 @@ import * as z from "zod/mini";
 import { Terminal as XTerm } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "../xterm-webgl/addon/WebglAddon";
+import { OrdinaryPixelInput } from "../pixel-scroll/ordinary-input";
 import { PixelController } from "../pixel-scroll/controller";
 import { PixelScrollAddon } from "../pixel-scroll/host";
 import { createCliRenderer } from "@opentui/core";
@@ -365,8 +366,10 @@ export async function runInPage(
     return stdin.write(data);
   };
   const typed = control ? control.keys(write) : write;
+  const ordinary = new OrdinaryPixelInput();
   terminal.onData((data) => {
-    tellTyped(data);
+    const replay = ordinary.convert(data);
+    if (replay) tellTyped(replay);
     typed(data);
   });
   onInput(write);
