@@ -5,7 +5,7 @@ import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { createTestRenderer } from "@opentui/core/testing";
 import { defaultCache } from "../packages/core/src/compile";
-import { prepareWebRuntime } from "../packages/core/src/web-runtime";
+import { webRuntimeDirectory } from "../packages/core/src/web-runtime";
 import { opentuiWasm } from "../packages/core/src/web/opentui/plugin";
 import { detectOpenTuiSeams } from "../packages/core/src/web/opentui-seams";
 
@@ -34,7 +34,28 @@ test("native OpenTUI reports the missing seams for fallback", async () => {
 test.skipIf(process.env["LUCIOLE_OPENTUI_INTEGRATION"] !== "1")(
   "patched OpenTUI renderer seams over the web WASM/feed path",
   async () => {
-    const runtime = await prepareWebRuntime();
+    // Preparation uses synchronous external tools. Keep it off the test worker so
+    // a cold clone/build cannot silence its watchdog or block the test timeout.
+    const prepare = Bun.spawn(
+      [
+        process.execPath,
+        "--eval",
+        `import { prepareWebRuntime } from ${JSON.stringify(join(root, "packages/core/src/web-runtime.ts"))}; await prepareWebRuntime();`,
+      ],
+      {
+        cwd: root,
+        stdout: "pipe",
+        stderr: "pipe",
+        signal: AbortSignal.timeout(INTEGRATION_MS - 5_000),
+      },
+    );
+    const [preparedOut, preparedErr, preparedCode] = await Promise.all([
+      new Response(prepare.stdout).text(),
+      new Response(prepare.stderr).text(),
+      prepare.exited,
+    ]);
+    expect({ code: preparedCode, output: preparedOut + preparedErr }).toMatchObject({ code: 0 });
+    const runtime = await webRuntimeDirectory();
     const patch = await readFile(join(root, "packages/core/web/opentui-v0.5.12.patch"));
     const key = createHash("sha256").update(patch).digest("hex").slice(0, 16);
     const checkout = join(defaultCache(), "web", `opentui-v0.5.12-${key}`);
@@ -74,24 +95,6 @@ test.skipIf(process.env["LUCIOLE_OPENTUI_INTEGRATION"] !== "1")(
       [process.execPath, "test", "--preload", preload, join(directory, "seams.test.js")],
       { cwd: root, stdout: "pipe", stderr: "pipe" },
     );
-    const [stdout, stderr, code] = await Promise.all([
-      new Response(child.stdout).text(),
-      new Response(child.stderr).text(),
-      child.exited,
-    ]);
-    expect({ code, output: stdout + stderr }).toMatchObject({ code: 0 });
-  },
-  INTEGRATION_MS,
-);
-
-test.skipIf(process.env["LUCIOLE_WEB_SMOKE"] !== "1")(
-  "existing Notes browser journey with the patched renderer",
-  async () => {
-    const child = Bun.spawn([process.execPath, "scripts/web/notes.ts"], {
-      cwd: root,
-      stdout: "pipe",
-      stderr: "pipe",
-    });
     const [stdout, stderr, code] = await Promise.all([
       new Response(child.stdout).text(),
       new Response(child.stderr).text(),

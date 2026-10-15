@@ -6,7 +6,7 @@ import {
   BoxRenderable,
   TextRenderable,
   type CliRendererErrorEvent,
-  type MouseEvent,
+  MouseEvent,
   type RawMouseEvent,
 } from "@opentui/core";
 import { createTestRenderer } from "@opentui/core/testing";
@@ -303,3 +303,247 @@ test("an abandoned projection restores geometry and discards its entire encoder 
     r.destroy();
   }
 });
+
+async function scrollScene() {
+  const fixture = await setup(30, 16);
+  const { ScrollBoxRenderable } = await import("@opentui/core");
+  const parent = new ScrollBoxRenderable(fixture.r, { width: 24, height: 12, scrollY: true });
+  const child = new ScrollBoxRenderable(fixture.r, {
+    width: 18,
+    height: 6,
+    flexShrink: 0,
+    scrollY: true,
+  });
+  child.add(
+    new TextRenderable(fixture.r, {
+      content: Array.from({ length: 12 }, (_, i) => `child ${i}`).join("\n"),
+      height: 12,
+      flexShrink: 0,
+    }),
+  );
+  parent.add(child);
+  parent.add(new TextRenderable(fixture.r, { content: "tail", height: 20, flexShrink: 0 }));
+  fixture.r.root.add(parent);
+  await fixture.renderOnce();
+  await fixture.renderOnce();
+  const { detectScrollableViewport } = await import("../packages/core/src/web/opentui-seams");
+  const outer = detectScrollableViewport(parent);
+  const inner = detectScrollableViewport(child);
+  if (!outer || !inner) throw new Error("Missing scrollable viewport");
+  return { ...fixture, parent, child, outer, inner };
+}
+
+test("ScrollBox fractions survive keys, scrollTo, scrollbar moves and auto-scroll, and clamp on resize", async () => {
+  const { r, child, inner, renderOnce, mockInput } = await scrollScene();
+  try {
+    inner.set(1.375);
+    expect(child.scrollTop).toBe(1);
+    child.scrollTo(2);
+    expect(inner.position).toBe(2.375);
+    child.verticalScrollBar.scrollBy(1);
+    expect(inner.position).toBe(3.375);
+    child.focus();
+    mockInput.pressArrow("up");
+    expect(inner.position).toBe(2.375);
+    // The normal selection auto-scroll uses integer scrollTop increments.
+    child.startAutoScroll(child.x + child.width / 2, child.y + child.height - 1);
+    probe(child, "handleAutoScroll", 100);
+    child.stopAutoScroll();
+    expect(inner.position % 1).toBe(0.375);
+    expect(inner.origin).toBe(child.scrollTop);
+    child.height = 14;
+    await renderOnce();
+    await renderOnce();
+    expect(inner.position).toBe(inner.max);
+    expect(inner.position).toBe(0);
+    expect(() => inner.set(NaN)).toThrow();
+  } finally {
+    r.destroy();
+  }
+});
+
+test("content-only ScrollBox projections preserve logical state, events and render scheduling", async () => {
+  const { r, parent, outer, renderOnce } = await scrollScene();
+  try {
+    outer.set(1.625);
+    let changes = 0;
+    parent.verticalScrollBar.on("change", () => changes++);
+    const before = {
+      position: outer.position,
+      origin: outer.origin,
+      translation: parent.content.translateY,
+    };
+    expect(outer.rect).toEqual({
+      x: parent.viewport.x,
+      y: parent.viewport.y,
+      width: parent.viewport.width,
+      height: parent.viewport.height,
+    });
+    expect(outer.rect.x + outer.rect.width).toBeLessThanOrEqual(parent.verticalScrollBar.x);
+    expect(outer.rect.y + outer.rect.height).toBeLessThanOrEqual(parent.horizontalScrollBar.y);
+    const projection = outer.project(2);
+    expect(projection.renderable).toBe(parent.content);
+    expect(parent.content.translateY).toBe(before.translation);
+    let projected: RenderHitMap | undefined;
+    r.setFramePlan(() => ({
+      projection: {
+        ...projection,
+        onHitMap(map) {
+          projected = map;
+          expect(outer.position).toBe(before.position);
+          expect(outer.origin).toBe(before.origin);
+        },
+      },
+    }));
+    await renderOnce();
+    await r.idle();
+    expect(projected).toBeDefined();
+    expect(projected?.origin(parent.verticalScrollBar.num)).toEqual({
+      x: parent.verticalScrollBar.x,
+      y: parent.verticalScrollBar.y,
+    });
+    expect({
+      position: outer.position,
+      origin: outer.origin,
+      translation: parent.content.translateY,
+    }).toEqual(before);
+    expect(changes).toBe(0);
+    const frame = r.frameId;
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    await r.idle();
+    expect(r.frameId).toBe(frame);
+    expect(() => outer.project(0.5)).toThrow();
+  } finally {
+    r.destroy();
+  }
+});
+
+test("thumb paint and hit geometry follow fractional rows on the half-cell grid", async () => {
+  const { r, child, inner } = await scrollScene();
+  try {
+    const slider = child.verticalScrollBar.slider;
+    const start = () => probe(child.verticalScrollBar.slider, "getVirtualThumbStart");
+    const size = () => probe(child.verticalScrollBar.slider, "getVirtualThumbSize");
+    inner.set(0);
+    const a = start();
+    inner.set(0.875);
+    const b = start();
+    expect(child.scrollTop).toBe(0);
+    expect(slider.value).toBe(0);
+    expect(b).toBeGreaterThan(a);
+    expect(Number.isInteger(b)).toBe(true);
+    expect(size()).toBe(
+      Math.max(1, Math.floor((slider.height * 2 * child.viewport.height) / child.scrollHeight)),
+    );
+  } finally {
+    r.destroy();
+  }
+});
+
+test("precise row deltas bypass acceleration and bubble only the remainder; chain ownership rounds the previous surface", async () => {
+  const { r, parent, child, outer, inner } = await scrollScene();
+  try {
+    let ticks = 0;
+    for (const box of [parent, child])
+      box.scrollAcceleration = {
+        tick() {
+          ticks++;
+          return 100;
+        },
+        reset() {},
+      };
+    const precise = (delta: number) => {
+      const attributes: import("../packages/core/src/web/opentui-seams").PresentedMouseEvent = {
+        ...input("scroll"),
+        scroll: { direction: delta < 0 ? "up" : "down", delta: Math.abs(delta), precise: true },
+      };
+      const event = new MouseEvent(child, attributes);
+      child.processMouseEvent(event);
+      return event;
+    };
+    precise(0.375);
+    expect(inner.position).toBe(0.375);
+    expect(outer.position).toBe(0);
+    outer.set(1.625);
+    expect(inner.position).toBe(0);
+    precise(0.25);
+    expect(outer.position).toBe(2);
+    expect(inner.position).toBe(0.25);
+    inner.set(inner.max - 0.25);
+    precise(0.625);
+    expect(inner.position).toBe(inner.max);
+    expect(outer.position).toBe(2.375);
+    precise(-0.5);
+    expect(outer.position).toBe(2);
+    expect(inner.position).toBe(inner.max - 0.5);
+    expect(ticks).toBe(0);
+    inner.set(0);
+    outer.set(0);
+    const exhausted = precise(-0.25);
+    expect(exhausted.propagationStopped).toBe(false);
+    expect(exhausted.scroll?.delta).toBe(0.25);
+    expect(inner.scroll(-0.5)).toBe(-0.5);
+    // Existing discrete wheel keeps the configured acceleration and integer origin.
+    child.processMouseEvent(new MouseEvent(child, input("scroll")));
+    expect(ticks).toBeGreaterThan(0);
+    expect(Number.isInteger(child.scrollTop)).toBe(true);
+    expect(inner.position).toBe(inner.origin);
+  } finally {
+    r.destroy();
+  }
+});
+
+test("frame commands reject synchronized-output controls in every segment before output", async () => {
+  const { r, chunks, renderOnce } = await setup();
+  try {
+    const content = new BoxRenderable(r, { width: 10, height: 2 });
+    r.root.add(content);
+    await renderOnce();
+    await r.idle();
+    const errors: string[] = [];
+    r.on(CliRenderEvents.RENDER_ERROR, (event: CliRendererErrorEvent) =>
+      errors.push(event.error.message),
+    );
+    for (const control of [start, end, "\x9b?2026h"]) {
+      for (const projected of [false, true])
+        for (const field of ["before", "after"]) {
+          chunks.length = 0;
+          const command = { [field]: bytes(`prefix${control}suffix`) };
+          if (control.startsWith("\x9b"))
+            command[field] = new Uint8Array([0x9b, ...bytes("?2026h")]);
+          r.setFramePlan(() =>
+            projected
+              ? {
+                  before: bytes("unwritten"),
+                  projection: { renderable: content, translateX: 0, translateY: -1, ...command },
+                }
+              : command,
+          );
+          await renderOnce();
+          await r.idle();
+          expect(errors.at(-1)).toContain("must not contain synchronized-output");
+          expect(chunks).toEqual([]);
+        }
+    }
+    expect(errors).toHaveLength(12);
+    r.setFramePlan(() => ({ before: bytes("allowed") }));
+    await renderOnce();
+    await r.idle();
+    expect(chunks.join("")).toContain("allowed");
+  } finally {
+    r.destroy();
+  }
+});
+
+// Test probes for upstream private geometry and deterministic auto-scroll time.
+function probe(value: unknown, key: string, ...args: number[]): number {
+  if (typeof value !== "object" || value === null) throw new Error("Missing probe target");
+  const method: unknown = Reflect.get(value, key);
+  const callable = (candidate: unknown): candidate is (...args: number[]) => unknown =>
+    typeof candidate === "function";
+  if (!callable(method)) throw new Error(`Missing probe ${key}`);
+  const result = method.apply(value, args);
+  if (result === undefined) return 0;
+  if (typeof result !== "number") throw new Error(`Non-numeric probe ${key}`);
+  return result;
+}
