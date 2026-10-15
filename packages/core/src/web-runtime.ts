@@ -158,7 +158,9 @@ export async function prepareWebRuntimeEntry({
     }
     removeAbandonedTemporaries(checkout);
     removeAbandonedTemporaries(directory);
-    if (runtimeComplete(directory)) return directory;
+    // buildWebRuntime writes this commit marker last, before atomic publication.
+    // Preserve the existing warm-cache contract (including install-time errors).
+    if (existsSync(join(directory, "web-runtime.json"))) return directory;
     rmSync(directory, { recursive: true, force: true });
     const temporary = mkdtempSync(`${directory}.${process.pid}.tmp-`);
     try {
