@@ -1,4 +1,4 @@
-/** Process isolation for the opt-in pixel-host browser proofs only. */
+/** Process isolation for explicitly selected pixel-host browser proofs. */
 import { spawn } from "node:child_process";
 import { chmodSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
