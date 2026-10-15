@@ -173,10 +173,18 @@ try {
   await wait("probe.state().right.position > .3", "precise wheel in the second viewport");
   await browser.evaluate("probe.pointer('mousemove',3,3)");
   await wait("probe.state().presented?.rect.x < 25", "handover back to the long viewport");
-  await browser.evaluate("probe.nested()");
-  await wait("probe.state().nested.rect.height > 0", "nested viewport layout");
-  await browser.evaluate("probe.wheel(4,6,.375)");
-  await wait("probe.state().nested.position > 0", "nested precise wheel handover");
+  await browser.evaluate(
+    "window.nestedGeneration=probe.state().presented.generation;probe.nested()",
+  );
+  await wait(
+    "probe.state().nested.rect.height > 0 && probe.state().presented?.generation>window.nestedGeneration",
+    "nested viewport presentation",
+  );
+  await browser.evaluate("{const r=probe.state().nested.rect;probe.wheel(r.x+2,r.y+1.5,.375)}");
+  await wait(
+    "probe.state().nested.position > 0 && probe.state().presented?.rect.height===probe.state().nested.rect.height",
+    "nested precise wheel handover",
+  );
   expect(await browser.evaluate("Number.isInteger(probe.state().left.position)")).toBe(true);
   await browser.evaluate(
     "{const r=probe.state().nested.rect;probe.wheel(r.x+2,r.y+1.5,probe.state().nested.max+.625)}",
@@ -196,6 +204,10 @@ try {
   await wait("!!probe.state().presented", "rebuilt presentation");
   await browser.evaluate("probe.resize()");
   await wait("probe.state().presented && probe.terminal.rows===17", "resize rediscovery");
+  await browser.evaluate(
+    "{const r=probe.state().left.rect;probe.wheel(r.x+r.width-2,r.y+2.5,.375)}",
+  );
+  await wait("probe.state().presented?.fraction > .3", "fraction before native selection");
   await browser.evaluate(
     "{const r=probe.state().left.rect,mac=navigator.platform.includes('Mac');probe.pointer('mousedown',r.x+1.5,r.y+1.5,1,!mac,mac);probe.pointer('mousemove',r.x+8.5,r.y+2.5,1,!mac,mac);probe.pointer('mouseup',r.x+8.5,r.y+2.5,0,!mac,mac)}",
   );
