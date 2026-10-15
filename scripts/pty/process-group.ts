@@ -21,7 +21,7 @@ function groupHasExited(pid: number): boolean {
     if (snapshot.exitCode !== 0) return false;
     const lines = snapshot.stdout.toString().trim().split("\n");
     for (const line of lines) {
-      const match = /^\s*(\d+)\s+([RSDTtZXIWUKNP][<NLEsSlw+VX]*)\s*$/.exec(line);
+      const match = /^\s*(\d+)\s+([RSDTtZXIWUKNP][<>ANLEsSlw+VXW]*)\s*$/.exec(line);
       if (!match) return false;
       if (Number(match[1]) === pid && !match[2]?.startsWith("Z")) return false;
     }

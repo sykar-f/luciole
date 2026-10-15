@@ -205,7 +205,15 @@ test("EPERM inspection fails closed when ps fails", () => {
   }
 });
 
-for (const output of ["456 S", "123 Z", "123 Z+\n456 S"]) {
+// Union of modifiers documented by macOS ps(1) and Linux procps ps(1).
+const stateModifiers = "<>AELNSsVWXl+";
+for (const output of [
+  "456 S",
+  "123 Z",
+  "123 Z+\n456 S",
+  "123 Z\n456 S>",
+  ...Array.from(stateModifiers, (modifier) => `123 Z${modifier}\n456 S${modifier}`),
+]) {
   test(`EPERM accepts a verified exited group: ${JSON.stringify(output)}`, () => {
     const denial = Object.assign(new Error("denied"), { code: "EPERM" });
     const kill = spyOn(process, "kill").mockImplementation(() => {
