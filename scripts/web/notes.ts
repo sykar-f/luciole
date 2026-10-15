@@ -5,8 +5,9 @@
  * prepared (`luciole web-runtime`, Zig 0.16.0 in ZIG) or preparable.
  *   bun run test:web
  */
-import { join } from "node:path";
-import { build, example, startServer } from "../pty/harness";
+import { cpSync, symlinkSync } from "node:fs";
+import { basename, join } from "node:path";
+import { ROOT, build, example, startServer, temporaryDirectory } from "../pty/harness";
 import { Browser } from "./cdp";
 import { cellOf, rowWith, shows } from "./site";
 
@@ -20,11 +21,21 @@ function freePort() {
   return port;
 }
 
-build(example("notes"), ["--web"]);
+// PTY journeys build Notes too. Their native-only publication replaces .luciole,
+// including the web files our running Server reads again on a reload.
+using directory = temporaryDirectory("luciole-web-notes-");
+const app = join(directory.path, "notes");
+cpSync(example("notes"), app, {
+  recursive: true,
+  filter: (source) => basename(source) !== ".luciole" && !basename(source).includes(".sqlite"),
+});
+symlinkSync(join(ROOT, "node_modules"), join(app, "node_modules"), "dir");
+build(app, ["--web"]);
 const port = freePort();
 const origin = `http://127.0.0.1:${port}`;
 const report: Record<string, unknown> = {};
-await using server = await startServer(example("notes"), {
+await using server = await startServer(app, {
+  NOTES_DB: join(directory.path, "notes.sqlite"),
   PORT: String(port),
   LUCIOLE_WEB_ORIGIN: origin,
 });
@@ -40,7 +51,7 @@ console.log(first);
 // Everything by pointing: open a note from the list, then write a new one.
 await browser.clickAt(cellOf("Welcome to Notes"));
 await browser.waitFor(shows("Getting around"), "the note");
-const screenshot = join(example("notes"), ".luciole/web-journey.png");
+const screenshot = join(directory.path, "web-journey.png");
 await browser.screenshot(screenshot);
 // A Server Function from the page: a POST, with the declared Origin, admitted.
 const BASE36 = 36;
@@ -63,8 +74,18 @@ await browser.waitFor(shows("Coffee beans"), "the other note");
 await browser.clickAt(cellOf(marker));
 await browser.waitFor(shows(BODY), "the reopened note");
 
+// Reproduce the competing publication at the exact failure point: a PTY journey
+// builds native-only Notes, which must leave this Server's reload resources intact.
+build(example("notes"));
+
 // The tab's session: a reload reopens the same entry, from localStorage.
+const documentStarted = await browser.evaluate("performance.timeOrigin");
 await browser.open(origin);
+// Page.navigate can answer while the old screen still shows the note.
+await browser.waitFor(
+  `performance.timeOrigin !== ${JSON.stringify(documentStarted)}`,
+  "the reloaded document",
+);
 report.reloadRestoresTheNote = !!(await browser.waitFor(shows(BODY), "the restored note"));
 report.otherOriginRefused =
   (await fetch(`${server.url}/manifest`, { headers: { origin: "http://evil.example" } })).status ===
