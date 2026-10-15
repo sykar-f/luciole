@@ -135,7 +135,7 @@ for (const removalError of [false, true]) {
       },
     });
     const stderr = new Response(managed.child.stderr).text();
-    await expect(managed.stop()).rejects.toThrow("injected group kill failure");
+    expect(managed.stop()).rejects.toThrow("injected group kill failure");
     expect(existsSync(profile)).toBe(removalError);
     const errors = await stderr;
     expect(errors).toContain("process group");
@@ -175,10 +175,11 @@ for (const output of ["", "not a process table", "123 S\nbroken", "123 Zgarbage"
       throw denial;
     });
     const snapshot = spyOn(Bun, "spawnSync").mockReturnValue({
+      ...Bun.spawnSync(["/bin/ps", "-axo", "pgid=,stat="]),
       exitCode: 0,
       stdout: Buffer.from(output),
       stderr: Buffer.alloc(0),
-    } as ReturnType<typeof Bun.spawnSync>);
+    });
     try {
       expect(() => signalGroup(123, "SIGKILL")).toThrow(denial);
     } finally {
@@ -211,10 +212,11 @@ for (const output of ["456 S", "123 Z", "123 Z+\n456 S"]) {
       throw denial;
     });
     const snapshot = spyOn(Bun, "spawnSync").mockReturnValue({
+      ...Bun.spawnSync(["/bin/ps", "-axo", "pgid=,stat="]),
       exitCode: 0,
       stdout: Buffer.from(output),
       stderr: Buffer.alloc(0),
-    } as ReturnType<typeof Bun.spawnSync>);
+    });
     try {
       expect(() => signalGroup(123, "SIGTERM")).not.toThrow();
     } finally {
@@ -230,10 +232,11 @@ test("EPERM rejects an unsuccessful ps result even with zombie output", () => {
     throw denial;
   });
   const snapshot = spyOn(Bun, "spawnSync").mockReturnValue({
+    ...Bun.spawnSync(["/bin/ps", "-axo", "pgid=,stat="]),
     exitCode: 1,
     stdout: Buffer.from("123 Z"),
     stderr: Buffer.from("ps failed"),
-  } as ReturnType<typeof Bun.spawnSync>);
+  });
   try {
     expect(() => signalGroup(123, "SIGKILL")).toThrow(denial);
   } finally {

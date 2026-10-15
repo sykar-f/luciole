@@ -7,6 +7,11 @@ import { signalGroup } from "./process-group";
 const config = z
   .object({ command: z.array(z.string()), directory: z.optional(z.string()) })
   .parse(JSON.parse(process.argv[2] ?? ""));
+function killGroup(pid: number) {
+  if (process.env.LUCIOLE_TEST_GUARD_KILL_ERROR === "1")
+    throw Object.assign(new Error("injected group kill failure"), { code: "EPERM" });
+  signalGroup(pid, "SIGKILL");
+}
 function removeDirectory(directory: string) {
   // Only the fixture opts into this seam; no filesystem permissions depend on the host.
   if (process.env.LUCIOLE_TEST_GUARD_REMOVE_ERROR === "1")
@@ -43,9 +48,7 @@ try {
   const failures: string[] = [];
   if (child) {
     try {
-      if (process.env.LUCIOLE_TEST_GUARD_KILL_ERROR === "1")
-        throw Object.assign(new Error("injected group kill failure"), { code: "EPERM" });
-      signalGroup(child.pid, "SIGKILL");
+      killGroup(child.pid);
       await child.exited;
     } catch (error) {
       failures.push(`process group ${child.pid}: ${describe(error)}`);
