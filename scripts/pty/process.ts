@@ -1,6 +1,7 @@
 /** Subprocess ownership that survives the death of a journey, including SIGKILL. */
 import { join } from "node:path";
 import * as z from "zod/mini";
+import { signalGroup } from "./process-group";
 
 export function bounded<T>(work: Promise<T>, milliseconds: number, message: string): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -70,11 +71,7 @@ export async function managedProcess(
     throw error;
   }
   const stop = async () => {
-    try {
-      process.kill(-pid, "SIGTERM");
-    } catch (error) {
-      if (!(error instanceof Error) || !("code" in error) || error.code !== "ESRCH") throw error;
-    }
+    signalGroup(pid, "SIGTERM");
     // Keep graceful shutdown, but bound it before ending the lifetime lease.
     await bounded(guard.exited, 5000, "child did not stop").catch(async () => {
       await guard.stdin.end();
