@@ -68,6 +68,20 @@ export function chromeArgs(profile: string) {
   ];
 }
 
+/** Read after existence: a BunFile created too early caches a missing file. */
+export async function chromePort(
+  portFile: string,
+  deadline: number,
+  read = () => Bun.file(portFile).text(),
+) {
+  while (!existsSync(portFile)) {
+    if (performance.now() > deadline) throw new Error(`${CHROME} did not start`);
+    await Bun.sleep(POLL_MS);
+  }
+  const [port] = (await read()).split("\n");
+  return port;
+}
+
 class CommandTimeout extends Error {}
 
 export class Browser implements AsyncDisposable {
@@ -100,14 +114,10 @@ export class Browser implements AsyncDisposable {
     void new Response(chrome.stderr).arrayBuffer();
     let socket: WebSocket | undefined;
     try {
-      // A BunFile made before the file exists keeps answering that it does not.
-      const portFile = join(profile, "DevToolsActivePort");
-      const deadline = performance.now() + START_TIMEOUT_MS;
-      while (!existsSync(portFile)) {
-        if (performance.now() > deadline) throw new Error(`${CHROME} did not start`);
-        await Bun.sleep(POLL_MS);
-      }
-      const [port] = (await Bun.file(portFile).text()).split("\n");
+      const port = await chromePort(
+        join(profile, "DevToolsActivePort"),
+        performance.now() + START_TIMEOUT_MS,
+      );
       const targets = z.array(Target).parse(
         await (
           await fetch(`http://127.0.0.1:${port}/json/list`, {
