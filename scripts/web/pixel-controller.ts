@@ -108,7 +108,10 @@ try {
   expect(bands.thumbs).toBeGreaterThan(1);
   console.log("continuity", bands);
   await browser.evaluate("probe.wheel(20,3,.375)");
-  await browser.waitFor("probe.state().left.position > .3", "a resting fractional position");
+  await browser.waitFor(
+    "probe.state().presented?.fraction > .3",
+    "a resting fractional presentation",
+  );
   await browser.evaluate(
     "probe.events.length=0; {const r=probe.state().left.rect; probe.pointer('mousemove',r.x+1.5,r.y+1.9)}",
   );
@@ -116,18 +119,34 @@ try {
   expect(await browser.evaluate("probe.events.filter(e=>e.type==='over').at(-1)?.id")).toBe(
     "row-2",
   );
+  await browser.evaluate("probe.selectable(false)");
   await browser.evaluate(
-    "{const r=probe.state().left.rect;probe.pointer('mousedown',r.x+1.5,r.y+1.9,1);probe.pointer('mousemove',r.x+6.5,r.y+2.9,1);probe.pointer('mouseup',r.x+6.5,r.y+2.9)}",
+    "{const r=probe.state().left.rect;probe.pointer('mousedown',r.x+1.5,r.y+1.9,1);probe.pointer('mousemove',r.x+1.5,r.y+1.9,1);probe.pointer('mousemove',r.x+6.5,r.y+2.9,1);probe.pointer('mouseup',r.x+6.5,r.y+2.9)}",
   );
   await browser.waitFor("probe.events.some(e=>e.type==='drop')", "application drop");
   expect(await browser.evaluate("probe.events.some(e=>e.id==='row-2'&&e.type==='down')")).toBe(
     true,
+  );
+  expect(
+    await browser.evaluate(
+      "probe.events.some(e=>e.id==='row-3'&&e.type==='drop'&&e.source==='row-2')",
+    ),
+  ).toBe(true);
+  await browser.evaluate(
+    "probe.selectable(true); {const r=probe.state().left.rect;probe.pointer('mousedown',r.x+.5,r.y+1.9,1);probe.pointer('mousemove',r.x+6.5,r.y+2.9,1);probe.pointer('mouseup',r.x+6.5,r.y+2.9)}",
   );
   await browser.evaluate("probe.terminal.input('\\x03')");
   await browser.waitFor("!!probe.state().copied", "application selection copy");
   expect(await browser.evaluate("probe.state().copied")).toEqual(expect.stringContaining("ROW"));
   await browser.evaluate("probe.terminal.input('\\x1b[B')");
   await browser.waitFor("probe.state().left.position > 1", "focused keyboard scroll");
+  await browser.evaluate(
+    "{const r=probe.state().left.rect;probe.pointer('mousedown',r.x+1.5,r.y+1.5,1,true);probe.pointer('mousemove',r.x+8.5,r.y+2.5,1,true);probe.pointer('mouseup',r.x+8.5,r.y+2.5,0,true)}",
+  );
+  await browser.waitFor("!probe.state().presented", "native selection's canonical release");
+  await browser.waitFor("!!probe.state().nativeSelection", "native selection replay");
+  await browser.evaluate("probe.pointer('mousemove',3,3)");
+  await browser.waitFor("!!probe.state().presented", "presentation after native selection");
   // A disjoint viewport is selected by an ordinary move before precise wheel input.
   await browser.evaluate("probe.pointer('mousemove',30,3)");
   await browser.waitFor("probe.state().presented?.rect.x > 25", "disjoint viewport handover");
@@ -154,6 +173,11 @@ try {
   await browser.waitFor(
     "probe.state().presented && probe.terminal.rows===17",
     "resize rediscovery",
+  );
+  await browser.evaluate("probe.loseContext()");
+  await browser.waitFor(
+    "!probe.state().presented && Number.isInteger(probe.state().left.position)",
+    "context-loss canonical fallback",
   );
   for (const scenario of ["optOut", "reduced", "noHost"]) {
     await browser.send("Emulation.setEmulatedMedia", {

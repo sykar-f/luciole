@@ -242,6 +242,10 @@ Object.assign(window, {
         }),
       );
     },
+    selectable: (value: boolean) => {
+      r.clearSelection();
+      for (const row of left.getChildren()) row.selectable = value;
+    },
     nested: () => {
       if (!nestedShown) {
         left.add(nested);
@@ -263,6 +267,7 @@ Object.assign(window, {
     closePopup: () => {
       popup?.destroy();
     },
+    loseContext: () => gl.getExtension("WEBGL_lose_context")?.loseContext(),
     resize: () => {
       terminal.resize(50, 17);
       r.resize(50, 17);
