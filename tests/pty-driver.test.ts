@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import { drive } from "../scripts/pty/driver";
+import { eventually } from "../scripts/pty/harness";
 
 /** A Bun program on the PTY, from its source. */
 const program = (source: string) => [process.execPath, "-e", source];
@@ -49,6 +50,66 @@ test("a wait ends on a complete synchronized frame drawn after the last key", as
   // "count" is already shown: the wait still needs the frame the key caused.
   await t.waitFor("count");
   expect(await t.text()).toContain("count 1 drawn");
+});
+
+test("an editor handoff accepts plain output and reentry restores frame gating", async () => {
+  await using t = await drive({
+    command: program(`
+      process.stdin.setRawMode(true);
+      process.stdout.write("\\x1b[?1049h\\x1b[?2026hrenderer ready\\x1b[?2026l");
+      process.stdin.on("data", (bytes) => {
+        for (const key of bytes.toString()) {
+          if (key === "e") process.stdout.write("\\x1b[?1049l\\x1b[H\\x1b[2Jeditor ready");
+          if (key === "r") process.stdout.write("\\x1b[?1049hresumed pending");
+          if (key === "f") process.stdout.write("\\x1b[?2026hrenderer pending");
+          if (key === "c") process.stdout.write(" complete\\x1b[?2026l");
+        }
+      });
+    `),
+    cols: 60,
+    rows: 5,
+  });
+  await t.waitFor("renderer ready");
+  // No synchronized frame follows this input: the editor writes only plain text.
+  t.write("e");
+  await t.waitFor("editor ready", { timeout: 500 });
+  expect(await t.text()).toContain("editor ready");
+
+  t.write("r");
+  expect(await eventually(() => t.output().includes("resumed pending"))).toBe(true);
+  // Reentry needs a new complete frame, even before the renderer begins one.
+  const resumed = t.waitFor("resumed pending", { timeout: 100 });
+  expect(resumed).rejects.toThrow("never showed");
+  await resumed.catch(() => {});
+  t.write("f");
+  expect(await eventually(() => t.output().includes("renderer pending"))).toBe(true);
+  const incomplete = t.waitFor("renderer pending", { timeout: 100 });
+  expect(incomplete).rejects.toThrow("never showed");
+  await incomplete.catch(() => {});
+  t.write("c");
+  await t.waitFor("renderer pending complete");
+});
+
+test("renderer reentry cannot reuse a frame completed before suspension", async () => {
+  await using t = await drive({
+    command: program(`
+      process.stdin.setRawMode(true);
+      process.on("SIGUSR1", () => process.stdout.write("\\x1b[?1049hresumed pending"));
+      process.stdin.on("data", () => process.stdout.write("\\x1b[?2026h complete\\x1b[?2026l"));
+      process.stdout.write("\\x1b[?1049h\\x1b[?2026hrenderer ready\\x1b[?2026l\\x1b[?1049leditor ready");
+    `),
+    cols: 60,
+    rows: 5,
+  });
+  await t.waitFor("editor ready");
+  // A program may resume by itself, without a key changing the driver's input mark.
+  t.signal("SIGUSR1");
+  expect(await eventually(() => t.output().includes("resumed pending"))).toBe(true);
+  const stale = t.waitFor("resumed pending", { timeout: 100 });
+  expect(stale).rejects.toThrow("never showed");
+  await stale.catch(() => {});
+  t.write("c");
+  await t.waitFor("resumed pending complete");
 });
 
 test("a resize reaches the program, and a failed wait shows the screen", async () => {

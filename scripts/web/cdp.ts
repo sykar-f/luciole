@@ -7,11 +7,15 @@ import { existsSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import * as z from "zod/mini";
+import { bounded, managedProcess } from "../pty/process";
 
 const CHROME = process.env.CHROME ?? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const POLL_MS = 50;
 const START_TIMEOUT_MS = 10_000;
 const WAIT_TIMEOUT_MS = 15_000;
+const COMMAND_TIMEOUT_MS = 10_000;
+const MAX_PORT = 65_535;
+const Port = z.coerce.number().check(z.int(), z.gte(1), z.lte(MAX_PORT));
 
 const Target = z.object({ type: z.string(), webSocketDebuggerUrl: z.string() });
 const Reply = z.object({
@@ -22,7 +26,12 @@ const Reply = z.object({
 const Event = z.object({ method: z.string(), params: z.unknown() });
 const Evaluated = z.object({
   result: z.object({ value: z.optional(z.unknown()) }),
-  exceptionDetails: z.optional(z.object({ text: z.string() })),
+  exceptionDetails: z.optional(
+    z.object({
+      text: z.string(),
+      exception: z.optional(z.object({ description: z.optional(z.string()) })),
+    }),
+  ),
 });
 const Screenshot = z.object({ data: z.string() });
 const Point = z.object({ x: z.number(), y: z.number() });
@@ -61,46 +70,95 @@ export function chromeArgs(profile: string) {
   ];
 }
 
+/** Read after existence: a BunFile created too early caches a missing file. */
+export async function chromePort(
+  portFile: string,
+  deadline: number,
+  read = () => Bun.file(portFile).text(),
+) {
+  for (;;) {
+    if (performance.now() > deadline) throw new Error(`${CHROME} did not start`);
+    if (existsSync(portFile)) {
+      const contents = await read();
+      const newline = contents.indexOf("\n");
+      if (newline !== -1) {
+        const port = Port.safeParse(contents.slice(0, newline));
+        if (port.success) return port.data;
+      }
+    }
+    await Bun.sleep(POLL_MS);
+  }
+}
+
+class CommandTimeout extends Error {}
+
 export class Browser implements AsyncDisposable {
   readonly logs: string[] = [];
   /** The execution contexts the page made, by id: a frame of another origin has its own. */
   private readonly contexts = new Map<number, string>();
   private sequence = 0;
   private readonly pending = new Map<number, (reply: z.infer<typeof Reply>) => void>();
-  private readonly process: Bun.Subprocess;
+  private readonly stop: () => Promise<void>;
   private readonly socket: WebSocket;
+  private readonly commandTimeoutMs: number;
 
-  private constructor(process: Bun.Subprocess, socket: WebSocket) {
-    this.process = process;
+  private constructor(stop: () => Promise<void>, socket: WebSocket, commandTimeoutMs: number) {
+    this.commandTimeoutMs = commandTimeoutMs;
+    this.stop = stop;
     this.socket = socket;
     socket.addEventListener("message", ({ data }) => this.receive(String(data)));
+    const closed = () => this.failPending(`CDP target ${socket.url} disconnected`);
+    socket.addEventListener("close", closed);
+    socket.addEventListener("error", closed);
   }
 
-  static async start() {
+  static async start(options: { commandTimeoutMs?: number } = {}) {
     const profile = mkdtempSync(join(tmpdir(), "luciole-cdp-"));
-    const chrome = Bun.spawn(chromeArgs(profile), { stdio: ["ignore", "ignore", "ignore"] });
-    // A BunFile made before the file exists keeps answering that it does not.
-    const portFile = join(profile, "DevToolsActivePort");
-    const deadline = performance.now() + START_TIMEOUT_MS;
-    while (!existsSync(portFile)) {
-      if (performance.now() > deadline) throw new Error(`${CHROME} did not start`);
-      await Bun.sleep(POLL_MS);
-    }
-    const [port] = (await Bun.file(portFile).text()).split("\n");
-    const targets = z
-      .array(Target)
-      .parse(await (await fetch(`http://127.0.0.1:${port}/json/list`)).json());
-    const page = targets.find((t) => t.type === "page");
-    if (!page) throw new Error("Chrome opened no page");
-    const socket = new WebSocket(page.webSocketDebuggerUrl);
-    await new Promise((resolve, reject) => {
-      socket.addEventListener("open", resolve, { once: true });
-      socket.addEventListener("error", reject, { once: true });
+    const { child: chrome, stop } = await managedProcess(chromeArgs(profile), {
+      directory: profile,
     });
-    const browser = new Browser(chrome, socket);
-    await browser.send("Runtime.enable");
-    await browser.send("Page.enable");
-    return browser;
+    // Drain Chrome output so a full pipe cannot stall the browser.
+    void new Response(chrome.stdout).arrayBuffer();
+    void new Response(chrome.stderr).arrayBuffer();
+    let socket: WebSocket | undefined;
+    try {
+      const port = await chromePort(
+        join(profile, "DevToolsActivePort"),
+        performance.now() + START_TIMEOUT_MS,
+      );
+      const targets = z.array(Target).parse(
+        await (
+          await fetch(`http://127.0.0.1:${port}/json/list`, {
+            signal: AbortSignal.timeout(START_TIMEOUT_MS),
+          })
+        ).json(),
+      );
+      const page = targets.find((t) => t.type === "page");
+      if (!page) throw new Error("Chrome opened no page");
+      socket = new WebSocket(page.webSocketDebuggerUrl);
+      const connection = socket;
+      await bounded(
+        new Promise((resolve, reject) => {
+          connection.addEventListener("open", resolve, { once: true });
+          connection.addEventListener("error", reject, { once: true });
+        }),
+        START_TIMEOUT_MS,
+        `CDP target ${connection.url} did not connect`,
+      );
+      const browser = new Browser(stop, socket, options.commandTimeoutMs ?? COMMAND_TIMEOUT_MS);
+      await browser.send("Runtime.enable");
+      await browser.send("Page.enable");
+      return browser;
+    } catch (error) {
+      socket?.close();
+      await stop();
+      throw error;
+    }
+  }
+
+  private failPending(message: string) {
+    for (const [id, reply] of this.pending) reply({ id, error: { message } });
+    this.pending.clear();
   }
 
   private receive(text: string) {
@@ -131,13 +189,27 @@ export class Browser implements AsyncDisposable {
 
   send(method: string, params: Record<string, unknown> = {}): Promise<unknown> {
     const id = ++this.sequence;
-    this.socket.send(JSON.stringify({ id, method, params }));
     return new Promise((resolve, reject) => {
-      this.pending.set(id, (reply) =>
-        reply.error
-          ? reject(new Error(`${method}: ${reply.error.message}`))
-          : resolve(reply.result),
-      );
+      const timer = setTimeout(() => {
+        this.pending.delete(id);
+        reject(
+          new CommandTimeout(
+            `${method}: CDP target ${this.socket.url} exceeded ${this.commandTimeoutMs} ms`,
+          ),
+        );
+      }, this.commandTimeoutMs);
+      this.pending.set(id, (reply) => {
+        clearTimeout(timer);
+        if (reply.error) reject(new Error(`${method}: ${reply.error.message}`));
+        else resolve(reply.result);
+      });
+      try {
+        this.socket.send(JSON.stringify({ id, method, params }));
+      } catch (error) {
+        clearTimeout(timer);
+        this.pending.delete(id);
+        reject(error);
+      }
     });
   }
 
@@ -149,7 +221,10 @@ export class Browser implements AsyncDisposable {
     const evaluated = Evaluated.parse(
       await this.send("Runtime.evaluate", { expression, returnByValue: true, awaitPromise: true }),
     );
-    if (evaluated.exceptionDetails) throw new Error(evaluated.exceptionDetails.text);
+    if (evaluated.exceptionDetails)
+      throw new Error(
+        evaluated.exceptionDetails.exception?.description ?? evaluated.exceptionDetails.text,
+      );
     return evaluated.result.value;
   }
 
@@ -163,7 +238,10 @@ export class Browser implements AsyncDisposable {
     const evaluated = Evaluated.parse(
       await this.send("Runtime.evaluate", { expression, contextId, returnByValue: true }),
     );
-    if (evaluated.exceptionDetails) throw new Error(evaluated.exceptionDetails.text);
+    if (evaluated.exceptionDetails)
+      throw new Error(
+        evaluated.exceptionDetails.exception?.description ?? evaluated.exceptionDetails.text,
+      );
     return evaluated.result.value;
   }
 
@@ -171,7 +249,10 @@ export class Browser implements AsyncDisposable {
   async waitFor(expression: string, what: string, timeout = WAIT_TIMEOUT_MS): Promise<unknown> {
     const deadline = performance.now() + timeout;
     for (;;) {
-      const value = await this.evaluate(expression).catch(() => undefined);
+      const value = await this.evaluate(expression).catch((error: unknown) => {
+        if (error instanceof CommandTimeout) throw error;
+        return undefined;
+      });
       if (value) return value;
       if (performance.now() > deadline)
         throw new Error(`the page never showed ${what}\n--- page logs\n${this.logs.join("\n")}`);
@@ -217,7 +298,7 @@ export class Browser implements AsyncDisposable {
 
   async [Symbol.asyncDispose]() {
     this.socket.close();
-    this.process.kill();
-    await this.process.exited;
+    this.failPending(`CDP target ${this.socket.url} disposed`);
+    await this.stop();
   }
 }

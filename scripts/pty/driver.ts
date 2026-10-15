@@ -270,7 +270,8 @@ export class Driver implements AsyncDisposable {
       terminal,
       detached: true,
       cwd: options.cwd,
-      env: environment({ TERM: "xterm-256color", ...options.env }),
+      // Advertise the emulator's truecolor even when an isolated home has no terminal hints.
+      env: environment({ TERM: "xterm-256color", COLORTERM: "truecolor", ...options.env }),
     });
     driver = new Driver({ terminal, child, screen, before }, options);
     for (const bytes of pending) driver.receive(bytes);
@@ -388,8 +389,13 @@ export class Driver implements AsyncDisposable {
   private frameComplete() {
     const begin = this.raw.lastIndexOf(FRAME_BEGIN);
     if (begin < 0) return true;
+    const entered = this.raw.lastIndexOf(`${ESC}[?1049h`);
+    const left = this.raw.lastIndexOf(`${ESC}[?1049l`);
+    // A suspended renderer hands the normal screen to an editor writing plain output.
+    // Reentry, or a new synchronized frame outside it, restores frame gating.
+    if (left > entered && left > begin) return true;
     const end = this.raw.lastIndexOf(FRAME_END);
-    return end > begin && (this.inputMark === undefined || end >= this.inputMark);
+    return end > begin && end > entered && (this.inputMark === undefined || end >= this.inputMark);
   }
 
   /**
