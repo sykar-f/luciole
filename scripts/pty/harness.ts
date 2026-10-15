@@ -49,17 +49,18 @@ export async function listening(
   command: readonly string[],
   env: Record<string, string | undefined>,
 ) {
-  const { child, stop } = managedProcess(command, { env: environment(env) });
+  const { child, stop } = await managedProcess(command, { env: environment(env) });
   const errors = new Response(child.stderr).text();
   let port: number;
   try {
     const reader = child.stdout.getReader();
     const decoder = new TextDecoder();
     let line = "";
+    const deadline = performance.now() + HANG_MS;
     while (!line.includes("\n")) {
       const chunk = await bounded(
         reader.read(),
-        HANG_MS,
+        Math.max(0, deadline - performance.now()),
         `${command.join(" ")} did not announce its port`,
       );
       if (chunk.done) throw new Error(`${command.join(" ")} did not start:\n${await errors}`);

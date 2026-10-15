@@ -24,7 +24,7 @@ const server = Bun.serve({
       const message = z
         .object({ id: z.number(), method: z.string() })
         .parse(JSON.parse(String(raw)));
-      if (message.method === "Runtime.evaluate") return;
+      if (message.method === (process.env.STUCK_METHOD ?? "Runtime.evaluate")) return;
       socket.send(JSON.stringify({ id: message.id, result: {} }));
     },
   },

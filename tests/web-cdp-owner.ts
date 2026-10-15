@@ -14,7 +14,9 @@ console.log(JSON.stringify({ port: server.port }));
   ],
   {},
 );
-await using browser = await Browser.start({ commandTimeoutMs: 200 });
 if (process.env.OWNER_RECORD) writeFileSync(process.env.OWNER_RECORD, String(server.pid));
-if (process.argv[2] === "error") await browser.evaluate("new Promise(() => {})");
+await using browser = await Browser.start({ commandTimeoutMs: 200 });
+if (process.argv[2] === "wait") await browser.waitFor("true", "a response");
+else if (process.argv[2] === "normal") await browser.send("Page.navigate", { url: "about:blank" });
+else if (process.argv[2] === "error") await browser.evaluate("new Promise(() => {})");
 else await new Promise(() => {});
