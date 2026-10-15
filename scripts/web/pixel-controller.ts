@@ -1,5 +1,6 @@
 /* eslint-disable no-magic-numbers -- Scripted browser proof coordinates and bounds. */
 import { expect } from "bun:test";
+import * as z from "zod/mini";
 import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { defaultCache } from "../../packages/core/src/compile";
@@ -62,7 +63,15 @@ try {
     "!!window.probe?.state().presented",
     "the negotiated ScrollBox presentation",
   );
-  const bands = await browser.evaluate(`(async () => {
+  const bands = z
+    .object({
+      errors: z.array(z.string()),
+      checked: z.number(),
+      thumbs: z.number(),
+      position: z.number(),
+    })
+    .parse(
+      await browser.evaluate(`(async () => {
     const pause = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
     const first = probe.state();
     const rect = first.left.rect, H = first.cellHeight;
@@ -92,20 +101,23 @@ try {
       }
     }
     return {errors,checked,thumbs:thumbs.size,position:probe.state().left.position};
-  })()`);
+  })()`),
+    );
   expect(bands).toMatchObject({ errors: [], position: 0 });
-  expect(bands).toHaveProperty("checked");
-  expect(bands).toMatchObject({ thumbs: expect.any(Number) });
+  expect(bands.checked).toBeGreaterThanOrEqual(96);
+  expect(bands.thumbs).toBeGreaterThan(1);
   console.log("continuity", bands);
   await browser.evaluate("probe.wheel(20,3,.375)");
   await browser.waitFor("probe.state().left.position > .3", "a resting fractional position");
-  await browser.evaluate("probe.events.length=0;probe.pointer('mousemove',3.5,2.9)");
+  await browser.evaluate(
+    "probe.events.length=0; {const r=probe.state().left.rect; probe.pointer('mousemove',r.x+1.5,r.y+1.9)}",
+  );
   await browser.waitFor("probe.events.some(e=>e.type==='over')", "fractional hover");
   expect(await browser.evaluate("probe.events.filter(e=>e.type==='over').at(-1)?.id")).toBe(
     "row-2",
   );
   await browser.evaluate(
-    "probe.pointer('mousedown',3.5,2.9,1);probe.pointer('mousemove',8.5,3.9,1);probe.pointer('mouseup',8.5,3.9)",
+    "{const r=probe.state().left.rect;probe.pointer('mousedown',r.x+1.5,r.y+1.9,1);probe.pointer('mousemove',r.x+6.5,r.y+2.9,1);probe.pointer('mouseup',r.x+6.5,r.y+2.9)}",
   );
   await browser.waitFor("probe.events.some(e=>e.type==='drop')", "application drop");
   expect(await browser.evaluate("probe.events.some(e=>e.id==='row-2'&&e.type==='down')")).toBe(
