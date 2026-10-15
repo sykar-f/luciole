@@ -2,17 +2,11 @@
 import { renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import * as z from "zod/mini";
+import { signalGroup } from "./process-group";
 
 const config = z
   .object({ command: z.array(z.string()), directory: z.optional(z.string()) })
   .parse(JSON.parse(process.argv[2] ?? ""));
-function killGroup(pid: number) {
-  try {
-    process.kill(-pid, "SIGKILL");
-  } catch (error) {
-    if (!(error instanceof Error) || !("code" in error) || error.code !== "ESRCH") throw error;
-  }
-}
 function removeDirectory(directory: string) {
   // Only the fixture opts into this seam; no filesystem permissions depend on the host.
   if (process.env.LUCIOLE_TEST_GUARD_REMOVE_ERROR === "1")
@@ -46,18 +40,31 @@ try {
   await Promise.race([ownerGone, child.exited]);
 } finally {
   let cleanup: { ok: boolean; removed?: string; error?: string };
-  try {
-    if (child) {
-      killGroup(child.pid);
+  const failures: string[] = [];
+  if (child) {
+    try {
+      if (process.env.LUCIOLE_TEST_GUARD_KILL_ERROR === "1")
+        throw Object.assign(new Error("injected group kill failure"), { code: "EPERM" });
+      signalGroup(child.pid, "SIGKILL");
       await child.exited;
+    } catch (error) {
+      failures.push(`process group ${child.pid}: ${describe(error)}`);
     }
-    if (config.directory) {
+  }
+  let removed: string | undefined;
+  if (config.directory) {
+    try {
       removeDirectory(config.directory);
+      removed = config.directory;
+    } catch (error) {
+      failures.push(`profile removal: ${describe(error)}`);
     }
-    cleanup = { ok: true, removed: config.directory };
+  }
+  if (failures.length === 0) {
+    cleanup = { ok: true, removed };
     exitCode = child?.exitCode ?? 1;
-  } catch (error) {
-    cleanup = { ok: false, error: describe(error) };
+  } else {
+    cleanup = { ok: false, removed, error: failures.join("; ") };
     console.error(`guard ${process.pid} cleanup failed: ${cleanup.error}`);
   }
   // Exercise a genuinely missing report without leaving child resources alive.

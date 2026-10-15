@@ -1,8 +1,9 @@
-import { beforeAll, expect, test } from "bun:test";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { afterAll, beforeAll, expect, spyOn, test } from "bun:test";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { eventually, temporaryDirectory } from "../scripts/pty/harness";
 import { managedProcess } from "../scripts/pty/process";
+import { signalGroup } from "../scripts/pty/process-group";
 
 // A separate parent retains an unreaped child in the managed leader's group.
 // It stays in the same session but moves itself to another group before forking.
@@ -29,6 +30,7 @@ int main(int argc, char **argv) {
   if (keeper < 0) return 4;
   if (keeper == 0) {
     close(ready[0]);
+    close(0); close(1); close(2);
     if (setpgid(0, 0)) _exit(5);
     pid_t zombie = fork();
     if (zombie < 0) _exit(6);
@@ -56,11 +58,14 @@ int main(int argc, char **argv) {
 }
 `,
   );
+  if (!Bun.which("cc")) throw new Error("process guard fixture requires a C compiler (cc)");
   const compiler = Bun.spawn(["cc", "-Wall", "-Werror", source, "-o", executable], {
     stderr: "pipe",
   });
   expect(await compiler.exited, await new Response(compiler.stderr).text()).toBe(0);
 });
+
+afterAll(() => fixture[Symbol.dispose]());
 
 for (const exit of ["natural", "SIGTERM"] as const) {
   test(`guard cleans a zombie-only group after ${exit} exit`, async () => {
@@ -69,7 +74,6 @@ for (const exit of ["natural", "SIGTERM"] as const) {
     const finish = join(directory.path, "finish");
     const release = join(directory.path, "release");
     const profile = join(directory.path, "profile");
-    const { mkdirSync } = await import("node:fs");
     mkdirSync(profile);
     const managed = await managedProcess([executable, record, finish, release], {
       directory: profile,
@@ -102,9 +106,10 @@ for (const exit of ["natural", "SIGTERM"] as const) {
       writeFileSync(finish, "");
       writeFileSync(release, "");
       if (keeper) {
+        const keeperPid = keeper;
         await eventually(() => {
           try {
-            process.kill(keeper, 0);
+            process.kill(keeperPid, 0);
             return false;
           } catch {
             return true;
@@ -115,3 +120,86 @@ for (const exit of ["natural", "SIGTERM"] as const) {
     }
   });
 }
+
+for (const removalError of [false, true]) {
+  test(`group kill failure still attempts profile removal (failure: ${removalError})`, async () => {
+    using directory = temporaryDirectory("guard-failures-", process.env.TMPDIR);
+    const profile = join(directory.path, "profile");
+    mkdirSync(profile);
+    const managed = await managedProcess([process.execPath, "-e", "setInterval(() => {}, 1000)"], {
+      directory: profile,
+      env: {
+        ...process.env,
+        LUCIOLE_TEST_GUARD_KILL_ERROR: "1",
+        LUCIOLE_TEST_GUARD_REMOVE_ERROR: removalError ? "1" : "0",
+      },
+    });
+    const stderr = new Response(managed.child.stderr).text();
+    await expect(managed.stop()).rejects.toThrow("injected group kill failure");
+    expect(existsSync(profile)).toBe(removalError);
+    const errors = await stderr;
+    expect(errors).toContain("process group");
+    expect(errors).toContain("EPERM");
+    if (removalError) {
+      expect(errors).toContain("profile removal");
+      expect(errors).toContain("injected profile removal failure");
+      expect(errors).toContain("EIO");
+      expect(errors).toContain(profile);
+    }
+  });
+}
+
+test("a live group with EPERM remains a failure", async () => {
+  const child = Bun.spawn([process.execPath, "-e", "setInterval(() => {}, 1000)"], {
+    detached: true,
+    stdout: "ignore",
+    stderr: "ignore",
+  });
+  const denial = Object.assign(new Error("live group denied"), { code: "EPERM" });
+  const kill = spyOn(process, "kill").mockImplementation(() => {
+    throw denial;
+  });
+  try {
+    expect(() => signalGroup(child.pid, "SIGKILL")).toThrow(denial);
+  } finally {
+    kill.mockRestore();
+    process.kill(-child.pid, "SIGKILL");
+    await child.exited;
+  }
+});
+
+for (const output of ["", "not a process table", "123 S\nbroken"]) {
+  test(`EPERM inspection fails closed for invalid ps output ${JSON.stringify(output)}`, () => {
+    const denial = Object.assign(new Error("denied"), { code: "EPERM" });
+    const kill = spyOn(process, "kill").mockImplementation(() => {
+      throw denial;
+    });
+    const snapshot = spyOn(Bun, "spawnSync").mockReturnValue({
+      exitCode: 0,
+      stdout: Buffer.from(output),
+      stderr: Buffer.alloc(0),
+    } as ReturnType<typeof Bun.spawnSync>);
+    try {
+      expect(() => signalGroup(123, "SIGKILL")).toThrow(denial);
+    } finally {
+      kill.mockRestore();
+      snapshot.mockRestore();
+    }
+  });
+}
+
+test("EPERM inspection fails closed when ps fails", () => {
+  const denial = Object.assign(new Error("denied"), { code: "EPERM" });
+  const kill = spyOn(process, "kill").mockImplementation(() => {
+    throw denial;
+  });
+  const snapshot = spyOn(Bun, "spawnSync").mockImplementation(() => {
+    throw new Error("ps failed");
+  });
+  try {
+    expect(() => signalGroup(123, "SIGKILL")).toThrow(denial);
+  } finally {
+    kill.mockRestore();
+    snapshot.mockRestore();
+  }
+});
