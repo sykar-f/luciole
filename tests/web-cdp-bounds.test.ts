@@ -33,6 +33,13 @@ function diagnostics(directory: string, guards: number[]) {
     )
     .join("\n");
 }
+function waitForGuards(guards: number[], onWaiting = () => {}) {
+  // Synchronize on the actual owners of cleanup. The existing resource-survivor
+  // window below starts only after these processes have finished their finally.
+  const waiting = eventually(() => guards.every((pid) => !alive(pid)));
+  onWaiting();
+  return waiting;
+}
 const root = join(import.meta.dir, "..");
 
 async function fixture() {
@@ -118,6 +125,17 @@ for (const cause of [
           JSON.parse(readFileSync(f.owner, "utf8")),
         );
         guards = [serverGuard, record.guard];
+        const survivors = () => {
+          const present: string[] = [];
+          if (alive(server)) present.push(`server PID ${server}`);
+          if (alive(record.chrome)) present.push(`chrome PID ${record.chrome}`);
+          if (alive(record.descendant)) present.push(`descendant PID ${record.descendant}`);
+          if (existsSync(record.profile))
+            present.push(`profile ${record.profile} (chrome PID ${record.chrome})`);
+          return present;
+        };
+        const state = () =>
+          `cleanup still has: ${survivors().join(", ")}\n${diagnostics(f.guards, guards)}`;
         if (cause === "paused-guard") {
           process.kill(record.guard, "SIGSTOP");
           paused = record.guard;
@@ -129,6 +147,7 @@ for (const cause of [
         timeout = cause === "timeout" ? setTimeout(() => child.kill("SIGKILL"), 200) : undefined;
         expect(
           await eventually(() => child.exitCode !== null || child.signalCode !== null, 4000),
+          state(),
         ).toBe(true);
         await child.exited;
         clearTimeout(timeout);
@@ -142,28 +161,36 @@ for (const cause of [
           );
           expect(await stderr).toContain("/stuck exceeded 200 ms");
         }
-        const guardStatus = diagnostics(f.guards, guards);
+        const guardsExited = await waitForGuards(guards, () => {
+          if (paused !== undefined) {
+            // The observer has started waiting with cleanup deliberately suspended.
+            expect(alive(paused)).toBe(true);
+            expect(existsSync(record.profile)).toBe(true);
+            process.kill(paused, "SIGCONT");
+            paused = undefined;
+          }
+        });
+        const guardStatus = state();
+        expect(guardsExited, guardStatus).toBe(true);
         if (cause === "removal-error") {
           expect(child.exitCode, await stderr).not.toBe(0);
           expect(await stderr).toContain("injected profile removal failure");
           expect(await stderr).toContain("EIO");
+          expect(await stderr).toContain("fake Chrome stderr retained through cleanup");
           expect(await stderr).toContain(record.profile);
           const result = report(f.guards, record.guard);
           expect(result?.exitCode, guardStatus).toBe(1);
           expect(result?.cleanup.ok, guardStatus).toBe(false);
-          expect(result?.cleanup.error).toContain(`EIO`);
+          expect(result?.cleanup.error).toContain("EIO");
           expect(result?.cleanup.error).toContain(record.profile);
           expect(existsSync(record.profile)).toBe(true);
           return;
         }
+        for (const pid of guards) expect(report(f.guards, pid)?.cleanup.ok, guardStatus).toBe(true);
+        expect(report(f.guards, record.guard)?.cleanup.removed, guardStatus).toBe(record.profile);
         let present: string[] = [];
         const cleaned = await eventually(() => {
-          present = [];
-          if (alive(server)) present.push(`server PID ${server}`);
-          if (alive(record.chrome)) present.push(`chrome PID ${record.chrome}`);
-          if (alive(record.descendant)) present.push(`descendant PID ${record.descendant}`);
-          if (existsSync(record.profile))
-            present.push(`profile ${record.profile} (chrome PID ${record.chrome})`);
+          present = survivors();
           return present.length === 0;
         }, 3000);
         expect(cleaned, `cleanup still has: ${present.join(", ")}\n${guardStatus}`).toBe(true);
