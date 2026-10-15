@@ -442,10 +442,11 @@ index a87a810..c348ff0 100644
          if (nativeStatus === "rendered") this.frameCount++
          if (this.getElapsedMs(now, this.lastFpsTime) >= 1000) {
            this.currentFps = this.frameCount
-@@ -4733,7 +4866,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -4727,8 +4862,8 @@ export class CliRenderer extends EventEmitter implements RenderContext {
          this.renderStats.fps = this.currentFps
  
          if (nativeStatus === "rendered") {
+           // Check if hit grid changed and recheck hover state if needed
 -          if (this._useMouse && this.lib.getHitGridDirty(this.rendererPtr)) {
 +          if (!plan?.deferHover && this._useMouse && this.lib.getHitGridDirty(this.rendererPtr)) {
              this.recheckHoverState()
