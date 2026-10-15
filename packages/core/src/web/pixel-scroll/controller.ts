@@ -293,8 +293,11 @@ export class PixelController {
       frame.fraction > 0
     ) {
       this.stopSettle();
-      frame.viewport.set(Math.round(frame.viewport.position));
-      this.active = frame.viewport;
+      // Release the last emitted region, which may be newer than the one the
+      // host still presents. Its canonical grid must include every rounded view.
+      this.active = this.last?.viewport ?? this.active ?? frame.viewport;
+      this.next = undefined;
+      for (const viewport of this.viewports()) viewport.set(Math.round(viewport.position));
       this.releasing = true;
       this.renderer.requestRender();
       return;

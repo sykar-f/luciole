@@ -278,7 +278,7 @@ try {
   );
   await wait("probe.state().presented?.fraction > .3", "fraction before native selection");
   await browser.evaluate(
-    "{const r=probe.state().left.rect,mac=navigator.platform.includes('Mac');probe.pointer('mousedown',r.x+1.5,r.y+1.5,1,!mac,mac);probe.pointer('mousemove',r.x+8.5,r.y+2.5,1,!mac,mac);probe.pointer('mouseup',r.x+8.5,r.y+2.5,0,!mac,mac)}",
+    "{const r=probe.state().left.rect,mac=navigator.platform.includes('Mac');probe.pointer('mousemove',30,3);probe.pointer('mousedown',r.x+1.5,r.y+1.5,1,!mac,mac);probe.pointer('mousemove',r.x+8.5,r.y+2.5,1,!mac,mac);probe.pointer('mouseup',r.x+8.5,r.y+2.5,0,!mac,mac)}",
   );
   await wait("!probe.state().presented", "native selection's canonical release");
   await wait("!!probe.state().nativeSelection", "native selection replay");
