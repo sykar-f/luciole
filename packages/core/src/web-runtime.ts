@@ -13,6 +13,7 @@ import {
   cpSync,
   existsSync,
   mkdirSync,
+  mkdtempSync,
   readFileSync,
   renameSync,
   rmSync,
@@ -53,23 +54,42 @@ function checkZig(zig: string) {
     );
 }
 
+/** Internal clone seam: callers prepare only complete source checkouts. */
+export function prepareOpenTuiCheckout(
+  checkout: string,
+  repository = OPENTUI_REPOSITORY,
+  tag = OPENTUI_TAG,
+) {
+  if (
+    existsSync(join(checkout, ".git")) &&
+    succeeds(["git", "rev-parse", "--verify", "HEAD"], checkout)
+  ) {
+    const tracked = Bun.spawnSync(["git", "ls-tree", "-rz", "--name-only", "HEAD"], {
+      cwd: checkout,
+      stdout: "pipe",
+      stderr: "ignore",
+    });
+    const files = tracked.stdout.toString().split("\0").filter(Boolean);
+    if (
+      tracked.exitCode === 0 &&
+      files.length &&
+      files.every((file) => existsSync(join(checkout, file)))
+    )
+      return;
+  }
+  rmSync(checkout, { recursive: true, force: true });
+  const temporary = mkdtempSync(`${checkout}.${process.pid}.tmp-`);
+  try {
+    run(["git", "clone", "--quiet", "--depth", "1", "--branch", tag, repository, temporary], ".");
+    renameSync(temporary, checkout);
+  } finally {
+    rmSync(temporary, { recursive: true, force: true });
+  }
+}
+
 /** OpenTUI's sources at the pinned tag, patched, with opentui.wasm built. */
 function prepareOpenTui(checkout: string, zig: string) {
-  if (!existsSync(join(checkout, ".git")))
-    run(
-      [
-        "git",
-        "clone",
-        "--quiet",
-        "--depth",
-        "1",
-        "--branch",
-        OPENTUI_TAG,
-        OPENTUI_REPOSITORY,
-        checkout,
-      ],
-      ".",
-    );
+  prepareOpenTuiCheckout(checkout);
   if (!succeeds(["git", "apply", "--reverse", "--check", OPENTUI_PATCH], checkout))
     run(["git", "apply", OPENTUI_PATCH], checkout);
   run(["bun", "install", "--frozen-lockfile"], checkout);
