@@ -35,7 +35,7 @@ let presented: Presentation | undefined;
 pixels.onPresent((p) => {
   presented = p;
 });
-const canvas = document.querySelector(".xterm-screen canvas");
+const canvas = document.querySelector(".xterm-webgl-layer");
 if (!(canvas instanceof HTMLCanvasElement)) throw new Error("Missing WebGL canvas");
 const gl = canvas.getContext("webgl2");
 if (!gl) throw new Error("Missing WebGL2 context");

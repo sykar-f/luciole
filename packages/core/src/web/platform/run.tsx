@@ -94,7 +94,7 @@ function drawOnGpu(terminal: XTerm) {
     webgl.onContextLoss(fallBack);
     terminal.loadAddon(webgl);
     terminal.element
-      ?.querySelector(".xterm-screen canvas")
+      ?.querySelector(".xterm-webgl-layer")
       ?.addEventListener("webglcontextlost", fallBack);
   } catch {
     fallBack();

@@ -134,7 +134,7 @@ export class PixelScrollAddon implements ITerminalAddon {
         element.addEventListener(type, listener, true);
         this.disposables.push({ dispose: () => element.removeEventListener(type, listener, true) });
       }
-      const canvas = element.querySelector("canvas");
+      const canvas = element.querySelector(".xterm-webgl-layer");
       const loss = () => {
         this.lost = true;
         this.invalidate("no-gpu");

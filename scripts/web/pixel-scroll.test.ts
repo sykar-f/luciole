@@ -1,7 +1,17 @@
 /* eslint-disable no-magic-numbers -- Synthetic pixel fixture geometry and colors. */
 /** Browser proof of the host contract using only synthetic ANSI and DOM input. */
 import { expect, test } from "bun:test";
+import * as z from "zod/mini";
 import { Browser } from "./cdp";
+
+const Report = z.object({
+  op: z.string(),
+  generation: z.optional(z.number()),
+  modifiers: z.optional(z.number()),
+  dy: z.optional(z.number()),
+  action: z.optional(z.string()),
+});
+const InputProof = z.object({ reports: z.array(Report), heldReports: z.array(Report) });
 
 const bundle = await Bun.build({
   entrypoints: [import.meta.dir + "/pixel-scroll-page.ts"],
@@ -111,6 +121,87 @@ for (const dpr of [1, 2])
     })()`);
       expect(proof).toMatchObject({ errors: [], glError: 0 });
       expect(proof).toHaveProperty("checked");
+      const input = await browser.evaluate(`(async () => {
+        await probe.write(probe.sync(probe.transaction(100,2,.3)));
+        await probe.write(probe.sync(probe.op({op:'begin',version:1,generation:101})));
+        probe.reports.length=0;
+        const target=document.querySelector('.xterm-screen');
+        const point=probe.point();
+        const wheel=(dx,dy,mode=0)=>target.dispatchEvent(new WheelEvent('wheel',{
+          ...point,bubbles:true,cancelable:true,deltaX:dx,deltaY:dy,deltaMode:mode,ctrlKey:true}));
+        wheel(4,5);
+        wheel(0,70000,1);
+        for(const [type,buttons] of [['mousemove',0],['mousedown',1],['mousemove',1],['mouseup',0]]) {
+          target.dispatchEvent(new MouseEvent(type,{...point,bubbles:true,cancelable:true,button:0,buttons}));
+        }
+        const reports=probe.reports.splice(0);
+        // Native Shift selection is held until the canonical release is rendered.
+        let native=0;
+        target.addEventListener('mousedown',()=>native++);
+        target.dispatchEvent(new MouseEvent('mousedown',{...point,bubbles:true,cancelable:true,button:0,buttons:1,shiftKey:true}));
+        target.dispatchEvent(new MouseEvent('mousemove',{...point,bubbles:true,cancelable:true,button:0,buttons:1,shiftKey:true}));
+        target.dispatchEvent(new MouseEvent('mouseup',{...point,bubbles:true,cancelable:true,button:0,buttons:0,shiftKey:true}));
+        const before=native;
+        const heldReports=probe.reports.splice(0);
+        await probe.write(probe.sync(probe.transaction(102,2,0)+probe.op({op:'release',version:1,id:1,generation:102})));
+        const after=native;
+        // Reduced motion revokes the nonce, then a fresh query can discover again.
+        return {reports,heldReports,before,after,selected:probe.terminal.hasSelection()};
+      })()`);
+      expect(input).toMatchObject({ before: 0, after: 1 });
+      const parsed = InputProof.parse(input);
+      const wheel = parsed.reports.filter((report) => report.op === "wheel");
+      expect(wheel).toHaveLength(3);
+      expect(wheel.every((report) => report.generation === 100 && report.modifiers === 4)).toBe(
+        true,
+      );
+      expect(wheel.slice(1).reduce((total, report) => total + (report.dy ?? 0), 0)).toBe(70000);
+      expect(
+        parsed.reports.filter((report) => report.op === "pointer").map((report) => report.action),
+      ).toEqual(["move", "down", "drag", "up"]);
+      expect(parsed.heldReports).toHaveLength(1);
+      expect(parsed.heldReports[0]).toMatchObject({
+        op: "pointer",
+        generation: 100,
+        modifiers: 1,
+        action: "down",
+      });
+      await browser.send("Emulation.setEmulatedMedia", {
+        features: [{ name: "prefers-reduced-motion", value: "reduce" }],
+      });
+      await browser.waitFor(
+        `probe.reports.some(r=>r?.reason==='reduced-motion')`,
+        "reduced-motion revocation",
+      );
+      await browser.evaluate(
+        `probe.write(probe.sync(probe.op({op:'query',version:1,nonce:'motion'})))`,
+      );
+      expect(await browser.evaluate(`probe.reports.at(-1)`)).toMatchObject({
+        reason: "reduced-motion",
+        snapshot: false,
+      });
+      await browser.send("Emulation.setEmulatedMedia", {
+        features: [{ name: "prefers-reduced-motion", value: "no-preference" }],
+      });
+      await browser.evaluate(`probe.terminal.options.screenReaderMode=true`);
+      await browser.evaluate(
+        `probe.write(probe.sync(probe.op({op:'query',version:1,nonce:'reader'})))`,
+      );
+      expect(await browser.evaluate(`probe.reports.at(-1)`)).toMatchObject({
+        reason: "screen-reader",
+        precise: false,
+      });
+      await browser.evaluate(`probe.terminal.options.screenReaderMode=false`);
+      await browser.evaluate(
+        `document.querySelector('.xterm-webgl-layer').dispatchEvent(new Event('webglcontextlost',{cancelable:true}))`,
+      );
+      await browser.evaluate(
+        `probe.write(probe.sync(probe.op({op:'query',version:1,nonce:'lost'})))`,
+      );
+      expect(await browser.evaluate(`probe.reports.at(-1)`)).toMatchObject({
+        reason: "no-gpu",
+        snapshot: false,
+      });
     } finally {
       await site.stop(true);
     }

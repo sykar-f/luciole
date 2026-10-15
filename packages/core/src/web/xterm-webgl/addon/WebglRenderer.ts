@@ -85,6 +85,7 @@ export class WebglRenderer extends Disposable implements IRenderer {
     // prevent possible listeners leaking and continuing to operate after the WebglRenderer has been
     // discarded.
     this._canvas = this._coreBrowserService.mainDocument.createElement('canvas');
+    this._canvas.classList.add('xterm-webgl-layer');
     const contextAttributes = {
       antialias: false,
       depth: false,
