@@ -18,6 +18,12 @@ for (const command of [
   test(
     command,
     async () => {
+      if (command === "test:web:landing") {
+        const setup = await execute([process.execPath, "install", "--frozen-lockfile"], {
+          cwd: "website",
+        });
+        expect(setup.exitCode, setup.stderr.toString()).toBe(0);
+      }
       const result = await execute([process.execPath, "run", command]);
       console.log(result.stdout.toString());
       console.error(result.stderr.toString());
