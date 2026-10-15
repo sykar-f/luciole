@@ -322,6 +322,9 @@ export class PixelController {
   private dispatch(report: Extract<PixelReport, { op: "pointer" | "wheel" }>, frame: PixelFrame) {
     const source = pixelHitSource(frame, report.x, report.y, report.phase);
     if (!source.map) return;
+    const id = source.map.hitTest(source.x, source.y);
+    const target = Renderable.renderablesByNumber.get(id);
+    if (id && (!target || target.isDestroyed)) return;
     // Resolve the fractional presentation first, then enter OpenTUI's ordinary
     // cell-coordinate selection machine. Fractional bounds select an extra row.
     const x = Math.floor(source.x);
@@ -378,8 +381,7 @@ export class PixelController {
         source.map,
       );
       if (report.action === "down") {
-        const node = Renderable.renderablesByNumber.get(source.map.hitTest(source.x, source.y));
-        this.switchTo(ancestorViewport(node));
+        this.switchTo(ancestorViewport(target));
       }
     }
   }
