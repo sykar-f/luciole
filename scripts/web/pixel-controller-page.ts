@@ -98,6 +98,16 @@ left.focus();
 const color = (row: number) =>
   `#${[40 + (row % 160), 60 + ((row * 17) % 160), 80 + ((row * 31) % 160)].map((v) => v.toString(16).padStart(2, "0")).join("")}`;
 const events: { id: string; type: string; source?: string }[] = [];
+let effect = "waiting";
+const status = new TextRenderable(r, {
+  content: effect,
+  position: "absolute",
+  left: 0,
+  top: 15,
+  width: 50,
+  height: 1,
+});
+r.root.add(status);
 for (let i = 0; i < 240; i++) {
   const row = new TextRenderable(r, {
     id: `row-${i}`,
@@ -108,12 +118,17 @@ for (let i = 0; i < 240; i++) {
     selectable: true,
     bg: color(i),
   });
-  row.onMouse = (event) =>
+  row.onMouse = (event) => {
     events.push({
       id: row.id,
       type: event.type,
       ...(event.source ? { source: event.source.id } : {}),
     });
+    if (event.type === "over" || event.type === "down" || event.type === "drop") {
+      effect = `${event.type} ${row.id}${event.source ? " from " + event.source.id : ""}`;
+      status.content = effect;
+    }
+  };
   left.add(row);
   right.add(new TextRenderable(r, { content: `OTHER ${i}`, height: 1, flexShrink: 0 }));
 }
@@ -133,6 +148,7 @@ let copied = "";
 r.keyInput.on("keypress", (key) => {
   if (key.ctrl && key.name === "c") {
     copied = r.getSelection()?.getSelectedText() ?? "";
+    void navigator.clipboard.writeText(copied);
     key.preventDefault();
   }
 });
@@ -204,6 +220,7 @@ Object.assign(window, {
       nested: view(nested),
       presented,
       copied,
+      effect,
       maxInputMs,
       selection: r.getSelection()?.getSelectedText() ?? "",
       nativeSelection: terminal.getSelection(),

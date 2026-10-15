@@ -71,6 +71,11 @@ try {
       throw error;
     }
   };
+  await browser.send("Emulation.setFocusEmulationEnabled", { enabled: true });
+  await browser.send("Browser.grantPermissions", {
+    origin: server.url.origin,
+    permissions: ["clipboardReadWrite", "clipboardSanitizedWrite"],
+  });
   await browser.open(server.url.href);
   await wait("!!window.probe?.state().presented", "the negotiated ScrollBox presentation");
   const bands = z
@@ -145,6 +150,11 @@ try {
   expect(await browser.evaluate("probe.events.filter(e=>e.type==='over').at(-1)?.id")).toBe(
     "row-2",
   );
+  expect(await browser.evaluate("probe.state().effect")).toBe("over row-2");
+  await browser.evaluate(
+    "{const r=probe.state().left.rect;probe.pointer('mousedown',r.x+1.5,r.y+1.9,1);probe.pointer('mouseup',r.x+1.5,r.y+1.9)}",
+  );
+  await wait("probe.state().effect==='down row-2'", "visible click effect");
   await browser.evaluate("probe.selectable(false)");
   await browser.evaluate(
     "{const r=probe.state().left.rect;probe.pointer('mousedown',r.x+1.5,r.y+1.9,1);probe.pointer('mousemove',r.x+1.5,r.y+1.9,1);probe.pointer('mousemove',r.x+6.5,r.y+2.9,1);probe.pointer('mouseup',r.x+6.5,r.y+2.9)}",
@@ -164,6 +174,10 @@ try {
   await browser.evaluate("probe.terminal.input('\\x03')");
   await wait("!!probe.state().copied", "application selection copy");
   expect(await browser.evaluate("probe.state().copied")).toEqual("ROW 002 selectable\nROW 003");
+  await wait(
+    "navigator.clipboard.readText().then(text=>text===probe.state().copied)",
+    "browser clipboard copy",
+  );
   await browser.evaluate("probe.terminal.input('\\x1b[B')");
   await wait("probe.state().left.position > 1", "focused keyboard scroll");
   // A disjoint viewport is selected by an ordinary move before precise wheel input.
