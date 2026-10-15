@@ -219,6 +219,16 @@ await openTunnel("ssh://silent.example", { ssh: ${JSON.stringify(fakeSsh)} });`,
     call = await lastCall();
     directory = dirname(call.args[call.args.indexOf("-L") + 1].split(":")[0]);
     expect(existsSync(directory)).toBe(true);
+    // ssh may log before the Client reaches SIGSTOP. Observe the stop before
+    // sending SIGCONT, so a delayed spawn cannot consume the resume too early.
+    await until(
+      () =>
+        Bun.spawnSync(["ps", "-o", "stat=", "-p", String(client.pid)])
+          .stdout.toString()
+          .includes("T"),
+      WAIT_MS,
+      () => "waiting for the Client to stop inside spawn",
+    );
     client.kill("SIGTERM");
     client.kill("SIGCONT");
     await client.exited;
