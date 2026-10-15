@@ -1,7 +1,14 @@
 // Bundled by opentui-seams.test.ts against the patched TypeScript and WASM sources.
 import { expect, test } from "bun:test";
 import { createTestStdout } from "../node_modules/@opentui/core/testing/test-streams";
-import { BoxRenderable, TextRenderable, type MouseEvent, type RawMouseEvent } from "@opentui/core";
+import {
+  CliRenderEvents,
+  BoxRenderable,
+  TextRenderable,
+  type CliRendererErrorEvent,
+  type MouseEvent,
+  type RawMouseEvent,
+} from "@opentui/core";
 import { createTestRenderer } from "@opentui/core/testing";
 import { detectOpenTuiSeams, type RenderHitMap } from "../packages/core/src/web/opentui-seams";
 import baseline from "./fixtures/opentui-seams/plain-frame.json";
@@ -94,6 +101,9 @@ async function scene(selectable = false) {
         before: bytes("<project>"),
         after: bytes("<commit>"),
         onHitMap: (map) => {
+          expect(content.translateY).toBe(0);
+          content.requestRender();
+          r.requestRender();
           projected = map;
         },
       },
@@ -250,6 +260,45 @@ test("selection uses the normal selection machine and captured paint coordinates
     r.dispatchMouseEventFromHitMap(input("up", 3.75), projected);
     expect(r.getSelection()?.getSelectedText()).toContain("BBB");
     expect(r.getSelection()?.isDragging).toBe(false);
+  } finally {
+    r.destroy();
+  }
+});
+
+test("an abandoned projection restores geometry and discards its entire encoder transaction", async () => {
+  const { r, chunks, content, rows, renderOnce } = await scene();
+  try {
+    const errors: string[] = [];
+    r.on(CliRenderEvents.RENDER_ERROR, (event: CliRendererErrorEvent) => {
+      errors.push(event.error.message);
+    });
+    chunks.length = 0;
+    r.setFramePlan(() => ({
+      before: bytes("<abandoned>"),
+      projection: {
+        renderable: content,
+        translateX: 0,
+        translateY: -1,
+        onHitMap() {
+          throw new Error("abandon projection");
+        },
+      },
+    }));
+    await renderOnce();
+    await r.idle();
+    expect(errors).toEqual(["abandon projection"]);
+    expect(chunks).toEqual([]);
+    expect(content.translateY).toBe(0);
+    expect(rows[1]?.y).toBe(1);
+    r.setFramePlan(null);
+    await renderOnce();
+    await r.idle();
+    expect(chunks.join("")).toContain("AAAA");
+    expect(chunks.join("")).not.toContain("<abandoned>");
+    for (const wire of chunks) {
+      expect(wire.split(start)).toHaveLength(2);
+      expect(wire.split(end)).toHaveLength(2);
+    }
   } finally {
     r.destroy();
   }
