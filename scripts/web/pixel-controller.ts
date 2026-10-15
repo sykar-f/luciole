@@ -132,7 +132,37 @@ try {
     await browser.evaluate("probe.state().maxInputMs"),
   );
 
-  await browser.evaluate("probe.wheel(20,3,.375)");
+  await browser.evaluate("probe.wheel(20,3,4.75)");
+  await wait(
+    "probe.state().presented?.origin===4 && probe.state().presented?.fraction>.7",
+    "thumb before fractional threshold",
+  );
+  await browser.evaluate(
+    "window.thumbBefore=JSON.stringify(probe.frames.at(-1).thumb);probe.wheel(20,3,.24)",
+  );
+  await wait(
+    "probe.state().presented?.origin===4 && probe.state().presented?.fraction>.98",
+    "thumb after fractional threshold",
+  );
+  expect(
+    await browser.evaluate("JSON.stringify(probe.frames.at(-1).thumb)!==window.thumbBefore"),
+  ).toBe(true);
+  await browser.evaluate("probe.wheel(20,3,-4.99)");
+  await wait(
+    "probe.state().presented?.origin===0 && probe.state().presented?.fraction===0",
+    "canonical start for subpixel input",
+  );
+  await browser.evaluate("probe.wheel(20,3,.001)");
+  await wait(
+    "probe.state().presented?.fraction>0 && probe.state().presented?.fraction<.002 && probe.state().presented?.phase===0",
+    "positive fraction quantized to zero pixels",
+  );
+  expect(
+    await browser.evaluate(
+      "(()=>{const s=probe.state(),y=Math.round(s.left.rect.y*s.cellHeight);return probe.frames.at(-1).column.slice(y*3,y*3+3).join(',')})()",
+    ),
+  ).toBe("40,60,80");
+  await browser.evaluate("probe.wheel(20,3,.374)");
   await wait("probe.state().presented?.fraction > .3", "a resting fractional presentation");
   await browser.evaluate(
     "probe.events.length=0; {const r=probe.state().left.rect;probe.pointer('mousemove',r.x+1.5,r.y+r.height-.125)}",
