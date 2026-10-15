@@ -199,6 +199,8 @@ export class PixelController {
     const visible = this.visibleRect(viewport);
     const blocked = viewport.owner.isDestroyed || !visible || this.obscured(viewport, map, visible);
     if (blocked && !this.last) return null;
+    const canonicalRepaint =
+      blocked && !viewport.owner.isDestroyed && !Number.isInteger(viewport.position);
     if (blocked) {
       // Layout already painted at the integer origin. A popup must see that same
       // canonical grid in this frame, before any translated snapshot can cover it.
@@ -234,7 +236,7 @@ export class PixelController {
       origin: viewport.origin,
       fraction: release ? 0 : fraction,
     };
-    const plan = planPixelFrame(frame, release);
+    const plan = planPixelFrame(frame, release, canonicalRepaint);
     plan.deferHover = true;
     const capture = plan.onHitMap;
     plan.onHitMap = (map) => {

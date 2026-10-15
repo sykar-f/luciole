@@ -179,3 +179,10 @@ test("nested surface rectangles clip to visible content and terminal cells", () 
   });
   expect(clipPixelRect({ x: 2, y: 12, width: 8, height: 6 }, [screen])).toBeUndefined();
 });
+
+test("popup canonical repaint refreshes fixed chrome before the release command", () => {
+  const plan = planPixelFrame(fixture(0), true, true);
+  expect(messages(plan.after).map((p) => p?.op)).toEqual(["register"]);
+  expect(plan.projection?.translateY).toBe(-10);
+  expect(messages(plan.projection?.after).map((p) => p?.op)).toEqual(["step", "commit", "release"]);
+});

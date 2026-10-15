@@ -16,9 +16,14 @@ const bytes = (operations: PixelOperation[]) =>
   new TextEncoder().encode(operations.map(encode).join(""));
 
 /** One immutable logical presentation; no cell metrics or pixel quantization here. */
-export function planPixelFrame(frame: PixelFrame, release = false): RenderFramePlan {
+export function planPixelFrame(
+  frame: PixelFrame,
+  release = false,
+  canonicalRepaint = false,
+): RenderFramePlan {
   const { id, generation, rect, origin, fraction, viewport } = frame;
   if (release && fraction !== 0) throw new Error("A pixel release requires a canonical frame");
+  const project = fraction > 0 || canonicalRepaint;
   const finish: PixelOperation[] = [
     { op: "step", version: VERSION, id, generation, fraction },
     { op: "commit", version: VERSION, generation },
@@ -34,14 +39,14 @@ export function planPixelFrame(frame: PixelFrame, release = false): RenderFrameP
   };
   return {
     before: bytes([{ op: "begin", version: VERSION, generation }]),
-    after: bytes([register, ...(fraction > 0 ? [] : finish)]),
+    after: bytes([register, ...(project ? [] : finish)]),
     onHitMap(map) {
       frame.snapshot = map;
     },
-    ...(fraction > 0
+    ...(project
       ? {
           projection: {
-            ...viewport.project(origin + 1),
+            ...viewport.project(origin + (fraction > 0 ? 1 : 0)),
             after: bytes(finish),
             onHitMap(map: RenderHitMap) {
               frame.projection = map;
