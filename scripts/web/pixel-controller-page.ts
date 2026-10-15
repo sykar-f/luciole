@@ -151,8 +151,8 @@ terminal.onRender(() => {
   const cellWidth = canvas.width / terminal.cols;
   const column: number[] = [],
     thumb: number[] = [];
-  // Rightmost blank content cell: unaffected by the text glyphs, distinct row bands.
-  const x = Math.floor((presented.rect.x + presented.rect.width - 0.5) * cellWidth);
+  // The space after ROW carries a solid text background without glyph pixels.
+  const x = Math.floor((presented.rect.x + 3.5) * cellWidth);
   const barX = Math.floor((left.verticalScrollBar.x + 0.5) * cellWidth);
   for (let y = 0; y < canvas.height; y++) {
     for (const [target, columnX] of [
@@ -251,8 +251,8 @@ Object.assign(window, {
     popup: () => {
       popup = new BoxRenderable(r, {
         position: "absolute",
-        left: 2,
-        top: 2,
+        left: (presented?.rect.x ?? 1) + 1,
+        top: (presented?.rect.y ?? 1) + 1,
         width: 10,
         height: 3,
         zIndex: 100,

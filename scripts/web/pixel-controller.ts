@@ -66,16 +66,17 @@ try {
     const pause = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
     const first = probe.state();
     const rect = first.left.rect, H = first.cellHeight;
-    const errors = []; let checked = 0, previous = 0;
+    const errors = []; let checked = 0, previous = 0; const thumbs=new Set();
     const bar = JSON.stringify(first.bar);
     probe.frames.length = 0;
     for (const direction of [1, -1]) {
-      for (let i = 0; i < 16; i++) {
+      for (let i = 0; i < 48; i++) {
         probe.wheel(rect.x+rect.width-2, rect.y+2.5, direction*.25);
         await pause(); await pause();
         const state = probe.state();
         if (JSON.stringify(state.bar)!==bar) errors.push('scrollbar moved');
         for(const frame of probe.frames.splice(0)) {
+          thumbs.add(JSON.stringify(frame.thumb));
           const position=frame.origin+frame.phase;
           if(direction*(position-previous)<-1e-6 || Math.abs(position-previous)>.25+1/H+1e-6) errors.push('discontinuity:'+previous+'/'+position);
           previous=position;
@@ -90,10 +91,11 @@ try {
         }
       }
     }
-    return {errors,checked,position:probe.state().left.position};
+    return {errors,checked,thumbs:thumbs.size,position:probe.state().left.position};
   })()`);
   expect(bands).toMatchObject({ errors: [], position: 0 });
   expect(bands).toHaveProperty("checked");
+  expect(bands).toMatchObject({ thumbs: expect.any(Number) });
   console.log("continuity", bands);
   await browser.evaluate("probe.wheel(20,3,.375)");
   await browser.waitFor("probe.state().left.position > .3", "a resting fractional position");
