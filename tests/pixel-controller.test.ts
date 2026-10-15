@@ -1,5 +1,6 @@
+import { PixelDiscovery } from "../packages/core/src/web/pixel-scroll/discovery";
 import { expect, test } from "bun:test";
-import { decode } from "../packages/core/src/pixel-scroll/protocol";
+import { decode, encode } from "../packages/core/src/pixel-scroll/protocol";
 import {
   pixelHitSource,
   planPixelFrame,
@@ -59,4 +60,31 @@ test("hit routing uses the reported phase and the entering edge's projection map
   expect(pixelHitSource(frame, 4, 6.9, 0).map).toBe(frame.snapshot);
   expect(pixelHitSource(frame, 4, 6.9, 1).map).toBe(frame.projection);
   expect(pixelHitSource(frame, 1, 6.9, 1)).toEqual({ map: frame.snapshot, x: 1, y: 6.9 });
+});
+
+test("discovery never blocks and accepts only the current supported nonce", () => {
+  const discovery = new PixelDiscovery();
+  const old = decode(discovery.query());
+  const current = decode(discovery.query());
+  if (old?.op !== "query" || current?.op !== "query") throw new Error("Missing query");
+  const capability = (nonce: string, reason: "ready" | "invalidated" = "ready") =>
+    encode({
+      op: "capability",
+      version: 1,
+      nonce,
+      reason,
+      snapshot: reason === "ready",
+      precise: reason === "ready",
+    });
+  expect(discovery.ready).toBe(false);
+  expect(discovery.receive("unknown")).toBeUndefined();
+  expect(discovery.receive(capability(old.nonce))).toBeUndefined();
+  discovery.receive(capability(current.nonce));
+  expect(discovery.ready).toBe(true);
+  expect(discovery.mode()).toEndWith("h");
+  discovery.receive(capability(current.nonce, "invalidated"));
+  expect(discovery.ready).toBe(false);
+  expect(discovery.mode()).toEndWith("l");
+  expect(discovery.receive(capability(current.nonce))).toBeUndefined();
+  expect(discovery.ready).toBe(false);
 });
