@@ -4,6 +4,9 @@
 `f447274f430fd22513f6adbf9862d19524471c04`. `xterm/` contains its transitive
 source imports from `@xterm/xterm` 6.0.0, including type dependencies and the
 upstream VS Code utilities. Both packages ship their MIT license in `LICENSE`.
+The combined notice keeps the addon’s 2018 xterm.js authors copyright and
+xterm’s 2017–2019 xterm.js authors, 2014–2016 SourceLair Private Company,
+and 2012–2013 Christopher Jeffrey copyrights, with their shared MIT terms.
 The VS Code files retain their original copyright notices.
 
 Mechanical adaptations: internal `browser/`, `common/`, and `vs/` imports use
