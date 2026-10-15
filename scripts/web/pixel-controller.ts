@@ -153,9 +153,7 @@ try {
   );
   await browser.evaluate("probe.terminal.input('\\x03')");
   await wait("!!probe.state().copied", "application selection copy");
-  expect(await browser.evaluate("probe.state().copied")).toEqual(
-    expect.stringContaining("ROW 002"),
-  );
+  expect(await browser.evaluate("probe.state().copied")).toEqual("ROW 002 selectable\nROW 003");
   await browser.evaluate("probe.terminal.input('\\x1b[B')");
   await wait("probe.state().left.position > 1", "focused keyboard scroll");
   await browser.evaluate(

@@ -256,6 +256,10 @@ export class PixelController {
   private dispatch(report: Extract<PixelReport, { op: "pointer" | "wheel" }>, frame: PixelFrame) {
     const source = pixelHitSource(frame, report.x, report.y, report.phase);
     if (!source.map) return;
+    // Resolve the fractional presentation first, then enter OpenTUI's ordinary
+    // cell-coordinate selection machine. Fractional bounds select an extra row.
+    const x = Math.floor(source.x);
+    const y = Math.floor(source.y);
     const modifiers = {
       shift: Boolean(report.modifiers & SHIFT),
       alt: Boolean(report.modifiers & ALT),
@@ -271,8 +275,8 @@ export class PixelController {
         {
           type: "scroll",
           button: 0,
-          x: source.x,
-          y: source.y,
+          x,
+          y,
           modifiers,
           scroll: {
             direction: horizontal ? (delta < 0 ? "left" : "right") : delta < 0 ? "up" : "down",
@@ -290,8 +294,8 @@ export class PixelController {
         {
           type: report.action,
           button: Math.max(0, report.button),
-          x: source.x,
-          y: source.y,
+          x,
+          y,
           modifiers,
         },
         source.map,
