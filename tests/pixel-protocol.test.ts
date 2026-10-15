@@ -135,6 +135,8 @@ test("rejects invalid capability pairs and unsafe nonces", () => {
     { nonce: "\x1b\\" },
     { nonce: "é" },
     { nonce: "a\nb" },
+    { nonce: "a\n" },
+    { nonce: "a\r" },
   ])
     expect(decode(wire({ ...capability, ...patch }))).toBeUndefined();
 });
@@ -311,4 +313,12 @@ test("accepts the payload length limit and rejects the next character", () => {
   const padded = payload.padEnd(MAX_MESSAGE_LENGTH, " ");
   expect(decodePayload(padded)).toEqual(query);
   expect(decodePayload(padded + " ")).toBeUndefined();
+});
+
+test("rejects trailing control characters instead of treating them as JSON whitespace", () => {
+  const payload = `luciole-pixel;${JSON.stringify(query)}`;
+  for (const control of ["\n", "\r", "\t", "\u2028", "\u2029"]) {
+    expect(decodePayload(payload + control)).toBeUndefined();
+    expect(decode(`\x1b]19462;${payload}${control}\x1b\\`)).toBeUndefined();
+  }
 });

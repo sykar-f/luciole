@@ -41,9 +41,11 @@ const Fraction = z.number().check(z.gte(0), z.lt(1));
 const Phase = z.number().check(z.gte(0), z.lte(1));
 const Delta = z.number().check(z.gte(-MAX_DELTA), z.lte(MAX_DELTA));
 const Modifiers = z.number().check(z.int(), z.gte(0), z.lte(MAX_MODIFIERS));
-const Nonce = z
-  .string()
-  .check(z.minLength(1), z.maxLength(MAX_NONCE_LENGTH), z.regex(/^[A-Za-z0-9_-]+$/));
+const Nonce = z.string().check(
+  z.minLength(1),
+  z.maxLength(MAX_NONCE_LENGTH),
+  z.refine((nonce) => !/[^A-Za-z0-9_-]/.test(nonce)),
+);
 const RectSchema = z
   .strictObject({ x: Cell, y: Cell, width: Size, height: Size })
   .check(z.refine((rect) => rect.x + rect.width <= MAX_GRID && rect.y + rect.height <= MAX_GRID));
@@ -151,7 +153,7 @@ export function decodePayload(payload: unknown): PixelMessage | undefined {
   )
     return undefined;
   // Wire messages are printable ASCII. Escaped control characters still fail schemas.
-  if (!/^[\x20-\x7e]+$/.test(payload)) return undefined;
+  if (/[^\x20-\x7e]/.test(payload)) return undefined;
   try {
     const value: unknown = JSON.parse(payload.slice(PREFIX.length));
     const result = MessageSchema.safeParse(value);
