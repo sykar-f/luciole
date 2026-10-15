@@ -320,3 +320,36 @@ test("failed preparation releases its lock and removes temporary output", async 
     expect(readFileSync(join(runtime, "runtime.js"), "utf8")).toBe("recovered");
   });
 });
+
+test("rejects an incomplete competing publication and rebuilds on retry", async () => {
+  await fixture(async (_source, checkout, directory) => {
+    const runtime = join(directory, "runtime");
+    const failure = await prepareWebRuntimeEntry({
+      directory: runtime,
+      checkout,
+      async build(temporary) {
+        writeRuntime(temporary, "candidate");
+        writeRuntime(runtime, "incomplete");
+        rmSync(join(runtime, "opentui.wasm"));
+      },
+    }).catch((error: unknown) => error);
+    expect(failure).toHaveProperty("code", expect.stringMatching(/^(EEXIST|ENOTEMPTY)$/));
+    expect(existsSync(join(runtime, "web-runtime.json"))).toBe(false);
+    expect(readdirSync(directory).some((name) => name.includes(".tmp"))).toBe(false);
+    let builds = 0;
+    expect(
+      await prepareWebRuntimeEntry({
+        directory: runtime,
+        checkout,
+        async build(temporary) {
+          builds++;
+          writeRuntime(temporary, "recovered");
+        },
+      }),
+    ).toBe(runtime);
+    expect(builds).toBe(1);
+    for (const name of [...WEB_RUNTIME_FILES, "runtime.js.map", "web-runtime.json"])
+      expect(readFileSync(join(runtime, name), "utf8")).toBe("recovered");
+    expect(readdirSync(directory).some((name) => name.includes(".tmp"))).toBe(false);
+  });
+});

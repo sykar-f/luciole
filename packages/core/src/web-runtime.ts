@@ -169,8 +169,12 @@ export async function prepareWebRuntimeEntry({
         renameSync(temporary, directory);
       } catch (error: unknown) {
         // Also tolerate a complete entry published by an older, unlocked preparer.
-        if (!(isCode(error, "EEXIST") || isCode(error, "ENOTEMPTY")) || !runtimeComplete(directory))
+        if (!(isCode(error, "EEXIST") || isCode(error, "ENOTEMPTY"))) throw error;
+        if (!runtimeComplete(directory)) {
+          // This competing entry was rejected: do not trust its marker on retry.
+          rmSync(join(directory, "web-runtime.json"), { force: true });
           throw error;
+        }
       }
     } finally {
       rmSync(temporary, { recursive: true, force: true });
