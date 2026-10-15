@@ -16,6 +16,9 @@ const SHIFT = 1;
 const ALT = 2;
 const CTRL = 4;
 const META = 8;
+const LEFT_HELD = 1;
+const MIDDLE_HELD = 4;
+const RIGHT_HELD = 2;
 const SETTLE_DELAY_MS = 120;
 const SETTLE_DURATION_MS = 140;
 const SETTLE_TICK_MS = 16;
@@ -326,7 +329,16 @@ export class PixelController {
       this.renderer.dispatchMouseEventFromHitMap(
         {
           type: report.action,
-          button: Math.max(0, report.button),
+          button:
+            report.action === "drag"
+              ? report.buttons & LEFT_HELD
+                ? 0
+                : report.buttons & MIDDLE_HELD
+                  ? 1
+                  : report.buttons & RIGHT_HELD
+                    ? 2
+                    : report.button
+              : Math.max(0, report.button),
           x,
           y,
           modifiers,

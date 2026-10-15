@@ -209,7 +209,9 @@ try {
   );
   await browser.evaluate("probe.popup()");
   await wait("!probe.state().presented", "canonical release before popup presentation");
-  await browser.evaluate("probe.closePopup();probe.pointer('mousemove',3,3)");
+  await browser.evaluate("window.popupFrame=probe.r.frameId;probe.closePopup()");
+  await wait("probe.r.frameId>window.popupFrame", "canonical paint after closing popup");
+  await browser.evaluate("probe.pointer('mousemove',20,3)");
   await wait("!!probe.state().presented", "rebuilt presentation");
   await browser.evaluate(
     "{const r=probe.state().left.rect;probe.wheel(r.x+r.width-2,r.y+2.5,.375)}",
