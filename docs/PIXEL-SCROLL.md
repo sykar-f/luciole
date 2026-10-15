@@ -258,9 +258,34 @@ non validée depuis. Une fraction positive arrondie à zéro ne suffit pas. L'ap
 la même enveloppe, après `commit(g)`, ou dans une enveloppe ultérieure sans
 nouvelle peinture. L'hôte peut alors publier atomiquement la grille canonique et
 la suppression de la surface. Un release périmé ou non canonique est refusé ;
-l'actif reste composé jusqu'à une demande valide. La sélection native (Shift),
+l'actif reste composé jusqu'à une demande valide. La sélection native,
 un transfert vers une autre région ou une popup intersectée doivent passer par
 ce chemin canonique avant de remettre les gestes à la grille ordinaire.
+
+Pour la sélection native, le déclencheur sur le fil est un rapport `pointer`
+avec `action=down` et ses `modifiers`. Lorsque le mode précis est actif et qu'une
+présentation fractionnaire est active, l'hôte consomme un down dans la surface
+portant son modificateur de sélection native : Shift sur xterm.js, ou Option
+sur macOS lorsque l'hôte force la sélection avec cette touche. Il ne transmet
+pas ce down à xterm.js ; il émet le rapport avec la génération et la phase
+présentées, Shift=1 ou Option/Alt=2 dans le masque. Une fraction logique positive
+arrondie à zéro reste fractionnaire pour cette décision.
+
+L'app termine alors la fraction et émet la transaction canonique suivie de
+`release` décrite ci-dessus (règle 5). Pour ne pas dépendre d'une configuration
+locale de l'hôte absente du fil, le contrôleur demande ce retour canonique pour
+tout down avec Shift ou Alt dans une surface fractionnaire ; seul l'hôte décide
+si ce geste relève de sa sélection native.
+
+Pour un geste natif ainsi intercepté, l'hôte retient le down initial et les
+mouvements suivants, ainsi que le up s'il arrive entre-temps, sans les remettre
+à sa sélection native ni les dupliquer en rapports applicatifs. **Après la
+présentation effective de la libération canonique**, et non au parsing de
+`commit` ou de `release`, il rejoue le down puis les événements retenus, dans
+l'ordre, à sa sélection native sur cette grille. Si la présentation est
+invalidée avant ce passage, il annule le geste retenu sans le rejouer sur une
+autre grille. Sans fraction active, la sélection native garde son comportement
+habituel, sans cette interception ni ce retour canonique préalable.
 
 Reset du terminal, changement de buffer, resize, changement de police/zoom/DPR
 et perte de contexte annulent préparation, présentations et hit maps ; le mode
