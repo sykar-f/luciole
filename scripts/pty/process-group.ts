@@ -18,10 +18,10 @@ function groupHasExited(pid: number): boolean {
     const snapshot = Bun.spawnSync(["/bin/ps", "-axo", "pgid=,stat="], {
       env: { ...process.env, LC_ALL: "C" },
     });
-    if (snapshot.exitCode !== 0 || snapshot.error) return false;
+    if (snapshot.exitCode !== 0) return false;
     const lines = snapshot.stdout.toString().trim().split("\n");
     for (const line of lines) {
-      const match = /^\s*(\d+)\s+([A-Za-z][A-Za-z0-9+<> -]*)\s*$/.exec(line);
+      const match = /^\s*(\d+)\s+([RSDTtZXIWUKNP][<NLEsSlw+VX]*)\s*$/.exec(line);
       if (!match) return false;
       if (Number(match[1]) === pid && !match[2]?.startsWith("Z")) return false;
     }

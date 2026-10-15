@@ -168,7 +168,7 @@ test("a live group with EPERM remains a failure", async () => {
   }
 });
 
-for (const output of ["", "not a process table", "123 S\nbroken"]) {
+for (const output of ["", "not a process table", "123 S\nbroken", "123 Zgarbage"]) {
   test(`EPERM inspection fails closed for invalid ps output ${JSON.stringify(output)}`, () => {
     const denial = Object.assign(new Error("denied"), { code: "EPERM" });
     const kill = spyOn(process, "kill").mockImplementation(() => {
@@ -196,6 +196,44 @@ test("EPERM inspection fails closed when ps fails", () => {
   const snapshot = spyOn(Bun, "spawnSync").mockImplementation(() => {
     throw new Error("ps failed");
   });
+  try {
+    expect(() => signalGroup(123, "SIGKILL")).toThrow(denial);
+  } finally {
+    kill.mockRestore();
+    snapshot.mockRestore();
+  }
+});
+
+for (const output of ["456 S", "123 Z", "123 Z+\n456 S"]) {
+  test(`EPERM accepts a verified exited group: ${JSON.stringify(output)}`, () => {
+    const denial = Object.assign(new Error("denied"), { code: "EPERM" });
+    const kill = spyOn(process, "kill").mockImplementation(() => {
+      throw denial;
+    });
+    const snapshot = spyOn(Bun, "spawnSync").mockReturnValue({
+      exitCode: 0,
+      stdout: Buffer.from(output),
+      stderr: Buffer.alloc(0),
+    } as ReturnType<typeof Bun.spawnSync>);
+    try {
+      expect(() => signalGroup(123, "SIGTERM")).not.toThrow();
+    } finally {
+      kill.mockRestore();
+      snapshot.mockRestore();
+    }
+  });
+}
+
+test("EPERM rejects an unsuccessful ps result even with zombie output", () => {
+  const denial = Object.assign(new Error("denied"), { code: "EPERM" });
+  const kill = spyOn(process, "kill").mockImplementation(() => {
+    throw denial;
+  });
+  const snapshot = spyOn(Bun, "spawnSync").mockReturnValue({
+    exitCode: 1,
+    stdout: Buffer.from("123 Z"),
+    stderr: Buffer.from("ps failed"),
+  } as ReturnType<typeof Bun.spawnSync>);
   try {
     expect(() => signalGroup(123, "SIGKILL")).toThrow(denial);
   } finally {
