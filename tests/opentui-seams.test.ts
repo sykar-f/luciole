@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { mkdtemp, readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
-import type { CliRenderer } from "@opentui/core";
+import { createTestRenderer } from "@opentui/core/testing";
 import { defaultCache } from "../packages/core/src/compile";
 import { prepareWebRuntime } from "../packages/core/src/web-runtime";
 import { opentuiWasm } from "../packages/core/src/web/opentui/plugin";
@@ -12,17 +12,21 @@ import { detectOpenTuiSeams } from "../packages/core/src/web/opentui-seams";
 const root = resolve(import.meta.dir, "..");
 const INTEGRATION_MS = 240_000;
 
-test("native OpenTUI reports the missing seams for fallback", () => {
-  const absent = detectOpenTuiSeams({} as CliRenderer);
-  expect(absent).toEqual({
-    available: false,
-    missing: ["setFramePlan", "captureHitMap", "dispatchMouseEventFromHitMap"],
-  });
-  const partial = detectOpenTuiSeams({ setFramePlan() {} } as unknown as CliRenderer);
-  expect(partial).toEqual({
-    available: false,
-    missing: ["captureHitMap", "dispatchMouseEventFromHitMap"],
-  });
+test("native OpenTUI reports the missing seams for fallback", async () => {
+  const { renderer } = await createTestRenderer({ width: 8, height: 2 });
+  try {
+    expect(detectOpenTuiSeams(renderer)).toEqual({
+      available: false,
+      missing: ["setFramePlan", "captureHitMap", "dispatchMouseEventFromHitMap"],
+    });
+    Object.assign(renderer, { setFramePlan() {} });
+    expect(detectOpenTuiSeams(renderer)).toEqual({
+      available: false,
+      missing: ["captureHitMap", "dispatchMouseEventFromHitMap"],
+    });
+  } finally {
+    renderer.destroy();
+  }
 });
 
 // Selected integration: builds the same patched sources/WASM as the web runtime.
@@ -47,6 +51,9 @@ test.skipIf(process.env["LUCIOLE_OPENTUI_INTEGRATION"] !== "1")(
         {
           name: "patched-opentui",
           setup(build) {
+            build.onResolve({ filter: /\/testing\/test-streams$/ }, () => ({
+              path: join(checkout, "packages/core/src/testing/test-streams.ts"),
+            }));
             build.onResolve({ filter: /^@opentui\/core$/ }, () => ({
               path: join(checkout, "packages/core/src/index.ts"),
             }));

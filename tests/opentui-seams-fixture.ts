@@ -1,6 +1,6 @@
 // Bundled by opentui-seams.test.ts against the patched TypeScript and WASM sources.
 import { expect, test } from "bun:test";
-import { Writable } from "node:stream";
+import { createTestStdout } from "../node_modules/@opentui/core/testing/test-streams";
 import { BoxRenderable, TextRenderable, type MouseEvent, type RawMouseEvent } from "@opentui/core";
 import { createTestRenderer } from "@opentui/core/testing";
 import { detectOpenTuiSeams, type RenderHitMap } from "../packages/core/src/web/opentui-seams";
@@ -12,12 +12,11 @@ const start = "\x1b[?2026h",
 const modifiers = { shift: false, alt: false, ctrl: false, meta: true };
 async function setup(width = 12, height = 4) {
   const chunks: string[] = [];
-  const stdout = new Writable({
-    write(chunk: Buffer, _encoding, done) {
-      chunks.push(chunk.toString());
-      done();
-    },
-  }) as NodeJS.WriteStream;
+  const stdout = createTestStdout(width, height);
+  stdout._write = (chunk: Buffer, _encoding, done) => {
+    chunks.push(chunk.toString());
+    done();
+  };
   const setup = await createTestRenderer({
     width,
     height,
@@ -124,20 +123,20 @@ test("ordered normal and projected segments use one envelope and distinct paint 
         "<commit>",
         end,
       ].map((s) => wire.indexOf(s));
-      expect(positions.every((pos, i) => pos >= 0 && (i === 0 || pos > positions[i - 1]!))).toBe(
-        true,
-      );
+      expect(
+        positions.every((pos, i) => pos >= 0 && (i === 0 || pos > (positions[i - 1] ?? -1))),
+      ).toBe(true);
     }
     expect(normal.frameId).toBe(projected.frameId);
     expect(normal.passId).not.toBe(projected.passId);
-    expect(normal.hitTest(0.2, 0.8)).toBe(rows[0]!.num);
-    expect(projected.hitTest(0.2, 0.8)).toBe(rows[1]!.num);
-    expect(projected.hitTest(0, 1)).toBe(rows[2]!.num); // entering edge, previously culled
-    expect(projected.hitTest(0, 2)).not.toBe(rows[3]!.num); // viewport clips
+    expect(normal.hitTest(0.2, 0.8)).toBe(rows[0]?.num);
+    expect(projected.hitTest(0.2, 0.8)).toBe(rows[1]?.num);
+    expect(projected.hitTest(0, 1)).toBe(rows[2]?.num); // entering edge, previously culled
+    expect(projected.hitTest(0, 2)).not.toBe(rows[3]?.num); // viewport clips
     expect(projected.hitTest(-0.1, 0)).toBe(0);
     expect(projected.hitTest(Infinity, 0)).toBe(0);
-    expect(projected.origin(rows[1]!.num)).toEqual({ x: 0, y: 0 });
-    expect(rows[1]!.y).toBe(1);
+    expect(projected.origin(rows[1]?.num)).toEqual({ x: 0, y: 0 });
+    expect(rows[1]?.y).toBe(1);
     expect(content.translateY).toBe(0);
     expect(view.height).toBe(2);
     expect(counters).toEqual({
@@ -234,7 +233,7 @@ test("captured hits drive ordinary hover, capture, drag-end and drop with precis
       direction: "down",
       delta: 0.375,
     });
-    rows[0]!.destroy();
+    rows[0]?.destroy();
     received.length = 0;
     r.dispatchMouseEventFromHitMap(input("down"), normal);
     expect(received).toEqual([]);

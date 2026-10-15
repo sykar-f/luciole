@@ -41,11 +41,19 @@ export type OpenTuiSeamDetection =
   | { available: true; renderer: CliRenderer & OpenTuiSeams }
   | { available: false; missing: readonly (typeof METHODS)[number][] };
 
+function hasMethod(renderer: unknown, name: (typeof METHODS)[number]): boolean {
+  if (typeof renderer !== "object" || renderer === null) return false;
+  const method: unknown = Reflect.get(renderer, name);
+  return typeof method === "function";
+}
+
+function hasSeams(renderer: unknown): renderer is CliRenderer & OpenTuiSeams {
+  return METHODS.every((name) => hasMethod(renderer, name));
+}
+
 /** Report missing capabilities so callers can choose the ordinary native path. */
-export function detectOpenTuiSeams(renderer: CliRenderer): OpenTuiSeamDetection {
-  const candidate = renderer as CliRenderer & Partial<OpenTuiSeams>;
-  const missing = METHODS.filter((name) => typeof candidate[name] !== "function");
-  return missing.length
-    ? { available: false, missing }
-    : { available: true, renderer: candidate as CliRenderer & OpenTuiSeams };
+export function detectOpenTuiSeams(renderer: unknown): OpenTuiSeamDetection {
+  return hasSeams(renderer)
+    ? { available: true, renderer }
+    : { available: false, missing: METHODS.filter((name) => !hasMethod(renderer, name)) };
 }
