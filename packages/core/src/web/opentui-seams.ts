@@ -28,6 +28,8 @@ export interface RenderFramePlan extends RenderFrameSegment {
 
 export type PresentedMouseEvent = RawMouseEvent & {
   modifiers: RawMouseEvent["modifiers"] & { meta?: boolean };
+  /** Precise deltas are already normalized to rows and must bypass wheel acceleration. */
+  scroll?: NonNullable<RawMouseEvent["scroll"]> & { precise?: boolean };
 };
 
 export interface OpenTuiSeams {
@@ -56,4 +58,43 @@ export function detectOpenTuiSeams(renderer: unknown): OpenTuiSeamDetection {
   return hasSeams(renderer)
     ? { available: true, renderer }
     : { available: false, missing: METHODS.filter((name) => !hasMethod(renderer, name)) };
+}
+
+/** A vertical content surface supplied by patched OpenTUI or an application painter. */
+export interface ScrollableViewport {
+  readonly owner: Renderable;
+  /** Logical rows, including the fraction. */
+  readonly position: number;
+  /** Integer origin used by ordinary layout and input. */
+  readonly origin: number;
+  readonly max: number;
+  /** Content only; fixed chrome and scrollbars are excluded. */
+  readonly rect: Readonly<{ x: number; y: number; width: number; height: number }>;
+  set(position: number): void;
+  /** Consume rows without acceleration and return the remainder at a bound. */
+  scroll(delta: number): number;
+  /** A second-pass descriptor; creating it never mutates state or requests paint. */
+  project(origin: number): NonNullable<RenderFramePlan["projection"]>;
+}
+
+/** Optional on npm OpenTUI; painters may implement the same structural capability. */
+function isScrollableViewport(viewport: unknown): viewport is ScrollableViewport {
+  if (typeof viewport !== "object" || viewport === null) return false;
+  if (
+    !["set", "scroll", "project"].every((name) => typeof Reflect.get(viewport, name) === "function")
+  )
+    return false;
+  if (!["position", "origin", "max"].every((name) => Number.isFinite(Reflect.get(viewport, name))))
+    return false;
+  const rect: unknown = Reflect.get(viewport, "rect");
+  if (typeof rect !== "object" || rect === null) return false;
+  if (!["x", "y", "width", "height"].every((name) => Number.isFinite(Reflect.get(rect, name))))
+    return false;
+  return true;
+}
+
+export function detectScrollableViewport(value: unknown): ScrollableViewport | undefined {
+  if (typeof value !== "object" || value === null) return undefined;
+  const viewport: unknown = Reflect.get(value, "scrollableViewport");
+  return isScrollableViewport(viewport) ? viewport : undefined;
 }

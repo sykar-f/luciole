@@ -149,8 +149,9 @@ correspondant ; la réutilisation d'un snapshot par `step` seul est réservée �
 refusent toute la préparation et conservent l'actif. Un nouveau `begin` abandonne
 une préparation incomplète sans écraser la dernière présentation validée. Les
 cellules et le chrome de la frame ne sont publiés qu'avec un commit complet.
-Les enveloppes 2026 ne s'empilent pas : l'encodeur de frame retire les enveloppes
-internes avant de produire la paire extérieure.
+Les enveloppes 2026 ne s'empilent pas : l'encodeur de frame produit la seule paire
+extérieure. Les segments de commandes doivent exclure les contrôles de sortie
+synchronisée ; la seam de frame les refuse avant d'émettre la transaction.
 
 Un timeout 2026, une séquence tronquée ou un commit refusé ne constituent jamais
 un commit implicite. L'hôte conserve la dernière présentation complète, y

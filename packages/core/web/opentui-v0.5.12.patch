@@ -242,7 +242,7 @@ index 9db0821..9ab08ee 100644
          case "render":
            // Skip if renderable was destroyed during a previous render callback
 diff --git a/packages/core/src/renderer.ts b/packages/core/src/renderer.ts
-index a87a810..fb72944 100644
+index a87a810..c348ff0 100644
 --- a/packages/core/src/renderer.ts
 +++ b/packages/core/src/renderer.ts
 @@ -279,6 +279,26 @@ export interface CliRendererStats extends NativeRenderStats {
@@ -272,7 +272,7 @@ index a87a810..fb72944 100644
  export interface CliRendererFrameEvent {
    frameId: number
  }
-@@ -828,6 +848,102 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -828,6 +848,111 @@ export class CliRenderer extends EventEmitter implements RenderContext {
    private frameCount: number = 0
    // Bumped once per loop() iteration; see RenderContext.frameId.
    private _frameId: number = 0
@@ -343,6 +343,15 @@ index a87a810..fb72944 100644
 +    const empty = new Uint8Array(0)
 +    const segment = (part: RenderFrameSegment, flags: number) => {
 +      part.onHitMap?.(this.captureHitMap())
++      // Check the actual command bytes after the callback, which may fill them.
++      for (const bytes of [part.before, part.after]) {
++        if (!bytes) continue
++        // CSI can be encoded as ESC [ or as the single-byte C1 control.
++        const commands = Array.from(bytes, (byte) => String.fromCharCode(byte)).join("")
++        if (/(?:\x1b\[|\x9b)\?(?:\d+;)*0*2026(?:;\d+)*[hl]/.test(commands)) {
++          throw new Error("Frame commands must not contain synchronized-output controls")
++        }
++      }
 +      const status = this.lib.renderFrameSegment(
 +        this.rendererPtr,
 +        this.forceFullRepaintRequested,
@@ -375,7 +384,7 @@ index a87a810..fb72944 100644
    private lastFpsTime: number = 0
    private currentFps: number = 0
    private targetFrameTime: number = 1000 / this._targetFps
-@@ -1562,6 +1678,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -1562,6 +1687,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
    }
  
    public requestRender() {
@@ -383,7 +392,7 @@ index a87a810..fb72944 100644
      if (this._controlState === RendererControlState.EXPLICIT_SUSPENDED) {
        return
      }
-@@ -3628,7 +3745,10 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -3628,7 +3754,10 @@ export class CliRenderer extends EventEmitter implements RenderContext {
      }
    }
  
@@ -395,7 +404,7 @@ index a87a810..fb72944 100644
      if (this._splitHeight > 0) {
        if (mouseEvent.y < this.renderOffset) {
          return false
-@@ -3656,7 +3776,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -3656,7 +3785,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
      }
  
      if (mouseEvent.type === "scroll") {
@@ -404,7 +413,7 @@ index a87a810..fb72944 100644
        const maybeRenderable = Renderable.renderablesByNumber.get(maybeRenderableId)
        const fallbackTarget =
          this._currentFocusedRenderable &&
-@@ -3673,7 +3793,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -3673,7 +3802,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
        return true
      }
  
@@ -413,7 +422,7 @@ index a87a810..fb72944 100644
      const sameElement = maybeRenderableId === this.lastOverRenderableNum
      this.lastOverRenderableNum = maybeRenderableId
      const maybeRenderable = Renderable.renderablesByNumber.get(maybeRenderableId)
-@@ -4676,6 +4796,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -4676,6 +4805,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
  
        // Bump before any work so all callers this iteration see the new id.
        this._frameId++
@@ -421,7 +430,7 @@ index a87a810..fb72944 100644
  
        const now = this.normalizeClockTime(this.clock.now(), this.lastTime)
        const elapsed = this.getElapsedMs(now, this.lastTime)
-@@ -4717,7 +4838,8 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -4717,7 +4847,8 @@ export class CliRenderer extends EventEmitter implements RenderContext {
  
        // If destroy() was requested during this frame, skip native work and scheduling.
        if (!this._isDestroyed) {
@@ -1338,3 +1347,210 @@ index 0000000..d111a5a
 +export fn opentuiWasmFree(ptr: ?[*]u8) void {
 +    std.c.free(ptr);
 +}
+diff --git a/packages/core/src/index.ts b/packages/core/src/index.ts
+index 59a4969..e0fc1bd 100644
+--- a/packages/core/src/index.ts
++++ b/packages/core/src/index.ts
+@@ -28,3 +28,5 @@ export * from "./zig.js"
+ export * from "./console.js"
+ export { resolveBundledFilePath } from "./platform/runtime.js"
+ export * as Yoga from "./yoga.js"
++
++export * from "./ScrollableViewport.js"
+diff --git a/packages/core/src/ScrollableViewport.ts b/packages/core/src/ScrollableViewport.ts
+new file mode 100644
+index 0000000..d93908e
+--- /dev/null
++++ b/packages/core/src/ScrollableViewport.ts
+@@ -0,0 +1,40 @@
++import type { Renderable } from "./Renderable.js"
++
++/** A content-only vertical scroll surface. Positions and deltas are in rows. */
++export interface ScrollableViewport {
++  readonly owner: Renderable
++  readonly position: number
++  readonly origin: number
++  readonly max: number
++  readonly rect: Readonly<{ x: number; y: number; width: number; height: number }>
++  set(position: number): void
++  /** Consume a precise delta without acceleration; return the unconsumed remainder. */
++  scroll(delta: number): number
++  /** Describe a paint pass, without changing logical state or scheduling work. */
++  project(origin: number): { renderable: Renderable; translateX: number; translateY: number }
++}
++
++export function getScrollableViewport(value: unknown): ScrollableViewport | undefined {
++  if (!value || typeof value !== "object") return undefined
++  const viewport = Reflect.get(value, "scrollableViewport")
++  if (!viewport || typeof viewport !== "object") return undefined
++  return ["set", "scroll", "project"].every((key) => typeof Reflect.get(viewport, key) === "function")
++    ? (viewport as ScrollableViewport)
++    : undefined
++}
++
++/** Only one member of an ancestor/descendant chain may carry a fraction. */
++export function settleScrollableChain(owner: Renderable): void {
++  const settle = (node: unknown) => {
++    const viewport = getScrollableViewport(node)
++    if (viewport && !Number.isInteger(viewport.position)) viewport.set(Math.round(viewport.position))
++  }
++  for (let parent = owner.parent; parent; parent = parent.parent) settle(parent)
++  const visit = (node: Renderable) => {
++    for (const child of node.getChildren()) {
++      settle(child)
++      visit(child)
++    }
++  }
++  visit(owner)
++}
+diff --git a/packages/core/src/renderables/ScrollBox.ts b/packages/core/src/renderables/ScrollBox.ts
+index e792367..d74dc82 100644
+--- a/packages/core/src/renderables/ScrollBox.ts
++++ b/packages/core/src/renderables/ScrollBox.ts
+@@ -1,3 +1,4 @@
++import { settleScrollableChain, type ScrollableViewport } from "../ScrollableViewport.js"
+ import { type KeyEvent } from "../lib/index.js"
+ import { getObjectsInViewport } from "../lib/objects-in-viewport.js"
+ import { LinearScrollAccel, MacOSScrollAccel, type ScrollAcceleration } from "../lib/scroll-acceleration.js"
+@@ -107,6 +108,32 @@ function stripScrollBoxPadding<T extends object>(options: T): Omit<T, ScrollBoxP
+ }
+ 
+ export class ScrollBoxRenderable extends BoxRenderable {
++  public readonly scrollableViewport: ScrollableViewport
++  private fractionalPosition = 0
++  private settingViewport = false
++
++  private reconcilePosition(): number {
++    this.fractionalPosition = Math.max(
++      0,
++      Math.min(Math.max(0, this.scrollHeight - this.viewport.height), this.scrollTop + (this.fractionalPosition % 1)),
++    )
++    return this.fractionalPosition
++  }
++
++  private setViewportPosition(position: number): void {
++    if (!Number.isFinite(position)) throw new RangeError("Viewport position must be finite")
++    const next = Math.max(0, Math.min(this.scrollableViewport.max, position))
++    if (!Number.isInteger(next)) settleScrollableChain(this)
++    this.fractionalPosition = next
++    this.settingViewport = true
++    try {
++      this.scrollTop = Math.floor(next)
++    } finally {
++      this.settingViewport = false
++    }
++    this.requestRender()
++  }
++
+   static idCounter = 0
+   private internalId = 0
+   public readonly wrapper: BoxRenderable
+@@ -360,6 +387,7 @@ export class ScrollBoxRenderable extends BoxRenderable {
+       id: `scroll-box-vertical-scrollbar-${this.internalId}`,
+       orientation: "vertical",
+       onChange: (position) => {
++        if (!this.settingViewport) this.reconcilePosition()
+         this.content.translateY = -position
+         this.updateStickyState()
+       },
+@@ -382,6 +410,47 @@ export class ScrollBoxRenderable extends BoxRenderable {
+     })
+     this.wrapper.add(this.horizontalScrollBar)
+ 
++    const owner = this
++    this.scrollableViewport = {
++      owner,
++      get position() {
++        return owner.reconcilePosition()
++      },
++      get origin() {
++        return owner.scrollTop
++      },
++      get max() {
++        return Math.max(0, owner.scrollHeight - owner.viewport.height)
++      },
++      get rect() {
++        const view = owner.viewport
++        return { x: view.x, y: view.y, width: view.width, height: view.height }
++      },
++      set(position) {
++        owner.setViewportPosition(position)
++      },
++      scroll(delta) {
++        if (!Number.isFinite(delta)) throw new RangeError("Viewport delta must be finite")
++        const before = this.position
++        const next = Math.max(0, Math.min(this.max, before + delta))
++        // A surface already at its bound does not take ownership from its parent.
++        if (next === before) return delta
++        settleScrollableChain(owner)
++        this.set(next)
++        return delta - (this.position - before)
++      },
++      project(origin) {
++        if (!Number.isInteger(origin) || origin < 0 || origin > Math.ceil(this.max)) {
++          throw new RangeError("Projection origin must be an integer in the viewport range")
++        }
++        return { renderable: owner.content, translateX: owner.content.translateX, translateY: -origin }
++      },
++    }
++    this.verticalScrollBar.slider.geometry = () => ({
++      value: this.scrollableViewport.position,
++      viewportSize: this.viewport.height,
++    })
++
+     this.recalculateBarProps()
+ 
+     if (stickyStart && stickyScroll) {
+@@ -545,6 +614,21 @@ export class ScrollBoxRenderable extends BoxRenderable {
+       if (event.modifiers.shift)
+         dir = dir === "up" ? "left" : dir === "down" ? "right" : dir === "right" ? "down" : "up"
+ 
++      // Precise row deltas enter before the legacy wheel accumulator/acceleration.
++      const precise = event.scroll as (NonNullable<MouseEvent["scroll"]> & { precise?: boolean }) | undefined
++      if (precise?.precise) {
++        if (event.defaultPrevented) return
++        // Precise directions have already been normalized by the producer.
++        dir = precise.direction
++        if (dir === "up" || dir === "down") {
++          const delta = (dir === "up" ? -1 : 1) * precise.delta
++          const remainder = this.scrollableViewport.scroll(delta)
++          precise.direction = remainder < 0 ? "up" : "down"
++          precise.delta = Math.abs(remainder)
++          if (remainder === 0) event.stopPropagation()
++        }
++        return
++      }
+       const baseDelta = event.scroll?.delta ?? 0
+       const now = Date.now()
+       const multiplier = this.scrollAccel.tick(now)
+diff --git a/packages/core/src/renderables/Slider.ts b/packages/core/src/renderables/Slider.ts
+index 05dc632..a6680a7 100644
+--- a/packages/core/src/renderables/Slider.ts
++++ b/packages/core/src/renderables/Slider.ts
+@@ -18,6 +18,8 @@ export interface SliderOptions extends RenderableOptions<SliderRenderable> {
+ }
+ 
+ export class SliderRenderable extends Renderable {
++  /** Paint and pointer geometry may follow a fractional logical scroll position. */
++  public geometry?: () => { value: number; viewportSize: number }
+   public readonly orientation: "vertical" | "horizontal"
+   private _value: number
+   private _min: number
+@@ -317,7 +319,7 @@ export class SliderRenderable extends Renderable {
+ 
+     if (range === 0) return virtualTrackSize
+ 
+-    const viewportSize = Math.max(1, this._viewPortSize)
++    const viewportSize = Math.max(1, this.geometry?.().viewportSize ?? this._viewPortSize)
+     const contentSize = range + viewportSize
+ 
+     if (contentSize <= viewportSize) return virtualTrackSize
+@@ -334,7 +336,7 @@ export class SliderRenderable extends Renderable {
+ 
+     if (range === 0) return 0
+ 
+-    const valueRatio = (this._value - this._min) / range
++    const valueRatio = ((this.geometry?.().value ?? this._value) - this._min) / range
+     const virtualThumbSize = this.getVirtualThumbSize()
+ 
+     return Math.round(valueRatio * (virtualTrackSize - virtualThumbSize))
