@@ -160,7 +160,7 @@ test("a live group with EPERM remains a failure", async () => {
     throw denial;
   });
   try {
-    expect(() => signalGroup(child.pid, "SIGKILL")).toThrow(denial);
+    expect(() => signalGroup(child.pid, "SIGKILL")).toThrow(denial.message);
   } finally {
     kill.mockRestore();
     process.kill(-child.pid, "SIGKILL");
@@ -168,20 +168,27 @@ test("a live group with EPERM remains a failure", async () => {
   }
 });
 
-for (const output of ["", "not a process table", "123 S\nbroken", "123 Zgarbage"]) {
+for (const output of [
+  "",
+  "not a process table",
+  "123 321 S\nbroken",
+  "123 321 Zgarbage",
+  "123 321 ?",
+  "123 321 ?E",
+]) {
   test(`EPERM inspection fails closed for invalid ps output ${JSON.stringify(output)}`, () => {
     const denial = Object.assign(new Error("denied"), { code: "EPERM" });
     const kill = spyOn(process, "kill").mockImplementation(() => {
       throw denial;
     });
     const snapshot = spyOn(Bun, "spawnSync").mockReturnValue({
-      ...Bun.spawnSync(["/bin/ps", "-axo", "pgid=,stat="]),
+      ...Bun.spawnSync(["/bin/ps", "-axo", "pgid=,pid=,stat="]),
       exitCode: 0,
       stdout: Buffer.from(output),
       stderr: Buffer.alloc(0),
     });
     try {
-      expect(() => signalGroup(123, "SIGKILL")).toThrow(denial);
+      expect(() => signalGroup(123, "SIGKILL")).toThrow(denial.message);
     } finally {
       kill.mockRestore();
       snapshot.mockRestore();
@@ -198,7 +205,7 @@ test("EPERM inspection fails closed when ps fails", () => {
     throw new Error("ps failed");
   });
   try {
-    expect(() => signalGroup(123, "SIGKILL")).toThrow(denial);
+    expect(() => signalGroup(123, "SIGKILL")).toThrow("ps inspection threw: Error: ps failed");
   } finally {
     kill.mockRestore();
     snapshot.mockRestore();
@@ -208,11 +215,14 @@ test("EPERM inspection fails closed when ps fails", () => {
 // Union of modifiers documented by macOS ps(1) and Linux procps ps(1).
 const stateModifiers = "<>AELNSsVWXl+";
 for (const output of [
-  "456 S",
-  "123 Z",
-  "123 Z+\n456 S",
-  "123 Z\n456 S>",
-  ...Array.from(stateModifiers, (modifier) => `123 Z${modifier}\n456 S${modifier}`),
+  "456 654 S",
+  "123 321 Z",
+  "123 321 Z+\n456 654 S",
+  "123 321 Z\n456 654 S>",
+  "123 321 Z\n456 654 H",
+  "123 321 Z\n456 654 ?",
+  "123 321 Z\n456 654 ?E",
+  ...Array.from(stateModifiers, (modifier) => `123 321 Z${modifier}\n456 654 S${modifier}`),
 ]) {
   test(`EPERM accepts a verified exited group: ${JSON.stringify(output)}`, () => {
     const denial = Object.assign(new Error("denied"), { code: "EPERM" });
@@ -220,7 +230,7 @@ for (const output of [
       throw denial;
     });
     const snapshot = spyOn(Bun, "spawnSync").mockReturnValue({
-      ...Bun.spawnSync(["/bin/ps", "-axo", "pgid=,stat="]),
+      ...Bun.spawnSync(["/bin/ps", "-axo", "pgid=,pid=,stat="]),
       exitCode: 0,
       stdout: Buffer.from(output),
       stderr: Buffer.alloc(0),
@@ -240,13 +250,64 @@ test("EPERM rejects an unsuccessful ps result even with zombie output", () => {
     throw denial;
   });
   const snapshot = spyOn(Bun, "spawnSync").mockReturnValue({
-    ...Bun.spawnSync(["/bin/ps", "-axo", "pgid=,stat="]),
+    ...Bun.spawnSync(["/bin/ps", "-axo", "pgid=,pid=,stat="]),
     exitCode: 1,
-    stdout: Buffer.from("123 Z"),
+    stdout: Buffer.from("123 321 Z"),
     stderr: Buffer.from("ps failed"),
   });
   try {
-    expect(() => signalGroup(123, "SIGKILL")).toThrow(denial);
+    expect(() => signalGroup(123, "SIGKILL")).toThrow("ps exited 1: ps failed");
+  } finally {
+    kill.mockRestore();
+    snapshot.mockRestore();
+  }
+});
+
+for (const { output, reason } of [
+  { output: "unreadable", reason: 'unparsed ps row: "unreadable"' },
+  { output: "invalid 321 Z", reason: 'unparsed ps row: "invalid 321 Z"' },
+  { output: "123 321 S>", reason: "live or unknown members: pid 321 state S>" },
+  { output: "123 321 ?E", reason: "live or unknown members: pid 321 state ?E" },
+  {
+    output: "123 321 Z\n123 322 S\n123 323 R",
+    reason: "live or unknown members: pid 322 state S, pid 323 state R",
+  },
+]) {
+  test(`inspection failure explains ${JSON.stringify(output)}`, () => {
+    const denial = Object.assign(new Error("denied"), { code: "EPERM" });
+    const kill = spyOn(process, "kill").mockImplementation(() => {
+      throw denial;
+    });
+    const snapshot = spyOn(Bun, "spawnSync").mockReturnValue({
+      ...Bun.spawnSync(["/bin/ps", "-axo", "pgid=,pid=,stat="]),
+      exitCode: 0,
+      stdout: Buffer.from(output),
+      stderr: Buffer.alloc(0),
+    });
+    try {
+      expect(() => signalGroup(123, "SIGKILL")).toThrow(reason);
+    } finally {
+      kill.mockRestore();
+      snapshot.mockRestore();
+    }
+  });
+}
+
+test("inspection diagnostics bound the number of target members", () => {
+  const denial = Object.assign(new Error("denied"), { code: "EPERM" });
+  const kill = spyOn(process, "kill").mockImplementation(() => {
+    throw denial;
+  });
+  const snapshot = spyOn(Bun, "spawnSync").mockReturnValue({
+    ...Bun.spawnSync(["/bin/ps", "-axo", "pgid=,pid=,stat="]),
+    exitCode: 0,
+    stdout: Buffer.from(
+      Array.from({ length: 10 }, (_, index) => `123 ${321 + index} S`).join("\n"),
+    ),
+    stderr: Buffer.alloc(0),
+  });
+  try {
+    expect(() => signalGroup(123, "SIGKILL")).toThrow("pid 328 state S (2 more)");
   } finally {
     kill.mockRestore();
     snapshot.mockRestore();
