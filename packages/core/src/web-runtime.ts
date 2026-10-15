@@ -14,13 +14,16 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   renameSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { createHash } from "node:crypto";
+import { Database, SQLiteError } from "bun:sqlite";
+import { isCode } from "./launcher/lock";
 import { ABI_KEY, ABI_PACKAGES, APP_MANIFEST, AppManifest } from "./abi";
 import { defaultCache } from "./compile";
 import { frameworkHash } from "./framework-hash";
@@ -34,6 +37,7 @@ const OPENTUI_PATCH = resolve(import.meta.dir, `../web/opentui-${OPENTUI_TAG}.pa
 const ZIG_VERSION = "0.16.0";
 
 const HASH_PREFIX = 16;
+const LOCK_POLL_MS = 25;
 /** One entry per ABI key and framework: the page is the framework's code too. */
 export const webRuntimeDirectory = async (cache = defaultCache()) =>
   join(cache, "web", `${ABI_KEY}-${(await frameworkHash()).slice(0, HASH_PREFIX)}`);
@@ -99,14 +103,88 @@ function prepareOpenTui(checkout: string, zig: string) {
   return join(native, "lib/wasm32-wasi/opentui.wasm");
 }
 
+const runtimeComplete = (directory: string) =>
+  [...WEB_RUNTIME_FILES, "runtime.js.map", "web-runtime.json", TREE_SITTER_DIRECTORY].every(
+    (file) => existsSync(join(directory, file)),
+  );
+
+/** Called only while the checkout lock excludes other preparations of this key. */
+function removeAbandonedTemporaries(path: string) {
+  const prefix = `${basename(path)}.`;
+  for (const name of readdirSync(dirname(path))) {
+    if (!name.startsWith(prefix)) continue;
+    const match = /^(\d+)\.tmp(?:-|$)/.exec(name.slice(prefix.length));
+    if (!match) continue;
+    const pid = Number(match[1]);
+    if (!Number.isSafeInteger(pid) || pid <= 0) continue;
+    try {
+      process.kill(pid, 0);
+    } catch (error: unknown) {
+      if (isCode(error, "ESRCH"))
+        rmSync(join(dirname(path), name), { recursive: true, force: true });
+    }
+  }
+}
+
+/** Internal preparation seam; the lock covers the shared checkout and runtime publication. */
+export async function prepareWebRuntimeEntry({
+  directory,
+  checkout,
+  build,
+  waiting,
+}: {
+  directory: string;
+  checkout: string;
+  build: (temporary: string) => Promise<void>;
+  waiting?: () => void;
+}) {
+  mkdirSync(dirname(directory), { recursive: true });
+  // SQLite's OS lock is released even on SIGKILL. Keep this file: unlinking it
+  // would let a new connection lock a different inode while a waiter uses the old one.
+  const lock = new Database(`${checkout}.lock`, { create: true });
+  try {
+    lock.exec("PRAGMA busy_timeout = 0");
+    let told = false;
+    for (;;) {
+      try {
+        lock.exec("BEGIN IMMEDIATE");
+        break;
+      } catch (error: unknown) {
+        if (!(error instanceof SQLiteError) || error.code !== "SQLITE_BUSY") throw error;
+      }
+      if (!told) waiting?.();
+      told = true;
+      await Bun.sleep(LOCK_POLL_MS);
+    }
+    removeAbandonedTemporaries(checkout);
+    removeAbandonedTemporaries(directory);
+    if (runtimeComplete(directory)) return directory;
+    rmSync(directory, { recursive: true, force: true });
+    const temporary = mkdtempSync(`${directory}.${process.pid}.tmp-`);
+    try {
+      await build(temporary);
+      try {
+        renameSync(temporary, directory);
+      } catch (error: unknown) {
+        // Also tolerate a complete entry published by an older, unlocked preparer.
+        if (!(isCode(error, "EEXIST") || isCode(error, "ENOTEMPTY")) || !runtimeComplete(directory))
+          throw error;
+      }
+    } finally {
+      rmSync(temporary, { recursive: true, force: true });
+    }
+    return directory;
+  } finally {
+    lock.close();
+  }
+}
+
 /** This ABI's web runtime, built on first use; its directory. */
 export async function prepareWebRuntime({
   cache = defaultCache(),
   zig = process.env["ZIG"] ?? "zig",
 }: { cache?: string; zig?: string } = {}) {
   const directory = await webRuntimeDirectory(cache);
-  if (existsSync(join(directory, "web-runtime.json"))) return directory;
-  checkZig(zig);
   // A patch revision needs a clean source checkout; applying it over an older
   // patched tree can neither pass the reverse check nor apply the new patch.
   const patchKey = createHash("sha256")
@@ -114,17 +192,15 @@ export async function prepareWebRuntime({
     .digest("hex")
     .slice(0, HASH_PREFIX);
   const checkout = join(cache, "web", `opentui-${OPENTUI_TAG}-${patchKey}`);
-  mkdirSync(join(cache, "web"), { recursive: true });
-  const wasm = prepareOpenTui(checkout, zig);
-  const temporary = `${directory}.${process.pid}.tmp`;
-  rmSync(temporary, { recursive: true, force: true });
-  try {
-    await buildWebRuntime({ checkout, wasm, outdir: temporary });
-    renameSync(temporary, directory);
-  } finally {
-    rmSync(temporary, { recursive: true, force: true });
-  }
-  return directory;
+  return prepareWebRuntimeEntry({
+    directory,
+    checkout,
+    async build(temporary) {
+      checkZig(zig);
+      const wasm = prepareOpenTui(checkout, zig);
+      await buildWebRuntime({ checkout, wasm, outdir: temporary });
+    },
+  });
 }
 
 const copy = (from: string, to: string, names: readonly string[]) =>
