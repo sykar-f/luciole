@@ -5,6 +5,7 @@ import { PixelDiscovery } from "../packages/core/src/web/pixel-scroll/discovery"
 import { expect, test } from "bun:test";
 import { decode, encode } from "../packages/core/src/pixel-scroll/protocol";
 import {
+  clipPixelRect,
   pixelHitSource,
   planPixelFrame,
   type PixelFrame,
@@ -165,4 +166,16 @@ test("embedded pointer replay uses ordinary SGR buttons, cells and modifiers", (
   expect(pointer("drag", -1, 4)).toBe("\x1b[<33;4;5M");
   expect(pointer("move", -1, 0)).toBe("\x1b[<35;4;5M");
   expect(pointer("up", 2, 0, 2)).toBe("\x1b[<10;4;5m");
+});
+
+test("nested surface rectangles clip to visible content and terminal cells", () => {
+  const screen = { x: 0, y: 0, width: 20, height: 10 };
+  const parent = { x: 2, y: 1, width: 8, height: 6 };
+  expect(clipPixelRect({ x: 1, y: -2, width: 8, height: 6 }, [screen, parent])).toEqual({
+    x: 2,
+    y: 1,
+    width: 7,
+    height: 3,
+  });
+  expect(clipPixelRect({ x: 2, y: 12, width: 8, height: 6 }, [screen])).toBeUndefined();
 });

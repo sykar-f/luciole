@@ -63,3 +63,21 @@ export function pixelHitSource(frame: PixelFrame, x: number, y: number, phase: n
     y: inside ? y + phase - (entering ? 1 : 0) : y,
   };
 }
+
+/** Grid clipping excludes ancestor chrome and any content outside the terminal. */
+export function clipPixelRect(rect: Rect, clips: readonly Rect[]): Rect | undefined {
+  let { x, y } = rect;
+  let right = x + rect.width;
+  let bottom = y + rect.height;
+  for (const clip of clips) {
+    x = Math.max(x, clip.x);
+    y = Math.max(y, clip.y);
+    right = Math.min(right, clip.x + clip.width);
+    bottom = Math.min(bottom, clip.y + clip.height);
+  }
+  x = Math.ceil(x);
+  y = Math.ceil(y);
+  right = Math.floor(right);
+  bottom = Math.floor(bottom);
+  return right > x && bottom > y ? { x, y, width: right - x, height: bottom - y } : undefined;
+}

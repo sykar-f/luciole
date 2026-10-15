@@ -1,5 +1,5 @@
 import { MouseParser, Renderable, type CliRenderer, type KeyEvent } from "@opentui/core";
-import { decode, type PixelReport } from "../../pixel-scroll/protocol";
+import { decode, type PixelReport, type Rect } from "../../pixel-scroll/protocol";
 import {
   detectOpenTuiSeams,
   detectScrollableViewport,
@@ -9,7 +9,7 @@ import {
   type ScrollableViewport,
 } from "../opentui-seams";
 import { PixelDiscovery } from "./discovery";
-import { pixelHitSource, planPixelFrame, type PixelFrame } from "./frame";
+import { clipPixelRect, pixelHitSource, planPixelFrame, type PixelFrame } from "./frame";
 import { PixelHistory } from "./history";
 
 const SHIFT = 1;
@@ -93,6 +93,7 @@ export class PixelController {
   private viewports(): ScrollableViewport[] {
     const result: ScrollableViewport[] = [];
     const visit = (node: Renderable) => {
+      if (!node.visible) return;
       const viewport = detectScrollableViewport(node);
       if (viewport && viewport.rect.width > 0 && viewport.rect.height > 0) result.push(viewport);
       for (const child of node.getChildren()) visit(child);
@@ -162,8 +163,20 @@ export class PixelController {
     return true;
   }
 
-  private obscured(viewport: ScrollableViewport, map: RenderHitMap): boolean {
-    const { rect, owner } = viewport;
+  private visibleRect(viewport: ScrollableViewport) {
+    const clips: Rect[] = [
+      { x: 0, y: 0, width: this.renderer.width, height: this.renderer.height },
+    ];
+    for (let node = viewport.owner.parent; node; node = node.parent) {
+      if (!node.visible) return;
+      const parent = detectScrollableViewport(node);
+      if (parent) clips.push(parent.rect);
+    }
+    return viewport.owner.visible ? clipPixelRect(viewport.rect, clips) : undefined;
+  }
+
+  private obscured(viewport: ScrollableViewport, map: RenderHitMap, rect: Rect): boolean {
+    const { owner } = viewport;
     for (let y = rect.y; y < rect.y + rect.height; y++) {
       for (let x = rect.x; x < rect.x + rect.width; x++) {
         const node = Renderable.renderablesByNumber.get(map.hitTest(x, y));
@@ -183,7 +196,8 @@ export class PixelController {
     const viewport = this.active;
     if (!viewport) return null;
     const map = this.renderer.captureHitMap();
-    const blocked = viewport.owner.isDestroyed || this.obscured(viewport, map);
+    const visible = this.visibleRect(viewport);
+    const blocked = viewport.owner.isDestroyed || !visible || this.obscured(viewport, map, visible);
     if (blocked && !this.last) return null;
     if (blocked) {
       // Layout already painted at the integer origin. A popup must see that same
@@ -191,8 +205,8 @@ export class PixelController {
       if (!viewport.owner.isDestroyed) viewport.set(viewport.origin);
       this.releasing = true;
     }
-    const { rect } = viewport.owner.isDestroyed && this.last ? this.last : viewport;
-    if (rect.width <= 0 || rect.height <= 0) return null;
+    const rect = visible ?? this.last?.rect;
+    if (!rect) return null;
     const fraction = viewport.position - viewport.origin;
     const contentChanged = this.changed();
     if (
