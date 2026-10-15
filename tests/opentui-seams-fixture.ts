@@ -585,3 +585,40 @@ function probe(value: unknown, key: string, ...args: number[]): number {
   if (typeof result !== "number") throw new Error(`Non-numeric probe ${key}`);
   return result;
 }
+
+test("planned hover waits for presented input when deferred and keeps its default otherwise", async () => {
+  for (const deferHover of [true, false]) {
+    const { r, renderOnce, rows, content, normal } = await scene();
+    try {
+      r.setFramePlan(null);
+      await renderOnce();
+      await r.idle();
+      const over: string[] = [];
+      const out: string[] = [];
+      for (const row of rows) {
+        row.onMouseOver = () => over.push(row.id);
+        row.onMouseOut = () => out.push(row.id);
+      }
+      r.dispatchMouseEventFromHitMap(input("move"), normal);
+      expect(over).toEqual(["row0"]);
+      r.setFramePlan(() => ({
+        deferHover,
+        projection: { renderable: content, translateX: 0, translateY: -1 },
+      }));
+      await renderOnce();
+      await r.idle();
+      if (deferHover) {
+        expect(over).toEqual(["row0"]);
+        expect(out).toEqual([]);
+        // The old host generation remains authoritative after newer paint.
+        r.dispatchMouseEventFromHitMap(input("move"), normal);
+        expect(over).toEqual(["row0"]);
+      } else {
+        expect(over).toEqual(["row0", "row1"]);
+        expect(out).toEqual(["row0"]);
+      }
+    } finally {
+      r.destroy();
+    }
+  }
+});

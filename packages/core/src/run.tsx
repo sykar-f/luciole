@@ -79,6 +79,8 @@ export async function run(
      * gives one per app and target, since its local socket changes on every launch.
      */
     sessionKey?: string;
+    /** Web runtime only: `false` keeps row scrolling. Native terminals ignore it. */
+    pixelScroll?: boolean;
   } = {},
 ) {
   const env = ClientEnvironment.safeParse(process.env);
