@@ -198,6 +198,15 @@ try {
     "parent region after nested bound handover",
   );
 
+  await browser.evaluate("probe.resetNested()");
+  await wait("probe.state().presented?.fraction===0", "canonical parent before burst");
+  await browser.evaluate(
+    "{const r=probe.state().nested.rect;probe.wheel(r.x+2,r.y+1.5,.375);probe.wheel(r.x+2,r.y+1.5,probe.state().nested.max+.25)}",
+  );
+  await wait(
+    "probe.state().nested.position===probe.state().nested.max && probe.state().presented?.fraction>.5 && probe.state().presented?.rect.height===probe.state().left.rect.height",
+    "coalesced nested burst remainder",
+  );
   await browser.evaluate("probe.popup()");
   await wait("!probe.state().presented", "canonical release before popup presentation");
   await browser.evaluate("probe.closePopup();probe.pointer('mousemove',3,3)");

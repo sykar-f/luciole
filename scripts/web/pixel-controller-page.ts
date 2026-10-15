@@ -286,6 +286,12 @@ Object.assign(window, {
     closePopup: () => {
       popup?.destroy();
     },
+    resetNested: () => {
+      const inner = detectScrollableViewport(nested),
+        outer = detectScrollableViewport(left);
+      inner?.set(0);
+      if (outer) outer.set(Math.floor(outer.position));
+    },
     loseContext: () => gl.getExtension("WEBGL_lose_context")?.loseContext(),
     resize: () => {
       terminal.resize(50, 17);
