@@ -26,3 +26,39 @@ test("an existing empty debugging port file is not ready", async () => {
   expect(result).toBe(port);
   expect(seen).toEqual(["", `${port}\n`]);
 });
+
+test("a debugging port needs a complete valid first line", async () => {
+  using directory = temporaryDirectory("cdp-port-");
+  const path = join(directory.path, "DevToolsActivePort");
+  const port = 32123;
+  const states = [
+    "32",
+    "0\n",
+    "65536\n",
+    "-1\n",
+    "1.5\n",
+    "invalid\n",
+    `${port}\n/devtools/browser/test\n`,
+  ];
+  writeFileSync(path, states[0] ?? "");
+  const seen: string[] = [];
+  const result = await chromePort(path, performance.now() + 1000, async () => {
+    const contents = await Bun.file(path).text();
+    seen.push(contents);
+    // Each update is acknowledged by the reader, including the partial first line.
+    const next = states[seen.length];
+    if (next !== undefined) writeFileSync(path, next);
+    return contents;
+  });
+  expect(result).toBe(port);
+  expect(seen).toEqual(states);
+});
+
+test("an incomplete debugging port file keeps the startup deadline", async () => {
+  using directory = temporaryDirectory("cdp-port-");
+  const path = join(directory.path, "DevToolsActivePort");
+  writeFileSync(path, "");
+  const reading = chromePort(path, performance.now() - 1);
+  expect(reading).rejects.toThrow("did not start");
+  await reading.catch(() => {});
+});

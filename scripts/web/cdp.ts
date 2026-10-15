@@ -14,6 +14,8 @@ const POLL_MS = 50;
 const START_TIMEOUT_MS = 10_000;
 const WAIT_TIMEOUT_MS = 15_000;
 const COMMAND_TIMEOUT_MS = 10_000;
+const MAX_PORT = 65_535;
+const Port = z.coerce.number().check(z.int(), z.gte(1), z.lte(MAX_PORT));
 
 const Target = z.object({ type: z.string(), webSocketDebuggerUrl: z.string() });
 const Reply = z.object({
@@ -74,12 +76,18 @@ export async function chromePort(
   deadline: number,
   read = () => Bun.file(portFile).text(),
 ) {
-  while (!existsSync(portFile)) {
+  for (;;) {
     if (performance.now() > deadline) throw new Error(`${CHROME} did not start`);
+    if (existsSync(portFile)) {
+      const contents = await read();
+      const newline = contents.indexOf("\n");
+      if (newline !== -1) {
+        const port = Port.safeParse(contents.slice(0, newline));
+        if (port.success) return port.data;
+      }
+    }
     await Bun.sleep(POLL_MS);
   }
-  const [port] = (await read()).split("\n");
-  return port;
 }
 
 class CommandTimeout extends Error {}
