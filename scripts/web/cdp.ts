@@ -24,7 +24,12 @@ const Reply = z.object({
 const Event = z.object({ method: z.string(), params: z.unknown() });
 const Evaluated = z.object({
   result: z.object({ value: z.optional(z.unknown()) }),
-  exceptionDetails: z.optional(z.object({ text: z.string() })),
+  exceptionDetails: z.optional(
+    z.object({
+      text: z.string(),
+      exception: z.optional(z.object({ description: z.optional(z.string()) })),
+    }),
+  ),
 });
 const Screenshot = z.object({ data: z.string() });
 const Point = z.object({ x: z.number(), y: z.number() });
@@ -198,7 +203,10 @@ export class Browser implements AsyncDisposable {
     const evaluated = Evaluated.parse(
       await this.send("Runtime.evaluate", { expression, returnByValue: true, awaitPromise: true }),
     );
-    if (evaluated.exceptionDetails) throw new Error(evaluated.exceptionDetails.text);
+    if (evaluated.exceptionDetails)
+      throw new Error(
+        evaluated.exceptionDetails.exception?.description ?? evaluated.exceptionDetails.text,
+      );
     return evaluated.result.value;
   }
 
@@ -212,7 +220,10 @@ export class Browser implements AsyncDisposable {
     const evaluated = Evaluated.parse(
       await this.send("Runtime.evaluate", { expression, contextId, returnByValue: true }),
     );
-    if (evaluated.exceptionDetails) throw new Error(evaluated.exceptionDetails.text);
+    if (evaluated.exceptionDetails)
+      throw new Error(
+        evaluated.exceptionDetails.exception?.description ?? evaluated.exceptionDetails.text,
+      );
     return evaluated.result.value;
   }
 

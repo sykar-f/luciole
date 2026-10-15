@@ -22,8 +22,44 @@ const server = Bun.serve({
   websocket: {
     message(socket, raw) {
       const message = z
-        .object({ id: z.number(), method: z.string() })
+        .object({
+          id: z.number(),
+          method: z.string(),
+          params: z.optional(z.object({ expression: z.optional(z.string()) })),
+        })
         .parse(JSON.parse(String(raw)));
+      if (process.env.CDP_EXCEPTIONS === "1") {
+        if (message.method === "Runtime.enable")
+          socket.send(
+            JSON.stringify({
+              method: "Runtime.executionContextCreated",
+              params: { context: { id: 7, origin: "https://frame.test" } },
+            }),
+          );
+        if (message.method === "Runtime.evaluate") {
+          const expression = message.params?.expression;
+          const exception =
+            expression === "description"
+              ? { description: "Error: the expression failed" }
+              : expression === "empty"
+                ? { description: "" }
+                : expression === "missing-description"
+                  ? {}
+                  : undefined;
+          const result =
+            expression === "value"
+              ? { result: { value: 42 } }
+              : {
+                  result: {},
+                  exceptionDetails: {
+                    text: "Uncaught",
+                    ...(exception === undefined ? {} : { exception }),
+                  },
+                };
+          socket.send(JSON.stringify({ id: message.id, result }));
+          return;
+        }
+      }
       if (message.method === (process.env.STUCK_METHOD ?? "Runtime.evaluate")) return;
       socket.send(JSON.stringify({ id: message.id, result: {} }));
     },
