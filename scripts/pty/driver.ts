@@ -270,7 +270,8 @@ export class Driver implements AsyncDisposable {
       terminal,
       detached: true,
       cwd: options.cwd,
-      env: environment({ TERM: "xterm-256color", ...options.env }),
+      // Advertise the emulator's truecolor even when an isolated home has no terminal hints.
+      env: environment({ TERM: "xterm-256color", COLORTERM: "truecolor", ...options.env }),
     });
     driver = new Driver({ terminal, child, screen, before }, options);
     for (const bytes of pending) driver.receive(bytes);
