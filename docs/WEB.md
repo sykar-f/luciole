@@ -397,7 +397,9 @@ vise le contenu sous le pointeur, y compris une vue imbriquée ; les touches de
 défilement visent la vue focalisée. Passer à une autre vue arrondit la précédente.
 Hors du rectangle actif, un mouvement, un clic ou un premier cran SGR sélectionne
 l'autre vue ; ce premier cran reste entier, puis les rapports précis s'appliquent
-à la nouvelle surface. Les bordures et barres de défilement restent fixes.
+à la nouvelle surface. Les bordures et barres de défilement restent fixes. Dans une surface fractionnaire,
+un down avec Shift ou Alt termine la fraction sans atteindre les handlers de
+l'application ; le geste suivant revient au chemin ordinaire.
 
 Le [contrat expérimental de défilement au pixel](PIXEL-SCROLL.md) définit les
 opérations en bande, les transactions de présentation et les entrées précises

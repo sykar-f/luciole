@@ -186,6 +186,7 @@ Object.assign(window, {
     terminal,
     r,
     reports,
+    // eslint-disable-next-line no-control-regex -- Inspect complete OSC frames in captured terminal bytes.
     operations: () => (wire.match(/\x1b\]19462;[^\x1b]*\x1b\\/g) ?? []).map(decode).slice(-20),
     events,
     frames,
@@ -231,7 +232,14 @@ Object.assign(window, {
         }),
       );
     },
-    pointer: (type: string, x: number, y: number, buttons = 0, shiftKey = false) => {
+    pointer: (
+      type: string,
+      x: number,
+      y: number,
+      buttons = 0,
+      shiftKey = false,
+      altKey = false,
+    ) => {
       const box = document.querySelector(".xterm-screen")?.getBoundingClientRect();
       const target = document.querySelector(".xterm-screen");
       if (!box || !target) throw new Error("Missing screen");
@@ -242,6 +250,7 @@ Object.assign(window, {
           button: 0,
           buttons,
           shiftKey,
+          altKey,
           clientX: box.left + (x * box.width) / terminal.cols,
           clientY: box.top + (y * box.height) / terminal.rows,
         }),

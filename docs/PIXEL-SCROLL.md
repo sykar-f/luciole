@@ -364,6 +364,9 @@ La position reste fractionnaire au repos. Le contrôleur dispose aussi d'une
 politique interne de retour court à la ligne (140 ms après 120 ms sans molette),
 désactivée par défaut. Shift ou Option/Alt au début d'une sélection demande une
 frame canonique puis sa libération ; l'hôte attend sa présentation effective
-pour rejouer la sélection native. Une popup intersectée libère la surface dans
+pour rejouer la sélection native. Ce down Shift/Alt ne parvient pas aux handlers
+applicatifs, même si la configuration locale de l'hôte n'en fait pas une sélection
+native ; après la libération, le clic Alt suivant suit le chemin ordinaire.
+Une popup intersectée libère la surface dans
 sa frame. Une invalidation abandonne les hit maps, repeint à l'origine entière
 et recommence la découverte lorsque l'hôte signale des métriques invalidées.

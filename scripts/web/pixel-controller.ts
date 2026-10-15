@@ -159,10 +159,14 @@ try {
   await browser.evaluate("probe.terminal.input('\\x1b[B')");
   await wait("probe.state().left.position > 1", "focused keyboard scroll");
   await browser.evaluate(
-    "{const r=probe.state().left.rect;probe.pointer('mousedown',r.x+1.5,r.y+1.5,1,true);probe.pointer('mousemove',r.x+8.5,r.y+2.5,1,true);probe.pointer('mouseup',r.x+8.5,r.y+2.5,0,true)}",
+    "{const r=probe.state().left.rect,mac=navigator.platform.includes('Mac');probe.pointer('mousedown',r.x+1.5,r.y+1.5,1,!mac,mac);probe.pointer('mousemove',r.x+8.5,r.y+2.5,1,!mac,mac);probe.pointer('mouseup',r.x+8.5,r.y+2.5,0,!mac,mac)}",
   );
   await wait("!probe.state().presented", "native selection's canonical release");
   await wait("!!probe.state().nativeSelection", "native selection replay");
+  await browser.evaluate(
+    "probe.terminal.options.macOptionClickForcesSelection=false;probe.events.length=0;{const r=probe.state().left.rect;probe.pointer('mousedown',r.x+1.5,r.y+1.5,1,false,true);probe.pointer('mouseup',r.x+1.5,r.y+1.5,0,false,true)}",
+  );
+  await wait("probe.events.some(e=>e.type==='down')", "ordinary Alt click after release");
   await browser.evaluate("probe.pointer('mousemove',3,3)");
   await wait("!!probe.state().presented", "presentation after native selection");
   // A disjoint viewport is selected by an ordinary move before precise wheel input.
