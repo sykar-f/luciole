@@ -1,4 +1,7 @@
 import { expect, test } from "bun:test";
+import type { Terminal } from "@xterm/xterm";
+import { decode, MODE, NS } from "../packages/core/src/pixel-scroll/protocol";
+import { PixelScrollAddon } from "../packages/core/src/web/pixel-scroll/host";
 import type { PixelOperation, PixelReport } from "../packages/core/src/pixel-scroll/protocol";
 import type {
   PixelRenderer,
@@ -66,6 +69,7 @@ function fixture(
   query();
   return {
     session,
+    renderer,
     reports,
     send,
     query,
@@ -236,4 +240,105 @@ test("a release inside a preparation rejects the entire preparation", () => {
   f.commit(2);
   expect(f.committed()?.generation).toBe(1);
   expect(f.released()).toBe(0);
+});
+
+test("an outside-grid mouseup ends a drag without capturing later chrome input", () => {
+  const f = fixture();
+  f.frame();
+  let present: ((p: Presentation | undefined) => void) | undefined;
+  f.renderer.onPresent = (listener) => {
+    present = listener;
+    return { dispose() {} };
+  };
+  const listeners = new Map<string, (event: MouseEvent) => void>();
+  const reports: unknown[] = [];
+  let osc: ((payload: string) => boolean | Promise<boolean>) | undefined;
+  let csi: ((params: number[]) => boolean | Promise<boolean>) | undefined;
+  const dispose = () => ({ dispose() {} });
+  class TestNode {}
+  const target = new TestNode();
+  const globals = ["Node", "matchMedia"] as const;
+  const previous = globals.map((name) => Object.getOwnPropertyDescriptor(globalThis, name));
+  Object.defineProperty(globalThis, "Node", { configurable: true, value: TestNode });
+  Object.defineProperty(globalThis, "matchMedia", {
+    configurable: true,
+    value: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }),
+  });
+  const terminal = {
+    cols: 80,
+    rows: 24,
+    options: {},
+    input: (sequence: string) => reports.push(decode(sequence)),
+    onResize: dispose,
+    buffer: { onBufferChange: dispose },
+    parser: {
+      registerEscHandler: dispose,
+      registerOscHandler: (_id: number, listener: typeof osc) => {
+        osc = listener;
+        return dispose();
+      },
+      registerCsiHandler: (id: { final: string }, listener: typeof csi) => {
+        if (id.final === "h") csi = listener;
+        return dispose();
+      },
+    },
+    element: {
+      contains: (node: unknown) => node === target,
+      querySelector: (selector: string) =>
+        selector === ".xterm-screen"
+          ? { getBoundingClientRect: () => ({ left: 0, top: 0, width: 80, height: 24 }) }
+          : undefined,
+      ownerDocument: {
+        addEventListener: (type: string, listener: (event: MouseEvent) => void) =>
+          listeners.set(type, listener),
+        removeEventListener() {},
+      },
+    },
+  };
+  const addon = new PixelScrollAddon(f.renderer);
+  try {
+    addon.activate(terminal as unknown as Terminal);
+    csi?.([2026, MODE]);
+    osc?.(`${NS};${JSON.stringify({ op: "query", version: 1, nonce: "drag" })}`);
+    present?.(f.committed());
+    reports.length = 0;
+    const pointer = (type: string, x: number, buttons: number) => {
+      let prevented = false;
+      listeners.get(type)?.({
+        type,
+        target,
+        clientX: x,
+        clientY: 5,
+        buttons,
+        button: 0,
+        preventDefault() {
+          prevented = true;
+        },
+        stopImmediatePropagation() {},
+      } as unknown as MouseEvent);
+      return prevented;
+    };
+    expect(pointer("mousedown", 3, 1)).toBe(true);
+    expect(pointer("mousemove", 25, 1)).toBe(true); // Drag across chrome.
+    expect(reports).toMatchObject([{ action: "down" }, { action: "drag" }]);
+    expect(pointer("mouseup", 81, 0)).toBe(false); // Release outside the grid.
+    expect(pointer("mousemove", 25, 0)).toBe(false);
+    expect(pointer("mousedown", 25, 1)).toBe(false);
+    expect(reports).toHaveLength(2);
+    expect(pointer("mousedown", 3, 1)).toBe(true); // A new surface gesture still works.
+    expect(pointer("mouseup", 3, 0)).toBe(true);
+    expect(reports).toMatchObject([
+      { action: "down" },
+      { action: "drag" },
+      { action: "down" },
+      { action: "up" },
+    ]);
+  } finally {
+    addon.dispose();
+    globals.forEach((name, index) => {
+      const descriptor = previous[index];
+      if (descriptor) Object.defineProperty(globalThis, name, descriptor);
+      else Reflect.deleteProperty(globalThis, name);
+    });
+  }
 });

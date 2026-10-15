@@ -250,8 +250,10 @@ export class PixelScrollAddon implements ITerminalAddon {
       return;
     }
     if (event.buttons < 0 || event.buttons > MAX_BUTTONS) return;
+    const wasDragging = this.dragging;
+    if (event.type === "mouseup" && !event.buttons) this.dragging = false;
     const point = this.point(event);
-    if (!point || (!point.inside && !this.dragging)) return;
+    if (!point || (!point.inside && !wasDragging)) return;
     // On a canonical grid, leave the terminal's native selection gesture intact.
     const native =
       event.shiftKey ||
