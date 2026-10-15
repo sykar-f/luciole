@@ -7,16 +7,20 @@
 import { join } from "node:path";
 import { build, example } from "../pty/harness";
 import { Browser } from "./cdp";
+import { privateExample } from "./private-example";
 import { clickOn, rowWith, serveSite, shows } from "./site";
 
-build(example("notes"), ["--web-local"]);
-const site = join(example("notes"), ".luciole/web");
+using directory = privateExample("notes", "luciole-web-local-");
+build(directory.app, ["--web-local"]);
+const site = join(directory.app, ".luciole/web");
 const files = serveSite(site);
 const report: Record<string, unknown> = {};
 try {
   await using browser = await Browser.start();
   // Headless, the window never has the focus: the terminal would see no focus change.
   await browser.send("Emulation.setFocusEmulationEnabled", { enabled: true });
+  // A neighbouring PTY journey publishes native-only Notes while this site is running.
+  build(example("notes"));
   const started = performance.now();
   await browser.open(files.url.href);
   console.log(await browser.waitFor(shows("Welcome to Notes"), "the Notes screen"));
@@ -54,7 +58,7 @@ try {
   await browser.waitFor(shows("Shopping list"), "Shopping list in the sidebar");
   await clickOn(browser, "Shopping list");
   report.openedByClick = !!(await browser.waitFor(shows("Coffee beans"), "the clicked note"));
-  await browser.screenshot(join(example("notes"), ".luciole/web-local.png"));
+  await browser.screenshot(join(directory.path, "web-local.png"));
 } finally {
   await files.stop(true);
 }

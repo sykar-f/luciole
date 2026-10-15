@@ -5,10 +5,10 @@
  * prepared (`luciole web-runtime`, Zig 0.16.0 in ZIG) or preparable.
  *   bun run test:web
  */
-import { cpSync, symlinkSync } from "node:fs";
-import { basename, join } from "node:path";
-import { ROOT, build, example, startServer, temporaryDirectory } from "../pty/harness";
+import { join } from "node:path";
+import { build, example, startServer } from "../pty/harness";
 import { Browser } from "./cdp";
+import { privateExample } from "./private-example";
 import { cellOf, rowWith, shows } from "./site";
 
 const FORBIDDEN = 403;
@@ -23,13 +23,8 @@ function freePort() {
 
 // PTY journeys build Notes too. Their native-only publication replaces .luciole,
 // including the web files our running Server reads again on a reload.
-using directory = temporaryDirectory("luciole-web-notes-");
-const app = join(directory.path, "notes");
-cpSync(example("notes"), app, {
-  recursive: true,
-  filter: (source) => basename(source) !== ".luciole" && !basename(source).includes(".sqlite"),
-});
-symlinkSync(join(ROOT, "node_modules"), join(app, "node_modules"), "dir");
+using directory = privateExample("notes", "luciole-web-notes-");
+const { app } = directory;
 build(app, ["--web"]);
 const port = freePort();
 const origin = `http://127.0.0.1:${port}`;

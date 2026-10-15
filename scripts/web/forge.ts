@@ -6,8 +6,9 @@
  *   bun run test:web:forge
  */
 import { join } from "node:path";
-import { build, example } from "../pty/harness";
+import { build } from "../pty/harness";
 import { Browser } from "./cdp";
+import { privateExample } from "./private-example";
 import { coloursOfRow, rowWith, serveSite, shows } from "./site";
 
 /** How many colours the first row showing `text` is drawn in: one means no highlighting. */
@@ -16,8 +17,9 @@ import { coloursOfRow, rowWith, serveSite, shows } from "./site";
 const FRAMES =
   "new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(() => done(true))))";
 
-build(example("forge"), ["--web-local"]);
-const files = serveSite(join(example("forge"), ".luciole/web"));
+using directory = privateExample("forge", "luciole-web-forge-");
+build(directory.app, ["--web-local"]);
+const files = serveSite(join(directory.app, ".luciole/web"));
 const report: Record<string, unknown> = {};
 try {
   await using browser = await Browser.start();
@@ -60,7 +62,7 @@ try {
     `${coloursOfRow("7 + `POST /refunds`")} > 2`,
     "highlighted Markdown",
   ));
-  await browser.screenshot(join(example("forge"), ".luciole/web-local.png"));
+  await browser.screenshot(join(directory.path, "web-local.png"));
 } finally {
   await files.stop(true);
 }

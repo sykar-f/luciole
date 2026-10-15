@@ -8,8 +8,9 @@
  */
 import { join } from "node:path";
 import * as z from "zod/mini";
-import { build, example } from "../pty/harness";
+import { build } from "../pty/harness";
 import { Browser } from "./cdp";
+import { privateExample } from "./private-example";
 import { SCREEN, serveSite } from "./site";
 
 const COLUMNS = 100;
@@ -34,8 +35,9 @@ const NOTE_CELL = { column: 60, row: 15 };
 const frameShows = (text: string) =>
   `${FRAME}.lucioleScreen().join("\\n").includes(${JSON.stringify(text)})`;
 
-build(example("notes"), ["--web-local"]);
-const site = join(example("notes"), ".luciole/web");
+using directory = privateExample("notes", "luciole-web-embed-");
+build(directory.app, ["--web-local"]);
+const site = join(directory.app, ".luciole/web");
 const notes = serveSite(site);
 const look = `index.html?columns=${COLUMNS}&rows=${ROWS}&background=0a0f16`;
 // The embedding page: it records every message it hears, from any origin, and frames `?src=`.
