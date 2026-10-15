@@ -344,3 +344,149 @@ test("an outside-grid mouseup ends a drag without capturing later chrome input",
     });
   }
 });
+
+for (const platform of [
+  "Macintosh",
+  "MacIntel",
+  "MacPPC",
+  "Mac68K",
+  "Linux x86_64",
+  "Win32",
+  "MacUnknown",
+]) {
+  for (const option of [false, true]) {
+    for (const [gesture, shiftKey, altKey] of [
+      ["Shift", true, false],
+      ["Option/Alt", false, true],
+      ["Shift+Option/Alt", true, true],
+    ] as const) {
+      test(`${platform} ${gesture} with Option selection ${option} holds only native selection`, () => {
+        const f = fixture();
+        f.frame();
+        let present: ((p: Presentation | undefined) => void) | undefined;
+        f.renderer.onPresent = (listener) => {
+          present = listener;
+          return { dispose() {} };
+        };
+        const listeners = new Map<string, (event: MouseEvent) => void>();
+        const reports: unknown[] = [];
+        let osc: ((payload: string) => boolean | Promise<boolean>) | undefined;
+        let csi: ((params: number[]) => boolean | Promise<boolean>) | undefined;
+        const dispose = () => ({ dispose() {} });
+        class TestNode {}
+        const target = new TestNode();
+        const globals = ["Node", "matchMedia", "navigator", "MouseEvent"] as const;
+        const previous = globals.map((name) => Object.getOwnPropertyDescriptor(globalThis, name));
+        Object.defineProperty(globalThis, "Node", { configurable: true, value: TestNode });
+        Object.defineProperty(globalThis, "matchMedia", {
+          configurable: true,
+          value: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }),
+        });
+        Object.defineProperty(globalThis, "navigator", {
+          configurable: true,
+          value: { platform },
+        });
+        class TestMouseEvent {
+          readonly type: string;
+          constructor(type: string, init: MouseEventInit) {
+            this.type = type;
+            Object.assign(this, init);
+          }
+        }
+        Object.defineProperty(globalThis, "MouseEvent", {
+          configurable: true,
+          value: TestMouseEvent,
+        });
+        const replayed: MouseEvent[] = [];
+        const terminal = {
+          cols: 80,
+          rows: 24,
+          options: { macOptionClickForcesSelection: option },
+          input: (sequence: string) => reports.push(decode(sequence)),
+          onResize: dispose,
+          buffer: { onBufferChange: dispose },
+          parser: {
+            registerEscHandler: dispose,
+            registerOscHandler: (_id: number, listener: typeof osc) => {
+              osc = listener;
+              return dispose();
+            },
+            registerCsiHandler: (id: { final: string }, listener: typeof csi) => {
+              if (id.final === "h") csi = listener;
+              return dispose();
+            },
+          },
+          element: {
+            contains: (node: unknown) => node === target,
+            querySelector: (selector: string) =>
+              selector === ".xterm-screen"
+                ? {
+                    getBoundingClientRect: () => ({ left: 0, top: 0, width: 80, height: 24 }),
+                    dispatchEvent: (event: MouseEvent) => replayed.push(event),
+                  }
+                : undefined,
+            ownerDocument: {
+              addEventListener: (type: string, listener: (event: MouseEvent) => void) =>
+                listeners.set(type, listener),
+              removeEventListener() {},
+            },
+          },
+        };
+        const addon = new PixelScrollAddon(f.renderer);
+        try {
+          // eslint-disable-next-line typescript/consistent-type-assertions -- Minimal terminal port for document-level input, without a browser DOM.
+          addon.activate(terminal as unknown as Terminal);
+          void csi?.([2026, MODE]);
+          void osc?.(`${NS};${JSON.stringify({ op: "query", version: 1, nonce: "selection" })}`);
+          present?.(f.committed());
+          reports.length = 0;
+          const pointer = (type: string, x: number, buttons: number) => {
+            let prevented = false;
+            // eslint-disable-next-line typescript/consistent-type-assertions -- Only the mouse fields consumed by the registered input listener are needed.
+            listeners.get(type)?.({
+              type,
+              target,
+              clientX: x,
+              clientY: 5,
+              buttons,
+              button: 0,
+              shiftKey,
+              altKey,
+              preventDefault() {
+                prevented = true;
+              },
+              stopImmediatePropagation() {},
+            } as unknown as MouseEvent);
+            return prevented;
+          };
+          const isMac = ["Macintosh", "MacIntel", "MacPPC", "Mac68K"].includes(platform);
+          const held = isMac ? altKey && option : shiftKey;
+          expect(pointer("mousedown", 3, 1)).toBe(true);
+          expect(pointer("mousemove", 4, 1)).toBe(true);
+          expect(pointer("mouseup", 4, 0)).toBe(true);
+          expect(reports).toMatchObject(
+            held
+              ? [{ action: "down" }]
+              : [{ action: "down" }, { action: "drag" }, { action: "up" }],
+          );
+          expect(replayed).toHaveLength(0);
+          present?.(undefined); // The renderer releases the canonical grid.
+          expect(replayed.map((event) => event.type)).toEqual(
+            held ? ["mousedown", "mousemove", "mouseup"] : [],
+          );
+          for (const event of replayed) {
+            expect(event.shiftKey).toBe(shiftKey);
+            expect(event.altKey).toBe(altKey);
+          }
+        } finally {
+          addon.dispose();
+          globals.forEach((name, index) => {
+            const descriptor = previous[index];
+            if (descriptor) Object.defineProperty(globalThis, name, descriptor);
+            else Reflect.deleteProperty(globalThis, name);
+          });
+        }
+      });
+    }
+  }
+}

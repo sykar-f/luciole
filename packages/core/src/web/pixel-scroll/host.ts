@@ -26,6 +26,13 @@ const modifiers = (event: MouseEvent) =>
   (event.ctrlKey ? CTRL : 0) |
   (event.metaKey ? META : 0);
 
+// Mirror xterm.js 6.0.0 SelectionService.shouldForceSelection and common/Platform.isMac.
+function shouldForceSelection(event: MouseEvent, macOptionClickForcesSelection: boolean) {
+  return ["Macintosh", "MacIntel", "MacPPC", "Mac68K"].includes(navigator.platform)
+    ? event.altKey && macOptionClickForcesSelection
+    : event.shiftKey;
+}
+
 type Held = { type: string; init: MouseEventInit };
 
 /** In-band host addon. The ordinary custom wheel handler remains the fallback. */
@@ -255,11 +262,10 @@ export class PixelScrollAddon implements ITerminalAddon {
     const point = this.point(event);
     if (!point || (!point.inside && !wasDragging)) return;
     // On a canonical grid, leave the terminal's native selection gesture intact.
-    const native =
-      event.shiftKey ||
-      (event.altKey &&
-        navigator.platform.includes("Mac") &&
-        this.terminal?.options.macOptionClickForcesSelection === true);
+    const native = shouldForceSelection(
+      event,
+      this.terminal?.options.macOptionClickForcesSelection === true,
+    );
     if (native && point.p.fraction === 0) return;
     if (event.type === "mousedown" && (event.button < 0 || event.button > LAST_BUTTON)) return;
     if (event.type === "mouseup" && (event.button < 0 || event.button > LAST_BUTTON)) return;
