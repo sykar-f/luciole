@@ -72,6 +72,9 @@ for (const cause of [
   "timeout",
   "paused-guard",
   "removal-error",
+  "deferred-report",
+  "missing-report",
+  "suppressed-error",
 ] as const) {
   test(
     cause === "exceptions"
@@ -84,7 +87,11 @@ for (const cause of [
         [
           process.execPath,
           join(root, "tests/web-cdp-owner.ts"),
-          cause === "removal-error" ? "normal" : cause,
+          cause === "removal-error" || cause === "deferred-report" || cause === "missing-report"
+            ? "normal"
+            : cause === "suppressed-error"
+              ? "error"
+              : cause,
         ],
         {
           env: {
@@ -93,7 +100,10 @@ for (const cause of [
             CDP_RECORD: f.record,
             OWNER_RECORD: f.owner,
             LUCIOLE_TEST_GUARD_RECORDS: f.guards,
-            LUCIOLE_TEST_GUARD_REMOVE_ERROR: cause === "removal-error" ? "1" : undefined,
+            LUCIOLE_TEST_GUARD_REMOVE_ERROR:
+              cause === "removal-error" || cause === "suppressed-error" ? "1" : undefined,
+            LUCIOLE_TEST_GUARD_DEFER_REPORT: cause === "deferred-report" ? "1" : undefined,
+            LUCIOLE_TEST_GUARD_DISCONNECT: cause === "missing-report" ? "1" : undefined,
             CDP_EXCEPTIONS: cause === "exceptions" ? "1" : undefined,
             STUCK_METHOD: cause === "startup" ? "Runtime.enable" : "Runtime.evaluate",
           },
@@ -151,11 +161,24 @@ for (const cause of [
         ).toBe(true);
         await child.exited;
         clearTimeout(timeout);
+        if (cause === "missing-report") {
+          expect(child.exitCode, await stderr).not.toBe(0);
+          expect(await stderr).toContain("no cleanup result");
+        }
+        if (cause === "deferred-report") {
+          expect(child.exitCode, await stderr).toBe(0);
+          expect(await stderr).toBe("");
+        }
         if (cause === "exceptions") {
           expect(child.exitCode).toBe(0);
           expect(await stderr).toBe("");
         }
-        if (cause === "error" || cause === "wait" || cause === "startup") {
+        if (
+          cause === "error" ||
+          cause === "wait" ||
+          cause === "startup" ||
+          cause === "suppressed-error"
+        ) {
           expect(await stderr).toContain(
             `${cause === "startup" ? "Runtime.enable" : "Runtime.evaluate"}: CDP target ws://127.0.0.1:`,
           );
@@ -172,7 +195,11 @@ for (const cause of [
         });
         const guardStatus = state();
         expect(guardsExited, guardStatus).toBe(true);
-        if (cause === "removal-error") {
+        if (cause === "suppressed-error") {
+          expect(await stderr).toContain("Disposal error:");
+          expect(await stderr).toContain("Suppressed original error:");
+        }
+        if (cause === "removal-error" || cause === "suppressed-error") {
           expect(child.exitCode, await stderr).not.toBe(0);
           expect(await stderr).toContain("injected profile removal failure");
           expect(await stderr).toContain("EIO");
@@ -201,7 +228,8 @@ for (const cause of [
         if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
         await child.exited;
         await eventually(() => guards.every((pid) => !alive(pid)));
-        if (cause === "removal-error" && profile) rmSync(profile, { recursive: true, force: true });
+        if ((cause === "removal-error" || cause === "suppressed-error") && profile)
+          rmSync(profile, { recursive: true, force: true });
       }
     },
   );
