@@ -14,6 +14,26 @@ const checkout = resolve(import.meta.dir, "..");
 const temp = await isolatedTemporary("luciole-stage-starter-");
 afterAll(() => rm(temp, { recursive: true, force: true }));
 
+test("starters pin the router's React peers to the checkout's versions", async () => {
+  const { workspaces } = z
+    .object({ workspaces: z.object({ catalog: z.record(z.string(), z.string()) }) })
+    .parse(await Bun.file(join(checkout, "package.json")).json());
+  const { peerDependencies } = z
+    .object({ peerDependencies: z.record(z.string(), z.string()) })
+    .parse(await Bun.file(Bun.resolveSync("@tanstack/react-router/package.json", checkout)).json());
+  for (const link of ["workspace", "published"] as const) {
+    const target = join(temp, `router-peers-${link}`);
+    await stageStarter({ workspace: checkout, target, link });
+    const { dependencies } = z
+      .object({ dependencies: z.record(z.string(), z.string()) })
+      .parse(await Bun.file(join(target, "package.json")).json());
+    // TypeScript includes resolved peers in a package's identity. Even identical router
+    // versions cannot share Register when a linked core resolves a different React DOM.
+    for (const peer of Object.keys(peerDependencies))
+      expect(dependencies[peer], `${link}: ${peer}`).toBe(workspaces.catalog[peer]);
+  }
+});
+
 /**
  * A workspace of its own, so the build state is planted away from the live checkout: the
  * top-level files are copied (staging rewrites some of them), the directories linked, and
