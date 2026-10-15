@@ -389,6 +389,11 @@ export class Driver implements AsyncDisposable {
   private frameComplete() {
     const begin = this.raw.lastIndexOf(FRAME_BEGIN);
     if (begin < 0) return true;
+    const entered = this.raw.lastIndexOf(`${ESC}[?1049h`);
+    const left = this.raw.lastIndexOf(`${ESC}[?1049l`);
+    // A suspended renderer hands the normal screen to an editor writing plain output.
+    // Reentry, or a new synchronized frame outside it, restores frame gating.
+    if (left > entered && left > begin) return true;
     const end = this.raw.lastIndexOf(FRAME_END);
     return end > begin && (this.inputMark === undefined || end >= this.inputMark);
   }

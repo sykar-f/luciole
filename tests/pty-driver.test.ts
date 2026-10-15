@@ -78,10 +78,14 @@ test("an editor handoff accepts plain output and reentry restores frame gating",
   t.write("r");
   expect(await eventually(() => t.output().includes("resumed pending"))).toBe(true);
   // Reentry needs a new complete frame, even before the renderer begins one.
-  await expect(t.waitFor("resumed pending", { timeout: 100 })).rejects.toThrow("never showed");
+  const resumed = t.waitFor("resumed pending", { timeout: 100 });
+  expect(resumed).rejects.toThrow("never showed");
+  await resumed.catch(() => {});
   t.write("f");
   expect(await eventually(() => t.output().includes("renderer pending"))).toBe(true);
-  await expect(t.waitFor("renderer pending", { timeout: 100 })).rejects.toThrow("never showed");
+  const incomplete = t.waitFor("renderer pending", { timeout: 100 });
+  expect(incomplete).rejects.toThrow("never showed");
+  await incomplete.catch(() => {});
   t.write("c");
   await t.waitFor("renderer pending complete");
 });
