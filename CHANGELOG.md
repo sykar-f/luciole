@@ -13,6 +13,35 @@ and marked **Breaking**.
 
 ## [Unreleased]
 
+### Added
+
+- Pixel scroll for `ScrollBox` views in the web runtime. A view can stop between
+  rows, with no added inertia. Nested views pass the unused wheel delta to their
+  parent at a content bound.
+
+### Changed
+
+- The web runtime uses pixel scroll by default. Set `pixelScroll: false` in
+  `run` or `runInPage` to keep row scroll. Reduced motion, screen reader mode
+  and a host without pixel scroll support also keep row scroll. Native terminals
+  keep their current behavior. The `typed` event keeps its ordinary SGR format.
+  Only one view can hold a fraction at a time. In a view at a fraction, a Shift
+  or Alt mouse down ends the fraction and does not reach the app. See
+  [the web runtime details](docs/WEB.md#4-rendu-et-entrée).
+
+### Fixed
+
+- An interrupted first `luciole build --web` no longer leaves an incomplete
+  cache that breaks later builds. Two concurrent preparations of the same web
+  runtime now share the result without a cache conflict.
+- Web apps that import `@luciole-sh/core/math` now start without Node built-ins.
+  The optional dependency helper no longer creates a Node loader at import.
+- Starters linked to a repository checkout now pin React DOM with React. This
+  prevents duplicate router types that caused route type checks to fail.
+- `luciole connect` now stops SSH and removes its socket directory when a signal
+  ends the Client as SSH starts. The SSH process no longer stays alive after
+  the Client exits.
+
 ## [0.3.2] - 2026-10-12
 
 ### Fixed
