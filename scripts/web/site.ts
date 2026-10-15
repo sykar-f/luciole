@@ -3,6 +3,8 @@
  * would (`--web-local`, docs/WEB.md), and the screen the runtime shows, as text.
  */
 import { join } from "node:path";
+import { z } from "zod";
+import type { Browser } from "./cdp";
 
 const TYPES: Record<string, string> = {
   html: "text/html; charset=utf-8",
@@ -43,9 +45,25 @@ export const rowWith = (...texts: string[]) =>
 /**
  * The middle of the first cell of `text` on the screen, as a point for `Browser.clickAt`:
  * a click on the words a user would point at. From the screen element's box and the grid.
+ * If absent, returns the screen rows instead; `clickOn` reports them outside the page.
  */
 export const cellOf = (text: string) =>
-  `(() => { const rows = lucioleScreen(); const y = rows.findIndex((row) => row.includes(${JSON.stringify(text)})); const columns = lucioleCells()[0].length; const box = document.querySelector(".xterm-screen").getBoundingClientRect(); return { x: box.x + ((rows[y].indexOf(${JSON.stringify(text)}) + 0.5) * box.width) / columns, y: box.y + ((y + 0.5) * box.height) / rows.length }; })()`;
+  `(() => { const rows = lucioleScreen(); const y = rows.findIndex((row) => row.includes(${JSON.stringify(text)})); if (y < 0) return { rows }; const columns = lucioleCells()[0].length; const box = document.querySelector(".xterm-screen").getBoundingClientRect(); return { x: box.x + ((rows[y].indexOf(${JSON.stringify(text)}) + 0.5) * box.width) / columns, y: box.y + ((y + 0.5) * box.height) / rows.length }; })()`;
+const Cell = z.union([
+  z.object({ x: z.number(), y: z.number() }),
+  z.object({ rows: z.array(z.string()) }),
+]);
+
+/** A checked label click: page exceptions would lose their detail at the CDP boundary. */
+export async function clickOn(browser: Pick<Browser, "evaluate" | "clickAt">, text: string) {
+  const cell = Cell.parse(await browser.evaluate(cellOf(text)));
+  if ("rows" in cell)
+    throw new Error(
+      `The screen has no label ${JSON.stringify(text)}\n--- screen\n${cell.rows.join("\n")}`,
+    );
+  await browser.clickAt(`(${JSON.stringify(cell)})`);
+}
+
 /** How many colours the first row showing `text` is drawn in: 0 without such a row. */
 export const coloursOfRow = (text: string) =>
   `(() => { const y = lucioleScreen().findIndex((row) => row.includes(${JSON.stringify(text)})); return y < 0 ? 0 : new Set(lucioleCells()[y].filter((cell) => cell).map((cell) => cell.split("|")[1])).size; })()`;

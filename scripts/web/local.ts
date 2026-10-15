@@ -7,7 +7,7 @@
 import { join } from "node:path";
 import { build, example } from "../pty/harness";
 import { Browser } from "./cdp";
-import { cellOf, rowWith, serveSite, shows } from "./site";
+import { clickOn, rowWith, serveSite, shows } from "./site";
 
 build(example("notes"), ["--web-local"]);
 const site = join(example("notes"), ".luciole/web");
@@ -32,7 +32,8 @@ try {
   const BASE36 = 36;
   const marker = `local${Date.now().toString(BASE36)}`;
   const BODY = "Kept in the origin's files";
-  await browser.clickAt(cellOf("+ New note"));
+  await browser.waitFor(shows("+ New note"), "New note after refocusing the terminal");
+  await clickOn(browser, "+ New note");
   await browser.waitFor(shows("Untitled"), "the new note, its title ready");
   await browser.insertText(marker);
   await browser.press("Enter");
@@ -46,11 +47,12 @@ try {
   // A new page load: a new Worker, the database read back from OPFS.
   await browser.open(`${files.url.href}?reload`);
   await browser.waitFor(shows(marker), "the list again");
-  await browser.clickAt(cellOf(marker));
+  await clickOn(browser, marker);
   report.persistedAcrossLoads = !!(await browser.waitFor(shows(BODY), "the stored note"));
 
   // A click on another note opens it.
-  await browser.clickAt(cellOf("Shopping list"));
+  await browser.waitFor(shows("Shopping list"), "Shopping list in the sidebar");
+  await clickOn(browser, "Shopping list");
   report.openedByClick = !!(await browser.waitFor(shows("Coffee beans"), "the clicked note"));
   await browser.screenshot(join(example("notes"), ".luciole/web-local.png"));
 } finally {
