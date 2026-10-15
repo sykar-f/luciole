@@ -201,6 +201,8 @@ export async function prepareWebRuntime({
   return prepareWebRuntimeEntry({
     directory,
     checkout,
+    waiting: () =>
+      console.error(`luciole web-runtime: waiting for another preparation of ${directory}`),
     async build(temporary) {
       checkZig(zig);
       const wasm = prepareOpenTui(checkout, zig);

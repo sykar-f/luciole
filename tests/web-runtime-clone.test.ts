@@ -10,8 +10,17 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { createHash } from "node:crypto";
+import { ABI_PACKAGES } from "../packages/core/src/abi";
 import { TREE_SITTER_DIRECTORY, WEB_RUNTIME_FILES } from "../packages/core/src/web/build";
-import { prepareOpenTuiCheckout, prepareWebRuntimeEntry } from "../packages/core/src/web-runtime";
+import {
+  prepareOpenTuiCheckout,
+  prepareWebRuntimeEntry,
+  prepareWebRuntime,
+  webRuntimeDirectory,
+} from "../packages/core/src/web-runtime";
+
+const PATCH_KEY_LENGTH = 16;
 
 async function fixture(
   run: (source: string, checkout: string, directory: string) => void | Promise<void>,
@@ -351,5 +360,47 @@ test("rejects an incomplete competing publication and rebuilds on retry", async 
     for (const name of [...WEB_RUNTIME_FILES, "runtime.js.map", "web-runtime.json"])
       expect(readFileSync(join(runtime, name), "utf8")).toBe("recovered");
     expect(readdirSync(directory).some((name) => name.includes(".tmp"))).toBe(false);
+  });
+});
+
+test("prepareWebRuntime reports lock contention once before reusing the winner", async () => {
+  await fixture(async (_source, _checkout, directory) => {
+    const cache = join(directory, "cache");
+    const runtime = await webRuntimeDirectory(cache);
+    const tag = `v${ABI_PACKAGES["@opentui/core"]}`;
+    const patch = readFileSync(join(import.meta.dir, `../packages/core/web/opentui-${tag}.patch`));
+    const patchKey = createHash("sha256").update(patch).digest("hex").slice(0, PATCH_KEY_LENGTH);
+    const checkout = join(cache, "web", `opentui-${tag}-${patchKey}`);
+    const release = Promise.withResolvers<void>();
+    const owner = prepareWebRuntimeEntry({
+      directory: runtime,
+      checkout,
+      async build(temporary) {
+        await release.promise;
+        writeRuntime(temporary, "winner");
+      },
+    });
+    const messages: string[] = [];
+    const log = spyOn(console, "error").mockImplementation((message: unknown) => {
+      messages.push(String(message));
+    });
+    // The first retry proves actual contention and releases the holder without a sleep.
+    // This also keeps a missing production waiting callback from hanging the test.
+    const retry = spyOn(Bun, "sleep").mockImplementation(async () => {
+      release.resolve();
+    });
+    try {
+      const results = await Promise.all([owner, prepareWebRuntime({ cache, zig: "unused-zig" })]);
+      expect(results).toEqual([runtime, runtime]);
+      expect(messages).toEqual([
+        `luciole web-runtime: waiting for another preparation of ${runtime}`,
+      ]);
+      expect(readFileSync(join(runtime, "opentui.wasm"), "utf8")).toBe("winner");
+    } finally {
+      release.resolve();
+      retry.mockRestore();
+      log.mockRestore();
+      await owner;
+    }
   });
 });
