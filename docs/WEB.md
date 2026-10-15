@@ -69,7 +69,7 @@ aussi du code du framework. `luciole build --web` le prépare s'il manque. En lo
 | `src/web/build.ts`                  | Bundle de la page : variantes, OpenTUI depuis ses sources, shims Node, clé d'ABI                     |
 | `src/web/platform/`                 | Variantes : `run`, `app-bundle`, `host-direct`, `vt/terminal`, `flight/server`                       |
 | `src/web/opentui/`, `src/web/node/` | Backend FFI WASM d'OpenTUI, Worker tree-sitter ; built-ins Node d'une page                           |
-| `web/opentui-v0.5.12.patch`         | Le patch natif d'OpenTUI (cible wasm32-wasi)                                                         |
+| `web/opentui-v0.5.12.patch`         | Le patch OpenTUI : wasm32-wasi, transactions de frame, projections et hit maps                       |
 | `scripts/web/`                      | Driver CDP et parcours navigateur (`test:web`, `test:web:local`, `test:web:forge`, `test:web:coder`) |
 
 ## Mode d'emploi (tout dans le navigateur)
