@@ -221,6 +221,13 @@ export const noteEditor: Omit<MarkdownEditorProps, "value"> = {
 the formula in `color`, a `#rrggbb` string, at `scale` pixels per TeX `ex`. When the promise rejects, the formula
 keeps showing its TeX.
 
+In Luciole's web runtime, a precise wheel scrolls by pixels, including its first turn over
+this editor. The scrollbar stays fixed beside the moving text and follows the fractional
+position. Selection anchors stay in the document while scrolling; dragging to an edge
+continues the selection through the document. Terminals and runtimes without the optional
+web rendering capabilities keep row scrolling. A document displaying terminal images also
+keeps whole rows until images can be composed with the text.
+
 ### `MarkdownEditorRenderable`
 
 The OpenTUI renderable behind the component, for programs that do not use React. Create it with
