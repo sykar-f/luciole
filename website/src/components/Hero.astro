@@ -166,9 +166,9 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
 
   /**
    * Each frame exactly as large as its grid at the size the runtime will draw it at
-   * (lib/cells.ts): the capture is drawn on those cells, and the live terminal, a margin
-   * larger on each side, fits that size and no other. Both screens share it: the one
-   * behind is laid out as the front one and only drawn smaller.
+   * (lib/cells.ts): the capture is drawn on those cells. The live iframe also reserves
+   * the runtime's margin and FitAddon's scroll gutter; the gutter stays clipped outside
+   * the grid. Both screens share it: the one behind is only drawn smaller.
    */
   function fit(root: HTMLElement) {
     const columns = Number(root.dataset.columns);
@@ -265,13 +265,7 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
       // Once drawn: the poster goes, the cells the app rewrites are timed, and the
       // round trip sits before each key (SSH) or each request (luciole).
       if (Drawn.safeParse(event.data).success) {
-        // The grid in the middle of its frame: what the font's steps leave over is shared
-        // between the four sides, as around the capture it replaces.
-        const centre = frame.contentDocument?.createElement("style");
-        if (centre) {
-          centre.textContent = "#luciole { display: grid; place-content: center }";
-          frame.contentDocument?.head.append(centre);
-        }
+        // Its reserved gutter lets the live grid match the poster at the same origin.
         frame.parentElement?.classList.add("on");
         const signal = new AbortController().signal;
         // A turn of the wheel the app has nothing left to scroll for goes on to the page:
@@ -641,11 +635,11 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
     color: var(--mist);
   }
 
-  /* Around the cells, the margin the runtime's page keeps around its terminal (web/index.html,
-     #luciole): the live frame covers it, the capture sits inside it. It is also what lets
-     the runtime fit the grid beside its scroll bar (14px) without fitting a larger one. */
+  /* Keep the runtime's 8px margin around the poster. The live iframe also reserves
+     FitAddon's 14px scroll gutter; clip that space before the glass's right margin. */
   .glass {
     --margin: 8px;
+    --fit-gutter: 14px;
     padding: var(--margin);
     border: 1px solid var(--rule-strong);
     border-radius: 4px;
@@ -719,8 +713,9 @@ const LOCAL = ["typing", "scrolling", "hovering", "selecting", "pasting", "resiz
   .frame :global(iframe) {
     position: absolute;
     inset: calc(-1 * var(--margin));
-    width: calc(100% + 2 * var(--margin));
+    width: calc(100% + 2 * var(--margin) + var(--fit-gutter));
     height: calc(100% + 2 * var(--margin));
+    clip-path: inset(0 calc(var(--fit-gutter) + var(--margin)) 0 0);
     border: 0;
     background: var(--screen);
     opacity: 0;
