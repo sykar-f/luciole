@@ -326,6 +326,8 @@ export class PixelController {
     const report = decode(sequence);
     if (report?.op !== "wheel" && report?.op !== "pointer") return;
     const frame = this.history.get(report.id, report.generation);
+    if (report.op === "pointer" && report.action === "down")
+      console.debug("[DEBUG-editor-press-receive]", JSON.stringify({ report, found: !!frame }));
     if (!frame) return;
     if (
       report.op === "pointer" &&
@@ -351,6 +353,15 @@ export class PixelController {
     if (!source.map) return;
     const id = source.map.hitTest(source.x, source.y);
     const target = Renderable.renderablesByNumber.get(id);
+    if (report.op === "pointer" && report.action === "down")
+      console.debug(
+        "[DEBUG-editor-press-hit]",
+        JSON.stringify({
+          id,
+          target: target?.id,
+          source: { x: source.x, y: source.y, map: !!source.map },
+        }),
+      );
     if (id && (!target || target.isDestroyed)) return;
     // Resolve the fractional presentation first, then enter OpenTUI's ordinary
     // cell-coordinate selection machine. Fractional bounds select an extra row.

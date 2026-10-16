@@ -261,6 +261,16 @@ export class PixelScrollAddon implements ITerminalAddon {
     const wasDragging = this.dragging;
     if (event.type === "mouseup" && !event.buttons) this.dragging = false;
     const point = this.point(event);
+    if (event.type === "mousedown")
+      console.debug(
+        "[DEBUG-editor-press-host]",
+        JSON.stringify({
+          point,
+          inputMode: this.session?.inputMode,
+          presented: this.session?.presented,
+          wasDragging,
+        }),
+      );
     if (!point || (!point.inside && !wasDragging)) return;
     // On a canonical grid, leave the terminal's native selection gesture intact.
     const native = shouldForceSelection(

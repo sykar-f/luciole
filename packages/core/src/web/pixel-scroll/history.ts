@@ -19,7 +19,19 @@ export class PixelHistory {
 
   get(id: number, generation: number) {
     const frame = this.frames.get(generation);
-    if (!frame || frame.id !== id || generation < this.presented) return;
+    if (!frame || frame.id !== id || generation < this.presented) {
+      console.debug(
+        "[DEBUG-editor-press-history]",
+        JSON.stringify({
+          id,
+          generation,
+          presented: this.presented,
+          retained: [...this.frames.keys()],
+          found: !!frame,
+        }),
+      );
+      return;
+    }
     this.presented = generation;
     // Ordered input proves older presentations can no longer produce new input.
     for (const old of this.frames.keys()) if (old < generation) this.frames.delete(old);
