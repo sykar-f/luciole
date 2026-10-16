@@ -143,7 +143,7 @@ try {
   );
   expect(await browser.evaluate("probe.state().selection.anchor")).toEqual({ block: 1, offset: 1 });
   expect(await browser.evaluate("probe.state().selection.head")).toEqual({ block: 3, offset: 7 });
-  await browser.evaluate("probe.terminal.input('\\x03')");
+  await browser.evaluate("probe.terminal.input('\\x1bc')");
   await wait("!!probe.state().copied", "copy while fractional");
   expect(await browser.evaluate("probe.state().copied")).toBe(
     "OW 001 selectable\n\nROW 002 selectable\n\nROW 003",
