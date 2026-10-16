@@ -25,3 +25,16 @@ test(
   },
   TIMEOUT_MS + CLEANUP_MS,
 );
+
+test(
+  "pixel editor accepts the next press after a captured paint",
+  async () => {
+    await pixelJourney(
+      import.meta.dir + "/pixel-markdown-press.ts",
+      ["1", "capture"],
+      TIMEOUT_MS,
+      1,
+    );
+  },
+  TIMEOUT_MS + CLEANUP_MS,
+);
