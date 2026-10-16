@@ -100,6 +100,10 @@ const editor = new MarkdownEditorRenderable(r, {
   },
 });
 r.root.add(editor);
+const events: { type: string; y: number; position: number }[] = [];
+editor.onMouse = (event) => {
+  events.push({ type: event.type, y: event.y, position: editor.scrollableViewport.position });
+};
 let presented: Presentation | undefined;
 webgl.pixels.onPresent((p) => {
   presented = p;
@@ -153,6 +157,7 @@ Object.assign(window, {
     terminal,
     r,
     editor,
+    events,
     frames,
     capture,
     state: () => ({

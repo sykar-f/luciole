@@ -64,7 +64,19 @@ try {
     permissions: ["clipboardReadWrite", "clipboardSanitizedWrite"],
   });
   await browser.open(server.url.href);
-  const wait = (expression: string, label: string) => browser.waitFor(expression, label);
+  const wait = async (expression: string, label: string) => {
+    try {
+      return await browser.waitFor(expression, label);
+    } catch (error) {
+      console.error(
+        label,
+        await browser.evaluate(
+          "({state:probe.state(),events:probe.events.slice(-15),before:window.before,timer:!!probe.editor.edgeTimer,dragging:probe.editor.dragging})",
+        ),
+      );
+      throw error;
+    }
+  };
   await wait("!!window.probe?.state().presented", "the other viewport presentation");
   expect(await browser.evaluate("devicePixelRatio")).toBe(Number(process.argv[2] ?? 1));
   expect(await browser.evaluate("probe.state().presented.rect.x")).toBeLessThan(20);
