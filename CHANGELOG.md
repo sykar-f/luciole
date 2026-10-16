@@ -32,6 +32,8 @@ and marked **Breaking**.
   `run` or `runInPage` to keep row scroll. Reduced motion, screen reader mode
   and a host without pixel scroll support also keep row scroll. Native terminals
   keep their current behavior. The `typed` event keeps its ordinary SGR format.
+  Negotiated pixel-scroll v2 acknowledges actual presentations and bounds pending
+  frames without evicting the displayed hit map; mixed peers retain v1 behavior.
   The first precise wheel event over any view applies its pixel delta, without
   a prior pointer move. Only one view can hold a fraction at a time. In a view at a fraction, a Shift
   or Alt mouse down ends the fraction and does not reach the app. See

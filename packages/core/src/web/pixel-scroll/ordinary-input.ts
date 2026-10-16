@@ -23,6 +23,7 @@ export class OrdinaryPixelInput {
 
   convert(data: string): string {
     const report = decode(data);
+    if (report?.op === "presented") return "";
     if (report?.op !== "wheel" && report?.op !== "pointer") return data;
     const modifiers =
       (report.modifiers & SHIFT ? SGR_SHIFT : 0) |

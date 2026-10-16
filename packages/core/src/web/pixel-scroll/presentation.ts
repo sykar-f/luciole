@@ -19,5 +19,7 @@ export interface PixelRenderer {
   abort(): void;
   invalidate(): void;
   onInvalidate(listener: () => void): { dispose(): void };
-  onPresent(listener: (presentation: Presentation | undefined) => void): { dispose(): void };
+  onPresent(listener: (presentation: Presentation | undefined, released?: Presentation) => void): {
+    dispose(): void;
+  };
 }

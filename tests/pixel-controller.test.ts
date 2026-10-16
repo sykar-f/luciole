@@ -41,6 +41,11 @@ const messages = (bytes: Uint8Array | undefined) =>
     .filter(Boolean)
     .map((s) => decode(s + "\x1b\\"));
 
+function discoveryQuery(wire: string) {
+  const sequence = wire.slice("\x1b[?2026h".length, -"\x1b[?2026l".length);
+  return messages(new TextEncoder().encode(sequence))[0];
+}
+
 test("frame commands capture the integer origin before projecting and commit once", () => {
   const frame = fixture();
   const plan = planPixelFrame(frame);
@@ -76,8 +81,8 @@ test("hit routing uses the reported phase and the entering edge's projection map
 
 test("discovery never blocks and accepts only the current supported nonce", () => {
   const discovery = new PixelDiscovery();
-  const old = decode(discovery.query());
-  const current = decode(discovery.query());
+  const old = messages(new TextEncoder().encode(discovery.query()))[0];
+  const current = messages(new TextEncoder().encode(discovery.query()))[0];
   if (old?.op !== "query" || current?.op !== "query") throw new Error("Missing query");
   const capability = (nonce: string, reason: "ready" | "invalidated" = "ready") =>
     encode({
@@ -227,7 +232,7 @@ test("ordinary SGR input after disposal never accesses the renderer", () => {
   if (!controller) throw new Error("Missing controller");
   const discovery = writes[0];
   if (!discovery) throw new Error("Missing discovery output");
-  const query = decode(discovery.slice("\x1b[?2026h".length, -"\x1b[?2026l".length));
+  const query = discoveryQuery(discovery);
   if (query?.op !== "query") throw new Error("Missing discovery query");
   osc.emit(
     "sequence",
@@ -292,7 +297,7 @@ test("viewport key ownership is optional and keeps modified Page routing", () =>
       },
     });
     const controller = PixelController.attach(renderer as unknown as CliRenderer, (wire) => {
-      if (!query) query = decode(wire.slice("\x1b[?2026h".length, -"\x1b[?2026l".length));
+      if (!query) query = discoveryQuery(wire);
     });
     if (query?.op !== "query" || !controller) throw new Error("Missing controller query");
     osc.emit(
@@ -414,7 +419,7 @@ test("owner pointer dispatch scopes the named origin without changing event coor
     try {
       const wire = writes[0];
       if (!controller || !wire) throw new Error("Missing controller query");
-      const query = decode(wire.slice("\x1b[?2026h".length, -"\x1b[?2026l".length));
+      const query = discoveryQuery(wire);
       if (query?.op !== "query") throw new Error("Missing query");
       osc.emit(
         "sequence",
@@ -528,4 +533,322 @@ test("painter snapshots retain captured owner hits and pass-local geometry", () 
   expect(ancestorClipped.hitTest(6, 6)).toBe(0);
   const plain = fixture().viewport;
   expect(painterHitMap(plain, map, frame.rect)).toBe(map);
+});
+
+test("v2 history keeps the presented map and all in-flight generations until acknowledgement", () => {
+  const history = new PixelHistory();
+  history.presentations = true;
+  const frames = Array.from({ length: RETAINED_GENERATIONS }, (_, i) => ({
+    ...fixture(),
+    generation: i + 1,
+  }));
+  for (const frame of frames) history.add(frame);
+  expect(history.canPublish()).toBe(false);
+  expect(history.get(1, 1)).toBe(frames[0]);
+  // Input does not retire v2 maps; only the ordered presentation report does.
+  expect(history.get(1, 8)).toBe(frames[7]);
+  expect(history.get(1, 1)).toBe(frames[0]);
+  expect(history.acknowledge(2, 8)).toBe(false);
+  expect(history.acknowledge(1, 9)).toBe(false);
+  expect(history.canPublish()).toBe(false);
+  expect(() => history.add({ ...fixture(), generation: 9 })).toThrow("window is full");
+  expect(history.acknowledge(1, 6)).toBe(true);
+  expect(history.get(1, 1)).toBeUndefined();
+  expect(history.get(1, 6)).toBe(frames[5]);
+  expect(history.get(1, 8)).toBe(frames[7]);
+  expect(history.acknowledge(1, 6)).toBe(false);
+  expect(history.acknowledge(1, 5)).toBe(false);
+  expect(history.canPublish(5)).toBe(true);
+  expect(history.canPublish(6)).toBe(false);
+  history.clear();
+  expect(history.canPublish(8)).toBe(true);
+  expect(history.acknowledge(1, 8)).toBe(false);
+});
+
+test("v2 discovery preserves the negotiated version and revokes both versions by nonce", () => {
+  const discovery = new PixelDiscovery();
+  const queries = messages(new TextEncoder().encode(discovery.query()));
+  const first = queries[0];
+  if (first?.op !== "query") throw new Error("Missing query");
+  expect(queries).toEqual([first, { ...first, version: 2 }]);
+  const capability = (version: 1 | 2, reason: "ready" | "invalidated" = "ready") =>
+    encode({
+      op: "capability",
+      version,
+      nonce: first.nonce,
+      reason,
+      snapshot: reason === "ready",
+      precise: reason === "ready",
+    });
+  discovery.receive(capability(1));
+  expect(discovery.ready).toBe(true);
+  expect(discovery.presentations).toBe(false);
+  discovery.receive(capability(2));
+  expect(discovery.presentations).toBe(true);
+  discovery.receive(capability(1));
+  expect(discovery.presentations).toBe(true);
+  discovery.receive(capability(1, "invalidated"));
+  expect(discovery.ready).toBe(false);
+  expect(discovery.presentations).toBe(false);
+  expect(discovery.receive(capability(2))).toBeUndefined();
+  discovery.query();
+  expect(discovery.presentations).toBe(false);
+  expect(discovery.receive(capability(2))).toBeUndefined();
+});
+
+// Exercise publication through the renderer seams, without reaching into controller state.
+function windowController(version: 1 | 2 = 2) {
+  const osc = new EventEmitter();
+  let factory: (() => RenderFramePlan | null) | null = null;
+  let requests = 0;
+  const cells = new Uint32Array([1]);
+  const owners = [30_000, 30_001].map(
+    (num) =>
+      ({
+        num,
+        visible: true,
+        isDestroyed: false,
+        parent: null,
+        getChildren: () => [],
+      }) as unknown as Renderable,
+  );
+  const positions = [0.75, 0];
+  const views = owners.map((owner, i): ScrollableViewport => ({
+    owner,
+    get position() {
+      return positions[i] ?? 0;
+    },
+    get origin() {
+      return Math.floor(positions[i] ?? 0);
+    },
+    max: 100,
+    rect: { x: i * 10, y: 0, width: 10, height: 10 },
+    set: (value) => {
+      positions[i] = value;
+    },
+    scroll: (delta) => {
+      positions[i] = (positions[i] ?? 0) + delta;
+      return 0;
+    },
+    project: (origin) => ({ renderable: owner, translateX: 0, translateY: -origin }),
+  }));
+  for (const [i, owner] of owners.entries()) {
+    Object.assign(owner, { scrollableViewport: views[i] });
+    Renderable.renderablesByNumber.set(owner.num, owner);
+  }
+  const map: RenderHitMap = {
+    width: 20,
+    height: 10,
+    frameId: 1,
+    passId: 1,
+    hitTest: (x) => owners[x < 10 ? 0 : 1]?.num ?? 0,
+    origin: () => ({ x: 0, y: 0 }),
+  };
+  const observed: unknown[] = [];
+  const renderer = Object.assign(new EventEmitter(), {
+    root: { visible: true, getChildren: () => owners },
+    width: 20,
+    height: 10,
+    currentFocusedRenderable: owners[0],
+    keyInput: new EventEmitter(),
+    nextRenderBuffer: { buffers: { cells } },
+    requestRender: () => {
+      requests++;
+    },
+    captureHitMap: () => map,
+    setFramePlan: (value: typeof factory) => {
+      factory = value;
+    },
+    dispatchMouseEventFromHitMap: (event: {
+      type: string;
+      x: number;
+      scroll?: { delta: number };
+    }) => {
+      observed.push(event);
+      if (event.type === "scroll") views[event.x < 10 ? 0 : 1]?.scroll(event.scroll?.delta ?? 0);
+      return true;
+    },
+    subscribeOsc: (receive: (sequence: string) => void) => {
+      osc.on("sequence", receive);
+      return () => {
+        osc.off("sequence", receive);
+      };
+    },
+  });
+  const writes: string[] = [];
+  const controller = PixelController.attach(renderer as unknown as CliRenderer, (wire) =>
+    writes.push(wire),
+  );
+  const query = discoveryQuery(writes[0] ?? "");
+  if (!controller || query?.op !== "query") throw new Error("Missing controller query");
+  const send = (message: Parameters<typeof encode>[0]) => osc.emit("sequence", encode(message));
+  send({
+    op: "capability",
+    version,
+    nonce: query.nonce,
+    reason: "ready",
+    snapshot: true,
+    precise: true,
+  });
+  const plan = () => {
+    const result = factory?.();
+    result?.onHitMap?.(map);
+    result?.projection?.onHitMap?.(map);
+    return result;
+  };
+  return {
+    plan,
+    send,
+    observed,
+    positions,
+    cells,
+    requests: () => requests,
+    close: () => {
+      controller.dispose();
+      for (const owner of owners) Renderable.renderablesByNumber.delete(owner.num);
+    },
+  };
+}
+
+test("full v2 publication window coalesces current state and never blocks input", () => {
+  const f = windowController();
+  try {
+    for (let i = 0; i < RETAINED_GENERATIONS; i++) {
+      f.cells[0] = i + 1;
+      expect(messages(f.plan()?.before)[0]).toMatchObject({ op: "begin", generation: i + 1 });
+    }
+    f.positions[0] = 5.25;
+    f.cells[0] = 99;
+    expect(f.plan()).toEqual({ deferHover: true });
+    f.send({
+      op: "pointer",
+      version: 1,
+      id: 1,
+      generation: 1,
+      phase: 0.75,
+      x: 4,
+      y: 3,
+      modifiers: 0,
+      action: "down",
+      button: 0,
+      buttons: 1,
+    });
+    expect(f.observed).toHaveLength(1);
+    const requests = f.requests();
+    f.send({ op: "presented", version: 2, id: 2, generation: 8 });
+    f.send({ op: "presented", version: 2, id: 1, generation: 9 });
+    expect(f.requests()).toBe(requests);
+    expect(f.plan()).toEqual({ deferHover: true });
+    f.send({ op: "presented", version: 2, id: 1, generation: 8 });
+    expect(f.requests()).toBe(requests + 1);
+    const latest = f.plan();
+    expect(messages(latest?.before)[0]).toMatchObject({ generation: 9 });
+    expect(messages(latest?.after)[0]).toMatchObject({ origin: 5 });
+    expect(messages(latest?.projection?.after)[0]).toMatchObject({ fraction: 0.25 });
+    expect(f.plan()).toEqual({ deferHover: true });
+    f.send({ op: "presented", version: 2, id: 1, generation: 8 });
+    expect(f.requests()).toBe(requests + 1);
+  } finally {
+    f.close();
+  }
+});
+
+test("a v2 handover reserves both generations and retains its intermediate release", () => {
+  const f = windowController();
+  try {
+    for (let i = 0; i < RETAINED_GENERATIONS - 1; i++) {
+      f.cells[0] = i + 1;
+      f.plan();
+    }
+    f.send({
+      op: "wheel",
+      version: 1,
+      id: 1,
+      generation: 1,
+      phase: 0.75,
+      x: 12,
+      y: 3,
+      modifiers: 0,
+      dx: 0,
+      dy: 0.25,
+      source: "precise",
+    });
+    expect(f.plan()).toEqual({ deferHover: true });
+    f.send({ op: "presented", version: 2, id: 1, generation: 7 });
+    const handover = f.plan();
+    const all = [
+      ...messages(handover?.before),
+      ...messages(handover?.after),
+      ...messages(handover?.projection?.after),
+    ];
+    expect(all.filter((message) => message?.op === "begin")).toMatchObject([
+      { generation: 8 },
+      { generation: 9 },
+    ]);
+    expect(all.filter((message) => message?.op === "release")).toMatchObject([{ generation: 8 }]);
+    f.send({ op: "presented", version: 2, id: 1, generation: 8 });
+    const count = f.observed.length;
+    f.send({
+      op: "pointer",
+      version: 1,
+      id: 1,
+      generation: 8,
+      phase: 0,
+      x: 4,
+      y: 3,
+      modifiers: 0,
+      action: "down",
+      button: 0,
+      buttons: 1,
+    });
+    expect(f.observed).toHaveLength(count + 1);
+  } finally {
+    f.close();
+  }
+});
+
+test("a v2 app with a v1 host keeps the original eviction behavior", () => {
+  const f = windowController(1);
+  try {
+    for (let i = 0; i <= RETAINED_GENERATIONS; i++) {
+      f.cells[0] = i + 1;
+      expect(messages(f.plan()?.before)[0]).toMatchObject({ generation: i + 1 });
+    }
+    f.send({
+      op: "pointer",
+      version: 1,
+      id: 1,
+      generation: 1,
+      phase: 0.75,
+      x: 4,
+      y: 3,
+      modifiers: 0,
+      action: "down",
+      button: 0,
+      buttons: 1,
+    });
+    expect(f.observed).toHaveLength(0);
+    f.send({
+      op: "pointer",
+      version: 1,
+      id: 1,
+      generation: 9,
+      phase: 0.75,
+      x: 4,
+      y: 3,
+      modifiers: 0,
+      action: "down",
+      button: 0,
+      buttons: 1,
+    });
+    expect(f.observed).toHaveLength(1);
+  } finally {
+    f.close();
+  }
+});
+
+test("presentation acknowledgements stay out of generation-free input replay", () => {
+  expect(
+    new OrdinaryPixelInput().convert(encode({ op: "presented", version: 2, id: 1, generation: 8 })),
+  ).toBe("");
 });

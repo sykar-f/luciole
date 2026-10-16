@@ -6,6 +6,7 @@ export const OSC = 19462;
 export const MODE = 19463;
 export const NS = "luciole-pixel";
 export const VERSION = 1;
+export const PRESENTATION_VERSION = 2;
 export const MAX_MESSAGE_LENGTH = 4096;
 export const MAX_GRID = 65535;
 export const MAX_DELTA = 65535;
@@ -30,6 +31,7 @@ const INTRODUCER = `\x1b]${OSC};`;
 const TERMINATOR = "\x1b\\";
 
 const Version = z.literal(VERSION);
+const NegotiatedVersion = z.union([Version, z.literal(PRESENTATION_VERSION)]);
 const Generation = z.number().check(z.int(), z.gte(1));
 const Id = z.number().check(z.int(), z.gte(1), z.lte(MAX_GRID));
 const Origin = z.number().check(z.int(), z.gte(0));
@@ -52,7 +54,7 @@ const RectSchema = z
 export type Rect = z.infer<typeof RectSchema>;
 
 const OperationSchema = z.discriminatedUnion("op", [
-  z.strictObject({ op: z.literal("query"), version: Version, nonce: Nonce }),
+  z.strictObject({ op: z.literal("query"), version: NegotiatedVersion, nonce: Nonce }),
   z.strictObject({ op: z.literal("begin"), version: Version, generation: Generation }),
   z.strictObject({
     op: z.literal("register"),
@@ -84,10 +86,16 @@ const Presented = {
   modifiers: Modifiers,
 };
 const ReportSchema = z.discriminatedUnion("op", [
+  z.strictObject({
+    op: z.literal("presented"),
+    version: z.literal(PRESENTATION_VERSION),
+    id: Id,
+    generation: Generation,
+  }),
   z
     .strictObject({
       op: z.literal("capability"),
-      version: Version,
+      version: NegotiatedVersion,
       nonce: Nonce,
       snapshot: z.boolean(),
       precise: z.boolean(),

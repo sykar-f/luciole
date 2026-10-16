@@ -404,7 +404,7 @@ molette après accumulation des fractions, reste gardé pour le tour suivant. La
 page peut toujours le rejouer avec `input` dans une autre grille. Les rapports
 privés restent dans l'app source ; leurs générations ne traversent pas l'iframe.
 
-Le contrat v1 compose une seule surface. La molette précise vise le contenu
+Le contrat compose une seule surface. En v2 négociée, les acquittements de présentation conservent les hit maps en vol dans une fenêtre bornée ; le repli v1 reste compatible. La molette précise vise le contenu
 sous le pointeur, y compris une vue imbriquée ; les touches de défilement visent
 la vue focalisée. Passer à une autre vue arrondit la précédente. Hors du rectangle
 actif, le premier événement de molette précise choisit la vue dans la hit map de
