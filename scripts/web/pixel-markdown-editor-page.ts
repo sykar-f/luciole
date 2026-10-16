@@ -58,10 +58,12 @@ terminal.onData((data) => {
   controller?.ordinary(data);
   stdin.write(data);
 });
+let wire = "";
 const { requestAnimationFrame, cancelAnimationFrame } = globalThis;
 const r = await createCliRenderer({
   stdin,
   stdout: terminalOutput({ columns: 50, rows: 16 }, (bytes, done) => {
+    if (parameters.has("burst")) wire += new TextDecoder().decode(bytes);
     terminal.write(bytes, done);
   }),
   width: 50,
@@ -96,6 +98,17 @@ const editor = new MarkdownEditorRenderable(r, {
   },
 });
 r.root.add(editor);
+const marker = parameters.has("burst")
+  ? new TextRenderable(r, {
+      position: "absolute",
+      top: 15,
+      left: 0,
+      width: 10,
+      height: 1,
+      content: "initial",
+    })
+  : undefined;
+if (marker) r.root.add(marker);
 const events: { type: string; y: number; position: number }[] = [];
 editor.onMouse = (event) => {
   events.push({ type: event.type, y: event.y, position: editor.scrollableViewport.position });
@@ -151,6 +164,37 @@ const point = (x: number, y: number) => {
 Object.assign(window, {
   probe: {
     terminal,
+    ...(marker
+      ? {
+          burst: async () => {
+            // Hold actual presentation while allowing output/parser tasks to drain.
+            const deferred = new Map<number, FrameRequestCallback>();
+            let handle = 1_000_000_000;
+            globalThis.requestAnimationFrame = (callback) => {
+              deferred.set(++handle, callback);
+              return handle;
+            };
+            globalThis.cancelAnimationFrame = (id) => {
+              if (!deferred.delete(id)) cancelAnimationFrame(id);
+            };
+            const loop: unknown = Reflect.get(r, "loop");
+            if (typeof loop !== "function") throw new Error("Missing diagnostic frame loop");
+            for (let i = 0; i < 9; i++) {
+              marker.content = `frame ${i}`;
+              await Reflect.apply(loop, r, []);
+              await new Promise<void>((resolve) => setTimeout(resolve, 0));
+            }
+          },
+          resume: () => {
+            Object.assign(globalThis, { requestAnimationFrame, cancelAnimationFrame });
+            terminal.refresh(0, terminal.rows - 1);
+          },
+          publication: () =>
+            [...wire.matchAll(/\x1b\]19462;([^\x1b]*)\x1b\\/g)]
+              .map((match) => decode(`\x1b]19462;${match[1]}\x1b\\`))
+              .filter((message) => message?.op === "begin"),
+        }
+      : {}),
     r,
     editor,
     events,

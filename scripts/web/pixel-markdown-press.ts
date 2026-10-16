@@ -61,7 +61,7 @@ try {
     origin: server.url.origin,
     permissions: ["clipboardReadWrite", "clipboardSanitizedWrite"],
   });
-  await browser.open(server.url.href);
+  await browser.open(server.url.href + (process.argv[3] === "burst" ? "?burst" : ""));
   const wait = async (expression: string, label: string) => {
     try {
       return await browser.waitFor(expression, label);
@@ -69,7 +69,7 @@ try {
       console.error(
         label,
         await browser.evaluate(
-          "JSON.stringify({state:probe.state(),events:probe.events.slice(-15),reports:probe.reports.slice(-8),before:window.before})",
+          "JSON.stringify({state:probe.state(),events:probe.events.slice(-15),reports:probe.reports.slice(-8),published:probe.publication?.(),before:window.before})",
         ),
       );
       throw error;
@@ -81,7 +81,18 @@ try {
     "probe.state().presented?.rect.x===probe.state().rect.x && probe.state().presented?.fraction===.75",
     "editor presentation",
   );
-  if (process.argv[3] === "capture") {
+  if (process.argv[3] === "burst") {
+    await browser.evaluate("probe.burst()");
+    console.log(
+      "held presentation",
+      await browser.evaluate(
+        "JSON.stringify({dpr:devicePixelRatio,displayed:probe.state().presented,published:probe.publication()})",
+      ),
+    );
+    await browser.evaluate(
+      "{const r=probe.state().rect;window.before=probe.state().position;probe.pointer('mousedown',r.x+2.5,r.y+2.1,1);probe.pointer('mousemove',r.x+7.5,r.y+r.height-.2,1)}",
+    );
+  } else if (process.argv[3] === "capture") {
     await browser.evaluate(
       "{const r=probe.state().rect;window.beforePaint=probe.state().presented.generation;probe.pointer('mousedown',r.x+1.5,r.y+2.1,1);probe.pointer('mousemove',r.x+7.5,r.y+4.1,1)}",
     );
@@ -107,6 +118,16 @@ try {
     );
   }
   await wait("probe.state().position>window.before+1", "new selection edge scroll after copy");
+  if (process.argv[3] === "burst") {
+    console.log(
+      "accepted held-generation input",
+      await browser.evaluate(
+        "JSON.stringify({events:probe.events.slice(-4),reports:probe.reports.slice(-4)})",
+      ),
+    );
+    await browser.evaluate("probe.resume()");
+    await wait("probe.state().presented.origin>0", "coalesced current state is presented");
+  }
   console.log("editor press proof passed");
 } finally {
   await server.stop(true);
