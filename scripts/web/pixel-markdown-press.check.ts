@@ -17,3 +17,11 @@ for (const dpr of [1, 2]) {
     TIMEOUT_MS + CLEANUP_MS,
   );
 }
+
+test(
+  "pixel editor press names a displayed generation during preparation",
+  async () => {
+    await pixelJourney(import.meta.dir + "/pixel-markdown-press.ts", ["1", "burst"], TIMEOUT_MS, 1);
+  },
+  TIMEOUT_MS + CLEANUP_MS,
+);

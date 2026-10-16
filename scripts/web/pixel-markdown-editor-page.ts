@@ -107,6 +107,15 @@ const editor = new MarkdownEditorRenderable(r, {
   },
 });
 r.root.add(editor);
+const marker = new TextRenderable(r, {
+  position: "absolute",
+  top: 15,
+  left: 0,
+  width: 10,
+  height: 1,
+  content: "initial",
+});
+r.root.add(marker);
 const events: { type: string; y: number; position: number }[] = [];
 editor.onMouse = (event) => {
   events.push({ type: event.type, y: event.y, position: editor.scrollableViewport.position });
@@ -162,6 +171,14 @@ const point = (x: number, y: number) => {
 Object.assign(window, {
   probe: {
     terminal,
+    burst: async () => {
+      const loop: unknown = Reflect.get(r, "loop");
+      if (typeof loop !== "function") throw new Error("Missing diagnostic frame loop");
+      for (let i = 0; i < 9; i++) {
+        marker.content = `frame ${i}`;
+        await Reflect.apply(loop, r, []);
+      }
+    },
     r,
     editor,
     events,

@@ -88,7 +88,7 @@ try {
   await wait("!!probe.state().copied", "fractional copy");
   await wait("navigator.clipboard.readText().then(t=>t===probe.state().copied)", "clipboard copy");
   await browser.evaluate(
-    "{const r=probe.state().rect;window.before=probe.state().position;probe.pointer('mousedown',r.x+2.5,r.y+2.1,1);probe.pointer('mousemove',r.x+7.5,r.y+r.height-.2,1)}",
+    `${process.argv[3] === "burst" ? "(async()=>{await probe.burst();" : "(()=>{"}const r=probe.state().rect;window.before=probe.state().position;probe.pointer('mousedown',r.x+2.5,r.y+2.1,1);probe.pointer('mousemove',r.x+7.5,r.y+r.height-.2,1)})()`,
   );
   await wait("probe.state().position>window.before+1", "new selection edge scroll after copy");
   console.log(
