@@ -30,7 +30,7 @@ With luciole installed:
 bunx luciole.sh example agent
 ```
 
-From a clone of the repository, with Bun 1.4.2, run it from the root:
+From a clone of the repository, with Bun 1.4.3, run it from the root:
 
 ```sh
 git clone https://github.com/sykar-f/luciole && cd luciole

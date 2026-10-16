@@ -18,7 +18,7 @@ FLOW_RUN_SCALE=0.3 bunx luciole.sh example flow   # runs three times shorter
 ```
 
 Or from a clone of the repository, at its root. The example depends on workspace packages, so
-it does not start from its own folder. You need Bun 1.4.2, and `bun install --frozen-lockfile`
+it does not start from its own folder. You need Bun 1.4.3, and `bun install --frozen-lockfile`
 once. It needs no API key and no network.
 
 ```sh

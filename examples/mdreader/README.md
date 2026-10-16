@@ -19,7 +19,7 @@ MD_PATH=README.md bunx luciole.sh example mdreader  # one file
 ```
 
 Or from a clone of the repository, at its root. The example depends on workspace packages, so
-it does not start from its own folder. You need Bun 1.4.2, and `bun install --frozen-lockfile`
+it does not start from its own folder. You need Bun 1.4.3, and `bun install --frozen-lockfile`
 once. It needs no API key and no network.
 
 ```sh

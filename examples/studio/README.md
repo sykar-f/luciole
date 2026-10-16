@@ -72,7 +72,7 @@ hosted studio. Both are in French.
 
 You need:
 
-- Bun 1.4.2 or newer, and `git`
+- Bun 1.4.1 or newer, and `git`
 - macOS, for the sandboxed preview (see [Limits](#limits))
 - for `-H claude` only, the `claude` binary in your `PATH`, signed in with `claude auth login`
 

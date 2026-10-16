@@ -50,7 +50,7 @@ It exercises these luciole features:
 
 ## Run it
 
-With Bun 1.4.2 or newer, run it from the release:
+With Bun 1.4.1 or newer, run it from the release:
 
 ```sh
 bunx luciole.sh example files
