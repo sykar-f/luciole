@@ -27,10 +27,10 @@ function inspectGroup(pid: number): string | undefined {
   const deadline = performance.now() + exitSettlementMs;
   let inspection = readGroup(pid, exitSettlementMs);
   while (inspection?.exiting) {
-    let remaining = deadline - performance.now();
+    let remaining = Math.floor(deadline - performance.now());
     if (remaining <= 0) break;
     Bun.sleepSync(Math.min(10, remaining));
-    remaining = deadline - performance.now();
+    remaining = Math.floor(deadline - performance.now());
     if (remaining <= 0) break;
     inspection = readGroup(pid, remaining);
   }
