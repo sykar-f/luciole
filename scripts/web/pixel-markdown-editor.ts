@@ -154,6 +154,22 @@ try {
   expect(await browser.evaluate("probe.state().position")).toBe(0.75);
   await browser.evaluate("probe.terminal.input('\\x1b[A')");
   await wait("probe.state().selection.head.block===0", "editor Up moves the cursor");
+  // Keep one browser task: the wheel changes logical state before a new frame
+  // can be presented. The following drag must still name the old document row.
+  expect(
+    await browser.evaluate(`(()=>{
+    const r=probe.state().rect;
+    probe.pointer('mousedown',r.x+2.5,r.y+2.1,1);
+    probe.wheel(r.x+2,r.y+2,2);
+    probe.pointer('mousemove',r.x+7.5,r.y+4.1,1);
+    const result={head:probe.state().selection.head, origin:probe.state().presented.origin};
+    probe.pointer('mouseup',r.x+7.5,r.y+4.1);
+    return result;
+  })()`),
+  ).toEqual({ head: { block: 2, offset: 7 }, origin: 0 });
+  await browser.evaluate(
+    "probe.editor.controller.moveTo({block:0,offset:4});probe.editor.scrollableViewport.set(.75)",
+  );
   // A distinct cell avoids the editor's multi-click selection gestures.
   await browser.evaluate(
     "{const r=probe.state().rect;probe.pointer('mousedown',r.x+1.5,r.y+2.1,1);probe.pointer('mousemove',r.x+7.5,r.y+4.1,1)}",
