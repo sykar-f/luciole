@@ -460,7 +460,16 @@ test("owner pointer dispatch scopes the named origin without changing event coor
 
 test("painter snapshots retain captured owner hits and pass-local geometry", () => {
   const frame = fixture();
-  const owner = { num: 42, x: 2, y: 3, parent: { num: 9, parent: null } } as unknown as Renderable;
+  const owner = {
+    num: 42,
+    x: 2,
+    y: 3,
+    screenX: 2,
+    screenY: 3,
+    width: 9,
+    height: 4,
+    parent: { num: 9, parent: null },
+  } as unknown as Renderable;
   Object.assign(frame.viewport, {
     owner,
     input: (_origin: number, dispatch: () => boolean) => dispatch(),
@@ -478,7 +487,9 @@ test("painter snapshots retain captured owner hits and pass-local geometry", () 
   expect(snapshot.hitTest(3, 4)).toBe(42);
   expect(snapshot.hitTest(4, 4)).toBe(77);
   expect(snapshot.hitTest(5, 4)).toBe(43);
-  expect(snapshot.hitTest(10, 4)).toBe(0);
+  // The last painted column is fixed chrome, outside the translated content rect.
+  expect(snapshot.hitTest(10, 4)).toBe(42);
+  expect(snapshot.hitTest(11, 4)).toBe(0);
   expect(snapshot.hitTest(6, 7)).toBe(0);
   expect(snapshot.hitTest(NaN, 4)).toBe(0);
   expect(snapshot.origin(42)).toEqual({ x: 2, y: 3 });
@@ -490,6 +501,8 @@ test("painter snapshots retain captured owner hits and pass-local geometry", () 
   expect(frame.snapshot?.origin(42)).toEqual({ x: 2, y: 3 });
   expect(frame.projection?.origin(42)).toEqual({ x: 2, y: 2 });
   expect(frame.snapshot?.hitTest(6, 4)).toBe(42);
+  expect(frame.snapshot?.hitTest(10, 4)).toBe(42);
+  expect(frame.projection?.hitTest(10, 4)).toBe(42);
   expect(map.hitTest(6, 4)).toBe(0);
   const plain = fixture().viewport;
   expect(painterHitMap(plain, map, frame.rect)).toBe(map);
