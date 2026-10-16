@@ -117,7 +117,7 @@ try {
   await browser.evaluate("{const r=probe.state().rect;probe.wheel(r.x+2,r.y+2,.75)}");
   await wait("probe.state().presented?.fraction===.75", "fraction before click");
   await browser.evaluate(
-    "{const r=probe.state().rect;probe.pointer('mousedown',r.x+4.5,r.y+.5,1);probe.pointer('mouseup',r.x+4.5,r.y+.5)}",
+    "{const r=probe.state().rect;probe.pointer('mousedown',r.x+4.5,r.y+.1,1);probe.pointer('mouseup',r.x+4.5,r.y+.1)}",
   );
   await wait("probe.editor.focused", "editor focus by click");
   expect(await browser.evaluate("probe.state().selection.head")).toEqual({ block: 0, offset: 4 });

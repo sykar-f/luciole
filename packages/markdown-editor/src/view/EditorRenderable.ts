@@ -498,6 +498,7 @@ export class MarkdownEditorRenderable extends Renderable {
     const max = this.extent(layout).max;
     this.scroll = Math.max(0, Math.min(max, this.scroll));
     if (this.pixelPosition > max) this.pixelPosition = max;
+    if (layout.lines.some((line) => line.image)) this.pixelPosition = this.scroll;
   }
   private keepCursorInView() {
     const layout = this.layout();
