@@ -61,7 +61,8 @@ try {
     origin: server.url.origin,
     permissions: ["clipboardReadWrite", "clipboardSanitizedWrite"],
   });
-  await browser.open(server.url.href);
+  const pixelOff = process.argv[4] === "optOut";
+  await browser.open(server.url.href + (pixelOff ? "?optOut" : ""));
   const wait = async (expression: string, label: string) => {
     try {
       return await browser.waitFor(expression, label);
@@ -75,18 +76,24 @@ try {
       throw error;
     }
   };
-  await wait("!!window.probe?.state().presented", "initial presentation");
-  await browser.evaluate("{const r=probe.state().rect;probe.wheel(r.x+2,r.y+2,.75)}");
   await wait(
-    "probe.state().presented?.rect.x===probe.state().rect.x && probe.state().presented?.fraction===.75",
+    pixelOff ? "!!window.probe" : "!!window.probe?.state().presented",
+    "initial presentation",
+  );
+  if (!pixelOff)
+    await browser.evaluate("{const r=probe.state().rect;probe.wheel(r.x+2,r.y+2,.75)}");
+  await wait(
+    pixelOff
+      ? "true"
+      : "probe.state().presented?.rect.x===probe.state().rect.x && probe.state().presented?.fraction===.75",
     "editor presentation",
   );
   if (process.argv[3]?.startsWith("capture")) {
     await browser.evaluate(
-      "{const r=probe.state().rect;window.beforePaint=probe.state().presented.generation;probe.pointer('mousedown',r.x+1.5,r.y+2.1,1);probe.pointer('mousemove',r.x+7.5,r.y+4.1,1)}",
+      "{const r=probe.state().rect;window.beforePaint=probe.r.captureHitMap().frameId;probe.pointer('mousedown',r.x+1.5,r.y+2.1,1);probe.pointer('mousemove',r.x+7.5,r.y+4.1,1)}",
     );
     await wait(
-      "probe.state().presented?.generation>window.beforePaint",
+      "probe.r.captureHitMap().frameId>window.beforePaint",
       "a paint during pointer capture",
     );
     await browser.evaluate(

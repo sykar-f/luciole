@@ -47,3 +47,16 @@ for (const dpr of [1, 2]) {
     TIMEOUT_MS + CLEANUP_MS,
   );
 }
+
+test(
+  "pixel editor scrollbar press with pixel scroll off",
+  async () => {
+    await pixelJourney(
+      import.meta.dir + "/pixel-markdown-press.ts",
+      ["1", "capture-bar", "optOut"],
+      TIMEOUT_MS,
+      1,
+    );
+  },
+  TIMEOUT_MS + CLEANUP_MS,
+);
