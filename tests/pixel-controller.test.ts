@@ -10,6 +10,7 @@ import { decode, encode } from "../packages/core/src/pixel-scroll/protocol";
 import {
   clipPixelRect,
   pixelHitSource,
+  pixelPointerMap,
   planPixelFrame,
   type PixelFrame,
 } from "../packages/core/src/web/pixel-scroll/frame";
@@ -324,4 +325,27 @@ test("viewport key ownership is optional and keeps modified Page routing", () =>
     expect(send("pageup", true)).toBe(true);
     controller.dispose();
   }
+});
+
+test("painter input retains its presented document origin while child geometry stays intact", () => {
+  const frame = fixture();
+  Object.assign(frame.viewport, { owner: { num: 42 }, origin: 12 });
+  const map: RenderHitMap = {
+    width: 20,
+    height: 10,
+    frameId: 3,
+    passId: 4,
+    hitTest: () => 42,
+    origin: (id) => (id === 42 ? { x: 2, y: 3 } : { x: 4, y: 5 }),
+  };
+  const presented = pixelPointerMap(frame, map);
+  expect(presented.hitTest(5, 6)).toBe(42);
+  // OpenTUI subtracts the captured origin from the live node coordinates.
+  const captured = presented.origin(42);
+  if (!captured) throw new Error("Missing painter origin");
+  const eventY = 6 + 3 - captured.y;
+  expect(eventY - 3 + frame.viewport.origin).toBe(6 - 3 + frame.origin);
+  expect(presented.origin(99)).toEqual(map.origin(99));
+  Object.assign(frame.viewport, { origin: 10 });
+  expect(pixelPointerMap(frame, map)).toBe(map);
 });

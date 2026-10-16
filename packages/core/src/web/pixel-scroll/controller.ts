@@ -9,7 +9,13 @@ import {
   type ScrollableViewport,
 } from "../opentui-seams";
 import { PixelDiscovery } from "./discovery";
-import { clipPixelRect, pixelHitSource, planPixelFrame, type PixelFrame } from "./frame";
+import {
+  clipPixelRect,
+  pixelHitSource,
+  pixelPointerMap,
+  planPixelFrame,
+  type PixelFrame,
+} from "./frame";
 import { PixelHistory } from "./history";
 import { OrdinaryPixelInput } from "./ordinary-input";
 
@@ -443,7 +449,12 @@ export class PixelController {
           y,
           modifiers,
         },
-        source.map,
+        report.x >= frame.rect.x &&
+          report.x < frame.rect.x + frame.rect.width &&
+          report.y >= frame.rect.y &&
+          report.y < frame.rect.y + frame.rect.height
+          ? pixelPointerMap(frame, source.map)
+          : source.map,
       );
       if (report.action === "down") {
         this.switchTo(ancestorViewport(target));
