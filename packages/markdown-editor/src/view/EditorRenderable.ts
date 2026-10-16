@@ -86,6 +86,7 @@ export type MathRenderer = (
 const EX_PER_CELL = 0.7;
 
 const SCROLL_LINES = 3;
+const DRAG_SCROLL_MS = 50;
 // How far bands and code panels reach into the margin, when there is one.
 const HANG = 2;
 const HEX = 16;
@@ -99,6 +100,20 @@ const OCTANTS = /ghostty|kitty|wezterm/i;
 const MULTI_CLICK_MS = 400;
 const DOUBLE = 2;
 const TRIPLE = 3;
+
+// Structural optional capability: the editor must also build without Luciole core.
+type EditorViewport = {
+  readonly owner: Renderable;
+  readonly scrollKeys: false;
+  input(origin: number, dispatch: () => boolean): boolean;
+  readonly position: number;
+  readonly origin: number;
+  readonly max: number;
+  readonly rect: Readonly<{ x: number; y: number; width: number; height: number }>;
+  set(position: number): void;
+  scroll(delta: number): number;
+  project(origin: number): { renderable: Renderable; translateX: number; translateY: number };
+};
 
 /**
  * The editor as an OpenTUI renderable: it draws its document, takes keys and pastes while
@@ -124,6 +139,87 @@ export class MarkdownEditorRenderable extends Renderable {
     this.requestRender();
   };
   private scroll = 0;
+  private pixelPosition = 0;
+  private inputOrigin: number | undefined;
+  private edgeTimer: ReturnType<typeof setInterval> | undefined;
+  private dragPoint: MouseEvent | undefined;
+
+  /** Optional web capability, structural so this package stays independent of core. */
+  readonly scrollableViewport: EditorViewport = (() => {
+    // eslint-disable-next-line typescript/no-this-alias -- Viewport getters have their own receiver.
+    const editor = this;
+    return {
+      owner: editor,
+      scrollKeys: false,
+      input(origin, dispatch) {
+        const previous = editor.inputOrigin;
+        editor.inputOrigin = origin;
+        try {
+          return dispatch();
+        } finally {
+          editor.inputOrigin = previous;
+        }
+      },
+      get position() {
+        if (Math.floor(editor.pixelPosition) !== editor.scroll)
+          editor.pixelPosition = editor.scroll;
+        return editor.pixelPosition;
+      },
+      get origin() {
+        return editor.scroll;
+      },
+      get max() {
+        const layout = editor.layout();
+        return layout ? editor.extent(layout).max : 0;
+      },
+      get rect() {
+        return {
+          x: editor.screenX,
+          y: editor.screenY,
+          width: Math.max(0, editor.width - (editor.bar ? 1 : 0)),
+          height: editor.height,
+        };
+      },
+      set(position: number) {
+        if (!Number.isFinite(position)) return;
+        const layout = editor.layout();
+        // Images are terminal graphics, outside the text snapshot compositor.
+        const images = layout?.lines.some((line) => line.image);
+        editor.pixelPosition = Math.max(
+          0,
+          Math.min(this.max, images || !editor.hasPixelSeams() ? Math.floor(position) : position),
+        );
+        editor.scroll = Math.floor(editor.pixelPosition);
+        editor.requestRender();
+      },
+      scroll(delta: number) {
+        const before = this.position;
+        this.set(before + delta);
+        return delta - (this.position - before);
+      },
+      project(origin: number) {
+        return {
+          renderable: editor,
+          translateX: editor.translateX,
+          translateY: editor.translateY + editor.scroll - origin,
+        };
+      },
+    };
+  })();
+
+  private hasPixelSeams() {
+    return ["setFramePlan", "captureHitMap", "dispatchMouseEventFromHitMap"].every(
+      (name) => typeof Reflect.get(this.ctx, name) === "function",
+    );
+  }
+
+  /** The paint-only translation must not move the document window or its chrome. */
+  private get windowY() {
+    return (this.parent?.screenY ?? 0) + this._y + this.translateY;
+  }
+  private get projecting() {
+    return Reflect.get(this.ctx, "isProjectionPass") === true;
+  }
   /** Where the cursor was at the last change. */
   private head: Pos = { block: 0, offset: 0 };
   /** The column vertical moves keep, from the first of them. */
@@ -184,6 +280,7 @@ export class MarkdownEditorRenderable extends Renderable {
       Reflect.apply(handler, this.ctx, ["capabilities", this.capabilitiesChanged]);
   }
   protected override destroySelf(): void {
+    this.stopEdgeScroll();
     this.listen("off");
     forgetWaiting(this.imageReady);
     super.destroySelf();
@@ -321,7 +418,7 @@ export class MarkdownEditorRenderable extends Renderable {
     const layout = this.layout();
     const theme = this.currentTheme();
     if (!layout || !theme) return;
-    this.clampScroll(layout);
+    if (!this.projecting) this.clampScroll(layout);
     const { selection } = this.controller.state;
     const { width, offset } = this.column();
     const protocol = protocolOf(this.ctx);
@@ -330,10 +427,10 @@ export class MarkdownEditorRenderable extends Renderable {
       layout,
       {
         x: this.screenX + offset,
-        y: this.screenY,
+        y: this.windowY,
         width,
         height: this.height,
-        scroll: this.scroll,
+        scroll: this.scroll + (this.projecting ? this.windowY - this.screenY : 0),
       },
       theme,
       {
@@ -355,8 +452,12 @@ export class MarkdownEditorRenderable extends Renderable {
           : {}),
       },
     );
+    // The projected node's default hit rectangle moves up, but the document
+    // window also paints its entering bottom row at the fixed viewport edge.
+    if (this.projecting && this.screenY < this.windowY)
+      this.ctx.addToHitGrid(this.screenX, this.windowY + this.height - 1, this.width, 1, this.num);
     this.drawScrollbar(buffer, layout, theme);
-    this.placeCursor(layout);
+    if (!this.projecting) this.placeCursor(layout);
   }
 
   /** The column the scrollbar stands in: the editor's last. */
@@ -365,13 +466,13 @@ export class MarkdownEditorRenderable extends Renderable {
   }
   private drawScrollbar(buffer: OptimizedBuffer, layout: Layout, theme: Theme) {
     if (!this.bar) return;
-    const thumb = thumbOf(this.extent(layout), this.scroll, this.height);
+    const thumb = thumbOf(this.extent(layout), this.scrollableViewport.position, this.height);
     if (!thumb) return;
     const x = this.barX();
     const faint = theme.faint();
     // Only the thumb is drawn: the track is the page, whatever shows there.
     glyphsOf(thumb, this.height).forEach((glyph, row) => {
-      if (glyph !== " ") buffer.drawText(glyph, x, this.screenY + row, faint);
+      if (glyph !== " ") buffer.drawText(glyph, x, this.windowY + row, faint);
     });
   }
   /** Whether the bar shows: the document scrolls, and it was asked for. */
@@ -402,6 +503,7 @@ export class MarkdownEditorRenderable extends Renderable {
     this.requestRender();
   }
   protected override onRemove(): void {
+    this.stopEdgeScroll();
     if (this.focused) this.ctx.setCursorPosition(0, 0, false);
   }
 
@@ -414,7 +516,7 @@ export class MarkdownEditorRenderable extends Renderable {
     const layout = this.layout();
     if (!layout) return { up: false, down: false };
     const { max } = this.extent(layout);
-    const at = Math.max(0, Math.min(max, this.scroll));
+    const at = Math.max(0, Math.min(max, this.scrollableViewport.position));
     return { up: at > 0, down: at < max };
   }
 
@@ -423,7 +525,10 @@ export class MarkdownEditorRenderable extends Renderable {
     return extentOf(layout.lines.length, this.height);
   }
   private clampScroll(layout: Layout) {
-    this.scroll = Math.max(0, Math.min(this.extent(layout).max, this.scroll));
+    const max = this.extent(layout).max;
+    this.scroll = Math.max(0, Math.min(max, this.scroll));
+    if (this.pixelPosition > max) this.pixelPosition = max;
+    if (layout.lines.some((line) => line.image)) this.pixelPosition = this.scroll;
   }
   private keepCursorInView() {
     const layout = this.layout();
@@ -520,7 +625,7 @@ export class MarkdownEditorRenderable extends Renderable {
   private hit(event: MouseEvent) {
     const layout = this.layout();
     if (!layout) return null;
-    const row = event.y - this.screenY + this.scroll;
+    const row = event.y - this.screenY + (this.inputOrigin ?? this.scroll);
     const col = event.x - this.screenX - this.column().offset;
     const line = layout.lines[row];
     const glyph: Glyph | undefined = line?.glyphs.find((g) => col >= g.x && col < g.x + g.width);
@@ -538,6 +643,17 @@ export class MarkdownEditorRenderable extends Renderable {
             : event.scroll.direction === "down"
               ? SCROLL_LINES
               : 0;
+        const precise = Reflect.get(event.scroll, "precise") === true;
+        if (precise && this.hasPixelSeams()) {
+          const signed = event.scroll.direction === "up" ? -event.scroll.delta : event.scroll.delta;
+          const remainder = this.scrollableViewport.scroll(signed);
+          if (remainder !== 0) {
+            event.scroll.delta = Math.abs(remainder);
+            return;
+          }
+          event.stopPropagation();
+          return;
+        }
         this.scroll += delta;
         this.clampScroll(layout);
         this.requestRender();
@@ -581,18 +697,39 @@ export class MarkdownEditorRenderable extends Renderable {
       case "drag":
         if (this.barDrag !== null) this.dragThumb(event);
         else if (this.dragging) {
-          const hit = this.hit(event);
-          if (hit) this.controller.moveTo(hit.pos, { extend: true });
+          this.dragPoint = event;
+          this.extendDrag();
+          if (!this.edgeTimer && this.hasPixelSeams())
+            this.edgeTimer = setInterval(() => this.extendDrag(), DRAG_SCROLL_MS);
         }
         return;
       case "up":
       case "drag-end":
+        this.stopEdgeScroll();
         this.dragging = false;
         this.barDrag = null;
         return;
       default:
         return;
     }
+  }
+
+  private stopEdgeScroll() {
+    clearInterval(this.edgeTimer);
+    this.edgeTimer = undefined;
+    this.dragPoint = undefined;
+  }
+
+  private extendDrag() {
+    const event = this.dragPoint;
+    if (!event) return;
+    const bottom = this.screenY + this.height - 1;
+    if (this.hasPixelSeams()) {
+      const delta = event.y <= this.screenY ? -1 : event.y >= bottom ? 1 : 0;
+      if (delta) this.scrollableViewport.scroll(delta);
+    }
+    const hit = this.hit(event);
+    if (hit) this.controller.moveTo(hit.pos, { extend: true });
   }
 
   /** Whether the pointer is on the scrollbar, while it shows. */
@@ -605,7 +742,7 @@ export class MarkdownEditorRenderable extends Renderable {
    */
   private pressBar(event: MouseEvent, layout: Layout) {
     const extent = this.extent(layout);
-    const thumb = thumbOf(extent, this.scroll, this.height);
+    const thumb = thumbOf(extent, this.scrollableViewport.position, this.height);
     if (!thumb) return;
     const half = (event.y - this.screenY) * HALVES;
     // The row pressed holds some of the thumb, by either half.

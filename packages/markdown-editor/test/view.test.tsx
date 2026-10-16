@@ -4,9 +4,9 @@
  */
 import { afterEach, expect, test } from "bun:test";
 import { act, useState } from "react";
-import { RGBA, SyntaxStyle } from "@opentui/core";
+import { MouseEvent, RGBA, SyntaxStyle } from "@opentui/core";
 import { testRender } from "@opentui/react/test-utils";
-import { MarkdownEditor, parseMarkdown } from "../src/index.ts";
+import { MarkdownEditor, MarkdownEditorRenderable, parseMarkdown } from "../src/index.ts";
 import { layoutDocument } from "../src/view/layout.ts";
 import { Theme } from "../src/view/theme.ts";
 
@@ -655,4 +655,95 @@ test("with a reading width, the bar stands in the margin and the text keeps its 
   await ui.renderOnce();
   expect(rows()[0]).toBe(`${" ".repeat(10)}line 0`);
   expect(cell(WIDTH - 1, 0).char).toBe(" ");
+});
+
+test("the optional viewport keeps native rows and projects without logical mutation", async () => {
+  let editor: MarkdownEditorRenderable | undefined;
+  ui = await testRender(
+    <MarkdownEditor
+      ref={(node) => {
+        editor = node ?? undefined;
+      }}
+      value={Array.from({ length: 40 }, (_, i) => `Paragraph ${i}`).join("\n\n")}
+      syntaxStyle={style}
+      width={31}
+      height={10}
+    />,
+    { width: 31, height: 10 },
+  );
+  await ui.renderOnce();
+  if (!editor) throw new Error("Missing editor ref");
+  const viewport = editor.scrollableViewport;
+  viewport.set(2.75);
+  expect(viewport.position).toBe(2);
+  expect(viewport.origin).toBe(2);
+  expect(viewport.rect).toEqual({ x: 0, y: 0, width: 30, height: 10 });
+  const seams = ["setFramePlan", "captureHitMap", "dispatchMouseEventFromHitMap"];
+  for (const name of seams) Reflect.set(ui.renderer, name, () => {});
+  viewport.set(0.75);
+  expect(editor.wheelRoom()).toEqual({ up: true, down: true });
+  viewport.set(2.75);
+  expect(viewport.position).toBe(2.75);
+  const before = { position: viewport.position, origin: viewport.origin, y: editor.screenY };
+  expect(viewport.project(3)).toEqual({ renderable: editor, translateX: 0, translateY: -1 });
+  expect({ position: viewport.position, origin: viewport.origin, y: editor.screenY }).toEqual(
+    before,
+  );
+  expect(viewport.scroll(-10)).toBe(-7.25);
+  expect(viewport.position).toBe(0);
+  viewport.set(2.75);
+  await ui.mockMouse.scroll(4, 4, "down");
+  expect(viewport.position).toBe(5);
+  await ui.mockMouse.click(30, 8);
+  expect(Number.isInteger(viewport.position)).toBe(true);
+  for (const name of seams) Reflect.deleteProperty(ui.renderer, name);
+});
+
+test("presented input origins nest and clear after a throwing dispatch", async () => {
+  let editor: MarkdownEditorRenderable | undefined;
+  ui = await testRender(
+    <MarkdownEditor
+      ref={(node) => {
+        editor = node ?? undefined;
+      }}
+      value={paragraphs(40)}
+      syntaxStyle={style}
+      width={31}
+      height={10}
+    />,
+    { width: 31, height: 10 },
+  );
+  await ui.renderOnce();
+  if (!editor) throw new Error("Missing editor");
+  const node = editor,
+    viewport = node.scrollableViewport;
+  viewport.set(2);
+  const click = (x: number) =>
+    node.processMouseEvent(
+      new MouseEvent(node, {
+        type: "down",
+        button: 0,
+        x,
+        y: 0,
+        modifiers: { shift: false, alt: false, ctrl: false },
+      }),
+    );
+  expect(() =>
+    viewport.input(0, () => {
+      click(1);
+      expect(node.controller.state.selection.head).toEqual({ block: 0, offset: 1 });
+      viewport.set(2);
+      viewport.input(1, () => {
+        click(2);
+        return true;
+      });
+      viewport.set(2);
+      click(3);
+      expect(node.controller.state.selection.head).toEqual({ block: 0, offset: 3 });
+      viewport.set(2);
+      throw new Error("dispatch failed");
+    }),
+  ).toThrow("dispatch failed");
+  click(4);
+  expect(node.controller.state.selection.head).toEqual({ block: 1, offset: 4 });
 });

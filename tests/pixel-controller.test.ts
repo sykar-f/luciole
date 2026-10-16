@@ -1,6 +1,6 @@
 /* eslint-disable typescript/consistent-type-assertions -- Partial renderer, viewport and immutable map doubles isolate controller lifecycle and frame encoding from a native renderer. */
 import { EventEmitter } from "node:events";
-import type { CliRenderer } from "@opentui/core";
+import { Renderable, type CliRenderer } from "@opentui/core";
 import { PixelController } from "../packages/core/src/web/pixel-scroll/controller";
 import { OrdinaryPixelInput } from "../packages/core/src/web/pixel-scroll/ordinary-input";
 import { PixelHistory, RETAINED_GENERATIONS } from "../packages/core/src/web/pixel-scroll/history";
@@ -9,11 +9,16 @@ import { expect, test } from "bun:test";
 import { decode, encode } from "../packages/core/src/pixel-scroll/protocol";
 import {
   clipPixelRect,
+  painterHitMap,
   pixelHitSource,
   planPixelFrame,
   type PixelFrame,
 } from "../packages/core/src/web/pixel-scroll/frame";
-import type { RenderHitMap, ScrollableViewport } from "../packages/core/src/web/opentui-seams";
+import type {
+  RenderFramePlan,
+  RenderHitMap,
+  ScrollableViewport,
+} from "../packages/core/src/web/opentui-seams";
 
 function fixture(fraction = 0.25) {
   const viewport = {
@@ -244,4 +249,283 @@ test("ordinary SGR input after disposal never accesses the renderer", () => {
   controller.dispose();
   expect(hits).toBe(0);
   expect(renders).toBe(0);
+});
+
+test("viewport key ownership is optional and keeps modified Page routing", () => {
+  for (const keepsKeys of [false, true]) {
+    const osc = new EventEmitter(),
+      keyInput = new EventEmitter();
+    const owner = {} as Renderable;
+    let position = 0;
+    const viewport: ScrollableViewport = {
+      owner,
+      ...(keepsKeys ? { scrollKeys: false as const } : {}),
+      get position() {
+        return position;
+      },
+      origin: 0,
+      max: 100,
+      rect: { x: 0, y: 0, width: 20, height: 10 },
+      set: (value) => {
+        position = value;
+      },
+      scroll: (delta) => {
+        position += delta;
+        return 0;
+      },
+      project: () => ({ renderable: owner, translateX: 0, translateY: 0 }),
+    };
+    Object.assign(owner, { scrollableViewport: viewport });
+    let query: ReturnType<typeof decode>;
+    const renderer = Object.assign(new EventEmitter(), {
+      keyInput,
+      currentFocusedRenderable: owner,
+      requestRender: () => {},
+      setFramePlan: () => {},
+      captureHitMap: () => ({}),
+      dispatchMouseEventFromHitMap: () => false,
+      subscribeOsc: (receive: (sequence: string) => void) => {
+        osc.on("sequence", receive);
+        return () => {
+          osc.off("sequence", receive);
+        };
+      },
+    });
+    const controller = PixelController.attach(renderer as unknown as CliRenderer, (wire) => {
+      if (!query) query = decode(wire.slice("\x1b[?2026h".length, -"\x1b[?2026l".length));
+    });
+    if (query?.op !== "query" || !controller) throw new Error("Missing controller query");
+    osc.emit(
+      "sequence",
+      encode({
+        op: "capability",
+        version: 1,
+        nonce: query.nonce,
+        reason: "ready",
+        snapshot: true,
+        precise: true,
+      }),
+    );
+    const send = (name: string, ctrl = false) => {
+      const key = {
+        name,
+        ctrl,
+        defaultPrevented: false,
+        preventDefault() {
+          this.defaultPrevented = true;
+        },
+      };
+      keyInput.emit("keypress", key);
+      return key.defaultPrevented;
+    };
+    expect(send("down")).toBe(!keepsKeys);
+    expect(position).toBe(keepsKeys ? 0 : 1);
+    expect(send("pagedown")).toBe(!keepsKeys);
+    expect(position).toBe(keepsKeys ? 0 : 10);
+    expect(send("pagedown", true)).toBe(true);
+    expect(position).toBe(keepsKeys ? 9 : 19);
+    Object.assign(renderer, { currentFocusedRenderable: { parent: owner } });
+    expect(send("down")).toBe(false);
+    expect(send("pageup", true)).toBe(true);
+    controller.dispose();
+  }
+});
+
+test("owner pointer dispatch scopes the named origin without changing event coordinates", () => {
+  for (const scoped of [true, false]) {
+    const id = 10_000;
+    const owner = {
+      num: id,
+      visible: true,
+      isDestroyed: false,
+      parent: null,
+      getChildren: () => [],
+    } as unknown as Renderable;
+    let origin = 0,
+      inputOrigin: number | undefined;
+    const viewport: ScrollableViewport = {
+      owner,
+      get position() {
+        return origin + 0.75;
+      },
+      get origin() {
+        return origin;
+      },
+      max: 100,
+      rect: { x: 0, y: 0, width: 20, height: 10 },
+      set: (value) => {
+        origin = Math.floor(value);
+      },
+      scroll: () => 0,
+      project: () => ({ renderable: owner, translateX: 0, translateY: -1 }),
+      ...(scoped
+        ? {
+            input: (value: number, dispatch: () => boolean) => {
+              inputOrigin = value;
+              try {
+                return dispatch();
+              } finally {
+                inputOrigin = undefined;
+              }
+            },
+          }
+        : {}),
+    };
+    Object.assign(owner, { scrollableViewport: viewport });
+    Renderable.renderablesByNumber.set(id, owner);
+    const map: RenderHitMap = {
+      width: 20,
+      height: 10,
+      frameId: 1,
+      passId: 1,
+      hitTest: () => id,
+      origin: () => ({ x: 0, y: 0 }),
+    };
+    const osc = new EventEmitter();
+    let factory: (() => RenderFramePlan | null) | null = null;
+    const observed: { origin: number | undefined; x: number; y: number; position: number }[] = [];
+    const writes: string[] = [];
+    const renderer = Object.assign(new EventEmitter(), {
+      root: owner,
+      width: 20,
+      height: 10,
+      currentFocusedRenderable: owner,
+      keyInput: new EventEmitter(),
+      nextRenderBuffer: { buffers: { cells: new Uint32Array([1]) } },
+      requestRender: () => {},
+      captureHitMap: () => map,
+      setFramePlan: (value: (() => RenderFramePlan | null) | null) => {
+        factory = value;
+      },
+      dispatchMouseEventFromHitMap: (event: { x: number; y: number }) => {
+        observed.push({ origin: inputOrigin, x: event.x, y: event.y, position: viewport.position });
+        return true;
+      },
+      subscribeOsc: (receive: (sequence: string) => void) => {
+        osc.on("sequence", receive);
+        return () => {
+          osc.off("sequence", receive);
+        };
+      },
+    });
+    const controller = PixelController.attach(renderer as unknown as CliRenderer, (wire) =>
+      writes.push(wire),
+    );
+    try {
+      const wire = writes[0];
+      if (!controller || !wire) throw new Error("Missing controller query");
+      const query = decode(wire.slice("\x1b[?2026h".length, -"\x1b[?2026l".length));
+      if (query?.op !== "query") throw new Error("Missing query");
+      osc.emit(
+        "sequence",
+        encode({
+          op: "capability",
+          version: 1,
+          nonce: query.nonce,
+          reason: "ready",
+          snapshot: true,
+          precise: true,
+        }),
+      );
+      const createPlan = factory as (() => RenderFramePlan | null) | null;
+      const plan = createPlan?.();
+      if (!plan) throw new Error("Missing frame plan");
+      plan.onHitMap?.(map);
+      plan.projection?.onHitMap?.(map);
+      origin = 2;
+      osc.emit(
+        "sequence",
+        encode({
+          op: "pointer",
+          version: 1,
+          id: 1,
+          generation: 1,
+          phase: 0.75,
+          x: 4,
+          y: 3,
+          modifiers: 0,
+          action: "down",
+          button: 0,
+          buttons: 1,
+        }),
+      );
+      expect(observed).toEqual([{ origin: scoped ? 0 : undefined, x: 4, y: 3, position: 2.75 }]);
+      expect(inputOrigin).toBeUndefined();
+    } finally {
+      controller?.dispose();
+      Renderable.renderablesByNumber.delete(id);
+    }
+  }
+});
+
+test("painter snapshots retain captured owner hits and pass-local geometry", () => {
+  const frame = fixture();
+  const parent = { num: 9, parent: null };
+  const owner = {
+    num: 42,
+    x: 2,
+    y: 3,
+    screenX: 2,
+    screenY: 3,
+    width: 9,
+    height: 4,
+    parent,
+  } as unknown as Renderable;
+  Object.assign(frame.viewport, {
+    owner,
+    input: (_origin: number, dispatch: () => boolean) => dispatch(),
+  });
+  const map: RenderHitMap = {
+    width: 20,
+    height: 10,
+    frameId: 1,
+    passId: 1,
+    hitTest: (x) => (x === 3 ? 9 : x === 4 ? 77 : x === 5 ? 43 : 0),
+    origin: () => undefined,
+  };
+  const snapshot = painterHitMap(frame.viewport, map);
+  expect(snapshot.hitTest(6, 4)).toBe(42);
+  expect(snapshot.hitTest(3, 4)).toBe(42);
+  expect(snapshot.hitTest(4, 4)).toBe(77);
+  expect(snapshot.hitTest(5, 4)).toBe(43);
+  // The last painted column is fixed chrome, outside the translated content rect.
+  expect(snapshot.hitTest(10, 4)).toBe(42);
+  expect(snapshot.hitTest(11, 4)).toBe(0);
+  expect(snapshot.hitTest(6, 7)).toBe(0);
+  expect(snapshot.hitTest(NaN, 4)).toBe(0);
+  expect(snapshot.origin(42)).toEqual({ x: 2, y: 3 });
+  const plan = planPixelFrame(frame);
+  plan.onHitMap?.(map);
+  Object.assign(owner, { y: 2, screenY: 2 });
+  plan.projection?.onHitMap?.(map);
+  Object.assign(owner, { y: 8, screenY: 8 });
+  expect(frame.snapshot?.origin(42)).toEqual({ x: 2, y: 3 });
+  expect(frame.projection?.origin(42)).toEqual({ x: 2, y: 2 });
+  expect(frame.snapshot?.hitTest(6, 4)).toBe(42);
+  expect(frame.snapshot?.hitTest(10, 4)).toBe(42);
+  expect(frame.projection?.hitTest(10, 4)).toBe(42);
+  expect(frame.projection?.hitTest(10, 6)).toBe(42);
+  expect(map.hitTest(6, 4)).toBe(0);
+  Object.assign(owner, { screenY: 3, width: 30 });
+  const terminalClipped = painterHitMap(frame.viewport, map);
+  expect(terminalClipped.hitTest(19, 4)).toBe(42);
+  expect(terminalClipped.hitTest(20, 4)).toBe(0);
+  Object.assign(parent, {
+    scrollableViewport: {
+      position: 0,
+      origin: 0,
+      max: 0,
+      rect: { x: 3, y: 3, width: 7, height: 3 },
+      set() {},
+      scroll: (delta: number) => delta,
+      project: (origin: number) => frame.viewport.project(origin),
+    },
+  });
+  const ancestorClipped = painterHitMap(frame.viewport, map);
+  expect(ancestorClipped.hitTest(6, 4)).toBe(42);
+  expect(ancestorClipped.hitTest(2, 4)).toBe(0);
+  expect(ancestorClipped.hitTest(10, 4)).toBe(0);
+  expect(ancestorClipped.hitTest(6, 6)).toBe(0);
+  const plain = fixture().viewport;
+  expect(painterHitMap(plain, map, frame.rect)).toBe(map);
 });

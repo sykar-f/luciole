@@ -66,3 +66,9 @@ test("a thumb put somewhere on the track means the scroll that draws it there", 
   // Nothing to scroll: nowhere to go.
   expect(scrollForThumb(extentOf(3, HEIGHT), 5, HEIGHT)).toBe(0);
 });
+
+test("the thumb crosses a half-cell threshold within one logical row", () => {
+  const extent = extentOf(20, 10);
+  expect(thumbOf(extent, 0.5, 10)).toEqual({ from: 0, to: 9 });
+  expect(thumbOf(extent, 0.75, 10)).toEqual({ from: 1, to: 10 });
+});
