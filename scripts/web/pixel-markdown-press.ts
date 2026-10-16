@@ -56,6 +56,8 @@ try {
     deviceScaleFactor: 0,
     mobile: false,
   });
+  if ((await browser.evaluate("devicePixelRatio")) !== Number(process.argv[2] ?? 1))
+    throw new Error("Chrome did not start at the requested real device scale");
   await browser.send("Emulation.setFocusEmulationEnabled", { enabled: true });
   await browser.send("Browser.grantPermissions", {
     origin: server.url.origin,
@@ -82,7 +84,9 @@ try {
     "editor presentation",
   );
   if (process.argv[3] === "burst") {
-    await browser.evaluate("probe.burst()");
+    await browser.evaluate(
+      "window.heldGeneration=probe.state().presented.generation;probe.burst()",
+    );
     console.log(
       "held presentation",
       await browser.evaluate(
@@ -125,6 +129,15 @@ try {
         "JSON.stringify({events:probe.events.slice(-4),reports:probe.reports.slice(-4)})",
       ),
     );
+    if (
+      !(await browser.evaluate(`(()=>{
+      const generations=probe.publication().map(p=>p.generation);
+      const inFlight=generations.filter(g=>g>window.heldGeneration);
+      return probe.state().presented.generation===window.heldGeneration && inFlight.length<=7 &&
+        probe.reports.some(r=>r.op==='pointer'&&r.action==='down'&&r.generation===window.heldGeneration);
+    })()`))
+    )
+      throw new Error("The held presentation or bounded publication window changed");
     await browser.evaluate("probe.resume()");
     await wait("probe.state().presented.origin>0", "coalesced current state is presented");
   }

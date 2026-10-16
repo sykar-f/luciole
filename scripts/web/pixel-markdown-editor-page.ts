@@ -153,6 +153,7 @@ terminal.onRender(() => {
     ...capture(),
   });
 });
+const deferred = new Map<number, FrameRequestCallback>();
 const point = (x: number, y: number) => {
   const box = document.querySelector(".xterm-screen")?.getBoundingClientRect();
   if (!box) throw new Error("Missing screen");
@@ -168,7 +169,6 @@ Object.assign(window, {
       ? {
           burst: async () => {
             // Hold actual presentation while allowing output/parser tasks to drain.
-            const deferred = new Map<number, FrameRequestCallback>();
             let handle = 1_000_000_000;
             globalThis.requestAnimationFrame = (callback) => {
               deferred.set(++handle, callback);
@@ -187,9 +187,11 @@ Object.assign(window, {
           },
           resume: () => {
             Object.assign(globalThis, { requestAnimationFrame, cancelAnimationFrame });
-            terminal.refresh(0, terminal.rows - 1);
+            for (const callback of deferred.values()) requestAnimationFrame(callback);
+            deferred.clear();
           },
           publication: () =>
+            // eslint-disable-next-line no-control-regex -- Inspect complete OSC publication records.
             [...wire.matchAll(/\x1b\]19462;([^\x1b]*)\x1b\\/g)]
               .map((match) => decode(`\x1b]19462;${match[1]}\x1b\\`))
               .filter((message) => message?.op === "begin"),
