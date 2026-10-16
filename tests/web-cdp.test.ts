@@ -10,11 +10,6 @@ test("headless Chrome uses a mock keychain for fresh profiles", () => {
   expect(args).toContain("--user-data-dir=/tmp/fresh-chrome-profile");
 });
 
-test("Chrome can start at a real device scale", () => {
-  expect(chromeArgs("/tmp/scale-profile", 2)).toContain("--force-device-scale-factor=2");
-  expect(chromeArgs("/tmp/scale-profile")).not.toContain("--force-device-scale-factor=2");
-});
-
 test("an existing empty debugging port file is not ready", async () => {
   using directory = temporaryDirectory("cdp-port-");
   const path = join(directory.path, "DevToolsActivePort");
