@@ -242,7 +242,7 @@ index 9db0821..9ab08ee 100644
          case "render":
            // Skip if renderable was destroyed during a previous render callback
 diff --git a/packages/core/src/renderer.ts b/packages/core/src/renderer.ts
-index a87a810..c348ff0 100644
+index a87a810..6c917f0 100644
 --- a/packages/core/src/renderer.ts
 +++ b/packages/core/src/renderer.ts
 @@ -279,6 +279,28 @@ export interface CliRendererStats extends NativeRenderStats {
@@ -274,10 +274,11 @@ index a87a810..c348ff0 100644
  export interface CliRendererFrameEvent {
    frameId: number
  }
-@@ -828,6 +848,111 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -828,6 +850,124 @@ export class CliRenderer extends EventEmitter implements RenderContext {
    private frameCount: number = 0
    // Bumped once per loop() iteration; see RenderContext.frameId.
    private _frameId: number = 0
++  private dropHitMaps = new WeakMap<RenderHitMap, { source: number; cells: Uint32Array }>()
 +  private _renderPassId = 0
 +  private _isProjectionPass = false
 +  private framePlan: (() => RenderFramePlan | null) | null = null
@@ -303,13 +304,15 @@ index a87a810..c348ff0 100644
 +      height = this.height
 +    const cells = new Uint32Array(width * height)
 +    if (!this.lib.copyPendingHitGrid(this.rendererPtr, cells)) throw new Error("Hit grid dimensions changed")
++    const dropCells = this.capturedRenderable ? new Uint32Array(width * height) : undefined
++    if (dropCells && !this.lib.copyPendingDropHitGrid(this.rendererPtr, dropCells)) throw new Error("Hit grid dimensions changed")
 +    const origins = new Map<number, Readonly<{ x: number; y: number }>>()
-+    for (const id of cells) {
++    for (const id of dropCells ? [...cells, ...dropCells] : cells) {
 +      if (origins.has(id)) continue
 +      const node = Renderable.renderablesByNumber.get(id)
 +      if (node && !node.isDestroyed) origins.set(id, Object.freeze({ x: node.x, y: node.y }))
 +    }
-+    return Object.freeze({
++    const map = Object.freeze({
 +      width,
 +      height,
 +      frameId: this.frameId,
@@ -322,13 +325,23 @@ index a87a810..c348ff0 100644
 +        return origins.get(id)
 +      },
 +    })
++    if (this.capturedRenderable && dropCells) {
++      this.dropHitMaps.set(map, { source: this.capturedRenderable.num, cells: dropCells })
++    }
++    return map
 +  }
 +
 +  /** Reuse the ordinary hover/capture/selection machine with a captured hit source.
 +   * Coordinates retain their fractions and are rebased to current target geometry.
 +   */
 +  public dispatchMouseEventFromHitMap(event: RawMouseEvent, map: RenderHitMap): boolean {
-+    const id = map.hitTest(event.x, event.y - this.renderOffset)
++    const drop = this.dropHitMaps.get(map)
++    const x = event.x, y = event.y - this.renderOffset
++    const ordinaryId = map.hitTest(x, y)
++    const id = this.capturedRenderable && drop?.source === this.capturedRenderable.num &&
++      Number.isFinite(x) && Number.isFinite(y) && x >= 0 && y >= 0 && x < map.width && y < map.height
++      ? drop.cells[Math.floor(y) * map.width + Math.floor(x)]
++      : ordinaryId
 +    const target = Renderable.renderablesByNumber.get(id)
 +    const origin = map.origin(id)
 +    const liveId = target && !target.isDestroyed ? id : 0
@@ -386,7 +399,17 @@ index a87a810..c348ff0 100644
    private lastFpsTime: number = 0
    private currentFps: number = 0
    private targetFrameTime: number = 1000 / this._targetFps
-@@ -1562,6 +1687,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -1446,6 +1586,9 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+ 
+   public addToHitGrid(x: number, y: number, width: number, height: number, id: number) {
+     if (!this._useMouse) return
++    // Capture changes dispatch, not ordinary geometry. Keep the complete grid
++    // ready for the next press, even before the release's requested paint.
++    this.lib.addToOrdinaryHitGrid(this.rendererPtr, x, y, width, height, id)
+     if (id !== this.capturedRenderable?.num) {
+       this.lib.addToHitGrid(this.rendererPtr, x, y, width, height, id)
+     }
+@@ -1562,6 +1705,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
    }
  
    public requestRender() {
@@ -394,19 +417,21 @@ index a87a810..c348ff0 100644
      if (this._controlState === RendererControlState.EXPLICIT_SUSPENDED) {
        return
      }
-@@ -3628,7 +3754,10 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -3628,7 +3772,12 @@ export class CliRenderer extends EventEmitter implements RenderContext {
      }
    }
  
 -  private processSingleMouseEvent(mouseEvent: RawMouseEvent): boolean {
 +  private processSingleMouseEvent(
 +    mouseEvent: RawMouseEvent,
-+    hitTest = (x: number, y: number) => this.hitTest(x, y),
++    hitTest = (x: number, y: number) => this.capturedRenderable
++      ? this.lib.checkHit(this.rendererPtr, x, y)
++      : this.hitTest(x, y),
 +  ): boolean {
      if (this._splitHeight > 0) {
        if (mouseEvent.y < this.renderOffset) {
          return false
-@@ -3656,7 +3785,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -3656,7 +3805,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
      }
  
      if (mouseEvent.type === "scroll") {
@@ -415,7 +440,7 @@ index a87a810..c348ff0 100644
        const maybeRenderable = Renderable.renderablesByNumber.get(maybeRenderableId)
        const fallbackTarget =
          this._currentFocusedRenderable &&
-@@ -3673,7 +3802,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -3673,7 +3822,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
        return true
      }
  
@@ -424,7 +449,27 @@ index a87a810..c348ff0 100644
      const sameElement = maybeRenderableId === this.lastOverRenderableNum
      this.lastOverRenderableNum = maybeRenderableId
      const maybeRenderable = Renderable.renderablesByNumber.get(maybeRenderableId)
-@@ -4676,6 +4805,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -3785,8 +3934,8 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+       this.lastOverRenderable = this.capturedRenderable
+       this.lastOverRenderableNum = this.capturedRenderable.num
+       this.setCapturedRenderable(undefined)
+-      // Dropping the renderable needs to push another frame when the renderer is not live
+-      // to update the hit grid, otherwise capturedRenderable won't be in the hit grid and will not receive mouse events
++      // Paint any visual changes caused by the drop. Ordinary hits already include
++      // the released source, so another press does not need to wait for this paint.
+       this.requestRender()
+     }
+ 
+@@ -3866,7 +4015,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+   }
+ 
+   public hitTest(x: number, y: number): number {
+-    return this.lib.checkHit(this.rendererPtr, x, y)
++    return this.lib.checkOrdinaryHit(this.rendererPtr, x, y)
+   }
+ 
+   public getLinkIdAt(x: number, y: number): number {
+@@ -4676,6 +4825,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
  
        // Bump before any work so all callers this iteration see the new id.
        this._frameId++
@@ -432,7 +477,7 @@ index a87a810..c348ff0 100644
  
        const now = this.normalizeClockTime(this.clock.now(), this.lastTime)
        const elapsed = this.getElapsedMs(now, this.lastTime)
-@@ -4717,7 +4847,8 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -4717,7 +4867,8 @@ export class CliRenderer extends EventEmitter implements RenderContext {
  
        // If destroy() was requested during this frame, skip native work and scheduling.
        if (!this._isDestroyed) {
@@ -442,8 +487,7 @@ index a87a810..c348ff0 100644
          if (nativeStatus === "rendered") this.frameCount++
          if (this.getElapsedMs(now, this.lastFpsTime) >= 1000) {
            this.currentFps = this.frameCount
-@@ -4727,8 +4862,8 @@ export class CliRenderer extends EventEmitter implements RenderContext {
-         this.renderStats.fps = this.currentFps
+@@ -4728,7 +4879,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
  
          if (nativeStatus === "rendered") {
            // Check if hit grid changed and recheck hover state if needed
@@ -467,10 +511,10 @@ index d56f103..2c695e9 100644
    setCursorPosition: (x: number, y: number, visible: boolean) => void
    setCursorStyle: (options: CursorStyleOptions) => void
 diff --git a/packages/core/src/zig.ts b/packages/core/src/zig.ts
-index c712fee..6e0d378 100644
+index c712fee..0b7a12a 100644
 --- a/packages/core/src/zig.ts
 +++ b/packages/core/src/zig.ts
-@@ -595,6 +595,12 @@ function getOpenTUILib(libPath?: string) {
+@@ -595,6 +595,15 @@ function getOpenTUILib(libPath?: string) {
        args: ["u32", "bool"],
        returns: "u8",
      },
@@ -479,11 +523,14 @@ index c712fee..6e0d378 100644
 +      returns: "u8",
 +    },
 +    abortRenderFrame: { args: ["u32"], returns: "void" },
++    copyPendingDropHitGrid: { args: ["u32", "ptr", "u32"], returns: "bool" },
++    addToOrdinaryHitGrid: { args: ["u32", "i32", "i32", "u32", "u32", "u32"], returns: "void" },
++    checkOrdinaryHit: { args: ["u32", "u32", "u32"], returns: "u32" },
 +    copyPendingHitGrid: { args: ["u32", "ptr", "u32"], returns: "bool" },
      repaintSplitFooter: {
        args: ["u32", "u32", "bool"],
        returns: "u64",
-@@ -2509,6 +2515,15 @@ export interface RenderLib extends AudioEngineLib {
+@@ -2509,6 +2518,18 @@ export interface RenderLib extends AudioEngineLib {
    updateStats: (renderer: RendererHandle, time: number, fps: number, frameCallbackTime: number) => void
    updateMemoryStats: (renderer: RendererHandle, heapUsed: number, heapTotal: number, arrayBuffers: number) => void
    getRenderStats: (renderer: RendererHandle) => NativeRenderStats
@@ -495,11 +542,14 @@ index c712fee..6e0d378 100644
 +    flags: number,
 +  ) => number
 +  abortRenderFrame: (renderer: RendererHandle) => void
++  copyPendingDropHitGrid: (renderer: RendererHandle, out: Uint32Array) => boolean
++  addToOrdinaryHitGrid: (renderer: RendererHandle, x: number, y: number, width: number, height: number, id: number) => void
++  checkOrdinaryHit: (renderer: RendererHandle, x: number, y: number) => number
 +  copyPendingHitGrid: (renderer: RendererHandle, out: Uint32Array) => boolean
    render: (renderer: RendererHandle, force: boolean) => number
    repaintSplitFooter: (
      renderer: RendererHandle,
-@@ -4327,6 +4342,32 @@ class FFIRenderLib implements RenderLib {
+@@ -4327,6 +4348,44 @@ class FFIRenderLib implements RenderLib {
      this.opentui.symbols.setCursorStyleOptions(renderer, buffer)
    }
  
@@ -523,6 +573,18 @@ index c712fee..6e0d378 100644
 +
 +  public abortRenderFrame(renderer: Pointer): void {
 +    this.opentui.symbols.abortRenderFrame(renderer)
++  }
++
++  public copyPendingDropHitGrid(renderer: Pointer, out: Uint32Array): boolean {
++    return Boolean(this.opentui.symbols.copyPendingDropHitGrid(renderer, ptr(out), out.length))
++  }
++
++  public addToOrdinaryHitGrid(renderer: Pointer, x: number, y: number, width: number, height: number, id: number) {
++    this.opentui.symbols.addToOrdinaryHitGrid(renderer, x, y, width, height, id)
++  }
++
++  public checkOrdinaryHit(renderer: Pointer, x: number, y: number): number {
++    return this.opentui.symbols.checkOrdinaryHit(renderer, x, y)
 +  }
 +
 +  public copyPendingHitGrid(renderer: Pointer, out: Uint32Array): boolean {
@@ -597,7 +659,7 @@ index b226da7..8cdbe2a 100644
          .root_module = module,
          .linkage = .dynamic,
 diff --git a/packages/native/src/lib.zig b/packages/native/src/lib.zig
-index 0c43928..63085fb 100644
+index 0c43928..eacd1df 100644
 --- a/packages/native/src/lib.zig
 +++ b/packages/native/src/lib.zig
 @@ -265,7 +265,6 @@ comptime {
@@ -1038,7 +1100,7 @@ index 0c43928..63085fb 100644
      const object_ptr = acquireAudioEngine(engine_handle) orelse return native_audio.Status.err_invalid;
      return native_audio.getStats(object_ptr, out_stats);
  }
-@@ -1396,6 +1395,26 @@ export fn render(renderer_handle: NativeHandle, force: bool) u8 {
+@@ -1396,6 +1395,44 @@ export fn render(renderer_handle: NativeHandle, force: bool) u8 {
      return @intFromEnum(object_ptr.render(force));
  }
  
@@ -1055,17 +1117,35 @@ index 0c43928..63085fb 100644
 +}
 +
 +/// Copy the pending paint's clipped hit grid before committing or restoring geometry.
++export fn copyPendingDropHitGrid(renderer_handle: NativeHandle, out: [*]u32, length: u32) bool {
++    const object_ptr = acquireRenderer(renderer_handle) orelse return false;
++    if (length != object_ptr.hitGridWidth * object_ptr.hitGridHeight) return false;
++    @memcpy(out[0..length], object_ptr.nextHitGrid[0..length]);
++    return true;
++}
++
 +export fn copyPendingHitGrid(renderer_handle: NativeHandle, out: [*]u32, length: u32) bool {
 +    const object_ptr = acquireRenderer(renderer_handle) orelse return false;
-+    if (length != object_ptr.nextHitGrid.len) return false;
-+    @memcpy(out[0..length], object_ptr.nextHitGrid);
++    if (length != object_ptr.hitGridWidth * object_ptr.hitGridHeight) return false;
++    @memcpy(out[0..length], object_ptr.nextOrdinaryHitGrid[0..length]);
 +    return true;
++}
++
++export fn addToOrdinaryHitGrid(renderer_handle: NativeHandle, x: i32, y: i32, width: u32, height: u32, id: u32) void {
++    const object_ptr = acquireRenderer(renderer_handle) orelse return;
++    object_ptr.addToOrdinaryHitGrid(x, y, width, height, id);
++}
++
++export fn checkOrdinaryHit(renderer_handle: NativeHandle, x: u32, y: u32) u32 {
++    const object_ptr = acquireRenderer(renderer_handle) orelse return 0;
++    if (x >= object_ptr.hitGridWidth or y >= object_ptr.hitGridHeight) return 0;
++    return object_ptr.currentOrdinaryHitGrid[y * object_ptr.hitGridWidth + x];
 +}
 +
  export fn repaintSplitFooter(
      renderer_handle: NativeHandle,
      pinnedRenderOffset: u32,
-@@ -1517,9 +1536,9 @@ pub const ExternalCapabilities = extern struct {
+@@ -1517,9 +1554,9 @@ pub const ExternalCapabilities = extern struct {
      multiplexer: u8,
      image_protocol: u8,
      term_name_ptr: [*]const u8,
@@ -1077,7 +1157,7 @@ index 0c43928..63085fb 100644
      term_from_xtversion: bool,
      osc52_support: u8,
  };
-@@ -4001,3 +4020,77 @@ export fn bufferDrawChar(
+@@ -4001,3 +4038,77 @@ export fn bufferDrawChar(
      const object_ptr = acquireBuffer(buffer_handle) orelse return;
      object_ptr.drawChar(char, x, y, ptrToRGBA(fg), ptrToRGBA(bg), attributes);
  }
@@ -1172,10 +1252,20 @@ index cb7e952..d684304 100644
                      self.useThread = false;
                      return;
 diff --git a/packages/native/src/renderer.zig b/packages/native/src/renderer.zig
-index 165b406..7e60093 100644
+index 165b406..875ca6f 100644
 --- a/packages/native/src/renderer.zig
 +++ b/packages/native/src/renderer.zig
-@@ -303,6 +303,7 @@ pub const CliRenderer = struct {
+@@ -274,6 +274,9 @@ pub const CliRenderer = struct {
+     // convert from buffer-local (0,0) to their actual screen position.
+     currentHitGrid: []u32,
+     nextHitGrid: []u32,
++    // Ordinary hits retain the drag source; the existing grid serves drop targets.
++    currentOrdinaryHitGrid: []u32,
++    nextOrdinaryHitGrid: []u32,
+     hitGridWidth: u32,
+     hitGridHeight: u32,
+     hitScissorStack: std.ArrayListUnmanaged(buf.ClipRect),
+@@ -303,6 +306,7 @@ pub const CliRenderer = struct {
      sixelCacheHits: u64 = 0,
      sixelCacheMisses: u64 = 0,
      kittyTransport: kitty_transport.Transport = .{},
@@ -1183,7 +1273,97 @@ index 165b406..7e60093 100644
  
      pub const OutputTarget = union(enum) {
          stdout,
-@@ -929,10 +930,32 @@ pub const CliRenderer = struct {
+@@ -382,6 +386,12 @@ pub const CliRenderer = struct {
+         errdefer allocator.free(currentHitGrid);
+         const nextHitGrid = try allocator.alloc(u32, hitGridSize);
+         errdefer allocator.free(nextHitGrid);
++        const currentOrdinaryHitGrid = try allocator.alloc(u32, hitGridSize);
++        errdefer allocator.free(currentOrdinaryHitGrid);
++        const nextOrdinaryHitGrid = try allocator.alloc(u32, hitGridSize);
++        errdefer allocator.free(nextOrdinaryHitGrid);
++        @memset(currentOrdinaryHitGrid, 0);
++        @memset(nextOrdinaryHitGrid, 0);
+         @memset(currentHitGrid, 0); // Initialize with 0 (no renderable)
+         @memset(nextHitGrid, 0);
+         const hitScissorStack: std.ArrayListUnmanaged(buf.ClipRect) = .empty;
+@@ -442,6 +452,8 @@ pub const CliRenderer = struct {
+             .allocator = allocator,
+             .currentHitGrid = currentHitGrid,
+             .nextHitGrid = nextHitGrid,
++            .currentOrdinaryHitGrid = currentOrdinaryHitGrid,
++            .nextOrdinaryHitGrid = nextOrdinaryHitGrid,
+             .hitGridWidth = width,
+             .hitGridHeight = height,
+             .hitScissorStack = hitScissorStack,
+@@ -492,6 +504,8 @@ pub const CliRenderer = struct {
+ 
+         self.allocator.free(self.currentHitGrid);
+         self.allocator.free(self.nextHitGrid);
++        self.allocator.free(self.currentOrdinaryHitGrid);
++        self.allocator.free(self.nextOrdinaryHitGrid);
+         self.hitScissorStack.deinit(self.allocator);
+ 
+         self.allocator.destroy(self);
+@@ -720,15 +734,25 @@ pub const CliRenderer = struct {
+             const newCurrentHitGrid = try self.allocator.alloc(u32, newHitGridSize);
+             errdefer self.allocator.free(newCurrentHitGrid);
+             const newNextHitGrid = try self.allocator.alloc(u32, newHitGridSize);
++            errdefer self.allocator.free(newNextHitGrid);
++            const newCurrentOrdinaryHitGrid = try self.allocator.alloc(u32, newHitGridSize);
++            errdefer self.allocator.free(newCurrentOrdinaryHitGrid);
++            const newNextOrdinaryHitGrid = try self.allocator.alloc(u32, newHitGridSize);
+ 
+             self.allocator.free(self.currentHitGrid);
+             self.allocator.free(self.nextHitGrid);
++            self.allocator.free(self.currentOrdinaryHitGrid);
++            self.allocator.free(self.nextOrdinaryHitGrid);
++            self.currentOrdinaryHitGrid = newCurrentOrdinaryHitGrid;
++            self.nextOrdinaryHitGrid = newNextOrdinaryHitGrid;
+             self.currentHitGrid = newCurrentHitGrid;
+             self.nextHitGrid = newNextHitGrid;
+         }
+ 
+         @memset(self.currentHitGrid, 0);
++        @memset(self.currentOrdinaryHitGrid, 0);
+         @memset(self.nextHitGrid, 0);
++        @memset(self.nextOrdinaryHitGrid, 0);
+         self.hitGridResizeInvalidated = true;
+ 
+         // Always update dimensions. The backing buffer is at least as large as
+@@ -870,6 +894,7 @@ pub const CliRenderer = struct {
+     fn clearSkippedFrameState(self: *CliRenderer) void {
+         self.nextRenderBuffer.clear(self.backgroundColor, null);
+         @memset(self.nextHitGrid, 0);
++        @memset(self.nextOrdinaryHitGrid, 0);
+     }
+ 
+     fn finishSkippedFrame(self: *CliRenderer) RenderStatus {
+@@ -882,6 +907,7 @@ pub const CliRenderer = struct {
+         self.kittyTransport.cancel(.io_error);
+         self.pendingImages.clearRetainingCapacity();
+         @memset(self.nextHitGrid, 0);
++        @memset(self.nextOrdinaryHitGrid, 0);
+         self.force_full_repaint = true;
+         self.lastCursorStyleTag = null;
+         self.lastCursorBlinking = null;
+@@ -894,11 +920,15 @@ pub const CliRenderer = struct {
+     }
+ 
+     fn commitPendingHitGrid(self: *CliRenderer) void {
+-        self.hitGridDirty = self.hitGridResizeInvalidated or !std.mem.eql(u32, self.currentHitGrid, self.nextHitGrid);
++        self.hitGridDirty = self.hitGridResizeInvalidated or !std.mem.eql(u32, self.currentOrdinaryHitGrid, self.nextOrdinaryHitGrid);
++        const ordinaryPrevious = self.currentOrdinaryHitGrid;
++        self.currentOrdinaryHitGrid = self.nextOrdinaryHitGrid;
++        self.nextOrdinaryHitGrid = ordinaryPrevious;
+         const previous = self.currentHitGrid;
+         self.currentHitGrid = self.nextHitGrid;
+         self.nextHitGrid = previous;
+         @memset(self.nextHitGrid, 0);
++        @memset(self.nextOrdinaryHitGrid, 0);
+     }
+ 
+     fn renderResult(self: *CliRenderer, status: RenderStatus) RenderResult {
+@@ -929,10 +959,32 @@ pub const CliRenderer = struct {
      }
  
      // One code path; backend selects writer type at compile time.
@@ -1217,7 +1397,7 @@ index 165b406..7e60093 100644
              return self.finishSkippedFrame();
          }
  
-@@ -950,14 +973,23 @@ pub const CliRenderer = struct {
+@@ -950,14 +1002,23 @@ pub const CliRenderer = struct {
          var write_status: output.WriteStatus = .ok;
          switch (self.backend) {
              inline else => |*b| {
@@ -1244,7 +1424,7 @@ index 165b406..7e60093 100644
          const status = renderStatusFromWrite(write_status);
          if (status == .failed or self.imageRenderFailed) {
              const result = self.finishFailedFrame();
-@@ -2370,6 +2402,10 @@ pub const CliRenderer = struct {
+@@ -2370,6 +2431,10 @@ pub const CliRenderer = struct {
      /// `sync_started` is true only when the caller already opened the
      /// synchronized-update envelope for a batched split-footer commit.
      pub fn prepareRenderFrameWithWriter(self: *CliRenderer, writer: anytype, force: bool, sync_started: bool) void {
@@ -1255,7 +1435,7 @@ index 165b406..7e60093 100644
          _ = self.pollKittyImageTransport();
          const renderStartTime = std.Io.Clock.now(.awake, io).toMicroseconds();
          var cellsUpdated: u32 = 0;
-@@ -2814,8 +2850,8 @@ pub const CliRenderer = struct {
+@@ -2814,8 +2879,8 @@ pub const CliRenderer = struct {
              self.mousePointerStateValid = true;
          }
  
@@ -1265,6 +1445,46 @@ index 165b406..7e60093 100644
 +        if (frame_started and close_sync) {
              writer.writeAll(ansi.ANSI.syncReset) catch {};
          }
+ 
+@@ -2881,6 +2946,14 @@ pub const CliRenderer = struct {
+     /// only register hits within the visible region. Later renderables overwrite
+     /// earlier ones. Z-order is determined by render order.
+     pub fn addToHitGrid(self: *CliRenderer, x: i32, y: i32, width: u32, height: u32, id: u32) void {
++        self.addToGrid(self.nextHitGrid, x, y, width, height, id);
++    }
++
++    pub fn addToOrdinaryHitGrid(self: *CliRenderer, x: i32, y: i32, width: u32, height: u32, id: u32) void {
++        self.addToGrid(self.nextOrdinaryHitGrid, x, y, width, height, id);
++    }
++
++    fn addToGrid(self: *CliRenderer, grid: []u32, x: i32, y: i32, width: u32, height: u32, id: u32) void {
+         const clipped = self.clipRectToHitScissor(x, y, width, height) orelse return;
+         const startX = @max(0, clipped.x);
+         const startY = @max(0, clipped.y);
+@@ -2905,7 +2978,7 @@ pub const CliRenderer = struct {
+             const startIdx = rowStart + uStartX;
+             const endIdx = rowStart + uEndX;
+ 
+-            @memset(self.nextHitGrid[startIdx..endIdx], id);
++            @memset(grid[startIdx..endIdx], id);
+         }
+     }
+ 
+@@ -2915,6 +2988,7 @@ pub const CliRenderer = struct {
+     /// require updating hit targets without waiting for the next render.
+     pub fn clearCurrentHitGrid(self: *CliRenderer) void {
+         @memset(self.currentHitGrid, 0);
++        @memset(self.currentOrdinaryHitGrid, 0);
+     }
+ 
+     /// Return whether the hit grid changed during the last render.
+@@ -3037,6 +3111,7 @@ pub const CliRenderer = struct {
+             const endIdx = rowStart + uEndX;
+ 
+             @memset(self.currentHitGrid[startIdx..endIdx], id);
++            @memset(self.currentOrdinaryHitGrid[startIdx..endIdx], id);
+         }
+     }
  
 diff --git a/packages/native/src/text-buffer.zig b/packages/native/src/text-buffer.zig
 index 5f13547..3665e5b 100644
