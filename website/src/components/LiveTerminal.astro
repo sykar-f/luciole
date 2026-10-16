@@ -603,10 +603,9 @@ const stand = JSON.stringify({
      the script: outside the component's scoped styles. */
   .layer :global(.stand) {
     position: absolute;
-    inset: 0;
-    padding: 8px;
-    box-sizing: border-box;
+    inset: 8px;
     background: var(--screen);
+    box-shadow: 0 0 0 8px var(--screen);
     pointer-events: none;
   }
 

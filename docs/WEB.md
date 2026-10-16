@@ -143,6 +143,7 @@ et `process.on("message")`, créait le renderer sur le TTY.
 n'importe plus rien de Node. Sa variante `src/web/platform/run.tsx` exporte le même
 `run()`, qui monte xterm.js sur `#luciole`, et `runInPage(create, { element, server,
 fetch, name, sessionKey })` pour une page qui choisit son élément et son `fetch`.
+La page réserve sa marge de 8 px par `inset`, sans padding sur l'hôte mesuré par xterm.js, pour garder la dernière ligne dans la zone disponible.
 
 ### W2. `serve()` liait le handler à `Bun.serve`
 

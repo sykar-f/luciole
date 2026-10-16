@@ -14,9 +14,8 @@
       }
       #luciole {
         position: fixed;
-        inset: 0;
-        padding: 8px;
-        box-sizing: border-box;
+        /* FitAddon reads this size without subtracting host padding. */
+        inset: 8px;
       }
       #luciole.failed {
         color: #f88;
