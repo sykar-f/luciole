@@ -427,6 +427,10 @@ export class MarkdownEditorRenderable extends Renderable {
           : {}),
       },
     );
+    // The projected node's default hit rectangle moves up, but the document
+    // window also paints its entering bottom row at the fixed viewport edge.
+    if (this.projecting && this.screenY < this.windowY)
+      this.ctx.addToHitGrid(this.screenX, this.windowY + this.height - 1, this.width, 1, this.num);
     this.drawScrollbar(buffer, layout, theme);
     if (!this.projecting) this.placeCursor(layout);
   }
