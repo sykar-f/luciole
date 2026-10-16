@@ -346,6 +346,8 @@ lecteur d'écran, le chemin ordinaire par lignes reste actif. Le terminal natif
 n'installe pas ce contrôleur.
 Une vue déclarant `scrollKeys: false` garde ses flèches et touches Page ; Ctrl+Page conserve le chemin de défilement existant.
 
+Le membre optionnel `input(origin, dispatch)` limite le hit test du peintre propriétaire à l’origine présentée, sans déplacer la position logique ni les coordonnées physiques.
+
 Une seule vue porte une fraction. Les événements de molette précis dans toute
 la grille passent par les hit maps de leur génération : snapshot pour les anciennes
 lignes visibles, projection pour le bord entrant. Une vue imbriquée consomme le

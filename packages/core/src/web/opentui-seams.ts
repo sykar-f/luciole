@@ -67,6 +67,8 @@ export interface ScrollableViewport {
   readonly owner: Renderable;
   /** False when the owner handles its own arrow and Page keys. */
   readonly scrollKeys?: false;
+  /** Scope owner pointer hit lookup to the document origin actually presented. */
+  input?(origin: number, dispatch: () => boolean): boolean;
   /** Logical rows, including the fraction. */
   readonly position: number;
   /** Integer origin used by ordinary layout and input. */

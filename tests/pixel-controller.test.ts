@@ -1,6 +1,6 @@
 /* eslint-disable typescript/consistent-type-assertions -- Partial renderer, viewport and immutable map doubles isolate controller lifecycle and frame encoding from a native renderer. */
 import { EventEmitter } from "node:events";
-import type { CliRenderer, Renderable } from "@opentui/core";
+import { Renderable, type CliRenderer } from "@opentui/core";
 import { PixelController } from "../packages/core/src/web/pixel-scroll/controller";
 import { OrdinaryPixelInput } from "../packages/core/src/web/pixel-scroll/ordinary-input";
 import { PixelHistory, RETAINED_GENERATIONS } from "../packages/core/src/web/pixel-scroll/history";
@@ -13,7 +13,11 @@ import {
   planPixelFrame,
   type PixelFrame,
 } from "../packages/core/src/web/pixel-scroll/frame";
-import type { RenderHitMap, ScrollableViewport } from "../packages/core/src/web/opentui-seams";
+import type {
+  RenderFramePlan,
+  RenderHitMap,
+  ScrollableViewport,
+} from "../packages/core/src/web/opentui-seams";
 
 function fixture(fraction = 0.25) {
   const viewport = {
@@ -323,5 +327,132 @@ test("viewport key ownership is optional and keeps modified Page routing", () =>
     expect(send("down")).toBe(false);
     expect(send("pageup", true)).toBe(true);
     controller.dispose();
+  }
+});
+
+test("owner pointer dispatch scopes the named origin without changing event coordinates", () => {
+  for (const scoped of [true, false]) {
+    const id = 10_000;
+    const owner = {
+      num: id,
+      visible: true,
+      isDestroyed: false,
+      parent: null,
+      getChildren: () => [],
+    } as unknown as Renderable;
+    let origin = 0,
+      inputOrigin: number | undefined;
+    const viewport: ScrollableViewport = {
+      owner,
+      get position() {
+        return origin + 0.75;
+      },
+      get origin() {
+        return origin;
+      },
+      max: 100,
+      rect: { x: 0, y: 0, width: 20, height: 10 },
+      set: (value) => {
+        origin = Math.floor(value);
+      },
+      scroll: () => 0,
+      project: () => ({ renderable: owner, translateX: 0, translateY: -1 }),
+      ...(scoped
+        ? {
+            input: (value: number, dispatch: () => boolean) => {
+              inputOrigin = value;
+              try {
+                return dispatch();
+              } finally {
+                inputOrigin = undefined;
+              }
+            },
+          }
+        : {}),
+    };
+    Object.assign(owner, { scrollableViewport: viewport });
+    Renderable.renderablesByNumber.set(id, owner);
+    const map: RenderHitMap = {
+      width: 20,
+      height: 10,
+      frameId: 1,
+      passId: 1,
+      hitTest: () => id,
+      origin: () => ({ x: 0, y: 0 }),
+    };
+    const osc = new EventEmitter();
+    let factory: (() => RenderFramePlan | null) | null = null;
+    const observed: { origin: number | undefined; x: number; y: number; position: number }[] = [];
+    const writes: string[] = [];
+    const renderer = Object.assign(new EventEmitter(), {
+      root: owner,
+      width: 20,
+      height: 10,
+      currentFocusedRenderable: owner,
+      keyInput: new EventEmitter(),
+      nextRenderBuffer: { buffers: { cells: new Uint32Array([1]) } },
+      requestRender: () => {},
+      captureHitMap: () => map,
+      setFramePlan: (value: (() => RenderFramePlan | null) | null) => {
+        factory = value;
+      },
+      dispatchMouseEventFromHitMap: (event: { x: number; y: number }) => {
+        observed.push({ origin: inputOrigin, x: event.x, y: event.y, position: viewport.position });
+        return true;
+      },
+      subscribeOsc: (receive: (sequence: string) => void) => {
+        osc.on("sequence", receive);
+        return () => {
+          osc.off("sequence", receive);
+        };
+      },
+    });
+    const controller = PixelController.attach(renderer as unknown as CliRenderer, (wire) =>
+      writes.push(wire),
+    );
+    try {
+      const wire = writes[0];
+      if (!controller || !wire) throw new Error("Missing controller query");
+      const query = decode(wire.slice("\x1b[?2026h".length, -"\x1b[?2026l".length));
+      if (query?.op !== "query") throw new Error("Missing query");
+      osc.emit(
+        "sequence",
+        encode({
+          op: "capability",
+          version: 1,
+          nonce: query.nonce,
+          reason: "ready",
+          snapshot: true,
+          precise: true,
+        }),
+      );
+      const createPlan = factory as (() => RenderFramePlan | null) | null;
+      const plan = createPlan?.();
+      if (!plan) throw new Error("Missing frame plan");
+      plan.onHitMap?.(map);
+      plan.projection?.onHitMap?.(map);
+      origin = 2;
+      osc.emit(
+        "sequence",
+        encode({
+          op: "pointer",
+          version: 1,
+          id: 1,
+          generation: 1,
+          phase: 0.75,
+          x: 4,
+          y: 3,
+          modifiers: 0,
+          action: "down",
+          button: 0,
+          buttons: 1,
+        }),
+      );
+      expect(observed).toEqual([{ origin: scoped ? 0 : undefined, x: 4, y: 3, position: 2.75 }]);
+      expect(inputOrigin).toBeUndefined();
+    } finally {
+      controller?.dispose();
+      Renderable.renderablesByNumber.delete(id);
+    }
   }
 });

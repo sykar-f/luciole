@@ -350,8 +350,9 @@ export class PixelController {
 
   private dispatch(report: Extract<PixelReport, { op: "pointer" | "wheel" }>, frame: PixelFrame) {
     const source = pixelHitSource(frame, report.x, report.y, report.phase);
-    if (!source.map) return;
-    const id = source.map.hitTest(source.x, source.y);
+    const map = source.map;
+    if (!map) return;
+    const id = map.hitTest(source.x, source.y);
     const target = Renderable.renderablesByNumber.get(id);
     if (report.op === "pointer" && report.action === "down")
       console.debug(
@@ -359,7 +360,7 @@ export class PixelController {
         JSON.stringify({
           id,
           target: target?.id,
-          source: { x: source.x, y: source.y, map: !!source.map },
+          source: { x: source.x, y: source.y, map: !!map },
         }),
       );
     if (id && (!target || target.isDestroyed)) return;
@@ -382,7 +383,7 @@ export class PixelController {
         // eslint-disable-next-line no-control-regex -- Split ordinary SGR wheel reports.
         for (const sequence of ordinary.match(/\x1b\[<[^Mm]*[Mm]/g) ?? []) {
           const event = this.mouse.parseMouseEvent(Buffer.from(sequence));
-          if (event) this.renderer.dispatchMouseEventFromHitMap(event, source.map);
+          if (event) this.renderer.dispatchMouseEventFromHitMap(event, map);
         }
         return;
       }
@@ -419,32 +420,36 @@ export class PixelController {
             precise: report.source === "precise" && !horizontal,
           },
         },
-        source.map,
+        map,
       );
       const fractional = this.viewports().find((v) => !Number.isInteger(v.position));
       if (fractional) this.active = fractional;
       this.renderer.requestRender();
       if (this.settle) this.settleTimer = setTimeout(() => this.settleRow(), SETTLE_DELAY_MS);
     } else {
-      this.renderer.dispatchMouseEventFromHitMap(
-        {
-          type: report.action,
-          button:
-            report.action === "drag"
-              ? report.buttons & LEFT_HELD
-                ? 0
-                : report.buttons & MIDDLE_HELD
-                  ? 1
-                  : report.buttons & RIGHT_HELD
-                    ? 2
-                    : report.button
-              : Math.max(0, report.button),
-          x,
-          y,
-          modifiers,
-        },
-        source.map,
-      );
+      const dispatch = () =>
+        this.renderer.dispatchMouseEventFromHitMap(
+          {
+            type: report.action,
+            button:
+              report.action === "drag"
+                ? report.buttons & LEFT_HELD
+                  ? 0
+                  : report.buttons & MIDDLE_HELD
+                    ? 1
+                    : report.buttons & RIGHT_HELD
+                      ? 2
+                      : report.button
+                : Math.max(0, report.button),
+            x,
+            y,
+            modifiers,
+          },
+          map,
+        );
+      if (target === frame.viewport.owner && frame.viewport.input)
+        frame.viewport.input(frame.origin, dispatch);
+      else dispatch();
       if (report.action === "down") {
         this.switchTo(ancestorViewport(target));
       }
