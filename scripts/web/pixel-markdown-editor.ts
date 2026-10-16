@@ -165,6 +165,16 @@ try {
   await browser.evaluate(
     "{const r=probe.state().rect;probe.pointer('mousemove',r.x+7.5,r.y+4.1,1);probe.pointer('mouseup',r.x+7.5,r.y+4.1)}",
   );
+  console.log(
+    "[DEBUG-editor-drag-state]",
+    await browser.evaluate(
+      'JSON.stringify({state:probe.state(),events:probe.events.slice(-12),debug:probe.debug()},(key,value)=>key==="renderer"?undefined:value instanceof Map?[...value.keys()]:value)',
+    ),
+  );
+  console.log(
+    "[DEBUG-editor-press-trace]",
+    browser.logs.filter((line) => line.includes("DEBUG-editor-press")),
+  );
   expect(await browser.evaluate("probe.state().selection.anchor")).toEqual({ block: 1, offset: 1 });
   expect(await browser.evaluate("probe.state().selection.head")).toEqual({ block: 3, offset: 7 });
   await browser.evaluate("probe.terminal.input('\\x1bc')");
