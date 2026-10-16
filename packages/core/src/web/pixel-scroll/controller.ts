@@ -246,12 +246,12 @@ export class PixelController {
     const handoverFrame: PixelFrame | undefined =
       previous && previous.viewport !== viewport
         ? {
-            ...previous,
+            id: previous.id,
+            viewport: previous.viewport,
+            rect: previous.rect,
             generation: ++this.generation,
             origin: previous.viewport.origin,
             fraction: 0,
-            snapshot: undefined,
-            projection: undefined,
           }
         : undefined;
     const handover = handoverFrame ? planPixelFrame(handoverFrame, true) : undefined;
