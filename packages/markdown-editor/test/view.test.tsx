@@ -680,6 +680,8 @@ test("the optional viewport keeps native rows and projects without logical mutat
   expect(viewport.rect).toEqual({ x: 0, y: 0, width: 30, height: 10 });
   const seams = ["setFramePlan", "captureHitMap", "dispatchMouseEventFromHitMap"];
   for (const name of seams) Reflect.set(ui.renderer, name, () => {});
+  viewport.set(0.75);
+  expect(editor.wheelRoom()).toEqual({ up: true, down: true });
   viewport.set(2.75);
   expect(viewport.position).toBe(2.75);
   const before = { position: viewport.position, origin: viewport.origin, y: editor.screenY };

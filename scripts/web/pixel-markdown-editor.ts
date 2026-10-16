@@ -76,7 +76,12 @@ try {
   expect(await browser.evaluate("probe.state().presented.origin")).toBe(0);
 
   const continuity = z
-    .object({ checked: z.number(), errors: z.array(z.string()), thumbs: z.number() })
+    .object({
+      checked: z.number(),
+      errors: z.array(z.string()),
+      thumbs: z.number(),
+      fractionalThumbs: z.number(),
+    })
     .parse(
       await browser.evaluate(`(async()=>{
       const pause=()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
@@ -89,7 +94,7 @@ try {
       probe.editor.scrollableViewport.set(0);await waitFrame();
       const start=probe.state(), H=start.cellHeight;
       const stride=refs[0].content.length/(start.rect.height*H);
-      const errors=[],thumbs=new Map();let checked=0,previous=0;
+      const errors=[],thumbs=new Map();let checked=0,previous=0,fractionalThumbs=0,previousBar=start.bar,previousOrigin=0;
       probe.frames.length=0;
       for(const direction of [1,-1]) for(let step=0;step<48;step++) {
         probe.wheel(start.rect.x+2,start.rect.y+2,direction*.25); await waitFrame();
@@ -104,16 +109,19 @@ try {
           if(mismatch>=0) errors.push('content:'+position+':'+mismatch+':'+frame.content[mismatch]+'/'+reference[mismatch]);
           const bar=probe.state().bar, old=thumbs.get(bar);
           if(old && frame.thumb.some((v,i)=>v!==old[i])) errors.push('translated scrollbar:'+position);
+          if(bar!==previousBar && frame.origin===previousOrigin) fractionalThumbs++;
+          previousBar=bar;previousOrigin=frame.origin;
           thumbs.set(bar,frame.thumb);checked++;
         }
       }
-      return {checked,errors:errors.slice(0,10),thumbs:thumbs.size};
+      return {checked,errors:errors.slice(0,10),thumbs:thumbs.size,fractionalThumbs};
     })()`),
     );
   console.log("editor continuity", continuity);
   expect(continuity.errors).toEqual([]);
   expect(continuity.checked).toBeGreaterThanOrEqual(96);
   expect(continuity.thumbs).toBeGreaterThan(1);
+  expect(continuity.fractionalThumbs).toBeGreaterThan(0);
   await browser.evaluate("{const r=probe.state().rect;probe.wheel(r.x+2,r.y+2,.75)}");
   await wait("probe.state().presented?.fraction===.75", "fraction before click");
   await browser.evaluate(

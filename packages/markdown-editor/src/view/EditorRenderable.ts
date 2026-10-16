@@ -474,6 +474,7 @@ export class MarkdownEditorRenderable extends Renderable {
     this.requestRender();
   }
   protected override onRemove(): void {
+    this.stopEdgeScroll();
     if (this.focused) this.ctx.setCursorPosition(0, 0, false);
   }
 
@@ -486,7 +487,7 @@ export class MarkdownEditorRenderable extends Renderable {
     const layout = this.layout();
     if (!layout) return { up: false, down: false };
     const { max } = this.extent(layout);
-    const at = Math.max(0, Math.min(max, this.scroll));
+    const at = Math.max(0, Math.min(max, this.scrollableViewport.position));
     return { up: at > 0, down: at < max };
   }
 
@@ -712,7 +713,7 @@ export class MarkdownEditorRenderable extends Renderable {
    */
   private pressBar(event: MouseEvent, layout: Layout) {
     const extent = this.extent(layout);
-    const thumb = thumbOf(extent, this.scroll, this.height);
+    const thumb = thumbOf(extent, this.scrollableViewport.position, this.height);
     if (!thumb) return;
     const half = (event.y - this.screenY) * HALVES;
     // The row pressed holds some of the thumb, by either half.
