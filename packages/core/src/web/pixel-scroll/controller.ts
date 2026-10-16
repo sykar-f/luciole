@@ -448,7 +448,8 @@ export class PixelController {
     this.switchTo(viewport);
     // Editors keep their arrows. A focused ScrollBox owns its scroll keys;
     // modified Page keys can scroll its ancestor without stealing text navigation.
-    if (focused !== viewport.owner && !(key.ctrl && key.name.startsWith("page"))) return;
+    const modifiedPage = key.ctrl && key.name.startsWith("page");
+    if ((focused !== viewport.owner || viewport.scrollKeys === false) && !modifiedPage) return;
     const delta =
       key.name === "down"
         ? 1

@@ -1,6 +1,6 @@
 /* eslint-disable typescript/consistent-type-assertions -- Partial renderer, viewport and immutable map doubles isolate controller lifecycle and frame encoding from a native renderer. */
 import { EventEmitter } from "node:events";
-import type { CliRenderer } from "@opentui/core";
+import type { CliRenderer, Renderable } from "@opentui/core";
 import { PixelController } from "../packages/core/src/web/pixel-scroll/controller";
 import { OrdinaryPixelInput } from "../packages/core/src/web/pixel-scroll/ordinary-input";
 import { PixelHistory, RETAINED_GENERATIONS } from "../packages/core/src/web/pixel-scroll/history";
@@ -244,4 +244,84 @@ test("ordinary SGR input after disposal never accesses the renderer", () => {
   controller.dispose();
   expect(hits).toBe(0);
   expect(renders).toBe(0);
+});
+
+test("viewport key ownership is optional and keeps modified Page routing", () => {
+  for (const keepsKeys of [false, true]) {
+    const osc = new EventEmitter(),
+      keyInput = new EventEmitter();
+    const owner = {} as Renderable;
+    let position = 0;
+    const viewport: ScrollableViewport = {
+      owner,
+      ...(keepsKeys ? { scrollKeys: false as const } : {}),
+      get position() {
+        return position;
+      },
+      origin: 0,
+      max: 100,
+      rect: { x: 0, y: 0, width: 20, height: 10 },
+      set: (value) => {
+        position = value;
+      },
+      scroll: (delta) => {
+        position += delta;
+        return 0;
+      },
+      project: () => ({ renderable: owner, translateX: 0, translateY: 0 }),
+    };
+    Object.assign(owner, { scrollableViewport: viewport });
+    let query: ReturnType<typeof decode>;
+    const renderer = Object.assign(new EventEmitter(), {
+      keyInput,
+      currentFocusedRenderable: owner,
+      requestRender: () => {},
+      setFramePlan: () => {},
+      captureHitMap: () => ({}),
+      dispatchMouseEventFromHitMap: () => false,
+      subscribeOsc: (receive: (sequence: string) => void) => {
+        osc.on("sequence", receive);
+        return () => {
+          osc.off("sequence", receive);
+        };
+      },
+    });
+    const controller = PixelController.attach(renderer as unknown as CliRenderer, (wire) => {
+      if (!query) query = decode(wire.slice("\x1b[?2026h".length, -"\x1b[?2026l".length));
+    });
+    if (query?.op !== "query" || !controller) throw new Error("Missing controller query");
+    osc.emit(
+      "sequence",
+      encode({
+        op: "capability",
+        version: 1,
+        nonce: query.nonce,
+        reason: "ready",
+        snapshot: true,
+        precise: true,
+      }),
+    );
+    const send = (name: string, ctrl = false) => {
+      const key = {
+        name,
+        ctrl,
+        defaultPrevented: false,
+        preventDefault() {
+          this.defaultPrevented = true;
+        },
+      };
+      keyInput.emit("keypress", key);
+      return key.defaultPrevented;
+    };
+    expect(send("down")).toBe(!keepsKeys);
+    expect(position).toBe(keepsKeys ? 0 : 1);
+    expect(send("pagedown")).toBe(!keepsKeys);
+    expect(position).toBe(keepsKeys ? 0 : 10);
+    expect(send("pagedown", true)).toBe(true);
+    expect(position).toBe(keepsKeys ? 9 : 19);
+    Object.assign(renderer, { currentFocusedRenderable: { parent: owner } });
+    expect(send("down")).toBe(false);
+    expect(send("pageup", true)).toBe(true);
+    controller.dispose();
+  }
 });

@@ -344,6 +344,7 @@ accepté par `run`) désactive son installation. La découverte ne bloque jamais
 le démarrage. Sans réponse compatible, avec la réduction des mouvements ou le
 lecteur d'écran, le chemin ordinaire par lignes reste actif. Le terminal natif
 n'installe pas ce contrôleur.
+Une vue déclarant `scrollKeys: false` garde ses flèches et touches Page ; Ctrl+Page conserve le chemin de défilement existant.
 
 Une seule vue porte une fraction. Les événements de molette précis dans toute
 la grille passent par les hit maps de leur génération : snapshot pour les anciennes
