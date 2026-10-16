@@ -52,21 +52,16 @@ const stdin = new PassThrough();
 if (!isInputStream(stdin)) throw new Error("Expected readable stdin");
 let controller: PixelController | undefined;
 const reports: unknown[] = [];
-let maxInputMs = 0;
 terminal.onData((data) => {
   const message = decode(data);
   if (message) reports.push(message);
   controller?.ordinary(data);
-  const began = performance.now();
   stdin.write(data);
-  if (message?.op === "wheel") maxInputMs = Math.max(maxInputMs, performance.now() - began);
 });
 const { requestAnimationFrame, cancelAnimationFrame } = globalThis;
-let wire = "";
 const r = await createCliRenderer({
   stdin,
   stdout: terminalOutput({ columns: 50, rows: 16 }, (bytes, done) => {
-    wire += new TextDecoder().decode(bytes);
     terminal.write(bytes, done);
   }),
   width: 50,

@@ -346,9 +346,9 @@ lecteur d'écran, le chemin ordinaire par lignes reste actif. Le terminal natif
 n'installe pas ce contrôleur.
 Une vue déclarant `scrollKeys: false` garde ses flèches et touches Page ; Ctrl+Page conserve le chemin de défilement existant.
 
-Le membre optionnel `input(origin, dispatch)` limite le hit test du peintre propriétaire à l’origine présentée, sans déplacer la position logique ni les coordonnées physiques.
+Le membre optionnel `input(origin, dispatch)` limite le hit test du peintre propriétaire à l'origine présentée, sans déplacer la position logique ni les coordonnées physiques.
 
-Les snapshots d’un peintre propriétaire conservent ses cellules de hit-test pendant une capture, sans remplacer les cibles enfants ni les vues qui le recouvrent.
+Les snapshots d'un peintre propriétaire conservent ses cellules de hit-test pendant une capture, sans remplacer les cibles enfants ni les vues qui le recouvrent.
 
 Une seule vue porte une fraction. Les événements de molette précis dans toute
 la grille passent par les hit maps de leur génération : snapshot pour les anciennes
