@@ -27,11 +27,15 @@ export default function Layout({children}: LayoutProps) {
   </box>;
 }`,
   );
-  await Bun.write(
-    join(directory.app, "app/page.tsx"),
-    `export default function Page() {
+  const page = `export default function Page() {
   return <scrollbox height="100%" width="100%">{Array.from({length:100},(_,i)=><text key={i} height={1}>Row {i}</text>)}</scrollbox>;
-}`,
+}`;
+  // The hero opens /notes/1: use the same geometry fixture on that real route too.
+  await Bun.write(join(directory.app, "app/page.tsx"), page);
+  await Bun.write(join(directory.app, "app/notes/[id]/page.tsx"), page);
+  await Bun.write(
+    join(directory.app, "app/notes/[id]/loading.tsx"),
+    '"use client"; export default function Loading() { return null; }',
   );
   build(directory.app, ["--web-local"]);
   const files = serveSite(join(directory.app, ".luciole/web"));
@@ -47,6 +51,7 @@ export default function Layout({children}: LayoutProps) {
         );
       // The built landing's actual capture component, with our deterministic app
       // behind its iframe. Preserve each capture's columns/rows query unchanged.
+      if (url.pathname === "/hero") return fetch(website.url);
       if (url.pathname === "/landing") return fetch(new URL("/examples/", website.url));
       if (url.pathname.startsWith("/demo/"))
         return fetch(
@@ -157,6 +162,60 @@ export default function Layout({children}: LayoutProps) {
         })()`),
       );
       console.log(JSON.stringify({ dpr, capture: true, width, height, ...proof }));
+      failures.push(...proof.errors);
+    }
+    // The homepage sizes its HTML posters separately from LiveTerminal's captures.
+    // Compare both duel panes in layout coordinates: the back pane is transformed.
+    for (const [width, height] of [
+      [761, 900],
+      [960, 720],
+      [1240, 900],
+      [1440, 1000],
+      [1920, 1080],
+    ]) {
+      await browser.send("Emulation.setDeviceMetricsOverride", {
+        width,
+        height,
+        deviceScaleFactor: 0,
+        mobile: false,
+      });
+      await browser.open(host.url + "hero");
+      await browser
+        .waitFor(
+          `[...document.querySelectorAll('[data-duel] iframe')].length===2 && [...document.querySelectorAll('[data-duel] iframe')].every(f=>f.contentWindow.lucioleScreen?.().at(-1)?.includes('${FOOTER}'))`,
+          "both hero duel terminals",
+        )
+        .catch(async (error: unknown) => {
+          console.log(
+            "hero readiness",
+            await browser.evaluate(
+              `({url:location.href,width:innerWidth,narrow:matchMedia('(max-width:760px)').matches,roots:document.querySelectorAll('[data-duel]').length,frames:[...document.querySelectorAll('[data-duel] iframe')].map(f=>({src:f.src,body:f.contentDocument?.body.innerText,rows:f.contentWindow.lucioleScreen?.()}))})`,
+            ),
+          );
+          throw error;
+        });
+      const proof = z.object({ errors: z.array(z.string()), measurement: z.unknown() }).parse(
+        await browser.evaluate(`(()=>{
+          const root=document.querySelector('[data-duel]'), errors=[];
+          const columns=Number(root.dataset.columns), rows=Number(root.dataset.rows);
+          const panes=[...root.querySelectorAll('[data-frame]')].map(holder=>{
+            const frame=holder.querySelector('iframe'), w=frame.contentWindow;
+            const live=w.document.querySelector('.xterm-screen').getBoundingClientRect();
+            const poster=holder.querySelector('.grid'), css=getComputedStyle(poster);
+            const capture=[parseFloat(css.width),parseFloat(css.height)];
+            const expected=[holder.clientWidth,holder.clientHeight];
+            const actual=[live.width,live.height];
+            if(w.devicePixelRatio!==${dpr}) errors.push('wrong hero DPR');
+            if(actual.some((v,i)=>v!==expected[i])) errors.push('hero live grid differs from frame:'+holder.dataset.frame);
+            if(capture.some((v,i)=>Math.abs(v-expected[i])>1/devicePixelRatio)) errors.push('hero poster differs from frame:'+holder.dataset.frame);
+            if(w.lucioleCells()[0].length!==columns || w.lucioleScreen().length!==rows || poster.querySelectorAll('.row').length!==rows) errors.push('hero grid cell count differs');
+            if(frame.offsetLeft+live.left!==0 || frame.offsetTop+live.top!==0) errors.push('hero visible margin changed');
+            return {side:holder.dataset.frame,expected,capture,actual};
+          });
+          return {errors,measurement:panes};
+        })()`),
+      );
+      console.log(JSON.stringify({ dpr, hero: true, width, height, ...proof }));
       failures.push(...proof.errors);
     }
   } finally {
