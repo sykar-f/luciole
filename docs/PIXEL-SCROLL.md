@@ -1,4 +1,4 @@
-# Défilement au pixel : contrat expérimental app–hôte, version 1
+# Défilement au pixel : contrat expérimental app–hôte, version 2
 
 Ce document définit les octets et leur sens pour le contrôleur applicatif et
 l'hôte xterm. Le codec interne est
@@ -24,14 +24,15 @@ décodeur accepte aussi BEL (`0x07`) comme terminaison. Pas de formes C1 sur 8 b
 Le JSON et le préfixe sont ASCII imprimables, sans saut de ligne ; les nombres
 sont finis, sans conversion implicite depuis des chaînes. Chaque objet a
 exactement les champs décrits, sans champ supplémentaire. L'ordre des clés JSON
-n'importe pas. La version entière `1` est obligatoire **dans chaque message**,
-y compris les entrées. Une autre version, même dans une enveloppe connue, est
-ignorée ; elle ne déclenche aucune activation.
+n'importe pas. La version entière est obligatoire **dans chaque message**. Les transactions et
+les entrées gardent `version:1`. Seuls `query` et `capability` acceptent aussi
+`version:2` ; `presented` exige `version:2`. Toute autre combinaison est ignorée,
+sans activation. Les schémas v1 restent stricts et inchangés.
 
 Le mode DEC privé **19463** active (`CSI ? 19463 h`) ou désactive
 (`CSI ? 19463 l`) les rapports précis de cette version. Il est désactivé au
 démarrage. Les commandes CSI ne transportent pas de JSON : leur association à
-la version 1 est définie par cette négociation, pas par le nom du terminal.
+la version négociée est définie par ce dialogue, pas par le nom du terminal.
 Le mode 2026 reste celui de la sortie synchronisée, sans nouvelle signification.
 Toutes les opérations app → hôte, y compris `query` et `release`, passent dans
 une enveloppe 2026. Les rapports vers stdin sont des OSC seules, sans enveloppe
@@ -110,7 +111,8 @@ un commit incomplet. Une OSC étrangère reste du ressort de son propre handler.
 
 ## Opérations app → hôte
 
-Toutes ont les champs communs `{op,version:1}` :
+Toutes ont les champs communs `{op,version:1}`, sauf la requête de découverte
+v2, `{op:"query",version:2,nonce}` :
 
 | `op`       | Autres champs obligatoires  | Sens                                                                                 |
 | ---------- | --------------------------- | ------------------------------------------------------------------------------------ |
@@ -180,19 +182,46 @@ encore retenue utilise cette géométrie, même si l'app prépare déjà la suiv
 Une génération expirée, une cible détruite ou un id non reconnu fait rejeter
 l'entrée : ne pas la réinterpréter dans la grille la plus récente. Les ancres
 de sélection/drag restent des positions stables du contenu, pas des cellules
-de la projection courante. Aucun rapport ne vaut acquittement des générations
-qui le précèdent ; cette version ne fournit pas de message d'acquittement dédié.
+de la projection courante.
+
+Après accord v2, l'hôte émet `presented(id,generation)` depuis le callback du
+rendu effectivement publié, jamais au parseur ni au commit. Le rapport suit
+**le même flux stdin ordonné** que les entrées : toutes les entrées de l'ancienne
+présentation précèdent l'acquittement qui autorise leur retrait. Les générations
+sont croissantes ; un doublon ne libère rien, un acquittement inconnu, périmé ou
+d'un autre id est refusé. Un redraw de la même génération ne renvoie pas
+l'acquittement. Une libération canonique acquitte aussi sa génération lors du
+rendu effectif, avant de rejouer le geste natif.
+
+L'app conserve la génération acquittée et **toutes les générations publiées en
+vol**, y compris une libération intermédiaire lors d'un transfert. Un rapport
+valide `presented(g)` permet de retirer uniquement les générations `< g` : le
+compositeur peut sauter des commits intermédiaires, qui ne seront plus présentés.
+La fenêtre fixe contient huit générations au total. Avant une transaction,
+l'app réserve sa place (deux pour un transfert) ; si la fenêtre est pleine,
+elle ne publie aucune nouvelle transaction et coalesce les changements dans
+l'état logique courant. Les entrées continuent d'être traitées contre leurs
+cartes retenues, sans attente. Le prochain acquittement qui libère assez de
+place redemande une frame de l'état courant ; aucune file de frames différées
+ne grandit. Une invalidation abandonne la fenêtre et renégocie.
+
+En repli v1, seules les entrées confirment une génération. La rétention reste
+bornée à huit par éviction des plus anciennes : une entrée nommant une génération
+évincée est rejetée. La garantie de rétention jusqu'à présentation exige l'accord
+v2 des deux pairs.
 
 ## Rapports hôte → app, par stdin
 
 Le chemin est `onData` vers stdin, ou le même retour via le PTY. Pas d'appel JS
-parallèle à l'application. Tous les rapports ont `{op,version:1}` :
+parallèle à l'application. `wheel` et `pointer` ont `{op,version:1}` ;
+`capability` porte la version de sa requête et `presented` a `{op,version:2}` :
 
-| `op`         | Autres champs obligatoires                                | Sens                                                     |
-| ------------ | --------------------------------------------------------- | -------------------------------------------------------- |
-| `capability` | `nonce,snapshot,precise,reason`                           | Réponse à la requête, ou révocation du même nonce.       |
-| `wheel`      | `id,generation,x,y,phase,modifiers,dx,dy,source`          | Geste normalisé ; `source` vaut `precise` ou `discrete`. |
-| `pointer`    | `id,generation,x,y,phase,modifiers,action,button,buttons` | `action` vaut `move`, `down`, `up` ou `drag`.            |
+| `op`         | Autres champs obligatoires                                | Sens                                                         |
+| ------------ | --------------------------------------------------------- | ------------------------------------------------------------ |
+| `capability` | `nonce,snapshot,precise,reason`                           | Réponse à la requête, ou révocation du même nonce.           |
+| `presented`  | `id,generation`                                           | Acquitter la présentation effective (v2 négociée seulement). |
+| `wheel`      | `id,generation,x,y,phase,modifiers,dx,dy,source`          | Geste normalisé ; `source` vaut `precise` ou `discrete`.     |
+| `pointer`    | `id,generation,x,y,phase,modifiers,action,button,buttons` | `action` vaut `move`, `down`, `up` ou `drag`.                |
 
 Pour `capability`, `reason=ready` exige `snapshot=true` et `precise=true`.
 Toute autre raison exige les deux booléens faux : `reduced-motion`,
@@ -231,8 +260,19 @@ Un geste consommé par ces rapports ne produit pas en plus un événement SGR.
 
 ## Découverte, repli et invalidation
 
-L'app commence en défilement ordinaire par lignes, envoie `query` avec un nonce
-neuf et continue **sans attente bloquante**. Une réponse de version connue,
+L'app commence en défilement ordinaire par lignes et envoie, dans cet ordre et
+la même enveloppe 2026, deux requêtes `query` de versions 1 puis 2 avec le même
+nonce neuf. Elle continue **sans attente bloquante**. L'hôte v2 répond à chacune
+avec sa version ; après la requête v2, il active les acquittements de présentation.
+L'app n'active la rétention v2 qu'à réception de `capability` v2 prêt du nonce
+courant. Une réponse v1 tardive ne rétrograde pas cet accord ; une révocation du
+nonce courant reste terminale.
+
+Un hôte v1 ignore la requête v2 et répond à la première : l'app v2 fonctionne
+aussitôt en v1, sans délai ni temporisateur de repli. Une app v1 n'envoie que
+`query` v1 : l'hôte v2 répond exactement en v1 et n'émet jamais `presented`.
+Les transactions et rapports d'entrée gardent leurs octets v1 dans les deux
+mélanges. Aucun champ optionnel n'est ajouté aux objets v1 stricts. Une réponse de version connue,
 nonce courant et `reason=ready` autorise l'activation du mode 19463 et les
 transactions. Aucun nom de terminal, variable d'environnement ou présence du
 module JS ne remplace ce dialogue. Un terminal ordinaire ignore l'OSC inconnue,
@@ -361,12 +401,13 @@ arrondit la vue précédente, libère sa grille canonique et enregistre la suiva
 Sans vue défilable sous le pointeur, la molette garde son accumulation par lignes.
 Le mouvement et le clic hors région active gardent leur chemin ordinaire.
 
-Le contrôleur conserve huit générations au maximum, et retire celles antérieures
-à la génération présentée qu'une entrée lui confirme. Une entrée plus ancienne
-ou évincée est rejetée ; elle n'est jamais réinterprétée sur une hit map récente.
-En v1, une entrée qui nomme une génération évincée avant sa présentation est rejetée.
+Le contrôleur conserve huit générations au maximum selon la fenêtre v2 décrite
+plus haut : la présentation acquittée reste retenue et une fenêtre pleine coalesce
+les publications jusqu'au prochain acquittement, sans bloquer les entrées.
+Le repli v1 conserve l'éviction historique. Une entrée plus ancienne ou évincée
+est rejetée ; elle n'est jamais réinterprétée sur une hit map récente.
 Les frames sans changement de contenu ni de position ne créent pas de transaction.
-Le rendu continue même sans entrée de confirmation.
+Les acquittements v2 permettent au rendu de continuer même sans entrée.
 
 La position reste fractionnaire au repos. Le contrôleur dispose aussi d'une
 politique interne de retour court à la ligne (140 ms après 120 ms sans molette),
