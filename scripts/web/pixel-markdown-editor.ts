@@ -188,6 +188,10 @@ try {
   await browser.evaluate(
     "{const r=probe.state().rect;probe.pointer('mouseup',r.x+7.5,r.y+r.height-.2)}",
   );
+  console.log(
+    "[DEBUG-editor-press-trace]",
+    browser.logs.filter((line) => line.includes("DEBUG-editor-press")),
+  );
   console.log("pixel markdown editor browser proof passed");
 } finally {
   await server.stop(true);
