@@ -247,11 +247,14 @@ try {
   await browser.evaluate("window.rightBefore=probe.state().right.position");
   await browser.evaluate("probe.wheel(30,3,.375)");
   await wait("probe.state().presented?.rect.x > 25", "disjoint wheel handover");
+  await wait("probe.state().right.position > .3", "precise wheel in the second viewport");
   expect(await browser.evaluate("probe.state().right.position-window.rightBefore")).toBeCloseTo(
     0.375,
   );
   expect(await browser.evaluate("Number.isInteger(probe.state().left.position)")).toBe(true);
-  await browser.evaluate("probe.pointer('mousemove',3,3)");
+  // xterm suppresses an ordinary move to its last ordinary cell. The private
+  // pointer stream did not update that cell, so use a distinct return point.
+  await browser.evaluate("probe.pointer('mousemove',4,3)");
   await wait("probe.state().presented?.rect.x < 25", "handover back to the long viewport");
   await browser.evaluate(
     "window.nestedGeneration=probe.state().presented.generation;probe.nested()",
