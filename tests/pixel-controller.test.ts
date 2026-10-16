@@ -699,6 +699,7 @@ function windowController(version: 1 | 2 = 2) {
   return {
     plan,
     send,
+    writes,
     observed,
     positions,
     cells,
@@ -734,6 +735,21 @@ test("full v2 publication window coalesces current state and never blocks input"
       buttons: 1,
     });
     expect(f.observed).toHaveLength(1);
+    f.send({
+      op: "wheel",
+      version: 1,
+      id: 1,
+      generation: 1,
+      phase: 0.75,
+      x: 4,
+      y: 3,
+      modifiers: 0,
+      dx: 0,
+      dy: 0.5,
+      source: "precise",
+    });
+    expect(f.observed).toHaveLength(2);
+    expect(f.positions[0]).toBe(5.75);
     const requests = f.requests();
     f.send({ op: "presented", version: 2, id: 2, generation: 8 });
     f.send({ op: "presented", version: 2, id: 1, generation: 9 });
@@ -744,7 +760,7 @@ test("full v2 publication window coalesces current state and never blocks input"
     const latest = f.plan();
     expect(messages(latest?.before)[0]).toMatchObject({ generation: 9 });
     expect(messages(latest?.after)[0]).toMatchObject({ origin: 5 });
-    expect(messages(latest?.projection?.after)[0]).toMatchObject({ fraction: 0.25 });
+    expect(messages(latest?.projection?.after)[0]).toMatchObject({ fraction: 0.75 });
     expect(f.plan()).toEqual({ deferHover: true });
     f.send({ op: "presented", version: 2, id: 1, generation: 8 });
     expect(f.requests()).toBe(requests + 1);
@@ -851,4 +867,56 @@ test("presentation acknowledgements stay out of generation-free input replay", (
   expect(
     new OrdinaryPixelInput().convert(encode({ op: "presented", version: 2, id: 1, generation: 8 })),
   ).toBe("");
+});
+
+test("invalidation abandons a full v2 window and renegotiates without reusing generations", async () => {
+  const f = windowController();
+  try {
+    for (let i = 0; i < RETAINED_GENERATIONS; i++) {
+      f.cells[0] = i + 1;
+      f.plan();
+    }
+    expect(f.plan()).toEqual({ deferHover: true });
+    const oldQuery = discoveryQuery(f.writes[0] ?? "");
+    if (oldQuery?.op !== "query") throw new Error("Missing original query");
+    f.send({
+      op: "capability",
+      version: 2,
+      nonce: oldQuery.nonce,
+      snapshot: false,
+      precise: false,
+      reason: "invalidated",
+    });
+    expect(f.writes.at(-1)).toEndWith("l");
+    expect(f.plan()).toBeNull();
+    await Promise.resolve();
+    const freshQuery = discoveryQuery(f.writes.at(-1) ?? "");
+    if (freshQuery?.op !== "query") throw new Error("Missing fresh query");
+    expect(freshQuery.nonce).not.toBe(oldQuery.nonce);
+    f.send({
+      op: "capability",
+      version: 2,
+      nonce: oldQuery.nonce,
+      snapshot: true,
+      precise: true,
+      reason: "ready",
+    });
+    expect(f.plan()).toBeNull();
+    f.send({
+      op: "capability",
+      version: 2,
+      nonce: freshQuery.nonce,
+      snapshot: true,
+      precise: true,
+      reason: "ready",
+    });
+    const requests = f.requests();
+    f.send({ op: "presented", version: 2, id: 1, generation: 8 });
+    expect(f.requests()).toBe(requests);
+    const recovered = f.plan();
+    expect(messages(recovered?.before)[0]).toMatchObject({ generation: 9 });
+    expect(messages(recovered?.projection?.after)[0]).toMatchObject({ fraction: 0.75 });
+  } finally {
+    f.close();
+  }
 });
