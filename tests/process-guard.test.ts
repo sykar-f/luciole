@@ -313,3 +313,29 @@ test("inspection diagnostics bound the number of target members", () => {
     snapshot.mockRestore();
   }
 });
+
+// Replay the observed Darwin exit race without relying on scheduler timing.
+for (const terminal of ["123 321 Z", "456 654 S"]) {
+  test(`EPERM confirms an exiting member reaches a terminal snapshot: ${terminal}`, () => {
+    const result = Bun.spawnSync(["/bin/ps", "-axo", "pgid=,pid=,stat="]);
+    const denial = Object.assign(new Error("exiting group denied"), { code: "EPERM" });
+    const kill = spyOn(process, "kill").mockImplementation(() => {
+      throw denial;
+    });
+    const outputs = ["123 321 ?E", terminal];
+    const snapshot = spyOn(Bun, "spawnSync").mockImplementation(() => ({
+      ...result,
+      exitCode: 0,
+      stdout: Buffer.from(outputs.shift() ?? terminal),
+      stderr: Buffer.alloc(0),
+    }));
+    try {
+      expect(() => signalGroup(123, "SIGTERM")).not.toThrow();
+      expect(snapshot).toHaveBeenCalledTimes(2);
+      expect(kill).toHaveBeenCalledTimes(1);
+    } finally {
+      kill.mockRestore();
+      snapshot.mockRestore();
+    }
+  });
+}
