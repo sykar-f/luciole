@@ -9,12 +9,14 @@ const EXECUTABLE_MODE = 0o700;
 const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const quote = (text: string) => `'${text.replaceAll("'", "'\\''")}'`;
 
-export async function pixelJourney(entry: string, args: string[], timeout: number, dpr = 1) {
+// The journey selects its native scale through Browser.start; retain the DPR argument
+// for callers that also pass it to the journey entry point.
+export async function pixelJourney(entry: string, args: string[], timeout: number, _dpr = 1) {
   const scratch = mkdtempSync(join(tmpdir(), "pixel-chrome-"));
   const launcher = join(scratch, "chrome");
   writeFileSync(
     launcher,
-    `#!/bin/sh\nexec ${quote(process.env.CHROME ?? CHROME)} --use-mock-keychain --password-store=basic --disable-extensions --force-device-scale-factor=${dpr} "$@"\n`,
+    `#!/bin/sh\nexec ${quote(process.env.CHROME ?? CHROME)} --use-mock-keychain --password-store=basic --disable-extensions "$@"\n`,
   );
   chmodSync(launcher, EXECUTABLE_MODE);
   const child = spawn(process.execPath, [entry, ...args], {
