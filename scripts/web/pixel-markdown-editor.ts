@@ -87,15 +87,7 @@ try {
   );
   expect(await browser.evaluate("probe.state().presented.origin")).toBe(0);
 
-  const continuity = z
-    .object({
-      checked: z.number(),
-      errors: z.array(z.string()),
-      thumbs: z.number(),
-      fractionalThumbs: z.number(),
-    })
-    .parse(
-      await browser.evaluate(`(async()=>{
+  await browser.evaluate(`(async()=>{
       const pause=()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
       const waitFrame=async()=>{await pause();await pause();};
       const refs=[];
@@ -108,7 +100,7 @@ try {
       const stride=refs[0].content.length/(start.rect.height*H);
       const errors=[],thumbs=new Map();let checked=0,previous=0,fractionalThumbs=0,previousBar=start.bar,previousOrigin=0;
       probe.frames.length=0;
-      for(const direction of [1,-1]) for(let step=0;step<48;step++) {
+      window.advanceEditorProof = async(direction) => { for(let step=0;step<24;step++) {
         probe.wheel(start.rect.x+2,start.rect.y+2,direction*.25); await waitFrame();
         for(const frame of probe.frames.splice(0)) {
           const position=frame.origin+frame.phase;
@@ -126,9 +118,20 @@ try {
           thumbs.set(bar,frame.thumb);checked++;
         }
       }
-      return {checked,errors:errors.slice(0,10),thumbs:thumbs.size,fractionalThumbs};
-    })()`),
-    );
+      };
+      window.finishEditorProof = () => ({checked,errors:errors.slice(0,10),thumbs:thumbs.size,fractionalThumbs});
+      return true;
+    })()`);
+  for (const direction of [1, 1, -1, -1])
+    await browser.evaluate(`advanceEditorProof(${direction})`);
+  const continuity = z
+    .object({
+      checked: z.number(),
+      errors: z.array(z.string()),
+      thumbs: z.number(),
+      fractionalThumbs: z.number(),
+    })
+    .parse(await browser.evaluate("finishEditorProof()"));
   console.log("editor continuity", continuity);
   expect(continuity.errors).toEqual([]);
   expect(continuity.checked).toBeGreaterThanOrEqual(96);

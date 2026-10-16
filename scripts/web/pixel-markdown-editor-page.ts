@@ -158,15 +158,18 @@ Object.assign(window, {
     r,
     editor,
     events,
-    debug: () => ({
-      reports: reports.slice(-8),
-      history: Reflect.get(controller ?? {}, "history"),
-      host: {
-        session: Reflect.get(host, "session"),
-        dragging: Reflect.get(host, "dragging"),
-        held: Reflect.get(host, "held"),
-      },
-    }),
+    debug: () => {
+      const history: unknown = Reflect.get(controller ?? {}, "history");
+      const session: unknown = Reflect.get(host, "session");
+      const held: unknown = Reflect.get(host, "held");
+      return {
+        reports: reports.slice(-8),
+        history,
+        session,
+        held,
+        hostDragging: Reflect.get(host, "dragging") === true,
+      };
+    },
     frames,
     capture,
     state: () => ({
