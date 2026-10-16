@@ -104,6 +104,7 @@ const TRIPLE = 3;
 // Structural optional capability: the editor must also build without Luciole core.
 type EditorViewport = {
   readonly owner: Renderable;
+  readonly scrollKeys: false;
   readonly position: number;
   readonly origin: number;
   readonly max: number;
@@ -147,6 +148,7 @@ export class MarkdownEditorRenderable extends Renderable {
     const editor = this;
     return {
       owner: editor,
+      scrollKeys: false,
       get position() {
         if (Math.floor(editor.pixelPosition) !== editor.scroll)
           editor.pixelPosition = editor.scroll;

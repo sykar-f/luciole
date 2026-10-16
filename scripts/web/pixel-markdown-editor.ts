@@ -80,6 +80,10 @@ try {
   await wait("!!window.probe?.state().presented", "the other viewport presentation");
   expect(await browser.evaluate("devicePixelRatio")).toBe(Number(process.argv[2] ?? 1));
   expect(await browser.evaluate("probe.state().presented.rect.x")).toBeLessThan(20);
+  await browser.evaluate("probe.terminal.input('\\x1b[B')");
+  await wait("probe.state().otherPosition===1", "ScrollBox still owns its Down key");
+  await browser.evaluate("probe.terminal.input('\\x1b[A')");
+  await wait("probe.state().otherPosition===0", "ScrollBox Up key");
   await browser.evaluate("{const r=probe.state().rect;probe.wheel(r.x+2,r.y+2,.375)}");
   await wait(
     "probe.state().presented?.rect.x===probe.state().rect.x && probe.state().position===.375",
@@ -145,6 +149,11 @@ try {
   await wait("probe.editor.focused", "editor focus by click");
   expect(await browser.evaluate("probe.state().selection.head")).toEqual({ block: 0, offset: 4 });
   expect(await browser.evaluate("probe.state().cursor")).toBe(1);
+  await browser.evaluate("probe.terminal.input('\\x1b[B')");
+  await wait("probe.state().selection.head.block===1", "editor Down moves the cursor");
+  expect(await browser.evaluate("probe.state().position")).toBe(0.75);
+  await browser.evaluate("probe.terminal.input('\\x1b[A')");
+  await wait("probe.state().selection.head.block===0", "editor Up moves the cursor");
   // A distinct cell avoids the editor's multi-click selection gestures.
   await browser.evaluate(
     "{const r=probe.state().rect;probe.pointer('mousedown',r.x+1.5,r.y+2.1,1);probe.pointer('mousemove',r.x+7.5,r.y+4.1,1)}",
