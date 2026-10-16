@@ -91,7 +91,7 @@ Les limites sont celles du fil, pas une promesse de capacité GPU :
   positif avance vers le bas du contenu ; `dx` positif va vers la droite.
   L'extension de rendu ne défile que verticalement dans cette version.
 - `nonce` : 1 à 64 caractères parmi `A–Z a–z 0–9 _ -`, choisi neuf par l'app
-  pour chaque requête. Il corrèle les réponses ; ce n'est pas une authentification.
+  pour chaque cycle de découverte. Il corrèle les réponses ; ce n'est pas une authentification.
 - `modifiers` : masque entier 0 à 15, Shift=1, Alt=2, Ctrl=4, Meta=8.
 
 Le payload OSC (`luciole-pixel;` et JSON, sans numéro ni délimiteurs) est limité

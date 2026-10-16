@@ -23,8 +23,7 @@ export class PixelHistory {
   add(frame: PixelFrame) {
     if (!this.canPublish()) throw new Error("Pixel presentation window is full");
     this.frames.set(frame.generation, frame);
-    // Bound memory even when there is no input. Old input is rejected, never rebased
-    // onto a newer frame. Eight frames allow ordinary parser/presentation lag.
+    // The v1 fallback bounds memory by eviction, without reinterpreting old input.
     while (this.frames.size > RETAINED_GENERATIONS) {
       const oldest = this.frames.keys().next().value;
       if (oldest !== undefined) this.frames.delete(oldest);

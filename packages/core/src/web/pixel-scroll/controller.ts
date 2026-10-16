@@ -250,7 +250,8 @@ export class PixelController {
             generation: ++this.generation,
             origin: previous.viewport.origin,
             fraction: 0,
-            snapshot: painterHitMap(previous.viewport, captured),
+            snapshot: undefined,
+            projection: undefined,
           }
         : undefined;
     const handover = handoverFrame ? planPixelFrame(handoverFrame, true) : undefined;
@@ -275,6 +276,7 @@ export class PixelController {
     const capture = plan.onHitMap;
     plan.onHitMap = (map) => {
       capture?.(map);
+      handover?.onHitMap?.(map);
       if (handoverFrame) this.history.add(handoverFrame);
       this.history.add(frame);
       this.last = frame;
