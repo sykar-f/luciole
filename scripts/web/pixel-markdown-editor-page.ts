@@ -90,12 +90,14 @@ terminal.onData((data) => {
   stdin.write(data);
 });
 let wire = "";
+let delayedOutput: { bytes: Uint8Array; done: () => void }[] | undefined;
 const { requestAnimationFrame, cancelAnimationFrame } = globalThis;
 const r = await createCliRenderer({
   stdin,
   stdout: terminalOutput({ columns: 50, rows: 16 }, (bytes, done) => {
     if (parameters.has("burst")) wire += new TextDecoder().decode(bytes);
-    terminal.write(bytes, done);
+    if (delayedOutput) delayedOutput.push({ bytes: bytes.slice(), done });
+    else terminal.write(bytes, done);
   }),
   width: 50,
   height: 16,
@@ -218,6 +220,18 @@ const point = (x: number, y: number) => {
 Object.assign(window, {
   probe: {
     terminal,
+    ...(parameters.has("referenceLag")
+      ? {
+          holdOutput: () => {
+            delayedOutput = [];
+          },
+          resumeOutput: () => {
+            const held = delayedOutput ?? [];
+            delayedOutput = undefined;
+            for (const { bytes, done } of held) terminal.write(bytes, done);
+          },
+        }
+      : {}),
     ...(marker
       ? {
           burst: async () => {

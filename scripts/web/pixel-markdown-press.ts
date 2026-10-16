@@ -63,7 +63,14 @@ try {
     origin: server.url.origin,
     permissions: ["clipboardReadWrite", "clipboardSanitizedWrite"],
   });
-  await browser.open(server.url.href + (process.argv[3] === "burst" ? "?burst" : ""));
+  await browser.open(
+    server.url.href +
+      (process.argv[3] === "burst"
+        ? "?burst"
+        : process.argv[3] === "reference-attribution"
+          ? "?referenceLag"
+          : ""),
+  );
   const wait = async (expression: string, label: string) => {
     try {
       return await browser.waitFor(expression, label);
@@ -83,6 +90,40 @@ try {
     "probe.state().presented?.rect.x===probe.state().rect.x && probe.state().presented?.fraction===.75",
     "editor presentation",
   );
+  if (process.argv[3] === "reference-attribution") {
+    const stale = await browser.evaluate(`(async()=>{
+      probe.holdOutput();probe.editor.scrollableViewport.set(0);
+      const pause=()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+      await pause();await pause();
+      window.delayedReference=probe.capture();
+      return {requested:0,presented:probe.state().presented,length:window.delayedReference.content.length};
+    })()`);
+    console.log("reference after four animation frames with parser work held", stale);
+    if (!(await browser.evaluate("probe.state().presented?.fraction===.75")))
+      throw new Error("The held parser did not isolate a stale canonical reference");
+    await browser.evaluate("probe.resumeOutput()");
+    await wait(
+      "probe.state().presented?.origin===0 && probe.state().presented?.fraction===0",
+      "canonical reference after parser drain",
+    );
+    console.log(
+      "reference after actual canonical presentation",
+      await browser.evaluate(
+        "JSON.stringify({presented:probe.state().presented,length:probe.capture().content.length,differs:probe.capture().content.some((v,i)=>v!==window.delayedReference.content[i])})",
+      ),
+    );
+    if (
+      !(await browser.evaluate(
+        "probe.capture().content.some((v,i)=>v!==window.delayedReference.content[i])",
+      ))
+    )
+      throw new Error("The delayed reference did not differ from its canonical frame");
+    await browser.evaluate("probe.editor.scrollableViewport.set(.75)");
+    await wait(
+      "probe.state().presented?.origin===0 && probe.state().presented?.fraction===.75",
+      "reset reference diagnostic",
+    );
+  }
   if (process.argv[3] === "attribution") {
     // Retain two fully presented canonical states, then inspect them together,
     // exactly as a delayed consumer drains the fixture's captured-frame queue.

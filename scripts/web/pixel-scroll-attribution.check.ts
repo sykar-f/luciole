@@ -17,3 +17,18 @@ for (const dpr of [1, 2]) {
     TIMEOUT_MS + CLEANUP_MS,
   );
 }
+
+for (const dpr of [1, 2]) {
+  test(
+    `canonical references wait for parser presentation at DPR ${dpr}`,
+    async () => {
+      await pixelJourney(
+        import.meta.dir + "/pixel-markdown-press.ts",
+        [String(dpr), "reference-attribution"],
+        TIMEOUT_MS,
+        dpr,
+      );
+    },
+    TIMEOUT_MS + CLEANUP_MS,
+  );
+}
