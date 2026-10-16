@@ -355,6 +355,57 @@ for (const [state, terminal] of [
   });
 }
 
+for (const phase of ["reinspect", "before sleep", "after sleep"] as const) {
+  test(`exit settlement uses a positive integer budget: ${phase}`, () => {
+    const result = Bun.spawnSync(["/bin/ps", "-axo", "pgid=,pid=,stat="]);
+    const denial = Object.assign(new Error("exiting group denied"), { code: "EPERM" });
+    let elapsed = 0.125;
+    let reads = 0;
+    const now = spyOn(performance, "now").mockImplementation(() => elapsed);
+    const sleep = spyOn(Bun, "sleepSync").mockImplementation((duration) => {
+      elapsed += phase === "after sleep" ? 249.5 : Number(duration) + 0.25;
+    });
+    const kill = spyOn(process, "kill").mockImplementation(() => {
+      throw denial;
+    });
+    const snapshot = spyOn(Bun, "spawnSync").mockImplementation(
+      (_command, options?: { timeout?: number }) => {
+        const timeout = options?.timeout;
+        if (!Number.isInteger(timeout) || Number(timeout) < 1)
+          throw new TypeError('The "timeout" property must be a positive integer');
+        if (phase === "before sleep") elapsed += 249.5;
+        return {
+          ...result,
+          exitCode: 0,
+          stdout: Buffer.from(reads++ === 0 ? "123 321 ?E" : "123 321 Z"),
+          stderr: Buffer.alloc(0),
+        };
+      },
+    );
+    try {
+      if (phase === "reinspect") {
+        expect(() => signalGroup(123, "SIGTERM")).not.toThrow();
+        expect(snapshot).toHaveBeenCalledTimes(2);
+        expect(snapshot.mock.calls[1]?.[1]?.timeout).toBe(239);
+      } else {
+        expect(() => signalGroup(123, "SIGTERM")).toThrow(
+          "exit did not complete within 250ms: exiting members: pid 321 state ?E",
+        );
+        expect(snapshot).toHaveBeenCalledTimes(1);
+      }
+      expect(snapshot.mock.calls[0]?.[1]?.timeout).toBe(250);
+      expect(sleep).toHaveBeenCalledTimes(phase === "before sleep" ? 0 : 1);
+      expect(kill).toHaveBeenCalledTimes(1);
+      expect(elapsed - 0.125).toBeLessThanOrEqual(250);
+    } finally {
+      snapshot.mockRestore();
+      kill.mockRestore();
+      sleep.mockRestore();
+      now.mockRestore();
+    }
+  });
+}
+
 for (const { next, reason, calls } of [
   {
     next: "123 321 ?E",
