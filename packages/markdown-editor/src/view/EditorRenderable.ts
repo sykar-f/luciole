@@ -101,6 +101,18 @@ const MULTI_CLICK_MS = 400;
 const DOUBLE = 2;
 const TRIPLE = 3;
 
+// Structural optional capability: the editor must also build without Luciole core.
+type EditorViewport = {
+  readonly owner: Renderable;
+  readonly position: number;
+  readonly origin: number;
+  readonly max: number;
+  readonly rect: Readonly<{ x: number; y: number; width: number; height: number }>;
+  set(position: number): void;
+  scroll(delta: number): number;
+  project(origin: number): { renderable: Renderable; translateX: number; translateY: number };
+};
+
 /**
  * The editor as an OpenTUI renderable: it draws its document, takes keys and pastes while
  * focused, and the mouse always. The editing itself is its `controller`'s.
@@ -130,7 +142,7 @@ export class MarkdownEditorRenderable extends Renderable {
   private dragPoint: MouseEvent | undefined;
 
   /** Optional web capability, structural so this package stays independent of core. */
-  readonly scrollableViewport = (() => {
+  readonly scrollableViewport: EditorViewport = (() => {
     // eslint-disable-next-line typescript/no-this-alias -- Viewport getters have their own receiver.
     const editor = this;
     return {
