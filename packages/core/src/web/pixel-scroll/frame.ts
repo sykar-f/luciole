@@ -69,28 +69,6 @@ export function pixelHitSource(frame: PixelFrame, x: number, y: number, phase: n
   };
 }
 
-/** A painter that is itself the hit target has no translated document child.
- * Preserve the source document row when its live integer origin has moved.
- * Child targets already carry that movement in their captured node geometry.
- */
-export function pixelPointerMap(frame: PixelFrame, map: RenderHitMap): RenderHitMap {
-  const delta = frame.viewport.origin - frame.origin;
-  if (!delta) return map;
-  return {
-    width: map.width,
-    height: map.height,
-    frameId: map.frameId,
-    passId: map.passId,
-    hitTest: (x, y) => map.hitTest(x, y),
-    origin(id) {
-      const origin = map.origin(id);
-      return origin && id === frame.viewport.owner.num
-        ? { x: origin.x, y: origin.y + delta }
-        : origin;
-    },
-  };
-}
-
 /** Grid clipping excludes ancestor chrome and any content outside the terminal. */
 export function clipPixelRect(rect: Rect, clips: readonly Rect[]): Rect | undefined {
   let { x, y } = rect;
