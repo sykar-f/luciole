@@ -76,6 +76,12 @@ const r = await createCliRenderer({
   exitSignals: [],
 });
 Object.assign(globalThis, { requestAnimationFrame, cancelAnimationFrame });
+const ingress: unknown[][] = [];
+const debug = console.debug.bind(console);
+console.debug = (...args: unknown[]) => {
+  if (String(args[0]).startsWith("[DEBUG-editor-press")) ingress.push(args);
+  else debug(...args);
+};
 controller = PixelController.attach(r, (commands) => terminal.write(commands), {
   pixelScroll: !parameters.has("optOut"),
 });
@@ -164,6 +170,7 @@ Object.assign(window, {
       const session: unknown = Reflect.get(host, "session");
       const held: unknown = Reflect.get(host, "held");
       return {
+        ingress,
         reports: reports.slice(-8),
         history,
         session,
