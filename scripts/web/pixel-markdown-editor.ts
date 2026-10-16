@@ -71,7 +71,7 @@ try {
       console.error(
         label,
         await browser.evaluate(
-          "({state:probe.state(),events:probe.events.slice(-15),before:window.before,timer:!!probe.editor.edgeTimer,dragging:probe.editor.dragging})",
+          'JSON.stringify({state:probe.state(),events:probe.events.slice(-15),before:window.before,timer:!!probe.editor.edgeTimer,dragging:probe.editor.dragging,debug:probe.debug()},(key,value)=>key==="renderer"?undefined:value instanceof Map?[...value.keys()]:value)',
         ),
       );
       throw error;

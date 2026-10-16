@@ -158,6 +158,15 @@ Object.assign(window, {
     r,
     editor,
     events,
+    debug: () => ({
+      reports: reports.slice(-8),
+      history: Reflect.get(controller ?? {}, "history"),
+      host: {
+        session: Reflect.get(host, "session"),
+        dragging: Reflect.get(host, "dragging"),
+        held: Reflect.get(host, "held"),
+      },
+    }),
     frames,
     capture,
     state: () => ({
