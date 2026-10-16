@@ -103,6 +103,7 @@ try {
       const start=probe.state(), H=start.cellHeight;
       const stride=refs[0].content.length/(start.rect.height*H);
       const errors=[],thumbs=new Map();let checked=0,previous=0,fractionalThumbs=0,previousBar=start.bar,previousOrigin=0;
+      const committedThumbs=new Map(), attributions=[], committedErrors=[];
       probe.frames.length=0;
       window.advanceEditorProof = async(direction) => { for(let step=0;step<24;step++) {
         probe.wheel(start.rect.x+2,start.rect.y+2,direction*.25); await waitFrame();
@@ -116,6 +117,10 @@ try {
           const mismatch=frame.content.findIndex((v,i)=>v!==reference[i]);
           if(mismatch>=0) errors.push('content:'+position+':'+mismatch+':'+frame.content[mismatch]+'/'+reference[mismatch]);
           const bar=probe.state().bar, old=thumbs.get(bar);
+          if(bar!==frame.bar) attributions.push({generation:frame.generation,position,current:bar,committed:frame.bar});
+          const actualOld=committedThumbs.get(frame.bar);
+          if(actualOld && frame.thumb.some((v,i)=>v!==actualOld[i])) committedErrors.push({generation:frame.generation,position,bar:frame.bar});
+          committedThumbs.set(frame.bar,frame.thumb);
           if(old && frame.thumb.some((v,i)=>v!==old[i])) errors.push('translated scrollbar:'+position);
           if(bar!==previousBar && frame.origin===previousOrigin) fractionalThumbs++;
           previousBar=bar;previousOrigin=frame.origin;
@@ -123,6 +128,7 @@ try {
         }
       }
       };
+      window.editorAttribution = () => ({misattributed:attributions.length,samples:attributions.slice(0,20),committedErrors});
       window.finishEditorProof = () => ({checked,errors:errors.slice(0,10),thumbs:thumbs.size,fractionalThumbs});
       return true;
     })()`);
@@ -137,6 +143,7 @@ try {
     })
     .parse(await browser.evaluate("finishEditorProof()"));
   console.log("editor continuity", continuity);
+  console.log("scrollbar attribution", await browser.evaluate("editorAttribution()"));
   expect(continuity.errors).toEqual([]);
   expect(continuity.checked).toBeGreaterThanOrEqual(96);
   expect(continuity.thumbs).toBeGreaterThan(1);

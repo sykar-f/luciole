@@ -16,7 +16,7 @@ import { PixelController } from "../../packages/core/src/web/pixel-scroll/contro
 import { detectScrollableViewport } from "../../packages/core/src/web/opentui-seams";
 import { isInputStream, terminalOutput } from "../../packages/core/src/web/streams";
 import type { Presentation } from "../../packages/core/src/web/pixel-scroll/presentation";
-import { decode } from "../../packages/core/src/pixel-scroll/protocol";
+import { decode, decodePayload, OSC } from "../../packages/core/src/pixel-scroll/protocol";
 
 import { MarkdownEditorRenderable } from "../../packages/markdown-editor/src/view/EditorRenderable";
 
@@ -144,9 +144,30 @@ const events: { type: string; y: number; position: number }[] = [];
 editor.onMouse = (event) => {
   events.push({ type: event.type, y: event.y, position: editor.scrollableViewport.position });
 };
+const readBar = () =>
+  Array.from({ length: editor.height }, (_, y) =>
+    terminal.buffer.active
+      .getLine(editor.screenY + y)
+      ?.getCell(editor.screenX + editor.width - 1)
+      ?.getChars(),
+  ).join("");
+const committedBars = new Map<number, string>();
+terminal.parser.registerOscHandler(OSC, (payload) => {
+  const message = decodePayload(payload);
+  if (message?.op === "commit") committedBars.set(message.generation, readBar());
+  return false;
+});
 let presented: Presentation | undefined;
+let presentedBar = "";
 webgl.pixels.onPresent((p) => {
   presented = p;
+  if (p) {
+    const bar = committedBars.get(p.generation);
+    if (bar === undefined) throw new Error("Missing committed scrollbar signature");
+    presentedBar = bar;
+    for (const generation of committedBars.keys())
+      if (generation <= p.generation) committedBars.delete(generation);
+  }
 });
 const canvas = document.querySelector(".xterm-webgl-layer");
 if (!(canvas instanceof HTMLCanvasElement)) throw new Error("Missing canvas");
@@ -156,6 +177,7 @@ const frames: {
   origin: number;
   phase: number;
   generation: number;
+  bar: string;
   content: number[];
   thumb: number[];
 }[] = [];
@@ -181,6 +203,7 @@ terminal.onRender(() => {
     origin: presented.origin,
     phase: presented.phase,
     generation: presented.generation,
+    bar: presentedBar,
     ...capture(),
   });
 });
@@ -237,12 +260,7 @@ Object.assign(window, {
       cellHeight: canvas.height / terminal.rows,
       cellWidth: canvas.width / terminal.cols,
       cursor: terminal.buffer.active.cursorY,
-      bar: Array.from({ length: editor.height }, (_, y) =>
-        terminal.buffer.active
-          .getLine(editor.screenY + y)
-          ?.getCell(editor.screenX + editor.width - 1)
-          ?.getChars(),
-      ).join(""),
+      bar: readBar(),
     }),
     wheel: (x: number, y: number, rows: number) => {
       document.querySelector(".xterm-screen")?.dispatchEvent(
