@@ -76,12 +76,6 @@ const r = await createCliRenderer({
   exitSignals: [],
 });
 Object.assign(globalThis, { requestAnimationFrame, cancelAnimationFrame });
-const ingress: unknown[][] = [];
-const debug = console.debug.bind(console);
-console.debug = (...args: unknown[]) => {
-  if (String(args[0]).startsWith("[DEBUG-editor-press")) ingress.push(args);
-  else debug(...args);
-};
 controller = PixelController.attach(r, (commands) => terminal.write(commands), {
   pixelScroll: !parameters.has("optOut"),
 });
@@ -107,15 +101,6 @@ const editor = new MarkdownEditorRenderable(r, {
   },
 });
 r.root.add(editor);
-const marker = new TextRenderable(r, {
-  position: "absolute",
-  top: 15,
-  left: 0,
-  width: 10,
-  height: 1,
-  content: "initial",
-});
-r.root.add(marker);
 const events: { type: string; y: number; position: number }[] = [];
 editor.onMouse = (event) => {
   events.push({ type: event.type, y: event.y, position: editor.scrollableViewport.position });
@@ -171,38 +156,10 @@ const point = (x: number, y: number) => {
 Object.assign(window, {
   probe: {
     terminal,
-    burst: async () => {
-      // Pin the visible frame while allowing native output/parser tasks to drain.
-      // This models compositor lag without manufacturing an input generation.
-      const deferred: FrameRequestCallback[] = [];
-      globalThis.requestAnimationFrame = (callback) => {
-        deferred.push(callback);
-        return 1_000_000_000 + deferred.length;
-      };
-      const loop: unknown = Reflect.get(r, "loop");
-      if (typeof loop !== "function") throw new Error("Missing diagnostic frame loop");
-      for (let i = 0; i < 9; i++) {
-        marker.content = `frame ${i}`;
-        await Reflect.apply(loop, r, []);
-        await new Promise<void>((resolve) => setTimeout(resolve, 0));
-      }
-    },
     r,
     editor,
     events,
-    debug: () => {
-      const history: unknown = Reflect.get(controller ?? {}, "history");
-      const session: unknown = Reflect.get(host, "session");
-      const held: unknown = Reflect.get(host, "held");
-      return {
-        ingress,
-        reports: reports.slice(-8),
-        history,
-        session,
-        held,
-        hostDragging: Reflect.get(host, "dragging") === true,
-      };
-    },
+    reports,
     frames,
     capture,
     state: () => ({

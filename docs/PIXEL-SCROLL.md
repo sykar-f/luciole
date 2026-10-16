@@ -364,6 +364,7 @@ Le mouvement et le clic hors région active gardent leur chemin ordinaire.
 Le contrôleur conserve huit générations au maximum, et retire celles antérieures
 à la génération présentée qu'une entrée lui confirme. Une entrée plus ancienne
 ou évincée est rejetée ; elle n'est jamais réinterprétée sur une hit map récente.
+En v1, une entrée qui nomme une génération évincée avant sa présentation est rejetée.
 Les frames sans changement de contenu ni de position ne créent pas de transaction.
 Le rendu continue même sans entrée de confirmation.
 

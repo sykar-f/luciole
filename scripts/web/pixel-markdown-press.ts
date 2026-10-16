@@ -69,7 +69,7 @@ try {
       console.error(
         label,
         await browser.evaluate(
-          'JSON.stringify({state:probe.state(),events:probe.events.slice(-15),before:window.before,timer:!!probe.editor.edgeTimer,dragging:probe.editor.dragging,debug:probe.debug()},(key,value)=>key==="renderer"?undefined:value instanceof Map?[...value.keys()]:value)',
+          "JSON.stringify({state:probe.state(),events:probe.events.slice(-15),reports:probe.reports.slice(-8),before:window.before})",
         ),
       );
       throw error;
@@ -103,17 +103,11 @@ try {
       "clipboard copy",
     );
     await browser.evaluate(
-      `${process.argv[3] === "burst" ? "(async()=>{await probe.burst();" : "(()=>{"}const r=probe.state().rect;window.before=probe.state().position;probe.pointer('mousedown',r.x+2.5,r.y+2.1,1);probe.pointer('mousemove',r.x+7.5,r.y+r.height-.2,1)})()`,
+      `(()=>{const r=probe.state().rect;window.before=probe.state().position;probe.pointer('mousedown',r.x+2.5,r.y+2.1,1);probe.pointer('mousemove',r.x+7.5,r.y+r.height-.2,1)})()`,
     );
   }
   await wait("probe.state().position>window.before+1", "new selection edge scroll after copy");
-  console.log(
-    "[DEBUG-editor-press-minimal]",
-    await browser.evaluate(
-      'JSON.stringify({state:probe.state(),debug:probe.debug()},(key,value)=>key==="renderer"?undefined:value instanceof Map?[...value.keys()]:value)',
-    ),
-  );
-  console.log("copy then press proof passed");
+  console.log("editor press proof passed");
 } finally {
   await server.stop(true);
 }
