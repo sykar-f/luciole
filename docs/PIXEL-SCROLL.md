@@ -348,6 +348,8 @@ Une vue déclarant `scrollKeys: false` garde ses flèches et touches Page ; Ctrl
 
 Le membre optionnel `input(origin, dispatch)` limite le hit test du peintre propriétaire à l’origine présentée, sans déplacer la position logique ni les coordonnées physiques.
 
+Les snapshots d’un peintre propriétaire conservent ses cellules de hit-test pendant une capture, sans remplacer les cibles enfants ni les vues qui le recouvrent.
+
 Une seule vue porte une fraction. Les événements de molette précis dans toute
 la grille passent par les hit maps de leur génération : snapshot pour les anciennes
 lignes visibles, projection pour le bord entrant. Une vue imbriquée consomme le

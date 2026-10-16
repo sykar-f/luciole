@@ -9,6 +9,7 @@ import { expect, test } from "bun:test";
 import { decode, encode } from "../packages/core/src/pixel-scroll/protocol";
 import {
   clipPixelRect,
+  painterHitMap,
   pixelHitSource,
   planPixelFrame,
   type PixelFrame,
@@ -455,4 +456,41 @@ test("owner pointer dispatch scopes the named origin without changing event coor
       Renderable.renderablesByNumber.delete(id);
     }
   }
+});
+
+test("painter snapshots retain captured owner hits and pass-local geometry", () => {
+  const frame = fixture();
+  const owner = { num: 42, x: 2, y: 3, parent: { num: 9, parent: null } } as unknown as Renderable;
+  Object.assign(frame.viewport, {
+    owner,
+    input: (_origin: number, dispatch: () => boolean) => dispatch(),
+  });
+  const map: RenderHitMap = {
+    width: 20,
+    height: 10,
+    frameId: 1,
+    passId: 1,
+    hitTest: (x) => (x === 3 ? 9 : x === 4 ? 77 : x === 5 ? 43 : 0),
+    origin: () => undefined,
+  };
+  const snapshot = painterHitMap(frame.viewport, map, frame.rect);
+  expect(snapshot.hitTest(6, 4)).toBe(42);
+  expect(snapshot.hitTest(3, 4)).toBe(42);
+  expect(snapshot.hitTest(4, 4)).toBe(77);
+  expect(snapshot.hitTest(5, 4)).toBe(43);
+  expect(snapshot.hitTest(10, 4)).toBe(0);
+  expect(snapshot.hitTest(6, 7)).toBe(0);
+  expect(snapshot.hitTest(NaN, 4)).toBe(0);
+  expect(snapshot.origin(42)).toEqual({ x: 2, y: 3 });
+  const plan = planPixelFrame(frame);
+  plan.onHitMap?.(map);
+  Object.assign(owner, { y: 2 });
+  plan.projection?.onHitMap?.(map);
+  Object.assign(owner, { y: 8 });
+  expect(frame.snapshot?.origin(42)).toEqual({ x: 2, y: 3 });
+  expect(frame.projection?.origin(42)).toEqual({ x: 2, y: 2 });
+  expect(frame.snapshot?.hitTest(6, 4)).toBe(42);
+  expect(map.hitTest(6, 4)).toBe(0);
+  const plain = fixture().viewport;
+  expect(painterHitMap(plain, map, frame.rect)).toBe(map);
 });

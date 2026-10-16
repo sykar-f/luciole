@@ -41,7 +41,7 @@ export function planPixelFrame(
     before: bytes([{ op: "begin", version: VERSION, generation }]),
     after: bytes([register, ...(project ? [] : finish)]),
     onHitMap(map) {
-      frame.snapshot = map;
+      frame.snapshot = painterHitMap(viewport, map, rect);
     },
     ...(project
       ? {
@@ -49,12 +49,42 @@ export function planPixelFrame(
             ...viewport.project(origin + (fraction > 0 ? 1 : 0)),
             after: bytes(finish),
             onHitMap(map: RenderHitMap) {
-              frame.projection = map;
+              frame.projection = painterHitMap(viewport, map, rect);
             },
           },
         }
       : {}),
   };
+}
+
+/** OpenTUI omits the captured drag source so native drops can hit beneath it.
+ * A painter still owns its visible document cells in a presented snapshot.
+ * Capture that ownership and geometry now, rather than consulting live state
+ * after release. Foreign overlays and child hit targets keep their identities.
+ */
+export function painterHitMap(
+  viewport: ScrollableViewport,
+  map: RenderHitMap,
+  rect: Rect,
+): RenderHitMap {
+  if (typeof viewport.input !== "function") return map;
+  const owner = viewport.owner;
+  const id = owner.num;
+  const beneath = new Set([0]);
+  for (let parent = owner.parent; parent; parent = parent.parent) beneath.add(parent.num);
+  const origin = map.origin(id) ?? Object.freeze({ x: owner.x, y: owner.y });
+  const { x, y, width, height } = rect;
+  return Object.freeze({
+    width: map.width,
+    height: map.height,
+    frameId: map.frameId,
+    passId: map.passId,
+    hitTest(px: number, py: number) {
+      const hit = map.hitTest(px, py);
+      return beneath.has(hit) && px >= x && px < x + width && py >= y && py < y + height ? id : hit;
+    },
+    origin: (target: number) => (target === id ? origin : map.origin(target)),
+  });
 }
 
 /** The host's phase names visible source rows, including the entering bottom edge. */

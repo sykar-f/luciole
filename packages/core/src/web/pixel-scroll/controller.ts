@@ -9,7 +9,13 @@ import {
   type ScrollableViewport,
 } from "../opentui-seams";
 import { PixelDiscovery } from "./discovery";
-import { clipPixelRect, pixelHitSource, planPixelFrame, type PixelFrame } from "./frame";
+import {
+  clipPixelRect,
+  painterHitMap,
+  pixelHitSource,
+  planPixelFrame,
+  type PixelFrame,
+} from "./frame";
 import { PixelHistory } from "./history";
 import { OrdinaryPixelInput } from "./ordinary-input";
 
@@ -198,8 +204,9 @@ export class PixelController {
     }
     const viewport = this.active;
     if (!viewport) return null;
-    const map = this.renderer.captureHitMap();
+    const captured = this.renderer.captureHitMap();
     const visible = this.visibleRect(viewport);
+    const map = visible ? painterHitMap(viewport, captured, visible) : captured;
     const blocked = viewport.owner.isDestroyed || !visible || this.obscured(viewport, map, visible);
     if (blocked && !this.last) return null;
     const canonicalRepaint =
