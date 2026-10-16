@@ -345,14 +345,16 @@ le démarrage. Sans réponse compatible, avec la réduction des mouvements ou le
 lecteur d'écran, le chemin ordinaire par lignes reste actif. Le terminal natif
 n'installe pas ce contrôleur.
 
-Une seule vue porte une fraction. Les événements précis dans la région active
-passent par les hit maps de leur génération : snapshot pour les anciennes
+Une seule vue porte une fraction. Les événements de molette précis dans toute
+la grille passent par les hit maps de leur génération : snapshot pour les anciennes
 lignes visibles, projection pour le bord entrant. Une vue imbriquée consomme le
 delta, puis fait remonter son reste à sa borne. Le transfert arrondit la vue
 précédente avant de libérer sa grille canonique et d'enregistrer la suivante.
-Hors région active, le mouvement, le clic ou le premier rapport SGR choisit la
-vue suivante ; ce premier pas de molette reste entier. Le contrat v1 ne fournit
-pas de rapports précis sur plusieurs régions simultanées.
+Hors région active, la première molette précise choisit la vue dans la hit map
+de la génération présentée et applique son delta dès cet événement. La frame
+arrondit la vue précédente, libère sa grille canonique et enregistre la suivante.
+Sans vue défilable sous le pointeur, la molette garde son accumulation par lignes.
+Le mouvement et le clic hors région active gardent leur chemin ordinaire.
 
 Le contrôleur conserve huit générations au maximum, et retire celles antérieures
 à la génération présentée qu'une entrée lui confirme. Une entrée plus ancienne

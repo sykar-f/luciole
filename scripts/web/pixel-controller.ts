@@ -51,11 +51,11 @@ const server = Bun.serve({
   },
 });
 try {
-  await using browser = await Browser.start();
+  await using browser = await Browser.start({ deviceScaleFactor: Number(process.argv[2] ?? 1) });
   await browser.send("Emulation.setDeviceMetricsOverride", {
     width: 900,
     height: 600,
-    deviceScaleFactor: Number(process.argv[2] ?? 1),
+    deviceScaleFactor: 0,
     mobile: false,
   });
   const wait = async (expression: string, label: string) => {
@@ -78,6 +78,39 @@ try {
   });
   await browser.open(server.url.href);
   await wait("!!window.probe?.state().presented", "the negotiated ScrollBox presentation");
+  expect(await browser.evaluate("devicePixelRatio")).toBe(Number(process.argv[2] ?? 1));
+  for (let i = 0; i < 3; i++) await browser.evaluate("probe.wheel(2,15,.25)");
+  expect(await browser.evaluate("probe.state().outsideRows")).toBe(0);
+  await browser.evaluate("probe.wheel(2,15,.25)");
+  expect(await browser.evaluate("probe.state().outsideRows")).toBe(1);
+  const firstWheel = await browser.evaluate(`(async()=>{
+    const pause=()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+    const initial=probe.state(), bar=JSON.stringify(initial.rightBar), steps=[];
+    for(let i=1;i<=3;i++) {
+      const s=probe.state();
+      probe.wheel(s.right.rect.x+2,s.right.rect.y+2,7*devicePixelRatio/s.cellHeight);
+      await pause();await pause();
+      const after=probe.state();
+      const frame=probe.frames.at(-1), rect=after.right.rect, H=after.cellHeight;
+      for(let y=Math.ceil(rect.y*H);y<Math.floor((rect.y+rect.height)*H);y++) {
+        const row=Math.floor((y-rect.y*H+i*7*devicePixelRatio)/H);
+        const hex=probe.color(row).slice(1);
+        const expected=[0,2,4].map(at=>parseInt(hex.slice(at,at+2),16));
+        const actual=frame.column.slice(y*3,y*3+3);
+        if(expected.some((v,j)=>v!==actual[j])) throw Error('first wheel pixel band:'+i+':'+y+':'+actual+'/'+expected);
+      }
+      steps.push({expected:i*7*devicePixelRatio,actual:(after.presented.origin+after.presented.phase)*after.cellHeight});
+      if(JSON.stringify(after.rightBar)!==bar) throw Error('scrollbar column moved');
+    }
+    return steps;
+  })()`);
+  console.log("first wheel displacement", JSON.stringify(firstWheel));
+  for (const step of z
+    .array(z.object({ expected: z.number(), actual: z.number() }))
+    .parse(firstWheel))
+    expect(Math.abs(step.actual - step.expected)).toBeLessThanOrEqual(1);
+  await browser.evaluate("probe.pointer('mousemove',3,3)");
+  await wait("probe.state().presented?.rect.x < 25", "return after first wheel proof");
   const bands = z
     .object({
       errors: z.array(z.string()),
@@ -210,12 +243,18 @@ try {
   );
   await browser.evaluate("probe.terminal.input('\\x1b[B')");
   await wait("probe.state().left.position > 1", "focused keyboard scroll");
-  // A disjoint viewport is selected by an ordinary move before precise wheel input.
-  await browser.evaluate("probe.pointer('mousemove',30,3)");
-  await wait("probe.state().presented?.rect.x > 25", "disjoint viewport handover");
+  // The first wheel also transfers from a view that already holds a fraction.
+  await browser.evaluate("window.rightBefore=probe.state().right.position");
   await browser.evaluate("probe.wheel(30,3,.375)");
+  await wait("probe.state().presented?.rect.x > 25", "disjoint wheel handover");
   await wait("probe.state().right.position > .3", "precise wheel in the second viewport");
-  await browser.evaluate("probe.pointer('mousemove',3,3)");
+  expect(await browser.evaluate("probe.state().right.position-window.rightBefore")).toBeCloseTo(
+    0.375,
+  );
+  expect(await browser.evaluate("Number.isInteger(probe.state().left.position)")).toBe(true);
+  // xterm suppresses an ordinary move to its last ordinary cell. The private
+  // pointer stream did not update that cell, so use a distinct return point.
+  await browser.evaluate("probe.pointer('mousemove',4,3)");
   await wait("probe.state().presented?.rect.x < 25", "handover back to the long viewport");
   await browser.evaluate(
     "window.nestedGeneration=probe.state().presented.generation;probe.nested()",

@@ -363,12 +363,17 @@ vient de l'écran affiché, pas d'un délai : avec `delays: "keys"`, les tours e
 route ne l'ont pas changé, et un écran qui tarde à répondre n'est pas pris pour un écran
 sans rien à faire défiler.
 
-Hors de la surface pixel active, ou sans cette capacité, la molette arrive à
+Sans la capacité pixel, la molette arrive à
 l'application comme d'un terminal natif : un rapport SGR par hauteur
 de ligne parcourue, le reste gardé pour le tour suivant (`wheelReports`,
 `src/web/platform/run.tsx`). xterm.js seul envoie un rapport par événement `wheel`, quelle
 que soit sa distance, et compte le trackpad pour un tiers : un cran de 100 px n'avançait
 une note que de 3 lignes, un balayage de 777 px de 33 (`scripts/web/scroll-bench.ts`).
+
+Avec la capacité pixel, le premier événement précis au-dessus de toute vue
+`ScrollBox` applique son delta en pixels, sans mouvement préalable du pointeur.
+La vue précédente est arrondie avant le transfert. Hors des vues défilables,
+la molette garde son accumulation par lignes.
 
 La latence passe par le `fetch` de l'Application : le transport la mesure comme celle d'un
 Server lointain, et ses propres pannes (`LUCIOLE_FAULT`) s'appliquent. Avec
@@ -398,12 +403,14 @@ molette après accumulation des fractions, reste gardé pour le tour suivant. La
 page peut toujours le rejouer avec `input` dans une autre grille. Les rapports
 privés restent dans l'app source ; leurs générations ne traversent pas l'iframe.
 
-Le contrat v1 compose une seule surface. Dans son rectangle, la molette précise
-vise le contenu sous le pointeur, y compris une vue imbriquée ; les touches de
-défilement visent la vue focalisée. Passer à une autre vue arrondit la précédente.
-Hors du rectangle actif, un mouvement, un clic ou un premier cran SGR sélectionne
-l'autre vue ; ce premier cran reste entier, puis les rapports précis s'appliquent
-à la nouvelle surface. Les bordures et barres de défilement restent fixes. Dans une surface fractionnaire,
+Le contrat v1 compose une seule surface. La molette précise vise le contenu
+sous le pointeur, y compris une vue imbriquée ; les touches de défilement visent
+la vue focalisée. Passer à une autre vue arrondit la précédente. Hors du rectangle
+actif, le premier événement de molette précise choisit la vue dans la hit map de
+la génération présentée et applique son delta dès cet événement. Les mouvements
+du pointeur, les clics et les crans en mode ligne hors du rectangle actif gardent
+leur chemin ordinaire. Les bordures et barres de défilement restent fixes.
+Dans une surface fractionnaire,
 un down avec Shift ou Alt termine la fraction sans atteindre les handlers de
 l'application ; le geste suivant revient au chemin ordinaire.
 

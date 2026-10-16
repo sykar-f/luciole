@@ -27,7 +27,8 @@ and marked **Breaking**.
   `run` or `runInPage` to keep row scroll. Reduced motion, screen reader mode
   and a host without pixel scroll support also keep row scroll. Native terminals
   keep their current behavior. The `typed` event keeps its ordinary SGR format.
-  Only one view can hold a fraction at a time. In a view at a fraction, a Shift
+  The first precise wheel event over any view applies its pixel delta, without
+  a prior pointer move. Only one view can hold a fraction at a time. In a view at a fraction, a Shift
   or Alt mouse down ends the fraction and does not reach the app. See
   [the web runtime details](docs/WEB.md#4-rendu-et-entrée).
 

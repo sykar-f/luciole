@@ -99,6 +99,7 @@ const color = (row: number) =>
   `#${[40 + (row % 160), 60 + ((row * 17) % 160), 80 + ((row * 31) % 160)].map((v) => v.toString(16).padStart(2, "0")).join("")}`;
 const events: { id: string; type: string; source?: string }[] = [];
 let effect = "waiting";
+let outsideRows = 0;
 const status = new TextRenderable(r, {
   content: effect,
   position: "absolute",
@@ -107,6 +108,9 @@ const status = new TextRenderable(r, {
   width: 50,
   height: 1,
 });
+status.onMouseScroll = (event) => {
+  outsideRows += event.scroll?.delta ?? 0;
+};
 r.root.add(status);
 for (let i = 0; i < 240; i++) {
   const row = new TextRenderable(r, {
@@ -130,7 +134,14 @@ for (let i = 0; i < 240; i++) {
     }
   };
   left.add(row);
-  right.add(new TextRenderable(r, { content: `OTHER ${i}`, height: 1, flexShrink: 0 }));
+  right.add(
+    new TextRenderable(r, {
+      content: `ROW ${String(i).padStart(3, "0")}`,
+      bg: color(i),
+      height: 1,
+      flexShrink: 0,
+    }),
+  );
 }
 const nested = new ScrollBoxRenderable(r, {
   id: "nested",
@@ -180,7 +191,8 @@ terminal.onRender(() => {
     thumb: number[] = [];
   // The space after ROW carries a solid text background without glyph pixels.
   const x = Math.floor((presented.rect.x + 3.5) * cellWidth);
-  const barX = Math.floor((left.verticalScrollBar.x + 0.5) * cellWidth);
+  const active = presented.rect.x > 25 ? right : left;
+  const barX = Math.floor((active.verticalScrollBar.x + 0.5) * cellWidth);
   for (let y = 0; y < canvas.height; y++) {
     for (const [target, columnX] of [
       [column, x],
@@ -222,12 +234,19 @@ Object.assign(window, {
       copied,
       effect,
       maxInputMs,
+      outsideRows,
       selection: r.getSelection()?.getSelectedText() ?? "",
       nativeSelection: terminal.getSelection(),
       cellHeight: webgl.pixels?.cellHeight,
       cellWidth: canvas.width / terminal.cols,
       width: canvas.width,
       height: canvas.height,
+      rightBar: {
+        x: right.verticalScrollBar.x,
+        y: right.verticalScrollBar.y,
+        width: right.verticalScrollBar.width,
+        height: right.verticalScrollBar.height,
+      },
       bar: {
         x: left.verticalScrollBar.x,
         y: left.verticalScrollBar.y,
