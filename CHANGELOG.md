@@ -13,12 +13,31 @@ and marked **Breaking**.
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-10-16
+
+### Added
+
+- Pixel scroll in `@luciole-sh/markdown-editor` in the web runtime. The editor
+  can stop between rows. Its scrollbar stays fixed, and a selection stays
+  attached to the document as the view scrolls.
+
 ### Changed
 
-- Negotiated pixel-scroll v2 acknowledges actual presentations and bounds pending
-  frames without evicting the displayed hit map; mixed peers retain v1 behavior.
-- Bun 1.4.1 is the minimum for the CLI and framework, tested with a packed starter
-  on Linux. The repository and new starters pin Bun 1.4.3.
+- Pixel-scroll contract v2 keeps the frame on screen and all frames in flight
+  until the host confirms what it shows. A busy host no longer causes the app
+  to lose a press on the frame on screen. The app limits the frame count to
+  eight and combines updates when that limit is full. Input does not wait.
+  If either peer uses v1, both peers keep v1 behavior.
+- Bun 1.4.1 is now the minimum for the CLI and framework, down from 1.4.2.
+  A packed starter is tested on Linux at this minimum. The repository and new
+  starters pin Bun 1.4.3.
+
+### Fixed
+
+- In the web runtime, a press just after a drag release now reaches its target,
+  even before the next paint. This fix applies with or without pixel scroll.
+- The web runtime now fits the terminal inside the page. The app's last row
+  is no longer cut off.
 
 ## [0.4.0] - 2026-10-16
 
@@ -198,7 +217,8 @@ First public release, on npm. Five packages share this version: `luciole.sh`,
 - No multi-user load test and no public TLS proxy test. See
   <https://luciole.sh/status/>.
 
-[Unreleased]: https://github.com/sykar-f/luciole/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/sykar-f/luciole/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/sykar-f/luciole/releases/tag/v0.4.1
 [0.4.0]: https://github.com/sykar-f/luciole/releases/tag/v0.4.0
 [0.3.2]: https://github.com/sykar-f/luciole/releases/tag/v0.3.2
 [0.3.1]: https://github.com/sykar-f/luciole/releases/tag/v0.3.1
