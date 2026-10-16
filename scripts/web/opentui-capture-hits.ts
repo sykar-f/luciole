@@ -1,4 +1,5 @@
 /* eslint-disable no-magic-numbers -- Scripted browser proof coordinates and bounds. */
+import * as z from "zod/mini";
 import { expect } from "bun:test";
 import { createHash } from "node:crypto";
 import { join } from "node:path";
@@ -97,7 +98,16 @@ try {
     "probe.r.captureHitMap().frameId>window.beforePaint",
     "a paint during pointer capture",
   );
-  const result = await browser.evaluate(`(()=>{
+  const result = z
+    .object({
+      hit: z.number(),
+      editor: z.number(),
+      frame: z.number(),
+      afterFrame: z.number(),
+      events: z.array(z.object({ type: z.string() })),
+    })
+    .parse(
+      await browser.evaluate(`(()=>{
     const r=probe.state().rect;
     const frame=probe.r.captureHitMap().frameId;
     const hit=probe.r.hitTest(Math.floor(r.x+r.width+.5),Math.floor(r.y+2.1));
@@ -107,10 +117,12 @@ try {
     probe.pointer('mousedown',r.x+r.width+.5,r.y+2.1,1);
     probe.pointer('mousemove',r.x+r.width+.5,r.y+r.height-.2,1);
     return {hit,editor:probe.editor.num,frame,afterFrame:probe.r.captureHitMap().frameId,events:probe.events.slice(from)};
-  })()`);
+  })()`),
+    );
   console.log("capture/release/press", JSON.stringify(result));
-  expect(result).toMatchObject({ hit: await browser.evaluate("probe.editor.num") });
-  expect(await browser.evaluate("probe.events.slice(-10).some(e=>e.type==='down')")).toBe(true);
+  expect(result.hit).toBe(result.editor);
+  expect(result.afterFrame).toBe(result.frame);
+  expect(result.events.some((event) => event.type === "down")).toBe(true);
   await wait("probe.state().position>window.before+1", "scrollbar drag after capture release");
   console.log("capture release press proof passed");
 } finally {

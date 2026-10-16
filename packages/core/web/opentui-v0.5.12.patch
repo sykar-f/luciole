@@ -242,7 +242,7 @@ index 9db0821..9ab08ee 100644
          case "render":
            // Skip if renderable was destroyed during a previous render callback
 diff --git a/packages/core/src/renderer.ts b/packages/core/src/renderer.ts
-index a87a810..fbd7a72 100644
+index a87a810..6c917f0 100644
 --- a/packages/core/src/renderer.ts
 +++ b/packages/core/src/renderer.ts
 @@ -279,6 +279,28 @@ export interface CliRendererStats extends NativeRenderStats {
@@ -304,8 +304,10 @@ index a87a810..fbd7a72 100644
 +      height = this.height
 +    const cells = new Uint32Array(width * height)
 +    if (!this.lib.copyPendingHitGrid(this.rendererPtr, cells)) throw new Error("Hit grid dimensions changed")
++    const dropCells = this.capturedRenderable ? new Uint32Array(width * height) : undefined
++    if (dropCells && !this.lib.copyPendingDropHitGrid(this.rendererPtr, dropCells)) throw new Error("Hit grid dimensions changed")
 +    const origins = new Map<number, Readonly<{ x: number; y: number }>>()
-+    for (const id of cells) {
++    for (const id of dropCells ? [...cells, ...dropCells] : cells) {
 +      if (origins.has(id)) continue
 +      const node = Renderable.renderablesByNumber.get(id)
 +      if (node && !node.isDestroyed) origins.set(id, Object.freeze({ x: node.x, y: node.y }))
@@ -323,10 +325,8 @@ index a87a810..fbd7a72 100644
 +        return origins.get(id)
 +      },
 +    })
-+    if (this.capturedRenderable) {
-+      const cells = new Uint32Array(width * height)
-+      if (!this.lib.copyPendingDropHitGrid(this.rendererPtr, cells)) throw new Error("Hit grid dimensions changed")
-+      this.dropHitMaps.set(map, { source: this.capturedRenderable.num, cells })
++    if (this.capturedRenderable && dropCells) {
++      this.dropHitMaps.set(map, { source: this.capturedRenderable.num, cells: dropCells })
 +    }
 +    return map
 +  }

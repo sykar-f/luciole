@@ -622,3 +622,68 @@ test("planned hover waits for presented input when deferred and keeps its defaul
     }
   }
 });
+
+for (const route of ["ordinary", "snapshot"])
+  test(`captured paint retains clipped hits and drop targets through ${route} input`, async () => {
+    const { r, renderOnce, mockMouse } = await setup();
+    try {
+      const backdrop = new BoxRenderable(r, { width: 12, height: 4 });
+      const under = new BoxRenderable(r, {
+        position: "absolute",
+        width: 4,
+        height: 2,
+        overflow: "hidden",
+      });
+      const source = new BoxRenderable(r, { width: 8, height: 2, flexShrink: 0 });
+      const cover = new BoxRenderable(r, {
+        position: "absolute",
+        left: 2,
+        top: 0,
+        width: 1,
+        height: 1,
+        zIndex: 10,
+      });
+      r.root.add(backdrop);
+      r.root.add(under);
+      under.add(source);
+      r.root.add(cover);
+      const events: string[] = [];
+      source.onMouse = (event) => events.push(`source:${event.type}`);
+      under.onMouse = (event) => events.push(`under:${event.type}`);
+      let painted: RenderHitMap | undefined;
+      r.setFramePlan(() => ({
+        onHitMap: (map) => {
+          painted = map;
+        },
+      }));
+      const send = async (type: "down" | "drag" | "up", map: RenderHitMap) => {
+        if (route === "ordinary") await mockMouse.emitMouseEvent(type, 1, 0, 0, { delayMs: 0 });
+        else r.dispatchMouseEventFromHitMap(input(type, 1, 0), map);
+      };
+      await renderOnce();
+      if (!painted) throw new Error("Missing initial hit map");
+      await send("down", painted);
+      await send("drag", painted);
+      await renderOnce();
+      const during = painted;
+      expect(during.hitTest(1, 0)).toBe(source.num);
+      expect(during.hitTest(2, 0)).toBe(cover.num);
+      expect(during.hitTest(5, 0)).toBe(backdrop.num);
+      expect(r.hitTest(1, 0)).toBe(source.num);
+      events.length = 0;
+      await send("drag", during);
+      expect(events).toContain("under:over");
+      expect(events).toContain("source:drag");
+      await send("up", during);
+      expect(events).toContain("source:drag-end");
+      expect(events).toContain("under:drop");
+      expect(events).not.toContain("source:drop");
+      const frame = r.frameId;
+      await send("down", during);
+      expect(r.frameId).toBe(frame);
+      expect(events).toContain("source:down");
+      expect(during.hitTest(1, 0)).toBe(source.num);
+    } finally {
+      r.destroy();
+    }
+  });
