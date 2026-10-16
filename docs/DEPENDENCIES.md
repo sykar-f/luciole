@@ -7,7 +7,7 @@ des deux sondes d'origine (`probes/rsc`, `probes/rpc`) étaient à jour ; `bun o
 
 | Dépendance                                   | Version  |
 | -------------------------------------------- | -------- |
-| Bun / @types/bun                             | 1.4.2    |
+| Bun / @types/bun                             | 1.4.3    |
 | @opentui/core / @opentui/react               | 0.5.12   |
 | @opentui/keymap                              | 0.5.12   |
 | react / react-dom / react-server-dom-webpack | 19.3.0   |

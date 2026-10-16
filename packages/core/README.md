@@ -8,7 +8,7 @@ This package publishes TypeScript sources and relies on Bun APIs (`Bun.Terminal`
 
 ## Requirements
 
-- [Bun](https://bun.sh) 1.4.2 or later
+- [Bun](https://bun.sh) 1.4.1 or later
 - `react` and `react-dom` 19.3 or later, installed by your application (they are peer
   dependencies, so that the framework and your components share one copy)
 

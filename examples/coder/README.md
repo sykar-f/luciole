@@ -49,7 +49,7 @@ bun install --frozen-lockfile
 bun run coder -- --harness fake
 ```
 
-The clone needs Bun 1.4.2. The `fake` harness needs nothing else: it runs offline and
+The clone needs Bun 1.4.3. The `fake` harness needs nothing else: it runs offline and
 spends no quota. Every other harness needs its official binary on your `PATH`, already
 signed in: `claude`, `codex`, `pi` or `opencode`.
 

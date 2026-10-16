@@ -29,7 +29,7 @@ jobs:
       - uses: actions/checkout@v7.0.1
       - uses: oven-sh/setup-bun@v2.2.0
         with:
-          bun-version: 1.4.2
+          bun-version: 1.4.3
       # The npm that publish pins, installed the same way here so a dry run proves it.
       - uses: actions/setup-node@v7.0.0
         with:
@@ -96,7 +96,7 @@ jobs:
       - uses: actions/checkout@v7.0.1
       - uses: oven-sh/setup-bun@v2.2.0
         with:
-          bun-version: 1.4.2
+          bun-version: 1.4.3
       - run: bun install --frozen-lockfile
       # Provenance needs npm >= 9.5 and trusted publishing (docs/RELEASING.md) npm >= 11.5.1:
       # the runner's default npm is not relied on. setup-node puts node and npm in the tool

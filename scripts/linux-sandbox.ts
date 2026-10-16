@@ -23,7 +23,7 @@ const platform = arch === "arm64" ? "linux/arm64" : "linux/amd64";
 const only = option("--only");
 const IMAGE = `luciole-linux-sandbox:${arch}`;
 // Bun's image (Debian), bubblewrap, ps for the PTY journey's process checks.
-const DOCKERFILE = `FROM oven/bun:1.4.2
+const DOCKERFILE = `FROM oven/bun:1.4.3
 RUN apt-get update && apt-get install -y --no-install-recommends bubblewrap procps \\
  && rm -rf /var/lib/apt/lists/* && useradd -m ada
 `;

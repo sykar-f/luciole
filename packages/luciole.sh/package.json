@@ -22,7 +22,7 @@
   },
   "homepage": "https://luciole.sh",
   "engines": {
-    "bun": ">=1.4.2"
+    "bun": ">=1.4.1"
   },
   "type": "module",
   "bin": {

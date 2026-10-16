@@ -6,7 +6,7 @@ A change that breaks the API goes in the [CHANGELOG](CHANGELOG.md), marked **Bre
 
 ## Setup
 
-You need [Bun](https://bun.sh) 1.4.2, the version the repository pins (`.bun-version`).
+You need [Bun](https://bun.sh) 1.4.3, the version the repository pins (`.bun-version`).
 To only use luciole, [the README](README.md) has the shorter path.
 
 ```sh

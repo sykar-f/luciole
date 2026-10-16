@@ -69,7 +69,7 @@ captured from a real PTY by [`scripts/pty/notes-frame.ts`](scripts/pty/notes-fra
 
 ## Get started
 
-You need [Bun](https://bun.sh) 1.4.2 or newer, on macOS or Linux.
+You need [Bun](https://bun.sh) 1.4.1 or newer, on macOS or Linux.
 
 ### Create an app
 
@@ -289,8 +289,9 @@ release is described in [docs/RELEASING.md](docs/RELEASING.md) (French).
 
 ## What runs where
 
-- **The `luciole` CLI and development require [Bun](https://bun.sh)** 1.4.2 or newer
-  (`engines` in `packages/core/package.json`; CI runs 1.4.2). luciole uses
+- **The `luciole` CLI and development require [Bun](https://bun.sh)** 1.4.1 or newer
+  (`engines` in `packages/core/package.json`). CI pins 1.4.3 and tests the 1.4.1 minimum.
+  luciole uses
   `Bun.Terminal`, `Bun.serve`, `Bun.build` and `bun:sqlite`, among others.
 - **`@luciole-sh/flow-graph` and `@luciole-sh/markdown-editor` have no Bun dependency.**
 - **A compiled Client runs without Bun.** CI tests it in Debian and Alpine containers

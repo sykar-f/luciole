@@ -53,7 +53,7 @@ jobs:
           ref: ${{ github.event.workflow_run.head_sha }}
       - uses: oven-sh/setup-bun@v2.2.0
         with:
-          bun-version: 1.4.2
+          bun-version: 1.4.3
       # A fresh runner has no web runtime in its cache: `bun run demo` prepares it, which
       # builds OpenTUI's core with Zig 0.16.0, exactly (packages/core/src/web-runtime.ts).
       - name: Zig 0.16.0

@@ -3,7 +3,7 @@
   "private": true,
   "license": "MIT",
   "type": "module",
-  "packageManager": "bun@1.4.2",
+  "packageManager": "bun@1.4.3",
   "workspaces": {
     "packages": [
       "packages/*",
@@ -21,7 +21,7 @@
       "@tree-sitter-grammars/tree-sitter-lua": "0.4.1",
       "@tree-sitter-grammars/tree-sitter-toml": "0.7.0",
       "@tree-sitter-grammars/tree-sitter-yaml": "0.7.1",
-      "@types/bun": "1.4.2",
+      "@types/bun": "1.4.3",
       "@types/react": "19.3.0",
       "@types/react-dom": "19.3.0",
       "@types/spdx-expression-parse": "4.0.0",

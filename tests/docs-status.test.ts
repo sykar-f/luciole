@@ -58,7 +58,7 @@ test("a version changed in a manifest, the ABI or .bun-version fails", async () 
       "dependencies.react-reconciler is ^0.34.0",
   ]);
   expect(
-    await problems(page, { ...files, core: changed(files.core, `">=1.4.2"`, `">=1.5.0"`) }),
+    await problems(page, { ...files, core: changed(files.core, `">=1.4.1"`, `">=1.5.0"`) }),
   ).toHaveLength(2);
   const catalog = changed(
     files.workspace,
@@ -72,7 +72,7 @@ test("a version changed in a manifest, the ABI or .bun-version fails", async () 
   expectLines(await problems(page, { ...files, abi }), [
     /for abi:react, but packages\/core\/src\/abi\.ts, ABI_PACKAGES\.react is 19\.4\.0$/,
   ]);
-  expect(await problems(page, { ...files, bunVersion: "1.4.3\n" })).toHaveLength(2);
+  expect(await problems(page, { ...files, bunVersion: "1.5.0\n" })).toHaveLength(2);
 });
 
 test("a version with no mark, a mark of nothing and a page with no mark fail", async () => {
@@ -90,11 +90,11 @@ test("a version with no mark, a mark of nothing and a page with no mark fail", a
 
 test("only the main's text counts, not its scripts nor the page around it", async () => {
   const html = `<p>9.9.9</p><main><script>"9.9.9"</script>
-    <span data-version-of="bun-version"> 1.4.2 </span></main><footer>9.9.9</footer>`;
+    <span data-version-of="bun-version"> 1.4.3 </span></main><footer>9.9.9</footer>`;
   expect(await problems(html)).toEqual([]);
 });
 
 test("an engines field the check cannot read stops it", () => {
-  const core = changed(files.core, `">=1.4.2"`, `"^1.4.2"`);
-  expect(() => versionsOf({ ...files, core })).toThrow(/engines\.bun is "\^1\.4\.2"/);
+  const core = changed(files.core, `">=1.4.1"`, `"^1.4.1"`);
+  expect(() => versionsOf({ ...files, core })).toThrow(/engines\.bun is "\^1\.4\.1"/);
 });

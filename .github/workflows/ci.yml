@@ -14,7 +14,7 @@ jobs:
           fetch-depth: 0
       - uses: oven-sh/setup-bun@v2.2.0
         with:
-          bun-version: 1.4.2
+          bun-version: 1.4.3
       - run: bun install --frozen-lockfile
       # website/ has its own lockfile, and the root lint ignores it: the type-aware lint of its
       # sources needs Astro's packages and the types `astro sync` generates (website/.astro,
@@ -47,7 +47,7 @@ jobs:
       - uses: actions/checkout@v7.0.1
       - uses: oven-sh/setup-bun@v2.2.0
         with:
-          bun-version: 1.4.2
+          bun-version: 1.4.3
       - run: bun install --frozen-lockfile
       - run: bun scripts/build-sandbox.ts --check --arch x64
       - run: bun scripts/linux-sandbox.ts --arch x64
@@ -64,7 +64,7 @@ jobs:
       - uses: actions/checkout@v7.0.1
       - uses: oven-sh/setup-bun@v2.2.0
         with:
-          bun-version: 1.4.2
+          bun-version: 1.4.3
       - run: bun install --frozen-lockfile
       - run: bun scripts/pack-check.ts packages/core packages/flow-graph packages/markdown-editor packages/create packages/luciole.sh
       - run: bun run licenses
@@ -75,3 +75,14 @@ jobs:
           for dir in packages/core packages/flow-graph packages/markdown-editor packages/create packages/luciole.sh; do
             (cd "$dir" && bun publish --dry-run)
           done
+  # The published engines floor, independently of the version the repository pins.
+  bun-minimum:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: oven-sh/setup-bun@v2.2.0
+        with:
+          bun-version: 1.4.1
+      - run: bun install --frozen-lockfile
+      - run: bun scripts/packed-starter.ts
