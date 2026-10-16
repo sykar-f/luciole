@@ -206,7 +206,7 @@ export class PixelController {
     if (!viewport) return null;
     const captured = this.renderer.captureHitMap();
     const visible = this.visibleRect(viewport);
-    const map = visible ? painterHitMap(viewport, captured, visible) : captured;
+    const map = visible ? painterHitMap(viewport, captured) : captured;
     const blocked = viewport.owner.isDestroyed || !visible || this.obscured(viewport, map, visible);
     if (blocked && !this.last) return null;
     const canonicalRepaint =

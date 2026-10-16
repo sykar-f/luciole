@@ -482,7 +482,7 @@ test("painter snapshots retain captured owner hits and pass-local geometry", () 
     hitTest: (x) => (x === 3 ? 9 : x === 4 ? 77 : x === 5 ? 43 : 0),
     origin: () => undefined,
   };
-  const snapshot = painterHitMap(frame.viewport, map, frame.rect);
+  const snapshot = painterHitMap(frame.viewport, map);
   expect(snapshot.hitTest(6, 4)).toBe(42);
   expect(snapshot.hitTest(3, 4)).toBe(42);
   expect(snapshot.hitTest(4, 4)).toBe(77);
@@ -495,14 +495,15 @@ test("painter snapshots retain captured owner hits and pass-local geometry", () 
   expect(snapshot.origin(42)).toEqual({ x: 2, y: 3 });
   const plan = planPixelFrame(frame);
   plan.onHitMap?.(map);
-  Object.assign(owner, { y: 2 });
+  Object.assign(owner, { y: 2, screenY: 2 });
   plan.projection?.onHitMap?.(map);
-  Object.assign(owner, { y: 8 });
+  Object.assign(owner, { y: 8, screenY: 8 });
   expect(frame.snapshot?.origin(42)).toEqual({ x: 2, y: 3 });
   expect(frame.projection?.origin(42)).toEqual({ x: 2, y: 2 });
   expect(frame.snapshot?.hitTest(6, 4)).toBe(42);
   expect(frame.snapshot?.hitTest(10, 4)).toBe(42);
   expect(frame.projection?.hitTest(10, 4)).toBe(42);
+  expect(frame.projection?.hitTest(10, 6)).toBe(42);
   expect(map.hitTest(6, 4)).toBe(0);
   const plain = fixture().viewport;
   expect(painterHitMap(plain, map, frame.rect)).toBe(map);

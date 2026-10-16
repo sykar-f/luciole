@@ -1,5 +1,10 @@
 import { encode, VERSION, type PixelOperation, type Rect } from "../../pixel-scroll/protocol";
-import type { RenderFramePlan, RenderHitMap, ScrollableViewport } from "../opentui-seams";
+import {
+  detectScrollableViewport,
+  type RenderFramePlan,
+  type RenderHitMap,
+  type ScrollableViewport,
+} from "../opentui-seams";
 
 export interface PixelFrame {
   readonly id: number;
@@ -22,6 +27,8 @@ export function planPixelFrame(
   canonicalRepaint = false,
 ): RenderFramePlan {
   const { id, generation, rect, origin, fraction, viewport } = frame;
+  // Capture input bounds before the projection temporarily translates the owner.
+  const hitRect = painterHitBounds(viewport);
   if (release && fraction !== 0) throw new Error("A pixel release requires a canonical frame");
   const project = fraction > 0 || canonicalRepaint;
   const finish: PixelOperation[] = [
@@ -41,7 +48,7 @@ export function planPixelFrame(
     before: bytes([{ op: "begin", version: VERSION, generation }]),
     after: bytes([register, ...(project ? [] : finish)]),
     onHitMap(map) {
-      frame.snapshot = painterHitMap(viewport, map, rect);
+      frame.snapshot = painterHitMap(viewport, map, hitRect);
     },
     ...(project
       ? {
@@ -49,12 +56,27 @@ export function planPixelFrame(
             ...viewport.project(origin + (fraction > 0 ? 1 : 0)),
             after: bytes(finish),
             onHitMap(map: RenderHitMap) {
-              frame.projection = painterHitMap(viewport, map, rect);
+              frame.projection = painterHitMap(viewport, map, hitRect);
             },
           },
         }
       : {}),
   };
+}
+
+/** Painted owner bounds govern input, independently of the translated surface. */
+function painterHitBounds(viewport: ScrollableViewport): Rect | undefined {
+  if (typeof viewport.input !== "function") return;
+  const { owner } = viewport;
+  const clips: Rect[] = [];
+  for (let parent = owner.parent; parent; parent = parent.parent) {
+    const ancestor = detectScrollableViewport(parent);
+    if (ancestor) clips.push(ancestor.rect);
+  }
+  return clipPixelRect(
+    { x: owner.screenX, y: owner.screenY, width: owner.width, height: owner.height },
+    clips,
+  );
 }
 
 /** OpenTUI omits the captured drag source so native drops can hit beneath it.
@@ -65,15 +87,17 @@ export function planPixelFrame(
 export function painterHitMap(
   viewport: ScrollableViewport,
   map: RenderHitMap,
-  rect: Rect,
+  rect = painterHitBounds(viewport),
 ): RenderHitMap {
-  if (typeof viewport.input !== "function") return map;
+  if (typeof viewport.input !== "function" || !rect) return map;
   const owner = viewport.owner;
   const id = owner.num;
   const beneath = new Set([0]);
   for (let parent = owner.parent; parent; parent = parent.parent) beneath.add(parent.num);
   const origin = map.origin(id) ?? Object.freeze({ x: owner.x, y: owner.y });
-  const { x, y, width, height } = rect;
+  const clipped = clipPixelRect(rect, [{ x: 0, y: 0, width: map.width, height: map.height }]);
+  if (!clipped) return map;
+  const { x, y, width, height } = clipped;
   return Object.freeze({
     width: map.width,
     height: map.height,
