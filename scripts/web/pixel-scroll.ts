@@ -41,11 +41,12 @@ async function verify(dpr: number) {
     },
   });
   try {
-    await using browser = await Browser.start();
+    await using browser = await Browser.start({ deviceScaleFactor: dpr });
     await browser.send("Emulation.setDeviceMetricsOverride", {
       width: 800,
       height: 600,
-      deviceScaleFactor: dpr,
+      // Preserve the native scale so ResizeObserver measures physical pixels.
+      deviceScaleFactor: 0,
       mobile: false,
     });
     await browser.open(site.url.href);
@@ -59,6 +60,18 @@ async function verify(dpr: number) {
       snapshot: true,
       precise: true,
     });
+    expect(
+      await browser.evaluate(`(() => {
+        const canvas = document.querySelector('.xterm-webgl-layer');
+        return { dpr: devicePixelRatio, width: canvas.width, height: canvas.height };
+      })()`),
+    ).toEqual(
+      await browser.evaluate(`(() => {
+        const rect = document.querySelector('.xterm-webgl-layer').getBoundingClientRect();
+        const dpr = ${dpr};
+        return { dpr, width: rect.width * dpr, height: rect.height * dpr };
+      })()`),
+    );
     // Every onRender framebuffer is checked, not just the eventual screenshot.
     // Band colors identify every physical content row; chrome stays pixel-identical.
     const proof = await browser.evaluate(`(async () => {

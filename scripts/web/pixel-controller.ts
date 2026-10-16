@@ -79,6 +79,18 @@ try {
   await browser.open(server.url.href);
   await wait("!!window.probe?.state().presented", "the negotiated ScrollBox presentation");
   expect(await browser.evaluate("devicePixelRatio")).toBe(Number(process.argv[2] ?? 1));
+  expect(
+    await browser.evaluate(`(() => {
+      const canvas = document.querySelector('.xterm-webgl-layer');
+      return { dpr: devicePixelRatio, width: canvas.width, height: canvas.height };
+    })()`),
+  ).toEqual(
+    await browser.evaluate(`(() => {
+      const rect = document.querySelector('.xterm-webgl-layer').getBoundingClientRect();
+      const dpr = ${Number(process.argv[2] ?? 1)};
+      return { dpr, width: rect.width * dpr, height: rect.height * dpr };
+    })()`),
+  );
   for (let i = 0; i < 3; i++) await browser.evaluate("probe.wheel(2,15,.25)");
   expect(await browser.evaluate("probe.state().outsideRows")).toBe(0);
   await browser.evaluate("probe.wheel(2,15,.25)");
