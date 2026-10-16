@@ -13,6 +13,11 @@ and marked **Breaking**.
 
 ## [Unreleased]
 
+### Changed
+
+- Bun 1.4.1 is the minimum for the CLI and framework, tested with a packed starter
+  on Linux. The repository and new starters pin Bun 1.4.3.
+
 ## [0.4.0] - 2026-10-16
 
 ### Added

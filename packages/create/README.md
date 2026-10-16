@@ -34,7 +34,7 @@ The template is staged from `examples/notes` when the package is packed (`prepac
 The staged directory is removed by `postpack` after the tarball is written; each pack stages it afresh. Nothing is read from a
 repository when you run it.
 
-The starter’s `.bun-version` pins Bun 1.4.2, the version tested by luciole CI. Its luciole
+The starter’s `.bun-version` pins Bun 1.4.3, the version tested by luciole CI. Its luciole
 package dependencies deliberately use `^` ranges to receive compatible patch fixes; the app’s
 lockfile pins the installed versions. Its lint configuration reports floating promises as
 errors, including promises discarded with `void`: handle rejections with `.catch(reportError)`,
