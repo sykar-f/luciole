@@ -177,7 +177,7 @@ try {
   await wait("probe.state().selection.head.block===2", "fractional document drag");
   expect(await browser.evaluate("probe.state().selection.anchor")).toEqual({ block: 1, offset: 1 });
   await browser.evaluate("{const r=probe.state().rect;probe.wheel(r.x+2,r.y+2,2)}");
-  await wait("probe.state().position>2", "scroll during selection");
+  await wait("probe.state().presented?.origin===2", "scrolled document presented during selection");
   await browser.evaluate(
     "{const r=probe.state().rect;probe.pointer('mousemove',r.x+7.5,r.y+4.1,1);probe.pointer('mouseup',r.x+7.5,r.y+4.1)}",
   );

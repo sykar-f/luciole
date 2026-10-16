@@ -4,7 +4,7 @@
  */
 import { afterEach, expect, test } from "bun:test";
 import { act, useState } from "react";
-import { RGBA, SyntaxStyle } from "@opentui/core";
+import { MouseEvent, RGBA, SyntaxStyle } from "@opentui/core";
 import { testRender } from "@opentui/react/test-utils";
 import { MarkdownEditor, MarkdownEditorRenderable, parseMarkdown } from "../src/index.ts";
 import { layoutDocument } from "../src/view/layout.ts";
@@ -697,4 +697,53 @@ test("the optional viewport keeps native rows and projects without logical mutat
   await ui.mockMouse.click(30, 8);
   expect(Number.isInteger(viewport.position)).toBe(true);
   for (const name of seams) Reflect.deleteProperty(ui.renderer, name);
+});
+
+test("presented input origins nest and clear after a throwing dispatch", async () => {
+  let editor: MarkdownEditorRenderable | undefined;
+  ui = await testRender(
+    <MarkdownEditor
+      ref={(node) => {
+        editor = node ?? undefined;
+      }}
+      value={paragraphs(40)}
+      syntaxStyle={style}
+      width={31}
+      height={10}
+    />,
+    { width: 31, height: 10 },
+  );
+  await ui.renderOnce();
+  if (!editor) throw new Error("Missing editor");
+  const node = editor,
+    viewport = node.scrollableViewport;
+  viewport.set(2);
+  const click = (x: number) =>
+    node.processMouseEvent(
+      new MouseEvent(node, {
+        type: "down",
+        button: 0,
+        x,
+        y: 0,
+        modifiers: { shift: false, alt: false, ctrl: false },
+      }),
+    );
+  expect(() =>
+    viewport.input(0, () => {
+      click(1);
+      expect(node.controller.state.selection.head).toEqual({ block: 0, offset: 1 });
+      viewport.set(2);
+      viewport.input(1, () => {
+        click(2);
+        return true;
+      });
+      viewport.set(2);
+      click(3);
+      expect(node.controller.state.selection.head).toEqual({ block: 0, offset: 3 });
+      viewport.set(2);
+      throw new Error("dispatch failed");
+    }),
+  ).toThrow("dispatch failed");
+  click(4);
+  expect(node.controller.state.selection.head).toEqual({ block: 1, offset: 4 });
 });

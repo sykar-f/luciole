@@ -105,6 +105,7 @@ const TRIPLE = 3;
 type EditorViewport = {
   readonly owner: Renderable;
   readonly scrollKeys: false;
+  input(origin: number, dispatch: () => boolean): boolean;
   readonly position: number;
   readonly origin: number;
   readonly max: number;
@@ -139,6 +140,7 @@ export class MarkdownEditorRenderable extends Renderable {
   };
   private scroll = 0;
   private pixelPosition = 0;
+  private inputOrigin: number | undefined;
   private edgeTimer: ReturnType<typeof setInterval> | undefined;
   private dragPoint: MouseEvent | undefined;
 
@@ -149,6 +151,15 @@ export class MarkdownEditorRenderable extends Renderable {
     return {
       owner: editor,
       scrollKeys: false,
+      input(origin, dispatch) {
+        const previous = editor.inputOrigin;
+        editor.inputOrigin = origin;
+        try {
+          return dispatch();
+        } finally {
+          editor.inputOrigin = previous;
+        }
+      },
       get position() {
         if (Math.floor(editor.pixelPosition) !== editor.scroll)
           editor.pixelPosition = editor.scroll;
@@ -614,7 +625,7 @@ export class MarkdownEditorRenderable extends Renderable {
   private hit(event: MouseEvent) {
     const layout = this.layout();
     if (!layout) return null;
-    const row = event.y - this.screenY + this.scroll;
+    const row = event.y - this.screenY + (this.inputOrigin ?? this.scroll);
     const col = event.x - this.screenX - this.column().offset;
     const line = layout.lines[row];
     const glyph: Glyph | undefined = line?.glyphs.find((g) => col >= g.x && col < g.x + g.width);
