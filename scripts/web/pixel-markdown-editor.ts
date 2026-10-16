@@ -91,19 +91,30 @@ try {
   );
   expect(await browser.evaluate("probe.state().presented.origin")).toBe(0);
 
+  await browser.evaluate("window.editorReferences=[];window.editorReferenceMetadata=[]");
+  for (let row = 0; row <= 12; row++) {
+    await browser.evaluate(`probe.editor.scrollableViewport.set(${row})`);
+    await wait(
+      `probe.state().presented?.origin===${row} && probe.state().presented?.fraction===0`,
+      `canonical editor reference at row ${row}`,
+    );
+    await browser.evaluate(`(()=>{
+      const sample=probe.capture(), presented=probe.state().presented;
+      window.editorReferences.push(sample);
+      window.editorReferenceMetadata.push({requested:${row},generation:presented.generation,
+        origin:presented.origin,fraction:presented.fraction,
+        cellHeight:probe.state().cellHeight,length:sample.content.length});
+    })()`);
+  }
+  await browser.evaluate("probe.editor.scrollableViewport.set(0)");
+  await wait(
+    "probe.state().presented?.origin===0 && probe.state().presented?.fraction===0",
+    "canonical editor position before continuity gestures",
+  );
   await browser.evaluate(`(async()=>{
       const pause=()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
       const waitFrame=async()=>{await pause();await pause();};
-      const refs=[], referenceTrace=[];
-      for(let row=0;row<=12;row++) {
-        probe.editor.scrollableViewport.set(row); await waitFrame();
-        const sample=probe.capture();
-        refs.push(sample);
-        referenceTrace.push({requested:row,presented:probe.state().presented,
-          cellHeight:probe.state().cellHeight,length:sample.content.length,
-          prefix:sample.content.slice(0,48)});
-      }
-      probe.editor.scrollableViewport.set(0);await waitFrame();
+      const refs=window.editorReferences;
       const start=probe.state(), H=start.cellHeight;
       const stride=refs[0].content.length/(start.rect.height*H);
       const errors=[],thumbs=new Map();let checked=0,previous=0,fractionalThumbs=0,previousBar=start.bar,previousOrigin=0;
@@ -127,7 +138,7 @@ try {
         }
       }
       };
-      window.editorReferenceTrace = () => referenceTrace;
+      window.editorReferenceTrace = () => window.editorReferenceMetadata;
       window.finishEditorProof = () => ({checked,errors:errors.slice(0,10),thumbs:thumbs.size,fractionalThumbs});
       return true;
     })()`);
