@@ -94,10 +94,14 @@ try {
   await browser.evaluate(`(async()=>{
       const pause=()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
       const waitFrame=async()=>{await pause();await pause();};
-      const refs=[];
+      const refs=[], referenceTrace=[];
       for(let row=0;row<=12;row++) {
         probe.editor.scrollableViewport.set(row); await waitFrame();
-        refs.push(probe.capture());
+        const sample=probe.capture();
+        refs.push(sample);
+        referenceTrace.push({requested:row,presented:probe.state().presented,
+          cellHeight:probe.state().cellHeight,length:sample.content.length,
+          prefix:sample.content.slice(0,48)});
       }
       probe.editor.scrollableViewport.set(0);await waitFrame();
       const start=probe.state(), H=start.cellHeight;
@@ -123,6 +127,7 @@ try {
         }
       }
       };
+      window.editorReferenceTrace = () => referenceTrace;
       window.finishEditorProof = () => ({checked,errors:errors.slice(0,10),thumbs:thumbs.size,fractionalThumbs});
       return true;
     })()`);
@@ -137,6 +142,7 @@ try {
     })
     .parse(await browser.evaluate("finishEditorProof()"));
   console.log("editor continuity", continuity);
+  console.log("canonical reference attribution", await browser.evaluate("editorReferenceTrace()"));
   expect(continuity.errors).toEqual([]);
   expect(continuity.checked).toBeGreaterThanOrEqual(96);
   expect(continuity.thumbs).toBeGreaterThan(1);
