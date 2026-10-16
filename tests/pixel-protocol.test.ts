@@ -59,6 +59,9 @@ const capability: PixelReport = {
 const messages: PixelMessage[] = [
   query,
   capability,
+  { ...query, version: 2 },
+  { ...capability, version: 2 },
+  { op: "presented", version: 2, id: 1, generation: 7 },
   { op: "begin", version: 1, generation: 7 },
   register,
   { op: "step", version: 1, id: 1, generation: 7, fraction: 0.32 },
@@ -98,7 +101,18 @@ for (const [index, message] of messages.entries()) {
     expect(decodePayload(sequence.slice("\x1b]19462;".length, -2))).toEqual(message);
   });
   test(`rejects unknown/missing version and extra fields for message ${index}`, () => {
-    for (const version of [undefined, 0, 2, "1", null]) {
+    for (const version of [
+      undefined,
+      0,
+      3,
+      "1",
+      null,
+      ...(message.op === "presented"
+        ? [1]
+        : ["query", "capability"].includes(message.op)
+          ? []
+          : [2]),
+    ]) {
       expect(decode(wire({ ...message, version }))).toBeUndefined();
     }
     expect(decode(wire({ ...message, extra: true }))).toBeUndefined();

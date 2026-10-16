@@ -91,15 +91,30 @@ try {
   );
   expect(await browser.evaluate("probe.state().presented.origin")).toBe(0);
 
+  await browser.evaluate("window.editorReferences=[];window.editorReferenceMetadata=[]");
+  for (let row = 0; row <= 12; row++) {
+    await browser.evaluate(`probe.editor.scrollableViewport.set(${row})`);
+    await wait(
+      `probe.state().presented?.origin===${row} && probe.state().presented?.fraction===0`,
+      `canonical editor reference at row ${row}`,
+    );
+    await browser.evaluate(`(()=>{
+      const sample=probe.capture(), presented=probe.state().presented;
+      window.editorReferences.push(sample);
+      window.editorReferenceMetadata.push({requested:${row},generation:presented.generation,
+        origin:presented.origin,fraction:presented.fraction,
+        cellHeight:probe.state().cellHeight,length:sample.content.length});
+    })()`);
+  }
+  await browser.evaluate("probe.editor.scrollableViewport.set(0)");
+  await wait(
+    "probe.state().presented?.origin===0 && probe.state().presented?.fraction===0",
+    "canonical editor position before continuity gestures",
+  );
   await browser.evaluate(`(async()=>{
       const pause=()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
       const waitFrame=async()=>{await pause();await pause();};
-      const refs=[];
-      for(let row=0;row<=12;row++) {
-        probe.editor.scrollableViewport.set(row); await waitFrame();
-        refs.push(probe.capture());
-      }
-      probe.editor.scrollableViewport.set(0);await waitFrame();
+      const refs=window.editorReferences;
       const start=probe.state(), H=start.cellHeight;
       const stride=refs[0].content.length/(start.rect.height*H);
       const errors=[],thumbs=new Map();let checked=0,previous=0,fractionalThumbs=0,previousBar=start.bar,previousOrigin=0;
@@ -115,7 +130,7 @@ try {
           const reference=refs[frame.origin].content.slice(offset).concat(refs[frame.origin+1]?.content.slice(-H*stride,-H*stride+offset)||[]);
           const mismatch=frame.content.findIndex((v,i)=>v!==reference[i]);
           if(mismatch>=0) errors.push('content:'+position+':'+mismatch+':'+frame.content[mismatch]+'/'+reference[mismatch]);
-          const bar=probe.state().bar, old=thumbs.get(bar);
+          const bar=frame.bar, old=thumbs.get(bar);
           if(old && frame.thumb.some((v,i)=>v!==old[i])) errors.push('translated scrollbar:'+position);
           if(bar!==previousBar && frame.origin===previousOrigin) fractionalThumbs++;
           previousBar=bar;previousOrigin=frame.origin;
@@ -123,6 +138,7 @@ try {
         }
       }
       };
+      window.editorReferenceTrace = () => window.editorReferenceMetadata;
       window.finishEditorProof = () => ({checked,errors:errors.slice(0,10),thumbs:thumbs.size,fractionalThumbs});
       return true;
     })()`);
@@ -137,6 +153,7 @@ try {
     })
     .parse(await browser.evaluate("finishEditorProof()"));
   console.log("editor continuity", continuity);
+  console.log("canonical reference attribution", await browser.evaluate("editorReferenceTrace()"));
   expect(continuity.errors).toEqual([]);
   expect(continuity.checked).toBeGreaterThanOrEqual(96);
   expect(continuity.thumbs).toBeGreaterThan(1);

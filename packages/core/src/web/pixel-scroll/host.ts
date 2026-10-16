@@ -79,8 +79,8 @@ export class PixelScrollAddon implements ITerminalAddon {
       );
     if (this.renderer)
       this.disposables.push(
-        this.renderer.onPresent((presentation) => {
-          session.present(presentation);
+        this.renderer.onPresent((presentation, released) => {
+          session.present(presentation, released);
           if (!presentation) this.replay();
         }),
       );
@@ -100,7 +100,8 @@ export class PixelScrollAddon implements ITerminalAddon {
           message &&
           message.op !== "capability" &&
           message.op !== "wheel" &&
-          message.op !== "pointer"
+          message.op !== "pointer" &&
+          message.op !== "presented"
         ) {
           try {
             session.operation(message);

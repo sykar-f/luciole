@@ -16,11 +16,42 @@ import { PixelController } from "../../packages/core/src/web/pixel-scroll/contro
 import { detectScrollableViewport } from "../../packages/core/src/web/opentui-seams";
 import { isInputStream, terminalOutput } from "../../packages/core/src/web/streams";
 import type { Presentation } from "../../packages/core/src/web/pixel-scroll/presentation";
-import { decode } from "../../packages/core/src/pixel-scroll/protocol";
+import { decode, decodePayload, OSC } from "../../packages/core/src/pixel-scroll/protocol";
 
 import { MarkdownEditorRenderable } from "../../packages/markdown-editor/src/view/EditorRenderable";
 
 const parameters = new URLSearchParams(location.search);
+const deferred = new Map<number, FrameRequestCallback>();
+let holding = false;
+if (parameters.has("burst")) {
+  // Wrap before xterm schedules any work. Holding must also catch callbacks that
+  // were queued before burst(), when they reach their actual execution point.
+  const nativeRequest = globalThis.requestAnimationFrame.bind(globalThis);
+  const nativeCancel = globalThis.cancelAnimationFrame.bind(globalThis);
+  const scheduled = new Map<number, number>();
+  let handle = 1_000_000_000;
+  globalThis.requestAnimationFrame = (callback) => {
+    const id = ++handle;
+    if (holding) deferred.set(id, callback);
+    else
+      scheduled.set(
+        id,
+        nativeRequest((time) => {
+          scheduled.delete(id);
+          if (holding) deferred.set(id, callback);
+          else callback(time);
+        }),
+      );
+    return id;
+  };
+  globalThis.cancelAnimationFrame = (id) => {
+    deferred.delete(id);
+    const native = scheduled.get(id);
+    if (native !== undefined) nativeCancel(native);
+    scheduled.delete(id);
+  };
+}
+
 const terminal = new Terminal({
   cols: 50,
   rows: 16,
@@ -58,11 +89,15 @@ terminal.onData((data) => {
   controller?.ordinary(data);
   stdin.write(data);
 });
+let wire = "";
+let delayedOutput: { bytes: Uint8Array; done: () => void }[] | undefined;
 const { requestAnimationFrame, cancelAnimationFrame } = globalThis;
 const r = await createCliRenderer({
   stdin,
   stdout: terminalOutput({ columns: 50, rows: 16 }, (bytes, done) => {
-    terminal.write(bytes, done);
+    if (parameters.has("burst")) wire += new TextDecoder().decode(bytes);
+    if (delayedOutput) delayedOutput.push({ bytes: bytes.slice(), done });
+    else terminal.write(bytes, done);
   }),
   width: 50,
   height: 16,
@@ -96,13 +131,45 @@ const editor = new MarkdownEditorRenderable(r, {
   },
 });
 r.root.add(editor);
+const marker = parameters.has("burst")
+  ? new TextRenderable(r, {
+      position: "absolute",
+      top: 15,
+      left: 0,
+      width: 10,
+      height: 1,
+      content: "initial",
+    })
+  : undefined;
+if (marker) r.root.add(marker);
 const events: { type: string; y: number; position: number }[] = [];
 editor.onMouse = (event) => {
   events.push({ type: event.type, y: event.y, position: editor.scrollableViewport.position });
 };
+const readBar = () =>
+  Array.from({ length: editor.height }, (_, y) =>
+    terminal.buffer.active
+      .getLine(editor.screenY + y)
+      ?.getCell(editor.screenX + editor.width - 1)
+      ?.getChars(),
+  ).join("");
+const committedBars = new Map<number, string>();
+terminal.parser.registerOscHandler(OSC, (payload) => {
+  const message = decodePayload(payload);
+  if (message?.op === "commit") committedBars.set(message.generation, readBar());
+  return false;
+});
 let presented: Presentation | undefined;
+let presentedBar = "";
 webgl.pixels.onPresent((p) => {
   presented = p;
+  if (p) {
+    const bar = committedBars.get(p.generation);
+    if (bar === undefined) throw new Error("Missing committed scrollbar signature");
+    presentedBar = bar;
+    for (const generation of committedBars.keys())
+      if (generation <= p.generation) committedBars.delete(generation);
+  }
 });
 const canvas = document.querySelector(".xterm-webgl-layer");
 if (!(canvas instanceof HTMLCanvasElement)) throw new Error("Missing canvas");
@@ -112,6 +179,7 @@ const frames: {
   origin: number;
   phase: number;
   generation: number;
+  bar: string;
   content: number[];
   thumb: number[];
 }[] = [];
@@ -137,6 +205,7 @@ terminal.onRender(() => {
     origin: presented.origin,
     phase: presented.phase,
     generation: presented.generation,
+    bar: presentedBar,
     ...capture(),
   });
 });
@@ -151,6 +220,43 @@ const point = (x: number, y: number) => {
 Object.assign(window, {
   probe: {
     terminal,
+    ...(parameters.has("referenceLag")
+      ? {
+          holdOutput: () => {
+            delayedOutput = [];
+          },
+          resumeOutput: () => {
+            const held = delayedOutput ?? [];
+            delayedOutput = undefined;
+            for (const { bytes, done } of held) terminal.write(bytes, done);
+          },
+        }
+      : {}),
+    ...(marker
+      ? {
+          burst: async () => {
+            // Hold actual presentation while allowing output/parser tasks to drain.
+            holding = true;
+            const loop: unknown = Reflect.get(r, "loop");
+            if (typeof loop !== "function") throw new Error("Missing diagnostic frame loop");
+            for (let i = 0; i < 9; i++) {
+              marker.content = `frame ${i}`;
+              await Reflect.apply(loop, r, []);
+              await new Promise<void>((resolve) => setTimeout(resolve, 0));
+            }
+          },
+          resume: () => {
+            holding = false;
+            for (const callback of deferred.values()) requestAnimationFrame(callback);
+            deferred.clear();
+          },
+          publication: () =>
+            // eslint-disable-next-line no-control-regex -- Inspect complete OSC publication records.
+            [...wire.matchAll(/\x1b\]19462;([^\x1b]*)\x1b\\/g)]
+              .map((match) => decode(`\x1b]19462;${match[1]}\x1b\\`))
+              .filter((message) => message?.op === "begin"),
+        }
+      : {}),
     r,
     editor,
     events,
@@ -168,12 +274,7 @@ Object.assign(window, {
       cellHeight: canvas.height / terminal.rows,
       cellWidth: canvas.width / terminal.cols,
       cursor: terminal.buffer.active.cursorY,
-      bar: Array.from({ length: editor.height }, (_, y) =>
-        terminal.buffer.active
-          .getLine(editor.screenY + y)
-          ?.getCell(editor.screenX + editor.width - 1)
-          ?.getChars(),
-      ).join(""),
+      bar: readBar(),
     }),
     wheel: (x: number, y: number, rows: number) => {
       document.querySelector(".xterm-screen")?.dispatchEvent(

@@ -43,7 +43,7 @@ function belongsTo(node: Renderable | undefined, owner: Renderable): boolean {
   return false;
 }
 
-/** App-side contract v1 controller. Only runInPage attaches it; native is unchanged. */
+/** App-side negotiated pixel controller. Only runInPage attaches it; native is unchanged. */
 export class PixelController {
   private readonly discovery = new PixelDiscovery();
   private readonly history = new PixelHistory();
@@ -197,6 +197,10 @@ export class PixelController {
 
   private plan(): RenderFramePlan | null {
     if (!this.discovery.ready || this.disposed) return null;
+    // Reserve both transactions of a handover before touching change detection.
+    // Rendering and input continue; the compositor holds its complete frame.
+    const publications = this.wheelRelease && this.wheelRelease.viewport !== this.active ? 2 : 1;
+    if (!this.history.canPublish(publications)) return { deferHover: true };
     const views = this.viewports();
     if (!this.active && !this.choseInitial) {
       this.active = ancestorViewport(this.renderer.currentFocusedRenderable) ?? views[0];
@@ -239,18 +243,18 @@ export class PixelController {
     }
     const previous = this.wheelRelease;
     this.wheelRelease = undefined;
-    const handover =
+    const handoverFrame: PixelFrame | undefined =
       previous && previous.viewport !== viewport
-        ? planPixelFrame(
-            {
-              ...previous,
-              generation: ++this.generation,
-              origin: previous.viewport.origin,
-              fraction: 0,
-            },
-            true,
-          )
+        ? {
+            id: previous.id,
+            viewport: previous.viewport,
+            rect: previous.rect,
+            generation: ++this.generation,
+            origin: previous.viewport.origin,
+            fraction: 0,
+          }
         : undefined;
+    const handover = handoverFrame ? planPixelFrame(handoverFrame, true) : undefined;
     const release = this.releasing;
     const frame: PixelFrame = {
       id,
@@ -272,6 +276,8 @@ export class PixelController {
     const capture = plan.onHitMap;
     plan.onHitMap = (map) => {
       capture?.(map);
+      handover?.onHitMap?.(map);
+      if (handoverFrame) this.history.add(handoverFrame);
       this.history.add(frame);
       this.last = frame;
       if (release) {
@@ -289,6 +295,7 @@ export class PixelController {
   private receive(sequence: string) {
     const capability = this.discovery.receive(sequence);
     if (capability) {
+      this.history.presentations = this.discovery.presentations;
       this.write(this.discovery.mode());
       if (!this.discovery.ready) {
         this.stopSettle();
@@ -331,6 +338,11 @@ export class PixelController {
     }
     if (!this.discovery.ready) return;
     const report = decode(sequence);
+    if (report?.op === "presented") {
+      if (this.discovery.presentations && this.history.acknowledge(report.id, report.generation))
+        this.renderer.requestRender();
+      return;
+    }
     if (report?.op !== "wheel" && report?.op !== "pointer") return;
     const frame = this.history.get(report.id, report.generation);
     if (!frame) return;

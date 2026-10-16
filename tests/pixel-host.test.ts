@@ -508,3 +508,70 @@ for (const platform of [
     }
   }
 }
+
+test("v2 acknowledges only actual presentations, in order with inputs and canonical releases", () => {
+  const f = fixture();
+  f.send({ op: "query", version: 2, nonce: "v2" });
+  expect(f.reports.at(-1)).toMatchObject({ op: "capability", version: 2 });
+  f.frame(1);
+  expect(f.reports.filter((r) => r.op === "presented")).toHaveLength(0);
+  // Reports do not require input mode: a quiet app must still free its window.
+  f.session.present(f.committed());
+  expect(f.reports.at(-1)).toEqual({ op: "presented", version: 2, id: 1, generation: 1 });
+  f.session.present(f.committed());
+  expect(f.reports.filter((r) => r.op === "presented")).toHaveLength(1);
+  f.session.inputMode = true;
+  f.frame(2);
+  f.frame(3);
+  f.session.input({
+    op: "pointer",
+    action: "down",
+    button: 0,
+    buttons: 1,
+    modifiers: 0,
+    x: 3,
+    y: 5,
+  });
+  f.session.present(f.committed());
+  f.session.input({ op: "pointer", action: "up", button: 0, buttons: 0, modifiers: 0, x: 3, y: 5 });
+  expect(f.reports.slice(-3)).toMatchObject([
+    { op: "pointer", generation: 1 },
+    { op: "presented", generation: 3 },
+    { op: "pointer", generation: 3 },
+  ]);
+  f.frame(4, 0);
+  f.send({ op: "release", version: 1, id: 1, generation: 4 });
+  expect(f.reports.at(-1)).toMatchObject({ op: "pointer", generation: 3 });
+  f.session.present(undefined, f.committed());
+  expect(f.session.presented).toBeUndefined();
+  expect(f.reports.at(-1)).toEqual({ op: "presented", version: 2, id: 1, generation: 4 });
+  f.session.invalidate();
+  expect(f.reports.at(-1)).toMatchObject({ op: "capability", version: 2, reason: "invalidated" });
+  const count = f.reports.length;
+  f.session.present(f.committed());
+  expect(f.reports).toHaveLength(count);
+});
+
+test("a v1 app with a v2 host receives exactly v1 reports and no acknowledgements", () => {
+  const f = fixture();
+  f.frame(1);
+  f.session.present(f.committed());
+  f.session.inputMode = true;
+  f.session.input({ op: "wheel", x: 3, y: 5, modifiers: 0, dx: 0, dy: 0.5, source: "precise" });
+  expect(f.reports).toEqual([
+    { op: "capability", version: 1, nonce: "test", reason: "ready", snapshot: true, precise: true },
+    {
+      op: "wheel",
+      version: 1,
+      id: 1,
+      generation: 1,
+      x: 3,
+      y: 5,
+      phase: 0.3,
+      modifiers: 0,
+      dx: 0,
+      dy: 0.5,
+      source: "precise",
+    },
+  ]);
+});

@@ -1,5 +1,6 @@
 import {
   VERSION,
+  PRESENTATION_VERSION,
   type PixelOperation,
   type PixelReport,
   type Rect,
@@ -32,6 +33,8 @@ export class PixelSession {
   private nonce: string | undefined;
   private revoked = new Set<string>();
   private ready = false;
+  private version: 1 | 2 = VERSION;
+  private acknowledged = 0;
   inputMode = false;
 
   private readonly renderer: PixelRenderer | undefined;
@@ -58,8 +61,24 @@ export class PixelSession {
     return true;
   }
 
-  present(presentation: Presentation | undefined) {
+  present(presentation: Presentation | undefined, released?: Presentation) {
     this.presented = presentation;
+    const shown = presentation ?? released;
+    if (
+      this.ready &&
+      this.version === PRESENTATION_VERSION &&
+      shown &&
+      shown.generation > this.acknowledged
+    ) {
+      this.acknowledged = shown.generation;
+      // The same callback/stream as input preserves retirement ordering.
+      this.report({
+        op: "presented",
+        version: PRESENTATION_VERSION,
+        id: shown.id,
+        generation: shown.generation,
+      });
+    }
   }
 
   abort() {
@@ -75,7 +94,7 @@ export class PixelSession {
       this.revoked.add(this.nonce);
       this.report({
         op: "capability",
-        version: VERSION,
+        version: this.version,
         nonce: this.nonce,
         snapshot: false,
         precise: false,
@@ -87,11 +106,12 @@ export class PixelSession {
   operation(op: PixelOperation) {
     if (op.op === "query") {
       this.nonce = op.nonce;
+      this.version = op.version;
       const reason = this.revoked.has(op.nonce) ? "invalidated" : this.reason();
       this.ready = reason === "ready" && this.renderer !== undefined;
       this.report({
         op: "capability",
-        version: VERSION,
+        version: op.version,
         nonce: op.nonce,
         snapshot: this.ready,
         precise: this.ready,

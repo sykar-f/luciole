@@ -33,7 +33,9 @@ export class PixelCompositor implements PixelRenderer {
   private releasing = false;
   private scratch: Target | undefined;
   private readonly invalidations = new Set<() => void>();
-  private readonly listeners = new Set<(presentation: Presentation | undefined) => void>();
+  private readonly listeners = new Set<
+    (presentation: Presentation | undefined, released?: Presentation) => void
+  >();
 
   private readonly gl: WebGL2RenderingContext;
   private readonly metrics: () => Metrics;
@@ -79,7 +81,7 @@ export class PixelCompositor implements PixelRenderer {
     return this.metrics().cell.height;
   }
 
-  onPresent(listener: (presentation: Presentation | undefined) => void) {
+  onPresent(listener: (presentation: Presentation | undefined, released?: Presentation) => void) {
     this.listeners.add(listener);
     return {
       dispose: () => {
@@ -296,7 +298,7 @@ export class PixelCompositor implements PixelRenderer {
     if (this.releasing && !this.preparing && frame?.canonical === this.signature()) {
       this.draw(frame);
       this.invalidate();
-      for (const listener of this.listeners) listener(undefined);
+      for (const listener of this.listeners) listener(undefined, frame.presentation);
       return true;
     }
     if (frame) {

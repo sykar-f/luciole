@@ -79,8 +79,8 @@ function painterHitBounds(viewport: ScrollableViewport): Rect | undefined {
   );
 }
 
-/** OpenTUI omits the captured drag source so native drops can hit beneath it.
- * A painter still owns its painted bounds, including fixed chrome, in a snapshot.
+/** OpenTUI's drop grid omits the captured drag source so drops can hit beneath it.
+ * The ordinary grid keeps that source. A painter still owns its painted bounds, including fixed chrome, in a snapshot.
  * Capture that ownership and geometry now, rather than consulting live state
  * after release. Foreign overlays and child hit targets keep their identities.
  */
