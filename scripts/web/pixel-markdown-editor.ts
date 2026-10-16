@@ -170,6 +170,10 @@ try {
   await browser.evaluate(
     "probe.editor.controller.moveTo({block:0,offset:4});probe.editor.scrollableViewport.set(.75)",
   );
+  await wait(
+    "probe.state().presented?.origin===0 && probe.state().presented?.fraction===.75",
+    "reset document presentation before the next drag",
+  );
   // A distinct cell avoids the editor's multi-click selection gestures.
   await browser.evaluate(
     "{const r=probe.state().rect;probe.pointer('mousedown',r.x+1.5,r.y+2.1,1);probe.pointer('mousemove',r.x+7.5,r.y+4.1,1)}",
