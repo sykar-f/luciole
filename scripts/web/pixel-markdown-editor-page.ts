@@ -172,11 +172,19 @@ Object.assign(window, {
   probe: {
     terminal,
     burst: async () => {
+      // Pin the visible frame while allowing native output/parser tasks to drain.
+      // This models compositor lag without manufacturing an input generation.
+      const deferred: FrameRequestCallback[] = [];
+      globalThis.requestAnimationFrame = (callback) => {
+        deferred.push(callback);
+        return 1_000_000_000 + deferred.length;
+      };
       const loop: unknown = Reflect.get(r, "loop");
       if (typeof loop !== "function") throw new Error("Missing diagnostic frame loop");
       for (let i = 0; i < 9; i++) {
         marker.content = `frame ${i}`;
         await Reflect.apply(loop, r, []);
+        await new Promise<void>((resolve) => setTimeout(resolve, 0));
       }
     },
     r,
