@@ -21,6 +21,37 @@ import { decode } from "../../packages/core/src/pixel-scroll/protocol";
 import { MarkdownEditorRenderable } from "../../packages/markdown-editor/src/view/EditorRenderable";
 
 const parameters = new URLSearchParams(location.search);
+const deferred = new Map<number, FrameRequestCallback>();
+let holding = false;
+if (parameters.has("burst")) {
+  // Wrap before xterm schedules any work. Holding must also catch callbacks that
+  // were queued before burst(), when they reach their actual execution point.
+  const nativeRequest = globalThis.requestAnimationFrame.bind(globalThis);
+  const nativeCancel = globalThis.cancelAnimationFrame.bind(globalThis);
+  const scheduled = new Map<number, number>();
+  let handle = 1_000_000_000;
+  globalThis.requestAnimationFrame = (callback) => {
+    const id = ++handle;
+    if (holding) deferred.set(id, callback);
+    else
+      scheduled.set(
+        id,
+        nativeRequest((time) => {
+          scheduled.delete(id);
+          if (holding) deferred.set(id, callback);
+          else callback(time);
+        }),
+      );
+    return id;
+  };
+  globalThis.cancelAnimationFrame = (id) => {
+    deferred.delete(id);
+    const native = scheduled.get(id);
+    if (native !== undefined) nativeCancel(native);
+    scheduled.delete(id);
+  };
+}
+
 const terminal = new Terminal({
   cols: 50,
   rows: 16,
@@ -153,7 +184,6 @@ terminal.onRender(() => {
     ...capture(),
   });
 });
-const deferred = new Map<number, FrameRequestCallback>();
 const point = (x: number, y: number) => {
   const box = document.querySelector(".xterm-screen")?.getBoundingClientRect();
   if (!box) throw new Error("Missing screen");
@@ -169,14 +199,7 @@ Object.assign(window, {
       ? {
           burst: async () => {
             // Hold actual presentation while allowing output/parser tasks to drain.
-            let handle = 1_000_000_000;
-            globalThis.requestAnimationFrame = (callback) => {
-              deferred.set(++handle, callback);
-              return handle;
-            };
-            globalThis.cancelAnimationFrame = (id) => {
-              if (!deferred.delete(id)) cancelAnimationFrame(id);
-            };
+            holding = true;
             const loop: unknown = Reflect.get(r, "loop");
             if (typeof loop !== "function") throw new Error("Missing diagnostic frame loop");
             for (let i = 0; i < 9; i++) {
@@ -186,7 +209,7 @@ Object.assign(window, {
             }
           },
           resume: () => {
-            Object.assign(globalThis, { requestAnimationFrame, cancelAnimationFrame });
+            holding = false;
             for (const callback of deferred.values()) requestAnimationFrame(callback);
             deferred.clear();
           },
