@@ -329,6 +329,11 @@ for (const [state, terminal] of [
     const kill = spyOn(process, "kill").mockImplementation(() => {
       throw denial;
     });
+    let elapsed = 0;
+    const now = spyOn(performance, "now").mockImplementation(() => elapsed);
+    const sleep = spyOn(Bun, "sleepSync").mockImplementation((duration) => {
+      elapsed += Number(duration);
+    });
     const outputs = [`123 321 ${state}`, terminal];
     const snapshot = spyOn(Bun, "spawnSync").mockImplementation(() => ({
       ...result,
@@ -340,9 +345,12 @@ for (const [state, terminal] of [
       expect(() => signalGroup(123, "SIGTERM")).not.toThrow();
       expect(snapshot).toHaveBeenCalledTimes(2);
       expect(kill).toHaveBeenCalledTimes(1);
+      expect(elapsed).toBe(10);
     } finally {
       kill.mockRestore();
       snapshot.mockRestore();
+      sleep.mockRestore();
+      now.mockRestore();
     }
   });
 }
