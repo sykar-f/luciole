@@ -174,7 +174,7 @@ for (const output of [
   "123 321 S\nbroken",
   "123 321 Zgarbage",
   "123 321 ?",
-  "123 321 ?E",
+  "123 321 ?Egarbage",
 ]) {
   test(`EPERM inspection fails closed for invalid ps output ${JSON.stringify(output)}`, () => {
     const denial = Object.assign(new Error("denied"), { code: "EPERM" });
@@ -267,7 +267,10 @@ for (const { output, reason } of [
   { output: "unreadable", reason: 'unparsed ps row: "unreadable"' },
   { output: "invalid 321 Z", reason: 'unparsed ps row: "invalid 321 Z"' },
   { output: "123 321 S>", reason: "live or unknown members: pid 321 state S>" },
-  { output: "123 321 ?E", reason: "live or unknown members: pid 321 state ?E" },
+  {
+    output: "123 321 ?E",
+    reason: "exit did not complete within 250ms: exiting members: pid 321 state ?E",
+  },
   {
     output: "123 321 Z\n123 322 S\n123 323 R",
     reason: "live or unknown members: pid 322 state S, pid 323 state R",
@@ -313,3 +316,95 @@ test("inspection diagnostics bound the number of target members", () => {
     snapshot.mockRestore();
   }
 });
+
+// Replay the observed Darwin exit race without relying on scheduler timing.
+for (const [state, terminal] of [
+  ["?E", "123 321 Z"],
+  ["?E", "456 654 S"],
+  ...Array.from("RUSITH?", (state) => [state + "<XEVLs+", "123 321 Z"]),
+]) {
+  test(`EPERM confirms an exiting member reaches a terminal snapshot: ${state} -> ${terminal}`, () => {
+    const result = Bun.spawnSync(["/bin/ps", "-axo", "pgid=,pid=,stat="]);
+    const denial = Object.assign(new Error("exiting group denied"), { code: "EPERM" });
+    const kill = spyOn(process, "kill").mockImplementation(() => {
+      throw denial;
+    });
+    let elapsed = 0;
+    const now = spyOn(performance, "now").mockImplementation(() => elapsed);
+    const sleep = spyOn(Bun, "sleepSync").mockImplementation((duration) => {
+      elapsed += Number(duration);
+    });
+    const outputs = [`123 321 ${state}`, terminal];
+    const snapshot = spyOn(Bun, "spawnSync").mockImplementation(() => ({
+      ...result,
+      exitCode: 0,
+      stdout: Buffer.from(outputs.shift() ?? terminal),
+      stderr: Buffer.alloc(0),
+    }));
+    try {
+      expect(() => signalGroup(123, "SIGTERM")).not.toThrow();
+      expect(snapshot).toHaveBeenCalledTimes(2);
+      expect(kill).toHaveBeenCalledTimes(1);
+      expect(elapsed).toBe(10);
+    } finally {
+      kill.mockRestore();
+      snapshot.mockRestore();
+      sleep.mockRestore();
+      now.mockRestore();
+    }
+  });
+}
+
+for (const { next, reason, calls } of [
+  {
+    next: "123 321 ?E",
+    reason: "exit did not complete within 250ms: exiting members: pid 321 state ?E",
+    calls: 25,
+  },
+  { next: "123 321 S", reason: "live or unknown members: pid 321 state S", calls: 2 },
+  { next: "123 321 ?", reason: "live or unknown members: pid 321 state ?", calls: 2 },
+  {
+    next: "123 321 ?E\n123 322 R",
+    reason: "live or unknown members: pid 321 state ?E, pid 322 state R",
+    calls: 2,
+  },
+  {
+    next: "123 321 ?Egarbage",
+    reason: "live or unknown members: pid 321 state ?Egarbage",
+    calls: 2,
+  },
+  { next: "broken", reason: 'unparsed ps row: "broken"', calls: 2 },
+]) {
+  test(`exit settlement fails closed: ${JSON.stringify(next)}`, () => {
+    const result = Bun.spawnSync(["/bin/ps", "-axo", "pgid=,pid=,stat="]);
+    const denial = Object.assign(new Error("exiting group denied"), { code: "EPERM" });
+    let elapsed = 0;
+    let reads = 0;
+    const now = spyOn(performance, "now").mockImplementation(() => elapsed);
+    const sleep = spyOn(Bun, "sleepSync").mockImplementation((duration) => {
+      elapsed += Number(duration);
+    });
+    const kill = spyOn(process, "kill").mockImplementation(() => {
+      throw denial;
+    });
+    const snapshot = spyOn(Bun, "spawnSync").mockImplementation(() => ({
+      ...result,
+      exitCode: 0,
+      stdout: Buffer.from(reads++ === 0 ? "123 321 ?E" : next),
+      stderr: Buffer.alloc(0),
+    }));
+    try {
+      expect(() => signalGroup(123, "SIGKILL")).toThrow(reason);
+      expect(snapshot).toHaveBeenCalledTimes(calls);
+      expect(kill).toHaveBeenCalledTimes(1);
+      expect(elapsed).toBeLessThanOrEqual(250);
+      expect(snapshot.mock.calls[0]?.[1]?.timeout).toBe(250);
+      expect(snapshot.mock.calls[1]?.[1]?.timeout).toBe(240);
+    } finally {
+      snapshot.mockRestore();
+      kill.mockRestore();
+      sleep.mockRestore();
+      now.mockRestore();
+    }
+  });
+}
