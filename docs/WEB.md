@@ -403,12 +403,14 @@ molette après accumulation des fractions, reste gardé pour le tour suivant. La
 page peut toujours le rejouer avec `input` dans une autre grille. Les rapports
 privés restent dans l'app source ; leurs générations ne traversent pas l'iframe.
 
-Le contrat v1 compose une seule surface. Dans son rectangle, la molette précise
-vise le contenu sous le pointeur, y compris une vue imbriquée ; les touches de
-défilement visent la vue focalisée. Passer à une autre vue arrondit la précédente.
-Hors du rectangle actif, un mouvement, un clic ou un premier cran SGR sélectionne
-l'autre vue ; ce premier cran reste entier, puis les rapports précis s'appliquent
-à la nouvelle surface. Les bordures et barres de défilement restent fixes. Dans une surface fractionnaire,
+Le contrat v1 compose une seule surface. La molette précise vise le contenu
+sous le pointeur, y compris une vue imbriquée ; les touches de défilement visent
+la vue focalisée. Passer à une autre vue arrondit la précédente. Hors du rectangle
+actif, le premier événement de molette précise choisit la vue dans la hit map de
+la génération présentée et applique son delta dès cet événement. Les mouvements
+du pointeur, les clics et les crans en mode ligne hors du rectangle actif gardent
+leur chemin ordinaire. Les bordures et barres de défilement restent fixes.
+Dans une surface fractionnaire,
 un down avec Shift ou Alt termine la fraction sans atteindre les handlers de
 l'application ; le geste suivant revient au chemin ordinaire.
 
