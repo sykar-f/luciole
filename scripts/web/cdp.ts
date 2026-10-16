@@ -56,10 +56,13 @@ const Context = z.object({
   context: z.object({ id: z.number(), origin: z.string() }),
 });
 
-export function chromeArgs(profile: string) {
+export function chromeArgs(profile: string, deviceScaleFactor?: number) {
   return [
     CHROME,
     "--headless=new",
+    ...(deviceScaleFactor === undefined
+      ? []
+      : [`--force-device-scale-factor=${deviceScaleFactor}`]),
     "--remote-debugging-port=0",
     `--user-data-dir=${profile}`,
     "--no-first-run",
@@ -112,11 +115,14 @@ export class Browser implements AsyncDisposable {
     socket.addEventListener("error", closed);
   }
 
-  static async start(options: { commandTimeoutMs?: number } = {}) {
+  static async start(options: { commandTimeoutMs?: number; deviceScaleFactor?: number } = {}) {
     const profile = mkdtempSync(join(tmpdir(), "luciole-cdp-"));
-    const { child: chrome, stop } = await managedProcess(chromeArgs(profile), {
-      directory: profile,
-    });
+    const { child: chrome, stop } = await managedProcess(
+      chromeArgs(profile, options.deviceScaleFactor),
+      {
+        directory: profile,
+      },
+    );
     // Drain Chrome output so a full pipe cannot stall the browser.
     void new Response(chrome.stdout).arrayBuffer();
     void new Response(chrome.stderr).arrayBuffer();

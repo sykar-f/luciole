@@ -51,11 +51,11 @@ const server = Bun.serve({
   },
 });
 try {
-  await using browser = await Browser.start();
+  await using browser = await Browser.start({ deviceScaleFactor: Number(process.argv[2] ?? 1) });
   await browser.send("Emulation.setDeviceMetricsOverride", {
     width: 900,
     height: 600,
-    deviceScaleFactor: Number(process.argv[2] ?? 1),
+    deviceScaleFactor: 0,
     mobile: false,
   });
   const wait = async (expression: string, label: string) => {
@@ -78,6 +78,27 @@ try {
   });
   await browser.open(server.url.href);
   await wait("!!window.probe?.state().presented", "the negotiated ScrollBox presentation");
+  expect(await browser.evaluate("devicePixelRatio")).toBe(Number(process.argv[2] ?? 1));
+  const firstWheel = await browser.evaluate(`(async()=>{
+    const pause=()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+    const initial=probe.state(), bar=JSON.stringify(initial.bar), steps=[];
+    for(let i=1;i<=3;i++) {
+      const s=probe.state();
+      probe.wheel(s.right.rect.x+2,s.right.rect.y+2,7*devicePixelRatio/s.cellHeight);
+      await pause();await pause();
+      const after=probe.state();
+      steps.push({expected:i*7*devicePixelRatio,actual:(after.presented.origin+after.presented.phase)*after.cellHeight});
+      if(JSON.stringify(after.bar)!==bar) throw Error('scrollbar column moved');
+    }
+    return steps;
+  })()`);
+  console.log("first wheel displacement", JSON.stringify(firstWheel));
+  for (const step of z
+    .array(z.object({ expected: z.number(), actual: z.number() }))
+    .parse(firstWheel))
+    expect(Math.abs(step.actual - step.expected)).toBeLessThanOrEqual(1);
+  await browser.evaluate("probe.pointer('mousemove',3,3)");
+  await wait("probe.state().presented?.rect.x < 25", "return after first wheel proof");
   const bands = z
     .object({
       errors: z.array(z.string()),
