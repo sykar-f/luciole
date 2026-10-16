@@ -80,7 +80,7 @@ function painterHitBounds(viewport: ScrollableViewport): Rect | undefined {
 }
 
 /** OpenTUI omits the captured drag source so native drops can hit beneath it.
- * A painter still owns its visible document cells in a presented snapshot.
+ * A painter still owns its painted bounds, including fixed chrome, in a snapshot.
  * Capture that ownership and geometry now, rather than consulting live state
  * after release. Foreign overlays and child hit targets keep their identities.
  */

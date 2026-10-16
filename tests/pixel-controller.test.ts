@@ -460,6 +460,7 @@ test("owner pointer dispatch scopes the named origin without changing event coor
 
 test("painter snapshots retain captured owner hits and pass-local geometry", () => {
   const frame = fixture();
+  const parent = { num: 9, parent: null };
   const owner = {
     num: 42,
     x: 2,
@@ -468,7 +469,7 @@ test("painter snapshots retain captured owner hits and pass-local geometry", () 
     screenY: 3,
     width: 9,
     height: 4,
-    parent: { num: 9, parent: null },
+    parent,
   } as unknown as Renderable;
   Object.assign(frame.viewport, {
     owner,
@@ -505,6 +506,26 @@ test("painter snapshots retain captured owner hits and pass-local geometry", () 
   expect(frame.projection?.hitTest(10, 4)).toBe(42);
   expect(frame.projection?.hitTest(10, 6)).toBe(42);
   expect(map.hitTest(6, 4)).toBe(0);
+  Object.assign(owner, { screenY: 3, width: 30 });
+  const terminalClipped = painterHitMap(frame.viewport, map);
+  expect(terminalClipped.hitTest(19, 4)).toBe(42);
+  expect(terminalClipped.hitTest(20, 4)).toBe(0);
+  Object.assign(parent, {
+    scrollableViewport: {
+      position: 0,
+      origin: 0,
+      max: 0,
+      rect: { x: 3, y: 3, width: 7, height: 3 },
+      set() {},
+      scroll: (delta: number) => delta,
+      project: (origin: number) => frame.viewport.project(origin),
+    },
+  });
+  const ancestorClipped = painterHitMap(frame.viewport, map);
+  expect(ancestorClipped.hitTest(6, 4)).toBe(42);
+  expect(ancestorClipped.hitTest(2, 4)).toBe(0);
+  expect(ancestorClipped.hitTest(10, 4)).toBe(0);
+  expect(ancestorClipped.hitTest(6, 6)).toBe(0);
   const plain = fixture().viewport;
   expect(painterHitMap(plain, map, frame.rect)).toBe(map);
 });

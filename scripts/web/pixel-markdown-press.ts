@@ -61,8 +61,7 @@ try {
     origin: server.url.origin,
     permissions: ["clipboardReadWrite", "clipboardSanitizedWrite"],
   });
-  const pixelOff = process.argv[4] === "optOut";
-  await browser.open(server.url.href + (pixelOff ? "?optOut" : ""));
+  await browser.open(server.url.href);
   const wait = async (expression: string, label: string) => {
     try {
       return await browser.waitFor(expression, label);
@@ -76,28 +75,22 @@ try {
       throw error;
     }
   };
+  await wait("!!window.probe?.state().presented", "initial presentation");
+  await browser.evaluate("{const r=probe.state().rect;probe.wheel(r.x+2,r.y+2,.75)}");
   await wait(
-    pixelOff ? "!!window.probe" : "!!window.probe?.state().presented",
-    "initial presentation",
-  );
-  if (!pixelOff)
-    await browser.evaluate("{const r=probe.state().rect;probe.wheel(r.x+2,r.y+2,.75)}");
-  await wait(
-    pixelOff
-      ? "true"
-      : "probe.state().presented?.rect.x===probe.state().rect.x && probe.state().presented?.fraction===.75",
+    "probe.state().presented?.rect.x===probe.state().rect.x && probe.state().presented?.fraction===.75",
     "editor presentation",
   );
-  if (process.argv[3]?.startsWith("capture")) {
+  if (process.argv[3] === "capture") {
     await browser.evaluate(
-      "{const r=probe.state().rect;window.beforePaint=probe.r.captureHitMap().frameId;probe.pointer('mousedown',r.x+1.5,r.y+2.1,1);probe.pointer('mousemove',r.x+7.5,r.y+4.1,1)}",
+      "{const r=probe.state().rect;window.beforePaint=probe.state().presented.generation;probe.pointer('mousedown',r.x+1.5,r.y+2.1,1);probe.pointer('mousemove',r.x+7.5,r.y+4.1,1)}",
     );
     await wait(
-      "probe.r.captureHitMap().frameId>window.beforePaint",
+      "probe.state().presented?.generation>window.beforePaint",
       "a paint during pointer capture",
     );
     await browser.evaluate(
-      `{const r=probe.state().rect;probe.pointer('mouseup',r.x+7.5,r.y+4.1);window.before=probe.state().position;probe.pointer('mousedown',r.x+${process.argv[3] === "capture-bar" ? "r.width+.5" : "2.5"},r.y+2.1,1);probe.pointer('mousemove',r.x+${process.argv[3] === "capture-bar" ? "r.width+.5" : "7.5"},r.y+r.height-.2,1)}`,
+      "{const r=probe.state().rect;probe.pointer('mouseup',r.x+7.5,r.y+4.1);window.before=probe.state().position;probe.pointer('mousedown',r.x+2.5,r.y+2.1,1);probe.pointer('mousemove',r.x+7.5,r.y+r.height-.2,1)}",
     );
   } else {
     await browser.evaluate(
