@@ -193,7 +193,7 @@ export class PixelScrollAddon implements ITerminalAddon {
   /** true means the existing wheel path should handle this event. */
   wheel(event: WheelEvent): boolean {
     const point = this.point(event);
-    if (!point?.inside) return true;
+    if (!point || (!point.inside && event.deltaMode !== 0)) return true;
     let dx = event.deltaX;
     let dy = event.deltaY;
     if (!Number.isFinite(dx) || !Number.isFinite(dy)) return true;

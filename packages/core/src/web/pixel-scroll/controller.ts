@@ -1,5 +1,5 @@
 import { MouseParser, Renderable, type CliRenderer, type KeyEvent } from "@opentui/core";
-import { decode, type PixelReport, type Rect } from "../../pixel-scroll/protocol";
+import { decode, encode, type PixelReport, type Rect } from "../../pixel-scroll/protocol";
 import {
   detectOpenTuiSeams,
   detectScrollableViewport,
@@ -11,6 +11,7 @@ import {
 import { PixelDiscovery } from "./discovery";
 import { clipPixelRect, pixelHitSource, planPixelFrame, type PixelFrame } from "./frame";
 import { PixelHistory } from "./history";
+import { OrdinaryPixelInput } from "./ordinary-input";
 
 const SHIFT = 1;
 const ALT = 2;
@@ -47,6 +48,8 @@ export class PixelController {
   private resume: { viewport: ScrollableViewport; fraction: number } | undefined;
   private next: ScrollableViewport | undefined;
   private last: PixelFrame | undefined;
+  private wheelRelease: PixelFrame | undefined;
+  private readonly ordinaryWheel = new OrdinaryPixelInput();
   private generation = 0;
   private releasing = false;
   private disposed = false;
@@ -227,6 +230,20 @@ export class PixelController {
       id = ++this.id;
       this.ids.set(viewport, id);
     }
+    const previous = this.wheelRelease;
+    this.wheelRelease = undefined;
+    const handover =
+      previous && previous.viewport !== viewport
+        ? planPixelFrame(
+            {
+              ...previous,
+              generation: ++this.generation,
+              origin: previous.viewport.origin,
+              fraction: 0,
+            },
+            true,
+          )
+        : undefined;
     const release = this.releasing;
     const frame: PixelFrame = {
       id,
@@ -237,6 +254,13 @@ export class PixelController {
       fraction: release ? 0 : fraction,
     };
     const plan = planPixelFrame(frame, release, canonicalRepaint);
+    if (handover) {
+      // Both captures read the same canonical paint. Release the rounded old
+      // region before registering the new one, within this synchronized frame.
+      const before = plan.before ?? new Uint8Array();
+      plan.before = handover.before ?? new Uint8Array();
+      plan.after = new Uint8Array([...(handover.after ?? []), ...before, ...(plan.after ?? [])]);
+    }
     plan.deferHover = true;
     const capture = plan.onHitMap;
     plan.onHitMap = (map) => {
@@ -277,6 +301,7 @@ export class PixelController {
         for (const viewport of this.viewports()) {
           if (!Number.isInteger(viewport.position)) viewport.set(viewport.origin);
         }
+        this.wheelRelease = undefined;
         this.history.clear();
         this.last = undefined;
         this.normal = [];
@@ -339,6 +364,32 @@ export class PixelController {
     };
     if (report.op === "wheel") {
       this.stopSettle();
+      const viewport = ancestorViewport(target);
+      if (!viewport) {
+        // Preserve the row accumulator for wheel listeners outside ScrollBoxes.
+        const ordinary = this.ordinaryWheel.convert(encode(report));
+        // eslint-disable-next-line no-control-regex -- Split ordinary SGR wheel reports.
+        for (const sequence of ordinary.match(/\x1b\[<[^Mm]*[Mm]/g) ?? []) {
+          const event = this.mouse.parseMouseEvent(Buffer.from(sequence));
+          if (event) this.renderer.dispatchMouseEventFromHitMap(event, source.map);
+        }
+        return;
+      }
+      // Keep the old presented map for this report, but round every other view
+      // before precise dispatch. A burst can change targets before any paint.
+      this.wheelRelease ??= this.last;
+      for (const other of this.viewports())
+        if (
+          other !== viewport &&
+          !belongsTo(viewport.owner, other.owner) &&
+          !belongsTo(other.owner, viewport.owner) &&
+          !Number.isInteger(other.position)
+        )
+          other.set(Math.round(other.position));
+      this.active = viewport;
+      this.next = undefined;
+      this.releasing = false;
+      this.normal = [];
       // Match ordinary Shift+wheel's horizontal policy before setting precise.
       const delta = modifiers.shift ? report.dy : report.dy || report.dx;
       const horizontal = modifiers.shift || (!report.dy && Boolean(report.dx));
@@ -360,7 +411,8 @@ export class PixelController {
         source.map,
       );
       const fractional = this.viewports().find((v) => !Number.isInteger(v.position));
-      if (fractional) this.switchTo(fractional);
+      if (fractional) this.active = fractional;
+      this.renderer.requestRender();
       if (this.settle) this.settleTimer = setTimeout(() => this.settleRow(), SETTLE_DELAY_MS);
     } else {
       this.renderer.dispatchMouseEventFromHitMap(

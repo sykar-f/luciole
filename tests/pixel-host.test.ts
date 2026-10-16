@@ -303,6 +303,22 @@ test("an outside-grid mouseup ends a drag without capturing later chrome input",
     void osc?.(`${NS};${JSON.stringify({ op: "query", version: 1, nonce: "drag" })}`);
     present?.(f.committed());
     reports.length = 0;
+    // Precise wheel input outside the active rect still names its presentation.
+    const wheel = (x: number, deltaMode = 0) =>
+      // eslint-disable-next-line typescript/consistent-type-assertions -- Minimal wheel event port.
+      addon.wheel({
+        clientX: x,
+        clientY: 5,
+        deltaX: 0,
+        deltaY: 0.25,
+        deltaMode,
+        preventDefault() {},
+      } as WheelEvent);
+    expect(wheel(25)).toBe(false);
+    expect(reports).toMatchObject([{ op: "wheel", x: 25, dy: 0.25, generation: 1 }]);
+    expect(wheel(81)).toBe(true);
+    expect(wheel(25, 1)).toBe(true);
+    reports.length = 0;
     const pointer = (type: string, x: number, buttons: number) => {
       let prevented = false;
       // eslint-disable-next-line typescript/consistent-type-assertions -- Only the mouse fields consumed by the registered input listener are needed.
