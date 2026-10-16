@@ -32,3 +32,18 @@ for (const dpr of [1, 2]) {
     TIMEOUT_MS + CLEANUP_MS,
   );
 }
+
+for (const dpr of [1, 2]) {
+  test(
+    `pixel editor accepts a scrollbar press after a captured paint at DPR ${dpr}`,
+    async () => {
+      await pixelJourney(
+        import.meta.dir + "/pixel-markdown-press.ts",
+        [String(dpr), "capture-bar"],
+        TIMEOUT_MS,
+        dpr,
+      );
+    },
+    TIMEOUT_MS + CLEANUP_MS,
+  );
+}

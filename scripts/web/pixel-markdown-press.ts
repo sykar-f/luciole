@@ -81,7 +81,7 @@ try {
     "probe.state().presented?.rect.x===probe.state().rect.x && probe.state().presented?.fraction===.75",
     "editor presentation",
   );
-  if (process.argv[3] === "capture") {
+  if (process.argv[3]?.startsWith("capture")) {
     await browser.evaluate(
       "{const r=probe.state().rect;window.beforePaint=probe.state().presented.generation;probe.pointer('mousedown',r.x+1.5,r.y+2.1,1);probe.pointer('mousemove',r.x+7.5,r.y+4.1,1)}",
     );
@@ -90,7 +90,7 @@ try {
       "a paint during pointer capture",
     );
     await browser.evaluate(
-      "{const r=probe.state().rect;probe.pointer('mouseup',r.x+7.5,r.y+4.1);window.before=probe.state().position;probe.pointer('mousedown',r.x+2.5,r.y+2.1,1);probe.pointer('mousemove',r.x+7.5,r.y+r.height-.2,1)}",
+      `{const r=probe.state().rect;probe.pointer('mouseup',r.x+7.5,r.y+4.1);window.before=probe.state().position;probe.pointer('mousedown',r.x+${process.argv[3] === "capture-bar" ? "r.width+.5" : "2.5"},r.y+2.1,1);probe.pointer('mousemove',r.x+${process.argv[3] === "capture-bar" ? "r.width+.5" : "7.5"},r.y+r.height-.2,1)}`,
     );
   } else {
     await browser.evaluate(
