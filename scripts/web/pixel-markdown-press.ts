@@ -83,6 +83,52 @@ try {
     "probe.state().presented?.rect.x===probe.state().rect.x && probe.state().presented?.fraction===.75",
     "editor presentation",
   );
+  if (process.argv[3] === "attribution") {
+    // Retain two fully presented canonical states, then inspect them together,
+    // exactly as a delayed consumer drains the fixture's captured-frame queue.
+    await browser.evaluate("probe.frames.length=0;probe.editor.scrollableViewport.set(0)");
+    await wait(
+      "probe.state().presented?.origin===0 && probe.state().presented?.fraction===0",
+      "canonical top scrollbar",
+    );
+    await browser.evaluate("probe.editor.scrollableViewport.set(12)");
+    await wait(
+      "probe.state().presented?.origin===12 && probe.state().presented?.fraction===0",
+      "canonical lower scrollbar",
+    );
+    const attribution = await browser.evaluate(`(()=>{
+      const current=probe.state().bar, currentKeys=new Map(), presentedKeys=new Map();
+      const currentErrors=[], presentedErrors=[], samples=[];
+      for(const frame of probe.frames.filter(f=>f.phase===0)) {
+        const a=currentKeys.get(current), b=presentedKeys.get(frame.bar);
+        if(a && frame.thumb.some((value,i)=>value!==a[i])) currentErrors.push(frame.generation);
+        if(b && frame.thumb.some((value,i)=>value!==b[i])) presentedErrors.push(frame.generation);
+        currentKeys.set(current,frame.thumb);presentedKeys.set(frame.bar,frame.thumb);
+        samples.push({generation:frame.generation,origin:frame.origin,committed:frame.bar,current});
+      }
+      return {currentErrors,presentedErrors,bars:presentedKeys.size,samples};
+    })()`);
+    console.log("canonical scrollbar attribution counterexample", attribution);
+    if (
+      !(await browser.evaluate(`(()=>{
+      const frames=probe.frames.filter(f=>f.phase===0), current=probe.state().bar;
+      const keys=new Map();let falsePositive=false;
+      for(const frame of frames) {
+        const old=keys.get(frame.bar);
+        if(old && frame.thumb.some((value,i)=>value!==old[i])) return false;
+        keys.set(frame.bar,frame.thumb);
+        if(frame.bar!==current && frame.thumb.some((value,i)=>value!==frames.at(-1).thumb[i])) falsePositive=true;
+      }
+      return keys.size>1 && falsePositive;
+    })()`))
+    )
+      throw new Error("The attribution diagnostic did not isolate a false positive");
+    await browser.evaluate("probe.editor.scrollableViewport.set(.75)");
+    await wait(
+      "probe.state().presented?.origin===0 && probe.state().presented?.fraction===.75",
+      "reset attribution diagnostic",
+    );
+  }
   if (process.argv[3] === "burst") {
     await browser.evaluate(
       "window.heldGeneration=probe.state().presented.generation;probe.burst()",
