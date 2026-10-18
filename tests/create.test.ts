@@ -1,6 +1,6 @@
 import { afterAll, expect, test } from "bun:test";
-import { cp, mkdir, readdir, rm, symlink } from "node:fs/promises";
-import { join, relative, resolve, sep } from "node:path";
+import { cp, mkdir, readdir, rm } from "node:fs/promises";
+import { join, relative, resolve } from "node:path";
 import { z } from "zod";
 import {
   installSkills,
@@ -11,6 +11,8 @@ import {
 import { messageOf } from "../packages/core/src/guards";
 import { stageStarter } from "../packages/create/scripts/starter";
 import { BUILD_TEST_MS, isolatedTemporary, rejectionOf } from "./helpers";
+
+import { copyPackWorkspace } from "./pack-workspace";
 
 const workspace = resolve(import.meta.dir, "..");
 const temp = await isolatedTemporary("luciole-create-test-");
@@ -46,58 +48,8 @@ async function pack(directory: string, destination: string): Promise<string> {
   return join(destination, z.string().parse(tarball));
 }
 
-/**
- * A private copy of what packing @luciole-sh/create stages its template from: the Notes
- * example, the root configuration and lockfile (`catalog:` ranges resolve against it), and
- * the packages' manifests. `prepack` stages from the checkout the package sits in, and other
- * tests build the Notes example in place under it: their `.luciole-lock` (the pid of an
- * owner inside, a test worker that lives for the whole run) and `.luciole-<id>` staging
- * directories were copied into the template. The starter then began with a lock held by a
- * process of another test, and `luciole build` waited for it (up to 10 minutes) while the
- * test's 4 minutes ran out. Copied here, the template depends on nothing that goes on in
- * the checkout.
- */
-async function isolatedWorkspace() {
-  const copy = join(temp, "workspace");
-  const copied = (...names: string[]) =>
-    Promise.all(
-      names.map((name) =>
-        cp(join(workspace, name), join(copy, name), {
-          recursive: true,
-          // The checkout's installation is linked below; `template` is what packing stages.
-          filter: (path) => {
-            const [first = ""] = relative(join(workspace, name), path).split(sep);
-            return (
-              !/^(node_modules|\.luciole.*)$/.test(first) &&
-              !(name === "packages/create" && first === "template")
-            );
-          },
-        }),
-      ),
-    );
-  await mkdir(copy);
-  await copied(
-    "examples/notes",
-    "packages/create",
-    "packages/core/src",
-    "packages/core/skills",
-    "packages/core/agents-block.md",
-    "packages/core/package.json",
-    "packages/markdown-editor/package.json",
-    "package.json",
-    "bun.lock",
-    ".oxlintrc.json",
-    ".oxfmtrc.json",
-    ".vscode",
-    ".gitignore",
-    ".bun-version",
-  );
-  await symlink(join(workspace, "node_modules"), join(copy, "node_modules"), "dir");
-  return copy;
-}
-
 // The tarball of @luciole-sh/create, packed once for the tests that follow.
-const stagingWorkspace = await isolatedWorkspace();
+const stagingWorkspace = await copyPackWorkspace(join(temp, "workspace"));
 const createTarball = await pack(
   join(stagingWorkspace, "packages/create"),
   join(temp, "tarballs/create"),
@@ -305,9 +257,9 @@ test(
     // The registry cannot serve packages that are not published. For this test only, the
     // starter's two framework dependencies point at tarballs of this checkout (`bun pm pack`);
     // everything else installs from the registry as it will for a user.
-    const core = await pack(join(workspace, "packages/core"), join(temp, "tarballs/core"));
+    const core = await pack(join(stagingWorkspace, "packages/core"), join(temp, "tarballs/core"));
     const editor = await pack(
-      join(workspace, "packages/markdown-editor"),
+      join(stagingWorkspace, "packages/markdown-editor"),
       join(temp, "tarballs/editor"),
     );
     const consumer = join(temp, "build-consumer");
