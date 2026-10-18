@@ -5,7 +5,7 @@ import { PixelController } from "../packages/core/src/web/pixel-scroll/controlle
 import { OrdinaryPixelInput } from "../packages/core/src/web/pixel-scroll/ordinary-input";
 import { PixelHistory, RETAINED_GENERATIONS } from "../packages/core/src/web/pixel-scroll/history";
 import { PixelDiscovery } from "../packages/core/src/web/pixel-scroll/discovery";
-import { expect, test } from "bun:test";
+import { expect, spyOn, test } from "bun:test";
 import { decode, encode } from "../packages/core/src/pixel-scroll/protocol";
 import {
   clipPixelRect,
@@ -729,6 +729,7 @@ function windowController(version: 1 | 2 = 2) {
   return {
     plan,
     send,
+    renderer,
     writes,
     observed,
     positions,
@@ -993,5 +994,48 @@ test("private input waits only for planned paint, then resumes before sink deliv
     expect(f.observed).toMatchObject([{ type: "scroll" }, { type: "down" }]);
   } finally {
     f.close();
+  }
+});
+
+test("a throwing private report is logged and later deferred reports keep their order", () => {
+  for (const deferred of [false, true]) {
+    const f = windowController();
+    const failure = new Error("report handler failed");
+    const errors = spyOn(console, "error").mockImplementation(() => {});
+    const dispatch = f.renderer.dispatchMouseEventFromHitMap;
+    const delivered: number[] = [];
+    f.renderer.dispatchMouseEventFromHitMap = (event) => {
+      delivered.push(event.x);
+      if (delivered.length === 1) throw failure;
+      return dispatch(event);
+    };
+    try {
+      f.plan();
+      if (deferred) f.projecting(true);
+      for (const x of [2, 3, 4])
+        f.send({
+          op: "pointer",
+          version: 1,
+          id: 1,
+          generation: 1,
+          phase: 0.75,
+          x,
+          y: 3,
+          modifiers: 0,
+          action: "down",
+          button: 0,
+          buttons: 1,
+        });
+      if (deferred) {
+        expect(delivered).toEqual([]);
+        f.projecting(false);
+      }
+      expect(delivered).toEqual([2, 3, 4]);
+      expect(f.observed).toMatchObject([{ x: 3 }, { x: 4 }]);
+      expect(errors.mock.calls).toEqual([["Error in pixel-scroll report:", failure]]);
+    } finally {
+      errors.mockRestore();
+      f.close();
+    }
   }
 });

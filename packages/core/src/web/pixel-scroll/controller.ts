@@ -90,7 +90,7 @@ export class PixelController {
     this.write = write;
     this.settle = settle;
     renderer.setFramePlan(() => this.plan());
-    this.unsubscribe = renderer.subscribeOsc((sequence) => this.receive(sequence));
+    this.unsubscribe = renderer.subscribeOsc((sequence) => this.deliverReport(sequence));
     renderer.keyInput.on("keypress", this.key);
     renderer.on("destroy", this.dispose);
     this.query();
@@ -299,8 +299,16 @@ export class PixelController {
     this.renderer.off("frame:plan:end", this.flushReports);
     const reports = this.deferredReports;
     this.deferredReports = [];
-    if (!this.disposed) for (const sequence of reports) this.receive(sequence);
+    if (!this.disposed) for (const sequence of reports) this.deliverReport(sequence);
   };
+
+  private deliverReport(sequence: string) {
+    try {
+      this.receive(sequence);
+    } catch (error) {
+      console.error("Error in pixel-scroll report:", error);
+    }
+  }
 
   private receive(sequence: string) {
     // A 0.6.6 projection can yield while native presentation completes. Keep
