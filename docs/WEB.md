@@ -502,7 +502,10 @@ fichier, ou avec un autre identifiant, est reconstruit. Les anciennes entrées
 sans preuve d'origine sont donc reconstruites une fois.
 
 La projection change la translation de peinture native, puis refait une
-frame dans la même enveloppe 2026. Les segments restent en attente jusqu'à
+frame dans la même enveloppe 2026. Le rectangle public du viewport de l'éditeur
+garde ses coordonnées canoniques pendant ce passage : une observation de la
+présentation précédente ne doit pas lire la translation du prochain dessin.
+Les segments restent en attente jusqu'à
 la validation des callbacks et des commandes. Le passage projeté conserve
 la grille de hits canonique ; une grille distincte fournit les cibles de
 drop pendant une capture. Les rapports privés arrivés pendant la peinture,

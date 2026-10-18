@@ -175,7 +175,7 @@ export class MarkdownEditorRenderable extends Renderable {
       get rect() {
         return {
           x: editor.screenX,
-          y: editor.screenY,
+          y: editor.windowY,
           width: Math.max(0, editor.width - (editor.bar ? 1 : 0)),
           height: editor.height,
         };

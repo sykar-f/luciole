@@ -235,6 +235,53 @@ test("logical editor focus precedes cursor delivery through a held borrowed sink
   }
 });
 
+test("editor viewport bounds stay canonical while the next projection yields", async () => {
+  const f = await setup(12, 8);
+  const style = SyntaxStyle.fromStyles(
+    { default: { fg: RGBA.fromHex("#eeeeee") } },
+    f.r.nativeScene,
+  );
+  const editor = new MarkdownEditorRenderable(f.r, {
+    position: "absolute",
+    top: 1,
+    width: 12,
+    height: 4,
+    value: "alpha\n\nbeta",
+    syntaxStyle: style,
+  });
+  f.r.root.add(editor);
+  try {
+    await f.renderOnce();
+    const canonical = editor.scrollableViewport.rect;
+    expect(canonical.y).toBe(1);
+    f.r.setFramePlan(() => ({ projection: { renderable: editor, translateX: 0, translateY: -1 } }));
+    const paint = f.r.nativeScene.paint.bind(f.r.nativeScene);
+    let observed: typeof canonical | undefined;
+    const painting = spyOn(f.r.nativeScene, "paint").mockImplementation((...args) => {
+      const result = paint(...args);
+      if (Reflect.get(f.r, "isProjectionPass") !== true) return result;
+      return Promise.resolve(result).then(
+        () =>
+          new Promise<void>((resolve) => {
+            setImmediate(() => {
+              observed = editor.scrollableViewport.rect;
+              resolve();
+            });
+          }),
+      );
+    });
+    try {
+      await f.renderOnce();
+    } finally {
+      painting.mockRestore();
+    }
+    expect(observed).toEqual(canonical);
+    expect(editor.scrollableViewport.rect).toEqual(canonical);
+  } finally {
+    await f.dispose();
+  }
+});
+
 test("private input waits through a yielding canonical paint, before planning its projection", async () => {
   const f = await setup();
   const view = new ScrollBoxRenderable(f.r, { width: 12, height: 2 });
