@@ -1,6 +1,7 @@
 // Bundled by opentui-seams.test.ts against the patched TypeScript and WASM sources.
 import { expect, spyOn, test } from "bun:test";
 import { Writable } from "node:stream";
+import { Terminal } from "@xterm/xterm";
 import { createTestStdout } from "../node_modules/@opentui/core/testing/test-streams";
 import {
   CliRenderEvents,
@@ -10,6 +11,8 @@ import {
   MouseEvent,
   NativeSession,
   ScrollBoxRenderable,
+  SyntaxStyle,
+  RGBA,
   type RawMouseEvent,
 } from "@opentui/core";
 import { createTestRenderer } from "@opentui/core/testing";
@@ -17,6 +20,7 @@ import { detectOpenTuiSeams, type RenderHitMap } from "../packages/core/src/web/
 import { detectScrollableViewport } from "../packages/core/src/web/opentui-seams";
 import { PixelController } from "../packages/core/src/web/pixel-scroll/controller";
 import { decode, encode } from "../packages/core/src/pixel-scroll/protocol";
+import { MarkdownEditorRenderable } from "../packages/markdown-editor/src/view/EditorRenderable";
 
 const bytes = (s: string) => new TextEncoder().encode(s);
 const start = "\x1b[?2026h",
@@ -104,8 +108,71 @@ async function setup(width = 12, height = 4) {
   });
   const found = detectOpenTuiSeams(setup.renderer);
   if (!found.available) throw new Error(`Missing seams: ${found.missing.join(", ")}`);
-  return { ...setup, r: found.renderer, chunks };
+  return { ...setup, r: found.renderer, chunks, stdout };
 }
+
+test("logical editor focus precedes cursor delivery through a held borrowed sink", async () => {
+  const f = await setup(12, 16);
+  const terminal = new Terminal({ cols: 12, rows: 16, allowProposedApi: true });
+  const style = SyntaxStyle.fromStyles(
+    { default: { fg: RGBA.fromHex("#eeeeee") } },
+    f.r.nativeScene,
+  );
+  const editor = new MarkdownEditorRenderable(f.r, {
+    position: "absolute",
+    top: 1,
+    width: 12,
+    height: 4,
+    value: "alpha\n\nbeta",
+    syntaxStyle: style,
+  });
+  f.r.root.add(editor);
+  f.r.setFramePlan(() => ({}));
+  const writeTerminal = (wire: string) =>
+    new Promise<void>((resolve) => terminal.write(wire, resolve));
+  let held: { chunk: Buffer; done: () => void } | undefined;
+  const ordering: { stage: string; focused: boolean; cursorY: number }[] = [];
+  try {
+    await f.renderOnce();
+    await writeTerminal(f.chunks.join(""));
+    await writeTerminal("\x1b[13;1H");
+    const pending = Promise.withResolvers<void>();
+    f.stdout._write = (chunk: Buffer, _encoding, done) => {
+      held = { chunk: Buffer.from(chunk), done };
+      pending.resolve();
+    };
+    editor.focus();
+    const rendering = f.renderOnce();
+    await pending.promise;
+    expect(editor.focused).toBe(true);
+    expect(terminal.buffer.active.cursorY).toBe(12);
+    ordering.push({
+      stage: "held",
+      focused: editor.focused,
+      cursorY: terminal.buffer.active.cursorY,
+    });
+    f.stdout._write = (chunk: Buffer, _encoding, done) => terminal.write(chunk, done);
+    if (!held) throw new Error("Missing borrowed output");
+    terminal.write(held.chunk, held.done);
+    held = undefined;
+    await rendering;
+    await f.r.idle();
+    expect(editor.focused).toBe(true);
+    expect(terminal.buffer.active.cursorY).toBe(1);
+    ordering.push({
+      stage: "delivered",
+      focused: editor.focused,
+      cursorY: terminal.buffer.active.cursorY,
+    });
+    const proof = process.env["LUCIOLE_CURSOR_FOCUS_PROOF"];
+    if (proof) await Bun.write(proof, JSON.stringify(ordering, null, 2));
+  } finally {
+    if (held) terminal.write(held.chunk, held.done);
+    f.stdout._write = (chunk: Buffer, _encoding, done) => terminal.write(chunk, done);
+    await f.dispose();
+    terminal.dispose();
+  }
+});
 
 test("private input waits through a yielding canonical paint, before planning its projection", async () => {
   const f = await setup();
