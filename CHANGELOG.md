@@ -13,6 +13,8 @@ and marked **Breaking**.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-18
+
 ### Added
 
 - `useProgramStatus(identity, status)` in `@luciole-sh/core/client` reports task
@@ -284,7 +286,8 @@ First public release, on npm. Five packages share this version: `luciole.sh`,
 - No multi-user load test and no public TLS proxy test. See
   <https://luciole.sh/status/>.
 
-[Unreleased]: https://github.com/sykar-f/luciole/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/sykar-f/luciole/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/sykar-f/luciole/releases/tag/v0.5.0
 [0.4.1]: https://github.com/sykar-f/luciole/releases/tag/v0.4.1
 [0.4.0]: https://github.com/sykar-f/luciole/releases/tag/v0.4.0
 [0.3.2]: https://github.com/sykar-f/luciole/releases/tag/v0.3.2
