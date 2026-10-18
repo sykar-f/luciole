@@ -91,11 +91,18 @@ export function prepareOpenTuiCheckout(
   }
 }
 
-/** OpenTUI's sources at the pinned tag, patched, with opentui.wasm built. */
-function prepareOpenTui(checkout: string, zig: string) {
-  prepareOpenTuiCheckout(checkout);
-  if (!succeeds(["git", "apply", "--reverse", "--check", OPENTUI_PATCH], checkout))
-    run(["git", "apply", OPENTUI_PATCH], checkout);
+/** OpenTUI's sources at a tag, patched, with opentui.wasm built. Defaults to the ABI pin. */
+export function prepareOpenTui(
+  checkout: string,
+  zig: string,
+  { tag = OPENTUI_TAG, patch = OPENTUI_PATCH }: { tag?: string; patch?: string } = {},
+) {
+  checkZig(zig);
+  prepareOpenTuiCheckout(checkout, OPENTUI_REPOSITORY, tag);
+  if (!succeeds(["git", "apply", "--reverse", "--check", patch], checkout)) {
+    run(["git", "apply", "--check", patch], checkout);
+    run(["git", "apply", patch], checkout);
+  }
   run(["bun", "install", "--frozen-lockfile"], checkout);
   const native = join(checkout, "packages/native");
   run(["sh", "scripts/prepare-zig-deps.sh"], native);
@@ -204,7 +211,6 @@ export async function prepareWebRuntime({
     waiting: () =>
       console.error(`luciole web-runtime: waiting for another preparation of ${directory}`),
     async build(temporary) {
-      checkZig(zig);
       const wasm = prepareOpenTui(checkout, zig);
       await buildWebRuntime({ checkout, wasm, outdir: temporary });
     },

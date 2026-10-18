@@ -469,6 +469,18 @@ des captures.
 
 ## 6. Risques
 
+Le patch préparatoire `web/opentui-v0.6.6.patch` porte OpenTUI 0.6.6 vers
+wasm32-wasi, sans changer la version épinglée (0.5.12) ni son patch. L'ABI C
+accepte désormais cette cible 32 bits : ses records gardent leurs champs de
+largeur fixe, les adresses sont étendues à 64 bits, les tailles des commandes
+sont calculées en `u64` et le compteur de contextes est sans atomiques en mode
+monothread. Les vérifications de layout restent actives. Yoga, compilé sans
+exceptions C++, interrompt le module sur un `bad_alloc` au lieu de retourner
+`OT_YOGA_OUT_OF_MEMORY`. Le contrôle à la demande
+`bun test scripts/web/opentui-066-wasm.check.ts` (Zig 0.16.0, réseau, Chrome)
+vérifie les cellules, le texte modifié sur plusieurs frames et une croissance
+mémoire dans la même session.
+
 **R1 — OpenTUI en WASM : le modèle mémoire.** Upstream n'a ni cible wasm
 (`packages/native/build.zig` : Linux, macOS, Windows) ni paquet web, et s'en est éloigné
 (Yoga intégré au binaire, roadmap #821). Mesuré sur 0.5.12, sources extraites des

@@ -7,6 +7,7 @@
 import { Buffer } from "node:buffer";
 import { EventEmitter } from "node:events";
 import "./buffer-base64url";
+import "./immediate";
 
 const NS_PER_MS = 1e6;
 const NS_PER_S = 1e9;
