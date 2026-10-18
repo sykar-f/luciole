@@ -5,8 +5,10 @@
  * what OpenTUI then does with the turn: where the room says nothing moves, nothing does.
  */
 import { afterEach, expect, test } from "bun:test";
-import { act } from "react";
-import { RGBA, SyntaxStyle } from "@opentui/core";
+import { act, useMemo, type ComponentProps } from "react";
+import { RGBA } from "@opentui/core";
+import { useRenderer } from "@opentui/react";
+import { syntaxStyle } from "@luciole-sh/core/client";
 import { testRender } from "@opentui/react/test-utils";
 import { MarkdownEditor } from "../packages/markdown-editor/src";
 import { wheelRoom } from "../packages/core/src/web/wheel-room";
@@ -15,7 +17,14 @@ const WIDTH = 40;
 const HEIGHT = 16;
 const LIST = 4;
 const lines = (count: number) => Array.from({ length: count }, (_, i) => `line ${i}`);
-const style = SyntaxStyle.fromStyles({ default: { fg: RGBA.fromHex("#e6edf3") } });
+function StyledEditor(props: Omit<ComponentProps<typeof MarkdownEditor>, "syntaxStyle">) {
+  const renderer = useRenderer();
+  const style = useMemo(
+    () => syntaxStyle({ default: { fg: RGBA.fromHex("#e6edf3") } }, renderer),
+    [renderer],
+  );
+  return <MarkdownEditor {...props} syntaxStyle={style} />;
+}
 
 let ui: Awaited<ReturnType<typeof testRender>> | undefined;
 afterEach(() => {
@@ -45,9 +54,8 @@ function Screen() {
       <box height={2} onMouseScroll={() => {}}>
         <text>canvas</text>
       </box>
-      <MarkdownEditor
+      <StyledEditor
         value={lines(30).join("\n\n")}
-        syntaxStyle={style}
         terminalBackground={RGBA.fromHex("#0d1117")}
         flexGrow={1}
       />
@@ -124,9 +132,8 @@ test("an editor whose text fits has no room either way: a short note never scrol
   await act(async () => {
     ui = await testRender(
       <box width={WIDTH} height={HEIGHT}>
-        <MarkdownEditor
+        <StyledEditor
           value={lines(3).join("\n\n")}
-          syntaxStyle={style}
           terminalBackground={RGBA.fromHex("#0d1117")}
           flexGrow={1}
         />

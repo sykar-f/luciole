@@ -1,6 +1,6 @@
 "use client";
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import type { SyntaxStyle } from "@opentui/core";
+import type { CliRenderer, SyntaxStyle } from "@opentui/core";
 import { useRenderer } from "@opentui/react";
 import { markdownStyle } from "@luciole-sh/core/client";
 // Grammars beyond JavaScript, TypeScript and Markdown, for the code blocks of a note.
@@ -80,31 +80,40 @@ export function PaletteProvider({ children }: { children: ReactNode }) {
 export const usePalette = () => useContext(PaletteContext);
 
 // Client-only: a SyntaxStyle is a native object and never crosses the Flight boundary.
-const styles = new WeakMap<Palette, SyntaxStyle>();
-function syntaxOf(color: Palette) {
-  const known = styles.get(color);
+const styles = new WeakMap<CliRenderer, WeakMap<Palette, SyntaxStyle>>();
+function syntaxOf(color: Palette, renderer: CliRenderer) {
+  let paletteStyles = styles.get(renderer);
+  if (!paletteStyles) {
+    paletteStyles = new WeakMap();
+    styles.set(renderer, paletteStyles);
+  }
+  const known = paletteStyles.get(color);
   if (known) return known;
-  const style = markdownStyle({
-    text: color.text,
-    muted: color.muted,
-    faint: color.faint,
-    accent: color.accent,
-    onBand: color.onBand,
-    band: color.band,
-    bandQuiet: color.bandQuiet,
-    code: color.code,
-    panel: color.panel,
-    link: color.info,
-    danger: color.danger,
-    ok: color.ok,
-  });
-  styles.set(color, style);
+  const style = markdownStyle(
+    {
+      text: color.text,
+      muted: color.muted,
+      faint: color.faint,
+      accent: color.accent,
+      onBand: color.onBand,
+      band: color.band,
+      bandQuiet: color.bandQuiet,
+      code: color.code,
+      panel: color.panel,
+      link: color.info,
+      danger: color.danger,
+      ok: color.ok,
+    },
+    renderer,
+  );
+  paletteStyles.set(color, style);
   return style;
 }
 
 /** The palette and the Markdown styles that go with it. */
 export function useTheme() {
+  const renderer = useRenderer();
   const color = usePalette();
-  const syntax = useMemo(() => syntaxOf(color), [color]);
+  const syntax = useMemo(() => syntaxOf(color, renderer), [color, renderer]);
   return { color, syntax };
 }

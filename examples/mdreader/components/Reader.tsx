@@ -7,7 +7,7 @@ import { Help } from "./Help";
 import { useMode } from "./Library";
 import type { Doc } from "./model";
 import { codeBlocks, locateHeadings, type Heading } from "./rendering";
-import { syntax } from "./syntax";
+import { useSyntax } from "./syntax";
 import { bytes, color } from "./theme";
 
 const OUTLINE_WIDTH = 34;
@@ -39,6 +39,7 @@ function position({ top, height, total }: View) {
  * position survives a reload.
  */
 export function Reader({ doc }: { doc: Doc }) {
+  const syntax = useSyntax();
   const { mode, setMode } = useMode();
   const scroll = useRef<ScrollBoxRenderable>(null);
   const markdown = useRef<MarkdownRenderable>(null);

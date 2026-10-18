@@ -1,24 +1,39 @@
 /** @jsxImportSource @opentui/react */
-import { afterEach, expect, spyOn, test } from "bun:test";
-import { act, type ReactNode, useEffect, useState } from "react";
+import { afterEach, beforeEach, expect, spyOn, test } from "bun:test";
+import { act, type ComponentProps, type ReactNode, useEffect, useState } from "react";
 import { CliRenderer, RGBA } from "@opentui/core";
+import type { MarkdownProps } from "@opentui/react";
+import { createTestRenderer } from "@opentui/core/testing";
 import { testRender } from "@opentui/react/test-utils";
 import { Markdown } from "../packages/core/src/markdown/Markdown";
 import { Palette } from "../packages/core/src/markdown/render";
 import { type Block, MarkdownStream } from "../packages/core/src/markdown/stream";
-import { syntax } from "../packages/harness/src/ui/syntax";
+import { syntaxFor, useSyntax } from "../packages/harness/src/ui/syntax";
 import { color } from "../packages/harness/src/ui/theme";
 import { MARKDOWN_REPLY } from "../packages/harness/src/adapters/fake";
 import { untilDrawn } from "./helpers";
 
 const fixture = (name: string) =>
   Bun.file(new URL(`./fixtures/markdown/${name}.md`, import.meta.url)).text();
-const palette = () => new Palette(syntax, { hyperlinks: false });
+const palette = () => new Palette(syntaxFor(paletteUI.renderer).syntax, { hyperlinks: false });
+let paletteUI: Setup;
+beforeEach(async () => {
+  paletteUI = await createTestRenderer({});
+});
+function StyledMarkdown(props: Omit<ComponentProps<typeof Markdown>, "syntaxStyle">) {
+  const { syntax } = useSyntax();
+  return <Markdown {...props} syntaxStyle={syntax} />;
+}
+function NativeMarkdown(props: Omit<MarkdownProps, "syntaxStyle">) {
+  const { syntax } = useSyntax();
+  return <markdown {...props} syntaxStyle={syntax} />;
+}
 const WORDS = /\S+\s*/g;
 
 type Setup = Awaited<ReturnType<typeof testRender>>;
 let opened: Setup[] = [];
 afterEach(() => {
+  paletteUI.renderer.destroy();
   for (const setup of opened) setup.renderer.destroy();
   opened = [];
 });
@@ -85,19 +100,17 @@ test("a reference link resolves once its definition is complete, not at each cha
   expect([...seen]).toEqual(["See [the docs][d].", "See the docs (https://example.com/docs)."]);
 });
 
-test("apart from headings and code blocks, a finished reply looks as OpenTUI's <markdown conceal> draws it", async () => {
+test("apart from headings and code blocks, a finished reply looks as OpenTUI's <NativeMarkdown conceal> draws it", async () => {
   // Headings (bands) and code blocks (a panel) have their own look: left out here.
   const content = (await fixture("rich"))
     .replace(/^```[^\n]*\n[\s\S]*?\n```\n\n/gm, "")
     .replace(/^#{1,6} .*\n\n/gm, "")
     .replace(/^.+\n-+\n\n/m, "");
   const theirs = await settled(
-    await render(<markdown content={content} conceal syntaxStyle={syntax} />),
+    await render(<NativeMarkdown content={content} conceal />),
     "Final paragraph",
   );
-  const ours = await settled(
-    await render(<Markdown content={content} streaming={false} syntaxStyle={syntax} />),
-  );
+  const ours = await settled(await render(<StyledMarkdown content={content} streaming={false} />));
   expect(ours).toBe(theirs);
   expect(ours).toContain("Here is what I found in this project, with emphasis, inline code");
   expect(ours).toContain("  - unit tests;");
@@ -115,11 +128,7 @@ const backgroundAt = (setup: Setup, row: number, column: number) => {
 const HEADINGS = "# Plan\n\nText.\n\n## Step\n\n### Detail\nMore.\n\n## Next\n\nEnd.";
 
 test("headings sit on bands, spaced by level", async () => {
-  const setup = await render(
-    <Markdown content={HEADINGS} streaming={false} syntaxStyle={syntax} />,
-    100,
-    20,
-  );
+  const setup = await render(<StyledMarkdown content={HEADINGS} streaming={false} />, 100, 20);
   const rows = (await settled(setup)).split("\n");
   // H1: three rows, title in the middle; H3: no blank line below; H2 after an H3: two above.
   expect(rows.slice(0, 15)).toEqual([
@@ -163,11 +172,7 @@ test("a band fades out up to the right edge, which follows a resize", async () =
     new Error("no OSC 11 answer"),
   );
   try {
-    const setup = await render(
-      <Markdown content={HEADINGS} streaming={false} syntaxStyle={syntax} />,
-      100,
-      20,
-    );
+    const setup = await render(<StyledMarkdown content={HEADINGS} streaming={false} />, 100, 20);
     await settled(setup);
     const painted = (column: number) => (backgroundAt(setup, 1, column)?.a ?? 0) > 0;
     const light = (column: number) => {
@@ -203,11 +208,7 @@ test("with the terminal's background known, a band fades into it, not into black
     highlightForeground: null,
   });
   try {
-    const setup = await render(
-      <Markdown content="# Plan" streaming={false} syntaxStyle={syntax} />,
-      100,
-      5,
-    );
+    const setup = await render(<StyledMarkdown content="# Plan" streaming={false} />, 100, 5);
     await settled(setup);
     const end = RGBA.fromHex(background);
     const cell = backgroundAt(setup, 1, 93);
@@ -223,7 +224,7 @@ test("with the terminal's background known, a band fades into it, not into black
 
 test("a code block sits on the style's panel, its language in a corner", async () => {
   const setup = await render(
-    <Markdown content={"```ts\nconst x = 1;\n```"} streaming={false} syntaxStyle={syntax} />,
+    <StyledMarkdown content={"```ts\nconst x = 1;\n```"} streaming={false} />,
     60,
     6,
   );
@@ -242,11 +243,7 @@ test("a code block sits on the style's panel, its language in a corner", async (
 test("a diff block is colored line by line, even before its closing fence", async () => {
   const diff = "```diff\n--- a/x.ts\n+++ b/x.ts\n@@ -1 +1 @@\n-old\n+new\n same";
   for (const content of [diff, `${diff}\n\`\`\``]) {
-    const setup = await render(
-      <Markdown content={content} streaming syntaxStyle={syntax} />,
-      40,
-      12,
-    );
+    const setup = await render(<StyledMarkdown content={content} streaming />, 40, 12);
     const rows = (await settled(setup)).split("\n");
     const colorOf = (text: string) => {
       const row = rows.findIndex((line) => line.includes(text));
@@ -262,10 +259,9 @@ test("a diff block is colored line by line, even before its closing fence", asyn
 test("a click on a link opens it; a drag across it selects instead", async () => {
   const opened: string[] = [];
   const setup = await render(
-    <Markdown
+    <StyledMarkdown
       content="See [the docs](https://example.com/docs) now."
       streaming={false}
-      syntaxStyle={syntax}
       onLink={(url) => opened.push(url)}
     />,
   );
@@ -288,10 +284,9 @@ test("a click on a link opens it; a drag across it selects instead", async () =>
 test("an image is drawn in place of its text; one that can't load keeps its text", async () => {
   const icon = new URL("../examples/notes/assets/icon.png", import.meta.url).pathname;
   const setup = await render(
-    <Markdown
+    <StyledMarkdown
       content={`![notes icon](${icon})\n\n![missing](nowhere/missing.png)\n\nAfter.`}
       streaming={false}
-      syntaxStyle={syntax}
       imageBase="/definitely/not/here"
     />,
     60,
@@ -334,7 +329,7 @@ test("while it streams, the reply only grows and never shows a marker it will hi
     useEffect(() => {
       show = setProps;
     }, []);
-    return <Markdown {...props} syntaxStyle={syntax} />;
+    return <StyledMarkdown {...props} />;
   }
   const setup = await render(<Streamed />, 100, 400);
   const height = (rows: readonly string[]) => rows.findLastIndex((row) => row.trim() !== "") + 1;
@@ -375,7 +370,7 @@ test("a paragraph streamed after a table and a rule never shortens the reply", a
     useEffect(() => {
       show = setProps;
     }, []);
-    return <Markdown {...props} syntaxStyle={syntax} />;
+    return <StyledMarkdown {...props} />;
   }
   const setup = await render(<Streamed />, 100, 400);
   const before = afterRule(content);
@@ -397,11 +392,7 @@ test("a paragraph streamed after a table and a rule never shortens the reply", a
 
 test("a mouse drag selects the reply's text, markers hidden, for the OSC 52 copy", async () => {
   const setup = await render(
-    <Markdown
-      content={"Some **bold** words.\n\n- a `code` item"}
-      streaming={false}
-      syntaxStyle={syntax}
-    />,
+    <StyledMarkdown content={"Some **bold** words.\n\n- a `code` item"} streaming={false} />,
   );
   await settled(setup);
   await act(async () => {
@@ -415,7 +406,7 @@ test("however many blocks a transcript holds, the renderer hears one listener pe
   const REPLIES = 12;
   const setup = await render(
     Array.from({ length: REPLIES }, (_, i) => (
-      <Markdown key={i} content={`Reply ${i}`} streaming={false} syntaxStyle={syntax} />
+      <StyledMarkdown key={i} content={`Reply ${i}`} streaming={false} />
     )),
   );
   await act(async () => {

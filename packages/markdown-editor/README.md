@@ -40,30 +40,38 @@ compiler to use OpenTUI for JSX:
 Save this as `index.tsx` and run `bun index.tsx`. Ctrl+C quits.
 
 ```tsx
-import { RGBA, SyntaxStyle, createCliRenderer } from "@opentui/core";
-import { createRoot } from "@opentui/react";
+import { RGBA, SyntaxStyle, createCliRenderer, type CliRenderer } from "@opentui/core";
+import { createRoot, useRenderer } from "@opentui/react";
 import { useState } from "react";
 import { MarkdownEditor } from "@luciole-sh/markdown-editor";
 
 // The editor reads its colors from a SyntaxStyle. These groups are enough for headings on a
 // band, bold and italic, inline code, a code panel, links and list markers.
 const color = (hex: string) => RGBA.fromHex(hex);
-const style = SyntaxStyle.fromStyles({
-  default: { fg: color("#e6edf3") },
-  conceal: { fg: color("#6e7681") },
-  "markup.heading.1": {
-    fg: color("#0d1117"),
-    bg: color("#e8b84a"),
-    bold: true,
-  },
-  "markup.heading.2": { fg: color("#e8b84a"), bold: true },
-  "markup.strong": { bold: true },
-  "markup.italic": { italic: true },
-  "markup.raw": { fg: color("#a5d6ff") },
-  "markup.raw.block": { bg: color("#161b22") },
-  "markup.link": { fg: color("#58a6ff"), underline: true },
-  "markup.list": { fg: color("#e8b84a") },
-});
+
+const styles = new WeakMap<CliRenderer, SyntaxStyle>();
+function styleFor(renderer: CliRenderer) {
+  const known = styles.get(renderer);
+  if (known) return known;
+  const style = SyntaxStyle.fromStyles({
+    default: { fg: color("#e6edf3") },
+    conceal: { fg: color("#6e7681") },
+    "markup.heading.1": {
+      fg: color("#0d1117"),
+      bg: color("#e8b84a"),
+      bold: true,
+    },
+    "markup.heading.2": { fg: color("#e8b84a"), bold: true },
+    "markup.strong": { bold: true },
+    "markup.italic": { italic: true },
+    "markup.raw": { fg: color("#a5d6ff") },
+    "markup.raw.block": { bg: color("#161b22") },
+    "markup.link": { fg: color("#58a6ff"), underline: true },
+    "markup.list": { fg: color("#e8b84a") },
+  });
+  styles.set(renderer, style);
+  return style;
+}
 
 const NOTE = `# Packing list
 
@@ -77,6 +85,8 @@ Run \`bun run build\` when you are back.
 `;
 
 function App() {
+  const renderer = useRenderer();
+  const style = styleFor(renderer);
   const [markdown, setMarkdown] = useState(NOTE);
   return (
     <box flexDirection="column" flexGrow={1}>
@@ -92,7 +102,8 @@ function App() {
   );
 }
 
-createRoot(await createCliRenderer()).render(<App />);
+const renderer = await createCliRenderer();
+createRoot(renderer).render(<App />);
 ```
 
 The note appears as it reads. The heading sits on a coloured band, `**remember**` is bold, and the tasks have
@@ -121,7 +132,7 @@ _The program above, in a 72×13 terminal. The frame is captured from a real PTY 
 
 The editor reads its colours from a `SyntaxStyle`, with the group names of Markdown highlighting
 (`markup.heading.1`, `markup.strong`, `markup.raw.block` and so on). Without `syntaxStyle`, the text is plain and
-headings have no band. If you build apps with `@luciole-sh/core`, its `markdownStyle(palette)` builds a complete
+headings have no band. If you build apps with `@luciole-sh/core`, its `markdownStyle(palette, renderer)` builds a complete
 style that `<Markdown>` shares with the editor.
 
 ### Run the example from a clone

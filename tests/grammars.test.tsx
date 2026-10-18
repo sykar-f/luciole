@@ -2,7 +2,7 @@
 import { afterEach, expect, test } from "bun:test";
 import { testRender } from "@opentui/react/test-utils";
 import { GRAMMARS } from "../packages/core/src/grammars";
-import { syntax } from "../packages/harness/src/ui/syntax";
+import { useSyntax } from "../packages/harness/src/ui/syntax";
 import { untilDrawn } from "./helpers";
 
 // A line of each language: enough tokens for several highlight groups.
@@ -43,7 +43,11 @@ test("every grammar is registered with a snippet to check it", () => {
 // A grammar whose WebAssembly or queries no longer load (an ABI change in web-tree-sitter,
 // a query naming a node the grammar dropped) leaves its code in one color.
 test.each(Object.entries(SNIPPETS))("%s code is highlighted", async (filetype, code) => {
-  opened = await testRender(<code content={code} filetype={filetype} syntaxStyle={syntax} />, {
+  function Snippet() {
+    const { syntax } = useSyntax();
+    return <code content={code} filetype={filetype} syntaxStyle={syntax} />;
+  }
+  opened = await testRender(<Snippet />, {
     width: 70,
     height: 5,
   });
