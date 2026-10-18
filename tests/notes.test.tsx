@@ -378,6 +378,8 @@ test(
       const draft = draftOf(app, "1");
       const text = draft.value;
       const body = () => ui.renderer.root.findDescendantById("note-body")?.y;
+      // 0.6.6 publishes native layout on a rendered frame; before it, y can still be 0.
+      await frame(ui);
       const top = body();
       const asked = performance.now();
       await act(async () => {
