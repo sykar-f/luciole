@@ -6,14 +6,14 @@
     "dev": "astro dev",
     "build": "astro build && bun scripts/check-html.ts && bun scripts/check-status.ts && pagefind --site dist && bun scripts/check-search.ts",
     "preview": "astro preview",
-    "check": "astro check",
+    "check": "astro sync && bun node_modules/typescript/bin/tsc --noEmit",
     "lint": "../node_modules/.bin/oxlint --deny-warnings -c oxlint.website.json .",
     "capture": "python3 scripts/capture.py",
     "demo": "bun scripts/demo.ts",
     "deploy": "bun run demo && bun run build && wrangler deploy"
   },
   "dependencies": {
-    "@astrojs/markdown-satteri": "0.4.2",
+    "@astrojs/markdown-satteri": "0.4.4",
     "@astrojs/mdx": "8.0.2",
     "@astrojs/sitemap": "3.7.4",
     "@xterm/addon-fit": "0.11.0",
@@ -21,13 +21,12 @@
     "@xterm/xterm": "6.0.0",
     "astro": "7.3.5",
     "github-slugger": "2.0.0",
-    "zod": "4.6.5"
+    "zod": "4.6.7"
   },
   "devDependencies": {
-    "@astrojs/check": "0.9.10",
     "pagefind": "1.5.2",
     "shiki": "4.4.3",
-    "typescript": "6.0.2",
+    "typescript": "7.0.2",
     "wrangler": "4.147.0"
   }
 }
