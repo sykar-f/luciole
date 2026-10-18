@@ -10,8 +10,6 @@
  * - an argument: for the call only;
  * - `ptr(view)` (struct fields, bun-ffi-structs): until the current job ends, copied back
  *   after every native call in between;
- * - `retainPtr(view)` (text native code keeps, `retainedPtrOrNull`): as long as the view
- *   lives, freed by a FinalizationRegistry.
  *
  * A view on the module's memory itself (`typedView`) passes as its offset, without copy.
  */
@@ -168,9 +166,6 @@ function releaseTransient() {
   for (const copy of copies) free(copy.address);
 }
 
-const retained = new WeakMap<ArrayBufferView, Pointer>();
-const release = new FinalizationRegistry<Pointer>((address) => free(address));
-
 export function ptr(value: Buffer): Pointer {
   if (onModuleMemory(value)) return offsetOf(value);
   const address = copyIn(value);
@@ -179,17 +174,6 @@ export function ptr(value: Buffer): Pointer {
     releaseScheduled = true;
     queueMicrotask(releaseTransient);
   }
-  return address;
-}
-
-/** A pointer native code keeps after the call: a copy that lives as long as `value`. */
-export function retainPtr(value: ArrayBufferView): Pointer {
-  if (onModuleMemory(value)) return value.byteOffset;
-  const known = retained.get(value);
-  if (known !== undefined) return known;
-  const address = copyIn(value);
-  retained.set(value, address);
-  release.register(value, address);
   return address;
 }
 
