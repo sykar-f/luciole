@@ -41,7 +41,7 @@ and marked **Breaking**.
   function. Drawing coordinates and sizes must be finite integers.
 - **Breaking**: removing a layout prop now restores its default, and `visible`
   set to `null` or `undefined` shows the node. Use `visible={false}` to hide it.
-- Remote Clients now honor `TERM` and `COLORTERM` over SSH. With
+- Clients started inside SSH or mosh sessions now honor `TERM` and `COLORTERM`. With
   `TERM=xterm-256color` and no `COLORTERM`, colors use the 256-color palette.
   Export or forward `COLORTERM=truecolor` on the remote host for truecolor.
 - **Breaking**: `markdownStyle(palette, renderer)` now requires a renderer.

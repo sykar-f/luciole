@@ -12,6 +12,8 @@ for (const script of [
   "notes-frame",
   "smoke",
   "chat",
+  "coder",
+  "devtools",
   "files",
   "flow",
   "forge",
