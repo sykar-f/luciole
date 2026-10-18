@@ -1,6 +1,6 @@
 /* eslint-disable no-magic-numbers -- Fixed cell geometry, colors and a bounded memory-growth proof. */
 // This page is bundled against 0.6.6 sources; the repository's types stay pinned to 0.5.12.
-import "../../packages/core/src/web/setup";
+import { growMemory } from "./opentui-066-setup";
 import { BoxRenderable, TextRenderable, StyledText, fg } from "@opentui/core";
 import { createTestRenderer } from "@opentui/core/testing";
 
@@ -81,30 +81,19 @@ async function check() {
     }
     const before = read();
     const bytesBefore = before.memory.byteLength;
-    if (bytesBefore > 32 * 1024 * 1024) throw new Error("Unexpected baseline memory size");
-    // One bounded text allocation larger than the entire current memory guarantees growth.
-    // Keep it detached from the scene tree so layout never traverses the large text.
-    const ballast = new TextRenderable(renderer, {
-      id: "growth",
-      content: "x".repeat(bytesBefore + 65_536),
-      visible: false,
-    });
-    try {
-      text.content = "grown";
-      const cellsAfterGrowth = await frame("grown", [255, 255, 255, 255]);
-      const bytesAfter = read().memory.byteLength;
-      const detached = before.view.byteLength === 0;
-      if (bytesAfter <= bytesBefore || !detached)
-        throw new Error("The check did not grow WASM memory");
-      return {
-        boxCells,
-        changedText,
-        memoryGrowth: { bytesBefore, bytesAfter, detached, cellsAfterGrowth },
-        ok: true,
-      };
-    } finally {
-      ballast.destroy();
-    }
+    growMemory();
+    text.content = "grown";
+    const cellsAfterGrowth = await frame("grown", [255, 255, 255, 255]);
+    const bytesAfter = read().memory.byteLength;
+    const detached = before.view.byteLength === 0;
+    if (bytesAfter <= bytesBefore || !detached)
+      throw new Error("The check did not grow WASM memory");
+    return {
+      boxCells,
+      changedText,
+      memoryGrowth: { bytesBefore, bytesAfter, detached, cellsAfterGrowth },
+      ok: true,
+    };
   } finally {
     renderer.destroy();
   }
