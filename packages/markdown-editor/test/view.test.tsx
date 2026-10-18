@@ -20,20 +20,23 @@ const styles = new WeakMap<CliRenderer, SyntaxStyle>();
 function styleFor(renderer: CliRenderer) {
   const known = styles.get(renderer);
   if (known) return known;
-  const style = SyntaxStyle.fromStyles({
-    default: { fg: RGBA.fromHex("#e6edf3") },
-    conceal: { fg: RGBA.fromHex("#4a5561") },
-    "markup.heading": { fg: RGBA.fromHex("#e8b84a"), bold: true },
-    "markup.heading.1": { fg: RGBA.fromHex("#fbe7b5"), bg: BAND, bold: true },
-    "markup.heading.2": { fg: RGBA.fromHex("#fbe7b5"), bg: BAND, bold: true },
-    "markup.heading.3": { fg: RGBA.fromHex("#e8b84a"), bg: QUIET, bold: true },
-    "markup.strong": { bold: true },
-    "markup.raw": { fg: RGBA.fromHex("#a5d6ff") },
-    "markup.raw.block": { bg: PANEL },
-    "markup.list": { fg: RGBA.fromHex("#e8b84a") },
-    "markup.list.unchecked": { fg: RGBA.fromHex("#8b98a5") },
-    keyword: { fg: RGBA.fromHex("#ff7b72") },
-  });
+  const style = SyntaxStyle.fromStyles(
+    {
+      default: { fg: RGBA.fromHex("#e6edf3") },
+      conceal: { fg: RGBA.fromHex("#4a5561") },
+      "markup.heading": { fg: RGBA.fromHex("#e8b84a"), bold: true },
+      "markup.heading.1": { fg: RGBA.fromHex("#fbe7b5"), bg: BAND, bold: true },
+      "markup.heading.2": { fg: RGBA.fromHex("#fbe7b5"), bg: BAND, bold: true },
+      "markup.heading.3": { fg: RGBA.fromHex("#e8b84a"), bg: QUIET, bold: true },
+      "markup.strong": { bold: true },
+      "markup.raw": { fg: RGBA.fromHex("#a5d6ff") },
+      "markup.raw.block": { bg: PANEL },
+      "markup.list": { fg: RGBA.fromHex("#e8b84a") },
+      "markup.list.unchecked": { fg: RGBA.fromHex("#8b98a5") },
+      keyword: { fg: RGBA.fromHex("#ff7b72") },
+    },
+    renderer.nativeScene,
+  );
   styles.set(renderer, style);
   return style;
 }

@@ -17,7 +17,7 @@ let renderer: Awaited<ReturnType<typeof createTestRenderer>>["renderer"];
 let theme: Theme;
 beforeEach(async () => {
   ({ renderer } = await createTestRenderer({ width: 60, height: 30 }));
-  theme = new Theme(SyntaxStyle.fromStyles({}));
+  theme = new Theme(SyntaxStyle.fromStyles({}, renderer.nativeScene));
 });
 afterEach(() => renderer.destroy());
 

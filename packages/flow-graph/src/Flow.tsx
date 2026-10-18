@@ -671,8 +671,8 @@ function EdgeLayer({
                 ? theme.selected
                 : (cell.color ?? roleColor(theme, cell.role));
           buffer.setCellWithAlphaBlending(
-            this.x + x,
-            this.y + y,
+            Math.round(this.x + x),
+            Math.round(this.y + y),
             cell.char,
             rgba(color),
             cell.role === "label" ? labelBg : TRANSPARENT,

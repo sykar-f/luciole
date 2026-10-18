@@ -3,9 +3,9 @@ import { RGBA, SyntaxStyle, type CliRenderer, type StyleDefinition } from "@open
 /** Client-only: a SyntaxStyle is a native object created for one renderer. */
 export function syntaxStyle(
   styles: Record<string, StyleDefinition>,
-  _renderer: CliRenderer,
+  renderer: CliRenderer,
 ): SyntaxStyle {
-  return SyntaxStyle.fromStyles(styles);
+  return SyntaxStyle.fromStyles(styles, renderer.nativeScene);
 }
 
 /**

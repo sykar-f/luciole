@@ -9,7 +9,7 @@ import * as z from "zod/mini";
 import { defaultCache } from "../../packages/core/src/compile";
 import { prepareWebRuntimeEntry } from "../../packages/core/src/web-runtime";
 import { browserNode } from "../../packages/core/src/web/node/plugin";
-import { opentuiWasmFor } from "../../packages/core/src/web/opentui/plugin";
+import { opentuiWasm } from "../../packages/core/src/web/opentui/plugin";
 import { Browser } from "./cdp";
 
 const VERSION = "0.6.6";
@@ -64,7 +64,7 @@ test(
           target: "browser",
           format: "esm",
           define: { "process.env.NODE_ENV": JSON.stringify("production") },
-          plugins: [opentuiWasmFor(VERSION), sources, browserNode],
+          plugins: [opentuiWasm, sources, browserNode],
         });
         if (!bundled.success) throw new Error(bundled.logs.map(String).join("\n"));
         copyFileSync(

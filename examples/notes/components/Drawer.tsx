@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useEffectEvent, useState, type ReactNode } from "react";
-import { createTimeline, engine } from "@opentui/core";
+import { createTimeline, getTimelineEngine } from "@opentui/core";
+
+import { useRenderer } from "@opentui/react";
 
 const SLIDE_MS = 160;
 
@@ -22,6 +24,7 @@ export function Drawer({
   rail: ReactNode;
   children: ReactNode;
 }) {
+  const renderer = useRenderer();
   // The width while sliding, in cells; null at rest, where a resized terminal moves the
   // edge at once.
   const [sliding, setSliding] = useState<number | null>(null);
@@ -32,10 +35,10 @@ export function Drawer({
     if (sliding === null) setSliding(wasOpen ? width : railWidth);
   }
   const slide = useEffectEvent(() => {
-    if (sliding === null) return;
+    if (sliding === null || renderer.isDestroyed) return;
     // A plain value is tweened, then rounded: a column is the smallest step drawn.
     const tween = { width: sliding };
-    const timeline = createTimeline({ autoplay: false }).add(tween, {
+    const timeline = createTimeline({ autoplay: false }, renderer).add(tween, {
       width: open ? width : railWidth,
       duration: SLIDE_MS,
       ease: "outQuad",
@@ -45,7 +48,7 @@ export function Drawer({
     timeline.play();
     return () => {
       timeline.pause();
-      engine.unregister(timeline);
+      getTimelineEngine(renderer).unregister(timeline);
     };
   });
   useEffect(() => slide(), [open]);

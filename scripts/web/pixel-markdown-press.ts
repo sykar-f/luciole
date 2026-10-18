@@ -10,10 +10,10 @@ import { Browser } from "./cdp";
 await prepareWebRuntime();
 const runtime = await webRuntimeDirectory();
 const patch = await Bun.file(
-  import.meta.dir + "/../../packages/core/web/opentui-v0.5.12.patch",
+  import.meta.dir + "/../../packages/core/web/opentui-v0.6.6.patch",
 ).arrayBuffer();
 const key = createHash("sha256").update(new Uint8Array(patch)).digest("hex").slice(0, 16);
-const checkout = join(defaultCache(), "web", `opentui-v0.5.12-${key}`);
+const checkout = join(defaultCache(), "web", `opentui-v0.6.6-${key}`);
 const build = await Bun.build({
   entrypoints: [import.meta.dir + "/pixel-markdown-editor-page.ts"],
   target: "browser",

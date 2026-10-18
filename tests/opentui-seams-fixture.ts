@@ -30,7 +30,6 @@ async function setup(width = 12, height = 4) {
     stdout,
     bufferedOutput: "stdout",
     useMouse: true,
-    useThread: false,
   });
   const found = detectOpenTuiSeams(setup.renderer);
   if (!found.available) throw new Error(`Missing seams: ${found.missing.join(", ")}`);

@@ -167,8 +167,8 @@ export function MiniMap({
         renderAfter={function (this: { x: number; y: number }, buffer: OptimizedBuffer) {
           for (const [x, y, cell] of grid.entries())
             buffer.setCellWithAlphaBlending(
-              this.x + x,
-              this.y + y,
+              Math.round(this.x + x),
+              Math.round(this.y + y),
               cell.char,
               RGBA.fromHex(cell.color ?? roleColor(theme, cell.role)),
               RGBA.fromHex(theme.panelBg),
