@@ -27,8 +27,10 @@ test("planned output keeps one envelope across partial sink writes and backpress
     highWaterMark: 1,
     write(chunk: Buffer, _encoding, done) {
       chunks.push(Buffer.from(chunk));
-      if (sink.writableNeedDrain) pressure++;
-      setImmediate(done);
+      setImmediate(() => {
+        if (sink.writableNeedDrain) pressure++;
+        done();
+      });
     },
   });
   sink.on("drain", () => drains++);
