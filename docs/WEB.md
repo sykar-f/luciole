@@ -490,6 +490,17 @@ Le runtime épingle OpenTUI 0.6.6 et applique deux patchs dans cet ordre :
 `web/opentui-v0.6.6-pixel-scroll.patch` pour le défilement pixel. Le second
 reste séparé : il porte les seams de frame, de hit maps et de viewport,
 sans modifier le port wasm32. Les deux entrent dans la clé du checkout source.
+Avant toute réutilisation, la préparation compare l'arbre source complet au tag
+avec les deux patchs appliqués dans cet ordre, via un index Git temporaire.
+Les fichiers non suivis et non ignorés comptent aussi ; les sorties de build
+ignorées restent permises. Un écart provoque un nouveau clone et une application
+des patchs avant publication, sans modifier l'index Git du checkout réutilisé.
+L'identifiant de l'arbre validé accompagne chaque produit :
+`packages/native/lib/wasm32-wasi/opentui.wasm.source-tree` pour le WASM,
+`opentui-source-tree` dans chaque entrée du cache runtime. Un produit sans ce
+fichier, ou avec un autre identifiant, est reconstruit. Les anciennes entrées
+sans preuve d'origine sont donc reconstruites une fois.
+
 La projection change la translation de peinture native, puis refait une
 frame dans la même enveloppe 2026. Les segments restent en attente jusqu'à
 la validation des callbacks et des commandes. Le passage projeté conserve

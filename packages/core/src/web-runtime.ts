@@ -60,9 +60,6 @@ function run(command: readonly string[], cwd: string) {
   const result = Bun.spawnSync([...command], { cwd, stdout: "inherit", stderr: "inherit" });
   if (result.exitCode !== 0) throw new Error(`${command.join(" ")} failed (${result.exitCode})`);
 }
-const succeeds = (command: readonly string[], cwd: string) =>
-  Bun.spawnSync([...command], { cwd, stdout: "ignore", stderr: "ignore" }).exitCode === 0;
-
 function checkZig(zig: string) {
   const version = Bun.spawnSync([zig, "version"], { stdout: "pipe", stderr: "ignore" });
   const found = version.exitCode === 0 ? version.stdout.toString().trim() : undefined;
@@ -72,38 +69,65 @@ function checkZig(zig: string) {
     );
 }
 
-/** Internal clone seam: callers prepare only complete source checkouts. */
-export function prepareOpenTuiCheckout(
-  checkout: string,
-  repository = OPENTUI_REPOSITORY,
-  tag = OPENTUI_TAG,
-) {
-  if (
-    existsSync(join(checkout, ".git")) &&
-    succeeds(["git", "rev-parse", "--verify", "HEAD"], checkout)
-  ) {
-    const tracked = Bun.spawnSync(["git", "ls-tree", "-rz", "--name-only", "HEAD"], {
+/** Compare source contents without changing the checkout's real index. */
+function patchedSourceTree(checkout: string, tag: string, patches: readonly string[]) {
+  if (!existsSync(join(checkout, ".git"))) return;
+  const temporary = mkdtempSync(`${checkout}.${process.pid}.tmp-`);
+  const git = (...args: string[]) => {
+    const result = Bun.spawnSync(["git", ...args], {
       cwd: checkout,
+      env: { ...process.env, GIT_INDEX_FILE: join(temporary, "index") },
       stdout: "pipe",
       stderr: "ignore",
     });
-    const files = tracked.stdout.toString().split("\0").filter(Boolean);
-    if (
-      tracked.exitCode === 0 &&
-      files.length &&
-      files.every((file) => existsSync(join(checkout, file)))
-    )
-      return;
-  }
-  rmSync(checkout, { recursive: true, force: true });
-  const temporary = mkdtempSync(`${checkout}.${process.pid}.tmp-`);
+    return result.exitCode === 0 ? result.stdout.toString().trim() : undefined;
+  };
   try {
-    run(["git", "clone", "--quiet", "--depth", "1", "--branch", tag, repository, temporary], ".");
-    renameSync(temporary, checkout);
+    const base = git("rev-parse", "--verify", `refs/tags/${tag}^{commit}`);
+    if (!base || git("rev-parse", "--verify", "HEAD") !== base) return;
+    if (git("read-tree", base) === undefined) return;
+    for (const patch of patches) if (git("apply", "--cached", patch) === undefined) return;
+    const expected = git("write-tree");
+    if (!expected) return;
+    // Seed with the expected tree so files added by patches count even when
+    // ignored. Include other nonignored untracked files, but keep build output.
+    if (git("read-tree", expected) === undefined || git("add", "--all", "--", ".") === undefined)
+      return;
+    return git("write-tree") === expected ? expected : undefined;
   } finally {
     rmSync(temporary, { recursive: true, force: true });
   }
 }
+
+/** Internal clone seam: publish and reuse only the exact ordered source stack. */
+export function prepareOpenTuiCheckout(
+  checkout: string,
+  repository = OPENTUI_REPOSITORY,
+  tag = OPENTUI_TAG,
+  patches: readonly string[] = [],
+) {
+  mkdirSync(dirname(checkout), { recursive: true });
+  const existing = patchedSourceTree(checkout, tag, patches);
+  if (existing) return existing;
+  rmSync(checkout, { recursive: true, force: true });
+  const temporary = mkdtempSync(`${checkout}.${process.pid}.tmp-`);
+  try {
+    run(["git", "clone", "--quiet", "--depth", "1", "--branch", tag, repository, temporary], ".");
+    for (const patch of patches) run(["git", "apply", patch], temporary);
+    const tree = patchedSourceTree(temporary, tag, patches);
+    if (!tree) throw new Error("Prepared OpenTUI sources do not match the patch stack");
+    renameSync(temporary, checkout);
+    return tree;
+  } finally {
+    rmSync(temporary, { recursive: true, force: true });
+  }
+}
+
+const SOURCE_TREE_FILE = "opentui-source-tree";
+const readSourceTree = (file: string) =>
+  existsSync(file) ? readFileSync(file, "utf8").trim() : undefined;
+const openTuiPatches = (patch: string) =>
+  patch === OPENTUI_PATCH ? [patch, PIXEL_SCROLL_PATCH] : [patch];
 
 /** OpenTUI's sources at a tag, patched, with opentui.wasm built. Defaults to the ABI pin. */
 export function prepareOpenTui(
@@ -111,19 +135,20 @@ export function prepareOpenTui(
   zig: string,
   { tag = OPENTUI_TAG, patch = OPENTUI_PATCH }: { tag?: string; patch?: string } = {},
 ) {
-  checkZig(zig);
-  prepareOpenTuiCheckout(checkout, OPENTUI_REPOSITORY, tag);
-  for (const file of patch === OPENTUI_PATCH ? [patch, PIXEL_SCROLL_PATCH] : [patch]) {
-    if (!succeeds(["git", "apply", "--reverse", "--check", file], checkout)) {
-      run(["git", "apply", "--check", file], checkout);
-      run(["git", "apply", file], checkout);
-    }
-  }
-  run(["bun", "install", "--frozen-lockfile"], checkout);
+  const tree = prepareOpenTuiCheckout(checkout, OPENTUI_REPOSITORY, tag, openTuiPatches(patch));
   const native = join(checkout, "packages/native");
+  const wasm = join(native, "lib/wasm32-wasi/opentui.wasm");
+  const record = `${wasm}.source-tree`;
+  if (existsSync(wasm) && readSourceTree(record) === tree) return wasm;
+  checkZig(zig);
+  // A failed rebuild cannot leave a previously accepted provenance record.
+  rmSync(record, { force: true });
+  rmSync(wasm, { force: true });
+  run(["bun", "install", "--frozen-lockfile"], checkout);
   run(["sh", "scripts/prepare-zig-deps.sh"], native);
   run([zig, "build", "-Dlibrary-target=wasm32-wasi", "-Doptimize=ReleaseSmall"], native);
-  return join(native, "lib/wasm32-wasi/opentui.wasm");
+  writeFileSync(record, `${tree}\n`);
+  return wasm;
 }
 
 const runtimeComplete = (directory: string) =>
@@ -155,11 +180,13 @@ export async function prepareWebRuntimeEntry({
   checkout,
   build,
   waiting,
+  sourceTree,
 }: {
   directory: string;
   checkout: string;
   build: (temporary: string) => Promise<void>;
   waiting?: () => void;
+  sourceTree?: () => string;
 }) {
   mkdirSync(dirname(directory), { recursive: true });
   // SQLite's OS lock is released even on SIGKILL. Keep this file: unlinking it
@@ -181,19 +208,23 @@ export async function prepareWebRuntimeEntry({
     }
     removeAbandonedTemporaries(checkout);
     removeAbandonedTemporaries(directory);
-    // buildWebRuntime writes this commit marker last, before atomic publication.
-    // Preserve the existing warm-cache contract (including install-time errors).
-    if (existsSync(join(directory, "web-runtime.json"))) return directory;
+    const tree = sourceTree?.();
+    const matchesSource = (path: string) =>
+      tree === undefined || readSourceTree(join(path, SOURCE_TREE_FILE)) === tree;
+    // A legacy entry has no source provenance and must be rebuilt once.
+    if (existsSync(join(directory, "web-runtime.json")) && matchesSource(directory))
+      return directory;
     rmSync(directory, { recursive: true, force: true });
     const temporary = mkdtempSync(`${directory}.${process.pid}.tmp-`);
     try {
       await build(temporary);
+      if (tree !== undefined) writeFileSync(join(temporary, SOURCE_TREE_FILE), `${tree}\n`);
       try {
         renameSync(temporary, directory);
       } catch (error: unknown) {
         // Also tolerate a complete entry published by an older, unlocked preparer.
         if (!(isCode(error, "EEXIST") || isCode(error, "ENOTEMPTY"))) throw error;
-        if (!runtimeComplete(directory)) {
+        if (!runtimeComplete(directory) || !matchesSource(directory)) {
           // This competing entry was rejected: do not trust its marker on retry.
           rmSync(join(directory, "web-runtime.json"), { force: true });
           throw error;
@@ -220,6 +251,13 @@ export async function prepareWebRuntime({
   return prepareWebRuntimeEntry({
     directory,
     checkout,
+    sourceTree: () =>
+      prepareOpenTuiCheckout(
+        checkout,
+        OPENTUI_REPOSITORY,
+        OPENTUI_TAG,
+        openTuiPatches(OPENTUI_PATCH),
+      ),
     waiting: () =>
       console.error(`luciole web-runtime: waiting for another preparation of ${directory}`),
     async build(temporary) {
