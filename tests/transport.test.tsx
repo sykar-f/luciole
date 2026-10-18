@@ -269,11 +269,12 @@ test(
       await Bun.write(release, "");
       // One act() per step: the Suspense retry commits when an act() ends, not within one.
       const deadline = performance.now() + WAIT_MS;
-      while (!ui.captureCharFrame().includes("STREAM COMPLETE")) {
+      for (;;) {
+        await ui.renderOnce();
+        if (ui.captureCharFrame().includes("STREAM COMPLETE")) break;
         if (performance.now() > deadline) throw new Error("The streamed content never rendered");
         // The step of a poll bounded by WAIT_MS, not a wait for the outcome.
         await act(() => Bun.sleep(10));
-        await ui.renderOnce();
       }
       expect(ui.captureCharFrame()).not.toContain("STREAM LOADING");
     } finally {
