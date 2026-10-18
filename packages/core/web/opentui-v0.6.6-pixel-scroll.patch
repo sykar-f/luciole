@@ -12,10 +12,10 @@ index 17f2d82..8ccad81 100644
    ot_session_read_output: { 0: context, 1: buffer, 2: empty, 4: buffer },
    ot_session_drain_output: {
 diff --git a/packages/core/src/NativeSession.ts b/packages/core/src/NativeSession.ts
-index 9048978..e84910b 100644
+index 9048978..0627415 100644
 --- a/packages/core/src/NativeSession.ts
 +++ b/packages/core/src/NativeSession.ts
-@@ -504,6 +504,27 @@ export class NativeSession {
+@@ -504,6 +504,37 @@ export class NativeSession {
      return this.lib.sessionGetCapabilities(this.context, this.session)
    }
  
@@ -34,8 +34,18 @@ index 9048978..e84910b 100644
 +    const chunks = this.frameOutput
 +    this.frameOutput = null
 +    if (!commit || !chunks) return
++    const length = chunks.reduce((total, chunk) => total + chunk.length, 0)
++    const bytes = new Uint8Array(length)
++    let offset = 0
 +    for (const chunk of chunks) {
-+      if (!this.write(chunk)) throw new Error("Frame output met backpressure")
++      bytes.set(chunk, offset)
++      offset += chunk.length
++    }
++    // Keep ordinary sized plans in one borrowed-sink write. Large plans still
++    // use the checked atomic queue bound, within the same 2026 envelope.
++    const limit = Math.min(length, Number(this.maxAtomicWriteBytes))
++    for (let start = 0; start < length; start += limit) {
++      if (!this.write(bytes.subarray(start, start + limit))) throw new Error("Frame output met backpressure")
 +      await this.idle()
 +    }
 +  }
@@ -43,7 +53,7 @@ index 9048978..e84910b 100644
    /** Copies all bytes or returns false under queue pressure. Capacity-exceeding writes throw RangeError;
     * lifecycle errors take precedence while writing is unavailable. */
    write(bytes: Uint8Array): boolean {
-@@ -788,13 +809,20 @@ export class NativeSession {
+@@ -788,13 +819,20 @@ export class NativeSession {
      // Set the gate before calling user code so even an inline drain is not lost.
      this.blocked = true
      try {
@@ -962,10 +972,10 @@ index 6cc3bc4..db39625 100644
      assert(ot_scene_get_layout(context, &box, OT_LAYOUT_PUBLIC, &layout) == OT_OK);
      assert(layout.width == 4 && layout.height == 2);
 diff --git a/packages/native/src/tests/scene_frame_test.zig b/packages/native/src/tests/scene_frame_test.zig
-index da924d4..fd368de 100644
+index da924d4..77be299 100644
 --- a/packages/native/src/tests/scene_frame_test.zig
 +++ b/packages/native/src/tests/scene_frame_test.zig
-@@ -333,3 +333,65 @@ test "Scene idle update metadata keeps the native one call path and excludes hos
+@@ -333,3 +333,69 @@ test "Scene idle update metadata keeps the native one call path and excludes hos
      try testing.expectEqual(@as(u32, 0), f.state.hook_count);
      try testing.expectEqual(@as(u32, 0), f.state.layout_hook_count);
  }
@@ -973,10 +983,14 @@ index da924d4..fd368de 100644
 +test "Pixel hit copy separates published draft and drop maps and rejects stale nodes" {
 +    const f = try Fixture.init(testing.allocator, 4, 2, .{});
 +    defer f.deinit();
++    const under = try f.owner.sceneCreateNode(f.id, 1, 7);
++    try f.owner.sceneSetStyle(under, 4, 0, 0, 1, 4, 1);
++    try f.owner.sceneSetStyle(under, 4, 1, 0, 1, 2, 1);
++    try f.owner.sceneMoveNode(under, f.root, 0);
 +    const child = try f.owner.sceneCreateNode(f.id, 1, 42);
 +    try f.owner.sceneSetStyle(child, 4, 0, 0, 1, 2, 1);
 +    try f.owner.sceneSetStyle(child, 4, 1, 0, 1, 1, 1);
-+    try f.owner.sceneMoveNode(child, f.root, 0);
++    try f.owner.sceneMoveNode(child, under, 0);
 +    var published: [8]u32 = undefined;
 +    var draft: [8]u32 = undefined;
 +    var drop: [8]u32 = undefined;
@@ -986,7 +1000,7 @@ index da924d4..fd368de 100644
 +    try f.owner.sceneCopyHits(f.id, 3, &drop);
 +    try testing.expectEqual(@as(u32, 0), published[0]);
 +    try testing.expectEqual(@as(u32, 42), draft[0]);
-+    try testing.expectEqual(@as(u32, 1), drop[0]);
++    try testing.expectEqual(@as(u32, 7), drop[0]);
 +    try testing.expectError(error.InvalidOptions, f.owner.sceneCopyHits(f.id, 1, draft[0..7]));
 +    try testing.expectError(error.InvalidOptions, f.owner.sceneCopyHits(f.id, 4, &draft));
 +    _ = try @import("scene_fixture_test.zig").present(f.owner, f.id, true);
@@ -997,7 +1011,7 @@ index da924d4..fd368de 100644
 +    try f.owner.sceneSetPaint(child, .{ .translateX = 1 });
 +    try @import("scene_fixture_test.zig").repaint(f.owner, f.id, options.background, true, 0);
 +    try f.owner.sceneCopyHits(f.id, 1, &draft);
-+    try testing.expectEqual(@as(u32, 1), draft[0]);
++    try testing.expectEqual(@as(u32, 7), draft[0]);
 +    try testing.expectEqual(@as(u32, 42), draft[1]);
 +    try f.owner.sessionSetFrameSync(f.id, true, true);
 +    _ = try @import("scene_fixture_test.zig").present(f.owner, f.id, true);
@@ -1005,7 +1019,7 @@ index da924d4..fd368de 100644
 +    try f.owner.sceneCopyHits(f.id, 0, &draft);
 +    try testing.expectEqualSlices(u32, &published, &draft);
 +    try f.owner.sceneCopyHits(f.id, 2, &drop);
-+    try testing.expectEqual(@as(u32, 1), drop[0]);
++    try testing.expectEqual(@as(u32, 7), drop[0]);
 +    try f.owner.sceneDestroyNode(child);
 +    try f.owner.sceneCopyHits(f.id, 0, &published);
 +    try testing.expectEqual(@as(u32, 0), published[0]);

@@ -126,7 +126,7 @@ test("ordered normal and projected segments use one envelope and distinct paint 
     await scene();
   try {
     expect(chunks.length).toBeGreaterThan(0);
-    for (const wire of [chunks.join("")]) {
+    for (const wire of chunks) {
       expect(wire.split(start)).toHaveLength(2);
       expect(wire.split(end)).toHaveLength(2);
       const positions = [
@@ -306,7 +306,7 @@ test("an abandoned projection restores geometry and discards its entire encoder 
     await r.idle();
     expect(chunks.join("")).toContain("AAAA");
     expect(chunks.join("")).not.toContain("<abandoned>");
-    for (const wire of [chunks.join("")]) {
+    for (const wire of chunks) {
       expect(wire.split(start)).toHaveLength(2);
       expect(wire.split(end)).toHaveLength(2);
     }
