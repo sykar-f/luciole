@@ -116,6 +116,7 @@ export type {
 } from "./fields";
 export type { Session, SessionEntry } from "./restore";
 // Other luciole applications in this tree, one pane each (the `inline` mode).
+export { useProgramStatus, type ProgramStatus, type ProgramStatusIdentity } from "./program-status";
 export { Embed } from "./embed";
 export type { EmbedProps } from "./embed";
 export { openApplication } from "./app-bundle";

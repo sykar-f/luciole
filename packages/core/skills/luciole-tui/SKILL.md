@@ -56,6 +56,21 @@ item, and Esc/outside click close the menu.
 - The terminal's size: `const { width, height } = useTerminalDimensions()` from
   `@opentui/react`. It re-renders on every resize. Never read `process.stdout.columns`.
 
+## Report long work and permission waits
+
+Call `useProgramStatus({ app: "my-app", title: "My app" }, status)` from
+`@luciole-sh/core/client` in a screen that runs work. Report `{ state: "working" }`
+during a turn, `{ state: "blocked", kind: "permission", message: "Allow bash?" }`
+while approval waits, then `{ state: "done" }` or `{ state: "error", message }`.
+Use `idle` before any work. Messages are single lines without control characters.
+Give concurrent tasks an `id`; remove one with `{ state: "clear", id }`.
+
+The hook sends app and title on every state report; it does not wait for terminal
+capability detection. Embedded panes get separate record subtrees and clear them on
+close. The web runtime sends nothing. Standalone completion/error records survive
+unmounting so the user can find the result. See the public API reference for protocol
+field limits and lifetime rules.
+
 ## Keys
 
 The framework binds only Ctrl+C (quit) and Esc (cancel a pending navigation), in the group

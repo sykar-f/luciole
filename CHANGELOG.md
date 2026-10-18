@@ -15,6 +15,10 @@ and marked **Breaking**.
 
 ### Added
 
+- `useProgramStatus` in `@luciole-sh/core/client` reports working, permission waits,
+  completion and errors to supporting terminals, with isolated records for embedded
+  panes. Agent and coder report their turns through it.
+
 - `syntaxStyle(styles, renderer)` in `@luciole-sh/core/client` creates a syntax
   style for one renderer.
 

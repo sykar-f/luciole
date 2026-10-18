@@ -1,5 +1,5 @@
 /** @jsxImportSource @opentui/react */
-import { expect, test } from "bun:test";
+import { expect, spyOn, test } from "bun:test";
 import { SCRIPTED } from "../packages/harness/src/ui/StatusLine";
 import { DEMO_END, DEMO_PROMPT } from "../packages/harness/src/adapters/fake";
 import { startCoder } from "./coder-helpers";
@@ -225,6 +225,46 @@ test("a crashed Client's unsent prompt comes back; a sent one does not", async (
     expect(restored.split("hello").length - 1).toBe(1);
   } finally {
     await second?.close();
+    await coder.stop();
+  }
+}, 30000);
+
+test("terminal status follows a permission turn, its completion and a failed turn", async () => {
+  const coder = await startCoder(built, { env: { CODER_FAKE_DELAY_MS: "30" } });
+  const status = spyOn(coder.ui.renderer, "setProgramStatus").mockReturnValue(true);
+  try {
+    await coder.waitFor("scripted demo is ready");
+    status.mockClear();
+    await coder.prompt("edit greet");
+    await coder.waitFor("allow once");
+    expect(status.mock.calls.map(([report]) => report.state)).toEqual(["working", "blocked"]);
+    expect(status.mock.calls.at(-1)?.[0]).toMatchObject({
+      state: "blocked",
+      kind: "permission",
+      message: "Edit src/greet.ts",
+      app: "luciole-coder",
+      title: "Coder",
+    });
+    await coder.type("y");
+    await coder.waitFor("Done: greet now uses a template literal");
+    await coder.waitFor(() => status.mock.calls.at(-1)?.[0].state === "done");
+    expect(status.mock.calls.map(([report]) => report.state)).toEqual([
+      "working",
+      "blocked",
+      "working",
+      "done",
+    ]);
+    for (const [report] of status.mock.calls)
+      expect(report).toMatchObject({ app: "luciole-coder", title: "Coder" });
+    status.mockClear();
+    await coder.prompt("fail");
+    await coder.waitFor(() => status.mock.calls.at(-1)?.[0].state === "error");
+    expect(status.mock.calls.map(([report]) => report.state)).toEqual(["working", "error"]);
+    expect(status.mock.calls.at(-1)?.[0]).toMatchObject({
+      message: "The fake model is overloaded (529): try again",
+    });
+  } finally {
+    status.mockRestore();
     await coder.stop();
   }
 }, 30000);

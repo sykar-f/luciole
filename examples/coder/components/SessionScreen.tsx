@@ -15,6 +15,7 @@ import {
   useBindings,
   useConnection,
   useLive,
+  useProgramStatus,
   useRestoredFields,
 } from "@luciole-sh/core/client";
 import {
@@ -50,6 +51,7 @@ import {
 } from "@luciole-sh/harness/model";
 import { Picker, type PickerItem } from "@luciole-sh/harness/ui/Picker";
 import { PlanBar, StatusLine } from "@luciole-sh/harness/ui/StatusLine";
+import { sessionProgramStatus } from "@luciole-sh/harness/ui/program-status";
 import { FeedStore } from "@luciole-sh/harness/ui/store";
 import { color } from "@luciole-sh/harness/ui/theme";
 import { foldable, itemId, openByDefault, Transcript } from "@luciole-sh/harness/ui/Transcript";
@@ -143,6 +145,7 @@ export function SessionScreen({ initial }: { initial: Snapshot }) {
     store.follow(attempt, live.items, () => setAttempt((n) => n + 1));
   }, [store, attempt, live.items]);
   const snap = useSyncExternalStore(store.subscribe, store.get);
+  useProgramStatus({ app: "luciole-coder", title: "Coder" }, sessionProgramStatus(snap));
   const { refresh } = useConnection();
   const renderer = useRenderer();
   const { width } = useTerminalDimensions();
