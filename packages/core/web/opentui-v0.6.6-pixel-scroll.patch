@@ -1,3 +1,71 @@
+diff --git a/packages/core/scripts/native-abi-pointers.ts b/packages/core/scripts/native-abi-pointers.ts
+index 17f2d82..8ccad81 100644
+--- a/packages/core/scripts/native-abi-pointers.ts
++++ b/packages/core/scripts/native-abi-pointers.ts
+@@ -211,6 +211,8 @@ export const nativePointerPolicies = {
+   ot_session_set_palette_state: { 0: context, 1: buffer, 2: buffer, 4: buffer, 5: buffer },
+   ot_session_get_capabilities: { 0: context, 1: buffer, 2: buffer },
+   ot_session_get_write_limit: { 0: context, 1: buffer, 2: buffer },
++  ot_session_set_frame_sync: { 0: context, 1: buffer },
++  ot_scene_copy_hits: { 0: context, 1: buffer, 3: buffer },
+   ot_session_write: { 0: context, 1: buffer, 2: empty },
+   ot_session_read_output: { 0: context, 1: buffer, 2: empty, 4: buffer },
+   ot_session_drain_output: {
+diff --git a/packages/core/src/NativeSession.ts b/packages/core/src/NativeSession.ts
+index 9048978..7484523 100644
+--- a/packages/core/src/NativeSession.ts
++++ b/packages/core/src/NativeSession.ts
+@@ -504,6 +504,27 @@ export class NativeSession {
+     return this.lib.sessionGetCapabilities(this.context, this.session)
+   }
+ 
++  private frameOutput: Uint8Array[] | null = null
++
++  /** Stage one planned frame until all segments and capture callbacks succeed. */
++  async beginFrameOutput(): Promise<void> {
++    if (this.frameOutput) throw new Error("Frame output is already staged")
++    await this.idle()
++    this.buffer ??= new Uint8Array(this.outputBufferSize)
++    this.frameOutput = []
++  }
++
++  async endFrameOutput(commit: boolean): Promise<void> {
++    await this.idle()
++    const chunks = this.frameOutput
++    this.frameOutput = null
++    if (!commit || !chunks) return
++    for (const chunk of chunks) {
++      if (!this.write(chunk)) throw new Error("Frame output met backpressure")
++      await this.idle()
++    }
++  }
++
+   /** Copies all bytes or returns false under queue pressure. Capacity-exceeding writes throw RangeError;
+    * lifecycle errors take precedence while writing is unavailable. */
+   write(bytes: Uint8Array): boolean {
+@@ -788,13 +809,20 @@ export class NativeSession {
+     // Set the gate before calling user code so even an inline drain is not lost.
+     this.blocked = true
+     try {
+-      const ready = this.sinkWrite.call(this.sink, bytes, "utf8", (error?: Error | null) => {
++      const completed = (error?: Error | null) => {
+         if (this.output !== output || output.completed) return
+         output.completed = true
+         output.failed = error != null
+         if (error && !this.stopped) this._error ??= asError(error)
+         this.schedule()
+-      })
++      }
++      if (this.frameOutput) {
++        this.frameOutput.push(bytes.slice())
++        completed()
++        this.blocked = false
++        return
++      }
++      const ready = this.sinkWrite.call(this.sink, bytes, "utf8", completed)
+       if (!this.stopped && ready) this.blocked = false
+     } catch (error) {
+       this.output = null
 diff --git a/packages/core/src/ScrollableViewport.ts b/packages/core/src/ScrollableViewport.ts
 new file mode 100644
 index 0000000..d93908e
@@ -55,15 +123,24 @@ index 6f776f6..ffc034b 100644
 +
 +export * from "./ScrollableViewport.js"
 diff --git a/packages/core/src/native-abi.generated.ts b/packages/core/src/native-abi.generated.ts
-index 939aac7..7df4ab5 100644
+index 939aac7..0741d6e 100644
 --- a/packages/core/src/native-abi.generated.ts
 +++ b/packages/core/src/native-abi.generated.ts
+@@ -1,7 +1,7 @@
+ // Generated from packages/native/include/opentui.h and scripts/native-abi-pointers.ts.
+ // Run `bun run generate:abi` in packages/core. Do not edit.
+ // Inspect audit input: bun scripts/native-abi.ts --audit
+-// ABI audit SHA-256: 2b36545357f7738df87404a9507ebeb54f38df5cd270fd98c80998f95972863c
++// ABI audit SHA-256: 5866c71057bc9606db13d06a96fa18133de8fb58f4ec9a6bdd9f468a2b81359b
+ 
+ export const nativeSymbols = {
+   ot_scene_set_hooks: { args: ["ptr", "buffer", "buffer"], returns: "i32" },
 @@ -244,6 +244,8 @@ export const nativeSymbols = {
    ot_session_pump: { args: ["ptr", "buffer", "u64", "u32", "buffer"], returns: "i32" },
    ot_session_get_write_limit: { args: ["ptr", "buffer", "buffer"], returns: "i32" },
    ot_session_write: { args: ["ptr", "buffer", "ptr", "u32"], returns: "i32" },
 +  ot_session_set_frame_sync: { args: ["ptr", "buffer", "u32"], returns: "i32" },
-+  ot_scene_copy_hits: { args: ["ptr", "buffer", "u32", "ptr", "u32"], returns: "i32" },
++  ot_scene_copy_hits: { args: ["ptr", "buffer", "u32", "buffer", "u32"], returns: "i32" },
    ot_session_read_output: { args: ["ptr", "buffer", "ptr", "u32", "buffer"], returns: "i32" },
    ot_session_drain_output: { args: ["ptr", "buffer", "u32", "buffer", "ptr", "ptr"], returns: "i32" },
    ot_session_drain_stdout: { args: ["ptr", "buffer", "u32", "buffer"], returns: "i32" },
@@ -198,7 +275,7 @@ index ff4ebe5..0aed61a 100644
      if (value === this._value) return
      this._value = value
 diff --git a/packages/core/src/renderer.ts b/packages/core/src/renderer.ts
-index 91a46db..2feb4cc 100644
+index 91a46db..118bc4c 100644
 --- a/packages/core/src/renderer.ts
 +++ b/packages/core/src/renderer.ts
 @@ -902,6 +902,30 @@ export enum RendererControlState {
@@ -232,7 +309,7 @@ index 91a46db..2feb4cc 100644
  export class CliRenderer extends EventEmitter implements RenderContext {
    private static animationFrameId = 0
    private lib: RenderLib
-@@ -977,6 +1001,131 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -977,6 +1001,172 @@ export class CliRenderer extends EventEmitter implements RenderContext {
    private frameCount: number = 0
    // Bumped once per loop() iteration; see RenderContext.frameId.
    private _frameId: number = 0
@@ -259,23 +336,27 @@ index 91a46db..2feb4cc 100644
 +  }
 +
 +  /** The published hit grid, or the painted draft's before its commit, in one native copy. */
-+  public captureHitMap(pending = false): RenderHitMap {
++  private readonly dropHitMaps = new WeakMap<RenderHitMap, Uint32Array>()
++
++  public captureHitMap(pending = this.nativeScene.frame !== null): RenderHitMap {
 +    const width = this.width,
 +      height = this.height
 +    const cells = new Uint32Array(width * height)
 +    const session = this.nativeSession
-+    this.lib.sceneCopyHits(session.context, session.session, pending, cells)
++    this.lib.sceneCopyHits(session.context, session.session, pending ? 1 : 0, cells)
++    const drop = new Uint32Array(cells.length)
++    this.lib.sceneCopyHits(session.context, session.session, pending ? 3 : 2, drop)
 +    for (let i = 0; i < cells.length; i++) {
 +      const node = Renderable.renderablesByNumber.get(cells[i])
 +      if (cells[i] && (!node || node.isDestroyed)) cells[i] = 0
 +    }
 +    const origins = new Map<number, Readonly<{ x: number; y: number }>>()
-+    for (const id of cells) {
++    for (const id of [...cells, ...drop]) {
 +      if (origins.has(id)) continue
 +      const node = Renderable.renderablesByNumber.get(id)
 +      if (node && !node.isDestroyed) origins.set(id, Object.freeze({ x: node.x, y: node.y }))
 +    }
-+    return Object.freeze({
++    const map: RenderHitMap = Object.freeze({
 +      width,
 +      height,
 +      frameId: this.frameId,
@@ -288,11 +369,21 @@ index 91a46db..2feb4cc 100644
 +        return origins.get(id)
 +      },
 +    })
++    this.dropHitMaps.set(map, drop)
++    return map
++  }
++
++  private dropHitTest(map: RenderHitMap, x: number, y: number): number {
++    const cells = this.dropHitMaps.get(map)
++    if (!cells || x < 0 || y < 0 || x >= map.width || y >= map.height) return map.hitTest(x, y)
++    return cells[Math.floor(y) * map.width + Math.floor(x)]
 +  }
 +
 +  /** The ordinary hover/capture/selection machine with a captured hit source. */
 +  public dispatchMouseEventFromHitMap(event: RawMouseEvent, map: RenderHitMap): boolean {
-+    const id = map.hitTest(event.x, event.y - this.renderOffset)
++    const id = this.capturedRenderable
++      ? this.dropHitTest(map, event.x, event.y - this.renderOffset)
++      : map.hitTest(event.x, event.y - this.renderOffset)
 +    const target = Renderable.renderablesByNumber.get(id)
 +    const origin = map.origin(id)
 +    const liveId = target && !target.isDestroyed ? id : 0
@@ -309,12 +400,28 @@ index 91a46db..2feb4cc 100644
 +    deltaTime: number,
 +  ): Promise<"rendered" | "retryable-skip" | "failed" | "blocked"> {
 +    const session = this.nativeSession
-+    const write = (bytes?: Uint8Array) => {
++    const validate = (bytes?: Uint8Array) => {
 +      if (!bytes?.length) return
 +      const commands = Array.from(bytes, (byte) => String.fromCharCode(byte)).join("")
 +      if (/(?:\x1b\[|\x9b)\?(?:\d+;)*0*2026(?:;\d+)*[hl]/.test(commands)) {
 +        throw new Error("Frame commands must not contain synchronized-output controls")
 +      }
++    }
++    const validatePlan = () => {
++      validate(plan.before)
++      validate(plan.after)
++      validate(plan.projection?.before)
++      validate(plan.projection?.after)
++    }
++    validatePlan()
++    if (!plan.projection && !plan.before?.length && !plan.after?.length && !plan.onHitMap) {
++      return this.presentNativeScene()
++    }
++    await session.beginFrameOutput()
++    let complete = false
++    const write = (bytes?: Uint8Array) => {
++      if (!bytes?.length) return
++      validate(bytes)
 +      if (!session.write(bytes)) throw new Error("Frame commands met output backpressure")
 +    }
 +    this.lib.sessionSetFrameSync(session.context, session.session, 1)
@@ -327,7 +434,11 @@ index 91a46db..2feb4cc 100644
 +      plan.onHitMap?.(main)
 +      write(plan.after)
 +      const projection = plan.projection
-+      if (!projection) return status
++      if (!projection) {
++        validatePlan()
++        complete = true
++        return status
++      }
 +      if (projection.renderable.isDestroyed) throw new Error("Projection target was destroyed")
 +      const target = projection.renderable
 +      const saved = { translateX: target.translateX, translateY: target.translateY }
@@ -352,19 +463,26 @@ index 91a46db..2feb4cc 100644
 +      } finally {
 +        this.nativeScene.setPaint(target, saved)
 +      }
++      validatePlan()
 +      write(projection.after)
++      complete = status === "rendered"
 +      return status
 +    } finally {
 +      this._isProjectionPass = false
 +      this._projection = null
 +      session.write(SYNC_RESET)
 +      this.lib.sessionSetFrameSync(session.context, session.session, 0)
++      try {
++        await session.endFrameOutput(complete)
++      } finally {
++        if (!complete) this.forceFullRepaintRequested = true
++      }
 +    }
 +  }
    private lastFpsTime: number = 0
    private currentFps: number = 0
    private targetFrameTime: number = 1000 / this._targetFps
-@@ -1681,6 +1830,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -1681,6 +1871,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
    }
  
    public requestRender() {
@@ -372,16 +490,20 @@ index 91a46db..2feb4cc 100644
      if (this._isDestroyed || this._controlState === RendererControlState.EXPLICIT_SUSPENDED) {
        return
      }
-@@ -3589,7 +3739,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -3589,7 +3780,11 @@ export class CliRenderer extends EventEmitter implements RenderContext {
      }
    }
  
 -  private processSingleMouseEvent(mouseEvent: RawMouseEvent): boolean {
-+  private processSingleMouseEvent(mouseEvent: RawMouseEvent, hitTest = (x: number, y: number) => this.hitTest(x, y)): boolean {
++  private processSingleMouseEvent(
++    mouseEvent: RawMouseEvent,
++    hitTest = (x: number, y: number) =>
++      this.capturedRenderable ? this.dropHitTest(this.captureHitMap(false), x, y) : this.hitTest(x, y),
++  ): boolean {
      if (this._splitHeight > 0) {
        if (mouseEvent.y < this.renderOffset) {
          return false
-@@ -3617,7 +3767,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -3617,7 +3812,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
      }
  
      if (mouseEvent.type === "scroll") {
@@ -390,7 +512,7 @@ index 91a46db..2feb4cc 100644
        const maybeRenderable = Renderable.renderablesByNumber.get(maybeRenderableId)
        const fallbackTarget =
          this._currentFocusedRenderable &&
-@@ -3634,7 +3784,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -3634,7 +3829,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
        return true
      }
  
@@ -399,7 +521,7 @@ index 91a46db..2feb4cc 100644
      const sameElement = maybeRenderableId === this.lastOverRenderableNum
      this.lastOverRenderableNum = maybeRenderableId
      const maybeRenderable = Renderable.renderablesByNumber.get(maybeRenderableId)
-@@ -3831,7 +3981,8 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -3831,7 +4026,8 @@ export class CliRenderer extends EventEmitter implements RenderContext {
    }
  
    public hitTest(x: number, y: number): number {
@@ -409,7 +531,7 @@ index 91a46db..2feb4cc 100644
    }
  
    private takeMemorySnapshot(): void {
-@@ -4798,6 +4949,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -4798,6 +4994,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
          return
        // Bump before any work so all callers this iteration see the new id.
        this._frameId++
@@ -417,7 +539,7 @@ index 91a46db..2feb4cc 100644
  
        const now = this.normalizeClockTime(this.clock.now(), this.lastTime)
        const elapsed = this.getElapsedMs(now, this.lastTime)
-@@ -4877,7 +5029,8 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -4877,7 +5074,8 @@ export class CliRenderer extends EventEmitter implements RenderContext {
  
        // If destroy() was requested during this frame, skip native work and scheduling.
        if (this.canRender && !this.nativeSplitFlush) {
@@ -427,7 +549,7 @@ index 91a46db..2feb4cc 100644
          if (!this.canRender || this.currentControlState === RendererControlState.EXPLICIT_SUSPENDED) return
          if (nativeStatus === "rendered") this.frameCount++
          if (this.getElapsedMs(now, this.lastFpsTime) >= 1000) {
-@@ -4889,7 +5042,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
+@@ -4889,7 +5087,7 @@ export class CliRenderer extends EventEmitter implements RenderContext {
  
          if (nativeStatus === "rendered") {
            // Check if hit grid changed and recheck hover state if needed
@@ -437,10 +559,10 @@ index 91a46db..2feb4cc 100644
            }
            if (!this.canRender) return
 diff --git a/packages/core/src/zig.ts b/packages/core/src/zig.ts
-index d83570a..a0c2612 100644
+index d83570a..0bd604f 100644
 --- a/packages/core/src/zig.ts
 +++ b/packages/core/src/zig.ts
-@@ -6112,6 +6112,19 @@ export class FFIRenderLib {
+@@ -6112,6 +6112,27 @@ export class FFIRenderLib {
      return output[0]
    }
  
@@ -451,20 +573,28 @@ index d83570a..a0c2612 100644
 +    nativeResult("ot_session_set_frame_sync", this.opentui.symbols.ot_session_set_frame_sync(pointer, handle, flags))
 +  }
 +
-+  public sceneCopyHits(context: NativeContextHandle, session: SessionHandle, pending: boolean, out: Uint32Array): void {
++  public sceneCopyHits(
++    context: NativeContextHandle,
++    session: SessionHandle,
++    selection: number,
++    out: Uint32Array,
++  ): void {
 +    const handle = encodeContextHandle(context, session)
 +    const pointer = this.nativeContextPointer(context, "ot_scene_copy_hits")
-+    nativeResult("ot_scene_copy_hits", this.opentui.symbols.ot_scene_copy_hits(pointer, handle, pending ? 1 : 0, out, out.length))
++    nativeResult(
++      "ot_scene_copy_hits",
++      this.opentui.symbols.ot_scene_copy_hits(pointer, handle, selection, out, out.length),
++    )
 +  }
 +
    public sessionWrite(context: NativeContextHandle, session: SessionHandle, bytes: Uint8Array): void {
      const handle = encodeContextHandle(context, session)
      const input = sessionBytes(bytes, "Session write length")
 diff --git a/packages/native/include/opentui.h b/packages/native/include/opentui.h
-index 12cc13e..0ed9b2f 100644
+index 12cc13e..22d1f7a 100644
 --- a/packages/native/include/opentui.h
 +++ b/packages/native/include/opentui.h
-@@ -2730,6 +2730,15 @@ ot_status ot_session_write(
+@@ -2730,6 +2730,16 @@ ot_status ot_session_write(
      const uint8_t *bytes,
      uint32_t byte_count);
  
@@ -474,14 +604,15 @@ index 12cc13e..0ed9b2f 100644
 + * Split-footer frames are unaffected. */
 +ot_status ot_session_set_frame_sync(ot_context *context, const ot_handle *session, uint32_t flags);
 +/* luciole pixel scroll: copy the published (pending 0) or the painted draft's (pending 1)
-+ * hit grid as public node numbers, row-major; capacity is exactly width * height. */
++ * hit grid as public node numbers, row-major; bit 2 selects the drop-target grid,
++ * which excludes the captured source. capacity is exactly width * height. */
 +ot_status ot_scene_copy_hits(ot_context *context, const ot_handle *session, uint32_t pending, uint32_t *out_nums, uint32_t capacity);
 +
  /* Copy at most capacity bytes in write order. bytes may be NULL only for zero
   * capacity. A successful empty read returns a zero byte_count and request_id.
   * Failure leaves both outputs unchanged. The next read requires completion of
 diff --git a/packages/native/src/context-abi.zig b/packages/native/src/context-abi.zig
-index 1ab48e3..e9e305b 100644
+index 1ab48e3..3d7efa1 100644
 --- a/packages/native/src/context-abi.zig
 +++ b/packages/native/src/context-abi.zig
 @@ -745,6 +745,27 @@ pub fn ot_session_get_write_limit(
@@ -504,8 +635,8 @@ index 1ab48e3..e9e305b 100644
 +    const owner = context.?;
 +    const id = session_ptr orelse return sessionError(owner, error.InvalidOptions);
 +    const out = out_ptr orelse return sessionError(owner, error.InvalidOptions);
-+    if (pending > 1) return sessionError(owner, error.InvalidOptions);
-+    owner.core.sceneCopyHits(handleFromC(id.*), pending == 1, out[0..capacity]) catch |err| return sessionError(owner, err);
++    if (pending > 3) return sessionError(owner, error.InvalidOptions);
++    owner.core.sceneCopyHits(handleFromC(id.*), pending, out[0..capacity]) catch |err| return sessionError(owner, err);
 +    return c.OT_OK;
 +}
 +
@@ -513,10 +644,10 @@ index 1ab48e3..e9e305b 100644
      context: ?*ContextHandle,
      session_ptr: ?*const c.ot_handle,
 diff --git a/packages/native/src/context.zig b/packages/native/src/context.zig
-index 062c22c..41f18bc 100644
+index 062c22c..52c85ea 100644
 --- a/packages/native/src/context.zig
 +++ b/packages/native/src/context.zig
-@@ -2906,6 +2906,41 @@ pub const Context = struct {
+@@ -2906,6 +2906,47 @@ pub const Context = struct {
          value.cancelSceneFrame();
      }
  
@@ -529,7 +660,7 @@ index 062c22c..41f18bc 100644
 +        attached.retain_hits = retain_hits;
 +    }
 +
-+    pub fn sceneCopyHits(self: *Context, session_handle: Handle, pending: bool, out: []u32) !void {
++    pub fn sceneCopyHits(self: *Context, session_handle: Handle, selection: u32, out: []u32) !void {
 +        try self.beginMutation();
 +        defer self.mutating = false;
 +        const value = try self.getSession(session_handle);
@@ -537,7 +668,13 @@ index 062c22c..41f18bc 100644
 +        const owned = value.scene orelse return error.SceneNotAttached;
 +        const cells = @as(usize, attached.hitGridWidth) * attached.hitGridHeight;
 +        if (out.len != cells) return error.InvalidOptions;
-+        const grid = if (pending) attached.nextHitGrid else attached.currentHitGrid;
++        const grid = switch (selection) {
++            0 => attached.currentHitGrid,
++            1 => attached.nextHitGrid,
++            2 => attached.currentDropHitGrid,
++            3 => attached.nextDropHitGrid,
++            else => return error.InvalidOptions,
++        };
 +        // Runs of one token are common; resolve each run once.
 +        var last_token: u32 = 0;
 +        var last_num: u32 = 0;
@@ -559,10 +696,19 @@ index 062c22c..41f18bc 100644
          try self.beginMutation();
          defer self.mutating = false;
 diff --git a/packages/native/src/renderer.zig b/packages/native/src/renderer.zig
-index 69b7119..6bcb2d9 100644
+index 69b7119..b66362e 100644
 --- a/packages/native/src/renderer.zig
 +++ b/packages/native/src/renderer.zig
-@@ -358,6 +358,10 @@ pub const CliRenderer = struct {
+@@ -336,6 +336,8 @@ pub const CliRenderer = struct {
+     // they push no rects and only clear the stack.
+     currentHitGrid: []u32,
+     nextHitGrid: []u32,
++    currentDropHitGrid: []u32,
++    nextDropHitGrid: []u32,
+     hitGridWidth: u32,
+     hitGridHeight: u32,
+     hitScissorStack: std.ArrayListUnmanaged(buf.ClipRect),
+@@ -358,6 +360,10 @@ pub const CliRenderer = struct {
      palette_epoch: u32,
      last_rendered_palette_epoch: ?u32 = null,
      force_full_repaint: bool = false,
@@ -573,18 +719,118 @@ index 69b7119..6bcb2d9 100644
      palette_index_cache: std.AutoHashMapUnmanaged(u64, u8) = .empty,
      sixelCache: std.AutoHashMapUnmanaged(SixelCacheKey, SixelCacheEntry) = .empty,
      sixelCacheBytes: usize = 0,
-@@ -1044,6 +1048,10 @@ pub const CliRenderer = struct {
+@@ -451,6 +457,12 @@ pub const CliRenderer = struct {
+         errdefer allocator.free(currentHitGrid);
+         const nextHitGrid = try allocator.alloc(u32, hitGridSize);
+         errdefer allocator.free(nextHitGrid);
++        const currentDropHitGrid = try allocator.alloc(u32, hitGridSize);
++        errdefer allocator.free(currentDropHitGrid);
++        const nextDropHitGrid = try allocator.alloc(u32, hitGridSize);
++        errdefer allocator.free(nextDropHitGrid);
++        @memset(currentDropHitGrid, 0);
++        @memset(nextDropHitGrid, 0);
+         @memset(currentHitGrid, 0); // Initialize with 0 (no renderable)
+         @memset(nextHitGrid, 0);
+         const hitScissorStack: std.ArrayListUnmanaged(buf.ClipRect) = .empty;
+@@ -516,6 +528,8 @@ pub const CliRenderer = struct {
+             .logger = opts.logger,
+             .currentHitGrid = currentHitGrid,
+             .nextHitGrid = nextHitGrid,
++            .currentDropHitGrid = currentDropHitGrid,
++            .nextDropHitGrid = nextDropHitGrid,
+             .hitGridWidth = width,
+             .hitGridHeight = height,
+             .hitScissorStack = hitScissorStack,
+@@ -572,6 +586,8 @@ pub const CliRenderer = struct {
+ 
+         self.allocator.free(self.currentHitGrid);
+         self.allocator.free(self.nextHitGrid);
++        self.allocator.free(self.currentDropHitGrid);
++        self.allocator.free(self.nextDropHitGrid);
+         self.hitScissorStack.deinit(self.allocator);
+ 
+         self.allocator.destroy(self);
+@@ -830,15 +846,21 @@ pub const CliRenderer = struct {
+         defer current.deinit();
+         var next = try self.nextRenderBuffer.prepareResize(width, height);
+         defer next.deinit();
+-        const newHitGrids: ?[2][]u32 = if (newHitGridSize > self.currentHitGrid.len) grids: {
++        const newHitGrids: ?[4][]u32 = if (newHitGridSize > self.currentHitGrid.len) grids: {
+             const newCurrentHitGrid = try self.allocator.alloc(u32, newHitGridSize);
+             errdefer self.allocator.free(newCurrentHitGrid);
+             const newNextHitGrid = try self.allocator.alloc(u32, newHitGridSize);
+-            break :grids .{ newCurrentHitGrid, newNextHitGrid };
++            errdefer self.allocator.free(newNextHitGrid);
++            const newCurrentDropHitGrid = try self.allocator.alloc(u32, newHitGridSize);
++            errdefer self.allocator.free(newCurrentDropHitGrid);
++            const newNextDropHitGrid = try self.allocator.alloc(u32, newHitGridSize);
++            break :grids .{ newCurrentHitGrid, newNextHitGrid, newCurrentDropHitGrid, newNextDropHitGrid };
+         } else null;
+         errdefer if (newHitGrids) |grids| {
+             self.allocator.free(grids[0]);
+             self.allocator.free(grids[1]);
++            self.allocator.free(grids[2]);
++            self.allocator.free(grids[3]);
+         };
+         if (bytes) |packet| try self.backend.feed.feed.writeAtomic(packet);
+ 
+@@ -853,12 +875,18 @@ pub const CliRenderer = struct {
+         if (newHitGrids) |grids| {
+             self.allocator.free(self.currentHitGrid);
+             self.allocator.free(self.nextHitGrid);
++            self.allocator.free(self.currentDropHitGrid);
++            self.allocator.free(self.nextDropHitGrid);
+             self.currentHitGrid = grids[0];
+             self.nextHitGrid = grids[1];
++            self.currentDropHitGrid = grids[2];
++            self.nextDropHitGrid = grids[3];
+         }
+ 
+         @memset(self.currentHitGrid, 0);
++        @memset(self.currentDropHitGrid, 0);
+         @memset(self.nextHitGrid, 0);
++        @memset(self.nextDropHitGrid, 0);
+         self.hitGridResizeInvalidated = true;
+ 
+         // Always update dimensions. The backing buffer is at least as large as
+@@ -1001,6 +1029,7 @@ pub const CliRenderer = struct {
+     fn clearSkippedFrameState(self: *CliRenderer) void {
+         self.nextRenderBuffer.clear(self.backgroundColor, null);
+         @memset(self.nextHitGrid, 0);
++        @memset(self.nextDropHitGrid, 0);
+     }
+ 
+     fn finishSkippedFrame(self: *CliRenderer) RenderStatus {
+@@ -1014,6 +1043,7 @@ pub const CliRenderer = struct {
+         self.kittyTransport.cancel(.io_error);
+         self.pendingImages.clearRetainingCapacity();
+         @memset(self.nextHitGrid, 0);
++        @memset(self.nextDropHitGrid, 0);
+         self.invalidateTerminalState();
+         return .failed;
+     }
+@@ -1044,11 +1074,20 @@ pub const CliRenderer = struct {
      }
  
      fn commitPendingHitGrid(self: *CliRenderer) void {
 +        if (self.retain_hits) {
 +            @import("utils.zig").fillU32(self.nextHitGrid, 0);
++            @import("utils.zig").fillU32(self.nextDropHitGrid, 0);
 +            return;
 +        }
          self.hitGridDirty = self.hitGridResizeInvalidated or !std.mem.eql(u32, self.currentHitGrid, self.nextHitGrid);
++        const previousDrop = self.currentDropHitGrid;
++        self.currentDropHitGrid = self.nextDropHitGrid;
++        self.nextDropHitGrid = previousDrop;
          const previous = self.currentHitGrid;
          self.currentHitGrid = self.nextHitGrid;
-@@ -2898,7 +2906,7 @@ pub const CliRenderer = struct {
+         self.nextHitGrid = previous;
+         @import("utils.zig").fillU32(self.nextHitGrid, 0);
++        @import("utils.zig").fillU32(self.nextDropHitGrid, 0);
+     }
+ 
+     fn renderResult(self: *CliRenderer, status: RenderStatus) RenderResult {
+@@ -2898,7 +2937,7 @@ pub const CliRenderer = struct {
          // Lazy frame start is the core no-op suppression mechanism. If diffing,
          // cursor state, and pointer state are unchanged, frame_started stays false
          // and we emit nothing at all for this tick.
@@ -593,7 +839,7 @@ index 69b7119..6bcb2d9 100644
          self.applyPendingSplitFooterTransition(writer, &frame_started);
  
          if ((images_changed or should_force) and (self.hasCommittedProtocol(.kitty) or self.hasNextProtocol(.kitty))) {
-@@ -3309,7 +3317,7 @@ pub const CliRenderer = struct {
+@@ -3309,7 +3348,7 @@ pub const CliRenderer = struct {
          }
  
          // Only close sync if we opened it. This keeps true no-op frames empty.
@@ -602,3 +848,167 @@ index 69b7119..6bcb2d9 100644
              writer.writeAll(ansi.ANSI.syncReset) catch {};
          }
  
+@@ -3377,6 +3416,10 @@ pub const CliRenderer = struct {
+     /// only register hits within the visible region. Later renderables overwrite
+     /// earlier ones. Z-order is determined by render order.
+     pub fn addToHitGrid(self: *CliRenderer, x: i32, y: i32, width: u32, height: u32, id: u32) void {
++        self.addToHitGridWithDrop(x, y, width, height, id, true);
++    }
++
++    pub fn addToHitGridWithDrop(self: *CliRenderer, x: i32, y: i32, width: u32, height: u32, id: u32, drop: bool) void {
+         std.debug.assert(self.pendingPresentation == null);
+         const clipped = self.clipRectToHitScissor(x, y, width, height) orelse return;
+         const startX = @max(0, clipped.x);
+@@ -3403,6 +3446,7 @@ pub const CliRenderer = struct {
+             const endIdx = rowStart + uEndX;
+ 
+             @memset(self.nextHitGrid[startIdx..endIdx], id);
++            if (drop) @memset(self.nextDropHitGrid[startIdx..endIdx], id);
+         }
+     }
+ 
+@@ -3410,6 +3454,7 @@ pub const CliRenderer = struct {
+     pub fn clearCurrentHitGrid(self: *CliRenderer) void {
+         std.debug.assert(self.pendingPresentation == null);
+         @memset(self.currentHitGrid, 0);
++        @memset(self.currentDropHitGrid, 0);
+     }
+ 
+     /// Return whether the hit grid changed during the last completed presentation.
+@@ -3530,6 +3575,7 @@ pub const CliRenderer = struct {
+             const endIdx = rowStart + uEndX;
+ 
+             @memset(self.currentHitGrid[startIdx..endIdx], id);
++            @memset(self.currentDropHitGrid[startIdx..endIdx], id);
+         }
+     }
+ 
+diff --git a/packages/native/src/scene.zig b/packages/native/src/scene.zig
+index e3465e2..eb4a3eb 100644
+--- a/packages/native/src/scene.zig
++++ b/packages/native/src/scene.zig
+@@ -1197,6 +1197,7 @@ pub const Scene = struct {
+         cli.setBackgroundColor(options.background);
+         target.clear(options.background, if (options.preserve_unwritten) 0 else null);
+         @import("utils.zig").fillU32(cli.nextHitGrid, 0);
++        @import("utils.zig").fillU32(cli.nextDropHitGrid, 0);
+     }
+ 
+     fn markFocus(self: *Scene, objects: *const handles.Table) !void {
+@@ -1283,6 +1284,7 @@ pub const Scene = struct {
+         errdefer {
+             target.clear(cli.backgroundColor, null);
+             @memset(cli.nextHitGrid, 0);
++            @memset(cli.nextDropHitGrid, 0);
+         }
+         defer target.clearScissorRects();
+         defer target.clearOpacity();
+@@ -1494,14 +1496,14 @@ pub const Scene = struct {
+     }
+ 
+     fn addHit(cli: *renderer.CliRenderer, layout: Layout, clip: buffer.ClipRect, num: u32, token: u32, options: FrameOptions) void {
+-        if (!options.use_mouse or num == options.excluded_hit_num) return;
++        if (!options.use_mouse) return;
+         const hit = intersection(.{
+             .x = @intFromFloat(layout.screenX),
+             .y = @intFromFloat(layout.screenY),
+             .width = @intFromFloat(layout.width),
+             .height = @intFromFloat(layout.height),
+         }, clip);
+-        cli.addToHitGrid(hit.x, hit.y, hit.width, hit.height, token);
++        cli.addToHitGridWithDrop(hit.x, hit.y, hit.width, hit.height, token, num != options.excluded_hit_num);
+     }
+ 
+     fn viewportNode(self: *Scene, objects: *const handles.Table, handle: handles.Handle) !*native.NativeRenderable {
+diff --git a/packages/native/src/tests/context-abi.c b/packages/native/src/tests/context-abi.c
+index 6cc3bc4..db39625 100644
+--- a/packages/native/src/tests/context-abi.c
++++ b/packages/native/src/tests/context-abi.c
+@@ -145,6 +145,17 @@ static void rendered_output(ot_context *context) {
+     assert(ot_scene_paint(context, &session, background, 1, 0, NULL) == OT_INVALID_ARGUMENT);
+     assert(ot_scene_paint(context, &session, background, 1, 0, &frame) == OT_OK);
+     assert(frame.kind == OT_SCENE_FRAME_DONE);
++    uint32_t copied_hits[32] = {0};
++    assert(ot_scene_copy_hits(context, &session, 1, copied_hits, 32) == OT_OK);
++    assert(copied_hits[0] == 101);
++    assert(ot_scene_copy_hits(context, &session, 1, copied_hits, 31) == OT_INVALID_ARGUMENT);
++    assert(ot_scene_copy_hits(context, &session, 4, copied_hits, 32) == OT_INVALID_ARGUMENT);
++    assert(ot_scene_copy_hits(context, NULL, 0, copied_hits, 32) == OT_INVALID_ARGUMENT);
++    assert(ot_scene_copy_hits(context, &session, 0, NULL, 32) == OT_INVALID_ARGUMENT);
++    assert(ot_session_set_frame_sync(context, &session, 4) == OT_INVALID_ARGUMENT);
++    assert(ot_session_set_frame_sync(context, NULL, 0) == OT_INVALID_ARGUMENT);
++    assert(ot_session_set_frame_sync(context, &session, 3) == OT_OK);
++    assert(ot_session_set_frame_sync(context, &session, 0) == OT_OK);
+     ot_scene_layout layout = {.struct_size = sizeof(layout), .abi_version = OT_CONTEXT_ABI_VERSION};
+     assert(ot_scene_get_layout(context, &box, OT_LAYOUT_PUBLIC, &layout) == OT_OK);
+     assert(layout.width == 4 && layout.height == 2);
+diff --git a/packages/native/src/tests/scene_frame_test.zig b/packages/native/src/tests/scene_frame_test.zig
+index da924d4..fd368de 100644
+--- a/packages/native/src/tests/scene_frame_test.zig
++++ b/packages/native/src/tests/scene_frame_test.zig
+@@ -333,3 +333,65 @@ test "Scene idle update metadata keeps the native one call path and excludes hos
+     try testing.expectEqual(@as(u32, 0), f.state.hook_count);
+     try testing.expectEqual(@as(u32, 0), f.state.layout_hook_count);
+ }
++
++test "Pixel hit copy separates published draft and drop maps and rejects stale nodes" {
++    const f = try Fixture.init(testing.allocator, 4, 2, .{});
++    defer f.deinit();
++    const child = try f.owner.sceneCreateNode(f.id, 1, 42);
++    try f.owner.sceneSetStyle(child, 4, 0, 0, 1, 2, 1);
++    try f.owner.sceneSetStyle(child, 4, 1, 0, 1, 1, 1);
++    try f.owner.sceneMoveNode(child, f.root, 0);
++    var published: [8]u32 = undefined;
++    var draft: [8]u32 = undefined;
++    var drop: [8]u32 = undefined;
++    try @import("scene_fixture_test.zig").repaint(f.owner, f.id, options.background, true, 42);
++    try f.owner.sceneCopyHits(f.id, 0, &published);
++    try f.owner.sceneCopyHits(f.id, 1, &draft);
++    try f.owner.sceneCopyHits(f.id, 3, &drop);
++    try testing.expectEqual(@as(u32, 0), published[0]);
++    try testing.expectEqual(@as(u32, 42), draft[0]);
++    try testing.expectEqual(@as(u32, 1), drop[0]);
++    try testing.expectError(error.InvalidOptions, f.owner.sceneCopyHits(f.id, 1, draft[0..7]));
++    try testing.expectError(error.InvalidOptions, f.owner.sceneCopyHits(f.id, 4, &draft));
++    _ = try @import("scene_fixture_test.zig").present(f.owner, f.id, true);
++    try drain(f.owner, f.id);
++    try f.owner.sceneCopyHits(f.id, 0, &published);
++    try testing.expectEqualSlices(u32, &draft, &published);
++    try testing.expectEqual(@as(u32, 42), try f.owner.sceneHitTest(f.id, 0, 0));
++    try f.owner.sceneSetPaint(child, .{ .translateX = 1 });
++    try @import("scene_fixture_test.zig").repaint(f.owner, f.id, options.background, true, 0);
++    try f.owner.sceneCopyHits(f.id, 1, &draft);
++    try testing.expectEqual(@as(u32, 1), draft[0]);
++    try testing.expectEqual(@as(u32, 42), draft[1]);
++    try f.owner.sessionSetFrameSync(f.id, true, true);
++    _ = try @import("scene_fixture_test.zig").present(f.owner, f.id, true);
++    try drain(f.owner, f.id);
++    try f.owner.sceneCopyHits(f.id, 0, &draft);
++    try testing.expectEqualSlices(u32, &published, &draft);
++    try f.owner.sceneCopyHits(f.id, 2, &drop);
++    try testing.expectEqual(@as(u32, 1), drop[0]);
++    try f.owner.sceneDestroyNode(child);
++    try f.owner.sceneCopyHits(f.id, 0, &published);
++    try testing.expectEqual(@as(u32, 0), published[0]);
++    try f.owner.resizeSessionRenderer(f.id, 2, 2);
++    try f.owner.sceneCopyHits(f.id, 0, published[0..4]);
++    try testing.expectEqualSlices(u32, &.{ 0, 0, 0, 0 }, published[0..4]);
++}
++
++test "Pixel frame sync flags leave one host envelope and reset for ordinary frames" {
++    const f = try Fixture.init(testing.allocator, 4, 1, .{});
++    defer f.deinit();
++    for ([_]bool{ true, false }) |external| {
++        try f.owner.sessionSetFrameSync(f.id, external, false);
++        try @import("scene_fixture_test.zig").repaint(f.owner, f.id, options.background, true, 0);
++        _ = try @import("scene_fixture_test.zig").present(f.owner, f.id, true);
++        var bytes: [4096]u8 = undefined;
++        var count: usize = 0;
++        while (try f.owner.readOutput(f.id, bytes[count..])) |ticket| {
++            count += ticket.len;
++            try f.owner.completeOutput(f.id, ticket, .written);
++        }
++        try testing.expectEqual(!external, std.mem.indexOf(u8, bytes[0..count], "\x1b[?2026h") != null);
++        try testing.expectEqual(!external, std.mem.indexOf(u8, bytes[0..count], "\x1b[?2026l") != null);
++    }
++}

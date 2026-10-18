@@ -62,15 +62,16 @@ Le navigateur ouvre `https://notes.example.com/` et arrive sur `/_luciole/web/`.
 est dans `$XDG_CACHE_HOME/luciole/web/<clé d'ABI>-<hash du framework>/` : la page est
 aussi du code du framework. `luciole build --web` le prépare s'il manque. En local : `LUCIOLE_WEB_ORIGIN=http://127.0.0.1:3000`.
 
-| Fichier                             | Rôle                                                                                                 |
-| ----------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `src/web-runtime.ts`                | Préparation par clé d'ABI : OpenTUI au tag de l'ABI, patch, Zig, bundle ; copie                      |
-| `src/web-routes.ts`                 | `/_luciole/web/*` et l'origine déclarée (`Origin` et `Host`)                                         |
-| `src/web/build.ts`                  | Bundle de la page : variantes, OpenTUI depuis ses sources, shims Node, clé d'ABI                     |
-| `src/web/platform/`                 | Variantes : `run`, `app-bundle`, `host-direct`, `vt/terminal`, `flight/server`                       |
-| `src/web/opentui/`, `src/web/node/` | Backend FFI WASM d'OpenTUI, Worker tree-sitter ; built-ins Node d'une page                           |
-| `web/opentui-v0.6.6.patch`          | Le patch OpenTUI : scène native et ABI C pour wasm32-wasi                                            |
-| `scripts/web/`                      | Driver CDP et parcours navigateur (`test:web`, `test:web:local`, `test:web:forge`, `test:web:coder`) |
+| Fichier                                 | Rôle                                                                                                 |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `src/web-runtime.ts`                    | Préparation par clé d'ABI : OpenTUI au tag de l'ABI, patch, Zig, bundle ; copie                      |
+| `src/web-routes.ts`                     | `/_luciole/web/*` et l'origine déclarée (`Origin` et `Host`)                                         |
+| `src/web/build.ts`                      | Bundle de la page : variantes, OpenTUI depuis ses sources, shims Node, clé d'ABI                     |
+| `src/web/platform/`                     | Variantes : `run`, `app-bundle`, `host-direct`, `vt/terminal`, `flight/server`                       |
+| `src/web/opentui/`, `src/web/node/`     | Backend FFI WASM d'OpenTUI, Worker tree-sitter ; built-ins Node d'une page                           |
+| `web/opentui-v0.6.6.patch`              | Le patch OpenTUI : scène native et ABI C pour wasm32-wasi                                            |
+| `web/opentui-v0.6.6-pixel-scroll.patch` | Les seams de frame, hit maps et viewport, appliquées après le port wasm32                            |
+| `scripts/web/`                          | Driver CDP et parcours navigateur (`test:web`, `test:web:local`, `test:web:forge`, `test:web:coder`) |
 
 ## Mode d'emploi (tout dans le navigateur)
 
@@ -484,8 +485,24 @@ fermeture du renderer avant d’écrire son message de fin dans xterm ; il ne
 termine pas le processus hôte et ne prend jamais son terminal. Les exceptions
 et rejets non rattrapés conservent le comportement non fatal d’OpenTUI.
 
-Le runtime épingle OpenTUI 0.6.6 et utilise uniquement
-`web/opentui-v0.6.6.patch` pour sa cible wasm32-wasi. L'ABI C
+Le runtime épingle OpenTUI 0.6.6 et applique deux patchs dans cet ordre :
+`web/opentui-v0.6.6.patch` pour sa cible wasm32-wasi, puis
+`web/opentui-v0.6.6-pixel-scroll.patch` pour le défilement pixel. Le second
+reste séparé : il porte les seams de frame, de hit maps et de viewport,
+sans modifier le port wasm32. Les deux entrent dans la clé du checkout source.
+La projection change la translation de peinture native, puis refait une
+frame dans la même enveloppe 2026. Les segments restent en attente jusqu'à
+la validation des callbacks et des commandes. Le passage projeté conserve
+la grille de hits canonique ; une grille distincte fournit les cibles de
+drop pendant une capture. Le manifeste ABI vient du générateur OpenTUI,
+avec les politiques de pointeurs des deux nouvelles fonctions.
+
+Les hooks de cycle de vie et `onUpdate` peuvent tourner deux fois dans une
+frame avec projection. Luciole n'utilise pas de hook `Renderable.onUpdate`
+en production ; le `onUpdate` du tiroir Notes appartient à la timeline,
+qui avance une seule fois par frame logique.
+
+L'ABI C
 accepte désormais cette cible 32 bits : ses records gardent leurs champs de
 largeur fixe, les adresses sont étendues à 64 bits, les tailles des commandes
 sont calculées en `u64` et le compteur de contextes est sans atomiques en mode

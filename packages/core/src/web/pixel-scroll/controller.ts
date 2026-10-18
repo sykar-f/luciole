@@ -145,13 +145,15 @@ export class PixelController {
   }
 
   private changed(): boolean {
-    const buffers = Object.values(this.renderer.nextRenderBuffer.buffers);
-    const changed = buffers.some((buffer, index) => {
-      const old = this.normal[index];
-      return !old || old.length !== buffer.length || buffer.some((value, i) => value !== old[i]);
+    return this.renderer.nextRenderBuffer.withBuffers(({ char, fg, bg, attributes }) => {
+      const planes = [char, fg, bg, attributes];
+      const changed = planes.some((buffer, index) => {
+        const old = this.normal[index];
+        return !old || old.length !== buffer.length || buffer.some((value, i) => value !== old[i]);
+      });
+      if (changed) this.normal = planes.map((buffer) => buffer.slice());
+      return changed;
     });
-    if (changed) this.normal = buffers.map((buffer) => buffer.slice());
-    return changed;
   }
 
   private sameHits(a: RenderHitMap | undefined, b: RenderHitMap): boolean {

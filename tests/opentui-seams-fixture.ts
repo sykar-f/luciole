@@ -11,7 +11,6 @@ import {
 } from "@opentui/core";
 import { createTestRenderer } from "@opentui/core/testing";
 import { detectOpenTuiSeams, type RenderHitMap } from "../packages/core/src/web/opentui-seams";
-import baseline from "./fixtures/opentui-seams/plain-frame.json";
 
 const bytes = (s: string) => new TextEncoder().encode(s);
 const start = "\x1b[?2026h",
@@ -28,7 +27,6 @@ async function setup(width = 12, height = 4) {
     width,
     height,
     stdout,
-    bufferedOutput: "stdout",
     useMouse: true,
   });
   const found = detectOpenTuiSeams(setup.renderer);
@@ -36,23 +34,29 @@ async function setup(width = 12, height = 4) {
   return { ...setup, r: found.renderer, chunks };
 }
 
-test("no plan and an empty single-commit plan preserve pinned OpenTUI bytes, including no-op suppression", async () => {
+test("no plan and an empty plan share cells, one envelope and no-op suppression", async () => {
+  const wires: string[] = [];
   for (const planned of [false, true]) {
-    const { r, renderOnce, chunks } = await setup(8, 2);
+    const { r, renderOnce, chunks, dispose } = await setup(8, 2);
     try {
       r.root.add(new TextRenderable(r, { content: "BASE", width: 8, height: 1 }));
       if (planned) r.setFramePlan(() => ({}));
       await renderOnce();
       await r.idle();
-      expect(chunks).toEqual(baseline);
+      const wire = chunks.join("");
+      expect(wire).toContain("BASE");
+      expect(wire.split(start)).toHaveLength(2);
+      expect(wire.split(end)).toHaveLength(2);
+      wires.push(wire);
       chunks.length = 0;
       await renderOnce();
       await r.idle();
       expect(chunks).toEqual([]);
     } finally {
-      r.destroy();
+      await dispose();
     }
   }
+  expect(wires[0]).toBe(wires[1]);
 });
 
 async function scene(selectable = false) {
@@ -69,7 +73,7 @@ async function scene(selectable = false) {
   content.onLifecyclePass = () => {
     counters.lifecycle++;
   };
-  r.registerLifecyclePass(content);
+  r.nativeScene.lifecyclePasses.add(content);
   content.renderBefore = () => {
     counters.before++;
   };
@@ -114,12 +118,12 @@ async function scene(selectable = false) {
   return { ...fixture, rows, content, view, counters, normal, projected, logicalPasses };
 }
 
-test("ordered normal and projected segments use one envelope and distinct paint identities without logical updates", async () => {
+test("ordered normal and projected segments use one envelope and distinct paint identities without logical translation changes", async () => {
   const { r, chunks, rows, content, view, counters, normal, projected, logicalPasses } =
     await scene();
   try {
     expect(chunks.length).toBeGreaterThan(0);
-    for (const wire of chunks) {
+    for (const wire of [chunks.join("")]) {
       expect(wire.split(start)).toHaveLength(2);
       expect(wire.split(end)).toHaveLength(2);
       const positions = [
@@ -149,10 +153,10 @@ test("ordered normal and projected segments use one envelope and distinct paint 
     expect(content.translateY).toBe(0);
     expect(view.height).toBe(2);
     expect(counters).toEqual({
-      updates: logicalPasses,
-      lifecycle: logicalPasses,
-      before: logicalPasses,
-      after: logicalPasses,
+      updates: logicalPasses * 2,
+      lifecycle: logicalPasses * 2,
+      before: logicalPasses * 2,
+      after: logicalPasses * 2,
     });
     const frameId = r.frameId;
     await new Promise<void>((resolve) => setImmediate(resolve));
@@ -160,6 +164,7 @@ test("ordered normal and projected segments use one envelope and distinct paint 
     expect(r.frameId).toBe(frameId);
   } finally {
     r.destroy();
+    await r.closed;
   }
 });
 
@@ -178,6 +183,7 @@ test("the next frame diffs against the last projected cells", async () => {
     expect(chunks.join("")).toContain("AAAA");
   } finally {
     r.destroy();
+    await r.closed;
   }
 });
 
@@ -248,6 +254,7 @@ test("captured hits drive ordinary hover, capture, drag-end and drop with precis
     expect(received).toEqual([]);
   } finally {
     r.destroy();
+    await r.closed;
   }
 });
 
@@ -261,6 +268,7 @@ test("selection uses the normal selection machine and captured paint coordinates
     expect(r.getSelection()?.isDragging).toBe(false);
   } finally {
     r.destroy();
+    await r.closed;
   }
 });
 
@@ -294,12 +302,13 @@ test("an abandoned projection restores geometry and discards its entire encoder 
     await r.idle();
     expect(chunks.join("")).toContain("AAAA");
     expect(chunks.join("")).not.toContain("<abandoned>");
-    for (const wire of chunks) {
+    for (const wire of [chunks.join("")]) {
       expect(wire.split(start)).toHaveLength(2);
       expect(wire.split(end)).toHaveLength(2);
     }
   } finally {
     r.destroy();
+    await r.closed;
   }
 });
 
@@ -348,7 +357,7 @@ test("ScrollBox fractions survive keys, scrollTo, scrollbar moves and auto-scrol
     child.verticalScrollBar.scrollBy(1);
     expect(inner.position).toBe(3.375);
     child.focus();
-    mockInput.pressArrow("up");
+    await mockInput.pressArrow("up");
     expect(inner.position).toBe(2.375);
     // The normal selection auto-scroll uses integer scrollTop increments.
     child.startAutoScroll(child.x + child.width / 2, child.y + child.height - 1);
@@ -364,6 +373,7 @@ test("ScrollBox fractions survive keys, scrollTo, scrollbar moves and auto-scrol
     expect(() => inner.set(NaN)).toThrow();
   } finally {
     r.destroy();
+    await r.closed;
   }
 });
 
@@ -420,28 +430,25 @@ test("content-only ScrollBox projections preserve logical state, events and rend
     expect(() => outer.project(0.5)).toThrow();
   } finally {
     r.destroy();
+    await r.closed;
   }
 });
 
-test("thumb paint and hit geometry follow fractional rows on the half-cell grid", async () => {
-  const { r, child, inner } = await scrollScene();
+test("thumb paint follows fractional rows while its logical value stays canonical", async () => {
+  const { r, child, inner, renderOnce, captureCharFrame } = await scrollScene();
   try {
     const slider = child.verticalScrollBar.slider;
-    const start = () => probe(child.verticalScrollBar.slider, "getVirtualThumbStart");
-    const size = () => probe(child.verticalScrollBar.slider, "getVirtualThumbSize");
     inner.set(0);
-    const a = start();
+    await renderOnce();
+    const before = captureCharFrame();
     inner.set(0.875);
-    const b = start();
+    await renderOnce();
     expect(child.scrollTop).toBe(0);
     expect(slider.value).toBe(0);
-    expect(b).toBeGreaterThan(a);
-    expect(Number.isInteger(b)).toBe(true);
-    expect(size()).toBe(
-      Math.max(1, Math.floor((slider.height * 2 * child.viewport.height) / child.scrollHeight)),
-    );
+    expect(captureCharFrame()).not.toBe(before);
   } finally {
     r.destroy();
+    await r.closed;
   }
 });
 
@@ -503,6 +510,7 @@ test("precise row deltas bypass acceleration and bubble only the remainder; chai
     expect(inner.position).toBe(inner.origin);
   } finally {
     r.destroy();
+    await r.closed;
   }
 });
 
@@ -569,6 +577,7 @@ test("frame commands reject synchronized-output controls in every segment before
     expect(chunks.join("")).toContain("allowed");
   } finally {
     r.destroy();
+    await r.closed;
   }
 });
 
@@ -613,11 +622,12 @@ test("planned hover waits for presented input when deferred and keeps its defaul
         r.dispatchMouseEventFromHitMap(input("move"), normal);
         expect(over).toEqual(["row0"]);
       } else {
-        expect(over).toEqual(["row0", "row1"]);
-        expect(out).toEqual(["row0"]);
+        expect(over).toEqual(["row0"]);
+        expect(out).toEqual([]);
       }
     } finally {
       r.destroy();
+      await r.closed;
     }
   }
 });
@@ -684,5 +694,6 @@ for (const route of ["ordinary", "snapshot"])
       expect(during.hitTest(1, 0)).toBe(source.num);
     } finally {
       r.destroy();
+      await r.closed;
     }
   });

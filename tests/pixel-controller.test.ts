@@ -396,7 +396,22 @@ test("owner pointer dispatch scopes the named origin without changing event coor
       height: 10,
       currentFocusedRenderable: owner,
       keyInput: new EventEmitter(),
-      nextRenderBuffer: { buffers: { cells: new Uint32Array([1]) } },
+      nextRenderBuffer: {
+        withBuffers: (
+          read: (access: {
+            char: Uint32Array;
+            fg: Uint16Array;
+            bg: Uint16Array;
+            attributes: Uint32Array;
+          }) => boolean,
+        ) =>
+          read({
+            char: new Uint32Array([1]),
+            fg: new Uint16Array(),
+            bg: new Uint16Array(),
+            attributes: new Uint32Array(),
+          }),
+      },
       requestRender: () => {},
       captureHitMap: () => map,
       setFramePlan: (value: (() => RenderFramePlan | null) | null) => {
@@ -651,7 +666,22 @@ function windowController(version: 1 | 2 = 2) {
     height: 10,
     currentFocusedRenderable: owners[0],
     keyInput: new EventEmitter(),
-    nextRenderBuffer: { buffers: { cells } },
+    nextRenderBuffer: {
+      withBuffers: (
+        read: (access: {
+          char: Uint32Array;
+          fg: Uint16Array;
+          bg: Uint16Array;
+          attributes: Uint32Array;
+        }) => boolean,
+      ) =>
+        read({
+          char: cells,
+          fg: new Uint16Array(),
+          bg: new Uint16Array(),
+          attributes: new Uint32Array(),
+        }),
+    },
     requestRender: () => {
       requests++;
     },

@@ -10,17 +10,14 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { createHash } from "node:crypto";
-import { ABI_PACKAGES } from "../packages/core/src/abi";
 import { TREE_SITTER_DIRECTORY, WEB_RUNTIME_FILES } from "../packages/core/src/web/build";
 import {
+  openTuiCheckoutDirectory,
   prepareOpenTuiCheckout,
   prepareWebRuntimeEntry,
   prepareWebRuntime,
   webRuntimeDirectory,
 } from "../packages/core/src/web-runtime";
-
-const PATCH_KEY_LENGTH = 16;
 
 async function fixture(
   run: (source: string, checkout: string, directory: string) => void | Promise<void>,
@@ -367,10 +364,7 @@ test("prepareWebRuntime reports lock contention once before reusing the winner",
   await fixture(async (_source, _checkout, directory) => {
     const cache = join(directory, "cache");
     const runtime = await webRuntimeDirectory(cache);
-    const tag = `v${ABI_PACKAGES["@opentui/core"]}`;
-    const patch = readFileSync(join(import.meta.dir, `../packages/core/web/opentui-${tag}.patch`));
-    const patchKey = createHash("sha256").update(patch).digest("hex").slice(0, PATCH_KEY_LENGTH);
-    const checkout = join(cache, "web", `opentui-${tag}-${patchKey}`);
+    const checkout = openTuiCheckoutDirectory(cache);
     const release = Promise.withResolvers<void>();
     const owner = prepareWebRuntimeEntry({
       directory: runtime,
