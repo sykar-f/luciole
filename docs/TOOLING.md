@@ -159,7 +159,7 @@ plus l’ancienne API `createProgram`/`transpileModule`. Ce paquet dépend de
 Voir [la transition officielle](https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/)
 et [la configuration VS Code](https://marketplace.visualstudio.com/items?itemName=TypeScriptTeam.native-preview).
 
-OpenTUI 0.5.12 déclare `react-reconciler ^0.33.0` ; le framework épingle 0.33.0,
+OpenTUI 0.6.6 déclare `react-reconciler ^0.33.0` ; le framework épingle 0.33.0,
 sans override. L'ancien override vers 0.34.0 a été retiré : ce reconciler appelle une
 méthode de host config absente d'OpenTUI à chaque commit de transition, chemin
 emprunté par TanStack Router (`tests/renderer.test.tsx`). Ne pas remonter le

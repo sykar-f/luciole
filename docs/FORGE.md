@@ -94,8 +94,8 @@ Ce qui est ouvert, et pourquoi :
   les arguments (pas de guillemets). Un éditeur graphique doit attendre sa fermeture
   (`code --wait`), sinon l'instantané disparaît avant son ouverture. Un éditeur
   introuvable affiche un message, l'UI reste là.
-- **Le terminal** : `renderer.suspend()` d'OpenTUI rend l'écran principal, le mode cooked
-  et la souris ; l'éditeur hérite du terminal ; `renderer.resume()` restaure l'UI (repeint
+- **Le terminal** : `await renderer.suspend()` d'OpenTUI rend l'écran principal, le mode cooked
+  et la souris ; l'éditeur hérite du terminal ; `await renderer.resume()` restaure l'UI (repeint
   complet), même si l'éditeur échoue.
 
 Preuves : `tests/forge-editor.test.tsx` (build refusé pour une page qui importe le vrai

@@ -23,7 +23,7 @@ async function next(): Promise<Record<string, unknown>> {
 const ready = await next();
 assert.notEqual(ready.pid, process.pid);
 const results: Record<string, unknown> = {
-  versions: { core: "0.5.12", react: "19.3.0" },
+  versions: { core: "0.6.6", react: "19.3.0" },
   separatePids: true,
 };
 try {
@@ -113,7 +113,7 @@ try {
       }
     } finally {
       await act(async () => {
-        ui.renderer.destroy();
+        await ui.dispose();
       });
     }
   }

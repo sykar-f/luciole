@@ -34,7 +34,7 @@ Run every command from the app's directory. The upgrade guide is
    Plain `bun update` never crosses a 0.x minor.
 5. **Install**, then **check the renderer pins**. The app pins `@opentui/core`,
    `@opentui/keymap` and `@opentui/react` to one exact version, which must satisfy the range
-   the new core asks for. When `node_modules/@luciole-sh/core/node_modules/@opentui/core`
+   the new core asks for (this release: `0.6.6` for all three). When `node_modules/@luciole-sh/core/node_modules/@opentui/core`
    exists, the pins fell outside that range and the app runs two renderers; `tsc` then reports
    "Types have separate declarations" on `@opentui/core` types. Set all three pins
    to the `version` of that nested copy's `package.json`, run `bun install` again, and check

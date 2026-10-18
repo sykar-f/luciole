@@ -1,12 +1,11 @@
 # Prototype Flight → React → OpenTUI
 
-Exécuté avec succès le 22 septembre 2026 dans
-`/private/tmp/twp-opentui-rsc-probe`, Bun 1.4.2.
+Exécuté avec succès le 18 octobre 2026 dans le worktree de migration, Bun 1.4.3.
 
 Pour reproduire dans un dossier isolé : copier ces fichiers, puis exécuter
 `bun install --frozen-lockfile` et `bun probe.tsx` depuis ce dossier.
 
-Versions : OpenTUI Core/React 0.5.12 ; React/Flight 19.3.0. Le lockfile fixe
+Versions : OpenTUI Core/React 0.6.6 ; React/Flight 19.3.0. Le lockfile fixe
 les dépendances transitives. Le serveur est un processus séparé utilisant la
 condition `react-server`. Il ne charge pas OpenTUI. Il envoie un arbre Flight
 contenant une référence vers un composant Client.

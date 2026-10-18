@@ -1,6 +1,6 @@
 # Sonde locale React / OpenTUI + processus métier
 
-Exécutée le 22 septembre 2026 sur macOS, Bun 1.4.2, OpenTUI 0.5.12 et React 19.3.0.
+Exécutée le 18 octobre 2026 sur macOS, Bun 1.4.3, OpenTUI 0.6.6 et React 19.3.0.
 Installer les dépendances avec `bun install`, puis `bun run probe` depuis ce dossier.
 On peut copier le dossier dans `/tmp` pour garder les dépendances hors du dépôt.
 

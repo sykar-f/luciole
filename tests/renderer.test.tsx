@@ -11,7 +11,7 @@ declare global {
 }
 
 // TanStack Router commits navigations with startTransition, which act() hides.
-// react-reconciler 0.34 calls a host method OpenTUI 0.5.12 lacks on such commits:
+// react-reconciler 0.34 calls a host method OpenTUI 0.6.6 lacks on such commits:
 // keep the reconciler within OpenTUI's declared range until this test says otherwise.
 test("OpenTUI commits React transitions with the pinned reconciler", async () => {
   const previous = globalThis.IS_REACT_ACT_ENVIRONMENT;

@@ -1,5 +1,5 @@
 /* eslint-disable no-magic-numbers -- Fixed cell geometry, colors and a bounded memory-growth proof. */
-// This page is bundled against 0.6.6 sources; the repository's types stay pinned to 0.5.12.
+// This page exercises the pinned 0.6.6 sources and their WebAssembly port.
 import { growMemory } from "./opentui-066-setup";
 import { BoxRenderable, TextRenderable, StyledText, fg } from "@opentui/core";
 import { createTestRenderer } from "@opentui/core/testing";

@@ -286,7 +286,7 @@ Probe : 15/15 assertions (shell, vim, application OpenTUI enfant, deux vues côt
 - **PTY** : `Bun.Terminal` (Bun 1.4.2), sans dépendance. `detached: true` est
   obligatoire : sans lui le PTY n'est pas le terminal de contrôle, `Ctrl+C`
   n'interrompt pas un `sleep 30` et le shell avertit « no job control ».
-- **Émulateur** : OpenTUI 0.5.12 embarque déjà libghostty-vt dans sa bibliothèque native,
+- **Émulateur** : OpenTUI 0.6.6 embarque libghostty-vt dans sa bibliothèque native,
   exposée en `EmbeddedTerminalRenderable`. Retenu : aucune dépendance à télécharger ou à
   signer, composition native.
 
@@ -308,10 +308,10 @@ application OpenTUI enfant prête ≈ 91 ms, `seq 1..100000` à 16 Mo/s (limité
 et le PTY). Taille du PTY = boîte intérieure ; le redimensionnement atteint le programme
 (`stty size`).
 
-Trous d'OpenTUI 0.5.12, à remonter en amont, comblés dans `packages/core/src/vt/gaps.ts` :
-sans protocole clavier kitty, F1–F12, `Alt+x` et Backspace n'envoient rien ; DA1, DA2 et
-OSC 10/11 restent sans réponse ; OSC 8 (hyperliens) n'apparaît pas dans le rendu (non
-comblé).
+OpenTUI 0.6.6 encode nativement Alt (`ESC b` pour Alt+b), les touches F1–F12
+et répond aux requêtes DA1, DA2, DA3 et OSC 10/11/12. Le répondant côté hôte a
+été retiré pour éviter les réponses en double. `packages/core/src/vt/gaps.ts`
+garde seulement un repli de touches lorsque l’encodeur natif ne produit rien.
 
 Conséquence pour l'hôte : les raccourcis globaux passent avant le terminal focalisé. Le
 keymap d'une application (ou de l'hôte) volerait les touches du terminal embarqué ; seule

@@ -69,7 +69,7 @@ aussi du code du framework. `luciole build --web` le prépare s'il manque. En lo
 | `src/web/build.ts`                  | Bundle de la page : variantes, OpenTUI depuis ses sources, shims Node, clé d'ABI                     |
 | `src/web/platform/`                 | Variantes : `run`, `app-bundle`, `host-direct`, `vt/terminal`, `flight/server`                       |
 | `src/web/opentui/`, `src/web/node/` | Backend FFI WASM d'OpenTUI, Worker tree-sitter ; built-ins Node d'une page                           |
-| `web/opentui-v0.5.12.patch`         | Le patch OpenTUI : wasm32-wasi, transactions de frame, projections et hit maps                       |
+| `web/opentui-v0.6.6.patch`          | Le patch OpenTUI : wasm32-wasi, transactions de frame, projections et hit maps                       |
 | `scripts/web/`                      | Driver CDP et parcours navigateur (`test:web`, `test:web:local`, `test:web:forge`, `test:web:coder`) |
 
 ## Mode d'emploi (tout dans le navigateur)
@@ -427,7 +427,7 @@ grille canonique. Réduction des mouvements, lecteur d'écran, changements de
 métriques et perte du contexte révoquent la capacité ; sans négociation,
 `wheelReports` garde le chemin existant.
 
-- `createCliRenderer({ stdin, stdout, useThread: false })` : la sortie ANSI
+- `createCliRenderer({ stdin, stdout })` : la sortie ANSI
   (NativeSpanFeed) va à l'émulateur, ses frappes et collages vont à `stdin`, son
   redimensionnement appelle `renderer.resize`. Restent à fournir `process.on`,
   `process.platform/env`, `events`, et des `fs` inertes (logs) : un petit module
@@ -469,8 +469,8 @@ des captures.
 
 ## 6. Risques
 
-Le patch préparatoire `web/opentui-v0.6.6.patch` porte OpenTUI 0.6.6 vers
-wasm32-wasi, sans changer la version épinglée (0.5.12) ni son patch. L'ABI C
+Le runtime épingle OpenTUI 0.6.6 et utilise uniquement
+`web/opentui-v0.6.6.patch` pour sa cible wasm32-wasi. L'ABI C
 accepte désormais cette cible 32 bits : ses records gardent leurs champs de
 largeur fixe, les adresses sont étendues à 64 bits, les tailles des commandes
 sont calculées en `u64` et le compteur de contextes est sans atomiques en mode
@@ -483,7 +483,7 @@ mémoire dans la même session.
 
 **R1 — OpenTUI en WASM : le modèle mémoire.** Upstream n'a ni cible wasm
 (`packages/native/build.zig` : Linux, macOS, Windows) ni paquet web, et s'en est éloigné
-(Yoga intégré au binaire, roadmap #821). Mesuré sur 0.5.12, sources extraites des
+(Yoga intégré au binaire, roadmap #821). Mesure initiale avant le passage à l’ABI C, sources extraites des
 source maps :
 
 - 425 symboles ; ni `cstring`, ni `callback` en argument (5 callbacks passés en `ptr`
@@ -503,7 +503,7 @@ source maps :
   au bundler, puis une contribution upstream (R4) ;
 - **compilation** : `wasm32-wasi` pour la libc (libwebp, lcms2, stb, wuffs) ; Yoga
   est compilé avec `-fexceptions -frtti` (libc++ avec exceptions en wasm32 : à
-  vérifier) ; `std.Thread` à neutraliser (render thread : `useThread: false`).
+  vérifier) ; `std.Thread` à neutraliser pour la cible monothread.
   Audio, images, clipboard, VT et tree-sitter sont exclus du cœur minimal : ~1 à 2 Mo
   estimés en ReleaseSmall, contre 5,3 Mo pour la dylib complète.
 

@@ -322,7 +322,7 @@ passe par `<Embed>`.
 ## Markdown en streaming
 
 `<Markdown>` affiche du Markdown qui arrive par morceaux, typiquement la réponse d'un
-modèle, sans que le texte déjà affiché clignote ou saute. Le `<markdown>` d'OpenTUI 0.5.12
+modèle, sans que le texte déjà affiché clignote ou saute. Le `<markdown>` d'OpenTUI 0.6.6
 redessine son dernier bloc depuis un aperçu puis depuis Tree-sitter à chaque changement :
 la réponse bascule entre texte brut et mis en forme.
 
@@ -356,7 +356,7 @@ import { Markdown } from "@luciole-sh/core/client";
   collé à son contenu. Le bandeau est peint, pas écrit : une sélection copie le titre seul.
 - Blocs de code : sur le fond de `markup.raw.block` (`bg`), avec une marge intérieure et le
   langage discret en haut à droite ; sans ce `bg`, le code reste sans fond. Colorés par
-  Tree-sitter une fois la clôture arrivée : OpenTUI 0.5.12 connaît JavaScript, TypeScript,
+  Tree-sitter une fois la clôture arrivée : OpenTUI 0.6.6 connaît JavaScript, TypeScript,
   Markdown et Zig ; `import "@luciole-sh/core/grammars"` (une fois, côté Client) ajoute Bash, C, C++,
   CSS, Go, HTML, Java, JSON, PHP, Python, Ruby, Rust, TOML et YAML, pour `<code>` et
   `<diff>` aussi. L'import est facultatif : le build copie chaque grammaire à côté du

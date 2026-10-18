@@ -37,8 +37,14 @@ A declaration file can mention internal symbols that the package does not export
 | `@tanstack/router-core`  | `src/router.ts` and `src/load-client.ts`                                         |
 | `@tanstack/react-form`   | `README.md`, `src/index.ts`, `src/useForm.tsx`, `src/useField.tsx`               |
 
-These boundaries were checked with OpenTUI `0.5.12`, Router `1.170.38` and Form `1.33.5`.
+These boundaries were checked with OpenTUI `0.6.6`, Router `1.170.45` and Form `1.33.5`.
 Recheck the installed signatures when upgrading.
+
+OpenTUI resources such as syntax styles belong to one renderer: pass
+`renderer.nativeScene` to their factories, or use luciole’s `syntaxStyle(styles, renderer)`.
+Await `renderer.suspend()` and `renderer.resume()` around external editors; after
+`renderer.destroy()`, await `renderer.closed` before reusing the terminal. Schedule
+animation with `renderer.requestAnimationFrame()` and `createTimeline(options, renderer)`.
 
 ## OpenTUI: native controls and luciole controls
 
