@@ -13,6 +13,12 @@ and marked **Breaking**.
 
 ## [Unreleased]
 
+### Documentation
+
+- Installed skills and agent guidance now teach OpenTUI 0.6.6 resource ownership,
+  async terminal handoff, renderer-scoped animation, layout resets, paint hooks and
+  editor display offsets, with pointers to the upstream release docs.
+
 ### Added
 
 - `useProgramStatus` in `@luciole-sh/core/client` reports working, permission waits,

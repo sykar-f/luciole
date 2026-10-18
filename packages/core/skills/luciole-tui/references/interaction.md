@@ -138,7 +138,15 @@ Reuse `components/Pulse.tsx` if present. The fallback below uses the starter's f
 opacity pulse (also `examples/chat/components/Pulse.tsx` in the repository). Mount the animated
 label only while pending; reserve its space so content stays in place. Disabled content may
 dim. Show the result when pending ends. For a spinner, change only a glyph in a fixed-width
-cell. Pause the timeline on unmount.
+cell. `useTimeline` keeps one timeline for this component’s renderer, registers it on mount,
+and pauses/unregisters it on unmount. Options are captured on first render; rerendering with
+new options does not reconfigure it. Pause the timeline when the pending work ends.
+
+For custom frame loops, use `useRenderer().requestAnimationFrame(callback)` and cancel with
+that renderer’s `cancelAnimationFrame(id)` on cleanup. OpenTUI installs no global frame
+scheduler or `window`. Imperative timelines use `createTimeline(options, renderer)` and
+`getTimelineEngine(renderer).unregister(timeline)` after pausing; keep each renderer’s
+animations independent.
 
 ```tsx
 "use client";

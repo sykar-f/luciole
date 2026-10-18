@@ -19,7 +19,7 @@ from `@tanstack/react-form`.
 ## Read the installed API first
 
 The upstream guides explain the libraries' concepts:
-[OpenTUI](https://github.com/anomalyco/opentui),
+[OpenTUI](https://opentui.com/docs/),
 [TanStack Router](https://tanstack.com/router/latest/docs/overview) and
 [TanStack Form](https://tanstack.com/form/latest/docs/overview).
 Their websites may describe a different version. For exact imports, props and signatures,
@@ -40,11 +40,59 @@ A declaration file can mention internal symbols that the package does not export
 These boundaries were checked with OpenTUI `0.6.6`, Router `1.170.45` and Form `1.33.5`.
 Recheck the installed signatures when upgrading.
 
-OpenTUI resources such as syntax styles belong to one renderer: pass
-`renderer.nativeScene` to their factories, or use luciole’s `syntaxStyle(styles, renderer)`.
-Await `renderer.suspend()` and `renderer.resume()` around external editors; after
-`renderer.destroy()`, await `renderer.closed` before reusing its streams. Schedule
-animation with `renderer.requestAnimationFrame()` and `createTimeline(options, renderer)`.
+OpenTUI also publishes an [agent skill](https://github.com/anomalyco/opentui/blob/main/packages/web/src/content/SKILL.md).
+Use its release docs for component recipes, native resource APIs and custom drawing;
+the repository skill follows `main`, so check it against the installed version.
+Standalone renderer/root setup in upstream examples is replaced by luciole’s Shell.
+
+### Resources, terminal handoff and animation
+
+Create syntax styles for the current `useRenderer()` with
+`syntaxStyle(styles, renderer)` from `@luciole-sh/core/client`, or pass
+`renderer.nativeScene` to OpenTUI’s style factory. Share palette data, then create native
+styles per renderer. Widgets borrow styles; the creator releases them with `destroy()`
+after consumers finish. A native style cached globally can outlive or reach another renderer.
+
+Await `renderer.suspend()` before an external editor takes control of your terminal emulator.
+Await `renderer.resume()` in `finally`. luciole owns its Shell’s renderer. When you own a separate
+renderer, call `renderer.destroy()` then await `renderer.closed` before reusing streams.
+`closed` waits for asynchronous cleanup and can reject on output failure.
+
+Schedule frames with `renderer.requestAnimationFrame()` and cancel them with
+`renderer.cancelAnimationFrame()`. OpenTUI supplies no global frame scheduler or `window`.
+React’s `useTimeline` registers with the component’s renderer and pauses/unregisters on
+unmount. Its identity and initial options persist across rerenders. Imperative code uses
+`createTimeline(options, renderer)` and unregisters from `getTimelineEngine(renderer)`
+after pausing. See [animation and timelines](https://opentui.com/docs/application-apis/animation/).
+
+### Layout resets, drawing and editor offsets
+
+OpenTUI 0.6.6 restores layout defaults when a React prop disappears or a layout setter
+receives `null`/`undefined`. Clearing an edge spacing override exposes its shorthand again;
+zero remains an explicit value. Built-in intrinsic dimensions restore their class size,
+while other defaults can differ: clearing `flexShrink` gives `1`. Hide with
+`visible={false}`; nullish visibility shows the node.
+
+Read configured styles with renderable methods such as `getWidth()`, `getHeight()`,
+`getPadding(edge)` and `getFlexDirection()` (the remaining getters arrived in 0.6.5).
+These return Yoga values/enums, while `width`, `height`, `x` and `y` describe the last
+computed layout. See [layout](https://opentui.com/docs/core-concepts/layout/).
+
+Unbuffered `renderBefore`, `renderSelf` and `renderAfter` hooks record drawing commands.
+Their buffer cannot read cells; use an owned offscreen buffer or whole-frame post-processing
+for cell effects. Text/editor/image hooks also record when buffered.
+See [custom renderables](https://opentui.com/docs/extend/custom-renderables/).
+
+Draw positions must be finite integers in the signed 32-bit range; other values throw
+`RangeError`. Negative positions clip. `fillRect` and `drawBox` draw nothing when width or
+height is zero or negative. Unsigned fields, such as `drawFrameBuffer` source coordinates,
+reject negatives. Round positions at the draw boundary while retaining fractional animation state.
+
+Editors preserve control characters since 0.6.1: C0/DEL display in two cells and C1 in four.
+Paste strips terminal escape sequences while retaining other controls. For custom selection
+or cursor offsets, use `EditBuffer.measureText(text)` or
+`measureEditText(text, { widthMethod, tabWidth })` from `@opentui/core` with the editor’s
+settings, rather than string length. See [the 0.6.1 changes](https://opentui.com/docs/releases/0.6.1/).
 
 ## OpenTUI: native controls and luciole controls
 
