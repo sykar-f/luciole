@@ -141,7 +141,7 @@ What each luciole feature does here:
 | Restored fields               | The prompt you are typing survives a crash or a rebuild of the Client.                                 |
 | `useBindings` and `<KeyHelp>` | Each mode has its own keys, and the help line lists them.                                              |
 | `host.notify`                 | A notification tells you that the agent waits for you while your terminal is not focused.              |
-| `renderer.suspend()`          | Ctrl+G hands your terminal to `$EDITOR`, then takes it back.                                           |
+| `await renderer.suspend()`    | Ctrl+G hands your terminal to `$EDITOR`, then takes it back.                                           |
 | `<Markdown>`                  | Replies and thinking stay stable while they stream.                                                    |
 | OpenTUI                       | A `<diff>` per file, `<code>`, overlays, and a mouse selection copied to your clipboard, over SSH too. |
 

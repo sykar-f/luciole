@@ -20,6 +20,30 @@ and marked **Breaking**.
 
 ### Changed
 
+- **Breaking**: all three OpenTUI packages (`@opentui/core`, `@opentui/react`,
+  `@opentui/keymap`) move together to 0.6.6, in native terminals, the web runtime
+  and the starter. Upgrade all three app pins to 0.6.6 and rebuild both Client
+  and Server: the runtime ABI changes.
+- **Breaking**: native resources such as `SyntaxStyle` require an owner. Use
+  `syntaxStyle(styles, renderer)` or pass `renderer.nativeScene` to the factory;
+  keep resources within their renderer's lifetime. Schedule animation with
+  `renderer.requestAnimationFrame()`, `createTimeline(options, renderer)` and
+  `getTimelineEngine(renderer)`; OpenTUI no longer installs global animation APIs.
+- **Breaking**: await `renderer.suspend()` and `renderer.resume()` around an
+  external editor. After `renderer.destroy()`, await `renderer.closed` and handle
+  its rejection before reusing streams or exiting. Luciole now does this on
+  quit, signals and fatal setup failures. Explicit app `process.exit()` uses
+  OpenTUI’s synchronous emergency restore to real stdout. Uncaught errors keep
+  OpenTUI’s non-fatal behavior. Check `renderer.isDestroyed` before late native calls.
+- **Breaking**: custom renderables draw through `renderSelf` or paint hooks and
+  report intrinsic size with `setMeasureProvider()`. Unbuffered hooks record
+  draws; use `buffered: true` for cell reads or move frame reads to a post-process
+  function. Drawing coordinates and sizes must be finite integers.
+- **Breaking**: removing a layout prop now restores its default, and `visible`
+  set to `null` or `undefined` shows the node. Use `visible={false}` to hide it.
+- Clients started inside SSH or mosh sessions now honor `TERM` and `COLORTERM`. With
+  `TERM=xterm-256color` and no `COLORTERM`, colors use the 256-color palette.
+  Export or forward `COLORTERM=truecolor` on the remote host for truecolor.
 - **Breaking**: `markdownStyle(palette, renderer)` now requires a renderer.
   In Client components, pass the renderer returned by `useRenderer()` from
   `@opentui/react`. Syntax styles in the examples and harness are cached per renderer.

@@ -25,6 +25,8 @@ const FRAMES = process.env.CODER_PTY_FRAMES;
 const BOOT_TIMEOUT_MS = 60_000;
 const SAMPLE_MS = 100;
 const SHIFT_TAB = "\x1b[Z";
+const MIN_COLUMNS = 120;
+const HEADER_COLUMNS = 40;
 
 using directory = temporaryDirectory("luciole-coder-");
 const project = join(directory.path, "project");
@@ -39,7 +41,8 @@ const servers = () =>
   );
 await using t = await drive({
   command: [BUN, CLI, "dev", "--app", example("coder"), "--", "--harness", "fake"],
-  cols: 120,
+  // The full cwd is asserted below; orch’s isolated TMPDIR can exceed 120 columns.
+  cols: Math.max(MIN_COLUMNS, project.length + HEADER_COLUMNS),
   rows: 36,
   cwd: project,
   env: { XDG_STATE_HOME: join(directory.path, "state"), CODER_FAKE_DELAY_MS: "5" },

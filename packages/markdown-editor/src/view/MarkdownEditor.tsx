@@ -51,6 +51,7 @@ function useTerminalBackground() {
   useEffect(() => {
     let live = true;
     const ask = () => {
+      if (renderer.isDestroyed) return;
       renderer
         .getPalette({ timeout: PALETTE_TIMEOUT_MS })
         .then((colors) => {

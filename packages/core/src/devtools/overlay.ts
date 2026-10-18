@@ -40,10 +40,10 @@ export function createOverlay(renderer: CliRenderer) {
   const outline = (buffer: OptimizedBuffer, rect: Rect, color: string) => {
     // A one-line element gets a box around it rather than over it, clipped to the screen.
     const thin = rect.height < 2 || rect.width < 2;
-    const x = Math.max(0, thin ? rect.x - 1 : rect.x);
-    const y = Math.max(0, thin ? rect.y - 1 : rect.y);
-    const width = Math.min(buffer.width - x, thin ? rect.width + 2 : rect.width);
-    const height = Math.min(buffer.height - y, thin ? rect.height + 2 : rect.height);
+    const x = Math.max(0, Math.round(thin ? rect.x - 1 : rect.x));
+    const y = Math.max(0, Math.round(thin ? rect.y - 1 : rect.y));
+    const width = Math.min(buffer.width - x, Math.round(thin ? rect.width + 2 : rect.width));
+    const height = Math.min(buffer.height - y, Math.round(thin ? rect.height + 2 : rect.height));
     if (width < 2 || height < 2) return;
     buffer.drawBox({
       x,
@@ -65,6 +65,7 @@ export function createOverlay(renderer: CliRenderer) {
   renderer.addPostProcessFn(draw);
   // Frames keep coming while a flash fades; the renderer idles again once all are gone.
   const keepAlive = () => {
+    if (renderer.isDestroyed) return;
     if (!live) {
       live = true;
       renderer.requestLive();
@@ -72,7 +73,7 @@ export function createOverlay(renderer: CliRenderer) {
     clearTimeout(expiry);
     expiry = setTimeout(() => {
       live = false;
-      renderer.dropLive();
+      if (!renderer.isDestroyed) renderer.dropLive();
       renderer.requestRender();
     }, FLASH_MS);
   };
@@ -103,7 +104,7 @@ export function createOverlay(renderer: CliRenderer) {
     dispose() {
       renderer.removePostProcessFn(draw);
       clearTimeout(expiry);
-      if (live) renderer.dropLive();
+      if (live && !renderer.isDestroyed) renderer.dropLive();
     },
   };
 }

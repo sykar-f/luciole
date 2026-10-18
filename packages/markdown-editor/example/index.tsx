@@ -11,22 +11,25 @@ const styles = new WeakMap<CliRenderer, SyntaxStyle>();
 function styleFor(renderer: CliRenderer) {
   const known = styles.get(renderer);
   if (known) return known;
-  const style = SyntaxStyle.fromStyles({
-    default: { fg: color("#e6edf3") },
-    conceal: { fg: color("#6e7681") },
-    "markup.heading.1": {
-      fg: color("#0d1117"),
-      bg: color("#e8b84a"),
-      bold: true,
+  const style = SyntaxStyle.fromStyles(
+    {
+      default: { fg: color("#e6edf3") },
+      conceal: { fg: color("#6e7681") },
+      "markup.heading.1": {
+        fg: color("#0d1117"),
+        bg: color("#e8b84a"),
+        bold: true,
+      },
+      "markup.heading.2": { fg: color("#e8b84a"), bold: true },
+      "markup.strong": { bold: true },
+      "markup.italic": { italic: true },
+      "markup.raw": { fg: color("#a5d6ff") },
+      "markup.raw.block": { bg: color("#161b22") },
+      "markup.link": { fg: color("#58a6ff"), underline: true },
+      "markup.list": { fg: color("#e8b84a") },
     },
-    "markup.heading.2": { fg: color("#e8b84a"), bold: true },
-    "markup.strong": { bold: true },
-    "markup.italic": { italic: true },
-    "markup.raw": { fg: color("#a5d6ff") },
-    "markup.raw.block": { bg: color("#161b22") },
-    "markup.link": { fg: color("#58a6ff"), underline: true },
-    "markup.list": { fg: color("#e8b84a") },
-  });
+    renderer.nativeScene,
+  );
   styles.set(renderer, style);
   return style;
 }

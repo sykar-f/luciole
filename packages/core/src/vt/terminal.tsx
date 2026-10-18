@@ -7,7 +7,7 @@
  * The emulator is OpenTUI's EmbeddedTerminalRenderable (libghostty-vt inside libopentui):
  * parsing, the cell grid, key/mouse/paste/focus encoding and most query answers are
  * native, and the grid is composed straight into the frame (measured 12–20 times
- * cheaper than drawing cells from React). gaps.ts fills what 0.5.12 misses.
+ * cheaper than drawing cells from React). gaps.ts provides a fallback for keys the native encoder leaves empty.
  */
 import { useEffect, useLayoutEffect, useRef } from "react";
 import type { BoxRenderable, KeyEvent } from "@opentui/core";
@@ -15,11 +15,7 @@ import { useRenderer } from "@opentui/react";
 import { useKeymap } from "@opentui/keymap/react";
 import { messageOf } from "../guards";
 import { spawnPty, type Pty, type PtyOptions } from "./pty";
-import { queryResponder, VtTerminalRenderable, type Palette } from "./gaps";
-
-// The renderable's own colors (white on black), reported to programs that ask.
-const FULL = 0xff;
-const PALETTE: Palette = { fg: [FULL, FULL, FULL], bg: [0, 0, 0] };
+import { VtTerminalRenderable } from "./gaps";
 
 export type TerminalProps = {
   /** The program and its arguments, started on the first layout at the pane's size. */
@@ -94,10 +90,9 @@ export function TerminalView(props: TerminalViewProps) {
   const command = props.program;
   useLayoutEffect(() => {
     const box = host.current;
-    if (!box) return;
+    if (!box || renderer.isDestroyed) return;
     let pty: Pty | undefined;
     let failed = false;
-    const respond = queryResponder(PALETTE);
     const terminal = new VtTerminalRenderable(renderer, {
       ...(latest.current.id === undefined ? {} : { id: latest.current.id }),
       width: "100%",
@@ -129,9 +124,6 @@ export function TerminalView(props: TerminalViewProps) {
         rows,
         onData: (bytes) => {
           if (!terminal.isDestroyed) terminal.write(bytes);
-          // A program that asks and never hears back hangs or guesses.
-          const answers = respond(bytes);
-          if (answers) pty?.write(answers);
         },
         onExit: (code) => latest.current.onExit?.(code),
       });

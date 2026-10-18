@@ -264,6 +264,10 @@ export function ScrollBox({ name, ref, ...props }: FieldScrollBoxProps) {
     let restoring = target > 0;
     let applying = false;
     const apply = () => {
+      if (node.isDestroyed) {
+        restoring = false;
+        return;
+      }
       applying = true;
       node.scrollTop = target;
       applying = false;
@@ -271,7 +275,7 @@ export function ScrollBox({ name, ref, ...props }: FieldScrollBoxProps) {
     };
     // Every change of position, the user's or a shorter content's; not the restore's own.
     const changed = () => {
-      if (applying) return;
+      if (applying || node.isDestroyed) return;
       restoring = false;
       restoration.scroll(place, name, node.scrollTop);
     };

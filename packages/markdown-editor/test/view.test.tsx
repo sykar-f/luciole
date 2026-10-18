@@ -20,20 +20,23 @@ const styles = new WeakMap<CliRenderer, SyntaxStyle>();
 function styleFor(renderer: CliRenderer) {
   const known = styles.get(renderer);
   if (known) return known;
-  const style = SyntaxStyle.fromStyles({
-    default: { fg: RGBA.fromHex("#e6edf3") },
-    conceal: { fg: RGBA.fromHex("#4a5561") },
-    "markup.heading": { fg: RGBA.fromHex("#e8b84a"), bold: true },
-    "markup.heading.1": { fg: RGBA.fromHex("#fbe7b5"), bg: BAND, bold: true },
-    "markup.heading.2": { fg: RGBA.fromHex("#fbe7b5"), bg: BAND, bold: true },
-    "markup.heading.3": { fg: RGBA.fromHex("#e8b84a"), bg: QUIET, bold: true },
-    "markup.strong": { bold: true },
-    "markup.raw": { fg: RGBA.fromHex("#a5d6ff") },
-    "markup.raw.block": { bg: PANEL },
-    "markup.list": { fg: RGBA.fromHex("#e8b84a") },
-    "markup.list.unchecked": { fg: RGBA.fromHex("#8b98a5") },
-    keyword: { fg: RGBA.fromHex("#ff7b72") },
-  });
+  const style = SyntaxStyle.fromStyles(
+    {
+      default: { fg: RGBA.fromHex("#e6edf3") },
+      conceal: { fg: RGBA.fromHex("#4a5561") },
+      "markup.heading": { fg: RGBA.fromHex("#e8b84a"), bold: true },
+      "markup.heading.1": { fg: RGBA.fromHex("#fbe7b5"), bg: BAND, bold: true },
+      "markup.heading.2": { fg: RGBA.fromHex("#fbe7b5"), bg: BAND, bold: true },
+      "markup.heading.3": { fg: RGBA.fromHex("#e8b84a"), bg: QUIET, bold: true },
+      "markup.strong": { bold: true },
+      "markup.raw": { fg: RGBA.fromHex("#a5d6ff") },
+      "markup.raw.block": { bg: PANEL },
+      "markup.list": { fg: RGBA.fromHex("#e8b84a") },
+      "markup.list.unchecked": { fg: RGBA.fromHex("#8b98a5") },
+      keyword: { fg: RGBA.fromHex("#ff7b72") },
+    },
+    renderer.nativeScene,
+  );
   styles.set(renderer, style);
   return style;
 }
@@ -762,3 +765,38 @@ test("presented input origins nest and clear after a throwing dispatch", async (
   click(4);
   expect(node.controller.state.selection.head).toEqual({ block: 1, offset: 4 });
 });
+
+for (const top of [0, 4]) {
+  test(`the native last visible editor row hits the document at screen row ${top + 4}`, async () => {
+    let editor: MarkdownEditorRenderable | undefined;
+    ui = await testRender(
+      <box width={40} height={16}>
+        <box position="absolute" left={2} top={top} width={31} height={5}>
+          <StyledEditor
+            ref={(node) => {
+              editor = node ?? undefined;
+            }}
+            value={paragraphs(12)}
+            width={31}
+            height={5}
+          />
+        </box>
+      </box>,
+      { width: 40, height: 16 },
+    );
+    await ui.renderOnce();
+    if (!editor) throw new Error("Missing editor");
+    expect(ui.captureCharFrame().split("\n")[top + 4]?.slice(2, 8)).toBe("line 2");
+    await act(async () => {
+      await ui?.mockMouse.click(5, top + 4);
+    });
+    expect(editor.controller.state.selection.head).toEqual({ block: 2, offset: 3 });
+    editor.scrollableViewport.set(2);
+    await ui.renderOnce();
+    expect(ui.captureCharFrame().split("\n")[top + 4]?.slice(2, 8)).toBe("line 3");
+    await act(async () => {
+      await ui?.mockMouse.click(6, top + 4);
+    });
+    expect(editor.controller.state.selection.head).toEqual({ block: 3, offset: 4 });
+  });
+}

@@ -11,6 +11,28 @@ const TIMEOUT_MS = 180_000;
 const CLEANUP_MS = 5_000;
 const FOOTER = "LAST ROW FIT";
 
+async function diagnose(browser: Browser, stage: Record<string, unknown>) {
+  const snapshot = await browser
+    .evaluate(`(()=>{
+      const stage=${JSON.stringify(stage)}, rows=window.lucioleScreen?.();
+      const columns=window.lucioleCells?.()?.[0]?.length;
+      const screen=document.querySelector('.xterm-screen')?.getBoundingClientRect();
+      return {viewport:[innerWidth,innerHeight], dpr:devicePixelRatio,
+        grid:[columns,rows?.length], footer:rows?.at(-1)?.trimEnd(),
+        rows:rows?.map(row=>row.trimEnd()),
+        pageFailure:document.querySelector('#luciole.failed')?.textContent,
+        screen:screen?.toJSON(),
+        predicates:stage.initial ? {
+          columns:stage.width===960 ? columns<stage.initial[0] : columns===stage.initial[0],
+          rows:stage.width===960 ? rows?.length<stage.initial[1] : rows?.length===stage.initial[1],
+          footer:rows?.at(-1)?.includes('${FOOTER}'),
+          content:rows?.some(row=>row.includes('Row 0'))
+        } : undefined};
+    })()`)
+    .catch((error: unknown) => ({ unavailable: String(error) }));
+  console.error(JSON.stringify({ resizeDiagnostic: stage, snapshot }));
+}
+
 async function verify(dpr: number) {
   using directory = privateExample("notes", "luciole-resize-repaint-");
   await Bun.write(
@@ -55,22 +77,44 @@ export default function Layout({children}: LayoutProps) {
           [960, 720],
           [1280, 900],
         ]) {
+          await diagnose(browser, {
+            stage: "before-resize",
+            dpr,
+            reduced,
+            loaded,
+            width,
+            height,
+            initial,
+          });
           await browser.send("Emulation.setDeviceMetricsOverride", {
             width,
             height,
             deviceScaleFactor: 0,
             mobile: false,
           });
-          await browser.waitFor(
-            `(()=>{
+          try {
+            await browser.waitFor(
+              `(()=>{
             const rows=window.lucioleScreen?.(), initial=${JSON.stringify(initial)};
             const columns=window.lucioleCells?.()[0].length;
             return rows && (columns${width === 960 ? "<" : "==="}initial[0]) &&
               (rows.length${width === 960 ? "<" : "==="}initial[1]) && rows.at(-1).includes('${FOOTER}') &&
               rows.some(row=>row.includes('Row 0'));
           })()`,
-            "resized application and footer",
-          );
+              "resized application and footer",
+            );
+          } catch (error) {
+            await diagnose(browser, {
+              stage: "after-resize",
+              dpr,
+              reduced,
+              loaded,
+              width,
+              height,
+              initial,
+            });
+            throw error;
+          }
           const proof = await browser.evaluate(`(async()=>{
             await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
             const rows=lucioleScreen(), screen=document.querySelector('.xterm-screen').getBoundingClientRect();

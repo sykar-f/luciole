@@ -56,9 +56,9 @@ test.skipIf(process.env["LUCIOLE_OPENTUI_INTEGRATION"] !== "1")(
     ]);
     expect({ code: preparedCode, output: preparedOut + preparedErr }).toMatchObject({ code: 0 });
     const runtime = await webRuntimeDirectory();
-    const patch = await readFile(join(root, "packages/core/web/opentui-v0.5.12.patch"));
+    const patch = await readFile(join(root, "packages/core/web/opentui-v0.6.6.patch"));
     const key = createHash("sha256").update(patch).digest("hex").slice(0, 16);
-    const checkout = join(defaultCache(), "web", `opentui-v0.5.12-${key}`);
+    const checkout = join(defaultCache(), "web", `opentui-v0.6.6-${key}`);
     const directory = await mkdtemp(join(process.env["TMPDIR"] ?? tmpdir(), "opentui-seams-"));
     const result = await Bun.build({
       entrypoints: [join(import.meta.dir, "opentui-seams-fixture.ts")],

@@ -55,7 +55,7 @@ function Shell() {
 }
 const ui = await testRender(<Shell />, { width: 40, height: 5 });
 const results: Record<string, unknown> = {
-  versions: { opentui: "0.5.12", react: "19.3.0", flight: "19.3.0" },
+  versions: { opentui: "0.6.6", react: "19.3.0", flight: "19.3.0" },
   handwrittenManifest: true,
   serverFunctionsTested: false,
 };
@@ -90,7 +90,7 @@ try {
   });
 } finally {
   await act(async () => {
-    ui.renderer.destroy();
+    await ui.dispose();
   });
 }
 await Bun.write("results.json", JSON.stringify(results, null, 2) + "\n");

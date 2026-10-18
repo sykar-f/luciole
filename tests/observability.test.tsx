@@ -12,6 +12,7 @@ import {
   launch,
   privateBuild,
   until,
+  untilFrame,
   WAIT_MS,
   importClient,
   destroy,
@@ -62,7 +63,7 @@ test(
         );
       };
       // The sidebar reads its list once mounted: counted before the overlay opens.
-      await act(async () => until(() => ui.captureCharFrame().includes("Shopping list")));
+      await untilFrame(ui, "Shopping list");
       await act(async () => {
         ui.mockInput.pressKey("t", { ctrl: true });
       });

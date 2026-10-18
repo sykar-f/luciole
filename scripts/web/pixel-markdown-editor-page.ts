@@ -96,7 +96,6 @@ const r = await createCliRenderer({
   }),
   width: 50,
   height: 16,
-  useThread: false,
   exitOnCtrlC: false,
   exitSignals: [],
 });

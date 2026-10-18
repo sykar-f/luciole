@@ -85,11 +85,14 @@ let theme: Theme;
 beforeEach(async () => {
   ({ renderer } = await createTestRenderer({ width: 60, height: 30 }));
   theme = new Theme(
-    SyntaxStyle.fromStyles({
-      "markup.heading.1": band,
-      "markup.heading.2": band,
-      "markup.heading.3": band,
-    }),
+    SyntaxStyle.fromStyles(
+      {
+        "markup.heading.1": band,
+        "markup.heading.2": band,
+        "markup.heading.3": band,
+      },
+      renderer.nativeScene,
+    ),
   );
 });
 afterEach(() => renderer.destroy());

@@ -22,6 +22,7 @@ import { registerModules, splitInstance } from "../packages/core/src/flight/clie
 import { instanceManifests } from "../packages/core/src/instance";
 import {
   destroy,
+  eventually,
   importClient,
   launch,
   privateBuild,
@@ -118,8 +119,8 @@ function record(app: Application) {
 }
 async function panes(ui: TestUI, texts: string[]) {
   await act(async () => {
-    await until(() => {
-      void ui.renderOnce();
+    await eventually(async () => {
+      await ui.renderOnce();
       const frame = ui.captureCharFrame();
       return texts.every((t) => frame.includes(t));
     }, 15_000);

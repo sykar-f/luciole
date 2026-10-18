@@ -1,21 +1,21 @@
 {
   "versions": {
-    "core": "0.5.12",
+    "core": "0.6.6",
     "react": "19.3.0"
   },
   "separatePids": true,
   "naiveRpc": {
-    "localEditMs": 1.0189579999999978,
+    "localEditMs": 1.2811669999999964,
     "draftBeforeReply": "abcd",
     "draftAfterReply": "ABC",
     "sameInstanceAfterRender": true
   },
   "revisionGuard": {
-    "localEditMs": 1.6068339999999353,
+    "localEditMs": 1.91762499999993,
     "draftBeforeReply": "abcd",
     "draftAfterReply": "abcd",
     "sameInstanceAfterRender": true
   },
   "editAfterDisconnect": "abcde",
-  "clientSyncCallbackTimerDelayMs": 151.17904199999998
+  "clientSyncCallbackTimerDelayMs": 150.90208300000006
 }

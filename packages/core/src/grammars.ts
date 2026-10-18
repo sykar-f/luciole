@@ -1,5 +1,5 @@
 /**
- * `import "@luciole-sh/core/grammars"`: Tree-sitter grammars for the languages OpenTUI 0.5.12 does not
+ * `import "@luciole-sh/core/grammars"`: Tree-sitter grammars for the languages OpenTUI 0.6.6 does not
  * highlight on its own (it ships JavaScript, TypeScript, Markdown and Zig), and TypeScript
  * and TSX done right. Once imported,
  * `<code>`, `<diff>` and `<Markdown>` code blocks in these languages are highlighted.

@@ -1,5 +1,5 @@
 /* eslint-disable no-magic-numbers -- Fixed cell geometry, colors and a bounded memory-growth proof. */
-// This page is bundled against 0.6.6 sources; the repository's types stay pinned to 0.5.12.
+// This page exercises the pinned 0.6.6 sources and their WebAssembly port.
 import { growMemory } from "./opentui-066-setup";
 import { BoxRenderable, TextRenderable, StyledText, fg } from "@opentui/core";
 import { createTestRenderer } from "@opentui/core/testing";
@@ -30,9 +30,23 @@ async function check() {
       borderStyle: "single",
       borderColor: "#ff0000",
     });
+    const measured = new BoxRenderable(renderer, {
+      id: "measured",
+      position: "absolute",
+      top: 3,
+      left: 0,
+      width: "auto",
+      height: "auto",
+    });
+    measured.setMeasureProvider(() => ({ width: 7, height: 1 }));
+    renderer.root.add(measured);
     const text = new TextRenderable(renderer, { id: "text", content: "hello" });
     box.add(text);
     renderer.root.add(box);
+    await renderOnce();
+    const initialMeasurement = { width: measured.width, height: measured.height };
+    if (initialMeasurement.width !== 7 || initialMeasurement.height !== 1)
+      throw new Error(`Native measurement writes were lost: ${measured.width}x${measured.height}`);
     const read = () => {
       const buffer = renderer.currentRenderBuffer;
       if (!hasScopedBuffers(buffer)) throw new Error("0.6.6 scoped buffer access is missing");
@@ -82,8 +96,11 @@ async function check() {
     const before = read();
     const bytesBefore = before.memory.byteLength;
     growMemory();
+    measured.setMeasureProvider(() => ({ width: 9, height: 1 }));
     text.content = "grown";
     const cellsAfterGrowth = await frame("grown", [255, 255, 255, 255]);
+    if (measured.width !== 9 || measured.height !== 1)
+      throw new Error("Native measurement writes were lost after memory growth");
     const bytesAfter = read().memory.byteLength;
     const detached = before.view.byteLength === 0;
     if (bytesAfter <= bytesBefore || !detached)
@@ -91,6 +108,7 @@ async function check() {
     return {
       boxCells,
       changedText,
+      measuredAfterGrowth: { width: measured.width, height: measured.height },
       memoryGrowth: { bytesBefore, bytesAfter, detached, cellsAfterGrowth },
       ok: true,
     };

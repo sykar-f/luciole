@@ -1,4 +1,4 @@
-; OpenTUI 0.5.12's typescript highlights (assets/typescript/highlights.scm), with `#lua-match?`
+; OpenTUI 0.6.6's typescript highlights (assets/typescript/highlights.scm), with `#lua-match?`
 ; turned into `#match?` (and `%d` into `\\d`): web-tree-sitter ignores the Lua predicate, so
 ; every identifier matched its patterns and was drawn as a constant.
 ; Query from: https://raw.githubusercontent.com/nvim-treesitter/nvim-treesitter/refs/heads/master/queries/ecma/highlights.scm

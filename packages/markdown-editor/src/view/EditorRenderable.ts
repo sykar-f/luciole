@@ -215,7 +215,7 @@ export class MarkdownEditorRenderable extends Renderable {
 
   /** The paint-only translation must not move the document window or its chrome. */
   private get windowY() {
-    return (this.parent?.screenY ?? 0) + this._y + this.translateY;
+    return this.y;
   }
   private get projecting() {
     return Reflect.get(this.ctx, "isProjectionPass") === true;
@@ -371,7 +371,7 @@ export class MarkdownEditorRenderable extends Renderable {
   private column() {
     const spare = Number.isFinite(this.reading) && this.width >= MIN_MARGINED;
     const room = spare ? this.width - HANG * 2 : this.width - (this.bar ? 1 : 0);
-    const width = Math.max(1, Math.min(room, this.reading));
+    const width = Math.max(1, Math.floor(Math.min(room, this.reading)));
     const offset = Math.max(0, Math.floor((this.width - width) / 2));
     return { width, offset };
   }
@@ -452,10 +452,6 @@ export class MarkdownEditorRenderable extends Renderable {
           : {}),
       },
     );
-    // The projected node's default hit rectangle moves up, but the document
-    // window also paints its entering bottom row at the fixed viewport edge.
-    if (this.projecting && this.screenY < this.windowY)
-      this.ctx.addToHitGrid(this.screenX, this.windowY + this.height - 1, this.width, 1, this.num);
     this.drawScrollbar(buffer, layout, theme);
     if (!this.projecting) this.placeCursor(layout);
   }

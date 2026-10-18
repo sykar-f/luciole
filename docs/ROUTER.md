@@ -71,7 +71,7 @@ attendues et que les fichiers des exemples sont à jour. Le bundle Client résou
   déjà un `window` minimal ; `createApplication` ajoute un `scrollTo` no-op.
 - **Reconciler.** TanStack commit ses navigations via `startTransition`. Le
   reconciler 0.34 appelle alors `suspendOnActiveViewTransition`, absent du host
-  config d'OpenTUI 0.5.12. Le framework reste donc sur reconciler 0.33.0, dans la
+  config d'OpenTUI 0.6.6. Le framework reste donc sur reconciler 0.33.0, dans la
   plage déclarée par OpenTUI, sans override ni patch ; `tests/renderer.test.tsx`
   garde ce point (le chemin est invisible sous `act()`).
 

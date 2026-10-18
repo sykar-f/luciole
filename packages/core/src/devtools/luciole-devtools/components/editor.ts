@@ -29,7 +29,7 @@ export function sourceLocation(root: string | undefined, source: string, absolut
   return { path, file, line };
 }
 
-export function openInEditor(
+export async function openInEditor(
   renderer: CliRenderer,
   root: string | undefined,
   source: string,
@@ -45,11 +45,11 @@ export function openInEditor(
     Bun.spawn([command, ...args], { stdio: ["ignore", "ignore", "ignore"] }).unref();
     return `Opened ${path}:${line} in ${name}.`;
   }
-  renderer.suspend();
+  await renderer.suspend();
   try {
     Bun.spawnSync([command, ...args], { stdio: ["inherit", "inherit", "inherit"] });
   } finally {
-    renderer.resume();
+    if (!renderer.isDestroyed) await renderer.resume();
   }
   return `Edited ${path}:${line}.`;
 }

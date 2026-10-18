@@ -18,7 +18,7 @@ test(
         "--eval",
         `
       import { createCliRenderer, BoxRenderable } from "@opentui/core";
-      const r = await createCliRenderer({useThread:false, exitOnCtrlC:false, exitSignals:[]});
+      const r = await createCliRenderer({exitOnCtrlC:false, exitSignals:[]});
       const events=[];
       const box=new BoxRenderable(r,{width:10,height:5,onMouse:e=>events.push(e.type)});
       r.root.add(box);

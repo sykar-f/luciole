@@ -487,7 +487,7 @@ function Canvas<N extends Node, E extends Edge>(props: FlowProps<N, E>) {
       overflow="hidden"
       onSizeChange={() => {
         const box = canvas.current;
-        if (box) store.setSize({ width: box.width, height: box.height });
+        if (box && !box.isDestroyed) store.setSize({ width: box.width, height: box.height });
       }}
       onMouseDown={onMouseDown}
       onMouseDrag={onMouseDrag}
@@ -562,7 +562,7 @@ function NodeView({
   const detail = detailFor(store.viewport.zoom);
   const measure = () => {
     const box = ref.current;
-    if (box && box.width > 0 && box.height > 0)
+    if (box && !box.isDestroyed && box.width > 0 && box.height > 0)
       store.measure(node.id, { width: box.width, height: box.height, detail });
   };
   return (
@@ -671,8 +671,8 @@ function EdgeLayer({
                 ? theme.selected
                 : (cell.color ?? roleColor(theme, cell.role));
           buffer.setCellWithAlphaBlending(
-            this.x + x,
-            this.y + y,
+            Math.round(this.x + x),
+            Math.round(this.y + y),
             cell.char,
             rgba(color),
             cell.role === "label" ? labelBg : TRANSPARENT,

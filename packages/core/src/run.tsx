@@ -6,6 +6,7 @@
  * web runtime replaces this module (docs/WEB.md, W1).
  */
 import { definedProperties } from "./defined-properties";
+import { constants } from "node:os";
 import * as z from "zod/mini";
 import { createCliRenderer, type CliRenderer } from "@opentui/core";
 import { createRoot } from "@opentui/react";
@@ -42,6 +43,8 @@ const DevMessage = z.union([
 const SUPERVISOR_REPLY_MS = 1000;
 // A failure reported to the supervisor: its message, cut to this many characters.
 const FAILURE_MESSAGE_MAX = 2000;
+/** Shell exit status for a signal is 128 plus its platform signal number. */
+const SIGNAL_EXIT_BASE = 128;
 /**
  * Development only: the bearer the previous Client of this `luciole dev` held. It lives
  * in the supervisor's memory, never on disk, so a rebuild does not ask to sign in again.
@@ -146,50 +149,84 @@ export async function run(
     app.buildError = message.data.message;
     app.notify();
   });
-  // Handlers first: from here on a signal must stop the tunnel, the renderer is optional.
+  // Handlers first: from here on a signal must stop the tunnel, even during setup.
   let renderer: CliRenderer | undefined;
-  // One end only: a hangup reaches the Client twice (from the kernel, and forwarded by a
-  // launcher in between), and a quit waits for its leave.
+  let creating: Promise<CliRenderer> | undefined;
+  // A hangup may reach the Client twice. Every exit waits for terminal restoration.
   let ending = false;
-  const end = (how: () => void) => () => {
+  const stop = async (code: number) => {
+    try {
+      const active = renderer ?? (await creating);
+      active?.destroy();
+      await active?.closed;
+    } catch (error) {
+      console.error(messageOf(error));
+      code = 1;
+    } finally {
+      connection.close();
+      process.exit(code);
+    }
+  };
+  const end = (how: () => Promise<void>) => () => {
     if (ending) return;
     ending = true;
-    how();
-  };
-  const stop = () => {
-    renderer?.destroy();
-    connection.close();
-    process.exit(0);
+    void how().catch((error: unknown) => {
+      console.error(messageOf(error));
+      return stop(1);
+    });
   };
   // A signal is not the user's choice (a rebuild, a closed terminal, a killed process):
   // the session stays on disk to be restored. Quitting (Ctrl+C, `app.quit`) deletes it.
-  const interrupted = end(() => {
+  const interruptWith = (code: number) =>
+    end(async () => {
+      session.flush(app.restoration.snapshot());
+      await stop(code);
+    });
+  const interrupted = interruptWith(0);
+  const failed = (error: unknown) => {
+    if (ending) return;
+    ending = true;
+    console.error(error);
     session.flush(app.restoration.snapshot());
-    stop();
-  });
+    void stop(1);
+  };
   // Voluntary: a Server the launcher manages stops once its last Client left it.
-  const quit = end(() => {
+  const quit = end(async () => {
     session.remove();
-    void (connection.managed?.leave() ?? Promise.resolve()).then(stop);
+    await connection.managed?.leave();
+    await stop(0);
   });
-  // SIGHUP: the terminal closed; the Client and its tunnel must not outlive it. A desktop
-  // window is the application itself: closing it hangs its PTY up, and the user quit.
   process.on("SIGTERM", interrupted);
   process.on("SIGINT", interrupted);
+  // Closing a desktop window is a voluntary quit; a terminal hangup keeps the session.
   process.on("SIGHUP", desktop ? quit : interrupted);
+  // Keep OpenTUI's other terminating signals, with their conventional exit codes.
+  // SIGBREAK exists on Windows only; SIGPIPE keeps Bun's ignored default.
+  for (const signal of ["SIGQUIT", "SIGABRT", "SIGBUS", "SIGBREAK"] as const) {
+    const number = constants.signals[signal];
+    if (number !== undefined) process.on(signal, interruptWith(SIGNAL_EXIT_BASE + number));
+  }
+  process.on("beforeExit", interrupted);
   app.quit = quit;
-  renderer = await createCliRenderer({ exitOnCtrlC: false });
-  // OpenTUI restores the terminal on its own signals only: any other `process.exit`
-  // (the Client's own, a library's) would leave it raw, on the alternate screen.
-  process.on("exit", () => renderer?.destroy());
-  devtools?.attach(app, renderer);
-  const root = createRoot(renderer);
-  // RouterProvider's Transitioner performs the initial load.
-  root.render(<Shell app={app} />);
-  // Unless something already took the key: a focused <Terminal> sends Ctrl+C to its
-  // program. A tree that failed to mount prevents nothing, so Ctrl+C still quits.
-  if (app.options.quitOnCtrlC !== false)
-    renderer.keyInput.on("keypress", (key) => {
-      if (key.ctrl && key.name === "c" && !key.defaultPrevented) quit();
-    });
+  try {
+    // Luciole owns signals and Ctrl+C so it can save the session and close the tunnel
+    // before exit. OpenTUI's destroy remains asynchronous on every path.
+    // Explicit app process.exit() uses OpenTUI's synchronous native exit hook on
+    // the real stdout fd. A second exit reset would pop terminal modes twice.
+    // Uncaught errors keep OpenTUI's existing non-fatal console behavior.
+    creating = createCliRenderer({ exitOnCtrlC: false, exitSignals: [] });
+    renderer = await creating;
+    void renderer.closed.then(interrupted, failed);
+    if (ending || renderer.isDestroyed) return;
+    devtools?.attach(app, renderer);
+    const root = createRoot(renderer);
+    root.render(<Shell app={app} />);
+    // A focused <Terminal> sends Ctrl+C to its program. Otherwise it quits this Client.
+    if (app.options.quitOnCtrlC !== false)
+      renderer.keyInput.on("keypress", (key) => {
+        if (key.ctrl && key.name === "c" && !key.defaultPrevented) quit();
+      });
+  } catch (error) {
+    failed(error);
+  }
 }

@@ -9,7 +9,7 @@
  *   hides: the rich reply's final screen shows none.
  *
  * Fails above MARKDOWN_MAX_OSCILLATIONS (0) or MARKDOWN_MAX_RAW_FRAMES (0) raw frames per
- * run. For comparison, OpenTUI 0.5.12's `<markdown internalBlockMode="top-level">` gives
+ * run. For comparison, OpenTUI's `<markdown internalBlockMode="top-level">` gives
  * 0 and 19 oscillations, 62 and 282 raw frames.
  * MARKDOWN_FRAMES=<dir> writes the samples there as JSON.
  *

@@ -10,7 +10,7 @@ import type { MarkedToken, Token, Tokens } from "marked";
 /**
  * Markdown blocks to what the terminal draws, synchronously: no Tree-sitter pass, so what
  * a block shows while it streams is what it shows once done. The look is the one OpenTUI's
- * `<markdown conceal>` gives a finished reply (0.5.12, coalesced blocks): the source's lines
+ * `<markdown conceal>` gives a finished reply (0.6.6, coalesced blocks): the source's lines
  * with their markers hidden, list bullets kept and colored, one blank line around code,
  * quotes, rules and tables. Headings differ: each level has its own band and spacing.
  */

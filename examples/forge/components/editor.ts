@@ -13,7 +13,11 @@ import { join } from "node:path";
 // editor exits: Forge reviews revisions, it has no way to take local edits back.
 
 /** The part of OpenTUI's renderer that hands the terminal over and takes it back. */
-export type Terminal = { suspend(): void; resume(): void };
+export type Terminal = {
+  readonly isDestroyed: boolean;
+  suspend(): Promise<void>;
+  resume(): Promise<void>;
+};
 export type Opened = { editor: string; exitCode: number; edited: boolean };
 
 /** `$VISUAL`, then `$EDITOR`, then `vi`, as git does. Whitespace separates arguments. */
@@ -39,8 +43,10 @@ export async function openInEditor(
   await writeFile(path, file.content, { mode: 0o444 });
   const line =
     file.line && LINE_ARGUMENT.test(editor.split("/").at(-1) ?? "") ? [`+${file.line}`] : [];
-  terminal.suspend();
+  let suspended = false;
   try {
+    await terminal.suspend();
+    suspended = true;
     const exitCode = await new Promise<number>((resolve, reject) => {
       spawn(editor, [...args, ...line, path], { stdio: "inherit" })
         .once("error", reject)
@@ -48,7 +54,10 @@ export async function openInEditor(
     });
     return { editor, exitCode, edited: (await readFile(path, "utf8")) !== file.content };
   } finally {
-    terminal.resume();
-    await rm(directory, { recursive: true, force: true });
+    try {
+      if (suspended && !terminal.isDestroyed) await terminal.resume();
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
   }
 }
