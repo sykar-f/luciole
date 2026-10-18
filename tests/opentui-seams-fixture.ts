@@ -19,7 +19,7 @@ import { createTestRenderer } from "@opentui/core/testing";
 import { detectOpenTuiSeams, type RenderHitMap } from "../packages/core/src/web/opentui-seams";
 import { detectScrollableViewport } from "../packages/core/src/web/opentui-seams";
 import { PixelController } from "../packages/core/src/web/pixel-scroll/controller";
-import { decode, encode } from "../packages/core/src/pixel-scroll/protocol";
+import { decode, decodePayload, encode, OSC } from "../packages/core/src/pixel-scroll/protocol";
 import { MarkdownEditorRenderable } from "../packages/markdown-editor/src/view/EditorRenderable";
 
 const bytes = (s: string) => new TextEncoder().encode(s);
@@ -92,7 +92,7 @@ test("planned output keeps one envelope across partial sink writes and backpress
   }
 });
 
-async function setup(width = 12, height = 4) {
+async function setup(width = 12, height = 4, outputBufferSize?: number) {
   const chunks: string[] = [];
   const stdout = createTestStdout(width, height);
   stdout._write = (chunk: Buffer, _encoding, done) => {
@@ -105,11 +105,72 @@ async function setup(width = 12, height = 4) {
     stdout,
     bufferedOutput: "stdout",
     useMouse: true,
+    ...(outputBufferSize === undefined
+      ? {}
+      : { nativeSession: new NativeSession(stdout, { outputBufferSize }) }),
   });
   const found = detectOpenTuiSeams(setup.renderer);
   if (!found.available) throw new Error(`Missing seams: ${found.missing.join(", ")}`);
   return { ...setup, r: found.renderer, chunks, stdout };
 }
+
+test("partial native frame reads keep checkpoint metadata after the complete paint", async () => {
+  const f = await setup(12, 4, 17);
+  const terminal = new Terminal({ cols: 12, rows: 4, allowProposedApi: true });
+  await new Promise<void>((resolve) => terminal.write(f.chunks.join(""), resolve));
+  f.stdout._write = (chunk: Buffer, _encoding, done) => terminal.write(chunk, done);
+  const observed: { op: string; rows: string[] }[] = [];
+  terminal.parser.registerOscHandler(OSC, (payload) => {
+    const operation = decodePayload(payload);
+    if (operation?.op === "register" || operation?.op === "commit")
+      observed.push({
+        op: operation.op,
+        rows: [0, 1].map(
+          (y) => terminal.buffer.active.getLine(y)?.translateToString(true).trimEnd() ?? "",
+        ),
+      });
+    return true;
+  });
+  const view = new BoxRenderable(f.r, { width: 12, height: 2, overflow: "hidden" });
+  const content = new BoxRenderable(f.r, { width: 12, height: 4, flexShrink: 0 });
+  view.add(content);
+  f.r.root.add(view);
+  for (const text of ["AAAA", "BBBB", "CCCC", "DDDD"])
+    content.add(new TextRenderable(f.r, { content: text, height: 1, width: 12 }));
+  f.r.setFramePlan(() => ({
+    before: bytes(encode({ op: "begin", version: 1, generation: 1 })),
+    after: bytes(
+      encode({
+        op: "register",
+        version: 1,
+        generation: 1,
+        id: 1,
+        origin: 0,
+        rect: { x: 0, y: 0, width: 12, height: 2 },
+      }),
+    ),
+    projection: {
+      renderable: content,
+      translateX: 0,
+      translateY: -1,
+      after: bytes(
+        encode({ op: "step", version: 1, id: 1, generation: 1, fraction: 0.5 }) +
+          encode({ op: "commit", version: 1, generation: 1 }),
+      ),
+    },
+  }));
+  try {
+    await f.renderOnce();
+    await f.r.idle();
+    expect(observed).toEqual([
+      { op: "register", rows: ["AAAA", "BBBB"] },
+      { op: "commit", rows: ["BBBB", "CCCC"] },
+    ]);
+  } finally {
+    await f.dispose();
+    terminal.dispose();
+  }
+});
 
 test("logical editor focus precedes cursor delivery through a held borrowed sink", async () => {
   const f = await setup(12, 16);
