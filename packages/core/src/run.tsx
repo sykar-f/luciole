@@ -6,6 +6,7 @@
  * web runtime replaces this module (docs/WEB.md, W1).
  */
 import { definedProperties } from "./defined-properties";
+import { constants } from "node:os";
 import * as z from "zod/mini";
 import { createCliRenderer, type CliRenderer } from "@opentui/core";
 import { createRoot } from "@opentui/react";
@@ -42,6 +43,8 @@ const DevMessage = z.union([
 const SUPERVISOR_REPLY_MS = 1000;
 // A failure reported to the supervisor: its message, cut to this many characters.
 const FAILURE_MESSAGE_MAX = 2000;
+/** Shell exit status for a signal is 128 plus its platform signal number. */
+const SIGNAL_EXIT_BASE = 128;
 /**
  * Development only: the bearer the previous Client of this `luciole dev` held. It lives
  * in the supervisor's memory, never on disk, so a rebuild does not ask to sign in again.
@@ -174,10 +177,12 @@ export async function run(
   };
   // A signal is not the user's choice (a rebuild, a closed terminal, a killed process):
   // the session stays on disk to be restored. Quitting (Ctrl+C, `app.quit`) deletes it.
-  const interrupted = end(async () => {
-    session.flush(app.restoration.snapshot());
-    await stop(0);
-  });
+  const interruptWith = (code: number) =>
+    end(async () => {
+      session.flush(app.restoration.snapshot());
+      await stop(code);
+    });
+  const interrupted = interruptWith(0);
   const failed = (error: unknown) => {
     if (ending) return;
     ending = true;
@@ -195,6 +200,12 @@ export async function run(
   process.on("SIGINT", interrupted);
   // Closing a desktop window is a voluntary quit; a terminal hangup keeps the session.
   process.on("SIGHUP", desktop ? quit : interrupted);
+  // Keep OpenTUI's other terminating signals, with their conventional exit codes.
+  // SIGBREAK exists on Windows only; SIGPIPE keeps Bun's ignored default.
+  for (const signal of ["SIGQUIT", "SIGABRT", "SIGBUS", "SIGBREAK"] as const) {
+    const number = constants.signals[signal];
+    if (number !== undefined) process.on(signal, interruptWith(SIGNAL_EXIT_BASE + number));
+  }
   process.on("beforeExit", interrupted);
   app.quit = quit;
   try {

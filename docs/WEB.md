@@ -470,7 +470,10 @@ des captures.
 ## 6. Risques
 
 Le Client natif attend `renderer.closed` après `destroy()` sur ses chemins de
-sortie (signaux, Ctrl+C, quit, erreur fatale de démarrage). Un `process.exit()`
+sortie (signaux, Ctrl+C, quit, erreur fatale de démarrage). SIGINT, SIGTERM et
+SIGHUP gardent leur code 0 ; SIGQUIT, SIGABRT, SIGBUS et SIGBREAK, si la plateforme
+les expose, sortent avec 128 plus le numéro du signal. SIGPIPE reste ignoré.
+Un `process.exit()`
 explicite de l’app passe par le hook natif synchrone d’OpenTUI 0.6.6 ; luciole
 n’installe plus de hook `exit` qui détruit le renderer. Le drainage synchrone
 ne fonctionne que vers le vrai fd stdout : une écriture en vol vers une sortie

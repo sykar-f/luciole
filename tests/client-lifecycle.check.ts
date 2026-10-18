@@ -1,6 +1,7 @@
 /** Real terminal restoration for each Client exit path, selected explicitly. */
 import { expect, test } from "bun:test";
 import { join } from "node:path";
+import { constants } from "node:os";
 import { ctrl, drive } from "../scripts/pty/driver";
 import { BUN, build, startServer } from "../scripts/pty/harness";
 import { privateExample } from "../scripts/web/private-example";
@@ -42,11 +43,22 @@ export default function Layout() {
     await using server = await startServer(directory.app, {
       NOTES_DB: join(directory.path, "notes.sqlite"),
     });
+    const signals: NodeJS.Signals[] = ["SIGINT", "SIGTERM", "SIGHUP", "SIGQUIT", "SIGABRT"];
+    const exitCodes: Record<string, number> = {
+      exit: 3,
+      "output-error": 1,
+      SIGQUIT: 131,
+      SIGABRT: 134,
+    };
+    for (const signal of ["SIGBUS", "SIGBREAK"] as const) {
+      const number = constants.signals[signal];
+      if (number === undefined) continue;
+      signals.push(signal);
+      exitCodes[signal] = 128 + number;
+    }
     for (const mode of [
       "ctrl-c",
-      "SIGINT",
-      "SIGTERM",
-      "SIGHUP",
+      ...signals,
       "desktop-hup",
       "quit",
       "destroy",
@@ -67,9 +79,10 @@ export default function Layout() {
         },
       });
       await terminal.waitFor("Closure test ready");
+      const signal = signals.find((signal) => signal === mode);
       if (mode === "ctrl-c") terminal.write(ctrl("c"));
       else if (mode === "desktop-hup") terminal.signal("SIGHUP");
-      else if (mode === "SIGINT" || mode === "SIGTERM" || mode === "SIGHUP") terminal.signal(mode);
+      else if (signal) terminal.signal(signal);
       else terminal.signal("SIGUSR1");
       if (mode === "throw" || mode === "reject") {
         await terminal.until(
@@ -82,9 +95,7 @@ export default function Layout() {
         expect(terminal.running).toBe(true);
         terminal.signal("SIGTERM");
       }
-      expect(await terminal.exited(), mode).toBe(
-        mode === "exit" ? 3 : mode === "output-error" ? 1 : 0,
-      );
+      expect(await terminal.exited(), mode).toBe(exitCodes[mode] ?? 0);
       terminal.assertRestored();
       // A failed sink cannot carry ANSI resets, but raw mode still restores above.
       if (mode !== "output-error")
