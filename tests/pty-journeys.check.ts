@@ -39,7 +39,11 @@ for (const script of [
         console.error(built.stderr.toString());
         expect(built.exitCode, "Files prerequisite build").toBe(0);
       }
-      const result = await execute([process.execPath, `scripts/pty/${script}.ts`]);
+      const result = await execute(
+        script === "smoke"
+          ? [process.execPath, "run", "test:pty"]
+          : [process.execPath, `scripts/pty/${script}.ts`],
+      );
       console.log(result.stdout.toString());
       console.error(result.stderr.toString());
       expect(result.exitCode, script).toBe(0);
