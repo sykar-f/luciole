@@ -1,5 +1,5 @@
 /** @jsxImportSource @opentui/react */
-import { expect, test } from "bun:test";
+import { expect, spyOn, test } from "bun:test";
 import { chmod, mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -65,6 +65,16 @@ if [ -n "$FAKE_EDIT" ]; then chmod u+w "$last"; echo "local change" >> "$last"; 
   await chmod(editor, 0o755);
   const forge = await startForge(built);
   const { ui, step, waitFor, operator } = forge;
+  // A test renderer has no terminal session to suspend. Model both asynchronous
+  // handoffs here; the real terminal restoration is exercised by the Forge PTY journey.
+  const suspended = Promise.withResolvers<void>();
+  const resumed = Promise.withResolvers<void>();
+  const suspend = spyOn(ui.renderer, "suspend")
+    .mockImplementationOnce(() => suspended.promise)
+    .mockResolvedValue(undefined);
+  const resume = spyOn(ui.renderer, "resume")
+    .mockImplementationOnce(() => resumed.promise)
+    .mockResolvedValue(undefined);
   const saved = { ...process.env };
   // The Client runs in this process: its environment is the reviewer's terminal.
   Object.assign(process.env, {
@@ -87,6 +97,19 @@ if [ -n "$FAKE_EDIT" ]; then chmod u+w "$last"; echo "local change" >> "$last"; 
     for (let i = 0; i < 8; i++) await step(() => ui.mockInput.typeText("j"));
     await waitFor("line 9");
     await step(() => ui.mockInput.typeText("e"));
+    await step(async () => {
+      while (!suspend.mock.calls.length) await Bun.sleep(1);
+    });
+    // The child cannot use the terminal until suspension has completed.
+    expect(await Bun.file(marker).exists()).toBe(false);
+    suspended.resolve();
+    await step(async () => {
+      while (!resume.mock.calls.length) await Bun.sleep(1);
+    });
+    expect(await Bun.file(marker).exists()).toBe(true);
+    await ui.renderOnce();
+    expect(ui.captureCharFrame()).not.toContain("Viewed settlement@r1.ts in");
+    resumed.resolve();
     await waitFor("Viewed settlement@r1.ts in");
 
     const [head, content] = (await Bun.file(marker).text()).split("---\n");
@@ -130,6 +153,8 @@ if [ -n "$FAKE_EDIT" ]; then chmod u+w "$last"; echo "local change" >> "$last"; 
     await step(() => ui.mockInput.typeText("]"));
     await waitFor("src/settlement.ts · typescript");
   } finally {
+    suspend.mockRestore();
+    resume.mockRestore();
     await forge.stop();
     for (const key of Object.keys(process.env)) if (!(key in saved)) delete process.env[key];
     Object.assign(process.env, saved);

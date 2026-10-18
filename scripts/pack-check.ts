@@ -420,7 +420,31 @@ export async function checkPackage(dir: string, log: (line: string) => void): Pr
     );
     const installed = await run(["bun", "install"], consumer);
     if (installed.code !== 0) return [`install failed: ${installed.out}`];
-    if (name === "@luciole-sh/core") problems.push(...(await checkCoreTypes(consumer, log)));
+    if (name === "@luciole-sh/core") {
+      problems.push(...(await checkCoreTypes(consumer, log)));
+      // An import alone misses resource ownership and duplicate renderer copies.
+      const rendered = await run(
+        [
+          "bun",
+          "-e",
+          `
+        import { createTestRenderer } from "@opentui/core/testing";
+        import { syntaxStyle } from "@luciole-sh/core/client";
+        import { dirname } from "node:path";
+        const client = Bun.resolveSync("@luciole-sh/core/client", process.cwd());
+        for (const name of ["@opentui/core", "@opentui/react", "@opentui/keymap"]) {
+          if (Bun.resolveSync(name, process.cwd()) !== Bun.resolveSync(name, dirname(client)))
+            throw new Error(name + ": duplicate renderer dependency");
+        }
+        const ui = await createTestRenderer({ width: 8, height: 2 });
+        try { syntaxStyle({}, ui.renderer); } finally { await ui.dispose(); }
+      `,
+        ],
+        consumer,
+      );
+      if (rendered.code !== 0) problems.push(`packed renderer ownership failed: ${rendered.out}`);
+      else log(`${name}: renderer ownership and dependency identity ok`);
+    }
     // `engines` naming bun and not node: TypeScript sources only bun loads.
     const nodeAllowed =
       !manifest.engines || "node" in manifest.engines || !("bun" in manifest.engines);

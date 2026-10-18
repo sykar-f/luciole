@@ -128,6 +128,11 @@ test(
     // Core and the editor are released together: both ask for this release.
     expect(manifest.dependencies["@luciole-sh/core"]).toBe(`^${version}`);
     expect(manifest.dependencies["@luciole-sh/markdown-editor"]).toBe(`^${version}`);
+    for (const name of ["@opentui/core", "@opentui/react", "@opentui/keymap"])
+      expect(manifest.dependencies[name]).toBe("0.6.6");
+    const drawer = await Bun.file(join(starter, "components/Drawer.tsx")).text();
+    expect(drawer).toContain("getTimelineEngine(renderer)");
+    expect(drawer).toContain("createTimeline({ autoplay: false }, renderer)");
     for (const dependencies of [manifest.dependencies, manifest.devDependencies])
       expect(unresolved(dependencies)).toEqual([]);
     expect(await Bun.file(join(starter, "package.json")).text()).not.toMatch(

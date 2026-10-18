@@ -52,7 +52,8 @@ export function Markdown({ content, streaming, syntaxStyle, onLink, imageBase }:
     [stream, syntaxStyle, background, imageBase],
   );
   const blocks = stream.update(content, streaming);
-  const linkAt = (event: MouseEvent) => (onLink ? renderer.getLinkAt(event.x, event.y) : null);
+  const linkAt = (event: MouseEvent) =>
+    onLink && !renderer.isDestroyed ? renderer.getLinkAt(event.x, event.y) : null;
   return (
     <box
       flexDirection="column"
@@ -67,8 +68,12 @@ export function Markdown({ content, streaming, syntaxStyle, onLink, imageBase }:
         const url = linkAt(event);
         if (url) onLink(url);
       }}
-      onMouseMove={(event) => renderer.setMousePointer(linkAt(event) ? "pointer" : "default")}
-      onMouseOut={() => renderer.setMousePointer("default")}
+      onMouseMove={(event) => {
+        if (!renderer.isDestroyed) renderer.setMousePointer(linkAt(event) ? "pointer" : "default");
+      }}
+      onMouseOut={() => {
+        if (!renderer.isDestroyed) renderer.setMousePointer("default");
+      }}
     >
       {blocks.map((block) => (
         <BlockView key={block.key} nodes={block.nodes} marginTop={block.marginTop} look={look} />
@@ -120,6 +125,7 @@ function useTerminalBackground() {
   useEffect(() => {
     let live = true;
     const ask = () => {
+      if (renderer.isDestroyed) return;
       renderer
         .getPalette({ timeout: PALETTE_TIMEOUT_MS })
         .then((colors) => {
