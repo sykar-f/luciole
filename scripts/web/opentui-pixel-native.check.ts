@@ -18,6 +18,14 @@ const checkout = join(
 const native = join(checkout, "packages/native");
 const zig = process.env["ZIG"] ?? "zig";
 let prepared = false;
+function stopGroup(pid: number) {
+  // A compiler driver can leave descendants after a timeout.
+  try {
+    process.kill(-pid, "SIGTERM");
+  } catch (error) {
+    if (!(error instanceof Error && "code" in error && error.code === "ESRCH")) throw error;
+  }
+}
 async function run(command: string[], cwd = checkout) {
   const child = Bun.spawn(command, {
     cwd,
@@ -30,12 +38,7 @@ async function run(command: string[], cwd = checkout) {
   try {
     expect(await child.exited).toBe(0);
   } finally {
-    // A compiler driver can leave descendants after a timeout.
-    try {
-      process.kill(-child.pid, "SIGTERM");
-    } catch (error) {
-      if (!(error instanceof Error && "code" in error && error.code === "ESRCH")) throw error;
-    }
+    stopGroup(child.pid);
   }
 }
 test(
