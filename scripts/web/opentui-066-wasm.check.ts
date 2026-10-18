@@ -15,6 +15,7 @@ import { Browser } from "./cdp";
 const VERSION = "0.6.6";
 const HASH_LENGTH = 16;
 const TIMEOUT_MS = 240_000;
+const NOT_FOUND = 404;
 const Result = z.object({ ok: z.literal(true) });
 
 test(
@@ -80,6 +81,8 @@ test(
       port: 0,
       fetch(request) {
         const path = new URL(request.url).pathname;
+        if (!["/", "/page.js", "/opentui.wasm"].includes(path))
+          return new Response(null, { status: NOT_FOUND });
         return new Response(Bun.file(join(directory, path === "/" ? "index.html" : path.slice(1))));
       },
     });
