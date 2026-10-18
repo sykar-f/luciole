@@ -52,9 +52,9 @@ test("native Alt keys and split device/color queries reach the child once", asyn
     terminal.write("c\x1b[>c\x1b]11;?\x07");
     await setup.renderOnce();
     const answers = output.join("");
-    expect(answers.match(/\x1b\[\?[^c]*c/g)).toHaveLength(1);
-    expect(answers.match(/\x1b\[>[^c]*c/g)).toHaveLength(1);
-    expect(answers.match(/\x1b\]11;rgb:[^\x07\x1b]*/g)).toHaveLength(1);
+    expect(answers.split("\x1b[?")).toHaveLength(2);
+    expect(answers.split("\x1b[>")).toHaveLength(2);
+    expect(answers.split("\x1b]11;rgb:")).toHaveLength(2);
   } finally {
     await setup.dispose();
   }

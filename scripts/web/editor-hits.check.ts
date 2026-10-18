@@ -10,6 +10,7 @@ import { Browser } from "./cdp";
 
 const TIMEOUT_MS = 240_000;
 const HASH_LENGTH = 16;
+const LAST_ROW = 4;
 test(
   "web last-row editor presses use screen and document coordinates",
   async () => {
@@ -73,12 +74,12 @@ test(
         "!!globalThis.editorHits?.lines().some(line => line.includes('line 2'))",
         "the editor's last row",
       );
-      for (const top of [0, 4])
+      for (const top of [0, LAST_ROW])
         for (const scroll of [0, 2]) {
           const block = 2 + scroll / 2;
           await browser.evaluate(`editorHits.at(${top}, ${scroll})`);
           await browser.waitFor(
-            `editorHits.lines()[${top + 4}]?.slice(2,8)==='line ${block}'`,
+            `editorHits.lines()[${top + LAST_ROW}]?.slice(2,8)==='line ${block}'`,
             "the last visible document row",
           );
           await browser.clickAt(`editorHits.point(${top})`);
