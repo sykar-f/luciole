@@ -44,7 +44,8 @@ async function check() {
     box.add(text);
     renderer.root.add(box);
     await renderOnce();
-    if (measured.width !== 7 || measured.height !== 1)
+    const initialMeasurement = { width: measured.width, height: measured.height };
+    if (initialMeasurement.width !== 7 || initialMeasurement.height !== 1)
       throw new Error(`Native measurement writes were lost: ${measured.width}x${measured.height}`);
     const read = () => {
       const buffer = renderer.currentRenderBuffer;
