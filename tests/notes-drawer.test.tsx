@@ -1,6 +1,6 @@
 /** Drawer animations belong to one renderer and can be cleaned up after it closes. */
 import { expect, test } from "bun:test";
-import { act, useState } from "react";
+import { act, useEffect, useState } from "react";
 import { getTimelineEngine } from "@opentui/core";
 import { testRender } from "@opentui/react/test-utils";
 import { Drawer } from "../examples/notes/components/Drawer";
@@ -10,7 +10,9 @@ test("two Notes drawers animate independently and close safely mid-animation", a
   const toggles: (() => void)[] = [];
   function Panel({ slot }: { slot: number }) {
     const [open, setOpen] = useState(true);
-    toggles[slot] = () => setOpen(false);
+    useEffect(() => {
+      toggles[slot] = () => setOpen(false);
+    }, [slot]);
     return (
       <Drawer open={open} width={20} railWidth={2} rail={<text>R</text>}>
         <text>Drawer content</text>
