@@ -1,0 +1,282 @@
+diff --git a/packages/native/build.zig b/packages/native/build.zig
+index 84cafc7..7e0a27f 100644
+--- a/packages/native/build.zig
++++ b/packages/native/build.zig
+@@ -360,7 +360,9 @@ fn addNativeAudioDependencies(
+     target: std.Build.ResolvedTarget,
+     macos_sdk_path: ?[]const u8,
+ ) void {
+-    addMiniaudioShim(b, module, target, macos_sdk_path);
++    // miniaudio needs threads and a sound device: none in a browser.
++    if (!target.result.cpu.arch.isWasm()) addMiniaudioShim(b, module, target, macos_sdk_path);
++    module.link_libc = true;
+     addImageShim(b, module, target, macos_sdk_path);
+ 
+     switch (target.result.os.tag) {
+@@ -376,7 +378,10 @@ fn addNativeAudioDependencies(
+ 
+ fn addYogaDependencies(b: *std.Build, module: *std.Build.Module, test_allocator: bool) void {
+     const yoga_dep = b.dependency("yoga", .{});
+-    const flags = if (test_allocator)
++    // wasm32 has no C++ exception runtime; Yoga aborts on a fatal assert instead.
++    const flags = if (module.resolved_target.?.result.cpu.arch.isWasm())
++        &YOGA_CXX_FLAGS_WASM
++    else if (test_allocator)
+         appendCFlags(b, &YOGA_CXX_FLAGS, &.{"-DOT_YOGA_TEST_ALLOCATOR"})
+     else
+         &YOGA_CXX_FLAGS;
+@@ -845,6 +850,8 @@ fn buildTarget(
+     }
+ }
+ 
++const YOGA_CXX_FLAGS_WASM = [_][]const u8{ "-std=c++20", "-fno-exceptions", "-frtti" };
++
+ fn createLibraries(
+     b: *std.Build,
+     target: std.Build.ResolvedTarget,
+@@ -864,6 +871,17 @@ fn createLibraries(
+     applyDependencies(b, module, optimize, target, build_options);
+     addNativeAudioDependencies(b, module, target, macos_sdk_path);
+     addYogaDependencies(b, module, false);
++    if (target.result.cpu.arch.isWasm()) {
++        module.strip = true;
++        // A browser loads a reactor module: no entry point, every `export fn` exported.
++        const wasm = b.addExecutable(.{ .name = LIB_NAME, .root_module = module });
++        wasm.entry = .disabled;
++        wasm.wasi_exec_model = .reactor;
++        wasm.rdynamic = true;
++        // Callbacks from JavaScript are functions the host adds to this table.
++        wasm.import_table = true;
++        return .{ wasm, wasm };
++    }
+     const shared = b.addLibrary(.{
+         .name = LIB_NAME,
+         .root_module = module,
+diff --git a/packages/native/src/clipboard/host.zig b/packages/native/src/clipboard/host.zig
+index 1edeab4..1c0223f 100644
+--- a/packages/native/src/clipboard/host.zig
++++ b/packages/native/src/clipboard/host.zig
+@@ -138,6 +138,8 @@ fn tryJoinThread(thread: std.Thread) bool {
+             thread.join();
+             break :blk true;
+         },
++        // A browser has no clipboard worker thread: the service never starts one.
++        .wasi => true,
+         else => @compileError("Unsupported clipboard worker target"),
+     };
+ }
+diff --git a/packages/native/src/context-abi.zig b/packages/native/src/context-abi.zig
+index 1abe280..1ab48e3 100644
+--- a/packages/native/src/context-abi.zig
++++ b/packages/native/src/context-abi.zig
+@@ -4942,7 +4942,9 @@ fn nullablePointer(comptime T: type) ?std.builtin.Type.Pointer {
+ // export_symbols. These checks tie the header to Zig declarations that it does not define.
+ comptime {
+     @setEvalBranchQuota(10_000);
+-    if (@sizeOf(usize) != 8) @compileError("The OpenTUI C ABI requires a 64-bit target");
++    // wasm32: the records carry addresses as u64 and lengths as u32, so their layout is
++    // the 64-bit one; the record checks below still run.
++    if (@sizeOf(usize) != 8 and !@import("builtin").cpu.arch.isWasm()) @compileError("The OpenTUI C ABI requires a 64-bit target");
+     const MousePointerStyle = @import("terminal.zig").MousePointerStyle;
+     for (std.meta.tags(MousePointerStyle)) |style| {
+         var name: [@tagName(style).len]u8 = undefined;
+diff --git a/packages/native/src/context-handles.zig b/packages/native/src/context-handles.zig
+index d2959be..93e3bdd 100644
+--- a/packages/native/src/context-handles.zig
++++ b/packages/native/src/context-handles.zig
+@@ -36,7 +36,23 @@ pub const Error = error{
+ };
+ 
+ // Only identity allocation is shared. IDs never wrap or identify a later context.
+-var last_context_id: std.atomic.Value(u64) = .init(0);
++// wasm32 has no 64-bit atomics; its module is single-threaded.
++var last_context_id: if (@import("builtin").single_threaded) SingleThreadedId else std.atomic.Value(u64) = .init(0);
++
++const SingleThreadedId = struct {
++    raw: u64,
++    fn init(value: u64) SingleThreadedId {
++        return .{ .raw = value };
++    }
++    fn load(self: *const SingleThreadedId, comptime _: std.builtin.AtomicOrder) u64 {
++        return self.raw;
++    }
++    fn cmpxchgWeak(self: *SingleThreadedId, expected: u64, new: u64, comptime _: std.builtin.AtomicOrder, comptime _: std.builtin.AtomicOrder) ?u64 {
++        if (self.raw != expected) return self.raw;
++        self.raw = new;
++        return null;
++    }
++};
+ 
+ const Slot = struct {
+     generation: u32 = 1,
+diff --git a/packages/native/src/context.zig b/packages/native/src/context.zig
+index 5bbdb79..062c22c 100644
+--- a/packages/native/src/context.zig
++++ b/packages/native/src/context.zig
+@@ -20,7 +20,8 @@ const edit_buffer = @import("edit-buffer.zig");
+ const editor_view = @import("editor-view.zig");
+ const ansi = @import("ansi.zig");
+ const image = @import("image.zig");
+-const audio = @import("audio.zig");
++const wasm = @import("builtin").cpu.arch.isWasm();
++const audio = if (wasm) @import("wasm-unsupported.zig").audio else @import("audio.zig");
+ const clipboard = @import("clipboard/host.zig");
+ const encoded_unicode = @import("encoded-unicode.zig");
+ pub const embedded_terminal = if (@import("ghostty_vt_options").available)
+diff --git a/packages/native/src/lib.zig b/packages/native/src/lib.zig
+index 8c662de..a1c26ca 100644
+--- a/packages/native/src/lib.zig
++++ b/packages/native/src/lib.zig
+@@ -3,8 +3,9 @@ pub const std_options = @import("runtime-abi.zig").std_options;
+ 
+ comptime {
+     @import("context-abi.zig").export_symbols();
+-    _ = @import("audio-abi.zig");
+     _ = @import("clipboard-abi.zig");
++    // A browser has no sound device; the host gets allocation exports instead.
++    if (!@import("builtin").cpu.arch.isWasm()) _ = @import("audio-abi.zig") else _ = @import("wasm-host.zig");
+     _ = @import("native-span-feed-abi.zig");
+     _ = @import("runtime-abi.zig");
+     _ = @import("yoga.zig");
+diff --git a/packages/native/src/scene-record.zig b/packages/native/src/scene-record.zig
+index d4dba98..a59c0f8 100644
+--- a/packages/native/src/scene-record.zig
++++ b/packages/native/src/scene-record.zig
+@@ -136,45 +136,43 @@ fn zeroHandle(value: c.ot_handle) bool {
+     return value.context_id == 0 and value.slot == 0 and value.generation == 0;
+ }
+ 
+-comptime {
+-    std.debug.assert(@sizeOf(usize) >= 8); // commandSize adds up to four u32 lengths.
+-}
++// commandSize adds up to four u32 lengths: it counts in u64 on every target.
+ 
+ /// Unpadded byte count of a command record, after checking its fixed fields.
+-fn commandSize(operation: u32, body: []const u8) !usize {
++fn commandSize(operation: u32, body: []const u8) !u64 {
+     switch (operation) {
+         c.OT_SCENE_RECORD_DRAW => {
+             const value = try fixed(c.ot_scene_record_draw, body);
+             const draw = try fixed(c.ot_buffer_draw_header, body[@sizeOf(c.ot_scene_record_draw)..]);
+             if (value.text_length > c.OT_BUFFER_TEXT_BYTES_MAX or value.bottom_length > c.OT_BUFFER_TEXT_BYTES_MAX or
+                 (draw.operation != c.OT_BUFFER_DRAW_COMPOSE and !zeroHandle(value.source))) return error.InvalidOptions;
+-            return @sizeOf(c.ot_scene_record_draw) + @as(usize, draw.struct_size) + value.text_length + value.bottom_length;
++            return @sizeOf(c.ot_scene_record_draw) + @as(u64, draw.struct_size) + value.text_length + value.bottom_length;
+         },
+         c.OT_SCENE_RECORD_STACK => return @sizeOf(c.ot_scene_record_stack),
+         c.OT_SCENE_RECORD_GRID => {
+             const value = try fixed(c.ot_scene_record_grid, body);
+-            return @sizeOf(c.ot_scene_record_grid) + (@as(usize, value.column_count) + value.row_count) * @sizeOf(i32);
++            return @sizeOf(c.ot_scene_record_grid) + (@as(u64, value.column_count) + value.row_count) * @sizeOf(i32);
+         },
+         c.OT_SCENE_RECORD_PACKED => {
+             const value = try fixed(c.ot_scene_record_packed, body);
+             if (value.reserved != 0) return error.InvalidOptions;
+-            return @sizeOf(c.ot_scene_record_packed) + @as(usize, value.byte_count);
++            return @sizeOf(c.ot_scene_record_packed) + @as(u64, value.byte_count);
+         },
+         c.OT_SCENE_RECORD_SUPERSAMPLE => {
+             const value = try fixed(c.ot_scene_record_supersample, body);
+             if (value.reserved != 0) return error.InvalidOptions;
+-            return @sizeOf(c.ot_scene_record_supersample) + @as(usize, value.byte_count);
++            return @sizeOf(c.ot_scene_record_supersample) + @as(u64, value.byte_count);
+         },
+         c.OT_SCENE_RECORD_GRAYSCALE => {
+             const value = try fixed(c.ot_scene_record_grayscale, body);
+             const flags = c.OT_SCENE_RECORD_GRAYSCALE_FOREGROUND | c.OT_SCENE_RECORD_GRAYSCALE_BACKGROUND | c.OT_SCENE_RECORD_GRAYSCALE_SUPERSAMPLED;
+             if (value.flags & ~@as(u32, flags) != 0) return error.InvalidOptions;
+-            return @sizeOf(c.ot_scene_record_grayscale) + @as(usize, value.sample_count) * @sizeOf(f32);
++            return @sizeOf(c.ot_scene_record_grayscale) + @as(u64, value.sample_count) * @sizeOf(f32);
+         },
+         c.OT_SCENE_RECORD_COLOR_MATRIX => {
+             const value = try fixed(c.ot_scene_record_color_matrix, body);
+             if (value.has_mask > 1 or (value.has_mask == 0 and value.mask_count != 0)) return error.InvalidOptions;
+-            return @sizeOf(c.ot_scene_record_color_matrix) + @as(usize, value.mask_count) * @sizeOf(f32);
++            return @sizeOf(c.ot_scene_record_color_matrix) + @as(u64, value.mask_count) * @sizeOf(f32);
+         },
+         c.OT_SCENE_RECORD_TEXT_VIEW, c.OT_SCENE_RECORD_EDITOR_VIEW, c.OT_SCENE_RECORD_SCENE_TEXT => return @sizeOf(c.ot_scene_record_view),
+         c.OT_SCENE_RECORD_IMAGE => return @sizeOf(c.ot_scene_record_image),
+@@ -209,7 +207,7 @@ pub fn index(bytes: []const u8, slots: []const PaintSlot, segments: []Segments)
+             current.?.* = .{ .start = @intCast(offset + size), .end = @intCast(offset + size) };
+         } else {
+             const segment = current orelse return error.InvalidOptions;
+-            if (std.mem.alignForward(usize, try commandSize(header.operation, body), 8) != size) return error.InvalidOptions;
++            if (std.mem.alignForward(u64, try commandSize(header.operation, body), 8) != size) return error.InvalidOptions;
+             segment.end = @intCast(offset + size);
+         }
+         offset += size;
+diff --git a/packages/native/src/wasm-host.zig b/packages/native/src/wasm-host.zig
+new file mode 100644
+index 0000000..d111a5a
+--- /dev/null
++++ b/packages/native/src/wasm-host.zig
+@@ -0,0 +1,12 @@
++//! What a WebAssembly host needs beyond OpenTUI's own exports: memory it can copy
++//! JavaScript buffers into before a call (the host has no address for its own memory).
++const std = @import("std");
++
++export fn opentuiWasmAlloc(len: usize) ?[*]u8 {
++    const p = std.c.malloc(if (len == 0) 1 else len) orelse return null;
++    return @ptrCast(p);
++}
++
++export fn opentuiWasmFree(ptr: ?[*]u8) void {
++    std.c.free(ptr);
++}
+diff --git a/packages/native/src/wasm-unsupported.zig b/packages/native/src/wasm-unsupported.zig
+new file mode 100644
+index 0000000..081e15a
+--- /dev/null
++++ b/packages/native/src/wasm-unsupported.zig
+@@ -0,0 +1,11 @@
++//! Audio in a browser: no sound device. context.zig keeps the object kind; creating one fails.
++const std = @import("std");
++
++pub const audio = struct {
++    pub const Engine = opaque {};
++    pub const CreateOptions = extern struct { reserved: u32 };
++    pub fn create(_: std.mem.Allocator, _: ?*const CreateOptions) ?*Engine {
++        return null;
++    }
++    pub fn destroy(_: *Engine) void {}
++};
+diff --git a/packages/native/src/yoga-bridge.cpp b/packages/native/src/yoga-bridge.cpp
+index 735459f..40690d6 100644
+--- a/packages/native/src/yoga-bridge.cpp
++++ b/packages/native/src/yoga-bridge.cpp
+@@ -24,6 +24,11 @@ namespace {
+ // throw, so no exception unwinds through a Zig frame.
+ template <typename F>
+ uint32_t checked(F&& operation) noexcept {
++#if !__cpp_exceptions
++  // wasm32 builds without exceptions: an allocation failure aborts instead.
++  operation();
++  return OT_YOGA_OK;
++#else
+   try {
+     operation();
+     return OT_YOGA_OK;
+@@ -32,6 +37,7 @@ uint32_t checked(F&& operation) noexcept {
+   } catch (...) {
+     return OT_YOGA_EXCEPTION;
+   }
++#endif
+ }
+ 
+ constexpr float undefined = std::numeric_limits<float>::quiet_NaN();
+@@ -73,11 +79,15 @@ uint32_t otYogaConfigCreate(YGConfigRef* out) noexcept {
+ }
+ 
+ int otYogaFormatLog(uint8_t* out, uint32_t capacity, const char* format, va_list args) noexcept {
++#if !__cpp_exceptions
++  return std::vsnprintf(reinterpret_cast<char*>(out), capacity, format, args);
++#else
+   try {
+     return std::vsnprintf(reinterpret_cast<char*>(out), capacity, format, args);
+   } catch (...) {
+     return -1;
+   }
++#endif
+ }
+ 
+ uint32_t otYogaNodeCreate(YGConfigConstRef config, YGNodeRef* out) noexcept {
