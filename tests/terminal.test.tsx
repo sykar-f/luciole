@@ -9,7 +9,7 @@ import { createDefaultOpenTuiKeymap } from "@opentui/keymap/opentui";
 import { KeymapProvider, useBindings } from "@opentui/keymap/react";
 import { Terminal } from "../packages/core/src/client";
 import { legacyKey, VtTerminalRenderable } from "../packages/core/src/vt/gaps";
-import { WAIT_MS, destroy, execute, until, type TestUI } from "./helpers";
+import { WAIT_MS, eventually, destroy, execute, until, type TestUI } from "./helpers";
 
 const key = (name: string, mods: Partial<{ ctrl: boolean; meta: boolean; shift: boolean }> = {}) =>
   new KeyEvent({
@@ -112,16 +112,18 @@ test("<Terminal> runs a shell: keys, host prefix, Ctrl+C, resize, exit", async (
     );
   }
   let ui: TestUI | undefined;
-  const frame = () => {
-    void ui?.renderOnce();
-    return ui?.captureCharFrame() ?? "";
+  let lastFrame = "";
+  const frame = async () => {
+    await ui?.renderOnce();
+    lastFrame = ui?.captureCharFrame() ?? "";
+    return lastFrame;
   };
   const shows = (text: string) =>
     act(async () => {
-      await until(
-        () => frame().includes(text),
+      await eventually(
+        async () => (await frame()).includes(text),
         WAIT_MS,
-        () => `waiting for ${text}:\n${frame()}`,
+        () => `waiting for ${text}:\n${lastFrame}`,
       );
     });
   const type = (text: string) =>
@@ -156,8 +158,8 @@ test("<Terminal> runs a shell: keys, host prefix, Ctrl+C, resize, exit", async (
     await type("printf 'p%s\\n' $$");
     let shell = "";
     await act(async () => {
-      await until(() => {
-        shell = /^p(\d+)\s*$/m.exec(frame())?.[1] ?? "";
+      await eventually(async () => {
+        shell = /^p(\d+)\s*$/m.exec(await frame())?.[1] ?? "";
         return shell !== "";
       }, WAIT_MS);
     });

@@ -18,7 +18,16 @@ import {
   type ApplicationOptions,
 } from "../packages/core/src/client";
 import { ApplicationView } from "../packages/core/src/embed";
-import { WAIT_MS, destroy, launch, privateBuild, rejectionOf, until, type TestUI } from "./helpers";
+import {
+  WAIT_MS,
+  eventually,
+  destroy,
+  launch,
+  privateBuild,
+  rejectionOf,
+  until,
+  type TestUI,
+} from "./helpers";
 
 const mdBuilt = await privateBuild("examples/mdreader");
 const filesBuilt = await privateBuild("examples/files");
@@ -127,23 +136,23 @@ test("<Embed>: two applications, keys to the active pane, focus set aside, crash
       </Host>,
       { width: 200, height: 24 },
     );
-    const frame = () => {
-      void ui?.renderOnce();
+    const frame = async () => {
+      await ui?.renderOnce();
       return ui?.captureCharFrame() ?? "";
     };
     await act(async () => {
-      await until(
-        () => frame().includes("The first document.") && frame().includes("guide.md"),
-        WAIT_MS,
-      );
+      await eventually(async () => {
+        const shown = await frame();
+        return shown.includes("The first document.") && shown.includes("guide.md");
+      }, WAIT_MS);
       // files asks for the preview of its selected entry PREVIEW_DELAY_MS after its list
       // shows (examples/files/components/Explorer.tsx): a baseline taken before that call
       // ends would count it among what a key set off.
       await until(() => finished(fxApp, "actions/files.ts#preview"), WAIT_MS);
     });
     // A crash stays in its pane.
-    expect(frame()).toContain("bomb crashed:");
-    expect(frame()).toContain("pane exploded");
+    expect(await frame()).toContain("bomb crashed:");
+    expect(await frame()).toContain("pane exploded");
 
     // `[` belongs to mdreader: with mdreader active it opens the previous document…
     const fxBefore = count(fxApp);
@@ -151,8 +160,9 @@ test("<Embed>: two applications, keys to the active pane, focus set aside, crash
       ui?.mockInput.pressKey("[");
       // files' preview of guide.md can show the same text: mdreader's own navigation is
       // what says mdreader opened it.
-      await until(
-        () => reached(mdApp, "/doc/guide.md") && frame().includes("The second document."),
+      await eventually(
+        async () =>
+          reached(mdApp, "/doc/guide.md") && (await frame()).includes("The second document."),
         WAIT_MS,
       );
     });

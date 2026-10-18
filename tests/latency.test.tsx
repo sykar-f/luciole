@@ -9,6 +9,7 @@ import {
   launch,
   privateBuild,
   until,
+  eventually,
   importClient,
   destroy,
   metricsOf,
@@ -85,8 +86,8 @@ test("500 ms RTT delays Flight and actions while input, hover and scroll stay lo
     // A read-only Server Function does not refresh the page.
     const released = performance.now();
     request.release();
-    await until(() => {
-      void ui.renderOnce();
+    await eventually(async () => {
+      await ui.renderOnce();
       return ui.captureCharFrame().includes("Server replied in");
     });
     // The one-way latency is applied again on the way back.

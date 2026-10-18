@@ -57,13 +57,19 @@ const frame = async (ui: TestUI) => {
 /** Renders frames, which drive the timelines, until `check` holds. */
 const untilRendered = async (ui: TestUI, check: () => boolean) => {
   const deadline = performance.now() + WAIT_MS;
-  while (!check() && performance.now() < deadline)
+  while (performance.now() < deadline) {
+    let holds = false;
     await act(async () => {
       await ui.renderOnce();
-      // The step of a poll bounded by WAIT_MS, not a wait for the outcome.
+      holds = check();
+    });
+    if (holds) return;
+    // The step of a bounded poll, not a wait for the outcome.
+    await act(async () => {
       await Bun.sleep(10);
     });
-  expect(check()).toBe(true);
+  }
+  throw new Error("Frame condition timed out");
 };
 /** Renders frames until one shows `text`. */
 const untilShown = (ui: TestUI, text: string | RegExp) =>
@@ -96,7 +102,7 @@ async function eventually(check: () => boolean, timeout = WAIT_MS) {
 }
 /** Opens the welcome note, ready to type at its end. */
 async function write(app: Parameters<typeof path>[0], ui: TestUI) {
-  await act(async () => until(() => ui.captureCharFrame().includes("Welcome to Notes")));
+  await untilShown(ui, "Welcome to Notes");
   await click(ui, "Welcome to Notes");
   await act(async () => until(() => path(app) === "/notes/1"));
   await writeAtEnd(ui);
@@ -134,7 +140,7 @@ test(
     try {
       expect(server.pid).not.toBe(process.pid);
       // The list is read through a Server Function by the persistent layout.
-      await act(async () => until(() => ui.captureCharFrame().includes("Shopping list")));
+      await untilShown(ui, "Shopping list");
       await click(ui, "Welcome to Notes");
       await act(async () => until(() => path(app) === "/notes/1"));
       // Read as Markdown: headings without their markers, and nothing to type into.
@@ -232,7 +238,7 @@ test(
   async () => {
     const { app, ui, server, stop } = await start("notes-pointer");
     try {
-      await act(async () => until(() => ui.captureCharFrame().includes("Shopping list")));
+      await untilShown(ui, "Shopping list");
       expect(await frame(ui)).toContain("No note selected");
       // The list's bar runs from one edge of the list to the other; the page's "+ New note"
       // is a block, a row of air above and below its words.
@@ -301,7 +307,7 @@ test(
         await ui.mockInput.typeText(" (week)");
         ui.mockInput.pressEnter();
       });
-      await act(async () => until(() => ui.captureCharFrame().includes("Shopping list (week)")));
+      await untilShown(ui, "Shopping list (week)");
 
       // Saved elsewhere while this Client edits (Return left the title for the text): its
       // text is kept, and "Keep mine" wins.
@@ -320,7 +326,7 @@ test(
             operationId: crypto.randomUUID(),
           },
         ]);
-        await until(() => ui.captureCharFrame().includes("Your text is kept here"));
+        await untilShown(ui, "Your text is kept here");
       });
       expect(draft.value.endsWith("mine")).toBe(true);
       await click(ui, "Keep mine");
@@ -337,12 +343,12 @@ test(
       await press(ui, "note-menu");
       await untilShown(ui, "Copy as Markdown");
       await click(ui, "Delete");
-      await act(async () => until(() => ui.captureCharFrame().includes("Deleted “Plans”")));
+      await untilShown(ui, "Deleted “Plans”");
       expect(path(app)).not.toBe(`/notes/${id}`);
       expect(await frame(ui)).toContain(`${count - 1} notes`);
       await click(ui, "Undo");
       await act(async () => until(() => path(app) === `/notes/${id}`));
-      await act(async () => until(() => ui.captureCharFrame().includes(`${count} notes`)));
+      await untilShown(ui, `${count} notes`);
     } finally {
       await stop();
     }
