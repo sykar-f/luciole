@@ -172,7 +172,14 @@ function ImagePreview({
   // The pane's size in pixels, for the protocol that draws it (kitty: real pixels).
   const measure = useCallback(() => {
     const image = view.current;
-    if (!image || image.width <= 0 || image.height <= 0) return;
+    if (
+      renderer.isDestroyed ||
+      !image ||
+      image.isDestroyed ||
+      image.width <= 0 ||
+      image.height <= 0
+    )
+      return;
     const blocks = image.effectiveProtocol === "blocks";
     const cell = renderer.resolution
       ? {

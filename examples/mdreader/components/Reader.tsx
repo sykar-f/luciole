@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { useRenderer } from "@opentui/react";
 import type { MarkdownRenderable, ScrollBoxRenderable } from "@opentui/core";
 import { useBindings } from "@luciole-sh/core/client";
 import { DocFrame, Line, READING_WIDTH } from "./frames";
@@ -39,6 +40,7 @@ function position({ top, height, total }: View) {
  * position survives a reload.
  */
 export function Reader({ doc }: { doc: Doc }) {
+  const renderer = useRenderer();
   const syntax = useSyntax();
   const { mode, setMode } = useMode();
   const scroll = useRef<ScrollBoxRenderable>(null);
@@ -56,7 +58,7 @@ export function Reader({ doc }: { doc: Doc }) {
   const measure = () => {
     const box = scroll.current;
     const md = markdown.current;
-    if (!box || !md) return;
+    if (renderer.isDestroyed || !box || box.isDestroyed || !md || md.isDestroyed) return;
     const next = { top: box.scrollTop, height: box.viewport.height, total: box.scrollHeight };
     // The saved position applies once the document is laid out tall enough.
     if (restore.current && next.total > next.height) {
@@ -78,7 +80,8 @@ export function Reader({ doc }: { doc: Doc }) {
   });
   useEffect(
     () => () => {
-      if (scroll.current) positions.set(doc.path, scroll.current.scrollTop);
+      if (scroll.current && !scroll.current.isDestroyed)
+        positions.set(doc.path, scroll.current.scrollTop);
     },
     [doc.path],
   );

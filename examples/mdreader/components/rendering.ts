@@ -65,6 +65,7 @@ function lineStart(text: string, needle: string, from: number) {
  * (`_parseState`, `_blockStates`): see README, limits.
  */
 export function locateHeadings(markdown: MarkdownRenderable, origin: number): Heading[] {
+  if (markdown.isDestroyed) return [];
   const headings = (markdown._parseState?.tokens ?? []).flatMap((t) =>
     t.type === "heading" ? [t] : [],
   );
@@ -73,6 +74,7 @@ export function locateHeadings(markdown: MarkdownRenderable, origin: number): He
   for (const block of markdown._blockStates) {
     if (next >= headings.length) break;
     const { renderable, tokenRaw } = block;
+    if (renderable.isDestroyed) return [];
     if (block.token.type !== "paragraph" && block.token.type !== "heading") continue;
     const sources = hasLines(renderable) ? renderable.lineInfo.lineSources : [];
     let from = 0;
