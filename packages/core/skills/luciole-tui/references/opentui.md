@@ -140,10 +140,12 @@ starts cleanup synchronously; `closed` can reject if output fails.
   owned offscreen buffer, then compose it; use a post-process callback for whole-frame
   effects. A buffered custom renderable can read its own buffer, but text/editor/image
   hooks still receive recording buffers. See [custom renderables](https://opentui.com/docs/extend/custom-renderables/).
-- Round animated coordinates at the drawing boundary. Low-level drawing calls reject
-  fractional, non-finite or out-of-range coordinates with `RangeError`; unsigned sizes
-  and coordinates also reject negatives. Keep fractional animation state separate from
-  integer cell coordinates. See `node_modules/@opentui/core/buffer.d.ts`.
+- Round animated coordinates at the drawing boundary. Draw positions must be finite
+  integers in the signed 32-bit range; other values throw `RangeError`. Negative positions
+  are accepted and clip. `fillRect` and `drawBox` draw nothing when width or height is
+  zero or negative. Unsigned fields, such as `drawFrameBuffer` source coordinates,
+  reject negatives. Keep fractional animation state separate from integer cell coordinates.
+  See `node_modules/@opentui/core/buffer.d.ts`.
 
 ## Editor text and offsets
 

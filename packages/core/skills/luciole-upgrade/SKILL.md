@@ -42,7 +42,9 @@ Run every command from the app's directory. The upgrade guide is
    When crossing to OpenTUI 0.6.6, audit native styles for a renderer owner, await
    `suspend()`/`resume()` and `closed` at terminal handoff/shutdown, and move frame loops
    and timelines onto their renderer. Audit paint hooks for recording-buffer reads and
-   round low-level draw coordinates. Check conditional layout props (removal resets the
+   round draw positions to finite signed 32-bit integers. Negative positions clip;
+   `fillRect`/`drawBox` with non-positive sizes draw nothing. Unsigned fields such as
+   `drawFrameBuffer` source coordinates reject negatives. Check conditional layout props (removal resets the
    default; `visible={null}` shows), style reads (renderable getters), and editor offsets
    (`measureEditText` accounts for controls). Read the `luciole-tui` skill’s
    `references/opentui.md` and the installed upstream boundary guide for the exact rules.

@@ -53,8 +53,8 @@ Create syntax styles for the current `useRenderer()` with
 styles per renderer. Widgets borrow styles; the creator releases them with `destroy()`
 after consumers finish. A native style cached globally can outlive or reach another renderer.
 
-Await `renderer.suspend()` before giving an external editor the terminal, and await
-`renderer.resume()` in `finally`. luciole owns its Shell’s renderer. When you own a separate
+Await `renderer.suspend()` before an external editor takes control of your terminal emulator.
+Await `renderer.resume()` in `finally`. luciole owns its Shell’s renderer. When you own a separate
 renderer, call `renderer.destroy()` then await `renderer.closed` before reusing streams.
 `closed` waits for asynchronous cleanup and can reject on output failure.
 
@@ -80,10 +80,13 @@ computed layout. See [layout](https://opentui.com/docs/core-concepts/layout/).
 
 Unbuffered `renderBefore`, `renderSelf` and `renderAfter` hooks record drawing commands.
 Their buffer cannot read cells; use an owned offscreen buffer or whole-frame post-processing
-for cell effects. Text/editor/image hooks also record when buffered. Low-level drawing
-requires integer coordinates: fractional or invalid values throw `RangeError`. Round at
-the draw boundary rather than discarding fractional animation state.
+for cell effects. Text/editor/image hooks also record when buffered.
 See [custom renderables](https://opentui.com/docs/extend/custom-renderables/).
+
+Draw positions must be finite integers in the signed 32-bit range; other values throw
+`RangeError`. Negative positions clip. `fillRect` and `drawBox` draw nothing when width or
+height is zero or negative. Unsigned fields, such as `drawFrameBuffer` source coordinates,
+reject negatives. Round positions at the draw boundary while retaining fractional animation state.
 
 Editors preserve control characters since 0.6.1: C0/DEL display in two cells and C1 in four.
 Paste strips terminal escape sequences while retaining other controls. For custom selection

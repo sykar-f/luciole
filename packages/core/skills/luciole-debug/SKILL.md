@@ -115,8 +115,10 @@ A lost response invalidates nothing. See
 For a cross-renderer style error, find a module-global native style and create it for the
 current `useRenderer()` instead. A paint-hook cell read fails on a recording buffer;
 move the effect into an owned buffer or a post-process callback. A drawing `RangeError`
-can mean fractional coordinates: round at the draw call and validate sizes. A node that
-reappears after a prop change may have received `visible={null}`; use `false` to hide it.
+can mean a position outside finite signed 32-bit integers: round at the draw call and
+check the range. Negative positions clip; `fillRect`/`drawBox` with non-positive sizes draw
+nothing. Unsigned fields such as `drawFrameBuffer` source coordinates reject negatives.
+A node that reappears after a prop change may have received `visible={null}`; use `false` to hide it.
 Removed layout props restore defaults in 0.6.6. Read the `luciole-tui` skill’s
 `references/opentui.md` for these rules and the editor control-character offset changes.
 
