@@ -2,9 +2,11 @@
 // that run in a page, /examples shows them all. `demo` is the directory scripts/demo.ts
 // builds under public/demo/; without one, the app needs a real terminal and the page
 // shows its capture (scripts/capture.py).
-import type { Step } from "../components/LiveTerminal.astro";
 import { runCommands, type RunCommands } from "./example-commands";
 import fakeHarness from "../../../packages/harness/src/adapters/fake.ts?raw";
+
+/** Wait for text, send keys, then pause; timeout is the maximum wait in milliseconds. */
+export type Step = { wait: string; type: string; pause?: number; timeout?: number };
 
 export interface Example extends RunCommands {
   name: string;

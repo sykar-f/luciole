@@ -17,7 +17,7 @@ import { ansi, GLOW_HOT, GLOW_WARM, lines, patch, type Frame } from "../lib/fram
  * `timeout`: how long `wait` may take, 8 s unless the application needs longer (a
  * scripted agent streams its answer).
  */
-export type Step = { wait: string; type: string; pause?: number; timeout?: number };
+export type Step = import("../lib/examples").Step;
 
 interface Props {
   /** The demo's directory under public/demo/. */

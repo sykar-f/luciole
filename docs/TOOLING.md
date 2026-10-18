@@ -69,7 +69,9 @@ internes gardent de simples types TypeScript.
   `noPropertyAccessFromIndexSignature`, `noUncheckedIndexedAccess` et `noUnusedLocals`.
   Le `packages/core/tsconfig.base.json` destiné aux applications reste inchangé.
   `packages/desktop` et `website/` ont chacun leur propre `check` (Electrobun,
-  `astro check`), absent de celui de la racine.
+  `astro sync` puis TypeScript 7), absent de celui de la racine. Le site fixe sa
+  propre dépendance TypeScript ; son contrôle couvre les fichiers `.ts` de `src/`,
+  pas les frontmatters ni les blocs `<script>` des fichiers `.astro`.
 
 - `bun run lint` / `lint:fix` : Oxlint, avec TypeScript et règles React pertinentes, sur
   tout le dépôt sauf quatre fichiers de `packages/desktop` qui ont besoin des types

@@ -39,7 +39,7 @@ bun run dev        # http://localhost:4321
 bun scripts/og.ts http://localhost:4321   # public/og.png, après un changement de palette ou de capture
 bun run demo       # public/demo/notes/ : la démo live, à lancer avant build
 bun run build      # dist/, publiable sur n'importe quel hébergement statique
-bun run check      # astro check : types des composants et scripts
+bun run check      # astro sync puis TypeScript 7 : types des fichiers .ts
 ```
 
 ## Les composants des docs
@@ -123,7 +123,11 @@ n'apparaît pas dans `workspaces` : Astro, Vite et Shiki ne rejoignent pas le
 `node_modules` hoisté du framework, où `tests/dependencies.test.ts` exige un seul React
 et un seul OpenTUI. Oxlint et Oxfmt de la racine couvrent quand même ses sources.
 
-`typescript` y reste en 6.0.2 : `astro check` ne prend pas encore TypeScript 7.
+`typescript` 7.0.2 est une dépendance de développement du site, fixée dans son propre
+lockfile. `bun run check` lance `astro sync` pour générer `.astro/types.d.ts`, puis
+appelle explicitement `node_modules/typescript/bin/tsc --noEmit` : il fonctionne dès
+la première installation, sans préparation manuelle. Il vérifie les fichiers `.ts`
+de `src/`, mais pas les frontmatters ni les blocs `<script>` des fichiers `.astro`.
 
 ## Les écrans sont de vraies captures
 

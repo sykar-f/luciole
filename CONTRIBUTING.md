@@ -21,6 +21,18 @@ The website (`website/`) has its own dependencies:
 (cd website && bun install --frozen-lockfile)
 ```
 
+For a website change, run these checks from `website/`:
+
+```sh
+bun run check
+bun run lint
+bun run build
+```
+
+The website check first runs `astro sync` to generate its types. It then uses the
+website’s TypeScript 7 dependency to check `.ts` files in `src/`. It does not check
+frontmatter or `<script>` blocks in `.astro` files.
+
 Run an example from the monorepo root, for instance `bun run dev`. The
 [README](README.md) lists them.
 
